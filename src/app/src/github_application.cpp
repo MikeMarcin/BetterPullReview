@@ -6969,6 +6969,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					WorkbenchHost->resize_summary(aFraction);
 				}
 			});
+			// [[BPR-1334]]. The window's own Line details height, kept like
+			// the summary's: an explicit gesture or Reset, stored locally only.
+			Window->comparison_surface()->set_line_details_resize_sink([this](std::optional<std::uint32_t> aHeight) {
+				if (!Closing && WorkbenchHost != nullptr) {
+					WorkbenchHost->resize_line_details(aHeight);
+				}
+			});
 			Window->set_geometry_dispatch(
 				[this](const application::workbench_window_geometry& aGeometry) {
 					if (!Closing && WorkbenchHost != nullptr) {
@@ -22564,7 +22571,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& !window->conversations_drawer_toggle_action()->isChecked()
 				&& !window->review_details_toggle_action()->isChecked()
 				&& !window->epoch_selectors()->details_visible()
-				&& detail != nullptr && !detail->isVisible();
+				// [[BPR-1334]]. Line details is shown by default and is no
+				// longer a review detail.
+				&& detail != nullptr && detail->isVisible();
 			if (!focused) {
 				if (++probe.Waits <= 64U) {
 					return result::pending;
@@ -22884,7 +22893,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		auto* const reviewDetails  = window->review_details_toggle_action();
 		auto* const reviewControls = window->review_controls_button();
 		if (window->epoch_selectors()->details_visible()
-			|| detail == nullptr || detail->isVisible()
+			|| detail == nullptr || !detail->isVisible()
 			|| window->files_drawer()->width()
 				> qt::workbench_drawer_rail::width_pixels
 			|| window->conversations_drawer()->width()

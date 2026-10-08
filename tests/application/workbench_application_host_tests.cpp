@@ -1576,6 +1576,48 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1334]]. The window's Line details height takes the
+	/// summary's path: held until the record loads, merged on an orderly
+	/// close, validated, and Reset to the default.
+	void test_line_details_height_load_hold_validation_and_orderly_drain()
+	{
+		auto durable                     = fake_settings{ };
+		durable.Stored.FilesWidth        = 410U;
+		durable.Stored.SummaryFraction   = 5500U;
+		durable.Stored.LineDetailsHeight = 180U;
+		{
+			auto first = harness{ { }, &durable };
+			first.Host.restore();
+			first.Host.resize_line_details(200U);
+			first.Host.resize_line_details(240U);
+			expect(durable.Stores == 0U, "the height waits for the unread window record");
+			first.Host.shutdown_orderly();
+			first.settle();
+			expect(first.Host.is_quiescent() && durable.Stored.LineDetailsHeight == 240U && durable.Stored.SummaryFraction == 5500U
+					   && durable.Stored.FilesWidth == 410U,
+				   "orderly close merges the latest height into the loaded record and keeps the rest");
+		}
+		{
+			auto next = harness{ { }, &durable };
+			next.Host.restore();
+			next.settle();
+			expect(next.Host.layout().LineDetailsHeight == 240U
+					   && next.Projections.Published.back().Layout->LineDetailsHeight == std::optional{ std::optional<std::uint32_t>{ 240U } },
+				   "a restart projects the window's height");
+			const auto stores = durable.Stores;
+			next.Host.resize_line_details(application::maximum_line_details_height + 1U);
+			next.Host.resize_line_details(0U);
+			next.settle();
+			expect(durable.Stores == stores && next.Host.layout().LineDetailsHeight == 240U,
+				   "a height past the bound or zero cannot alter or write the preference");
+			next.Host.resize_line_details(std::nullopt);
+			next.settle();
+			expect(!durable.Stored.LineDetailsHeight && next.Projections.Published.back().Layout->LineDetailsHeight.has_value()
+					   && !*next.Projections.Published.back().Layout->LineDetailsHeight,
+				   "Reset persists and projects the default height");
+		}
+	}
+
 	void test_summary_reset_before_load_preserves_the_rest_of_the_record()
 	{
 		auto durable                   = fake_settings{ };
@@ -2233,6 +2275,7 @@ auto main() -> int
 	test_geometry_load_observation_and_orderly_drain();
 	test_summary_fraction_load_hold_validation_and_orderly_drain();
 	test_summary_reset_before_load_preserves_the_rest_of_the_record();
+	test_line_details_height_load_hold_validation_and_orderly_drain();
 	test_orderly_shutdown_failure_and_forced_escalation();
 	test_the_signed_out_authority_is_valid_and_a_half_named_one_is_not();
 	test_invalid_limits_are_rejected();

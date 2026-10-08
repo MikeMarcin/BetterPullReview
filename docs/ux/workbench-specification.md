@@ -37,7 +37,7 @@ authored and directly requested pull requests of the saved repositories
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Notes      │
 │                              │ one shared vertical scrollbar          │                              │
-│                              ├ full-width selected-change detail pane ┤                              │
+│                              ├ Line details: current line, base/head ┤                              │
 └──────────────────────────────┴────────────────────────────────────────┴──────────────────────────────┘
 ```
 
@@ -963,7 +963,6 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   drift or an input-receiver handoff jump.
 - Selecting a line, hunk, ribbon, comment, or defect synchronizes all relevant
   surfaces through the one semantic alignment model.
-- The lower pane is a full-width line-over-line detail view for the selected change group.
 - A keyboard line cursor ([[BPR-1212]]). With a code pane focused, Up and
   Down move the selected line on that pane's side, and Shift+Up and
   Shift+Down extend the selection from where it began; the cursor is the
@@ -993,6 +992,25 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   and the draft opens in the drawer. Return always starts on the selection, so
   Return on one line narrows a range draft ending there; Alt+C keeps reopening
   the line's draft as it is.
+- The lower pane is **Line details** ([[BPR-1334]]), RFC-BPR-0005's Beyond
+  Compare–inspired line-over-line pane. It shows the current line twice, full
+  width: the base version above the head version, each with its line number
+  and a −/+ mark in a gutter, and the changed characters highlighted in the
+  intraline colours. Long lines wrap; the strip never scrolls sideways. A text
+  selection across lines that holds the current line shows each selected
+  line's pair, up to sixteen, then how many more were selected. An unchanged
+  line shows both versions plainly. A removed or added line shows its own row
+  and says the other side has none ("Not in head"); an unpaired line in a
+  replacement names the lines it replaces. A line longer than 4,096 bytes is
+  cut at a character boundary and says how many bytes follow. The core decides
+  the rows, the cut and the highlight spans from the comparison's existing
+  mapping and intraline edits; Qt draws them. It is on by default. **View >
+  Line Details** and the Comparison row on Reviews and queue hide or show it
+  for the profile. Its top edge is a resize seam with the shared cursor hold:
+  drag it, or press Up/Down on it to move one text line; double-click it or use
+  its context menu to reset the height. The height a reader chose is kept per
+  window and survives a restart; a clamp in a small window does not erase it.
+  Review details no longer shows or hides it.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
 
 Conversation synchronization is exact rather than proximity-based. Selecting a
@@ -1099,7 +1117,7 @@ keeps it because it is followed, and **Save Repository**, offered while its
 repository is not saved for the account. Neither reaches GitHub; a pull
 request opened by link is only Recently viewed until one of them is used,
 and one read signed out offers neither. **View** holds the line-number toggle, the
-one-pane toggle, Hide Drawers ([[BPR-1295]]) and, after a separator, Settings…. The bar was added by
+one-pane toggle, Line Details ([[BPR-1334]]), Hide Drawers ([[BPR-1295]]) and, after a separator, Settings…. The bar was added by
 BPR-0457 because the owner asked for a "view menu option" and, offered the
 choice between a real menu bar and a checkable entry in the existing toolbar
 popup, chose the menu bar. On macOS it merges into the system menu bar and

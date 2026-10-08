@@ -337,6 +337,85 @@ namespace bpr::core {
 	[[nodiscard]] auto detail_for_selection(const diff_semantic_index& aIndex,
 											const semantic_selection&  aSelection)
 		-> line_detail_input;
+
+	/// \brief [[BPR-1334]]. What one row of Line details stands for.
+	enum class line_details_row_kind : std::uint8_t {
+		/// Both versions of the line are the same text.
+		unchanged,
+		/// A paired line whose text differs; its emphasis is the change.
+		changed,
+		/// A base line with no line in head.
+		removed,
+		/// A head line with no line in base.
+		added,
+		/// The side that has no version of the selected line.
+		absent,
+	};
+
+	/// \brief [[BPR-1334]]. One side's version of one line, ready to draw.
+	///
+	/// \details `Content` is the shown part of the line's bytes in its side's
+	/// document. A line longer than the limit is cut at a character boundary;
+	/// `OmittedBytes` counts the bytes after the cut, which needs no walk over
+	/// them, so a very long line costs no more than a short one. Each
+	/// `Emphasis` span is relative to `Content.Begin`, nonempty, ascending and
+	/// inside the shown part, so a highlight never reaches into the cut.
+	///
+	/// An `absent` row has no line and no content. It says where the other
+	/// side's line belongs on its side: the lines it replaces, or the boundary
+	/// it is inserted at.
+	struct line_details_row
+	{
+		diff_side                    Side = diff_side::left;
+		line_details_row_kind        Kind = line_details_row_kind::unchanged;
+		std::optional<std::uint32_t> Line;
+		byte_span                    Content;
+		std::uint64_t                OmittedBytes = 0U;
+		std::vector<byte_span>       Emphasis;
+		std::optional<line_span>     Replaces;
+		std::optional<std::uint32_t> Boundary;
+
+		auto operator<=>(const line_details_row&) const = default;
+	};
+
+	/// \brief [[BPR-1334]]. The bounds Line details works within.
+	///
+	/// \details The defaults are the product's. A selection longer than
+	/// `MaximumLines` shows its first lines and counts the rest; a line longer
+	/// than `MaximumLineBytes` is cut. Both keep one projection's work and its
+	/// painted text bounded however large the comparison is.
+	struct line_details_limits
+	{
+		std::uint32_t MaximumLines     = 16U;
+		std::uint64_t MaximumLineBytes = 4096U;
+
+		auto operator<=>(const line_details_limits&) const = default;
+	};
+
+	/// \brief [[BPR-1334]]. Line details for a selection: base over head.
+	///
+	/// \details Two rows per shown line, base first. `OmittedLines` counts the
+	/// selected lines past `MaximumLines`. A line the comparison cannot map
+	/// adds no rows.
+	struct line_details_projection
+	{
+		std::vector<line_details_row> Rows;
+		std::uint32_t                 OmittedLines = 0U;
+
+		auto operator<=>(const line_details_projection&) const = default;
+	};
+
+	/// \brief [[BPR-1334]]. Projects the lines `aLines` of side `aSide`.
+	///
+	/// \details Uses the index's line mapping and the intraline edits the
+	/// comparison already computed; it computes no new difference. An empty
+	/// span, a span past the side's end or a non-text comparison yields no
+	/// rows. Work is bounded by `aLimits`, not by the comparison's size.
+	[[nodiscard]] auto line_details(const diff_semantic_index& aIndex,
+									diff_side                  aSide,
+									line_span                  aLines,
+									line_details_limits        aLimits = { })
+		-> line_details_projection;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_DIFF_SEMANTICS_HPP

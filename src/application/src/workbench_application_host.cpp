@@ -110,6 +110,10 @@ namespace bpr::application {
 		{
 			std::optional<std::uint32_t> Fraction;
 		};
+		struct deferred_workbench_line_details_resize
+		{
+			std::optional<std::uint32_t> Height;
+		};
 		struct deferred_workbench_geometry
 		{
 			workbench_window_geometry Geometry;
@@ -139,7 +143,7 @@ namespace bpr::application {
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
 														deferred_workbench_resize,
-														deferred_workbench_behaviour, deferred_workbench_home_view, deferred_workbench_geometry, deferred_workbench_summary_resize,
+														deferred_workbench_behaviour, deferred_workbench_home_view, deferred_workbench_geometry, deferred_workbench_summary_resize, deferred_workbench_line_details_resize,
 														deferred_workbench_preferences,
 														deferred_workbench_cancel,
 														deferred_workbench_shutdown, deferred_workbench_orderly_shutdown,
@@ -394,6 +398,8 @@ namespace bpr::application {
 						apply_home_view_now(aTyped.View);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_summary_resize>) {
 						resize_summary_now(aTyped.Fraction);
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_line_details_resize>) {
+						resize_line_details_now(aTyped.Height);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_geometry>) {
 						observe_geometry_now(aTyped.Geometry);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_preferences>) {
@@ -559,7 +565,7 @@ namespace bpr::application {
 			// the view can be merged into, and `shutdown_orderly_now` leaves the
 			// load alone for exactly as long as one is held.
 			const auto drained = aDomain == workbench_request_domain::settings_store
-				|| (aDomain == workbench_request_domain::settings_load && (HeldHome.has_value() || UpdatesLineHeld || HeldSummary.has_value()));
+				|| (aDomain == workbench_request_domain::settings_load && (HeldHome.has_value() || UpdatesLineHeld || HeldSummary.has_value() || HeldLineDetails.has_value()));
 			return Closing && !(OrderlyClosing && drained)
 				? workbench_terminal_rejection::cancelled
 				: workbench_terminal_rejection::none;
@@ -862,6 +868,7 @@ namespace bpr::application {
 				defaults.Geometry    = { };
 				defaults.UpdatesLine = core::workbench_updates_line::folded;
 				defaults.SummaryFraction.reset();
+				defaults.LineDetailsHeight.reset();
 				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults, Layout.WritingHooks, Layout.ClaudeWrapper };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
@@ -1287,6 +1294,35 @@ namespace bpr::application {
 			publish_changes(local_context());
 		}
 
+		/// [[BPR-1334]]. The same terms as the summary: this window's explicit
+		/// Line details height, or Reset, held until its record loads.
+		void resize_line_details_now(std::optional<std::uint32_t> aHeight)
+		{
+			if (Closing || profile_defaults_scoped()) {
+				return;
+			}
+			if (!valid_line_details_height(aHeight)) {
+				PublishedLayout.reset();
+				publish_changes(local_context());
+				return;
+			}
+			const auto current = HeldLineDetails ? *HeldLineDetails : Layout.LineDetailsHeight;
+			if ((LayoutLoaded || HeldLineDetails.has_value()) && current == aHeight) {
+				return;
+			}
+			if (!LayoutLoaded && !LayoutLoadFailed) {
+				HeldLineDetails.emplace(aHeight);
+				return;
+			}
+			Layout.LineDetailsHeight = aHeight;
+			if (LayoutLoaded) {
+				submit_settings_store();
+			} else {
+				publish_failure(local_context(), workbench_host_failure::settings_unavailable);
+			}
+			publish_changes(local_context());
+		}
+
 		void observe_geometry_now(const workbench_window_geometry& aGeometry)
 		{
 			if (Closing || !LayoutLoaded || profile_defaults_scoped() || !valid(aGeometry)
@@ -1444,7 +1480,7 @@ namespace bpr::application {
 			// drains with that record rather than being dropped: the load it must
 			// merge into is left to finish, so the last Home the reviewer chose is
 			// stored beside the loaded layout instead of over it.
-			if (!HeldHome && !UpdatesLineHeld && !HeldSummary) {
+			if (!HeldHome && !UpdatesLineHeld && !HeldSummary && !HeldLineDetails) {
 				retire(workbench_request_domain::settings_load, workbench_terminal_rejection::cancelled);
 			}
 			retire(workbench_request_domain::selected_diff, workbench_terminal_rejection::cancelled);
@@ -1668,13 +1704,16 @@ namespace bpr::application {
 				// go. It still belongs to the window, and the failure is
 				// reported on the same terms as a failed write, so an orderly
 				// close cannot swallow the last arrangement the reviewer chose.
-				const auto held = HeldHome.has_value() || HeldSummary.has_value();
+				const auto held = HeldHome.has_value() || HeldSummary.has_value() || HeldLineDetails.has_value();
 				if (held) {
 					if (HeldHome) {
 						Layout.Home = *std::exchange(HeldHome, std::nullopt);
 					}
 					if (HeldSummary) {
 						Layout.SummaryFraction = *std::exchange(HeldSummary, std::nullopt);
+					}
+					if (HeldLineDetails) {
+						Layout.LineDetailsHeight = *std::exchange(HeldLineDetails, std::nullopt);
 					}
 					publish_changes(aContext);
 				}
@@ -1689,6 +1728,7 @@ namespace bpr::application {
 				defaults.Geometry    = { };
 				defaults.UpdatesLine = core::workbench_updates_line::folded;
 				defaults.SummaryFraction.reset();
+				defaults.LineDetailsHeight.reset();
 				Preferences->adopt_loaded({ aResult->Behaviour, defaults, aResult->WritingHooks, aResult->ClaudeWrapper });
 			}
 			Layout = *aResult;
@@ -1697,6 +1737,7 @@ namespace bpr::application {
 				Layout.Geometry    = { };
 				Layout.UpdatesLine = core::workbench_updates_line::folded;
 				Layout.SummaryFraction.reset();
+				Layout.LineDetailsHeight.reset();
 			}
 			if (PreferenceSubscription != 0 && Preferences->accepted()) {
 				Layout.Behaviour = Preferences->accepted()->Behaviour;
@@ -1711,8 +1752,14 @@ namespace bpr::application {
 			// whatever state the window happened to be in before it arrived.
 			LayoutLoaded = true;
 			merge_held_home();
+			const auto heldGeometry = HeldSummary.has_value() || HeldLineDetails.has_value();
 			if (HeldSummary) {
 				Layout.SummaryFraction = *std::exchange(HeldSummary, std::nullopt);
+			}
+			if (HeldLineDetails) {
+				Layout.LineDetailsHeight = *std::exchange(HeldLineDetails, std::nullopt);
+			}
+			if (heldGeometry) {
 				submit_settings_store();
 			}
 			restore_updates_line();
@@ -1842,6 +1889,7 @@ namespace bpr::application {
 				.ConversationsWidth = Layout.ConversationsWidth,
 				.RepositoriesWidth  = Layout.RepositoriesWidth,
 				.SummaryFraction    = (LayoutLoaded || LayoutLoadFailed) ? std::optional{ Layout.SummaryFraction } : std::nullopt,
+				.LineDetailsHeight  = (LayoutLoaded || LayoutLoadFailed) ? std::optional{ Layout.LineDetailsHeight } : std::nullopt,
 			};
 			if (PublishedLayout != layout) {
 				projection.Layout = layout;
@@ -1975,6 +2023,7 @@ namespace bpr::application {
 		/// loaded, waiting to be merged into it.
 		std::optional<home_view_state>              HeldHome;
 		std::optional<std::optional<std::uint32_t>> HeldSummary;
+		std::optional<std::optional<std::uint32_t>> HeldLineDetails;
 		/// [[BPR-1130]]. A fold chosen before this window's record loaded,
 		/// merged into it when it arrives.
 		bool UpdatesLineHeld   = false;
@@ -2128,6 +2177,11 @@ namespace bpr::application {
 	void workbench_application_host::resize_summary(std::optional<std::uint32_t> aFraction)
 	{
 		Implementation->enqueue(deferred_workbench_summary_resize{ .Fraction = aFraction });
+	}
+
+	void workbench_application_host::resize_line_details(std::optional<std::uint32_t> aHeight)
+	{
+		Implementation->enqueue(deferred_workbench_line_details_resize{ .Height = aHeight });
 	}
 
 	void workbench_application_host::cancel()

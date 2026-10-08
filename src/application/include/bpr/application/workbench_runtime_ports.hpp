@@ -545,6 +545,18 @@ namespace bpr::application {
 		all,
 	};
 
+	/// \brief Whether Line details shows under the comparison ([[BPR-1334]]).
+	///
+	/// \details The owner, 2026-10-08: "an optional on by default view page
+	/// below the side by side which shows just the current cursor's line as a
+	/// full width single pane diff". Shown is the default, and zero, so a
+	/// stored profile older than the preference reads it shown. The strip's
+	/// height is the window's own and is not here. Presentation only.
+	enum class review_line_details : std::uint8_t {
+		shown,
+		hidden,
+	};
+
 	/// \brief What reading the stored label columns left out ([[BPR-1088]]).
 	///
 	/// \details A load observation, never a preference: no store writes it,
@@ -590,6 +602,8 @@ namespace bpr::application {
 		/// [[BPR-1088]]. Set only on a record read from a store whose label
 		/// columns named an unknown or repeated label; see the type.
 		std::optional<review_label_columns_recovery> LabelColumnsRecovery;
+		/// [[BPR-1334]]. Line details under the comparison, shown by default.
+		review_line_details LineDetails = review_line_details::shown;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -625,6 +639,8 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_label_helper::on)
 			&& static_cast<std::uint8_t>(aSettings.OverviewCounts)
 			<= static_cast<std::uint8_t>(review_overview_counts::all)
+			&& static_cast<std::uint8_t>(aSettings.LineDetails)
+			<= static_cast<std::uint8_t>(review_line_details::hidden)
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();
 	}
 
@@ -643,6 +659,16 @@ namespace bpr::application {
 			&& aGeometry.Y >= -1'000'000 && aGeometry.Y <= 1'000'000
 			&& aGeometry.Width >= 64 && aGeometry.Width <= 16'384
 			&& aGeometry.Height >= 64 && aGeometry.Height <= 16'384);
+	}
+
+	/// \brief [[BPR-1334]]. The largest Line details height a window keeps,
+	/// in logical pixels: taller than any screen the window can have.
+	inline constexpr std::uint32_t maximum_line_details_height = 16'384U;
+
+	/// \brief An empty height (the default) or one between 1 and the maximum.
+	[[nodiscard]] constexpr auto valid_line_details_height(const std::optional<std::uint32_t> aHeight) noexcept -> bool
+	{
+		return !aHeight || (*aHeight > 0U && *aHeight <= maximum_line_details_height);
 	}
 
 	/// \brief Describes the workbench layout settings record.
@@ -679,6 +705,9 @@ namespace bpr::application {
 		std::string ClaudeWrapper = { };
 		/// [[BPR-1313]]. This window's preferred summary share in ten-thousandths.
 		std::optional<std::uint32_t> SummaryFraction = { };
+		/// [[BPR-1334]]. This window's preferred Line details height in
+		/// logical pixels; empty is the default height.
+		std::optional<std::uint32_t> LineDetailsHeight = { };
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -696,8 +725,10 @@ namespace bpr::application {
 		home_view_state           Home;
 		workbench_window_geometry Geometry;
 		/// [[BPR-1130]].
-		core::workbench_updates_line UpdatesLine                                       = core::workbench_updates_line::folded;
-		std::optional<std::uint32_t> SummaryFraction                                   = { };
+		core::workbench_updates_line UpdatesLine     = core::workbench_updates_line::folded;
+		std::optional<std::uint32_t> SummaryFraction = { };
+		/// [[BPR-1334]].
+		std::optional<std::uint32_t> LineDetailsHeight                                 = { };
 		auto                         operator<=>(const workbench_window_layout&) const = default;
 	};
 	struct workbench_profile_preferences
@@ -715,15 +746,16 @@ namespace bpr::application {
 	{
 		return { aSettings.Files, aSettings.Conversations, aSettings.Repositories, aSettings.LineNumbers, aSettings.OnePane,
 				 aSettings.FilesWidth, aSettings.ConversationsWidth, aSettings.RepositoriesWidth, aSettings.Home, aSettings.Geometry,
-				 aSettings.UpdatesLine, aSettings.SummaryFraction };
+				 aSettings.UpdatesLine, aSettings.SummaryFraction, aSettings.LineDetailsHeight };
 	}
 	[[nodiscard]] inline auto combined_layout(const workbench_window_layout&   aLayout,
 											  const review_behaviour_settings& aBehaviour) -> workbench_layout_settings
 	{
-		auto result            = workbench_layout_settings{ aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
-															aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry,
-															aLayout.UpdatesLine };
-		result.SummaryFraction = aLayout.SummaryFraction;
+		auto result              = workbench_layout_settings{ aLayout.Files, aLayout.Conversations, aLayout.Repositories, aLayout.LineNumbers, aLayout.OnePane,
+															  aLayout.FilesWidth, aLayout.ConversationsWidth, aLayout.RepositoriesWidth, aBehaviour, aLayout.Home, aLayout.Geometry,
+															  aLayout.UpdatesLine };
+		result.SummaryFraction   = aLayout.SummaryFraction;
+		result.LineDetailsHeight = aLayout.LineDetailsHeight;
 		return result;
 	}
 	[[nodiscard]] inline auto valid(const workbench_window_layout& aLayout) noexcept -> bool
@@ -736,6 +768,7 @@ namespace bpr::application {
 			&& width(aLayout.FilesWidth) && width(aLayout.ConversationsWidth) && width(aLayout.RepositoriesWidth)
 			&& valid(aLayout.Home) && valid(aLayout.Geometry)
 			&& (!aLayout.SummaryFraction || (*aLayout.SummaryFraction > 0 && *aLayout.SummaryFraction < 10000))
+			&& valid_line_details_height(aLayout.LineDetailsHeight)
 			&& (aLayout.UpdatesLine == core::workbench_updates_line::folded || aLayout.UpdatesLine == core::workbench_updates_line::open);
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
@@ -743,7 +776,7 @@ namespace bpr::application {
 		return core::valid(aPreferences.WritingHooks) && core::storable_agent_wrapper(aPreferences.ClaudeWrapper) && valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
 			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
 		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded
-			&& !aPreferences.NewWindowDefaults.SummaryFraction;
+			&& !aPreferences.NewWindowDefaults.SummaryFraction && !aPreferences.NewWindowDefaults.LineDetailsHeight;
 	}
 	inline constexpr std::size_t maximum_workbench_window_layouts = 32U;
 	enum class workbench_settings_failure : std::uint8_t {
@@ -829,6 +862,8 @@ namespace bpr::application {
 		std::uint32_t RepositoriesWidth  = 0U;
 		/// Absent until the window layout is loaded; the nested optional carries Reset.
 		std::optional<std::optional<std::uint32_t>> SummaryFraction = { };
+		/// [[BPR-1334]]. The same for the window's Line details height.
+		std::optional<std::optional<std::uint32_t>> LineDetailsHeight = { };
 
 		auto operator<=>(const workbench_layout_delta&) const = default;
 	};

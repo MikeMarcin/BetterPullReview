@@ -11,6 +11,7 @@
 #include "bpr/qt/epoch_history_model.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/review_landing_model.hpp"
@@ -117,6 +118,18 @@
 #endif
 
 namespace {
+	/// \brief [[BPR-1334]]. Whether Line details shows the selection's line.
+	[[maybe_unused]] [[nodiscard]] auto line_details_show_selection(const bpr::qt::diff_workbench& aWorkbench) -> bool
+	{
+		const auto& selection = aWorkbench.selection();
+		if (!selection.has_value() || aWorkbench.line_details() == nullptr) {
+			return false;
+		}
+		return std::ranges::any_of(aWorkbench.line_details()->projection().Rows, [&selection](const bpr::core::line_details_row& aRow) {
+			return aRow.Side == selection->PreferredLine.Side && aRow.Line == std::optional{ selection->PreferredLine.Line };
+		});
+	}
+
 	struct profile_launch_arguments
 	{
 		bpr::core::bpr_profile_id        Profile = bpr::core::default_bpr_profile_id;
@@ -2619,21 +2632,18 @@ namespace {
 			!= callbacksBeforeClick + 1U) {
 			return fail(QStringLiteral("ribbon-selection-callback-count"));
 		}
-		if (!workbench->detail_pane()->toPlainText().startsWith(
-				QStringLiteral("Change "))) {
+		// [[BPR-1334]]. Line details follows the selection to its line.
+		if (!line_details_show_selection(*workbench)) {
 			return fail(QStringLiteral("ribbon-selection-detail-missing"));
 		}
 		if (!capture("16-ribbon-selection")) {
 			return fail(QStringLiteral("capture-ribbon-selection"));
 		}
 
-		// [[BPR-0646]]. The detail pane is a review detail, off by default;
-		// the course shows it before dragging the splitter that bounds it,
-		// exactly as a reviewer would.
-		if (auto* const details = aWindow.review_details_toggle_action();
-			details != nullptr && !details->isChecked()) {
-			details->setChecked(true);
-			QApplication::processEvents();
+		// [[BPR-1334]]. Line details is shown by default, so the splitter
+		// that bounds it is there to drag without a review-details gesture.
+		if (!workbench->line_details_visible()) {
+			return fail(QStringLiteral("line-details-hidden-by-default"));
 		}
 		const auto selectionBeforeResize  = workbench->selection();
 		const auto statisticsBeforeResize = workbench->statistics();
@@ -6557,8 +6567,7 @@ namespace {
 							&& hasKind(bpr::core::alignment_kind::right_only)
 							&& workbench->selection().has_value()
 							&& workbench->link_map()->selected().has_value()
-							&& workbench->detail_pane()->toPlainText().startsWith(
-								QStringLiteral("Change "));
+							&& line_details_show_selection(*workbench);
 						// An accepted result does not mean the state derived
 						// from it has arrived. Selection, the link map, and the
 						// detail pane are populated by a scheduled geometry

@@ -39,6 +39,9 @@ scrolling sideways.
   by **Review details** (`Alt+Shift+3`), together with the exact epoch
   anchors. That action is in the review bar's **Comparing …** button menu,
   not in the View menu. That is why the owner could not find it.
+- **It was specified as this feature.** RFC-BPR-0005 asks for "a full-width
+  Beyond Compare-inspired line-over-line lower detail pane", and RFC-BPR-0004
+  feeds it from the same line mapping. The owner remembered it correctly.
 - **When shown, it is not this feature.** It is at most 96 px tall and does
   not wrap. It holds plain text: a heading ("Change 3 of 11" or "Selected
   line 12"), then "Earlier" with the left text and "Later" with the right
@@ -76,7 +79,8 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   a marker that gives how many more characters there are. Core decides the cut
   and clips the highlight spans to it. Qt draws what core gives it.
 - It is on by default. **View > Line Details** turns it off or on, and the
-  choice is a per-profile preference, also in Settings > Review behaviour.
+  choice is a per-profile preference, also on Settings > Reviews and queue
+  (a Comparison row).
   Review details no longer shows or hides it.
 - Its top edge is the shared resize seam with `hold_resize_cursor`. The height
   the reader drags to is kept per window.

@@ -73,7 +73,12 @@ namespace bpr::adapters::sqlite::detail {
 	/// the profile row. A migrated row reads it empty, the shipped default, and
 	/// keeps every other field it had, the four review-preparation overrides
 	/// and each window's summary fraction included.
-	inline constexpr std::int64_t workbench_settings_schema_version = 16;
+	///
+	/// Seventeen since [[BPR-1334]]: whether Line details shows, in the
+	/// profile row, and each window's Line details height, in the per-window
+	/// table. A migrated row shows Line details at its default height and keeps
+	/// every other field it had.
+	inline constexpr std::int64_t workbench_settings_schema_version = 17;
 
 	/// \brief Owns the durable workbench layout database.
 	///

@@ -1,9 +1,11 @@
+#include "../support/resize_cursor_hold_check.hpp"
 #include "diff_publication_fixture.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/type_preview.hpp"
+#include "bpr/qt/line_details_pane.hpp"
 
 #include <QAccessible>
 #include <QApplication>
@@ -14,6 +16,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
 #include <QPainter>
@@ -23,6 +26,7 @@
 #include <QPointingDevice>
 #include <QScrollBar>
 #include <QSplitter>
+#include <QSplitterHandle>
 #include <QString>
 #include <QSysInfo>
 #include <QTextBlock>
@@ -1134,8 +1138,12 @@ namespace {
 				&& workbench.selection()->Group == ribbon->Identity.Group
 				&& workbench.link_map()->selected().has_value()
 				&& workbench.link_map()->selected()->Group == workbench.selection()->Group
-				&& workbench.detail_pane()->toPlainText().startsWith(QStringLiteral("Change ")),
-			"ribbon, semantic selection, top highlight, and detail agree on stable group identity");
+				&& std::ranges::any_of(workbench.line_details()->projection().Rows,
+									   [&workbench](const core::line_details_row& aRow) {
+										   return aRow.Side == workbench.selection()->PreferredLine.Side
+											   && aRow.Line == std::optional{ workbench.selection()->PreferredLine.Line };
+									   }),
+			"ribbon, semantic selection, top highlight, and Line details agree on stable group identity");
 		expect(
 			ribbonWorkbenchAnnouncements == 1U
 				&& ribbonLinkMapAnnouncements == 0U,
@@ -3945,6 +3953,167 @@ namespace {
 			workbench.hide();
 		}
 	}
+
+	/// \brief [[BPR-1334]]. Line details: the current line, base over head,
+	/// full width and wrapped, with its numbers and changed characters.
+	///
+	/// \details The owner, 2026-10-08: "an optional on by default view page
+	/// below the side by side which shows just the current cursor's line as a
+	/// full width single pane diff".
+	void test_line_details_shows_the_current_line_base_over_head()
+	{
+		auto words = std::string{ };
+		for (auto index = 0; index < 48; ++index) {
+			words += "argument_" + std::to_string(index) + ", ";
+		}
+		const auto longLeft  = "const auto value = compute(" + words + "alpha_tail);";
+		const auto longRight = "const auto value = compute(" + words + "omega_tail);";
+		const auto huge      = std::string(10'000U, 'x');
+		const auto left      = "context-before\n" + longLeft + "\nshared middle line\nthis line is only in base\ncontext-after\n" + huge + "\n";
+		const auto right     = "context-before\n" + longRight + "\nshared middle line\ncontext-after\n" + huge + "\nthis line is only in head\n";
+		const auto diff      = computed(left, right, { }, 61U);
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'100, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 94U, 94U);
+		workbench.set_loading(selected);
+		workbench.publish(qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		settle_geometry(workbench);
+
+		auto* const strip = workbench.line_details();
+		expect(strip != nullptr && strip == workbench.detail_pane() && strip->isVisible() && workbench.line_details_visible(),
+			   "Line details is the one strip under the comparison, shown by default");
+		expect(strip->lineWrapMode() == QPlainTextEdit::WidgetWidth
+				   && strip->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff,
+			   "Line details wraps and never scrolls sideways");
+		const auto block = [strip](const int aNumber) { return strip->document()->findBlockByNumber(aNumber); };
+
+		// A changed line: base over head, numbered and marked, wrapped, with
+		// the changed characters emphasised on each side.
+		expect(workbench.select_conversation_line(core::diff_side::right, 1U), "the long changed line selects");
+		process_events();
+		expect(strip->document()->blockCount() == 2 && block(0).text() == QString::fromStdString(longLeft)
+				   && block(1).text() == QString::fromStdString(longRight),
+			   "a changed line shows its base version above its head version, whole");
+		expect(strip->gutter_text(0) == QStringLiteral("2 −") && strip->gutter_text(1) == QStringLiteral("2 +"),
+			   "each row carries its own line number and its side's mark");
+		expect(block(0).layout()->lineCount() > 1 && block(1).layout()->lineCount() > 1
+				   && strip->horizontalScrollBar()->maximum() == 0,
+			   "a line wider than the strip wraps onto more lines instead of scrolling");
+		const auto emphasised = [strip](const int aBlock, const QColor& aFill) {
+			auto texts = QStringList{ };
+			for (const auto& selection : strip->extraSelections()) {
+				if (!selection.format.boolProperty(QTextFormat::FullWidthSelection) && selection.cursor.blockNumber() == aBlock
+					&& selection.format.background().color() == aFill) {
+					texts.push_back(selection.cursor.selectedText());
+				}
+			}
+			return texts;
+		};
+		const auto removed = emphasised(0, profile.color(core::appearance_role::diff_intraline_removed_background));
+		const auto added   = emphasised(1, profile.color(core::appearance_role::diff_intraline_added_background));
+		expect(!removed.isEmpty() && !added.isEmpty()
+				   && std::ranges::all_of(removed, [](const QString& aText) { return QStringLiteral("alpha").contains(aText); })
+				   && std::ranges::all_of(added, [](const QString& aText) { return QStringLiteral("omega").contains(aText); }),
+			   "only the changed characters are emphasised, in each side's intraline colour");
+
+		// An unchanged line: both versions, no marks, no emphasis.
+		expect(workbench.select_conversation_line(core::diff_side::left, 2U), "the unchanged line selects");
+		process_events();
+		expect(strip->document()->blockCount() == 2 && block(0).text() == QStringLiteral("shared middle line")
+				   && block(1).text() == QStringLiteral("shared middle line") && strip->gutter_text(0) == QStringLiteral("3")
+				   && strip->gutter_text(1) == QStringLiteral("3") && emphasised(0, profile.color(core::appearance_role::diff_intraline_removed_background)).isEmpty(),
+			   "an unchanged line shows both versions without marks or emphasis");
+
+		// A removed line and an added line.
+		expect(workbench.select_conversation_line(core::diff_side::left, 3U), "the removed line selects");
+		process_events();
+		expect(block(0).text() == QStringLiteral("this line is only in base") && strip->gutter_text(0) == QStringLiteral("4 −")
+				   && block(1).text() == QStringLiteral("Not in head") && strip->gutter_text(1).isEmpty(),
+			   "a removed line shows its base row and says it is not in head");
+		expect(workbench.select_conversation_line(core::diff_side::right, 5U), "the added line selects");
+		process_events();
+		expect(block(0).text() == QStringLiteral("Not in base") && block(1).text() == QStringLiteral("this line is only in head")
+				   && strip->gutter_text(1) == QStringLiteral("6 +"),
+			   "an added line says it is not in base above its head row");
+
+		// A very long line is cut by the core and says how much is left.
+		expect(workbench.select_conversation_line(core::diff_side::left, 5U), "the very long line selects");
+		process_events();
+		const auto marker = QStringLiteral(" … %1 more bytes").arg(QLocale{ }.toString(static_cast<qulonglong>(10'000U - 4'096U)));
+		expect(block(0).text() == QString::fromStdString(huge.substr(0U, 4'096U)) + marker
+				   && block(1).text().endsWith(marker),
+			   "a 10,000-byte line shows its first 4,096 bytes and how many more there are");
+
+		// A mouse selection across lines shows each selected line.
+		auto cursor = QTextCursor{ workbench.left_pane()->document()->findBlockByNumber(0) };
+		cursor.setPosition(workbench.left_pane()->document()->findBlockByNumber(2).position() + 3, QTextCursor::KeepAnchor);
+		workbench.left_pane()->setTextCursor(cursor);
+		expect(workbench.select_conversation_line(core::diff_side::left, 0U), "the selection's first line is the current line");
+		workbench.left_pane()->setTextCursor(cursor);
+		process_events();
+		expect(strip->projection().Rows.size() == 6U && strip->gutter_text(0) == QStringLiteral("1")
+				   && strip->gutter_text(4) == QStringLiteral("3"),
+			   "a selection across three lines shows three pairs");
+
+		// Hidden, it asks the core nothing; shown again, it catches up.
+		workbench.set_line_details_visible(false);
+		process_events();
+		const auto hiddenProjections = workbench.statistics().LineDetailsProjections;
+		// Line 4 is outside the text selection above, so the strip follows
+		// the current line rather than the old selection.
+		expect(workbench.select_conversation_line(core::diff_side::left, 3U), "a line selects with the strip hidden");
+		process_events();
+		expect(!strip->isVisible() && workbench.statistics().LineDetailsProjections == hiddenProjections,
+			   "a hidden strip projects nothing");
+		workbench.set_line_details_visible(true);
+		process_events();
+		expect(strip->isVisible() && workbench.statistics().LineDetailsProjections == hiddenProjections + 1U
+				   && block(0).text() == QStringLiteral("this line is only in base"),
+			   "showing the strip again projects the current line, not an old text selection");
+
+		// The seam: the shared cursor hold, a remembered height, keys and Reset.
+		auto* const handle = workbench.line_details_handle();
+		expect(handle != nullptr && handle->objectName() == QStringLiteral("lineDetailsResize")
+				   && tests::resize_cursor_holds(*handle, Qt::SplitVCursor, "line details seam"),
+			   "the seam above Line details holds the vertical resize cursor");
+		auto reported = std::vector<std::optional<std::uint32_t>>{ };
+		workbench.set_line_details_resize_sink([&reported](const std::optional<std::uint32_t> aHeight) { reported.push_back(aHeight); });
+		workbench.set_line_details_height(220U);
+		process_events();
+		expect(strip->height() == 220 && reported.empty(), "a restored height applies without being reported back");
+		const auto line = strip->fontMetrics().lineSpacing();
+		handle->setFocus();
+		send_key(*handle, Qt::Key_Up);
+		process_events();
+		expect(reported.size() == 1U && reported.back() == std::optional{ static_cast<std::uint32_t>(220 + line) }
+				   && strip->height() == 220 + line,
+			   "Up on the seam makes the strip one line taller and reports it");
+		workbench.resize(1'100, 900);
+		process_events();
+		expect(strip->height() == 220 + line && reported.size() == 1U,
+			   "the window growing keeps the strip's height and reports nothing");
+		auto press = QMouseEvent{ QEvent::MouseButtonDblClick, QPointF{ handle->rect().center() }, handle->mapToGlobal(QPointF{ handle->rect().center() }),
+								  Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(handle, &press);
+		process_events();
+		expect(reported.size() == 2U && !reported.back().has_value() && !workbench.line_details_height().has_value(),
+			   "a double-click resets the strip to its default height");
+
+		if (const auto directory = qEnvironmentVariable("BPR_LINE_DETAILS_CAPTURE_DIR"); !directory.isEmpty()) {
+			expect(workbench.select_conversation_line(core::diff_side::right, 1U), "the capture shows the changed line");
+			process_events();
+			expect(workbench.grab().save(directory + QStringLiteral("/line-details.png"), "PNG"), "the capture is written");
+		}
+		workbench.hide();
+	}
 } // namespace
 
 namespace {
@@ -4173,6 +4342,7 @@ auto main(int argc, char** argv) -> int
 	test_group_selection_washes_every_line();
 	test_the_reading_line_wears_the_current_line_band();
 	test_the_keyboard_line_cursor_and_return();
+	test_line_details_shows_the_current_line_base_over_head();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

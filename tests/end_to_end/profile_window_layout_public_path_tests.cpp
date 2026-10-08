@@ -1,9 +1,11 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/application/home_view_state.hpp"
+#include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
+#include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -151,6 +153,25 @@ namespace {
 		wait_for([&] { return aWindow.files_drawer()->width() != before; }, "real splitter drag changes file width");
 		return aWindow.files_drawer()->width();
 	}
+	/// \brief [[BPR-1334]]. Makes A's Line details taller with two presses of
+	/// Up on its seam, as a keyboard reader would, and returns the height the
+	/// window now prefers.
+	auto grow_line_details(qt::workbench_window& aWindow) -> std::uint32_t
+	{
+		auto* const surface = aWindow.comparison_surface();
+		wait_for([&] { return surface->line_details_visible() && surface->line_details()->isVisible() && surface->line_details_handle() != nullptr; },
+				 "Line details shows under the comparison by default");
+		auto* const seam = surface->line_details_handle();
+		seam->setFocus();
+		for (auto press = 0; press < 2; ++press) {
+			auto up      = QKeyEvent{ QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier };
+			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Up, Qt::NoModifier };
+			QApplication::sendEvent(seam, &up);
+			QApplication::sendEvent(seam, &release);
+		}
+		wait_for([&] { return surface->line_details_height().has_value(); }, "the seam reports an explicit height");
+		return *surface->line_details_height();
+	}
 	auto select_window(app::profile_desktop& aDesktop, std::uint64_t aId) -> qt::workbench_window*
 	{
 		for (const auto context : aDesktop.windows(core::default_bpr_profile_id)) {
@@ -170,7 +191,7 @@ auto main(int aArgc, char** aArgv) -> int
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	const auto                   layoutUnavailable = QStringLiteral("The saved workbench layout is unavailable.");
-	std::array<std::uint64_t, 6> saved{ }; // A/B identities and chosen files widths.
+	std::array<std::uint64_t, 7> saved{ }; // A/B identities and chosen files widths, summaries, A's Line details height.
 	std::array<QRect, 2>         geometry;
 	if (phase != "seed") {
 		std::ifstream input{ root / "layout-expectations.txt" };
@@ -249,6 +270,16 @@ auto main(int aArgc, char** aArgv) -> int
 		saved[4] = resize_summary(*a, 1);
 		saved[5] = resize_summary(*b, -1);
 		expect(saved[4] != saved[5], "windows choose distinct summary fractions");
+		// [[BPR-1334]]. A chooses a Line details height; then B hides Line
+		// details, which is the profile's choice and so hides it in A too.
+		saved[6] = grow_line_details(*a);
+		b->line_details_action()->trigger();
+		wait_for([&] { return !a->line_details_action()->isChecked() && !b->line_details_action()->isChecked()
+						   && !a->comparison_surface()->line_details_visible() && !b->comparison_surface()->line_details_visible(); },
+				 "View > Line Details hides the strip in every window of the profile");
+		expect(a->comparison_surface()->line_details_height() == std::optional{ static_cast<std::uint32_t>(saved[6]) }
+				   && !b->comparison_surface()->line_details_height().has_value(),
+			   "the height stays A's own");
 		saved[2] = static_cast<std::uint64_t>(drag_files(*a, 370));
 		saved[3] = static_cast<std::uint64_t>(drag_files(*b, 430));
 		expect(saved[2] != saved[3], "windows have distinct chosen drawer widths");
@@ -335,6 +366,9 @@ auto main(int aArgc, char** aArgv) -> int
 		expect(!b->status_text().contains(layoutUnavailable), "a readable layout store reports no unavailable layout");
 		wait_for([&] { return !b->repositories_drawer_toggle_action()->isChecked(); }, "B restores its own drawer state");
 		expect(b->conversations_drawer_toggle_action()->isChecked() && b->line_numbers_action()->isChecked(), "B preserves independent source and conversation state");
+		// [[BPR-1334]]. The profile's Line details choice survives the restart.
+		wait_for([&] { return !b->line_details_action()->isChecked() && !b->comparison_surface()->line_details_visible(); },
+				 "Line details stays hidden after a restart");
 		expect(static_cast<std::uint64_t>(b->files_drawer()->width()) == saved[3], "B restores chosen files width");
 		// [[BPR-0783]]. The window's Home view came back from its own row.
 		wait_for([&] { return b->home_view().Collapsed == application::home_collapsed_panel::recently_viewed; },
@@ -349,6 +383,9 @@ auto main(int aArgc, char** aArgv) -> int
 			expect(a != nullptr, "A stable window restored");
 			open_review(*owner, *a, 17, false);
 			wait_for([&] { return a->overview_page()->summary_fraction() == saved[4]; }, "A restores its distinct summary fraction");
+			wait_for([&] { return a->comparison_surface()->line_details_height() == std::optional{ static_cast<std::uint32_t>(saved[6]) }; },
+					 "A restores its own Line details height");
+			expect(!b->comparison_surface()->line_details_height().has_value(), "B never had A's Line details height");
 			wait_for([&] { return !a->line_numbers_action()->isChecked() && !a->conversations_drawer_toggle_action()->isChecked() && a->one_pane_action()->isChecked(); }, "immediate-Quit final layout restored");
 			wait_for([&] { return a->home_view().Grouping == application::home_grouping::organization; },
 					 "A restores the grouping it chose",
@@ -380,6 +417,9 @@ auto main(int aArgc, char** aArgv) -> int
 					open_review(*owner, *fresh, 17, false);
 					expect(fresh->repositories_drawer_toggle_action()->isChecked() && fresh->conversations_drawer_toggle_action()->isChecked() && fresh->line_numbers_action()->isChecked() && !fresh->one_pane_action()->isChecked(), "fresh window seeds profile defaults, not either sibling");
 					expect(!fresh->overview_page()->summary_fraction(), "new windows do not inherit a sibling summary preference");
+					// [[BPR-1334]]. Shown or hidden is the profile's; the height is the window's.
+					expect(!fresh->line_details_action()->isChecked() && !fresh->comparison_surface()->line_details_height().has_value(),
+						   "a fresh window takes the profile's Line details choice and no sibling's height");
 					expect(fresh->files_drawer()->width() == 320, "fresh files width comes from profile defaults");
 					// [[BPR-0783]]. No window's Home arrangement is a profile default,
 					// so a fresh window starts at Home's own.

@@ -2,7 +2,10 @@
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
+#include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/type_preview.hpp"
+
+#include "line_details_splitter.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
@@ -1499,67 +1502,6 @@ namespace bpr::qt {
 				static_cast<qsizetype>(span.End - span.Begin));
 		}
 
-		[[nodiscard]] auto line_text(
-			const std::optional<core::decoded_text_document>& aDocument,
-			const std::optional<core::source_line_ref>&       aLine) -> QString
-		{
-			return aLine.has_value()
-				? line_text_at(aDocument, aLine->Line)
-				: QStringLiteral("(no source line)");
-		}
-
-		/// Lines of one span the detail pane shows before saying how many remain.
-		inline constexpr std::uint32_t detail_span_lines = 64U;
-
-		[[nodiscard]] auto span_text(
-			const std::optional<core::decoded_text_document>& aDocument,
-			const core::line_span                             aSpan) -> QString
-		{
-			if (
-				!aDocument.has_value() || aSpan.Begin >= aSpan.End
-				|| aSpan.End > aDocument->Lines.size()) {
-				return QStringLiteral("(no source lines)");
-			}
-			// [[BPR-1264]]. The detail pane is a compact summary. An approximate
-			// alignment's span can be most of the file, and copying all of it
-			// here cost as much as filling a source pane.
-			const auto shown  = std::min(aSpan.End, aSpan.Begin + detail_span_lines);
-			auto       result = QString{ };
-			for (auto line = aSpan.Begin; line < shown; ++line) {
-				if (!result.isEmpty()) {
-					result += QLatin1Char('\n');
-				}
-				result += line_text_at(aDocument, line);
-			}
-			if (shown < aSpan.End) {
-				result += QStringLiteral("\n(%1 more lines)").arg(aSpan.End - shown);
-			}
-			return result;
-		}
-
-		[[nodiscard]] auto detail_side_text(
-			const std::optional<core::decoded_text_document>& aDocument,
-			const std::optional<core::source_line_ref>&       aLine,
-			const core::line_detail_input&                    aDetail,
-			const core::diff_side                             aSide) -> QString
-		{
-			if (aLine.has_value()) {
-				return line_text(aDocument, aLine);
-			}
-			if (
-				aDetail.OpposingSpan.has_value()
-				&& aDetail.OpposingSpan->Side == aSide) {
-				return span_text(aDocument, aDetail.OpposingSpan->Lines);
-			}
-			if (
-				aDetail.OpposingBoundary.has_value()
-				&& aDetail.OpposingBoundary->Side == aSide) {
-				return QStringLiteral("(insertion boundary before line %1)")
-					.arg(aDetail.OpposingBoundary->Boundary + 1U);
-			}
-			return QStringLiteral("(no source line)");
-		}
-
 		[[nodiscard]] auto reason_text(const core::diff_reason_code aReason)
 			-> QString
 		{
@@ -1694,7 +1636,7 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("diffWorkbench"));
 		setAccessibleName(QStringLiteral("File comparison workbench"));
 		setAccessibleDescription(QStringLiteral(
-			"Linked natural-layout source panes, change correspondence map, and selected-change detail"));
+			"Linked natural-layout source panes, change correspondence map, and line details"));
 
 		auto* const root = new QVBoxLayout{ this };
 		root->setContentsMargins(0, 0, 0, 0);
@@ -1709,7 +1651,7 @@ namespace bpr::qt {
 		Status->setTextInteractionFlags(Qt::TextSelectableByKeyboard | Qt::TextSelectableByMouse);
 		root->addWidget(Status);
 
-		Vertical = new QSplitter{ Qt::Vertical, this };
+		Vertical = new line_details_splitter{ this };
 		Vertical->setObjectName(QStringLiteral("diffWorkbenchVerticalSplitter"));
 		Vertical->setChildrenCollapsible(false);
 		auto* const top       = new QWidget{ Vertical };
@@ -1779,15 +1721,11 @@ namespace bpr::qt {
 			}
 		});
 
-		Detail = new QPlainTextEdit{ Vertical };
-		Detail->setObjectName(QStringLiteral("diffSelectedChangeDetail"));
-		Detail->setAccessibleName(QStringLiteral("Selected change detail"));
-		Detail->setAccessibleDescription(QStringLiteral(
-			"Full-width line-over-line detail for the semantic selection"));
-		Detail->setReadOnly(true);
-		Detail->setLineWrapMode(QPlainTextEdit::NoWrap);
-		Detail->setPlainText(QStringLiteral("No change selected"));
-		Detail->setMaximumHeight(96);
+		// [[BPR-1334]]. Line details: the current line, base over head, full
+		// width and wrapped, under the comparison. It replaces the compact
+		// detail pane in the same place rather than adding a second one.
+		Detail = new line_details_pane{ Vertical };
+		Detail->present_empty();
 		// [[BPR-1287]]. The panes share their splitter slot with the idle
 		// direction, one shown at a time, so the splitter keeps its two
 		// children and the review details still open below either.
@@ -1798,10 +1736,21 @@ namespace bpr::qt {
 		PanesTop = top;
 		Vertical->addWidget(slot);
 		Vertical->addWidget(Detail);
-		Vertical->setStretchFactor(0, 4);
-		Vertical->setStretchFactor(1, 1);
-		Vertical->setSizes({ 500, 150 });
+		// The comparison takes every change in the window's height; the strip
+		// keeps the height the reader chose.
+		Vertical->setStretchFactor(0, 1);
+		Vertical->setStretchFactor(1, 0);
+		Vertical->LineHeight = [this] { return Detail->fontMetrics().lineSpacing(); };
+		Vertical->setSizes({ 500, Vertical->default_height() });
+		// QSplitter names its handles after the widget they follow, so the
+		// seam takes its own name once the strip is in place.
+		if (auto* const seam = Vertical->handle(1); seam != nullptr) {
+			seam->setObjectName(QStringLiteral("lineDetailsResize"));
+		}
 		root->addWidget(Vertical, 1);
+		for (auto* const source : { Left, Right, Unified }) {
+			connect(source, &QPlainTextEdit::selectionChanged, this, [this] { queue_line_details(); });
+		}
 
 		// [[BPR-1287]]. What the area says while no file comparison is chosen,
 		// in place of two empty panes and a bare status.
@@ -2419,6 +2368,48 @@ namespace bpr::qt {
 	auto diff_workbench::detail_pane() const noexcept -> QPlainTextEdit*
 	{
 		return Detail;
+	}
+
+	auto diff_workbench::line_details() const noexcept -> line_details_pane*
+	{
+		return Detail;
+	}
+
+	void diff_workbench::set_line_details_visible(const bool aVisible)
+	{
+		if (!Detail->isHidden() == aVisible) {
+			return;
+		}
+		Detail->setVisible(aVisible);
+		if (aVisible) {
+			Vertical->apply_layout();
+			update_line_details();
+		}
+	}
+
+	auto diff_workbench::line_details_visible() const noexcept -> bool
+	{
+		return !Detail->isHidden();
+	}
+
+	void diff_workbench::set_line_details_height(const std::optional<std::uint32_t> aHeight)
+	{
+		Vertical->set_preference(aHeight);
+	}
+
+	auto diff_workbench::line_details_height() const noexcept -> std::optional<std::uint32_t>
+	{
+		return Vertical->preference();
+	}
+
+	void diff_workbench::set_line_details_resize_sink(std::function<void(std::optional<std::uint32_t>)> aSink)
+	{
+		Vertical->Changed = std::move(aSink);
+	}
+
+	auto diff_workbench::line_details_handle() const -> QSplitterHandle*
+	{
+		return Vertical->count() == 2 ? Vertical->handle(1) : nullptr;
 	}
 
 	auto diff_workbench::shared_scrollbar() const noexcept -> QScrollBar*
@@ -3519,48 +3510,68 @@ namespace bpr::qt {
 		update_selection_paint();
 		if (aAnnounceSelection) {
 			announce_accessible_status(
-				Status->text() + QStringLiteral(". ")
-				+ Detail->accessibleDescription());
+				Status->text() + QStringLiteral(". ") + SelectionHeading);
 		}
 	}
 
 	void diff_workbench::update_detail()
 	{
 		CurrentDetail.reset();
-		if (!CurrentResult || !SemanticIndex
-			|| !Interaction.Selection.has_value()) {
-			Detail->setPlainText(QStringLiteral("No change selected"));
-			return;
-		}
-		++Statistics.SemanticQueries;
-		CurrentDetail = core::detail_for_selection(
-			*SemanticIndex, *Interaction.Selection);
-		const auto& detail   = *CurrentDetail;
-		const auto  leftText = detail_side_text(
-			CurrentResult->LeftDocument,
-			detail.LeftLine,
-			detail,
-			core::diff_side::left);
-		const auto rightText = detail_side_text(
-			CurrentResult->RightDocument,
-			detail.RightLine,
-			detail,
-			core::diff_side::right);
-		auto heading = QStringLiteral("Selected line %1")
-						   .arg(Interaction.Selection->PreferredLine.Line + 1U);
-		if (Interaction.Selection->Group.has_value()) {
-			const auto index = SemanticIndex->group_index(
-				*Interaction.Selection->Group);
-			if (index.has_value()) {
-				heading = QStringLiteral("Change %1 of %2")
-							  .arg(*index + 1U)
-							  .arg(CurrentResult->Alignment.Groups.size());
+		SelectionHeading = QStringLiteral("No line selected");
+		if (CurrentResult && SemanticIndex && Interaction.Selection.has_value()) {
+			++Statistics.SemanticQueries;
+			CurrentDetail    = core::detail_for_selection(*SemanticIndex, *Interaction.Selection);
+			SelectionHeading = QStringLiteral("Selected line %1").arg(Interaction.Selection->PreferredLine.Line + 1U);
+			if (Interaction.Selection->Group.has_value()) {
+				if (const auto index = SemanticIndex->group_index(*Interaction.Selection->Group); index.has_value()) {
+					SelectionHeading = QStringLiteral("Change %1 of %2").arg(*index + 1U).arg(CurrentResult->Alignment.Groups.size());
+				}
 			}
 		}
-		Detail->setPlainText(
-			heading + QStringLiteral("\n\nEarlier\n") + leftText
-			+ QStringLiteral("\n\nLater\n") + rightText);
-		Detail->setAccessibleDescription(heading);
+		update_line_details();
+	}
+
+	void diff_workbench::queue_line_details()
+	{
+		// A drag changes the panes' selection on every mouse move; one
+		// projection per event-loop turn is enough to follow it.
+		if (LineDetailsQueued) {
+			return;
+		}
+		LineDetailsQueued = true;
+		QTimer::singleShot(0, this, [this] {
+			LineDetailsQueued = false;
+			update_line_details();
+		});
+	}
+
+	void diff_workbench::update_line_details()
+	{
+		if (!CurrentResult || !SemanticIndex || !Interaction.Selection.has_value()) {
+			Detail->present_empty();
+			return;
+		}
+		// Hidden, the strip asks the core nothing; showing it again projects.
+		if (Detail->isHidden()) {
+			return;
+		}
+		auto side  = Interaction.Selection->PreferredLine.Side;
+		auto lines = core::line_span{ Interaction.Selection->PreferredLine.Line,
+									  Interaction.Selection->PreferredLine.Line + 1U };
+		// A text selection across lines in a pane shows each selected line,
+		// while it holds the current line. A change step or a conversation
+		// that moves the current line elsewhere leaves an old text selection
+		// behind; the strip follows the current line then.
+		const auto& current = Interaction.Selection->PreferredLine;
+		if (const auto range = selected_source_range();
+			range.has_value() && range->first.Side == range->second.Side && range->first.Side == current.Side
+			&& range->first.Line <= current.Line && current.Line <= range->second.Line) {
+			side  = range->first.Side;
+			lines = core::line_span{ range->first.Line, range->second.Line + 1U };
+		}
+		++Statistics.LineDetailsProjections;
+		Detail->present(core::line_details(*SemanticIndex, side, lines), *CurrentResult);
+		Detail->setTabStopDistance(Left->tabStopDistance());
 	}
 
 	void diff_workbench::update_selection_paint()
@@ -3981,6 +3992,18 @@ namespace bpr::qt {
 		// to how a role becomes a colour cannot reach one surface and miss another.
 		colors.Syntax = code_role_colors_of(aProfile.palette());
 		Colors        = std::move(colors);
+		// [[BPR-1334]]. Line details repeats the panes' lines in their colours.
+		Detail->set_colors(line_details_colors{
+			.Added            = Colors.Added,
+			.Removed          = Colors.Removed,
+			.IntralineAdded   = Colors.IntralineAdded,
+			.IntralineRemoved = Colors.IntralineRemoved,
+			.GutterBackground = Colors.Syntax[core::index_of(role::code_gutter_background)],
+			.GutterText       = Colors.Syntax[core::index_of(role::code_line_number_text)],
+			.Ink              = Colors.Syntax[core::index_of(role::syntax_normal)],
+			.Variant          = Colors.Variant,
+			.Supplied         = true,
+		});
 		// [[BPR-1107]]. When the panes draw white space, from the same
 		// typography record the preview reads.
 		for (auto* const target : { Left, Right, Unified }) {
@@ -4646,7 +4669,7 @@ namespace bpr::qt {
 		RightHeights.clear();
 		Left->clear();
 		Right->clear();
-		Detail->setPlainText(QStringLiteral("No change selected"));
+		Detail->present_empty();
 		Controller->clear_axis();
 		LinkMap->clear_geometry();
 		set_line_selection(*Left, std::nullopt);

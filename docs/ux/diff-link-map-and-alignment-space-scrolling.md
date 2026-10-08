@@ -10,7 +10,7 @@ The top comparison region contains:
 left epoch/document pane | correspondence link map | right epoch/document pane | shared vertical scrollbar
 ```
 
-The lower region remains the full-width line-over-line detail pane defined by the workbench design.
+The lower region remains the full-width line-over-line pane defined by the workbench design: Line details ([[BPR-1334]]).
 
 The left and right top panes retain natural document layout. There are no synthetic blank rows inserted merely to align text.
 

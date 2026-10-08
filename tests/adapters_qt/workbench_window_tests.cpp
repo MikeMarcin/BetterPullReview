@@ -15,6 +15,7 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -2556,17 +2557,18 @@ namespace {
 				   && window.focus_order().contains(comparing),
 			   "review details are a checkable, keyboard-reachable action in the comparison's menu on the review bar");
 		// [[BPR-0646]]. Off by default: the open epoch line is chrome; the
-		// exact anchors and the selected-change details are the review
-		// details, shown on request.
+		// exact anchors are the review details, shown on request.
+		// [[BPR-1334]]: the strip under the comparison is Line details, shown
+		// by default and no longer part of the review details.
 		expect(window.findChild<QScrollArea*>(
 				   QStringLiteral("workbenchReviewHeaderScroll"))
 					   == nullptr
 				   && comparison != nullptr && epochs != nullptr
 				   && epochs->isVisible() && epochs->line() != nullptr
 				   && epochs->line()->isVisible() && !epochs->details_visible()
-				   && detail != nullptr && !detail->isVisible(),
+				   && detail != nullptr && detail->isVisible(),
 			   "the epoch line shows above the comparison with the review details "
-			   "hidden, and no review header above either");
+			   "hidden, Line details shown, and no review header above either");
 		const auto focusedHeight = comparison->height();
 		expect(action->toolTip().contains(
 				   QStringLiteral("Show the exact review anchors")),
@@ -2576,16 +2578,17 @@ namespace {
 		QApplication::processEvents();
 		expect(action->isChecked() && epochs->details_visible()
 				   && epochs->line()->isVisible() && detail->isVisible(),
-			   "the review details gesture shows the exact anchors and the detail "
-			   "pane and keeps the epoch line");
+			   "the review details gesture shows the exact anchors and keeps the "
+			   "epoch line and Line details");
 		expect(comparison->height() < focusedHeight,
 			   "showing review details takes their height from the comparison");
 
 		action->trigger();
 		QApplication::processEvents();
 		expect(!action->isChecked() && !epochs->details_visible()
-				   && !detail->isVisible() && comparison->height() == focusedHeight,
-			   "the same shipped action hides the details and returns the height");
+				   && detail->isVisible() && comparison->height() == focusedHeight,
+			   "the same shipped action hides the anchors, returns the height and "
+			   "leaves Line details alone");
 		window.hide();
 	}
 
@@ -4910,39 +4913,6 @@ namespace {
 			aDocument->Bytes.begin() + static_cast<std::ptrdiff_t>(span.End) });
 	}
 
-	/// \brief Names the rows one side owes for the canonical selected detail.
-	///
-	/// \details Empty means the canonical mapping gave this side an insertion or
-	/// deletion boundary rather than source lines, which is a real shape rather
-	/// than a missing answer.
-	[[nodiscard]] auto canonical_side_rows(
-		const core::computed_file_diff& aDiff,
-		const core::line_detail_input&  aDetail,
-		const core::diff_side           aSide) -> QStringList
-	{
-		const auto& document = aSide == core::diff_side::left
-			? aDiff.LeftDocument
-			: aDiff.RightDocument;
-		const auto& mapped   = aSide == core::diff_side::left
-			? aDetail.LeftLine
-			: aDetail.RightLine;
-		if (mapped.has_value()) {
-			return { canonical_line_text(document, mapped->Line) };
-		}
-		if (
-			aDetail.OpposingSpan.has_value()
-			&& aDetail.OpposingSpan->Side == aSide) {
-			auto rows = QStringList{ };
-			for (auto line = aDetail.OpposingSpan->Lines.Begin;
-				 line < aDetail.OpposingSpan->Lines.End;
-				 ++line) {
-				rows.push_back(canonical_line_text(document, line));
-			}
-			return rows;
-		}
-		return { };
-	}
-
 	/// \brief Finds one contiguous run of rows at or below a starting row.
 	[[nodiscard]] auto run_index(
 		const QStringList& aRows,
@@ -5048,9 +5018,8 @@ namespace {
 			   "the lower detail pane is RFC-BPR-0004's composed detail surface "
 			   "rather than a second pane the shell invented");
 
-		// [[BPR-0646]]. The detail pane is a review detail, shown on request.
-		window.review_details_toggle_action()->setChecked(true);
-		process_events();
+		// [[BPR-1334]]. Line details is shown by default; the review details
+		// no longer govern it.
 		const auto openWidth = observe_full_central_width(window, "drawers open");
 
 		auto withoutFiles    = application::workbench_projection{ };
@@ -5113,37 +5082,38 @@ namespace {
 			expect(mapping.Reason == core::semantic_lookup_reason::none
 					   && mapping.Group == selection->Group,
 				   "the canonical mapping resolves the selected group");
-			const auto rows        = detail->toPlainText().split(QLatin1Char('\n'));
-			const auto earlierRows = canonical_side_rows(
-				diff, mapping, core::diff_side::left);
-			const auto laterRows = canonical_side_rows(
-				diff, mapping, core::diff_side::right);
+			// [[BPR-1334]]. Line details shows the selection's line: its base
+			// row over its head row, or its own row and a note that the other
+			// side has no version of it.
+			const auto rows    = detail->toPlainText().split(QLatin1Char('\n'));
+			const auto earlier = mapping.LeftLine.has_value()
+				? QStringList{ canonical_line_text(diff.LeftDocument, mapping.LeftLine->Line) }
+				: QStringList{ };
+			const auto later   = mapping.RightLine.has_value()
+				? QStringList{ canonical_line_text(diff.RightDocument, mapping.RightLine->Line) }
+				: QStringList{ };
 			if (index == 1U) {
 				expect(detail->toPlainText() != previous,
 					   "selecting another change updates the lower detail pane");
 			}
-			if (earlierRows.isEmpty() || laterRows.isEmpty()) {
-				const auto& present = earlierRows.isEmpty() ? laterRows
-															: earlierRows;
-				expect(run_index(rows, present, 0).has_value(),
-					   "a boundary-shaped group still shows its canonically "
-					   "mapped source rows");
-				expect(mapping.OpposingBoundary.has_value(),
-					   "the side without source rows is a canonical insertion or "
-					   "deletion boundary");
+			if (earlier.isEmpty() || later.isEmpty()) {
+				const auto present = earlier.isEmpty() ? later : earlier;
+				const auto row     = earlier.isEmpty() ? 1 : 0;
+				expect(rows.size() == 2 && rows[row] == present.front()
+						   && (rows[1 - row].startsWith(QStringLiteral("Not in "))
+							   || rows[1 - row].startsWith(QStringLiteral("No matching line"))),
+					   "a one-sided line shows its own row and says the other side has "
+					   "no version of it, base above head");
+				expect(mapping.OpposingBoundary.has_value() || mapping.OpposingSpan.has_value(),
+					   "the side without a line is a canonical boundary or span");
 				++bounded;
 				continue;
 			}
-			const auto earlierAt = run_index(rows, earlierRows, 0);
-			expect(earlierAt.has_value(),
-				   "the lower pane shows the canonically mapped earlier rows");
-			const auto laterAt = run_index(
-				rows, laterRows, *earlierAt + earlierRows.size());
-			expect(laterAt.has_value(),
-				   "the lower pane shows the canonically mapped later rows below "
-				   "the earlier rows, line over line");
-			lastEarlier = earlierRows;
-			lastLater   = laterRows;
+			expect(rows.size() == 2 && rows[0] == earlier.front() && rows[1] == later.front(),
+				   "the lower pane shows the canonically mapped base line over its "
+				   "head line");
+			lastEarlier = earlier;
+			lastLater   = later;
 			++paired;
 		}
 		expect(paired >= 2U && bounded >= 1U,
@@ -5160,8 +5130,6 @@ namespace {
 				   && !run_index(cleared, lastLater, 0).has_value(),
 			   "a cleared selection leaves no selected rows in the lower detail "
 			   "pane");
-		window.review_details_toggle_action()->setChecked(true);
-		process_events();
 		static_cast<void>(observe_full_central_width(window, "selection cleared"));
 		window.hide();
 	}
@@ -9661,6 +9629,59 @@ namespace {
 			   "Reset on the drawers group hides the controls again and leaves the other groups alone");
 	}
 
+	/// \brief [[BPR-1334]]. View > Line Details and its Settings row are one
+	/// profile preference; the strip follows what the host publishes.
+	void test_line_details_view_menu_and_settings_follow_the_projection()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		auto* const action = window.line_details_action();
+		auto* const strip  = window.comparison_surface()->line_details();
+		const auto  button = [&window](const char* const aName) {
+			auto* const found = window.findChild<QToolButton*>(QString::fromLatin1(aName));
+			expect(found != nullptr, "the Line details row names its options");
+			return found;
+		};
+		expect(action != nullptr && action->isCheckable() && action->isChecked() && window.view_menu()->actions().contains(action)
+				   && action->text() == QStringLiteral("Line &Details") && strip != nullptr && strip->isVisible()
+				   && button("lineDetailsShown")->isChecked() && !button("lineDetailsHidden")->isChecked(),
+			   "View carries Line Details, checked, and Settings says Shown: the strip is on by default");
+
+		action->trigger();
+		process_events();
+		expect(records.size() == 1U && records.back().LineDetails == application::review_line_details::hidden
+				   && records.back().OpenModality == application::review_behaviour_settings{ }.OpenModality,
+			   "the menu dispatches the profile's whole behaviour with Line details hidden");
+		expect(action->isChecked() && strip->isVisible(), "nothing changes until the host publishes the choice");
+
+		auto hidden        = application::review_behaviour_settings{ };
+		hidden.LineDetails = application::review_line_details::hidden;
+		window.publish(application::workbench_projection{ .Behaviour = hidden });
+		process_events();
+		expect(!action->isChecked() && !strip->isVisible() && button("lineDetailsHidden")->isChecked(),
+			   "a published Hidden unchecks the menu, hides the strip and moves the Settings row");
+
+		button("lineDetailsShown")->click();
+		expect(records.size() == 2U && records.back().LineDetails == application::review_line_details::shown,
+			   "the Settings row dispatches the same preference");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(action->isChecked() && strip->isVisible(), "a published Shown brings the strip back");
+
+		window.publish(application::workbench_projection{ .Behaviour = hidden });
+		button("resetComparisonBehaviour")->click();
+		expect(records.size() == 3U && records.back().LineDetails == application::review_line_details::shown,
+			   "Reset on the Comparison group shows Line details again");
+		window.hide();
+	}
+
 	// [[BPR-0721]]. With the drawer controls hidden, the default, a collapsed
 	// drawer leaves the splitter entirely and an expanded one has no Hide
 	// button; with them shown, the rail is the 18-pixel column and nothing
@@ -10895,8 +10916,10 @@ namespace {
 				   && action->shortcutContext() == Qt::WindowShortcut && action->isEnabled() && !action->isChecked()
 				   && action->toolTip() == QStringLiteral("Hide drawers (%1)").arg(key),
 			   "Hide Drawers is a checkable window command on Ctrl+B (Command-B on macOS), offered in Review");
-		expect(window.view_menu()->actions().indexOf(action) == window.view_menu()->actions().indexOf(window.one_pane_action()) + 1,
-			   "the View menu carries it right after One pane");
+		// [[BPR-1334]]. Line Details joins the comparison's entries between.
+		expect(window.view_menu()->actions().indexOf(window.line_details_action()) == window.view_menu()->actions().indexOf(window.one_pane_action()) + 1
+				   && window.view_menu()->actions().indexOf(action) == window.view_menu()->actions().indexOf(window.line_details_action()) + 1,
+			   "the View menu carries it right after One pane and Line Details");
 		auto* const toolbar  = window.primary_toolbar();
 		auto* const button   = qobject_cast<QToolButton*>(toolbar->widgetForAction(action));
 		auto* const toggle   = toolbar->widgetForAction(window.conversations_drawer_toggle_action());
@@ -13407,6 +13430,7 @@ auto main(int argc, char** argv) -> int
 	test_the_servers_combo_editor_is_gone();
 	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
 	test_hidden_drawer_controls_leave_no_column_and_no_hide_button();
+	test_line_details_view_menu_and_settings_follow_the_projection();
 	test_continue_review_and_opening_honour_the_modality_preferences();
 	test_comments_filter_and_return_comparison_preferences_apply_on_open();
 	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();

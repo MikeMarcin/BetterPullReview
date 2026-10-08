@@ -761,6 +761,112 @@ namespace {
 		check(run("retained\n", std::nullopt), 0, 0, tour_mapping::unavailable, { });
 	}
 
+	/// [[BPR-1334]]. Line details: the selected lines, base over head, with
+	/// the intraline emphasis clipped to a bounded, character-safe cut.
+	auto test_line_details() -> void
+	{
+		const auto indexed = [](const computed_file_diff& aDiff) {
+			auto index = build_diff_semantic_index(std::make_shared<const computed_file_diff>(aDiff));
+			expect(index.has_value(), "line details fixture indexes");
+			return *index;
+		};
+		const auto text = [](const computed_file_diff& aDiff, const line_details_row& aRow) {
+			const auto& document = aRow.Side == diff_side::left ? *aDiff.LeftDocument : *aDiff.RightDocument;
+			return std::string{ document.Bytes.begin() + static_cast<std::ptrdiff_t>(aRow.Content.Begin),
+								document.Bytes.begin() + static_cast<std::ptrdiff_t>(aRow.Content.End) };
+		};
+
+		// A changed line: both versions, base first, emphasis only on the change.
+		const auto changed      = run("prefix alpha suffix\n", "prefix beta suffix\n");
+		const auto changedIndex = indexed(changed);
+		const auto pair         = line_details(changedIndex, diff_side::right, line_span{ 0U, 1U });
+		expect(pair.Rows.size() == 2U && pair.OmittedLines == 0U, "a changed line gives two rows");
+		expect(pair.Rows[0].Side == diff_side::left && pair.Rows[1].Side == diff_side::right
+				   && pair.Rows[0].Kind == line_details_row_kind::changed && pair.Rows[1].Kind == line_details_row_kind::changed
+				   && pair.Rows[0].Line == std::optional{ 0U } && pair.Rows[1].Line == std::optional{ 0U },
+			   "base row then head row, both changed, with their line numbers");
+		expect(text(changed, pair.Rows[0]) == "prefix alpha suffix" && text(changed, pair.Rows[1]) == "prefix beta suffix",
+			   "each row shows its own side's line without its terminator");
+		const auto inside = [](const line_details_row& aRow, const std::uint64_t aBegin, const std::uint64_t aEnd) {
+			return !aRow.Emphasis.empty() && std::ranges::all_of(aRow.Emphasis, [&](const byte_span& aSpan) {
+				return aSpan.Begin < aSpan.End && aSpan.Begin >= aBegin && aSpan.End <= aEnd;
+			});
+		};
+		expect(inside(pair.Rows[0], 7U, 12U) && inside(pair.Rows[1], 7U, 11U),
+			   "the emphasis marks the changed word and nothing of the common prefix or suffix");
+
+		// An unchanged line: both versions, no emphasis.
+		const auto same  = run("one\ntwo\n", "one\ntwo\n");
+		const auto equal = line_details(indexed(same), diff_side::left, line_span{ 1U, 2U });
+		expect(equal.Rows.size() == 2U && equal.Rows[0].Kind == line_details_row_kind::unchanged
+				   && equal.Rows[1].Kind == line_details_row_kind::unchanged && equal.Rows[0].Emphasis.empty()
+				   && equal.Rows[1].Emphasis.empty() && text(same, equal.Rows[1]) == "two",
+			   "an unchanged line shows both versions without emphasis");
+
+		// A removed line and an added line: the other side is absent and says where.
+		const auto deletion = run("a\nb\nc\n", "a\nc\n");
+		const auto removed  = line_details(indexed(deletion), diff_side::left, line_span{ 1U, 2U });
+		expect(removed.Rows.size() == 2U && removed.Rows[0].Kind == line_details_row_kind::removed
+				   && text(deletion, removed.Rows[0]) == "b" && removed.Rows[1].Kind == line_details_row_kind::absent
+				   && removed.Rows[1].Side == diff_side::right && !removed.Rows[1].Line.has_value()
+				   && removed.Rows[1].Boundary == std::optional{ 1U },
+			   "a removed line shows its base row over an absent head row at its boundary");
+		const auto insertion = run("a\nc\n", "a\nb\nc\n");
+		const auto added     = line_details(indexed(insertion), diff_side::right, line_span{ 1U, 2U });
+		expect(added.Rows.size() == 2U && added.Rows[0].Kind == line_details_row_kind::absent
+				   && added.Rows[0].Side == diff_side::left && added.Rows[0].Boundary == std::optional{ 1U }
+				   && added.Rows[1].Kind == line_details_row_kind::added && text(insertion, added.Rows[1]) == "b",
+			   "an added line shows an absent base row over its head row");
+
+		// An unpaired line in a replacement names the lines it replaces.
+		auto unpairedOptions                        = diff_options{ };
+		unpairedOptions.Pairing                     = pairing_policy::disabled;
+		unpairedOptions.SimilarityThresholdPermille = 0U;
+		const auto unpaired                         = run("left one\nleft two\n", "right one\nright two\nright three\n", unpairedOptions);
+		const auto replaced                         = line_details(indexed(unpaired), diff_side::right, line_span{ 2U, 3U });
+		expect(replaced.Rows.size() == 2U && replaced.Rows[0].Kind == line_details_row_kind::absent
+				   && replaced.Rows[0].Replaces == std::optional{ line_span{ 0U, 2U } }
+				   && replaced.Rows[1].Kind == line_details_row_kind::added,
+			   "an unpaired replacement line names the base lines it replaces");
+
+		// A long line is cut at a character boundary, and emphasis stops at the cut.
+		const auto cutDiff = run("abcdefé tail one\n", "abcdefé tail two\n");
+		const auto cut     = line_details(indexed(cutDiff), diff_side::left, line_span{ 0U, 1U },
+										  line_details_limits{ .MaximumLines = 16U, .MaximumLineBytes = 7U });
+		expect(cut.Rows.size() == 2U && text(cutDiff, cut.Rows[0]) == "abcdef" && cut.Rows[0].OmittedBytes == 11U,
+			   "a cut inside a two-byte character moves back to the character's start");
+		expect(cut.Rows[0].Emphasis.empty() && cut.Rows[1].Emphasis.empty(),
+			   "a change wholly past the cut is not drawn inside the shown part");
+		const auto clipDiff = run("abXdefghij\n", "abYdefghij\n");
+		const auto clipped  = line_details(indexed(clipDiff), diff_side::left, line_span{ 0U, 1U },
+										   line_details_limits{ .MaximumLines = 16U, .MaximumLineBytes = 4U });
+		expect(clipped.Rows.size() == 2U && clipped.Rows[0].Emphasis == std::vector{ byte_span{ 2U, 3U } }
+				   && clipped.Rows[0].OmittedBytes == 6U,
+			   "a change inside the shown part keeps its emphasis");
+		const auto huge     = std::string(100'000U, 'x');
+		const auto hugeText = huge + "\n";
+		const auto hugeDiff = run(hugeText, hugeText);
+		const auto hugeRows = line_details(indexed(hugeDiff), diff_side::left, line_span{ 0U, 1U });
+		expect(hugeRows.Rows.size() == 2U && hugeRows.Rows[0].Content.End - hugeRows.Rows[0].Content.Begin == 4096U
+				   && hugeRows.Rows[0].OmittedBytes == 100'000U - 4096U && hugeRows.Rows[1].OmittedBytes == 100'000U - 4096U,
+			   "a 100,000-byte line shows its first 4,096 bytes and counts the rest");
+
+		// A selection longer than the limit shows its first lines and counts the rest.
+		auto many = std::string{ };
+		for (auto index = 0; index < 20; ++index) {
+			many += "line " + std::to_string(index) + "\n";
+		}
+		const auto manyDiff = run(many, many);
+		const auto range    = line_details(indexed(manyDiff), diff_side::left, line_span{ 0U, 20U });
+		expect(range.Rows.size() == 32U && range.OmittedLines == 4U && range.Rows[30].Line == std::optional{ 15U },
+			   "a twenty-line selection shows sixteen pairs and counts four more");
+
+		// Nothing to show.
+		const auto manyIndex = indexed(manyDiff);
+		expect(line_details(manyIndex, diff_side::left, line_span{ 3U, 3U }).Rows.empty()
+				   && line_details(manyIndex, diff_side::left, line_span{ 19U, 21U }).Rows.empty(),
+			   "an empty span or one past the side's end shows nothing");
+	}
 } // namespace
 
 int main()
@@ -775,6 +881,7 @@ int main()
 	test_compact_interaction_transition();
 	test_indexed_semantics_at_scale();
 	test_generated_properties();
+	test_line_details();
 	std::cout << "BPR-0074 diff semantic projection tests passed\n";
 	return EXIT_SUCCESS;
 }

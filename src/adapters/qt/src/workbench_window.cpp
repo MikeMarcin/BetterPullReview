@@ -1322,7 +1322,7 @@ namespace bpr::qt {
 			QKeySequence{ QStringLiteral("Alt+Shift+3") });
 		ReviewDetailsAction->setShortcutContext(Qt::WindowShortcut);
 		ReviewDetailsAction->setToolTip(QStringLiteral(
-			"Show the exact review anchors and the selected-change details."));
+			"Show the exact review anchors."));
 		ReviewDetailsAction->setStatusTip(ReviewDetailsAction->toolTip());
 		addAction(ReviewDetailsAction);
 		connect(ReviewDetailsAction, &QAction::toggled, this, [this](const bool) {
@@ -5669,6 +5669,10 @@ namespace bpr::qt {
 			if (aProjection.Layout->SummaryFraction) {
 				OverviewPage->set_summary_fraction(*aProjection.Layout->SummaryFraction);
 			}
+			// [[BPR-1334]]. This window's Line details height, once loaded.
+			if (aProjection.Layout->LineDetailsHeight && ComparisonSurface != nullptr) {
+				ComparisonSurface->set_line_details_height(*aProjection.Layout->LineDetailsHeight);
+			}
 			++Statistics.LayoutUpdates;
 		}
 		if (aProjection.Behaviour) {
@@ -5684,6 +5688,7 @@ namespace bpr::qt {
 																													: core::feedback_resolution_mode::unresolved);
 			}
 			apply_label_helper();
+			apply_line_details();
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
 			// them now, once each.
@@ -8478,6 +8483,21 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				aNext.DrawerControls = application::review_behaviour_settings{ }.DrawerControls;
 			});
+		// [[BPR-1334]]. The owner, 2026-10-08: "an optional on by default view
+		// page below the side by side". The same choice as View > Line Details.
+		addGroup(
+			QStringLiteral("Comparison"),
+			QStringLiteral("resetComparisonBehaviour"),
+			{
+				row{ 8U,
+					 QStringLiteral("Line details"),
+					 QStringLiteral("lineDetails"),
+					 { { QStringLiteral("Shown"), QStringLiteral("lineDetailsShown") },
+					   { QStringLiteral("Hidden"), QStringLiteral("lineDetailsHidden") } } },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.LineDetails = application::review_behaviour_settings{ }.LineDetails;
+			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
 		// because i liked both of them." Icons are the default. The Comment
@@ -8672,6 +8692,35 @@ namespace bpr::qt {
 		open->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 	}
 
+	void workbench_window::dispatch_line_details_toggle()
+	{
+		// The action's check already moved; the published behaviour decides,
+		// so it goes back until the host answers.
+		const auto current = AskedBehaviour.value_or(Behaviour);
+		apply_line_details();
+		if (!BehaviourDispatch) {
+			return;
+		}
+		auto next        = current;
+		next.LineDetails = current.LineDetails == application::review_line_details::shown
+			? application::review_line_details::hidden
+			: application::review_line_details::shown;
+		AskedBehaviour   = next;
+		BehaviourDispatch(next);
+	}
+
+	void workbench_window::apply_line_details()
+	{
+		const auto shown = Behaviour.LineDetails == application::review_line_details::shown;
+		if (LineDetailsAction != nullptr) {
+			const auto blocker = QSignalBlocker{ LineDetailsAction };
+			LineDetailsAction->setChecked(shown);
+		}
+		if (ComparisonSurface != nullptr) {
+			ComparisonSurface->set_line_details_visible(shown);
+		}
+	}
+
 	void workbench_window::apply_label_helper()
 	{
 		// [[BPR-1088]]. Only a published change reaches the editor, so the
@@ -8702,6 +8751,7 @@ namespace bpr::qt {
 		check(5U, static_cast<std::size_t>(Behaviour.DrawerControls));
 		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
+		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
 		if (LabelHelperSwitch != nullptr) {
 			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
 		}
@@ -8737,6 +8787,7 @@ namespace bpr::qt {
 			.LabelHelper      = LabelHelperSwitch != nullptr && LabelHelperSwitch->isChecked() ? application::review_label_helper::on : application::review_label_helper::off,
 			.OverviewCounts   = static_cast<application::review_overview_counts>(chosen(7U)),
 			.LabelColumns     = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
+			.LineDetails      = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
 		};
 	}
 
@@ -9658,6 +9709,11 @@ namespace bpr::qt {
 	auto workbench_window::line_numbers_action() const noexcept -> QAction*
 	{
 		return LineNumbersAction;
+	}
+
+	auto workbench_window::line_details_action() const noexcept -> QAction*
+	{
+		return LineDetailsAction;
 	}
 
 	auto workbench_window::one_pane_action() const noexcept -> QAction*
@@ -12251,20 +12307,17 @@ namespace bpr::qt {
 		}
 		const auto visible = ReviewDetailsAction->isChecked();
 		// The epoch line is chrome and stays; the exact anchors, OIDs and
-		// history maintenance beneath it and the selected-change detail pane
-		// are the review details.
+		// history maintenance beneath it are the review details. [[BPR-1334]]:
+		// the strip under the comparison is Line details now, with its own
+		// View menu entry, so this no longer shows or hides it.
 		if (EpochSelectors != nullptr) {
 			EpochSelectors->set_details_visible(visible);
 		}
-		if (ComparisonSurface != nullptr
-			&& ComparisonSurface->detail_pane() != nullptr) {
-			ComparisonSurface->detail_pane()->setVisible(visible);
-		}
 		const auto description = visible
 			? QStringLiteral(
-				  "Hide the exact review anchors and the selected-change details and give their height to the comparison.")
+				  "Hide the exact review anchors and give their height to the comparison.")
 			: QStringLiteral(
-				  "Show the exact review anchors and the selected-change details.");
+				  "Show the exact review anchors.");
 		ReviewDetailsAction->setToolTip(description);
 		ReviewDetailsAction->setStatusTip(description);
 		// [[BPR-1130]]. The details sit in the Updates line's control, which a
@@ -12630,6 +12683,20 @@ namespace bpr::qt {
 		ViewMenu->addAction(OnePaneAction);
 		connect(OnePaneAction, &QAction::triggered, this, [this] {
 			dispatch_one_pane_toggle();
+		});
+		// [[BPR-1334]]. Line details under the comparison, shown by default.
+		// The choice is the profile's review behaviour; the checked mark is
+		// what the host published, so a refused save puts it back.
+		LineDetailsAction = new QAction{ QStringLiteral("Line &Details"), this };
+		LineDetailsAction->setObjectName(QStringLiteral("toggleWorkbenchLineDetailsAction"));
+		LineDetailsAction->setCheckable(true);
+		LineDetailsAction->setChecked(Behaviour.LineDetails == application::review_line_details::shown);
+		LineDetailsAction->setToolTip(QStringLiteral("Show the current line's base and head versions in full under the comparison"));
+		LineDetailsAction->setStatusTip(LineDetailsAction->toolTip());
+		addAction(LineDetailsAction);
+		ViewMenu->addAction(LineDetailsAction);
+		connect(LineDetailsAction, &QAction::triggered, this, [this] {
+			dispatch_line_details_toggle();
 		});
 		// [[BPR-1295]]. Hide Drawers. Command-B (Ctrl+B elsewhere), the
 		// owner's left-hand key and the one Visual Studio Code uses for its

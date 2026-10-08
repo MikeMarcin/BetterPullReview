@@ -112,6 +112,9 @@ namespace bpr::application {
 		void observe_geometry(workbench_window_geometry aGeometry);
 		/// \brief Validates and persists only this window's explicit summary resize or Reset.
 		void resize_summary(std::optional<std::uint32_t> aFraction);
+		/// \brief [[BPR-1334]]. Validates and persists only this window's
+		/// explicit Line details height or Reset.
+		void resize_line_details(std::optional<std::uint32_t> aHeight);
 		void cancel();
 		void shutdown();
 		// Closes ingress while draining the latest accepted window layout. Ports and

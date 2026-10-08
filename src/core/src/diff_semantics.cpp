@@ -835,4 +835,134 @@ namespace bpr::core {
 				  .Diagnostic = aDiff.Alignment.Diagnostic.Code,
 			  };
 	}
+
+	namespace {
+		/// \brief The end of the shown part of a line: at most `aLimit` bytes,
+		/// moved back off any UTF-8 continuation byte so a character is never
+		/// split. Looks at no more than three bytes before the limit.
+		[[nodiscard]] auto shown_line_end(const decoded_text_document& aDocument,
+										  const byte_span              aContent,
+										  const std::uint64_t          aLimit) -> std::uint64_t
+		{
+			const auto length = aContent.End - aContent.Begin;
+			if (length <= aLimit) {
+				return aContent.End;
+			}
+			auto end = aContent.Begin + aLimit;
+			for (auto step = 0; step < 3 && end > aContent.Begin; ++step) {
+				const auto byte = aDocument.Bytes[static_cast<std::size_t>(end)];
+				if ((byte & 0xC0U) != 0x80U) {
+					break;
+				}
+				--end;
+			}
+			return end;
+		}
+
+		[[nodiscard]] auto line_details_side_row(
+			const computed_file_diff&   aDiff,
+			const source_line_ref       aLine,
+			const line_details_row_kind aKind,
+			const line_details_limits&  aLimits) -> std::optional<line_details_row>
+		{
+			const auto& document = aLine.Side == diff_side::left ? aDiff.LeftDocument : aDiff.RightDocument;
+			if (!document.has_value() || aLine.Line >= document->Lines.size()) {
+				return std::nullopt;
+			}
+			const auto content = document->Lines[aLine.Line].Content;
+			if (content.End < content.Begin || content.End > document->Bytes.size()) {
+				return std::nullopt;
+			}
+			const auto end = shown_line_end(*document, content, aLimits.MaximumLineBytes);
+			return line_details_row{
+				.Side         = aLine.Side,
+				.Kind         = aKind,
+				.Line         = aLine.Line,
+				.Content      = byte_span{ content.Begin, end },
+				.OmittedBytes = content.End - end,
+			};
+		}
+
+		void add_emphasis(line_details_row& aRow, const byte_span aSpan)
+		{
+			const auto shown = aRow.Content.End - aRow.Content.Begin;
+			const auto begin = std::min(aSpan.Begin, shown);
+			const auto end   = std::min(aSpan.End, shown);
+			if (begin < end) {
+				aRow.Emphasis.push_back(byte_span{ begin, end });
+			}
+		}
+
+		[[nodiscard]] auto absent_row(const diff_side aSide, const line_detail_input& aDetail)
+			-> line_details_row
+		{
+			auto row = line_details_row{ .Side = aSide, .Kind = line_details_row_kind::absent };
+			if (aDetail.OpposingSpan.has_value() && aDetail.OpposingSpan->Side == aSide) {
+				row.Replaces = aDetail.OpposingSpan->Lines;
+			}
+			if (aDetail.OpposingBoundary.has_value() && aDetail.OpposingBoundary->Side == aSide) {
+				row.Boundary = aDetail.OpposingBoundary->Boundary;
+			}
+			return row;
+		}
+	} // namespace
+
+	auto line_details(const diff_semantic_index& aIndex,
+					  const diff_side            aSide,
+					  const line_span            aLines,
+					  const line_details_limits  aLimits) -> line_details_projection
+	{
+		const auto& diff   = aIndex.diff();
+		auto        result = line_details_projection{ };
+		const auto  count  = aSide == diff_side::left ? diff.Alignment.LeftLineCount : diff.Alignment.RightLineCount;
+		if (!valid_side(aSide) || diff.Alignment.Content != diff_content_state::text || aLines.Begin >= aLines.End
+			|| aLines.End > count) {
+			return result;
+		}
+		const auto shown    = std::min<std::uint64_t>(aLines.extent(), aLimits.MaximumLines);
+		result.OmittedLines = static_cast<std::uint32_t>(aLines.extent() - shown);
+		result.Rows.reserve(static_cast<std::size_t>(shown) * 2U);
+		for (auto line = aLines.Begin; line < aLines.Begin + shown; ++line) {
+			const auto detail = detail_for_line(
+				aIndex, source_line_ref{ .Comparison = diff.Alignment.Digest, .Side = aSide, .Line = line });
+			if (detail.Kind == line_detail_kind::paired_lines && detail.LeftLine && detail.RightLine) {
+				auto kind = line_details_row_kind::unchanged;
+				if (detail.Pair.has_value()) {
+					const auto pair = aIndex.pair_index(*detail.Pair);
+					if (pair.has_value() && diff.Alignment.Pairs[*pair].Kind == line_pair_kind::similar) {
+						kind = line_details_row_kind::changed;
+					}
+				}
+				auto left  = line_details_side_row(diff, *detail.LeftLine, kind, aLimits);
+				auto right = line_details_side_row(diff, *detail.RightLine, kind, aLimits);
+				if (!left || !right) {
+					continue;
+				}
+				for (const auto& edit : detail.Intraline) {
+					add_emphasis(*left, edit.Left);
+					add_emphasis(*right, edit.Right);
+				}
+				result.Rows.push_back(std::move(*left));
+				result.Rows.push_back(std::move(*right));
+				continue;
+			}
+			if (detail.Kind != line_detail_kind::opposing_span && detail.Kind != line_detail_kind::opposing_boundary) {
+				continue;
+			}
+			const auto kind     = aSide == diff_side::left ? line_details_row_kind::removed : line_details_row_kind::added;
+			auto       selected = line_details_side_row(diff, detail.Selected, kind, aLimits);
+			if (!selected) {
+				continue;
+			}
+			auto other = absent_row(other_side(aSide), detail);
+			if (aSide == diff_side::left) {
+				result.Rows.push_back(std::move(*selected));
+				result.Rows.push_back(std::move(other));
+			} else {
+				result.Rows.push_back(std::move(other));
+				result.Rows.push_back(std::move(*selected));
+			}
+		}
+		return result;
+	}
 } // namespace bpr::core

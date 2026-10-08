@@ -850,6 +850,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto menu_bar() const noexcept -> QMenuBar*;
 		[[nodiscard]] auto view_menu() const noexcept -> QMenu*;
 		[[nodiscard]] auto line_numbers_action() const noexcept -> QAction*;
+		/// [[BPR-1334]]. View > Line Details.
+		[[nodiscard]] auto line_details_action() const noexcept -> QAction*;
 		[[nodiscard]] auto one_pane_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1336]]. View > Zoom In, Zoom Out and Actual Size.
 		[[nodiscard]] auto zoom_in_action() const noexcept -> QAction*;
@@ -1478,9 +1480,14 @@ namespace bpr::qt {
 		void               update_action_state();
 		void               build_menu_bar();
 		void               dispatch_line_numbers_toggle();
-		void               apply_line_numbers();
-		void               dispatch_one_pane_toggle();
-		void               apply_one_pane();
+		/// [[BPR-1334]]. View > Line Details: dispatches the profile's
+		/// behaviour with Line details flipped.
+		void dispatch_line_details_toggle();
+		/// [[BPR-1334]]. Shows or hides Line details as published.
+		void apply_line_details();
+		void apply_line_numbers();
+		void dispatch_one_pane_toggle();
+		void apply_one_pane();
 		/// \brief [[BPR-1295]]. Re-asserts the drawers the core decided and
 		/// sends the hide-and-show gesture.
 		void dispatch_drawers_toggle();
@@ -1765,6 +1772,8 @@ namespace bpr::qt {
 		std::optional<core::code_font_settings>   CodeZoom;
 		void                                      dispatch_code_zoom(core::code_zoom_step aStep);
 		void                                      apply_code_zoom();
+		/// [[BPR-1334]]. View > Line Details.
+		QAction* LineDetailsAction = nullptr;
 		/// [[BPR-1295]]. Hide Drawers, and the filter by which an editable
 		/// multi-line editor keeps its key.
 		QAction*                                                     ToggleDrawersAction  = nullptr;
@@ -1990,7 +1999,7 @@ namespace bpr::qt {
 		review_behaviour_dispatch                BehaviourDispatch;
 		application::review_behaviour_settings   Behaviour;
 		QWidget*                                 BehaviourEditor = nullptr;
-		std::array<std::vector<QToolButton*>, 8> BehaviourOptions{ };
+		std::array<std::vector<QToolButton*>, 9> BehaviourOptions{ };
 		feedback_mark_preview*                   FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.

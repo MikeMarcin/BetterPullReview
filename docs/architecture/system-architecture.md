@@ -1168,8 +1168,9 @@ column of the SQLite `workbench_layout` table, and a published delta the View
 menu's action reads its checked state from. A Qt-local boolean on the pane
 would have satisfied the same user-visible request while violating both the
 adapter boundary and the one-command-projection rule. A separate always-visible, keyboard-addressable Review details
-action hides or restores the secondary session/queue/pull-request header,
-epoch/history controls, and selected-change detail together. Hiding them does
+action hides or restores the secondary session/queue/pull-request header and
+epoch/history controls together. Since [[BPR-1334]] the lower pane is Line
+details, a profile preference with its own View menu action, shown by default. Hiding them does
 not clear their values or semantic selection; it returns their vertical extent
 to the two source panes and center map. At the 1280 × 1000 evidence viewport,
 the selected-diff contract requires the native comparison splitter to occupy

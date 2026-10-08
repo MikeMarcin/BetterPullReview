@@ -33,11 +33,15 @@ class QTextDocument;
 class QResizeEvent;
 class QScrollBar;
 class QSplitter;
+class QSplitterHandle;
 class QStackedLayout;
 class QTimer;
 class QWheelEvent;
 
 namespace bpr::qt {
+	class line_details_pane;
+	class line_details_splitter;
+
 	/// \brief Identifies the Qt-facing source that requested a geometry rebuild.
 	enum class diff_geometry_rebuild_trigger : std::uint32_t {
 		none                     = 0U,
@@ -134,7 +138,9 @@ namespace bpr::qt {
 		/// reading positions a font change kept on the reader's line.
 		std::uint64_t CodeZoomGestures     = 0U;
 		std::uint64_t ReadingPositionsHeld = 0U;
-		std::size_t   SemanticIndexEntries = 0U;
+		/// [[BPR-1334]]. Line details projections the core was asked for.
+		std::uint64_t LineDetailsProjections = 0U;
+		std::size_t   SemanticIndexEntries   = 0U;
 		std::array<
 			diff_geometry_rebuild_cause,
 			diff_geometry_rebuild_history_capacity>
@@ -358,6 +364,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto detail_pane() const noexcept -> QPlainTextEdit*;
+		/// \brief [[BPR-1334]]. Line details, the strip under the comparison;
+		/// the same widget as `detail_pane`.
+		[[nodiscard]] auto line_details() const noexcept -> line_details_pane*;
+		/// \brief [[BPR-1334]]. Shows or hides Line details. Presentation
+		/// only: the preference is the profile's and arrives from the host.
+		void               set_line_details_visible(bool aVisible);
+		[[nodiscard]] auto line_details_visible() const noexcept -> bool;
+		/// \brief [[BPR-1334]]. This window's preferred strip height in
+		/// logical pixels; empty is the default.
+		void               set_line_details_height(std::optional<std::uint32_t> aHeight);
+		[[nodiscard]] auto line_details_height() const noexcept -> std::optional<std::uint32_t>;
+		/// \brief [[BPR-1334]]. Told the height after an explicit gesture on
+		/// the seam; empty after Reset. Never told about a clamp.
+		void               set_line_details_resize_sink(std::function<void(std::optional<std::uint32_t>)> aSink);
+		[[nodiscard]] auto line_details_handle() const -> QSplitterHandle*;
 		/// \brief Applies one semantic previous/next change gesture.
 		///
 		/// \details The workbench owns the one immutable semantic index. Presenters
@@ -553,6 +574,10 @@ namespace bpr::qt {
 			const core::source_line_ref& aLine, bool aAtTop = false) -> bool;
 		void apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void update_detail();
+		/// \brief [[BPR-1334]]. Projects the current line, or the panes'
+		/// text selection, into Line details.
+		void update_line_details();
+		void queue_line_details();
 		void update_selection_paint();
 		void announce_accessible_status(QString aText);
 		void update_status(QString aText, bool aRoutine = false);
@@ -586,11 +611,15 @@ namespace bpr::qt {
 		one_pane_diff_link_map*   UnifiedMap = nullptr;
 		struct unified_presentation;
 		std::unique_ptr<unified_presentation> UnifiedPresentation;
-		QScrollBar*                           SharedScroll = nullptr;
-		comparison_scroll_controller*         Controller   = nullptr;
-		diff_link_map*                        LinkMap      = nullptr;
-		QSplitter*                            Vertical     = nullptr;
-		QPlainTextEdit*                       Detail       = nullptr;
+		QScrollBar*                           SharedScroll      = nullptr;
+		comparison_scroll_controller*         Controller        = nullptr;
+		diff_link_map*                        LinkMap           = nullptr;
+		line_details_splitter*                Vertical          = nullptr;
+		line_details_pane*                    Detail            = nullptr;
+		bool                                  LineDetailsQueued = false;
+		/// What a selection announcement names: "Change 3 of 11" or
+		/// "Selected line 12".
+		QString SelectionHeading;
 
 		std::optional<core::diff_request_context> CurrentContext;
 		diff_presentation_colors                  Colors;
