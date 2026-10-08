@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1314"
 title: "Verify composed resizable Overview and prepare owner review"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0063"]
 depends_on: ["BPR-1313"]
 priority: "P1"
 metadata: {"milestone_plan": {"id": "bpr-four-drafts-v1", "path": "docs/rfcs/plans/bpr-four-drafts-v1/milestone-plan.json"}, "mandate_revision": "four-drafts-r1"}
+parked_on: "human-review"
+acceptance: [{"criterion":"C1","outcome":"pass","revision":"c4e49f971fa9a34004f29eded0bf19f2131d486f","evidence":{"kind":"command","detail":"Exact source: focused Qt plus composed Overview at 100/125/200% pass4/4 (13.72s), 90 actual composed offscreen renders across five states/six appearances; independent boundary scroll, reader/document/model retention, full-reader/Discuss return, public Refresh, review entry, actual file comparison, provider writes0. Host/SQLite/two-window restart pass; format and focused/full new-test warnings-as-errors tidy pass. Unchanged architecture verifier passes clean exact exported source; main-root artifact contamination recorded separately."}},{"criterion":"C2","outcome":"pending","revision":"c4e49f971fa9a34004f29eded0bf19f2131d486f:1dcafcb8a6f1d9d4a547c1ec641476c43b97bcf64b841378bac1a4ad94edfeec","evidence":{"kind":"artifact","detail":"Fresh ready/protected session850a898a7ca136bf05449dc7a20a21cf cursor3, candidateBPR-1314-overview-v001 fingerprint ec530b0b1949c6f6d574caf0f81785993f28b8e593a300c4ff495e42961bc5b6; separate loopback server34482/session51945. One Accept/Reject owner judgment and native pointer/keyboard/accessibility/appearance observations pending. Self-contained source/build/cache retained; no verdict inferred. Coordinator owns wait and intake."}}]
 ---
 
 # Verify composed resizable Overview and prepare owner review
