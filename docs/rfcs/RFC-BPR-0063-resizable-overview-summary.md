@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0063"
 title: "Taller, Resizable PR Overview Summary"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 milestone: "Owner four-draft mandate"
 depends_on: []
