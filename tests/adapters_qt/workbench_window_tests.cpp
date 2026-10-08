@@ -5,6 +5,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
@@ -720,7 +721,7 @@ namespace {
 		expect(window.previous_file_action()->statusTip()
 				   == detail_of(window.previous_file_action()),
 			   "the disabled file reason also reaches the status tip");
-		expect(window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)").arg(QKeySequence{ QStringLiteral("Alt+Down") }.toString(QKeySequence::NativeText))
+		expect(window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+Alt+Down") }.toString(QKeySequence::NativeText))
 				   && window.next_file_action()->statusTip() == QStringLiteral("Select the next actionable file."),
 			   "an enabled file action names itself and its key, and its status tip describes the gesture");
 
@@ -8104,13 +8105,21 @@ namespace {
 
 	void deliver_key(qt::workbench_window& aWindow, int aKey, Qt::KeyboardModifiers aModifiers);
 
-	/// \brief [[BPR-1328]]. The owner kept the arrows' keys and asked that
-	/// they be discoverable, then asked for Command-Down as next change. Next
-	/// and Previous change answer Command-Down and Command-Up (Ctrl+Down and
-	/// Ctrl+Up elsewhere) as well as Option-Page Down and Option-Page Up, and
-	/// every arrow's tooltip names its key in the platform's notation. In the
-	/// code the change wins; in an editor being written the keys keep their
-	/// own document end and start.
+	/// \brief [[BPR-1328]]. The owner's final keys, 2026-10-08: "Okay final
+	/// choice: option cmd down next file. Option down next change", after
+	/// "let cmd+down scroll to the bottom and cmd+up to the top".
+	///
+	/// \details Next and Previous change answer Option-Down and Option-Up
+	/// (Alt+Down and Alt+Up elsewhere) as well as Option-Page Down and
+	/// Option-Page Up; Next and Previous file answer Option-Command-Down and
+	/// Option-Command-Up (Ctrl+Alt+Down and Ctrl+Alt+Up). Every arrow's
+	/// tooltip names its first key in the platform's notation. In the code the
+	/// platform's document end and start (Command-Down and Command-Up on
+	/// macOS, Ctrl+End and Ctrl+Home elsewhere) scroll to the bottom and top
+	/// of the comparison. An editor being written keeps Option-Up/Down and
+	/// Command-Up/Down for its own caret. The Updates control's history
+	/// commands, which held the file keys inside the control, page on
+	/// Option-Command-Page Down and Page Up.
 	void test_change_keys_are_named_and_yield_in_editors()
 	{
 		intent_log           log;
@@ -8124,7 +8133,7 @@ namespace {
 		process_events();
 		const auto file = core::file_identity_of("src/file.cpp");
 		auto       text = std::string{ };
-		for (auto line = 0U; line < 30U; ++line) {
+		for (auto line = 0U; line < 400U; ++line) {
 			text += "line " + std::to_string(line) + '\n';
 		}
 		auto changed = text;
@@ -8139,61 +8148,135 @@ namespace {
 
 		// The keys, and the tooltips that name them.
 		const auto native = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
-		expect(window.next_change_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Down") }, QKeySequence{ QStringLiteral("Alt+PgDown") } }
-				   && window.previous_change_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Up") }, QKeySequence{ QStringLiteral("Alt+PgUp") } }
-				   && window.next_file_action()->shortcut() == QKeySequence{ QStringLiteral("Alt+Down") }
-				   && window.previous_file_action()->shortcut() == QKeySequence{ QStringLiteral("Alt+Up") },
-			   "Command-Down and Command-Up lead the change keys; Option-Page Down and Up remain, and the file keys are unchanged");
-		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)").arg(native("Ctrl+Down"))
-				   && window.previous_change_action()->toolTip() == QStringLiteral("Previous change (%1)").arg(native("Ctrl+Up"))
-				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)").arg(native("Alt+Down"))
-				   && window.previous_file_action()->toolTip() == QStringLiteral("Previous file (%1)").arg(native("Alt+Up")),
+		expect(window.next_change_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Alt+Down") }, QKeySequence{ QStringLiteral("Alt+PgDown") } }
+				   && window.previous_change_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Alt+Up") }, QKeySequence{ QStringLiteral("Alt+PgUp") } }
+				   && window.next_file_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+Down") } }
+				   && window.previous_file_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+Up") } },
+			   "Option-Down and Option-Up lead the change keys with Option-Page Down and Up kept, and Option-Command-Down and Up are the file keys");
+		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)").arg(native("Alt+Down"))
+				   && window.previous_change_action()->toolTip() == QStringLiteral("Previous change (%1)").arg(native("Alt+Up"))
+				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)").arg(native("Ctrl+Alt+Down"))
+				   && window.previous_file_action()->toolTip() == QStringLiteral("Previous file (%1)").arg(native("Ctrl+Alt+Up")),
 			   "every arrow's tooltip names it and its first key");
 #if defined(Q_OS_MACOS)
-		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (⌘↓)")
-				   && window.previous_change_action()->toolTip() == QStringLiteral("Previous change (⌘↑)")
-				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (⌥↓)")
-				   && window.previous_file_action()->toolTip() == QStringLiteral("Previous file (⌥↑)"),
+		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (⌥↓)")
+				   && window.previous_change_action()->toolTip() == QStringLiteral("Previous change (⌥↑)")
+				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (⌥⌘↓)")
+				   && window.previous_file_action()->toolTip() == QStringLiteral("Previous file (⌥⌘↑)"),
 			   "on macOS the keys are written as the menus write them");
 #else
-		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (Ctrl+Down)")
-				   && window.previous_file_action()->toolTip() == QStringLiteral("Previous file (Alt+Up)"),
+		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (Alt+Down)")
+				   && window.previous_file_action()->toolTip() == QStringLiteral("Previous file (Ctrl+Alt+Up)"),
 			   "elsewhere the keys are written out");
 #endif
+		// The keys that scroll the code: Command-Down and Command-Up on macOS,
+		// with or without the keypad mark macOS puts on the arrow keys, and
+		// Ctrl+End and Ctrl+Home elsewhere.
+		struct scroll_key
+		{
+			int                   Key;
+			Qt::KeyboardModifiers Modifiers;
+			const char*           Name;
+		};
+#if defined(Q_OS_MACOS)
+		const auto bottoms = std::array{ scroll_key{ Qt::Key_Down, Qt::ControlModifier, "Command-Down" },
+										 scroll_key{ Qt::Key_Down, Qt::ControlModifier | Qt::KeypadModifier, "Command-Down (keypad)" } };
+		const auto tops    = std::array{ scroll_key{ Qt::Key_Up, Qt::ControlModifier, "Command-Up" },
+										 scroll_key{ Qt::Key_Up, Qt::ControlModifier | Qt::KeypadModifier, "Command-Up (keypad)" } };
+#else
+		const auto bottoms = std::array{ scroll_key{ Qt::Key_End, Qt::ControlModifier, "Ctrl+End" } };
+		const auto tops    = std::array{ scroll_key{ Qt::Key_Home, Qt::ControlModifier, "Ctrl+Home" } };
+		expect(QKeySequence::keyBindings(QKeySequence::MoveToEndOfDocument).contains(QKeySequence{ QStringLiteral("Ctrl+End") })
+				   && QKeySequence::keyBindings(QKeySequence::MoveToStartOfDocument).contains(QKeySequence{ QStringLiteral("Ctrl+Home") }),
+			   "elsewhere the document end and start are Ctrl+End and Ctrl+Home");
+#endif
+		for (const auto& key : bottoms) {
+			const auto press = QKeyEvent{ QEvent::KeyPress, key.Key, key.Modifiers };
+			expect(qt::comparison_scroll_edge_for(press) == qt::comparison_scroll_edge::bottom, std::string{ key.Name } + " is the comparison's bottom");
+		}
+		for (const auto& key : tops) {
+			const auto press = QKeyEvent{ QEvent::KeyPress, key.Key, key.Modifiers };
+			expect(qt::comparison_scroll_edge_for(press) == qt::comparison_scroll_edge::top, std::string{ key.Name } + " is the comparison's top");
+		}
+		expect(!qt::comparison_scroll_edge_for(QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::AltModifier }).has_value()
+				   && !qt::comparison_scroll_edge_for(QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::ControlModifier | Qt::AltModifier }).has_value(),
+			   "the change and file keys are not scroll keys");
 		window.publish({ .Commands = command_delta(offered(core::workbench_command_id::previous_file),
 												   refused(core::workbench_command_id::next_file, core::workbench_reason_code::at_last_file),
 												   offered(core::workbench_command_id::previous_change),
 												   refused(core::workbench_command_id::next_change, core::workbench_reason_code::at_last_change)) });
-		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)\nLast change in the pull request.").arg(native("Ctrl+Down"))
+		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)\nLast change in the pull request.").arg(native("Alt+Down"))
 				   && window.next_change_action()->statusTip() == QStringLiteral("Last change in the pull request.")
-				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)\nThis is the last actionable file.").arg(native("Alt+Down")),
+				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)\nThis is the last actionable file.").arg(native("Ctrl+Alt+Down")),
 			   "a disabled arrow still names its key, with why on the line below");
 		window.publish(every_primary_command_offered());
 
-		// No Qt standard key on this platform holds the change keys, except the
-		// editors' own document start and end, which the editors keep.
+		// No Qt standard key on this platform holds the window's file and
+		// change keys, except an editor's own paragraph moves (macOS binds
+		// Option-Up and Option-Down there), which the editors keep.
 		for (auto standard = 1; standard < 128; ++standard) {
 			const auto key = static_cast<QKeySequence::StandardKey>(standard);
 			for (const auto& binding : QKeySequence::keyBindings(key)) {
-				const auto held = binding == QKeySequence{ QStringLiteral("Ctrl+Down") } || binding == QKeySequence{ QStringLiteral("Ctrl+Up") }
-					|| binding == QKeySequence{ QStringLiteral("Alt+PgDown") } || binding == QKeySequence{ QStringLiteral("Alt+PgUp") };
-				expect(!held || key == QKeySequence::MoveToEndOfDocument || key == QKeySequence::MoveToStartOfDocument,
+				const auto paragraph = binding == QKeySequence{ QStringLiteral("Alt+Down") } || binding == QKeySequence{ QStringLiteral("Alt+Up") };
+				const auto held      = paragraph || binding == QKeySequence{ QStringLiteral("Alt+PgDown") } || binding == QKeySequence{ QStringLiteral("Alt+PgUp") }
+					|| binding == QKeySequence{ QStringLiteral("Ctrl+Alt+Down") } || binding == QKeySequence{ QStringLiteral("Ctrl+Alt+Up") };
+				expect(!held || (paragraph && (key == QKeySequence::MoveToEndOfBlock || key == QKeySequence::MoveToStartOfBlock)),
 					   "standard key " + std::to_string(standard) + " also holds " + binding.toString(QKeySequence::PortableText).toStdString());
 			}
 		}
 
-		// From the code the change wins over the pane's own document end.
+		// From the code the change keys and the file keys are the window's.
 		auto* const code = window.comparison_surface()->right_pane();
 		code->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(QApplication::focusWidget() == code, "the code has the keyboard");
-		deliver_key(window, Qt::Key_Down, Qt::ControlModifier);
-		deliver_key(window, Qt::Key_Up, Qt::ControlModifier);
+		const auto files = [&log] { return std::ranges::count_if(log.Workbench, [](const auto& aIntent) { return file_direction(aIntent).has_value(); }); };
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier);
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier);
 		deliver_key(window, Qt::Key_PageDown, Qt::AltModifier);
 		expect(log.Change.size() == 3U && log.Change[0].Direction == core::change_navigation_direction::next
 				   && log.Change[1].Direction == core::change_navigation_direction::previous
 				   && log.Change[2].Direction == core::change_navigation_direction::next && QApplication::focusWidget() == code,
-			   "Command-Down, Command-Up and Option-Page Down in the code are Next, Previous and Next change");
+			   "Option-Down, Option-Up and Option-Page Down in the code are Next, Previous and Next change");
+		deliver_key(window, Qt::Key_Down, Qt::ControlModifier | Qt::AltModifier);
+		deliver_key(window, Qt::Key_Up, Qt::ControlModifier | Qt::AltModifier);
+		expect(files() == 2 && file_direction(log.Workbench[log.Workbench.size() - 2U]) == core::change_navigation_direction::next
+				   && file_direction(log.Workbench.back()) == core::change_navigation_direction::previous && log.Change.size() == 3U,
+			   "Option-Command-Down and Option-Command-Up in the code are Next and Previous file");
+
+		// The document end and start scroll the comparison to its bottom and
+		// top, in two panes and in one, and take no gesture.
+		const auto scrolls = [&](QWidget* const aPane, const char* const aWhere) {
+			auto* const bar = window.comparison_surface()->shared_scrollbar();
+			aPane->setFocus(Qt::OtherFocusReason);
+			for (std::size_t index = 0U; index < bottoms.size(); ++index) {
+				const auto here = std::string{ aWhere } + ", " + bottoms[index].Name + " and " + tops[index].Name;
+				bar->setValue(bar->minimum() + ((bar->maximum() - bar->minimum()) / 2));
+				process_events();
+				const auto middle = bar->value();
+				const auto before = std::pair{ log.Change.size(), log.Workbench.size() };
+				deliver_key(window, bottoms[index].Key, bottoms[index].Modifiers);
+				process_events();
+				const auto bottom = bar->value();
+				deliver_key(window, tops[index].Key, tops[index].Modifiers);
+				process_events();
+				const auto top = bar->value();
+				std::cout << "BPR-1328 " << here << ": middle=" << middle << " bottom=" << bottom << " top=" << top << " range=" << bar->minimum() << ".." << bar->maximum() << '\n';
+				expect(bar->maximum() > bar->minimum() + 100 && middle > bar->minimum() && middle < bar->maximum(), here + ": the comparison is longer than its view");
+				expect(bottom == bar->maximum() && top == bar->minimum(), here + ": scroll to the bottom and the top");
+				expect(std::pair{ log.Change.size(), log.Workbench.size() } == before && QApplication::focusWidget() == aPane,
+					   here + ": scrolling takes no change or file gesture and keeps the keyboard");
+			}
+		};
+		scrolls(window.comparison_surface()->left_pane(), "two panes, left");
+		scrolls(code, "two panes, right");
+		window.comparison_surface()->set_one_pane_enabled(true);
+		process_events();
+		auto* const unified = window.comparison_surface()->findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+		expect(unified != nullptr && unified->isVisible(), "the one-pane comparison is shown");
+		scrolls(unified, "one pane");
+		window.comparison_surface()->set_one_pane_enabled(false);
+		process_events();
 
 		// In a note being written they stay the editor's.
 		window.ai_tools_action()->setChecked(true);
@@ -8205,16 +8288,14 @@ namespace {
 		auto* const note = window.private_notes()->body_editor();
 		note->setFocus(Qt::OtherFocusReason);
 		process_events();
-		note->setPlainText(QStringLiteral("first line\nsecond line\nthird line"));
+		const auto body = QStringLiteral("first line\nsecond line\n\nthird paragraph\nlast line");
+		note->setPlainText(body);
 		auto cursor = note->textCursor();
 		cursor.movePosition(QTextCursor::Start);
 		note->setTextCursor(cursor);
 		expect(note->isVisible() && !note->isReadOnly() && QApplication::focusWidget() == note, "a note being written has the keyboard");
-		deliver_key(window, Qt::Key_Down, Qt::ControlModifier);
-		expect(log.Change.size() == 3U && note->hasFocus() && note->toPlainText() == QStringLiteral("first line\nsecond line\nthird line"),
-			   "Command-Down in an editor takes no change gesture and leaves the text alone");
-		// What the editor does with the key on its own is what this
-		// platform's text editing means by it: the document end where the
+		// What the editor does with a key on its own is what this platform's
+		// text editing means by it: the paragraph or document move where the
 		// platform binds it so (macOS), otherwise whatever the editor does.
 		// The key goes to the editor's own handler, not through the shortcut
 		// map, which would offer it to the window's commands.
@@ -8222,34 +8303,81 @@ namespace {
 		{
 			using QPlainTextEdit::keyPressEvent;
 		};
-		const auto native_caret = [](const int aKey, const int aFrom) {
+		const auto native_caret = [&body](const int aKey, const Qt::KeyboardModifiers aModifiers, const int aFrom) {
 			reference_editor reference;
-			reference.setPlainText(QStringLiteral("first line\nsecond line\nthird line"));
+			reference.setPlainText(body);
 			auto at = reference.textCursor();
 			at.setPosition(aFrom);
 			reference.setTextCursor(at);
-			QKeyEvent press{ QEvent::KeyPress, aKey, Qt::ControlModifier };
+			QKeyEvent press{ QEvent::KeyPress, aKey, aModifiers };
 			reference.keyPressEvent(&press);
 			return reference.textCursor().position();
 		};
-		expect(note->textCursor().position() == native_caret(Qt::Key_Down, 0),
-			   "the editor moves its caret exactly as an editor on its own does for that key");
-		if (QKeySequence::keyBindings(QKeySequence::MoveToEndOfDocument).contains(QKeySequence{ QStringLiteral("Ctrl+Down") })) {
-			expect(note->textCursor().position() == note->document()->characterCount() - 1,
-				   "where the platform binds it to the document end, Command-Down moves the caret there");
+		const auto gestures = std::pair{ log.Change.size(), log.Workbench.size() };
+		for (const auto& [key, modifiers, name] : std::array{
+				 std::tuple{ int{ Qt::Key_Down }, Qt::KeyboardModifiers{ Qt::AltModifier }, "Option-Down" },
+				 std::tuple{ int{ Qt::Key_Up }, Qt::KeyboardModifiers{ Qt::AltModifier }, "Option-Up" },
+				 std::tuple{ int{ Qt::Key_Down }, Qt::KeyboardModifiers{ Qt::ControlModifier }, "Command-Down" },
+				 std::tuple{ int{ Qt::Key_Up }, Qt::KeyboardModifiers{ Qt::ControlModifier }, "Command-Up" },
+				 // macOS marks the arrow keys as keypad keys.
+				 std::tuple{ int{ Qt::Key_Down }, Qt::KeyboardModifiers{ Qt::AltModifier | Qt::KeypadModifier }, "Option-Down (keypad)" },
+				 std::tuple{ int{ Qt::Key_Up }, Qt::KeyboardModifiers{ Qt::ControlModifier | Qt::KeypadModifier }, "Command-Up (keypad)" },
+			 }) {
+			const auto from = note->textCursor().position();
+			deliver_key(window, key, modifiers);
+			expect(std::pair{ log.Change.size(), log.Workbench.size() } == gestures && note->hasFocus() && note->toPlainText() == body
+					   && note->textCursor().position() == native_caret(key, modifiers, from),
+				   std::string{ name } + " in an editor takes no gesture and moves the caret exactly as an editor on its own does");
 		}
-		const auto before = note->textCursor().position();
-		deliver_key(window, Qt::Key_Up, Qt::ControlModifier);
-		expect(log.Change.size() == 3U && note->textCursor().position() == native_caret(Qt::Key_Up, before),
-			   "Command-Up in an editor takes no change gesture and moves the caret as the editor does");
+		if (QKeySequence::keyBindings(QKeySequence::MoveToEndOfBlock).contains(QKeySequence{ QStringLiteral("Alt+Down") })) {
+			cursor.movePosition(QTextCursor::Start);
+			note->setTextCursor(cursor);
+			deliver_key(window, Qt::Key_Down, Qt::AltModifier);
+			expect(note->textCursor().position() == static_cast<int>(QStringLiteral("first line").size()),
+				   "where the platform binds it to the paragraph end, Option-Down moves the caret there");
+		}
 		// Negative control: the same note read-only lets the key through, so
 		// the yield is the editor's and not a dead key.
 		note->setReadOnly(true);
-		deliver_key(window, Qt::Key_Down, Qt::ControlModifier);
-		expect(log.Change.size() == 4U && log.Change.back().Direction == core::change_navigation_direction::next,
-			   "a read-only view lets Command-Down through to Next change");
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier);
+		expect(log.Change.size() == gestures.first + 1U && log.Change.back().Direction == core::change_navigation_direction::next,
+			   "a read-only view lets Option-Down through to Next change");
 		note->setReadOnly(false);
 		window.ai_tools_action()->setChecked(false);
+		process_events();
+
+		// The Updates control's history commands held Option-Command-Down and
+		// Option-Command-Up inside itself; they page on Option-Command-Page Down
+		// and Page Up now, so the file keys mean Next and Previous file there
+		// too, and the history commands still answer their own keys.
+		open_updates_line(window);
+		process_events();
+		auto* const epochs = window.epoch_selectors();
+		expect(epochs->load_history_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+PgDown") } }
+				   && epochs->return_to_newest_action()->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+PgUp") } },
+			   "Load earlier epochs and Return to newest epochs are Option-Command-Page Down and Page Up");
+		auto* const line = epochs->line();
+		line->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(line->isVisible() && QApplication::focusWidget() == line, "the Updates line has the keyboard");
+		auto loads   = 0;
+		auto returns = 0;
+		auto counted = QObject{ };
+		QObject::connect(epochs->load_history_action(), &QAction::triggered, &counted, [&loads] { ++loads; });
+		QObject::connect(epochs->return_to_newest_action(), &QAction::triggered, &counted, [&returns] { ++returns; });
+		epochs->load_history_action()->setEnabled(true);
+		epochs->return_to_newest_action()->setEnabled(true);
+		const auto filesBefore = files();
+		deliver_key(window, Qt::Key_Down, Qt::ControlModifier | Qt::AltModifier);
+		deliver_key(window, Qt::Key_Up, Qt::ControlModifier | Qt::AltModifier);
+		expect(loads == 0 && returns == 0 && files() == filesBefore + 2
+				   && file_direction(log.Workbench[log.Workbench.size() - 2U]) == core::change_navigation_direction::next
+				   && file_direction(log.Workbench.back()) == core::change_navigation_direction::previous,
+			   "in the Updates control, with its history live, Option-Command-Down and Up are Next and Previous file");
+		deliver_key(window, Qt::Key_PageDown, Qt::ControlModifier | Qt::AltModifier);
+		deliver_key(window, Qt::Key_PageUp, Qt::ControlModifier | Qt::AltModifier);
+		expect(loads == 1 && returns == 1 && files() == filesBefore + 2,
+			   "Option-Command-Page Down and Page Up load earlier epochs and return to the newest");
 		save_render(window, QStringLiteral("change-keys"));
 		window.hide();
 	}
@@ -8430,7 +8558,7 @@ namespace {
 		expect(!window.previous_change_action()->isEnabled()
 				   && detail_of(window.previous_change_action()) == QStringLiteral("First change in the pull request.")
 				   && window.next_change_action()->isEnabled()
-				   && window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+Down") }.toString(QKeySequence::NativeText)),
+				   && window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)").arg(QKeySequence{ QStringLiteral("Alt+Down") }.toString(QKeySequence::NativeText)),
 			   "only the first change of the first file disables previous change, and says why");
 
 		for (auto press = 0; press < 4; ++press) {
@@ -10582,8 +10710,11 @@ namespace {
 				   && seen.at(QStringLiteral("Ctrl+3")) == QStringLiteral("reviewModalityDiscussAction")
 				   && seen.at(QStringLiteral("Ctrl+4")) == QStringLiteral("reviewModalityConversationsAction")
 				   && seen.at(QStringLiteral("Ctrl+J")) == QStringLiteral("showWorkbenchConversationsAction")
-				   && seen.at(QStringLiteral("Ctrl+Down")) == QStringLiteral("nextWorkbenchChangeAction")
-				   && seen.at(QStringLiteral("Ctrl+Up")) == QStringLiteral("previousWorkbenchChangeAction")
+				   && seen.at(QStringLiteral("Alt+Down")) == QStringLiteral("nextWorkbenchChangeAction")
+				   && seen.at(QStringLiteral("Alt+Up")) == QStringLiteral("previousWorkbenchChangeAction")
+				   && seen.at(QStringLiteral("Ctrl+Alt+Down")) == QStringLiteral("nextWorkbenchFileAction")
+				   && seen.at(QStringLiteral("Ctrl+Alt+Up")) == QStringLiteral("previousWorkbenchFileAction")
+				   && !seen.contains(QStringLiteral("Ctrl+Down")) && !seen.contains(QStringLiteral("Ctrl+Up"))
 				   && seen.at(QStringLiteral("Alt+PgDown")) == QStringLiteral("nextWorkbenchChangeAction")
 				   && seen.at(QStringLiteral("Alt+PgUp")) == QStringLiteral("previousWorkbenchChangeAction"),
 			   "Ctrl+B hides the drawers, Ctrl+1 to 4 choose Overview, Review, Discuss and Conversations, and Ctrl+J goes to Conversations");

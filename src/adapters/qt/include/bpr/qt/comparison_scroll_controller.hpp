@@ -28,6 +28,23 @@ namespace bpr::qt {
 		link_map,
 	};
 
+	/// \brief [[BPR-1328]]. An end of the comparison a key scrolls to.
+	enum class comparison_scroll_edge : std::uint8_t {
+		top,
+		bottom,
+	};
+
+	/// \brief [[BPR-1328]]. The end of the comparison a code-pane key press
+	/// scrolls to, if it is one.
+	///
+	/// \details The owner, 2026-10-08: "let cmd+down scroll to the bottom and
+	/// cmd+up to the top". The platform's document start and end:
+	/// `QKeySequence::MoveToStartOfDocument` and `MoveToEndOfDocument`
+	/// (Ctrl+Home and Ctrl+End on Windows and Linux), and on macOS Command-Up
+	/// and Command-Down under every platform plugin, the offscreen one too,
+	/// whose key scheme is not macOS's.
+	[[nodiscard]] auto comparison_scroll_edge_for(const QKeyEvent& aEvent) -> std::optional<comparison_scroll_edge>;
+
 	/// \brief Configures Qt-local shared comparison scrolling.
 	struct comparison_scroll_configuration
 	{

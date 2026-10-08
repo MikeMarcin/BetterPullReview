@@ -42,7 +42,7 @@ The review bar carries two position groups, each a label and a pair of arrows.
   file and Next change wrap to the comparison's first change (and the reverse).
   Production always runs stop; only a fixture probe publishes wrap.
 
-Two follow-ups from the owner the same day, relayed by the coordinator:
+Follow-ups from the owner the same day, relayed by the coordinator:
 
 - The owner chose to keep the existing keys and make them discoverable: every
   file and change arrow's tooltip names its shortcut in the platform's native
@@ -51,6 +51,17 @@ Two follow-ups from the owner the same day, relayed by the coordinator:
   ⌘↑ (Ctrl+Down and Ctrl+Up on Windows and Linux) become Next and Previous
   change, with ⌥PgDn and ⌥PgUp kept as alternates. In text editors they keep
   their native document end and start; in the code panes the change wins.
+- The v001 owner look (session `6b391cb7…`) was stopped unanswered when the
+  owner changed their mind, verbatim: "I changed my mind let cmd+down scroll
+  to the bottom and cmd+up to the top. Option left right can be next prev
+  change".
+- Before that was built, the owner settled it, verbatim: "You're right that
+  conflict is real. Okay final choice: option cmd down next file. Option down
+  next change". So ⌥↓/⌥↑ (Alt+Down/Alt+Up) are Next/Previous change, moved
+  from the files; ⌥⌘↓/⌥⌘↑ (Ctrl+Alt+Down/Ctrl+Alt+Up) are Next/Previous
+  file; ⌘↓/⌘↑ scroll the code to its bottom and top; ⌥←/⌥→ are not used; and
+  ⌥PgDn/⌥PgUp stay as change alternates. In text editors ⌥↑/⌥↓ (paragraph
+  moves) and ⌘↑/⌘↓ keep their native meaning.
 
 ## Change
 
@@ -81,24 +92,68 @@ destination file and the entry end; the next accepted comparison of that file
 is entered through `navigate_change` from no selection, and an accepted
 comparison of any other file drops the request.
 
-**Keys and tooltips.** Next change is `Ctrl+Down` then `Alt+PgDown`, Previous
-change `Ctrl+Up` then `Alt+PgUp` (Qt's `Ctrl` is ⌘ on macOS); the file keys are
-unchanged. Each arrow's tooltip is "Name (key)" in `QKeySequence::NativeText`
-for its first key: "Next change (⌘↓)", "Previous change (⌘↑)", "Next file
-(⌥↓)", "Previous file (⌥↑)" on macOS, "Next change (Ctrl+Down)" elsewhere. A
-second line names a crossing's destination ("Continue to the next file: …") or
-the disabled reason; the status tip is that line, or the arrow's purpose.
+**Keys and tooltips (final, v002).** Next change is `Alt+Down` then
+`Alt+PgDown`, Previous change `Alt+Up` then `Alt+PgUp`; Next file is
+`Ctrl+Alt+Down` and Previous file `Ctrl+Alt+Up` (Qt's `Ctrl` is ⌘ and `Alt` is
+⌥ on macOS). All four are window commands, live from anywhere in the window.
+Each arrow's tooltip is "Name (key)" in `QKeySequence::NativeText` for its
+first key: "Next change (⌥↓)", "Previous change (⌥↑)", "Next file (⌥⌘↓)",
+"Previous file (⌥⌘↑)" on macOS; "Next change (Alt+Down)", "Previous file
+(Ctrl+Alt+Up)" elsewhere. A second line names a crossing's destination
+("Continue to the next file: …") or the disabled reason; the status tip is that
+line, or the arrow's purpose. The No file open page's direction reads the
+same key ("⌥⌘↓ opens the next file").
 
-**Conflicts.** The window's own key table has no other holder of `Ctrl+Up`,
-`Ctrl+Down`, `Alt+PgUp` or `Alt+PgDown` (the Hide Drawers course's duplicate
-check now names all four). Among Qt's standard keys only `MoveToStartOfDocument`
-and `MoveToEndOfDocument` may hold them (macOS binds ⌘↑/⌘↓ there); the window
-test checks every standard key on the platform it runs on. An editable
-multi-line editor (composer, reply, suggestion, note) claims ⌘↓/⌘↑ in
-`ShortcutOverride`, as it claims ⌘B, and hands the press to the editor alone,
-so the caret moves exactly as an editor on its own moves it and an ignored
-press (⌘↑ on the first line) cannot travel on to the window. A read-only code
-pane does not claim them, so the change wins there.
+**Scrolling in the code.** In a code pane (either side of two panes, the link
+map between them, or the one-pane comparison) the platform's
+`QKeySequence::MoveToEndOfDocument` and `MoveToStartOfDocument` scroll the
+comparison to its bottom and top and take no gesture: ⌘↓/⌘↑ on macOS (where
+Qt also lists End/Home, which already did this), `Ctrl+End`/`Ctrl+Home` on
+Windows and Linux, where Ctrl+Down/Ctrl+Up are not the document keys.
+
+**Conflicts.**
+
+- *In the window.* The one other holder of a new key was the Updates
+  control: Load earlier epochs (`Ctrl+Alt+Down`) and Return to newest epochs
+  (`Ctrl+Alt+Up`), scoped to the control and shown in the Comparing menu. Qt
+  treats two live commands on one key as ambiguous and runs neither, and the
+  window course already requires that no key is offered twice in the window
+  (it failed on exactly this). So those two commands move to `Ctrl+Alt+PgDown`
+  (⌥⌘PgDn) and `Ctrl+Alt+PgUp` (⌥⌘PgUp), the same family paged; no document
+  named their old keys. That is a change to another feature's keys for the
+  owner to see. The Hide Drawers course's duplicate-key table names `Alt+Up`,
+  `Alt+Down`, `Alt+PgUp`, `Alt+PgDown`, `Ctrl+Alt+Up` and `Ctrl+Alt+Down`
+  once each and no `Ctrl+Up`/`Ctrl+Down`. Feedback-label reordering
+  (`Alt+Up/Down`) is in the separate Settings window, the Review Cycle share
+  sheet's note moves (`Alt+Up/Down`) are in their own dialog, and the tour
+  editor's reorder is `Alt+Shift+Up/Down`; none meets these keys.
+- *Qt standard keys.* The window test checks every standard key on the
+  platform it runs on: only macOS's `MoveToStartOfBlock`/`MoveToEndOfBlock`
+  (⌥↑/⌥↓) hold any of the six, and those belong to editors. ⌥←/⌥→ are not
+  used, so `QKeySequence::Back`/`Forward` (Alt+Left/Right on Windows and
+  Linux) are untouched; the application binds no Back/Forward and has no
+  window history navigation.
+- *Editors.* An editable multi-line editor (composer, reply, suggestion, note)
+  claims ⌥↑/⌥↓ and ⌘↑/⌘↓ in `ShortcutOverride`, as it claims ⌘B, and hands
+  the press to the editor alone, so the caret moves exactly as an editor on
+  its own moves it, and an ignored press (⌥↑ on the first line) cannot travel
+  on to the window or the code pane around it. A read-only view does not
+  claim them. macOS marks the arrow keys as keypad keys, which the v001 yield
+  compared exactly, so on a real Cocoa build it would not have claimed ⌘↓/⌘↑;
+  the yield now looks past the keypad mark, as Qt's shortcut map does.
+  Single-line fields are not yielded, as the file keys
+  (`Alt+Up/Down`) were not before.
+- *Operating systems, from documentation and not observed on a station.*
+  `Ctrl+Alt+Up/Down` may never reach the application on some machines:
+  Windows with Intel graphics hotkeys enabled (older Intel HD Graphics drivers
+  rotate the display on Ctrl+Alt+arrows; the newer Intel Graphics Command
+  Center ships with them off), Xfce (workspace up/down), Cinnamon (Expo and
+  Scale) and GNOME 3.x (vertical workspace switching; GNOME 40 and later moved
+  to horizontal workspaces, and whether Up/Down are still bound there was not
+  checked). KDE Plasma uses Meta+Ctrl+Up/Down, and macOS reserves no
+  ⌥⌘↑/⌥⌘↓. The file arrows and the Files drawer remain where the keys are
+  taken. `Alt+Up/Down` and `Alt+PgUp/PgDown` have no default system binding
+  on these platforms.
 
 ## Acceptance
 
@@ -113,11 +168,14 @@ pane does not claim them, so the change wins there.
   file at its last change. Tooltips name each destination and each end.
 - **C3.** Owner look, frozen build, one Accept/Reject: "change arrows continue
   to the next file".
-- **C4.** ⌘↓/⌘↑ (Ctrl+Down/Ctrl+Up) navigate changes from the code and stay
-  the editor's in an editable multi-line editor; owner look in the same
-  session, one Accept/Reject.
+- **C4.** ⌥↓/⌥↑ (Alt+Down/Alt+Up) navigate changes and ⌥⌘↓/⌥⌘↑
+  (Ctrl+Alt+Down/Ctrl+Alt+Up) files from the code; ⌘↓/⌘↑ (Ctrl+End/Ctrl+Home
+  on Windows and Linux) scroll the code to its bottom and top; an editable
+  multi-line editor keeps ⌥↑/⌥↓ and ⌘↑/⌘↓; owner look in the same session,
+  one Accept/Reject. Tests fail before the change.
 - **C5.** Every file and change arrow's tooltip names its key in native
-  notation; owner look in the same session, one Accept/Reject.
+  notation ("Next change (⌥↓)", "Next file (⌥⌘↓)"); owner look in the same
+  session, one Accept/Reject.
 
 ## Execution record
 

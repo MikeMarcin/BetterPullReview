@@ -274,14 +274,18 @@ namespace bpr::qt {
 		aliases->addAction(LastReviewedAction);
 		addActions(aliases->actions());
 
+		// [[BPR-1328]]. Option-Command-Down and Option-Command-Up
+		// (Ctrl+Alt+Down and Ctrl+Alt+Up) became Next and Previous file, so the
+		// history pages on Option-Command-Page Down and Page Up instead: one
+		// key is never offered twice in the window.
 		LoadHistoryAction = new QAction{ QStringLiteral("Load &earlier epochs"), this };
 		configure_action(LoadHistoryAction,
 						 QStringLiteral("loadEpochHistoryAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+Down") });
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+PgDown") });
 		ReturnNewestAction = new QAction{ QStringLiteral("Return to &newest epochs"), this };
 		configure_action(ReturnNewestAction,
 						 QStringLiteral("returnToNewestEpochsAction"),
-						 QKeySequence{ QStringLiteral("Ctrl+Alt+Up") });
+						 QKeySequence{ QStringLiteral("Ctrl+Alt+PgUp") });
 		RefreshAction = new QAction{ QStringLiteral("Refresh review &history"), this };
 		configure_action(RefreshAction,
 						 QStringLiteral("refreshEpochsAction"),

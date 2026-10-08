@@ -748,6 +748,28 @@ namespace bpr::qt {
 		return handled;
 	}
 
+	auto comparison_scroll_edge_for(const QKeyEvent& aEvent) -> std::optional<comparison_scroll_edge>
+	{
+		if (aEvent.matches(QKeySequence::MoveToStartOfDocument)) {
+			return comparison_scroll_edge::top;
+		}
+		if (aEvent.matches(QKeySequence::MoveToEndOfDocument)) {
+			return comparison_scroll_edge::bottom;
+		}
+#if defined(Q_OS_MACOS)
+		// macOS marks the arrow keys as keypad keys.
+		if ((aEvent.modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
+			if (aEvent.key() == Qt::Key_Up) {
+				return comparison_scroll_edge::top;
+			}
+			if (aEvent.key() == Qt::Key_Down) {
+				return comparison_scroll_edge::bottom;
+			}
+		}
+#endif
+		return std::nullopt;
+	}
+
 	auto comparison_scroll_controller::handle_key_event(QKeyEvent& aEvent) -> bool
 	{
 		if (AxisSuspended) {
@@ -763,6 +785,17 @@ namespace bpr::qt {
 			default:
 				break;
 			}
+		}
+		// [[BPR-1328]]. The document start and end go to the top and bottom
+		// of the comparison.
+		if (const auto edge = comparison_scroll_edge_for(aEvent); edge.has_value() && Axis.has_value() && !AxisSuspended) {
+			if (*edge == comparison_scroll_edge::top) {
+				home();
+			} else {
+				end();
+			}
+			aEvent.accept();
+			return true;
 		}
 		if ((!Axis.has_value() && !AxisSuspended) || aEvent.modifiers() != Qt::NoModifier) {
 			return false;

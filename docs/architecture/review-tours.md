@@ -95,8 +95,8 @@ The context menu offers insert after, duplicate, merge selected adjacent stops,
 source replacement and remove. Add also inserts after the current stop and
 selects the new one. Command/Control+D and Delete act only with the outline
 focused, preserving native text editing in the fields. `Alt+Shift+Up/Down`
-reorders while keeping the selected group; the existing `Alt+Up/Down` file
-gestures remain free. The owner removed the separate Arrange and split controls
+reorders while keeping the selected group; the window's `Alt+Up/Down` change
+gestures ([[BPR-1328]]) remain free. The owner removed the separate Arrange and split controls
 at attended hand-back 70; the underlying split algebra remains tested.
 `Ready and next` (`Alt+Return`) marks only a complete, resolved stop Ready.
 An oversized edit remains in its native document for shortening, copying or Undo.

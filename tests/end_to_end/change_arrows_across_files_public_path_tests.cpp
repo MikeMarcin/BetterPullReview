@@ -9,6 +9,13 @@
 // comparison or crosses into the neighbouring file, entering it at its first
 // change going forward and its last going back. Only the two ends of the pull
 // request disable an arrow, and each says why.
+//
+// The owner's final keys, 2026-10-08: "Okay final choice: option cmd down next
+// file. Option down next change". `--attended` opens the nested-folders pull
+// request on a one-change file between two others; `--attended-keys` opens the
+// inline-drawer pull request on its 1557-line file, where Command-Down and
+// Command-Up scroll a comparison longer than the window and the threads offer
+// an editor to write in.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -114,7 +121,8 @@ namespace {
 int main(int aArgc, char** aArgv)
 {
 	QApplication  qtApplication{ aArgc, aArgv };
-	const auto    attended = aArgc > 1 && std::string_view{ aArgv[1] } == "--attended";
+	const auto    keys     = aArgc > 1 && std::string_view{ aArgv[1] } == "--attended-keys";
+	const auto    attended = keys || (aArgc > 1 && std::string_view{ aArgv[1] } == "--attended");
 	QTemporaryDir temporary{ QDir::tempPath() + QStringLiteral("/bpr-change-arrows-XXXXXX") };
 	const auto    dataRoot = e2e::private_data_root(temporary);
 	expect(dataRoot.has_value(), "private composed course root");
@@ -122,7 +130,8 @@ int main(int aArgc, char** aArgv)
 	options.ApplicationDataRoot = dataRoot;
 	std::unique_ptr<app::github_application> application;
 	bool                                     terminal = false;
-	auto                                     startup  = access::start(app::detail::github_public_path_fixture::nested_folders_v1, options, [&](auto aResult) {
+	const auto                               fixture  = keys ? app::detail::github_public_path_fixture::inline_drawer_v1 : app::detail::github_public_path_fixture::nested_folders_v1;
+	auto                                     startup  = access::start(fixture, options, [&](auto aResult) {
 		terminal = true;
 		if (aResult) {
 			application = std::move(*aResult);
@@ -135,7 +144,7 @@ int main(int aArgc, char** aArgv)
 	window.resize(1280, 860);
 	window.github_connect_action()->trigger();
 	wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
-	window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
+	window.home_open_bar()->setText(keys ? QStringLiteral("bpr-fixtures/inline-drawer#22") : QStringLiteral("bpr-fixtures/nested-folders#21"));
 	window.home_open_action()->trigger();
 	// The accepted pull request applies the opening modality when it lands, so
 	// the course states Review only after that.
@@ -160,27 +169,30 @@ int main(int aArgc, char** aArgv)
 	expect(window.current_modality() == qt::review_modality::review && !window.showing_overview(),
 		   "the comparison is shown in Review");
 	const auto keyOf = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
-	expect(next->shortcuts().value(0) == QKeySequence{ QStringLiteral("Ctrl+Down") } && previous->shortcuts().value(0) == QKeySequence{ QStringLiteral("Ctrl+Up") }
-			   && next->toolTip().startsWith(QStringLiteral("Next change (%1)").arg(keyOf("Ctrl+Down")))
-			   && previous->toolTip().startsWith(QStringLiteral("Previous change (%1)").arg(keyOf("Ctrl+Up")))
-			   && window.next_file_action()->toolTip().startsWith(QStringLiteral("Next file (%1)").arg(keyOf("Alt+Down")))
-			   && window.previous_file_action()->toolTip().startsWith(QStringLiteral("Previous file (%1)").arg(keyOf("Alt+Up"))),
-		   "each arrow's tooltip names its key: Command-Down and Command-Up for the changes, Option-Down and Option-Up for the files");
+	expect(next->shortcuts().value(0) == QKeySequence{ QStringLiteral("Alt+Down") } && previous->shortcuts().value(0) == QKeySequence{ QStringLiteral("Alt+Up") }
+			   && next->toolTip().startsWith(QStringLiteral("Next change (%1)").arg(keyOf("Alt+Down")))
+			   && previous->toolTip().startsWith(QStringLiteral("Previous change (%1)").arg(keyOf("Alt+Up")))
+			   && window.next_file_action()->toolTip().startsWith(QStringLiteral("Next file (%1)").arg(keyOf("Ctrl+Alt+Down")))
+			   && window.previous_file_action()->toolTip().startsWith(QStringLiteral("Previous file (%1)").arg(keyOf("Ctrl+Alt+Up"))),
+		   "each arrow's tooltip names its key: Option-Down and Option-Up for the changes, Option-Command-Down and Option-Command-Up for the files");
 	expect(!previous->isEnabled() && says(previous, QStringLiteral("Previous change"), QStringLiteral("First change in the pull request.")),
 		   "the first change of the first file disables Previous change and says why");
 
 	if (attended) {
-		// The owner looks at a file with one change between two others: the
-		// case the note was about.
+		// The owner looks at a file with one change between two others, the
+		// case the note was about, or for the keys at the long file.
+		const auto wanted = QStringLiteral("src/ui/conversation_cards_view.cpp");
 		for (auto presses = 0; presses < 200; ++presses) {
 			const auto here = *where(window);
-			if (here.Changes == 1U && here.Row > 0 && here.Row + 1 < rows) {
+			if (keys ? path_at(window, here.Row).endsWith(QStringLiteral("conversation_cards_view.cpp")) && here.Change == 1U
+					 : here.Changes == 1U && here.Row > 0 && here.Row + 1 < rows) {
 				break;
 			}
+			expect(!keys || here.Row + 1 < rows, ("the walk finds " + wanted.toStdString()).c_str());
 			next->trigger();
 			wait_for([&] { return where(window) && *where(window) != here; }, "the attended walk moves");
 		}
-		std::cout << "CHANGE_ARROWS_ATTENDED_READY source=synthetic fixture=nested-folders-v1 file=" << path_at(window, where(window)->Row).toStdString() << '\n'
+		std::cout << "CHANGE_ARROWS_ATTENDED_READY source=synthetic fixture=" << (keys ? "inline-drawer-v1" : "nested-folders-v1") << " file=" << path_at(window, where(window)->Row).toStdString() << '\n'
 				  << std::flush;
 		const auto result = QApplication::exec();
 		application->begin_shutdown();

@@ -764,16 +764,43 @@ namespace bpr::qt {
 			return escaped;
 		}
 
-		/// \brief [[BPR-1328]]. Previous and Next change's first keys:
-		/// Command-Up and Command-Down on macOS, Ctrl+Up and Ctrl+Down elsewhere.
+		/// \brief [[BPR-1328]]. The owner's final keys, 2026-10-08: "Okay final
+		/// choice: option cmd down next file. Option down next change".
+		/// Option-Up and Option-Down (Alt+Up and Alt+Down elsewhere) are
+		/// Previous and Next change; Option-Command-Up and Option-Command-Down
+		/// (Ctrl+Alt+Up and Ctrl+Alt+Down) are Previous and Next file.
 		[[nodiscard]] auto previous_change_key() -> QKeySequence
 		{
-			return QKeySequence{ QStringLiteral("Ctrl+Up") };
+			return QKeySequence{ QStringLiteral("Alt+Up") };
 		}
 
 		[[nodiscard]] auto next_change_key() -> QKeySequence
 		{
-			return QKeySequence{ QStringLiteral("Ctrl+Down") };
+			return QKeySequence{ QStringLiteral("Alt+Down") };
+		}
+
+		[[nodiscard]] auto previous_file_key() -> QKeySequence
+		{
+			return QKeySequence{ QStringLiteral("Ctrl+Alt+Up") };
+		}
+
+		[[nodiscard]] auto next_file_key() -> QKeySequence
+		{
+			return QKeySequence{ QStringLiteral("Ctrl+Alt+Down") };
+		}
+
+		/// \brief [[BPR-1328]]. The keys an editor being written keeps for its
+		/// own caret: Option-Up and Option-Down, its paragraph moves on macOS,
+		/// and Command-Up and Command-Down, its document start and end there.
+		/// Command-Up and Command-Down are no window command, but the code
+		/// panes scroll on them, and an editor inside a pane must not hand an
+		/// ignored press on to the pane.
+		[[nodiscard]] auto editor_native_keys() -> QList<QKeySequence>
+		{
+			return { previous_change_key(),
+					 next_change_key(),
+					 QKeySequence{ QStringLiteral("Ctrl+Up") },
+					 QKeySequence{ QStringLiteral("Ctrl+Down") } };
 		}
 
 		/// \brief [[BPR-1295]]. Whether a widget is an editable multi-line
@@ -800,11 +827,11 @@ namespace bpr::qt {
 		/// Claiming it in `ShortcutOverride` also keeps the native macOS menu
 		/// item from taking it, because Qt asks the focus object first.
 		///
-		/// [[BPR-1328]]. Command-Down and Command-Up (Ctrl+Down and Ctrl+Up)
-		/// are Next and Previous change, and in an editor they are its own
-		/// document end and start. The editor claims them in
-		/// `ShortcutOverride` too, and hands the key press to the editor alone,
-		/// so the caret moves as it always did.
+		/// [[BPR-1328]]. Option-Down and Option-Up (Alt+Down and Alt+Up) are
+		/// Next and Previous change, and in an editor they are its own
+		/// paragraph moves (macOS). The editor claims them, and Command-Down
+		/// and Command-Up, in `ShortcutOverride` too, and hands the key press
+		/// to the editor alone, so the caret moves as it always did.
 		class editor_key_yield final : public QObject
 		{
 		public:
@@ -820,8 +847,10 @@ namespace bpr::qt {
 			{
 				if ((aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress)
 					&& editable_multi_line(aWatched)) {
+					// macOS marks the arrow keys as keypad keys; the shortcut
+					// map looks past that, and so does the yield.
 					const auto* const key      = static_cast<QKeyEvent*>(aEvent);
-					const auto        sequence = QKeySequence{ key->keyCombination() };
+					const auto        sequence = QKeySequence{ QKeyCombination{ key->modifiers() & ~Qt::KeypadModifier, static_cast<Qt::Key>(key->key()) } };
 					if (Action != nullptr && sequence == Action->shortcut()) {
 						aEvent->accept();
 						return true;
@@ -829,9 +858,9 @@ namespace bpr::qt {
 					if (Native.contains(sequence)) {
 						// The editor claims the key against the window's command,
 						// acts on the press as it always did, and the press
-						// stops there: one it ignores, such as Command-Up on
+						// stops there: one it ignores, such as Option-Up on
 						// the first line, would otherwise travel on to the
-						// window. A press handed on is not spontaneous, so Qt
+						// window or the code pane around it. A press handed on is not spontaneous, so Qt
 						// asks the shortcut map again, and the claim answers.
 						if (aEvent->type() == QEvent::KeyPress) {
 							if (Forwarding) {
@@ -858,7 +887,7 @@ namespace bpr::qt {
 		///
 		/// \details The owner kept the keys and asked that they be
 		/// discoverable, so the tooltip's first line is the command and its
-		/// key in the platform's own notation ("Next change (⌘↓)"). A second
+		/// key in the platform's own notation ("Next change (⌥↓)"). A second
 		/// line says where a crossing goes or why the arrow is disabled. The
 		/// status tip carries the sentence alone.
 		void describe_navigation_action(
@@ -1204,19 +1233,19 @@ namespace bpr::qt {
 							 QStringLiteral("Previous file"),
 							 QStringLiteral("previousWorkbenchFileAction"),
 							 QStringLiteral("Select the previous actionable file."),
-							 { QKeySequence{ QStringLiteral("Alt+Up") } });
+							 { previous_file_key() });
 		Navigation[1] = make(QStringLiteral("&Next file"),
 							 QStringLiteral("Next file"),
 							 QStringLiteral("Next file"),
 							 QStringLiteral("nextWorkbenchFileAction"),
 							 QStringLiteral("Select the next actionable file."),
-							 { QKeySequence{ QStringLiteral("Alt+Down") } });
+							 { next_file_key() });
 		Navigation[2] = make(QStringLiteral("Pre&vious change"),
 							 QStringLiteral("Previous change"),
 							 QStringLiteral("Previous change"),
 							 QStringLiteral("previousWorkbenchChangeAction"),
 							 QStringLiteral("Select the previous semantic change."),
-							 // [[BPR-1328]]. Command-Up (Ctrl+Up) first, which the
+							 // [[BPR-1328]]. Option-Up (Alt+Up) first, which the
 							 // tooltip names; Option-Page Up stays as before.
 							 { previous_change_key(), QKeySequence{ QStringLiteral("Alt+PgUp") } });
 		Navigation[3] = make(QStringLiteral("Ne&xt change"),
@@ -12247,7 +12276,7 @@ namespace bpr::qt {
 		addAction(ShowConversationsAction);
 		ViewMenu->addAction(ShowConversationsAction);
 		connect(ShowConversationsAction, &QAction::triggered, this, [this] { toggle_conversations(); });
-		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, { previous_change_key(), next_change_key() } };
+		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);

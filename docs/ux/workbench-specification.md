@@ -704,12 +704,25 @@ change of the first file ("First change in the pull request.") and the last
 change of the last ("Last change in the pull request."), so a file with one
 change keeps both arrows live. The stop-versus-wrap wrap policy still wraps
 inside the comparison. Each arrow's tooltip names it and its first key in the
-platform's notation ("Next change (⌘↓)", "Previous file (⌥↑)"); a second line
+platform's notation ("Next change (⌥↓)", "Previous file (⌥⌘↑)"); a second line
 names the file a crossing goes to ("Continue to the next file: …") or says why
-the arrow is disabled, and the status tip carries that line. Command-Down and
-Command-Up (Ctrl+Down and Ctrl+Up) are the change keys in the code panes and
-everywhere else in the window except an editable multi-line editor, which
-keeps them as its own document end and start.
+the arrow is disabled, and the status tip carries that line.
+
+The owner settled the keys on 2026-10-08: "Okay final choice: option cmd down
+next file. Option down next change", after "let cmd+down scroll to the bottom
+and cmd+up to the top". Option-Down and Option-Up (Alt+Down and Alt+Up) are
+Next and Previous change, with Option-Page Down and Option-Page Up kept;
+Option-Command-Down and Option-Command-Up (Ctrl+Alt+Down and Ctrl+Alt+Up) are
+Next and Previous file. They work everywhere in the window except an
+editable multi-line editor, which keeps Option-Up/Down (its paragraph moves on
+macOS) and Command-Up/Down (its document start and end). The Updates control's
+Load earlier epochs and Return to newest epochs, which held Ctrl+Alt+Down and
+Ctrl+Alt+Up inside the control, are `Ctrl+Alt+PgDown` and `Ctrl+Alt+PgUp`
+(⌥⌘PgDn, ⌥⌘PgUp), so no key is offered twice in the window. In the code
+panes the platform's document end and start scroll the comparison to its
+bottom and top: Command-Down and Command-Up on macOS, Ctrl+End and Ctrl+Home on
+Windows and Linux (`QKeySequence::MoveToEndOfDocument` and
+`MoveToStartOfDocument`).
 
 The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
@@ -739,10 +752,12 @@ never invents enabled state.
 
 | Command | Shortcut |
 |---|---|
-| Previous file | `Alt+Up` |
-| Next file | `Alt+Down` |
-| Previous review change ([[BPR-1328]]) | `Ctrl+Up` (⌘↑), or `Alt+PgUp` |
-| Next review change ([[BPR-1328]]) | `Ctrl+Down` (⌘↓), or `Alt+PgDown` |
+| Previous file ([[BPR-1328]]) | `Ctrl+Alt+Up` (⌥⌘↑) |
+| Next file ([[BPR-1328]]) | `Ctrl+Alt+Down` (⌥⌘↓) |
+| Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
+| Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
+| Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
+| Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
 | Toggle files drawer | `Alt+Shift+1` |
 | Toggle conversations drawer | `Alt+Shift+2` |
 | Toggle review details | `Alt+Shift+3` |
@@ -1324,7 +1339,7 @@ permanent error.
 **No file open** ([[BPR-1287]]). With a pull request open and no file
 comparison chosen, the comparison area shows no empty panes and no line
 numbers. It says "No file open", how many files there are to choose from in
-Files, and that ⌥↓ (Next file) opens the next one, with two buttons: Open first
+Files, and that ⌥⌘↓ (Next file) opens the next one, with two buttons: Open first
 file, which is Next file's own gesture, and Show files, which opens the Files
 drawer and focuses it. A pull request with no actionable file says "No files to
 read" and offers no Open first file. The comparison tab and the status line say

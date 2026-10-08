@@ -1554,6 +1554,7 @@ namespace bpr::qt {
 		Unified->setFocusPolicy(Qt::StrongFocus);
 		pane(Unified)->set_unified_rows(&UnifiedPresentation->Rows);
 		Unified->viewport()->installEventFilter(this);
+		Unified->installEventFilter(this);
 		UnifiedMap->installEventFilter(this);
 		UnifiedMap->setFocusProxy(Unified);
 		topLayout->addWidget(UnifiedMap);
@@ -2423,6 +2424,15 @@ namespace bpr::qt {
 		if (OnePaneEnabled && aWatched == UnifiedMap && aEvent->type() == QEvent::Wheel) {
 			QApplication::sendEvent(Unified->viewport(), aEvent);
 			return true;
+		}
+		// [[BPR-1328]]. In the one-pane comparison, as in the two panes, the
+		// platform's document start and end go to the top and bottom.
+		if (Unified != nullptr && aWatched == Unified && aEvent->type() == QEvent::KeyPress) {
+			if (const auto edge = comparison_scroll_edge_for(*static_cast<QKeyEvent*>(aEvent)); edge.has_value()) {
+				Unified->verticalScrollBar()->triggerAction(*edge == comparison_scroll_edge::top ? QAbstractSlider::SliderToMinimum : QAbstractSlider::SliderToMaximum);
+				aEvent->accept();
+				return true;
+			}
 		}
 		if (Unified != nullptr && aWatched == Unified->viewport()) {
 			if (aEvent->type() == QEvent::Resize && OnePaneEnabled) {
