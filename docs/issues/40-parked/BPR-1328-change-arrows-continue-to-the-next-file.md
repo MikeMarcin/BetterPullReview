@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1328"
 title: "Change arrows continue to the next file instead of greying out"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3","BPR-1328:C4","BPR-1328:C5"]}
+parked_on: "human-review"
 ---
 
 # BPR-1328: Change arrows continue to the next file instead of greying out
