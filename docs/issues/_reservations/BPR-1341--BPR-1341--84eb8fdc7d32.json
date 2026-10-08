@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1341"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Rename the Conversations modality to Threads",
+  "created": "2026-10-08T21:14:06.456019+00:00",
+  "base": "5efe30739adb778d310286acd6b6b1c093870d94"
+}
