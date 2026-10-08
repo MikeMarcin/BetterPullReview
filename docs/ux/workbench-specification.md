@@ -1012,7 +1012,10 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   drag it, or press Up/Down on it to move one text line; double-click it or use
   its context menu to reset the height. The height a reader chose is kept per
   window and survives a restart; a clamp in a small window does not erase it.
-  Review details no longer shows or hides it.
+  Review details no longer shows or hides it. At its default height it takes
+  about eight text lines from the panes; the UIforETW focused-review capture
+  hides it through View > Line Details beside the drawers and Review details,
+  so that capture's height floors still measure the panes alone.
 - Comments are shown beside code in the right drawer, not inserted into the source layout.
 
 Conversation synchronization is exact rather than proximity-based. Selecting a

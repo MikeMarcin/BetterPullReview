@@ -22546,6 +22546,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (details->isChecked()) {
 				details->trigger();
 			}
+			// [[BPR-1334]]. Line details is on by default and is not a review
+			// detail; the focused review hides it through View > Line Details,
+			// as a reader giving the panes all the room would. The comparison's
+			// height floors measure that focused layout.
+			if (auto* const lineDetails = window->line_details_action(); lineDetails == nullptr) {
+				return fail();
+			} else if (lineDetails->isChecked()) {
+				lineDetails->trigger();
+			}
 			if (!probe.Evidence.FilesDrawerToggle
 				|| !probe.Evidence.ConversationsDrawerToggle
 				|| !probe.Evidence.RepositoriesDrawerToggle) {
@@ -22581,9 +22590,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& !window->conversations_drawer_toggle_action()->isChecked()
 				&& !window->review_details_toggle_action()->isChecked()
 				&& !window->epoch_selectors()->details_visible()
-				// [[BPR-1334]]. Line details is shown by default and is no
-				// longer a review detail.
-				&& detail != nullptr && detail->isVisible();
+				// [[BPR-1334]]. Hidden through View > Line Details above.
+				&& !window->line_details_action()->isChecked()
+				&& detail != nullptr && !detail->isVisible();
 			if (!focused) {
 				if (++probe.Waits <= 64U) {
 					return result::pending;
@@ -22606,6 +22615,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					<< window->review_details_toggle_action()->isChecked()
 					<< " selector_details="
 					<< window->epoch_selectors()->details_visible()
+					<< " line_details_checked="
+					<< window->line_details_action()->isChecked()
 					<< " detail_shown="
 					<< (detail != nullptr && detail->isVisible()) << '\n';
 				return fail();
@@ -22903,7 +22914,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		auto* const reviewDetails  = window->review_details_toggle_action();
 		auto* const reviewControls = window->review_controls_button();
 		if (window->epoch_selectors()->details_visible()
-			|| detail == nullptr || !detail->isVisible()
+			|| detail == nullptr || detail->isVisible()
 			|| window->files_drawer()->width()
 				> qt::workbench_drawer_rail::width_pixels
 			|| window->conversations_drawer()->width()

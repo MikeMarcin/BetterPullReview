@@ -1094,9 +1094,9 @@ endfunction()
 # main.cpp, the fixture-access header and github_public_path_fixture.cpp.
 # The composition forwards the window's explicit Line details height, or its
 # Reset, to WorkbenchHost::resize_line_details, which validates and stores it
-# in the local workbench settings only. The UIforETW focused-layout probes now
-# expect Line details shown, since it is on by default and no longer a review
-# detail. main.cpp's diff courses read the strip's rows instead of the old
+# in the local workbench settings only. The UIforETW focused-layout probe hides
+# Line details through View > Line Details beside the drawers and Review
+# details, so the comparison's height floors still measure the panes alone. main.cpp's diff courses read the strip's rows instead of the old
 # detail text. The constructed line-details-v1 fixture joins the test-build
 # fixture enum, host-profile table, served-fixture table and --github-fixture
 # names. No grant, target, provider, credential, transport, GitHub write,
