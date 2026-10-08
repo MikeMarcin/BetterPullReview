@@ -556,6 +556,175 @@ Return on a single line keeps narrowing an existing range draft that ends on
 that line, because Return always uses the current selection. Alt+C reopens a
 draft unchanged. The coordinator decided this on the implementer's question.
 
+### Slice 1 integrated onto slice 2 (bpr-main-linux, 2026-10-08)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on
+`bpr-main-linux` (WSL2, GCC 15.2.0, Qt 6.11.2). Slice 1 was rebased, not
+merged, onto `origin/main` (slice 2 at `a90419791`, then main at `e9f461835`,
+`5efe30739` and later), and integrated so that slice 2's drawer flow is the
+one path.
+The composer parts of the implementation notes above ("opens the existing
+composer", the editor's "Lines a to b" label, `core::suggestion_prefill`) are
+superseded by this section; the anchor, publication, storage and keyboard
+cursor are unchanged.
+
+**One path.** Return and Shift+Return in a focused code pane, the code's
+right-click Add comment and Suggest change, and the gutter's "+" all go to
+`workbench_window::comment_on_selected_lines`. It keeps slice 1's decision
+(`core::decide_comment_range`, its typed refusals and status-line reasons),
+selects the range's last line, has the draft there take the range's first
+line, and calls slice 2's `begin_new_comment`, which opens the draft in the
+drawer. The focus gating stays slice 1's: the pane claims the keys in
+`ShortcutOverride` only while it has focus, with keypad Enter as Return and
+no modifier but Shift. Slice 2's window-level Return filter on the panes is
+removed, as are the composition's `begin_line_draft` and
+`complete_line_draft`, the window's line-draft dispatch and request type, and
+the editor's `RangeTarget` label and `place_body_caret`. Comment (Alt+C)
+still calls `begin_new_comment` directly, so it reopens a draft unchanged;
+Return on one line narrows a range draft ending there (the coordinator's
+decision above).
+
+**The range on the draft.** `review_draft_editor::change_range` sends the
+first line (`ChangeRange`, `StartLine`) with the body in one ordinary
+revisioned edit through the editor's own edit path, the path the drawer and
+Discuss already write through. An edit already with the draft owner is
+answered first, and the range goes with the next one. If the line's draft is
+not there yet (the range's last line was only now selected), the window waits
+for it and drops the request when another line is selected. Nothing reaches
+the composition but that edit; publication still takes `StartLine` from the
+draft as `start_line`/`start_side`, and a single line's bytes and idempotency
+key are unchanged.
+
+**Ranges in slice 2's surfaces.** `draft_source_lines` reads the draft's first
+line to its anchor, so Suggest change fills the block with all the selected
+lines and "What it changes" compares against them. The drawer header and its
+accessible name say "Lines a–b", the gutter's blue bracket spans the lines
+(`diff_line_mark::FirstLine`, also mapped to rows in one pane), Discuss's
+excerpt brackets them, and the right-click menu is headed "Lines a–b" and
+keeps the selection when the click is inside it. The menu's items are
+unavailable with the core's reason when the lines cannot take one comment.
+
+**One fence builder.** `core::suggestion_prefill` is deleted. Its behaviour
+is now `core::suggestion_source_lines` (exact bytes without line endings; a
+range past the document, a reversed range or a line that is not UTF-8 gives
+none) and `core::suggestion_fence_body`, whose fence now outruns a backtick
+run anywhere in the lines, as both slices' notes describe, not only at a
+line's start. The caret stays at the end of the block's last line. Slice 1's
+prefill cases moved to `core_suggestion_draft` as `range_block`.
+
+Local-project flows are unchanged. The workbench specification and the
+conventional-comments delivery contract describe the integrated flow.
+
+**Tests** (Linux, Debug `build/dev` and `build/core-only`, offscreen with no
+display, on the integrated tree over `e9f461835`; the focused rows again over
+`5efe30739`, below):
+- `core_suggestion_draft` gains `range_block`, slice 1's prefill cases: the
+  exact bytes, tabs and trailing blanks, an empty line, a backtick run in
+  mid-line outrun by the fence, a last line without a newline, refusal past
+  the document, reversed or not UTF-8, the caret's place, and an unedited
+  range changing nothing. `core_review_comment_range` keeps the hunks, the
+  refusals and the draft and proposal range.
+- `qt_workbench_line_draft` is rewritten for the one path with a revisioned
+  editor and the core applying each edit: a left line and lines outside one
+  hunk refused with their status-line reasons and no range edit; Shift+Down
+  twice and Shift+Return give the draft on line 6 the first line 4 in one
+  edit, the block of lines 4 to 6 exactly, the drawer draft "Lines 4–6" with
+  the caret at the end of the block's last line and the bracket across the
+  three lines; Esc keeps it; Comment reopens it with no edit; Down, Up and
+  Return narrow it to line 6 with its text kept; keypad Enter on a new line
+  sends no range; Shift+Return in the notes starts nothing; no draft on the
+  line, and no line at all, each say why.
+- `application_line_draft_contract` (`--line-draft-course`, the composed
+  public path) drives the same keys into the drawer: the left line refused,
+  one line opened as "Your draft on line N" with no first line and left with
+  Esc, Shift+Down twice and Shift+Return to the drawer draft on three lines
+  with the bracket, the caret and the native suggestion mark, and the drawer
+  draft's own Publish. The fixture server receives `line` 11, `start_line` 9
+  and both sides `RIGHT`. `LINE_DRAFT_EVIDENCE:111111`.
+- Pass: `core_review_comment_range`, `core_suggestion_draft`,
+  `application_comment_range_draft_store`, `qt_review_draft_editor`,
+  `qt_workbench_line_draft`, `application_line_draft_contract`,
+  `github_mutation_contract`, `qt_diff_workbench_scale_100/125/200`,
+  `qt_conversation_cards_view`, `qt_workbench_window_scale_100/125/200`
+  (24.1, 27.8 and 55.4 s; slice 2's compose-in-the-drawer test included),
+  `application_review_submission_composition_public_path` and its 125 and 200
+  scales, `application_label_authoring_contract`,
+  `application_review_round_trip_composition_contract`,
+  `application_composition_contract` (909 s), `architecture_boundaries`,
+  `test_network_isolation_manifest` and `github_recorded_fixture_contract`.
+  All 252 core-only rows pass.
+- `coding-format-check` (clang-format 22.1.8) and `DOCUMENTATION_OK` pass.
+  The Debug build has no warnings.
+- After the rebase onto `5efe30739` (BPR-1328's keys, BPR-1329's drawer
+  Publish status, BPR-1335's gutter), the 22 focused rows above pass again,
+  with `application_composition_contract` (970 s). Each later rebase onto a
+  moving `main` (BPR-1337's Discuss header, BPR-1339's Overview; no
+  pinned-scope change, the pins unchanged) passes the 22 again before the
+  push.
+- Finding on `main`, not this card's: `test_inline_publish_cli_consent`
+  (BPR-1329, `512c2836b`) does not compile with GCC 15:
+  `tests/end_to_end/inline_publish_cli_consent_tests.cpp:282` binds a
+  range-for's structured binding by value, which `-Werror=range-loop-construct`
+  refuses (the tests/AGENTS.md rule). Left to its owner; every other target
+  builds.
+
+**Failing-before controls** on the integrated tree (each mutation applied,
+the build and the row run, then the file restored byte for byte, rebuilt and
+the row green again):
+
+| Mutation | Row | Failure |
+|---|---|---|
+| The range not set on the draft | `qt_workbench_line_draft`; `application_line_draft_contract` | "Shift+Return gives the draft on line 6 the first line 4 in one edit…"; the course waits at the prefill until its budget expires (`LINE_DRAFT_EVIDENCE:000000`) |
+| `draft_source_lines` takes only the anchor | the same two rows | the same: the block holds one line, not three |
+| The fence counts only leading backtick runs (slice 2's earlier rule) | `core_suggestion_draft` | "a line holding backtick runs gets a longer fence…" |
+| The fence always three backticks | `core_suggestion_draft` | the same |
+| A single line sends `start_line` | `github_mutation_contract` | "comment request has exact ordinary GitHub fields and bytes" |
+| Any modifier taken | `qt_diff_workbench_scale_100` | "no other modifier is taken" |
+| The keys taken without the pane's focus (an application-wide filter) | `qt_workbench_line_draft` | "Shift+Return in the notes starts no draft from the code" |
+| Lines outside one hunk not refused | `qt_workbench_line_draft` | "Shift+Return on lines outside a hunk opens nothing and says why" |
+
+A base-side mutation in the window's decision alone stays green: the comment
+target's own check refuses the left side with the same reason, so the left
+line is refused twice over. `core_review_comment_range` covers the core's
+`base_side` refusal.
+
+**100 ms gates.** The optimized tests-on tree was built once on the
+integrated tree with `cmake --preset app-release -B build/app-release-tests
+-DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON` (GCC 15 `-O3`; the only
+warning is vendored SQLite's). With the machine idle, `-j1` passes 10 of 10,
+and the tree was then deleted:
+- `application_large_review_responsiveness`: `keyboard_line_down` 9.6 ms,
+  `keyboard_line_extend` 8.7 ms and `keyboard_line_reveal` 13.4 ms on
+  `large/comparison.cpp`; no `InputBudgetFailures`, budgets enforced, the
+  largest pulse interval 63.4 ms.
+- `application_first_tab_comparison`: no `InputBudgetFailures`, budgets
+  enforced.
+- `qt_workbench_window_scale_100/125/200`: 23.1, 24.8 and 28.7 s.
+- `qt_workbench_line_draft`, `qt_diff_workbench_scale_100`,
+  `core_suggestion_draft`, `core_review_comment_range` and
+  `application_line_draft_contract` also pass there.
+
+**Pin.** `origin/main`'s pins matched at its head `e9f461835`, and again at
+`5efe30739` after the last rebase (detached worktrees,
+`BPR_PRINT_PINNED_DIGESTS`). Resealed for the integrated result over
+`5efe30739`: `full_application` `cf8290ad…` and `production_app_manifest`
+`2cdb82c6…`.
+`production_mutation_branch` is unchanged (`e067befe…`). The dated "BPR-1212
+slice 1 reseal" comment, now describing the integration, follows slice 2's,
+BPR-1328's and BPR-1329's reseal comments.
+
+**Limits.**
+- Linux only; macOS and Windows runs of these rows are owed by the stations.
+- The integrated drawer flow on several lines has had no owner look. Slice
+  2's session `aae8f3fc` looks at its frozen one-line build, not at this
+  integration; the owner look stays with the coordinator.
+- If a range's last line was only now selected and its draft never arrives,
+  the request waits silently until another line is selected; if the line was
+  already selected, the status line says why there is no draft and the draft
+  still opens should it arrive.
+- Slice 1's remaining limits above (hunks from the accepted comparison, no
+  two-sided ranges, the read-only pending repair) are unchanged.
+
 ## Build slice 2: compose in the drawer (bpr-main-mac, 2026-10-08)
 
 Drawn with `frontend-design` (loaded first, as the repository asks). Built
@@ -683,6 +852,9 @@ Return/Shift+Return. When it lands, rebase this slice onto it: route its
 Return/Shift+Return to `begin_new_comment`, take the range from the draft's
 anchor for the bracket, the "Lines a–b" words and the suggestion's lines
 (`draft_source_lines`), and keep one fence builder (`core::suggestion_fence_body`).
+
+Done on 2026-10-08 the other way round, slice 1 rebased onto this slice: see
+"Slice 1 integrated onto slice 2" above.
 
 ### Owner look, session v001 (pending)
 
