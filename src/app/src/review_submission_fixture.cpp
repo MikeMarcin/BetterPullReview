@@ -358,7 +358,7 @@ namespace bpr::app::detail {
 						if (State->StagedReview && submitted(*State->StagedReview)) {
 							listed.insert(listed.end(), State->StagedComments.begin(), State->StagedComments.end());
 						}
-						const auto page  = std::stoul(w.Path.substr(collection.size()));
+						const auto page  = static_cast<std::size_t>(std::stoul(w.Path.substr(collection.size())));
 						const auto first = std::min(listed.size(), (page - 1U) * 100U);
 						const auto last  = std::min(listed.size(), first + 100U);
 						auto       slice = std::vector<application::staged_review_comment>(listed.begin() + static_cast<std::ptrdiff_t>(first), listed.begin() + static_cast<std::ptrdiff_t>(last));

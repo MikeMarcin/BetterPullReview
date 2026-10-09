@@ -136,3 +136,14 @@ and the per-review/collection cases in `test_staged_response_contract`;
 - `review_mutation_session::repair_pending_publications` (single comments) reads
   the collection's first page with the new paged request and still refuses a
   `Link`, as before.
+
+## Windows build fix (bpr-main-win, 2026-10-09)
+
+`src/app/src/review_submission_fixture.cpp` did not compile with MSVC. The
+paged comments listing took `page = std::stoul(...)` and then called
+`std::min(listed.size(), (page - 1U) * 100U)`. On Windows `unsigned long` is
+32 bits, so `std::min` was given `size_t` and `unsigned long` (C2672, C2737).
+Linux and macOS are LP64, so they compiled. The page is now
+`static_cast<std::size_t>(std::stoul(...))`. The composition library builds
+on Windows (MSVC 19.50, Debug), and the round-trip pins are unchanged
+(`PIN_CHECK_OK`).
