@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1358"
 title: "The core SHA-256 runs at about 110 MB/s, one byte per call"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
