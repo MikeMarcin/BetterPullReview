@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1365"
 title: "Home paints the open review in the selection colour; only one Home list shows a selection"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"defect","found_by":"Owner, BPR-1364 attended review (accepted), 2026-10-09","reservation":"docs/issues/_reservations/BPR-1365--BPR-1365--b5afbbae5ee9.json","related_cards":["BPR-1364","BPR-0776","BPR-0733","BPR-1357","BPR-1157"],"requested_skill":"frontend-design"}
 acceptance: []
+parked_on: "human-review"
 ---
 
 # BPR-1365: Home paints the open review in the selection colour; only one Home list shows a selection
@@ -173,3 +174,26 @@ open pull request's queue row is the one this window is reviewing, and says
 so (light)") and `application_home_open_feedback_public_path` ("Recently
 viewed says which of its entries is the open review") fail. Restored, they
 pass.
+
+## Owner look — prepared 2026-10-09
+
+- Landed on main as `78b1f21c5`. Frozen build of `78b1f21c5` with
+  `scripts/freeze_attended_build.py freeze` (source export and tests-on build
+  inside `/Users/jaeger/.mask/attended-review/bpr1365-home-reviewing-v001.x8t3w3e7`;
+  `better_pull_review` SHA-256
+  `01f124c93a47d2e9d6c46cabd33ce97b3ab64c88c6bc0b56cd12aa70e312b322`), the
+  BPR-1364 launcher pattern without the slow network: fixture `github-com`,
+  `--attended-home-look`, which signs in, opens `#17` once from the Home bar,
+  saves its repository and shows Home over the open review. The launcher's
+  own offscreen check reached `ATTENDED_HOME_SHOWN:rows=2:delay=0ms`. Started
+  with
+  `python3 /Users/jaeger/.mask/attended-review/bpr1365-home-reviewing-v001.x8t3w3e7/launch.py`.
+- New short session `3a408f4db19329315edb27a85a768226`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1365-home-reviewing-v001/state`,
+  host detached (pid 88807). One Accept/Reject candidate, ready at event
+  cursor 3: `BPR-1365-one-selection-reviewing-v001` (`BPR-1365:owner`). It
+  carries the four theme renders from the composed-application course and
+  names the design choice: no accent colour and "Reviewing" rather than "Open".
+- Next: on hand-back, read `status --after 3`. Accept closes `BPR-1365:owner`
+  and the card. A Reject's note (for example an accent bar, or another word)
+  is the next round's change.
