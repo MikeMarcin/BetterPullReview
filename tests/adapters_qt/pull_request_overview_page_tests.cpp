@@ -1782,6 +1782,44 @@ namespace {
 				settle();
 				auto* const view = page.files_view();
 
+				// [[BPR-1350]]. The Files heading shortens with an ellipsis and
+				// never runs under its row's controls or off the page; the
+				// whole sentence stays its text and accessible name, and is its
+				// tooltip whenever it is shortened.
+				{
+					auto* const heading   = page.files_heading();
+					const auto  whole     = heading->text();
+					auto        shortened = false;
+					for (const auto width : { 1'000, 800, 600, 420 }) {
+						page.resize(width, 560);
+						settle();
+						const auto box   = QRect{ heading->mapTo(&page, QPoint{ 0, 0 }), heading->size() };
+						const auto label = name + " at " + std::to_string(width) + " px";
+						expect(heading->text() == whole && whole.startsWith(QStringLiteral("Files: ")) && heading->accessibleName() == whole,
+							   label + ": the heading keeps the whole sentence as its text and accessible name");
+						expect(box.left() >= 0 && box.right() < page.width(), label + ": the heading stays on the page");
+						for (auto* const control : page.findChildren<QAbstractButton*>()) {
+							if (!control->isVisible() || view->isAncestorOf(control)) {
+								continue;
+							}
+							const auto other = QRect{ control->mapTo(&page, QPoint{ 0, 0 }), control->size() };
+							if (other.center().y() >= box.top() && other.center().y() <= box.bottom()) {
+								expect(!box.intersects(other), label + ": the heading runs under no control in its row (" + control->objectName().toStdString() + ")");
+							}
+						}
+						const auto fits = heading->fontMetrics().horizontalAdvance(whole) <= heading->contentsRect().width();
+						expect(fits ? !heading->toolTip().contains(whole) : heading->toolTip().startsWith(whole),
+							   label + (fits ? ": a whole heading has no tooltip of itself" : ": a shortened heading's tooltip is the whole sentence"));
+						shortened = shortened || !fits;
+						if (!root.isEmpty() && style == qt::feedback_mark_style::icons) {
+							static_cast<void>(page.grab().save(QStringLiteral("%1/files-heading-%2-%3-%4.png").arg(root, QString::fromStdString(themeName), scaleName, QString::number(width)), "PNG"));
+						}
+					}
+					expect(shortened, name + ": the narrowest page shortens the heading");
+					page.resize(1'000, 560);
+					settle();
+				}
+
 				// Identity: the label chips, their marks and their names.
 				const auto chips = chips_of(page, cell(page, busy));
 				expect(chips.size() == 4U && chips[0].Label == feedback_label::issue && chips[0].Count == 128U && chips[1].Label == feedback_label::question && chips[1].Count == 12U

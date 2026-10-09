@@ -38,6 +38,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRectF>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
@@ -495,6 +496,86 @@ namespace bpr::qt {
 			label->setFont(heading_font(*aParent));
 			label->setForegroundRole(QPalette::PlaceholderText);
 			return label;
+		}
+
+		/// \brief [[BPR-1350]]. A heading that shortens with an ellipsis when
+		/// its row is too narrow, and never cuts a word.
+		///
+		/// \details Its text stays the whole sentence; only the painting is
+		/// shortened. The whole sentence is always its accessible name, and is
+		/// its tooltip whenever it is shortened, ahead of any note the heading
+		/// carries.
+		class eliding_heading final : public QLabel
+		{
+		public:
+			using QLabel::QLabel;
+
+			void present(const QString& aText, const QString& aNote)
+			{
+				setText(aText);
+				Note = aNote;
+				refit();
+			}
+
+			[[nodiscard]] auto elided() const -> bool
+			{
+				return Elided;
+			}
+
+			[[nodiscard]] auto shown_text() const -> QString
+			{
+				return fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, contentsRect().width()));
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				// One character and the ellipsis: the row may narrow the
+				// heading to almost nothing rather than widen the page.
+				const auto hint = QLabel::minimumSizeHint();
+				return QSize{ fontMetrics().horizontalAdvance(QStringLiteral("F…")), hint.height() };
+			}
+
+		protected:
+			void resizeEvent(QResizeEvent* const aEvent) override
+			{
+				QLabel::resizeEvent(aEvent);
+				refit();
+			}
+
+			void changeEvent(QEvent* const aEvent) override
+			{
+				QLabel::changeEvent(aEvent);
+				if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange) {
+					refit();
+				}
+			}
+
+			void paintEvent(QPaintEvent* const /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				style()->drawItemText(&painter, contentsRect(), static_cast<int>(alignment()), palette(), isEnabled(), shown_text(), foregroundRole());
+			}
+
+		private:
+			void refit()
+			{
+				Elided = shown_text() != text();
+				setAccessibleName(text());
+				if (Elided) {
+					setToolTip(Note.isEmpty() ? text() : text() + QStringLiteral("\n\n") + Note);
+				} else {
+					setToolTip(Note);
+				}
+				update();
+			}
+
+			QString Note;
+			bool    Elided = false;
+		};
+
+		void present_heading(QLabel& aHeading, const QString& aText, const QString& aNote = { })
+		{
+			static_cast<eliding_heading&>(aHeading).present(aText, aNote);
 		}
 
 		[[nodiscard]] auto value_name(const overview_value aValue) -> QString
@@ -2055,8 +2136,15 @@ namespace bpr::qt {
 		connect(escape, &QShortcut::activated, this, [this] { set_description_expanded(false); });
 		escape->setObjectName(QStringLiteral("overviewDescriptionEscape"));
 
-		FilesHeading = make_heading(QStringLiteral("Files"), QStringLiteral("overviewFilesHeading"), main);
-		FilesHeading->setAccessibleName(QStringLiteral("Files in the pull request"));
+		{
+			auto* const heading = new eliding_heading{ main };
+			heading->setObjectName(QStringLiteral("overviewFilesHeading"));
+			heading->setTextFormat(Qt::PlainText);
+			heading->setFont(heading_font(*main));
+			heading->setForegroundRole(QPalette::PlaceholderText);
+			heading->present(QStringLiteral("Files"), { });
+			FilesHeading = heading;
+		}
 
 		// [[BPR-1269]]. Collapse all and expand all, as glyphs beside the heading
 		// with their names in tooltips; local to the page, like one folder's.
@@ -2484,8 +2572,7 @@ namespace bpr::qt {
 			heading += QStringLiteral(", changes since my last review not yet resolved");
 		}
 		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
-		FilesHeading->setText(heading);
-		FilesHeading->setToolTip({ });
+		present_heading(*FilesHeading, heading);
 	}
 
 	void pull_request_overview_page::present_entry(const application::pull_request_overview_projection& aProjection)
@@ -2569,8 +2656,7 @@ namespace bpr::qt {
 		EmptyBody->setVisible(false);
 		SummaryPane->setVisible(false);
 		FullView->setVisible(false);
-		FilesHeading->setText(QStringLiteral("Files"));
-		FilesHeading->setToolTip({ });
+		present_heading(*FilesHeading, QStringLiteral("Files"));
 		ModeChosen = false;
 		Mode       = DefaultMode;
 		Sort.reset();
@@ -2595,7 +2681,7 @@ namespace bpr::qt {
 	{
 		Title->setText(QStringLiteral("Loading pull request…"));
 		Summary->setText(QStringLiteral("Details, files and threads are loading in the background."));
-		FilesHeading->setText(QStringLiteral("Files — loading…"));
+		present_heading(*FilesHeading, QStringLiteral("Files — loading…"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
@@ -2623,7 +2709,7 @@ namespace bpr::qt {
 		SummaryPane->setVisible(!aObservation.Body.empty());
 		FullView->setVisible(!aObservation.Body.empty());
 		SummarySplit->queue_layout();
-		FilesHeading->setText(QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
+		present_heading(*FilesHeading, QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
 		SinceHeading->setText(QStringLiteral("Review state — loading…"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
@@ -2643,10 +2729,11 @@ namespace bpr::qt {
 		Summary->setToolTip(QStringLiteral("Previously accepted base %1\nPreviously accepted head %2")
 								.arg(text(aOverview.BaseOid), text(aOverview.HeadOid)));
 		Summary->setAccessibleDescription(Summary->toolTip());
-		FilesHeading->setText(aOverview.FileCatalogue
-								  ? QStringLiteral("Cached file catalogue — %1 files observed; open a file to read retained source").arg(count_text(aOverview.FileCatalogue->size()))
-								  : QStringLiteral("File catalogue unavailable offline; source unavailable offline"));
-		FilesHeading->setToolTip(QStringLiteral("Historical GitHub change kinds and line counts, reported with the retained base/head. These are not a recomputed comparison of the base tip and head."));
+		present_heading(*FilesHeading,
+						aOverview.FileCatalogue
+							? QStringLiteral("Cached file catalogue — %1 files observed; open a file to read retained source").arg(count_text(aOverview.FileCatalogue->size()))
+							: QStringLiteral("File catalogue unavailable offline; source unavailable offline"),
+						QStringLiteral("Historical GitHub change kinds and line counts, reported with the retained base/head. These are not a recomputed comparison of the base tip and head."));
 		Model->apply(cached_file_rows(aOverview.FileCatalogue));
 		update_folder_controls();
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
