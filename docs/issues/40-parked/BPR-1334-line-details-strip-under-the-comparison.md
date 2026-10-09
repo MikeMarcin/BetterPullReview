@@ -341,3 +341,95 @@ run used a legacy bar, so none saw it. The launcher ran the course's checks
 before its window, as hard expectations, so one failed check of the window
 killed the owner's launch without a window, and the exception escaped
 `main`.
+
+The candidate `BPR-1334-line-details-v002` was released with
+`resume-development` (event 7). Its host was already stopped, and
+`artifacts/bpr-1334/line-details-frozen-v002/` was deleted.
+
+## v003 — the bar covers no row, and the launch never aborts (2026-10-08)
+
+Design: `frontend-design:frontend-design` was loaded first. Nothing new is
+drawn. The bar's band stays free, so the strip is the same in both bar styles.
+
+- **Product.** `line_details_pane::place_gutter` sets a bottom viewport
+  margin of the horizontal bar's height when the bar's style overlaps
+  (`PM_ScrollView_ScrollBarOverlap` > 0, which is Qt's transient style, the
+  macOS default). It sets none for a legacy bar, which takes its own height.
+  The viewport and the gutter beside it therefore end above the bar in both
+  styles. An event filter on the bar re-places them when its style changes,
+  as it does when the macOS scroll-bar setting changes.
+- **Attended launch.** `line_details_public_path --attended` reports a failed
+  check of what its window shows as `LINE_DETAILS_ATTENDED_CHECK_FAILED: …`
+  and opens the window anyway. A failed precondition (startup, sign-in,
+  Review, the line's comparison) still ends the run, with its `FAILED:` line
+  and `LINE_DETAILS_ATTENDED_FAILED`. `main` catches the failure, so no
+  exception escapes to `libc++abi`. The course run (no `--attended`) fails
+  on every check as before. The frozen root's `launch.py` (not in the
+  repository) checks the fixture tree and the executable. If the run exits
+  before ready it prints `STARTUP_FAILED` with the course's `FAILED` lines.
+  When the window opens it prints each self-check disagreement as a note. It
+  gives up after 30 s.
+
+**Tests.** `qt_diff_workbench_scale_{100,125,200}` gains
+`expect_line_details_bar_band`. It checks that the gutter is beside the rows
+and exactly as tall as they are, that the rows and the gutter end above the
+bar, and that both rows are read above it. It runs at the default and the
+smallest heights with the platform's bar, then with Qt's transient style
+(`overlay_scroll_bar_style`, a `QProxyStyle` with `SH_ScrollBar_Transient`
+and the bar's extent as `PM_ScrollView_ScrollBarOverlap`). That style is set
+on a strip that is already shown, as the macOS setting would change it. It
+then runs once more on the legacy bar again, which must keep no extra band.
+`application_line_details_public_path` also checks that the viewport ends
+above the bar in the platform's own style.
+
+**Failing-before controls** (each reverted after its run):
+- Reserve removed (v002's placement). Fails "overlay bar, default strip: the
+  rows and the gutter end above the bar", with the viewport at 1..128 against
+  a bar at 111. That is v002's native failure, reproduced offscreen.
+- A window check forced false. The course run exits 1 with its `FAILED:`
+  line and no abort. `--attended` prints `LINE_DETAILS_ATTENDED_CHECK_FAILED`,
+  then `LINE_DETAILS_ATTENDED_READY`, and stays open.
+- A precondition forced false under `--attended`. Exits 1 with `FAILED:` and
+  `LINE_DETAILS_ATTENDED_FAILED`, and its course root is removed.
+- `launch.py` against a stub root: an early exit, a ready window with a
+  check note, and a missing executable. Each prints its message under the
+  system `python3` 3.9.
+
+**Rows.** At `e1f003d51` (Release, tests on, Apple clang `-O3`, Qt 6.11.2,
+macOS 26.6.2, M4 Pro, offscreen), `qt_diff_workbench_scale_{100,125,200}`
+and `application_line_details_public_path` pass. The four
+`expect_line_details_bar_band` cases print matching bands (scale 100,
+default: viewport 1..110, gutter 1..110, bar at 111).
+`architecture_boundaries` passes too. The three round-trip pins match
+(`BPR_PRINT_PINNED_DIGESTS`), because the change is outside the pinned scope.
+clang-tidy on `line_details_pane.cpp` and the public-path course is clean.
+The workbench test's only finding, `column_x`, predates this change. Format
+is applied and `DOCUMENTATION_OK`. Under the platform's legacy style, which
+offscreen uses, the product change sets no margin, so the large-review rows'
+v002 evidence stands. At the merged tree `db7026a2d` (over BPR-1091,
+BPR-1343), the same rows and `architecture_boundaries` pass, the pins match,
+and `DOCUMENTATION_OK`. It landed as `e43c666c5`, whose only addition is
+BPR-1336's zoom test follow-up. That commit touches no Line details path.
+
+## Owner look v003 (C5, pending)
+
+**Frozen root.** `artifacts/bpr-1334/line-details-frozen-v003/` holds
+`source/` (`git archive e1f003d51`, `diff -rq` clean) and `build/`. The
+build is Release with tests on, configured from that `source/`, with its CPM
+cache inside the root. `launch.py` has sha256 `ae1b1e39…`. The attended
+executable `build/tests/end_to_end/line_details_public_path` has sha256
+`26cbaab6…`. **Native start:** `launch.py` reached `READY` on this Mac's
+Cocoa desktop in 2 s with no self-check note. The candidate was then closed
+with SIGTERM, and its course root was removed. Nothing on the desktop was
+captured or driven.
+
+One new short session, `e45c5020c1c1b1dd90c41f66b8dd373a`. Its state is
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v003/attended-review`
+and its repository root is the main checkout. The host is detached
+(`serve.log` beside the state). It holds one Accept/Reject candidate,
+`BPR-1334-line-details-v003` ("line details v003"), at revision `e43c666c5`
+with fingerprint `538d0513…`, ready and protected. The event cursor is 4.
+Launch command:
+`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v003/launch.py`.
+C1–C4 rest on the direct evidence above. C5 waits on the owner and is not
+self-certified.
