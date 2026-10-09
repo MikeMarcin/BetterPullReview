@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1362"
 title: "The threads drawer no longer crashes on Windows when its forest is replaced"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
