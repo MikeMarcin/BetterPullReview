@@ -125,6 +125,9 @@ namespace bpr::application {
 		/// grants' missing blobs are then read in batches through a transport
 		/// that supports them, off the actor, and their verified bytes kept for
 		/// the authority. Replacement, invalidation and shutdown drop both.
+		/// [[BPR-1359]]. A prepared blob read on its own on the actor yields to
+		/// the reviewer's resolve or read there, and is not made at all while
+		/// the authority's batched read is failing.
 		[[nodiscard]] auto prepare(
 			const std::vector<workbench_selected_diff_request>& aRequests,
 			std::stop_token                                     aStop) -> epoch_prepared_comparisons;

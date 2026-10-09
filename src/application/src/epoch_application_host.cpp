@@ -1150,6 +1150,17 @@ namespace bpr::application {
 			std::uint64_t                                    PreparedGrantSequence = 0U;
 			std::deque<retained_sparse_blob>                 RetainedBlobs;
 			std::uint64_t                                    RetainedBlobBytes = 0U;
+			/// [[BPR-1359]]. The stop of preparation's exact read now on this
+			/// actor, if one is. Reviewer work stops it before queueing, and
+			/// none starts while `ReviewerWork` is non-zero: the reviewer's
+			/// own resolve or read is never queued behind a prepared one.
+			std::optional<std::stop_source> PreparedRead;
+			std::size_t                     ReviewerWork = 0U;
+			/// [[BPR-1359]]. The last batched read under this authority failed,
+			/// so prepared blobs are not read one at a time either: a transport
+			/// whose batch fails reads nothing ahead. A batch that succeeds,
+			/// or a new authority, lifts it.
+			bool PreparedReadsSuspended = false;
 		};
 
 		/// Drops every prepared grant. Called under BlobAuthorityMutex.
@@ -1157,7 +1168,92 @@ namespace bpr::application {
 		{
 			aActor.PreparedGrants.clear();
 			++aActor.PreparedGrantSequence;
+			aActor.PreparedReadsSuspended = false;
 		}
+
+		/// \brief Reviewer work on one actor, from before it is queued until
+		/// it has run. [[BPR-1359]]
+		///
+		/// \details Owned by the queued closure, so it is released when the
+		/// work has run or is dropped unrun. Constructing it stops the
+		/// prepared exact read in flight, whose `gh` process is then killed,
+		/// as `cancel_preparation` kills the batch's.
+		class reviewer_work final
+		{
+		public:
+			explicit reviewer_work(std::shared_ptr<authority_effect_actor> aActor)
+				: Actor{ std::move(aActor) }
+			{
+				std::scoped_lock lock{ Actor->BlobAuthorityMutex };
+				++Actor->ReviewerWork;
+				if (Actor->PreparedRead) {
+					static_cast<void>(Actor->PreparedRead->request_stop());
+				}
+			}
+
+			~reviewer_work()
+			{
+				std::scoped_lock lock{ Actor->BlobAuthorityMutex };
+				--Actor->ReviewerWork;
+			}
+
+			reviewer_work(const reviewer_work&)                    = delete;
+			auto operator=(const reviewer_work&) -> reviewer_work& = delete;
+			reviewer_work(reviewer_work&&)                         = delete;
+			auto operator=(reviewer_work&&) -> reviewer_work&      = delete;
+
+		private:
+			std::shared_ptr<authority_effect_actor> Actor;
+		};
+
+		/// \brief Preparation's exact read of one blob, on the actor, for as
+		/// long as it runs. [[BPR-1359]]
+		///
+		/// \details Admitted only when no reviewer work is queued on the actor
+		/// and the authority's batched read is not failing; while admitted,
+		/// its stop is where reviewer work finds it.
+		class prepared_read_registration final
+		{
+		public:
+			prepared_read_registration(authority_effect_actor& aActor, const std::stop_source& aStop)
+				: Actor{ aActor }
+			{
+				std::scoped_lock lock{ Actor.BlobAuthorityMutex };
+				Suspended = Actor.PreparedReadsSuspended;
+				Admitted  = !Suspended && Actor.ReviewerWork == 0U;
+				if (Admitted) {
+					Actor.PreparedRead = aStop;
+				}
+			}
+
+			~prepared_read_registration()
+			{
+				if (Admitted) {
+					std::scoped_lock lock{ Actor.BlobAuthorityMutex };
+					Actor.PreparedRead.reset();
+				}
+			}
+
+			prepared_read_registration(const prepared_read_registration&)                    = delete;
+			auto operator=(const prepared_read_registration&) -> prepared_read_registration& = delete;
+			prepared_read_registration(prepared_read_registration&&)                         = delete;
+			auto operator=(prepared_read_registration&&) -> prepared_read_registration&      = delete;
+
+			[[nodiscard]] auto admitted() const noexcept -> bool
+			{
+				return Admitted;
+			}
+
+			[[nodiscard]] auto suspended() const noexcept -> bool
+			{
+				return Suspended;
+			}
+
+		private:
+			authority_effect_actor& Actor;
+			bool                    Admitted  = false;
+			bool                    Suspended = false;
+		};
 
 		/// Drops every retained blob. Called under BlobAuthorityMutex.
 		static void forget_retained_blobs(authority_effect_actor& aActor) noexcept
@@ -3995,6 +4091,9 @@ namespace bpr::application {
 				.ObjectFormat       = aRequest.Diff.Comparison.Left.Commit.algorithm(),
 			};
 			try {
+				// [[BPR-1359]]. The reviewer's own resolve does not wait out a
+				// prepared exact read; a prepared resolve is preparation.
+				auto turn = aPrepared ? std::shared_ptr<reviewer_work>{ } : std::make_shared<reviewer_work>(actor);
 				enqueue_actor_work(
 					actor,
 					[this,
@@ -4008,7 +4107,8 @@ namespace bpr::application {
 					 aRequest,
 					 aStop,
 					 waiter,
-					 control] {
+					 control,
+					 reviewer = std::move(turn)] {
 						auto observation = workbench_selected_diff_observation{
 							.Request = aRequest,
 							.Status  = workbench_selected_diff_status::failure,
@@ -4436,7 +4536,9 @@ namespace bpr::application {
 		/// and only through a transport that reads batches. The network round
 		/// trip runs on the caller's thread, never on the actor, so the
 		/// reviewer's own work on the repository is not queued behind it.
-		/// Verified bytes are retained for the authority that read them.
+		/// Verified bytes are retained for the authority that read them. A
+		/// batch that fails, other than by cancellation, suspends preparation's
+		/// single reads under the authority until one succeeds. [[BPR-1359]]
 		void fetch_prepared_blobs(const workbench_selected_diff_request& aTemplate,
 								  epoch_prepared_comparisons&            aResult,
 								  const std::stop_token                  aStop)
@@ -4549,16 +4651,23 @@ namespace bpr::application {
 				};
 				const auto read = (*transport)->read_exact_blobs(request, aStop);
 				++aResult.RemoteBatches;
-				if (!read || read->size() != count) {
-					// A transport that cannot batch reads nothing ahead; the
-					// reviewer's open still reads its own file exactly.
-					return;
-				}
+				const auto cancelled = aStop.stop_requested()
+					|| (!read && read.error().Failure == git_smart_transport_failure::cancelled);
 				std::scoped_lock lock{ actor->BlobAuthorityMutex };
 				if (actor->BlobAuthority != std::optional{ authorization }
 					|| actor->BlobAuthorityGeneration != generation) {
 					return;
 				}
+				if (!read || read->size() != count) {
+					// A transport that cannot batch reads nothing ahead; the
+					// reviewer's open still reads its own file exactly.
+					// [[BPR-1359]]. Nor are the prepared files' blobs then read
+					// one at a time: until a batch succeeds, preparation backs
+					// off rather than spend a process per blob.
+					actor->PreparedReadsSuspended = actor->PreparedReadsSuspended || !cancelled;
+					return;
+				}
+				actor->PreparedReadsSuspended = false;
 				for (std::size_t index = 0U; index < count; ++index) {
 					const auto& answer = (*read)[index];
 					if (!answer || answer->size() > maximum_git_exact_blob_batch_bytes) {
@@ -4647,11 +4756,14 @@ namespace bpr::application {
 				return result;
 			}
 			auto selectedContext = std::shared_ptr<authority_context>{ };
+			auto reviewerBlob    = false;
 			{
 				std::scoped_lock lock{ actor->BlobAuthorityMutex };
 				if (actor->BlobAuthority == std::optional{ authorization }
 					&& actor->BlobAuthorityGeneration == *authorizationGeneration) {
 					selectedContext = actor->BlobContext.lock();
+					reviewerBlob    = actor->SelectedBlobGrant
+						&& exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest);
 				}
 			}
 			if (!selectedContext) {
@@ -4680,6 +4792,9 @@ namespace bpr::application {
 				.ObjectFormat       = aRequest.Blob.algorithm(),
 			};
 			try {
+				// [[BPR-1359]]. A blob of the reviewer's selected file is the
+				// reviewer's read, and does not wait out a prepared one.
+				auto turn = reviewerBlob ? std::make_shared<reviewer_work>(actor) : std::shared_ptr<reviewer_work>{ };
 				enqueue_actor_work(
 					actor,
 					[this,
@@ -4691,7 +4806,8 @@ namespace bpr::application {
 					 aRequest,
 					 aStop,
 					 waiter,
-					 control] {
+					 control,
+					 reviewer = std::move(turn)] {
 						auto observation = diff_blob_observation{
 							.Context = aRequest.Context,
 							.Side    = aRequest.Side,
@@ -4775,7 +4891,19 @@ namespace bpr::application {
 																		 : selectedPair->Right,
 																	 workStop);
 									}();
-									if (durablySparse) {
+									// [[BPR-1359]]. A prepared file's blob read for
+									// preparation alone: it yields to reviewer work
+									// on this actor, and is not spent at all while
+									// this authority's batched read is failing.
+									auto preparedRead = std::optional<prepared_read_registration>{ };
+									if (durablySparse && preparedGrantSequence && !selectedGrantSequence) {
+										preparedRead.emplace(*actor, control->Stop);
+										if (!preparedRead->admitted()) {
+											observation.Status = preparedRead->suspended() ? diff_blob_status::failure
+																						   : diff_blob_status::cancelled;
+										}
+									}
+									if (durablySparse && (!preparedRead || preparedRead->admitted())) {
 										const auto smartContext = git_smart_request_context{
 											.ApplicationSession = selectedContext->Handoff.ApplicationSession,
 											.Authority          = selectedContext->Authority,

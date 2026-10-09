@@ -341,6 +341,12 @@ namespace {
 		bool                                                    BatchUnsupported = false;
 		std::chrono::milliseconds                               ExactBlobLatency{ 0 };
 		std::chrono::milliseconds                               BatchLatency{ 0 };
+		/// [[BPR-1359]]. A single read that ends early when stopped, as the
+		/// real transport kills its gh process; how many are on the wire, and
+		/// how many were stopped before their latency ran out.
+		bool                                                    ExactBlobLatencyObservesStop = false;
+		std::atomic<std::size_t>                                ExactBlobReadsInFlight{ 0U };
+		std::atomic<std::size_t>                                ExactBlobStopsObserved{ 0U };
 		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
 		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
 		std::vector<application::git_cache_rename_pair_request> RenamePairRequests;
@@ -1971,7 +1977,19 @@ namespace {
 		{
 			State.Calls.emplace_back("transport.read-exact-blob");
 			State.ExactBlobRequests.push_back(aRequest);
-			std::this_thread::sleep_for(State.ExactBlobLatency);
+			if (State.ExactBlobLatencyObservesStop) {
+				++State.ExactBlobReadsInFlight;
+				const auto deadline = std::chrono::steady_clock::now() + State.ExactBlobLatency;
+				while (!aStop.stop_requested() && std::chrono::steady_clock::now() < deadline) {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+				}
+				if (aStop.stop_requested()) {
+					++State.ExactBlobStopsObserved;
+				}
+				--State.ExactBlobReadsInFlight;
+			} else {
+				std::this_thread::sleep_for(State.ExactBlobLatency);
+			}
 			if (aStop.stop_requested() || aRequest.Context != Context) {
 				return std::unexpected{ application::git_smart_transport_error{
 					.Failure = application::git_smart_transport_failure::cancelled,
@@ -5685,6 +5703,113 @@ namespace {
 			   "a refused batch falls back to nothing: no per-blob reads are spent ahead of the reviewer");
 	}
 
+	/// [[BPR-1359]]. Preparation's own exact read of a blob runs on the
+	/// repository actor, where the reviewer's cold selection queues too. Live,
+	/// that read is five gh processes (about 2.1 s) and the reviewer waited
+	/// about 1.9 s behind it.
+	void a_reviewer_selection_stops_preparations_exact_read()
+	{
+		using application::diff_blob_status;
+		using application::workbench_selected_diff_status;
+		fixture value;
+		establish_sparse_three_files(value);
+		// The batch answers a.cpp's left blob with bytes that are not it, so
+		// preparation may read that one blob on its own.
+		value.State.BatchContents[0].second = "forged\n";
+		const auto prepared                 = prepare_window(value, { file_request(value, "a.cpp") });
+		expect(prepared.Observations.size() == 1U && prepared.RemoteBatches == 1U && prepared.RemoteBlobs == 1U,
+			   "a.cpp is prepared, its left blob left to a single read");
+		value.State.ExactBlobLatency             = std::chrono::seconds{ 20 };
+		value.State.ExactBlobLatencyObservesStop = true;
+		const auto preparedLeft                  = prepared_blob_request(value.Host->state(), prepared.Observations[0], core::diff_side::left);
+
+		// The diff host computes the prepared comparison: its read of the
+		// left blob is on the wire, on the actor.
+		auto preparedRead = std::optional<application::diff_blob_observation>{ };
+		auto preparer     = std::jthread{ [&] { preparedRead = value.Host->materialize(preparedLeft, { }); } };
+		value.Effects.wait_for_pending();
+		auto actor = std::jthread{ [&] { value.Effects.run_next(); } };
+		while (value.State.ExactBlobReadsInFlight.load() == 0U) {
+			std::this_thread::yield();
+		}
+
+		// The reviewer selects b.cpp, which was not prepared: its resolve
+		// needs the actor.
+		const auto started  = std::chrono::steady_clock::now();
+		const auto selected = open_file(value, file_request(value, "b.cpp", core::request_id{ 930U }));
+		const auto waited   = std::chrono::steady_clock::now() - started;
+		preparer.join();
+		actor.join();
+		std::cout << "BPR-1359 reviewer resolve behind a prepared exact read: "
+				  << std::chrono::duration<double, std::milli>(waited).count() << " ms\n";
+		expect(selected.Status == workbench_selected_diff_status::available, "the reviewer's cold selection resolves");
+		expect(value.State.ExactBlobStopsObserved.load() == 1U && preparedRead
+				   && preparedRead->Status == diff_blob_status::cancelled && waited < value.State.ExactBlobLatency,
+			   "the reviewer's selection stops preparation's exact read on the actor, as a gh process killed, "
+			   "instead of waiting it out");
+
+		// A prepared read queued on the actor ahead of reviewer work does not
+		// start once the reviewer's work is queued behind it.
+		const auto requests   = value.State.ExactBlobRequests.size();
+		auto       queuedRead = std::optional<application::diff_blob_observation>{ };
+		auto       queued     = std::jthread{ [&] { queuedRead = value.Host->materialize(preparedLeft, { }); } };
+		value.Effects.wait_for_pending();
+		auto reviewed = std::optional<application::workbench_selected_diff_observation>{ };
+		auto reviewer = std::jthread{ [&] {
+			reviewed = value.Host->resolve(file_request(value, "c.cpp", core::request_id{ 931U }), { });
+		} };
+		while (value.Host->queued_actor_work() < 2U) {
+			std::this_thread::yield();
+		}
+		value.Effects.run_next();
+		queued.join();
+		reviewer.join();
+		expect(reviewed && reviewed->Status == workbench_selected_diff_status::available && queuedRead
+				   && queuedRead->Status == diff_blob_status::cancelled && value.State.ExactBlobRequests.size() == requests,
+			   "a prepared read whose turn comes while reviewer work is queued is not started");
+
+		// The reviewer's own blob is read: only preparation yields.
+		value.State.ExactBlobLatency = std::chrono::milliseconds{ 0 };
+		const auto own               = read_blob(value, prepared_blob_request(value.Host->state(), *reviewed, core::diff_side::left));
+		expect(own.Status == diff_blob_status::available && value.State.ExactBlobRequests.size() == requests + 1U
+				   && value.State.ExactBlobStopsObserved.load() == 1U,
+			   "the reviewer's selected blob is read exactly and is not stopped");
+	}
+
+	/// [[BPR-1359]]. Live, a batched read that always failed left preparation
+	/// reading every prepared blob one at a time: 710 gh processes against
+	/// 122 with preparation off.
+	void a_failed_batch_backs_off_preparations_single_reads()
+	{
+		using application::diff_blob_status;
+		using application::workbench_selected_diff_status;
+		fixture value;
+		establish_sparse_three_files(value);
+		value.State.BatchUnsupported = true;
+		const auto prepared          = prepare_window(value, { file_request(value, "a.cpp"), file_request(value, "b.cpp") });
+		expect(prepared.Observations.size() == 2U && prepared.RemoteBatches == 1U && prepared.RemoteBlobs == 0U,
+			   "the batch fails");
+		const auto skipped = read_blob(value, prepared_blob_request(value.Host->state(), prepared.Observations[1], core::diff_side::left));
+		expect(skipped.Status == diff_blob_status::failure && value.State.ExactBlobRequests.empty(),
+			   "after a failed batch, a prepared file's blob is not read on its own: preparation backs off");
+
+		const auto opened = open_file(value, file_request(value, "a.cpp", core::request_id{ 940U }));
+		const auto own    = read_blob(value, prepared_blob_request(value.Host->state(), opened, core::diff_side::left));
+		expect(opened.Status == workbench_selected_diff_status::available && own.Status == diff_blob_status::available
+				   && value.State.ExactBlobRequests.size() == 1U,
+			   "the reviewer's own file is still read exactly");
+
+		// A batch that works again lifts the back-off; a blob it answers
+		// absent may then be read on its own.
+		value.State.BatchUnsupported        = false;
+		value.State.BatchContents[4].second = "forged\n";
+		const auto again                    = prepare_window(value, { file_request(value, "c.cpp", core::request_id{ 941U }) });
+		expect(again.Observations.size() == 1U && again.RemoteBatches == 1U && again.RemoteBlobs == 1U, "the next batch succeeds");
+		const auto resumed = read_blob(value, prepared_blob_request(value.Host->state(), again.Observations[0], core::diff_side::left));
+		expect(resumed.Status == diff_blob_status::available && value.State.ExactBlobRequests.size() == 2U,
+			   "a successful batch lifts the back-off");
+	}
+
 	void preparation_is_bounded_cancellable_and_complete_reviews_stay_local()
 	{
 		fixture value;
@@ -8451,6 +8576,8 @@ int main(int argc, char** argv)
 	prepared_files_read_their_missing_blobs_in_one_batch();
 	a_batch_answer_that_is_not_its_blob_is_not_retained();
 	preparation_without_a_batching_transport_reads_nothing_ahead();
+	a_reviewer_selection_stops_preparations_exact_read();
+	a_failed_batch_backs_off_preparations_single_reads();
 	preparation_is_bounded_cancellable_and_complete_reviews_stay_local();
 	live_shaped_open_latency(LiveSingleBlob, LiveBatch);
 	sparse_capability_applies_independently_of_pull_request_size();
