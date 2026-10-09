@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1361"
 title: "Post observations refuse a temporary source at compile time"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"bpr-main-win, BPR-1092's Windows run, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1361--BPR-1361--1006a85e53eb.json","related_cards":["BPR-1349","BPR-1087"],"filed_by":"bpr-main-win, at the coordinator's request"}
+acceptance: [{"criterion":"A compile-fail check proves feedback_post_observations(observe_feedback_sources(s)) is rejected","outcome":"pass","revision":"766fec883","evidence":{"kind":"command","command":"ctest --test-dir build/windows-dev-tour-cli -C Debug -R \"^application_feedback_counters$\"","detail":"static_asserts over requires-checks in feedback_counters_tests.cpp: feedback_post_observations, counted_posts and core::labels_of accept const T& and T& and refuse T and const T (deleted const&& overloads). The repository had no compile-negative pattern; a standalone MSVC control (cl /std:c++latest) showed the same check accepts a temporary when the deleted overload is absent."}},{"criterion":"The product callers and application_feedback_counters, application_feedback_counter_cost, application_overview_feedback and the preflight rows build and pass","outcome":"pass","revision":"766fec883","evidence":{"kind":"command","command":"ctest --test-dir build/windows-dev-tour-cli -C Debug -j4 -R \"^(core_feedback_.*|core_review_preflight|application_feedback_counters|application_feedback_counter_costs|application_overview_feedback|qt_feedback_label_controls|tour_cli_labels|architecture_boundaries)$\"","detail":"Windows 11, MSVC 19.50, full Debug build of the tour-cli tree passes (every caller of both builders compiles); 17 of 17 rows pass."}},{"criterion":"The card lists the other view-returning builders checked, with what was done","outcome":"pass","revision":"766fec883","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1361-post-observations-refuse-a-temporary-source.md","detail":"labels_of gained the same deleted overload; enum names, catalogs and static strings cannot dangle; header-edit and markdown requests are consumed within one call; feedback_text already takes a borrowed view; member accessors are outside this card."}}]
 ---
 
 # BPR-1361: Post observations refuse a temporary source at compile time
