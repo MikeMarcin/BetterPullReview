@@ -183,9 +183,9 @@ auto main() -> int
 	// a course can see the workshop name a semantic change. Neither is model
 	// output; both are fixed bytes a course compares.
 	constexpr std::string_view guidedShipped
-		= "question: BPR_FINDING_SUGGESTED_1091 is the exhausted retry budget reported to the caller?";
+		= "question: Is the exhausted retry budget reported to the caller?";
 	constexpr std::string_view guidedOverride
-		= "issue (blocking): BPR_FINDING_SUGGESTED_1091 report the exhausted retry budget to the caller.";
+		= "issue (blocking): Report the exhausted retry budget to the caller.";
 	const auto source    = field(fields, "feedback_guidance.source", "absent");
 	const auto suggested = source == "shipped" ? guidedShipped : source == "profile_override" ? guidedOverride
 																							  : unguided;

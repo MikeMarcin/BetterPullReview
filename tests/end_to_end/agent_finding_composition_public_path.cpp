@@ -110,9 +110,9 @@ namespace {
 	/// What the canary proposes when handed the shipped guidance, and when
 	/// handed a profile's own.
 	constexpr std::string_view guided_shipped
-		= "question: BPR_FINDING_SUGGESTED_1091 is the exhausted retry budget reported to the caller?";
+		= "question: Is the exhausted retry budget reported to the caller?";
 	constexpr std::string_view guided_override
-		= "issue (blocking): BPR_FINDING_SUGGESTED_1091 report the exhausted retry budget to the caller.";
+		= "issue (blocking): Report the exhausted retry budget to the caller.";
 
 	/// \brief What the canary reports about the guidance a turn carried: its
 	/// source, version, wire length and first 48 wire bytes, as

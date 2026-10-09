@@ -851,11 +851,17 @@ block's exact bytes (`core::suggestion_blocks`), and reads whether the prose
 still asks a question (code, fenced blocks and query strings excluded). The
 host attaches the result to every `agent_comment_workshop_proposal`, and
 `qt::review_draft_editor` shows it under the two texts, recomputed from the two
-texts it shows: "Label kept: question (non-blocking) · Still asks a question ·
-Suggested change kept byte for byte" for a prose-only revision, or each change
-named ("Label changed: question → issue (blocking)", "No longer asks a
-question", "Changes the suggested change"). A header the recognizer cannot read
-is said to be unknown or unreadable, never passed off as plain. Nothing is
+texts it shows, as `qt::workshop_candidate_line`: marks, not sentences. The
+label is its BPR-1083 mark (weight and if-minor in the mark, a custom
+decoration as written), a label change is the mark before an arrow and the
+mark after (the Plain mark where a side has none), the question is a speech
+bubble holding a `?`, and the suggested change is the BPR-1084 ring. A kept
+facet is drawn in the faint ink with no word; a changed one in full ink with
+one word, added, removed or changed. A header the recognizer cannot read is
+its token as written under a wavy line in the attention colour, never passed
+off as plain. Each facet's tooltip is its sentence, and the whole comparison
+in words ("Label changed: question → issue (blocking) · No longer asks a
+question", or "Wording only") is the accessible description. Nothing is
 refused or rewritten on these grounds, and Accept is still one local
 `review_draft_command` `edit` carrying the candidate's bytes, whatever the
 candidate's text asks for.

@@ -1162,6 +1162,19 @@ endfunction()
 # argument, child environment, tool, GitHub write, mutation or publication
 # path; mutation pin unchanged; no new src/app source. Self-review on
 # BPR-1091, not independent review.
+# BPR-1091 macOS reseal (2026-10-08): 396941494..this candidate, over the
+# BPR-1091 reseal above; no other intervening pinned-scope commit. Only
+# main.cpp changes, inside BPR_BUILD_TESTING: `--attended-workshop-agent`
+# (with `--attended-open-file`) names the fixture Codex executable and turns
+# the label helper on, then, after the file is shown, writes a labelled
+# question through the Comment action, saves a Review feedback override on the
+# shipped Settings row, presses Clarify and converts the delivered finding on
+# the queue, and prints one ATTENDED_WORKSHOP_ line. Optional
+# BPR_ATTENDED_WORKSHOP_THEME/RENDER give an offscreen look. Fixture-only;
+# no grant, target, provider, credential, child environment, tool, GitHub
+# write, mutation or publication path; full-application and mutation pins
+# unchanged; no new src/app source. Self-review on BPR-1091, not independent
+# review.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1382,7 +1395,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5d7b0ff1c7655c7ccea1f7265ca27a07029834da6b358ed8be353551d14bc3eb"
+        "0477c6c1c1716c6f451b9f2ff4a9120b27311768e2152955dc6e73bf704ae05b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

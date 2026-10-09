@@ -41,6 +41,7 @@ add_library(
         src/motion_observer.cpp
         src/review_draft_editor.cpp
         src/suggestion_mark.cpp
+        src/workshop_candidate_line.cpp
         src/review_submission_editor.cpp
         src/settings_window.cpp
             src/diagnostic_settings_panel.cpp

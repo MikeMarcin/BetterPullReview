@@ -27,6 +27,9 @@
 
 #if defined(BPR_BUILD_TESTING)
 	#include "bpr/core/review_tour_markdown.hpp"
+	#include "bpr/qt/finding_queue_view.hpp"
+	#include "bpr/qt/workshop_candidate_line.hpp"
+	#include "bpr/qt/writing_hooks_panel.hpp"
 	#include "github_application_fixture_access.hpp"
 	#include "src/private_review_fixture_course.hpp"
 	#include "src/startup_diagnostic.hpp"
@@ -5227,6 +5230,7 @@ namespace {
 	// whether it got there. [[BPR-1287]]. With no path
 	// (`--attended-open-pull-request`) it stops once the pull request is open.
 	void schedule_attended_preflight_look(bpr::app::github_application& aApplication, std::string aLook);
+	void schedule_attended_workshop_look(bpr::app::github_application& aApplication);
 
 	void schedule_attended_reveal(
 		bpr::app::github_application& aApplication,
@@ -5294,7 +5298,9 @@ namespace {
 						QTextStream{ stdout } << (marked ? QStringLiteral("ATTENDED_READ_STATE:%1").arg(*marked) : QStringLiteral("ATTENDED_READ_STATE_FAILED")) << '\n';
 					}
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
-					if (look) {
+					if (look == "workshop") {
+						schedule_attended_workshop_look(aApplication);
+					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
 					}
 					return;
@@ -5386,6 +5392,140 @@ namespace {
 				return;
 			}
 			finish(QStringLiteral("ATTENDED_LOOK_SHOWN:%1:mark=%2").arg(QString::fromStdString(look), shown()));
+		});
+		timer->start();
+	}
+
+	// [[BPR-1091]]. `--attended-workshop-agent`: once the file is shown, a
+	// labelled question is written on a head line through the window's own
+	// Comment action, Review feedback's guidance is customized on the shipped
+	// Settings row (the label helper is on), and Clarify is pressed once. The
+	// fixture agent named on the command line answers with a blocking issue,
+	// so the workshop's before, after and candidate line are on screen when
+	// the person looks. Nothing reaches GitHub; one line says where it got.
+	void schedule_attended_workshop_look(bpr::app::github_application& aApplication)
+	{
+		enum class step : std::uint8_t {
+			draft,
+			guidance,
+			saved,
+			press,
+			convert,
+			proposal,
+		};
+		struct look_state
+		{
+			step                        Step = step::draft;
+			automated_clock::time_point Started;
+			bool                        Themed = false;
+		};
+		static constexpr auto original = std::string_view{ "question: Is the exhausted retry budget reported to the caller?" };
+		static constexpr auto guidance = std::string_view{ "Label every comment. State a blocking problem plainly rather than asking about it." };
+		auto                  state    = std::make_shared<look_state>(look_state{ .Started = automated_clock::now() });
+		auto* const           timer    = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			const auto finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - state->Started > std::chrono::seconds{ 90 }) {
+				const auto* const shown   = aApplication.window().review_editor();
+				const auto        finding = bpr::app::detail::github_application_fixture_access::agent_finding_evidence(aApplication);
+				const auto        invoked = bpr::app::detail::github_application_fixture_access::agent_invocation_evidence(aApplication);
+				finish(QStringLiteral("ATTENDED_WORKSHOP_FAILED:timeout:step=%1:%2:pending=%3:bound=%4:starts=%5:panel=%6")
+						   .arg(static_cast<int>(state->Step))
+						   .arg(shown != nullptr ? shown->workshop_operation_text() : QString{ })
+						   .arg(QString::fromStdString(finding.WorkshopPendingOperation))
+						   .arg(finding.WorkshopPendingSessionBound ? 1 : 0)
+						   .arg(invoked.Statistics.ProcessStarts)
+						   .arg(QString::fromStdString(finding.AgentPanelStatusText)));
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const editor = window.review_editor();
+			auto* const hooks  = window.writing_hooks();
+			auto* const choice = hooks != nullptr ? hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice")) : nullptr;
+			auto* const text   = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
+			auto* const save   = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
+			auto* const source = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookSource")) : nullptr;
+			auto* const scope  = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookScope")) : nullptr;
+			if (editor == nullptr || choice == nullptr || text == nullptr || save == nullptr || source == nullptr || scope == nullptr) {
+				finish(QStringLiteral("ATTENDED_WORKSHOP_FAILED:surfaces"));
+				return;
+			}
+			switch (state->Step) {
+			case step::draft:
+				// An offscreen look at the result in a named appearance, for
+				// the person preparing the session; a person's look leaves
+				// the appearance alone.
+				if (const auto theme = qEnvironmentVariable("BPR_ATTENDED_WORKSHOP_THEME"); !theme.isEmpty() && !state->Themed) {
+					state->Themed = bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(
+						aApplication, theme == QStringLiteral("dark") ? bpr::core::appearance_mode::dark : bpr::core::appearance_mode::light, 4U);
+					return;
+				}
+				switch (bpr::app::detail::github_application_fixture_access::seed_attended_comment_draft(aApplication, bpr::core::diff_side::right, std::string{ original })) {
+				case bpr::app::detail::fixture_file_reveal_result::pending:
+					return;
+				case bpr::app::detail::fixture_file_reveal_result::failed:
+					finish(QStringLiteral("ATTENDED_WORKSHOP_FAILED:draft"));
+					return;
+				case bpr::app::detail::fixture_file_reveal_result::shown:
+					break;
+				}
+				choice->setCurrentIndex(choice->findData(QVariant::fromValue(static_cast<int>(bpr::core::writing_hook::feedback))));
+				state->Step = step::guidance;
+				return;
+			case step::guidance:
+				if (!scope->text().startsWith(QStringLiteral("On."))) {
+					return;
+				}
+				text->setPlainText(QString::fromUtf8(guidance.data(), static_cast<qsizetype>(guidance.size())));
+				save->click();
+				state->Step = step::saved;
+				return;
+			case step::saved:
+				if (source->text().startsWith(QStringLiteral("Profile override"))) {
+					state->Step = step::press;
+				}
+				return;
+			case step::press:
+				if (editor->clarify_action() == nullptr || !editor->clarify_action()->isEnabled()) {
+					return;
+				}
+				editor->clarify_action()->trigger();
+				state->Step = step::convert;
+				return;
+			case step::convert:
+				// The turn's answer arrives as a finding; converting it, on the
+				// queue as a reviewer would, puts the proposal beside the draft.
+				if (auto* const queue = bpr::app::detail::github_application_fixture_access::finding_queue(aApplication); queue != nullptr && queue->finding_count() != 0U) {
+					queue->select(0U);
+					if (auto* const convert = queue->action(bpr::qt::finding_queue_action::convert_to_draft_comment); convert != nullptr && convert->isEnabled()) {
+						convert->trigger();
+						state->Step = step::proposal;
+					}
+				}
+				return;
+			case step::proposal:
+				if (!editor->shown_proposal().has_value()) {
+					if (editor->workshop_operation_text().startsWith(QStringLiteral("No revision"))) {
+						finish(QStringLiteral("ATTENDED_WORKSHOP_FAILED:press:%1").arg(editor->workshop_operation_text()));
+					}
+					return;
+				}
+				if (const auto render = qEnvironmentVariable("BPR_ATTENDED_WORKSHOP_RENDER"); !render.isEmpty()) {
+					QCoreApplication::processEvents();
+					static_cast<void>(window.grab().save(render));
+					static_cast<void>(editor->grab().save(render + QStringLiteral(".editor.png")));
+				}
+				finish(QStringLiteral("ATTENDED_WORKSHOP_SHOWN:%1").arg(editor->workshop_candidate()->text()));
+				return;
+			}
 		});
 		timer->start();
 	}
@@ -9018,6 +9158,13 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1086]]. On conventional-comments-v1 after the file, renderer.cpp's
 		// line 12 thread as a published tour stop whose narrative is labelled.
 		const auto attendedTourStop = has_argument(argc, argv, "--attended-tour-stop");
+		// [[BPR-1091]]. After the file, a workshop proposal from the fixture
+		// agent named here, with its candidate line.
+		const auto attendedWorkshopAgent = argument_value(argc, argv, "--attended-workshop-agent");
+		if (attendedWorkshopAgent.has_value()) {
+			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedWorkshopAgent } };
+			fixtureOptions.LabelHelper          = true;
+		}
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
 			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))
@@ -9025,7 +9172,8 @@ auto main(int argc, char** argv) -> int
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
 					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))
 			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))
-			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))) {
+			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
+			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9404,6 +9552,9 @@ auto main(int argc, char** argv) -> int
 #if defined(BPR_BUILD_TESTING)
 				if (heldOpenForInspection && (attendedOpenFile.has_value() || attendedOpenPullRequest)) {
 					auto look = std::optional<std::string>{ };
+					if (attendedWorkshopAgent.has_value()) {
+						look = std::string{ "workshop" };
+					}
 					if (attendedPreflightLook.has_value()) {
 						look = std::string{ *attendedPreflightLook };
 						// [[BPR-1085]]. Two of the fixture's threads become the

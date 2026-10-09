@@ -29,6 +29,7 @@ class QPlainTextEdit;
 namespace bpr::qt {
 	class feedback_label_controls;
 	class suggestion_mark;
+	class workshop_candidate_line;
 
 	/// \brief Names why no review-draft projection remains presentable.
 	enum class review_draft_editor_clear_reason : std::uint8_t {
@@ -216,7 +217,7 @@ namespace bpr::qt {
 		/// [[BPR-1091]]. What the proposal changes besides wording: label,
 		/// question, suggested change. Separate from the operation line
 		/// because it describes the after, not the question asked.
-		QLabel* WorkshopCandidate = nullptr;
+		workshop_candidate_line* WorkshopCandidate = nullptr;
 
 		QAction* Publish          = nullptr;
 		bool     RetryPublication = false;
@@ -422,8 +423,8 @@ namespace bpr::qt {
 		/// \brief The label naming the operation asked for or shown.
 		[[nodiscard]] auto workshop_operation_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1091]] The line saying what the proposal changes
-		/// besides wording, and its text.
-		[[nodiscard]] auto workshop_candidate_label() const noexcept -> QLabel*;
+		/// besides wording, in marks, and the same in words.
+		[[nodiscard]] auto workshop_candidate() const noexcept -> workshop_candidate_line*;
 		[[nodiscard]] auto workshop_candidate_text() const -> QString;
 		[[nodiscard]] auto workshop_operation_text() const -> QString;
 

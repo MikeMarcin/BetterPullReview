@@ -1,14 +1,21 @@
 #include "bpr/application/agent_comment_workshop_host.hpp"
+#include "bpr/core/feedback_workshop_candidate.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
+#include "bpr/qt/workshop_candidate_line.hpp"
 
 #include <QAction>
 #include <QApplication>
+#include <QColor>
 #include <QImage>
 #include <QLabel>
 #include <QPainter>
+#include <QPalette>
 #include <QPlainTextEdit>
+#include <QPointF>
+#include <QRegion>
 #include <QTextCursor>
 #include <QToolButton>
 
@@ -23,6 +30,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -545,8 +553,8 @@ namespace {
 		auto  log    = intent_log{ };
 		auto* editor = editor_for(log);
 		editor->show();
-		const auto* const candidate = editor->findChild<QLabel*>(QStringLiteral("reviewWorkshopCandidate"));
-		expect(candidate == editor->workshop_candidate_label() && candidate != nullptr && !candidate->accessibleName().isEmpty(), "the candidate line is one named label");
+		const auto* const candidate = editor->workshop_candidate();
+		expect(candidate != nullptr && editor->findChild<QWidget*>(QStringLiteral("reviewWorkshopCandidate")) == candidate && !candidate->accessibleName().isEmpty(), "the candidate line is one named widget");
 		constexpr auto asked = "question (non-blocking): could this race?\n\n```suggestion\n\tlock();\n```";
 		editor->present(a_draft(asked));
 		expect(!candidate->isVisible(), "with no proposal there is nothing to describe");
@@ -564,9 +572,23 @@ namespace {
 				   == "Label kept: question (non-blocking) · Still asks a question · Suggested change kept byte for byte",
 			   "a prose-only candidate says it keeps the label, the question and the suggested change");
 		expect(candidate->isVisible() && candidate->accessibleDescription() == candidate->text(), "shown under the proposal and announced");
+		// Kept: the mark alone, and the question and the ring in the faint
+		// ink with no word; each facet has its own tooltip, its sentence.
+		using facet = qt::workshop_candidate_line::facet_kind;
+		expect(candidate->facet_count() == 3U && candidate->facet(0U) == facet::label && candidate->facet(1U) == facet::question && candidate->facet(2U) == facet::patch
+				   && !candidate->facet_changed(0U) && !candidate->facet_changed(1U) && !candidate->facet_changed(2U)
+				   && candidate->facet_tooltip(1U) == QStringLiteral("Still asks a question"),
+			   "a prose-only candidate draws three kept facets, each with its sentence");
+		const auto keptWidth = candidate->sizeHint().width();
 		expect(present("issue (blocking): this races.\n\n```suggestion\n\tlock_shared();\n```")
 				   == "Label changed: question (non-blocking) → issue (blocking) · No longer asks a question · Changes the suggested change",
 			   "a candidate that strengthens the comment names every change beside it");
+		expect(candidate->facet_count() == 3U && candidate->facet_changed(0U) && candidate->facet_changed(1U) && candidate->facet_changed(2U)
+				   && candidate->facet_tooltip(0U).startsWith(QStringLiteral("Label changed: question (non-blocking) → issue (blocking)"))
+				   && candidate->sizeHint().width() > keptWidth,
+			   "each change is drawn changed: the label as before and after, the question and the ring with their word");
+		expect(candidate->facet_at(candidate->facet_rect(1U).center()) == std::optional<std::size_t>{ 1U } && !candidate->facet_at(QPointF{ candidate->facet_rect(0U).right() + 6.0, candidate->facet_rect(0U).center().y() }).has_value(),
+			   "a tooltip belongs to the facet under the pointer and the gaps name none");
 		expect(present("isue: could this race?") == "Label changed: question (non-blocking) → isue, not a known label · Still asks a question · Removes the suggested change",
 			   "a label the shared recognizer cannot read is said to be unknown, not passed off as plain");
 		expect(present("issue (blocking: this races.") == "Label changed: question (non-blocking) → issue, a header that cannot be read · No longer asks a question · Removes the suggested change",
@@ -575,7 +597,8 @@ namespace {
 		constexpr auto plain = "Needs a test.";
 		editor->present(a_draft(plain));
 		editor->present(qt::comment_workshop_proposal{ .Draft = core::review_draft_id{ 1U }, .Original = plain, .Proposed = "This needs a test that fails without the check.", .Operation = std::nullopt });
-		expect(editor->workshop_candidate_text() == QStringLiteral("Wording only"), "a plain comment reworded is wording only");
+		expect(editor->workshop_candidate_text() == QStringLiteral("Wording only") && candidate->facet_count() == 1U && candidate->facet(0U) == qt::workshop_candidate_line::facet_kind::wording,
+			   "a plain comment reworded is wording only");
 
 		// The candidate asks for publication and a review decision; accepting
 		// it is still one local edit carrying its bytes, and nothing else.
@@ -586,6 +609,54 @@ namespace {
 		expect(log.Drafts.size() == 1U && log.Drafts.front().Kind == core::review_draft_command_kind::edit && log.Drafts.front().Body == std::string{ injected } && log.Receipts.empty(),
 			   "accepting emits exactly one local draft edit with the candidate's bytes; no publication, receipt or review decision");
 		delete editor;
+	}
+
+	/// \brief [[BPR-1091]]. With `BPR_WORKSHOP_CANDIDATE_RENDER` naming a
+	/// PNG path, draws the candidate line's states on a light and a dark panel
+	/// at 2x, for a person to look at. Draws nothing otherwise.
+	void render_the_candidate_line_states()
+	{
+		const auto path = qEnvironmentVariable("BPR_WORKSHOP_CANDIDATE_RENDER");
+		if (path.isEmpty()) {
+			return;
+		}
+		constexpr auto states = std::to_array<std::pair<std::string_view, std::string_view>>({
+			{ "question: Is the exhausted retry budget reported to the caller?", "issue (blocking): Report the exhausted retry budget to the caller." },
+			{ "question (non-blocking): could this race?\n\n```suggestion\n\tlock();\n```", "question (non-blocking): could this race when two readers refresh?\n\n```suggestion\n\tlock();\n```" },
+			{ "Rename it.", "suggestion (if-minor): rename it.\n\n```suggestion\nauto retries = 3;\n```" },
+			{ "praise (ux): nice.\n\n```suggestion\nx\n```", "Nice." },
+			{ "issue: this races.", "isue: does this race?" },
+			{ "nitpick (non-blocking): spacing.\n\n```suggestion\nx\n```", "nitpick (non-blocking): spacing.\n\n```suggestion\ny\n```" },
+			{ "Needs a test.", "This needs a test that fails without the check." },
+		});
+		constexpr auto scale  = 2;
+		constexpr auto row    = 26;
+		constexpr auto width  = 520;
+		auto           sheet  = QImage{ width * 2 * scale, static_cast<int>(states.size()) * row * scale + 16 * scale, QImage::Format_ARGB32_Premultiplied };
+		sheet.setDevicePixelRatio(scale);
+		auto painter = QPainter{ &sheet };
+		for (auto dark : { false, true }) {
+			auto palette = QPalette{ };
+			palette.setColor(QPalette::Window, dark ? QColor{ 0x1e, 0x22, 0x27 } : QColor{ 0xf6, 0xf8, 0xfa });
+			palette.setColor(QPalette::Base, dark ? QColor{ 0x16, 0x1a, 0x1f } : QColor{ 0xff, 0xff, 0xff });
+			palette.setColor(QPalette::WindowText, dark ? QColor{ 0xe6, 0xed, 0xf3 } : QColor{ 0x1f, 0x23, 0x28 });
+			palette.setColor(QPalette::Text, dark ? QColor{ 0xe6, 0xed, 0xf3 } : QColor{ 0x1f, 0x23, 0x28 });
+			palette.setColor(QPalette::PlaceholderText, dark ? QColor{ 0x7d, 0x85, 0x90 } : QColor{ 0x8c, 0x95, 0x9f });
+			const auto left = dark ? width : 0;
+			painter.fillRect(QRect{ left, 0, width, sheet.height() / scale }, palette.color(QPalette::Window));
+			auto y = 8;
+			for (const auto& [before, after] : states) {
+				auto line = qt::workshop_candidate_line{ };
+				line.setPalette(palette);
+				line.set_theme(qt::default_feedback_mark_theme(palette));
+				line.present(core::compare_workshop_candidate(before, after));
+				line.resize(width - 24, line.sizeHint().height());
+				line.render(&painter, QPoint{ left + 12, y }, QRegion{ }, QWidget::DrawChildren);
+				y += row;
+			}
+		}
+		painter.end();
+		expect(sheet.save(path), "the candidate line states render to the named file");
 	}
 
 	void test_workshop_acceptance_is_explicit_during_its_dispatch()
@@ -1252,9 +1323,9 @@ namespace {
 			std::is_same_v<decltype(workshopProposal), QPlainTextEdit* const>);
 		static_assert(
 			std::is_same_v<decltype(workshopOperation), QLabel* const>);
-		// [[BPR-1091]]. What the proposal changes besides wording: text.
+		// [[BPR-1091]]. What the proposal changes besides wording: marks.
 		static_assert(
-			std::is_same_v<decltype(workshopCandidate), QLabel* const>);
+			std::is_same_v<decltype(workshopCandidate), qt::workshop_candidate_line* const>);
 		static_assert(std::is_same_v<decltype(publish), QAction* const>);
 		static_assert(std::is_same_v<decltype(discard), QAction* const>);
 		static_assert(std::is_same_v<decltype(markRead), QAction* const>);
@@ -1586,6 +1657,7 @@ auto main(int argc, char** argv) -> int
 	test_retry_preserves_the_frozen_publication_revision();
 	test_the_workshop_shows_both_texts_at_once_on_two_surfaces();
 	test_the_proposal_says_what_it_changes_and_acceptance_stays_local();
+	render_the_candidate_line_states();
 	test_workshop_acceptance_is_explicit_during_its_dispatch();
 	test_accepting_a_revision_emits_exactly_one_command_and_stores_nothing();
 	test_rejecting_a_revision_leaves_the_original_byte_identical();
