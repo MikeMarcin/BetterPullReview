@@ -47,6 +47,7 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     RUN_VERDICT_EXPRESSION,
     STAGE_ZERO_PRELOADER,
     STAGE_ZERO_PRELOADER_SOURCE,
+    UNMEASURED_PIN_PREFIX,
     WINDOWS_UNCONTAINED_LABEL,
     WINDOWS_UNCONTAINED_REGISTRATION_LABEL,
     pin_registration_failures,
@@ -655,8 +656,12 @@ class ConfiguredManifestTests(unittest.TestCase):
         )
 
     def test_every_pinned_exemption_names_a_measured_cause(self) -> None:
+        # [[BPR-1093]]. An unmeasured pin ([[BPR-1343]]) names no cause yet; it
+        # names the platform that registered the row, and nothing else.
+        unmeasured = {value for value in WINDOWS_UNCONTAINED_TESTS.values() if value.startswith(UNMEASURED_PIN_PREFIX)}
+        self.assertLessEqual(unmeasured, {UNMEASURED_PIN_PREFIX + platform + ")" for platform in ("Linux", "macOS")})
         self.assertEqual(
-            set(WINDOWS_UNCONTAINED_TESTS.values()),
+            set(WINDOWS_UNCONTAINED_TESTS.values()) - unmeasured,
             {
                 "dos-volume-name",
                 "batch-stub",

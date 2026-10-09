@@ -261,6 +261,46 @@ namespace {
 		expect(restart->find_publication()->Records.empty(), "the store records no publication of its own");
 	}
 
+	/// [[BPR-1093]]. R42: a Publish chosen from a view of the draft before a
+	/// label edit landed (in another window or connection) carries the older
+	/// revision, and neither storage nor the shared owner lets it begin: the
+	/// body that publication would prepare is never the stale one. A new
+	/// Publish of the current revision prepares exactly the relabelled bytes.
+	void a_publish_chosen_before_a_label_edit_never_prepares_the_stale_body()
+	{
+		fixture f;
+		desktop app(f, *f.Store);
+		auto    allocated = app.Drafts.allocate_draft(f.line(1), f.Index, "Check the bounds.");
+		expect(allocated && app.Shared.adopt(app.Authority, *allocated).has_value(), "seed one durable draft");
+		const auto id    = allocated->records().front().Draft.Draft.Id;
+		auto       shown = *app.Shared.read(app.Window, id).Accepted;
+		shown            = *app.commit(*plan_feedback_draft_edit(shown, feedback_draft_basis_of(shown), set(feedback_label::issue)).Command);
+		expect(shown.Draft.Body == "issue: Check the bounds.", "the first window shows the issue");
+
+		// The Publish this window chose, bound to what it showed.
+		const auto publish = revisioned_review_draft_command{ .Command = { .Id = id, .Kind = review_draft_command_kind::begin_publish }, .ExpectedRevision = shown.Revision, .Scope = shown.Scope };
+		// The other window relabels first.
+		const auto other    = *app.Shared.read(app.Other, id).Accepted;
+		const auto relabel  = plan_feedback_draft_edit(other, feedback_draft_basis_of(other), set(feedback_label::question));
+		const auto question = app.commit(*relabel.Command);
+		expect(question && question->Draft.Body == "question: Check the bounds." && question->Revision > shown.Revision, "the relabel lands first");
+
+		expect(!app.Drafts.change_draft(publish), "storage refuses the Publish chosen against the revision before the relabel");
+		const auto stored = f.Store->load_draft(id);
+		expect(stored && stored->Draft.Draft.State == review_draft_state::drafting && stored->Draft.Draft.Body == "question: Check the bounds.",
+			   "the draft is still drafting, with the relabelled body; nothing was prepared from the older one");
+		const auto shared = app.Shared.apply(app.Window, publish);
+		expect(shared.Failure.has_value() && app.Shared.read(app.Window, id).Accepted->Draft.State == review_draft_state::drafting, "the shared owner refuses it too");
+
+		// A new Publish of what is current prepares exactly that.
+		const auto current  = *app.Shared.read(app.Window, id).Accepted;
+		const auto prepared = app.commit({ .Command = { .Id = id, .Kind = review_draft_command_kind::begin_publish }, .ExpectedRevision = current.Revision, .Scope = current.Scope });
+		const auto proposal = prepared ? propose_publication(prepared->Draft, review_disposition::comment) : std::nullopt;
+		expect(prepared && prepared->Draft.State == review_draft_state::publishing && proposal && proposal->Body == "question: Check the bounds.",
+			   "the new gesture prepares the relabelled bytes, and only those");
+		expect(f.Store->find_publication()->Records.empty(), "storage records no publication of its own");
+	}
+
 	void sql(const std::filesystem::path& aPath, const char* aSql)
 	{
 		sqlite3* database = nullptr;
@@ -346,6 +386,7 @@ int main()
 	human_only_compose_save_restart();
 	conflicting_edits();
 	existing_and_prepared_drafts();
+	a_publish_chosen_before_a_label_edit_never_prepares_the_stale_body();
 	tour_stop_owner();
 	std::cout << "FEEDBACK_DRAFT_STORE_OK\n";
 }

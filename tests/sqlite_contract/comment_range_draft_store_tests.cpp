@@ -10,6 +10,7 @@
 #include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/application/shared_draft_application_host.hpp"
+#include "bpr/core/feedback_draft_edit.hpp"
 #include "scratch_root.hpp"
 
 #include <cstdint>
@@ -176,11 +177,72 @@ namespace {
 		}
 		expect(reopened->find_publication()->Records.empty(), "drafting a range publishes nothing");
 	}
+
+	/// [[BPR-1093]]. A label written into a draft through the plan the chip
+	/// and `bpr` share (RFC-BPR-0048 R10, R12; RFC-BPR-0049 R41) keeps what
+	/// the record already held: a range stays a range in codec version 2 with
+	/// its suggestion block byte for byte, a single line stays version 1, the
+	/// label is read again from the bytes after a restart, and a label chosen
+	/// against an older revision is refused by storage with the newer text
+	/// kept. Nothing is published.
+	void a_label_edit_keeps_the_range_and_its_record_version()
+	{
+		fixture    f;
+		const auto prose = std::string{ "Bound the copy.\r\n\r\n" };
+		const auto block = std::string{ "```suggestion\r\n\tcopy_n(src, checked, dst);\r\n```\r\n" };
+		const auto label = [](const revisioned_review_draft& aDraft, const feedback_header_edit& aEdit) {
+			const auto plan = plan_feedback_draft_edit(aDraft, feedback_draft_basis_of(aDraft), aEdit);
+			expect(plan.Refusal == feedback_draft_edit_refusal::none && plan.Command.has_value() && !plan.Command->ChangeRange, "the label is planned as an ordinary edit that leaves the range alone");
+			return *plan.Command;
+		};
+		auto id     = review_draft_id{ };
+		auto single = review_draft_id{ };
+		{
+			desktop app(f, *f.Store);
+			auto    allocated = app.Drafts.allocate_draft(f.line(2), f.Index);
+			expect(allocated && app.Shared.adopt(app.Authority, *allocated).has_value(), "a draft is allocated on the right side's last line");
+			id               = allocated->records().front().Draft.Draft.Id;
+			const auto range = app.commit(ranged(*app.Shared.read(app.Window, id).Accepted, 0U, prose + block));
+			expect(range && range->Draft.StartLine == 0U && record_version(f.ledger(), id) == 2U, "a range with a CRLF suggestion block is stored as version 2");
+
+			const auto issue = app.commit(label(*range, { .Change = feedback_label_change::set, .Label = feedback_label::issue, .Expectation = feedback_expectation::blocking }));
+			expect(issue && issue->Draft.Body == "issue (blocking): " + prose + block && issue->Draft.StartLine == 0U && issue->Draft.Anchor == range->Draft.Anchor,
+				   "issue (blocking) is written before the prose; the range, the anchor and every byte of the block stay");
+			expect(record_version(f.ledger(), id) == 2U && f.Store->load_draft(id)->Draft.Draft.StartLine == 0U, "and storage still holds a version 2 range");
+
+			const auto stale = label(*range, { .Change = feedback_label_change::set, .Label = feedback_label::question });
+			expect(!app.Drafts.change_draft(stale) && f.Store->load_draft(id)->Draft.Draft.Body == issue->Draft.Body,
+				   "a label chosen against the revision before the issue label is refused by storage and the newer text is kept");
+			const auto plain = app.commit(label(*issue, { .Change = feedback_label_change::remove }));
+			expect(plain && plain->Draft.Body == prose + block && plain->Draft.StartLine == 0U && record_version(f.ledger(), id) == 2U,
+				   "Plain restores the range draft byte for byte, still a version 2 range");
+			const auto relabelled = app.commit(label(*plain, { .Change = feedback_label_change::set, .Label = feedback_label::suggestion }));
+			expect(relabelled && relabelled->Draft.Body == "suggestion: " + prose + block, "and it can be labelled again");
+
+			auto one = app.Drafts.allocate_draft(f.line(1), f.Index, "One line.");
+			expect(one && app.Shared.adopt(app.Authority, *one).has_value(), "a single-line draft beside it");
+			single           = one->records().front().Draft.Draft.Id;
+			const auto typed = app.commit(label(*app.Shared.read(app.Window, single).Accepted, { .Change = feedback_label_change::set, .Label = feedback_label::nitpick }));
+			expect(typed && typed->Draft.Body == "nitpick: One line." && !typed->Draft.StartLine && record_version(f.ledger(), single) == 1U,
+				   "a labelled single-line draft keeps its version 1 record");
+		}
+		auto reopened = std::move(*make_private_review_store(f.Config));
+		{
+			desktop    app(f, *reopened);
+			const auto restored = app.restore(id);
+			const auto read     = recognize_feedback_prefix(restored.Draft.Body);
+			expect(restored.Draft.Body == "suggestion: " + prose + block && restored.Draft.StartLine == 0U && read.Label == feedback_label::suggestion,
+				   "after a restart the range, its block and the label read from the bytes are back");
+			expect(app.restore(single).Draft.Body == "nitpick: One line." && record_version(f.ledger(), single) == 1U, "and the single line is still version 1");
+		}
+		expect(reopened->find_publication()->Records.empty(), "labelling drafts publishes nothing");
+	}
 } // namespace
 
 int main()
 {
 	a_range_survives_a_restart_and_one_line_keeps_its_bytes();
+	a_label_edit_keeps_the_range_and_its_record_version();
 	std::cout << "COMMENT_RANGE_DRAFT_STORE_OK\n";
 	return EXIT_SUCCESS;
 }

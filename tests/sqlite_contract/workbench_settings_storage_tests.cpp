@@ -1690,6 +1690,72 @@ namespace {
 		expect(stored_label_columns(db->handle()).empty(), "the migrated row stores no columns");
 	}
 
+	/// \brief [[BPR-1093]]. The label settings migration (version 12 to the
+	/// current schema, RFC-BPR-0049 R28, R41) meets another writer and an
+	/// interruption without losing anything: while another connection holds
+	/// the version-12 file, opening it migrates nothing and leaves every value
+	/// as it was; a migration stopped at any of its stages rolls back to the
+	/// exact version-12 file; and the migration that finally runs keeps every
+	/// other field and window row, takes the label defaults, and runs once.
+	void test_label_migration_from_twelve_meets_a_second_writer_and_an_interruption()
+	{
+		const auto scratch = scratch_directory{ };
+		const auto path    = scratch.file("labels-v12-conflict.sqlite3");
+		const auto chosen  = settled_profile();
+		auto       window  = application::window_layout(chosen);
+		window.FilesWidth  = 444U;
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && db->store(chosen, { }).has_value() && db->store_window(core::bpr_window_id{ 4 }, window, { }).has_value(), "a full profile row and a window row store");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; UPDATE workbench_meta SET schema_format=12; PRAGMA user_version=12", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "canonical version12 source");
+		}
+		const auto before = logical_snapshot(path, false);
+
+		// Another process holds the file for writing while this one opens it.
+		sqlite3* other = nullptr;
+		expect(sqlite3_open(path.string().c_str(), &other) == SQLITE_OK && sqlite3_exec(other, "BEGIN IMMEDIATE", nullptr, nullptr, nullptr) == SQLITE_OK, "a second writer holds the version-12 file");
+		const auto busy = workbench_settings_database::open(path, { });
+		expect(sqlite3_exec(other, "ROLLBACK", nullptr, nullptr, nullptr) == SQLITE_OK, "the second writer lets go");
+		sqlite3_close(other);
+		expect(!busy, "a store another writer holds is not migrated underneath it");
+		expect(logical_snapshot(path, false) == before, "and every version-12 table, column and value is exactly as it was");
+
+		// Stopped at each stage of the migration, the file rolls back whole.
+		expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == SQLITE_OK, "migration interruption fixture registers");
+		const auto                             stamp = "PRAGMA user_version = " + std::to_string(workbench_settings_schema_version);
+		const std::array<std::string_view, 11> prefixes{ "SELECT name,sql FROM sqlite_schema", "ALTER TABLE workbench_preferences RENAME", "CREATE TABLE workbench_preferences", "INSERT INTO workbench_preferences", "DROP TABLE workbench_layout", "ALTER TABLE window_layout", "INSERT INTO window_layout", "DROP TABLE old_window_layout", "UPDATE workbench_meta", stamp, "COMMIT" };
+		for (const auto prefix : prefixes) {
+			auto stop                     = std::stop_source{ };
+			interrupted_migration::Stop   = &stop;
+			interrupted_migration::Prefix = prefix;
+			const auto refused            = workbench_settings_database::open(path, stop.get_token());
+			interrupted_migration::Stop   = nullptr;
+			expect(stop.stop_requested() && !refused && refused.error() == failure::cancelled, "the label migration stopped at " + std::string{ prefix } + " reports typed cancellation");
+			expect(logical_snapshot(path, false) == before, "and leaves the exact version-12 file: " + std::string{ prefix });
+		}
+		expect(sqlite3_cancel_auto_extension(reinterpret_cast<void (*)()>(interrupted_migration::install)) == 1, "migration interruption fixture unregisters");
+
+		// The migration that runs keeps everything and runs once.
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version, "the uncontested open migrates and stamps the current version");
+			const auto loaded = db->load({ });
+			expect(loaded.has_value() && *loaded == chosen && loaded->Behaviour.LabelColumns == core::feedback_label_columns{ } && loaded->Behaviour.LabelHelper == application::review_label_helper::off,
+				   "every other field is kept and the label fields take their safe defaults");
+			const auto windowLoaded = db->load_window(core::bpr_window_id{ 4 }, { });
+			expect(windowLoaded.has_value() && application::window_layout(*windowLoaded) == window, "the window row is kept");
+			auto labelled                     = chosen;
+			labelled.Behaviour.LabelColumns   = label_columns_of({ core::feedback_label::question, core::feedback_label::issue });
+			labelled.Behaviour.OverviewCounts = application::review_overview_counts::all;
+			expect(db->store(labelled, { }).has_value(), "a label choice is saved after the migration");
+		}
+		const auto migrated = logical_snapshot(path, false);
+		auto       again    = workbench_settings_database::open(path, { });
+		expect(again.has_value() && logical_snapshot(path, false) == migrated && again->load({ })->Behaviour.LabelColumns == label_columns_of({ core::feedback_label::question, core::feedback_label::issue }),
+			   "a second opener finds the current schema, migrates nothing again and reads the saved label choice");
+	}
+
 	/// \brief [[BPR-1088]]. All twelve label columns persist in the chosen
 	/// order, each alone too, with the helper and the starting count.
 	void test_all_twelve_label_columns_persist_in_order()
@@ -2082,6 +2148,7 @@ try {
 	test_authoritative_window_retention();
 	test_feedback_marks_round_trip_and_migrate_from_eleven();
 	test_label_preferences_migrate_from_twelve_without_resetting_anything_else();
+	test_label_migration_from_twelve_meets_a_second_writer_and_an_interruption();
 	test_read_settings_open_in_review_and_continue_modality_is_ignored();
 	test_all_twelve_label_columns_persist_in_order();
 	test_unknown_or_repeated_stored_columns_load_safely_and_explain();

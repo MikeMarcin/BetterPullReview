@@ -556,6 +556,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_workshop_guidance_default_contract": "dos-volume-name",
     "application_agent_finding_workshop_guidance_custom_contract": "dos-volume-name",
     "application_agent_finding_workshop_guidance_no_agent_contract": "dos-volume-name",
+    # [[BPR-1093]]. The injection course of the same composition; registered
+    # uncontained like its siblings above, not yet measured contained on Windows.
+    "application_agent_finding_workshop_injection_contract": "unmeasured (registered on Linux)",
     "application_agent_finding_finding_host_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_full_agent_contract": "dos-volume-name",
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
@@ -677,6 +680,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "qt_agent_launch_canary_durable_course": "dos-volume-name",
     "application_feedback_draft_store": "dos-volume-name",
     "application_label_authoring_contract": "dos-volume-name",
+    # [[BPR-1093]]. Registered uncontained like the label authoring course,
+    # whose composition and private store it shares; not yet measured
+    # contained on Windows.
+    "application_label_publication_recovery": "unmeasured (registered on Linux)",
     # [[BPR-1167]], [[BPR-1168]]. Measured on JaegAW 2026-10-02 at 3e3b3fa17 in a
     # BPR_BUILD_TOUR_CLI tree, contained through the sandbox launcher and as
     # registered. Each passes uncontained. Contained, the tour CLI rows and

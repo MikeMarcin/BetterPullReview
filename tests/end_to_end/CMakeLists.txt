@@ -1588,6 +1588,7 @@ foreach(
         workshop-guidance-default
         workshop-guidance-custom
         workshop-guidance-no-agent
+        workshop-injection
         workshop-construction-cut
         mcp-construction-cut
         chat-panel-construction-cut
@@ -2921,6 +2922,22 @@ if(APPLE)
     bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent COMMAND test_inline_publish_cli_consent)
     set_tests_properties(application_inline_publish_cli_consent PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "inline-publish-cli-consent-tests:pass")
 endif()
+
+# [[BPR-1093]]. A labelled comment's publication through the real composition and
+# a native session: a lost answer, a relabel refused while the outcome is unknown,
+# and a retry that reconciles the one stored comment; and a relabel that keeps
+# Publish unavailable until its owner accepts it, then publishes exactly that body.
+bpr_add_executable(test_label_publication_recovery label_publication_recovery_tests.cpp)
+target_link_libraries(test_label_publication_recovery PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_label_publication_recovery PRIVATE BPR_BUILD_TESTING=1)
+bpr_enable_hardening(test_label_publication_recovery)
+bpr_enable_warnings(test_label_publication_recovery)
+bpr_add_network_isolated_test(NAME application_label_publication_recovery
+    WINDOWS_UNCONTAINED
+    COMMAND test_label_publication_recovery)
+set_tests_properties(application_label_publication_recovery PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "label-publication-recovery-tests:pass")
 
 # The same native sink and canary course now run on Windows; no platform privacy waiver.
 bpr_add_executable(test_application_logging application_logging_tests.cpp)

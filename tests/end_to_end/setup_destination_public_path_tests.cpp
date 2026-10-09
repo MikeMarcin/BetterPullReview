@@ -516,6 +516,16 @@ namespace {
 			   "no chips: renderer.cpp 2, main.cpp 1, a file without conversations blank, six open in all, nothing uncertain");
 		expect(page->open_counts_button()->isVisible() && page->open_counts_button()->isChecked(), "Open is the composed default");
 		capture(window, QStringLiteral("overview-feedback-no-chips.png"));
+		// [[BPR-1093]]. From here until the website edit below, Settings' chips,
+		// every drill-down, the keyboard and a read receipt are local: none of
+		// them reads the provider again or asks it for anything (R11, R40).
+		const auto readsBefore = github_application_fixture_access::evidence(*owner).AccountReadCount;
+		const auto local       = [&](const char* aWhat) {
+			const auto mutation = github_application_fixture_access::review_mutation_evidence(*owner);
+			expect(github_application_fixture_access::evidence(*owner).AccountReadCount == readsBefore && mutation.Submissions == 0U && mutation.TargetObservations == 0U
+					   && mutation.StoredComments == 0U && mutation.Resolutions == 0U,
+				   std::string{ aWhat } + " reads nothing from the provider and asks it for nothing");
+		};
 
 		// A typical subset, chosen in Settings: issue and nitpick.
 		auto* const editor = window.label_columns_editor();
@@ -572,6 +582,15 @@ namespace {
 		pressKey(Qt::Key_Return);
 		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && listed() == std::set<std::string>{ "review-thread:PRRT_cc_2" }; },
 				 "Enter on Other lists exactly the suggestion thread");
+		local("Settings' chips, the pointer and keyboard drill-downs");
+		// A read receipt on the open issue changes no count and no resolution.
+		expect(github_application_fixture_access::mark_fixture_read_through(*owner, "review-thread:PRRT_cc_1", "review-comment:PRRC_cc_1_4"), "the issue's conversation is marked read through its last post");
+		for (auto turn = 0; turn < 50; ++turn) {
+			QApplication::processEvents();
+		}
+		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("issue 1 · Other 1") && model->feedback()->PullRequest.Counts.Included == 6U,
+			   "reading the open issue leaves it open and counted, in the same bucket");
+		local("a read receipt");
 
 		// Back to the issue, then resolve it on the website: the list follows
 		// the accepted population, and focus stays on it.
@@ -580,6 +599,7 @@ namespace {
 		QApplication::sendEvent(view->viewport(), &press);
 		QApplication::sendEvent(view->viewport(), &release);
 		wait_for([&] { return listed() == std::set<std::string>{ "review-thread:PRRT_cc_1" }; }, "the issue is listed again");
+		local("listing the issue again");
 		// The thread is resolved on the website; a public Refresh reads it.
 		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_1", std::nullopt, true);
 		window.github_refresh_action()->trigger();
