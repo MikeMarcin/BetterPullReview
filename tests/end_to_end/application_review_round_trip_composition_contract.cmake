@@ -1251,6 +1251,21 @@ endfunction()
 # cancellation; no grant, target, provider, credential, GitHub write, mutation
 # or publication path; mutation pin unchanged; no new src/app source. The
 # tests-on fixture gains a cancellable read delay. Self-review on BPR-1357.
+# BPR-1212 v002 reseal, rebased onto main (bpr-main-win, 2026-10-09): the
+# branch's reviewed v002 change, carried onto 1428dad74 with every intervening
+# pinned-scope reseal kept. The change itself, as reviewed on the branch:
+# github_application.cpp asks the epoch host once per selected comparison
+# whether its left document is the merge base's version of the file
+# (resolve_github_base_numbering, a read of the retained Git objects; no
+# fetch, no GitHub read), keeps the answer (BaseNumbering), and only with
+# "same" sets the window's left endpoint, conversation_endpoint_is_current for
+# the left side, the source material's BaseNumberedAsGitHub, and a draft for a
+# base line in present_review_draft. A new root comment on a base line is then
+# publishable as GitHub's side LEFT; the mutation host admits it only with the
+# same fact. Tests-on: the line-draft course gains three phases and main.cpp
+# prints BASE_LINE_DRAFT_EVIDENCE; the fixture-access header names the three
+# facts. No grant, target, credential or transport change; mutation pin
+# unchanged; no new src/app source. The rebase adds no change of its own.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1269,7 +1284,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"abfd31c871b46b52a1b434888c90a98db673a45800e7a87208dc4f2af05b9a6e"
+		"3b37053f8d5ad44b915ff98e35e0858eaff9f28198450ae38ee81d82eed0c5ab"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1473,7 +1488,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0300e2db265ca0c93f1848116cc0bc823e9707cb2a8b0314bed641cbe5076ece"
+        "62f92d431f978d4d2b7274c1cc6ccfdb636151d33b7c86fa08249509fad0d182"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
