@@ -68,8 +68,10 @@ The existing Detail pane becomes **Line details**. No second pane is added.
 
 - It shows the current line twice, full width: the base version above the
   head version. Each row has its line number and a −/+ mark in a gutter, and
-  the changed characters are highlighted. Long lines wrap; the strip never
-  scrolls sideways.
+  the changed characters are highlighted. Rows do not wrap (v002, after the
+  owner rejected v001's wrapping): a long row scrolls sideways under the
+  strip's one horizontal bar, both rows together, and the gutter stays put.
+  A new line opens scrolled to its first changed character.
 - A mouse selection that spans lines shows each selected line's pair, capped
   at 16 lines, followed by a line that says how many more were selected.
 - Unchanged lines show both versions without highlights. A removed line shows
@@ -90,7 +92,9 @@ The existing Detail pane becomes **Line details**. No second pane is added.
 ## Acceptance
 
 - **C1 (direct).** In the production workbench, the current line's base and
-  head rows appear under the comparison, wrapped, with line numbers and
+  head rows appear under the comparison, each one unwrapped line under one
+  shared horizontal bar with a fixed gutter, opening on the first changed
+  character, with line numbers and
   intraline highlights from core. They follow a click, a change step and a
   mouse selection across lines. Added, removed and unchanged lines each read
   sensibly.
@@ -103,7 +107,8 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   capped, and the optimized large-review rows keep every gated phase under
   100 ms.
 - **C5 (owner).** The owner looks at a frozen build with long changed lines
-  and answers Accept or Reject for "line details strip".
+  and answers Accept or Reject for "line details strip" (v001, rejected) and
+  then "line details v002".
 
 ## Verification (2026-10-08, bpr-main-mac implementer)
 
@@ -187,7 +192,7 @@ there; mutation pin unchanged). They were not rebuilt again. Apart from
 BPR-1341's renames, which share no identifier with this card's code, the
 product equals the frozen candidate `f6f247e8b`.
 
-## Owner look (C5, pending)
+## Owner look v001 (C5, rejected)
 
 One new short session, `54a2166987592a13adcae6767089fe2c`, with state in
 `/Users/jaeger/.mask/bpr-1334-line-details-20261008-v001/attended-review`
@@ -206,3 +211,80 @@ window's View. The native empty-desktop course compares the same thing.
 BPR-1338's follow-up commit adds the item after One pane, checkable and
 disabled, and the row passes. Nothing else on this card changed, and its owner
 look is unaffected.
+
+## Owner verdict on v001 — 2026-10-08
+
+Session `54a2166987592a13adcae6767089fe2c` (state
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v001/attended-review`),
+handed back at event 11. Candidate `BPR-1334-line-details-v001` at
+`f6f247e8b`, fingerprint `1f420af2…`: **Reject**. The owner's note, verbatim:
+
+> Turn off word wrap, let it have a horizontal scroll if the line is too long.
+
+The candidate was released with `resume-development` (event 12), its running
+frozen window was stopped, and `artifacts/bpr-1334/line-details-frozen-v001/`
+was deleted.
+
+## v002 — no wrap, one shared horizontal scroll (2026-10-08)
+
+Design: `frontend-design:frontend-design` was loaded first. Nothing new is
+drawn; the change is behaviour.
+
+- `line_details_pane` uses `NoWrap` with the horizontal bar as needed. Every
+  row is one line of the one document, so the base and head rows share the
+  pane's single horizontal bar and a column sits at one x on both rows.
+- The gutter is outside the viewport, so it does not scroll. It is now placed
+  beside the viewport only (`viewportEvent` re-places it when the bar comes or
+  goes), so it no longer covers the start of the bar.
+- `present` ends with `reveal_first_change`: the leftmost changed character
+  over all rows (an emphasis start, or column 0 of an added or removed row).
+  If it lies within the first screenful less twelve glyphs, the strip stays at
+  column 0; otherwise it scrolls there, keeping up to twelve glyphs (at most a
+  quarter of the width) of text before it. A line with no marked change opens
+  at its start. `first_change_x()` exposes the measured position.
+- A selection of up to 16 lines keeps each row on one line. The core's
+  4,096-byte cut is unchanged.
+- The default height (eight text lines) is unchanged; its comment no longer
+  says it is room to wrap. At the smallest height the widget's own minimum
+  already keeps both rows above the bar (checked, below), so the splitter's
+  minimum is unchanged.
+
+**Tests.** `qt_diff_workbench_scale_{100,125,200}`
+(`test_line_details_shows_the_current_line_base_over_head`): no wrap and the
+bar as needed; long rows one line each with a visible bar; the strip opens
+with the first changed character (`omega`, near the end of a line several
+screens wide) in the viewport; a column at the same x on both rows before and
+after a scroll, both moving by the scroll distance; the gutter's geometry and
+painting identical scrolled and unscrolled while the code moves; the gutter
+above the bar; an unchanged line opens at its start; each row of a three-line
+selection on one line; at the smallest height both rows stay above the bar.
+`application_line_details_public_path` (composed, the line-details-v1
+fixture at 1280 wide): each long SQL row one line with the bar, the first
+change in view on open, the gutter beside the rows and above the bar.
+
+**Failing-before controls** (each mutation reverted after its run; build and
+run at scale 100 plus the composed row): wrap restored (`WidgetWidth`, which
+is v001) fails "does not wrap" and the composed "each long row stays one
+line"; reveal removed fails "opens scrolled so the first changed character is
+in view" in both; head row letter-spaced by 1 px fails "a column sits at the
+same x on the base row and the head row"; gutter painting offset by the
+horizontal scroll fails "the gutter does not scroll with the rows"; gutter as
+tall as the frame (v001's placement) fails "the gutter stops above the
+horizontal bar" and the composed gutter check. The smallest-height check also
+passes with the bar left out of the splitter's minimum, which is why the
+splitter's minimum was not changed.
+
+**Rows at the candidate** (Release, tests on, Apple clang `-O3`, Qt 6.11.2,
+macOS 26.6.2, M4 Pro, offscreen): `qt_diff_workbench_scale_{100,125,200}`,
+`application_line_details_public_path`, `architecture_boundaries` and
+`application_review_round_trip_composition_contract` pass; the pins match, so
+no reseal (the change is outside the pinned scope). The 18 optimized
+large-review rows (`application_large_review_*`,
+`application_{unavailable,approximate}_diff_public_path`,
+`application_first_tab_comparison`, `large_review_replay_contract`) pass 18/18
+at load average 5–10; the largest responsiveness pulse is 33.1 ms
+(`review_modality`), `large_file_selection` 22.9 ms,
+`large_source_revisit_render` 15.7 ms, no input-budget failures. Format check
+clean on the changed files; clang-tidy on `line_details_pane.cpp` clean.
+Documentation: `DOCUMENTATION_OK`.
+

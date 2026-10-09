@@ -91,8 +91,8 @@ namespace bpr::qt {
 			}
 		}
 
-		/// \brief The strip's height with no preference: the base and head
-		/// rows of one line, each with room to wrap several times, and a margin.
+		/// \brief The strip's height with no preference: eight text lines, so
+		/// a short selection's pairs show without scrolling, and a margin.
 		[[nodiscard]] auto default_height() const -> int { return line_height() * 8 + 2 * frame(); }
 		[[nodiscard]] auto minimum_strip_height() const -> int { return line_height() * 2 + 2 * frame(); }
 

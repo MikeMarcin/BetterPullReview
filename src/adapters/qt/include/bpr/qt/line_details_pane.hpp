@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 class QPaintEvent;
@@ -38,10 +39,12 @@ namespace bpr::qt {
 	/// \brief [[BPR-1334]]. Line details: the current line, base over head.
 	///
 	/// \details Beyond Compare's Text Details, under the comparison. Each row
-	/// of a core `line_details_projection` is one wrapped block: a base row
+	/// of a core `line_details_projection` is one unwrapped line: a base row
 	/// above its head row, full width, with its line number and a −/+ mark in
-	/// the gutter and the changed characters highlighted. The strip never
-	/// scrolls sideways.
+	/// the gutter and the changed characters highlighted. A row too long for
+	/// the strip scrolls sideways with every other row, under one bar, so the
+	/// columns stay aligned; the gutter stays put. A new projection opens
+	/// scrolled to its first changed character.
 	///
 	/// It decides nothing. Rows, cuts and highlight spans come from the core;
 	/// this only turns them into text, bands and a gutter. A cut line and an
@@ -67,10 +70,16 @@ namespace bpr::qt {
 		/// \brief The gutter text drawn for one block: its line number and
 		/// mark, as painted. Empty for a block with no row.
 		[[nodiscard]] auto gutter_text(int aBlock) const -> QString;
+		/// \brief The document x of the leftmost changed character over every
+		/// row: an emphasis span's start, or the start of an added or removed
+		/// row. None when nothing shown is marked as changed.
+		[[nodiscard]] auto first_change_x() const -> std::optional<int>;
+		[[nodiscard]] auto gutter_widget() const noexcept -> QWidget*;
 
 	protected:
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
+		auto viewportEvent(QEvent* aEvent) -> bool override;
 
 	private:
 		class gutter;
@@ -78,6 +87,7 @@ namespace bpr::qt {
 		void paint_gutter(QPaintEvent* aEvent);
 		void place_gutter();
 		void repaint_bands();
+		void reveal_first_change();
 
 		gutter*                         Gutter = nullptr;
 		core::line_details_projection   Shown;

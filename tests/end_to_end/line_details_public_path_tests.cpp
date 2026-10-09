@@ -7,7 +7,10 @@
 // which shows just the current cursor's line as a full width single pane
 // diff". The course clicks a long changed line in the head pane and reads the
 // strip under the comparison: the base version above the head version, whole,
-// wrapped, with the changed characters emphasised. A change step moves it, a
+// with the changed characters emphasised. The owner rejected v001's wrapping
+// ("Turn off word wrap, let it have a horizontal scroll if the line is too
+// long"), so each row is one line under one shared horizontal bar, and the
+// strip opens on the first changed character. A change step moves it, a
 // twelve-thousand-character line is cut with its marker, and View > Line
 // Details hides and shows it. `--attended` stops on the long SQL line for the
 // owner's look.
@@ -163,8 +166,16 @@ int main(int aArgc, char** aArgv)
 		   "the core marks the inserted characters on the head row");
 	expect(strip->gutter_text(0) == QStringLiteral("6 −") && strip->gutter_text(1) == QStringLiteral("6 +"),
 		   "each row carries its line number and its side's mark");
-	expect(strip->document()->findBlockByNumber(1).layout()->lineCount() > 1 && strip->horizontalScrollBar()->maximum() == 0,
-		   "the long head line wraps in the strip rather than scrolling sideways");
+	auto* const bar = strip->horizontalScrollBar();
+	expect(strip->document()->findBlockByNumber(0).layout()->lineCount() == 1
+			   && strip->document()->findBlockByNumber(1).layout()->lineCount() == 1 && bar->isVisible() && bar->maximum() > 0,
+		   "each long row stays one line, under the strip's horizontal bar");
+	const auto firstChange = strip->first_change_x();
+	expect(firstChange.has_value() && *firstChange - bar->value() >= 0 && *firstChange - bar->value() < strip->viewport()->width(),
+		   "the strip opens with the first changed character in view");
+	expect(strip->gutter_widget()->geometry().right() < strip->viewport()->geometry().left()
+			   && strip->gutter_widget()->geometry().bottom() < bar->mapTo(strip, QPoint{ 0, 0 }).y(),
+		   "the gutter sits beside the rows and above the bar, outside what scrolls");
 	expect(strip->width() > surface->right_pane()->width() && strip->width() > surface->left_pane()->width(),
 		   "the strip is wider than either pane: it spans the comparison");
 	render(window, QStringLiteral("01-sql-line"));

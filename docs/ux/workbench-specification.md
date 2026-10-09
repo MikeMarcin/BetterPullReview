@@ -1024,7 +1024,12 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   Compare–inspired line-over-line pane. It shows the current line twice, full
   width: the base version above the head version, each with its line number
   and a −/+ mark in a gutter, and the changed characters highlighted in the
-  intraline colours. Long lines wrap; the strip never scrolls sideways. A text
+  intraline colours. Rows do not wrap: each is one line, and a row too long
+  for the strip scrolls sideways under the strip's one horizontal bar, so the
+  base and head rows move together and their columns stay aligned. The gutter
+  does not scroll. A newly shown line opens scrolled to its first changed
+  character, with a little of the text before it ([[BPR-1334]] v002; the owner
+  rejected v001's wrapping). A text
   selection across lines that holds the current line shows each selected
   line's pair, up to sixteen, then how many more were selected. An unchanged
   line shows both versions plainly. A removed or added line shows its own row

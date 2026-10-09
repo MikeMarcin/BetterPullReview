@@ -4,6 +4,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QEvent>
 #include <QLocale>
 #include <QPaintEvent>
@@ -14,10 +15,10 @@
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
-#include <QTextOption>
 #include <QWidget>
 
 #include <algorithm>
+#include <cmath>
 #include <span>
 
 namespace bpr::qt {
@@ -123,9 +124,13 @@ namespace bpr::qt {
 		setAccessibleDescription(QStringLiteral("The current line's base and head versions in full, base above head"));
 		setReadOnly(true);
 		setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		setLineWrapMode(QPlainTextEdit::WidgetWidth);
-		setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-		setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// The owner, on v001: "Turn off word wrap, let it have a horizontal
+		// scroll if the line is too long." Every row is one line of one
+		// document, so the rows share the pane's one horizontal bar and a
+		// column stays a column; the gutter sits outside the viewport and
+		// does not move with it.
+		setLineWrapMode(QPlainTextEdit::NoWrap);
+		setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 		setPlaceholderText(QStringLiteral("Select a line to see its base and head versions in full."));
 		connect(this, &QPlainTextEdit::updateRequest, this, [this](const QRect& aRect, const int aDy) {
 			if (aDy != 0) {
@@ -159,6 +164,11 @@ namespace bpr::qt {
 		const auto glyph  = fontMetrics().horizontalAdvance(QLatin1Char('9'));
 		// Number, a gap, the sign, and a margin before the code.
 		return glyph * (static_cast<int>(digits) + 3) + 8;
+	}
+
+	auto line_details_pane::gutter_widget() const noexcept -> QWidget*
+	{
+		return Gutter;
 	}
 
 	auto line_details_pane::gutter_text(const int aBlock) const -> QString
@@ -261,6 +271,60 @@ namespace bpr::qt {
 		verticalScrollBar()->setValue(0);
 		place_gutter();
 		repaint_bands();
+		reveal_first_change();
+	}
+
+	auto line_details_pane::first_change_x() const -> std::optional<int>
+	{
+		if (Empty) {
+			return std::nullopt;
+		}
+		auto        first    = std::optional<qreal>{ };
+		const auto  consider = [&first](const qreal aX) { first = first.has_value() ? std::min(*first, aX) : aX; };
+		auto* const layout   = document()->documentLayout();
+		// The x of one character of one row. Asking for the block's rectangle
+		// lays the row out if it is not yet, which gives its characters a place.
+		const auto characterX = [this, layout](const int aBlock, const int aCharacter) -> std::optional<qreal> {
+			const auto block = document()->findBlockByNumber(aBlock);
+			if (!block.isValid() || layout->blockBoundingRect(block).isNull() || block.layout()->lineCount() == 0) {
+				return std::nullopt;
+			}
+			return block.layout()->lineAt(0).cursorToX(aCharacter);
+		};
+		for (std::size_t index = 0U; index < RowBlocks; ++index) {
+			// A whole added or removed row is the change from its first column.
+			const auto kind = Shown.Rows[index].Kind;
+			if (kind == line_details_row_kind::added || kind == line_details_row_kind::removed) {
+				if (const auto x = characterX(static_cast<int>(index), 0)) {
+					consider(*x);
+				}
+			}
+		}
+		for (const auto& span : Emphasis) {
+			if (const auto x = characterX(span.Block, span.From)) {
+				consider(*x);
+			}
+		}
+		if (!first.has_value()) {
+			return std::nullopt;
+		}
+		return static_cast<int>(std::floor(*first));
+	}
+
+	void line_details_pane::reveal_first_change()
+	{
+		auto* const bar   = horizontalScrollBar();
+		const auto  first = first_change_x();
+		// A change that starts in the first screenful is read from the line's
+		// start. One further right is brought in with a little of the text
+		// before it, so it reads in context.
+		const auto glyph   = fontMetrics().horizontalAdvance(QLatin1Char('9'));
+		const auto context = std::min(viewport()->width() / 4, glyph * 12);
+		if (!first.has_value() || *first + glyph * 12 <= viewport()->width()) {
+			bar->setValue(0);
+			return;
+		}
+		bar->setValue(std::max(0, *first - context));
 	}
 
 	void line_details_pane::set_colors(const line_details_colors& aColors)
@@ -293,8 +357,8 @@ namespace bpr::qt {
 			if (!band.isValid()) {
 				continue;
 			}
-			// The band covers the whole block, so every wrapped line of a long
-			// row wears it, not only the first.
+			// A full-width band, so a row shorter than its partner still wears
+			// it all the way across when the strip is scrolled.
 			const auto block = document()->findBlockByNumber(static_cast<int>(index));
 			auto       wash  = QTextEdit::ExtraSelection{ };
 			wash.cursor      = QTextCursor{ block };
@@ -331,9 +395,21 @@ namespace bpr::qt {
 	{
 		const auto width = gutter_width();
 		setViewportMargins(width, 0, 0, 0);
-		const auto area = contentsRect();
-		Gutter->setGeometry(QRect{ area.left(), area.top(), width, area.height() });
+		// Beside the viewport only: the horizontal bar runs under the gutter
+		// too, and a gutter as tall as the frame would cover its start.
+		const auto view = viewport()->geometry();
+		Gutter->setGeometry(QRect{ contentsRect().left(), view.top(), width, view.height() });
 		Gutter->update();
+	}
+
+	auto line_details_pane::viewportEvent(QEvent* const aEvent) -> bool
+	{
+		const auto handled = QPlainTextEdit::viewportEvent(aEvent);
+		// The bar appearing or going changes the viewport's height, not the pane's.
+		if (aEvent->type() == QEvent::Resize) {
+			place_gutter();
+		}
+		return handled;
 	}
 
 	void line_details_pane::resizeEvent(QResizeEvent* const aEvent)

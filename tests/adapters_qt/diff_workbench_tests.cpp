@@ -3990,9 +3990,11 @@ namespace {
 		auto* const strip = workbench.line_details();
 		expect(strip != nullptr && strip == workbench.detail_pane() && strip->isVisible() && workbench.line_details_visible(),
 			   "Line details is the one strip under the comparison, shown by default");
-		expect(strip->lineWrapMode() == QPlainTextEdit::WidgetWidth
-				   && strip->horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff,
-			   "Line details wraps and never scrolls sideways");
+		// The owner rejected v001's wrapping: "Turn off word wrap, let it have
+		// a horizontal scroll if the line is too long."
+		expect(strip->lineWrapMode() == QPlainTextEdit::NoWrap
+				   && strip->horizontalScrollBarPolicy() == Qt::ScrollBarAsNeeded,
+			   "Line details does not wrap; a long row scrolls sideways");
 		const auto block = [strip](const int aNumber) { return strip->document()->findBlockByNumber(aNumber); };
 
 		// A changed line: base over head, numbered and marked, wrapped, with
@@ -4004,9 +4006,42 @@ namespace {
 			   "a changed line shows its base version above its head version, whole");
 		expect(strip->gutter_text(0) == QStringLiteral("2 −") && strip->gutter_text(1) == QStringLiteral("2 +"),
 			   "each row carries its own line number and its side's mark");
-		expect(block(0).layout()->lineCount() > 1 && block(1).layout()->lineCount() > 1
-				   && strip->horizontalScrollBar()->maximum() == 0,
-			   "a line wider than the strip wraps onto more lines instead of scrolling");
+		auto* const bar = strip->horizontalScrollBar();
+		expect(block(0).layout()->lineCount() == 1 && block(1).layout()->lineCount() == 1 && bar->isVisible()
+				   && bar->maximum() > 0,
+			   "a line wider than the strip stays one line, and the strip gains a horizontal bar");
+		// The first changed character is in view on open: the change is 'alpha'
+		// against 'omega', near the end of a line several screens wide.
+		const auto column_x = [strip](const int aBlock, const int aColumn) {
+			auto at = QTextCursor{ strip->document()->findBlockByNumber(aBlock) };
+			at.setPosition(at.block().position() + aColumn);
+			return strip->cursorRect(at).left();
+		};
+		const auto changeColumn = static_cast<int>(longRight.find("omega"));
+		expect(bar->value() > 0 && column_x(1, changeColumn) >= 0
+				   && column_x(1, changeColumn) < strip->viewport()->width(),
+			   "the strip opens scrolled so the first changed character is in view");
+		// One bar for both rows: a column sits at one x on both, before and
+		// after a scroll, and the scroll moves both by the same distance.
+		auto* const gutter       = strip->gutter_widget();
+		const auto  gutterPlace  = gutter->geometry();
+		const auto  gutterBefore = gutter->grab().toImage();
+		const auto  viewBefore   = strip->viewport()->grab().toImage();
+		const auto  scrolledTo   = bar->value();
+		const auto  aligned      = column_x(0, changeColumn);
+		expect(aligned == column_x(1, changeColumn), "a column sits at the same x on the base row and the head row");
+		bar->setValue(0);
+		process_events();
+		expect(column_x(0, changeColumn) == column_x(1, changeColumn)
+				   && column_x(0, changeColumn) - aligned == scrolledTo && column_x(1, 0) == column_x(0, 0),
+			   "the two rows scroll together under one bar, so their columns stay aligned");
+		// The gutter stays put: its place and its painting are the same
+		// scrolled and unscrolled, while the code under the bar moves.
+		expect(strip->viewport()->grab().toImage() != viewBefore && gutter->geometry() == gutterPlace
+				   && gutter->grab().toImage() == gutterBefore && gutter->geometry().right() < strip->viewport()->geometry().left(),
+			   "the line-number and mark gutter does not scroll with the rows");
+		expect(gutter->geometry().bottom() < bar->mapTo(strip, QPoint{ 0, 0 }).y(),
+			   "the gutter stops above the horizontal bar rather than covering its start");
 		const auto emphasised = [strip](const int aBlock, const QColor& aFill) {
 			auto texts = QStringList{ };
 			for (const auto& selection : strip->extraSelections()) {
@@ -4031,6 +4066,7 @@ namespace {
 				   && block(1).text() == QStringLiteral("shared middle line") && strip->gutter_text(0) == QStringLiteral("3")
 				   && strip->gutter_text(1) == QStringLiteral("3") && emphasised(0, profile.color(core::appearance_role::diff_intraline_removed_background)).isEmpty(),
 			   "an unchanged line shows both versions without marks or emphasis");
+		expect(!strip->first_change_x().has_value() && bar->value() == 0, "a line with no change opens at its start");
 
 		// A removed line and an added line.
 		expect(workbench.select_conversation_line(core::diff_side::left, 3U), "the removed line selects");
@@ -4062,6 +4098,9 @@ namespace {
 		expect(strip->projection().Rows.size() == 6U && strip->gutter_text(0) == QStringLiteral("1")
 				   && strip->gutter_text(4) == QStringLiteral("3"),
 			   "a selection across three lines shows three pairs");
+		expect(std::ranges::all_of(std::views::iota(0, 6), [&block](const int aRow) { return block(aRow).layout()->lineCount() == 1; })
+				   && block(2).text() == QString::fromStdString(longLeft),
+			   "each row of a selection, the long one too, stays on one line");
 
 		// [[BPR-1212]]'s keyboard line cursor: Down moves the current line and
 		// the strip follows; Shift+Down extends it and the strip shows both.
@@ -4133,6 +4172,15 @@ namespace {
 		process_events();
 		expect(reported.size() == 2U && !reported.back().has_value() && !workbench.line_details_height().has_value(),
 			   "a double-click resets the strip to its default height");
+		// At its smallest the strip still shows a long line's two rows whole,
+		// with the horizontal bar below them rather than over the head row.
+		expect(workbench.select_conversation_line(core::diff_side::right, 1U), "the long changed line selects again");
+		workbench.set_line_details_height(1U);
+		process_events();
+		expect(bar->isVisible() && strip->viewport()->height() >= 2 * strip->fontMetrics().lineSpacing(),
+			   "the smallest strip keeps room for both rows above its horizontal bar");
+		workbench.set_line_details_height(std::nullopt);
+		process_events();
 
 		if (const auto directory = qEnvironmentVariable("BPR_LINE_DETAILS_CAPTURE_DIR"); !directory.isEmpty()) {
 			expect(workbench.select_conversation_line(core::diff_side::right, 1U), "the capture shows the changed line");
