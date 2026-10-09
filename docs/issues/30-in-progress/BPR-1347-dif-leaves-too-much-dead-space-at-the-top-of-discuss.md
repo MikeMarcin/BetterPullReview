@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1347"
 title: "Dif leaves too much dead space at the top of Discuss"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
