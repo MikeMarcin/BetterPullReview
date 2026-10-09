@@ -129,8 +129,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # so the same refusal; pinned by that shape, not yet measured contained.
     "application_personal_discovery_public_path": "dos-volume-name",
     # [[BPR-1357]]. The personal-discovery row's private root and fixture
-    # composition, so the same refusal; pinned by that shape, not yet measured
-    # contained.
+    # composition. Measured on JaegAW 2026-10-09 at 66c1cf4c8: passes
+    # uncontained; contained through the sandbox launcher it exits 3 with
+    # "private desktop root under the canonical storage policy" before any
+    # course step.
     "application_home_open_feedback_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
     # [[BPR-1089]]. Measured on bpr-main-win 2026-10-07 at e31a3f357, each

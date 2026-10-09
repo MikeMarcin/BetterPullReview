@@ -158,3 +158,13 @@ Read session `4395ac13…` from cursor 3. Accept satisfies
 the frozen root with `freeze_attended_build.py remove`. A Reject names what
 the owner saw (a cut word, the heading under a button, a missing or
 misplaced tooltip).
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `66c1cf4c8`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `qt_pull_request_overview_page` and
+  `qt_pull_request_overview_chips_scale_{125,200}`.
+- **Not registered on Windows:** `qt_pull_request_overview_chips_scale_100`,
+  so it was not run.

@@ -131,3 +131,15 @@ re-measurement on `MikeMarcin/BPR-Test#43` belongs to BPR-1344's course,
 with `X-RateLimit-Remaining` checked first. Windows and Linux have not built
 this change; the transport fix is macOS-only code, the host change is
 portable.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `66c1cf4c8`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `application_epoch_host` (the portable host change: a reviewer
+  resolve stops a running prepared single read, and a failed batch turns off
+  preparation's single reads) and `gh_cli_transport`.
+- **Not registered on Windows:** `gh_cli_git_smart_transport`. The batch-body
+  fix is macOS-only code (`compile_gh_cli_exact_blobs_request` returns nothing
+  off Apple), so nothing of it runs here.

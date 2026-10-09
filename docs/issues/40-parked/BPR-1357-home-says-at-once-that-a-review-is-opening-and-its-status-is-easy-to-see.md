@@ -246,3 +246,16 @@ at 45%); busy and notice are neutral. Idle, it is hidden.
   `BPR-1357-status-visibility-v001` (`BPR-1357:owner-status`).
 - Next: on hand-back, read `status --after 6`. Each Accept closes its
   criterion; a Reject's note is the next round's change.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `66c1cf4c8`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `core_home_open`, `application_home_open_host`,
+  `application_home_open_feedback_public_path`, `test_network_isolation_manifest`
+  and `architecture_boundaries`.
+- **Pin measured:** `application_home_open_feedback_public_path` passes as
+  registered. Contained through the sandbox launcher it exits 3 with "private
+  desktop root under the canonical storage policy" before any course step,
+  as its `dos-volume-name` pin predicted. The pin's comment now says measured.
