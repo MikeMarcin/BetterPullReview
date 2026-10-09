@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1363"
 title: "Opening a folder in the Files table moves every column; the disclosure mark is not leftmost"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
-parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"defect","found_by":"owner, chat 2026-10-09 (Overview Files tree, nested-folders fixture)","reservation":"docs/issues/_reservations/BPR-1363--BPR-1363--b87c15b2f6df.json","related_cards":["BPR-1213","BPR-1089"]}
-acceptance: []
+acceptance: [{"criterion":"BPR-1363:columns-steady","outcome":"pass","revision":"d2fd4de09","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"qt_pull_request_overview_page and qt_pull_request_overview_folder_rows_{125,200} test_folder_disclosure_never_moves_a_column: every column's x and width identical across opening and closing each folder, scrolling, Expand all, Collapse all and refresh; before the fix opening docs/api moved 0+16 16+180 ... to 0+17 17+180 ... at all three scales. Passed on mac and on linux at fc89f79e3."}},{"criterion":"BPR-1363:file-column-whole-tree","outcome":"pass","revision":"d2fd4de09","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"steady_columns measures every cell of the whole model at its depth whether open or not; test_folder_disclosure_never_moves_a_column asserts every folder and file cell fits, and test_column_sizing_measures_visible_files asserts the widest of a thousand names fits before it is shown with a bounded measure; widths are the same across refresh."}},{"criterion":"BPR-1363:dragged-width","outcome":"pass","revision":"d2fd4de09","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"test_folder_disclosure_never_moves_a_column: a real mouse drag widens the File column by 40 and it stays through expand, collapse and refresh."}},{"criterion":"BPR-1363:drawer","outcome":"pass","revision":"d2fd4de09","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"qt_files_tree and qt_files_tree_folder_rows_{125,200} test_folder_disclosure_never_moves_the_column (before the fix 0+318 narrowed to 0+300 when a scroll bar came) and test_folder_disclosure_is_the_leftmost_mark."}},{"criterion":"BPR-1363:disclosure-leftmost","outcome":"pass","revision":"d2fd4de09","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"test_folder_disclosure_is_the_leftmost_mark and test_folder_counts_share_one_column at 100/125/200%: the arrow is the leftmost ink on every folder row, the count sits in one right-aligned slot after it, accessible text keeps path and count, file names start where folder names start."}},{"criterion":"BPR-1363:owner-columns","outcome":"pass","revision":"90527564b","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"Owner Accept, session d827fdb7041e884f47af97defe1d59bd, candidate BPR-1363-columns-v001 on frozen 90527564b, no note."}},{"criterion":"BPR-1363:owner-disclosure","outcome":"pass","revision":"d2fd4de09","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1363-opening-a-folder-in-the-files-table-moves-every-column.md","detail":"Owner select 'Count before the name' (the built, recommended look), no note, 2026-10-09T15:02:28Z: session 649d005d36464a5d6475078836069a17, candidate BPR-1363-count-placement-v002 (frozen d2fd4de09, better_pull_review sha256 ea202c24..., fingerprint e170c453d3bb...), decision 9c04e98b-5bba-4c7e-83d8-101f04f3ec59 at event 4, handed back at 5, released at 6. v001 Reject note led to v002."}}]
 ---
 
 # BPR-1363: Opening a folder in the Files table moves every column; the disclosure mark is not leftmost
@@ -270,3 +269,20 @@ At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
   `application_nested_overview_folders_public_path`, `application_offline_inventory`,
   `application_overview_double_click`, the overview summary rows and the
   overview feedback and labels public paths.
+
+## Owner look v002 — returned 2026-10-09
+
+Session `649d005d36464a5d6475078836069a17`, handed back at cursor 5.
+
+- `BPR-1363-count-placement-v002` (`BPR-1363:owner-disclosure`): **select**
+  "Count before the name", no note. Decision
+  `9c04e98b-5bba-4c7e-83d8-101f04f3ec59`, event 4, saved
+  2026-10-09T15:02:28Z, on the frozen `d2fd4de09` build
+  (`better_pull_review` SHA-256 `ea202c24…`). This is the built,
+  recommended look, so the criterion is met on `d2fd4de09` and no v003 is
+  needed. With v001's columns Accept, every acceptance criterion is met.
+
+The session was released with `resume-development --all` (cursor 6), its
+host (PID 75444) stopped through the session's `stop`, and the frozen root
+`/Users/jaeger/bpr1363-folder-counts-v002.xqvwchhl` removed with
+`scripts/freeze_attended_build.py remove`.
