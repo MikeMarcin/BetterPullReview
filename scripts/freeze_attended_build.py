@@ -21,6 +21,8 @@ cannot reach the file fails here, not in front of the owner.
 Usage:
     freeze_attended_build.py freeze --name NAME --fixture FIXTURE --open-file PATH
         [--commit REV] [--title TEXT] [--next-push] [--require RELPATH]... [--parent DIR]
+        [--argument ARG]... [--target TARGET]... [--generate COMMAND]...
+        [--ready LINE] [--wait SECONDS]
     freeze_attended_build.py remove ROOT
 
 `freeze` prints `FROZEN_ROOT:<root>` and `LAUNCH:python3 <root>/launch.py`, or
@@ -74,6 +76,10 @@ REQUIRED = [SOURCE / relative for relative in {required!r}]
 FIXTURE = {fixture!r}
 OPEN_FILE = {open_file!r}
 NEXT_PUSH = {next_push!r}
+# Further application arguments; {{build}} is the build tree in this root.
+EXTRA = [argument.replace("{{build}}", str(SOURCE / {build!r})) for argument in {extra!r}]
+READY = {ready!r}
+WAIT_SECONDS = {wait}
 DATA = ROOT / "review-data"
 PUSHED = DATA / "pushed"
 LOG = ROOT / "launch.log"
@@ -91,7 +97,7 @@ def preflight() -> bool:
 
 
 def arguments(data, phase):
-    result = [str(EXECUTABLE), "--github-fixture", FIXTURE, "--attended-launch", "--attended-open-file", OPEN_FILE]
+    result = [str(EXECUTABLE), "--github-fixture", FIXTURE, "--attended-launch", "--attended-open-file", OPEN_FILE, *EXTRA]
     if data is not None:
         result += ["--epoch-fixture-root", str(data / "data"), "--epoch-fixture-phase", phase]
     return result
@@ -115,18 +121,18 @@ def start(command, log_path, offscreen):
 
 def await_shown(process, log_path):
     """Returns (shown line or None, head or None, message)."""
-    deadline = time.monotonic() + 60.0
+    deadline = time.monotonic() + WAIT_SECONDS
     while time.monotonic() < deadline:
         text = log_path.read_text(encoding="utf-8", errors="replace")
         lines = text.splitlines()
         head = next((line.split(":", 1)[1] for line in lines if line.startswith("ATTENDED_HEAD:")), None)
         for line in lines:
-            if line.startswith("ATTENDED_FILE_SHOWN") or line.startswith("ATTENDED_FILE_FAILED"):
+            if line.startswith(READY) or (line.startswith("ATTENDED_") and "_FAILED" in line):
                 return line, head, ""
         if process.poll() is not None:
             return None, head, f"EXITED {{process.returncode}} within seconds; log {{log_path}}:\\n{{text}}"
         time.sleep(0.25)
-    return None, None, f"No setup line after 60 seconds (pid {{process.pid}}). Log: {{log_path}}"
+    return None, None, f"No setup line after {{WAIT_SECONDS}} seconds (pid {{process.pid}}). Log: {{log_path}}"
 
 
 def stop(process):
@@ -157,7 +163,7 @@ def check(native):
                 line, head, message = await_shown(process, log_path)
             finally:
                 stop(process)
-            if line is None or not line.startswith("ATTENDED_FILE_SHOWN"):
+            if line is None or not line.startswith(READY):
                 print(f"CHECK_FAILED ({{label}}): {{line or message}}")
                 return 1
             heads.append(head)
@@ -199,7 +205,7 @@ def main():
         print(message)
         return 1
     print(f"{{line}}\\nThe window is yours (pid {{process.pid}}, head {{head}}). Log: {{LOG}}")
-    return 0 if line.startswith("ATTENDED_FILE_SHOWN") else 1
+    return 0 if line.startswith(READY) else 1
 
 
 if __name__ == "__main__":
@@ -217,9 +223,14 @@ push (only src/engine/renderer.cpp changes), close the window and run:
 NEXT_PUSH_CHECK = "; with the push, it\n                opens the pushed head too, on scratch data"
 
 
-def render_launcher(*, root: Path, title: str, commit: str, fixture: str, open_file: str, required: list[str], next_push: bool) -> str:
+def render_launcher(*, root: Path, title: str, commit: str, fixture: str, open_file: str, required: list[str], next_push: bool,
+                    extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN", wait: int = 60) -> str:
     """The launcher for one frozen root, from the one template."""
     return LAUNCHER.format(
+        build=BUILD,
+        extra=list(extra or []),
+        ready=ready,
+        wait=wait,
         title=title,
         commit=commit,
         fixture=fixture,
@@ -277,10 +288,21 @@ def freeze(options: argparse.Namespace) -> int:
     if archive.wait() != 0 or extracted.returncode != 0:
         return fail(f"git archive of {commit} did not extract into {source}")
 
-    required = ["tests/fixtures", *fixture_paths(source, options.fixture), *options.require]
-    if len(required) == 1 + len(options.require):
+    # A fixture a build serves is committed. One that a script generates is
+    # generated here, inside the root, at the path the binary was compiled
+    # to read, before anything checks for it.
+    for command in options.generate:
+        with (root / "generate.log").open("a") as log:
+            log.write(f"$ {command}\n")
+            log.flush()
+            generated = subprocess.run(command, shell=True, cwd=str(source), stdout=log, stderr=subprocess.STDOUT, check=False)
+        if generated.returncode != 0:
+            return fail(f"generating fixtures with {command!r} failed; see {root / 'generate.log'}")
+    fixtures = fixture_paths(source, options.fixture)
+    if not fixtures:
         return fail(f"{options.fixture} has no fixture tree under {', '.join(FIXTURE_TREES)} in {commit}")
-    for relative in required:
+    required = ["tests/fixtures", *fixtures, *options.require]
+    for relative in ["tests/fixtures", *fixtures]:
         if not (source / relative).exists():
             return fail(f"{relative} is not in the export of {commit}")
 
@@ -292,15 +314,19 @@ def freeze(options: argparse.Namespace) -> int:
         return fail(f"configure failed; see {root / 'configure.log'}")
     with (root / "build.log").open("w") as log:
         built = subprocess.run(
-            ["cmake", "--build", BUILD, "--target", "app_better_pull_review"],
+            ["cmake", "--build", BUILD, "--target", "app_better_pull_review", *options.target],
             cwd=str(source), stdout=log, stderr=subprocess.STDOUT, check=False)
     if built.returncode != 0:
         return fail(f"build failed; see {root / 'build.log'}")
+    for relative in required:
+        if not (source / relative).exists():
+            return fail(f"{relative} is missing after the build")
 
     executable = source / EXECUTABLE
     launcher = root / "launch.py"
     launcher.write_text(render_launcher(root=root, title=options.title, commit=commit, fixture=options.fixture,
-                                        open_file=options.open_file, required=required, next_push=options.next_push))
+                                        open_file=options.open_file, required=required, next_push=options.next_push,
+                                        extra=options.argument, ready=options.ready, wait=options.wait))
     launcher.chmod(0o755)
     digest = hashlib.sha256(executable.read_bytes()).hexdigest()
     (root / MARKER).write_text(json.dumps({
@@ -344,6 +370,13 @@ def main() -> int:
     frozen.add_argument("--next-push", action="store_true")
     frozen.add_argument("--require", action="append", default=[])
     frozen.add_argument("--parent", default="~")
+    frozen.add_argument("--argument", action="append", default=[],
+                        help="a further application argument; {build} is the build tree")
+    frozen.add_argument("--target", action="append", default=[], help="a further build target the launch needs")
+    frozen.add_argument("--generate", action="append", default=[],
+                        help="a shell command, run in src before the build, that writes a generated fixture")
+    frozen.add_argument("--ready", default="ATTENDED_FILE_SHOWN", help="the line that says the look is ready")
+    frozen.add_argument("--wait", type=int, default=60, help="seconds to wait for it")
     removed = commands.add_parser("remove")
     removed.add_argument("root")
     options = parser.parse_args()

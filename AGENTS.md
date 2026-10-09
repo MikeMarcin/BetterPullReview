@@ -55,9 +55,17 @@ network, or process effects.
   Freeze with `scripts/freeze_attended_build.py freeze`: it writes the
   launcher from one template and runs that launcher's own `--check` (fixture
   check, then an offscreen launch to the file) before the root is handed
-  over. BPR-1331 and BPR-1339's v001 launchers checked a fixture path no
-  commit had, and the owner got `FIXTURES_MISSING`. Remove a root with its
-  `remove`, which restores write access to the read-only source first.
+  over. BPR-1331, BPR-1339 and BPR-1091's v001 launchers checked
+  `tests/fixtures/github/pull-requests/conventional-comments-v1`, a path no
+  commit has had, and the owner got `FIXTURES_MISSING`. The fixtures a build
+  serves are committed: `--github-fixture` names a `contracts/v1` tree and
+  packs under `pull-requests`, and the `scripts/build_*_fixture.py` scripts
+  regenerate committed trees, so a freeze runs none of them. A fixture that
+  is ever generated instead goes through `--generate`, which runs in the
+  root's `src` before the build, so it lands where the binary reads. Helpers
+  a look launches are `--target`s and `--argument`s (`{build}` is the root's
+  build tree). Remove a root with `remove`, which restores write access to
+  the read-only source first.
 - Every attended review opens its own new, short session (a fresh `--state`
   directory). Never add candidates to or restart the long default session
   `cbd48b91…`; the owner asked for short sessions on 2026-10-04.

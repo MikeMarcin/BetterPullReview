@@ -40,7 +40,20 @@ def expect(condition: bool, message: str) -> None:
         FAILURES.append(message)
 
 
-def frozen_root(directory: Path, name: str, *, required: list[str], next_push: bool, stand_in: str = STAND_IN) -> Path:
+# Answers only when it was handed the helper in its own build tree.
+WORKSHOP_STAND_IN = """#!/bin/sh
+for argument in "$@"; do
+  case "$argument" in
+    */src/build/app-release-tests/helper) echo "ATTENDED_FILE_SHOWN:x"; echo "ATTENDED_WORKSHOP_SHOWN"; exec sleep 30 ;;
+  esac
+done
+echo "ATTENDED_WORKSHOP_FAILED"
+exec sleep 30
+"""
+
+
+def frozen_root(directory: Path, name: str, *, required: list[str], next_push: bool, stand_in: str = STAND_IN,
+                extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN") -> Path:
     root = directory / name
     executable = root / "src" / freeze.EXECUTABLE
     executable.parent.mkdir(parents=True)
@@ -49,7 +62,7 @@ def frozen_root(directory: Path, name: str, *, required: list[str], next_push: b
     (root / "src/tests/fixtures/github/contracts/v1/conventional-comments-v1").mkdir(parents=True)
     (root / "launch.py").write_text(freeze.render_launcher(
         root=root, title="test", commit="0" * 40, fixture="conventional-comments-v1",
-        open_file="src/engine/renderer.cpp", required=required, next_push=next_push))
+        open_file="src/engine/renderer.cpp", required=required, next_push=next_push, extra=extra, ready=ready))
     return root
 
 
@@ -94,6 +107,12 @@ def main() -> int:
         checked = launch(exits, "--check")
         expect(checked.returncode == 1 and "EXITED 3 within seconds" in checked.stdout and "STARTUP_FAILED" in checked.stdout,
                f"an application that exits is reported within seconds: {checked.stdout!r}")
+
+        workshop = frozen_root(directory, "workshop", required=[], next_push=False, stand_in=WORKSHOP_STAND_IN,
+                               extra=["--attended-workshop-agent", "{build}/helper"], ready="ATTENDED_WORKSHOP_SHOWN")
+        checked = launch(workshop, "--check")
+        expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_WORKSHOP_SHOWN" in checked.stdout,
+               f"further arguments name the root's own build tree and the look waits for its own line: {checked.stdout!r}")
 
     if FAILURES:
         for failure in FAILURES:
