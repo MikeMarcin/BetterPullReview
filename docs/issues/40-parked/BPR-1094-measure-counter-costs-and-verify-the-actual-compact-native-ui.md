@@ -311,3 +311,37 @@ R33's macOS half is a wizard on the same frozen build as BPR-1304's runs and BPR
 - **Not prepared: the Windows half** (125% display scale, Windows text size, Narrator). No Windows build carrying the chips is frozen; the one on JaegAW is BPR-0974's image from `85e522d8`, which predates them. The Windows station has to freeze a build of main first; a JaegAW wizard follows from that.
 
 R33 stays pending until the answers are read here.
+
+## R33 Windows freeze (bpr-main-win, 2026-10-09)
+
+This build is for the owner's native Windows look at R33. The root is
+`C:\Users\mikem\bpr1094-r33-overview-v001`, and everything is inside it:
+
+- `src` is a `git archive` of `a2f02ce61` (main).
+- `build` is a Ninja Release, tests-on build of the app target only, made
+  with MSVC 14.51 and Qt 6.11.2.
+- `windeployqt --release --no-translations` put the Qt runtime beside the
+  executable.
+
+The executable's SHA-256 is `039a30b43c7e…3aaf`, recorded in `image.sha256`.
+
+Offscreen on the image,
+`--github-fixture overview-labels-v1 --attended-launch --attended-open-pull-request`
+printed `ATTENDED_PULL_REQUEST_OPENED` in 1.5 s. This needed Qt's own offscreen
+platform plugin, because the deployed image carries only `qwindows`, which
+is what a native launch uses.
+
+**Launch:** `C:\Users\mikem\bpr1094-r33-overview-v001\launch.cmd`. Before it
+starts the image, it checks:
+
+- the image's digest;
+- the fixture tree (`overview-labels-v1`, `github-com` and the
+  `nested-folders-v1` pack);
+- the `qwindows` plugin.
+
+It reports the primary display's scale and never changes it. It runs the
+image on the fixture's private temporary profile, so the real profile is not
+touched, and opens bpr-fixtures/nested-folders #21 on its Overview. Within
+30 s it reports `OPENED`, `EXITED` with the code, or `NOT_READY`, and keeps
+`launch.log` beside it. The station has not run it natively, so nothing was
+shown on the desktop.
