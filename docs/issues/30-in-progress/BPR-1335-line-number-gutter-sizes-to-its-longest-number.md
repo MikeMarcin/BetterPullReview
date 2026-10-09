@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1335"
 title: "The line-number gutter sizes to the longest number it shows"
-status: "Parked"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1335--BPR-1335--645a64497526.json","related_cards":["BPR-0455","BPR-1290","BPR-1212","BPR-1264"]}
-parked_on: "human-review"
 ---
 
 # BPR-1335: The line-number gutter sizes to the longest number it shows
@@ -173,7 +172,7 @@ the accessible description with and without a thread. The window test opens
 line 22's thread from the context menu, and finds no Open thread on a line
 without one.
 
-## Owner look (pending)
+## Owner look on v001
 
 Session `3c9017b5e4768e3a76a25c14bf81ee21`, state
 `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1335-markers-v001`,
@@ -193,3 +192,42 @@ edge, which is in the number cell once the column is gone. Update the
 specification's gutter text and BPR-1290's navigation wording as an owner
 amendment. Then merge to main, rerun the two rows at three scales, and
 finish.
+
+## Owner verdict on v001, 2026-10-09
+
+Session `3c9017b5e4768e3a76a25c14bf81ee21`, candidate
+`BPR-1335-thread-markers-v001` (revision `bpr-1335-markers@db1b346a3`,
+fingerprint `329a11fa8045…`): **Reject** (decision
+`f922d012-da88-402c-be96-e92425943667`, 01:39:00Z, handed back at event 5;
+cursor 3 to 5 read). Note, verbatim:
+
+> I like option 1 but I don't like the + replacing the line number, i think
+> github actual does it better
+
+The owner attached a screenshot of a GitHub split diff (`src/parse.cpp`,
+dark theme). It is kept in the session file, not committed. In it, GitHub's
+"+" is a blue rounded square sitting on the boundary between the number
+gutter and the code, half over the start of the code. The line's number
+("2") stays visible to its left.
+
+Read as: option 1 (tinted line number, `number_tint`) is chosen. The "+"
+must not take the number's place. It should float at the gutter's right
+edge, overlapping the start of the code as GitHub's does, with the number
+still visible. Nothing else in v001 was rejected. BPR-1335:markers is asked
+again on v002.
+
+## Next (replaces the earlier Next)
+
+1. On `bpr-1335-markers`: keep `number_tint` as the only presentation. Delete
+   `column` and `in_numbers`, along with `thread_marker_style` and its setter.
+2. Draw the "+" as GitHub does: a box centred on the gutter's right edge,
+   over the code's left margin, the number unchanged. It is probably its own
+   small child of the pane, raised above the viewport, so it can be pressed
+   where it overlaps the code and named for accessibility ("Add a comment on
+   line N"). Recheck its hit area against the BPR-1083 tooltip and the
+   selection click on the code.
+3. Render v002 in light and dark at 2x, open a new short session, and ask
+   BPR-1335:markers as Accept or Reject.
+4. After an Accept: amend the specification's gutter text and BPR-1290's
+   navigation wording, merge to main, rerun `qt_diff_workbench` and
+   `qt_workbench_window` at three scales, and finish.
