@@ -143,12 +143,23 @@ int main(int aArgc, char** aArgv)
 	expect(window.zoom_in_action()->isEnabled() && !window.actual_size_action()->isEnabled(), "Zoom In is offered and Actual Size has nothing to do");
 	window.zoom_in_action()->trigger();
 	window.zoom_in_action()->trigger();
-	wait_for([&] { return zoomedTo(1.25) && application->status().AppearanceDurableWrites > writes && !surface->geometry_pending(); },
+	// [[BPR-1336]] follow-up. The indicator shows for 1.2 s after each step, and
+	// persisting and remeasuring the 1557-line comparison can outlast that in a
+	// Windows Debug build, so what it said is read while it shows.
+	auto       indicated       = false;
+	const auto watch_indicator = [&] {
+		indicated = indicated
+			|| (surface->code_zoom_indicator()->isVisible()
+				&& surface->code_zoom_indicator()->accessibleName().startsWith(QStringLiteral("Code zoom 125%")));
+	};
+	wait_for([&] {
+		watch_indicator();
+		return zoomedTo(1.25) && application->status().AppearanceDurableWrites > writes && !surface->geometry_pending();
+	},
 			 "two Zoom Ins show both panes at 125% of Code size, persisted and remeasured");
 	const auto height = surface->line_rect(line.Side, line.Line).height();
 	expect(std::abs(lineTop() - before) <= height, "the reader's line stays where it was: " + std::to_string(before) + " to " + std::to_string(lineTop()));
-	expect(surface->code_zoom_indicator()->isVisible() && surface->code_zoom_indicator()->accessibleName().startsWith(QStringLiteral("Code zoom 125%")),
-		   "the indicator says 125%");
+	expect(indicated, "the indicator says 125%");
 	expect(window.appearance_settings()->code_zoom_selector()->currentData().toUInt() == 125U
 			   && std::abs(window.appearance_settings()->code_size_editor()->value() / 100.0 - codeSize) < 0.001,
 		   "Settings shows the zoom, and Code size is unchanged");

@@ -283,3 +283,31 @@ with:
 An earlier session, `abb2042c` (v001), was built from the pre-rebase
 `7092c1dca`. It was withdrawn before anyone opened it: its host is stopped,
 its protections are released and its frozen root is deleted.
+
+## Windows follow-up (bpr-main-win, 2026-10-08): the zoom indicator was read after it had gone
+
+On Windows `application_diff_zoom_public_path` failed in the Debug tree at "the
+indicator says 125%" and passed in the optimized tree (9.8 s).
+
+**Cause: the test's timing, not the product.**
+
+- The zoom indicator hides 1200 ms after each step (`ZoomIndicatorTimer`, by
+  design).
+- The course checked it only after waiting for the zoom to persist and the
+  1557-line comparison to remeasure.
+- A temporary probe, not committed, measured that wait at 2509 ms in Debug.
+  By then the pill had shown "Code zoom 125%" and hidden itself.
+- Windows users see the indicator as designed. Both panes reached 125%, and
+  the reader's line held.
+
+**Fix** (`tests/end_to_end/diff_zoom_public_path_tests.cpp`). The course
+records whether the indicator was visible saying "Code zoom 125%" at any
+moment while it waits, then asserts that.
+
+**Evidence:**
+
+| Run | Result |
+|---|---|
+| Debug, with the fix | passes (21.9 s) |
+| Release, with the fix | passes (9.6 s) |
+| Control: the product never shows the pill (`ZoomIndicator->show()` removed), Debug | fails at "the indicator says 125%" |
