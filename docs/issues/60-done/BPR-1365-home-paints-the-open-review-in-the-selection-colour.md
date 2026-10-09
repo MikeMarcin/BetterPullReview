@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1365"
 title: "Home paints the open review in the selection colour; only one Home list shows a selection"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"defect","found_by":"Owner, BPR-1364 attended review (accepted), 2026-10-09","reservation":"docs/issues/_reservations/BPR-1365--BPR-1365--b5afbbae5ee9.json","related_cards":["BPR-1364","BPR-0776","BPR-0733","BPR-1357","BPR-1157"],"requested_skill":"frontend-design"}
-acceptance: []
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1365:one-selection","outcome":"pass","revision":"78b1f21c5","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1365-home-paints-the-open-review-in-the-selection-colour.md","detail":"qt_composed_github_scale_{100,125,200} test_home_shows_one_selection_and_the_open_review_quietly and application_home_open_feedback_public_path: at most one Home list shows a selection, the one holding the keyboard; a click or Tab moves it; publishing Recently viewed or Review Cycles selects nothing outside the owner."}},{"criterion":"BPR-1365:reviewing","outcome":"pass","revision":"78b1f21c5","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1365-home-paints-the-open-review-in-the-selection-colour.md","detail":"qt_home_list_scale_{100,125,200} test_the_open_review_is_quiet_and_never_the_selection: the open review's row is on AlternateBase with a Reviewing tag, never Highlight unless selected, in every theme; its accessible description starts 'Reviewing in this window'."}},{"criterion":"BPR-1365:themes","outcome":"pass","revision":"78b1f21c5","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1365-home-paints-the-open-review-in-the-selection-colour.md","detail":"application_home_open_feedback_public_path --render-directory and qt_home_list_scale_* write light, dark, high-contrast light and high-contrast dark renders of the open review beside a selection."}},{"criterion":"BPR-1365:failing-before","outcome":"pass","revision":"78b1f21c5","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1365-home-paints-the-open-review-in-the-selection-colour.md","detail":"With the behaviour set aside and the tests kept, qt_composed_github_scale_100, qt_home_list_scale_100 and application_home_open_feedback_public_path fail; restored, they pass."}},{"criterion":"BPR-1365:owner","outcome":"pass","revision":"78b1f21c5","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1365-home-paints-the-open-review-in-the-selection-colour.md","detail":"Owner Accept, no note, 2026-10-09T15:18:48Z: session 3a408f4db19329315edb27a85a768226, candidate BPR-1365-one-selection-reviewing-v001 (frozen 78b1f21c5, fingerprint 457146002de5...), decision adfe7958-1ef6-44e7-b3e0-6ee09f8b93e0 at event 4, handed back at 5, released at 6."}}]
 ---
 
 # BPR-1365: Home paints the open review in the selection colour; only one Home list shows a selection
@@ -197,3 +196,20 @@ pass.
 - Next: on hand-back, read `status --after 3`. Accept closes `BPR-1365:owner`
   and the card. A Reject's note (for example an accent bar, or another word)
   is the next round's change.
+
+## Owner verdict and closeout — 2026-10-09
+
+Session `3a408f4db19329315edb27a85a768226` (state
+`/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1365-home-reviewing-v001/state`),
+handed back at event 5, read from cursor 3. Candidate
+`BPR-1365-one-selection-reviewing-v001` (revision `frozen-78b1f21c5-v001`,
+fingerprint `457146002de5…`): **Accept**, no note, 2026-10-09T15:18:48Z,
+decision `adfe7958-1ef6-44e7-b3e0-6ee09f8b93e0` at event 4. This satisfies
+`BPR-1365:owner`.
+
+The candidate was released with `resume-development --all` at event 6, the
+host (pid 88807) was stopped with the session's own `stop` and is gone, and
+the frozen root
+`/Users/jaeger/.mask/attended-review/bpr1365-home-reviewing-v001.x8t3w3e7`
+was removed with `scripts/freeze_attended_build.py remove`. The session's
+state folder keeps the record. The card is Done.
