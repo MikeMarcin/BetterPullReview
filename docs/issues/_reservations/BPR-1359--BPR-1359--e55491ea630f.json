@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1359"
+  ],
+  "reserve_for": "batch-body-and-prepared-read-cancel",
+  "purpose": "macOS batch GraphQL body is an array (HTTP 400); prepared exact reads yield to reviewer selection",
+  "created": "2026-10-09T07:49:03.137880+00:00",
+  "base": "fd0a17ca8b9859a3f9cbed838a2483fb6f739b5f"
+}
