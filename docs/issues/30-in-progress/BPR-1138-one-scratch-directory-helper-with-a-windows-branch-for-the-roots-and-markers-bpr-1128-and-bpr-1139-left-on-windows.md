@@ -333,3 +333,53 @@ the executables deleted and rebuilt. All eight
 The Part A rows passed in this card's earlier AC3 run, and nothing they
 exercise has changed since. AC3 is met on Windows. Part B and AC4 still wait
 on [[BPR-1229]].
+
+## Part B and AC4 on Windows (bpr-main-win, 2026-10-09)
+
+[[BPR-1229]] decided option 2 on 2026-10-06: the durable child course is its
+own row, and `qt_agent_launch_canary` stays contained. So Part B moved.
+
+**The change.** All three sites in
+`tests/adapters_qt/agent_launch_canary_tests.cpp` now take
+`bpr::tests::make_scratch_directory` and hold a `scratch_guard` from creation:
+
+- `test_timeout_terminates_the_descendant_process_tree` loses its
+  `#if defined(_WIN32)` branch. Every platform now runs what POSIX already
+  ran: `heartbeat` inside a `bpr-agent-descendant` root.
+- `test_breakaway_descendant_dies_with_supervised_job` makes its root as
+  `bpr-agent-breakaway`, not by `create_directory` at a clock name.
+- `test_windows_assignment_failure_has_no_pre_assignment_side_effect` puts
+  its marker `side-effect` inside a `bpr-agent-pre-assignment` root. Nothing
+  is removed before the check.
+
+AC1: no site in the file names a scratch root or marker from the clock, an
+address or a process id. `grep -rn 'Windows keeps' tests` finds none of the
+card's sites. The two hits left are `tests/AGENTS.md:115` and
+`profile_owner_admission_contract.py:30`, which are about other things.
+
+**AC4.** Run at `3947245ca` plus this change, on Windows 11, MSVC 14.51,
+Qt 6.11.2, `build/windows-dev-tour-cli` Debug, serial, after rebuilding the
+canary target. 4 of 4 pass:
+
+- `qt_agent_launch_canary`, contained: 107.70 s;
+- `qt_agent_launch_canary_durable_course`: 2.75 s;
+- `architecture_boundaries`: 39.20 s;
+- `msvc_secure_crt_contract`: 1.05 s.
+
+The user's temporary directory and `Packages\bprautomatedtest\AC\Temp`
+were listed for `bpr-agent-*` before and after. Neither gained an entry,
+and the AppContainer's held none either time. The user's temporary directory
+had two entries before and still has the same two:
+`bpr-agent-breakaway-166652946836300` and
+`bpr-agent-parent-death-58ced5a169b96e8f`. They are left from runs before
+this change. The first is the clock-named root this change removes.
+
+**AC6, this part.** `clang-format` 22.1.8 reports no change, `git diff --check`
+is clean, and `architecture_boundaries` and `msvc_secure_crt_contract` pass as
+above. `DOCUMENTATION_OK` is at the commit. A scoped `tidy.py` over the
+changed lines is not run on this station.
+
+**AC5 for Part B.** Two of the sites are Windows-only. On POSIX the first now
+compiles exactly the code its `#else` branch already had. A Linux or macOS run
+of `qt_agent_launch_canary` at this commit would confirm it, and is the
+coordinator's to ask for.

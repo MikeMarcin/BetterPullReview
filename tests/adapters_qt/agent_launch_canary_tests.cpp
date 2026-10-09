@@ -795,26 +795,14 @@ namespace {
 	{
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
 		std::error_code ignored;
-#if defined(_WIN32)
-		// [[BPR-1128]]. Windows keeps its marker as it was until it has a helper
-		// of its own.
-		const auto marker = std::filesystem::temp_directory_path()
-			/ ("bpr-agent-descendant-"
-			   + std::to_string(
-				   std::chrono::steady_clock::now().time_since_epoch().count()));
-		std::filesystem::remove(marker, ignored);
-		// [[BPR-1121]]. The descendant writes it; owned from here, so a failure
-		// below removes it.
-		const bpr::tests::scratch_guard ownedMarker{ marker };
-#else
-		// [[BPR-1128]]. The descendant writes its heartbeat into a directory this
-		// course made at a name nothing had, mode `0700`. Nothing is removed
-		// before it is written, no link at a known name is written through, and
-		// the directory goes, marker and all, however the course ends.
+		// [[BPR-1128]], [[BPR-1138]]. The descendant writes its heartbeat into a
+		// directory this course made at a name nothing had, owner-private.
+		// Nothing is removed before it is written, no link at a known name is
+		// written through, and the directory goes, marker and all, however the
+		// course ends.
 		const auto                      directory = bpr::tests::make_scratch_directory("bpr-agent-descendant");
 		const bpr::tests::scratch_guard ownedDirectory{ directory };
 		const auto                      marker = directory / "heartbeat";
-#endif
 
 		auto launched = request(core::agent_protocol::external_terminal);
 		launched.Arguments.insert(
@@ -1052,10 +1040,9 @@ namespace {
 		expect(static_cast<bool>(outer) && ::AssignProcessToJobObject(outer.get(), ::GetCurrentProcess()) != FALSE,
 			   "the owner joins an outer job before launching");
 		std::cout << "agent-breakaway:owner-already-in-job\t" << (alreadyInJob != FALSE ? 1 : 0) << '\n';
-		const auto root = std::filesystem::temp_directory_path()
-			/ ("bpr-agent-breakaway-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-		std::filesystem::create_directory(root);
-		// [[BPR-1121]]. Owned from here, so a failure below removes it.
+		// [[BPR-1138]]. Made at a name nothing had; [[BPR-1121]], owned from
+		// here, so a failure below removes it.
+		const auto                      root = bpr::tests::make_scratch_directory("bpr-agent-breakaway");
 		const bpr::tests::scratch_guard ownedRoot{ root };
 
 		const auto marker               = root / "heartbeat";
@@ -1171,14 +1158,14 @@ namespace {
 	void test_windows_assignment_failure_has_no_pre_assignment_side_effect()
 	{
 		qputenv("BPR_CANARY_AGENT_IDENTITY", QByteArray{ "allowed" });
-		const auto marker = std::filesystem::temp_directory_path()
-			/ ("bpr-agent-pre-assignment-"
-			   + std::to_string(
-				   std::chrono::steady_clock::now().time_since_epoch().count()));
-		std::error_code ignored;
-		std::filesystem::remove(marker, ignored);
-		// [[BPR-1121]]. Owned from here, so a failure below removes it.
-		const bpr::tests::scratch_guard ownedMarker{ marker };
+		// [[BPR-1138]]. The marker the child must not write goes inside a
+		// directory made at a name nothing had, so nothing is removed before
+		// the check; [[BPR-1121]], owned from here, so a failure below removes
+		// it.
+		const auto                      directory = bpr::tests::make_scratch_directory("bpr-agent-pre-assignment");
+		const bpr::tests::scratch_guard ownedDirectory{ directory };
+		const auto                      marker = directory / "side-effect";
+		std::error_code                 ignored;
 
 		auto launched = request(core::agent_protocol::external_terminal);
 		launched.Arguments.insert(
