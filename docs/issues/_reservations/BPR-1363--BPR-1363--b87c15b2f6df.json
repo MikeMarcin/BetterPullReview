@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1363"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Files tree column widths stay put when a folder opens or closes",
+  "created": "2026-10-09T12:57:00.059400+00:00",
+  "base": "1428dad741b5f7a8f676c737f92d5c4c905b654a"
+}
