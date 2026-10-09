@@ -24,10 +24,12 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPointingDevice>
+#include <QProxyStyle>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QString>
+#include <QStyle>
 #include <QSysInfo>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -3954,6 +3956,50 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1334]]. Qt's transient scroll bars, which macOS draws by
+	/// default: a bar that floats over the bottom of the viewport and takes no
+	/// height of its own.
+	///
+	/// \details v002 placed the Line details gutter for a legacy bar only. The
+	/// offscreen rows passed; the native macOS launch failed "the gutter sits
+	/// beside the rows and above the bar", because there the bar overlays the
+	/// viewport. This style gives offscreen runs that native geometry.
+	class overlay_scroll_bar_style final : public QProxyStyle
+	{
+	public:
+		[[nodiscard]] auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget,
+									 QStyleHintReturn* const aReturn) const -> int override
+		{
+			return aHint == QStyle::SH_ScrollBar_Transient ? 1 : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+		[[nodiscard]] auto pixelMetric(const PixelMetric aMetric, const QStyleOption* const aOption, const QWidget* const aWidget) const
+			-> int override
+		{
+			return aMetric == QStyle::PM_ScrollView_ScrollBarOverlap ? QProxyStyle::pixelMetric(QStyle::PM_ScrollBarExtent, aOption, aWidget)
+																	 : QProxyStyle::pixelMetric(aMetric, aOption, aWidget);
+		}
+	};
+
+	/// \brief [[BPR-1334]]. Line details' rows, gutter and horizontal bar, in
+	/// whichever bar style the strip has: the gutter beside the rows only and
+	/// not scrolling, and both rows above the bar rather than under it.
+	void expect_line_details_bar_band(const qt::line_details_pane& aStrip, const std::string& aLabel)
+	{
+		const auto* const bar     = aStrip.horizontalScrollBar();
+		const auto        barTop  = bar->mapTo(&aStrip, QPoint{ 0, 0 }).y();
+		const auto        view    = aStrip.viewport()->geometry();
+		const auto        gutter  = aStrip.gutter_widget()->geometry();
+		const auto        rowsEnd = view.top() + 2 * aStrip.fontMetrics().lineSpacing();
+		std::cout << "bpr-1334 " << aLabel << " bar-top=" << barTop << " viewport=" << view.top() << ".." << view.bottom()
+				  << " gutter=" << gutter.top() << ".." << gutter.bottom() << '\n';
+		expect(bar->isVisible() && bar->maximum() > 0, aLabel + ": a long row gives the strip its horizontal bar");
+		expect(gutter.right() < view.left() && gutter.top() == view.top() && gutter.height() == view.height(),
+			   aLabel + ": the gutter sits beside the rows, exactly as tall as they are, outside what scrolls");
+		expect(view.bottom() < barTop && gutter.bottom() < barTop,
+			   aLabel + ": the rows and the gutter end above the bar, so the bar covers neither");
+		expect(rowsEnd <= barTop, aLabel + ": both rows are read above the bar");
+	}
+
 	/// \brief [[BPR-1334]]. Line details: the current line, base over head,
 	/// full width and wrapped, with its numbers and changed characters.
 	///
@@ -4179,8 +4225,34 @@ namespace {
 		process_events();
 		expect(bar->isVisible() && strip->viewport()->height() >= 2 * strip->fontMetrics().lineSpacing(),
 			   "the smallest strip keeps room for both rows above its horizontal bar");
+		expect_line_details_bar_band(*strip, "legacy bar, smallest strip");
 		workbench.set_line_details_height(std::nullopt);
 		process_events();
+		expect_line_details_bar_band(*strip, "legacy bar, default strip");
+
+		// Overlay bars, macOS's default: the bar floats over the viewport's
+		// bottom. The strip keeps that band free itself, so the gutter and
+		// both rows still end above the bar, at the default and smallest
+		// heights. The style changes under a shown strip, as it does when the
+		// macOS setting changes.
+		auto overlay = overlay_scroll_bar_style{ };
+		bar->setStyle(&overlay);
+		strip->verticalScrollBar()->setStyle(&overlay);
+		process_events();
+		expect(bar->style()->styleHint(QStyle::SH_ScrollBar_Transient, nullptr, bar) != 0
+				   && bar->style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, bar) > 0,
+			   "the strip's bars take the transient, overlapping style");
+		expect_line_details_bar_band(*strip, "overlay bar, default strip");
+		workbench.set_line_details_height(1U);
+		process_events();
+		expect_line_details_bar_band(*strip, "overlay bar, smallest strip");
+		workbench.set_line_details_height(std::nullopt);
+		bar->setStyle(nullptr);
+		strip->verticalScrollBar()->setStyle(nullptr);
+		process_events();
+		expect_line_details_bar_band(*strip, "legacy bar again");
+		expect(strip->viewport()->geometry().bottom() + 1 == bar->mapTo(strip, QPoint{ 0, 0 }).y(),
+			   "back on a legacy bar the strip keeps no extra band: the rows run down to the bar");
 
 		if (const auto directory = qEnvironmentVariable("BPR_LINE_DETAILS_CAPTURE_DIR"); !directory.isEmpty()) {
 			expect(workbench.select_conversation_line(core::diff_side::right, 1U), "the capture shows the changed line");

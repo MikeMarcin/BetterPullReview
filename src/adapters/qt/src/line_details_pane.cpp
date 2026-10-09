@@ -11,6 +11,7 @@
 #include <QPainter>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QStyle>
 #include <QTextBlock>
 #include <QTextCharFormat>
 #include <QTextCursor>
@@ -139,6 +140,9 @@ namespace bpr::qt {
 				Gutter->update(0, aRect.y(), Gutter->width(), aRect.height());
 			}
 		});
+		// A bar's own style can change under the pane: macOS switches
+		// between overlay and legacy bars when the system setting changes.
+		horizontalScrollBar()->installEventFilter(this);
 		place_gutter();
 	}
 
@@ -391,10 +395,23 @@ namespace bpr::qt {
 		setExtraSelections(selections);
 	}
 
+	auto line_details_pane::overlay_bar_reserve() const -> int
+	{
+		const auto* const bar = horizontalScrollBar();
+		return bar->style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, bar) > 0
+			? bar->sizeHint().height()
+			: 0;
+	}
+
 	void line_details_pane::place_gutter()
 	{
 		const auto width = gutter_width();
-		setViewportMargins(width, 0, 0, 0);
+		// An overlay bar (macOS's default, Qt's transient style) takes no
+		// height of its own: it floats over the bottom of the viewport while
+		// the strip scrolls, which is when its rows are being read, and at the
+		// strip's smallest height that is the head row. So the strip keeps the
+		// bar's band free under the rows itself, as a legacy bar does.
+		setViewportMargins(width, 0, 0, overlay_bar_reserve());
 		// Beside the viewport only: the horizontal bar runs under the gutter
 		// too, and a gutter as tall as the frame would cover its start.
 		const auto view = viewport()->geometry();
@@ -410,6 +427,14 @@ namespace bpr::qt {
 			place_gutter();
 		}
 		return handled;
+	}
+
+	auto line_details_pane::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
+	{
+		if (aWatched == horizontalScrollBar() && aEvent->type() == QEvent::StyleChange) {
+			place_gutter();
+		}
+		return QPlainTextEdit::eventFilter(aWatched, aEvent);
 	}
 
 	void line_details_pane::resizeEvent(QResizeEvent* const aEvent)

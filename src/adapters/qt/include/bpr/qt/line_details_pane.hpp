@@ -80,14 +80,18 @@ namespace bpr::qt {
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
 		auto viewportEvent(QEvent* aEvent) -> bool override;
+		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
 		class gutter;
 		friend class gutter;
 		void paint_gutter(QPaintEvent* aEvent);
 		void place_gutter();
-		void repaint_bands();
-		void reveal_first_change();
+		/// \brief The height kept free under the rows for an overlay
+		/// horizontal bar; zero for a bar that takes its own height.
+		[[nodiscard]] auto overlay_bar_reserve() const -> int;
+		void               repaint_bands();
+		void               reveal_first_change();
 
 		gutter*                         Gutter = nullptr;
 		core::line_details_projection   Shown;

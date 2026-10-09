@@ -71,6 +71,7 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   the changed characters are highlighted. Rows do not wrap (v002, after the
   owner rejected v001's wrapping): a long row scrolls sideways under the
   strip's one horizontal bar, both rows together, and the gutter stays put.
+  The bar covers neither a row nor the gutter, legacy or overlay (v003).
   A new line opens scrolled to its first changed character.
 - A mouse selection that spans lines shows each selected line's pair, capped
   at 16 lines, followed by a line that says how many more were selected.
@@ -108,7 +109,8 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   100 ms.
 - **C5 (owner).** The owner looks at a frozen build with long changed lines
   and answers Accept or Reject for "line details strip" (v001, rejected) and
-  then "line details v002".
+  then "line details v002" (rejected: the frozen build did not start
+  natively) and then "line details v003".
 
 ## Verification (2026-10-08, bpr-main-mac implementer)
 
@@ -315,3 +317,27 @@ Launch command:
 `python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v002/launch.py`.
 C1–C4 rest on the direct evidence above. C5 waits on the owner and is not
 self-certified.
+
+## Owner verdict on v002 — 2026-10-08
+
+Session `3e36d128a75c3e250a312d78e593f8c4` (state
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v002/attended-review`),
+handed back at event 6. Candidate `BPR-1334-line-details-v002` at
+`f2f9ce1e0`, fingerprint `07bda61b…`: **Reject**. The owner never saw the
+strip. The launch printed
+
+> STARTUP_FAILED: candidate exited before ready; log …/artifacts/bpr-1334/line-details-frozen-v002/native-launch.log
+
+and the log ended with `FAILED: the gutter sits beside the rows and above
+the bar, outside what scrolls`, then `libc++abi: terminating due to uncaught
+exception of type bpr::tests::expectation_failed`.
+
+Two faults. The product placed the gutter for a legacy bar only. macOS draws
+overlay (transient) bars by default, and an overlay bar takes no height: it
+floats over the bottom of the viewport, so the gutter, which ran the
+viewport's height, reached under it, and at the smallest height the bar
+would float over the head row while it is being scrolled. Every offscreen
+run used a legacy bar, so none saw it. The launcher ran the course's checks
+before its window, as hard expectations, so one failed check of the window
+killed the owner's launch without a window, and the exception escaped
+`main`.

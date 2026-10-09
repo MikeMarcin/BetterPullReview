@@ -1027,7 +1027,10 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   intraline colours. Rows do not wrap: each is one line, and a row too long
   for the strip scrolls sideways under the strip's one horizontal bar, so the
   base and head rows move together and their columns stay aligned. The gutter
-  does not scroll. A newly shown line opens scrolled to its first changed
+  does not scroll. The bar never covers a row or the gutter: a legacy bar
+  takes its own height, and for an overlay bar (macOS's default, which floats
+  over the content while it scrolls) the strip keeps the same band free under
+  its rows ([[BPR-1334]] v003). A newly shown line opens scrolled to its first changed
   character, with a little of the text before it ([[BPR-1334]] v002; the owner
   rejected v001's wrapping). A text
   selection across lines that holds the current line shows each selected
