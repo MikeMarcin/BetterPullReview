@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1357"
 title: "Home says at once that a review is opening, and its status is easy to see"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
-parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1357--BPR-1357--9170a6026153.json","related_cards":["BPR-1200","BPR-1342","BPR-0775","BPR-0771","BPR-0776","BPR-0795"],"related_rfcs":["RFC-BPR-0032","RFC-BPR-0026"]}
-acceptance: []
+acceptance: [{"criterion":"BPR-1357:exists","outcome":"pass","revision":"710e06796","evidence":{"kind":"artifact","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Card section 'What exists (inventory at 710e06796)': homeOpenNotice 'Loading the pull request.', status bar only, no Cancel, second click silently refused."}},{"criterion":"BPR-1357:core","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"core_home_open: each read's stage by request identity, open at once, wait on this read's elapse only, failure kept with reason and Retry, ended on load or cancel, foreign and stale observations ignored; core_github_policy and core_github_window_read pass. Windows (66c1cf4c8) passes core_home_open."}},{"criterion":"BPR-1357:clock","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"application_home_open_host (manual clock): published in the gesture's turn, one wait per read, stale and post-teardown elapses dropped, Cancel and Retry admitted only against the core. Pass on macOS and Windows."}},{"criterion":"BPR-1357:same-turn","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"application_home_open_feedback_public_path, 3 s fixture delay, light and dark and QT_SCALE_FACTOR=2: the clicked row reads 'Opening #17…' with no event-loop turn after the click; a second click asks for nothing. Pass on macOS and Windows."}},{"criterion":"BPR-1357:cancel","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Same course: after 800 ms the row names the step and carries Cancel, announced politely; Cancel stops the read on the wire and the row is itself again on Home."}},{"criterion":"BPR-1357:failure","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Same course: #4001 fails with a network error, the row says why in the failure ink with Retry, the line under the bar stays hidden; Retry is a new request in the same turn."}},{"criterion":"BPR-1357:bar","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Same course: a pasted .../pull/18 is said in Home's status band at once (busy), with the step and Cancel after the wait; application_setup_destination_public_path asserts the band."}},{"criterion":"BPR-1357:status","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Same course: notice and problem in the band under the bar with tone, announced politely; quiet Home hides the band."}},{"criterion":"BPR-1357:renders","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"artifact","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Offscreen renders inspected, light and dark at 1100 px and 200%: row opening, waiting, failed, bar waiting, status notice, status problem, idle."}},{"criterion":"BPR-1357:failing-before","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Deferring the read-lane observe by QTimer::singleShot(0) fails the same-turn assertion; the code at 710e06796 has no opening (workbench_window::home_open absent, baseline render empty)."}},{"criterion":"BPR-1357:owner-open","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Owner Accept 2026-10-09T12:51:57Z: session b64c613f41f0b571a3c226ee1fd586c8, candidate BPR-1357-open-feedback-v001 (fingerprint 69ef0f59df29..., frozen-bf04e3918-v001), decision a367f517-8d85-4738-a680-703d77872b33 at event 7, note verbatim: \"feedback: I don't like a single click on home card opening the pr.\" (taken up on BPR-1364). Handed back at 9, released at 10."}},{"criterion":"BPR-1357:owner-status","outcome":"pass","revision":"bf04e3918","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1357-home-says-at-once-that-a-review-is-opening-and-its-status-is-easy-to-see.md","detail":"Owner Accept, no note, 2026-10-09T12:52:05Z: session b64c613f41f0b571a3c226ee1fd586c8, candidate BPR-1357-status-visibility-v001 (fingerprint 9a5477fe4228..., frozen-bf04e3918-v001), decision 48ed286a-d686-4434-9e3b-9b6a1bd22975 at event 8."}}]
 ---
 
 # BPR-1357: Home says at once that a review is opening, and its status is easy to see
@@ -246,6 +245,34 @@ at 45%); busy and notice are neutral. Idle, it is hidden.
   `BPR-1357-status-visibility-v001` (`BPR-1357:owner-status`).
 - Next: on hand-back, read `status --after 6`. Each Accept closes its
   criterion; a Reject's note is the next round's change.
+
+## Owner verdict, session v001
+
+The owner handed session `b64c613f41f0b571a3c226ee1fd586c8` back at event 9,
+read from cursor 0. Both candidates are on the frozen build of `bf04e3918`
+(`frozen-bf04e3918-v001`, `better_pull_review` SHA-256 `d6f52871beb478fc…`):
+
+- `BPR-1357-open-feedback-v001` (`BPR-1357:owner-open`, fingerprint
+  `69ef0f59df29…`): **Accept**, 2026-10-09T12:51:57Z, decision
+  `a367f517-8d85-4738-a680-703d77872b33` at event 7. The note, verbatim:
+
+  > feedback: I don't like a single click on home card opening the pr.
+
+- `BPR-1357-status-visibility-v001` (`BPR-1357:owner-status`, fingerprint
+  `9a5477fe4228…`): **Accept**, 2026-10-09T12:52:05Z, decision
+  `48ed286a-d686-4434-9e3b-9b6a1bd22975` at event 8, no note.
+
+Both owner criteria pass; the others stand on the verification above and the
+Windows station run below. The card is Done. The note does not reject this
+card's feedback: it asks to change the gesture that opens a review from a
+Home row, and [[BPR-1364]] takes it up (a single click selects a row;
+double-click or Return opens it). This card changes no code for it.
+
+The host (pid 27910) was stopped and both candidates released with
+`resume-development --all` at event 10. The frozen root
+`/Users/jaeger/.mask/attended-review/bpr1357-home-open-v001.7f34thz4` was
+removed with `scripts/freeze_attended_build.py remove`. The session's state
+folder keeps the record.
 
 ## Windows station run (bpr-main-win, 2026-10-09)
 
