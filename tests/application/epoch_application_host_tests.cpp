@@ -1,3 +1,4 @@
+#include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/testing.hpp"
@@ -17,6 +18,7 @@
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -344,11 +346,25 @@ namespace {
 		/// [[BPR-1359]]. A single read that ends early when stopped, as the
 		/// real transport kills its gh process; how many are on the wire, and
 		/// how many were stopped before their latency ran out.
-		bool                                                    ExactBlobLatencyObservesStop = false;
-		std::atomic<std::size_t>                                ExactBlobReadsInFlight{ 0U };
-		std::atomic<std::size_t>                                ExactBlobStopsObserved{ 0U };
-		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
-		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
+		bool                     ExactBlobLatencyObservesStop = false;
+		std::atomic<std::size_t> ExactBlobReadsInFlight{ 0U };
+		std::atomic<std::size_t> ExactBlobStopsObserved{ 0U };
+		/// [[BPR-1360]]. Single reads may now run two at once, one on the
+		/// actor and one on the diff worker, so their records are guarded:
+		/// the most on the wire together, and each read's blob, start and
+		/// end, in the order they ended.
+		struct exact_blob_span
+		{
+			core::git_blob_oid                    Blob;
+			std::chrono::steady_clock::time_point Started;
+			std::chrono::steady_clock::time_point Ended;
+			bool                                  Stopped = false;
+		};
+		std::mutex                                             ExactBlobMutex;
+		std::size_t                                            ExactBlobMostInFlight = 0U;
+		std::vector<exact_blob_span>                           ExactBlobSpans;
+		std::vector<application::git_cache_tree_entry_request> TreeEntryRequests;
+		std::deque<std::optional<core::git_blob_oid>>          TreeEntryResults;
 		// [[BPR-1212]]. The merge bases a fake cache answers, in order.
 		std::vector<application::git_cache_comparison_base_request>    ComparisonBaseRequests;
 		std::deque<application::git_cache_comparison_base_observation> ComparisonBaseResults;
@@ -1996,20 +2012,33 @@ namespace {
 			const std::stop_token                            aStop)
 			-> application::git_smart_transport_result<std::vector<std::byte>> override
 		{
-			State.Calls.emplace_back("transport.read-exact-blob");
-			State.ExactBlobRequests.push_back(aRequest);
+			// Not recorded in `Calls`: a read lent to the diff worker runs
+			// while the actor appends there. [[BPR-1360]]
+			auto span = shared_state::exact_blob_span{ .Blob = aRequest.ExpectedBlob };
+			{
+				std::scoped_lock lock{ State.ExactBlobMutex };
+				State.ExactBlobRequests.push_back(aRequest);
+				const auto latency          = State.ExactBlobLatency;
+				span.Started                = std::chrono::steady_clock::now();
+				span.Ended                  = span.Started + latency;
+				State.ExactBlobMostInFlight = std::max(State.ExactBlobMostInFlight, ++State.ExactBlobReadsInFlight);
+			}
 			if (State.ExactBlobLatencyObservesStop) {
-				++State.ExactBlobReadsInFlight;
-				const auto deadline = std::chrono::steady_clock::now() + State.ExactBlobLatency;
-				while (!aStop.stop_requested() && std::chrono::steady_clock::now() < deadline) {
+				while (!aStop.stop_requested() && std::chrono::steady_clock::now() < span.Ended) {
 					std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 				}
 				if (aStop.stop_requested()) {
 					++State.ExactBlobStopsObserved;
+					span.Stopped = true;
 				}
-				--State.ExactBlobReadsInFlight;
 			} else {
-				std::this_thread::sleep_for(State.ExactBlobLatency);
+				std::this_thread::sleep_until(span.Ended);
+			}
+			{
+				std::scoped_lock lock{ State.ExactBlobMutex };
+				span.Ended = std::chrono::steady_clock::now();
+				State.ExactBlobSpans.push_back(span);
+				--State.ExactBlobReadsInFlight;
 			}
 			if (aStop.stop_requested() || aRequest.Context != Context) {
 				return std::unexpected{ application::git_smart_transport_error{
@@ -5831,6 +5860,319 @@ namespace {
 			   "a successful batch lifts the back-off");
 	}
 
+	/// [[BPR-1360]]. One worker thread, as the composition's `DiffEffects`.
+	class worker_thread_executor final : public application::effect_executor
+	{
+	public:
+		worker_thread_executor()
+			: Worker{ [this](const std::stop_token aStop) { work(aStop); } }
+		{ }
+
+		~worker_thread_executor() override
+		{
+			Worker.request_stop();
+			Changed.notify_all();
+		}
+
+		worker_thread_executor(const worker_thread_executor&)                    = delete;
+		auto operator=(const worker_thread_executor&) -> worker_thread_executor& = delete;
+		worker_thread_executor(worker_thread_executor&&)                         = delete;
+		auto operator=(worker_thread_executor&&) -> worker_thread_executor&      = delete;
+
+		void post(std::function<void()> aTask) override
+		{
+			std::scoped_lock lock{ Mutex };
+			Tasks.push_back(std::move(aTask));
+			Changed.notify_all();
+		}
+
+	private:
+		void work(const std::stop_token& aStop)
+		{
+			while (true) {
+				auto task = std::function<void()>{ };
+				{
+					std::unique_lock lock{ Mutex };
+					Changed.wait(lock, aStop, [this] { return !Tasks.empty(); });
+					if (Tasks.empty()) {
+						return;
+					}
+					task = std::move(Tasks.front());
+					Tasks.pop_front();
+				}
+				task();
+			}
+		}
+
+		std::mutex                        Mutex;
+		std::condition_variable_any       Changed;
+		std::deque<std::function<void()>> Tasks;
+		std::jthread                      Worker;
+	};
+
+	/// [[BPR-1360]]. What the diff host publishes, and when.
+	class diff_outcomes final : public application::diff_projection_port
+	{
+	public:
+		void publish(const application::diff_publication& aPublication) override
+		{
+			Published.push_back(aPublication.Context);
+			At = std::chrono::steady_clock::now();
+		}
+
+		void fail(const application::diff_failure_publication& aFailure) override
+		{
+			Failed.push_back(aFailure);
+			At = std::chrono::steady_clock::now();
+		}
+
+		void invalidate(const core::pull_request_authority&) override { }
+
+		std::vector<core::diff_request_context>            Published;
+		std::vector<application::diff_failure_publication> Failed;
+		std::chrono::steady_clock::time_point              At;
+	};
+
+	/// \brief A cold open as the composition runs it. [[BPR-1360]]
+	///
+	/// \details The real diff host computes the opened comparison over the
+	/// real epoch host on a worker thread of its own; the repository actor's
+	/// FIFO runs on another; this thread is the diff host's decision lane.
+	struct cold_open_rig final
+	{
+		explicit cold_open_rig(fixture& aValue)
+			: Value{ aValue }
+			, Diff{ core::diff_state{ .ApplicationSession = aValue.Host->state().ApplicationSession },
+					*aValue.Host,
+					DiffEffects,
+					DiffDecisions,
+					Outcomes }
+			, Actor{ [this](const std::stop_token aStop) {
+				while (!aStop.stop_requested()) {
+					if (Value.Effects.pending() != 0U) {
+						Value.Effects.run_next();
+					} else {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+					}
+				}
+			} }
+		{ }
+
+		~cold_open_rig()
+		{
+			Diff.shutdown();
+			static_cast<void>(pump_until([this] { return Diff.is_quiescent(); }));
+			Actor.request_stop();
+		}
+
+		cold_open_rig(const cold_open_rig&)                    = delete;
+		auto operator=(const cold_open_rig&) -> cold_open_rig& = delete;
+		cold_open_rig(cold_open_rig&&)                         = delete;
+		auto operator=(cold_open_rig&&) -> cold_open_rig&      = delete;
+
+		/// Runs the diff host's decision lane until the condition holds or
+		/// the bound runs out.
+		template <typename Condition>
+		[[nodiscard]] auto pump_until(Condition                       aCondition,
+									  const std::chrono::milliseconds aBound = std::chrono::seconds{ 30 }) -> bool
+		{
+			const auto deadline = std::chrono::steady_clock::now() + aBound;
+			while (!aCondition()) {
+				if (std::chrono::steady_clock::now() >= deadline) {
+					return false;
+				}
+				if (DiffDecisions.pending() != 0U) {
+					DiffDecisions.run_next();
+				} else {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+				}
+			}
+			return true;
+		}
+
+		/// Opens a resolved file and waits for its comparison's terminal.
+		/// Returns the milliseconds from the request to the terminal.
+		[[nodiscard]] auto open(const application::workbench_selected_diff_observation& aResolved) -> double
+		{
+			const auto key = application::selected_diff_key(aResolved);
+			expect(key.has_value(), "an available resolution has a diff key");
+			const auto terminals = Outcomes.Published.size() + Outcomes.Failed.size();
+			const auto started   = std::chrono::steady_clock::now();
+			Diff.request(*key, core::diff_options{ });
+			expect(pump_until([&] { return Outcomes.Published.size() + Outcomes.Failed.size() > terminals; }),
+				   "the opened comparison reaches a terminal");
+			return std::chrono::duration<double, std::milli>(Outcomes.At - started).count();
+		}
+
+		fixture&                           Value;
+		diff_outcomes                      Outcomes;
+		queued_executor                    DiffDecisions{ true };
+		worker_thread_executor             DiffEffects;
+		application::diff_application_host Diff;
+		std::jthread                       Actor;
+	};
+
+	void set_exact_blob_latency(fixture& aValue, const std::chrono::milliseconds aLatency, const bool aObservesStop)
+	{
+		std::scoped_lock lock{ aValue.State.ExactBlobMutex };
+		aValue.State.ExactBlobLatency             = aLatency;
+		aValue.State.ExactBlobLatencyObservesStop = aObservesStop;
+	}
+
+	/// [[BPR-1360]]. Live on macOS a cold open of a modified file waited for
+	/// two exact reads, one per side, one after the other (about 2.1 s each).
+	/// The two reads are now on the wire together: the open waits for the
+	/// longer of them, not their sum. Each read takes 300 ms, or a measured
+	/// live round trip passed as `--live-single-blob-ms` if that is longer.
+	void a_cold_open_reads_both_sides_at_once(const std::chrono::milliseconds aSingle)
+	{
+		const auto delay = std::max(aSingle, std::chrono::milliseconds{ 300 });
+		fixture    value;
+		establish_sparse_three_files(value);
+		set_exact_blob_latency(value, delay, false);
+		const auto resolved = open_file(value, file_request(value, "a.cpp", core::request_id{ 950U }));
+		expect(resolved.Status == application::workbench_selected_diff_status::available, "a.cpp resolves cold");
+
+		auto rig     = std::make_unique<cold_open_rig>(value);
+		auto elapsed = rig->open(resolved);
+		expect(rig->Outcomes.Published.size() == 1U && rig->Outcomes.Failed.empty(), "the cold open's comparison is published");
+		rig.reset();
+
+		auto spans = std::vector<shared_state::exact_blob_span>{ };
+		auto most  = std::size_t{ 0U };
+		{
+			std::scoped_lock lock{ value.State.ExactBlobMutex };
+			spans = value.State.ExactBlobSpans;
+			most  = value.State.ExactBlobMostInFlight;
+		}
+		expect(spans.size() == 2U && spans[0].Blob != spans[1].Blob, "each side is read exactly once");
+		const auto firstEnd    = std::min(spans[0].Ended, spans[1].Ended);
+		const auto secondStart = std::max(spans[0].Started, spans[1].Started);
+		const auto gap         = std::chrono::duration<double, std::milli>(firstEnd - secondStart).count();
+		std::cout << "BPR-1360 cold open, two exact reads of " << delay.count() << " ms: open " << elapsed
+				  << " ms (sum " << 2 * delay.count() << ", larger " << delay.count() << "); most in flight " << most
+				  << "; second read started " << gap << " ms before the first ended\n";
+		expect(most == 2U, "both sides' reads are on the wire together");
+		expect(secondStart < firstEnd, "the second side's read starts before the first side's ends");
+		expect(elapsed < 1.6 * static_cast<double>(delay.count()),
+			   "the cold open waits for about the longer read, well under the sum of the two");
+	}
+
+	/// [[BPR-1360]] under [[BPR-1359]]'s rule: both of a cold open's reads
+	/// are the reviewer's own. A prepared read on the actor is stopped for
+	/// them; preparation stopping its own work, or asking for another read
+	/// while they are on the wire, neither stops nor holds either of them.
+	void preparation_cannot_stop_or_delay_either_concurrent_reviewer_read()
+	{
+		using application::diff_blob_status;
+		constexpr auto delay = std::chrono::milliseconds{ 300 };
+		fixture        value;
+		establish_sparse_three_files(value);
+		// a.cpp's left blob is left to a single prepared read.
+		value.State.BatchContents[0].second = "forged\n";
+		const auto prepared                 = prepare_window(value, { file_request(value, "a.cpp") });
+		expect(prepared.Observations.size() == 1U && prepared.RemoteBlobs == 1U, "a.cpp is prepared but for its left blob");
+		const auto resolved = open_file(value, file_request(value, "b.cpp", core::request_id{ 960U }));
+		expect(resolved.Status == application::workbench_selected_diff_status::available, "the reviewer selects b.cpp, unprepared");
+		const auto preparedLeft = prepared_blob_request(value.Host->state(), prepared.Observations[0], core::diff_side::left);
+		const auto laterRequest = file_request(value, "c.cpp", core::request_id{ 961U });
+
+		auto rig = std::make_unique<cold_open_rig>(value);
+		// Preparation's read is on the wire, on the actor, for 20 s.
+		set_exact_blob_latency(value, std::chrono::seconds{ 20 }, true);
+		auto preparedRead = std::optional<application::diff_blob_observation>{ };
+		auto preparer     = std::jthread{ [&] { preparedRead = value.Host->materialize(preparedLeft, { }); } };
+		expect(rig->pump_until([&] { return value.State.ExactBlobReadsInFlight.load() == 1U; }), "preparation's read is in flight");
+		set_exact_blob_latency(value, delay, true);
+
+		// While the reviewer's two reads are on the wire, preparation asks for
+		// another read and for another window, and then stops its work.
+		auto       preparationStop = std::stop_source{ };
+		auto       laterPreparer   = std::optional<std::jthread>{ };
+		auto       laterWindow     = std::optional<std::jthread>{ };
+		auto       interfered      = false;
+		const auto key             = application::selected_diff_key(resolved);
+		expect(key.has_value(), "b.cpp has a diff key");
+		const auto started = std::chrono::steady_clock::now();
+		rig->Diff.request(*key, core::diff_options{ });
+		expect(rig->pump_until([&] {
+			if (!interfered && value.State.ExactBlobReadsInFlight.load() == 2U) {
+				interfered = true;
+				laterPreparer.emplace([&] { static_cast<void>(value.Host->materialize(preparedLeft, { })); });
+				laterWindow.emplace([&] {
+					static_cast<void>(value.Host->prepare({ laterRequest }, preparationStop.get_token()));
+				});
+				rig->Diff.prepare({ });
+				preparationStop.request_stop();
+			}
+			return !rig->Outcomes.Published.empty() || !rig->Outcomes.Failed.empty();
+		}),
+			   "the reviewer's comparison reaches a terminal");
+		const auto elapsed   = std::chrono::duration<double, std::milli>(rig->Outcomes.At - started).count();
+		const auto published = rig->Outcomes.Published.size();
+		preparer.join();
+		if (laterPreparer) {
+			laterPreparer->join();
+		}
+		if (laterWindow) {
+			laterWindow->join();
+		}
+		rig.reset();
+
+		auto spans = std::vector<shared_state::exact_blob_span>{ };
+		{
+			std::scoped_lock lock{ value.State.ExactBlobMutex };
+			spans = value.State.ExactBlobSpans;
+		}
+		const auto reviewers = [&resolved](const shared_state::exact_blob_span& aSpan) {
+			return aSpan.Blob == *resolved.LeftBlob || aSpan.Blob == *resolved.RightBlob;
+		};
+		auto reviewer = std::vector<shared_state::exact_blob_span>{ };
+		std::ranges::copy_if(spans, std::back_inserter(reviewer), reviewers);
+		std::cout << "BPR-1360 reviewer's cold open behind a prepared exact read: " << elapsed << " ms\n";
+		expect(published == 1U, "the reviewer's comparison is published");
+		expect(preparedRead && preparedRead->Status == diff_blob_status::cancelled && !spans.empty()
+				   && spans.front().Blob == preparedLeft.Blob && spans.front().Stopped,
+			   "the reviewer's cold open stops preparation's exact read on the actor");
+		expect(interfered && reviewer.size() == 2U && std::ranges::none_of(reviewer, &shared_state::exact_blob_span::Stopped)
+				   && std::max(reviewer[0].Started, reviewer[1].Started) < std::min(reviewer[0].Ended, reviewer[1].Ended),
+			   "both of the reviewer's reads run together and preparation stops neither");
+		const auto firstStart = std::min(reviewer[0].Started, reviewer[1].Started);
+		const auto lastEnd    = std::max(reviewer[0].Ended, reviewer[1].Ended);
+		expect(std::ranges::none_of(spans,
+									[&](const shared_state::exact_blob_span& aSpan) {
+										return !reviewers(aSpan) && aSpan.Started >= firstStart && aSpan.Started < lastEnd;
+									})
+				   && value.State.ExactBlobStopsObserved.load() == 1U && elapsed < 1.6 * static_cast<double>(delay.count()),
+			   "preparation holds neither read: nothing of preparation's starts while they are on the wire, and the "
+			   "open waits about one read, not the prepared read's 20 s");
+	}
+
+	/// [[BPR-1360]]. The reviewer moving on stops both of a cold open's reads.
+	void a_superseded_cold_open_stops_both_reads()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		const auto resolved = open_file(value, file_request(value, "a.cpp", core::request_id{ 970U }));
+		expect(resolved.Status == application::workbench_selected_diff_status::available, "a.cpp resolves cold");
+		set_exact_blob_latency(value, std::chrono::seconds{ 20 }, true);
+		auto       rig = std::make_unique<cold_open_rig>(value);
+		const auto key = application::selected_diff_key(resolved);
+		expect(key.has_value(), "a.cpp has a diff key");
+		rig->Diff.request(*key, core::diff_options{ });
+		expect(rig->pump_until([&] { return value.State.ExactBlobReadsInFlight.load() == 2U; }, std::chrono::seconds{ 5 }),
+			   "both of the open's reads are on the wire");
+		const auto stopped = std::chrono::steady_clock::now();
+		rig->Diff.cancel();
+		expect(rig->pump_until([&] { return value.State.ExactBlobReadsInFlight.load() == 0U && rig->Diff.outstanding_jobs() == 0U; },
+							   std::chrono::seconds{ 5 }),
+			   "a cancelled open's reads end and its job finishes");
+		const auto ended = std::chrono::steady_clock::now() - stopped;
+		rig.reset();
+		expect(value.State.ExactBlobStopsObserved.load() == 2U && ended < std::chrono::seconds{ 5 },
+			   "the reviewer moving on stops both reads, not only the one on the actor");
+	}
+
 	void preparation_is_bounded_cancellable_and_complete_reviews_stay_local()
 	{
 		fixture value;
@@ -8698,6 +9040,9 @@ int main(int argc, char** argv)
 	preparation_without_a_batching_transport_reads_nothing_ahead();
 	a_reviewer_selection_stops_preparations_exact_read();
 	a_failed_batch_backs_off_preparations_single_reads();
+	a_cold_open_reads_both_sides_at_once(LiveSingleBlob);
+	preparation_cannot_stop_or_delay_either_concurrent_reviewer_read();
+	a_superseded_cold_open_stops_both_reads();
 	preparation_is_bounded_cancellable_and_complete_reviews_stay_local();
 	live_shaped_open_latency(LiveSingleBlob, LiveBatch);
 	sparse_capability_applies_independently_of_pull_request_size();

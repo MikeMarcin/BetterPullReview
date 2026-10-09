@@ -40,10 +40,11 @@ namespace bpr::application {
 	{
 	public:
 		// Semantic ingress and state/quiescence inspection are confined to the
-		// serialized decision lane supplied at construction. materialize() is the
-		// sole concurrent ingress seam: diff workers enter through a close-aware
-		// call gate and the bounded job ledger. Worker effects otherwise communicate
-		// only by posting completions to the decision lane.
+		// serialized decision lane supplied at construction. materialize() and
+		// materialize_both() are the sole concurrent ingress seam: diff workers
+		// enter through a close-aware call gate and the bounded job ledger.
+		// Worker effects otherwise communicate only by posting completions to
+		// the decision lane.
 		// shutdown() closes ingress without waiting. Composition keeps every
 		// referenced port, executor, and projection alive until is_quiescent().
 		epoch_application_host(
@@ -99,6 +100,13 @@ namespace bpr::application {
 		[[nodiscard]] auto materialize(
 			const diff_blob_request& aRequest,
 			std::stop_token          aStop) -> diff_blob_observation override;
+		/// [[BPR-1360]]. Both sides of the reviewer's selected file in one
+		/// actor job, their network reads on the wire together; absent for
+		/// any other pair, which is read one side at a time.
+		[[nodiscard]] auto materialize_both(
+			const diff_blob_request& aLeft,
+			const diff_blob_request& aRight,
+			std::stop_token          aStop) -> std::optional<std::pair<diff_blob_observation, diff_blob_observation>> override;
 		[[nodiscard]] auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
 			std::stop_token                                aStop)

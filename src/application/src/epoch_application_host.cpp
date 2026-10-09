@@ -1301,6 +1301,74 @@ namespace bpr::application {
 			bool Abandoned = false;
 		};
 
+		/// \brief Where a cold open's caller waits for both sides. [[BPR-1360]]
+		///
+		/// \details Besides the result, the actor may lend the caller one
+		/// side's network read to make while it waits, so the two reads are on
+		/// the wire together without another thread. A read offered and not
+		/// yet taken when the caller stops waiting goes back to the actor.
+		struct blob_pair_waiter final
+		{
+			enum class lent_read : std::uint8_t {
+				none,
+				offered,
+				taken,
+				returned,
+			};
+
+			std::mutex                                                             Mutex;
+			std::condition_variable                                                Changed;
+			std::optional<std::pair<diff_blob_observation, diff_blob_observation>> Result;
+			std::function<void()>                                                  Lent;
+			lent_read                                                              Lend = lent_read::none;
+			/// The caller's stop token fired, as `blob_waiter::Abandoned`.
+			bool Abandoned = false;
+			/// The caller stopped waiting, stopped or at its bound.
+			bool Gone = false;
+		};
+
+		/// \brief One blob read on a repository actor, in three steps.
+		/// [[BPR-1360]]
+		///
+		/// \details `begin_actor_blob_read` does the actor's part up to the
+		/// network: the cache, the grants, retained bytes, the durable sparse
+		/// proof and the transport. `read_remote_blob` makes the one exact
+		/// network read still owed, if any; it touches no cache session, so a
+		/// cold open may lend it to the diff worker waiting for the result
+		/// while the actor reads the other side. `finish_actor_blob_read`
+		/// rechecks the authority under the actor's lock and publishes.
+		struct actor_blob_read final
+		{
+			explicit actor_blob_read(const diff_blob_request& aRequest)
+				: Request{ aRequest }
+			{
+				Observation.Context = aRequest.Context;
+				Observation.Side    = aRequest.Side;
+				Observation.Blob    = aRequest.Blob;
+				Observation.Status  = diff_blob_status::failure;
+			}
+
+			actor_blob_read(const actor_blob_read&)                    = delete;
+			auto operator=(const actor_blob_read&) -> actor_blob_read& = delete;
+			actor_blob_read(actor_blob_read&&)                         = delete;
+			auto operator=(actor_blob_read&&) -> actor_blob_read&      = delete;
+			~actor_blob_read()                                         = default;
+
+			const diff_blob_request&                                   Request;
+			diff_blob_observation                                      Observation;
+			bool                                                       Opened = false;
+			std::optional<git_cache_result<std::vector<std::uint8_t>>> Cached;
+			std::optional<std::vector<std::uint8_t>>                   Bytes;
+			std::optional<std::uint64_t>                               SelectedGrantSequence;
+			std::optional<std::uint64_t>                               PreparedGrantSequence;
+			bool                                                       FetchedRemotely   = false;
+			bool                                                       RetainedOverLimit = false;
+			/// [[BPR-1359]]. Held from admission until the network read ends.
+			std::optional<prepared_read_registration>   PreparedRead;
+			git_smart_transport                         Transport;
+			std::optional<git_smart_exact_blob_request> Remote;
+		};
+
 		struct selected_diff_waiter final
 		{
 			std::mutex                                         Mutex;
@@ -4811,6 +4879,212 @@ namespace bpr::application {
 			return std::ranges::equal(digest, std::span{ aBlob.bytes() }.first(20U));
 		}
 
+		/// \brief The actor's part of a blob read, up to the network.
+		/// [[BPR-1360]]
+		///
+		/// \details Runs on the actor. Leaves `Remote` set when the blob must
+		/// be read exactly from the network.
+		void begin_actor_blob_read(actor_blob_read&                               aRead,
+								   const std::shared_ptr<authority_effect_actor>& aActor,
+								   const std::shared_ptr<authority_context>&      aSelected,
+								   const blob_authority&                          aAuthorization,
+								   const std::uint64_t                            aAdmittedGeneration,
+								   const git_cache_open_request&                  aExpected,
+								   const std::stop_source&                        aJobStop)
+		{
+			const auto& request  = aRead.Request;
+			const auto  workStop = aJobStop.get_token();
+			if (workStop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+				aRead.Observation.Status = diff_blob_status::cancelled;
+				return;
+			}
+			if (blob_authorization_generation(aActor, aAuthorization) != aAdmittedGeneration) {
+				aRead.Observation.Status = diff_blob_status::failure;
+				return;
+			}
+			if (!open_actor_cache(*aActor, Caches, aExpected, workStop).has_value()) {
+				return;
+			}
+			aRead.Opened = true;
+			aRead.Cached = aActor->Cache->materialize_blob(
+				git_cache_blob_request{
+					.Blob         = request.Blob,
+					.MaximumBytes = request.MaximumBytes,
+				},
+				workStop);
+			if (*aRead.Cached) {
+				aRead.Bytes = std::move(**aRead.Cached);
+				return;
+			}
+			if (aRead.Cached->error() != git_cache_failure::object_mismatch
+				|| object_loading_for(aSelected->Handoff.Shape) != pull_request_object_loading::selected_objects
+				|| blob_authority_for(*aSelected) != aAuthorization || !aSelected->Handoff.SmartGit
+				|| !aSelected->Handoff.SmartGit->supports_sparse_commit_trees()
+				|| blob_authorization_generation(aActor, aAuthorization) != aAdmittedGeneration) {
+				return;
+			}
+			auto selectedPair = std::optional<core::comparison_pair>{ };
+			{
+				std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+				if (aActor->SelectedBlobGrant && exact_selected_blob_request(*aActor->SelectedBlobGrant, request)) {
+					aRead.SelectedGrantSequence = aActor->SelectedBlobGrantSequence;
+					selectedPair                = aActor->SelectedBlobGrant->Request.Diff.Comparison;
+				} else if (const auto prepared = std::ranges::find_if(
+							   aActor->PreparedGrants,
+							   [&request](const workbench_selected_diff_observation& aGrant) {
+								   return exact_selected_blob_request(aGrant, request);
+							   });
+						   prepared != aActor->PreparedGrants.end()) {
+					// [[BPR-1327]]. A prepared file's own blob.
+					aRead.PreparedGrantSequence = aActor->PreparedGrantSequence;
+					selectedPair                = prepared->Request.Diff.Comparison;
+				}
+				if (selectedPair) {
+					// Bytes already read and verified for this authority need
+					// no second network read.
+					aRead.Bytes = retained_blob(*aActor, request.Blob);
+					if (aRead.Bytes && aRead.Bytes->size() > request.MaximumBytes) {
+						aRead.Bytes.reset();
+						aRead.RetainedOverLimit = true;
+					}
+				}
+			}
+			if (aRead.Bytes || aRead.RetainedOverLimit || (!aRead.SelectedGrantSequence && !aRead.PreparedGrantSequence)
+				|| !selectedPair
+				|| !durably_sparse_anchor(*aActor, *aSelected,
+										  request.Side == core::diff_side::left ? selectedPair->Left : selectedPair->Right,
+										  workStop)) {
+				return;
+			}
+			// [[BPR-1359]]. A prepared file's blob read for preparation alone:
+			// it yields to reviewer work on this actor, and is not spent at all
+			// while this authority's batched read is failing.
+			if (aRead.PreparedGrantSequence && !aRead.SelectedGrantSequence) {
+				aRead.PreparedRead.emplace(*aActor, aJobStop);
+				if (!aRead.PreparedRead->admitted()) {
+					aRead.Observation.Status = aRead.PreparedRead->suspended() ? diff_blob_status::failure
+																			   : diff_blob_status::cancelled;
+					aRead.PreparedRead.reset();
+					return;
+				}
+			}
+			const auto smartContext = git_smart_request_context{
+				.ApplicationSession = aSelected->Handoff.ApplicationSession,
+				.Authority          = aSelected->Authority,
+				.Revision           = aSelected->Revision,
+				.Repository         = aSelected->Handoff.Locator,
+				.BaseRef            = aSelected->Handoff.BaseRef,
+			};
+			auto transport = aSelected->Handoff.SmartGit->acquire(smartContext);
+			if (transport && *transport) {
+				// Assigned member by member: GCC 15 at -O3 misreads a moved
+				// designated-initializer temporary's strings (tests/AGENTS.md).
+				aRead.Transport = std::move(*transport);
+				aRead.Remote.emplace();
+				aRead.Remote->Context      = smartContext;
+				aRead.Remote->ExpectedBlob = request.Blob;
+				aRead.Remote->MaximumBytes = static_cast<std::size_t>(request.MaximumBytes);
+				return;
+			}
+			if (!transport && transport.error().Failure == git_smart_transport_failure::cancelled) {
+				aRead.Observation.Status = diff_blob_status::cancelled;
+			}
+			aRead.PreparedRead.reset();
+		}
+
+		/// \brief The one exact network read a blob read still owes, if any.
+		/// [[BPR-1360]]
+		///
+		/// \details Touches no cache session and no actor state, so it may run
+		/// off the actor while the actor waits for it.
+		static void read_remote_blob(actor_blob_read& aRead, const std::stop_token aStop) noexcept
+		{
+			if (!aRead.Remote) {
+				return;
+			}
+			try {
+				const auto fetched = aRead.Transport->read_exact_blob(*aRead.Remote, aStop);
+				if (fetched) {
+					aRead.Bytes.emplace();
+					aRead.Bytes->reserve(fetched->size());
+					for (const auto byte : *fetched) {
+						aRead.Bytes->push_back(std::to_integer<std::uint8_t>(byte));
+					}
+					aRead.FetchedRemotely = true;
+				} else if (fetched.error().Failure == git_smart_transport_failure::cancelled) {
+					aRead.Observation.Status = diff_blob_status::cancelled;
+				} else if (fetched.error().Failure == git_smart_transport_failure::response_limit) {
+					aRead.Observation.Status = diff_blob_status::materialization_limit;
+				}
+			} catch (...) {
+				aRead.Bytes.reset();
+				aRead.FetchedRemotely    = false;
+				aRead.Observation.Status = diff_blob_status::failure;
+			}
+			aRead.Remote.reset();
+			aRead.PreparedRead.reset();
+		}
+
+		/// \brief Publishes a blob read under the actor's authority lock.
+		/// [[BPR-1360]]
+		///
+		/// \details Takes the lock if the caller does not already hold it and
+		/// leaves it held, so the caller hands the result over before an
+		/// invalidation can intervene.
+		void finish_actor_blob_read(actor_blob_read&                               aRead,
+									const std::shared_ptr<authority_effect_actor>& aActor,
+									const std::shared_ptr<authority_context>&      aSelected,
+									const blob_authority&                          aAuthorization,
+									const std::uint64_t                            aAdmittedGeneration,
+									const std::stop_token                          aStop,
+									std::unique_lock<std::mutex>&                  aPublicationLock)
+		{
+			if (!aRead.Opened) {
+				return;
+			}
+			const auto& request = aRead.Request;
+			const auto& cached  = *aRead.Cached;
+			if (aRead.Bytes.has_value()) {
+				if (!aPublicationLock.owns_lock()) {
+					aPublicationLock = std::unique_lock{ aActor->BlobAuthorityMutex };
+				}
+				if (aStop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+					aRead.Observation.Status = diff_blob_status::cancelled;
+				} else if (aActor->BlobAuthority != std::optional{ aAuthorization }
+						   || aActor->BlobAuthorityGeneration != aAdmittedGeneration
+						   || (aRead.SelectedGrantSequence
+							   && (aActor->SelectedBlobGrantSequence != *aRead.SelectedGrantSequence
+								   || !aActor->SelectedBlobGrant
+								   || !exact_selected_blob_request(*aActor->SelectedBlobGrant, request)))
+						   || (aRead.PreparedGrantSequence
+							   && (aActor->PreparedGrantSequence != *aRead.PreparedGrantSequence
+								   || std::ranges::none_of(aActor->PreparedGrants,
+														   [&request](const workbench_selected_diff_observation& aGrant) {
+															   return exact_selected_blob_request(aGrant, request);
+														   })))) {
+					aRead.Observation.Status = diff_blob_status::failure;
+				} else {
+					if (aRead.FetchedRemotely) {
+						try {
+							retain_blob(*aActor, request.Blob, *aRead.Bytes);
+						} catch (...) {
+							// Retention is an optimization; the read stands.
+						}
+					}
+					aRead.Observation.Status = diff_blob_status::available;
+					aRead.Observation.Bytes  = std::move(*aRead.Bytes);
+				}
+			} else if (!aRead.RetainedOverLimit && cached.error() == git_cache_failure::cancelled) {
+				aRead.Observation.Status = diff_blob_status::cancelled;
+			} else if (aRead.RetainedOverLimit || cached.error() == git_cache_failure::quota_exceeded) {
+				aRead.Observation.Status = diff_blob_status::materialization_limit;
+			} else if (cached.error() == git_cache_failure::object_mismatch
+					   && (object_loading_for(aSelected->Handoff.Shape) != pull_request_object_loading::selected_objects
+						   || !aSelected->Handoff.SmartGit || !aSelected->Handoff.SmartGit->supports_sparse_commit_trees())) {
+				aRead.Observation.Status = diff_blob_status::missing;
+			}
+		}
+
 		[[nodiscard]] auto materialize(
 			const diff_blob_request& aRequest,
 			const std::stop_token    aStop) -> diff_blob_observation
@@ -4912,12 +5186,7 @@ namespace bpr::application {
 					 waiter,
 					 control,
 					 reviewer = std::move(turn)] {
-						auto observation = diff_blob_observation{
-							.Context = aRequest.Context,
-							.Side    = aRequest.Side,
-							.Blob    = aRequest.Blob,
-							.Status  = diff_blob_status::failure,
-						};
+						auto read                     = actor_blob_read{ aRequest };
 						auto publicationAuthorityLock = std::unique_lock<std::mutex>{ };
 						try {
 							auto forwardCallerStop = std::stop_callback{
@@ -4927,174 +5196,15 @@ namespace bpr::application {
 								}
 							};
 							const auto workStop = control->Stop.get_token();
-							if (
-								workStop.stop_requested()
-								|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
-								observation.Status = diff_blob_status::cancelled;
-							} else if (
-								blob_authorization_generation(actor, authorization)
-								!= admittedGeneration) {
-								observation.Status = diff_blob_status::failure;
-							} else if (
-								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
-								auto cached = actor->Cache->materialize_blob(
-									git_cache_blob_request{
-										.Blob         = aRequest.Blob,
-										.MaximumBytes = aRequest.MaximumBytes,
-									},
-									workStop);
-								auto bytes                 = std::optional<std::vector<std::uint8_t>>{ };
-								auto selectedGrantSequence = std::optional<std::uint64_t>{ };
-								auto preparedGrantSequence = std::optional<std::uint64_t>{ };
-								auto fetchedRemotely       = false;
-								auto retainedOverLimit     = false;
-								if (cached) {
-									bytes = std::move(*cached);
-								} else if (cached.error() == git_cache_failure::object_mismatch
-										   && object_loading_for(selectedContext->Handoff.Shape)
-											   == pull_request_object_loading::selected_objects
-										   && blob_authority_for(*selectedContext) == authorization
-										   && selectedContext->Handoff.SmartGit
-										   && selectedContext->Handoff.SmartGit->supports_sparse_commit_trees()
-										   && blob_authorization_generation(actor, authorization)
-											   == admittedGeneration) {
-									auto selectedPair = std::optional<core::comparison_pair>{ };
-									{
-										std::scoped_lock lock{ actor->BlobAuthorityMutex };
-										if (actor->SelectedBlobGrant
-											&& exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)) {
-											selectedGrantSequence = actor->SelectedBlobGrantSequence;
-											selectedPair          = actor->SelectedBlobGrant->Request.Diff.Comparison;
-										} else if (const auto prepared = std::ranges::find_if(
-													   actor->PreparedGrants,
-													   [&aRequest](const workbench_selected_diff_observation& aGrant) {
-														   return exact_selected_blob_request(aGrant, aRequest);
-													   });
-												   prepared != actor->PreparedGrants.end()) {
-											// [[BPR-1327]]. A prepared file's own blob.
-											preparedGrantSequence = actor->PreparedGrantSequence;
-											selectedPair          = prepared->Request.Diff.Comparison;
-										}
-										if (selectedPair) {
-											// Bytes already read and verified for this
-											// authority need no second network read.
-											bytes = retained_blob(*actor, aRequest.Blob);
-											if (bytes && bytes->size() > aRequest.MaximumBytes) {
-												bytes.reset();
-												retainedOverLimit = true;
-											}
-										}
-									}
-									const auto durablySparse = [&] {
-										if (bytes || retainedOverLimit || (!selectedGrantSequence && !preparedGrantSequence) || !selectedPair) {
-											return false;
-										}
-										return durably_sparse_anchor(*actor, *selectedContext,
-																	 aRequest.Side == core::diff_side::left
-																		 ? selectedPair->Left
-																		 : selectedPair->Right,
-																	 workStop);
-									}();
-									// [[BPR-1359]]. A prepared file's blob read for
-									// preparation alone: it yields to reviewer work
-									// on this actor, and is not spent at all while
-									// this authority's batched read is failing.
-									auto preparedRead = std::optional<prepared_read_registration>{ };
-									if (durablySparse && preparedGrantSequence && !selectedGrantSequence) {
-										preparedRead.emplace(*actor, control->Stop);
-										if (!preparedRead->admitted()) {
-											observation.Status = preparedRead->suspended() ? diff_blob_status::failure
-																						   : diff_blob_status::cancelled;
-										}
-									}
-									if (durablySparse && (!preparedRead || preparedRead->admitted())) {
-										const auto smartContext = git_smart_request_context{
-											.ApplicationSession = selectedContext->Handoff.ApplicationSession,
-											.Authority          = selectedContext->Authority,
-											.Revision           = selectedContext->Revision,
-											.Repository         = selectedContext->Handoff.Locator,
-											.BaseRef            = selectedContext->Handoff.BaseRef,
-										};
-										const auto transport = selectedContext->Handoff.SmartGit->acquire(smartContext);
-										if (transport && *transport) {
-											const auto fetched = (*transport)->read_exact_blob(git_smart_exact_blob_request{
-																								   .Context      = smartContext,
-																								   .ExpectedBlob = aRequest.Blob,
-																								   .MaximumBytes = static_cast<std::size_t>(aRequest.MaximumBytes),
-																							   },
-																							   workStop);
-											if (fetched) {
-												bytes.emplace();
-												bytes->reserve(fetched->size());
-												for (const auto byte : *fetched) {
-													bytes->push_back(std::to_integer<std::uint8_t>(byte));
-												}
-												fetchedRemotely = true;
-											} else if (fetched.error().Failure == git_smart_transport_failure::cancelled) {
-												observation.Status = diff_blob_status::cancelled;
-											} else if (fetched.error().Failure == git_smart_transport_failure::response_limit) {
-												observation.Status = diff_blob_status::materialization_limit;
-											}
-										} else if (!transport
-												   && transport.error().Failure == git_smart_transport_failure::cancelled) {
-											observation.Status = diff_blob_status::cancelled;
-										}
-									}
-								}
-								if (bytes.has_value()) {
-									publicationAuthorityLock = std::unique_lock{
-										actor->BlobAuthorityMutex
-									};
-									if (
-										workStop.stop_requested()
-										|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
-										observation.Status = diff_blob_status::cancelled;
-									} else if (
-										actor->BlobAuthority
-											!= std::optional{ authorization }
-										|| actor->BlobAuthorityGeneration
-											!= admittedGeneration
-										|| (selectedGrantSequence
-											&& (actor->SelectedBlobGrantSequence != *selectedGrantSequence
-												|| !actor->SelectedBlobGrant
-												|| !exact_selected_blob_request(*actor->SelectedBlobGrant, aRequest)))
-										|| (preparedGrantSequence
-											&& (actor->PreparedGrantSequence != *preparedGrantSequence
-												|| std::ranges::none_of(
-													actor->PreparedGrants,
-													[&aRequest](const workbench_selected_diff_observation& aGrant) {
-														return exact_selected_blob_request(aGrant, aRequest);
-													})))) {
-										observation.Status = diff_blob_status::failure;
-									} else {
-										if (fetchedRemotely) {
-											try {
-												retain_blob(*actor, aRequest.Blob, *bytes);
-											} catch (...) {
-												// Retention is an optimization; the read stands.
-											}
-										}
-										observation.Status = diff_blob_status::available;
-										observation.Bytes  = std::move(*bytes);
-									}
-								} else if (
-									!retainedOverLimit && cached.error() == git_cache_failure::cancelled) {
-									observation.Status = diff_blob_status::cancelled;
-								} else if (
-									retainedOverLimit || cached.error() == git_cache_failure::quota_exceeded) {
-									observation.Status = diff_blob_status::materialization_limit;
-								} else if (
-									cached.error() == git_cache_failure::object_mismatch
-									&& (object_loading_for(selectedContext->Handoff.Shape)
-											!= pull_request_object_loading::selected_objects
-										|| !selectedContext->Handoff.SmartGit
-										|| !selectedContext->Handoff.SmartGit->supports_sparse_commit_trees())) {
-									observation.Status = diff_blob_status::missing;
-								}
-							}
+							begin_actor_blob_read(read, actor, selectedContext, authorization, admittedGeneration, expected,
+												  control->Stop);
+							read_remote_blob(read, workStop);
+							finish_actor_blob_read(read, actor, selectedContext, authorization, admittedGeneration, workStop,
+												   publicationAuthorityLock);
 						} catch (...) {
-							observation.Status = diff_blob_status::failure;
+							read.Observation.Status = diff_blob_status::failure;
 						}
+						auto observation    = std::move(read.Observation);
 						auto waiterLock     = std::unique_lock{ waiter->Mutex };
 						waiter->Result      = std::move(observation);
 						const auto reserved = retire_actor_job(control);
@@ -5147,6 +5257,250 @@ namespace bpr::application {
 				? diff_blob_status::cancelled
 				: diff_blob_status::failure;
 			return result;
+		}
+
+		/// \brief Both sides of the reviewer's cold open, read at once.
+		/// [[BPR-1360]]
+		///
+		/// \details One job on the actor does both sides' cache and grant
+		/// work, as two `materialize` calls would. When both sides must be
+		/// read from the network, the actor lends the left side's read to this
+		/// caller, which is only waiting, and reads the right side itself, so
+		/// the open waits about one round trip rather than two. Both are the
+		/// reviewer's reads ([[BPR-1359]]): the job stops a prepared read in
+		/// flight and none is admitted while it is queued or running, and
+		/// only this caller's stop or the host's closing stops either read.
+		/// Absent unless both blobs belong to the reviewer's selected file:
+		/// the diff host then reads the sides one at a time, as before.
+		[[nodiscard]] auto materialize_both(const diff_blob_request& aLeft,
+											const diff_blob_request& aRight,
+											const std::stop_token    aStop)
+			-> std::optional<std::pair<diff_blob_observation, diff_blob_observation>>
+		{
+			if (aLeft.Side != core::diff_side::left || aRight.Side != core::diff_side::right
+				|| aLeft.Context != aRight.Context) {
+				return std::nullopt;
+			}
+			if (!begin_blob_call()) {
+				return std::nullopt;
+			}
+			struct blob_call_guard final
+			{
+				implementation& Host;
+
+				~blob_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
+			const auto key = actor_key(aLeft);
+			if (!key.has_value() || actor_key(aRight) != key
+				|| std::max(aLeft.MaximumBytes, aRight.MaximumBytes) > maximum_git_cache_blob_materialization_bytes) {
+				return std::nullopt;
+			}
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(CacheActors, *key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return std::nullopt;
+			}
+			const auto authorization           = blob_authority_for(aLeft);
+			const auto authorizationGeneration = blob_authorization_generation(actor, authorization);
+			if (!authorizationGeneration) {
+				return std::nullopt;
+			}
+			auto selectedContext = std::shared_ptr<authority_context>{ };
+			{
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->BlobAuthority == std::optional{ authorization }
+					&& actor->BlobAuthorityGeneration == *authorizationGeneration && actor->SelectedBlobGrant
+					&& exact_selected_blob_request(*actor->SelectedBlobGrant, aLeft)
+					&& exact_selected_blob_request(*actor->SelectedBlobGrant, aRight)) {
+					selectedContext = actor->BlobContext.lock();
+				}
+			}
+			if (!selectedContext) {
+				return std::nullopt;
+			}
+
+			const auto unread = [](const diff_blob_request& aRequest) {
+				auto observation    = diff_blob_observation{ };
+				observation.Context = aRequest.Context;
+				observation.Side    = aRequest.Side;
+				observation.Blob    = aRequest.Blob;
+				observation.Status  = diff_blob_status::failure;
+				return observation;
+			};
+			auto result = std::pair{ unread(aLeft), unread(aRight) };
+			auto waiter = std::shared_ptr<blob_pair_waiter>{ };
+			try {
+				waiter = std::make_shared<blob_pair_waiter>();
+			} catch (...) {
+				return result;
+			}
+			auto admitted = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted) {
+				return result;
+			}
+			auto       control  = std::move(*admitted);
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = aLeft.Context.ApplicationSession,
+				.Authority          = aLeft.Context.Key.Authority,
+				.ObjectFormat       = aLeft.Blob.algorithm(),
+			};
+			try {
+				auto turn = std::make_shared<reviewer_work>(actor);
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 selectedContext,
+					 authorization,
+					 admittedGeneration = *authorizationGeneration,
+					 expected,
+					 aLeft,
+					 aRight,
+					 aStop,
+					 waiter,
+					 control,
+					 reviewer = std::move(turn)] {
+						auto left                     = actor_blob_read{ aLeft };
+						auto right                    = actor_blob_read{ aRight };
+						auto publicationAuthorityLock = std::unique_lock<std::mutex>{ };
+						try {
+							auto forwardCallerStop = std::stop_callback{
+								aStop, [control] { static_cast<void>(control->Stop.request_stop()); }
+							};
+							const auto workStop = control->Stop.get_token();
+							begin_actor_blob_read(left, actor, selectedContext, authorization, admittedGeneration, expected,
+												  control->Stop);
+							if (left.Bytes || left.Remote) {
+								begin_actor_blob_read(right, actor, selectedContext, authorization, admittedGeneration,
+													  expected, control->Stop);
+							} else {
+								// The left side has already failed, and the
+								// diff host reports the left side first: the
+								// right side's read would be wasted.
+								right.Observation.Status = diff_blob_status::cancelled;
+							}
+							read_both_remote_blobs(*waiter, left, right, workStop);
+							finish_actor_blob_read(left, actor, selectedContext, authorization, admittedGeneration, workStop,
+												   publicationAuthorityLock);
+							finish_actor_blob_read(right, actor, selectedContext, authorization, admittedGeneration,
+												   workStop, publicationAuthorityLock);
+						} catch (...) {
+							left.Observation.Status  = diff_blob_status::failure;
+							right.Observation.Status = diff_blob_status::failure;
+							left.Observation.Bytes.clear();
+							right.Observation.Bytes.clear();
+						}
+						auto waiterLock     = std::unique_lock{ waiter->Mutex };
+						waiter->Result      = std::pair{ std::move(left.Observation), std::move(right.Observation) };
+						const auto reserved = retire_actor_job(control);
+						struct actor_exit_reservation final
+						{
+							implementation& Host;
+							bool            Reserved;
+
+							~actor_exit_reservation()
+							{
+								Host.release_actor_job_reservation(Reserved);
+							}
+						} actorExit{ *this, reserved };
+						waiterLock.unlock();
+						waiter->Changed.notify_all();
+					});
+			} catch (...) {
+				finish_job(control);
+				return result;
+			}
+
+			// Registered before the lock is taken, per `materialize`.
+			auto releaseOnStop = std::stop_callback{ aStop, [waiter] {
+														{
+															const auto guard  = std::lock_guard{ waiter->Mutex };
+															waiter->Abandoned = true;
+														}
+														waiter->Changed.notify_all();
+													} };
+			std::unique_lock lock{ waiter->Mutex };
+			while (true) {
+				const auto woken = waiter->Changed.wait_for(lock, Limits.BlobWait, [&waiter] {
+					return waiter->Result.has_value() || waiter->Abandoned
+						|| waiter->Lend == blob_pair_waiter::lent_read::offered;
+				});
+				if (waiter->Result.has_value()) {
+					return std::move(*waiter->Result);
+				}
+				if (!woken || waiter->Abandoned) {
+					break;
+				}
+				// The actor lent this caller one side's network read.
+				waiter->Lend  = blob_pair_waiter::lent_read::taken;
+				auto lentRead = std::move(waiter->Lent);
+				waiter->Lent  = { };
+				lock.unlock();
+				lentRead();
+				lock.lock();
+				waiter->Lend = blob_pair_waiter::lent_read::returned;
+				waiter->Changed.notify_all();
+			}
+			waiter->Gone = true;
+			waiter->Changed.notify_all();
+			const auto status    = waiter->Abandoned ? diff_blob_status::cancelled : diff_blob_status::failure;
+			result.first.Status  = status;
+			result.second.Status = status;
+			return result;
+		}
+
+		/// \brief Makes both sides' owed network reads, at once when both owe
+		/// one. [[BPR-1360]]
+		///
+		/// \details Runs on the actor. The left side's read is lent to the
+		/// caller waiting in `materialize_both`, and the right side's is made
+		/// here meanwhile; the actor then waits for the lent read to come
+		/// back. A lent read the caller never took, because it stopped
+		/// waiting, is made here instead (a stopped job's read ends at once).
+		static void read_both_remote_blobs(blob_pair_waiter&     aWaiter,
+										   actor_blob_read&      aLeft,
+										   actor_blob_read&      aRight,
+										   const std::stop_token aStop) noexcept
+		{
+			auto lent = false;
+			if (aLeft.Remote && aRight.Remote) {
+				try {
+					std::scoped_lock lock{ aWaiter.Mutex };
+					if (!aWaiter.Gone && !aWaiter.Abandoned) {
+						aWaiter.Lent = [&aLeft, aStop] { read_remote_blob(aLeft, aStop); };
+						aWaiter.Lend = blob_pair_waiter::lent_read::offered;
+						lent         = true;
+					}
+				} catch (...) {
+					lent = false;
+				}
+			}
+			if (lent) {
+				aWaiter.Changed.notify_all();
+			}
+			read_remote_blob(aRight, aStop);
+			if (lent) {
+				std::unique_lock lock{ aWaiter.Mutex };
+				aWaiter.Changed.wait(lock, [&aWaiter] {
+					return aWaiter.Lend == blob_pair_waiter::lent_read::returned
+						|| (aWaiter.Lend == blob_pair_waiter::lent_read::offered && (aWaiter.Gone || aWaiter.Abandoned));
+				});
+				lent         = aWaiter.Lend == blob_pair_waiter::lent_read::returned;
+				aWaiter.Lend = blob_pair_waiter::lent_read::none;
+				aWaiter.Lent = { };
+			}
+			if (!lent) {
+				read_remote_blob(aLeft, aStop);
+			}
 		}
 
 		[[nodiscard]] auto materialize_agent_workspace(
@@ -8697,6 +9051,14 @@ namespace bpr::application {
 		const std::stop_token    aStop) -> diff_blob_observation
 	{
 		return Implementation->materialize(aRequest, aStop);
+	}
+
+	auto epoch_application_host::materialize_both(
+		const diff_blob_request& aLeft,
+		const diff_blob_request& aRight,
+		const std::stop_token    aStop) -> std::optional<std::pair<diff_blob_observation, diff_blob_observation>>
+	{
+		return Implementation->materialize_both(aLeft, aRight, aStop);
 	}
 
 	auto epoch_application_host::prepare(

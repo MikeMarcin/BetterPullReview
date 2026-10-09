@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <stop_token>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -120,6 +121,20 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto materialize(
 			const diff_blob_request& aRequest,
 			std::stop_token          aStop) -> diff_blob_observation = 0;
+
+		/// \brief Both sides of one comparison, read at once. [[BPR-1360]]
+		///
+		/// \details A port that can overlap the two reads answers both, left
+		/// then right, each exactly as `materialize` would. Absent when it
+		/// cannot for this pair: the caller then reads the sides one at a
+		/// time. Stopping `aStop` stops both reads.
+		[[nodiscard]] virtual auto materialize_both(
+			const diff_blob_request& /*aLeft*/,
+			const diff_blob_request& /*aRight*/,
+			std::stop_token /*aStop*/) -> std::optional<std::pair<diff_blob_observation, diff_blob_observation>>
+		{
+			return std::nullopt;
+		}
 	};
 
 	/// \brief Describes the diff publication record.

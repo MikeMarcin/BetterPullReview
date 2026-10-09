@@ -824,6 +824,21 @@ A new window cancels the previous preparation; invalidation of the pull
 request or account cancels it and discards its queue and cache entries; window
 close stops it, and shutdown waits for it.
 
+[[BPR-1360]] A cold open reads its two sides at once. When both blobs of the
+opened comparison belong to the reviewer's selected grant, the diff worker asks
+for them together (`diff_blob_port::materialize_both`), and the epoch host does
+both sides' cache and grant work in one job on the repository actor. When both
+must be read exactly from the network, the actor lends the left side's read to
+the diff worker, which is only waiting for the result, and makes the right
+side's read itself. The open then waits for the longer round trip rather than
+both, without another thread. The lent read touches no cache session. Both
+answers are rechecked and published under the actor's authority lock, and the
+diff worker checks them left first, as before. Both reads are the reviewer's
+([[BPR-1359]]): the job stops a prepared exact read in flight, and none is
+admitted while the job is queued or running. Only the reviewer's own stop (a
+superseded selection) or shutdown stops either read. Any other pair, including
+preparation's, is read one side at a time.
+
 Composition forwards every accepted epoch projection unchanged to Qt, then
 replays the retained workbench selection only after an available comparison is
 accepted. A new workbench authority/generation retires selected work, clears

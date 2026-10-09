@@ -793,6 +793,19 @@ namespace bpr::application {
 			}
 		}
 
+		/// The read of one side of a job's comparison.
+		[[nodiscard]] static auto blob_request(const diff_job& aJob, const core::diff_side aSide,
+											   const std::uint64_t aMaterializeLimit) -> diff_blob_request
+		{
+			const auto& key = aJob.Request.Context.Key;
+			return {
+				.Context      = aJob.Request.Context,
+				.Side         = aSide,
+				.Blob         = aSide == core::diff_side::left ? *key.LeftBlob : *key.RightBlob,
+				.MaximumBytes = aMaterializeLimit,
+			};
+		}
+
 		[[nodiscard]] static auto perform(
 			const std::shared_ptr<diff_job>& aJob,
 			diff_blob_port&                  aBlobs,
@@ -810,16 +823,21 @@ namespace bpr::application {
 					completion.Reason = core::diff_reason_code::cancelled;
 					return completion;
 				}
-				auto left  = std::optional<std::vector<std::uint8_t>>{ };
-				auto right = std::optional<std::vector<std::uint8_t>>{ };
-				if (aJob->Request.Context.Key.LeftBlob.has_value()) {
-					const auto request = diff_blob_request{
-						.Context      = aJob->Request.Context,
-						.Side         = core::diff_side::left,
-						.Blob         = *aJob->Request.Context.Key.LeftBlob,
-						.MaximumBytes = aMaterializeLimit,
-					};
-					auto observation = aBlobs.materialize(request, stop);
+				auto        left  = std::optional<std::vector<std::uint8_t>>{ };
+				auto        right = std::optional<std::vector<std::uint8_t>>{ };
+				const auto& key   = aJob->Request.Context.Key;
+				// [[BPR-1360]]. A modified file's two sides are asked for
+				// together, so a port that can overlap their reads makes the
+				// open wait for the longer read, not both. Each answer is then
+				// checked in order, left first, exactly as one read would be.
+				auto both = std::optional<std::pair<diff_blob_observation, diff_blob_observation>>{ };
+				if (key.LeftBlob.has_value() && key.RightBlob.has_value()) {
+					both = aBlobs.materialize_both(blob_request(*aJob, core::diff_side::left, aMaterializeLimit),
+												   blob_request(*aJob, core::diff_side::right, aMaterializeLimit), stop);
+				}
+				if (key.LeftBlob.has_value()) {
+					const auto request     = blob_request(*aJob, core::diff_side::left, aMaterializeLimit);
+					auto       observation = both ? std::move(both->first) : aBlobs.materialize(request, stop);
 					if (!exact_blob_observation(request, observation)) {
 						return completion;
 					}
@@ -838,14 +856,9 @@ namespace bpr::application {
 					completion.Reason = core::diff_reason_code::cancelled;
 					return completion;
 				}
-				if (aJob->Request.Context.Key.RightBlob.has_value()) {
-					const auto request = diff_blob_request{
-						.Context      = aJob->Request.Context,
-						.Side         = core::diff_side::right,
-						.Blob         = *aJob->Request.Context.Key.RightBlob,
-						.MaximumBytes = aMaterializeLimit,
-					};
-					auto observation = aBlobs.materialize(request, stop);
+				if (key.RightBlob.has_value()) {
+					const auto request     = blob_request(*aJob, core::diff_side::right, aMaterializeLimit);
+					auto       observation = both ? std::move(both->second) : aBlobs.materialize(request, stop);
 					if (!exact_blob_observation(request, observation)) {
 						return completion;
 					}
