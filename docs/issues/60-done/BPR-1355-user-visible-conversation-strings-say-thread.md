@@ -85,7 +85,9 @@ there and restructures nothing.
 
 ## Verification (macOS, offscreen, 2026-10-08)
 
-Product commit `f3ccc8df4`, over `83263f10e`.
+Product commit `f3ccc8df4`, over `83263f10e`. Rebased onto `bfec328be`
+before the push, it is `614c34fa3` on `main`, with the same contents in
+every path it changes; the acceptance records name `f3ccc8df4`.
 
 - `application_thread_words_public_path` passes. With the model header and
   the Discuss list's accessible name temporarily put back to
