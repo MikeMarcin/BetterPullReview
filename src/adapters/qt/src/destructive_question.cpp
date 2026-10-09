@@ -419,7 +419,7 @@ namespace bpr::qt {
 		Box->hide();
 		column->addWidget(Box);
 
-		// The muted words, ending "This can't be undone.".
+		// The muted words, ending "This cannot be undone.".
 		GapDetail = new QSpacerItem{ 0, 8, QSizePolicy::Minimum, QSizePolicy::Fixed };
 		column->addSpacerItem(GapDetail);
 		Detail = new QLabel{ aDetail, this };

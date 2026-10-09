@@ -8473,7 +8473,7 @@ namespace bpr::qt {
 		// the comment as this drawer reads it, in its box (owner,
 		// delete-comment v002).
 		auto* const box = new destructive_question{ *this, QStringLiteral("deleteDraftConfirmation"), pending ? tr("Delete this comment from your review?") : tr("Delete this comment?"),
-													tr("This can't be undone."), tr("Delete comment") };
+													tr("This cannot be undone."), tr("Delete comment") };
 		if (shown.has_value()) {
 			const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
 			const auto path    = context.has_value() ? path_of(context->Key.File) : QString{ };

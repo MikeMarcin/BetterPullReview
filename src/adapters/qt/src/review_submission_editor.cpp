@@ -982,7 +982,7 @@ namespace bpr::qt {
 		const auto  text = count == 0U ? tr("Discard your review summary?")
 			: count == 1U              ? tr("Discard your review and its 1 pending comment?")
 									   : tr("Discard your review and its %1 pending comments?").arg(count);
-		auto* const box  = new destructive_question{ *window(), QStringLiteral("discardReviewConfirmation"), text, tr("This can't be undone."), count == 0U ? tr("Discard") : tr("Discard review") };
+		auto* const box  = new destructive_question{ *window(), QStringLiteral("discardReviewConfirmation"), text, tr("This cannot be undone."), count == 0U ? tr("Discard") : tr("Discard review") };
 		DiscardQuestion  = box;
 		const auto id    = Draft->Id;
 		connect(box, &QDialog::accepted, this, [this, id] {
@@ -1014,7 +1014,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-1345]] v003. Where the comment is, then the comment itself in
 		// a box as the drawer reads it, apart from the question's words.
-		auto* const box  = new destructive_question{ *window(), QStringLiteral("deleteCommentConfirmation"), tr("Delete this comment from your review?"), tr("This can't be undone."), tr("Delete comment") };
+		auto* const box  = new destructive_question{ *window(), QStringLiteral("deleteCommentConfirmation"), tr("Delete this comment from your review?"), tr("This cannot be undone."), tr("Delete comment") };
 		auto        code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 		code.setPointSizeF(font().pointSizeF() * 0.95);
 		box->set_subject(text_of(aComment.Path).section(QLatin1Char{ '/' }, -1), comment_lines(aComment.Side, aComment.Line, aComment.StartLine), aComment.Body,

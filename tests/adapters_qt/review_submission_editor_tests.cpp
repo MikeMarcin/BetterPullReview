@@ -288,7 +288,7 @@ auto main(int argc, char** argv) -> int
 	// line, the comment itself rendered in its box, and only that it cannot
 	// be undone (owner, delete-comment v002).
 	expect(question != nullptr && question->isVisible() && question->question() == QStringLiteral("Delete this comment from your review?")
-			   && question->location() == QStringLiteral("renderer.cpp, line 431") && question->detail() == QStringLiteral("This can't be undone.")
+			   && question->location() == QStringLiteral("renderer.cpp, line 431") && question->detail() == QStringLiteral("This cannot be undone.")
 			   && question->subject_box()->isVisible() && question->subject_view() != nullptr
 			   && question->subject_view()->rendered_view()->toPlainText().startsWith(QStringLiteral("question: Where does 0.01 come from?"))
 			   && question->subject_view()->rendered_view()->toPlainText().contains(QStringLiteral("It looks arbitrary."))
@@ -367,7 +367,7 @@ auto main(int argc, char** argv) -> int
 		QApplication::processEvents();
 		auto* discard = live.discard_confirmation();
 		expect(discard != nullptr && discard->isVisible() && discard->question() == QStringLiteral("Discard your review and its 2 pending comments?")
-				   && discard->detail() == QStringLiteral("This can't be undone.") && discard->confirm_button()->text() == QStringLiteral("Discard review")
+				   && discard->detail() == QStringLiteral("This cannot be undone.") && discard->confirm_button()->text() == QStringLiteral("Discard review")
 				   && discard->confirm_button()->role() == qt::question_button_role::destructive && discard->cancel_button()->isDefault()
 				   && liveIntents.empty() && closed == 0,
 			   "Discard review asks first in the shared question, naming the count");

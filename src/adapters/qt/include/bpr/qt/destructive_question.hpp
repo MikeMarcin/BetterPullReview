@@ -32,7 +32,7 @@ class QSpacerItem;
 /// information. Color the delete box red ane ensure it looks dangerous sort of
 /// like this one from codex"), and asked the same of Discard review. The
 /// reference is a rounded panel in the theme's own surface: a bold question, a
-/// close mark, muted words that end "This can't be undone.", and a neutral
+/// close mark, muted words that end "This cannot be undone.", and a neutral
 /// Cancel beside a deleting button in red words on a red tint.
 ///
 /// Everything is painted from the palette the owning window carries (the
@@ -142,7 +142,7 @@ namespace bpr::qt {
 	public:
 		/// \param aQuestion The bold title, which is also the window's title
 		/// and the accessible name: "Delete this comment?".
-		/// \param aDetail The muted words, ending "This can't be undone.".
+		/// \param aDetail The muted words, ending "This cannot be undone.".
 		/// \param aConfirm The deleting button's words: "Delete comment".
 		destructive_question(QWidget& aOwner, const QString& aName, const QString& aQuestion, const QString& aDetail, const QString& aConfirm);
 

@@ -63,7 +63,7 @@ auto main(int argc, char** argv) -> int
 	// owner asked, Cancel then the deleting button.
 	{
 		QPointer<qt::destructive_question> question = new qt::destructive_question{ host, QStringLiteral("deleteCommentConfirmation"), QStringLiteral("Delete this comment from your review?"),
-																					QStringLiteral("This can't be undone."), QStringLiteral("Delete comment") };
+																					QStringLiteral("This cannot be undone."), QStringLiteral("Delete comment") };
 		question->set_subject(QStringLiteral("renderer.cpp"), qt::comment_lines(core::diff_side::right, 3U, 2U), "nitpick: these two lines could be **one**.\n\nSee `scale`.", "pending:7:2",
 							  qt::default_feedback_mark_theme(host.palette()), code);
 		auto accepted = 0;
@@ -78,7 +78,7 @@ auto main(int argc, char** argv) -> int
 		expect(question->question() == QStringLiteral("Delete this comment from your review?") && question->windowTitle() == question->question()
 				   && question->accessibleName() == question->question() && question->title_label()->font().bold(),
 			   "the question is the bold title, the window's title and its accessible name");
-		expect(question->detail() == QStringLiteral("This can't be undone.") && !question->detail().contains(QStringLiteral("computer")),
+		expect(question->detail() == QStringLiteral("This cannot be undone.") && !question->detail().contains(QStringLiteral("computer")),
 			   "the words say only that it cannot be undone (owner: \"We don't need to say 'it is deleted from this computer'\")");
 		expect(question->location() == QStringLiteral("renderer.cpp, lines 3–4") && question->location_label()->text() == QStringLiteral("renderer.cpp")
 				   && question->location_label()->font().weight() >= QFont::DemiBold,
@@ -117,7 +117,7 @@ auto main(int argc, char** argv) -> int
 		expect(rejected == 1 && accepted == 0, "Esc cancels");
 	}
 	{
-		auto* const question = new qt::destructive_question{ host, QStringLiteral("q"), QStringLiteral("Delete this comment?"), QStringLiteral("This can't be undone."), QStringLiteral("Delete comment") };
+		auto* const question = new qt::destructive_question{ host, QStringLiteral("q"), QStringLiteral("Delete this comment?"), QStringLiteral("This cannot be undone."), QStringLiteral("Delete comment") };
 		auto        accepted = 0;
 		auto        rejected = 0;
 		QObject::connect(question, &QDialog::accepted, [&] { ++accepted; });
@@ -131,7 +131,7 @@ auto main(int argc, char** argv) -> int
 		expect(rejected == 1 && accepted == 0, "Return on the focused default keeps it");
 	}
 	{
-		auto* const question = new qt::destructive_question{ host, QStringLiteral("q"), QStringLiteral("Delete this comment?"), QStringLiteral("This can't be undone."), QStringLiteral("Delete comment") };
+		auto* const question = new qt::destructive_question{ host, QStringLiteral("q"), QStringLiteral("Delete this comment?"), QStringLiteral("This cannot be undone."), QStringLiteral("Delete comment") };
 		auto        accepted = 0;
 		auto        rejected = 0;
 		QObject::connect(question, &QDialog::accepted, [&] { ++accepted; });
@@ -143,7 +143,7 @@ auto main(int argc, char** argv) -> int
 		expect(rejected == 1 && accepted == 0, "the close mark cancels");
 	}
 	{
-		auto* const question = new qt::destructive_question{ host, QStringLiteral("q"), QStringLiteral("Discard your review and its 2 pending comments?"), QStringLiteral("This can't be undone."), QStringLiteral("Discard review") };
+		auto* const question = new qt::destructive_question{ host, QStringLiteral("q"), QStringLiteral("Discard your review and its 2 pending comments?"), QStringLiteral("This cannot be undone."), QStringLiteral("Discard review") };
 		auto        accepted = 0;
 		QObject::connect(question, &QDialog::accepted, [&] { ++accepted; });
 		question->open();
@@ -170,7 +170,7 @@ auto main(int argc, char** argv) -> int
 		themed.show();
 		settle();
 		auto* const question = new qt::destructive_question{ themed, QStringLiteral("deleteCommentConfirmation"), QStringLiteral("Delete this comment from your review?"),
-															 QStringLiteral("This can't be undone."), QStringLiteral("Delete comment") };
+															 QStringLiteral("This cannot be undone."), QStringLiteral("Delete comment") };
 		question->set_subject(QStringLiteral("renderer.cpp"), qt::comment_lines(core::diff_side::right, 3U, 2U), "nitpick: these two lines could be one.", "pending:7:2",
 							  qt::default_feedback_mark_theme(themed.palette()), code);
 		question->open();
@@ -196,7 +196,7 @@ auto main(int argc, char** argv) -> int
 		if (!renders.isEmpty()) {
 			expect(question->grab().save(renders + QStringLiteral("/delete-comment-") + QString::fromLatin1(name) + QStringLiteral(".png")), "render saved");
 			auto* const discardQuestion = new qt::destructive_question{ themed, QStringLiteral("discardReviewConfirmation"), QStringLiteral("Discard your review and its 2 pending comments?"),
-																		QStringLiteral("This can't be undone."), QStringLiteral("Discard review") };
+																		QStringLiteral("This cannot be undone."), QStringLiteral("Discard review") };
 			discardQuestion->open();
 			settle();
 			expect(discardQuestion->grab().save(renders + QStringLiteral("/discard-review-") + QString::fromLatin1(name) + QStringLiteral(".png")), "render saved");

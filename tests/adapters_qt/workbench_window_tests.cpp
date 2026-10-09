@@ -6580,7 +6580,7 @@ namespace {
 		// [[BPR-1345]] v003. The shared question, the draft's words in its
 		// box as the drawer reads them.
 		expect(question != nullptr && question->isVisible() && question->question() == QStringLiteral("Delete this comment?")
-				   && question->detail() == QStringLiteral("This can't be undone.") && question->subject_view() != nullptr
+				   && question->detail() == QStringLiteral("This cannot be undone.") && question->subject_view() != nullptr
 				   && question->subject_view()->rendered_view()->toPlainText() == QStringLiteral("local text") && question->cancel_button()->isDefault()
 				   && drawer_writing(window),
 			   "Delete asks first, and the draft stays open while it asks");

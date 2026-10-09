@@ -1523,9 +1523,19 @@ anchored tooltip names its key. Where the drawer is too narrow for both pills,
 the main action keeps the row with a split arrow joined to its right edge, and
 the arrow's menu carries Add single comment with its key; nothing stacks or is
 cut off. Delete asks first when the draft has words ("Delete this comment?",
-or "… from your review?" for a pending one; Cancel is the default), and
-deletes the draft from this computer. Each pending draft is its dashed note at
-its line, named "Pending in your review", whichever line is selected.
+or "… from your review?" for a pending one), and deletes the draft from this
+computer. Every deletion in the compose flow asks in one shared destructive
+question ([[BPR-1345]] v003, after the owner's v002 notes on Delete and
+Discard review): a rounded panel in the asking window's own theme with the
+question in bold and a close ×; under it, for a comment, its file and lines on
+their own line and then the comment in a recessed box as the drawer reads it
+(its label's mark in the left gutter, the header in semibold, the Markdown
+rendered); then only "This cannot be undone." (owner, v003: "please say cannot
+instead of can't"); then a neutral Cancel, the default and focused, beside the
+deleting button, named for what it does and drawn in red words on a red tint.
+Esc, Cancel and × keep everything; only the red button deletes. Each pending
+draft is its dashed note at its line, named "Pending in your review", whichever
+line is selected.
 
 Finish review opens the summary in Discuss as "Finish your review", one column
 no wider than a comfortable line (v002, the owner: "Make this page beautiful,
@@ -1541,10 +1551,10 @@ the review at once, each as its own verdict, and are each enabled only when
 the core says the review can be submitted so (Request changes waits for a
 summary, Comment for a summary or a line comment; a disabled one says why in
 its tooltip); "Nothing is published until you submit." said once, with
-**Discard review** quiet at the end of the same line; and "Pull request and
-account", a disclosure closed by default, over the host, head and account.
-The status line shows only an outcome; Check status and New review show only
-when they can act. No separate Submit review step remains: the verdict
+**Discard review** quiet at the end of the same line, in red words with the
+red tint only under the pointer; and "Pull request and account", a disclosure
+closed by default, over the host, head and account. The status line shows only
+an outcome; Check status shows only when it can act. No separate Submit review step remains: the verdict
 pressed is the one submitted, and a verdict's own tooltip already says what it
 does before it is pressed. Submit sends one GitHub review whose comments are
 exactly the pending drafts (lines, ranges and both sides). Every carried draft
@@ -1552,10 +1562,16 @@ is held for that submission before anything is sent, and is marked published
 only when GitHub's review list and comment collection show the review with
 exactly those comments; a refusal returns each to pending with its text, and
 an unknown answer keeps each held, with its text, until Check status settles
-it. Discard review asks first, naming how many pending comments it deletes;
-confirmed, it deletes every pending comment of the review and its summary,
-and the page closes. A finished review, submitted or discarded, is never the
-next one: the next review starts at once with its own comments.
+it. When GitHub confirms the review, on Submit or later through Check
+status, the page closes and returns to the view Finish review was pressed in
+(Review or Discuss), and the status bar says "Review submitted with N
+comments" (v002, the owner: "once the review is submitted I just want it to
+close and return to the PR"); a refusal or an unknown answer keeps the page
+with its words. Discard review asks first in the shared question, naming how
+many pending comments it deletes ("Discard your review and its N pending
+comments?"); confirmed, it deletes every pending comment of the review and its
+summary, and the page closes. A finished review, submitted or discarded, is
+never the next one: the next review starts at once with its own comments.
 Return in the field is a new line. Esc keeps a
 written draft as its dashed note and drops an empty one, and focus returns to
 the code on the same line; opening the note writes it again. A draft on
