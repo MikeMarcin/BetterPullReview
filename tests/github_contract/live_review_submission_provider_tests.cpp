@@ -322,7 +322,7 @@ namespace {
 				}
 				return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(headers), .Body = list(Reviews) } };
 			}
-			if (Comments45 && key == scripted_request{ .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100" }) {
+			if (Comments45 && key == scripted_request{ .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100&page=1" }) {
 				return github_mutation_wire_success{ .Response = { .Status = 200, .Body = *Comments45 } };
 			}
 			if (key == review_post()) {
@@ -998,7 +998,7 @@ namespace {
 			if (wire.Method == http_method::get && wire.Path == pull + "/reviews?per_page=100") {
 				return ok(Sent ? After : Before);
 			}
-			if (wire.Method == http_method::get && wire.Path == pull + "/comments?per_page=100") {
+			if (wire.Method == http_method::get && wire.Path == pull + "/comments?per_page=100&page=1") {
 				return ok(Comments);
 			}
 			if (wire.Method == http_method::post && wire.Path == pull + "/reviews") {

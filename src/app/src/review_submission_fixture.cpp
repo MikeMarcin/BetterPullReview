@@ -5,6 +5,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <algorithm>
+#include <iterator>
+#include <string>
 
 namespace bpr::app::detail {
 	namespace {
@@ -208,10 +210,14 @@ namespace bpr::app::detail {
 				}
 				return "COMMENTED";
 			}
-			auto comments_json(const std::vector<application::staged_review_comment>& comments) const -> std::string
+			/// [[BPR-1367]]. As GitHub answers: a review's own comment list
+			/// (`aLines` false) carries no `line`, `side`, `start_line`,
+			/// `start_side` or `subject_type`, pending or submitted; only the
+			/// pull request's collection does (probed on MikeMarcin/BPR-Test#45).
+			auto comments_json(const std::vector<application::staged_review_comment>& aComments, const bool aLines = false) const -> std::string
 			{
 				std::string result = "[";
-				for (auto i = comments.rbegin(); i != comments.rend(); ++i) {
+				for (auto i = aComments.rbegin(); i != aComments.rend(); ++i) {
 					const auto& c = *i;
 					if (result.size() > 1) {
 						result += ",";
@@ -220,9 +226,12 @@ namespace bpr::app::detail {
 					if (c.Source) {
 						const auto& source = *c.Source;
 						const auto  side   = source.Side == core::diff_side::left ? "LEFT" : "RIGHT";
-						result += ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"pull_request_review_id\":" + std::to_string(c.Review.value()) + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(Binding.Target.Semantic.ExpectedHead).view() }) + ",\"path\":" + json_text(source.Path) + ",\"side\":" + json_text(side) + ",\"line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
-						if (source.FirstLine != source.LastLine) {
-							result += ",\"start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1) + ",\"start_side\":" + json_text(side);
+						result += ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"pull_request_review_id\":" + std::to_string(c.Review.value()) + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(Binding.Target.Semantic.ExpectedHead).view() }) + ",\"path\":" + json_text(source.Path);
+						if (aLines) {
+							result += ",\"subject_type\":\"line\",\"side\":" + json_text(side) + ",\"line\":" + std::to_string(std::uint64_t{ source.LastLine } + 1);
+							if (source.FirstLine != source.LastLine) {
+								result += ",\"start_line\":" + std::to_string(std::uint64_t{ source.FirstLine } + 1) + ",\"start_side\":" + json_text(side);
+							}
 						}
 					} else {
 						result += ",\"issue_url\":" + json_text(api() + repository() + "/issues/" + std::to_string(Binding.Target.Number.value()));
@@ -247,11 +256,6 @@ namespace bpr::app::detail {
 					if (w.Path == pull()) {
 						const auto& t = Binding.Target;
 						return success("{\"id\":" + std::to_string(t.PullRequestDatabaseId) + ",\"node_id\":" + json_text(t.PullRequestNodeId) + ",\"number\":" + std::to_string(t.Number.value()) + ",\"state\":\"open\",\"body\":" + json_text(State->StagedDescription.value_or(Description)) + ",\"head\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() }) + ",\"ref\":" + json_text(t.HeadRef) + "},\"base\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + ",\"ref\":" + json_text(t.BaseRef) + ",\"repo\":{\"id\":" + std::to_string(t.BaseRepositoryDatabaseId) + ",\"node_id\":" + json_text(t.RepositoryNodeId) + ",\"full_name\":" + json_text(t.Repository.Owner + "/" + t.Repository.Name) + "}}}");
-					}
-					// [[BPR-1345]]. The pull request's review comments, each
-					// naming its review, as the submission session reads them.
-					if (w.Path == pull() + "/comments?per_page=100") {
-						return success(comments_json(State->PreviousComments));
 					}
 					// [[BPR-1345]]. The ordinary review list the submission
 					// session reads before and after its POST.
@@ -314,6 +318,32 @@ namespace bpr::app::detail {
 					}
 					if (w.Path == issuePath + "?per_page=100&page=1") {
 						return success(comments_json(State->CompatibilityComments));
+					}
+					// [[BPR-1345]] [[BPR-1367]]. The pull request's collection, as
+					// the submission session and the tour read it: every
+					// submitted review's comments, each naming its review, with
+					// lines, 100 to a page. It lists no comment of a pending
+					// review, not even to its author.
+					if (const auto collection = pull() + "/comments?per_page=100&page="; w.Path.starts_with(collection)) {
+						std::vector<application::staged_review_comment> listed;
+						const auto                                      submitted = [](const application::staged_review_entity& aReview) { return aReview.State != application::staged_review_state::pending; };
+						for (const auto& review : State->PreviousReviews) {
+							if (submitted(review)) {
+								std::ranges::copy_if(State->PreviousComments, std::back_inserter(listed), [&review](const application::staged_review_comment& aComment) { return aComment.Review == review.Id; });
+							}
+						}
+						if (State->StagedReview && submitted(*State->StagedReview)) {
+							listed.insert(listed.end(), State->StagedComments.begin(), State->StagedComments.end());
+						}
+						const auto page  = std::stoul(w.Path.substr(collection.size()));
+						const auto first = std::min(listed.size(), (page - 1U) * 100U);
+						const auto last  = std::min(listed.size(), first + 100U);
+						auto       slice = std::vector<application::staged_review_comment>(listed.begin() + static_cast<std::ptrdiff_t>(first), listed.begin() + static_cast<std::ptrdiff_t>(last));
+						auto       reply = success(comments_json(slice, true));
+						if (last < listed.size()) {
+							reply.Response.Headers.push_back({ .Name = "Link", .Value = "<" + api() + collection + std::to_string(page + 1U) + ">; rel=\"next\"" });
+						}
+						return reply;
 					}
 					return wire::github_mutation_wire_error{ };
 				}

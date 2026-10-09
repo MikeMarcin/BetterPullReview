@@ -1487,6 +1487,36 @@ namespace {
 		const auto submit = compile_staged_review_request(staged_request(op::submit_comment));
 		expect(submit && submit->Body == R"({"body":"Raw **tour** `$(literal)`","event":"COMMENT"})", "prepared review only submits COMMENT by exact returned review ID");
 	}
+	// [[BPR-1367]]. The pull request's review comment collection is read
+	// page by page, at most `maximum_review_comment_collection_pages`, and
+	// other reviewers' comments in it are structure only.
+	void test_review_comment_collection_pages()
+	{
+		constexpr auto collection = "/repos/MikeMarcin/BPR-Test/pulls/1/comments";
+		const auto     first      = compile_review_comment_collection_request(target(), target().ServerContract);
+		expect(first && first->Path == std::string{ collection } + "?per_page=100&page=1" && validate_outbound_review_mutation_request(*first).has_value(), "the collection's first page is an exact request");
+		const auto last = compile_review_comment_collection_request(target(), target().ServerContract, maximum_review_comment_collection_pages);
+		expect(last && validate_outbound_review_mutation_request(*last).has_value(), "the last readable page revalidates");
+		expect(!compile_review_comment_collection_request(target(), target().ServerContract, 0U) && !compile_review_comment_collection_request(target(), target().ServerContract, maximum_review_comment_collection_pages + 1U), "pages outside the bound are refused before the wire");
+		auto tampered = *first;
+		tampered.Path = std::string{ collection } + "?per_page=100&page=11";
+		expect(!validate_outbound_review_mutation_request(tampered).has_value(), "a page past the bound is a wire tamper");
+		tampered.Path = std::string{ collection } + "?per_page=100";
+		expect(!validate_outbound_review_mutation_request(tampered).has_value(), "a collection request names its page");
+
+		const auto other    = std::string{ R"({"id":9001,"node_id":"PRRC_other","pull_request_review_id":900,"path":"src/other.cpp","commit_id":"2222222222222222222222222222222222222222","body":"Other","user":{"id":23,"node_id":"other","login":"other"})" };
+		const auto link     = [&](const std::uint32_t aPage) { return "<https://api.github.com" + std::string{ collection } + "?per_page=100&page=" + std::to_string(aPage) + ">; rel=\"next\""; };
+		auto       response = review_mutation_wire_response{ .Status = 200, .Body = "[" + other + R"(,"subject_type":"file"},)" + R"({"id":9002,"node_id":"PRRC_other_2","pull_request_review_id":900,"path":"src/other.cpp","commit_id":"2222222222222222222222222222222222222222","body":"Other","user":{"id":23,"node_id":"other","login":"other"},"subject_type":"line","start_side":"LEFT","start_line":9,"side":"RIGHT","line":3}])" };
+		response.Headers    = { { .Name = "Link", .Value = link(2U) } };
+		const auto page     = parse_review_comment_collection(response, target(), 1U);
+		expect(page && page->HasNext && page->Comments.size() == 2U && !page->Comments.front().OnLine && page->Comments.back().StartSide == core::diff_side::left, "a file comment and a range across sides are read, and the next page is owed");
+		expect(!parse_review_comment_collection(response, target(), 2U), "a next link must name the following page");
+		response.Headers = { { .Name = "Link", .Value = link(maximum_review_comment_collection_pages + 1U) } };
+		expect(!parse_review_comment_collection(response, target(), maximum_review_comment_collection_pages), "a collection longer than the bound is refused, not read in part");
+		response.Headers = { { .Name = "Link", .Value = "<https://evil.invalid" + std::string{ collection } + "?per_page=100&page=2>; rel=\"next\"" } };
+		expect(!parse_review_comment_collection(response, target(), 1U), "a foreign continuation is never followed");
+	}
+
 	void test_staged_response_contract()
 	{
 		using op     = application::staged_review_operation;
@@ -1529,9 +1559,30 @@ namespace {
 		comment.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r44");
 		comment.insert_or_assign("start_line", 11U);
 		comment.insert_or_assign("start_side", "RIGHT");
+		// [[BPR-1367]]. GitHub's list of one review's comments, pending or
+		// submitted, has no line, side or subject (MikeMarcin/BPR-Test#45).
+		auto perReview = comment;
+		for (const auto* field : { "line", "side", "start_line", "start_side" }) {
+			perReview.erase(field);
+		}
+		perReview.insert_or_assign("position", 3U);
+		response.Body = "[" + fixture_json(perReview) + "]";
+		observed      = parse_staged_review_response(response, request);
+		expect(observed && observed->Comments.size() == 1 && !observed->Comments.front().Source && observed->Comments.front().Id == 44U, "a review's own comment list in GitHub's shape, without lines, is read");
 		response.Body = "[" + fixture_json(comment) + "]";
 		observed      = parse_staged_review_response(response, request);
-		expect(observed && observed->Comments.size() == 1 && observed->Comments.front().Source->FirstLine == 10 && observed->Comments.front().Source->LastLine == 12, "range response preserves inclusive source identity");
+		expect(observed && observed->Comments.size() == 1 && !observed->Comments.front().Source, "lines are never read from a review's own comment list");
+		perReview.insert_or_assign("path", "");
+		response.Body = "[" + fixture_json(perReview) + "]";
+		expect(!parse_staged_review_response(response, request), "a listed comment without a path is refused");
+		// The pull request's collection carries the lines.
+		auto collected = comment;
+		collected.insert_or_assign("subject_type", "line");
+		response.Body = "[" + fixture_json(collected) + "]";
+		auto page     = parse_review_comment_collection(response, target());
+		expect(page && !page->HasNext && page->Comments.size() == 1, "the pull request's collection is read");
+		auto mine = staged_review_comments(page->Comments, request);
+		expect(mine && mine->size() == 1 && mine->front().Source && mine->front().Source->FirstLine == 10 && mine->front().Source->LastLine == 12 && mine->front().Source->Side == core::diff_side::right, "range from the collection preserves inclusive source identity");
 		comment.insert_or_assign("pull_request_review_id", 46U);
 		response.Body = "[" + fixture_json(comment) + "]";
 		expect(!parse_staged_review_response(response, request), "comment from another review refuses membership");
@@ -1539,6 +1590,18 @@ namespace {
 		comment.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/2#discussion_r44");
 		response.Body = "[" + fixture_json(comment) + "]";
 		expect(!parse_staged_review_response(response, request), "cross-PR returned web link refused");
+		collected.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/2#discussion_r44");
+		response.Body = "[" + fixture_json(collected) + "]";
+		page          = parse_review_comment_collection(response, target());
+		expect(page && !staged_review_comments(page->Comments, request), "cross-PR web link of a tour comment in the collection refused");
+		collected.insert_or_assign("html_url", "https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r44");
+		// Outdated, GitHub nulls the lines and keeps the sides.
+		collected.insert_or_assign("line", nullptr);
+		collected.insert_or_assign("start_line", nullptr);
+		response.Body = "[" + fixture_json(collected) + "]";
+		page          = parse_review_comment_collection(response, target());
+		expect(page && page->Comments.size() == 1 && !staged_review_comments(page->Comments, request), "an outdated comment is well formed in the collection but not a tour comment");
+		test_review_comment_collection_pages();
 	}
 
 	// [[BPR-1212]]. A comment on several lines sends GitHub's multi-line

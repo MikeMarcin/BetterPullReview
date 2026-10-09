@@ -322,9 +322,17 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief [[BPR-1367]]. The pull request's review comment collection is
+	/// read at most this many pages of 100. A longer collection is refused,
+	/// not read in part.
+	inline constexpr std::uint32_t maximum_review_comment_collection_pages = 10U;
+	/// \brief Page `aPage` (one-based, at most
+	/// `maximum_review_comment_collection_pages`) of the pull request's review
+	/// comment collection.
 	[[nodiscard]] auto compile_review_comment_collection_request(
 		const application::review_mutation_target_binding& aTarget,
-		application::github_server_contract                aServer)
+		application::github_server_contract                aServer,
+		std::uint32_t                                      aPage = 1U)
 		-> review_mutation_request_result;
 	/// \brief Checks wire consistency with the supplied semantic request and server.
 	///
@@ -369,31 +377,61 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_server_reconciliation>;
 
-	/// \brief [[BPR-1345]]. One comment of the pull request's comment
-	/// collection, with the review it belongs to. GitHub's list of one
-	/// review's comments carries no line or side, so a review's comments are
-	/// read here. Lines are zero-based.
+	/// \brief [[BPR-1345]] [[BPR-1367]]. One comment of the pull request's
+	/// comment collection, with the review it belongs to. Lines are
+	/// zero-based.
+	///
+	/// \details GitHub's list of one review's comments
+	/// (`/reviews/{id}/comments`) carries no `line`, `side`, `start_line`,
+	/// `start_side` or `subject_type`, pending or submitted (probed on
+	/// MikeMarcin/BPR-Test#44 and #45). The collection carries them for every
+	/// submitted comment, so a submitted review's lines are read here. It
+	/// lists no comment of a pending review, not even to its author (#45).
 	struct review_comment_collection_entry
 	{
+		std::uint64_t                Id = 0U;
+		std::string                  NodeId;
+		std::string                  WebUrl;
+		std::string                  PullRequestUrl;
 		std::uint64_t                Review = 0U;
 		std::string                  Path;
 		core::diff_side              Side = core::diff_side::right;
 		std::optional<std::uint32_t> Line;
 		std::optional<std::uint32_t> StartLine;
-		std::string                  Body;
-		std::string                  CommitId;
-		std::uint64_t                Author = 0U;
-		std::string                  Login;
+		/// The side a range starts on. GitHub allows a range from one side
+		/// to the other.
+		std::optional<core::diff_side> StartSide;
+		std::string                    Body;
+		std::string                    CommitId;
+		std::uint64_t                  Author = 0U;
+		std::string                    AuthorNodeId;
+		std::string                    Login;
 		/// A comment on a line or range, not on the file.
 		bool OnLine = false;
 		bool Reply  = false;
 
 		auto operator==(const review_comment_collection_entry&) const -> bool = default;
 	};
-	/// \brief [[BPR-1345]]. Reads one complete page of the pull request's
-	/// review comments; a longer collection is not read in part.
-	[[nodiscard]] auto parse_review_comment_collection(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget)
-		-> review_mutation_parse_result<std::vector<review_comment_collection_entry>>;
+	/// \brief [[BPR-1367]]. One page of the collection and whether GitHub
+	/// links a next one.
+	struct review_comment_collection_page
+	{
+		std::vector<review_comment_collection_entry> Comments;
+		bool                                         HasNext = false;
+	};
+	/// \brief [[BPR-1345]] [[BPR-1367]]. Reads page `aPage` of the pull
+	/// request's review comments. A `Link` header must name only pages of
+	/// this collection on the expected API origin; `next` must be `aPage + 1`.
+	/// Other people's comments are read as structure only: outdated, on a
+	/// file, or a range across sides.
+	[[nodiscard]] auto parse_review_comment_collection(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget, std::uint32_t aPage = 1U)
+		-> review_mutation_parse_result<review_comment_collection_page>;
+	/// \brief [[BPR-1367]]. The comments of review `aExpected.Review` among
+	/// `aCollection`, as a tour's comments, each held to what a tour line
+	/// comment is: mine, on the expected head, on a line, not a reply, at its
+	/// own pull request URL and web anchor.
+	[[nodiscard]] auto staged_review_comments(const std::vector<review_comment_collection_entry>& aCollection, const application::staged_review_request& aExpected)
+		-> review_mutation_parse_result<std::vector<application::staged_review_comment>>;
 
 	/// \brief Rejects incomplete pagination and retains every baseline review ID.
 	[[nodiscard]] auto parse_review_submission_observations(const review_mutation_wire_response& aResponse, const review_submission_request& aExpected) -> review_mutation_parse_result<review_submission_reconciliation>;

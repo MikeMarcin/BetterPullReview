@@ -105,21 +105,46 @@ namespace bpr::adapters::github::detail {
 		}
 		return resolve_observed(aRecord, *observed, aDuplicate, aStop);
 	}
+	auto review_submission_session::observe_comment_collection(std::stop_token aStop) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>
+	{
+		auto        result = std::vector<review_comment_collection_entry>{ };
+		std::size_t bytes  = 0U;
+		for (std::uint32_t page = 1U; page <= maximum_review_comment_collection_pages; ++page) {
+			const auto wire = compile_review_comment_collection_request(Configuration.Target, Configuration.Target.ServerContract, page);
+			if (!wire) {
+				return std::unexpected(wire.error());
+			}
+			const auto  completion = perform(*wire, aStop);
+			const auto* success    = std::get_if<github_mutation_wire_success>(&completion);
+			if (success == nullptr) {
+				return std::unexpected(review_mutation_contract_failure::invalid_status);
+			}
+			bytes += success->Response.Body.size();
+			if (bytes > maximum_review_mutation_response_bytes * maximum_review_comment_collection_pages) {
+				return std::unexpected(review_mutation_contract_failure::response_limit);
+			}
+			auto parsed = parse_review_comment_collection(success->Response, Configuration.Target, page);
+			if (!parsed) {
+				return std::unexpected(parsed.error());
+			}
+			for (auto& comment : parsed->Comments) {
+				if (std::ranges::any_of(result, [&comment](const review_comment_collection_entry& aSeen) { return aSeen.Id == comment.Id || aSeen.NodeId == comment.NodeId; })) {
+					return std::unexpected(review_mutation_contract_failure::identity_mismatch);
+				}
+				result.push_back(std::move(comment));
+			}
+			if (!parsed->HasNext) {
+				return result;
+			}
+		}
+		return std::unexpected(review_mutation_contract_failure::response_limit);
+	}
 	auto review_submission_session::carries_exactly(const application::review_submission_request& aRequest, const application::review_database_id aReview, std::stop_token aStop) -> bool
 	{
 		// GitHub's list of one review's comments has no line or side (seen on
-		// MikeMarcin/BPR-Test#44, 2026-10-09); the pull request's comment
-		// collection names each comment's review, path, lines and side.
-		auto wire = compile_review_comment_collection_request(Configuration.Target, Configuration.Target.ServerContract);
-		if (!wire) {
-			return false;
-		}
-		const auto  completion = perform(*wire, aStop);
-		const auto* success    = std::get_if<github_mutation_wire_success>(&completion);
-		if (success == nullptr) {
-			return false;
-		}
-		const auto listed = parse_review_comment_collection(success->Response, Configuration.Target);
+		// MikeMarcin/BPR-Test#44 and #45, 2026-10-09); the pull request's
+		// comment collection names each comment's review, path, lines and side.
+		const auto listed = observe_comment_collection(aStop);
 		if (!listed) {
 			return false;
 		}
@@ -141,7 +166,7 @@ namespace bpr::adapters::github::detail {
 		for (const auto& sent : aRequest.Proposal.Comments) {
 			const auto found = std::ranges::find_if(unmatched, [&sent](const review_comment_collection_entry* aComment) {
 				return aComment->Path == sent.Path && aComment->Side == sent.Side && aComment->Line == std::optional{ sent.Line } && aComment->StartLine == sent.StartLine
-					&& aComment->Body == sent.Body;
+					&& (!aComment->StartSide || aComment->StartSide == std::optional{ sent.Side }) && aComment->Body == sent.Body;
 			});
 			if (found == unmatched.end()) {
 				return false;

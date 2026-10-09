@@ -160,10 +160,14 @@ namespace {
 	}
 	struct server final : github_mutation_wire_transport
 	{
-		bool                                               Maintenance   = false;
-		bool                                               PagedComments = false, FailSecondPage = false, ForeignNext = false;
-		std::size_t                                        PageTwoReads = 0;
-		bool                                               Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
+		bool        Maintenance   = false;
+		bool        PagedComments = false, FailSecondPage = false, ForeignNext = false;
+		std::size_t PageTwoReads = 0;
+		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
+		/// [[BPR-1367]]. The pull request's collection opens with a full page
+		/// of other people's comments; or reports the second stop a line off.
+		bool                                               CollectionNoise = false, WrongLine = false;
+		std::size_t                                        CollectionReads = 0, CollectionPageTwoReads = 0;
 		std::size_t                                        Writes = 0, Creates = 0, Submits = 0;
 		std::string                                        Summary, Description = "Original description.";
 		std::array<std::string, 2>                         Bodies;
@@ -179,10 +183,38 @@ namespace {
 		{
 			return "{\"id\":" + std::to_string(aId) + ",\"node_id\":\"PRR_" + std::to_string(aId) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#pullrequestreview-" + std::to_string(aId)) + ",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"commit_id\":\"1111111111111111111111111111111111111111\",\"body\":" + json_quote(Summary) + ",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"state\":\"" + (Submitted || EarlySubmit ? "COMMENTED" : "PENDING") + "\"" + (Submitted || EarlySubmit ? ",\"submitted_at\":\"2026-09-26T12:34:56Z\"" : "") + "}";
 		}
-		auto comment_json(std::size_t aIndex, std::uint64_t aReview = 501) const -> std::string
+		/// [[BPR-1367]]. GitHub's list of one review's comments carries no
+		/// `line`, `side`, `start_line`, `start_side` or `subject_type`
+		/// (MikeMarcin/BPR-Test#45); only the pull request's collection
+		/// (`aLines`) does.
+		auto comment_json(std::size_t aIndex, std::uint64_t aReview = 501, bool aLines = false) const -> std::string
 		{
-			const auto id = 601 + aIndex;
-			return "{\"id\":" + std::to_string(id) + ",\"node_id\":\"PRRC_" + std::to_string(id) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#discussion_r" + std::to_string(id)) + ",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"pull_request_review_id\":" + std::to_string(aReview) + ",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"body\":" + json_quote(Bodies[aIndex]) + ",\"commit_id\":\"1111111111111111111111111111111111111111\",\"path\":\"src/" + (aIndex ? "left" : "right") + ".cpp\",\"side\":\"" + (aIndex ? "LEFT" : "RIGHT") + "\",\"line\":" + (aIndex ? "8" : "5") + (aIndex ? "" : ",\"start_line\":4,\"start_side\":\"RIGHT\"") + "}";
+			const auto id     = 601 + aIndex;
+			auto       result = "{\"id\":" + std::to_string(id) + ",\"node_id\":\"PRRC_" + std::to_string(id) + "\",\"html_url\":" + json_quote(std::string{ Web } + "#discussion_r" + std::to_string(id)) + ",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"pull_request_review_id\":" + std::to_string(aReview) + ",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"body\":" + json_quote(Bodies[aIndex]) + ",\"commit_id\":\"1111111111111111111111111111111111111111\",\"path\":\"src/" + (aIndex ? "left" : "right") + ".cpp\",\"position\":" + (aIndex ? "3" : "2");
+			if (aLines) {
+				result += std::string{ ",\"subject_type\":\"line\",\"side\":\"" } + (aIndex ? "LEFT" : "RIGHT") + "\",\"line\":" + (aIndex ? (WrongLine ? "9" : "8") : "5") + (aIndex ? "" : ",\"start_line\":4,\"start_side\":\"RIGHT\"");
+			}
+			return result + "}";
+		}
+		/// [[BPR-1367]]. Another reviewer's comment as the collection lists
+		/// it: outdated, on a file, a range across sides, or a reply.
+		static auto foreign_comment_json(std::size_t aIndex) -> std::string
+		{
+			const auto id     = std::to_string(9000 + aIndex);
+			auto       result = "{\"id\":" + id + ",\"node_id\":\"PRRC_other_" + id + "\",\"html_url\":\"https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r" + id + "\",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"pull_request_review_id\":900,\"user\":{\"id\":23,\"node_id\":\"other\",\"login\":\"other\"},\"body\":\"Other reviewer\",\"commit_id\":\"2222222222222222222222222222222222222222\",\"path\":\"src/other.cpp\"";
+			switch (aIndex % 4U) {
+			case 0:  result += ",\"subject_type\":\"line\",\"side\":\"RIGHT\",\"line\":null,\"original_line\":7"; break;
+			case 1:  result += ",\"subject_type\":\"file\",\"side\":null,\"line\":null"; break;
+			case 2:  result += ",\"subject_type\":\"line\",\"start_side\":\"LEFT\",\"start_line\":9,\"side\":\"RIGHT\",\"line\":3"; break;
+			default: result += ",\"subject_type\":\"line\",\"side\":\"RIGHT\",\"line\":2,\"in_reply_to_id\":9000"; break;
+			}
+			return result + "}";
+		}
+		/// [[BPR-1367]]. GitHub's collection lists no comment of a pending
+		/// review, not even to its author (MikeMarcin/BPR-Test#45).
+		auto collection_json() const -> std::string
+		{
+			return Submitted || EarlySubmit ? "[" + comment_json(1, 501, true) + "," + comment_json(0, 501, true) + "]" : "[]";
 		}
 		auto issues_json() const -> std::string
 		{
@@ -250,6 +282,21 @@ namespace {
 				}
 				if (wire.Path == std::string{ Pull } + "/reviews/501") {
 					return ok(review_json());
+				}
+				if (wire.Path == std::string{ Pull } + "/comments?per_page=100&page=1") {
+					++CollectionReads;
+					if (!CollectionNoise) {
+						return ok(collection_json());
+					}
+					std::string page = "[";
+					for (std::size_t i = 0; i < 100U; ++i) {
+						page += (i ? "," : "") + foreign_comment_json(i);
+					}
+					return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = { { "Link", "<https://api.github.com" + std::string{ Pull } + "/comments?per_page=100&page=2>; rel=\"next\", <https://api.github.com" + std::string{ Pull } + "/comments?per_page=100&page=2>; rel=\"last\"" } }, .Body = page + "]" } };
+				}
+				if (CollectionNoise && wire.Path == std::string{ Pull } + "/comments?per_page=100&page=2") {
+					++CollectionPageTwoReads;
+					return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = { { "Link", "<https://api.github.com" + std::string{ Pull } + "/comments?per_page=100&page=1>; rel=\"prev\", <https://api.github.com" + std::string{ Pull } + "/comments?per_page=100&page=1>; rel=\"first\"" } }, .Body = collection_json() } };
 				}
 				if (wire.Path == std::string{ Pull } + "/reviews/501/comments?per_page=100&page=1") {
 					if (PagedComments) {
@@ -390,6 +437,28 @@ namespace {
 			provider.reset();
 			provider = session(remote, root.Path);
 			expect(provider->pending_tours()->empty() && provider->reconcile_tour(plan()).State == publication_state::published && remote.Writes == 5, "fresh session reads exact completed journal");
+		}
+		{
+			// [[BPR-1367]]. The submitted review's lines are read from every
+			// page of the pull request's collection, past other reviewers'
+			// outdated, file, cross-side and reply comments.
+			scratch root;
+			server  remote;
+			remote.CollectionNoise = true;
+			auto       provider    = session(remote, root.Path);
+			const auto result      = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::published && remote.Writes == 5 && remote.CollectionReads > 0 && remote.CollectionPageTwoReads > 0, "submitted tour lines are confirmed across every page of the collection");
+		}
+		{
+			// [[BPR-1367]]. Lines are confirmed from the collection once the
+			// review is submitted: a stop GitHub reports at another line is a
+			// conflict, not a publication.
+			scratch root;
+			server  remote;
+			remote.AfterWrite   = [](auto& aServer) { aServer.WrongLine = aServer.Submitted; };
+			auto       provider = session(remote, root.Path);
+			const auto result   = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
+			expect(result.State == publication_state::conflict && remote.Writes == 4 && remote.Submits == 1 && remote.CollectionReads > 0, "a stop the collection reports at another line after submission is a conflict");
 		}
 		for (int mode = 0; mode < 3; ++mode) {
 			scratch root;

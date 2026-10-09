@@ -29,7 +29,20 @@ namespace bpr::adapters::github::detail {
 			}
 			return result;
 		}
-		auto ordered_comments(const std::vector<application::staged_review_comment>& aObserved, const std::vector<application::staged_review_comment>& aExpected) -> std::optional<std::vector<application::staged_review_comment>>
+		/// [[BPR-1367]]. A pending review's comments are listed without lines
+		/// (`aLines` false): such a comment is the expected one when everything
+		/// but its source agrees. Its lines are confirmed from the pull
+		/// request's collection once the review is submitted.
+		auto same_comment(const application::staged_review_comment& aObserved, const application::staged_review_comment& aExpected, const bool aLines) -> bool
+		{
+			if (aLines) {
+				return aObserved == aExpected;
+			}
+			auto adopted   = aObserved;
+			adopted.Source = aExpected.Source;
+			return !aObserved.Source && adopted == aExpected;
+		}
+		auto ordered_comments(const std::vector<application::staged_review_comment>& aObserved, const std::vector<application::staged_review_comment>& aExpected, const bool aLines) -> std::optional<std::vector<application::staged_review_comment>>
 		{
 			if (aObserved.size() != aExpected.size()) {
 				return std::nullopt;
@@ -37,10 +50,10 @@ namespace bpr::adapters::github::detail {
 			std::vector<application::staged_review_comment> result;
 			for (const auto& expected : aExpected) {
 				const auto found = std::ranges::find(aObserved, expected.Id, &application::staged_review_comment::Id);
-				if (found == aObserved.end() || *found != expected) {
+				if (found == aObserved.end() || !same_comment(*found, expected, aLines)) {
 					return std::nullopt;
 				}
-				result.push_back(*found);
+				result.push_back(expected);
 			}
 			return result;
 		}
@@ -52,7 +65,7 @@ namespace bpr::adapters::github::detail {
 			}
 			return std::ranges::all_of(owned, [&](const auto& wanted) {const auto found=std::ranges::find(aObserved,wanted.Id,&application::staged_review_comment::Id);return found!=aObserved.end() && *found==wanted; });
 		}
-		auto initial_comments(const application::staged_review_plan& aPlan, application::review_database_id aReview, const std::vector<application::staged_review_comment>& aObserved) -> std::optional<std::vector<application::staged_review_comment>>
+		auto initial_comments(const application::staged_review_plan& aPlan, application::review_database_id aReview, const std::vector<application::staged_review_comment>& aObserved, const bool aLines) -> std::optional<std::vector<application::staged_review_comment>>
 		{
 			const auto initial = application::staged_initial_request(aPlan);
 			if (!initial || aObserved.size() != initial->Lines.size()) {
@@ -62,11 +75,14 @@ namespace bpr::adapters::github::detail {
 			for (const auto& line : initial->Lines) {
 				std::optional<application::staged_review_comment> match;
 				for (const auto& observed : aObserved) {
-					if (observed.Body == line.Body && observed.Source == std::optional{ line.Source } && observed.Actor == actor(aPlan) && observed.Review == aReview && !observed.Reply) {
+					// [[BPR-1367]]. Listed without lines, the comment takes the
+					// line it was created at; each stop's body is distinct.
+					if (observed.Body == line.Body && (aLines ? observed.Source == std::optional{ line.Source } : !observed.Source) && observed.Actor == actor(aPlan) && observed.Review == aReview && !observed.Reply) {
 						if (match) {
 							return std::nullopt;
 						}
-						match = observed;
+						match         = observed;
+						match->Source = line.Source;
 					}
 				}
 				if (!match || std::ranges::any_of(result, [&](const auto& r) { return r.Id == match->Id; })) {
@@ -118,6 +134,35 @@ namespace bpr::adapters::github::detail {
 		}
 		return std::unexpected(review_mutation_contract_failure::response_limit);
 	}
+	auto review_submission_session::observe_staged_comments(const record& aRecord, const application::staged_review_entity& aReview, std::stop_token aStop, std::optional<std::vector<review_comment_collection_entry>>* aCollection) -> review_mutation_parse_result<staged_comments>
+	{
+		auto read      = request(aRecord, operation::list_reviews);
+		read.Operation = operation::list_comments;
+		read.Review    = aReview.Id;
+		if (aReview.State == application::staged_review_state::pending) {
+			// GitHub lists a pending review's comments only here, without lines
+			// (MikeMarcin/BPR-Test#45): the collection has none of them.
+			auto observed = observe_staged(read, aStop);
+			if (!observed) {
+				return std::unexpected(observed.error());
+			}
+			return staged_comments{ .Comments = std::move(observed->Comments), .Lines = false };
+		}
+		auto  local      = std::optional<std::vector<review_comment_collection_entry>>{ };
+		auto& collection = aCollection != nullptr ? *aCollection : local;
+		if (!collection) {
+			auto observed = observe_comment_collection(aStop);
+			if (!observed) {
+				return std::unexpected(observed.error());
+			}
+			collection = std::move(*observed);
+		}
+		auto mine = staged_review_comments(*collection, read);
+		if (!mine) {
+			return std::unexpected(mine.error());
+		}
+		return staged_comments{ .Comments = std::move(*mine), .Lines = true };
+	}
 	auto review_submission_session::verify_tour_update(const record& aRecord, std::stop_token aStop) -> bool
 	{
 		const auto& draft  = *aRecord.Plan.Update;
@@ -139,8 +184,9 @@ namespace bpr::adapters::github::detail {
 		if (!reviews) {
 			return false;
 		}
-		std::vector<application::staged_review_comment> comments;
-		std::vector<const core::tour_stop*>             stops;
+		std::vector<application::staged_review_comment>             comments;
+		std::vector<const core::tour_stop*>                         stops;
+		std::optional<std::vector<review_comment_collection_entry>> collection;
 		for (const auto& stop : draft.Stops) {
 			if (stop.Remote) {
 				stops.push_back(&stop);
@@ -157,10 +203,7 @@ namespace bpr::adapters::github::detail {
 			if (!needed) {
 				continue;
 			}
-			auto read           = request(aRecord, operation::list_reviews);
-			read.Operation      = operation::list_comments;
-			read.Review         = review.Id;
-			const auto observed = observe_staged(read, aStop);
+			const auto observed = observe_staged_comments(aRecord, review, aStop, &collection);
 			if (!observed) {
 				return false;
 			}
@@ -243,9 +286,12 @@ namespace bpr::adapters::github::detail {
 				return ids == aRecord.BaselineIds;
 			}
 			if (aRecord.Review) {
-				const auto reviews  = observe_staged(request(aRecord, operation::read_review), aStop);
-				const auto comments = observe_staged(request(aRecord, operation::list_comments), aStop);
-				if (!reviews || reviews->Reviews.size() != 1 || reviews->Reviews.front() != *aRecord.Review || !comments || !ordered_comments(comments->Comments, aRecord.Comments)) {
+				const auto reviews = observe_staged(request(aRecord, operation::read_review), aStop);
+				if (!reviews || reviews->Reviews.size() != 1 || reviews->Reviews.front() != *aRecord.Review) {
+					return false;
+				}
+				const auto comments = observe_staged_comments(aRecord, reviews->Reviews.front(), aStop);
+				if (!comments || !ordered_comments(comments->Comments, aRecord.Comments, comments->Lines)) {
 					return false;
 				}
 			}
@@ -329,14 +375,11 @@ namespace bpr::adapters::github::detail {
 				if (std::ranges::binary_search(aRecord.BaselineIds, review.Id.value()) || review.Actor != actor(aRecord.Plan) || review.Commit != aRecord.Plan.Submission.LiveBinding->Target.Semantic.ExpectedHead || review.Body != aRecord.Pending->Body) {
 					continue;
 				}
-				auto read           = request(aRecord, operation::list_reviews);
-				read.Operation      = operation::list_comments;
-				read.Review         = review.Id;
-				const auto comments = observe_staged(read, aStop);
+				const auto comments = observe_staged_comments(aRecord, review, aStop);
 				if (!comments) {
 					return state::outcome_unknown;
 				}
-				const auto matched = initial_comments(aRecord.Plan, review.Id, comments->Comments);
+				const auto matched = initial_comments(aRecord.Plan, review.Id, comments->Comments, comments->Lines);
 				if (!matched) {
 					continue;
 				}
@@ -376,9 +419,12 @@ namespace bpr::adapters::github::detail {
 			}
 			next.DescriptionDone = true;
 		} else {
-			const auto reviews  = observe_staged(request(aRecord, operation::read_review), aStop);
-			const auto comments = observe_staged(request(aRecord, operation::list_comments), aStop);
-			if (!reviews || reviews->Reviews.size() != 1 || !comments) {
+			const auto reviews = observe_staged(request(aRecord, operation::read_review), aStop);
+			if (!reviews || reviews->Reviews.size() != 1) {
+				return state::outcome_unknown;
+			}
+			const auto comments = observe_staged_comments(aRecord, reviews->Reviews.front(), aStop);
+			if (!comments) {
 				return state::outcome_unknown;
 			}
 			const auto& review = reviews->Reviews.front();
@@ -392,13 +438,13 @@ namespace bpr::adapters::github::detail {
 					return state::conflict;
 				}
 				expected[aRecord.Patched].Body = aRecord.Pending->Body;
-				if (!ordered_comments(comments->Comments, expected)) {
-					return ordered_comments(comments->Comments, aRecord.Comments) ? state::outcome_unknown : state::conflict;
+				if (!ordered_comments(comments->Comments, expected, comments->Lines)) {
+					return ordered_comments(comments->Comments, aRecord.Comments, comments->Lines) ? state::outcome_unknown : state::conflict;
 				}
 				next.Comments = std::move(expected);
 				++next.Patched;
 			} else if (aRecord.Pending->Operation == operation::submit_comment) {
-				if (!ordered_comments(comments->Comments, aRecord.Comments)) {
+				if (!ordered_comments(comments->Comments, aRecord.Comments, comments->Lines)) {
 					return state::conflict;
 				}
 				auto expectedReview  = *aRecord.Review;

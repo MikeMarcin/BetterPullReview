@@ -395,10 +395,15 @@ namespace bpr::adapters::github::detail {
 			review_author_json           User;
 			/// [[BPR-1345]]. The review the comment belongs to.
 			std::optional<std::uint64_t> ReviewId;
+			/// [[BPR-1367]]. Where a tour's own comment is checked.
+			std::optional<std::string> WebUrl;
+			std::optional<std::string> PullRequestUrl;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
 					"pull_request_review_id", &comment_response_json::ReviewId,
+					"html_url", &comment_response_json::WebUrl,
+					"pull_request_url", &comment_response_json::PullRequestUrl,
 					"id", &comment_response_json::Id,
 					"node_id", &comment_response_json::NodeId,
 					"path", &comment_response_json::Path,
@@ -1592,14 +1597,31 @@ namespace bpr::adapters::github::detail {
 		{
 			return "?per_page=100&page=" + std::to_string(aPage);
 		}
-		[[nodiscard]] auto staged_next(const review_mutation_wire_response& aResponse, const application::staged_review_request& aExpected, const review_mutation_wire_request& aWire) -> std::optional<bool>
+		/// [[BPR-1367]]. The page a collection request names, or zero; the
+		/// canonical request compiled for it must then match it exactly.
+		[[nodiscard]] auto collection_page(const std::string_view aPath) -> std::uint32_t
+		{
+			const auto at = aPath.rfind("&page=");
+			if (at == std::string_view::npos) {
+				return 0U;
+			}
+			const auto digits = aPath.substr(at + 6U);
+			auto       page   = std::uint32_t{ 0U };
+			const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), page);
+			return parsed.ec == std::errc{ } && parsed.ptr == digits.data() + digits.size() ? page : 0U;
+		}
+		/// [[BPR-1367]]. Whether the `Link` header of page `aPage` of the list at
+		/// `aWirePath` links a next page. Every link must name a page of that
+		/// same list on the expected API origin, at most `aMaximum`; a list
+		/// that is not paged (`aListed` false) may carry none.
+		[[nodiscard]] auto paged_next(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget, std::string_view aWirePath, std::uint32_t aPage, std::uint32_t aMaximum, bool aListed) -> std::optional<bool>
 		{
 			bool next = false, seen = false;
 			for (const auto& header : aResponse.Headers) {
 				if (header.Name.size() != 4 || !std::ranges::equal(header.Name, std::string_view{ "link" }, [](unsigned char aLeft, unsigned char aRight) { return std::tolower(aLeft) == std::tolower(aRight); })) {
 					continue;
 				}
-				if (seen || !staged_list(aExpected.Operation)) {
+				if (seen || !aListed) {
 					return std::nullopt;
 				}
 				seen                               = true;
@@ -1621,9 +1643,9 @@ namespace bpr::adapters::github::detail {
 						return std::nullopt;
 					}
 					relations.emplace_back(relation);
-					const auto                   prefix = staged_api_origin(aExpected.Binding.Target) + aWire.Path.substr(0, aWire.Path.find('?'));
+					const auto                   prefix = staged_api_origin(aTarget) + std::string{ aWirePath.substr(0, aWirePath.find('?')) };
 					std::optional<std::uint32_t> page;
-					for (std::uint32_t number = 1; number <= application::maximum_staged_review_pages; ++number) {
+					for (std::uint32_t number = 1; number <= aMaximum; ++number) {
 						if (url == prefix + staged_page_suffix(number) || url == prefix + "?page=" + std::to_string(number) + "&per_page=100") {
 							page = number;
 							break;
@@ -1633,12 +1655,12 @@ namespace bpr::adapters::github::detail {
 						return std::nullopt;
 					}
 					if (relation == "next") {
-						if (*page != aExpected.Page + 1) {
+						if (*page != aPage + 1) {
 							return std::nullopt;
 						}
 						next = true;
 					} else if (relation == "prev") {
-						if (*page + 1 != aExpected.Page) {
+						if (*page + 1 != aPage) {
 							return std::nullopt;
 						}
 					} else if (relation == "first") {
@@ -1646,7 +1668,7 @@ namespace bpr::adapters::github::detail {
 							return std::nullopt;
 						}
 					} else if (relation == "last") {
-						if (*page < aExpected.Page) {
+						if (*page < aPage) {
 							return std::nullopt;
 						}
 					} else {
@@ -1661,10 +1683,14 @@ namespace bpr::adapters::github::detail {
 					remaining.remove_prefix(comma + 1);
 				}
 			}
-			if (next && aExpected.Page >= application::maximum_staged_review_pages) {
+			if (next && aPage >= aMaximum) {
 				return std::nullopt;
 			}
 			return next;
+		}
+		[[nodiscard]] auto staged_next(const review_mutation_wire_response& aResponse, const application::staged_review_request& aExpected, const review_mutation_wire_request& aWire) -> std::optional<bool>
+		{
+			return paged_next(aResponse, aExpected.Binding.Target, aWire.Path, aExpected.Page, application::maximum_staged_review_pages, staged_list(aExpected.Operation));
 		}
 		[[nodiscard]] auto staged_review_entity(const staged_review_json& aReview, const application::staged_review_request& aExpected) -> std::optional<application::staged_review_entity>
 		{
@@ -1703,7 +1729,11 @@ namespace bpr::adapters::github::detail {
 			}
 			return application::staged_review_entity{ application::review_database_id{ aReview.Id }, aReview.NodeId, aReview.WebUrl, *actor, *commit, aReview.Body, *status };
 		}
-		[[nodiscard]] auto staged_comment_entity(const staged_comment_json& aComment, const application::staged_review_request& aExpected) -> std::optional<application::staged_review_comment>
+		/// `aLines` false reads GitHub's list of one review's comments, which
+		/// has no `line`, `side`, `start_line`, `start_side` or `subject_type`
+		/// ([[BPR-1367]], probed on MikeMarcin/BPR-Test#45): lines and sides
+		/// it may carry are not read, and the comment has no source.
+		[[nodiscard]] auto staged_comment_entity(const staged_comment_json& aComment, const application::staged_review_request& aExpected, const bool aLines = true) -> std::optional<application::staged_review_comment>
 		{
 			const auto& target = aExpected.Binding.Target;
 			const auto  actor  = staged_actor(aComment.User);
@@ -1716,6 +1746,12 @@ namespace bpr::adapters::github::detail {
 				|| (aExpected.Comment && aExpected.Comment != aComment.Id)
 				|| (aComment.Subject && *aComment.Subject != "line")) {
 				return std::nullopt;
+			}
+			if (!aLines) {
+				if (aComment.Path.empty() || !utf8_round_trip(aComment.Path)) {
+					return std::nullopt;
+				}
+				return application::staged_review_comment{ aComment.Id, aComment.NodeId, aComment.WebUrl, *actor, application::review_database_id{ aComment.Review }, std::nullopt, aComment.Body, aComment.Reply.has_value() };
 			}
 			constexpr auto maximumLine = std::uint64_t{ std::numeric_limits<std::uint32_t>::max() } + 1;
 			if (!aComment.Line || *aComment.Line == 0 || *aComment.Line > maximumLine
@@ -1922,7 +1958,7 @@ namespace bpr::adapters::github::detail {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
 			for (const auto& object : *objects) {
-				auto value = staged_comment_entity(object, aExpected);
+				auto value = staged_comment_entity(object, aExpected, aExpected.Operation != staged_operation::list_comments);
 				if (!value || std::ranges::any_of(result.Comments, [&](const auto& aComment) { return aComment.Id == value->Id || aComment.NodeId == value->NodeId; })) {
 					return failed(review_mutation_contract_failure::identity_mismatch);
 				}
@@ -2261,9 +2297,9 @@ namespace bpr::adapters::github::detail {
 			.Body      = { },
 		};
 	}
-	auto compile_review_comment_collection_request(const application::review_mutation_target_binding& aTarget, const application::github_server_contract aServer) -> review_mutation_request_result
+	auto compile_review_comment_collection_request(const application::review_mutation_target_binding& aTarget, const application::github_server_contract aServer, const std::uint32_t aPage) -> review_mutation_request_result
 	{
-		if (!valid_server(aServer) || !application::valid(aTarget) || aTarget.ServerContract != aServer) {
+		if (!valid_server(aServer) || !application::valid(aTarget) || aTarget.ServerContract != aServer || aPage == 0U || aPage > maximum_review_comment_collection_pages) {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
 		return review_mutation_wire_request{
@@ -2271,7 +2307,7 @@ namespace bpr::adapters::github::detail {
 			.Server    = aServer,
 			.Operation = review_mutation_operation::observe_review_comments,
 			.Method    = http_method::get,
-			.Path      = pull_request_path(aTarget, aServer) + "/comments?per_page=100",
+			.Path      = pull_request_path(aTarget, aServer) + "/comments" + staged_page_suffix(aPage),
 			.Headers   = common_headers(),
 		};
 	}
@@ -2288,7 +2324,7 @@ namespace bpr::adapters::github::detail {
 					using semantic_type = std::remove_cvref_t<decltype(aSemantic)>;
 					if constexpr (std::same_as<semantic_type, application::review_mutation_target_binding>) {
 						canonical = aRequest.Operation == review_mutation_operation::observe_review_comments
-							? compile_review_comment_collection_request(aSemantic, aRequest.Server)
+							? compile_review_comment_collection_request(aSemantic, aRequest.Server, collection_page(aRequest.Path))
 							: compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
@@ -2715,51 +2751,108 @@ namespace bpr::adapters::github::detail {
 		return result;
 	}
 
-	auto parse_review_comment_collection(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget)
-		-> review_mutation_parse_result<std::vector<review_comment_collection_entry>>
+	auto parse_review_comment_collection(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget, const std::uint32_t aPage)
+		-> review_mutation_parse_result<review_comment_collection_page>
 	{
-		if (!compile_review_comment_collection_request(aTarget, aTarget.ServerContract)) {
+		const auto wire = compile_review_comment_collection_request(aTarget, aTarget.ServerContract, aPage);
+		if (!wire) {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
 		if (has_header(aResponse, "location") || (aResponse.Status >= 300 && aResponse.Status < 400)) {
 			return failed(review_mutation_contract_failure::redirect);
 		}
-		// One page: a pull request with more comments than one page holds is
-		// not read in part.
-		if (aResponse.Status != 200 || !response_headers_valid(aResponse) || has_header(aResponse, "link")) {
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
 			return failed(review_mutation_contract_failure::invalid_status);
 		}
 		if (aResponse.Body.size() > maximum_review_mutation_response_bytes) {
 			return failed(review_mutation_contract_failure::response_limit);
 		}
-		const auto comments = document<std::vector<comment_response_json>>(aResponse);
-		if (!comments || comments->size() > 100U) {
+		// [[BPR-1367]]. Every page is read; a collection longer than the
+		// bounded number of pages is refused, never read in part.
+		const auto next = paged_next(aResponse, aTarget, wire->Path, aPage, maximum_review_comment_collection_pages, true);
+		if (!next) {
 			return failed(review_mutation_contract_failure::malformed_response);
 		}
-		auto entries = std::vector<review_comment_collection_entry>{ };
+		const auto comments = document<std::vector<comment_response_json>>(aResponse);
+		if (!comments || comments->size() > 100U || (*next && comments->empty())) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		auto page = review_comment_collection_page{ .HasNext = *next };
 		for (const auto& comment : *comments) {
+			// Anyone's comment is listed: outdated (lines null, sides kept), on
+			// a file (no side) or a range from one side to the other are all
+			// well formed. A tour's or a review's own comments are held to
+			// more where they are matched.
+			const auto sideName   = [](const std::optional<std::string>& aSide) { return !aSide || *aSide == "LEFT" || *aSide == "RIGHT"; };
+			const auto lineNumber = [](const std::optional<std::uint64_t>& aLine) { return !aLine || (*aLine != 0U && *aLine <= std::uint64_t{ std::numeric_limits<std::uint32_t>::max() } + 1U); };
 			if (comment.Id == 0U || !bounded_text(comment.NodeId, 256U) || !utf8_round_trip(comment.Path) || !utf8_round_trip(comment.Body)
-				|| comment.Body.size() > maximum_review_mutation_body_bytes || comment.StartLine.has_value() != comment.StartSide.has_value()
-				|| (comment.Side && *comment.Side != "LEFT" && *comment.Side != "RIGHT") || (comment.StartSide && comment.StartSide != comment.Side)
-				|| (comment.Line && (*comment.Line == 0U || *comment.Line > std::uint64_t{ std::numeric_limits<std::uint32_t>::max() } + 1U))
-				|| (comment.StartLine && (*comment.StartLine == 0U || !comment.Line || *comment.StartLine >= *comment.Line))) {
+				|| comment.Body.size() > maximum_review_mutation_body_bytes || !sideName(comment.Side) || !sideName(comment.StartSide)
+				|| !lineNumber(comment.Line) || !lineNumber(comment.StartLine)
+				|| (comment.Line && comment.StartLine && comment.StartSide == comment.Side && *comment.StartLine >= *comment.Line)
+				|| std::ranges::any_of(page.Comments, [&comment](const review_comment_collection_entry& aSeen) { return aSeen.Id == comment.Id || aSeen.NodeId == comment.NodeId; })) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			auto entry      = review_comment_collection_entry{ };
-			entry.Review    = comment.ReviewId.value_or(0U);
-			entry.Path      = comment.Path;
-			entry.Side      = comment.Side == std::optional<std::string>{ "LEFT" } ? core::diff_side::left : core::diff_side::right;
-			entry.Line      = comment.Line ? std::optional{ static_cast<std::uint32_t>(*comment.Line - 1U) } : std::nullopt;
-			entry.StartLine = comment.StartLine ? std::optional{ static_cast<std::uint32_t>(*comment.StartLine - 1U) } : std::nullopt;
-			entry.Body      = comment.Body;
-			entry.CommitId  = comment.CommitId;
-			entry.Author    = comment.User.Id;
-			entry.Login     = comment.User.Login;
-			entry.OnLine    = comment.SubjectType.value_or("line") == "line" && comment.Side.has_value();
-			entry.Reply     = comment.InReplyToId.has_value();
-			entries.push_back(std::move(entry));
+			const auto side      = [](const std::optional<std::string>& aSide) { return aSide == std::optional<std::string>{ "LEFT" } ? core::diff_side::left : core::diff_side::right; };
+			auto       entry     = review_comment_collection_entry{ };
+			entry.Id             = comment.Id;
+			entry.NodeId         = comment.NodeId;
+			entry.WebUrl         = comment.WebUrl.value_or(std::string{ });
+			entry.PullRequestUrl = comment.PullRequestUrl.value_or(std::string{ });
+			entry.Review         = comment.ReviewId.value_or(0U);
+			entry.Path           = comment.Path;
+			entry.Side           = side(comment.Side);
+			entry.Line           = comment.Line ? std::optional{ static_cast<std::uint32_t>(*comment.Line - 1U) } : std::nullopt;
+			entry.StartLine      = comment.StartLine ? std::optional{ static_cast<std::uint32_t>(*comment.StartLine - 1U) } : std::nullopt;
+			entry.StartSide      = comment.StartSide ? std::optional{ side(comment.StartSide) } : std::nullopt;
+			entry.Body           = comment.Body;
+			entry.CommitId       = comment.CommitId;
+			entry.Author         = comment.User.Id;
+			entry.AuthorNodeId   = comment.User.NodeId;
+			entry.Login          = comment.User.Login;
+			entry.OnLine         = comment.SubjectType.value_or("line") == "line" && comment.Side.has_value();
+			entry.Reply          = comment.InReplyToId.has_value();
+			page.Comments.push_back(std::move(entry));
 		}
-		return entries;
+		return page;
+	}
+
+	auto staged_review_comments(const std::vector<review_comment_collection_entry>& aCollection, const application::staged_review_request& aExpected)
+		-> review_mutation_parse_result<std::vector<application::staged_review_comment>>
+	{
+		if (!aExpected.Review.value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto result = std::vector<application::staged_review_comment>{ };
+		for (const auto& entry : aCollection) {
+			if (entry.Review != aExpected.Review.value()) {
+				continue;
+			}
+			// Held to exactly what the per-review list's comment is held to,
+			// with the lines and side the collection reports.
+			const auto sideName = [](const core::diff_side aSide) { return std::string{ aSide == core::diff_side::left ? "LEFT" : "RIGHT" }; };
+			auto       json     = staged_comment_json{ };
+			json.Id             = entry.Id;
+			json.Review         = entry.Review;
+			json.NodeId         = entry.NodeId;
+			json.WebUrl         = entry.WebUrl;
+			json.PullRequestUrl = entry.PullRequestUrl;
+			json.Body           = entry.Body;
+			json.Path           = entry.Path;
+			json.Commit         = entry.CommitId;
+			json.User           = { .Id = entry.Author, .NodeId = entry.AuthorNodeId, .Login = entry.Login };
+			json.Line           = entry.Line ? std::optional{ std::uint64_t{ *entry.Line } + 1U } : std::nullopt;
+			json.StartLine      = entry.StartLine ? std::optional{ std::uint64_t{ *entry.StartLine } + 1U } : std::nullopt;
+			json.Reply          = entry.Reply ? std::optional<std::uint64_t>{ 1U } : std::nullopt;
+			json.Side           = entry.OnLine ? std::optional{ sideName(entry.Side) } : std::nullopt;
+			json.StartSide      = entry.StartSide ? std::optional{ sideName(*entry.StartSide) } : std::nullopt;
+			json.Subject        = std::string{ entry.OnLine ? "line" : "file" };
+			auto value          = staged_comment_entity(json, aExpected);
+			if (!value) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			result.push_back(std::move(*value));
+		}
+		return result;
 	}
 
 	auto parse_review_comment_observations(
