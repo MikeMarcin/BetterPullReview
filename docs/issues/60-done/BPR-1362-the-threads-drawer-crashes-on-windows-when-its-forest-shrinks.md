@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1362"
 title: "The threads drawer no longer crashes on Windows when its forest is replaced"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"bpr-main-win, the owed Windows run of BPR-1355's application_thread_words_public_path, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1362--BPR-1362--50aba54c9754.json","related_cards":["BPR-1355","BPR-0972"],"decision":"coordinator, 2026-10-09: land as proposed; key by value rather than rely on ordering"}
+acceptance: [{"criterion":"qt_conversation_cards_view's test_replacing_a_forest_never_reads_the_last_one crashes on Windows Debug against the old key and passes with the fix","outcome":"pass","revision":"d510e8706","evidence":{"kind":"command","command":"ctest --test-dir build/windows-dev-tour-cli -C Debug --output-on-failure -R \"^qt_conversation_cards_view$\"","detail":"Windows 11, MSVC 19.50, Debug. Control (new test, old string_view key): SegFault 0xC0000005 in 0.65 s. With the std::string key: Passed. A first version with 2- and 3-thread forests passed on the old code (too few stale buckets), so the test adopts 3,000 then 250 then 240 threads."}},{"criterion":"On Windows, application_thread_words_public_path passes repeatedly, with qt_conversation_cards_view and the conversation panel rows","outcome":"pass","revision":"d510e8706","evidence":{"kind":"command","command":"ctest --test-dir build/windows-dev-tour-cli -C Debug --output-on-failure --repeat until-fail:5 -R \"^application_thread_words_public_path$\"","detail":"5 of 5 pass, against a crash in 3 of 4 runs before the fix. Also 10 of 10: qt_conversation_cards_view, qt_github_conversation_panel, qt_github_conversation_model_property, qt_conversation_finder_scale_{100,125,200}, qt_public_preview_conversation, qt_workbench_conversation_reveal, application_setup_destination_public_path, architecture_boundaries."}}]
 ---
 
 # BPR-1362: The threads drawer no longer crashes on Windows when its forest is replaced
