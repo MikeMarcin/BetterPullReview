@@ -90,6 +90,9 @@ network, or process effects.
   worktree of the checkout, so `stash pop` can take another agent's work
   (BPR-1332's bisect swapped BPR-1327's uncommitted files). Use WIP commits on
   your own branch.
+- Stop only processes you started, by their process ID. Never `pkill -f` or
+  `killall` by pattern: several agents build at once, and BPR-1346's
+  `pkill -f "cmake --build --preset dev"` stopped four other agents' builds.
 - Commit each completed issue slice intentionally.
 - For release work, use the existing `publish-release` skill and package paths.
   Bind the separate versioned corresponding-source asset as well as the binary,
