@@ -747,18 +747,37 @@ its numbers; the tooltips keep the whole text. At 900 pixels the widest bar,
 a named comparison with newer material and open notes, needs 875 pixels on
 macOS with nothing yielded. The owner's verdict on this bar is pending.
 
-The change arrows continue across files ([[BPR-1328]]). At a file's last
-change, Next change goes to the first change of the next actionable file; at
-its first change, Previous change goes to the last change of the previous one.
-The destination is the file Next or Previous file would choose, and a file with
-no changes is passed through. A change arrow is disabled only at the first
-change of the first file ("First change in the pull request.") and the last
-change of the last ("Last change in the pull request."), so a file with one
-change keeps both arrows live. The stop-versus-wrap wrap policy still wraps
-inside the comparison. Each arrow's tooltip names it and its first key in the
+The file and change arrows are a bounded previous and next that are always
+enabled ([[BPR-1328]]). The owner rejected greyed-out arrows ("It doesn't feel
+good for next change arrows to get greyed out when there's only 1 change") and
+then arrows that crossed into the next file: "I want the arrow keys to be there
+and selectable, pressable so the ui doesnt change but I want them to just try
+to move to the next change and realize there are no more and effectively do
+nothing. Just let it be a bounded prev and next that you can always use." So
+while a pull request is open the four arrows and their keys stay enabled. At
+the first or last change of the open comparison, Previous or Next change does
+nothing: no wrap and no move to another file. At the first or last file,
+Previous or Next file does nothing. A press with no comparison open, or in a
+comparison with no changes, does nothing too. The core decides it: each
+navigation command's projection is enabled with a `Bound` (`at_first_change`,
+`at_last_change`, `at_first_file`, `at_last_file`, `no_open_comparison`,
+`no_changes`, `no_actionable_files`), and the window sends no gesture while a
+command is bounded. Only an inactive workbench disables them. The arrows keep
+their size and place; nothing in the layout changes. A press at a bound shows
+its reason in the status bar for three seconds ("Last change in this file.",
+"First change in this file.", "Last file in this pull request.", "First file
+in this pull request."). Each arrow's tooltip names it and its first key in the
 platform's notation ("Next change (⌥↓)", "Previous file (⌥⌘↑)"); a second line
-names the file a crossing goes to ("Continue to the next file: …") or says why
-the arrow is disabled, and the status tip carries that line.
+names the bound, and the status tip carries that line. The stop-versus-wrap
+wrap policy, used only by a fixture probe, still wraps inside the comparison.
+
+Every control in the title row and the review bar shows its tooltip directly
+below itself, left edges aligned and four pixels apart, or above it where below
+would leave the screen, with BPR-1083's anchored tooltip ([[BPR-1328]]). The
+owner rejected the pointer-placed tooltip: "Whys this tooltip so far from the
+button?" The strip follows every widget added to it, so the arrows, the
+private-progress menu button, Compose review, Comment, the comparison menu,
+the modality segments and the drawer toggles all anchor their tooltips.
 
 The owner settled the keys on 2026-10-08: "Okay final choice: option cmd down
 next file. Option down next change", after "let cmd+down scroll to the bottom
@@ -780,7 +799,8 @@ The four navigation arrows use the native style's silhouettes with foreground
 pixels derived from the row's live active and disabled `ButtonText` roles.
 Palette, font, style, and theme changes rebuild those modes. This presentation
 refresh changes neither command identity nor projected enablement: disabled
-arrows remain readable and visually distinct, while the Files, Conversations,
+arrows (only with no pull request open, [[BPR-1328]]) remain readable and
+visually distinct, while the Files, Conversations,
 Review details, and private-progress symbols retain their separate native
 icons.
 
@@ -788,10 +808,10 @@ icons.
 
 RFC-BPR-0005 implements this shell. The four primary actions are `QAction`s
 owned by the window itself, not by the toolbar, which is what keeps their
-shortcuts alive when the toolbar reorganises. Their enablement and disabled
+shortcuts alive when the toolbar reorganises. Their enablement, bounds and disabled
 reasons come from the core's command projections; a widget never decides
-navigation legality locally, and a disabled action carries its exact reason in
-both tooltip and status tip.
+navigation legality locally, and a bounded or disabled action carries its exact
+reason in both tooltip and status tip.
 
 File navigation resolves through the retained accepted Files order and the
 existing workbench host selection path. The application supplies the core only

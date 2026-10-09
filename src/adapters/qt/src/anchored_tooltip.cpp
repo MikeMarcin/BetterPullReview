@@ -1,6 +1,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 
 #include <QApplication>
+#include <QChildEvent>
 #include <QCursor>
 #include <QEvent>
 #include <QGuiApplication>
@@ -9,6 +10,7 @@
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPointer>
+#include <QVariant>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QStyle>
@@ -213,6 +215,61 @@ namespace bpr::qt {
 			QWidget*                Widget = nullptr;
 			anchored_tooltip_source Source;
 		};
+
+		/// [[BPR-1328]]. Follows every widget inside one root and answers its
+		/// tooltip events with its own tooltip, anchored below it.
+		class anchored_descendant_filter final : public QObject
+		{
+		public:
+			explicit anchored_descendant_filter(QWidget& aRoot)
+				: QObject{ &aRoot }
+				, Root{ &aRoot }
+			{
+				follow(aRoot);
+			}
+
+		protected:
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ChildAdded) {
+					// Watching every widget inside the root sees a widget's
+					// own children arrive too, even while its constructor
+					// builds them.
+					if (auto* const child = static_cast<QChildEvent*>(aEvent)->child(); child != nullptr && child->isWidgetType()) {
+						follow(*child);
+					}
+					return QObject::eventFilter(aWatched, aEvent);
+				}
+				if (aEvent->type() != QEvent::ToolTip || aWatched == Root || !aWatched->isWidgetType()) {
+					return QObject::eventFilter(aWatched, aEvent);
+				}
+				auto* const widget = static_cast<QWidget*>(aWatched);
+				if (widget->toolTip().isEmpty() || Root == nullptr || !Root->isAncestorOf(widget)) {
+					return QObject::eventFilter(aWatched, aEvent);
+				}
+				QToolTip::hideText();
+				show_anchored_tooltip(*widget, widget->rect(), widget->toolTip());
+				return true;
+			}
+
+		private:
+			void follow(QObject& aObject)
+			{
+				if (aObject.property(followed_property).toBool()) {
+					return;
+				}
+				aObject.setProperty(followed_property, true);
+				aObject.installEventFilter(this);
+				for (auto* const child : aObject.children()) {
+					if (child->isWidgetType()) {
+						follow(*child);
+					}
+				}
+			}
+
+			static constexpr auto followed_property = "bprAnchoredDescendantTooltip";
+			QPointer<QWidget>     Root;
+		};
 	} // namespace
 
 	auto anchored_tooltip_geometry(const QRect& aAnchor, const QSize& aTip, const QRect& aScreen) -> QRect
@@ -258,5 +315,10 @@ namespace bpr::qt {
 	void anchor_tooltips(QWidget& aWidget, anchored_tooltip_source aSource)
 	{
 		aWidget.installEventFilter(new anchored_tooltip_filter{ aWidget, std::move(aSource) });
+	}
+
+	void anchor_descendant_tooltips(QWidget& aRoot)
+	{
+		static_cast<void>(new anchored_descendant_filter{ aRoot });
 	}
 } // namespace bpr::qt

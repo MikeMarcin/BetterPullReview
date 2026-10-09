@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1328"
-title: "Change arrows continue to the next file instead of greying out"
+title: "Change arrows stay enabled as a bounded previous and next"
 status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
-metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3","BPR-1328:C4","BPR-1328:C5"]}
+metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1083","BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3","BPR-1328:C4","BPR-1328:C5"]}
 parked_on: "human-review"
 ---
 
-# BPR-1328: Change arrows continue to the next file instead of greying out
+# BPR-1328: Change arrows stay enabled as a bounded previous and next
 
 ## Owner note
 
@@ -64,34 +64,61 @@ Follow-ups from the owner the same day, relayed by the coordinator:
   ⌥PgDn/⌥PgUp stay as change alternates. In text editors ⌥↑/⌥↓ (paragraph
   moves) and ⌘↑/⌘↓ keep their native meaning.
 
+## Owner verdicts on v002
+
+Session `57eb8f9479ce4db96d41ea195bccbff5`, handed back at cursor 16:
+
+- `BPR-1328-keys-v002` (C4): **Accept**.
+- `BPR-1328-arrows-v002` (C3): **Reject**, verbatim: "No not at all, I want
+  the arrow keys to be there and selectable, pressable so the ui doesnt change
+  but I want them to just try to move to the next change and realize there are
+  no more and effectively do nothing. Just let it be a bounded prev and next
+  that you can always use."
+- `BPR-1328-key-tooltips-v002` (C5): **Reject**, verbatim: "Whys this tooltip
+  so far from the button?" Its screenshot showed the Next change tooltip
+  ("Next change (⌥↓)" over "Continue to the next file: …") under the tab
+  strip, well below and right of the arrow.
+
+The coordinator's reading, relayed with the verdicts: drop cross-file
+crossing; the change arrows are always enabled and pressable, and at the first
+or last change of the file they do nothing (no wrap, no other file, no
+disabled state), the keys likewise; a subtle status hint is allowed but no
+layout change; the file arrows follow the same rule if consistent; and every
+title-row and review-bar tooltip sits right next to its control, directly
+below it, with BPR-1083's anchored tooltip, keeping the key names.
+
 ## Change
 
-Like Visual Studio Code's next change across files, the change arrows now
-continue past the ends of a comparison:
+The v002 crossing (Next change at a file's last change opening the next file)
+is withdrawn: `workbench_change_crossing`, `workbench_change_entry`,
+`cross_workbench_change_intent`, the comparison's `enter_next_comparison`
+and the composition's file-gesture clause for it are removed.
 
-- At a file's last change, Next change moves to the **first change of the next
-  actionable file**; at its first change, Previous change moves to the **last
-  change of the previous file**. The destination is exactly the file Next or
-  Previous file would choose.
-- The arrows are disabled only where there is nowhere to go: the first change
-  of the first file ("First change in the pull request.") and the last change
-  of the last file ("Last change in the pull request."). A one-change file
-  between two others keeps both arrows live.
-- When a press would cross, the tooltip names the destination: "Continue to
-  the next file: docs/guide.md", "Go back to the previous file: README.md".
-- A file with no changes passes the arrows through to its neighbour.
-- The wrap policy keeps wrapping inside the comparison, as before.
+**Bounded and always enabled (v003).** While a pull request is open the four
+navigation commands are enabled. Each projection carries a `Bound`: the reason
+a press would do nothing now (`at_first_change`, `at_last_change`,
+`at_first_file`, `at_last_file`, `no_open_comparison`, `no_changes`,
+`no_actionable_files`), or `none` when a press moves. Only an inactive
+workbench disables them (`no_active_workbench`, no bound). The window sends no
+gesture while a command is bounded, so a press by arrow or key at the first or
+last change of the file, or the first or last file, changes nothing: no wrap,
+no other file, no reload. The arrows keep their size and place. The press
+shows its reason in the existing status bar for three seconds: "First change in
+this file.", "Last change in this file.", "First file in this pull request.",
+"Last file in this pull request." The tooltip's second line and the status tip
+name the bound the same way. The file arrows follow the same rule as the change
+arrows. The fixture-only wrap policy still wraps inside the comparison.
 
-The core decides the target. `plan_change_navigation` returns a crossing (the
-file decision the file command would make, plus whether to enter at the first
-or last change) on the command projection, and the new
-`cross_workbench_change_intent` decides it again in `transition`. The window
-dispatches that intent when the projection offers a crossing and otherwise
-sends the unchanged RFC-BPR-0004 diff intent. The host resolves the file
-decision exactly as for Next file. The comparison surface is told the
-destination file and the entry end; the next accepted comparison of that file
-is entered through `navigate_change` from no selection, and an accepted
-comparison of any other file drops the request.
+**Tooltips beside their controls (v003).** `anchor_descendant_tooltips`
+(added to BPR-1083's `anchored_tooltip`) follows every widget inside a root as
+it arrives and shows each one's own `toolTip()` directly below it, left edges
+aligned and `anchored_tooltip_gap` (4 px) apart, or above it where below would
+leave the screen. Both `workbench_strip`s, the title row and the review bar,
+install it, so all of their controls anchor: the file and change arrows, the
+private-progress button (✓▾), Compose review, Comment, Comparing, Updates, the
+position labels, Home, the drawer toggles, the modality segments, Hide drawers,
+Account, Settings and Refresh. A widget with no tooltip of its own keeps its
+usual handling. The tooltip texts, key names included, are unchanged.
 
 **Keys and tooltips (final, v002).** Next change is `Alt+Down` then
 `Alt+PgDown`, Previous change `Alt+Up` then `Alt+PgUp`; Next file is
@@ -100,9 +127,8 @@ comparison of any other file drops the request.
 Each arrow's tooltip is "Name (key)" in `QKeySequence::NativeText` for its
 first key: "Next change (⌥↓)", "Previous change (⌥↑)", "Next file (⌥⌘↓)",
 "Previous file (⌥⌘↑)" on macOS; "Next change (Alt+Down)", "Previous file
-(Ctrl+Alt+Up)" elsewhere. A second line names a crossing's destination
-("Continue to the next file: …") or the disabled reason; the status tip is that
-line, or the arrow's purpose. The No file open page's direction reads the
+(Ctrl+Alt+Up)" elsewhere. A second line names the bound (v003; v002 named a
+crossing's destination); the status tip is that line, or the arrow's purpose. The No file open page's direction reads the
 same key ("⌥⌘↓ opens the next file").
 
 **Scrolling in the code.** In a code pane (either side of two panes, the link
@@ -158,25 +184,28 @@ Windows and Linux, where Ctrl+Down/Ctrl+Up are not the document keys.
 
 ## Acceptance
 
-- **C1.** The core enables a change command at an end of the open comparison
-  exactly when the matching file command has a neighbour, with a crossing that
-  names that decision and the entry end; it refuses only at the ends of the
-  pull request, with `at_first_change` or `at_last_change`. Tests fail before
-  the change.
-- **C2.** Through the real composition on `nested-folders-v1`, Next change
-  walks from the first change of the first file to the last change of the
-  last, crossing each file once; Previous change walks back, entering each
-  file at its last change. Tooltips name each destination and each end.
-- **C3.** Owner look, frozen build, one Accept/Reject: "change arrows continue
-  to the next file".
+- **C1.** While a pull request is open, the core enables the four navigation
+  commands everywhere and names a bound exactly where a press cannot move: the
+  first or last change of the open comparison, the first or last file, no open
+  comparison, no changes. Only an inactive workbench disables them. Tests fail
+  before the change. (v002's C1, a crossing into the neighbouring file, is
+  withdrawn by the owner's Reject.)
+- **C2.** Through the real composition on `nested-folders-v1`, every file is
+  opened with Next file and walked to its last change and back; one more press
+  at either end, and Next file on the last file, changes nothing (same file,
+  same change, same comparison), every arrow stays enabled, and the tooltips
+  and status bar name each bound.
+- **C3.** Owner look, frozen build, one Accept/Reject: "the arrows stay
+  enabled and do nothing at the ends".
 - **C4.** ⌥↓/⌥↑ (Alt+Down/Alt+Up) navigate changes and ⌥⌘↓/⌥⌘↑
   (Ctrl+Alt+Down/Ctrl+Alt+Up) files from the code; ⌘↓/⌘↑ (Ctrl+End/Ctrl+Home
   on Windows and Linux) scroll the code to its bottom and top; an editable
-  multi-line editor keeps ⌥↑/⌥↓ and ⌘↑/⌘↓; owner look in the same session,
-  one Accept/Reject. Tests fail before the change.
+  multi-line editor keeps ⌥↑/⌥↓ and ⌘↑/⌘↓; owner look, one Accept/Reject.
+  Tests fail before the change. **Accepted** on v002.
 - **C5.** Every file and change arrow's tooltip names its key in native
-  notation ("Next change (⌥↓)", "Next file (⌥⌘↓)"); owner look in the same
-  session, one Accept/Reject.
+  notation ("Next change (⌥↓)", "Next file (⌥⌘↓)") and, like every title-row
+  and review-bar tooltip, appears directly below its control; tests fail
+  before the change; owner look, one Accept/Reject.
 
 ## Execution record
 

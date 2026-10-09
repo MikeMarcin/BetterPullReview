@@ -5,6 +5,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -426,6 +427,17 @@ namespace {
 		return command_state(aId, false, aReason);
 	}
 
+	/// \brief [[BPR-1328]]. A navigation command at its bound: enabled, and a
+	/// press does nothing for `aBound`.
+	[[nodiscard]] auto bounded(const core::workbench_command_id  aId,
+							   const core::workbench_reason_code aBound)
+		-> core::workbench_command_projection
+	{
+		auto command  = command_state(aId, true, core::workbench_reason_code::none);
+		command.Bound = aBound;
+		return command;
+	}
+
 	/// \brief Builds one core command delta with every entry in projection order.
 	///
 	/// \details Entry `i` projects `core::workbench_command_id{ i }`, exactly as
@@ -465,9 +477,9 @@ namespace {
 			.Commands = command_delta(
 				aPrevious,
 				aNext,
-				refused(core::workbench_command_id::previous_change,
+				bounded(core::workbench_command_id::previous_change,
 						core::workbench_reason_code::no_open_comparison),
-				refused(core::workbench_command_id::next_change,
+				bounded(core::workbench_command_id::next_change,
 						core::workbench_reason_code::no_open_comparison)),
 		};
 	}
@@ -596,11 +608,11 @@ namespace {
 		// but its own, or that kept a second carrier for change legality, cannot
 		// reproduce this pattern.
 		const auto mixed = command_delta(
-			refused(core::workbench_command_id::previous_file,
+			bounded(core::workbench_command_id::previous_file,
 					core::workbench_reason_code::at_first_file),
 			offered(core::workbench_command_id::next_file),
 			offered(core::workbench_command_id::previous_change),
-			refused(core::workbench_command_id::next_change,
+			bounded(core::workbench_command_id::next_change,
 					core::workbench_reason_code::at_last_change));
 		window.publish({ .Commands = mixed });
 
@@ -613,30 +625,35 @@ namespace {
 				   "every primary action follows its own entry of the one core "
 				   "command projection");
 		}
-		expect(detail_of(window.previous_file_action())
-					   == QStringLiteral("This is the first actionable file.")
+		// [[BPR-1328]]. A bound keeps the arrow enabled and names itself.
+		expect(window.previous_file_action()->isEnabled() && window.next_change_action()->isEnabled()
+				   && detail_of(window.previous_file_action())
+					   == QStringLiteral("First file in this pull request.")
 				   && detail_of(window.next_change_action())
 					   == QStringLiteral(
-						   "Last change in the pull request."),
-			   "each disabled primary action carries its own exact core reason");
+						   "Last change in this file.")
+				   && detail_of(window.next_file_action()).isEmpty()
+				   && detail_of(window.previous_change_action()).isEmpty(),
+			   "each bounded primary action stays enabled and carries its own exact core bound");
 
 		// The same delta shape decides the reverse pair, so no action can be
 		// following a constant that merely agreed with the first publication.
 		const auto reversed = command_delta(
 			offered(core::workbench_command_id::previous_file),
-			refused(core::workbench_command_id::next_file,
+			bounded(core::workbench_command_id::next_file,
 					core::workbench_reason_code::at_last_file),
-			refused(core::workbench_command_id::previous_change,
+			bounded(core::workbench_command_id::previous_change,
 					core::workbench_reason_code::at_first_change),
 			offered(core::workbench_command_id::next_change));
 		window.publish({ .Commands = reversed });
 		for (std::size_t index = 0U; index < actions.size(); ++index) {
-			expect(actions[index]->isEnabled() == reversed.Commands[index].Enabled,
+			expect(actions[index]->isEnabled() == reversed.Commands[index].Enabled
+					   && detail_of(actions[index]).isEmpty() == (reversed.Commands[index].Bound == core::workbench_reason_code::none),
 				   "a replacement projection moves every primary action with it");
 		}
 		expect(detail_of(window.previous_change_action())
 					   == QStringLiteral(
-						   "First change in the pull request.")
+						   "First change in this file.")
 				   && window.previous_change_action()->statusTip()
 					   == detail_of(window.previous_change_action()),
 			   "the change reason reaches the tooltip and the status tip");
@@ -708,35 +725,36 @@ namespace {
 			   "in its own words");
 
 		window.publish(file_commands(
-			refused(core::workbench_command_id::previous_file,
+			bounded(core::workbench_command_id::previous_file,
 					core::workbench_reason_code::at_first_file),
 			offered(core::workbench_command_id::next_file)));
 		expect(detail_of(window.previous_change_action())
 				   == QStringLiteral("No file comparison is open."),
 			   "an active workbench with no open comparison says so exactly");
-		expect(!window.previous_file_action()->isEnabled()
+		expect(window.previous_file_action()->isEnabled()
 				   && window.next_file_action()->isEnabled(),
-			   "QAction enabled state follows the core command projection");
+			   "QAction enabled state follows the core command projection, and a "
+			   "bound keeps the arrow enabled");
 		expect(detail_of(window.previous_file_action())
-				   == QStringLiteral("This is the first actionable file."),
-			   "a disabled file action's tooltip carries its exact core reason");
+				   == QStringLiteral("First file in this pull request."),
+			   "a bounded file action's tooltip carries its exact core bound");
 		expect(window.previous_file_action()->statusTip()
 				   == detail_of(window.previous_file_action()),
-			   "the disabled file reason also reaches the status tip");
+			   "the file bound also reaches the status tip");
 		expect(window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+Alt+Down") }.toString(QKeySequence::NativeText))
 				   && window.next_file_action()->statusTip() == QStringLiteral("Select the next actionable file."),
 			   "an enabled file action names itself and its key, and its status tip describes the gesture");
 
 		window.publish(file_commands(
-			refused(core::workbench_command_id::previous_file,
+			bounded(core::workbench_command_id::previous_file,
 					core::workbench_reason_code::no_actionable_files),
-			refused(core::workbench_command_id::next_file,
+			bounded(core::workbench_command_id::next_file,
 					core::workbench_reason_code::at_last_file)));
 		expect(detail_of(window.previous_file_action())
 				   == QStringLiteral("This pull request has no actionable files."),
 			   "a different core reason produces a different exact file reason");
 		expect(detail_of(window.next_file_action())
-					   == QStringLiteral("This is the last actionable file.")
+					   == QStringLiteral("Last file in this pull request.")
 				   && window.next_file_action()->statusTip()
 					   == detail_of(window.next_file_action()),
 			   "each disabled file action carries its own exact core reason");
@@ -745,28 +763,28 @@ namespace {
 			.Commands = command_delta(
 				offered(core::workbench_command_id::previous_file),
 				offered(core::workbench_command_id::next_file),
-				refused(core::workbench_command_id::previous_change,
+				bounded(core::workbench_command_id::previous_change,
 						core::workbench_reason_code::at_first_change),
 				offered(core::workbench_command_id::next_change)),
 		});
-		expect(!window.previous_change_action()->isEnabled()
+		expect(window.previous_change_action()->isEnabled()
 				   && window.next_change_action()->isEnabled(),
 			   "QAction enabled state follows the same core command projection "
 			   "for change navigation");
 		expect(detail_of(window.previous_change_action())
-					   == QStringLiteral("First change in the pull request.")
+					   == QStringLiteral("First change in this file.")
 				   && window.previous_change_action()->statusTip()
 					   == detail_of(window.previous_change_action()),
-			   "a disabled change action's tooltip carries its exact core reason");
+			   "a bounded change action's tooltip carries its exact core bound");
 
 		window.publish({
 			.Commands = command_delta(
 				offered(core::workbench_command_id::previous_file),
-				refused(core::workbench_command_id::next_file,
+				bounded(core::workbench_command_id::next_file,
 						core::workbench_reason_code::at_last_file),
-				refused(core::workbench_command_id::previous_change,
+				bounded(core::workbench_command_id::previous_change,
 						core::workbench_reason_code::no_changes),
-				refused(core::workbench_command_id::next_change,
+				bounded(core::workbench_command_id::next_change,
 						core::workbench_reason_code::no_changes)),
 		});
 		expect(detail_of(window.previous_change_action())
@@ -780,8 +798,8 @@ namespace {
 		expect(window.statistics().Failures == before.Failures + 1U,
 			   "a host failure is observed by the window");
 		expect(detail_of(window.next_file_action())
-					   == QStringLiteral("This is the last actionable file.")
-				   && !window.next_file_action()->isEnabled(),
+					   == QStringLiteral("Last file in this pull request.")
+				   && window.next_file_action()->isEnabled(),
 			   "a host failure does not let the window re-decide command legality");
 		expect(window.status_text().contains(QStringLiteral(
 				   "more actionable files than the workbench retains")),
@@ -8529,13 +8547,13 @@ namespace {
 				   && !qt::comparison_scroll_edge_for(QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::ControlModifier | Qt::AltModifier }).has_value(),
 			   "the change and file keys are not scroll keys");
 		window.publish({ .Commands = command_delta(offered(core::workbench_command_id::previous_file),
-												   refused(core::workbench_command_id::next_file, core::workbench_reason_code::at_last_file),
+												   bounded(core::workbench_command_id::next_file, core::workbench_reason_code::at_last_file),
 												   offered(core::workbench_command_id::previous_change),
-												   refused(core::workbench_command_id::next_change, core::workbench_reason_code::at_last_change)) });
-		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)\nLast change in the pull request.").arg(native("Alt+Down"))
-				   && window.next_change_action()->statusTip() == QStringLiteral("Last change in the pull request.")
-				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)\nThis is the last actionable file.").arg(native("Ctrl+Alt+Down")),
-			   "a disabled arrow still names its key, with why on the line below");
+												   bounded(core::workbench_command_id::next_change, core::workbench_reason_code::at_last_change)) });
+		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)\nLast change in this file.").arg(native("Alt+Down"))
+				   && window.next_change_action()->statusTip() == QStringLiteral("Last change in this file.")
+				   && window.next_file_action()->toolTip() == QStringLiteral("Next file (%1)\nLast file in this pull request.").arg(native("Ctrl+Alt+Down")),
+			   "a bounded arrow still names its key, with its bound on the line below");
 		window.publish(every_primary_command_offered());
 
 		// No Qt standard key on this platform holds the window's file and
@@ -8709,15 +8727,19 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-1328]]. The change arrows continue across files.
+	/// \brief [[BPR-1328]]. The arrows are a bounded previous and next.
 	///
 	/// \details The owner, 2026-10-08: "It doesn't feel good for next change
-	/// arrows to get greyed out when there's only 1 change". The window runs
-	/// against a real core state and a small host that resolves the core's
-	/// file decisions against a three-file order and publishes each file's
-	/// real comparison, as the composition does. The middle file has one
-	/// change; the outer two have two each.
-	void test_change_arrows_continue_across_files()
+	/// arrows to get greyed out when there's only 1 change", then, rejecting
+	/// arrows that crossed into the next file: "I want the arrow keys to be
+	/// there and selectable, pressable so the ui doesnt change but I want them
+	/// to just try to move to the next change and realize there are no more
+	/// and effectively do nothing. Just let it be a bounded prev and next that
+	/// you can always use." The window runs against a real core state and a
+	/// small host that resolves the core's file decisions against a three-file
+	/// order and publishes each file's real comparison, as the composition
+	/// does. The middle file has one change; the outer two have two each.
+	void test_change_arrows_are_bounded_and_always_enabled()
 	{
 		const auto source = [](const std::string_view aFirst, const std::string_view aSecond) {
 			auto text = std::string{ };
@@ -8749,7 +8771,7 @@ namespace {
 		}
 
 		auto  state     = core::workbench_interaction_state{ };
-		auto  crossings = std::vector<core::cross_workbench_change_intent>{ };
+		auto  workbench = std::vector<core::workbench_interaction_intent>{ };
 		auto  steps     = std::vector<core::navigate_diff_change_intent>{ };
 		auto* shown     = static_cast<qt::workbench_window*>(nullptr);
 		// The change cursor exactly as the composition derives it from the
@@ -8804,9 +8826,7 @@ namespace {
 		};
 		qt::workbench_window window{
 			[&](core::workbench_interaction_intent aIntent) {
-				if (const auto* const crossing = std::get_if<core::cross_workbench_change_intent>(&aIntent)) {
-					crossings.push_back(*crossing);
-				}
+				workbench.push_back(aIntent);
 				const auto output = core::transition(state, aIntent);
 				if (!output.Decision) {
 					return;
@@ -8850,65 +8870,141 @@ namespace {
 				&& state.Navigation->File == order[aFile] && selectedOrdinal() == aChange;
 		};
 
-		// The owner's case: the one-change file keeps both arrows live.
+		const auto key = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
+		const auto all_enabled = [&window] {
+			return std::ranges::all_of(navigation_actions(window), [](const QAction* const aAction) { return aAction->isEnabled(); });
+		};
+		const auto message = [&window] { return window.statusBar()->currentMessage(); };
+
+		// The owner's case: a one-change file between two others.
 		open(1U);
 		expect(at(1U, 1U) && window.change_position_label()->toolTip() == QStringLiteral("Changes 1 of 1"),
 			   "the middle file opens on its only change");
-		expect(window.previous_change_action()->isEnabled() && window.next_change_action()->isEnabled(),
-			   "a one-change file between two others keeps both change arrows enabled");
-		expect(detail_of(window.next_change_action()) == QStringLiteral("Continue to the next file: src/charlie.cpp")
-				   && detail_of(window.previous_change_action()) == QStringLiteral("Go back to the previous file: src/alpha.cpp")
-				   && window.next_change_action()->statusTip() == QStringLiteral("Continue to the next file: src/charlie.cpp"),
-			   "a change arrow that crosses names the file it goes to");
+		expect(all_enabled(), "a one-change file keeps all four arrows enabled");
+		expect(window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)\nLast change in this file.").arg(key("Alt+Down"))
+				   && window.previous_change_action()->toolTip() == QStringLiteral("Previous change (%1)\nFirst change in this file.").arg(key("Alt+Up"))
+				   && window.next_change_action()->statusTip() == QStringLiteral("Last change in this file."),
+			   "a change arrow at its bound names its key and the bound");
 		save_render(window, QStringLiteral("change-arrows-one-change"));
 
+		window.statusBar()->clearMessage();
 		window.next_change_action()->trigger();
 		process_events();
-		expect(crossings.size() == 1U && crossings.back().Direction == core::change_navigation_direction::next && steps.empty(),
-			   "next change at the file's last change leaves as one crossing workbench intent");
-		expect(at(2U, 1U) && window.change_position_label()->toolTip() == QStringLiteral("Changes 1 of 2"),
-			   "next change continues to the first change of the next file");
-
+		expect(workbench.empty() && steps.empty() && at(1U, 1U),
+			   "next change at the file's last change sends nothing and stays on that change");
+		expect(all_enabled() && message() == QStringLiteral("Last change in this file."),
+			   "the arrow stays enabled and the status bar says why nothing moved");
 		window.previous_change_action()->trigger();
 		process_events();
-		expect(crossings.size() == 2U && at(1U, 1U),
-			   "previous change at the first change goes back to the previous file");
-		window.previous_change_action()->trigger();
-		process_events();
-		expect(crossings.size() == 3U && at(0U, 2U) && window.change_position_label()->toolTip() == QStringLiteral("Changes 2 of 2"),
-			   "going back enters the previous file at its last change");
+		expect(workbench.empty() && steps.empty() && at(1U, 1U) && message() == QStringLiteral("First change in this file."),
+			   "previous change at the file's first change sends nothing and stays");
+		deliver_key(window, Qt::Key_Down, Qt::AltModifier);
+		deliver_key(window, Qt::Key_Up, Qt::AltModifier);
+		deliver_key(window, Qt::Key_PageDown, Qt::AltModifier);
+		expect(workbench.empty() && steps.empty() && at(1U, 1U) && all_enabled(),
+			   "the change keys at the bounds do nothing too: no wrap and no other file");
 
-		window.previous_change_action()->trigger();
-		process_events();
-		expect(steps.size() == 1U && crossings.size() == 3U && at(0U, 1U),
-			   "a change with a predecessor in its own comparison steps inside it");
-		expect(!window.previous_change_action()->isEnabled()
-				   && detail_of(window.previous_change_action()) == QStringLiteral("First change in the pull request.")
-				   && window.next_change_action()->isEnabled()
-				   && window.next_change_action()->toolTip() == QStringLiteral("Next change (%1)").arg(QKeySequence{ QStringLiteral("Alt+Down") }.toString(QKeySequence::NativeText)),
-			   "only the first change of the first file disables previous change, and says why");
-
-		for (auto press = 0; press < 4; ++press) {
-			window.next_change_action()->trigger();
-			process_events();
-		}
-		expect(at(2U, 2U) && crossings.size() == 5U && steps.size() == 3U,
-			   "next change walks every change of the pull request in order across files");
-		expect(!window.next_change_action()->isEnabled()
-				   && detail_of(window.next_change_action()) == QStringLiteral("Last change in the pull request.")
-				   && window.previous_change_action()->isEnabled(),
-			   "only the last change of the last file disables next change, and says why");
-		save_render(window, QStringLiteral("change-arrows-last"));
-
-		// An entry is bound to the file it was asked for: another file's
-		// comparison drops it.
-		window.comparison_surface()->enter_next_comparison(order[0], core::change_navigation_direction::previous);
-		open(1U);
+		// A file with two changes steps inside itself and stops at each end.
 		open(0U);
-		expect(at(0U, 1U), "a crossing entry another file's comparison overtook is not applied later");
-		window.comparison_surface()->enter_next_comparison(order[2], core::change_navigation_direction::previous);
+		expect(at(0U, 1U), "the first file opens on its first change");
+		const auto opened = workbench.size();
+		window.previous_change_action()->trigger();
+		process_events();
+		expect(workbench.size() == opened && steps.empty() && at(0U, 1U),
+			   "previous change at the first change of the first file does nothing");
+		window.next_change_action()->trigger();
+		process_events();
+		expect(steps.size() == 1U && at(0U, 2U) && window.change_position_label()->toolTip() == QStringLiteral("Changes 2 of 2"),
+			   "next change steps inside its comparison");
+		window.next_change_action()->trigger();
+		process_events();
+		expect(steps.size() == 1U && workbench.size() == opened && at(0U, 2U) && all_enabled()
+				   && detail_of(window.next_change_action()) == QStringLiteral("Last change in this file."),
+			   "next change at the last change of a file that has a next file stays in this file");
+
+		// The file arrows follow the same rule at the first and last file.
+		expect(detail_of(window.previous_file_action()) == QStringLiteral("First file in this pull request."),
+			   "previous file names its bound on the first file");
+		window.previous_file_action()->trigger();
+		process_events();
+		expect(workbench.size() == opened && at(0U, 2U) && message() == QStringLiteral("First file in this pull request.") && all_enabled(),
+			   "previous file on the first file sends nothing and stays enabled");
+		window.next_file_action()->trigger();
+		process_events();
+		expect(workbench.size() == opened + 1U && at(1U, 1U), "next file moves to the next file");
 		open(2U);
-		expect(at(2U, 2U), "the entry is applied to its own file's comparison");
+		const auto last = workbench.size();
+		window.next_file_action()->trigger();
+		deliver_key(window, Qt::Key_Down, Qt::ControlModifier | Qt::AltModifier);
+		process_events();
+		expect(workbench.size() == last && at(2U, 1U) && message() == QStringLiteral("Last file in this pull request.") && all_enabled(),
+			   "next file on the last file, by arrow or key, sends nothing and stays enabled");
+		save_render(window, QStringLiteral("change-arrows-last"));
+		window.hide();
+	}
+
+	/// \brief [[BPR-1328]]. Every title-row and review-bar tooltip sits
+	/// directly below its control.
+	///
+	/// \details The owner, rejecting `key-tooltips-v002`: "Whys this tooltip
+	/// so far from the button?" `QToolTip` put the arrow's tooltip below and
+	/// right of the pointer; BPR-1083's anchored tooltip puts it under the
+	/// control, left edges aligned, `anchored_tooltip_gap` below.
+	void test_strip_tooltips_sit_directly_below_their_controls()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+
+		const auto tipFor = [](QWidget& aControl) -> std::pair<QString, QRect> {
+			qt::hide_anchored_tooltip();
+			QToolTip::hideText();
+			const auto centre = aControl.rect().center();
+			auto       help   = QHelpEvent{ QEvent::ToolTip, centre, aControl.mapToGlobal(centre) };
+			QApplication::sendEvent(&aControl, &help);
+			const auto* const label = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+			return label != nullptr ? std::pair{ label->text(), label->geometry() } : std::pair{ QString{ }, QRect{ } };
+		};
+		auto       checked  = 0;
+		auto       named    = QStringList{ };
+		const auto controls = [](QToolBar* const aStrip) {
+			auto found = QList<QWidget*>{ };
+			for (auto* const widget : aStrip->findChildren<QWidget*>()) {
+				if (widget->isVisible() && !widget->toolTip().isEmpty() && widget->window() == aStrip->window()) {
+					found.push_back(widget);
+				}
+			}
+			return found;
+		};
+		for (auto* const strip : { window.review_bar(), window.primary_toolbar() }) {
+			for (auto* const control : controls(strip)) {
+				const auto [text, tip] = tipFor(*control);
+				const auto global      = QRect{ control->mapToGlobal(QPoint{ 0, 0 }), control->size() };
+				const auto label       = control->accessibleName().isEmpty() ? control->objectName() : control->accessibleName();
+				expect(text == control->toolTip(), (label + QStringLiteral(": the anchored tooltip shows the control's own tooltip")).toStdString());
+				// Directly below, left edges aligned, moved left only to stay on
+				// the screen (the offscreen screen is narrower than the window).
+				const auto area = control->screen()->availableGeometry();
+				expect(tip.top() == global.bottom() + 1 + qt::anchored_tooltip_gap
+						   && tip.left() == std::max(area.left(), std::min(global.left(), area.left() + area.width() - tip.width()))
+						   && tip == qt::anchored_tooltip_geometry(global, tip.size(), area),
+					   (label + QStringLiteral(": the tooltip sits directly below the control, left edges aligned")).toStdString());
+				expect(!QToolTip::isVisible(), (label + QStringLiteral(": the pointer-placed tooltip is not shown")).toStdString());
+				named.push_back(label);
+				++checked;
+			}
+		}
+		std::cout << "BPR-1328 strip tooltips checked=" << checked << ": " << named.join(QStringLiteral(", ")).toStdString() << '\n';
+		const auto nextChange = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.next_change_action()));
+		expect(nextChange != nullptr && tipFor(*nextChange).first == window.next_change_action()->toolTip()
+				   && window.next_change_action()->toolTip().startsWith(QStringLiteral("Next change (")),
+			   "the Next change arrow's anchored tooltip keeps its key");
+		expect(tipFor(*window.review_controls_button()).first == window.review_controls_button()->toolTip(),
+			   "the private progress menu button's tooltip is anchored too");
+		qt::hide_anchored_tooltip();
 		window.hide();
 	}
 
@@ -13382,7 +13478,7 @@ namespace {
 		expect(log.Workbench.size() == before + 1U && file_direction(log.Workbench.back()) == core::change_navigation_direction::next,
 			   "Open first file is Next file's own intent, which from no file opens the first");
 		const auto noFiles = command_delta(offered(core::workbench_command_id::previous_file),
-										   refused(core::workbench_command_id::next_file, core::workbench_reason_code::no_actionable_files),
+										   bounded(core::workbench_command_id::next_file, core::workbench_reason_code::no_actionable_files),
 										   offered(core::workbench_command_id::previous_change), offered(core::workbench_command_id::next_change));
 		window.publish({ .Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ } }, .Commands = noFiles });
 		process_events();
@@ -13626,7 +13722,8 @@ auto main(int argc, char** argv) -> int
 	test_the_right_tray_holds_comments_and_notes_tabs();
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_a_reply_waits_for_its_threads_own_comparison();
-	test_change_arrows_continue_across_files();
+	test_change_arrows_are_bounded_and_always_enabled();
+	test_strip_tooltips_sit_directly_below_their_controls();
 	test_change_keys_are_named_and_yield_in_editors();
 	test_code_zoom_commands_keys_and_collisions();
 	test_defect_queue_navigation_and_semantic_dispatch();

@@ -1,14 +1,16 @@
-// [[BPR-1328]]. The change arrows continue across files, through the real
-// composition, the workbench host and the Git/cache actor, on the constructed
-// nested-folders pull request served by the fake GitHub server.
+// [[BPR-1328]]. The file and change arrows are a bounded previous and next,
+// through the real composition, the workbench host and the Git/cache actor,
+// on the constructed nested-folders pull request served by the fake GitHub
+// server.
 //
 // The owner, 2026-10-08: "It doesn't feel good for next change arrows to get
-// greyed out when there's only 1 change". The course walks Next change from
-// the first change of the first file to the last change of the last, and
-// Previous change all the way back. Each press either steps inside the open
-// comparison or crosses into the neighbouring file, entering it at its first
-// change going forward and its last going back. Only the two ends of the pull
-// request disable an arrow, and each says why.
+// greyed out when there's only 1 change", then, rejecting arrows that crossed
+// into the next file: "Just let it be a bounded prev and next that you can
+// always use." The course opens every file of the pull request with Next file
+// and, in each, walks Next change to its last change and Previous change back
+// to its first. One more press at either end, by arrow or key, changes
+// nothing: the same file, the same change, the same comparison. No arrow is
+// ever disabled, and an arrow at its bound says so.
 //
 // The owner's final keys, 2026-10-08: "Okay final choice: option cmd down next
 // file. Option down next change". `--attended` opens the nested-folders pull
@@ -26,6 +28,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QStatusBar>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QLabel>
@@ -107,6 +110,18 @@ namespace {
 			&& (aDetail.isEmpty() || aAction->statusTip() == aDetail);
 	}
 
+	/// \brief Lets a press that should do nothing have every chance to do
+	/// something.
+	void settle()
+	{
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (elapsed.elapsed() < 250) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+	}
+
 	void render(qt::workbench_window& aWindow, const QString& aName)
 	{
 		const auto root = qEnvironmentVariable("BPR_CHANGE_ARROWS_RENDER_ROOT");
@@ -175,8 +190,29 @@ int main(int aArgc, char** aArgv)
 			   && window.next_file_action()->toolTip().startsWith(QStringLiteral("Next file (%1)").arg(keyOf("Ctrl+Alt+Down")))
 			   && window.previous_file_action()->toolTip().startsWith(QStringLiteral("Previous file (%1)").arg(keyOf("Ctrl+Alt+Up"))),
 		   "each arrow's tooltip names its key: Option-Down and Option-Up for the changes, Option-Command-Down and Option-Command-Up for the files");
-	expect(!previous->isEnabled() && says(previous, QStringLiteral("Previous change"), QStringLiteral("First change in the pull request.")),
-		   "the first change of the first file disables Previous change and says why");
+	auto* const nextFile     = window.next_file_action();
+	auto* const previousFile = window.previous_file_action();
+	const auto  allEnabled   = [&] { return next->isEnabled() && previous->isEnabled() && nextFile->isEnabled() && previousFile->isEnabled(); };
+	expect(allEnabled() && says(previous, QStringLiteral("Previous change"), QStringLiteral("First change in this file."))
+			   && says(previousFile, QStringLiteral("Previous file"), QStringLiteral("First file in this pull request.")),
+		   "the first change of the first file keeps every arrow enabled and names the bounds");
+
+	// One press at a bound: nothing moves and nothing reloads.
+	auto       bounds = 0;
+	const auto pressAtBound = [&](QAction* const aAction, const QString& aMessage, const char* aWhat) {
+		const auto  here   = *where(window);
+		const auto* before = window.comparison_surface()->current_result().get();
+		window.statusBar()->clearMessage();
+		aAction->trigger();
+		settle();
+		expect(where(window) == here && window.comparison_surface()->current_result().get() == before, aWhat);
+		expect(allEnabled() && window.statusBar()->currentMessage() == aMessage, "the arrow stays enabled and the status bar says why nothing moved");
+		++bounds;
+	};
+	if (!attended) {
+		pressAtBound(previous, QStringLiteral("First change in this file."), "Previous change at the first change of the first file does nothing");
+		pressAtBound(previousFile, QStringLiteral("First file in this pull request."), "Previous file on the first file does nothing");
+	}
 
 	if (attended) {
 		// The owner looks at a file with one change between two others, the
@@ -188,9 +224,9 @@ int main(int aArgc, char** aArgv)
 					 : here.Changes == 1U && here.Row > 0 && here.Row + 1 < rows) {
 				break;
 			}
-			expect(!keys || here.Row + 1 < rows, ("the walk finds " + wanted.toStdString()).c_str());
-			next->trigger();
-			wait_for([&] { return where(window) && *where(window) != here; }, "the attended walk moves");
+			expect(here.Row + 1 < rows, ("the walk finds " + (keys ? wanted : QStringLiteral("a one-change file between two others")).toStdString()).c_str());
+			nextFile->trigger();
+			wait_for([&] { return where(window) && where(window)->Row == here.Row + 1; }, "the attended walk moves");
 		}
 		std::cout << "CHANGE_ARROWS_ATTENDED_READY source=synthetic fixture=" << (keys ? "inline-drawer-v1" : "nested-folders-v1") << " file=" << path_at(window, where(window)->Row).toStdString() << '\n'
 				  << std::flush;
@@ -202,66 +238,62 @@ int main(int aArgc, char** aArgv)
 		return result;
 	}
 
-	// Forward: every change of the pull request, in order, across every file.
-	auto crossings    = 0;
+	// Every file, in order: Next change to its last change, Previous change
+	// back to its first, one more press at each end.
 	auto steps        = 0;
 	auto oneChangeMid = 0;
-	for (auto presses = 0; presses < 400 && next->isEnabled(); ++presses) {
-		const auto here    = *where(window);
-		const auto crosses = here.Change >= here.Changes;
-		if (here.Changes == 1U && here.Row > 0 && here.Row + 1 < rows) {
-			expect(previous->isEnabled() && next->isEnabled(), "a one-change file between two others keeps both change arrows enabled");
+	for (auto row = 0; row < rows; ++row) {
+		if (row > 0) {
+			const auto from = where(window)->Row;
+			nextFile->trigger();
+			wait_for([&] { return where(window) && where(window)->Row == from + 1; }, "Next file opens the next file");
+		}
+		wait_for([&] {
+			const auto now = where(window);
+			return now && now->Row == row && now->Change == (now->Changes == 0U ? 0U : 1U);
+		},
+				 "each file opens on its first change");
+		const auto opened = *where(window);
+		if (opened.Changes == 1U && row > 0 && row + 1 < rows) {
+			expect(allEnabled() && says(next, QStringLiteral("Next change"), QStringLiteral("Last change in this file."))
+					   && says(previous, QStringLiteral("Previous change"), QStringLiteral("First change in this file.")),
+				   "a one-change file between two others keeps both change arrows enabled and names both bounds");
 			if (oneChangeMid++ == 0) {
 				render(window, QStringLiteral("one-change-middle"));
 			}
 		}
-		if (crosses) {
-			expect(says(next, QStringLiteral("Next change"), QStringLiteral("Continue to the next file: %1").arg(path_at(window, here.Row + 1))),
-				   "Next change at a file's last change names the next file");
+		if (opened.Changes == 0U) {
+			continue;
 		}
-		next->trigger();
-		wait_for([&] {
-			const auto now = where(window);
-			return now && (crosses ? now->Row == here.Row + 1 && now->Change == (now->Changes == 0U ? 0U : 1U) : now->Row == here.Row && now->Change == here.Change + 1U);
-		},
-				 crosses ? "Next change continues to the first change of the next file" : "Next change steps inside the comparison");
-		(crosses ? crossings : steps) += 1;
+		while (where(window)->Change < where(window)->Changes) {
+			const auto here = *where(window);
+			expect(says(next, QStringLiteral("Next change"), QString{ }), "Next change with a change after it names no bound");
+			next->trigger();
+			wait_for([&] { return where(window) && *where(window) == place{ .Row = here.Row, .Change = here.Change + 1U, .Changes = here.Changes }; },
+					 "Next change steps inside the comparison");
+			++steps;
+		}
+		expect(says(next, QStringLiteral("Next change"), QStringLiteral("Last change in this file.")), "the last change names its bound");
+		pressAtBound(next, QStringLiteral("Last change in this file."), "Next change at a file's last change stays on it: no other file, no wrap");
+		while (where(window)->Change > 1U) {
+			const auto here = *where(window);
+			previous->trigger();
+			wait_for([&] { return where(window) && *where(window) == place{ .Row = here.Row, .Change = here.Change - 1U, .Changes = here.Changes }; },
+					 "Previous change steps inside the comparison");
+			++steps;
+		}
+		pressAtBound(previous, QStringLiteral("First change in this file."), "Previous change at a file's first change stays on it");
 	}
-	const auto end = *where(window);
-	expect(end.Row == rows - 1 && end.Change == end.Changes && crossings == rows - 1,
-		   "Next change walks to the last change of the last file, crossing each file once");
-	expect(!next->isEnabled() && says(next, QStringLiteral("Next change"), QStringLiteral("Last change in the pull request.")) && previous->isEnabled(),
-		   "only the last change of the last file disables Next change, and says why");
+	expect(where(window)->Row == rows - 1 && says(nextFile, QStringLiteral("Next file"), QStringLiteral("Last file in this pull request.")),
+		   "the walk ends on the last file, and Next file names its bound");
+	pressAtBound(nextFile, QStringLiteral("Last file in this pull request."), "Next file on the last file does nothing");
 	expect(oneChangeMid > 0, "the walk passed a one-change file between two others");
 	render(window, QStringLiteral("last-change"));
-
-	// Back: Previous change enters each previous file at its last change.
-	auto returns = 0;
-	for (auto presses = 0; presses < 400 && previous->isEnabled(); ++presses) {
-		const auto here    = *where(window);
-		const auto crosses = here.Change <= 1U;
-		if (crosses) {
-			expect(says(previous, QStringLiteral("Previous change"), QStringLiteral("Go back to the previous file: %1").arg(path_at(window, here.Row - 1))),
-				   "Previous change at a file's first change names the previous file");
-		}
-		previous->trigger();
-		wait_for([&] {
-			const auto now = where(window);
-			return now && (crosses ? now->Row == here.Row - 1 && now->Change == now->Changes : now->Row == here.Row && now->Change == here.Change - 1U);
-		},
-				 crosses ? "Previous change goes back to the last change of the previous file" : "Previous change steps inside the comparison");
-		returns += crosses ? 1 : 0;
-	}
-	const auto start = *where(window);
-	expect(start.Row == 0 && start.Change == 1U && returns == rows - 1,
-		   "Previous change walks back to the first change of the first file");
-	expect(!previous->isEnabled() && says(previous, QStringLiteral("Previous change"), QStringLiteral("First change in the pull request.")),
-		   "the walk ends where the pull request begins");
 
 	application->begin_shutdown();
 	wait_for([&] { return application->status().ShutdownComplete; }, "composed course shuts down and drains");
 	application.reset();
 	expect(e2e::remove_course_root(temporary), "composed private course root cleaned");
 	std::cout << "CHANGE_ARROWS_PUBLIC_PATH_OK qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
-			  << " files=" << rows << " crossings=" << crossings << " steps=" << steps << " one_change_middle=" << oneChangeMid << '\n';
+			  << " files=" << rows << " bounds=" << bounds << " steps=" << steps << " one_change_middle=" << oneChangeMid << '\n';
 }

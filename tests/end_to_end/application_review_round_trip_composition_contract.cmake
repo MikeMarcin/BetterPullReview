@@ -1197,6 +1197,15 @@ endfunction()
 # binding without a fixture is unchanged; no grant, target, provider,
 # credential, child environment, GitHub write, mutation or publication path;
 # mutation pin unchanged; no new src/app source. Self-review on BPR-1338.
+# BPR-1328 v003 reseal (2026-10-08): over the BPR-1338 attended-browser reseal
+# above; no other intervening pinned-scope change. The owner rejected change arrows that cross
+# into the next file ("Just let it be a bounded prev and next that you can
+# always use"), so core::cross_workbench_change_intent is removed, and with it
+# the one clause of dispatch_workbench_intent that treated it as a file
+# gesture; the line is back to select_ and navigate_workbench_file_intent
+# alone. No grant, target, provider, credential, GitHub write, mutation or
+# publication path; mutation pin unchanged; no new src/app source. Reviewed on
+# BPR-1328.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1215,7 +1224,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"cb188cd0cb140a0be37b57c68d2bd8b2089a90ec92af29c159ec8600b099eb94"
+		"5caaf2fd0a3c57f1e0e00b6f9a94031669cd359dc8194f7c1af55cd1db3722d6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1419,7 +1428,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a5471bbf4523e7360e68f14c7a15e795cf16740d139f2a6a54b79a64ad981ac0"
+        "c671f33c4c51ac2222fdf08589d6331def3283410457a4620fa6f5fcfd61b0e8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

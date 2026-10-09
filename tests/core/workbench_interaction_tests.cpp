@@ -215,13 +215,12 @@ namespace {
 
 	/// \brief Builds an active workbench with one open comparison.
 	[[nodiscard]] auto comparing(
-		const workbench_change_cursor&     aCursor,
-		const change_navigation_policy     aPolicy = change_navigation_policy::stop,
-		const workbench_navigation_cursor& aFile   = resident(2U, 3U))
+		const workbench_change_cursor& aCursor,
+		const change_navigation_policy aPolicy = change_navigation_policy::stop)
 		-> workbench_interaction_state
 	{
 		expect(valid(aCursor), "the fixture change cursor is well formed");
-		auto state   = active(aFile, aPolicy);
+		auto state   = active(resident(2U, 3U), aPolicy);
 		state.Change = aCursor;
 		return state;
 	}
@@ -471,6 +470,23 @@ namespace {
 				: workbench_command_id::next_change);
 	}
 
+	/// \brief [[BPR-1328]]. A navigation command a press moves.
+	[[nodiscard]] constexpr auto moves(const workbench_command_projection& aCommand) -> bool
+	{
+		return aCommand.Enabled && aCommand.DisabledReason == workbench_reason_code::none
+			&& aCommand.Bound == workbench_reason_code::none;
+	}
+
+	/// \brief [[BPR-1328]]. A navigation command that stays pressable and does
+	/// nothing for `aBound`.
+	[[nodiscard]] constexpr auto bounded(
+		const workbench_command_projection& aCommand,
+		const workbench_reason_code         aBound) -> bool
+	{
+		return aCommand.Enabled && aCommand.DisabledReason == workbench_reason_code::none
+			&& aCommand.Bound == aBound;
+	}
+
 	auto test_the_ends_of_the_change_order_are_named_not_derived() -> void
 	{
 		const auto  diff   = change_fixture();
@@ -492,34 +508,26 @@ namespace {
 			   "both ends of the change order still report the current group, so "
 			   "a group-carrying result cannot mean a step was taken");
 
-		// [[BPR-1328]]. The change order's ends are refusals only in the first
-		// and the last actionable file; in between the commands continue.
-		const auto first    = comparing(change_cursor(diff, groups.front().Id),
-										change_navigation_policy::stop,
-										resident(1U, 3U));
+		const auto first    = comparing(change_cursor(diff, groups.front().Id));
 		const auto atFirst  = project_workbench_commands(first);
 		const auto previous = change_entry(change_navigation_direction::previous);
 		const auto next     = change_entry(change_navigation_direction::next);
-		expect(!atFirst.Commands[previous].Enabled
-				   && atFirst.Commands[previous].DisabledReason
-					   == workbench_reason_code::at_first_change
+		// [[BPR-1328]]. An end of the change order keeps the command
+		// pressable and names the bound a press meets.
+		expect(bounded(atFirst.Commands[previous], workbench_reason_code::at_first_change)
 				   && first.Change->Group == atStart.Group,
-			   "the first change of the first file disables previous change while "
-			   "the retained cursor still reports that exact current group");
-		expect(atFirst.Commands[next].Enabled,
+			   "the first change bounds previous change, still enabled, while the "
+			   "retained cursor still reports that exact current group");
+		expect(moves(atFirst.Commands[next]),
 			   "the first change still offers the next change");
 
-		const auto last   = comparing(change_cursor(diff, groups.back().Id),
-									  change_navigation_policy::stop,
-									  resident(3U, 3U));
+		const auto last   = comparing(change_cursor(diff, groups.back().Id));
 		const auto atLast = project_workbench_commands(last);
-		expect(!atLast.Commands[next].Enabled
-				   && atLast.Commands[next].DisabledReason
-					   == workbench_reason_code::at_last_change
+		expect(bounded(atLast.Commands[next], workbench_reason_code::at_last_change)
 				   && last.Change->Group == atEnd.Group,
-			   "the last change of the last file disables next change while the "
+			   "the last change bounds next change, still enabled, while the "
 			   "retained cursor still reports that exact current group");
-		expect(atLast.Commands[previous].Enabled,
+		expect(moves(atLast.Commands[previous]),
 			   "the last change still offers the previous change");
 	}
 
@@ -548,21 +556,14 @@ namespace {
 						= result.Outcome == change_navigation_outcome::selected
 						|| result.Outcome == change_navigation_outcome::wrapped;
 					const auto& command = commands.Commands[change_entry(direction)];
-					// [[BPR-1328]]. The fixture's file is the middle of three, so
-					// an end of a resolvable order under stop continues into the
-					// neighbouring file instead of refusing.
-					const auto crosses = !reached && policy == change_navigation_policy::stop
-						&& result.Outcome != change_navigation_outcome::invalid_selection;
-					expect(command.Enabled == (reached || crosses),
-						   "a change command is enabled exactly when the semantic "
-						   "index would reach another change, or at an end of the "
-						   "comparison when a neighbouring file exists");
-					expect(command.Crossing.has_value() == crosses,
-						   "only a command that leaves the comparison carries a crossing");
-					expect(command.Enabled
-							   == (command.DisabledReason
-								   == workbench_reason_code::none),
-						   "a disabled change command explains itself");
+					// [[BPR-1328]]. Always enabled; a press moves exactly
+					// when the semantic index would reach another change,
+					// and otherwise names its bound.
+					expect(command.Enabled && moves(command) == reached,
+						   "a change command is enabled, and moves exactly when "
+						   "the semantic index would reach another change");
+					expect(reached == (command.Bound == workbench_reason_code::none),
+						   "a change command a press cannot move names its bound");
 				}
 				expect(commands.Policy == policy,
 					   "the delta carries the policy the change entries were "
@@ -572,187 +573,73 @@ namespace {
 
 		const auto stale         = comparing(change_cursor(diff, opaque<change_group_id>(200U)));
 		const auto staleCommands = project_workbench_commands(stale);
-		expect(staleCommands.Commands[change_entry(change_navigation_direction::previous)]
-					   .DisabledReason
-				   == workbench_reason_code::invalid_change_selection,
+		expect(bounded(staleCommands.Commands[change_entry(change_navigation_direction::previous)],
+					   workbench_reason_code::invalid_change_selection),
 			   "a selection the change order cannot place explains itself exactly");
 
-		// [[BPR-1328]]. In the last file, where next change has no file to
-		// continue into.
-		auto closed      = comparing(change_cursor(diff, std::nullopt),
-									 change_navigation_policy::stop,
-									 resident(3U, 3U));
+		auto closed      = comparing(change_cursor(diff, std::nullopt));
 		closed.Change    = workbench_change_cursor{ };
 		const auto empty = project_workbench_commands(closed);
-		expect(empty.Commands[change_entry(change_navigation_direction::next)]
-					   .DisabledReason
-				   == workbench_reason_code::no_changes,
+		expect(bounded(empty.Commands[change_entry(change_navigation_direction::next)],
+					   workbench_reason_code::no_changes),
 			   "a comparison with no changes explains itself exactly");
 	}
 
-	[[nodiscard]] auto cross(const workbench_interaction_state& aState,
-							 const change_navigation_direction  aDirection)
-		-> workbench_interaction_output
-	{
-		auto probe = aState;
-		auto output
-			= transition(probe, cross_workbench_change_intent{ .Direction = aDirection });
-		expect(probe == aState,
-			   "a crossing decision leaves the retained cursors to the host");
-		return output;
-	}
-
-	/// \brief A comparison whose change order holds exactly one change.
-	[[nodiscard]] auto one_change() -> workbench_change_cursor
-	{
-		return {
-			.Group       = opaque<change_group_id>(1U),
-			.Ordinal     = 1U,
-			.ChangeCount = 1U,
-		};
-	}
-
-	/// \brief [[BPR-1328]]. The owner, 2026-10-08: "It doesn't feel good for
-	/// next change arrows to get greyed out when there's only 1 change".
-	auto test_change_commands_continue_into_the_neighbouring_file() -> void
+	/// \brief [[BPR-1328]]. The owner, 2026-10-08, first: "It doesn't feel
+	/// good for next change arrows to get greyed out when there's only 1
+	/// change". Then, rejecting arrows that crossed into the next file: "Just
+	/// let it be a bounded prev and next that you can always use."
+	auto test_navigation_commands_are_bounded_and_always_enabled() -> void
 	{
 		const auto previous = change_entry(change_navigation_direction::previous);
 		const auto next     = change_entry(change_navigation_direction::next);
-		const auto crossing = [](const workbench_command_projection& aCommand,
-								 const workbench_navigation_target   aTarget,
-								 const std::optional<std::uint32_t>  aOrdinal,
-								 const workbench_change_entry        aEntry) {
-			return aCommand.Enabled
-				&& aCommand.DisabledReason == workbench_reason_code::none
-				&& aCommand.Crossing.has_value()
-				&& aCommand.Crossing->File.Target == aTarget
-				&& aCommand.Crossing->File.Ordinal == aOrdinal
-				&& !aCommand.Crossing->File.File.has_value()
-				&& aCommand.Crossing->Entry == aEntry;
+		const auto lonely   = workbench_change_cursor{
+			  .Group       = opaque<change_group_id>(1U),
+			  .Ordinal     = 1U,
+			  .ChangeCount = 1U,
 		};
 
-		// The owner's case: a file with one change, between two others.
-		const auto lone     = comparing(one_change());
-		const auto loneDeck = project_workbench_commands(lone);
-		expect(crossing(loneDeck.Commands[next],
-						workbench_navigation_target::next_actionable,
-						3U,
-						workbench_change_entry::first_change),
-			   "next change from a one-change file continues to the first change "
-			   "of the next actionable file");
-		expect(crossing(loneDeck.Commands[previous],
-						workbench_navigation_target::previous_actionable,
-						1U,
-						workbench_change_entry::last_change),
-			   "previous change from a one-change file goes back to the last "
-			   "change of the previous actionable file");
-		const auto files = project_workbench_commands(active(resident(2U, 3U)));
-		expect(loneDeck.Commands[next].Crossing->File
-					   == navigate(lone, change_navigation_direction::next).Decision
-				   && loneDeck.Commands[previous].Crossing->File
-					   == navigate(lone, change_navigation_direction::previous).Decision
-				   && files.Commands[1].Enabled && files.Commands[0].Enabled,
-			   "a crossing is exactly the decision the file command would make");
+		// The owner's case, in every file position: one change is both ends of
+		// its comparison, and neither arrow greys out or leaves the file.
+		for (const auto& position : { resident(1U, 3U), resident(2U, 3U), resident(3U, 3U), resident(1U, 1U) }) {
+			auto state   = active(position);
+			state.Change = lonely;
+			const auto deck = project_workbench_commands(state);
+			expect(bounded(deck.Commands[previous], workbench_reason_code::at_first_change)
+					   && bounded(deck.Commands[next], workbench_reason_code::at_last_change),
+				   "a one-change comparison keeps both change commands enabled, "
+				   "bounded by the ends of this file, wherever the file sits");
+		}
 
-		const auto forward = cross(lone, change_navigation_direction::next);
-		expect(decided(forward, workbench_navigation_target::next_actionable, 3U)
-				   && forward.ChangeEntry == workbench_change_entry::first_change,
-			   "the crossing gesture decides the next file and its first change");
-		const auto back = cross(lone, change_navigation_direction::previous);
-		expect(decided(back, workbench_navigation_target::previous_actionable, 1U)
-				   && back.ChangeEntry == workbench_change_entry::last_change,
-			   "the crossing gesture decides the previous file and its last change");
+		// The file commands follow the same rule at the ends of the order.
+		const auto first = project_workbench_commands(active(resident(1U, 3U)));
+		const auto last  = project_workbench_commands(active(resident(3U, 3U)));
+		expect(bounded(first.Commands[0], workbench_reason_code::at_first_file) && moves(first.Commands[1])
+				   && moves(last.Commands[0]) && bounded(last.Commands[1], workbench_reason_code::at_last_file),
+			   "the first and last file keep both file commands enabled, bounded "
+			   "at the ends of the order");
+		expect(rejected(navigate(active(resident(3U, 3U)), change_navigation_direction::next),
+						workbench_reason_code::at_last_file)
+				   && rejected(navigate(active(resident(1U, 3U)), change_navigation_direction::previous),
+							   workbench_reason_code::at_first_file),
+			   "a press at a file bound decides nothing: no wrap and no move");
 
-		// The ends of the pull request.
-		const auto opening     = comparing(one_change(), change_navigation_policy::stop, resident(1U, 3U));
-		const auto openingDeck = project_workbench_commands(opening);
-		expect(!openingDeck.Commands[previous].Enabled
-				   && openingDeck.Commands[previous].DisabledReason
-					   == workbench_reason_code::at_first_change
-				   && !openingDeck.Commands[previous].Crossing.has_value()
-				   && crossing(openingDeck.Commands[next],
-							   workbench_navigation_target::next_actionable,
-							   2U,
-							   workbench_change_entry::first_change),
-			   "the first file's only change refuses previous and continues next");
-		expect(rejected(cross(opening, change_navigation_direction::previous),
-						workbench_reason_code::at_first_change),
-			   "a crossing gesture at the first change of the pull request is "
-			   "refused with the command's own reason");
-		const auto closing     = comparing(one_change(), change_navigation_policy::stop, resident(3U, 3U));
-		const auto closingDeck = project_workbench_commands(closing);
-		expect(!closingDeck.Commands[next].Enabled
-				   && closingDeck.Commands[next].DisabledReason
-					   == workbench_reason_code::at_last_change
-				   && crossing(closingDeck.Commands[previous],
-							   workbench_navigation_target::previous_actionable,
-							   2U,
-							   workbench_change_entry::last_change),
-			   "the last file's only change refuses next and goes back");
-		expect(rejected(cross(closing, change_navigation_direction::next),
-						workbench_reason_code::at_last_change)
-				   && !cross(closing, change_navigation_direction::next).ChangeEntry.has_value(),
-			   "a crossing gesture at the last change of the pull request is refused");
-		const auto alone     = comparing(one_change(), change_navigation_policy::stop, resident(1U, 1U));
-		const auto aloneDeck = project_workbench_commands(alone);
-		expect(!aloneDeck.Commands[previous].Enabled && !aloneDeck.Commands[next].Enabled
-				   && aloneDeck.Commands[previous].DisabledReason == workbench_reason_code::at_first_change
-				   && aloneDeck.Commands[next].DisabledReason == workbench_reason_code::at_last_change,
-			   "one change in the only actionable file is both ends of the pull request");
+		// Only an inactive workbench, where nothing can be navigated, disables
+		// them, and a disabled command carries no bound.
+		const auto inactive = project_workbench_commands(workbench_interaction_state{ });
+		for (std::size_t index = 0U; index < 4U; ++index) {
+			expect(!inactive.Commands[index].Enabled
+					   && inactive.Commands[index].DisabledReason == workbench_reason_code::no_active_workbench
+					   && inactive.Commands[index].Bound == workbench_reason_code::none,
+				   "an inactive workbench disables the four navigation commands");
+		}
 
-		// A step inside the comparison is RFC-BPR-0004's, not a crossing.
-		const auto diff    = change_fixture();
-		const auto inside  = comparing(change_cursor(diff, diff.Alignment.Groups.front().Id));
-		const auto stepped = project_workbench_commands(inside);
-		expect(stepped.Commands[next].Enabled && !stepped.Commands[next].Crossing.has_value(),
-			   "a change that has a successor in its comparison does not cross");
-		const auto stale = cross(inside, change_navigation_direction::next);
-		expect(stale.Reason == workbench_reason_code::none && !stale.Decision.has_value()
-				   && !stale.ChangeEntry.has_value(),
-			   "a crossing gesture that arrives while the comparison still has a "
-			   "change that way decides nothing");
-
-		// A file with no changes is passed through.
-		const auto blank     = comparing(workbench_change_cursor{ });
-		const auto blankDeck = project_workbench_commands(blank);
-		expect(crossing(blankDeck.Commands[next],
-						workbench_navigation_target::next_actionable,
-						3U,
-						workbench_change_entry::first_change),
-			   "a comparison with no changes continues to the next file");
-		const auto blankEnd = comparing(workbench_change_cursor{ }, change_navigation_policy::stop, resident(3U, 3U));
-		expect(project_workbench_commands(blankEnd).Commands[next].DisabledReason
-				   == workbench_reason_code::no_changes,
-			   "and in the last file still says it has no changes");
-
-		// A selection that left the order: only the host names its neighbour.
-		const auto stranded = comparing(one_change(), change_navigation_policy::stop, nonresident(4U, true, true));
-		expect(crossing(project_workbench_commands(stranded).Commands[next],
-						workbench_navigation_target::next_actionable,
-						std::nullopt,
-						workbench_change_entry::first_change),
-			   "a nonresident file crosses with the host-resolved decision");
-
-		// The wrap policy keeps wrapping inside the comparison.
-		const auto wrapped     = comparing(one_change(), change_navigation_policy::wrap);
-		const auto wrappedDeck = project_workbench_commands(wrapped);
-		expect(wrappedDeck.Commands[next].Enabled && !wrappedDeck.Commands[next].Crossing.has_value()
-				   && wrappedDeck.Commands[previous].Enabled
-				   && !wrappedDeck.Commands[previous].Crossing.has_value(),
-			   "the wrap policy still wraps inside the open comparison");
-
-		// No comparison open: the change commands wait for one.
-		expect(project_workbench_commands(active(resident(2U, 3U))).Commands[next].DisabledReason
-				   == workbench_reason_code::no_open_comparison,
-			   "with no comparison open the change commands do not cross");
-
-		// The crossing is republished when the file cursor moves.
-		auto       moving = lone;
-		const auto moved  = observe_workbench_navigation(moving, resident(3U, 3U));
-		expect(moved.Commands.has_value()
-				   && !moved.Commands->Commands[next].Enabled
-				   && moved.Commands->Commands[next].DisabledReason == workbench_reason_code::at_last_change,
-			   "moving to the last file republishes the change commands");
+		// The wrap policy still wraps, so it has no bound.
+		auto wrapping   = active(resident(2U, 3U), change_navigation_policy::wrap);
+		wrapping.Change = lonely;
+		const auto wrapped = project_workbench_commands(wrapping);
+		expect(moves(wrapped.Commands[previous]) && moves(wrapped.Commands[next]),
+			   "the wrap policy has no bound inside the comparison");
 	}
 
 	[[nodiscard]] auto intent_for(const workbench_command_id aCommand)
@@ -813,13 +700,16 @@ namespace {
 			}
 			auto       probe  = aCase.State;
 			const auto output = transition(probe, *intent);
-			expect(command.Enabled == (output.Reason == workbench_reason_code::none),
+			// [[BPR-1328]]. A navigation command stays enabled at its
+			// bound, where the gesture is refused and a press does nothing.
+			const auto accepted = command.Enabled && command.Bound == workbench_reason_code::none;
+			expect(accepted == (output.Reason == workbench_reason_code::none),
 				   aCase.Label,
-				   "an enabled command is exactly an accepted gesture");
-			expect(command.DisabledReason == output.Reason,
+				   "an enabled, unbounded command is exactly an accepted gesture");
+			expect((command.Enabled ? command.Bound : command.DisabledReason) == output.Reason,
 				   aCase.Label,
-				   "a disabled command explains itself with the rejection reason");
-			expect(probe == aCase.State || command.Enabled,
+				   "a refused gesture is explained by the command's bound or its disabled reason");
+			expect(probe == aCase.State || accepted,
 				   aCase.Label,
 				   "a rejected gesture changes no retained fact");
 		}
@@ -907,38 +797,31 @@ namespace {
 				   .Enabled,
 			   "an active workbench offers the line-number command even with no "
 			   "actionable file, because numbering does not depend on one");
-		expect(!emptyOrder.Commands[0].Enabled && !emptyOrder.Commands[1].Enabled
-				   && emptyOrder.Commands[0].DisabledReason
-					   == workbench_reason_code::no_actionable_files
-				   && emptyOrder.Commands[1].DisabledReason
-					   == workbench_reason_code::no_actionable_files,
-			   "an empty actionable order disables both navigation commands");
-		expect(!emptyOrder.Commands[2].Enabled && !emptyOrder.Commands[3].Enabled
-				   && emptyOrder.Commands[2].DisabledReason
-					   == workbench_reason_code::no_open_comparison
-				   && emptyOrder.Commands[3].DisabledReason
-					   == workbench_reason_code::no_open_comparison,
-			   "an active workbench with no open comparison disables both change "
-			   "commands");
+		// [[BPR-1328]]. The navigation commands stay pressable and name the
+		// bound a press would meet.
+		expect(bounded(emptyOrder.Commands[0], workbench_reason_code::no_actionable_files)
+				   && bounded(emptyOrder.Commands[1], workbench_reason_code::no_actionable_files),
+			   "an empty actionable order bounds both file commands, still enabled");
+		expect(bounded(emptyOrder.Commands[2], workbench_reason_code::no_open_comparison)
+				   && bounded(emptyOrder.Commands[3], workbench_reason_code::no_open_comparison),
+			   "an active workbench with no open comparison bounds both change "
+			   "commands, still enabled");
 		expect(emptyOrder.Commands[4].Enabled && emptyOrder.Commands[5].Enabled
 				   && emptyOrder.Commands[4].DisabledReason
 					   == workbench_reason_code::none,
 			   "an active workbench keeps both drawer commands available");
 
 		const auto stopped = project_workbench_commands(active(resident(3U, 3U)));
-		expect(stopped.Commands[0].Enabled && !stopped.Commands[1].Enabled
-				   && stopped.Commands[1].DisabledReason
-					   == workbench_reason_code::at_last_file,
-			   "the last actionable entry disables next file under the stop policy");
+		expect(moves(stopped.Commands[0])
+				   && bounded(stopped.Commands[1], workbench_reason_code::at_last_file),
+			   "the last actionable entry bounds next file under the stop policy");
 		const auto wrapped = project_workbench_commands(
 			active(resident(3U, 3U), change_navigation_policy::wrap));
-		expect(wrapped.Commands[0].Enabled && wrapped.Commands[1].Enabled,
+		expect(moves(wrapped.Commands[0]) && moves(wrapped.Commands[1]),
 			   "the wrap policy keeps both navigation commands available");
 		const auto atFirst = project_workbench_commands(active(resident(1U, 3U)));
-		expect(!atFirst.Commands[0].Enabled
-				   && atFirst.Commands[0].DisabledReason
-					   == workbench_reason_code::at_first_file,
-			   "the first actionable entry disables previous file under stop");
+		expect(bounded(atFirst.Commands[0], workbench_reason_code::at_first_file),
+			   "the first actionable entry bounds previous file under stop");
 	}
 
 	auto test_selection_gestures() -> void
@@ -983,7 +866,7 @@ namespace {
 				   && state.Navigation == resident(3U, 3U, 8U),
 			   "the host resolution publishes the accepted selection");
 		expect(resolved.Commands.has_value()
-				   && !resolved.Commands->Commands[1].Enabled,
+				   && bounded(resolved.Commands->Commands[1], workbench_reason_code::at_last_file),
 			   "an accepted selection republishes changed command state");
 	}
 
@@ -1050,14 +933,13 @@ namespace {
 		expect(!project_workbench_commands(inactive).Commands[next].Enabled,
 			   "no active workbench offers no change gesture");
 
-		// [[BPR-1328]]. The first file, so previous change has nowhere to go.
-		auto       state  = active(resident(1U, 3U));
+		auto       state  = active(resident(2U, 3U));
 		const auto opened = observe_workbench_change_navigation(
 			state, change_cursor(diff, groups.front().Id));
 		expect(opened.Reason == workbench_reason_code::none
 				   && opened.Commands.has_value()
-				   && opened.Commands->Commands[next].Enabled
-				   && !opened.Commands->Commands[previous].Enabled
+				   && moves(opened.Commands->Commands[next])
+				   && bounded(opened.Commands->Commands[previous], workbench_reason_code::at_first_change)
 				   && state.Change->Group == groups.front().Id,
 			   "an opened comparison republishes exactly the change legality it "
 			   "created");
@@ -1083,9 +965,7 @@ namespace {
 		const auto closed
 			= observe_workbench_change_navigation(state, std::nullopt);
 		expect(closed.Commands.has_value()
-				   && !closed.Commands->Commands[next].Enabled
-				   && closed.Commands->Commands[next].DisabledReason
-					   == workbench_reason_code::no_open_comparison
+				   && bounded(closed.Commands->Commands[next], workbench_reason_code::no_open_comparison)
 				   && !state.Change.has_value(),
 			   "an absent change observation closes the comparison");
 	}
@@ -1689,7 +1569,7 @@ int main()
 	test_navigation_follows_actionable_order();
 	test_the_ends_of_the_change_order_are_named_not_derived();
 	test_change_commands_agree_with_navigate_change();
-	test_change_commands_continue_into_the_neighbouring_file();
+	test_navigation_commands_are_bounded_and_always_enabled();
 	test_command_projection();
 	test_selection_gestures();
 	test_navigation_observations();

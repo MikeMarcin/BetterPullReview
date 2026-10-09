@@ -3736,8 +3736,9 @@ foreach(summary_scale IN ITEMS 1 1.25 2)
         TIMEOUT 90 PASS_REGULAR_EXPRESSION "OVERVIEW_SUMMARY_PUBLIC_PATH_OK")
 endforeach()
 
-# [[BPR-1328]]. The change arrows continue across files through the real
-# composition; `--attended` stops on a one-change file for the owner's look.
+# [[BPR-1328]]. The file and change arrows are a bounded previous and next
+# across every file, through the real composition; `--attended` stops on a
+# one-change file for the owner's look.
 bpr_add_executable(test_change_arrows_public_path change_arrows_across_files_public_path_tests.cpp)
 target_link_libraries(test_change_arrows_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_change_arrows_public_path PRIVATE BPR_BUILD_TESTING=1)

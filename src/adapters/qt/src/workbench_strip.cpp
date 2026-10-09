@@ -1,5 +1,6 @@
 #include "bpr/qt/workbench_strip.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 
@@ -605,6 +606,10 @@ namespace bpr::qt {
 		setMovable(false);
 		setFloatable(false);
 		setToolButtonStyle(Qt::ToolButtonIconOnly);
+		// [[BPR-1328]]. Every control in the title row and the review bar
+		// shows its tooltip directly below itself, as BPR-1083's tooltips do,
+		// rather than where `QToolTip` puts it, below and right of the pointer.
+		anchor_descendant_tooltips(*this);
 	}
 
 	workbench_strip::~workbench_strip() = default;

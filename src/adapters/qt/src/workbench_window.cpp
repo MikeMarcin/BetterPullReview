@@ -505,6 +505,9 @@ namespace bpr::qt {
 		constexpr int identity_title_minimum = 80;
 		/// \brief Least width the repository keeps beside the number when elided.
 		constexpr int identity_fragment_width = 24;
+		/// \brief [[BPR-1328]]. How long a press at a navigation bound says why
+		/// it did nothing.
+		constexpr int bounded_navigation_message_ms = 3000;
 #if defined(__APPLE__)
 		/// \brief Width the macOS window buttons occupy at the strip's left.
 		constexpr int traffic_light_inset = 78;
@@ -520,10 +523,12 @@ namespace bpr::qt {
 				return QStringLiteral("Open a pull request to review its files.");
 			case core::workbench_reason_code::no_actionable_files:
 				return QStringLiteral("This pull request has no actionable files.");
+			// [[BPR-1328]]. The navigation arrows stay pressable at their
+			// bounds; these say why a press there did nothing.
 			case core::workbench_reason_code::at_first_file:
-				return QStringLiteral("This is the first actionable file.");
+				return QStringLiteral("First file in this pull request.");
 			case core::workbench_reason_code::at_last_file:
-				return QStringLiteral("This is the last actionable file.");
+				return QStringLiteral("Last file in this pull request.");
 			case core::workbench_reason_code::invalid_file_identity:
 				return QStringLiteral("The selected file identity is invalid.");
 			case core::workbench_reason_code::invalid_navigation_cursor:
@@ -533,12 +538,10 @@ namespace bpr::qt {
 			case core::workbench_reason_code::no_changes:
 				return QStringLiteral(
 					"This comparison has no changes to navigate.");
-			// [[BPR-1328]]. The change commands continue across files, so
-			// their only ends are the pull request's.
 			case core::workbench_reason_code::at_first_change:
-				return QStringLiteral("First change in the pull request.");
+				return QStringLiteral("First change in this file.");
 			case core::workbench_reason_code::at_last_change:
-				return QStringLiteral("Last change in the pull request.");
+				return QStringLiteral("Last change in this file.");
 			case core::workbench_reason_code::invalid_change_selection:
 				return QStringLiteral("The selected change is no longer available.");
 			case core::workbench_reason_code::invalid_change_cursor:
@@ -584,56 +587,6 @@ namespace bpr::qt {
 					"Open a pull request to review its changes.");
 			}
 			return reason_text(aReason);
-		}
-
-		/// \brief [[BPR-1328]]. The Files row a crossing change command enters.
-		///
-		/// \details The published file rows are the host's actionable order,
-		/// so the core's file decision names its row the way the host resolves
-		/// it: by ordinal, or from the matching end for a selection that left
-		/// the order. Used to name the destination and to tell the comparison
-		/// which file it is entering; the host still performs the move.
-		[[nodiscard]] auto crossing_row(
-			const workbench_drawer_model&          aFiles,
-			const core::workbench_change_crossing& aCrossing) -> QModelIndex
-		{
-			const auto rows = aFiles.rowCount();
-			if (rows == 0) {
-				return { };
-			}
-			const auto& decision = aCrossing.File;
-			if (decision.Ordinal.has_value()) {
-				const auto ordinal = *decision.Ordinal;
-				return ordinal == 0U || ordinal > static_cast<std::uint32_t>(rows)
-					? QModelIndex{ }
-					: aFiles.index(static_cast<int>(ordinal - 1U));
-			}
-			switch (decision.Target) {
-			case core::workbench_navigation_target::first_actionable:
-			case core::workbench_navigation_target::next_actionable:
-				return aFiles.index(0);
-			case core::workbench_navigation_target::last_actionable:
-			case core::workbench_navigation_target::previous_actionable:
-				return aFiles.index(rows - 1);
-			case core::workbench_navigation_target::exact_file:
-				break;
-			}
-			return decision.File.has_value() ? aFiles.index_for_file(*decision.File) : QModelIndex{ };
-		}
-
-		/// \brief [[BPR-1328]]. What a change command that crosses files says.
-		[[nodiscard]] auto crossing_text(
-			const core::workbench_change_crossing& aCrossing,
-			const QString&                         aDestination) -> QString
-		{
-			const auto forward = aCrossing.Entry == core::workbench_change_entry::first_change;
-			if (aDestination.isEmpty()) {
-				return forward ? QStringLiteral("Continue to the next file.")
-							   : QStringLiteral("Go back to the previous file.");
-			}
-			return (forward ? QStringLiteral("Continue to the next file: %1")
-							: QStringLiteral("Go back to the previous file: %1"))
-				.arg(aDestination);
 		}
 
 		// [[BPR-0733]]. One recently viewed row. The pull request is named by
@@ -910,8 +863,9 @@ namespace bpr::qt {
 		/// \details The owner kept the keys and asked that they be
 		/// discoverable, so the tooltip's first line is the command and its
 		/// key in the platform's own notation ("Next change (⌥↓)"). A second
-		/// line says where a crossing goes or why the arrow is disabled. The
-		/// status tip carries the sentence alone.
+		/// line names the bound a press would meet ("Last change in this
+		/// file.") or why the arrow is disabled. The status tip carries the
+		/// sentence alone.
 		void describe_navigation_action(
 			QAction* const aAction,
 			const QString& aName,
@@ -12675,6 +12629,19 @@ namespace bpr::qt {
 
 	void workbench_window::dispatch_navigation(const std::size_t aIndex)
 	{
+		// [[BPR-1328]]. The owner: "Just let it be a bounded prev and next
+		// that you can always use." The arrows and their keys stay enabled; at
+		// the bound the core names (the first or last file or change, no
+		// comparison, no changes) a press sends nothing, moves nothing, and
+		// says why in the status bar for a moment.
+		if (const auto offered = command(static_cast<core::workbench_command_id>(aIndex));
+			!offered || !offered->Enabled || offered->Bound != core::workbench_reason_code::none) {
+			if (offered && offered->Enabled) {
+				statusBar()->showMessage(aIndex < file_navigation_entries ? reason_text(offered->Bound) : change_reason_text(offered->Bound),
+										 bounded_navigation_message_ms);
+			}
+			return;
+		}
 		if (aIndex < file_navigation_entries) {
 			if (Dispatch) {
 				Dispatch(core::navigate_workbench_file_intent{
@@ -12688,26 +12655,6 @@ namespace bpr::qt {
 		const auto direction = aIndex == file_navigation_entries
 			? core::change_navigation_direction::previous
 			: core::change_navigation_direction::next;
-		// [[BPR-1328]]. At an end of the open comparison the core offered a
-		// crossing: the gesture goes to the workbench as a file move, and the
-		// comparison is told which file it will enter and from which end.
-		if (const auto offered = command(static_cast<core::workbench_command_id>(aIndex));
-			offered && offered->Enabled && offered->Crossing) {
-			if (!Dispatch) {
-				return;
-			}
-			const auto row = crossing_row(*Drawers[0].Panel->contents(), *offered->Crossing);
-			if (const auto file = Drawers[0].Panel->contents()->file_at(row);
-				file.has_value() && ComparisonSurface != nullptr) {
-				ComparisonSurface->enter_next_comparison(
-					*file,
-					offered->Crossing->Entry == core::workbench_change_entry::first_change
-						? core::change_navigation_direction::next
-						: core::change_navigation_direction::previous);
-			}
-			Dispatch(core::cross_workbench_change_intent{ .Direction = direction });
-			return;
-		}
 		if (!ChangeDispatch) {
 			return;
 		}
@@ -13919,17 +13866,11 @@ namespace bpr::qt {
 			const auto reason = projection
 				? projection->DisabledReason
 				: core::workbench_reason_code::no_active_workbench;
-			// [[BPR-1328]]. A change command that continues into the next
-			// file names the file.
+			// [[BPR-1328]]. An arrow at its bound stays enabled and names the
+			// bound on the tooltip's second line.
 			const auto enabled = projection && projection->Enabled;
-			const auto detail  = !enabled
-				? (index < file_navigation_entries ? reason_text(reason) : change_reason_text(reason))
-				: projection->Crossing
-				? crossing_text(*projection->Crossing,
-								crossing_row(*Drawers[0].Panel->contents(), *projection->Crossing)
-									.data(Qt::DisplayRole)
-									.toString())
-				: QString{ };
+			const auto shown   = enabled ? projection->Bound : reason;
+			const auto detail  = index < file_navigation_entries ? reason_text(shown) : change_reason_text(shown);
 			describe_navigation_action(Navigation[index].Action,
 									   Navigation[index].Name,
 									   enabled,

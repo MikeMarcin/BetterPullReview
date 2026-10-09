@@ -56,6 +56,14 @@ namespace bpr::qt {
 	/// own `toolTip()` anchored to the whole widget. A point that names
 	/// nothing shows nothing.
 	void anchor_tooltips(QWidget& aWidget, anchored_tooltip_source aSource = { });
+	/// \brief [[BPR-1328]]. Anchors the tooltip of every widget inside
+	/// `aRoot`, now and later: each one's own `toolTip()`, directly below
+	/// that widget (owner, rejecting `key-tooltips-v002`: "Whys this tooltip
+	/// so far from the button?"). A widget added to `aRoot` or to any widget
+	/// inside it is followed as it arrives. A widget with no tooltip of its
+	/// own is left to its usual handling, and one that has left `aRoot` is
+	/// no longer anchored.
+	void anchor_descendant_tooltips(QWidget& aRoot);
 } // namespace bpr::qt
 
 #endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_ANCHORED_TOOLTIP_HPP
