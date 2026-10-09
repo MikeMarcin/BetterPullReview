@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1349"
 title: "A feedback count refresh rebuilds the whole snapshot on the window thread"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P3"
