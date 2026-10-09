@@ -1419,9 +1419,41 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-1362]]. A large forest, then two smaller ones with other
+	/// identities. Each identity is longer than a short-string buffer, so the
+	/// replaced forest's strings are freed. MSVC's clear() then re-hashes every
+	/// key, because the smaller forests leave few keys in many buckets;
+	/// a key that viewed a replaced string crashed the third adopt.
+	void test_replacing_a_forest_never_reads_the_last_one()
+	{
+		const auto forest = [](const std::string& aPrefix, const std::size_t aThreads) {
+			auto nodes = std::vector<conversation>{ };
+			for (std::size_t index = 0U; index < aThreads; ++index) {
+				const auto id = aPrefix + "-thread-identity-long-enough-to-allocate-" + std::to_string(index);
+				nodes.push_back(thread(id, "src/a.cpp", static_cast<std::uint32_t>(index + 1U)));
+				nodes.push_back(reply(id + "-reply", id, "author", "post"));
+			}
+			return nodes;
+		};
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.adopt(forest("large", 3000U));
+		expect(view.thread_count() == 3000U, "the large forest is retained");
+		view.adopt(forest("first", 250U));
+		expect(view.thread_count() == 250U, "a smaller forest replaces it");
+		view.adopt(forest("second", 240U));
+		expect(view.thread_count() == 240U, "another smaller forest replaces that one");
+		view.clear();
+		view.adopt(forest("third", 2U));
+		expect(view.thread_count() == 2U, "a forest adopted after clearing is retained");
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	test_replacing_a_forest_never_reads_the_last_one();
 	test_discuss_wheel_moves_readable_lines_without_changing_selection();
 	test_thread_menus_and_defect_badges();
 	test_one_thread_read_state_matches_the_complete_state();

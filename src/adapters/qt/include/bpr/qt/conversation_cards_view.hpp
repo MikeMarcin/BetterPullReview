@@ -554,7 +554,9 @@ namespace bpr::qt {
 		/// [[BPR-0972]]. Per adopted forest: the first node for each identity,
 		/// each node's root and depth, and every node by its root's file, so a
 		/// layout scoped to one file visits that file's conversations only.
-		std::unordered_map<std::string_view, std::size_t>        RetainedById;
+		/// [[BPR-1362]]. Keyed by value: a view into `Retained` dangled once
+		/// `Retained` was replaced, and MSVC's clear() re-hashes its keys.
+		std::unordered_map<std::string, std::size_t>             RetainedById;
 		std::vector<std::size_t>                                 RetainedRoot;
 		std::vector<std::size_t>                                 RetainedDepth;
 		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByFile;

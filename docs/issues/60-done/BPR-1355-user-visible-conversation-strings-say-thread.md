@@ -138,3 +138,17 @@ setup-destination rows.
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
 At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `application_thread_words_public_path` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug):
+
+- **Pass:** `application_setup_destination_public_path`.
+- **Pin:** `application_thread_words_public_path` is measured contained and
+  pinned `dos-volume-name` (`e58663dd0`).
+- **Crash:** `application_thread_words_public_path` crashed as registered
+  (`0xC0000005`, 3 of 4 runs), in the threads drawer's
+  `conversation_cards_view::index_retained`. The cause predates this card's
+  strings: a `string_view` key re-hashed after its string was replaced, which
+  only MSVC's `unordered_map::clear()` does. Fixed by [[BPR-1362]]; with it the
+  row passes 5 of 5.
