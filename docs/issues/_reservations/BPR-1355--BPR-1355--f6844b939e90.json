@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1355"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1341 follow-up: user-visible Conversation strings say Threads",
+  "created": "2026-10-09T05:12:41.754614+00:00",
+  "base": "ba3c970b94bc19ca50ea368ae44473cd55b94a7b"
+}
