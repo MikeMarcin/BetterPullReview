@@ -98,3 +98,7 @@ To confirm, reconfigure `windows-dev` and check:
 The discovery tests in `configure_finds_clang_format_22` are skipped on
 Windows, as before: `find_program` does not run the batch-file stubs. The
 Python discovery cases run there.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `coding_format_check` (with `/usr/bin/clang-format` 22.1.8) and `coding_standard_format_gate_contract` pass.

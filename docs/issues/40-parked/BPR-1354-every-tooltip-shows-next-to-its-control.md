@@ -220,3 +220,7 @@ the frozen root with `freeze_attended_build.py remove`. A Reject names the
 tooltip that was still away from its control; route it through
 `standard_tooltip_target` or an `anchor_tooltips` source, with a position
 test for that kind.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `qt_anchored_tooltips` and `qt_diff_workbench_scale_{100,125,200}` pass.

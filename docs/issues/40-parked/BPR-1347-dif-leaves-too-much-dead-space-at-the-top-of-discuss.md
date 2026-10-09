@@ -125,3 +125,7 @@ Read session `41bb446e…` from cursor 6. Accept on `BPR-1347-dif-workshop-row-v
 note. When both cards are settled, remove the root with
 `freeze_attended_build.py remove`. Windows and Linux runs of the rows are
 owed to the stations.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `qt_feedback_label_controls` and `qt_dif_workshop_placement` pass.

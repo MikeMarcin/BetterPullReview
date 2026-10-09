@@ -135,3 +135,7 @@ One new short session, one question, Accept or Reject.
   SHA-256 `ce141c46e798…`. Its own `--check` reached `ATTENDED_FILE_SHOWN` on
   head `89df5e59…`.
 - Launch: `python3 /Users/jaeger/bpr1356-open-in-discuss-v001.or24x9ef/launch.py`.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `core_workbench_interaction`, `qt_conversation_finder_scale_{100,125,200}` and `qt_workbench_window_scale_{100,125,200}` pass.

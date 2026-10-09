@@ -134,3 +134,7 @@ without an entry in `scripts/verify_test_network_isolation.py`, so
 The entry is now there as "unmeasured (registered on macOS)". The Windows
 station measures the row and replaces the pin, as for the sibling
 setup-destination rows.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `application_thread_words_public_path` pass.

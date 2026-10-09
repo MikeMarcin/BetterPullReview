@@ -444,3 +444,7 @@ candidate, one question, Accept or Reject.
 Next: read the session's decisions (`status --after 3`). Accept satisfies
 `:owner-look` and the card finishes. A Reject comes back with its note for a
 v004.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: v003's `qt_review_state_icon`, `qt_files_tree` and `qt_overview_read_marks` pass.

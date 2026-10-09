@@ -90,3 +90,7 @@ rebased onto `2779ac75a`; first run on `dc2ef601a` over `d38b72965`):
 - clang-format clean on the changed lines and the new file.
 
 Windows and Linux have not run this change; it adds no platform code.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `application_overview_double_click` and `qt_workbench_window_scale_{100,125,200}` pass.
