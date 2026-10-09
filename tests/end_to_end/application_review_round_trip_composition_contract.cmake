@@ -1266,6 +1266,16 @@ endfunction()
 # prints BASE_LINE_DRAFT_EVIDENCE; the fixture-access header names the three
 # facts. No grant, target, credential or transport change; mutation pin
 # unchanged; no new src/app source. The rebase adds no change of its own.
+# BPR-1212 v002 base-numbering reseal (bpr-main-win, 2026-10-09): over the
+# rebased v002 reseal above; no other intervening pinned-scope change.
+# github_application.cpp asks the base-numbering question again when an
+# accepted review keeps the comparison and the answer is neither known nor
+# pending, and re-arms it (25 ms, at most 80 in a row) after a cancelled
+# answer or a refused admission. Testing only: a fixture-access switch turns
+# the next answers into cancelled, and main.cpp's line-draft course takes
+# --cancel-first-base-numbering to set it. Reads only; no grant, target,
+# provider, credential, GitHub write, mutation or publication path; mutation
+# pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1284,7 +1294,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"3b37053f8d5ad44b915ff98e35e0858eaff9f28198450ae38ee81d82eed0c5ab"
+		"ce0ef8461a47c95b61c3cc0bbf6211f671e019a435a4ed7a5685ee3fbfd9c36c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1488,7 +1498,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "62f92d431f978d4d2b7274c1cc6ccfdb636151d33b7c86fa08249509fad0d182"
+        "e5a53e666828068b0e7b4afc2d81caa0a212c4117fca21dcd8a60dc33c6e8bf5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
