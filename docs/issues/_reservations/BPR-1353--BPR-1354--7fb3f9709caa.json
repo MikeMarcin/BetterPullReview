@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1353",
+    "BPR-1354"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1335 owner v002 follow-ups: base-side comments behind a local merge-base check; tooltips anchored next to their control",
+  "created": "2026-10-09T05:09:59.107220+00:00",
+  "base": "b7cfd521a1a57f51e91b9542481857a7e0a83734"
+}
