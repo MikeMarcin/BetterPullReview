@@ -1162,7 +1162,9 @@ namespace bpr::adapters::github::detail {
 				+ "){... on Blob{oid byteSize isBinary isTruncated text}}";
 			variables.emplace(name, std::string{ core::canonical_hex(aRequest.ExpectedBlobs[index]).view() });
 		}
-		query += "){repository(owner:$owner,name:$name){" + selection + "}}";
+		// [[BPR-1370]]. The same request names the account that read the
+		// blobs, so the read needs no separate account observation.
+		query += "){viewer{login databaseId} repository(owner:$owner,name:$name){" + selection + "}}";
 		// [[BPR-1359]]. The object itself. Wrapping it in braces as
 		// `glz::generic{ object_t{ … } }` builds an array holding it, which
 		// GitHub refuses with HTTP 400 ("Body should be a JSON object").

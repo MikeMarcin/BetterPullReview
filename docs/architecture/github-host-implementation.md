@@ -2264,18 +2264,31 @@ An observed account mismatch permanently removes the capability.
 Exact selected-blob reads traverse the same observed Git lease as discovery,
 refs and pack acquisition. [[BPR-1327]] adds `read_exact_blobs` for the files
 the reviewer is about to open: one GraphQL read of at most 16 blobs by object
-ID (owner, name and IDs as variables, never in the query text), between one
-pair of account observations in the transport and one in the wrapper, where a
-single read costs that pair for every blob. Each answer is checked against its
-object ID; a binary, truncated, missing or mismatched one is answered absent
-and is read on its own if the reviewer opens its file. Measured against the
-designated test repository, a single guarded read costs 1.6–1.9 s and a guarded
-batch of four 1.9 s. The request retains its complete context, expected
-blob identity and byte limit. Pre/post account checks, cancellation and lease
-revocation apply before bytes can return; the underlying transport verifies
-the blob itself. A standalone sparse bridge check does not prove this account
-composition. BPR-0794/0795 regressions cover both wrappers and a blob that must
-cross their guarded read path.
+ID (owner, name and IDs as variables, never in the query text). Each answer is
+checked against its object ID; a binary, truncated, missing or mismatched one
+is answered absent and is read on its own if the reviewer opens its file.
+
+[[BPR-1370]] The same query also selects `viewer { login databaseId }`. GitHub
+resolves the viewer from the token that authorized that request, so the answer
+names the account that performed this read, not one observed a `gh` call
+before or after it. The lease holds that account and login to its bound
+account exactly as it holds an observation: a mismatch refuses the read,
+revokes the transport and removes the lease's capability for good; an answer
+that names no account exactly is refused. Such a read takes no `gh api user`
+observation. A single exact read first asks this query for its one blob, at
+most 512 KiB of text. Only a blob it cannot carry (binary, truncated, larger,
+missing or not verified) or a failed query takes the REST read between the
+account observations, one pair in the transport and one in the wrapper, as
+before. A cold open of two text sides therefore takes two `gh` processes
+instead of ten. What the observations never closed stays open: the active
+account may still change between this read and the next request, which makes
+its own check. The request retains its complete context, expected blob
+identity and byte limit. Cancellation and lease revocation apply before bytes
+can return; the underlying transport verifies the blob itself. A standalone
+sparse bridge check does not prove this account composition. BPR-0794/0795
+regressions cover both wrappers and a blob that must cross their guarded read
+path; `gh_cli_git_smart_transport` composes the provider's lease over real
+fixture `gh` processes and counts them.
 
 The setup profile observation uses the host's accepted authenticated session,
 including CLI leases that intentionally have no native credential-vault key.

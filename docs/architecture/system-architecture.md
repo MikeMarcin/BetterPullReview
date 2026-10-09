@@ -839,6 +839,12 @@ admitted while the job is queued or running. Only the reviewer's own stop (a
 superseded selection) or shutdown stops either read. Any other pair, including
 preparation's, is read one side at a time.
 
+[[BPR-1370]] Through the connected GitHub CLI, an exact read of a text blob is
+one `gh` process: a GraphQL read whose answer also names the account that made
+it, held to the lease's bound account as an account observation is. A blob
+that GraphQL cannot carry as text keeps the REST read between its account
+observations ([GitHub host implementation](github-host-implementation.md#connected-cli-destination-routing)).
+
 Composition forwards every accepted epoch projection unchanged to Qt, then
 replays the retained workbench selection only after an available comparison is
 accepted. A new workbench authority/generation retires selected work, clears

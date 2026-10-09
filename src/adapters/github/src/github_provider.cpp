@@ -2,6 +2,7 @@
 #include "github_anonymous_read_admission.hpp"
 #include "github_paged_read.hpp"
 #include "github_publication_contract.hpp"
+#include "github_viewer_named_blob_read.hpp"
 #include "native_https_transport.hpp"
 
 #include <algorithm>
@@ -819,16 +820,43 @@ namespace bpr::adapters::github::detail {
 				{ }
 				void revoke() noexcept override { Inner->revoke(); }
 				auto revoked() const noexcept -> bool override { return Inner->revoked() || Owner->Mismatch.load(); }
+				// [[BPR-1370]]. A text blob is read first through GraphQL,
+				// whose answer names the account that read it. A blob that
+				// way cannot carry (binary, truncated, larger than a batch
+				// blob, or not verified) takes the REST read between a pair
+				// of account observations, as before.
 				auto read_exact_blob(const application::git_smart_exact_blob_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<std::vector<std::byte>> override
 				{
+					using failure = application::git_smart_transport_failure;
+					if (auto* reader = dynamic_cast<viewer_named_blob_reader*>(Inner.get())) {
+						const application::git_smart_exact_blobs_request text{
+							.Context       = aRequest.Context,
+							.ExpectedBlobs = { aRequest.ExpectedBlob },
+							.MaximumBytes  = std::min(aRequest.MaximumBytes, application::maximum_git_exact_blob_batch_bytes),
+						};
+						if (application::valid(text)) {
+							auto answer = read_naming_viewer(*reader, text, aStop);
+							if (answer && answer->size() == 1U && answer->front()) {
+								return std::move(*answer->front());
+							}
+							if (!answer && (answer.error().Failure == failure::cancelled || answer.error().Failure == failure::authentication)) {
+								return std::unexpected{ answer.error() };
+							}
+						}
+					}
 					return perform_guarded<std::vector<std::byte>>(aStop, [&] { return Inner->read_exact_blob(aRequest, aStop); });
 				}
-				// [[BPR-1327]]. One pair of account observations guards the
-				// whole batch, as it guards one blob.
+				// [[BPR-1327]]. One GraphQL read for the whole batch. Its
+				// answer names the account that read it ([[BPR-1370]]); a
+				// transport that cannot say takes one pair of account
+				// observations around the batch instead.
 				auto read_exact_blobs(const application::git_smart_exact_blobs_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_exact_blobs> override
 				{
+					if (auto* reader = dynamic_cast<viewer_named_blob_reader*>(Inner.get())) {
+						return read_naming_viewer(*reader, aRequest, aStop);
+					}
 					return perform_guarded<application::git_smart_exact_blobs>(aStop, [&] { return Inner->read_exact_blobs(aRequest, aStop); });
 				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
@@ -848,6 +876,29 @@ namespace bpr::adapters::github::detail {
 				}
 
 			private:
+				/// The answer's account is held to the lease's bound account
+				/// and login exactly as an observation is: a mismatch
+				/// refuses this lease for good.
+				auto read_naming_viewer(viewer_named_blob_reader& aReader, const application::git_smart_exact_blobs_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<application::git_smart_exact_blobs>
+				{
+					using failure = application::git_smart_transport_failure;
+					if (aStop.stop_requested() || revoked()) {
+						return std::unexpected{ application::git_smart_transport_error{ failure::cancelled } };
+					}
+					auto answer = aReader.read_exact_blobs_naming_viewer(aRequest, aStop);
+					if (!answer) {
+						return std::unexpected{ answer.error() };
+					}
+					if (!Owner->admit(answer->Viewer)) {
+						revoke();
+						return std::unexpected{ application::git_smart_transport_error{ failure::authentication } };
+					}
+					if (aStop.stop_requested() || revoked()) {
+						return std::unexpected{ application::git_smart_transport_error{ failure::cancelled } };
+					}
+					return std::move(answer->Blobs);
+				}
 				template <typename TValue, typename TCall>
 				auto perform_guarded(std::stop_token aStop, TCall aCall) -> application::git_smart_transport_result<TValue>
 				{
@@ -1005,11 +1056,20 @@ namespace bpr::adapters::github::detail {
 				if (!observed) {
 					return observed.error();
 				}
-				if (observed->Viewer.Account != Account || observed->Viewer.Login != Login) {
-					Mismatch.store(true);
+				if (!admit(github_answering_account{ .Account = observed->Viewer.Account, .Login = observed->Viewer.Login })) {
 					return provider_error(application::github_provider_failure::authentication);
 				}
 				return std::nullopt;
+			}
+			/// The one comparison every observation, and every answer that
+			/// names its own account, passes ([[BPR-1370]]).
+			auto admit(const github_answering_account& aObserved) -> bool
+			{
+				if (aObserved.Account != Account || aObserved.Login != Login) {
+					Mismatch.store(true);
+					return false;
+				}
+				return !Mismatch.load();
 			}
 			std::shared_ptr<github_wire_transport_port> Transport;
 			github_wire_request                         Viewer;

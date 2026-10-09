@@ -3,6 +3,7 @@
 #include "github_mutation_contract.hpp"
 #include "github_provider.hpp"
 #include "github_publication_contract.hpp"
+#include "github_viewer_named_blob_read.hpp"
 #include "github_wire_request_validation.hpp"
 
 #include <glaze/json.hpp>
@@ -98,7 +99,7 @@ namespace {
 		std::deque<std::function<void()>> Tasks;
 	};
 
-	class fake_git_transport final : public application::git_smart_transport_port
+	class fake_git_transport : public application::git_smart_transport_port
 	{
 	public:
 		void revoke() noexcept override { Revoked = true; }
@@ -142,6 +143,34 @@ namespace {
 		std::function<void()>                                           Hook;
 		std::optional<application::git_smart_exact_blob_request>        BlobRequest;
 		application::git_smart_transport_result<std::vector<std::byte>> BlobResult = std::vector{ std::byte{ 'x' } };
+	};
+
+	/// [[BPR-1370]]. A Git transport whose GraphQL answers name their account.
+	class viewer_naming_git_transport final : public fake_git_transport, public viewer_named_blob_reader
+	{
+	public:
+		auto read_exact_blobs_naming_viewer(const application::git_smart_exact_blobs_request& aRequest, std::stop_token)
+			-> application::git_smart_transport_result<viewer_named_blobs> override
+		{
+			++NamedCalls;
+			NamedRequest = aRequest;
+			if (NamedHook) {
+				NamedHook();
+			}
+			if (!NamedFailure) {
+				return std::unexpected{ NamedFailure.error() };
+			}
+			auto answer   = viewer_named_blobs{ };
+			answer.Viewer = Viewer;
+			answer.Blobs.assign(aRequest.ExpectedBlobs.size(), NamedBlob);
+			return answer;
+		}
+		unsigned                                                    NamedCalls = 0U;
+		std::optional<application::git_smart_exact_blobs_request>   NamedRequest;
+		std::function<void()>                                       NamedHook;
+		std::expected<void, application::git_smart_transport_error> NamedFailure;
+		std::optional<std::vector<std::byte>>                       NamedBlob = std::vector{ std::byte{ 't' } };
+		github_answering_account                                    Viewer{ .Account = core::github_account_id{ 1001U }, .Login = "octo-reviewer" };
 	};
 	class fake_wire_transport final : public github_wire_transport_port,
 									  public github_mutation_wire_transport,
@@ -2165,6 +2194,111 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1370]]. A text blob read through the CLI account lease is one
+	/// GraphQL read whose answer names its account; the lease holds that
+	/// account to its own exactly as it holds an observation, and only a blob
+	/// GraphQL cannot carry takes the observed REST read.
+	void test_cli_text_blob_reads_name_their_account()
+	{
+		using failure = application::git_smart_transport_failure;
+		struct lease
+		{
+			lease()
+				: Fixture{ application::github_authentication_transport::github_cli }
+			{
+				Fixture.Factory->CliEnabled    = true;
+				Fixture.Transport->Git         = Git;
+				Fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = viewer_response() };
+				};
+				auto viewer               = run_viewer(Fixture, { .Request = viewer_request_for(Fixture.Profile), .Authentication = std::monostate{ } });
+				Account                   = std::get<application::github_viewer_success>(viewer).AccountTransport;
+				Factory                   = dynamic_cast<application::git_smart_transport_factory_port*>(Account.get());
+				Context.Authority.Account = core::github_account_id{ 1001 };
+				Fixture.Transport->Sparse = true;
+				auto acquired             = Factory->acquire(Context);
+				expect(acquired.has_value(), "the CLI lease acquires a viewer-naming Git transport");
+				Transport = *acquired;
+			}
+			[[nodiscard]] auto observations() const -> std::size_t { return Fixture.Transport->ReadRequests.size(); }
+			[[nodiscard]] auto blob(const std::size_t aMaximum = 17U) const -> application::git_smart_exact_blob_request
+			{
+				return { .Context = Context, .ExpectedBlob = *core::parse_git_blob_oid("1111111111111111111111111111111111111111"), .MaximumBytes = aMaximum };
+			}
+			provider_fixture                               Fixture;
+			std::shared_ptr<viewer_naming_git_transport>   Git = std::make_shared<viewer_naming_git_transport>();
+			application::github_account_transport          Account;
+			application::git_smart_transport_factory_port* Factory = nullptr;
+			application::git_smart_request_context         Context{ };
+			application::git_smart_transport               Transport;
+		};
+		{
+			lease      text;
+			const auto before = text.observations();
+			const auto bytes  = text.Transport->read_exact_blob(text.blob(), { });
+			expect(bytes && *bytes == std::vector{ std::byte{ 't' } } && text.Git->NamedCalls == 1U && text.Git->Calls == 0U,
+				   "a text blob is read once through the read that names its account, not the REST read");
+			expect(text.observations() == before, "a text blob read makes no separate account observation (two before)");
+			expect(text.Git->NamedRequest && text.Git->NamedRequest->Context == text.Context && text.Git->NamedRequest->ExpectedBlobs.size() == 1U
+					   && text.Git->NamedRequest->ExpectedBlobs.front() == text.blob().ExpectedBlob && text.Git->NamedRequest->MaximumBytes == 17U,
+				   "the text read keeps the exact context, blob identity and byte bound");
+			static_cast<void>(text.Transport->read_exact_blob(text.blob(application::maximum_git_exact_blob_bytes), { }));
+			expect(text.Git->NamedRequest->MaximumBytes == application::maximum_git_exact_blob_batch_bytes,
+				   "a text read asks GraphQL for no more than a batch blob; a larger one takes the REST read");
+			const application::git_smart_exact_blobs_request batch{ .Context = text.Context, .ExpectedBlobs = { text.blob().ExpectedBlob, text.blob().ExpectedBlob }, .MaximumBytes = 64U };
+			const auto                                       read = text.Transport->read_exact_blobs(batch, { });
+			expect(read && read->size() == 2U && (*read)[0] && text.Git->NamedCalls == 3U && text.observations() == before,
+				   "a batch is one read that names its account, with no observation pair around it");
+
+			// A blob GraphQL cannot carry, or a GraphQL failure, takes the observed REST read.
+			text.Git->NamedBlob = std::nullopt;
+			const auto binary   = text.Transport->read_exact_blob(text.blob(), { });
+			expect(binary && *binary == std::vector{ std::byte{ 'x' } } && text.Git->Calls == 1U && text.observations() == before + 2U,
+				   "a binary, truncated or oversized blob falls back to the REST read between the lease's observations");
+			text.Git->NamedBlob    = std::vector{ std::byte{ 't' } };
+			text.Git->NamedFailure = std::unexpected{ application::git_smart_transport_error{ failure::unavailable } };
+			const auto unavailable = text.Transport->read_exact_blob(text.blob(), { });
+			expect(unavailable && text.Git->Calls == 2U && text.observations() == before + 4U, "a failed GraphQL read falls back to the observed REST read");
+			const auto batchFailure = text.Transport->read_exact_blobs(batch, { });
+			expect(!batchFailure && batchFailure.error().Failure == failure::unavailable && text.observations() == before + 4U,
+				   "a failed batch is refused without falling back; preparation reads none ahead");
+			text.Git->NamedFailure = std::unexpected{ application::git_smart_transport_error{ failure::cancelled } };
+			const auto cancelled   = text.Transport->read_exact_blob(text.blob(), { });
+			expect(!cancelled && cancelled.error().Failure == failure::cancelled && text.Git->Calls == 2U && text.observations() == before + 4U,
+				   "a cancelled text read does not fall back");
+			text.Git->NamedFailure = { };
+			std::stop_source stop;
+			text.Git->NamedHook = [&] { stop.request_stop(); };
+			const auto stopped  = text.Transport->read_exact_blob(text.blob(), stop.get_token());
+			text.Git->NamedHook = nullptr;
+			expect(!stopped && stopped.error().Failure == failure::cancelled && text.Git->Calls == 2U, "a text read stopped while in flight returns nothing");
+			stop.request_stop();
+			const auto calls = text.Git->NamedCalls;
+			expect(!text.Transport->read_exact_blob(text.blob(), stop.get_token()) && text.Git->NamedCalls == calls, "a stopped request reads nothing");
+		}
+		for (const auto& [account, login] : { std::pair{ 1001U, "renamed" }, std::pair{ 1002U, "octo-reviewer" } }) {
+			lease mismatch;
+			mismatch.Git->Viewer = github_answering_account{ .Account = core::github_account_id{ account }, .Login = login };
+			const auto before    = mismatch.observations();
+			const auto refused   = mismatch.Transport->read_exact_blob(mismatch.blob(), { });
+			expect(!refused && refused.error().Failure == failure::authentication && mismatch.Transport->revoked() && mismatch.Git->Calls == 0U,
+				   "a text read whose answer names another account or login is refused, revoked and not retried over REST");
+			expect(!mismatch.Factory->supports_sparse_commit_trees() && !mismatch.Factory->acquire(mismatch.Context).has_value(),
+				   "the answer's mismatch refuses the whole account lease, as an observed mismatch does");
+			mismatch.Git->Viewer = github_answering_account{ .Account = core::github_account_id{ 1001U }, .Login = "octo-reviewer" };
+			const auto calls     = mismatch.Git->NamedCalls;
+			expect(!mismatch.Transport->read_exact_blob(mismatch.blob(), { }) && !mismatch.Transport->read_exact_blobs({ .Context = mismatch.Context, .ExpectedBlobs = { mismatch.blob().ExpectedBlob }, .MaximumBytes = 8U }, { })
+					   && mismatch.Git->NamedCalls == calls && mismatch.Git->Calls == 0U && mismatch.observations() == before,
+				   "the refused lease reads nothing more after the account returns");
+		}
+		{
+			lease batch;
+			batch.Git->Viewer = github_answering_account{ .Account = core::github_account_id{ 1002U }, .Login = "other" };
+			const auto read   = batch.Transport->read_exact_blobs({ .Context = batch.Context, .ExpectedBlobs = { batch.blob().ExpectedBlob }, .MaximumBytes = 8U }, { });
+			expect(!read && read.error().Failure == failure::authentication && batch.Transport->revoked(), "a batch read by another account is refused and revokes the lease");
+		}
+	}
+
 	void test_cli_exact_blob_cancellation()
 	{
 		for (const bool duringRead : { false, true }) {
@@ -2469,6 +2603,7 @@ int main(int aArgc, char** aArgv)
 	test_cli_is_categorically_unavailable();
 	test_account_lease_mints_publication_catalog();
 	test_cli_observed_account_lease();
+	test_cli_text_blob_reads_name_their_account();
 	test_cli_git_lease_forwarding();
 	test_cli_exact_blob_cancellation();
 	test_cli_mutation_lease_account_checks();

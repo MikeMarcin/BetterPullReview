@@ -61,7 +61,11 @@ the functional core or Qt presentation adapter.
   migration of legacy configuration or symlinked targets. The helper's process,
   executable/configuration and account-switch races remain
   visible limitations; pre/post observations detect changes but do not close
-  the race. This exception does not expand `gh api` request shapes or permit
+  the race. A GraphQL blob read instead selects `viewer { login databaseId }`
+  in the same query and holds that account and login to the lease's bound
+  account exactly as an observation is held, refusing the lease on a mismatch;
+  only such a read may skip the observations, and a blob it cannot carry as
+  text keeps the observed REST read ([[BPR-1370]]). This exception does not expand `gh api` request shapes or permit
   publication before its own acceptance milestone. Credential-free local Git
   may serve the bounded cloned object store through closed protocol v2
   arguments, without network, helper, hooks or repository-controlled executable

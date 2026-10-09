@@ -1,6 +1,7 @@
 #include "gh_cli_git_smart_transport.hpp"
 #include "github_cli_process_runner.hpp"
 #include "github_paged_read.hpp"
+#include "github_viewer_named_blob_read.hpp"
 
 #include "bpr/application/git_protocol_v2.hpp"
 
@@ -191,7 +192,7 @@ namespace bpr::adapters::github::detail {
 			return executable_observation{ aGit, size, modified };
 		}
 
-		class gh_cli_git_smart_transport final : public git_smart_transport_port
+		class gh_cli_git_smart_transport final : public git_smart_transport_port, public viewer_named_blob_reader
 		{
 		public:
 			gh_cli_git_smart_transport(const validated_github_host_profile&  aProfile,
@@ -330,12 +331,27 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
-			/// [[BPR-1327]]. One GraphQL read for a batch of blobs, between one
-			/// pair of account observations. Every answer is verified against its
-			/// object ID; anything else in the batch is answered absent rather
-			/// than failing the rest.
+			/// [[BPR-1327]]. One GraphQL read for a batch of blobs. Every answer
+			/// is verified against its object ID; anything else in the batch is
+			/// answered absent rather than failing the rest. [[BPR-1370]]: the
+			/// answer names the account that read it, so no observation brackets
+			/// the read; one naming an account other than this authority's
+			/// revokes the transport and refuses.
 			auto read_exact_blobs(const git_smart_exact_blobs_request& aRequest, std::stop_token aStop)
 				-> git_smart_transport_result<git_smart_exact_blobs> override
+			{
+				auto answer = read_exact_blobs_naming_viewer(aRequest, aStop);
+				if (!answer) {
+					return std::unexpected{ answer.error() };
+				}
+				if (revoked()) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+				}
+				return std::move(answer->Blobs);
+			}
+
+			auto read_exact_blobs_naming_viewer(const git_smart_exact_blobs_request& aRequest, std::stop_token aStop)
+				-> git_smart_transport_result<viewer_named_blobs> override
 			{
 				std::lock_guard lock{ Mutex };
 				if (const auto error = admission(aRequest.Context, aStop)) {
@@ -353,25 +369,15 @@ namespace bpr::adapters::github::detail {
 					if (!process) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
+					// Constructed before the read so that its configuration
+					// baseline precedes it, as the observation's did.
 					gh_cli_transport identity{ Profile, Configuration, *process };
-					const auto       before = viewer(identity, stop.get_token());
-					if (!before) {
-						return std::unexpected{ before.error() };
-					}
-					const auto response = process->run(*invocation, stop.get_token());
+					const auto       response = process->run(*invocation, stop.get_token());
 					if (!response) {
 						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
 					}
 					if (response->ExitCode != 0) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
-					}
-					const auto after = viewer(identity, stop.get_token());
-					if (!after) {
-						return std::unexpected{ after.error() };
-					}
-					if (before->Account != after->Account || before->Login != after->Login) {
-						revoke();
-						return std::unexpected{ git_smart_transport_error{ failure::authentication } };
 					}
 					if (const auto error = admission(aRequest.Context, stop.get_token())) {
 						return std::unexpected{ git_smart_transport_error{ *error } };
@@ -380,25 +386,51 @@ namespace bpr::adapters::github::detail {
 						revoke();
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
-					return verified_blobs(aRequest, response->StandardOutput);
+					auto answer = verified_blobs(aRequest, response->StandardOutput);
+					if (!answer) {
+						return answer;
+					}
+					if (answer->Viewer.Account != Context.Authority.Account) {
+						revoke();
+						answer->Blobs.assign(aRequest.ExpectedBlobs.size(), std::nullopt);
+					}
+					return answer;
 				} catch (...) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 			}
 
 			[[nodiscard]] static auto verified_blobs(const git_smart_exact_blobs_request& aRequest, const std::string& aOutput)
-				-> git_smart_transport_result<git_smart_exact_blobs>
+				-> git_smart_transport_result<viewer_named_blobs>
 			{
+				const auto      malformed = std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
 				QJsonParseError error;
 				const auto      document = QJsonDocument::fromJson(QByteArray::fromStdString(aOutput), &error);
 				if (error.error != QJsonParseError::NoError || !document.isObject()) {
-					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+					return malformed;
 				}
-				const auto repository = document.object().value("data").toObject().value("repository");
+				const auto data       = document.object().value("data").toObject();
+				const auto repository = data.value("repository");
 				if (!repository.isObject()) {
-					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+					return malformed;
 				}
-				auto result = git_smart_exact_blobs(aRequest.ExpectedBlobs.size());
+				// [[BPR-1370]]. The account GitHub resolved this request's token
+				// to: the REST `id` and `login` that `gh api user` reports.
+				const auto viewer   = data.value("viewer").toObject();
+				const auto login    = viewer.value("login");
+				const auto database = viewer.value("databaseId");
+				if (!login.isString() || login.toString().isEmpty() || login.toString().size() > 256 || !database.isDouble()
+					|| database.toDouble() < 1.0 || database.toDouble() > 9007199254740991.0
+					|| std::floor(database.toDouble()) != database.toDouble()) {
+					return malformed;
+				}
+				auto named   = viewer_named_blobs{ };
+				named.Viewer = github_answering_account{
+					.Account = core::github_account_id{ static_cast<std::uint64_t>(database.toDouble()) },
+					.Login   = login.toString().toStdString(),
+				};
+				auto& result = named.Blobs;
+				result.resize(aRequest.ExpectedBlobs.size());
 				for (std::size_t index = 0U; index < aRequest.ExpectedBlobs.size(); ++index) {
 					const auto object   = repository.toObject().value(QString::fromStdString("b" + std::to_string(index))).toObject();
 					const auto expected = std::string{ core::canonical_hex(aRequest.ExpectedBlobs[index]).view() };
@@ -422,7 +454,7 @@ namespace bpr::adapters::github::detail {
 					}
 					result[index] = bytes(std::string_view{ text.constData(), static_cast<std::size_t>(text.size()) });
 				}
-				return result;
+				return named;
 			}
 
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)

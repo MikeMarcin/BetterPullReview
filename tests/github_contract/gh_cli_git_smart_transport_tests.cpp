@@ -3,6 +3,7 @@
 #include "gh_cli_git_smart_transport.hpp"
 #include "github_cli_process_runner.hpp"
 #include "github_paged_read.hpp"
+#include "github_provider.hpp"
 #include <QCoreApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -13,11 +14,15 @@
 #include <QTextStream>
 #include <array>
 #include <cstdlib>
+#include <deque>
+#include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <optional>
+#include <random>
+#include <semaphore.h>
 #include <span>
 #include <thread>
 #include <utility>
@@ -206,10 +211,58 @@ namespace {
 		file << aValue;
 		expect(file.good(), "fixture file");
 	}
+	/// [[BPR-1370]]. The sandboxed fake may not write a file, but it may post
+	/// a named semaphore, so the course counts every gh process it launches.
+	void count_launch(const std::filesystem::path& aRoot)
+	{
+		std::ifstream input{ aRoot / "process-semaphore" };
+		std::string   name;
+		if (input >> name) {
+			if (auto* semaphore = sem_open(name.c_str(), 0); semaphore != SEM_FAILED) {
+				sem_post(semaphore);
+				sem_close(semaphore);
+			}
+		}
+	}
+
+	[[nodiscard]] auto read_text(const std::filesystem::path& aPath) -> std::optional<std::string>
+	{
+		std::ifstream input{ aPath, std::ios::binary };
+		if (!input) {
+			return std::nullopt;
+		}
+		return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+	}
+
+	/// [[BPR-1370]]. A GraphQL blob read answered from the fixture's store:
+	/// `text-<oid>` is a text blob, `binary-<oid>` a binary one, anything else
+	/// missing. The viewer is `graphql-viewer` or the fixture account.
+	[[nodiscard]] auto stored_graphql_answer(const std::filesystem::path& aRoot, const QJsonObject& aVariables) -> QByteArray
+	{
+		QJsonObject repository;
+		for (int index = 0; aVariables.contains(QStringLiteral("o%1").arg(index)); ++index) {
+			const auto oid    = aVariables.value(QStringLiteral("o%1").arg(index)).toString().toStdString();
+			const auto alias  = QStringLiteral("b%1").arg(index);
+			const auto text   = read_text(aRoot / ("text-" + oid));
+			const auto binary = read_text(aRoot / ("binary-" + oid));
+			if (text) {
+				repository.insert(alias, QJsonObject{ { "oid", QString::fromStdString(oid) }, { "byteSize", static_cast<double>(text->size()) }, { "isBinary", false }, { "isTruncated", false }, { "text", QString::fromStdString(*text) } });
+			} else if (binary) {
+				repository.insert(alias, QJsonObject{ { "oid", QString::fromStdString(oid) }, { "byteSize", static_cast<double>(binary->size()) }, { "isBinary", true }, { "isTruncated", false }, { "text", QJsonValue::Null } });
+			} else {
+				repository.insert(alias, QJsonValue::Null);
+			}
+		}
+		const auto  viewer = read_text(aRoot / "graphql-viewer").value_or(R"({"login":"fixture","databaseId":203})");
+		QJsonObject data{ { "repository", repository }, { "viewer", QJsonDocument::fromJson(QByteArray::fromStdString(viewer)).object() } };
+		return QJsonDocument{ QJsonObject{ { "data", data } } }.toJson(QJsonDocument::Compact);
+	}
+
 	int fake_gh(const QStringList& aArguments)
 	{
 		const auto executable = std::filesystem::path{ aArguments[0].toStdString() };
 		const auto root       = executable.parent_path();
+		count_launch(root);
 		if (aArguments.size() >= 3 && aArguments.back() == "--help") {
 			if (std::filesystem::exists(root / "wait-gh-help")) {
 				std::this_thread::sleep_for(std::chrono::seconds{ 20 });
@@ -252,6 +305,14 @@ namespace {
 			if (std::filesystem::exists(root / "wait-blob")) {
 				std::this_thread::sleep_for(std::chrono::seconds{ 10 });
 			}
+			// [[BPR-1370]]. The REST read of a stored blob, text or binary.
+			const auto oid    = aArguments[2].section('/', -1).toStdString();
+			const auto stored = read_text(root / ("binary-" + oid)).or_else([&] { return read_text(root / ("text-" + oid)); });
+			if (stored) {
+				const auto content = QByteArray::fromStdString(*stored);
+				std::cout << "{\"sha\":\"" << oid << "\",\"size\":" << content.size() << ",\"encoding\":\"base64\",\"content\":\"" << content.toBase64().toStdString() << "\"}";
+				return 0;
+			}
 			std::ifstream response{ root / "blob-response" };
 			if (!response) {
 				return 1;
@@ -284,6 +345,11 @@ namespace {
 			const auto query = request.substr(0U, request.find("\"variables\""));
 			if (query.find("oid:\\\"") != std::string::npos || query.find(std::string(40U, 'b')) != std::string::npos) {
 				return 8;
+			}
+			if (std::filesystem::exists(root / "graphql-from-store")) {
+				const auto answer = stored_graphql_answer(root, document.object().value("variables").toObject());
+				std::cout.write(answer.constData(), answer.size());
+				return 0;
 			}
 			std::ifstream response{ root / "graphql-response" };
 			if (!response) {
@@ -402,6 +468,257 @@ namespace {
 		}
 		unsigned Calls = 0;
 	};
+	/// [[BPR-1370]]. Counts the gh processes the fixture launches.
+	class launch_counter
+	{
+	public:
+		explicit launch_counter(std::filesystem::path aRoot)
+			: Root{ std::move(aRoot) }
+		{
+			std::random_device random;
+			for (int attempt = 0; attempt < 8 && Semaphore == SEM_FAILED; ++attempt) {
+				Name      = "/bpr1370-" + std::to_string(random() % 100000000U);
+				Semaphore = sem_open(Name.c_str(), O_CREAT | O_EXCL, 0600, 0U);
+			}
+			expect(Semaphore != SEM_FAILED, "a fresh launch-counting semaphore");
+			write(Root / "process-semaphore", Name);
+		}
+		launch_counter(const launch_counter&)                    = delete;
+		auto operator=(const launch_counter&) -> launch_counter& = delete;
+		~launch_counter()
+		{
+			std::error_code error;
+			std::filesystem::remove(Root / "process-semaphore", error);
+			sem_close(Semaphore);
+			sem_unlink(Name.c_str());
+		}
+		/// Launches since the last call.
+		[[nodiscard]] auto take() -> unsigned
+		{
+			unsigned count = 0U;
+			while (sem_trywait(Semaphore) == 0) {
+				++count;
+			}
+			return count;
+		}
+
+	private:
+		std::filesystem::path Root;
+		std::string           Name;
+		sem_t*                Semaphore = SEM_FAILED;
+	};
+
+	class queued_effects final : public application::effect_executor
+	{
+	public:
+		void post(std::function<void()> aTask) override { Tasks.push_back(std::move(aTask)); }
+		void drain()
+		{
+			while (!Tasks.empty()) {
+				auto task = std::move(Tasks.front());
+				Tasks.pop_front();
+				task();
+			}
+		}
+
+	private:
+		std::deque<std::function<void()>> Tasks;
+	};
+
+	/// The composition's CLI read transport (`owned_cli_read_transport`):
+	/// one gh_cli_transport over one process runner for the account's own
+	/// requests, and an exact Git transport per comparison read.
+	class fixture_cli_transport final : public github_wire_transport_port,
+										public application::git_smart_transport_factory_port,
+										public std::enable_shared_from_this<fixture_cli_transport>
+	{
+	public:
+		fixture_cli_transport(const validated_github_host_profile& aProfile, const validated_gh_cli_configuration& aConfiguration,
+							  core::github_session_request_context aSession)
+			: Process{ make_github_cli_process_runner() }
+			, Transport{ aProfile, aConfiguration, *Process }
+			, Profile{ aProfile }
+			, Configuration{ aConfiguration }
+			, Session{ aSession }
+		{ }
+		auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
+		{
+			return Transport.perform(aRequest, aStop);
+		}
+		auto supports_sparse_commit_trees() const noexcept -> bool override { return true; }
+		auto acquire(const application::git_smart_request_context& aContext)
+			-> application::git_smart_transport_result<application::git_smart_transport> override
+		{
+			return make_gh_cli_git_smart_transport(Profile, Configuration, "/usr/bin/git", Session, aContext,
+												   [self = shared_from_this()] { return self->Transport.configuration_unchanged(); });
+		}
+
+	private:
+		std::unique_ptr<github_cli_process_port> Process;
+		gh_cli_transport                         Transport;
+		validated_github_host_profile            Profile;
+		validated_gh_cli_configuration           Configuration;
+		core::github_session_request_context     Session;
+	};
+
+	class fixture_cli_factory final : public github_wire_transport_factory_port
+	{
+	public:
+		explicit fixture_cli_factory(const validated_gh_cli_configuration& aConfiguration)
+			: Configuration{ aConfiguration }
+		{ }
+		auto make_bootstrap(const validated_github_host_profile&, core::github_session_request_context, application::github_credential_material) noexcept
+			-> github_wire_transport_factory_result override
+		{
+			return unavailable();
+		}
+		auto make_account(const validated_github_host_profile&, application::github_credential_retrieve_success) noexcept
+			-> github_wire_transport_factory_result override
+		{
+			return unavailable();
+		}
+		auto supports_cli() const noexcept -> bool override { return true; }
+		auto make_cli(const validated_github_host_profile& aProfile, core::github_session_request_context aContext) noexcept
+			-> github_wire_transport_factory_result override
+		{
+			try {
+				return std::make_shared<fixture_cli_transport>(aProfile, Configuration, aContext);
+			} catch (...) {
+				return unavailable();
+			}
+		}
+
+	private:
+		[[nodiscard]] static auto unavailable() noexcept -> github_wire_transport_factory_result
+		{
+			return std::unexpected{ application::github_provider_error{
+				.Failure           = application::github_provider_failure::unavailable,
+				.RetryAfterSeconds = std::nullopt,
+				.RateLimits        = { },
+				.RateLimitCause    = std::nullopt,
+			} };
+		}
+		validated_gh_cli_configuration Configuration;
+	};
+
+	/// The provider's CLI sign-in, from `gh api user`: the account lease the
+	/// application reads a comparison's blobs through.
+	struct cli_account_lease
+	{
+		cli_account_lease(const validated_github_host_profile& aProfile, const validated_gh_cli_configuration& aConfiguration,
+						  const core::github_session_request_context& aSession)
+			: Factory{ std::make_shared<fixture_cli_factory>(aConfiguration) }
+		{
+			auto provider = make_github_provider(std::span<const validated_github_host_profile>{ &aProfile, 1U }, Effects, Factory);
+			expect(provider.has_value(), "the provider composes over the fixture CLI");
+			Provider = std::move(*provider);
+			const application::github_viewer_request request{
+				.Context   = aSession,
+				.Authority = {
+					.Profile               = aProfile.profile(),
+					.ProfileRevision       = aProfile.revision(),
+					.Host                  = aProfile.host(),
+					.Hostname              = application::github_canonical_hostname{ aProfile.hostname() },
+					.ServerContract        = aProfile.server_contract(),
+					.Authentication        = aProfile.authentication_transport(),
+					.ProbeContractRevision = application::github_probe_contract_revision{ 1U },
+				},
+				.Attempt = application::github_provider_attempt{ 1U },
+			};
+			std::optional<application::github_viewer_completion> completion;
+			Provider->observe_viewer({ .Request = request, .Authentication = std::monostate{ } }, [&](auto aCompletion) { completion = std::move(aCompletion); });
+			Effects.drain();
+			const auto* success = completion ? std::get_if<application::github_viewer_success>(&*completion) : nullptr;
+			expect(success != nullptr && success->Viewer.Account == core::github_account_id{ 203U } && success->Viewer.Login == "fixture",
+				   "the CLI sign-in observes the fixture account");
+			Lease = success->AccountTransport;
+			Git   = dynamic_cast<application::git_smart_transport_factory_port*>(Lease.get());
+			expect(Git != nullptr, "the CLI account lease reads Git objects");
+		}
+
+		queued_effects                                 Effects;
+		std::shared_ptr<fixture_cli_factory>           Factory;
+		std::unique_ptr<github_provider>               Provider;
+		application::github_account_transport          Lease;
+		application::git_smart_transport_factory_port* Git = nullptr;
+	};
+
+	/// [[BPR-1370]]. A cold open of one modified file through the shipped
+	/// account lease: both sides' exact reads, over real gh processes, counted.
+	void cold_open_course(const std::filesystem::path& aRoot, const validated_github_host_profile& aProfile,
+						  const validated_gh_cli_configuration& aConfiguration, const core::github_session_request_context& aSession,
+						  const application::git_smart_request_context& aContext, const QByteArray& aLeft, const QByteArray& aRight)
+	{
+		const auto left      = *core::parse_git_blob_oid(aLeft.toStdString());
+		const auto right     = *core::parse_git_blob_oid(aRight.toStdString());
+		const auto leftText  = std::string{ "complete local contents\n" };
+		const auto rightText = std::string{ "changed local contents\n" };
+		const auto read      = [&](application::git_smart_transport& aTransport, const core::git_blob_oid& aBlob) {
+			return aTransport->read_exact_blob({ aContext, aBlob, application::maximum_git_exact_blob_bytes }, { });
+		};
+		const auto as_text = [](const std::vector<std::byte>& aBytes) {
+			return std::string{ reinterpret_cast<const char*>(aBytes.data()), aBytes.size() };
+		};
+		write(aRoot / "graphql-from-store", "1");
+		write(aRoot / ("text-" + aLeft.toStdString()), leftText);
+		write(aRoot / ("text-" + aRight.toStdString()), rightText);
+		launch_counter launches{ aRoot };
+		{
+			cli_account_lease lease{ aProfile, aConfiguration, aSession };
+			const auto        signIn    = launches.take();
+			auto              transport = lease.Git->acquire(aContext);
+			expect(transport.has_value(), "the lease acquires an exact Git transport");
+			const auto leftBytes  = read(*transport, left);
+			const auto rightBytes = read(*transport, right);
+			const auto open       = launches.take();
+			std::cout << "cold open of a text file: sign-in " << signIn << " gh processes, both sides " << open << " gh processes\n";
+			expect(leftBytes && as_text(*leftBytes) == leftText && rightBytes && as_text(*rightBytes) == rightText,
+				   "both sides of a cold open read their verified text through the account lease");
+			expect(open == 2U, "a cold open of a text file takes one gh process a side: the GraphQL answer names its account, "
+							   "so no gh api user call brackets either read (ten before [[BPR-1370]])");
+			write(aRoot / "fail-viewer", "1");
+			const auto unobserved = read(*transport, left);
+			std::filesystem::remove(aRoot / "fail-viewer");
+			expect(unobserved && as_text(*unobserved) == leftText && launches.take() == 1U,
+				   "a text read makes no separate account observation: it reads while every gh api user call fails");
+
+			// A binary side keeps the REST read and both pairs of observations.
+			std::filesystem::remove(aRoot / ("text-" + aRight.toStdString()));
+			write(aRoot / ("binary-" + aRight.toStdString()), rightText);
+			const auto binary         = read(*transport, right);
+			const auto binaryLaunches = launches.take();
+			std::cout << "binary side: " << binaryLaunches << " gh processes\n";
+			expect(binary && as_text(*binary) == rightText && binaryLaunches == 6U,
+				   "a binary blob falls back to the REST read: one GraphQL attempt, then the read between its "
+				   "account observations (two by the lease, two by the transport)");
+			write(aRoot / "fail-viewer", "1");
+			const auto binaryUnobserved = read(*transport, right);
+			std::filesystem::remove(aRoot / "fail-viewer");
+			expect(!binaryUnobserved && launches.take() == 2U, "the REST fallback is still refused when its account cannot be observed");
+			std::filesystem::remove(aRoot / ("binary-" + aRight.toStdString()));
+			write(aRoot / ("text-" + aRight.toStdString()), rightText);
+		}
+		for (const std::string_view viewer : { R"({"login":"other","databaseId":203})", R"({"login":"fixture","databaseId":999})" }) {
+			cli_account_lease lease{ aProfile, aConfiguration, aSession };
+			auto              transport = lease.Git->acquire(aContext);
+			expect(transport.has_value(), "a fresh lease acquires an exact Git transport");
+			static_cast<void>(launches.take());
+			write(aRoot / "graphql-viewer", viewer);
+			const auto refused = read(*transport, left);
+			std::filesystem::remove(aRoot / "graphql-viewer");
+			expect(!refused && refused.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(),
+				   "a text read whose answer names another account or login is refused and revokes the read");
+			expect(launches.take() == 1U, "the refused read made one gh process and did not fall back to REST");
+			const auto again = read(*transport, left);
+			expect(!again && launches.take() == 0U, "the refused lease reads nothing more, even with the account back");
+			expect(!lease.Git->supports_sparse_commit_trees() && !lease.Git->acquire(aContext).has_value(),
+				   "a mismatch refuses the whole account lease, as an observed mismatch does");
+		}
+		std::filesystem::remove(aRoot / "graphql-from-store");
+		std::filesystem::remove(aRoot / ("text-" + aLeft.toStdString()));
+		std::filesystem::remove(aRoot / ("text-" + aRight.toStdString()));
+	}
+
 	void contract()
 	{
 		QTemporaryDir temporary{ QStringLiteral("/private/tmp/bpr-bridge-test-XXXXXX") };
@@ -617,18 +934,21 @@ namespace {
 			expect(!cancelledBlob && cancelledBlob.error().Failure == application::git_smart_transport_failure::cancelled, "blob child cancelled and reaped");
 		}
 		std::filesystem::remove(root / "wait-blob");
+		cold_open_course(root, *profile, *configuration, session, context, blob, changedBlob);
 		{
 			// [[BPR-1327]]. A batch is one GraphQL read; each answer is checked
 			// against its own object ID and a bad one does not spoil the rest.
 			const auto                                       other = *core::parse_git_blob_oid(std::string(40U, 'b'));
 			const application::git_smart_exact_blobs_request batch{ context, { *core::parse_git_blob_oid(blob.toStdString()), other }, 1024U };
-			write(root / "graphql-response",
-				  "{\"data\":{\"repository\":{\"b0\":{\"oid\":\"" + blob.toStdString()
-					  + "\",\"byteSize\":24,\"isBinary\":false,\"isTruncated\":false,\"text\":\"complete local contents\\n\"},"
-					  + "\"b1\":{\"oid\":\"" + std::string(40U, 'b') + "\",\"byteSize\":5,\"isBinary\":false,\"isTruncated\":false,\"text\":\"forge\"}}}}");
+			const auto                                       batchAnswer = [&](std::string_view aViewer) {
+				return "{\"data\":{\"viewer\":" + std::string{ aViewer } + ",\"repository\":{\"b0\":{\"oid\":\"" + blob.toStdString()
+					+ "\",\"byteSize\":24,\"isBinary\":false,\"isTruncated\":false,\"text\":\"complete local contents\\n\"},"
+					+ "\"b1\":{\"oid\":\"" + std::string(40U, 'b') + "\",\"byteSize\":5,\"isBinary\":false,\"isTruncated\":false,\"text\":\"forge\"}}}}";
+			};
+			write(root / "graphql-response", batchAnswer(R"({"login":"fixture","databaseId":203})"));
 			write(root / "graphql-expect",
 				  "\"o0\":\"" + blob.toStdString() + "\"\n\"o1\":\"" + std::string(40U, 'b')
-					  + "\"\noid:$o0\noid:$o1\n\"owner\":\n\"name\":\n");
+					  + "\"\noid:$o0\noid:$o1\n\"owner\":\n\"name\":\nviewer{login databaseId}\n");
 			const auto read = (*transport)->read_exact_blobs(batch, { });
 			expect(read.has_value(), "the batched read's body is one JSON object with a string query and an object of variables, "
 									 "not an array holding one (GitHub answers an array HTTP 400) [[BPR-1359]]");
@@ -638,12 +958,34 @@ namespace {
 			write(root / "graphql-expect", "\"o2\":\n");
 			expect(!(*transport)->read_exact_blobs(batch, { }), "control: the child refuses a body without what it expects");
 			std::filesystem::remove(root / "graphql-expect");
+			// [[BPR-1370]]. The answer names its account, so the batch makes no
+			// `gh api user` call: with every one of them failing it still reads.
+			write(root / "fail-viewer", "1");
+			const auto unobserved = (*transport)->read_exact_blobs(batch, { });
+			std::filesystem::remove(root / "fail-viewer");
+			expect(unobserved && (*unobserved)[0] && (*unobserved)[0]->size() == 24U,
+				   "a batch makes no separate account observation: it reads while every gh api user call fails [[BPR-1370]]");
+			for (const std::string_view unnamedViewer : { "null", R"({"login":"fixture"})", R"({"databaseId":203})", R"({"login":"","databaseId":203})",
+														  R"({"login":"fixture","databaseId":203.5})", R"({"login":"fixture","databaseId":0})", R"({"login":"fixture","databaseId":"203"})" }) {
+				write(root / "graphql-response", batchAnswer(unnamedViewer));
+				const auto unnamed = (*transport)->read_exact_blobs(batch, { });
+				expect(!unnamed && unnamed.error().Failure == application::git_smart_transport_failure::malformed_response && !(*transport)->revoked(),
+					   "an answer that does not name its account exactly is refused whole, and does not revoke [[BPR-1370]]");
+			}
+			{
+				auto anotherTransport = make_gh_cli_git_smart_transport(*profile, *configuration, "/usr/bin/git", session, context, [] { return true; });
+				write(root / "graphql-response", batchAnswer(R"({"login":"fixture","databaseId":999})"));
+				const auto switchedBatch = (*anotherTransport)->read_exact_blobs(batch, { });
+				expect(!switchedBatch && switchedBatch.error().Failure == application::git_smart_transport_failure::authentication && (*anotherTransport)->revoked(),
+					   "a batch read by another account is refused and revokes the transport [[BPR-1370]]");
+			}
+			write(root / "graphql-response", batchAnswer(R"({"login":"fixture","databaseId":203})"));
 			for (const auto& bad : std::vector<std::string>{ "not json", "{}", "{\"data\":{\"repository\":null}}" }) {
 				write(root / "graphql-response", bad);
 				expect(!(*transport)->read_exact_blobs(batch, { }), "a malformed batch response is refused whole");
 			}
 			write(root / "graphql-response",
-				  "{\"data\":{\"repository\":{\"b0\":{\"oid\":\"" + blob.toStdString()
+				  "{\"data\":{\"viewer\":{\"login\":\"fixture\",\"databaseId\":203},\"repository\":{\"b0\":{\"oid\":\"" + blob.toStdString()
 					  + "\",\"byteSize\":24,\"isBinary\":false,\"isTruncated\":true,\"text\":\"complete local contents\\n\"},\"b1\":null}}}");
 			const auto truncated = (*transport)->read_exact_blobs(batch, { });
 			expect(truncated && !(*truncated)[0] && !(*truncated)[1], "truncated and missing objects are absent");

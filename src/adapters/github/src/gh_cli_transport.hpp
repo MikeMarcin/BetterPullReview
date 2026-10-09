@@ -205,7 +205,9 @@ namespace bpr::adapters::github::detail {
 	///
 	/// \details The owner, name and object IDs travel as variables in the
 	/// standard-input body, never in the query text. The query is fixed apart
-	/// from how many aliased objects it names.
+	/// from how many aliased objects it names. It also selects
+	/// `viewer { login databaseId }`, so the answer names the account that
+	/// performed the read ([[BPR-1370]]).
 	[[nodiscard]] auto compile_gh_cli_exact_blobs_request(
 		const validated_gh_cli_configuration&, const validated_github_host_profile&,
 		const application::git_smart_exact_blobs_request&)
