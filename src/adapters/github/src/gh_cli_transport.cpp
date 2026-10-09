@@ -1163,10 +1163,14 @@ namespace bpr::adapters::github::detail {
 			variables.emplace(name, std::string{ core::canonical_hex(aRequest.ExpectedBlobs[index]).view() });
 		}
 		query += "){repository(owner:$owner,name:$name){" + selection + "}}";
-		auto body = glz::write_json(glz::generic{ glz::generic::object_t{
+		// [[BPR-1359]]. The object itself. Wrapping it in braces as
+		// `glz::generic{ object_t{ … } }` builds an array holding it, which
+		// GitHub refuses with HTTP 400 ("Body should be a JSON object").
+		const auto document = glz::generic::object_t{
 			{ "query", std::move(query) },
 			{ "variables", std::move(variables) },
-		} });
+		};
+		auto body = glz::write_json(document);
 		if (!body || body->size() > maximum_standard_input_bytes) {
 			return std::nullopt;
 		}

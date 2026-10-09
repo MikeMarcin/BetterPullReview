@@ -4,6 +4,9 @@
 #include "github_cli_process_runner.hpp"
 #include "github_paged_read.hpp"
 #include <QCoreApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
@@ -262,7 +265,16 @@ namespace {
 			// The child may not write; it checks its own request instead. Each
 			// line of graphql-expect must appear in the body, and the query
 			// text must carry no object ID.
-			const auto    request = QTextStream{ stdin }.readAll().toStdString();
+			const auto request = QTextStream{ stdin }.readAll().toStdString();
+			// [[BPR-1359]]. GitHub refuses any other body with HTTP 400 ("Body
+			// should be a JSON object"), so the exact bytes are parsed: one
+			// object, a string query and an object of variables, nothing else.
+			auto       parse    = QJsonParseError{ };
+			const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(request), &parse);
+			if (parse.error != QJsonParseError::NoError || !document.isObject() || document.object().size() != 2
+				|| !document.object().value("query").isString() || !document.object().value("variables").isObject()) {
+				return 9;
+			}
 			std::ifstream expected{ root / "graphql-expect" };
 			for (std::string line; std::getline(expected, line);) {
 				if (!line.empty() && request.find(line) == std::string::npos) {
@@ -618,6 +630,8 @@ namespace {
 				  "\"o0\":\"" + blob.toStdString() + "\"\n\"o1\":\"" + std::string(40U, 'b')
 					  + "\"\noid:$o0\noid:$o1\n\"owner\":\n\"name\":\n");
 			const auto read = (*transport)->read_exact_blobs(batch, { });
+			expect(read.has_value(), "the batched read's body is one JSON object with a string query and an object of variables, "
+									 "not an array holding one (GitHub answers an array HTTP 400) [[BPR-1359]]");
 			expect(read && read->size() == 2U && (*read)[0] && (*read)[0]->size() == 24U && !(*read)[1],
 				   "a batch returns the verified blob and leaves the one whose bytes do not hash to its ID absent; "
 				   "its object IDs travel as variables, never in the query text");
