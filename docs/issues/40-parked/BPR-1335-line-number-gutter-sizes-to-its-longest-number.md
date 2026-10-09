@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1335"
 title: "The line-number gutter sizes to the longest number it shows"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1335--BPR-1335--645a64497526.json","related_cards":["BPR-0455","BPR-1290","BPR-1212","BPR-1264"]}
+parked_on: "human-review"
 ---
 
 # BPR-1335: The line-number gutter sizes to the longest number it shows
@@ -27,7 +28,9 @@ The code panes' line-number gutter (`source_pane` in
   its digit count times the widest digit advance of the pane's font, plus a
   small pad on each side.
 - The thread-marker and "+" column (BPR-1290, BPR-1212) keeps its own width
-  to the right of the numbers. It is not narrowed.
+  to the right of the numbers. It is not narrowed. (Amended by the owner's
+  updates and v001 verdict below: the column is gone; a thread tints its
+  number and the "+" is a button at the start of the code.)
 - The width is recomputed when the document, the font or the scale changes.
   It does not change while scrolling.
 
@@ -44,7 +47,9 @@ The code panes' line-number gutter (`source_pane` in
 - `BPR-1335:rows`: the diff workbench rows pass at all three scales.
 - `BPR-1335:markers` (added by the owner's updates below): the owner chooses
   how a line shows its thread once the marker column is gone from both panes.
-  The "+" and the thread marker stay hit-testable and accessible.
+  The "+" and the thread marker stay hit-testable and accessible. The v001
+  verdict chose the tinted number and asked for GitHub's "+"; v001 of
+  `BPR-1335-add-button` asks for Accept or Reject on both together.
 
 ## Cause
 
@@ -216,18 +221,128 @@ edge, overlapping the start of the code as GitHub's does, with the number
 still visible. Nothing else in v001 was rejected. BPR-1335:markers is asked
 again on v002.
 
-## Next (replaces the earlier Next)
+## Slice 2: tinted numbers and GitHub's "+" (on main, 034e84ad9, with the docs in 7de324815)
 
-1. On `bpr-1335-markers`: keep `number_tint` as the only presentation. Delete
-   `column` and `in_numbers`, along with `thread_marker_style` and its setter.
-2. Draw the "+" as GitHub does: a box centred on the gutter's right edge,
-   over the code's left margin, the number unchanged. It is probably its own
-   small child of the pane, raised above the viewport, so it can be pressed
-   where it overlaps the code and named for accessibility ("Add a comment on
-   line N"). Recheck its hit area against the BPR-1083 tooltip and the
-   selection click on the code.
-3. Render v002 in light and dark at 2x, open a new short session, and ask
-   BPR-1335:markers as Accept or Reject.
-4. After an Accept: amend the specification's gutter text and BPR-1290's
-   navigation wording, merge to main, rerun `qt_diff_workbench` and
-   `qt_workbench_window` at three scales, and finish.
+What the owner's v001 verdict asked for, on `bpr-1335-markers` rebased onto
+`1a2a003e5` (BPR-1334's line details, BPR-1336's zoom and BPR-1212's drawer
+drafts underneath) and merged to main. The frontend-design skill was loaded
+for this slice.
+
+- **One presentation.** `thread_marker_style`, its setter, the `column` and
+  `in_numbers` styles, the label-mark glyphs and `set_mark_theme` on the
+  comparison are gone. A thread's number keeps its place and its cell is
+  tinted: amber, blue when new, lighter when resolved, dashed outline for my
+  draft; the open thread's number is barred amber. Pressing anywhere on the
+  cell opens the thread. Both gutters are their numbers only, with threads
+  shown or not.
+- **The "+" is GitHub's.** A child button of the head pane
+  (`diffLineAddButton`, a `QAbstractButton`), raised above the gutter and the
+  code: a blue rounded square (the theme's new-thread blue) with a white
+  cross, the row's height up to 20 px. It shows while the pointer is on a
+  head line without a thread, over its code or its number, and sits at the
+  start of the line's code across the boundary with the number. Its left
+  edge is 2 px into the gutter's 4 px right padding, so it never covers a
+  digit; centring it on the boundary, as GitHub's wider number cell allows,
+  would cover half of the last digit here. Its tooltip is "Add comment (↩)",
+  its accessible name "Add comment", its description names the line, and an
+  accessibility press adds the comment. It takes no focus: Return and the
+  context menu stay the keyboard's way, as before.
+- **Text selection.** A press on the button never reaches the code, so it
+  neither starts nor changes a text selection. A press, double-click or drag
+  in the code is the text's and hides the button until the pointer moves
+  again with no button held. Scrolling hides it too.
+- **Ranges by drag, and BPR-1212's drawer drafts.** Dragging the button
+  washes the lines from where it started to the one under the pointer, in
+  the same blue at the same strength as a draft being written, and on release
+  dispatches the first and last lines. The window selects them
+  (`restore_source_range`) and takes the one path Return and Shift+Return
+  use: `core::decide_comment_range` decides, a refusal says why in the status
+  line, and the drawer draft opens on "Lines a–b" with its bracket across
+  them. On a line that already has my kept draft the draft takes the new
+  range. A click is one line, as before.
+- **Not offered.** No "+" on a line with a thread or a kept draft (its tinted
+  cell opens it), on the base side, or in the one-pane view, as before
+  BPR-1335.
+
+### Controls (failing before)
+
+The new and changed tests, built against main's Qt adapter (`c8ae21f08`,
+the `column` presentation and the gutter "+"):
+
+- `qt_diff_workbench_scale_100`: "9-line file: showing the threads keeps the
+  gutter its numbers' width" fails (the column adds 22 px). With that test
+  skipped (`BPR_1335_CONTROL=1`, a local edit not committed), the new test
+  fails at "light: with threads shown, both gutters are their numbers only,
+  with no column".
+- `qt_workbench_conversation_reveal`: "the pointer on line 5's code shows its
+  "+"" fails.
+- `qt_workbench_line_draft`: "the pointer on line 4's code shows its "+""
+  fails.
+
+### Checks on the candidate
+
+macOS arm64 Debug, offscreen, load average 46 to 220. The rows were run
+again on the final rebase (7de324815): 11 of 11 pass.
+
+- `qt_diff_workbench_scale_{100,125,200}`,
+  `qt_workbench_window_scale_{100,125,200}`, `qt_workbench_conversation_reveal`,
+  `qt_workbench_line_draft` and `qt_composed_inline_drawer_scale_{100,125,200}`
+  pass.
+- `test_tinted_numbers_and_the_add_button`, light and dark: no column; the
+  thread's cell amber (`#e7d7b5` light, `#4d3f21` dark), the new one's blue,
+  a plain one untinted, and the tinted cell still inked with its number; the
+  tinted cell opens its thread at either end and in the base pane. Line 2's
+  button at x 31 against the code's edge at 33, 15 by 15 on a 15 px row,
+  centred on it, blue face `#0969da` and white cross; line 2's number band
+  identical pixel for pixel with and without the button; no button on line
+  4 (thread); the same button from the number; Leave hides it. Click: lines
+  (2, 2), no text selection, selection unchanged. Drag 2 to 6: washed while
+  it lasts, (2, 6), wash gone after; upward 6 to 3: (3, 6). A drag in the
+  code selects text, hides the button and adds nothing. The thread note in
+  the line details' description, and none on a plain line.
+- The compose course clicks line 5's "+" into a drawer draft; the line-draft
+  course drags 4 to 6 into the draft "Your draft on lines 4–6" with the
+  bracket across them, its range sent as one edit.
+- The integration pass over the `qt_workbench_*`, `qt_composed_*` and
+  `qt_diff_workbench_*` rows these binaries own: 34 of 37 pass.
+  `qt_workbench_home_discovery_scale_*` fails at "the empty Needs me lane is
+  not shown while nothing is saved"; BPR-1338 recorded that as pre-existing.
+- The round-trip composition pins (`full_application`,
+  `production_app_manifest`, `production_mutation_branch`) match the merged
+  tree at 7de324815 (`BPR_PRINT_PINNED_DIGESTS`). BPR-1335 changes nothing
+  under `src/app`. BPR-1331's 7dfde8915 had left two pins unsealed on main;
+  a BPR-1335 reseal was written and then dropped, because BPR-1328's
+  1a2a003e5 resealed the same change first.
+- The specification's gutter, "+" and thread-marker text and BPR-1290's
+  navigation criterion carry the owner's amendment.
+
+## Owner look on `BPR-1335-add-button-v001` (pending)
+
+One new short session, one question, Accept or Reject: "tinted numbers +
+GitHub-style add button".
+
+- Session `6541cdcdee84a0c761d8b7a1410a2073`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1335-add-button-v001`,
+  repo root the main checkout, candidate `BPR-1335-add-button-v001` (revision
+  `frozen-7de324815-v001`, fingerprint `16e3f3ee2d3a…`), criterion
+  `BPR-1335:markers`, ready at event cursor 3. The host runs detached; the
+  offline page is `review.html` in the state directory. Light and dark 2x
+  renders of the "+" on line 2 and of a drag from line 2 to line 6 are inline.
+- Frozen root `/Users/jaeger/bpr1335-add-button-v001.jo2yocwy`, made by
+  `scripts/freeze_attended_build.py freeze` from 7de324815 (tests-on
+  `app-release`, source read-only), executable SHA-256 `c5084cec428b…`.
+  Fixture `inline-drawer-v1`, file `src/ui/conversation_cards_view.cpp`. The
+  freeze's offscreen `--check` and one native `--check --native` both reached
+  `ATTENDED_FILE_SHOWN` on head `89df5e59…`, and the native window closed.
+- Launch: `python3 /Users/jaeger/bpr1335-add-button-v001.jo2yocwy/launch.py`.
+- v001's session `3c9017b5…` was handed back with its host stopped. It is
+  released (`resume-development --all`, sequence 6) with its Reject kept, and
+  its checkout, the `bpr-1335` worktree, and its build tree are removed.
+
+## Next
+
+Read session `6541cdcd…` from cursor 3. Accept satisfies `BPR-1335:markers`.
+Every other criterion passed on main, so the card finishes; remove the frozen
+root with `freeze_attended_build.py remove`. Reject comes back with the
+change in its note, for v002. Windows and Linux runs of the two rows are
+owed to the stations (`platforms` names all three).
