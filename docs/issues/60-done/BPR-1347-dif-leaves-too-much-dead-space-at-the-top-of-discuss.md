@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1347"
 title: "Dif leaves too much dead space at the top of Discuss"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"polish","origin":"BPR-1091 owner look, session 0d079940affe6da5c393df07d82a22d8, BPR-1091-workshop-candidate-line-v002 Accept note","decision_id":"945adb1b-962e-45ec-a113-3534de2187e5","reservation":"docs/issues/_reservations/BPR-1346--BPR-1348--d02ea45d5cd2.json","related_cards":["BPR-1091","BPR-1209","BPR-1212","BPR-1346"],"acceptance":["BPR-1347:space","BPR-1347:owner-look"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1347:space","outcome":"pass","revision":"e5063a79c","evidence":{"kind":"command","path":"tests/adapters_qt/workbench_window_tests.cpp","detail":"qt_dif_workshop_placement measures review bar to Back to the code on composed Discuss with an offered proposal, Dif shown and hidden: before 100 and 58 (fails), after 54 and 54 at 1x and 2x; Dif at 28 px before the workshop title, name kept, Accept and Reject visible. Focused rows 28/28 at 2f9682d21 and 8/8 at e5063a79c; DOCUMENTATION_OK. macOS."}},{"criterion":"BPR-1347:owner-look","outcome":"pending","revision":"e5063a79c","evidence":{"kind":"observation","detail":"Session 41bb446e7df8954d6162fe3592b78cec, candidate BPR-1347-dif-workshop-row-v001 (fingerprint 4ee8a611b164...), frozen root /Users/jaeger/bpr1346-1347-v001.wegp_apd, ready at cursor 6."}}]
+acceptance: [{"criterion":"BPR-1347:space","outcome":"pass","revision":"e5063a79c","evidence":{"kind":"command","path":"tests/adapters_qt/workbench_window_tests.cpp","detail":"qt_dif_workshop_placement measures review bar to Back to the code on composed Discuss with an offered proposal, Dif shown and hidden: before 100 and 58 (fails), after 54 and 54 at 1x and 2x; Dif at 28 px before the workshop title, name kept, Accept and Reject visible. Focused rows 28/28 at 2f9682d21 and 8/8 at e5063a79c; DOCUMENTATION_OK. macOS."}},{"criterion":"BPR-1347:owner-look","outcome":"pass","revision":"e5063a79c","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1347-dif-leaves-too-much-dead-space-at-the-top-of-discuss.md","detail":"Owner Accept, no note, 2026-10-09T13:02:32Z: session 41bb446e7df8954d6162fe3592b78cec, candidate BPR-1347-dif-workshop-row-v001 (fingerprint 4ee8a611b164..., frozen-e5063a79c-v001), decision 1cb2abd2-b005-4d9b-8072-60a7be388ca6 at event 8, handed back at 9, released at 10."}}]
 ---
 
 # BPR-1347: Dif leaves too much dead space at the top of Discuss
@@ -97,7 +96,7 @@ decision stays visible. `docs/ux/workbench-specification.md` records it.
 - Rows: as recorded on [[BPR-1346]] (the same runs at `2f9682d21` and
   `e5063a79c`). macOS only.
 
-## Owner look, session v001 (pending)
+## Owner look, session v001 (accepted, below)
 
 One new short session, two candidates, one Accept or Reject question each
 (shared with [[BPR-1346]]).
@@ -125,6 +124,24 @@ Read session `41bb446e…` from cursor 6. Accept on `BPR-1347-dif-workshop-row-v
 note. When both cards are settled, remove the root with
 `freeze_attended_build.py remove`. Windows and Linux runs of the rows are
 owed to the stations.
+
+## Owner verdict, session v001
+
+Accept, 2026-10-09T13:02:32Z, decision `1cb2abd2-b005-4d9b-8072-60a7be388ca6` at session event 8, no note
+(candidate `BPR-1347-dif-workshop-row-v001`, fingerprint `4ee8a611b164…`, revision
+`frozen-e5063a79c-v001`). The owner handed session
+`41bb446e7df8954d6162fe3592b78cec` back at event 9, read from cursor 0;
+[[BPR-1346]]'s `BPR-1346-label-gap-v001` was accepted in the same hand-back.
+
+This satisfies `BPR-1347:owner-look`. `BPR-1347:space` stands on its recorded
+evidence, and the Linux and Windows station runs below pass its rows. The
+card is Done.
+
+The host (pid 66656) was stopped and both candidates released with
+`resume-development --all` at event 10. The frozen root
+`/Users/jaeger/bpr1346-1347-v001.wegp_apd` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
 
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
