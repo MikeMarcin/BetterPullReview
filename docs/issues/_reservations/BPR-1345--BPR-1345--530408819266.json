@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1345"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1212 follow-up: build GitHub's start-a-review flow (pending drafts sent with the review)",
+  "created": "2026-10-09T02:50:11.837855+00:00",
+  "base": "c8ae21f0871f59561345eb04e61d4d94f234e9a2"
+}
