@@ -1217,3 +1217,53 @@ or Reject with any change in the note; none is self-certified.
 Next: read the session's decisions. Accepts answer the v001 Reject and the
 two notes; a Reject comes back as v003. [[BPR-1345]] (start a review) is next.
 
+
+## Owner look v002: verdicts (session aab71651, handed back at event 16)
+
+Session `aab71651cfa5303e138bc36a669c96b2`. All three are Accept, with no
+notes:
+- `publish-text-v002`: decision `fccea1dd-cd2e-42cf-a7e5-f37870298459`
+  (event 13).
+- `restore-position-v002`: decision `ff83cacc-085a-487d-8d1b-efdb3960bb3d`
+  (event 14).
+- `right-click-v002`: decision `9a74d750-690f-4a9e-83cb-f0088f0b9a91`
+  (event 15).
+
+The coordinator relayed these. The Mac releases the session and removes the
+frozen root `/Users/jaeger/bpr1212-compose-look-v002.TbOqXc` once this
+merges.
+
+## v002 onto main: base numbering asked again (bpr-main-win, 2026-10-09)
+
+**The fix** (the cause is recorded in the Windows section above).
+- When an accepted review keeps the comparison and the base numbering is
+  neither known nor pending, `github_application` asks again.
+- A `cancelled` answer re-arms the question, and so does an ask the epoch
+  host cannot admit while the authority is being replaced. The re-ask comes
+  25 ms later, at most 80 times in a row.
+- A first fix that re-armed only cancelled answers, at once, still hung. A
+  trace showed the re-ask refused at admission while the accept was replacing
+  the authority, which is why refused asks re-arm too.
+
+**Deterministic test.** `application_line_draft_contract` now runs the course
+twice: plain, and with `--cancel-first-base-numbering`. That testing hook (a
+fixture-access switch, set on the course's first tick) turns the first
+answer into `cancelled`.
+- The fixed tree with both remedies switched off (a control, never
+  committed): both runs time out at 40 s, `BASE_LINE_DRAFT_EVIDENCE:000`.
+- With them: 3 of 3 pass, about 11 s for both runs together.
+
+**Landed.**
+- Rebased onto `512170300`. The pins were resealed twice: over main's
+  intervening reseals, then over the fix. Mutation pin unchanged;
+  `PIN_CHECK_OK`.
+- Windows, Release tests-on, at `1c1b2ccec`: 26 of 26 focused rows pass. They
+  include `application_line_draft_contract` (both runs), the review mutation
+  and submission rows, `qt_workbench_line_draft`,
+  `qt_diff_workbench_scale_{100,125,200}`,
+  `qt_workbench_window_scale_{100,125,200}`, the round-trip contract,
+  `architecture_boundaries` and `test_network_isolation_manifest`.
+- `application_large_review_responsiveness` and
+  `application_first_tab_comparison` pass with no `InputBudgetFailures`. The
+  worst pulse is 61.4 ms; `keyboard_line_down`, `keyboard_line_extend` and
+  `keyboard_line_reveal` are 14.6, 14.6 and 17.4 ms.
