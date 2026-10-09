@@ -557,3 +557,12 @@ Every criterion is met: `cause`, `width`, `control`, `stable` and `rows` by
 slice 1 and the rows rerun on each later slice; `markers` by the v002 Accept;
 `base-side` by its Accept. Windows runs of the two rows are still owed to the
 station; platform eligibility is metadata, so they do not hold the card open.
+
+## Linux re-run after v002 (bpr-main-linux, 2026-10-09)
+
+At `65f1f6904` (contains v002, `b864e319d`, with the exact-centre and brightest-pixel
+sampling), WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev`, offscreen:
+`qt_diff_workbench_scale_100`, `qt_diff_workbench_scale_125` and
+`qt_diff_workbench_scale_200` pass, including "the button is blue with a white
+cross" at 125% and 200%. The Linux half of the owed runs is discharged; Windows
+is still owed.
