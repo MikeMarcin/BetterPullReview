@@ -78,8 +78,9 @@ namespace bpr::application {
 				== review_mutation_recovery_transmission::baseline_incomplete;
 		return lowercase_hexadecimal(aRecord.IdempotencyKey)
 			&& !aRecord.Body.empty() && aRecord.Body.size() <= 64U * 1024U
+			// [[BPR-1212]]. Either side: `valid(anchor)` holds it to one, and a
+			// new comment on the base side is GitHub's `side: LEFT`.
 			&& valid(aRecord.Anchor)
-			&& aRecord.Anchor.Semantic.Side == core::diff_side::right
 			&& aRecord.Anchor.Path.size()
 			<= maximum_review_mutation_recovery_path_bytes
 			&& receiptMatchesState && baselineValid && transmissionMatchesBaseline;

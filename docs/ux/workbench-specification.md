@@ -1030,25 +1030,44 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   click selects a line, a drag or Shift-click selects lines in the pane's own
   text selection, and Shift+Up and Shift+Down extend either. The selected
   line wears the current-line band and extended lines the pane's text
-  selection; nothing new is drawn. A move is announced once, politely ("Line
+  selection. A text selection is a translucent wash under the code, so each
+  selected glyph keeps its syntax colour ([[BPR-1212]] v002; the owner, on
+  v001: "are we meant to lose all syntax highlighting when we select
+  something?"). A move is announced once, politely ("Line
   12 of the later version selected", "Lines 9 to 13 selected"). In one pane
   the same keys move by rows, and each end keeps its row's side.
 - Return comments on the selected lines and Shift+Return suggests a change to
   them, as a draft in the drawer ([[BPR-1212]]; see "Writing a new comment").
   Return, Shift+Return, the code's right-click Add comment and Suggest change,
   and the "+" button take one path. The core decides the selection first
-  (`core::decide_comment_range`): a new comment needs the right side; several
-  lines must be on one side and inside one hunk of the pull request's diff
-  (the change groups with three lines of context, as GitHub's diff draws
-  them). A refusal opens nothing and says why in the status line: a left line
-  (the reason Comment gives), lines on two sides, lines outside one hunk, or,
-  with no line selected, "Select a line first: click it, or move to it with Up
-  and Down while the code has focus." The right-click items are unavailable
-  with the same reason. Otherwise the range's last line is selected, its
-  draft takes the range's first line in one edit through the draft editor,
-  and the draft opens in the drawer. Return always starts on the selection, so
-  Return on one line narrows a range draft ending there; Alt+C keeps reopening
-  the line's draft as it is.
+  (`core::decide_comment_range`): several lines must be on one side and inside
+  one hunk of the pull request's diff (the change groups with three lines of
+  context, as GitHub's diff draws them). A base (left) line takes a new
+  comment, GitHub's `side: LEFT`, only once the epoch host has answered that
+  the comparison's base document is the merge base's version of the file,
+  which GitHub numbers `LEFT` lines in, and only inside a hunk; Suggest change
+  stays on the head side ([[BPR-1212]] v002). A refusal opens nothing and says
+  why in the status line: a base line whose numbering is not known to be
+  GitHub's, a base line outside every hunk, a suggestion on a base line, lines
+  on two sides, lines outside one hunk, or, with no line selected, "Select a
+  line first: click it, or move to it with Up and Down while the code has
+  focus." Otherwise the range's last line is selected, its draft takes the
+  range's first line in one edit through the draft editor, and the draft opens
+  in the drawer; when the line was selected just now its draft may arrive a
+  moment later, and the status line says "Opening a draft on line N…" until it
+  does, or why none came. Return always starts on the selection, so Return on
+  one line narrows a range draft ending there; Alt+C keeps reopening the
+  line's draft as it is.
+- The code's right-click ([[BPR-1212]] v002). A right-click on any line
+  selects it first, without a left click before it, unless it is inside the
+  selection, which it keeps, with its selected line. The menu is headed "Line
+  N", "Lines a–b" or "Base line N" and offers Add comment (Return) and Suggest
+  change (Shift+Return). A line selected by the right-click is not refused for
+  a draft still on its way. An item that cannot apply is unavailable, and a
+  row under the items says why in a few words ("This file's base is not
+  GitHub's", "Base lines need a changed region", "Suggest change: head side
+  only", "Lines must be in one changed region"), with the full reason as its
+  tooltip.
 - The lower pane is **Line details** ([[BPR-1334]]), RFC-BPR-0005's Beyond
   Compare–inspired line-over-line pane. It shows the current line twice, full
   width: the base version above the head version, each with its line number
@@ -1361,24 +1380,30 @@ core decision as Shift and the arrows. Its edge and
 notch are blue and a blue bracket marks its line in the gutter: amber is where
 you read, blue is where you write. The header holds the line, Draft (or
 Suggested change), Maximize and Close; under it the field with the label chip
-and its codes as the reply has them; the foot says "Only you see it until you
-publish" and holds Discard and **Publish** (Command+Return), whose tooltip says
-it posts this one comment now. Return in the field is a new line. Esc keeps a
+and its codes as the reply has them; the foot holds a lock with "Private until
+you publish", shown whole or not at all (the lock alone where the drawer is too
+narrow, with "Only you see this draft until you publish it." as its tooltip;
+[[BPR-1212]] v002, the owner: "this 'only you see it unti...' doesnt fit"),
+Discard and **Publish** (Command+Return), whose tooltip says it posts this one
+comment now. Return in the field is a new line. Esc keeps a
 written draft as its dashed note and drops an empty one, and focus returns to
 the code on the same line; opening the note writes it again. A draft on
 several lines (selected with Shift and the arrows, a drag or a Shift-click)
-says "Lines a–b" in its header and the bracket spans all of them. A
-right-click outside the selection selects its line first, and the menu,
-headed "Line N" or "Lines a–b", offers Add comment (↩) and Suggest change
-(⇧↩) above Copy and Add tour stop. Suggest change starts the draft as a
+says "Lines a–b" in its header and the bracket spans all of them; one on the
+base side says "Base line N". A right-click outside the selection selects its
+line first, and the menu, headed "Line N", "Lines a–b" or "Base line N",
+offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour stop. Suggest change starts the draft as a
 ```` ```suggestion ```` block holding the selected lines exactly, the caret
 at the end of its last line, set monospaced and unwrapped, and shows what the
-block changes as it is edited. Neither key nor item acts on the base side or
-on lines the core refuses together, and the menu says why. Maximize
-(Command+Shift+Return) opens the same draft in Discuss, where the full
-composer lives: the conversations narrow to a list at the left, and at the
-right Back to the code, the draft's lines with three either side under the
-same bracket, and the full editor. The same key, Esc or Back to the code
+block changes as it is edited. Neither key nor item acts on lines the core
+refuses together, Suggest change does not act on the base side, and the menu
+says why in a row under the items. Maximize (Command+Shift+Return) opens the
+same draft in Discuss, where the full composer lives: the conversations narrow
+to a list at the left, and at the right the draft's lines with three either
+side under the same bracket, and the full editor. Back to the code sits at the
+top right, its arrows at the far right where the drawer's Maximize was
+([[BPR-1212]] v002, the owner: "the restore (back to code) should still be in
+the top right"). The same key, Esc or Back to the code
 returns it to the drawer with its text and caret. The full-page comment
 window is no longer a destination of its own (AC5, amended). Local projects
 keep their own flow ([[BPR-1212]] Q2: B).

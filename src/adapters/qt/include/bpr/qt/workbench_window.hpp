@@ -1197,6 +1197,9 @@ namespace bpr::qt {
 		void set_conversation_endpoint_placement(
 			bool aLeftHasCurrentDiffRevision,
 			bool aRightHasCurrentDiffRevision);
+		/// \brief [[BPR-1212]]. Whether the left side is numbered as GitHub's
+		/// base, so a base line takes threads and new comments.
+		[[nodiscard]] auto left_conversation_endpoint_current() const noexcept -> bool;
 		/// \brief Returns the composed full-width line-over-line detail pane.
 		///
 		/// \details This forwards to RFC-BPR-0004's comparison surface, which
@@ -1437,7 +1440,17 @@ namespace bpr::qt {
 		void resume_pending_draft();
 		/// \brief [[BPR-1212]]. What the selection allows as a new comment's
 		/// lines, or the reason it allows none.
-		[[nodiscard]] auto decide_selected_lines(QString& aReason) const -> std::optional<core::comment_range_decision>;
+		/// \details `aShort`, when given, receives the reason in the few words
+		/// the right-click menu shows under its items.
+		[[nodiscard]] auto decide_selected_lines(QString& aReason, QString* aShort = nullptr) const -> std::optional<core::comment_range_decision>;
+		/// \brief [[BPR-1212]]. Why the selection takes no new comment, or
+		/// nothing. With `aDraftRequired` false a draft that has not arrived
+		/// yet is no reason: the host answers a line selected just now, as a
+		/// right-click selects one.
+		[[nodiscard]] auto comment_target_reason(bool aDraftRequired, QString* aShort = nullptr) const -> QString;
+		/// \brief [[BPR-1212]]. Says why a waiting comment did not open, when
+		/// its line's draft has not come within the wait.
+		void report_line_comment_wait(core::source_line_ref aAnchor);
 		/// \brief [[BPR-1212]]. Sets the range on the shown draft and opens it,
 		/// once the shown draft is the waiting comment's; true when it did.
 		auto resume_line_comment() -> bool;

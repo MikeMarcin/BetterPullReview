@@ -59,7 +59,8 @@ namespace bpr::core {
 	auto decide_comment_range(
 		const file_alignment& aAlignment,
 		source_line_ref       aFirst,
-		source_line_ref       aLast) -> comment_range_decision
+		source_line_ref       aLast,
+		const bool            aBaseNumberedAsGitHub) -> comment_range_decision
 	{
 		auto result = comment_range_decision{ };
 		if (aFirst.Line > aLast.Line) {
@@ -74,18 +75,21 @@ namespace bpr::core {
 			result.Refusal = comment_range_refusal::mixed_side;
 			return result;
 		}
-		if (aLast.Side != diff_side::right) {
+		const auto side = aLast.Side;
+		if (side != diff_side::right && (side != diff_side::left || !aBaseNumberedAsGitHub)) {
 			result.Refusal = comment_range_refusal::base_side;
 			return result;
 		}
-		if (aAlignment.Content != diff_content_state::text || aLast.Line >= aAlignment.RightLineCount) {
+		const auto count = side == diff_side::left ? aAlignment.LeftLineCount : aAlignment.RightLineCount;
+		if (aAlignment.Content != diff_content_state::text || aLast.Line >= count) {
 			result.Refusal = comment_range_refusal::outside_document;
 			return result;
 		}
-		if (aFirst.Line == aLast.Line) {
+		// A single right line may lie outside every hunk; Publish decides it.
+		if (aFirst.Line == aLast.Line && side == diff_side::right) {
 			return result;
 		}
-		const auto hunks  = github_review_hunks(aAlignment, diff_side::right);
+		const auto hunks  = github_review_hunks(aAlignment, side);
 		const auto within = [&hunks](const std::uint32_t aLine) {
 			return std::ranges::find_if(hunks, [aLine](const line_span& aHunk) { return aLine >= aHunk.Begin && aLine < aHunk.End; });
 		};
@@ -99,7 +103,9 @@ namespace bpr::core {
 			result.Refusal = comment_range_refusal::crosses_hunk;
 			return result;
 		}
-		result.StartLine = aFirst.Line;
+		if (aFirst.Line != aLast.Line) {
+			result.StartLine = aFirst.Line;
+		}
 		return result;
 	}
 } // namespace bpr::core

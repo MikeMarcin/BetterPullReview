@@ -571,6 +571,65 @@ namespace {
 		host.shutdown();
 	}
 
+	// [[BPR-1212]]. A root comment on a base line is GitHub's `side: LEFT`.
+	// It is admitted only with the source's evidence that the left document
+	// is numbered as GitHub's base, and it is bound to that side with the base
+	// document's line count; a range on the base side keeps its first line.
+	void test_a_base_line_root_needs_githubs_base_numbering()
+	{
+		auto  provider                        = std::make_unique<fake_provider>();
+		auto* observed                        = provider.get();
+		auto  effects                         = application::manual_executor{ };
+		auto  decisions                       = application::manual_executor{ };
+		auto  projection                      = recording_projection{ };
+		projection.Source->Material.LeftLines = 60U;
+		auto host                             = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		auto base                         = publication_request();
+		base.Selection.PreferredLine.Side = core::diff_side::left;
+		base.Proposal.Anchor              = base.Selection.PreferredLine;
+		static_cast<void>(host.publish(base));
+		decisions.drain();
+		expect(effects.pending() == 0U && !projection.Published.empty() && !projection.Published.back().Result.has_value()
+				   && projection.Published.back().Result.error() == application::review_mutation_failure::unsupported,
+			   "without the evidence a base-line root is unsupported before any effect");
+
+		projection.Source->Material.BaseNumberedAsGitHub = true;
+		auto ranged                                      = base;
+		ranged.Proposal.Draft                            = core::review_draft_id{ 71U };
+		ranged.Proposal.StartLine                        = 10U;
+		static_cast<void>(host.publish(ranged));
+		expect(effects.pending() == 1U, "with the evidence a base-line range is admitted");
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Submitted.size() == 1U && observed->Submitted.front().LiveBinding.has_value()
+				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Side == core::diff_side::left
+				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Line == 12U
+				   && observed->Submitted.front().LiveBinding->Anchor.Path == "renamed/current.cpp"
+				   && observed->Submitted.front().Proposal.StartLine == std::optional<std::uint32_t>{ 10U }
+				   && observed->Submitted.front().Source.has_value() && observed->Submitted.front().Source->LineCount == 60U,
+			   "it reaches the provider on the left, on the head's path, with its first line and the base document's line count");
+
+		auto past                         = base;
+		past.Proposal.Draft               = core::review_draft_id{ 72U };
+		past.Selection.PreferredLine.Line = 60U;
+		past.Proposal.Anchor              = past.Selection.PreferredLine;
+		static_cast<void>(host.publish(past));
+		decisions.drain();
+		expect(effects.pending() == 0U && !projection.Published.back().Result.has_value(), "a base line past the base document is refused");
+		host.shutdown();
+	}
+
 	void test_thread_resolution_needs_the_capability_and_a_permitting_grant()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -1383,6 +1442,7 @@ auto main() -> int
 	test_one_shot_authority_rejects_same_core_different_full_identity();
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
+	test_a_base_line_root_needs_githubs_base_numbering();
 	test_a_label_changed_after_preparation_needs_a_new_gesture();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;

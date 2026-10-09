@@ -857,7 +857,7 @@ namespace bpr::qt {
 			/// here follows the visible line count and not the diff's size.
 			void paintEvent(QPaintEvent* const aEvent) override
 			{
-				QPlainTextEdit::paintEvent(aEvent);
+				paint_text(aEvent);
 				auto block = firstVisibleBlock();
 				if (!block.isValid()) {
 					return;
@@ -974,6 +974,37 @@ namespace bpr::qt {
 			/// "+"; a press or a drag in the code is the text's, and hides it.
 			auto viewportEvent(QEvent* aEvent) -> bool override;
 
+			/// \brief [[BPR-1212]] v002. Paints the text as `QPlainTextEdit`
+			/// does, except the text selection.
+			///
+			/// \details Qt draws a text selection in the palette's
+			/// `HighlightedText`, which replaces every glyph's colour, so the
+			/// selected code lost its syntax colours (the owner, v001: "are we
+			/// meant to lose all syntax highlighting when we select
+			/// something?"). Here the selection is a translucent wash with no
+			/// foreground of its own, laid among the extra selections before
+			/// the intraline emphasis, so each glyph is drawn in its own
+			/// colour over it. Only public and protected `QPlainTextEdit`
+			/// members are used; the panes are read-only and draw no caret,
+			/// placeholder or preedit, which Qt's paint also skips for them.
+			void paint_text(QPaintEvent* aEvent);
+
+		public:
+			/// \brief [[BPR-1212]] v002. Where among the extra selections the
+			/// text selection's wash goes: after the bands and the selected
+			/// lines' wash, before the intraline emphasis.
+			void set_text_wash_index(const qsizetype aIndex) noexcept
+			{
+				TextWashIndex = aIndex;
+			}
+			/// \brief [[BPR-1212]] v002. How many times the text selection was
+			/// painted as a wash, for the tests.
+			[[nodiscard]] auto painted_text_washes() const noexcept -> std::uint64_t
+			{
+				return PaintedTextWashes;
+			}
+
+		protected:
 		public:
 			/// \brief [[BPR-1336]]. Hears that the pane has relaid out in a new font.
 			///
@@ -1041,6 +1072,8 @@ namespace bpr::qt {
 			std::optional<core::line_span>                         SelectedLines;
 			core::white_space_drawing                              WhiteSpace = core::white_space_drawing::none;
 			std::function<void()>                                  FontObserver;
+			qsizetype                                              TextWashIndex     = -1;
+			std::uint64_t                                          PaintedTextWashes = 0U;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1491,6 +1524,86 @@ namespace bpr::qt {
 			// keeps this a no-op under styles that leave the default alone.
 			if (!viewport()->autoFillBackground()) {
 				viewport()->setAutoFillBackground(true);
+			}
+		}
+
+		void source_pane::paint_text(QPaintEvent* const aEvent)
+		{
+			auto       painter      = QPainter{ viewport() };
+			auto       offset       = contentOffset();
+			auto       exposed      = aEvent->rect();
+			const auto viewportRect = viewport()->rect();
+			const auto maximumWidth = document()->documentLayout()->documentSize().width();
+			// As Qt does: the brush origin for wave underlines, and the right
+			// margin kept clear of a full-width selection.
+			painter.setBrushOrigin(offset);
+			const auto right = static_cast<int>(offset.x() + std::max(static_cast<qreal>(viewportRect.width()), maximumWidth)
+												- document()->documentMargin() + cursorWidth());
+			exposed.setRight(std::min(exposed.right(), right));
+			painter.setClipRect(exposed);
+
+			auto context = getPaintContext();
+			// Qt puts the text selection last, in Highlight and HighlightedText.
+			// It becomes a wash with no foreground, among the extra selections.
+			const auto cursor = textCursor();
+			if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor) {
+				auto selection = context.selections.takeLast();
+				auto format    = QTextCharFormat{ };
+				if (selection.format.hasProperty(QTextFormat::FullWidthSelection)) {
+					format.setProperty(QTextFormat::FullWidthSelection, true);
+				}
+				auto wash = palette().color(hasFocus() ? QPalette::Active : QPalette::Inactive, QPalette::Highlight);
+				wash.setAlpha(core::selection_wash_alpha);
+				format.setBackground(wash);
+				selection.format = format;
+				const auto at    = TextWashIndex < 0 ? context.selections.size() : std::min(TextWashIndex, context.selections.size());
+				context.selections.insert(at, selection);
+				++PaintedTextWashes;
+			}
+			painter.setPen(context.palette.text().color());
+
+			const auto caret = textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard) || !isReadOnly();
+			for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
+				const auto rect = blockBoundingRect(block).translated(offset);
+				if (!block.isVisible()) {
+					offset.ry() += rect.height();
+					continue;
+				}
+				auto* const layout = block.layout();
+				if (layout != nullptr && rect.bottom() >= exposed.top() && rect.top() <= exposed.bottom()) {
+					if (const auto background = block.blockFormat().background(); background != Qt::NoBrush) {
+						auto contents = rect;
+						contents.setWidth(std::max(rect.width(), maximumWidth));
+						painter.fillRect(contents, background);
+					}
+					auto       ranges   = QList<QTextLayout::FormatRange>{ };
+					const auto position = block.position();
+					const auto length   = block.length();
+					for (const auto& selection : std::as_const(context.selections)) {
+						const auto from = selection.cursor.selectionStart() - position;
+						const auto to   = selection.cursor.selectionEnd() - position;
+						if (from < length && to > 0 && to > from) {
+							ranges.push_back(QTextLayout::FormatRange{ .start = from, .length = to - from, .format = selection.format });
+						} else if (!selection.cursor.hasSelection() && selection.format.hasProperty(QTextFormat::FullWidthSelection)
+								   && block.contains(selection.cursor.position())) {
+							// A full-width selection needs only a position.
+							const auto line  = layout->lineForTextPosition(selection.cursor.position() - position);
+							auto       range = QTextLayout::FormatRange{ .start = line.textStart(), .length = line.textLength(), .format = selection.format };
+							if (range.start + range.length == length - 1) {
+								++range.length;
+							}
+							ranges.push_back(range);
+						}
+					}
+					layout->draw(&painter, offset, ranges, exposed);
+					if (caret && context.cursorPosition >= position && context.cursorPosition < position + length) {
+						layout->drawCursor(&painter, offset, context.cursorPosition - position, cursorWidth());
+					}
+				}
+				offset.ry() += rect.height();
+				if (offset.y() > viewportRect.height()) {
+					break;
+				}
 			}
 		}
 
@@ -2502,7 +2615,8 @@ namespace bpr::qt {
 
 	void diff_workbench::set_line_add_dispatch(std::function<void(std::uint32_t, std::uint32_t)> aDispatch)
 	{
-		// New comments go on the head side only (core::supported_comment_target).
+		// The gutter's "+" is on the head side. A base line takes a new comment
+		// from the right-click menu or Return once GitHub numbers it ([[BPR-1212]]).
 		pane(Right)->set_add_dispatch(std::move(aDispatch));
 	}
 
@@ -4068,6 +4182,8 @@ namespace bpr::qt {
 		}
 		apply_syntax_formats(*Unified, core::diff_side::left, base);
 		apply_syntax_formats(*Unified, core::diff_side::right, head);
+		// [[BPR-1212]] v002. The text selection's wash, under the emphasis.
+		pane(Unified)->set_text_wash_index(selections.size());
 		if (Colors.Supplied) {
 			append_intraline_emphasis(selections, *Unified, core::diff_side::left, base, selectedBase);
 			append_intraline_emphasis(selections, *Unified, core::diff_side::right, head, selectedHead);
@@ -4444,6 +4560,9 @@ namespace bpr::qt {
 				}
 			}
 			pane(&aPane)->set_selected_lines(washed);
+			// [[BPR-1212]] v002. The text selection's wash goes here, over the
+			// bands and under the intraline emphasis.
+			pane(&aPane)->set_text_wash_index(selections.size());
 
 			if (CurrentResult && Colors.Supplied) {
 				append_intraline_emphasis(

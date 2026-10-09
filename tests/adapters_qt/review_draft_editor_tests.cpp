@@ -1385,23 +1385,37 @@ namespace {
 
 	void test_left_new_comment_keeps_text_without_offering_publish()
 	{
-		auto  log         = intent_log{ };
-		auto* editor      = editor_for(log);
-		auto  draft       = a_draft("Keep these exact bytes.");
+		auto  log    = intent_log{ };
+		auto* editor = editor_for(log);
+		auto  draft  = a_draft("Keep these exact bytes.");
+		// [[BPR-1212]] v002. A new comment on a base line is GitHub's `side:
+		// LEFT`. The composition gives the editor one only once the base is
+		// known to be numbered as GitHub's, and the host checks that again,
+		// so the editor offers its Publish as for any line.
 		draft.Anchor.Side = core::diff_side::left;
 		editor->present(draft);
-		expect(!editor->publish_action()->isEnabled()
-				   && editor->publish_action()->toolTip().contains(QStringLiteral("right, current-head"))
-				   && editor->body_editor()->toPlainText() == QStringLiteral("Keep these exact bytes.")
-				   && !editor->body_editor()->isReadOnly() && editor->discard_action()->isEnabled(),
+		expect(editor->publish_action()->isEnabled() && editor->publish_action()->toolTip() == QStringLiteral("Publish this draft comment.")
+				   && editor->body_editor()->toPlainText() == QStringLiteral("Keep these exact bytes."),
+			   "a base-line root offers explicit Publish with its text");
+		editor->publish_action()->trigger();
+		expect(log.Drafts.size() == 1U && log.Drafts.back().Kind == core::review_draft_command_kind::begin_publish,
+			   "a base-line root emits the explicit publication intent");
+		// A line on no side takes no comment and keeps its text.
+		draft.Id          = core::review_draft_id{ draft.Id.value() + 1U };
+		draft.Anchor.Side = static_cast<core::diff_side>(2);
+		editor->present(draft);
+		expect(!editor->publish_action()->isEnabled() && editor->publish_action()->toolTip().contains(QStringLiteral("cannot take a comment"))
+				   && editor->body_editor()->toPlainText() == QStringLiteral("Keep these exact bytes.") && !editor->body_editor()->isReadOnly()
+				   && editor->discard_action()->isEnabled(),
 			   "an unsupported root retains editable text and explains why Publish is unavailable");
 		editor->publish_action()->trigger();
-		expect(log.Drafts.empty(), "a left-side root emits no publication intent");
+		expect(log.Drafts.size() == 1U, "an unsupported root emits no publication intent");
+		draft.Anchor.Side   = core::diff_side::left;
 		draft.ReplyToThread = "PRRT_fixture_1";
 		editor->present(draft);
 		expect(editor->publish_action()->isEnabled(), "a left-side reply still offers explicit Publish");
 		editor->publish_action()->trigger();
-		expect(log.Drafts.size() == 1U && log.Drafts.back().Kind == core::review_draft_command_kind::begin_publish,
+		expect(log.Drafts.size() == 2U && log.Drafts.back().Kind == core::review_draft_command_kind::begin_publish,
 			   "a left-side reply emits the same explicit publication intent");
 		draft.ReplyToThread.reset();
 		draft.Anchor.Side = core::diff_side::right;

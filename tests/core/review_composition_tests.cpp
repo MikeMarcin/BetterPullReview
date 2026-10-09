@@ -258,7 +258,9 @@ namespace {
 		partitions = partition_composition_targets(f.Observed);
 		expect(partitions && partitions->Assigned[0].Sources == std::vector<std::size_t>{ 0 } && partitions->Unassigned == std::vector<std::size_t>{ 1 }, "targetless sources remain visible not dropped");
 		expect(!f.workspace().Target, "one target plus unassigned still requires choice");
-		expect(!make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::left, 1 }, f.Index), "left subject grants no root publication target");
+		// [[BPR-1212]]. A base line is a draft target; publication on it is the host's to admit.
+		expect(make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::left, 1 }, f.Index).has_value(), "a left subject is a root draft target");
+		expect(!make_composition_target(f.Binding, { *f.Binding.Comparison, static_cast<diff_side>(2), 1 }, f.Index), "no other side is a target");
 	}
 	void runs_and_findings()
 	{

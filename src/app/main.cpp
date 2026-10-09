@@ -4813,6 +4813,8 @@ namespace {
 			// [[BPR-1212]]. The keyboard line cursor and Return in the code.
 			stream << "LINE_DRAFT_EVIDENCE:" << evidence.LeftLineRefused << evidence.SingleLineOpenedPlain << evidence.KeyboardRangeSelected
 				   << evidence.SuggestionPrefilled << evidence.RangePublishedExact << evidence.NoLineExplained << '\n';
+			// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
+			stream << "BASE_LINE_DRAFT_EVIDENCE:" << evidence.BaseNumberedKnown << evidence.BaseLineOpened << evidence.BasePublishedLeft << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';
 		}
 		if (aRun.PublishedFileSwitchProbe) {

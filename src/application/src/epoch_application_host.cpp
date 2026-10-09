@@ -3683,44 +3683,17 @@ namespace bpr::application {
 			changed_paths_request    aRequest,
 			changed_paths_completion aCompletion) -> bool
 		{
-			if (!aCompletion || !aRequest.Left.valid() || !aRequest.Right.valid()
-				|| aRequest.Left == aRequest.Right
-				|| aRequest.Left.algorithm() != aRequest.Right.algorithm()
-				|| !authorized_selected_diff_context(aRequest.WorkbenchAuthority, std::nullopt)
-						.has_value()
-				|| State.AcceptedRevision->Head != aRequest.Right
-				|| State.PendingIngestion.has_value()) {
+			if (!aCompletion || !aRequest.Left.valid() || aRequest.Left == aRequest.Right
+				|| aRequest.Left.algorithm() != aRequest.Right.algorithm()) {
 				return false;
 			}
-			const auto& authority = *State.Authority;
-			const auto  key       = cache_actor_key{
-				.Profile         = authority.Profile,
-				.ProfileRevision = authority.ProfileRevision,
-				.Host            = authority.Host,
-				.HostAuthority   = authority.HostAuthority,
-				.Account         = authority.Account,
-				.Repository      = authority.Repository,
-				.ObjectFormat    = aRequest.Right.algorithm(),
-				.Mode            = authority.Mode,
-			};
-			auto actor = std::shared_ptr<authority_effect_actor>{ };
-			{
-				std::scoped_lock lock{ CacheActorsMutex };
-				const auto       found = std::ranges::find(
-					CacheActors, key, &decltype(CacheActors)::value_type::first);
-				if (found != CacheActors.end()) {
-					actor = found->second;
-				}
-			}
-			if (!actor) {
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Right);
+			if (!reviewActor) {
 				return false;
 			}
-			const auto expected = git_cache_open_request{
-				.ApplicationSession = State.ApplicationSession,
-				.Authority          = authority,
-				.ObjectFormat       = aRequest.Right.algorithm(),
-			};
-			auto admitted = admit_job(
+			auto       actor    = std::move(reviewActor->first);
+			const auto expected = std::move(reviewActor->second);
+			auto       admitted = admit_job(
 				std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
 			if (!admitted.has_value()) {
 				return false;
@@ -3783,6 +3756,137 @@ namespace bpr::application {
 								if (*left != *right) {
 									observation.Changed.push_back(path);
 								}
+							}
+						}
+						enqueue_completion(
+							gate,
+							decisionLane,
+							std::move(control),
+							[answer  = std::move(observation),
+							 deliver = std::move(completion)](implementation&) {
+								deliver(answer);
+							});
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
+		/// \brief [[BPR-1212]]. The review's cache actor and the session it
+		/// expects, for a job asked about the accepted head; none when the
+		/// request would be refused before admission.
+		[[nodiscard]] auto review_cache_actor(
+			const workbench_pull_request_authority& aAuthority,
+			const core::git_commit_oid&             aHead)
+			-> std::optional<std::pair<std::shared_ptr<authority_effect_actor>, git_cache_open_request>>
+		{
+			if (!aHead.valid() || !authorized_selected_diff_context(aAuthority, std::nullopt).has_value()
+				|| State.AcceptedRevision->Head != aHead || State.PendingIngestion.has_value()) {
+				return std::nullopt;
+			}
+			const auto& authority = *State.Authority;
+			const auto  key       = cache_actor_key{
+				.Profile         = authority.Profile,
+				.ProfileRevision = authority.ProfileRevision,
+				.Host            = authority.Host,
+				.HostAuthority   = authority.HostAuthority,
+				.Account         = authority.Account,
+				.Repository      = authority.Repository,
+				.ObjectFormat    = aHead.algorithm(),
+				.Mode            = authority.Mode,
+			};
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(
+					CacheActors, key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			if (!actor) {
+				return std::nullopt;
+			}
+			return std::pair{ std::move(actor), git_cache_open_request{
+													.ApplicationSession = State.ApplicationSession,
+													.Authority          = authority,
+													.ObjectFormat       = aHead.algorithm(),
+												} };
+		}
+
+		[[nodiscard]] auto resolve_github_base_numbering(
+			github_base_numbering_request    aRequest,
+			github_base_numbering_completion aCompletion) -> bool
+		{
+			if (!aCompletion || !aRequest.BaseTip.valid() || !aRequest.Left.valid() || aRequest.LeftPath.empty()
+				|| aRequest.BaseTip.algorithm() != aRequest.Head.algorithm() || aRequest.Left.algorithm() != aRequest.Head.algorithm()) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto admitted = admit_job(
+				std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			auto        actor        = std::move(reviewActor->first);
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected = std::move(reviewActor->second),
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation = github_base_numbering_observation{
+							.Request = request,
+							.Status  = github_base_numbering_status::failure,
+						};
+						const auto workStop = control->Stop.get_token();
+						const auto statusOf = [](const git_cache_error& aError) {
+							return aError.Code == git_cache_failure::cancelled
+								? github_base_numbering_status::cancelled
+								: github_base_numbering_status::failure;
+						};
+						if (workStop.stop_requested()
+							|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+							observation.Status = github_base_numbering_status::cancelled;
+						} else if (!open_actor_cache(*actor, Caches, expected, workStop)) {
+							observation.Status = github_base_numbering_status::stale;
+						} else if (const auto derived = actor->Cache->derive_comparison_base(
+									   git_cache_comparison_base_request{ .Head = request.Head, .SelectedBase = request.BaseTip }, workStop);
+								   !derived.has_value()) {
+							observation.Status = statusOf(derived.error());
+						} else if (derived->Status != git_comparison_base_status::unique || !derived->Base || !derived->Base->valid()) {
+							// No common ancestor, several, or objects the cache
+							// does not hold (a sparse review): not knowable here.
+							observation.Status = github_base_numbering_status::unavailable;
+						} else {
+							observation.MergeBase = derived->Base;
+							if (*derived->Base == request.Left) {
+								observation.Status = github_base_numbering_status::same;
+							} else if (const auto atBase = actor->Cache->find_blob_at_path(
+										   git_cache_tree_entry_request{ .Commit = *derived->Base, .Path = request.LeftPath }, workStop);
+									   !atBase.has_value()) {
+								observation.Status = statusOf(atBase.error());
+							} else if (const auto atLeft = actor->Cache->find_blob_at_path(
+										   git_cache_tree_entry_request{ .Commit = request.Left, .Path = request.LeftPath }, workStop);
+									   !atLeft.has_value()) {
+								observation.Status = statusOf(atLeft.error());
+							} else {
+								observation.Status = atBase->has_value() && *atBase == *atLeft
+									? github_base_numbering_status::same
+									: github_base_numbering_status::differs;
 							}
 						}
 						enqueue_completion(
@@ -8524,6 +8628,13 @@ namespace bpr::application {
 		changed_paths_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_changed_paths(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_github_base_numbering(
+		github_base_numbering_request    aRequest,
+		github_base_numbering_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_github_base_numbering(std::move(aRequest), std::move(aCompletion));
 	}
 
 	void epoch_application_host::shutdown()

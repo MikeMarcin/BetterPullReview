@@ -7604,11 +7604,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 					if (SelectedDiffPublication.has_value()) {
 						Window->set_conversation_endpoint_placement(
-							false,
+							base_numbered_as_github(),
 							conversation_endpoint_is_current(
 								SelectedDiffPublication->Request.Diff.Comparison,
 								core::diff_side::right));
 					}
+					observe_base_numbering();
 					refresh_review_conversations();
 					// Before the ledger observation, because it is about the
 					// panes rather than about the review, and because
@@ -8861,7 +8862,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const core::comparison_pair& aComparison,
 			const core::diff_side        aSide) const -> bool
 		{
-			if (aSide == core::diff_side::left || Host == nullptr) {
+			// [[BPR-1212]]. GitHub's `LEFT` lines count the merge base's
+			// version of the file; the left side is current only for the
+			// selected comparison whose left document is known to be that.
+			if (aSide == core::diff_side::left) {
+				return SelectedDiffPublication.has_value() && aComparison == SelectedDiffPublication->Request.Diff.Comparison
+					&& base_numbered_as_github();
+			}
+			if (Host == nullptr) {
 				return false;
 			}
 			const auto& snapshot = WindowRead->accepted_snapshot();
@@ -8869,6 +8877,93 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				? core::parse_git_commit_oid(snapshot->PullRequest.HeadOid.value())
 				: std::nullopt;
 			return head.has_value() && aComparison.Right.Commit == *head;
+		}
+
+		/// \brief [[BPR-1212]]. The question whose answer says whether the
+		/// selected comparison's left document is numbered as GitHub numbers a
+		/// `LEFT` line: GitHub's base OID, the accepted head, and the
+		/// comparison's left commit and path. None unless the comparison's
+		/// right side is the current head and its left side has a file.
+		[[nodiscard]] auto base_numbering_request() const -> std::optional<application::github_base_numbering_request>
+		{
+			if (!SelectedDiffPublication || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& selected   = *SelectedDiffPublication;
+			const auto& comparison = selected.Request.Diff.Comparison;
+			const auto  base       = core::parse_git_commit_oid(WindowRead->accepted_snapshot()->PullRequest.BaseOid.value());
+			if (!base || !selected.LeftPath || !selected.Key.LeftBlob || !conversation_endpoint_is_current(comparison, core::diff_side::right)) {
+				return std::nullopt;
+			}
+			return application::github_base_numbering_request{
+				.WorkbenchAuthority = selected.Request.WorkbenchAuthority,
+				.BaseTip            = *base,
+				.Head               = comparison.Right.Commit,
+				.Left               = comparison.Left.Commit,
+				.LeftPath           = *selected.LeftPath,
+			};
+		}
+
+		[[nodiscard]] auto base_numbered_as_github() const -> bool
+		{
+			if (!BaseNumbering || BaseNumbering->Status != application::github_base_numbering_status::same) {
+				return false;
+			}
+			const auto request = base_numbering_request();
+			return request && *request == BaseNumbering->Request;
+		}
+
+		/// \brief [[BPR-1212]]. Asks the epoch host once per comparison, and
+		/// applies a kept answer.
+		void observe_base_numbering()
+		{
+			const auto request = base_numbering_request();
+			if (!request || EpochHost == nullptr || (BaseNumbering && BaseNumbering->Request == *request)) {
+				apply_base_numbering();
+				return;
+			}
+			BaseNumbering       = base_numbering_state{ .Request = *request };
+			const auto admitted = EpochHost->resolve_github_base_numbering(
+				*request,
+				[this](const application::github_base_numbering_observation& aObservation) {
+					if (Closing || !BaseNumbering || BaseNumbering->Request != aObservation.Request) {
+						return;
+					}
+					// Not answerable yet: asked again on the next publication.
+					if (aObservation.Status == application::github_base_numbering_status::stale
+						|| aObservation.Status == application::github_base_numbering_status::cancelled) {
+						BaseNumbering.reset();
+						return;
+					}
+					BaseNumbering->Status = aObservation.Status;
+					apply_base_numbering();
+				});
+			if (!admitted) {
+				BaseNumbering.reset();
+			}
+			apply_base_numbering();
+		}
+
+		void apply_base_numbering()
+		{
+			const auto numbered = base_numbered_as_github();
+			if (ReviewSourceMaterial && SelectedDiffPublication && ReviewSourceMaterial->Key == SelectedDiffPublication->Key) {
+				ReviewSourceMaterial->BaseNumberedAsGitHub = numbered;
+			}
+			if (Window == nullptr || !SelectedDiffPublication) {
+				return;
+			}
+			const auto& comparison = SelectedDiffPublication->Request.Diff.Comparison;
+			if (Window->left_conversation_endpoint_current() == numbered) {
+				return;
+			}
+			Window->set_conversation_endpoint_placement(numbered, conversation_endpoint_is_current(comparison, core::diff_side::right));
+			// Threads on base lines are placed now, and a base line selected
+			// before the answer takes its draft.
+			refresh_review_conversations();
+			if (numbered && SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine.Side == core::diff_side::left) {
+				present_review_draft(*SelectedSemanticSelection);
+			}
 		}
 
 		[[nodiscard]] auto current_thread_anchor(
@@ -11103,7 +11198,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr
 				|| WorkbenchHost == nullptr || !SelectedDiffPublication.has_value()
-				|| aSelection.PreferredLine.Side != core::diff_side::right
+				|| !core::supported_comment_target(aSelection.PreferredLine.Side)
 				|| aSelection.Comparison
 					!= core::comparison_digest(SelectedDiffPublication->Key)
 				|| aSelection.PreferredLine.Comparison != aSelection.Comparison
@@ -11111,6 +11206,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					!= SelectedDiffPublication->Request.Context.Generation
 				|| WorkbenchHost->selected()
 					!= std::optional{ SelectedDiffPublication->Request.File.File }) {
+				return;
+			}
+			// [[BPR-1212]]. A base line takes a draft only once its numbering
+			// is known to be GitHub's; the answer presents it again.
+			if (aSelection.PreferredLine.Side == core::diff_side::left && !base_numbered_as_github()) {
+				observe_base_numbering();
 				return;
 			}
 			if (ReviewDraft.has_value()
@@ -15180,8 +15281,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// GitHub's current PR diff uses a merge-base coordinate on LEFT,
 			// while BPR's retained Branch base is explicitly the accepted base
 			// tip. The provider snapshot carries no exact merge-base identity, so
-			// LEFT remains unplaced instead of applying a numeric line to a
-			// potentially unrelated blob.
+			// LEFT stays unplaced for the new comparison until the epoch host
+			// answers that its left document is the merge base's version
+			// ([[BPR-1212]], `observe_base_numbering`), instead of applying a
+			// numeric line to a potentially unrelated blob.
 			constexpr auto leftHasCurrentDiffRevision = false;
 			const auto     rightIsCurrentHead         = conversation_endpoint_is_current(
 				aComparison, core::diff_side::right);
@@ -16434,6 +16537,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_keyboard_range,
 				awaiting_range_prefilled,
 				awaiting_range_published,
+				// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
+				awaiting_base_numbering,
+				awaiting_base_line,
+				awaiting_base_published,
 				awaiting_single_line,
 				awaiting_no_line,
 				passed,
@@ -16808,6 +16915,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::Host)&                         Host                     = Profile->Host;
 		std::optional<application::workbench_selected_diff_request>     SelectedDiffRequest;
 		std::optional<application::workbench_selected_diff_publication> SelectedDiffPublication;
+		/// [[BPR-1212]]. The last question asked about the selected comparison's
+		/// base numbering, and its answer once the epoch host gave one.
+		struct base_numbering_state
+		{
+			application::github_base_numbering_request               Request;
+			std::optional<application::github_base_numbering_status> Status;
+		};
+		std::optional<base_numbering_state> BaseNumbering;
 		struct agent_review_facts
 		{
 			core::git_host_id                Host;
@@ -26183,7 +26298,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			paneKey(*left, Qt::Key_Return, Qt::NoModifier);
 			const auto message = window->statusBar()->currentMessage();
 			note("message=" + message.toStdString());
-			probe.Evidence.LeftLineRefused = message.contains(QStringLiteral("right, current-head side")) && !cards->writing_draft()
+			// [[BPR-1212]] v002. Line 1 of the base is outside every hunk, or
+			// its numbering is not yet known to be GitHub's: refused either way.
+			probe.Evidence.LeftLineRefused = (message.contains(QStringLiteral("inside a changed region")) || message.contains(QStringLiteral("not known to match"))) && !cards->writing_draft()
 				&& (inlinePage == nullptr || !inlinePage->isVisibleTo(window)) && implementation->Fixture->review_mutation_evidence().NativePosts == natives;
 			if (!probe.Evidence.LeftLineRefused) {
 				return fail("left-line-not-refused");
@@ -26344,6 +26461,110 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.RangePublishedExact) {
 				return fail("range-not-published-exact");
 			}
+			probe.Phase = state_type::phase::awaiting_base_numbering;
+			return result::pending;
+		}
+		// [[BPR-1212]] v002. The epoch host has told whether this file's base is
+		// the merge base's version GitHub numbers `LEFT` lines in; the
+		// fixture's base is its branch point, so it is.
+		case state_type::phase::awaiting_base_numbering: {
+			if (cards->writing_draft() && cards->draft_editor() != nullptr) {
+				paneKey(*cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+				return result::pending;
+			}
+			// The range's publication refreshes the conversations; the next
+			// publication waits for that read to finish, as a reviewer's
+			// would, so the fixture's recorded reads stay in order.
+			if (!window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			note("left-current=" + std::to_string(window->left_conversation_endpoint_current() ? 1 : 0)
+				 + " numbered=" + std::to_string(implementation->ReviewSourceMaterial && implementation->ReviewSourceMaterial->BaseNumberedAsGitHub ? 1 : 0));
+			probe.Evidence.BaseNumberedKnown = window->left_conversation_endpoint_current() && implementation->ReviewSourceMaterial
+				&& implementation->ReviewSourceMaterial->BaseNumberedAsGitHub;
+			if (!probe.Evidence.BaseNumberedKnown) {
+				return result::pending;
+			}
+			probe.Line.reset();
+			probe.KeySent = false;
+			probe.Phase   = state_type::phase::awaiting_base_line;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_base_line: {
+			auto* const surface  = window->comparison_surface();
+			const auto& compared = surface->current_result();
+			if (!compared || !compared->LeftDocument) {
+				return fail("no-base-document");
+			}
+			if (!probe.KeySent) {
+				// A base line in a hunk with no thread on it.
+				if (!probe.Line) {
+					for (const auto& hunk : core::github_review_hunks(compared->Alignment, core::diff_side::left)) {
+						for (auto line = hunk.Begin; line < hunk.End && !probe.Line; ++line) {
+							if (surface->select_conversation_line(core::diff_side::left, line) && model->rowCount() == 0) {
+								probe.Line = line;
+							}
+						}
+					}
+					if (!probe.Line) {
+						return fail("no-free-base-line");
+					}
+				}
+				if (const auto selected = surface->selection(); !selected || selected->PreferredLine.Side != core::diff_side::left || selected->PreferredLine.Line != *probe.Line) {
+					static_cast<void>(surface->select_conversation_line(core::diff_side::left, *probe.Line));
+				}
+				const auto& draft = implementation->ReviewDraft;
+				note("base-line=" + std::to_string(*probe.Line) + " draft=" + (draft ? std::to_string(draft->Anchor.Line) + (draft->Anchor.Side == core::diff_side::left ? "L" : "R") : std::string{ "-" }));
+				if (!draft || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::left || draft->State != core::review_draft_state::drafting) {
+					return result::pending;
+				}
+				auto* const left = surface->left_pane();
+				left->setFocus(Qt::OtherFocusReason);
+				paneKey(*left, Qt::Key_Return, Qt::NoModifier);
+				probe.KeySent = true;
+			}
+			const auto expected = QStringLiteral("Your draft on base line %1").arg(*probe.Line + 1U);
+			note("writing=" + std::to_string(cards->writing_draft() ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
+			if (!cards->writing_draft() || cards->open_card() == nullptr || cards->draft_editor() == nullptr) {
+				return result::pending;
+			}
+			if (cards->draft_editor()->toPlainText().isEmpty()) {
+				cards->draft_editor()->setPlainText(QStringLiteral("question: BPR-1212 base-side comment, why was this removed?"));
+				return result::pending;
+			}
+			auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+			const auto& draft   = implementation->ReviewDraft;
+			if (!draft || draft->Body.empty() || publish == nullptr || !publish->isEnabled()) {
+				return result::pending;
+			}
+			probe.Evidence.BaseLineOpened = cards->open_card()->accessibleName() == expected && draft->Anchor.Side == core::diff_side::left
+				&& draft->Anchor.Line == *probe.Line && !draft->StartLine && !draft->ReplyToThread;
+			render("drawer-base-line");
+			if (!probe.Evidence.BaseLineOpened) {
+				return fail("base-line-not-opened card=" + cards->open_card()->accessibleName().toStdString());
+			}
+			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
+			publish->click();
+			probe.Phase = state_type::phase::awaiting_base_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_base_published: {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			note("pending=" + std::to_string(implementation->PendingReviewMutation.has_value() ? 1 : 0) + " native=" + std::to_string(mutations.NativePosts) + " side="
+				 + mutations.LastSide + " line=" + std::to_string(mutations.LastLine.value_or(0U)) + " status=" + editor->mutation_status_label()->text().toStdString());
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore
+				|| !window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U) {
+				return result::pending;
+			}
+			probe.Evidence.BasePublishedLeft = mutations.NativePosts == probe.NativeBefore + 1U && !mutations.LastFile && mutations.LastPath == path
+				&& mutations.LastSide == "LEFT" && mutations.LastLine == probe.Line.value_or(0U) + 1U && !mutations.LastStartLine && !mutations.LastStartSide
+				&& mutations.LastBody == "question: BPR-1212 base-side comment, why was this removed?";
+			if (!probe.Evidence.BasePublishedLeft) {
+				return fail("base-line-not-published-left");
+			}
+			probe.Line.reset();
 			probe.Phase = state_type::phase::awaiting_no_line;
 			return result::pending;
 		}

@@ -84,24 +84,28 @@ namespace bpr::core {
 		auto operator<=>(const review_comment_draft&) const = default;
 	};
 
-	/// \brief Admits new inline comments on the right side and replies on either side.
+	/// \brief Admits new inline comments and replies on either side.
 	/// \details This is target shape only; current-head, authority and endpoint checks
-	/// remain with their existing core and host admission paths.
-	[[nodiscard]] constexpr auto supported_comment_target(const diff_side aSide, const bool aReply) noexcept -> bool
+	/// remain with their existing core and host admission paths. [[BPR-1212]]: a new
+	/// comment on the left (base) side is GitHub's `side: LEFT`, whose line numbers
+	/// count the merge base's version of the file. The host admits one only with its
+	/// evidence that the comparison's base side is numbered as that version, and
+	/// `decide_comment_range` asks for the same evidence.
+	[[nodiscard]] constexpr auto supported_comment_target(const diff_side aSide) noexcept -> bool
 	{
-		return aSide == diff_side::right || (aSide == diff_side::left && aReply);
+		return aSide == diff_side::left || aSide == diff_side::right;
 	}
 
 	/// \brief [[BPR-1212]]. Whether a draft's line range is one GitHub can take.
-	/// \details One line always is. A range is a new comment, on the right side,
-	/// whose first line is above its last: GitHub refuses a reply with a
-	/// `start_line`, a range across sides and a start that does not precede
-	/// the end. Whether both ends sit in one hunk is decided against the diff
-	/// by `decide_comment_range`.
+	/// \details One line always is. A range is a new comment, on one side, whose
+	/// first line is above its last: GitHub refuses a reply with a `start_line`,
+	/// a range across sides and a start that does not precede the end. Both ends
+	/// carry the anchor's side. Whether both ends sit in one hunk is decided
+	/// against the diff by `decide_comment_range`.
 	[[nodiscard]] constexpr auto valid_comment_range(const review_comment_draft& aDraft) noexcept -> bool
 	{
 		return !aDraft.StartLine.has_value()
-			|| (!aDraft.ReplyToThread.has_value() && aDraft.Anchor.Side == diff_side::right && *aDraft.StartLine < aDraft.Anchor.Line);
+			|| (!aDraft.ReplyToThread.has_value() && supported_comment_target(aDraft.Anchor.Side) && *aDraft.StartLine < aDraft.Anchor.Line);
 	}
 
 	/// \brief Names one command a reviewer can issue against a draft.

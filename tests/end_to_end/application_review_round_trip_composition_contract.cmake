@@ -1232,6 +1232,26 @@ endfunction()
 # amber it already hands over, and the file includes bpr/qt/progress_mark.hpp.
 # No grant, target, provider, credential, GitHub write, mutation or publication
 # path; mutation pin unchanged; no new src/app source. Self-review on BPR-1331.
+# BPR-1212 v002 reseal (2026-10-08): over the BPR-1331 v003 reseal above,
+# whose pins match at origin/main 2f960c927 (an exported tree,
+# BPR_PRINT_PINNED_DIGESTS); no other intervening pinned-scope commit.
+# github_application.cpp: the composition asks the epoch host once per
+# selected comparison whether its left document is the
+# merge base's version of the file (resolve_github_base_numbering, a read of
+# the retained Git objects; no fetch, no GitHub read), keeps the answer
+# (BaseNumbering), and only with "same" sets the window's left endpoint,
+# conversation_endpoint_is_current for the left side, the source material's
+# BaseNumberedAsGitHub, and a draft for a base line in present_review_draft.
+# That makes a new root comment on a base line publishable as GitHub's
+# side LEFT: the mutation host admits it only with the same fact, and the
+# GitHub adapter, the idempotency key (side already in it) and the recovery
+# record (version 2 keeps the side), outside these pins, encode it. A right
+# line's bytes, key and record are unchanged. Tests-on: the line-draft course
+# gains three phases (base numbering known, a base-line draft, its Publish as
+# side LEFT, each after the previous refresh settles) and main.cpp prints
+# BASE_LINE_DRAFT_EVIDENCE; the fixture-access header names the three facts.
+# No grant, target, credential or transport change; mutation pin unchanged;
+# no new src/app source. Self-review on BPR-1212, not independent review.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1250,7 +1270,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"be455223431255a27a4cc7e5c586f5f3940df5eb3c2a51e1526f586d478f340d"
+		"7d5d75e18c84be39a1977b7f47bdbb1229ccc309a5cc30a49c6840bda435d114"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1454,7 +1474,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "3300a257ba01e9bc64eb801f2fde96241964bc53d3d50b650635a937c879d8f7"
+        "ec2dfc940842df8aa8d4fd8381a001552aaafe3aa4faee1db7b425b359b177dc"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

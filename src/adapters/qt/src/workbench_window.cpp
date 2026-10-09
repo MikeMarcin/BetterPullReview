@@ -365,6 +365,9 @@ namespace bpr::qt {
 		/// One status-row height leaves the first-launch Home and workshop prime
 		/// slots unchanged while reducing the corner illustration by thirty percent.
 		constexpr auto dif_corner_size = 28;
+		/// [[BPR-1212]]. How long Add comment waits for the draft of a line
+		/// selected just now before the status line says why none came.
+		constexpr auto line_comment_wait_ms = 1500;
 
 		// The toolbar's first entries are the file actions and the rest are the
 		// change actions, in the core's own command order.
@@ -2397,9 +2400,14 @@ namespace bpr::qt {
 			auto* const title = new QLabel{ page };
 			title->setObjectName(aName + QStringLiteral("Title"));
 			title->setTextFormat(Qt::PlainText);
-			bar->addWidget(back);
-			bar->addStretch(1);
+			// [[BPR-1212]] v002. The restore sits at the top right, where the
+			// drawer draft's Maximize was (owner, maximize-to-discuss-v001:
+			// "the restore (back to code) should still be in the top right").
+			back->setFlat(true);
+			back->setLayoutDirection(Qt::RightToLeft);
 			bar->addWidget(title);
+			bar->addStretch(1);
+			bar->addWidget(back);
 			column->addLayout(bar);
 			if (aExcerpt != nullptr) {
 				aExcerpt->setParent(page);
@@ -7421,6 +7429,38 @@ namespace bpr::qt {
 		return { };
 	}
 
+	auto workbench_window::comment_target_reason(const bool aDraftRequired, QString* const aShort) const -> QString
+	{
+		const auto say = [aShort](QString aReason, QString aWords) {
+			if (aShort != nullptr) {
+				*aShort = std::move(aWords);
+			}
+			return aReason;
+		};
+		const auto selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
+		if (comparing_off_current_head()) {
+			return say(tr("Select the pull request's current head; this tab compares an earlier update."), tr("Comments need the current head"));
+		}
+		if (comment_target_text().isEmpty()) {
+			return say(tr("Select a current-head diff line or thread to comment."), tr("Select a line to comment on"));
+		}
+		// [[BPR-1212]]. A new comment on a base line is GitHub's `side: LEFT`,
+		// counted in the merge base's version of the file. A reply goes to
+		// its thread, wherever it was drafted from.
+		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value()) {
+			return say(tr("GitHub counts base lines in the merge base's version of this file, and this comparison's base is not known to match it. Comment on a right-side line, or reply to an existing thread."),
+					   tr("This file's base is not GitHub's"));
+		}
+		const auto draftReady = ReviewEditor != nullptr
+			&& (!ReviewEditor->body_editor()->isReadOnly() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
+			&& ReviewEditor->shown_draft() && selection
+			&& ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
+		if (aDraftRequired && !draftReady) {
+			return say(tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."), tr("No draft available"));
+		}
+		return { };
+	}
+
 	void workbench_window::update_comment_target()
 	{
 		if (CommentAction == nullptr) {
@@ -7432,22 +7472,8 @@ namespace bpr::qt {
 		auto       words  = target;
 		words.remove(QLatin1Char{ '&' });
 		words.remove(QChar{ 0x2026 });
-		const auto key        = CommentAction->shortcut().toString(QKeySequence::NativeText);
-		const auto selection  = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
-		const auto draftReady = ReviewEditor != nullptr
-			&& (!ReviewEditor->body_editor()->isReadOnly() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
-			&& ReviewEditor->shown_draft() && selection
-			&& ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
-		auto reason = QString{ };
-		if (comparing_off_current_head()) {
-			reason = tr("Select the pull request's current head; this tab compares an earlier update.");
-		} else if (target.isEmpty()) {
-			reason = tr("Select a current-head diff line or thread to comment.");
-		} else if (selection && !core::supported_comment_target(selection->PreferredLine.Side, comment_reply_thread().has_value())) {
-			reason = tr("New comments need a line on the right, current-head side. Select a right-side line, or reply to an existing thread.");
-		} else if (!draftReady) {
-			reason = tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment.");
-		}
+		const auto key                = CommentAction->shortcut().toString(QKeySequence::NativeText);
+		const auto reason             = comment_target_reason(true);
 		const auto promotionAvailable = reason.isEmpty() && !ReviewEditor->body_editor()->isReadOnly();
 		const auto promotionReason    = !reason.isEmpty() ? reason : tr("Resolve the retained draft conflict before promoting an item.");
 		if (PrivateNotes != nullptr) {
@@ -7794,45 +7820,54 @@ namespace bpr::qt {
 		return true;
 	}
 
-	auto workbench_window::decide_selected_lines(QString& aReason) const -> std::optional<core::comment_range_decision>
+	auto workbench_window::decide_selected_lines(QString& aReason, QString* const aShort) const -> std::optional<core::comment_range_decision>
 	{
+		const auto refuse = [&aReason, aShort](QString aFull, QString aWords) {
+			aReason = std::move(aFull);
+			if (aShort != nullptr) {
+				*aShort = std::move(aWords);
+			}
+			return std::optional<core::comment_range_decision>{ };
+		};
 		// [[BPR-1212]] slice 1. The selection's two ends, as the mouse and the
 		// keyboard line cursor share them, decided by the core.
 		const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt;
 		if (!range) {
-			aReason = tr("Select a line first: click it, or move to it with Up and Down while the code has focus.");
-			return std::nullopt;
+			return refuse(tr("Select a line first: click it, or move to it with Up and Down while the code has focus."), tr("Select a line to comment on"));
 		}
 		if (comparing_off_current_head()) {
-			aReason = tr("Select the pull request's current head; this tab compares an earlier update.");
-			return std::nullopt;
+			return refuse(tr("Select the pull request's current head; this tab compares an earlier update."), tr("Comments need the current head"));
 		}
 		const auto& result = ComparisonSurface->current_result();
 		if (!result) {
-			aReason = tr("Wait for the comparison to load, then select a line.");
-			return std::nullopt;
+			return refuse(tr("Wait for the comparison to load, then select a line."), tr("The comparison is loading"));
 		}
-		const auto decision = core::decide_comment_range(result->Alignment, range->first, range->second);
+		// A base line takes a comment once its numbering is known to be
+		// GitHub's (`LEFT` lines count the merge base's version of the file).
+		const auto decision = core::decide_comment_range(result->Alignment, range->first, range->second, LeftConversationEndpointCurrent);
 		switch (decision.Refusal) {
 		case core::comment_range_refusal::none:
 			return decision;
 		case core::comment_range_refusal::base_side:
-			// Flagged 4: a new comment cannot go on a left-side line.
-			aReason = tr("New comments need a line on the right, current-head side. Select a right-side line, or reply to an existing thread.");
-			break;
+			return refuse(tr("GitHub counts base lines in the merge base's version of this file, and this comparison's base is not known to match it. Comment on a right-side line, or reply to an existing thread."),
+						  tr("This file's base is not GitHub's"));
 		case core::comment_range_refusal::mixed_side:
-			aReason = tr("Select lines on one side to comment on them together.");
-			break;
+			return refuse(tr("Select lines on one side to comment on them together."), tr("Select lines on one side"));
 		case core::comment_range_refusal::outside_hunk:
+			if (range->first == range->second) {
+				// One base line: GitHub takes a `LEFT` comment only in the diff.
+				return refuse(tr("GitHub takes a comment on a base line only inside a changed region. Select a base line within a hunk, or a right-side line."),
+							  tr("Base lines need a changed region"));
+			}
+			[[fallthrough]];
 		case core::comment_range_refusal::crosses_hunk:
-			aReason = tr("GitHub takes a comment on several lines only inside one changed region. Select lines within one hunk, or a single line.");
-			break;
+			return refuse(tr("GitHub takes a comment on several lines only inside one changed region. Select lines within one hunk, or a single line."),
+						  tr("Lines must be in one changed region"));
 		case core::comment_range_refusal::mixed_comparison:
 		case core::comment_range_refusal::outside_document:
-			aReason = tr("Select a line of this comparison.");
 			break;
 		}
-		return std::nullopt;
+		return refuse(tr("Select a line of this comparison."), tr("Select a line of this comparison"));
 	}
 
 	auto workbench_window::comment_on_selected_lines(const bool aSuggestion) -> bool
@@ -7845,6 +7880,11 @@ namespace bpr::qt {
 		const auto decision = decide_selected_lines(reason);
 		if (!decision) {
 			statusBar()->showMessage(reason, 10000);
+			return false;
+		}
+		// A suggestion replaces head lines; a base line takes a comment only.
+		if (aSuggestion && decision->Anchor.Side != core::diff_side::right) {
+			statusBar()->showMessage(tr("Suggest change replaces lines on the right, head side. A base line takes a comment: Add comment, or Return."), 10000);
 			return false;
 		}
 		// The draft composes on the range's last line, which GitHub anchors
@@ -7862,18 +7902,29 @@ namespace bpr::qt {
 		if (!PendingLineComment.has_value()) {
 			return false;
 		}
-		// No draft is on the line yet. One is on its way when the line was
-		// only now selected; otherwise say why there is none, and still open
-		// it should it arrive while the line stays selected.
-		if (selected) {
-			update_comment_target();
-			statusBar()->showMessage(CommentAction != nullptr && !CommentAction->isEnabled()
-										 ? CommentAction->toolTip()
-										 : tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."),
-									 10000);
-			return false;
-		}
+		// No draft is on the line yet. The host answers a line selected just
+		// now, which a right-click on a new line is ([[BPR-1212]] v002: the
+		// owner had to left-click first). It opens when it arrives while the
+		// line stays selected; if none comes within the wait, the status line
+		// says why.
+		const auto base  = decision->Anchor.Side == core::diff_side::left ? tr("base ") : QString{ };
+		const auto lines = decision->StartLine.has_value() ? tr("%1lines %2–%3").arg(base).arg(*decision->StartLine + 1U).arg(decision->Anchor.Line + 1U)
+														   : tr("%1line %2").arg(base).arg(decision->Anchor.Line + 1U);
+		statusBar()->showMessage(tr("Opening a draft on %1…").arg(lines), line_comment_wait_ms);
+		QTimer::singleShot(line_comment_wait_ms, this, [this, anchor = decision->Anchor] { report_line_comment_wait(anchor); });
 		return true;
+	}
+
+	void workbench_window::report_line_comment_wait(const core::source_line_ref aAnchor)
+	{
+		if (!PendingLineComment.has_value() || PendingLineComment->Anchor != aAnchor) {
+			return;
+		}
+		update_comment_target();
+		statusBar()->showMessage(CommentAction != nullptr && !CommentAction->isEnabled()
+									 ? CommentAction->toolTip()
+									 : tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."),
+								 10000);
 	}
 
 	auto workbench_window::resume_line_comment() -> bool
@@ -7945,7 +7996,9 @@ namespace bpr::qt {
 			const auto  range   = ComparisonSurface->line_draft_range();
 			const auto  first   = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
 			const auto  last    = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
-			auto* const caption = menu->addAction(first == last ? tr("Line %1").arg(first + 1U) : tr("Lines %1–%2").arg(first + 1U).arg(last + 1U));
+			const auto  base    = selection->PreferredLine.Side == core::diff_side::left;
+			auto* const caption = menu->addAction(first == last ? (base ? tr("Base line %1") : tr("Line %1")).arg(first + 1U)
+																: (base ? tr("Base lines %1–%2") : tr("Lines %1–%2")).arg(first + 1U).arg(last + 1U));
 			caption->setObjectName(QStringLiteral("codeContextMenuCaption"));
 			caption->setEnabled(false);
 			// [[BPR-1335]]. The line's thread, reachable without its marker.
@@ -7959,23 +8012,37 @@ namespace bpr::qt {
 			}
 		}
 		// Add comment and Suggest change start a new comment, never a reply.
-		const auto reply  = ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->ReplyToThread.has_value();
-		auto       reason = CommentAction != nullptr && !CommentAction->isEnabled() ? CommentAction->toolTip().section(QStringLiteral(": "), 1) : QString{ };
+		// [[BPR-1212]] v002. A line selected by this right-click has its draft
+		// on the way, so its absence greys nothing: the item waits for it. A
+		// reason the line cannot take a comment shows under the items.
+		const auto reply = ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->ReplyToThread.has_value()
+			&& selection.has_value() && ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
+		auto words  = QString{ };
+		auto reason = comment_target_reason(false, &words);
 		if (reason.isEmpty() && reply) {
 			reason = tr("Finish or cancel the reply on this line first.");
-		}
-		if (reason.isEmpty() && selection.has_value() && !core::supported_comment_target(selection->PreferredLine.Side, false)) {
-			reason = tr("New comments need a line on the right, current-head side.");
+			words  = tr("Finish the reply on this line first");
 		}
 		// [[BPR-1212]] slice 1. Lines the core refuses together say why.
-		if (auto why = QString{ }; reason.isEmpty() && !decide_selected_lines(why).has_value()) {
-			reason = why;
+		auto decision = std::optional<core::comment_range_decision>{ };
+		if (reason.isEmpty()) {
+			decision = decide_selected_lines(reason, &words);
 		}
+		// A suggestion replaces head lines; a base line takes a comment only.
+		auto suggestReason = reason;
+		auto suggestWords  = words;
+		if (suggestReason.isEmpty() && decision.has_value() && decision->Anchor.Side != core::diff_side::right) {
+			suggestReason = tr("Suggest change replaces lines on the right, head side. A base line takes a comment.");
+			suggestWords  = tr("Suggest change: head side only");
+		}
+		const auto several = decision.has_value() && decision->StartLine.has_value();
 		for (auto* const action : { AddCommentAction, SuggestChangeAction }) {
-			action->setEnabled(reason.isEmpty());
-			action->setToolTip(reason.isEmpty() ? (action == AddCommentAction ? tr("Write a comment on this line, in the drawer beside the code")
-																			  : tr("Suggest new text for this line: a suggestion block GitHub can apply"))
-												: reason);
+			const auto& why = action == AddCommentAction ? reason : suggestReason;
+			action->setEnabled(why.isEmpty());
+			action->setToolTip(!why.isEmpty()                   ? why
+								   : action == AddCommentAction ? (several ? tr("Write a comment on these lines, in the drawer beside the code") : tr("Write a comment on this line, in the drawer beside the code"))
+								   : several                    ? tr("Suggest new text for these lines: a suggestion block GitHub can apply")
+																: tr("Suggest new text for this line: a suggestion block GitHub can apply"));
 			action->setStatusTip(action->toolTip());
 			// The menu's item shows the code's key; it is the menu's own, so
 			// no window shortcut ever claims Return.
@@ -7988,6 +8055,13 @@ namespace bpr::qt {
 			item->setStatusTip(action->statusTip());
 			connect(item, &QAction::triggered, action, &QAction::trigger);
 			menu->addAction(item);
+		}
+		// The reason in words under the items, not only in a tooltip.
+		if (const auto& shown = !words.isEmpty() ? words : suggestWords; !shown.isEmpty()) {
+			auto* const why = menu->addAction(shown);
+			why->setObjectName(QStringLiteral("codeContextMenuReason"));
+			why->setEnabled(false);
+			why->setToolTip(!reason.isEmpty() ? reason : suggestReason);
 		}
 		if (aPane != nullptr) {
 			auto* const standard = aPane->createStandardContextMenu();
@@ -8023,14 +8097,18 @@ namespace bpr::qt {
 			&& !ReviewEditor->body_editor()->toPlainText().isEmpty()) {
 			ReviewEditor->discard_action()->trigger();
 		}
+		const auto side = WritingAnchor.has_value() ? WritingAnchor->Side : core::diff_side::right;
 		WritingAnchor.reset();
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
 			ConversationPanel->cards()->end_draft();
 		}
 		refresh_cards();
-		// Focus goes back to the code, on the same line.
-		if (ComparisonSurface != nullptr && ComparisonSurface->right_pane() != nullptr) {
-			ComparisonSurface->right_pane()->setFocus(Qt::OtherFocusReason);
+		// Focus goes back to the code, on the same line, in its own pane.
+		if (auto* const code = ComparisonSurface == nullptr ? nullptr
+				: side == core::diff_side::left             ? ComparisonSurface->left_pane()
+															: ComparisonSurface->right_pane();
+			code != nullptr) {
+			code->setFocus(Qt::OtherFocusReason);
 		}
 	}
 
@@ -12255,6 +12333,11 @@ namespace bpr::qt {
 	auto workbench_window::comparison_surface() const noexcept -> diff_workbench*
 	{
 		return ComparisonSurface;
+	}
+
+	auto workbench_window::left_conversation_endpoint_current() const noexcept -> bool
+	{
+		return LeftConversationEndpointCurrent;
 	}
 
 	void workbench_window::set_conversation_endpoint_placement(

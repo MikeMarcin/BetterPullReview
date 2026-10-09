@@ -156,25 +156,54 @@ namespace bpr::qt {
 				update();
 			}
 
+			/// \brief [[BPR-1212]] v002. Shows the words whole or not at all:
+			/// where they do not fit, the glyph alone, with the sentence as its
+			/// tooltip (owner, publish-draft-v001: "just noticed this 'only
+			/// you see it unti...' doesnt fit.").
+			void show_whole_or_glyph(const QString& aSentence)
+			{
+				Whole = true;
+				setToolTip(aSentence);
+				setAccessibleDescription(aSentence);
+				update();
+			}
+
+			/// \brief Whether the words are painted, not only the glyph.
+			[[nodiscard]] auto words_shown() const -> bool
+			{
+				return !Whole || QFontMetrics{ font() }.horizontalAdvance(Text) <= width() - text_left();
+			}
+
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing, true);
-				auto x = 2;
 				if (Glyph) {
-					paint_conversation_glyph(painter, QRectF{ static_cast<qreal>(x), (height() - 12) / 2.0, 12.0, 12.0 }, *Glyph, Ink);
-					x += 16;
+					paint_conversation_glyph(painter, QRectF{ 2.0, (height() - 12) / 2.0, 12.0, 12.0 }, *Glyph, Ink);
 				}
+				// Kept beside the paint, so a reader of the card can tell what
+				// the reader of the screen sees.
+				setProperty("wordsShown", words_shown());
+				if (!words_shown()) {
+					return;
+				}
+				const auto x = text_left();
 				painter.setPen(Ink);
 				painter.drawText(QRect{ x, 0, width() - x, height() }, Qt::AlignLeft | Qt::AlignVCenter,
 								 QFontMetrics{ font() }.elidedText(Text, Qt::ElideRight, std::max(0, width() - x)));
 			}
 
 		private:
+			[[nodiscard]] auto text_left() const -> int
+			{
+				return Glyph ? 18 : 2;
+			}
+
 			QString                           Text;
 			std::optional<conversation_glyph> Glyph;
 			QColor                            Ink;
+			bool                              Whole = false;
 		};
 
 		/// \brief The "New" rule between a read post and the first new one.
@@ -1013,8 +1042,10 @@ namespace bpr::qt {
 		, Writing{ aCard.Writing }
 	{
 		setObjectName(QStringLiteral("openThreadCard"));
-		setAccessibleName(Writing          ? (aCard.Line && aCard.FirstLine ? QStringLiteral("Your draft on lines %1–%2").arg(*aCard.FirstLine).arg(*aCard.Line)
-												  : aCard.Line              ? QStringLiteral("Your draft on line %1").arg(*aCard.Line)
+		// [[BPR-1212]]. A draft on the base side says so.
+		const auto base = aCard.Side == core::diff_side::left ? QStringLiteral("base ") : QString{ };
+		setAccessibleName(Writing          ? (aCard.Line && aCard.FirstLine ? QStringLiteral("Your draft on %1lines %2–%3").arg(base).arg(*aCard.FirstLine).arg(*aCard.Line)
+												  : aCard.Line              ? QStringLiteral("Your draft on %1line %2").arg(base).arg(*aCard.Line)
 																			: QStringLiteral("Your draft"))
 							  : aCard.Line ? QStringLiteral("Thread on line %1").arg(*aCard.Line)
 										   : QStringLiteral("Thread"));
@@ -1068,7 +1099,9 @@ namespace bpr::qt {
 				where->setIcon(conversation_icon(conversation_glyph::target, Style.Colours.Signal));
 				where->setProperty("conversationGlyph", QVariant{ });
 				// [[BPR-1212]] slice 1. "Lines a–b" for a draft on several.
-				where->setText(aCard.FirstLine ? QStringLiteral("Lines %1–%2").arg(*aCard.FirstLine).arg(*aCard.Line) : QStringLiteral("Line %1").arg(*aCard.Line));
+				// [[BPR-1212]]. "Base line N" for a draft on the base side.
+				const auto words = aCard.FirstLine ? QStringLiteral("Lines %1–%2").arg(*aCard.FirstLine).arg(*aCard.Line) : QStringLiteral("Line %1").arg(*aCard.Line);
+				where->setText(aCard.Side == core::diff_side::left ? QStringLiteral("Base %1").arg(words.toLower()) : words);
 			}
 		}
 		if (!aCard.Draft && aCard.UnreadCount > 0U) {
@@ -1362,9 +1395,10 @@ namespace bpr::qt {
 		aFoot.addWidget(Change);
 		auto* const actions = new QHBoxLayout{ };
 		actions->setSpacing(4);
-		auto* const privacy = new state_label{ QStringLiteral("Only you see it until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
+		auto* const privacy = new state_label{ QStringLiteral("Private until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
 		privacy->setObjectName(QStringLiteral("threadDraftPrivacy"));
 		privacy->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+		privacy->show_whole_or_glyph(QStringLiteral("Only you see this draft until you publish it."));
 		actions->addWidget(privacy, 1);
 		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Discard this draft"), conversation_glyph::trash, palette);
 		connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });

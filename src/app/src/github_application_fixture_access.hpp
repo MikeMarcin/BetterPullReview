@@ -695,6 +695,15 @@ namespace bpr::app::detail {
 		/// With no line selected, Return opened nothing and the status line
 		/// said how to select one.
 		bool NoLineExplained = false;
+		/// [[BPR-1212]] v002. The epoch host answered that the file's base is
+		/// numbered as GitHub's base, and the window and the source took it.
+		bool BaseNumberedKnown = false;
+		/// Return on a base line in a hunk opened its draft on the left in the
+		/// drawer, named "base line N".
+		bool BaseLineOpened = false;
+		/// Its Publish sent `side: LEFT` and the base line, with no range, on
+		/// the file's path.
+		bool BasePublishedLeft = false;
 
 		auto operator<=>(const label_authoring_probe_evidence&) const = default;
 	};
