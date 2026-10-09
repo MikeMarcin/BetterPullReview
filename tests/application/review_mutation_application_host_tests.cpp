@@ -525,9 +525,11 @@ namespace {
 	// permit it (another session; a one-shot issued for a publication); with
 	// the capability and a permitting grant it reaches the provider bound to
 	// the target and actor and its terminal names the thread's new state.
-	// [[BPR-0657]]. A root comment drafted from a left-side selection is
-	// unsupported, since it is anchored where it is published; a reply drafted
-	// from the same selection is admitted, since its thread anchors it.
+	// [[BPR-0657]], [[BPR-1335]] v002. A root comment drafted from a
+	// left-side selection reaches the provider bound to that base-side line
+	// (GitHub's `side: LEFT`); so does a reply drafted from the same
+	// selection, which its thread anchors. A selection on no side is refused
+	// before any effect.
 	void test_a_reply_may_be_drafted_from_a_left_side_selection()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -547,25 +549,51 @@ namespace {
 			projection,
 			&projection,
 		};
+		auto nowhere                         = publication_request();
+		nowhere.Selection.PreferredLine.Side = static_cast<core::diff_side>(255);
+		nowhere.Proposal.Anchor              = nowhere.Selection.PreferredLine;
+		static_cast<void>(host.publish(nowhere));
+		expect(effects.pending() == 0U && decisions.pending() == 1U, "a root comment on no side is refused before any effect");
+		decisions.run_next();
+		expect(!projection.Published.empty() && !projection.Published.back().Result.has_value()
+				   && projection.Published.back().Result.error() == application::review_mutation_failure::unsupported,
+			   "a root comment on no side is unsupported");
 		auto left                         = publication_request();
 		left.Selection.PreferredLine.Side = core::diff_side::left;
 		left.Proposal.Anchor              = left.Selection.PreferredLine;
 		static_cast<void>(host.publish(left));
-		expect(effects.pending() == 0U && decisions.pending() == 1U, "a left-side root comment is refused before any effect");
+		expect(effects.pending() == 1U, "a left-side root comment is admitted");
+		effects.run_next();
 		decisions.run_next();
-		expect(!projection.Published.empty() && !projection.Published.back().Result.has_value()
-				   && projection.Published.back().Result.error() == application::review_mutation_failure::unsupported,
-			   "the left-side root comment is unsupported");
+		expect(observed->Submitted.size() == 1U && !observed->Submitted.front().Proposal.ReplyToThread
+				   && observed->Submitted.front().Proposal.Anchor.Side == core::diff_side::left
+				   && observed->Submitted.front().LiveBinding.has_value()
+				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Side == core::diff_side::left
+				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Line == 12U
+				   && observed->Submitted.front().LiveBinding->Anchor.Path == "renamed/current.cpp"
+				   && projection.Published.back().Result.has_value(),
+			   "the left-side root comment reaches the provider bound to its base line, on the file's pull-request path");
+		auto ranged               = left;
+		ranged.Proposal.Draft     = core::review_draft_id{ 71U };
+		ranged.Proposal.StartLine = 9U;
+		static_cast<void>(host.publish(ranged));
+		expect(effects.pending() == 1U, "a left-side range is admitted");
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Submitted.size() == 2U && observed->Submitted.back().Proposal.StartLine == std::optional<std::uint32_t>{ 9U }
+				   && observed->Submitted.back().LiveBinding->Anchor.Semantic.Side == core::diff_side::left,
+			   "a left-side range reaches the provider with its first line");
 		auto reply                   = left;
+		reply.Proposal.Draft         = core::review_draft_id{ 72U };
 		reply.Proposal.ReplyToThread = "PRRT_fixture_1";
 		static_cast<void>(host.publish(reply));
 		expect(effects.pending() == 1U, "a reply from the same selection is admitted");
 		effects.run_next();
 		decisions.run_next();
-		expect(observed->Submitted.size() == 1U
-				   && observed->Submitted.front().Proposal.ReplyToThread == std::optional<std::string>{ "PRRT_fixture_1" }
-				   && observed->Submitted.front().LiveBinding.has_value()
-				   && observed->Submitted.front().LiveBinding->Anchor.Semantic.Side == core::diff_side::left
+		expect(observed->Submitted.size() == 3U
+				   && observed->Submitted.back().Proposal.ReplyToThread == std::optional<std::string>{ "PRRT_fixture_1" }
+				   && observed->Submitted.back().LiveBinding.has_value()
+				   && observed->Submitted.back().LiveBinding->Anchor.Semantic.Side == core::diff_side::left
 				   && projection.Published.back().Result.has_value(),
 			   "the reply reaches the provider naming its thread, bound to the left-side line it was drafted from");
 		host.shutdown();
@@ -858,7 +886,7 @@ namespace {
 			&grantedProjection,
 		};
 		auto left                         = publication_request();
-		left.Selection.PreferredLine.Side = core::diff_side::left;
+		left.Selection.PreferredLine.Side = static_cast<core::diff_side>(255);
 		left.Proposal.Anchor              = left.Selection.PreferredLine;
 		static_cast<void>(granted.publish(left));
 		auto absent = publication_request();
@@ -872,7 +900,7 @@ namespace {
 			= oid<core::git_commit_oid>(31U);
 		static_cast<void>(granted.publish(stale));
 		expect(grantedEffects.pending() == 0U && grantedProvider.Observations == 0U,
-			   "left, absent, arbitrary-path, and stale bindings perform no provider work");
+			   "no-side, absent, arbitrary-path, and stale bindings perform no provider work");
 		grantedDecisions.drain();
 		expect(grantedProjection.Published.size() == 4U
 				   && grantedProjection.Published[0].Result.error()
@@ -1064,7 +1092,7 @@ namespace {
 		};
 
 		auto invalid                         = publication_request();
-		invalid.Selection.PreferredLine.Side = core::diff_side::left;
+		invalid.Selection.PreferredLine.Side = static_cast<core::diff_side>(255);
 		invalid.Proposal.Anchor              = invalid.Selection.PreferredLine;
 		static_cast<void>(host.publish(std::move(invalid)));
 		expect(effects.pending() == 0U && observed->Observations == 0U,
@@ -1179,7 +1207,7 @@ namespace {
 				&projection,
 			};
 			auto invalid                         = publication_request();
-			invalid.Selection.PreferredLine.Side = core::diff_side::left;
+			invalid.Selection.PreferredLine.Side = static_cast<core::diff_side>(255);
 			invalid.Proposal.Anchor              = invalid.Selection.PreferredLine;
 			const auto context                   = host.publish(std::move(invalid));
 			host.cancel(context);

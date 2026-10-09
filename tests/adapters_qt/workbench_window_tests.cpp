@@ -6169,9 +6169,16 @@ namespace {
 			   "the thread's Reply selects its own thread's line and answers that thread in place, not on the page");
 		back();
 		window.set_conversation_endpoint_placement(true, true);
+		// [[BPR-1335]] v002. A base-side line GitHub's diff shows takes a new
+		// comment (`side: LEFT`); one it does not show says why.
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 25U), "an unchanged left-side line far from the change is selectable");
+		process_events();
+		showsMenu();
+		expect(!comment->isEnabled() && comment->toolTip().contains(QStringLiteral("GitHub's diff shows")), "a left-side line outside the diff is unavailable with its exact reason");
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 12U), "the changed left-side line is selectable");
 		process_events();
-		expect(!comment->isEnabled() && comment->toolTip().contains(QStringLiteral("right, current-head")), "a left-side new comment is unavailable with its exact reason");
+		showsMenu();
+		expect(comment->isEnabled() && comment->text() == QStringLiteral("Co&mment on base line 13…"), "the changed left-side line takes a new comment, named as the base side's");
 		window.conversation_panel()->adopt({ application::github_conversation_projection{
 											   .Id = "review-thread:left", .Kind = application::github_conversation_kind::review_thread, .AuthorLogin = "left-reviewer", .Path = "src/file.cpp", .Line = 13U, .DiffSide = application::github_conversation_diff_side::left, .AnchorAvailability = application::github_conversation_anchor_availability::current } },
 										   QStringLiteral("left thread"));
@@ -6278,13 +6285,13 @@ namespace {
 		auto* const code  = window.comparison_surface()->right_pane();
 		auto* const page  = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
 
-		// Negative controls: Return on a base-side line, and Return in the
-		// drawer's own notes, start nothing.
+		// Negative controls: Return on a base-side line GitHub's diff does
+		// not show, and Return in the drawer's own notes, start nothing.
 		auto* const leftCode = window.comparison_surface()->left_pane();
-		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 3U), "a base-side line is selected");
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 20U), "a base-side line far from the change is selected");
 		leftCode->setFocus(Qt::OtherFocusReason);
 		send(leftCode, Qt::Key_Return, Qt::NoModifier);
-		expect(!drawer_writing(window) && !composing(window, page), "negative control: Return on the base side opens no draft");
+		expect(!drawer_writing(window) && !composing(window, page), "negative control: Return on a base-side line outside the diff opens no draft");
 		cards->setFocus(Qt::OtherFocusReason);
 		send(cards, Qt::Key_Return, Qt::NoModifier);
 		expect(!drawer_writing(window), "negative control: Return in the notes opens a thread, never a new draft");
@@ -6406,18 +6413,18 @@ namespace {
 		expect(publishes() == 1, "Ctrl+Return publishes the draft once");
 
 		// [[BPR-1335]]. The "+" button on a head line no thread is on: it
-		// shows while the pointer is on the line's code, at the start of the
-		// code, and a click starts a comment there.
+		// shows while the pointer is in its column at the start of the
+		// line's code (v002), and a click starts a comment there.
 		expect(window.comparison_surface()->thread_markers(), "the comparison shows its threads");
 		static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, 4U));
 		process_events();
 		const auto  fifth = code->viewport()->mapFrom(window.comparison_surface(), window.comparison_surface()->line_rect(core::diff_side::right, 4U).center());
-		const auto  aim   = QPointF{ 160.0, static_cast<qreal>(fifth.y()) };
+		const auto  aim   = QPointF{ 4.0, static_cast<qreal>(fifth.y()) };
 		QMouseEvent hover{ QEvent::MouseMove, aim, code->viewport()->mapToGlobal(aim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(code->viewport(), &hover);
 		auto* const addButton = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
 		expect(addButton != nullptr && !addButton->isHidden() && window.comparison_surface()->line_add_rect() == addButton->geometry(),
-			   "the pointer on line 5's code shows its \"+\"");
+			   "the pointer in line 5's \"+\" column shows its \"+\"");
 		const auto  centre = QPointF{ addButton->rect().center() };
 		QMouseEvent press{ QEvent::MouseButtonPress, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(addButton, &press);
@@ -6427,13 +6434,51 @@ namespace {
 		expect(drawer_writing(window) && window.review_editor()->shown_draft()->Anchor.Line == 4U && writingMark(4U),
 			   "clicking the \"+\" starts a comment on line 5 in the drawer");
 		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
-		// The base side takes no new comment; the menu says why.
+		// [[BPR-1335]] v002. The base side takes a new comment on a line
+		// GitHub's diff shows, from its menu, its "+" and Return; on a line
+		// it does not show the menu says why.
 		auto* const base     = window.comparison_surface()->left_pane();
 		const auto  baseRect = window.comparison_surface()->line_rect(core::diff_side::left, 3U);
 		auto* const baseMenu = window.code_context_menu(base, base->viewport()->mapFrom(window.comparison_surface(), baseRect.center()));
-		expect(!window.add_comment_action()->isEnabled() && window.add_comment_action()->toolTip().contains(QStringLiteral("right, current-head")),
-			   "on the base side Add comment is unavailable with its reason");
+		expect(!window.add_comment_action()->isEnabled() && window.add_comment_action()->toolTip().contains(QStringLiteral("GitHub's diff shows")),
+			   "on a base line outside the diff Add comment is unavailable with its reason");
 		delete baseMenu;
+		const auto base_writing = [&window, cards](const std::uint32_t aLine) {
+			const auto& draft = window.review_editor()->shown_draft();
+			return drawer_writing(window) && draft.has_value() && draft->Anchor.Side == core::diff_side::left && draft->Anchor.Line == aLine && cards->open_card() != nullptr
+				&& cards->open_card()->accessibleName() == QStringLiteral("Your draft on base line %1").arg(aLine + 1U);
+		};
+		static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::left, 12U));
+		process_events();
+		const auto  changedRect = window.comparison_surface()->line_rect(core::diff_side::left, 12U);
+		auto* const changedMenu = window.code_context_menu(base, base->viewport()->mapFrom(window.comparison_surface(), changedRect.center()));
+		expect(window.add_comment_action()->isEnabled(), "on the removed base line 13 Add comment is available");
+		delete changedMenu;
+		window.add_comment_action()->trigger();
+		process_events();
+		expect(base_writing(12U), "Add comment on base line 13 opens its draft in the drawer, on the base side, named for the base line");
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+		static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::left, 10U));
+		process_events();
+		const auto  eleventh = base->viewport()->mapFrom(window.comparison_surface(), window.comparison_surface()->line_rect(core::diff_side::left, 10U).center());
+		const auto  baseAim  = QPointF{ 4.0, static_cast<qreal>(eleventh.y()) };
+		QMouseEvent baseHover{ QEvent::MouseMove, baseAim, base->viewport()->mapToGlobal(baseAim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(base->viewport(), &baseHover);
+		auto* const baseAdd = base->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+		expect(baseAdd != nullptr && !baseAdd->isHidden(), "the pointer in base line 11's \"+\" column shows the base pane's \"+\"");
+		const auto  baseCentre = QPointF{ baseAdd->rect().center() };
+		QMouseEvent basePress{ QEvent::MouseButtonPress, baseCentre, baseAdd->mapToGlobal(baseCentre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(baseAdd, &basePress);
+		QMouseEvent baseRelease{ QEvent::MouseButtonRelease, baseCentre, baseAdd->mapToGlobal(baseCentre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(baseAdd, &baseRelease);
+		process_events();
+		expect(base_writing(10U), "clicking the base \"+\" starts a comment on base line 11 in the drawer");
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 11U), "base line 12 is selected");
+		base->setFocus(Qt::OtherFocusReason);
+		send(base, Qt::Key_Return, Qt::NoModifier);
+		expect(base_writing(11U), "Return on base line 12 opens its draft in the drawer");
+		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
 		// [[BPR-1335]]. Line 22's thread opens from the code's context menu,
 		// with no marker pressed; line 4's menu offers no thread to open.
 		cards->close_thread();
@@ -8182,15 +8227,15 @@ namespace {
 		editor->set_revisioned_dispatch([&commands](core::revisioned_review_draft_command aCommand) { commands.push_back(std::move(aCommand)); });
 		// Each line's draft is kept, as the store keeps it; `accepted` is the
 		// shown line's.
-		auto       kept     = std::map<std::uint32_t, core::revisioned_review_draft>{ };
+		auto       kept     = std::map<std::pair<core::diff_side, std::uint32_t>, core::revisioned_review_draft>{ };
 		auto       accepted = std::optional<core::revisioned_review_draft>{ };
 		auto       nextId   = std::uint64_t{ 1U };
 		auto       admitted = true;
 		const auto admit    = [&](const std::optional<core::semantic_selection>& aSelection) {
-			if (!admitted || !aSelection || aSelection->PreferredLine.Side != core::diff_side::right) {
+			if (!admitted || !aSelection) {
 				return;
 			}
-			auto [found, fresh] = kept.try_emplace(aSelection->PreferredLine.Line);
+			auto [found, fresh] = kept.try_emplace(std::pair{ aSelection->PreferredLine.Side, aSelection->PreferredLine.Line });
 			if (fresh) {
 				found->second.Draft.Id     = core::review_draft_id{ nextId++ };
 				found->second.Draft.Anchor = aSelection->PreferredLine;
@@ -8235,7 +8280,7 @@ namespace {
 					const auto outcome = core::apply(*accepted, command);
 					expect(outcome.Refusal == core::revisioned_draft_refusal::none, "the core accepts every edit the window sends");
 					accepted                                 = outcome.Accepted;
-					kept[outcome.Accepted.Draft.Anchor.Line] = outcome.Accepted;
+					kept[std::pair{ outcome.Accepted.Draft.Anchor.Side, outcome.Accepted.Draft.Anchor.Line }] = outcome.Accepted;
 					editor->acknowledge(command, outcome.Accepted);
 					process_events();
 				}
@@ -8266,12 +8311,23 @@ namespace {
 		};
 		expect(!drawer_writing(window) && !composing(window, page), "no draft is being written at first");
 
-		// Flagged 4: a left line takes no new comment, and says so.
-		expect(surface->select_conversation_line(core::diff_side::left, 4U), "a left line is selected");
+		// [[BPR-1335]] v002, replacing Flagged 4: a left line GitHub's diff
+		// does not show takes no new comment, and says so; one it shows, here
+		// the removed line 6, opens its base-side draft.
+		expect(surface->select_conversation_line(core::diff_side::left, 14U), "a left line far from the change is selected");
 		left->setFocus(Qt::OtherFocusReason);
 		key(*left, Qt::Key_Return);
-		expect(commands.empty() && !drawer_writing(window) && message().contains(QStringLiteral("right, current-head side")),
-			   "Return on a left line opens nothing and the status line gives the reason");
+		expect(commands.empty() && !drawer_writing(window) && message().contains(QStringLiteral("GitHub's diff shows")),
+			   "Return on a left line outside the diff opens nothing and the status line gives the reason");
+		expect(surface->select_conversation_line(core::diff_side::left, 5U), "the removed left line is selected");
+		left->setFocus(Qt::OtherFocusReason);
+		key(*left, Qt::Key_Return);
+		expect(drawer_writing(window) && window.review_editor()->shown_draft().has_value() && window.review_editor()->shown_draft()->Anchor.Side == core::diff_side::left
+				   && window.review_editor()->shown_draft()->Anchor.Line == 5U && !window.review_editor()->shown_draft()->StartLine,
+			   "Return on the removed left line opens its base-side draft in the drawer");
+		key(*cards->draft_editor(), Qt::Key_Escape);
+		expect(!drawer_writing(window), "Esc on the empty base-side draft drops it");
+		window.statusBar()->clearMessage();
 
 		// Lines outside one hunk are refused before any draft takes them.
 		expect(surface->select_conversation_line(core::diff_side::right, 14U), "an unchanged right line far from the change");
@@ -8340,11 +8396,11 @@ namespace {
 		const auto codeY = [&surface, right](const std::uint32_t aLine) {
 			return static_cast<qreal>(right->viewport()->mapFrom(surface, surface->line_rect(core::diff_side::right, aLine).center()).y());
 		};
-		const auto  from = QPointF{ 160.0, codeY(3U) };
+		const auto  from = QPointF{ 4.0, codeY(3U) };
 		QMouseEvent hoverLine{ QEvent::MouseMove, from, right->viewport()->mapToGlobal(from), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(right->viewport(), &hoverLine);
 		auto* const addButton = right->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
-		expect(addButton != nullptr && !addButton->isHidden(), "the pointer on line 4's code shows its \"+\"");
+		expect(addButton != nullptr && !addButton->isHidden(), "the pointer in line 4's \"+\" column shows its \"+\"");
 		const auto  centre = QPointF{ addButton->rect().center() };
 		const auto  onto   = right->viewport()->mapToGlobal(QPointF{ 160.0, codeY(5U) });
 		QMouseEvent pressAdd{ QEvent::MouseButtonPress, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };

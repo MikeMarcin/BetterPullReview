@@ -471,7 +471,10 @@ namespace bpr::adapters::sqlite {
 					application::review_mutation_recovery_failure> override
 			{
 				using failure = application::review_mutation_recovery_failure;
+				// [[BPR-1335]] v002. The legacy table keeps no side, and reads
+				// every row back on the head side, so it takes no other.
 				if (!application::valid(aRecord)
+					|| aRecord.Anchor.Semantic.Side != core::diff_side::right
 					|| !aRecord.BaselineExactCommentIds.has_value()
 					|| aRecord.Transmission
 						!= application::review_mutation_recovery_transmission::prepared
@@ -947,7 +950,13 @@ namespace bpr::adapters::sqlite {
 			std::span<const std::uint8_t> Bytes;
 			bool                          Good = true;
 		};
-		void encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild)
+		// [[BPR-1335]] v002. Version 1 children are on the head side and keep
+		// no side; version 2 writes each child's side after its line. A record
+		// whose children are all on the head side is still written as version
+		// 1, byte for byte as before, so only a base-side one needs version 2.
+		constexpr auto PublicationRecordVersion     = std::uint64_t{ 1U };
+		constexpr auto PublicationRecordSideVersion = std::uint64_t{ 2U };
+		void           encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild, const std::uint64_t aVersion)
 		{
 			aOut.integer(aChild.has_value() ? 1U : 0U);
 			if (!aChild) {
@@ -961,6 +970,9 @@ namespace bpr::adapters::sqlite {
 			aOut.text(c.Anchor.Path);
 			aOut.digest(c.Anchor.Semantic.Comparison.bytes());
 			aOut.integer(c.Anchor.Semantic.Line);
+			if (aVersion >= PublicationRecordSideVersion) {
+				aOut.integer(static_cast<std::uint64_t>(c.Anchor.Semantic.Side));
+			}
 			aOut.oid(c.Anchor.Commit);
 			aOut.integer(static_cast<std::uint64_t>(c.Transmission));
 			aOut.integer(static_cast<std::uint64_t>(c.State));
@@ -975,7 +987,7 @@ namespace bpr::adapters::sqlite {
 				aOut.integer(static_cast<std::uint64_t>(c.Receipt->Representation));
 			}
 		}
-		auto decode_child(submission_reader& aIn) -> std::optional<application::review_mutation_recovery_record>
+		auto decode_child(submission_reader& aIn, const std::uint64_t aVersion) -> std::optional<application::review_mutation_recovery_record>
 		{
 			if (aIn.bounded(1U) == 0U) {
 				return std::nullopt;
@@ -989,7 +1001,10 @@ namespace bpr::adapters::sqlite {
 			c.Anchor.Semantic.Comparison = core::file_comparison_digest{ aIn.digest() };
 			c.Anchor.Semantic.Side       = core::diff_side::right;
 			c.Anchor.Semantic.Line       = static_cast<std::uint32_t>(aIn.bounded(4294967295U));
-			c.Anchor.Commit              = aIn.oid();
+			if (aVersion >= PublicationRecordSideVersion) {
+				c.Anchor.Semantic.Side = static_cast<core::diff_side>(aIn.bounded(static_cast<std::uint64_t>(core::diff_side::right)));
+			}
+			c.Anchor.Commit = aIn.oid();
 			c.Transmission               = static_cast<application::review_mutation_recovery_transmission>(aIn.bounded(2U));
 			c.State                      = static_cast<application::review_mutation_recovery_state>(aIn.bounded(1U));
 			const auto count             = aIn.bounded(application::maximum_review_mutation_baseline_comments);
@@ -1007,8 +1022,12 @@ namespace bpr::adapters::sqlite {
 		}
 		auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>
 		{
+			const auto base    = [](const std::optional<application::review_mutation_recovery_record>& aChild) {
+                return aChild.has_value() && aChild->Anchor.Semantic.Side != core::diff_side::right;
+			};
+			const auto version = base(aRecord.Native) || base(aRecord.Fallback) ? PublicationRecordSideVersion : PublicationRecordVersion;
 			submission_writer out;
-			out.integer(1U);
+			out.integer(version);
 			out.text(aRecord.Key);
 			out.text(aRecord.LegacyKey);
 			out.digest(aRecord.Fingerprint);
@@ -1020,14 +1039,15 @@ namespace bpr::adapters::sqlite {
 			out.integer(auth.Generation);
 			out.integer(auth.ObservedAt);
 			out.integer(auth.ExpiresAt);
-			encode_child(out, aRecord.Native);
-			encode_child(out, aRecord.Fallback);
+			encode_child(out, aRecord.Native, version);
+			encode_child(out, aRecord.Fallback, version);
 			return out.Bytes;
 		}
 		auto decode_publication(const std::span<const std::uint8_t> aBytes) -> std::optional<application::review_publication_recovery_record>
 		{
 			submission_reader in{ aBytes };
-			if (in.integer() != 1U) {
+			const auto        version = in.integer();
+			if (version != PublicationRecordVersion && version != PublicationRecordSideVersion) {
 				return std::nullopt;
 			}
 			application::review_publication_recovery_record result;
@@ -1042,8 +1062,8 @@ namespace bpr::adapters::sqlite {
 			auth.Generation     = in.integer();
 			auth.ObservedAt     = in.integer();
 			auth.ExpiresAt      = in.integer();
-			result.Native       = decode_child(in);
-			result.Fallback     = decode_child(in);
+			result.Native       = decode_child(in, version);
+			result.Fallback     = decode_child(in, version);
 			return in.done() && application::valid(result) ? std::optional{ std::move(result) } : std::nullopt;
 		}
 

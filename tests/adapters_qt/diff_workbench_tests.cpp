@@ -825,6 +825,25 @@ namespace {
 	/// like the + replacing the line number, i think github actual does it
 	/// better". With `BPR_1335_RENDER_DIR` set, each mode is rendered for the
 	/// look: the "+" on line 2, then a drag on it from line 2 to line 6.
+	/// \brief [[BPR-1335]]. One "+" dispatch: the side and the first and
+	/// last lines it covered.
+	struct line_add
+	{
+		core::diff_side Side  = core::diff_side::right;
+		std::uint32_t   First = 0U;
+		std::uint32_t   Last  = 0U;
+
+		auto operator<=>(const line_add&) const = default;
+	};
+	[[nodiscard]] auto add_of(const core::diff_side aSide, const std::uint32_t aFirst, const std::uint32_t aLast) -> line_add
+	{
+		return { .Side = aSide, .First = aFirst, .Last = aLast };
+	}
+	[[nodiscard]] auto add_of(const std::uint32_t aFirst, const std::uint32_t aLast) -> line_add
+	{
+		return { .Side = core::diff_side::right, .First = aFirst, .Last = aLast };
+	}
+
 	void test_tinted_numbers_and_the_add_button()
 	{
 		auto left  = std::string{ };
@@ -880,13 +899,10 @@ namespace {
 			workbench.set_line_marks(core::diff_side::right, rightMarks);
 			workbench.set_line_marks(core::diff_side::left, leftMarks);
 			auto pressed = std::vector<std::pair<core::diff_side, std::uint32_t>>{ };
-			auto added   = std::vector<std::pair<std::uint32_t, std::uint32_t>>{ };
+			auto added   = std::vector<line_add>{ };
 			workbench.set_line_mark_dispatch([&pressed](const core::diff_side aSide, const std::uint32_t aLine) { pressed.emplace_back(aSide, aLine); });
-			// The dispatch is told the first and last lines.
-			workbench.set_line_add_dispatch([&added](const auto... aLines) {
-				const auto lines = std::array<std::uint32_t, sizeof...(aLines)>{ aLines... };
-				added.emplace_back(lines.front(), lines.back());
-			});
+			// The dispatch is told the side and the first and last lines.
+			workbench.set_line_add_dispatch([&added](const auto... aArguments) { added.push_back(add_of(aArguments...)); });
 			workbench.set_thread_markers(true);
 			settle_geometry(workbench);
 			workbench.scroll_controller()->home();
@@ -905,6 +921,10 @@ namespace {
 			const auto code_point = [&](const std::uint32_t aLine, const int aX) {
 				return QPoint{ aX, code->viewport()->mapFrom(&workbench, workbench.line_rect(core::diff_side::right, aLine).center()).y() };
 			};
+			// [[BPR-1335]] v002. The "+" column: the strip the button is
+			// drawn in, across the boundary of the number and the code. Four
+			// pixels into the code is inside it; the gutter's last pixel is.
+			const auto column_point = [&](const std::uint32_t aLine) { return code_point(aLine, 4); };
 			const auto pixel = [](const QImage& aImage, const QPoint aLogical) {
 				const auto ratio = aImage.devicePixelRatio();
 				return QColor{ aImage.pixel(std::min(aImage.width() - 1, static_cast<int>(aLogical.x() * ratio)),
@@ -964,17 +984,25 @@ namespace {
 			press_gutter(gutter, QPoint{ 2, gutter_y(core::diff_side::right, 1U) });
 			expect(pressed.empty() && added.empty(), name + ": a number without a thread opens nothing and adds nothing");
 
-			// The pointer on line 2's code shows its "+": a blue button at the
-			// start of the code, over the boundary with the number.
+			// The pointer in line 2's "+" column shows its "+": a blue button
+			// at the start of the code, over the boundary with the number.
+			// [[BPR-1335]] v002, the owner on v001: "i find it somewhat
+			// distracting always being drawn. Maybe we only draw it when the
+			// cursor is over the column where it would go?" Elsewhere on the
+			// line's code or on its digits nothing is drawn.
 			auto* const button = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
 			expect(button != nullptr && button->isHidden() && workbench.line_add_rect().isEmpty(), name + ": the \"+\" button waits, hidden");
 			move(code->viewport(), code_point(1U, 160));
+			expect(button->isHidden() && workbench.line_add_rect().isEmpty(), name + ": the pointer on line 2's code, away from the \"+\" column, draws no \"+\"");
+			move(gutter, QPoint{ 2, gutter_y(core::diff_side::right, 1U) });
+			expect(button->isHidden(), name + ": the pointer on line 2's digits draws no \"+\"");
+			move(code->viewport(), column_point(1U));
 			const auto boundary = code->viewport()->geometry().left();
 			const auto place    = button->geometry();
 			const auto row      = workbench.line_rect(core::diff_side::right, 1U);
 			std::cout << "bpr-1335 add " << name << " boundary=" << boundary << " button=" << place.x() << ',' << place.y() << ' ' << place.width() << 'x' << place.height()
 					  << " row=" << row.height() << '\n';
-			expect(!button->isHidden() && workbench.line_add_rect() == place, name + ": the pointer on line 2's code shows its \"+\"");
+			expect(!button->isHidden() && workbench.line_add_rect() == place, name + ": the pointer in line 2's \"+\" column shows its \"+\"");
 			expect(place.left() >= boundary - ExpectedGutterPadding && place.left() < boundary && place.right() > boundary + place.width() / 2
 					   && place.width() == place.height() && place.width() <= 20 && place.width() >= std::min(12, row.height()),
 				   name + ": the button straddles the start of the code, its left edge in the number's padding, so it covers no digit");
@@ -989,20 +1017,46 @@ namespace {
 			const auto numberBand = QRect{ 0, gutter_y(core::diff_side::right, 1U) - row_height / 2, gutter->width(), row_height };
 			expect(band(hovered, numberBand) == band(still, numberBand), name + ": line 2's number is painted exactly as before; the \"+\" never replaces it");
 			const auto drawn = code->grab().toImage();
+			// The cross is sampled at the button's true centre, QRectF's, and
+			// as the brightest device pixel within one of it: QRect::center()
+			// of an even-sided button is half a pixel short, which at 1.25x
+			// and 2x lands on the cross's anti-aliased edge (Linux station,
+			// BPR-1335 v002).
+			const auto brightest = [](const QImage& aImage, const QPointF aLogical) {
+				const auto ratio  = aImage.devicePixelRatio();
+				const auto centre = QPoint{ static_cast<int>(std::floor(aLogical.x() * ratio)), static_cast<int>(std::floor(aLogical.y() * ratio)) };
+				auto       best   = QColor{ };
+				for (auto dy = -1; dy <= 1; ++dy) {
+					for (auto dx = -1; dx <= 1; ++dx) {
+						const auto x = std::clamp(centre.x() + dx, 0, aImage.width() - 1);
+						const auto y = std::clamp(centre.y() + dy, 0, aImage.height() - 1);
+						const auto c = QColor{ aImage.pixel(x, y) };
+						if (!best.isValid() || c.red() + c.green() + c.blue() > best.red() + best.green() + best.blue()) {
+							best = c;
+						}
+					}
+				}
+				return best;
+			};
 			const auto face  = pixel(drawn, QPoint{ place.left() + place.width() / 6, place.center().y() });
-			const auto cross = pixel(drawn, place.center());
+			const auto cross = brightest(drawn, QRectF{ place }.center());
 			std::cout << "bpr-1335 add " << name << " face=" << face.name().toStdString() << " cross=" << cross.name().toStdString() << '\n';
 			expect(face.blue() > face.red() + 80 && cross.red() > 200 && cross.green() > 200 && cross.blue() > 200, name + ": the button is blue with a white cross");
 
-			// A line with a thread offers no "+"; the number's gutter offers it
-			// as the code does; leaving the code hides it.
-			move(code->viewport(), code_point(3U, 160));
+			// A line with a thread offers no "+"; the column's part in the
+			// number's padding offers it as its part over the code does;
+			// moving on into the code, or leaving, hides it.
+			move(code->viewport(), column_point(3U));
 			expect(button->isHidden(), name + ": line 4, which has a thread, offers no \"+\"");
-			move(gutter, QPoint{ 2, gutter_y(core::diff_side::right, 1U) });
-			expect(!button->isHidden() && button->geometry() == place, name + ": the pointer on line 2's number shows the same \"+\"");
+			move(gutter, QPoint{ gutter->width() - 1, gutter_y(core::diff_side::right, 1U) });
+			expect(!button->isHidden() && button->geometry() == place, name + ": the column's part in line 2's number padding shows the same \"+\"");
+			move(code->viewport(), code_point(1U, place.right() - boundary + 3));
+			expect(button->isHidden(), name + ": just past the button, on the code, the \"+\" goes");
+			move(code->viewport(), column_point(1U));
+			expect(!button->isHidden(), name + ": back in the column it comes back");
 			QEvent leave{ QEvent::Leave };
-			QApplication::sendEvent(gutter, &leave);
-			expect(button->isHidden(), name + ": leaving the gutter hides it");
+			QApplication::sendEvent(code->viewport(), &leave);
+			expect(button->isHidden(), name + ": leaving the code hides it");
 
 			if (!directory.isEmpty()) {
 				const auto render = [&](const QString& aState) {
@@ -1027,6 +1081,8 @@ namespace {
 					expect(sheet.save(QStringLiteral("%1/%2-%3.png").arg(directory, QString::fromStdString(name), aState), "PNG"), "the render is written");
 				};
 				move(code->viewport(), code_point(1U, 160));
+				render(QStringLiteral("code"));
+				move(code->viewport(), column_point(1U));
 				render(QStringLiteral("hover"));
 				mouse(button, QEvent::MouseButtonPress, button->rect().center(), button->mapToGlobal(button->rect().center()));
 				move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(code_point(5U, 160))), Qt::LeftButton);
@@ -1038,30 +1094,63 @@ namespace {
 			// A click comments on its line, and the press never reaches the
 			// code: no text selection, no change of the selected line.
 			const auto before = workbench.selection();
-			move(code->viewport(), code_point(1U, 160));
+			move(code->viewport(), column_point(1U));
 			const auto centre = button->rect().center();
 			mouse(button, QEvent::MouseButtonPress, centre, button->mapToGlobal(centre));
 			mouse(button, QEvent::MouseButtonRelease, centre, button->mapToGlobal(centre));
-			expect(added.size() == 1U && added.back() == std::pair{ 1U, 1U }, name + ": clicking the \"+\" adds a comment on line 2");
+			expect(added.size() == 1U && added.back() == add_of(core::diff_side::right, 1U, 1U), name + ": clicking the \"+\" adds a comment on line 2");
 			expect(!code->textCursor().hasSelection() && workbench.selection() == before, name + ": the click selects no text and moves no selection");
 
 			// A drag on the "+" covers the lines from where it started to the
 			// one under the pointer, washed while it lasts, in either direction.
 			const auto washAt   = code_point(3U, code->viewport()->width() - 12);
 			const auto unwashed = pixel(code->viewport()->grab().toImage(), washAt);
-			move(code->viewport(), code_point(1U, 160));
+			move(code->viewport(), column_point(1U));
 			mouse(button, QEvent::MouseButtonPress, centre, button->mapToGlobal(centre));
 			move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(code_point(5U, 160))), Qt::LeftButton);
 			const auto washed = pixel(code->viewport()->grab().toImage(), washAt);
+			expect(!button->isHidden(), name + ": a drag keeps its \"+\" while the pointer is out on the code");
 			mouse(button, QEvent::MouseButtonRelease, centre, code->viewport()->mapToGlobal(code_point(5U, 160)));
 			expect(washed != unwashed, name + ": the lines a drag covers are washed while it lasts");
-			expect(added.size() == 2U && added.back() == std::pair{ 1U, 5U }, name + ": dragging the \"+\" from line 2 to line 6 adds a comment on lines 2 to 6");
+			expect(added.size() == 2U && added.back() == add_of(core::diff_side::right, 1U, 5U), name + ": dragging the \"+\" from line 2 to line 6 adds a comment on lines 2 to 6");
 			expect(pixel(code->viewport()->grab().toImage(), washAt) == unwashed, name + ": the wash goes when the drag ends");
-			move(code->viewport(), code_point(5U, 160));
+			move(code->viewport(), column_point(5U));
 			mouse(button, QEvent::MouseButtonPress, centre, button->mapToGlobal(centre));
 			move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(code_point(2U, 160))), Qt::LeftButton);
 			mouse(button, QEvent::MouseButtonRelease, centre, code->viewport()->mapToGlobal(code_point(2U, 160)));
-			expect(added.size() == 3U && added.back() == std::pair{ 2U, 5U }, name + ": dragging it upward from line 6 to line 3 covers lines 3 to 6, in order");
+			expect(added.size() == 3U && added.back() == add_of(core::diff_side::right, 2U, 5U), name + ": dragging it upward from line 6 to line 3 covers lines 3 to 6, in order");
+
+			// [[BPR-1335]] v002. The base pane has its own "+", in its own
+			// column, on the lines GitHub's diff shows on the base side:
+			// line 12 changed, so base lines 9 to 15 are its hunk. The owner:
+			// "why can't I add a comment from the left pane?"
+			auto* const baseButton = base->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+			const auto  base_point = [&](const std::uint32_t aLine, const int aX) {
+				return QPoint{ aX, base->viewport()->mapFrom(&workbench, workbench.line_rect(core::diff_side::left, aLine).center()).y() };
+			};
+			static_cast<void>(workbench.reveal_conversation_line(core::diff_side::left, 9U));
+			process_events();
+			move(base->viewport(), base_point(9U, 160));
+			expect(baseButton != nullptr && baseButton->isHidden(), name + ": the pointer on base line 10's code, away from its column, draws no \"+\"");
+			move(base->viewport(), base_point(9U, 4));
+			const auto baseBoundary = base->viewport()->geometry().left();
+			expect(!baseButton->isHidden() && baseButton->geometry().left() < baseBoundary && baseButton->geometry().right() > baseBoundary && button->isHidden(),
+				   name + ": base line 10, in the change's hunk, shows the base pane's \"+\" across its boundary, and the head pane's stays hidden");
+			const auto baseCentre = baseButton->rect().center();
+			mouse(baseButton, QEvent::MouseButtonPress, baseCentre, baseButton->mapToGlobal(baseCentre));
+			mouse(baseButton, QEvent::MouseButtonRelease, baseCentre, baseButton->mapToGlobal(baseCentre));
+			expect(added.size() == 4U && added.back() == add_of(core::diff_side::left, 9U, 9U), name + ": clicking it adds a comment on base line 10");
+			move(base->viewport(), base_point(9U, 4));
+			mouse(baseButton, QEvent::MouseButtonPress, baseCentre, baseButton->mapToGlobal(baseCentre));
+			move(baseButton, baseButton->mapFromGlobal(base->viewport()->mapToGlobal(base_point(12U, 160))), Qt::LeftButton);
+			mouse(baseButton, QEvent::MouseButtonRelease, baseCentre, base->viewport()->mapToGlobal(base_point(12U, 160)));
+			expect(added.size() == 5U && added.back() == add_of(core::diff_side::left, 9U, 12U), name + ": dragging it from base line 10 to 13 covers them");
+			static_cast<void>(workbench.reveal_conversation_line(core::diff_side::left, 1U));
+			process_events();
+			move(base->viewport(), base_point(1U, 4));
+			expect(baseButton->isHidden(), name + ": base line 2, which GitHub's diff does not show, offers no \"+\"");
+			workbench.scroll_controller()->home();
+			process_events();
 
 			// A press and a drag in the code are the text's: they select text,
 			// and the "+" stays out of the way while they last.
@@ -1072,7 +1161,7 @@ namespace {
 			move(code->viewport(), to, Qt::LeftButton);
 			expect(button->isHidden(), name + ": the \"+\" hides while text is being selected");
 			mouse(code->viewport(), QEvent::MouseButtonRelease, to, code->viewport()->mapToGlobal(to));
-			expect(code->textCursor().hasSelection() && added.size() == 3U, name + ": a drag in the code selects text and adds no comment");
+			expect(code->textCursor().hasSelection() && added.size() == 5U, name + ": a drag in the code selects text and adds no comment");
 
 			// The selected line says it has a thread.
 			workbench.set_line_details_visible(true);

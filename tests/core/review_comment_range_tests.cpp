@@ -183,10 +183,26 @@ namespace {
 			   "one end outside every hunk is refused as crossing a hunk");
 		expect(decide_comment_range(alignment, at(result, diff_side::right, 18U), at(result, diff_side::right, 22U)).Refusal == comment_range_refusal::outside_hunk,
 			   "a range in unchanged lines between hunks is refused as outside a hunk");
-		expect(decide_comment_range(alignment, at(result, diff_side::left, 9U), at(result, diff_side::left, 9U)).Refusal == comment_range_refusal::base_side,
-			   "one left line is refused: a new comment is not on the base side (Flagged 4)");
-		expect(decide_comment_range(alignment, at(result, diff_side::left, 8U), at(result, diff_side::left, 11U)).Refusal == comment_range_refusal::base_side,
-			   "a left range is refused for the base side");
+		// [[BPR-1335]] v002. The owner, on v001: "why can't I add a comment
+		// from the left pane? ... is there a technical reason I can't?"
+		// GitHub takes a new comment on the base side (`side: LEFT`) on a line
+		// its diff shows: a removed line or the context around a change.
+		const auto base = decide_comment_range(alignment, at(result, diff_side::left, 9U), at(result, diff_side::left, 9U));
+		expect(base.Refusal == comment_range_refusal::none && base.Anchor == at(result, diff_side::left, 9U) && !base.StartLine,
+			   "one left line in a hunk is its own anchor on the base side");
+		const auto removed = decide_comment_range(alignment, at(result, diff_side::left, 10U), at(result, diff_side::left, 10U));
+		expect(removed.Refusal == comment_range_refusal::none && removed.Anchor.Side == diff_side::left && removed.Anchor.Line == 10U,
+			   "the removed line itself takes a base-side comment");
+		const auto baseRange = decide_comment_range(alignment, at(result, diff_side::left, 11U), at(result, diff_side::left, 8U));
+		expect(baseRange.Refusal == comment_range_refusal::none && baseRange.Anchor == at(result, diff_side::left, 11U) && baseRange.StartLine == 8U,
+			   "a left range inside one hunk anchors to its last line and starts at its first, in either order");
+		expect(decide_comment_range(alignment, at(result, diff_side::left, 22U), at(result, diff_side::left, 22U)).Refusal == comment_range_refusal::base_outside_hunk,
+			   "one left line outside every hunk is refused: GitHub's diff does not show it, and the base side has no file-comment fallback");
+		expect(decide_comment_range(alignment, at(result, diff_side::left, 18U), at(result, diff_side::left, 22U)).Refusal == comment_range_refusal::outside_hunk
+				   && decide_comment_range(alignment, at(result, diff_side::left, 12U), at(result, diff_side::left, 28U)).Refusal == comment_range_refusal::crosses_hunk,
+			   "a left range outside a hunk or across two is refused as a right one is");
+		expect(decide_comment_range(alignment, at(result, diff_side::left, 40U), at(result, diff_side::left, 40U)).Refusal == comment_range_refusal::outside_document,
+			   "a left line past the base document is refused");
 		expect(decide_comment_range(alignment, at(result, diff_side::left, 9U), at(result, diff_side::right, 10U)).Refusal == comment_range_refusal::mixed_side,
 			   "a range across sides is refused");
 		auto foreign       = at(result, diff_side::right, 10U);
@@ -198,7 +214,7 @@ namespace {
 				   && decide_comment_range(alignment, at(result, diff_side::right, 40U), at(result, diff_side::right, 40U)).Refusal == comment_range_refusal::outside_document,
 			   "a line past the document is refused");
 
-		for (const auto refusal : { comment_range_refusal::none, comment_range_refusal::mixed_comparison, comment_range_refusal::mixed_side, comment_range_refusal::base_side,
+		for (const auto refusal : { comment_range_refusal::none, comment_range_refusal::mixed_comparison, comment_range_refusal::mixed_side, comment_range_refusal::base_outside_hunk,
 									comment_range_refusal::outside_document, comment_range_refusal::outside_hunk, comment_range_refusal::crosses_hunk }) {
 			expect(!name(refusal).empty(), "every refusal names itself");
 		}
@@ -252,6 +268,16 @@ namespace {
 		left.Draft.Anchor.Side   = diff_side::left;
 		left.Draft.ReplyToThread = "PRRT_left";
 		expect(apply(left, range_command(left, 8U, left.Draft.Body)).Policy == review_draft_rejection::invalid_range, "a reply, here on the left, takes no range");
+		// [[BPR-1335]] v002. A new comment on the base side takes a range as
+		// one on the head side does: GitHub's start_side and side are LEFT.
+		auto base              = draft;
+		base.Draft.Anchor.Side = diff_side::left;
+		const auto baseRanged  = apply(base, range_command(base, 8U, base.Draft.Body));
+		expect(baseRanged.Refusal == revisioned_draft_refusal::none && baseRanged.Accepted.Draft.StartLine == 8U && valid_comment_range(baseRanged.Accepted.Draft),
+			   "a new base-side comment takes a range");
+		auto unknownSide              = baseRanged.Accepted.Draft;
+		unknownSide.Anchor.Side       = static_cast<diff_side>(255);
+		expect(!valid_comment_range(unknownSide), "a range on an unknown side is invalid");
 		auto reply                = draft;
 		reply.Draft.ReplyToThread = "PRRT_right";
 		expect(apply(reply, range_command(reply, 8U, reply.Draft.Body)).Policy == review_draft_rejection::invalid_range, "a reply on the right takes no range");

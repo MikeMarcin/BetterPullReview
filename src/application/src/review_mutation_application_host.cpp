@@ -422,18 +422,19 @@ namespace bpr::application {
 			const auto& selected    = aRequest.Selection;
 			const auto& key         = publication.Key;
 			const auto& comparison  = publication.Request.Diff.Comparison;
-			// [[BPR-0657]]. A new root comment is anchored where it is
-			// published, so only the right side can carry one; a reply is
-			// anchored by the thread it answers, and the selection it was
-			// drafted from may be on either side.
+			// [[BPR-0657]], [[BPR-1335]] v002. A new root comment is anchored
+			// where it is published, on either side: GitHub's `side` names it,
+			// and a base-side comment is `side: LEFT` on the base line. A reply
+			// is anchored by the thread it answers. A selection on no known
+			// side carries neither.
 			if (!core::supported_comment_target(selected.PreferredLine.Side, aRequest.Proposal.ReplyToThread.has_value())) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
-			// [[BPR-1212]]. A range is a new comment on the right whose first
-			// line precedes its anchor, the last line; whether both are in one
-			// hunk was decided against the diff before the draft took it.
+			// [[BPR-1212]]. A range is a new comment whose first line precedes
+			// its anchor, the last line, on the anchor's side; whether both are
+			// in one hunk was decided against the diff before the draft took it.
 			if (aRequest.Proposal.StartLine
-				&& (aRequest.Proposal.ReplyToThread || aRequest.Proposal.Anchor.Side != core::diff_side::right
+				&& (aRequest.Proposal.ReplyToThread || !core::supported_comment_target(aRequest.Proposal.Anchor.Side, false)
 					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line)) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}

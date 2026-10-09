@@ -79,7 +79,6 @@ namespace bpr::application {
 		return lowercase_hexadecimal(aRecord.IdempotencyKey)
 			&& !aRecord.Body.empty() && aRecord.Body.size() <= 64U * 1024U
 			&& valid(aRecord.Anchor)
-			&& aRecord.Anchor.Semantic.Side == core::diff_side::right
 			&& aRecord.Anchor.Path.size()
 			<= maximum_review_mutation_recovery_path_bytes
 			&& receiptMatchesState && baselineValid && transmissionMatchesBaseline;

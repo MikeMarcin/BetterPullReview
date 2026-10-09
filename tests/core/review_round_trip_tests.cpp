@@ -409,9 +409,11 @@ namespace {
 		expect(core::supported_comment_target(core::diff_side::right, false)
 				   && core::supported_comment_target(core::diff_side::right, true),
 			   "right-side lines admit new comments and replies");
-		expect(!core::supported_comment_target(core::diff_side::left, false)
+		// [[BPR-1335]] v002. GitHub takes `side: LEFT` for a new comment on
+		// the base side; which base lines it takes is decide_comment_range's.
+		expect(core::supported_comment_target(core::diff_side::left, false)
 				   && core::supported_comment_target(core::diff_side::left, true),
-			   "left-side lines admit existing-thread replies only");
+			   "left-side lines admit new comments and replies");
 		expect(!core::supported_comment_target(static_cast<core::diff_side>(255), false)
 				   && !core::supported_comment_target(static_cast<core::diff_side>(255), true),
 			   "an unknown side cannot admit a comment or reply");

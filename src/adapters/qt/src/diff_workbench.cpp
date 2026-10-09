@@ -7,6 +7,8 @@
 
 #include "line_details_splitter.hpp"
 
+#include "bpr/core/review_comment_range.hpp"
+
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
@@ -610,8 +612,8 @@ namespace bpr::qt {
 				MarkDispatch = std::move(aDispatch);
 			}
 
-			/// \brief [[BPR-1212]], [[BPR-1335]]. The "+" button on a head line
-			/// without a thread, shown while the pointer is on the line; none
+			/// \brief [[BPR-1212]], [[BPR-1335]]. The "+" button on a line
+			/// without a thread, shown while the pointer is in its column; none
 			/// without a dispatch. It is told the first and last lines.
 			void set_add_dispatch(std::function<void(std::uint32_t, std::uint32_t)> aDispatch)
 			{
@@ -620,12 +622,23 @@ namespace bpr::qt {
 				set_add_hover(std::nullopt);
 			}
 
+			/// \brief [[BPR-1335]] v002. The lines the "+" is offered on, as
+			/// half-open spans in line order, or every line. The base pane's are
+			/// the hunks of GitHub's diff on the base side, the only base lines
+			/// GitHub takes a comment on; the head pane offers every line.
+			void set_add_spans(std::optional<std::vector<core::line_span>> aSpans)
+			{
+				AddSpans = std::move(aSpans);
+				set_add_hover(std::nullopt);
+			}
+
 			/// \brief Shows the "+" button on a line, or hides it. A drag in
 			/// progress keeps its button where it started.
 			void set_add_hover(std::optional<std::uint32_t> aLine);
 
 			/// \brief The line a viewport y offers the "+" on: a line of a split
-			/// pane with no thread on it, while the pointer is on its row.
+			/// pane the "+" is offered on, with no thread on it, while the
+			/// pointer is on its row.
 			[[nodiscard]] auto add_line_at(const int aViewportY) const -> std::optional<std::uint32_t>
 			{
 				if (!AddDispatch || !markers_shown() || UnifiedRows != nullptr) {
@@ -635,8 +648,47 @@ namespace bpr::qt {
 				if (!line.has_value() || mark_on(*line) != nullptr) {
 					return std::nullopt;
 				}
+				if (AddSpans.has_value() && std::ranges::none_of(*AddSpans, [&line](const core::line_span& aSpan) { return *line >= aSpan.Begin && *line < aSpan.End; })) {
+					return std::nullopt;
+				}
 				const auto row = line_row_rect(*line);
 				if (aViewportY < row.top() || aViewportY > row.bottom()) {
+					return std::nullopt;
+				}
+				return line;
+			}
+
+			/// \brief [[BPR-1335]] v002. Where a line's "+" is drawn, in the
+			/// pane's coordinates: at the start of its code, across the
+			/// boundary with its number. Empty while the line is not laid out.
+			[[nodiscard]] auto add_button_rect(const std::uint32_t aLine) const -> QRect
+			{
+				const auto row = line_row_rect(aLine);
+				if (row.isEmpty()) {
+					return { };
+				}
+				// GitHub's place. The left edge stays in the gutter's padding,
+				// two pixels into it, so a pixel of padding still parts it from
+				// the digit.
+				const auto side = std::clamp(row.height(), AddButtonMinSide, AddButtonSide);
+				const auto code = viewport()->geometry().topLeft();
+				return QRect{ code.x() - (GutterPadding - 2), code.y() + row.top() + (row.height() - side) / 2, side, side };
+			}
+
+			/// \brief [[BPR-1335]] v002. The line whose "+" a point of the pane
+			/// is over: the line's own "+" column, the strip across the number
+			/// and code boundary the button is drawn in, on a line it is
+			/// offered on. The owner, on v001: "i find it somewhat distracting
+			/// always being drawn. Maybe we only draw it when the cursor is over
+			/// the column where it would go?"
+			[[nodiscard]] auto add_line_under(const QPoint aPanePoint) const -> std::optional<std::uint32_t>
+			{
+				const auto line = add_line_at(aPanePoint.y() - viewport()->geometry().top());
+				if (!line.has_value()) {
+					return std::nullopt;
+				}
+				const auto place = add_button_rect(*line);
+				if (aPanePoint.x() < place.left() || aPanePoint.x() > place.right()) {
 					return std::nullopt;
 				}
 				return line;
@@ -991,6 +1043,7 @@ namespace bpr::qt {
 			std::vector<diff_line_mark>                       Marks;
 			bool                                              MarkerColumn = false;
 			std::function<void(std::uint32_t, std::uint32_t)> AddDispatch;
+			std::optional<std::vector<core::line_span>>       AddSpans;
 			std::optional<std::uint32_t>                      AddHover;
 			/// [[BPR-1335]]. A drag on the "+": the line it started on and the
 			/// line under the pointer.
@@ -1054,12 +1107,12 @@ namespace bpr::qt {
 				}
 				QWidget::mousePressEvent(aEvent);
 			}
-			/// [[BPR-1335]]. The pointer on a head line's number shows the line's
-			/// "+" at the start of its code, as on the code itself.
+			/// [[BPR-1335]]. The pointer in the "+" column's part in the number's
+			/// padding shows the line's "+", as its part over the code does.
 			void mouseMoveEvent(QMouseEvent* const aEvent) override
 			{
 				const auto point = aEvent->position().toPoint();
-				Pane->set_add_hover(aEvent->buttons() == Qt::NoButton ? Pane->add_line_at(point.y() - Pane->gutter_header()) : std::nullopt);
+				Pane->set_add_hover(aEvent->buttons() == Qt::NoButton ? Pane->add_line_under(mapToParent(point)) : std::nullopt);
 				setCursor(Pane->mark_at(point) != nullptr ? Qt::PointingHandCursor : Qt::ArrowCursor);
 				QWidget::mouseMoveEvent(aEvent);
 			}
@@ -1087,8 +1140,8 @@ namespace bpr::qt {
 			source_pane* Pane = nullptr;
 		};
 
-		/// \brief [[BPR-1335]]. The head pane's "+": GitHub's blue button at
-		/// the start of the line's code.
+		/// \brief [[BPR-1335]]. A pane's "+": GitHub's blue button at the start
+		/// of the line's code. Each split pane has its own ([[BPR-1335]] v002).
 		///
 		/// \details The owner, rejecting a "+" that took the line number's
 		/// place (session 3c9017b5): "I like option 1 but I don't like the +
@@ -1223,12 +1276,7 @@ namespace bpr::qt {
 				return;
 			}
 			AddHover = line;
-			// GitHub's place: at the start of the line's code, over the boundary
-			// with its number. The left edge stays in the gutter's padding, two
-			// pixels into it, so a pixel of padding still parts it from the digit.
-			const auto side = std::clamp(row.height(), AddButtonMinSide, AddButtonSide);
-			const auto code = viewport()->geometry().topLeft();
-			AddButton->setGeometry(QRect{ code.x() - (GutterPadding - 2), code.y() + row.top() + (row.height() - side) / 2, side, side });
+			AddButton->setGeometry(add_button_rect(*line));
 			AddButton->set_line(*line);
 			AddButton->set_colour(NewThreadMarkColor);
 			AddButton->show();
@@ -1246,7 +1294,7 @@ namespace bpr::qt {
 				return;
 			}
 			// Leaving the code or its number for the button keeps it; the next
-			// move over the code or the gutter places it again.
+			// move in the column over the code or the gutter places it again.
 			if (!AddButton->isHidden() && AddButton->rect().contains(AddButton->mapFromGlobal(QCursor::pos()))) {
 				return;
 			}
@@ -1258,7 +1306,7 @@ namespace bpr::qt {
 			switch (aEvent->type()) {
 			case QEvent::MouseMove: {
 				const auto* const move = static_cast<QMouseEvent*>(aEvent);
-				set_add_hover(move->buttons() == Qt::NoButton ? add_line_at(qRound(move->position().y())) : std::nullopt);
+				set_add_hover(move->buttons() == Qt::NoButton ? add_line_under(viewport()->mapToParent(move->position().toPoint())) : std::nullopt);
 				break;
 			}
 			case QEvent::MouseButtonPress:
@@ -1297,8 +1345,8 @@ namespace bpr::qt {
 		{
 			Gutter    = new gutter_area{ this };
 			AddButton = new add_button{ this };
-			// [[BPR-1335]]. The pointer on a line's code, not only on its number,
-			// shows the line's "+".
+			// [[BPR-1335]]. The pointer in the "+" column over the code, not
+			// only over the number's padding, shows the line's "+".
 			viewport()->setMouseTracking(true);
 			// The width follows the digit count, so it changes when a document is
 			// replaced and not while scrolling one.
@@ -2175,6 +2223,10 @@ namespace bpr::qt {
 		HeldLine.reset();
 		CurrentResult = aPublication.Result;
 		SemanticIndex = aPublication.Index;
+		// [[BPR-1335]] v002. The base pane offers its "+" on the base lines
+		// GitHub's diff shows; the head pane on every line.
+		pane(Left)->set_add_spans(core::github_review_hunks(CurrentResult->Alignment, core::diff_side::left));
+		pane(Right)->set_add_spans(std::nullopt);
 		// Built once here rather than searched per segment per repaint. The
 		// move table is keyed by segment identity and is unordered with
 		// respect to the segment list, so the alternative is a linear search
@@ -2281,6 +2333,7 @@ namespace bpr::qt {
 		++Statistics.Invalidations;
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
+		pane(Left)->set_add_spans(std::vector<core::line_span>{ });
 		set_idle(false);
 		clear_projection(QStringLiteral("Comparison invalidated"));
 		if (!hadSelection) {
@@ -2467,15 +2520,18 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::set_line_add_dispatch(std::function<void(std::uint32_t, std::uint32_t)> aDispatch)
+	void diff_workbench::set_line_add_dispatch(std::function<void(core::diff_side, std::uint32_t, std::uint32_t)> aDispatch)
 	{
-		// New comments go on the head side only (core::supported_comment_target).
-		pane(Right)->set_add_dispatch(std::move(aDispatch));
+		// [[BPR-1335]] v002. Each split pane has its "+", telling its side.
+		const auto shared = std::make_shared<std::function<void(core::diff_side, std::uint32_t, std::uint32_t)>>(std::move(aDispatch));
+		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+			pane(side == core::diff_side::left ? Left : Right)->set_add_dispatch(!*shared ? std::function<void(std::uint32_t, std::uint32_t)>{ } : [shared, side](const std::uint32_t aFirst, const std::uint32_t aLast) { (*shared)(side, aFirst, aLast); });
+		}
 	}
 
-	auto diff_workbench::line_add_rect() const -> QRect
+	auto diff_workbench::line_add_rect(const core::diff_side aSide) const -> QRect
 	{
-		return pane(Right)->add_rect();
+		return pane(aSide == core::diff_side::left ? Left : Right)->add_rect();
 	}
 
 	void diff_workbench::set_thread_tick_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch)

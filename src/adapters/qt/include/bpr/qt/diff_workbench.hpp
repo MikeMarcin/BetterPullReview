@@ -320,8 +320,8 @@ namespace bpr::qt {
 		void               set_line_marks(core::diff_side aSide, std::vector<diff_line_mark> aMarks);
 		[[nodiscard]] auto line_marks(core::diff_side aSide) const -> const std::vector<diff_line_mark>&;
 		/// \brief [[BPR-1290]], [[BPR-1335]]. Shows each pane's threads in its
-		/// gutter, the code's scroll bar a tick per thread, and the head pane
-		/// its "+" button. A thread's line number keeps its place and its cell
+		/// gutter, the code's scroll bar a tick per thread, and each split
+		/// pane its "+" button. A thread's line number keeps its place and its cell
 		/// is tinted; the gutter is its numbers only. Off, a mark is the 4 px
 		/// bar at the code's edge.
 		void               set_thread_markers(bool aEnabled);
@@ -331,14 +331,15 @@ namespace bpr::qt {
 		/// \brief Told when a thread's tinted line number is pressed, with its
 		/// side and zero-based source line.
 		void set_line_mark_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
-		/// \brief [[BPR-1212]], [[BPR-1335]]. Told when the head pane's "+"
-		/// button is clicked, or dragged across lines, with the first and last
-		/// zero-based lines it covered, in order: Add comment.
-		void set_line_add_dispatch(std::function<void(std::uint32_t aFirst, std::uint32_t aLast)> aDispatch);
-		/// \brief [[BPR-1212]], [[BPR-1335]]. Where the head pane's "+" button
-		/// is while the pointer is on its line, in the pane's coordinates;
+		/// \brief [[BPR-1212]], [[BPR-1335]]. Told when a split pane's "+"
+		/// button is clicked, or dragged across lines, with its side and the
+		/// first and last zero-based lines it covered, in order: Add comment.
+		/// The base pane offers it only on lines GitHub's diff shows.
+		void set_line_add_dispatch(std::function<void(core::diff_side aSide, std::uint32_t aFirst, std::uint32_t aLast)> aDispatch);
+		/// \brief [[BPR-1212]], [[BPR-1335]]. Where a pane's "+" button is
+		/// while the pointer is in its column, in the pane's coordinates;
 		/// empty while it is not shown.
-		[[nodiscard]] auto line_add_rect() const -> QRect;
+		[[nodiscard]] auto line_add_rect(core::diff_side aSide = core::diff_side::right) const -> QRect;
 		/// \brief [[BPR-1290]]. Told when a thread's scroll-bar tick is
 		/// Shift-clicked, with its side and zero-based source line. A plain
 		/// press on the bar stays the bar's own.

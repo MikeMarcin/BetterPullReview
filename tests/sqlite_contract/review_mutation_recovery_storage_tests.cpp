@@ -311,6 +311,52 @@ namespace {
 		execute_sql(database_path(directory), "UPDATE logical_publication SET record_digest=zeroblob(32)");
 		expect(!(*store)->load_publication(value.Key), "corruption refuses entire parent including child baselines");
 	}
+	// [[BPR-1335]] v002. A new comment on the base side publishes through
+	// the same logical journal. Its side is kept across a restart: a record
+	// that read back on the head side would reconcile against the wrong
+	// line. The legacy per-attempt table has no side, so it refuses one.
+	void test_a_base_side_publication_keeps_its_side()
+	{
+		using state = core::review_publication_state;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "logical journal opens");
+		auto value                              = publication();
+		value.Native->Anchor.Semantic.Side      = core::diff_side::left;
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "a base-side native parent and child are admitted");
+		auto next                 = value;
+		next.State                = state::native_possibly_transmitted;
+		next.Native->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(value, next).has_value(), "the base-side witness commits");
+		value = next;
+		store->reset();
+		store        = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto loaded = (*store)->load_publication(value.Key);
+		expect(loaded.has_value() && loaded->has_value() && (*loaded)->Native->Anchor.Semantic.Side == core::diff_side::left && **loaded == value,
+			   "restart keeps the base side and the exact witness");
+		next                    = value;
+		next.State              = state::succeeded_native;
+		next.Native->State      = application::review_mutation_recovery_state::succeeded;
+		next.Native->Receipt    = application::review_mutation_receipt{ .ServerCommentId = "PRRC_left", .Representation = core::review_publication_representation::native_line };
+		expect((*store)->advance_publication(value, next).has_value(), "the base-side receipt commits");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(next.Key).value() == next, "restart keeps the base-side receipt");
+
+		auto right = publication();
+		right.Key  = std::string(64U, 'd');
+		right.LegacyKey = std::string(64U, 'e');
+		right.Native->IdempotencyKey = application::review_publication_child_key(right.Key, core::review_publication_representation::native_line);
+		expect((*store)->advance_publication(std::nullopt, right).has_value(), "a head-side parent is admitted beside it");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(right.Key).value() == right, "a head-side record still reads back on the head side");
+
+		auto legacy                    = record();
+		legacy.IdempotencyKey          = std::string(64U, 'f');
+		legacy.Anchor.Semantic.Side    = core::diff_side::left;
+		expect(!(*store)->admit(legacy), "the legacy table, which keeps no side, refuses a base-side attempt");
+	}
 	void test_evidence_admission_and_legacy_conflicts()
 	{
 		using state = core::review_publication_state;
@@ -667,6 +713,7 @@ namespace {
 auto main() -> int
 try {
 	test_logical_publication_transitions_and_restart();
+	test_a_base_side_publication_keeps_its_side();
 	test_evidence_admission_and_legacy_conflicts();
 	test_version_three_keeps_both_journals();
 	test_logical_capacity_and_stale_compare_exchange();

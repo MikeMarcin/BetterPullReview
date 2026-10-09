@@ -17,10 +17,13 @@
 /// `start_line` and `line` on one side. GitHub refuses a range that is not on
 /// one side or whose two ends are not in one hunk of the pull request's diff,
 /// so those are refused here, from the accepted diff, before any draft carries
-/// the range and before anything is published. A single line keeps today's
-/// rules: a new comment goes on the right side, and a line outside every hunk
-/// is decided at Publish by `plan_review_publication`. The suggestion block a
-/// selection starts is `suggestion_draft.hpp`'s.
+/// the range and before anything is published. A single right line outside
+/// every hunk is decided at Publish by `plan_review_publication`, which can
+/// fall back to a file comment linking the head. A single left (base) line
+/// has no such fallback, and GitHub refuses `side: LEFT` on a base line its
+/// diff does not show ("could not be resolved", observed on BPR-Test #42 for
+/// [[BPR-1335]] v002), so a base line must be in a hunk. The suggestion block
+/// a selection starts is `suggestion_draft.hpp`'s.
 namespace bpr::core {
 	/// \brief Why a selection cannot carry a new comment.
 	enum class comment_range_refusal : std::uint8_t {
@@ -29,8 +32,9 @@ namespace bpr::core {
 		mixed_comparison,
 		/// The two ends are on different sides.
 		mixed_side,
-		/// A new comment cannot go on the left (base) side.
-		base_side,
+		/// [[BPR-1335]] v002. One left (base) line outside every hunk of
+		/// GitHub's diff, where GitHub takes no `side: LEFT` comment.
+		base_outside_hunk,
 		/// An end is past the side's last line, or the side has no text.
 		outside_document,
 		/// Several lines, none of them in a hunk of the diff.
@@ -67,9 +71,10 @@ namespace bpr::core {
 
 	/// \brief Decides a new comment's anchor from a selection's two ends, in
 	/// either order.
-	/// \details One line is the anchor itself and is refused only on the left
-	/// side or outside the document. Several lines must be on one side, the
-	/// right, and inside one hunk of `github_review_hunks`.
+	/// \details One line is the anchor itself and is refused only outside the
+	/// document, or on the left side outside every hunk of
+	/// `github_review_hunks`. Several lines must be on one side, either, and
+	/// inside one hunk of that side.
 	[[nodiscard]] auto decide_comment_range(
 		const file_alignment& aAlignment,
 		source_line_ref       aFirst,

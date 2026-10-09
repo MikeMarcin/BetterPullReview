@@ -2022,7 +2022,7 @@ namespace bpr::adapters::github::detail {
 			|| !application::valid(*aRequest.LiveBinding)
 			|| aRequest.Proposal.Anchor != aRequest.LiveBinding->Anchor.Semantic
 			|| (aRequest.Proposal.StartLine
-				&& (aRequest.Proposal.ReplyToThread || aRequest.Proposal.Anchor.Side != core::diff_side::right
+				&& (aRequest.Proposal.ReplyToThread || !core::supported_comment_target(aRequest.Proposal.Anchor.Side, false)
 					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line
 					|| aRequest.Representation != core::review_publication_representation::native_line))
 			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
@@ -3164,7 +3164,10 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 		const auto contract = UnsupportedContract ? UnsupportedContract : recorded_off_hunk_contract(Configuration);
+		// [[BPR-1335]] v002. A base-side refusal is a refusal: there is no
+		// file comment to fall back to, so it never becomes off-hunk evidence.
 		if (!file && response && contract && aRequest.Source->Placement != core::review_placement::legacy_line
+			&& aRequest.LiveBinding->Anchor.Semantic.Side == core::diff_side::right
 			&& definitive_off_hunk_unsupported(*response, *wire, *contract)) {
 			auto rejected          = current;
 			rejected.State         = publication_state::native_definitively_unsupported;
@@ -3219,10 +3222,15 @@ namespace bpr::adapters::github::detail {
 	{
 		const auto& source    = *aRequest.Source;
 		const auto& authority = Configuration.CredentialContext.Authority;
+		// [[BPR-1335]] v002. The source is the head file, which a head-side
+		// comment's file fallback links. A base-side comment has no fallback:
+		// its anchor need only belong to the same comparison.
+		const auto base = aRequest.Proposal.Anchor.Side == core::diff_side::left;
 		if (!source.Endpoint || source.Placement > core::review_placement::off_hunk
 			|| source.Comparison.Authority.Profile != authority.Profile || source.Comparison.Authority.ProfileRevision.value() != authority.ProfileRevision.value()
 			|| source.Comparison.Authority.Account != authority.Account || source.Endpoint->path().generic_string() != aRequest.LiveBinding->Anchor.Path
-			|| !compile_review_permalink_body({ .Target = Configuration.Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, aRequest.Proposal.Anchor, "Source validation")) {
+			|| (base ? aRequest.Proposal.Anchor.Comparison != core::comparison_digest(source.Comparison)
+					 : !compile_review_permalink_body({ .Target = Configuration.Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, aRequest.Proposal.Anchor, "Source validation"))) {
 			return publication_failure(application::review_mutation_failure::undesignated_target);
 		}
 		const auto fingerprint = publication_fingerprint(aRequest, Configuration);
@@ -3246,7 +3254,7 @@ namespace bpr::adapters::github::detail {
 			const auto evidence    = PublicationCapabilities.lookup(capability_key(Configuration, aRequest), publication_now());
 			const auto observation = core::review_publication_observation{ .Placement         = source.Placement,
 																		   .Capability        = evidence ? evidence->State : core::off_hunk_creation_capability::unknown,
-																		   .Body              = aRequest.Proposal.StartLine ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
+																		   .Body              = aRequest.Proposal.StartLine || base ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
 																		   .State             = current ? current->State : publication_state::initial,
 																		   .Eligible          = true,
 																		   .CapabilityCurrent = evidence.has_value() };

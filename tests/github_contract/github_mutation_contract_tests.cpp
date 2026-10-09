@@ -1602,6 +1602,55 @@ namespace {
 		const auto stray = parse_review_comment_response({ .Status = 201, .Body = rangeResponse(",\"start_line\":9,\"start_side\":\"RIGHT\"") }, single);
 		expect(!stray.has_value() && stray.error() == review_mutation_contract_failure::identity_mismatch, "a range ending at the line is not the single line's receipt");
 	}
+
+	// [[BPR-1335]] v002. A new comment on the base side: GitHub's `side` is
+	// LEFT, `line` is the base line, and `commit_id` stays the head, as
+	// GitHub's REST API takes it. A range's `start_side` is LEFT too. The
+	// answer is the receipt only with the same side.
+	[[nodiscard]] auto base_request(const std::optional<std::uint32_t> aStart) -> application::review_mutation_request
+	{
+		auto value                              = request();
+		value.Proposal.Anchor.Side              = core::diff_side::left;
+		value.Proposal.StartLine                = aStart;
+		value.LiveBinding->Anchor.Semantic.Side = core::diff_side::left;
+		value.IdempotencyKey                    = application::idempotency_key_for(value.Proposal, value.Target);
+		return value;
+	}
+
+	void test_a_base_side_comment_sends_side_left()
+	{
+		const auto base = base_request(std::nullopt);
+		expect(base.IdempotencyKey != request().IdempotencyKey, "the base side's line 13 is a different comment from the head side's");
+		const auto compiled = compile_review_comment_request(base);
+		expect(compiled.has_value()
+				   && compiled->Body
+					   == "{\"body\":\"Please rename this.\","
+						  "\"commit_id\":\"1111111111111111111111111111111111111111\","
+						  "\"line\":13,\"path\":\"fixture/review.txt\",\"side\":\"LEFT\"}",
+			   "a base-side comment on line 13 sends side LEFT, the base line and the head commit");
+		expect(compiled.has_value() && validate_outbound_review_mutation_request(*compiled).has_value(), "the base-side request revalidates canonically");
+		const auto ranged = compile_review_comment_request(base_request(8U));
+		expect(ranged.has_value()
+				   && ranged->Body
+					   == "{\"body\":\"Please rename this.\","
+						  "\"commit_id\":\"1111111111111111111111111111111111111111\","
+						  "\"line\":13,\"path\":\"fixture/review.txt\",\"side\":\"LEFT\","
+						  "\"start_line\":9,\"start_side\":\"LEFT\"}",
+			   "base lines 9 to 13 send start_line 9 and start_side LEFT");
+		auto file           = base_request(std::nullopt);
+		file.Representation = core::review_publication_representation::file_comment_with_permalink;
+		expect(!compile_review_comment_request(file).has_value(), "a base-side comment never falls back to a file comment linking the head");
+
+		const auto left = [](std::string aBody) {
+			aBody.replace(aBody.find("\"side\":\"RIGHT\""), 14U, "\"side\":\"LEFT\"");
+			return aBody;
+		};
+		const auto exact = parse_review_comment_response({ .Status = 201, .Body = left(comment_body()) }, base);
+		expect(exact.has_value() && exact->NodeId == "PRRC_fixture_44" && exact->Anchor.Semantic.Side == core::diff_side::left && exact->Anchor.Semantic.Line == 12U,
+			   "GitHub's LEFT answer on line 13 is the base-side comment's receipt");
+		const auto other = parse_review_comment_response({ .Status = 201, .Body = comment_body() }, base);
+		expect(!other.has_value() && other.error() == review_mutation_contract_failure::identity_mismatch, "an answer on the head side is not the base-side comment");
+	}
 } // namespace
 
 auto main() -> int
@@ -1616,6 +1665,7 @@ auto main() -> int
 			   == R"({"fraction":1.5,"large":9007199254740993,"negative":-1,"null":null})",
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_staged_batch_contract();
+	test_a_base_side_comment_sends_side_left();
 	test_staged_response_contract();
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_a_range_sends_githubs_multi_line_fields();

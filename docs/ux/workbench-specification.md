@@ -1030,11 +1030,15 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   them, as a draft in the drawer ([[BPR-1212]]; see "Writing a new comment").
   Return, Shift+Return, the code's right-click Add comment and Suggest change,
   and the "+" button take one path. The core decides the selection first
-  (`core::decide_comment_range`): a new comment needs the right side; several
+  (`core::decide_comment_range`): a new comment goes on either side, but a
+  base (left) line must be one GitHub's diff shows, a removed line or a
+  context line of a hunk, since GitHub refuses any other base line and the
+  base side has no file-comment fallback ([[BPR-1335]] v002); several
   lines must be on one side and inside one hunk of the pull request's diff
   (the change groups with three lines of context, as GitHub's diff draws
-  them). A refusal opens nothing and says why in the status line: a left line
-  (the reason Comment gives), lines on two sides, lines outside one hunk, or,
+  them). A refusal opens nothing and says why in the status line: a base
+  line outside the diff (the reason Comment gives), lines on two sides, lines
+  outside one hunk, or,
   with no line selected, "Select a line first: click it, or move to it with Up
   and Down while the code has focus." The right-click items are unavailable
   with the same reason. Otherwise the range's last line is selected, its
@@ -1338,10 +1342,19 @@ right-click menu, Comment (Option-C) on a line no thread is on, and the "+"
 button each open the line's draft as a draft thread in the drawer, pinned at
 its line, writing. The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
 don't like the + replacing the line number, i think github actual does it
-better"): a small blue button with a white cross that shows while the pointer
-is on a head line no thread is on, over its code or its number, at the start
-of the line's code, across the boundary with the number and never over a
-digit. Its tooltip is "Add comment (↩)". It takes no keyboard focus; Return
+better"): a small blue button with a white cross at the start of the line's
+code, across the boundary with the number and never over a digit. It is
+drawn only while the pointer is over its own column, the strip across that
+boundary where it sits, on a line it can comment on; elsewhere on the code or
+on the digits nothing is drawn ([[BPR-1335]] v002, owner, 2026-10-09: "i find
+it somewhat distracting always being drawn. Maybe we only draw it when the
+cursor is over the column where it would go?"). Each pane has its own: the
+head pane's on any line no thread is on, the base pane's on a base line
+GitHub's diff shows that no thread is on (owner, same note: "why can't I add a
+comment from the left pane?"). A base-side comment is GitHub's `side: LEFT`
+comment, with `line` the base line's number, `commit_id` the head and `path` the
+file's pull-request path; its draft says "Base line N". Its tooltip is "Add
+comment (↩)". It takes no keyboard focus; Return
 and the context menu are the keyboard's way to the same comment. Pressing it
 never reaches the code, so it neither starts nor changes a text selection, and
 a press anywhere else in the code is the text's. Dragging it across lines
@@ -1362,8 +1375,10 @@ headed "Line N" or "Lines a–b", offers Add comment (↩) and Suggest change
 (⇧↩) above Copy and Add tour stop. Suggest change starts the draft as a
 ```` ```suggestion ```` block holding the selected lines exactly, the caret
 at the end of its last line, set monospaced and unwrapped, and shows what the
-block changes as it is edited. Neither key nor item acts on the base side or
-on lines the core refuses together, and the menu says why. Maximize
+block changes as it is edited. Neither key nor item acts on lines the core
+refuses together, and the menu says why. Suggest change is unavailable on the
+base side, where GitHub applies no suggestion, and says so; Add comment works
+there. Maximize
 (Command+Shift+Return) opens the same draft in Discuss, where the full
 composer lives: the conversations narrow to a list at the left, and at the
 right Back to the code, the draft's lines with three either side under the

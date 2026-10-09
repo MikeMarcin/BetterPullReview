@@ -339,10 +339,27 @@ GitHub-style add button".
   released (`resume-development --all`, sequence 6) with its Reject kept, and
   its checkout, the `bpr-1335` worktree, and its build tree are removed.
 
-## Next
+## Owner verdict on `BPR-1335-add-button-v001`, 2026-10-09
 
-Read session `6541cdcd…` from cursor 3. Accept satisfies `BPR-1335:markers`.
-Every other criterion passed on main, so the card finishes; remove the frozen
-root with `freeze_attended_build.py remove`. Reject comes back with the
-change in its note, for v002. Windows and Linux runs of the two rows are
-owed to the stations (`platforms` names all three).
+Session `6541cdcdee84a0c761d8b7a1410a2073`, candidate
+`BPR-1335-add-button-v001` (revision `frozen-7de324815-v001`, fingerprint
+`16e3f3ee2d3a…`): **Reject** (decision
+`15f36203-cc0e-4bad-b3aa-85fe8018c24f`, 04:02:28Z, handed back at event 5;
+cursor 3 to 5 read). Note, verbatim:
+
+> It is the github style like I asked for, and I like the positioning. But i
+> find it somewhat distracting always being drawn. Maybe we only draw it when
+> the cursor is over the column where it would go?
+>
+> And why can't I add a comment from the left pane? Seems like that would be
+> reasonably useful, is there a technical reason I can't?
+
+Read as: the tinted numbers, the button's look and its position stay. The
+"+" is drawn only while the pointer is over its own column, the strip across
+the number and code boundary where it is drawn, not anywhere on the line.
+Its place and the drag across lines stay. The second paragraph asks whether
+the base (left) pane can take a new comment, and if not, why not.
+
+The session is released (`stop`, then `resume-development --all`, sequence
+6) with its Reject kept. Frozen root `bpr1335-add-button-v001.jo2yocwy` was
+removed with `freeze_attended_build.py remove`.

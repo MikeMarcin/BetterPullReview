@@ -141,20 +141,18 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return window.statistics().FileSelections > selections; }, "normal file selection dispatched");
 				expect(editor.shown_draft() == draft, "file navigation preserves the PR-scoped summary");
 				window.close_review_composition();
-				// [[BPR-1246]]. A new draft is offered only on a right-side line
-				// ([[BPR-0587]], [[BPR-1207]]): the deletion on the left gets no
-				// draft projection, and Comment and Publish stay refused there.
+				// [[BPR-1335]] v002, replacing [[BPR-1246]]'s refusal: the
+				// deletion on the left is a line GitHub's diff shows, so it is
+				// offered its own base-side draft and Comment names the base line.
 				wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::left, 45U); }, "select the deletion on the left side");
-				QApplication::processEvents();
-				expect(!window.review_editor()->shown_draft() || window.review_editor()->shown_draft()->Anchor.Side != core::diff_side::left, "left deletion is offered no new draft");
-				expect(!window.comment_action()->isEnabled() && window.comment_action()->toolTip().contains(QStringLiteral("right, current-head"))
-						   && !window.review_editor()->publish_action()->isEnabled(),
-					   "left deletion does not offer a new Comment or Publish");
-				window.comment_action()->setEnabled(true);
-				window.comment_action()->trigger();
-				expect(!window.comment_action()->isEnabled() && !window.review_editor()->body_editor()->isVisible(), "negative control cannot force a left-side new-comment page open");
+				wait([&] { return window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Anchor.Side == core::diff_side::left
+								  && window.review_editor()->shown_draft()->Anchor.Line == 45U; },
+					 "the left deletion is offered a base-side draft");
+				wait([&] { return window.comment_action()->isEnabled(); }, "Comment is admitted on the left deletion");
+				emit window.comment_menu()->aboutToShow();
+				expect(window.comment_action()->text() == QStringLiteral("Co&mment on base line 46…"), "Comment names the base line it would start on");
 				expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 29U), "select a current-head line for the local comment");
-				wait([&] { return window.comment_action()->isEnabled(); }, "current-head Comment is admitted after the refused left target");
+				wait([&] { return window.comment_action()->isEnabled(); }, "current-head Comment is admitted after the left target");
 				const auto beforeComment = access::review_mutation_evidence(*application);
 				window.comment_action()->trigger();
 				// [[BPR-1212]]. Comment opens the draft in the drawer, beside the code.

@@ -14,8 +14,8 @@ namespace bpr::core {
 			return "mixed_comparison";
 		case comment_range_refusal::mixed_side:
 			return "mixed_side";
-		case comment_range_refusal::base_side:
-			return "base_side";
+		case comment_range_refusal::base_outside_hunk:
+			return "base_outside_hunk";
 		case comment_range_refusal::outside_document:
 			return "outside_document";
 		case comment_range_refusal::outside_hunk:
@@ -74,21 +74,31 @@ namespace bpr::core {
 			result.Refusal = comment_range_refusal::mixed_side;
 			return result;
 		}
-		if (aLast.Side != diff_side::right) {
-			result.Refusal = comment_range_refusal::base_side;
-			return result;
-		}
-		if (aAlignment.Content != diff_content_state::text || aLast.Line >= aAlignment.RightLineCount) {
+		const auto side = aLast.Side;
+		if (side != diff_side::left && side != diff_side::right) {
 			result.Refusal = comment_range_refusal::outside_document;
 			return result;
 		}
-		if (aFirst.Line == aLast.Line) {
+		const auto count = side == diff_side::left ? aAlignment.LeftLineCount : aAlignment.RightLineCount;
+		if (aAlignment.Content != diff_content_state::text || aLast.Line >= count) {
+			result.Refusal = comment_range_refusal::outside_document;
 			return result;
 		}
-		const auto hunks  = github_review_hunks(aAlignment, diff_side::right);
+		// A right line outside every hunk is Publish's to decide; a left one
+		// is refused now, since nothing can publish it ([[BPR-1335]] v002).
+		if (aFirst.Line == aLast.Line && side == diff_side::right) {
+			return result;
+		}
+		const auto hunks  = github_review_hunks(aAlignment, side);
 		const auto within = [&hunks](const std::uint32_t aLine) {
 			return std::ranges::find_if(hunks, [aLine](const line_span& aHunk) { return aLine >= aHunk.Begin && aLine < aHunk.End; });
 		};
+		if (aFirst.Line == aLast.Line) {
+			if (within(aLast.Line) == hunks.end()) {
+				result.Refusal = comment_range_refusal::base_outside_hunk;
+			}
+			return result;
+		}
 		const auto first = within(aFirst.Line);
 		const auto last  = within(aLast.Line);
 		if (first == hunks.end() && last == hunks.end()) {
