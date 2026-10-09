@@ -176,3 +176,14 @@ in-process there, over the named pipe.
 
 Next: the coordinator's board move. No attended review is required by this
 card's criteria.
+
+## Coordinator verification (bpr-main-linux, 2026-10-08)
+
+At `2e1276cb3`, in `build/dev-tour-cli`, 36 of 36 pass: the `tour_cli_*` rows
+including `tour_cli_labels`, the `cycle_cli_*` and skill package rows, the
+feedback and label rows, `architecture_boundaries`,
+`test_network_isolation_manifest` and the round-trip contract. Done on Linux
+evidence; macOS and Windows runs are owed (commands above). The Windows
+station must measure `tour_cli_labels` and replace its "unmeasured
+(registered on Linux)" entry in `scripts/verify_test_network_isolation.py`,
+or `test_network_isolation_manifest` fails there (BPR-1343's rule).
