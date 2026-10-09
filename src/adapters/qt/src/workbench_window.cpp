@@ -1933,10 +1933,19 @@ namespace bpr::qt {
 		// the notes scrolls the code.
 		ComparisonSurface->set_thread_markers(true);
 		ComparisonSurface->set_line_mark_dispatch([this](const core::diff_side aSide, const std::uint32_t aLine) { toggle_thread_at(aSide, aLine); });
-		// [[BPR-1212]]. The gutter's "+" selects its line, as a click would,
-		// and starts a comment there.
-		ComparisonSurface->set_line_add_dispatch([this](const std::uint32_t aLine) {
-			if (ComparisonSurface->select_conversation_line(core::diff_side::right, aLine)) {
+		// [[BPR-1212]], [[BPR-1335]]. The "+" button selects its line, or the
+		// lines a drag on it covered, as a click or a drag in the code would,
+		// and starts a comment there. The core decides whether the lines can
+		// take one; the status bar says why not.
+		ComparisonSurface->set_line_add_dispatch([this](const std::uint32_t aFirst, const std::uint32_t aLast) {
+			const auto& result = ComparisonSurface->current_result();
+			const auto  head   = [&result](const std::uint32_t aLine) {
+				return core::source_line_ref{ .Comparison = result->Alignment.Digest, .Side = core::diff_side::right, .Line = aLine };
+			};
+			const auto selected = aFirst == aLast
+				? ComparisonSurface->select_conversation_line(core::diff_side::right, aLast)
+				: result != nullptr && ComparisonSurface->restore_source_range(head(aFirst), head(aLast));
+			if (selected) {
 				static_cast<void>(comment_on_selected_lines(false));
 			}
 		});
@@ -6853,9 +6862,9 @@ namespace bpr::qt {
 			return;
 		}
 		// Amber for a thread on the line; blue for a thread with a post newer
-		// than what the reader has read ([[BPR-0656]]). [[BPR-1290]]: each
-		// marker shows its first post's label mark, and the open thread's line
-		// is washed and its marker ringed.
+		// than what the reader has read ([[BPR-0656]]). [[BPR-1335]]: the
+		// thread's line number is tinted, and the open thread's line is washed
+		// and its number barred.
 		auto* const cards = ConversationPanel->cards();
 		ComparisonSurface->set_mark_colours(cards->marker(), cards->accent());
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
@@ -6864,8 +6873,6 @@ namespace bpr::qt {
 				marks.push_back(diff_line_mark{
 					.Line        = mark.Line,
 					.Kind        = mark.Unread ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread,
-					.Label       = mark.Label,
-					.Emphasis    = mark.Emphasis,
 					.Resolved    = mark.Resolved,
 					.Draft       = mark.Draft,
 					.Open        = mark.Open,
@@ -8676,9 +8683,6 @@ namespace bpr::qt {
 		}
 		if (Finder != nullptr) {
 			Finder->set_label_marks(theme);
-		}
-		if (ComparisonSurface != nullptr) {
-			ComparisonSurface->set_mark_theme(theme);
 		}
 		if (FeedbackMarksPreview != nullptr) {
 			FeedbackMarksPreview->set_theme(theme);

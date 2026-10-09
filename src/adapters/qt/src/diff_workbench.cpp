@@ -7,9 +7,11 @@
 
 #include "line_details_splitter.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QApplication>
+#include <QCursor>
 #include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QEvent>
@@ -65,10 +67,10 @@ namespace bpr::qt {
 		/// [[BPR-1335]]. Breathing room either side of the widest number the
 		/// gutter shows. The owner found the gutter wider than its numbers.
 		constexpr auto GutterPadding = 4;
-		/// [[BPR-1290]]. The gutter's column for thread markers, right of the
-		/// numbers, and the marker's box in it.
-		constexpr auto MarkerColumnWidth = 22;
-		constexpr auto MarkerBox         = 18;
+		/// [[BPR-1335]]. The "+" button's side: GitHub's 20 px, shrunk to fit a
+		/// short row but never below 12 px.
+		constexpr auto AddButtonSide    = 20;
+		constexpr auto AddButtonMinSide = 12;
 
 		/// \brief [[BPR-1290]]. How far past a tick's top or bottom edge the
 		/// pointer still finds it, in pixels: close ticks are hard to hit.
@@ -478,9 +480,10 @@ namespace bpr::qt {
 			void set_gutter_colors(const QColor& aBackground, const QColor& aText);
 			void paint_line_numbers(QPaintEvent* aEvent);
 			void paint_markers(QPainter& aPainter);
-			/// \brief [[BPR-1335]]. Prepares a line's number cell for a thread or
-			/// the "+"; true when the number gives way to a marker drawn later.
-			[[nodiscard]] auto paint_number_cell(QPainter& aPainter, std::uint32_t aLine, const QRectF& aCell) -> bool;
+			/// \brief [[BPR-1335]]. Tints a thread's line-number cell, under its
+			/// number: amber, blue when new, lighter when resolved; my draft is
+			/// outlined, dashed.
+			void               paint_thread_tint(QPainter& aPainter, std::uint32_t aLine, const QRectF& aCell);
 			[[nodiscard]] auto painted_line_numbers() const noexcept -> std::uint64_t
 			{
 				return PaintedLineNumbers;
@@ -558,35 +561,18 @@ namespace bpr::qt {
 				update_gutter();
 			}
 
-			/// \brief [[BPR-1290]]. A column in the gutter for thread markers.
+			/// \brief [[BPR-1290]], [[BPR-1335]]. Whether the gutter shows the
+			/// threads: a thread's number cell is tinted, and the head pane offers
+			/// its "+" button. The gutter stays its numbers' width.
 			void set_marker_column(const bool aEnabled)
 			{
 				if (MarkerColumn == aEnabled) {
 					return;
 				}
 				MarkerColumn = aEnabled;
-				refresh_gutter_width();
-				place_gutter();
+				set_add_hover(std::nullopt);
 				viewport()->update();
 				update_gutter();
-			}
-
-			/// \brief [[BPR-1335]]. How the markers are drawn, when they are on.
-			void set_marker_style(const thread_marker_style aStyle)
-			{
-				if (MarkerStyle == aStyle) {
-					return;
-				}
-				MarkerStyle = aStyle;
-				refresh_gutter_width();
-				place_gutter();
-				viewport()->update();
-				update_gutter();
-			}
-
-			[[nodiscard]] auto marker_column_width() const -> int
-			{
-				return markers_shown() && MarkerStyle == thread_marker_style::column ? MarkerColumnWidth : 0;
 			}
 
 			/// \brief Whether the gutter shows the threads at all.
@@ -602,6 +588,13 @@ namespace bpr::qt {
 				return found != Marks.end() && found->Line == aLine ? &*found : nullptr;
 			}
 
+			/// \brief How far the viewport sits below the gutter's top: a
+			/// unified pane's heading row, nothing in a split pane.
+			[[nodiscard]] auto gutter_header() const -> int
+			{
+				return UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+			}
+
 			/// \brief [[BPR-1335]]. A line's number cell, in the gutter's coordinates.
 			[[nodiscard]] auto number_cell(const std::uint32_t aLine) const -> QRect
 			{
@@ -609,37 +602,7 @@ namespace bpr::qt {
 				if (row.isEmpty()) {
 					return { };
 				}
-				const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
-				return QRect{ 0, row.top() + header, gutter_width() - marker_column_width(), row.height() };
-			}
-
-			/// \brief Where a line's marker or "+" box sits, in the gutter's
-			/// coordinates: centred in the column, or at the number's right end.
-			[[nodiscard]] auto marker_box(const std::uint32_t aLine) const -> QRect
-			{
-				if (!markers_shown()) {
-					return { };
-				}
-				const auto row = line_row_rect(aLine);
-				if (row.isEmpty()) {
-					return { };
-				}
-				const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
-				if (MarkerStyle == thread_marker_style::column) {
-					const auto left = gutter_width() - MarkerColumnWidth + (MarkerColumnWidth - MarkerBox) / 2;
-					return QRect{ left, row.top() + header + (row.height() - MarkerBox) / 2, MarkerBox, MarkerBox };
-				}
-				// The box fits the row and the number column; at its right end,
-				// where the number's last digit is.
-				const auto numbers = gutter_width();
-				const auto side    = std::max(8, std::min({ MarkerBox, row.height(), numbers - GutterPadding }));
-				return QRect{ numbers - GutterPadding / 2 - side, row.top() + header + (row.height() - side) / 2, side, side };
-			}
-
-			void set_mark_theme(const feedback_mark_theme& aTheme)
-			{
-				MarkTheme = aTheme;
-				update_gutter();
+				return QRect{ 0, row.top() + gutter_header(), gutter_width(), row.height() };
 			}
 
 			void set_mark_dispatch(std::function<void(const diff_line_mark&)> aDispatch)
@@ -647,77 +610,118 @@ namespace bpr::qt {
 				MarkDispatch = std::move(aDispatch);
 			}
 
-			/// \brief [[BPR-1212]]. The gutter's "+" on a line without a
-			/// thread, shown under the pointer; none without a dispatch.
-			void set_add_dispatch(std::function<void(std::uint32_t)> aDispatch)
+			/// \brief [[BPR-1212]], [[BPR-1335]]. The "+" button on a head line
+			/// without a thread, shown while the pointer is on the line; none
+			/// without a dispatch. It is told the first and last lines.
+			void set_add_dispatch(std::function<void(std::uint32_t, std::uint32_t)> aDispatch)
 			{
 				AddDispatch = std::move(aDispatch);
+				AddDrag.reset();
 				set_add_hover(std::nullopt);
 			}
 
-			void set_add_hover(const std::optional<std::uint32_t> aLine)
-			{
-				const auto line = AddDispatch && markers_shown() ? aLine : std::nullopt;
-				if (AddHover != line) {
-					AddHover = line;
-					update_gutter();
-				}
-			}
+			/// \brief Shows the "+" button on a line, or hides it. A drag in
+			/// progress keeps its button where it started.
+			void set_add_hover(std::optional<std::uint32_t> aLine);
 
-			/// \brief The line whose "+" a gutter point is over, if any.
-			[[nodiscard]] auto add_line_at(const QPoint aGutterPoint) const -> std::optional<std::uint32_t>
+			/// \brief The line a viewport y offers the "+" on: a line of a split
+			/// pane with no thread on it, while the pointer is on its row.
+			[[nodiscard]] auto add_line_at(const int aViewportY) const -> std::optional<std::uint32_t>
 			{
-				// [[BPR-1335]]. The column's "+" is in the column; without one, the
-				// whole number cell offers it.
-				if (!AddDispatch || !markers_shown() || UnifiedRows != nullptr || (marker_column_width() > 0 && aGutterPoint.x() < gutter_width() - marker_column_width())
-					|| mark_at(aGutterPoint) != nullptr) {
+				if (!AddDispatch || !markers_shown() || UnifiedRows != nullptr) {
 					return std::nullopt;
 				}
-				const auto block = cursorForPosition(QPoint{ 0, aGutterPoint.y() }).block();
-				if (!block.isValid() || block.blockNumber() < 0) {
+				const auto line = line_at(aViewportY);
+				if (!line.has_value() || mark_on(*line) != nullptr) {
 					return std::nullopt;
 				}
-				const auto line = static_cast<std::uint32_t>(block.blockNumber());
-				if (std::ranges::any_of(Marks, [line](const diff_line_mark& aMark) { return aMark.Line == line; })) {
+				const auto row = line_row_rect(*line);
+				if (aViewportY < row.top() || aViewportY > row.bottom()) {
 					return std::nullopt;
 				}
 				return line;
 			}
 
-			[[nodiscard]] auto add_rect() const -> QRect
+			/// \brief The line nearest a viewport y, clamped to the document.
+			[[nodiscard]] auto line_at(const int aViewportY) const -> std::optional<std::uint32_t>
 			{
-				if (!AddHover.has_value()) {
+				const auto block = cursorForPosition(QPoint{ 0, aViewportY }).block();
+				if (!block.isValid() || block.blockNumber() < 0) {
+					return std::nullopt;
+				}
+				return static_cast<std::uint32_t>(block.blockNumber());
+			}
+
+			/// \brief The "+" button's place in the pane, or empty while hidden.
+			[[nodiscard]] auto add_rect() const -> QRect;
+
+			/// \brief [[BPR-1335]]. The pointer left the code, the gutter or the
+			/// button. The button stays while the pointer is on it.
+			void leave_add_hover();
+
+			/// \brief [[BPR-1335]]. A press on the "+" starts a range on its line;
+			/// moving extends it to the line under the pointer, washed as a
+			/// draft being written is; release adds the comment on it.
+			void begin_add_drag(const std::uint32_t aLine)
+			{
+				AddDrag = std::pair{ aLine, aLine };
+				viewport()->update();
+				update_gutter();
+			}
+			void extend_add_drag(const QPoint aGlobal)
+			{
+				if (!AddDrag.has_value()) {
+					return;
+				}
+				const auto line = line_at(viewport()->mapFromGlobal(aGlobal).y());
+				if (line.has_value() && *line != AddDrag->second) {
+					AddDrag->second = *line;
+					viewport()->update();
+					update_gutter();
+				}
+			}
+			void finish_add_drag()
+			{
+				if (!AddDrag.has_value()) {
+					return;
+				}
+				const auto [first, last] = std::minmax(AddDrag->first, AddDrag->second);
+				AddDrag.reset();
+				viewport()->update();
+				update_gutter();
+				press_add(first, last);
+			}
+			[[nodiscard]] auto add_drag_rect() const -> QRect
+			{
+				if (!AddDrag.has_value()) {
 					return { };
 				}
-				return marker_box(*AddHover);
+				const auto [first, last] = std::minmax(AddDrag->first, AddDrag->second);
+				const auto top           = line_row_rect(first);
+				const auto bottom        = line_row_rect(last);
+				return top.isEmpty() || bottom.isEmpty() ? QRect{ } : top.united(bottom);
 			}
 
-			void press_add(const std::uint32_t aLine)
+			void press_add(const std::uint32_t aFirst, const std::uint32_t aLast)
 			{
 				if (AddDispatch) {
-					AddDispatch(aLine);
+					AddDispatch(aFirst, aLast);
 				}
 			}
 
-			/// \brief What a pointer presses to reach a mark's thread, in the
-			/// gutter's coordinates: its marker, or with `number_tint` the
-			/// tinted number cell.
+			/// \brief What a pointer presses to reach a mark's thread: its
+			/// tinted number cell, in the gutter's coordinates.
 			[[nodiscard]] auto marker_rect(const diff_line_mark& aMark) const -> QRect
 			{
-				if (markers_shown() && MarkerStyle == thread_marker_style::number_tint) {
-					return number_cell(aMark.Line);
-				}
-				return marker_box(aMark.Line);
+				return markers_shown() ? number_cell(aMark.Line) : QRect{ };
 			}
 
-			/// \brief The mark whose marker is under a point of the gutter.
+			/// \brief The mark whose tinted cell is under a point of the gutter.
+			/// Cells are exact, so neighbouring lines' cells never overlap.
 			[[nodiscard]] auto mark_at(const QPoint aGutterPoint) const -> const diff_line_mark*
 			{
-				// A box reaches a little past its edge; a tinted cell is exact, so
-				// neighbouring lines' cells never overlap.
-				const auto reach = MarkerStyle == thread_marker_style::number_tint ? 0 : 2;
 				for (const auto& mark : Marks) {
-					if (marker_rect(mark).adjusted(-reach, -reach, reach, reach).contains(aGutterPoint)) {
+					if (marker_rect(mark).contains(aGutterPoint)) {
 						return &mark;
 					}
 				}
@@ -847,9 +851,9 @@ namespace bpr::qt {
 				// [[BPR-0648]]. A thread's line carries a mark at the edge:
 				// amber for a thread, blue for a new one, beneath the anchor
 				// marker so the current line's marker still reads. [[BPR-1290]]:
-				// with a marker column the marker is in the gutter instead, and
-				// the open thread's line is washed amber (the note under the
-				// pointer, lightly).
+				// with the gutter showing threads, its tinted number says so
+				// instead, and the open thread's line is washed amber (the note
+				// under the pointer, lightly).
 				for (const auto& mark : Marks) {
 					const auto row = mark.Writing ? mark_span_rect(mark) : line_row_rect(mark.Line);
 					if (row.isEmpty() || row.top() > viewport()->height() || row.bottom() < 0) {
@@ -868,6 +872,13 @@ namespace bpr::qt {
 										 ? NewThreadMarkColor
 										 : ThreadMarkColor);
 					painter.drawRoundedRect(QRect{ 1, row.top() + 1, 4, std::max(1, row.height() - 2) }, 2.0, 2.0);
+				}
+				// [[BPR-1335]]. The lines a drag on the "+" covers, washed as the
+				// draft it starts will be.
+				if (const auto drag = add_drag_rect(); !drag.isEmpty()) {
+					auto wash = palette().color(QPalette::Active, QPalette::Highlight);
+					wash.setAlphaF(0.16F);
+					painter.fillRect(QRect{ 0, drag.top(), viewport()->width(), drag.height() }, wash);
 				}
 				if (const auto marker = conversation_anchor_rect(); !marker.isEmpty()) {
 					auto color = palette().color(QPalette::Highlight);
@@ -922,6 +933,9 @@ namespace bpr::qt {
 			void resizeEvent(QResizeEvent* aEvent) override;
 			void changeEvent(QEvent* aEvent) override;
 			void showEvent(QShowEvent* aEvent) override;
+			/// \brief [[BPR-1335]]. The pointer on a head line's code shows its
+			/// "+"; a press or a drag in the code is the text's, and hides it.
+			auto viewportEvent(QEvent* aEvent) -> bool override;
 
 		public:
 			/// \brief [[BPR-1336]]. Hears that the pane has relaid out in a new font.
@@ -965,28 +979,31 @@ namespace bpr::qt {
 			std::optional<core::line_span>         SelectedHead;
 
 			class gutter_area;
+			class add_button;
 
-			gutter_area*                               Gutter = nullptr;
-			QColor                                     GutterBackground;
-			QColor                                     GutterText;
-			std::vector<std::uint32_t>                 Boundaries;
-			QColor                                     RuleColor;
-			std::optional<std::uint32_t>               ConversationAnchor;
-			std::vector<diff_line_mark>                Marks;
-			bool                                       MarkerColumn = false;
-			thread_marker_style                        MarkerStyle  = thread_marker_style::column;
-			std::function<void(std::uint32_t)>         AddDispatch;
-			std::optional<std::uint32_t>               AddHover;
-			feedback_mark_theme                        MarkTheme;
-			std::function<void(const diff_line_mark&)> MarkDispatch;
-			QColor                                     ThreadMarkColor{ 0xD2, 0x99, 0x22 };
-			QColor                                     NewThreadMarkColor{ 0x09, 0x69, 0xDA };
-			std::uint64_t                              PaintedRules       = 0U;
-			std::uint64_t                              PaintedLineNumbers = 0U;
-			std::uint64_t                              PaintedWhiteSpace  = 0U;
-			std::optional<core::line_span>             SelectedLines;
-			core::white_space_drawing                  WhiteSpace = core::white_space_drawing::none;
-			std::function<void()>                      FontObserver;
+			gutter_area*                                      Gutter    = nullptr;
+			add_button*                                       AddButton = nullptr;
+			QColor                                            GutterBackground;
+			QColor                                            GutterText;
+			std::vector<std::uint32_t>                        Boundaries;
+			QColor                                            RuleColor;
+			std::optional<std::uint32_t>                      ConversationAnchor;
+			std::vector<diff_line_mark>                       Marks;
+			bool                                              MarkerColumn = false;
+			std::function<void(std::uint32_t, std::uint32_t)> AddDispatch;
+			std::optional<std::uint32_t>                      AddHover;
+			/// [[BPR-1335]]. A drag on the "+": the line it started on and the
+			/// line under the pointer.
+			std::optional<std::pair<std::uint32_t, std::uint32_t>> AddDrag;
+			std::function<void(const diff_line_mark&)>             MarkDispatch;
+			QColor                                                 ThreadMarkColor{ 0xD2, 0x99, 0x22 };
+			QColor                                                 NewThreadMarkColor{ 0x09, 0x69, 0xDA };
+			std::uint64_t                                          PaintedRules       = 0U;
+			std::uint64_t                                          PaintedLineNumbers = 0U;
+			std::uint64_t                                          PaintedWhiteSpace  = 0U;
+			std::optional<core::line_span>                         SelectedLines;
+			core::white_space_drawing                              WhiteSpace = core::white_space_drawing::none;
+			std::function<void()>                                  FontObserver;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1023,8 +1040,8 @@ namespace bpr::qt {
 			{
 				Pane->paint_line_numbers(aEvent);
 			}
-			/// [[BPR-1290]]. A thread's marker opens or closes it.
-			/// [[BPR-1212]]. A "+" on a head line without one adds a comment.
+			/// [[BPR-1290]], [[BPR-1335]]. A thread's tinted number opens or
+			/// closes it.
 			void mousePressEvent(QMouseEvent* const aEvent) override
 			{
 				if (aEvent->button() == Qt::LeftButton) {
@@ -1034,24 +1051,21 @@ namespace bpr::qt {
 						aEvent->accept();
 						return;
 					}
-					if (const auto line = Pane->add_line_at(aEvent->position().toPoint()); line.has_value()) {
-						Pane->press_add(*line);
-						aEvent->accept();
-						return;
-					}
 				}
 				QWidget::mousePressEvent(aEvent);
 			}
+			/// [[BPR-1335]]. The pointer on a head line's number shows the line's
+			/// "+" at the start of its code, as on the code itself.
 			void mouseMoveEvent(QMouseEvent* const aEvent) override
 			{
-				const auto add = Pane->add_line_at(aEvent->position().toPoint());
-				Pane->set_add_hover(add);
-				setCursor(Pane->mark_at(aEvent->position().toPoint()) != nullptr || add.has_value() ? Qt::PointingHandCursor : Qt::ArrowCursor);
+				const auto point = aEvent->position().toPoint();
+				Pane->set_add_hover(aEvent->buttons() == Qt::NoButton ? Pane->add_line_at(point.y() - Pane->gutter_header()) : std::nullopt);
+				setCursor(Pane->mark_at(point) != nullptr ? Qt::PointingHandCursor : Qt::ArrowCursor);
 				QWidget::mouseMoveEvent(aEvent);
 			}
 			void leaveEvent(QEvent* const aEvent) override
 			{
-				Pane->set_add_hover(std::nullopt);
+				Pane->leave_add_hover();
 				QWidget::leaveEvent(aEvent);
 			}
 			auto event(QEvent* const aEvent) -> bool override
@@ -1060,10 +1074,6 @@ namespace bpr::qt {
 					const auto* const help = static_cast<QHelpEvent*>(aEvent);
 					if (const auto* const mark = Pane->mark_at(help->pos()); mark != nullptr && !mark->Description.isEmpty()) {
 						show_anchored_tooltip(*this, Pane->marker_rect(*mark), mark->Description);
-						return true;
-					}
-					if (const auto line = Pane->add_line_at(help->pos()); line.has_value()) {
-						show_anchored_tooltip(*this, Pane->add_rect(), QStringLiteral("Add a comment on line %1  Return").arg(*line + 1U));
 						return true;
 					}
 					hide_anchored_tooltip();
@@ -1076,6 +1086,193 @@ namespace bpr::qt {
 		private:
 			source_pane* Pane = nullptr;
 		};
+
+		/// \brief [[BPR-1335]]. The head pane's "+": GitHub's blue button at
+		/// the start of the line's code.
+		///
+		/// \details The owner, rejecting a "+" that took the line number's
+		/// place (session 3c9017b5): "I like option 1 but I don't like the +
+		/// replacing the line number, i think github actual does it better".
+		/// GitHub shows a small blue button on the hovered line, over the
+		/// boundary between the number and the code, and the number stays.
+		/// Here its left edge sits in the gutter's right padding, so it never
+		/// covers a digit, and the rest lies over the code's left margin and
+		/// first characters, as GitHub's does.
+		///
+		/// A child of the pane, above the gutter and the viewport, so it is one
+		/// widget across their boundary with its own tooltip, cursor and
+		/// accessible button. Pressing it never reaches the code, so it cannot
+		/// start or change a text selection; a press anywhere else in the code
+		/// is the text's. A click comments on its line; a drag comments on the
+		/// lines from where it started to the one under the pointer. It takes
+		/// no keyboard focus: Return and the context menu are the keyboard's
+		/// way to the same comment, and its tooltip says so.
+		class source_pane::add_button final : public QAbstractButton
+		{
+		public:
+			explicit add_button(source_pane* const aPane)
+				: QAbstractButton{ aPane }
+				, Pane{ aPane }
+			{
+				setObjectName(QStringLiteral("diffLineAddButton"));
+				setFocusPolicy(Qt::NoFocus);
+				setCursor(Qt::PointingHandCursor);
+				setToolTip(QStringLiteral("Add comment (\u21A9)"));
+				setAccessibleName(QStringLiteral("Add comment"));
+				hide();
+				// An accessibility client's press arrives as a click: its line.
+				connect(this, &QAbstractButton::clicked, this, [this] { Pane->press_add(Line, Line); });
+			}
+
+			void set_line(const std::uint32_t aLine)
+			{
+				Line = aLine;
+				setAccessibleDescription(QStringLiteral("Adds a comment on line %1. Drag across lines to comment on all of them; Return does the same for the selected lines").arg(aLine + 1U));
+			}
+
+			[[nodiscard]] auto line() const noexcept -> std::uint32_t
+			{
+				return Line;
+			}
+
+			void set_colour(const QColor& aColour)
+			{
+				if (Colour != aColour) {
+					Colour = aColour;
+					update();
+				}
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				// Lighter under the pointer, darker while held, as GitHub's.
+				const auto fill = isDown() ? Colour.darker(115) : underMouse() ? Colour.lighter(112)
+																			   : Colour;
+				const auto face = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(fill);
+				painter.drawRoundedRect(face, face.width() * 0.3, face.height() * 0.3);
+				painter.setPen(QPen{ Qt::white, std::max(1.5, face.width() / 11.0), Qt::SolidLine, Qt::RoundCap });
+				const auto centre = face.center();
+				const auto arm    = face.width() * 0.25;
+				painter.drawLine(QPointF{ centre.x() - arm, centre.y() }, QPointF{ centre.x() + arm, centre.y() });
+				painter.drawLine(QPointF{ centre.x(), centre.y() - arm }, QPointF{ centre.x(), centre.y() + arm });
+			}
+			void mousePressEvent(QMouseEvent* const aEvent) override
+			{
+				if (aEvent->button() != Qt::LeftButton) {
+					aEvent->ignore();
+					return;
+				}
+				setDown(true);
+				Pane->begin_add_drag(Line);
+				aEvent->accept();
+			}
+			void mouseMoveEvent(QMouseEvent* const aEvent) override
+			{
+				Pane->extend_add_drag(aEvent->globalPosition().toPoint());
+				aEvent->accept();
+			}
+			void mouseReleaseEvent(QMouseEvent* const aEvent) override
+			{
+				if (aEvent->button() != Qt::LeftButton) {
+					aEvent->ignore();
+					return;
+				}
+				setDown(false);
+				Pane->finish_add_drag();
+				aEvent->accept();
+			}
+			void enterEvent(QEnterEvent* const aEvent) override
+			{
+				update();
+				QAbstractButton::enterEvent(aEvent);
+			}
+			void leaveEvent(QEvent* const aEvent) override
+			{
+				update();
+				if (!isDown()) {
+					Pane->leave_add_hover();
+				}
+				QAbstractButton::leaveEvent(aEvent);
+			}
+			[[nodiscard]] auto hitButton(const QPoint& aPoint) const -> bool override
+			{
+				return rect().contains(aPoint);
+			}
+
+		private:
+			source_pane*  Pane = nullptr;
+			std::uint32_t Line = 0U;
+			QColor        Colour{ 0x09, 0x69, 0xDA };
+		};
+
+		void source_pane::set_add_hover(const std::optional<std::uint32_t> aLine)
+		{
+			if (AddDrag.has_value()) {
+				return;
+			}
+			const auto line = AddDispatch && markers_shown() ? aLine : std::nullopt;
+			const auto row  = line.has_value() ? line_row_rect(*line) : QRect{ };
+			if (!line.has_value() || row.isEmpty() || row.bottom() < 0 || row.top() > viewport()->height()) {
+				AddHover.reset();
+				AddButton->hide();
+				return;
+			}
+			AddHover = line;
+			// GitHub's place: at the start of the line's code, over the boundary
+			// with its number. The left edge stays in the gutter's padding, two
+			// pixels into it, so a pixel of padding still parts it from the digit.
+			const auto side = std::clamp(row.height(), AddButtonMinSide, AddButtonSide);
+			const auto code = viewport()->geometry().topLeft();
+			AddButton->setGeometry(QRect{ code.x() - (GutterPadding - 2), code.y() + row.top() + (row.height() - side) / 2, side, side });
+			AddButton->set_line(*line);
+			AddButton->set_colour(NewThreadMarkColor);
+			AddButton->show();
+			AddButton->raise();
+		}
+
+		auto source_pane::add_rect() const -> QRect
+		{
+			return AddButton->isHidden() ? QRect{ } : AddButton->geometry();
+		}
+
+		void source_pane::leave_add_hover()
+		{
+			if (AddDrag.has_value()) {
+				return;
+			}
+			// Leaving the code or its number for the button keeps it; the next
+			// move over the code or the gutter places it again.
+			if (!AddButton->isHidden() && AddButton->rect().contains(AddButton->mapFromGlobal(QCursor::pos()))) {
+				return;
+			}
+			set_add_hover(std::nullopt);
+		}
+
+		auto source_pane::viewportEvent(QEvent* const aEvent) -> bool
+		{
+			switch (aEvent->type()) {
+			case QEvent::MouseMove: {
+				const auto* const move = static_cast<QMouseEvent*>(aEvent);
+				set_add_hover(move->buttons() == Qt::NoButton ? add_line_at(qRound(move->position().y())) : std::nullopt);
+				break;
+			}
+			case QEvent::MouseButtonPress:
+			case QEvent::MouseButtonDblClick:
+				set_add_hover(std::nullopt);
+				break;
+			case QEvent::Leave:
+				leave_add_hover();
+				break;
+			default:
+				break;
+			}
+			return QPlainTextEdit::viewportEvent(aEvent);
+		}
 
 		void source_pane::update_gutter()
 		{
@@ -1098,11 +1295,16 @@ namespace bpr::qt {
 		source_pane::source_pane(QWidget* const aParent)
 			: QPlainTextEdit{ aParent }
 		{
-			Gutter = new gutter_area{ this };
+			Gutter    = new gutter_area{ this };
+			AddButton = new add_button{ this };
+			// [[BPR-1335]]. The pointer on a line's code, not only on its number,
+			// shows the line's "+".
+			viewport()->setMouseTracking(true);
 			// The width follows the digit count, so it changes when a document is
 			// replaced and not while scrolling one.
 			connect(this, &QPlainTextEdit::blockCountChanged, this, [this](int) {
 				refresh_gutter_width();
+				set_add_hover(std::nullopt);
 			});
 			connect(this,
 					&QPlainTextEdit::updateRequest,
@@ -1112,6 +1314,9 @@ namespace bpr::qt {
 							Gutter->update();
 						} else if (aDy != 0) {
 							Gutter->scroll(0, aDy);
+							// The line under a still pointer has changed; the
+							// next move offers the "+" again.
+							set_add_hover(std::nullopt);
 						} else {
 							Gutter->update(
 								0, aRect.y(), Gutter->width(), aRect.height());
@@ -1143,7 +1348,7 @@ namespace bpr::qt {
 				return count;
 			};
 			if (UnifiedRows == nullptr) {
-				return digits(static_cast<std::uint32_t>(std::max(1, blockCount()))) * digit + 2 * GutterPadding + marker_column_width();
+				return digits(static_cast<std::uint32_t>(std::max(1, blockCount()))) * digit + 2 * GutterPadding;
 			}
 			// Each side's lines rise down the rows, so its largest number is
 			// on the last row that has one.
@@ -1164,7 +1369,7 @@ namespace bpr::qt {
 										   metrics.horizontalAdvance(QStringLiteral("base")),
 										   metrics.horizontalAdvance(QStringLiteral("head")) })
 				+ 2 * GutterPadding;
-			return 2 * column + marker_column_width();
+			return 2 * column;
 		}
 
 		void source_pane::refresh_gutter_width()
@@ -1187,6 +1392,7 @@ namespace bpr::qt {
 			}
 			LineNumbersVisible = aVisible;
 			Gutter->setVisible(aVisible);
+			set_add_hover(std::nullopt);
 			// The margin change resizes the viewport, which is what the
 			// workbench's event filter watches to re-measure its geometry, so
 			// the ribbons and the link-map band follow without being told here.
@@ -1269,8 +1475,8 @@ namespace bpr::qt {
 			painter.setPen(GutterText.isValid()
 							   ? GutterText
 							   : palette().color(QPalette::WindowText));
-			const auto headerHeight = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
-			const auto numbers      = Gutter->width() - marker_column_width();
+			const auto headerHeight = gutter_header();
+			const auto numbers      = Gutter->width();
 			if (UnifiedRows != nullptr) {
 				const auto column = numbers / 2;
 				painter.drawText(0, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("base"));
@@ -1310,12 +1516,7 @@ namespace bpr::qt {
 								painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(Gutter->width()), height }, wash);
 							}
 							const auto columnWidth = numbers / 2;
-							const auto row_index   = static_cast<std::uint32_t>(block.blockNumber());
-							if (paint_number_cell(painter, row_index, QRectF{ 0.0, top, static_cast<qreal>(numbers), height })) {
-								top += height;
-								block = block.next();
-								continue;
-							}
+							paint_thread_tint(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height });
 							for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 								const auto number = side == core::diff_side::left ? row.Base : row.Head;
 								if (number) {
@@ -1325,7 +1526,13 @@ namespace bpr::qt {
 								}
 							}
 						}
-					} else if (!paint_number_cell(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height })) {
+					} else {
+						if (const auto drag = add_drag_rect(); !drag.isEmpty() && top < drag.bottom() + 1 && top + height > drag.top()) {
+							auto wash = palette().color(QPalette::Active, QPalette::Highlight);
+							wash.setAlphaF(0.16F);
+							painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(numbers), height }, wash);
+						}
+						paint_thread_tint(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height });
 						painter.drawText(0,
 										 qRound(top),
 										 right,
@@ -1341,24 +1548,17 @@ namespace bpr::qt {
 			paint_markers(painter);
 		}
 
-		auto source_pane::paint_number_cell(QPainter& aPainter, const std::uint32_t aLine, const QRectF& aCell) -> bool
+		void source_pane::paint_thread_tint(QPainter& aPainter, const std::uint32_t aLine, const QRectF& aCell)
 		{
-			if (!markers_shown() || MarkerStyle == thread_marker_style::column) {
-				return false;
-			}
-			// The "+" takes the number's place under the pointer.
-			if (AddHover == aLine) {
-				return true;
+			// [[BPR-1335]]. The owner chose the tinted number (session
+			// 3c9017b5): the number keeps its place and the gutter its width.
+			if (!markers_shown()) {
+				return;
 			}
 			const auto* const mark = mark_on(aLine);
 			if (mark == nullptr) {
-				return false;
+				return;
 			}
-			if (MarkerStyle == thread_marker_style::in_numbers) {
-				return true;
-			}
-			// number_tint: amber for a thread, blue for a new one, lighter
-			// when resolved; my draft is outlined, dashed. The number stays.
 			if (mark->Draft) {
 				aPainter.save();
 				aPainter.setRenderHint(QPainter::Antialiasing, true);
@@ -1366,39 +1566,30 @@ namespace bpr::qt {
 				aPainter.setBrush(Qt::NoBrush);
 				aPainter.drawRoundedRect(aCell.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
 				aPainter.restore();
-				return false;
+				return;
 			}
 			auto tint = mark->Kind == diff_line_mark_kind::new_thread ? NewThreadMarkColor : ThreadMarkColor;
 			tint.setAlphaF(mark->Resolved ? 0.12F : 0.30F);
 			aPainter.fillRect(aCell, tint);
-			return false;
 		}
 
 		void source_pane::paint_markers(QPainter& aPainter)
 		{
-			// [[BPR-1290]]. A thread's marker: its first post's label mark, a
-			// plain square, or a dashed one for my draft; a blue dot when it is
-			// new, faded when resolved, ringed amber while it is open.
-			// [[BPR-1335]]. `in_numbers` draws the same marker, smaller, in
-			// the number's place; `number_tint` tinted the cell already.
+			// [[BPR-1290]]. The open thread's number is washed amber and barred
+			// at the gutter's left edge. [[BPR-1212]]: my draft being written is
+			// washed blue and bracketed at its right edge, where its card joins.
 			if (!markers_shown()) {
 				return;
 			}
-			const auto glyphs = MarkerStyle != thread_marker_style::number_tint;
 			aPainter.save();
 			aPainter.setClipping(false);
 			aPainter.setRenderHint(QPainter::Antialiasing, true);
-			const auto panel  = palette().color(QPalette::Active, QPalette::Base);
-			const auto ink    = palette().color(QPalette::Active, QPalette::Text);
-			const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
-			const auto gutter = GutterBackground.isValid() ? GutterBackground : palette().color(QPalette::Window);
+			const auto header = gutter_header();
 			for (const auto& mark : Marks) {
 				if (mark.Writing) {
-					// [[BPR-1212]]. The bracket: the draft's lines, joined to
-					// its card at the gutter's edge. A draft on several lines
-					// spans them all, drawn while any of them shows.
-					const auto row    = mark_span_rect(mark);
-					const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
+					// A draft on several lines spans them all, drawn while any
+					// of them shows.
+					const auto row = mark_span_rect(mark);
 					if (!row.isEmpty() && row.bottom() + header >= 0 && row.top() + header <= Gutter->height()) {
 						const auto write = palette().color(QPalette::Active, QPalette::Highlight);
 						auto       wash  = write;
@@ -1408,63 +1599,19 @@ namespace bpr::qt {
 						bracket.addRoundedRect(QRectF{ static_cast<qreal>(Gutter->width() - 3), static_cast<qreal>(row.top() + header + 2), 3.0, static_cast<qreal>(std::max(1, row.height() - 4)) }, 1.5, 1.5);
 						aPainter.fillPath(bracket, write);
 					}
-				}
-				const auto box = marker_rect(mark);
-				if (box.isEmpty() || box.bottom() < 0 || box.top() > Gutter->height()) {
 					continue;
 				}
-				if (mark.Open && !mark.Writing) {
-					const auto row    = line_row_rect(mark.Line);
-					const auto header = UnifiedRows != nullptr ? viewport()->geometry().top() - contentsRect().top() : 0;
-					auto       wash   = ThreadMarkColor;
-					wash.setAlphaF(0.18F);
-					aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
-					aPainter.fillRect(QRect{ 0, row.top() + header, 3, row.height() }, ThreadMarkColor);
-				}
-				if (!glyphs) {
+				if (!mark.Open) {
 					continue;
 				}
-				aPainter.setOpacity(mark.Resolved && !mark.Open ? 0.5 : 1.0);
-				if (mark.Open && !mark.Writing) {
-					aPainter.setPen(QPen{ ThreadMarkColor, 2.0 });
-					aPainter.setBrush(panel);
-					aPainter.drawRoundedRect(QRectF{ box }.adjusted(0.0, 0.0, 0.0, 0.0), 5.0, 5.0);
+				const auto row = line_row_rect(mark.Line);
+				if (row.isEmpty() || row.bottom() + header < 0 || row.top() + header > Gutter->height()) {
+					continue;
 				}
-				const auto face = QRectF{ box }.adjusted(2.0, 2.0, -2.0, -2.0);
-				if (mark.Label.has_value()) {
-					paint_feedback_mark(aPainter, face, *mark.Label, mark.Emphasis,
-										feedback_mark_colours{ .Tint = MarkTheme.Tints[static_cast<std::size_t>(*mark.Label)], .Panel = panel, .Ink = ink, .Style = MarkTheme.Style });
-				} else if (mark.Draft) {
-					aPainter.setPen(QPen{ mark.Writing ? palette().color(QPalette::Active, QPalette::Highlight) : faint, 1.5, Qt::DashLine });
-					aPainter.setBrush(Qt::NoBrush);
-					aPainter.drawRoundedRect(face.adjusted(1.0, 1.0, -1.0, -1.0), 3.0, 3.0);
-				} else {
-					auto fill = faint;
-					fill.setAlphaF(0.18F);
-					aPainter.setPen(QPen{ faint, 1.5 });
-					aPainter.setBrush(fill);
-					aPainter.drawRoundedRect(face.adjusted(1.5, 1.5, -1.5, -1.5), 3.0, 3.0);
-				}
-				if (mark.Kind == diff_line_mark_kind::new_thread) {
-					aPainter.setOpacity(1.0);
-					aPainter.setPen(QPen{ gutter, 1.5 });
-					aPainter.setBrush(NewThreadMarkColor);
-					aPainter.drawEllipse(QPointF{ box.right() - 1.0, box.top() + 2.0 }, 3.0, 3.0);
-				}
-			}
-			// [[BPR-1212]]. The "+" under the pointer: a blue square, a white cross.
-			if (const auto add = add_rect(); !add.isEmpty()) {
-				aPainter.setOpacity(1.0);
-				const auto write = palette().color(QPalette::Active, QPalette::Highlight);
-				const auto face  = QRectF{ add }.adjusted(1.0, 1.0, -1.0, -1.0);
-				aPainter.setPen(Qt::NoPen);
-				aPainter.setBrush(write);
-				aPainter.drawRoundedRect(face, 3.0, 3.0);
-				aPainter.setPen(QPen{ palette().color(QPalette::Active, QPalette::HighlightedText), 1.6, Qt::SolidLine, Qt::RoundCap });
-				const auto centre = face.center();
-				const auto arm    = face.width() * 0.28;
-				aPainter.drawLine(QPointF{ centre.x() - arm, centre.y() }, QPointF{ centre.x() + arm, centre.y() });
-				aPainter.drawLine(QPointF{ centre.x(), centre.y() - arm }, QPointF{ centre.x(), centre.y() + arm });
+				auto wash = ThreadMarkColor;
+				wash.setAlphaF(0.18F);
+				aPainter.fillRect(QRect{ 0, row.top() + header, Gutter->width(), row.height() }, wash);
+				aPainter.fillRect(QRect{ 0, row.top() + header, 3, row.height() }, ThreadMarkColor);
 			}
 			aPainter.restore();
 		}
@@ -2293,29 +2440,6 @@ namespace bpr::qt {
 		return ThreadMarkers;
 	}
 
-	void diff_workbench::set_thread_marker_style(const thread_marker_style aStyle)
-	{
-		if (MarkerStyle == aStyle) {
-			return;
-		}
-		MarkerStyle = aStyle;
-		for (auto* const source : { Left, Right, Unified }) {
-			pane(source)->set_marker_style(aStyle);
-		}
-	}
-
-	auto diff_workbench::thread_marker_style_in_use() const noexcept -> thread_marker_style
-	{
-		return MarkerStyle;
-	}
-
-	void diff_workbench::set_mark_theme(const feedback_mark_theme& aTheme)
-	{
-		for (auto* const source : { Left, Right, Unified }) {
-			pane(source)->set_mark_theme(aTheme);
-		}
-	}
-
 	void diff_workbench::set_mark_colours(const QColor& aThread, const QColor& aNew)
 	{
 		for (auto* const source : { Left, Right, Unified }) {
@@ -2343,7 +2467,7 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::set_line_add_dispatch(std::function<void(std::uint32_t)> aDispatch)
+	void diff_workbench::set_line_add_dispatch(std::function<void(std::uint32_t, std::uint32_t)> aDispatch)
 	{
 		// New comments go on the head side only (core::supported_comment_target).
 		pane(Right)->set_add_dispatch(std::move(aDispatch));
@@ -2351,8 +2475,7 @@ namespace bpr::qt {
 
 	auto diff_workbench::line_add_rect() const -> QRect
 	{
-		const auto rect = pane(Right)->add_rect();
-		return rect.isEmpty() ? rect : rect.translated(pane(Right)->contentsRect().topLeft());
+		return pane(Right)->add_rect();
 	}
 
 	void diff_workbench::set_thread_tick_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch)
@@ -3643,8 +3766,8 @@ namespace bpr::qt {
 		if (!Interaction.Selection.has_value()) {
 			return { };
 		}
-		const auto& preferred = Interaction.Selection->PreferredLine;
-		const auto* const mark = pane(preferred.Side == core::diff_side::left ? Left : Right)->mark_on(preferred.Line);
+		const auto&       preferred = Interaction.Selection->PreferredLine;
+		const auto* const mark      = pane(preferred.Side == core::diff_side::left ? Left : Right)->mark_on(preferred.Line);
 		if (mark == nullptr || mark->Description.isEmpty()) {
 			return { };
 		}

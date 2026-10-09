@@ -158,31 +158,15 @@ namespace bpr::qt {
 		new_thread,
 	};
 
-	/// \brief [[BPR-1335]]. Where a pane shows the threads on its lines.
-	///
-	/// \details Candidates for the owner's look. `column` is BPR-1290's
-	/// marker column right of the numbers, in both panes. The other two keep
-	/// no column: `in_numbers` draws the marker in the number's place, and
-	/// `number_tint` keeps the number and tints its cell. In both, the "+"
-	/// takes the number's place under the pointer.
-	enum class thread_marker_style : std::uint8_t {
-		column,
-		in_numbers,
-		number_tint,
-	};
-
 	struct diff_line_mark
 	{
 		std::uint32_t       Line = 0U;
 		diff_line_mark_kind Kind = diff_line_mark_kind::thread;
-		/// [[BPR-1290]]. The thread's first post's label mark, which the
-		/// gutter's marker shows; a plain square without one.
-		std::optional<core::feedback_label> Label;
-		feedback_mark_emphasis              Emphasis;
-		bool                                Resolved = false;
-		/// My unpublished note: a dashed square.
+		/// A resolved thread's number is tinted lighter.
+		bool Resolved = false;
+		/// My unpublished note: its number is outlined, dashed.
 		bool Draft = false;
-		/// The open thread: its line is washed amber and its marker ringed.
+		/// The open thread: its line is washed amber and its number barred.
 		bool Open = false;
 		/// The note under the pointer: its line is washed lightly.
 		bool Hovered = false;
@@ -335,26 +319,25 @@ namespace bpr::qt {
 		/// \brief Marks lines that carry a thread (amber) or a new one (blue).
 		void               set_line_marks(core::diff_side aSide, std::vector<diff_line_mark> aMarks);
 		[[nodiscard]] auto line_marks(core::diff_side aSide) const -> const std::vector<diff_line_mark>&;
-		/// \brief [[BPR-1290]]. Gives each pane's gutter a column for thread
-		/// markers, drawn with the theme's label marks, and the code's scroll
-		/// bar a tick per thread. Off, a mark is the 4 px bar at the code's edge.
+		/// \brief [[BPR-1290]], [[BPR-1335]]. Shows each pane's threads in its
+		/// gutter, the code's scroll bar a tick per thread, and the head pane
+		/// its "+" button. A thread's line number keeps its place and its cell
+		/// is tinted; the gutter is its numbers only. Off, a mark is the 4 px
+		/// bar at the code's edge.
 		void               set_thread_markers(bool aEnabled);
 		[[nodiscard]] auto thread_markers() const noexcept -> bool;
-		/// \brief [[BPR-1335]]. How the markers are drawn, when they are on.
-		void               set_thread_marker_style(thread_marker_style aStyle);
-		[[nodiscard]] auto thread_marker_style_in_use() const noexcept -> thread_marker_style;
-		void               set_mark_theme(const feedback_mark_theme& aTheme);
 		/// \brief The amber of a thread and the blue of a new one.
 		void set_mark_colours(const QColor& aThread, const QColor& aNew);
-		/// \brief Told when a thread's gutter marker is pressed, with its side
-		/// and zero-based source line.
+		/// \brief Told when a thread's tinted line number is pressed, with its
+		/// side and zero-based source line.
 		void set_line_mark_dispatch(std::function<void(core::diff_side, std::uint32_t)> aDispatch);
-		/// \brief [[BPR-1212]]. Told when the gutter's "+" on a head line
-		/// without a thread is pressed, with the zero-based line: Add comment.
-		void set_line_add_dispatch(std::function<void(std::uint32_t)> aDispatch);
-		/// \brief [[BPR-1212]]. Where the head pane's "+" for a zero-based
-		/// line is drawn while the pointer is over it, in the pane's
-		/// coordinates; empty while it is not shown.
+		/// \brief [[BPR-1212]], [[BPR-1335]]. Told when the head pane's "+"
+		/// button is clicked, or dragged across lines, with the first and last
+		/// zero-based lines it covered, in order: Add comment.
+		void set_line_add_dispatch(std::function<void(std::uint32_t aFirst, std::uint32_t aLast)> aDispatch);
+		/// \brief [[BPR-1212]], [[BPR-1335]]. Where the head pane's "+" button
+		/// is while the pointer is on its line, in the pane's coordinates;
+		/// empty while it is not shown.
 		[[nodiscard]] auto line_add_rect() const -> QRect;
 		/// \brief [[BPR-1290]]. Told when a thread's scroll-bar tick is
 		/// Shift-clicked, with its side and zero-based source line. A plain
@@ -588,10 +571,10 @@ namespace bpr::qt {
 		void announce_accessible_status(QString aText);
 		/// \brief [[BPR-1335]]. The sentence that names the current line's thread, or empty.
 		[[nodiscard]] auto thread_note() const -> QString;
-		void update_status(QString aText, bool aRoutine = false);
-		void emit_selection(bool aInteractive = false) noexcept;
-		void emit_reading_gesture() noexcept;
-		void emit_selection_observer(bool aInteractive) noexcept;
+		void               update_status(QString aText, bool aRoutine = false);
+		void               emit_selection(bool aInteractive = false) noexcept;
+		void               emit_reading_gesture() noexcept;
+		void               emit_selection_observer(bool aInteractive) noexcept;
 		/// \brief [[BPR-1212]]. Up, Down and Return on one pane; true when taken.
 		[[nodiscard]] auto handle_line_key(QPlainTextEdit* aPane, QEvent* aEvent) -> bool;
 		auto               move_pane_line_cursor(QPlainTextEdit* aPane, int aStep, bool aExtend) -> bool;
@@ -681,7 +664,6 @@ namespace bpr::qt {
 		bool                                OnePaneEnabled        = false;
 		/// [[BPR-1290]]. Thread markers in the gutter and ticks on the bar.
 		bool                                                ThreadMarkers = false;
-		thread_marker_style                                 MarkerStyle   = thread_marker_style::column;
 		std::function<void(core::diff_side, std::uint32_t)> LineMarkDispatch;
 		std::function<void(core::diff_side, std::uint32_t)> ThreadTickDispatch;
 		void                                                refresh_thread_ticks();

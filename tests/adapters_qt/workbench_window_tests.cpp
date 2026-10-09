@@ -6405,20 +6405,25 @@ namespace {
 		send(cards->draft_editor(), Qt::Key_Return, Qt::ControlModifier);
 		expect(publishes() == 1, "Ctrl+Return publishes the draft once");
 
-		// The gutter's "+" on a head line no thread is on: it shows under the
-		// pointer and starts a comment there.
-		auto* const gutter = code->findChild<QWidget*>(QStringLiteral("diffSourceLineNumbers"));
-		expect(gutter != nullptr && window.comparison_surface()->thread_markers(), "the head pane's gutter has its marker column");
-		const auto  fifth = window.comparison_surface()->line_rect(core::diff_side::right, 4U);
-		const auto  aim   = QPointF{ static_cast<qreal>(gutter->width() - 8), static_cast<qreal>(gutter->mapFrom(window.comparison_surface(), fifth.center()).y()) };
-		QMouseEvent hover{ QEvent::MouseMove, aim, gutter->mapToGlobal(aim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
-		QApplication::sendEvent(gutter, &hover);
-		expect(!window.comparison_surface()->line_add_rect().isEmpty(), "the pointer over line 5's gutter shows its \"+\"");
-		QMouseEvent press{ QEvent::MouseButtonPress, aim, gutter->mapToGlobal(aim), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		QApplication::sendEvent(gutter, &press);
+		// [[BPR-1335]]. The "+" button on a head line no thread is on: it
+		// shows while the pointer is on the line's code, at the start of the
+		// code, and a click starts a comment there.
+		expect(window.comparison_surface()->thread_markers(), "the comparison shows its threads");
+		const auto  fifth = code->viewport()->mapFrom(window.comparison_surface(), window.comparison_surface()->line_rect(core::diff_side::right, 4U).center());
+		const auto  aim   = QPointF{ 160.0, static_cast<qreal>(fifth.y()) };
+		QMouseEvent hover{ QEvent::MouseMove, aim, code->viewport()->mapToGlobal(aim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(code->viewport(), &hover);
+		auto* const addButton = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+		expect(addButton != nullptr && !addButton->isHidden() && window.comparison_surface()->line_add_rect() == addButton->geometry(),
+			   "the pointer on line 5's code shows its \"+\"");
+		const auto  centre = QPointF{ addButton->rect().center() };
+		QMouseEvent press{ QEvent::MouseButtonPress, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(addButton, &press);
+		QMouseEvent release{ QEvent::MouseButtonRelease, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(addButton, &release);
 		process_events();
 		expect(drawer_writing(window) && window.review_editor()->shown_draft()->Anchor.Line == 4U && writingMark(4U),
-			   "pressing the gutter's \"+\" starts a comment on line 5 in the drawer");
+			   "clicking the \"+\" starts a comment on line 5 in the drawer");
 		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
 		// The base side takes no new comment; the menu says why.
 		auto* const base     = window.comparison_surface()->left_pane();
@@ -8328,10 +8333,35 @@ namespace {
 			   "keypad Enter on one line opens its draft in the drawer and sends no range");
 		key(*cards->draft_editor(), Qt::Key_Escape);
 
+		// [[BPR-1335]]. Dragging the "+" button from line 4 to line 6 does
+		// what Shift+Down did: the draft on line 6 takes the first line 4.
+		const auto codeY = [&surface, right](const std::uint32_t aLine) {
+			return static_cast<qreal>(right->viewport()->mapFrom(surface, surface->line_rect(core::diff_side::right, aLine).center()).y());
+		};
+		const auto  from = QPointF{ 160.0, codeY(3U) };
+		QMouseEvent hoverLine{ QEvent::MouseMove, from, right->viewport()->mapToGlobal(from), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(right->viewport(), &hoverLine);
+		auto* const addButton = right->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+		expect(addButton != nullptr && !addButton->isHidden(), "the pointer on line 4's code shows its \"+\"");
+		const auto  centre = QPointF{ addButton->rect().center() };
+		const auto  onto   = right->viewport()->mapToGlobal(QPointF{ 160.0, codeY(5U) });
+		QMouseEvent pressAdd{ QEvent::MouseButtonPress, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(addButton, &pressAdd);
+		QMouseEvent dragAdd{ QEvent::MouseMove, addButton->mapFromGlobal(onto), onto, Qt::NoButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(addButton, &dragAdd);
+		QMouseEvent releaseAdd{ QEvent::MouseButtonRelease, addButton->mapFromGlobal(onto), onto, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(addButton, &releaseAdd);
+		process_events();
+		settle();
+		expect(ranges() == 3 && drawer_writing(window) && accepted->Draft.Anchor.Line == 5U && accepted->Draft.StartLine == std::optional<std::uint32_t>{ 3U }
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines 4\u20136") && bracket(3U, 5U),
+			   "dragging the \"+\" from line 4 to line 6 opens the draft on lines 4 to 6 with the bracket across them");
+		key(*cards->draft_editor(), Qt::Key_Escape);
+
 		// Keys in the drawer are its own.
 		cards->setFocus(Qt::OtherFocusReason);
 		key(*cards, Qt::Key_Return, Qt::ShiftModifier);
-		expect(!drawer_writing(window) && ranges() == 2, "Shift+Return in the notes starts no draft from the code");
+		expect(!drawer_writing(window) && ranges() == 3, "Shift+Return in the notes starts no draft from the code");
 
 		// No draft comes for the line: the status line says why.
 		admitted = false;
