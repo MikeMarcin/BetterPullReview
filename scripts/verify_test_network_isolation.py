@@ -138,9 +138,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_overview_feedback_public_path": "dos-volume-name",
     "application_overview_labels_public_path": "dos-volume-name",
     # [[BPR-1355]]. The thread-words course of the same setup-destination
-    # executable; registered uncontained like its siblings, not yet measured
-    # contained on Windows.
-    "application_thread_words_public_path": "unmeasured (registered on macOS)",
+    # executable. Measured on JaegAW 2026-10-09 at 64e145116: passes
+    # uncontained; contained through the sandbox launcher it fails "private
+    # thread-words course root" before any course step, like its siblings.
+    "application_thread_words_public_path": "dos-volume-name",
     # Measured on bpr-main-win 2026-10-08 at 7fc367064, each registered
     # contained for the measurement: overview_summary_public_path.exe stops at
     # "FAILED: private composed course root" (exit 3) in under 0.1 s at every
@@ -564,9 +565,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_workshop_guidance_default_contract": "dos-volume-name",
     "application_agent_finding_workshop_guidance_custom_contract": "dos-volume-name",
     "application_agent_finding_workshop_guidance_no_agent_contract": "dos-volume-name",
-    # [[BPR-1093]]. The injection course of the same composition; registered
-    # uncontained like its siblings above, not yet measured contained on Windows.
-    "application_agent_finding_workshop_injection_contract": "unmeasured (registered on Linux)",
+    # [[BPR-1093]]. The injection course of the same composition. Measured on
+    # JaegAW 2026-10-09 at 64e145116: passes uncontained; contained through the
+    # sandbox launcher it stops at `agent-finding-composition-failure:private-test-root`,
+    # like its siblings above.
+    "application_agent_finding_workshop_injection_contract": "dos-volume-name",
     "application_agent_finding_finding_host_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_full_agent_contract": "dos-volume-name",
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
@@ -688,10 +691,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "qt_agent_launch_canary_durable_course": "dos-volume-name",
     "application_feedback_draft_store": "dos-volume-name",
     "application_label_authoring_contract": "dos-volume-name",
-    # [[BPR-1093]]. Registered uncontained like the label authoring course,
-    # whose composition and private store it shares; not yet measured
-    # contained on Windows.
-    "application_label_publication_recovery": "unmeasured (registered on Linux)",
+    # [[BPR-1093]]. The label authoring course's composition and private store.
+    # Measured on JaegAW 2026-10-09 at 64e145116: passes uncontained; contained
+    # through the sandbox launcher it fails "private desktop test root under the
+    # canonical storage policy" before any course step.
+    "application_label_publication_recovery": "dos-volume-name",
     # [[BPR-1167]], [[BPR-1168]]. Measured on JaegAW 2026-10-02 at 3e3b3fa17 in a
     # BPR_BUILD_TOUR_CLI tree, contained through the sandbox launcher and as
     # registered. Each passes uncontained. Contained, the tour CLI rows and
@@ -703,9 +707,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "tour_cli_publication": "dos-volume-name",
     "tour_cli_composition": "dos-volume-name",
     "tour_cli_process_commands": "dos-volume-name",
-    # [[BPR-1092]]. Registered uncontained like the tour CLI rows above, whose
-    # profile root it shares; not yet measured contained on Windows.
-    "tour_cli_labels": "unmeasured (registered on Linux)",
+    # [[BPR-1092]]. The tour CLI rows' profile root. Measured on JaegAW
+    # 2026-10-09 at 64e145116 in the tour-cli tree: passes uncontained;
+    # contained through the sandbox launcher its first `tour open` exits 7 with
+    # profile_unavailable, "The application root is unavailable or is not
+    # owner-private.", as tour_cli_composition does.
+    "tour_cli_labels": "dos-volume-name",
     "cycle_cli_public_path": "dos-volume-name",
     # [[BPR-1185]]. Measured on JaegAW 2026-10-05 at 9c717f15a in a tour-cli
     # tree with tests, contained through the sandbox launcher: its first
@@ -768,10 +775,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # is not owner-private.", the profile_unavailable refusal
     # cycle_cli_public_path measures. It is run uncontained.
     "application_review_cycle_recovery_corpus": "dos-volume-name",
-    # [[BPR-1331]]. Registered uncontained like the published file switch row,
-    # whose fixture and composed application it shares; not yet measured
-    # contained on Windows.
-    "application_review_progress_push_contract": "unmeasured (registered on macOS)",
+    # [[BPR-1331]]. The published file switch row's fixture and composed
+    # application. Measured on JaegAW 2026-10-09 at 64e145116: passes
+    # uncontained; contained through the sandbox launcher its CMake driver
+    # cannot narrow its own data root ("Failed to set permissions",
+    # bpr_narrow_owner_private.cmake:16), before the application starts.
+    "application_review_progress_push_contract": "dos-volume-name",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they
