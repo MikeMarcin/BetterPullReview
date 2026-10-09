@@ -993,7 +993,8 @@ on `origin/main`, rebased onto `b864e319d`; slice 1 and slice 2 are both in.
     base-side anchor.
   - Suggest change stays on the head side: on a base line it is unavailable in
     the menu with its reason, and Shift+Return says why.
-  - The menu says "Base line N"; the drawer draft "Base line N" and "Your
+  - The menu says "Base line N"; the drawer draft's header "Base line N"
+    (`cb16bfeed`; its placeholder "Comment on base line N") and its name "Your
     draft on base line N"; leaving it returns focus to the base pane.
   - The gutter's "+" stays on the head pane (BPR-1335).
 - **(e) A right-click inside the selection keeps it**, with its selected line.
@@ -1122,6 +1123,7 @@ the file restored byte for byte):
 | Focus always to the head pane | `qt_workbench_line_draft` | "leaving a base-side draft returns focus to the base pane" |
 | Restore at the left (v001 order) | `qt_workbench_line_draft` | "Back to the code sits at the page's top right, …" |
 | Privacy note as in v001 | `qt_workbench_line_draft` | "the draft's privacy note is short, and its tooltip and description carry the sentence" |
+| A base draft headed "Line N" | `qt_workbench_line_draft` | "Add comment on a base line opens its draft on the left side in the drawer, headed "Base line 5"" |
 | Core ignores the evidence | `core_review_comment_range` | "one left line is refused without evidence that the base is numbered as GitHub's" |
 | Core lets one base line off the hunks | `core_review_comment_range` | "one left line outside every hunk is refused: a base line has no file-comment fallback" |
 | Host admits a base root without evidence | `application_review_mutation_application_host` | "left, absent, arbitrary-path, and stale bindings perform no provider work" |
@@ -1161,3 +1163,32 @@ times.
   course covers `same`. No live round on BPR-Test from this slice.
 - The gutter's "+" stays on the head pane, and the one-pane view's code has
   no right-click menu, as before.
+
+### Owner look v002 (pending)
+
+One new short session, not the long default one. Three questions, each Accept
+or Reject with any change in the note; none is self-certified.
+
+- Session `aab71651cfa5303e138bc36a669c96b2`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1212-compose-v002`
+  (repository root `/Users/jaeger/Documents/GitHub/BetterPullReview`), all
+  three candidates ready at event cursor 12. The review host runs detached.
+- Candidates, revision `frozen-cb16bfeed-v002`: `right-click-v002`
+  (fingerprint `28938375…`), `restore-position-v002` (`654c50a1…`) and
+  `publish-text-v002` (`6bf03f61…`).
+- Frozen root `/Users/jaeger/bpr1212-compose-look-v002.TbOqXc`: the
+  `git archive` of `cb16bfeed` built there with the dev preset (tests on), app
+  target only; executable SHA-256 `9df888055a42…`. Offscreen,
+  `--github-fixture inline-drawer-v1 --attended-open-file
+  src/ui/conversation_cards_view.cpp` printed `ATTENDED_FILE_SHOWN`; the
+  launcher opened it natively once and the window was closed. The fixture's
+  merge base is its base commit (`916aad15`), so its base lines are GitHub's.
+- Launch: `python3 /Users/jaeger/bpr1212-compose-look-v002.TbOqXc/launch.py`
+  (the 1557-line file in Review). It checks the build, its fingerprint and the
+  fixture tree first and reports an early exit.
+- v001's session was released (`resume-development --all`) and its frozen
+  root deleted.
+
+Next: read the session's decisions. Accepts answer the v001 Reject and the
+two notes; a Reject comes back as v003. [[BPR-1345]] (start a review) is next.
+
