@@ -2,6 +2,7 @@
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>

@@ -237,3 +237,11 @@ selection passes 19 of 19. `application_epoch_host`, `application_diff_host`,
 `test_network_isolation_manifest` fails only on [[BPR-1345]]'s
 `application_start_review_contract`, which was registered "unmeasured
 (registered on macOS)" in between; the Windows station measures it next.
+
+## GCC build fix (bpr-main-linux, 2026-10-09)
+
+At `3947245ca`, the Linux dev build failed:
+`tests/application/diff_application_host_tests.cpp` calls `std::ranges::none_of`
+and `std::ranges::all_of` without `<algorithm>`, which GCC 15 refuses (MSVC and
+Apple clang reach it through other headers). The include is added; test-only.
+`application_diff_host` passes on Linux and the format check passes.
