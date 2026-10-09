@@ -1,5 +1,6 @@
 #include "bpr/qt/code_sample_painter.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QFont>
@@ -201,6 +202,51 @@ namespace bpr::qt {
 		aBlock.layout()->setFormats(aFormats);
 		aDocument.markContentsDirty(aBlock.position(), aBlock.length());
 		return true;
+	}
+
+	void append_intraline_emphasis_span(
+		QList<QTextEdit::ExtraSelection>&       aSelections,
+		const QTextBlock&                       aBlock,
+		const int                               aFrom,
+		const int                               aTo,
+		const QColor&                           aFill,
+		const std::optional<code_emphasis_ink>& aInk)
+	{
+		if (!aBlock.isValid() || aFrom >= aTo) {
+			return;
+		}
+		const auto readable = [&aFill, &aInk](const QColor& aGlyph) {
+			return to_presentation_color(core::readable_emphasis_foreground(
+				to_appearance_color(aGlyph), to_appearance_color(aFill), aInk->Variant));
+		};
+		auto emphasis   = QTextEdit::ExtraSelection{ };
+		emphasis.cursor = QTextCursor{ aBlock };
+		emphasis.cursor.setPosition(aBlock.position() + aFrom);
+		emphasis.cursor.setPosition(aBlock.position() + aTo, QTextCursor::KeepAnchor);
+		emphasis.format.setBackground(aFill);
+		if (aInk.has_value()) {
+			emphasis.format.setForeground(readable(aInk->Normal));
+		}
+		aSelections.push_back(emphasis);
+		// Keep the exact edit range as one background layer. Foreground-only
+		// intersections preserve each classified token's hue and leave source,
+		// layout and the unedited part of the token untouched.
+		if (!aInk.has_value() || aBlock.layout() == nullptr) {
+			return;
+		}
+		for (const auto& token : aBlock.layout()->formats()) {
+			const auto begin = std::max(aFrom, token.start);
+			const auto end   = std::min(aTo, token.start + token.length);
+			if (begin >= end || token.format.foreground().style() == Qt::NoBrush) {
+				continue;
+			}
+			auto syntax   = QTextEdit::ExtraSelection{ };
+			syntax.cursor = QTextCursor{ aBlock };
+			syntax.cursor.setPosition(aBlock.position() + begin);
+			syntax.cursor.setPosition(aBlock.position() + end, QTextCursor::KeepAnchor);
+			syntax.format.setForeground(readable(token.format.foreground().color()));
+			aSelections.push_back(syntax);
+		}
 	}
 
 	auto spans_of_line(

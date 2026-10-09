@@ -57,7 +57,8 @@ namespace {
 	using tests::expect;
 	using access = app::detail::github_application_fixture_access;
 
-	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	/// \brief Settles until `aCondition` holds or 20 s pass; whether it held.
+	[[nodiscard]] auto settles(const std::function<bool()>& aCondition) -> bool
 	{
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
@@ -65,7 +66,19 @@ namespace {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
-		expect(aCondition(), aMessage);
+		return aCondition();
+	}
+
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	{
+		expect(settles(aCondition), aMessage);
+	}
+
+	/// \brief One block's syntax colours: its layout's format ranges.
+	[[nodiscard]] auto token_colours(const QPlainTextEdit& aView, const int aBlock) -> QList<QTextLayout::FormatRange>
+	{
+		const auto block = aView.document()->findBlockByNumber(aBlock);
+		return block.isValid() && block.layout() != nullptr ? block.layout()->formats() : QList<QTextLayout::FormatRange>{ };
 	}
 
 	/// \brief One side's line text, as the comparison decoded it.
@@ -202,6 +215,18 @@ namespace {
 			  "the gutter sits beside the rows and above the bar, outside what scrolls");
 		check(attended, strip->width() > surface->right_pane()->width() && strip->width() > surface->left_pane()->width(),
 			  "the strip is wider than either pane: it spans the comparison");
+		// v004: each row is coloured as its side's pane colours the line. The
+		// owner rejected v003: "there's no syntax highlighting." The
+		// classification lands after the click, so the check waits for it.
+		const auto coloured = settles([&] {
+			const auto base = token_colours(*strip, 0);
+			const auto head = token_colours(*strip, 1);
+			return !base.isEmpty() && !head.isEmpty() && base == token_colours(*surface->left_pane(), 5)
+				&& head == token_colours(*surface->right_pane(), 5);
+		});
+		std::cout << "bpr-1334 sql token ranges base=" << token_colours(*strip, 0).size() << " head=" << token_colours(*strip, 1).size()
+				  << " pane-head=" << token_colours(*surface->right_pane(), 5).size() << '\n';
+		check(attended, coloured, "the SQL line's rows carry the panes' syntax colours for that line, base and head");
 		render(window, QStringLiteral("01-sql-line"));
 
 		if (attended) {
@@ -236,6 +261,24 @@ namespace {
 				   && head.endsWith(QStringLiteral(" … %1 more bytes").arg(QLocale{ }.toString(static_cast<qulonglong>(omitted))))
 				   && strip->projection().Rows[1].Content.End - strip->projection().Rows[1].Content.Begin == 4'096U,
 			   "a line past the bound shows its first 4,096 bytes and says how many more there are");
+		// Coloured only as far as it is shown. The line is ASCII, so a
+		// character is a byte: no range reaches past the cut, and each one
+		// short of it is the pane's.
+		const auto cutColoured = settles([&] {
+			return !token_colours(*strip, 1).isEmpty() && !token_colours(*surface->right_pane(), 0).isEmpty();
+		});
+		const auto shownRanges = token_colours(*strip, 1);
+		const auto paneRanges  = token_colours(*surface->right_pane(), 0);
+		std::cout << "bpr-1334 minified token ranges strip=" << shownRanges.size() << " pane=" << paneRanges.size() << '\n';
+		expect(cutColoured && std::ranges::all_of(shownRanges, [](const QTextLayout::FormatRange& aRange) { return aRange.start + aRange.length <= 4'096; })
+				   && std::ranges::any_of(paneRanges, [](const QTextLayout::FormatRange& aRange) { return aRange.start + aRange.length > 4'096; })
+				   && shownRanges.size() <= paneRanges.size(),
+			   "the cut line is coloured up to its cut and no further, though the pane colours the whole line");
+		for (qsizetype index = 0; index < shownRanges.size(); ++index) {
+			if (shownRanges[index].start + shownRanges[index].length < 4'096) {
+				expect(shownRanges[index] == paneRanges[index], "each shown token of the cut line reads as in the pane");
+			}
+		}
 		render(window, QStringLiteral("02-minified-line"));
 
 		// View > Line Details hides and shows it, through the profile's preference.

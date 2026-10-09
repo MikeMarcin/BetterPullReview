@@ -4281,7 +4281,7 @@ namespace bpr::qt {
 			.IntralineRemoved = Colors.IntralineRemoved,
 			.GutterBackground = Colors.Syntax[core::index_of(role::code_gutter_background)],
 			.GutterText       = Colors.Syntax[core::index_of(role::code_line_number_text)],
-			.Ink              = Colors.Syntax[core::index_of(role::syntax_normal)],
+			.Syntax           = Colors.Syntax,
 			.Variant          = Colors.Variant,
 			.Supplied         = true,
 		});
@@ -4310,6 +4310,8 @@ namespace bpr::qt {
 		auto& retained = aSide == core::diff_side::left ? LeftSpans : RightSpans;
 		retained       = std::move(aSpans);
 		++Statistics.TokenSpanAdoptions;
+		// [[BPR-1334]]. Line details colours its rows from the same spans.
+		Detail->set_token_spans(LeftSpans, RightSpans);
 		update_diff_paint();
 		return true;
 	}
@@ -4762,43 +4764,16 @@ namespace bpr::qt {
 			const auto selected = aWashed.has_value()
 				&& line >= aWashed->Begin && line < aWashed->End;
 
-			auto emphasis   = QTextEdit::ExtraSelection{ };
-			emphasis.cursor = QTextCursor{ block };
-			emphasis.cursor.setPosition(block.position() + from);
-			emphasis.cursor.setPosition(
-				block.position() + to, QTextCursor::KeepAnchor);
 			// On a selected row the fill is derived from what that row is
 			// actually wearing, so it is a deeper shade of the band rather
 			// than a pink patch on a blue one. Everywhere else the accepted
 			// fill stays exactly as accepted.
 			const auto fill = selected ? derivedFill(aSide) : color;
-			emphasis.format.setBackground(fill);
-			const auto readable = [this, fill](const QColor& aInk) {
-				return to_presentation_color(core::readable_emphasis_foreground(
-					to_appearance_color(aInk), to_appearance_color(fill), Colors.Variant));
-			};
-			if (Colors.Supplied) {
-				emphasis.format.setForeground(readable(Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)]));
-			}
-			aSelections.push_back(emphasis);
-			// Keep the exact edit range as one background layer. Foreground-only
-			// intersections preserve each classified token's hue and leave source,
-			// layout and the unedited part of the token untouched.
-			if (Colors.Supplied && block.layout() != nullptr) {
-				for (const auto& token : block.layout()->formats()) {
-					const auto begin = std::max(from, token.start);
-					const auto end   = std::min(to, token.start + token.length);
-					if (begin >= end || token.format.foreground().style() == Qt::NoBrush) {
-						continue;
-					}
-					auto syntax   = QTextEdit::ExtraSelection{ };
-					syntax.cursor = QTextCursor{ block };
-					syntax.cursor.setPosition(block.position() + begin);
-					syntax.cursor.setPosition(block.position() + end, QTextCursor::KeepAnchor);
-					syntax.format.setForeground(readable(token.format.foreground().color()));
-					aSelections.push_back(syntax);
-				}
-			}
+			append_intraline_emphasis_span(
+				aSelections, block, from, to, fill,
+				Colors.Supplied ? std::optional{ code_emphasis_ink{ .Normal  = Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)],
+																	.Variant = Colors.Variant } }
+								: std::nullopt);
 		}
 	}
 
@@ -4943,6 +4918,7 @@ namespace bpr::qt {
 		// bug. The composition re-adopts once the new blobs are classified.
 		LeftSpans.reset();
 		RightSpans.reset();
+		Detail->set_token_spans(nullptr, nullptr);
 		MovedSegments.clear();
 		Interaction.Selection.reset();
 		ConversationAnchor.reset();

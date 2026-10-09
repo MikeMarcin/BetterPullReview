@@ -1061,7 +1061,14 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   over the content while it scrolls) the strip keeps the same band free under
   its rows ([[BPR-1334]] v003). A newly shown line opens scrolled to its first changed
   character, with a little of the text before it ([[BPR-1334]] v002; the owner
-  rejected v001's wrapping). A text
+  rejected v001's wrapping). Each row is coloured as its side's pane colours
+  that line ([[BPR-1334]] v004; the owner rejected v003: "there's no syntax
+  highlighting"): the base row from the base blob's classification and the
+  head row from the head blob's, the spans the panes already hold, painted
+  through the same format ranges. The change highlight is a background under
+  them, so a changed token keeps its own colour, moved only as far as it must
+  to stay readable on the fill, as in the panes. A cut row is coloured only as
+  far as it is shown. A text
   selection across lines that holds the current line shows each selected
   line's pair, up to sixteen, then how many more were selected. An unchanged
   line shows both versions plainly. A removed or added line shows its own row

@@ -4569,6 +4569,154 @@ namespace {
 		}
 		workbench.hide();
 	}
+
+	/// \brief [[BPR-1334]]. Line details colours its rows as the panes colour
+	/// the same lines, in light and dark, under the change highlight.
+	///
+	/// \details The owner rejected v003: "there's no syntax highlighting." A
+	/// row's token formats must equal its side's pane's for that line; a
+	/// changed token keeps its own colour over the intraline fill; a cut line
+	/// is coloured only as far as it is shown.
+	void test_line_details_colours_tokens_as_the_panes_do()
+	{
+		const auto baseLine = std::string{ R"(int total = compute(alpha, "base text"); // sums the inputs)" };
+		const auto headLine = std::string{ R"(int total = compute(omega, "base text"); // sums the inputs)" };
+		// A long unchanged line of two-byte tokens three bytes apart, so one
+		// token straddles the core's 4,096-byte cut (it starts at 4,095).
+		auto longLine = std::string{ };
+		for (auto index = 0; index < 1'500; ++index) {
+			longLine += "kw ";
+		}
+		const auto left  = "context line\n" + baseLine + "\n" + longLine + "\n";
+		const auto right = "context line\n" + headLine + "\n" + longLine + "\n";
+		const auto diff  = computed(left, right, { }, 71U);
+
+		using role          = core::appearance_role;
+		const auto spansFor = [&longLine](const std::string& aChanged, const std::string_view aToken) {
+			auto       spans = application::token_span_list{ };
+			const auto at    = [&aChanged](const std::string_view aText) { return static_cast<std::uint32_t>(aChanged.find(aText)); };
+			spans.push_back({ .Line = 1U, .Column = at("int"), .Length = 3U, .Role = role::syntax_type });
+			spans.push_back({ .Line = 1U, .Column = at("compute"), .Length = 7U, .Role = role::syntax_function });
+			spans.push_back({ .Line = 1U, .Column = at(aToken), .Length = 5U, .Role = role::syntax_constant });
+			spans.push_back({ .Line = 1U, .Column = at("\"base text\""), .Length = 11U, .Role = role::syntax_string });
+			spans.push_back({ .Line = 1U, .Column = at("// sums"), .Length = static_cast<std::uint32_t>(aChanged.size() - aChanged.find("// sums")), .Role = role::syntax_comment });
+			for (std::uint32_t column = 0U; column + 1U < longLine.size(); column += 3U) {
+				spans.push_back({ .Line = 2U, .Column = column, .Length = 2U, .Role = role::syntax_keyword });
+			}
+			return spans;
+		};
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'100, 760);
+		workbench.show();
+		process_events();
+		auto light = qt::appearance_profile{ };
+		static_cast<void>(light.select_mode(core::appearance_mode::light));
+		workbench.adopt_appearance(light);
+		const auto selected = context(diff, 95U, 95U);
+		workbench.set_loading(selected);
+		workbench.publish(qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		settle_geometry(workbench);
+		auto* const strip = workbench.line_details();
+		expect(workbench.select_conversation_line(core::diff_side::right, 1U), "the changed line selects");
+		process_events();
+		expect(strip->document()->blockCount() == 2 && block_formats(*strip, 0).isEmpty() && block_formats(*strip, 1).isEmpty(),
+			   "before any classification the strip colours nothing, as the panes do not");
+
+		// The classification arrives after the line is shown, as it does in
+		// the application: the strip colours the rows it already shows.
+		expect(workbench.adopt_token_spans(core::diff_side::left, std::make_shared<const application::token_span_list>(spansFor(baseLine, "alpha")))
+				   && workbench.adopt_token_spans(core::diff_side::right, std::make_shared<const application::token_span_list>(spansFor(headLine, "omega"))),
+			   "both sides adopt their classification");
+		process_events();
+
+		const auto expectAsThePanes = [&](const qt::appearance_profile& aProfile, const std::string& aMode) {
+			const auto baseRow = block_formats(*strip, 0);
+			const auto headRow = block_formats(*strip, 1);
+			std::cout << "bpr-1334 syntax " << aMode << " base-ranges=" << baseRow.size() << " head-ranges=" << headRow.size() << '\n';
+			expect(!baseRow.isEmpty() && baseRow == block_formats(*workbench.left_pane(), 1),
+				   aMode + ": the base row's token colours are the base pane's for that line");
+			expect(!headRow.isEmpty() && headRow == block_formats(*workbench.right_pane(), 1),
+				   aMode + ": the head row's token colours are the head pane's for that line");
+			const auto colourAt = [](const QList<QTextLayout::FormatRange>& aRanges, const int aCharacter) {
+				for (const auto& range : aRanges) {
+					if (range.start <= aCharacter && aCharacter < range.start + range.length) {
+						return range.format.foreground().color();
+					}
+				}
+				return QColor{ };
+			};
+			const auto compute = static_cast<int>(headLine.find("compute"));
+			expect(colourAt(headRow, compute) == aProfile.color(role::syntax_function)
+					   && colourAt(baseRow, static_cast<int>(baseLine.find("\"base"))) == aProfile.color(role::syntax_string),
+				   aMode + ": a function and a string read in their palette colours");
+
+			// The changed characters: the intraline fill as a background, and
+			// the token's own colour kept over it (readable, as the panes keep it).
+			const auto fill   = aProfile.color(role::diff_intraline_added_background);
+			const auto normal = aProfile.color(role::syntax_normal);
+			const auto token  = aProfile.color(role::syntax_constant);
+			expect(token != normal, aMode + ": the changed token's colour is not the plain ink, so keeping it shows");
+			const auto readable = [&](const QColor& aInk) {
+				return qt::to_presentation_color(
+					core::readable_emphasis_foreground(qt::to_appearance_color(aInk), qt::to_appearance_color(fill), aProfile.variant()));
+			};
+			auto marked = 0;
+			for (const auto& emphasis : strip->extraSelections()) {
+				if (emphasis.cursor.blockNumber() != 1 || emphasis.format.background().color() != fill) {
+					continue;
+				}
+				const auto tokenBegin = static_cast<int>(headLine.find("omega"));
+				for (auto at = emphasis.cursor.selectionStart() - emphasis.cursor.block().position();
+					 at < emphasis.cursor.selectionEnd() - emphasis.cursor.block().position(); ++at) {
+					if (at < tokenBegin || at >= tokenBegin + 5) {
+						continue;
+					}
+					// What paints a character is the last selection over it that
+					// sets a foreground.
+					auto ink = QColor{ };
+					for (const auto& over : strip->extraSelections()) {
+						const auto position = emphasis.cursor.block().position() + at;
+						if (over.cursor.selectionStart() <= position && position < over.cursor.selectionEnd()
+							&& over.format.foreground().style() != Qt::NoBrush) {
+							ink = over.format.foreground().color();
+						}
+					}
+					expect(ink == readable(token) && ink != readable(normal),
+						   aMode + ": a changed character of a token keeps the token's colour over the change highlight");
+					++marked;
+				}
+			}
+			expect(marked > 0, aMode + ": the changed token is highlighted on the head row");
+		};
+		expectAsThePanes(light, "light");
+
+		// A theme change recolours the shown rows from the new palette.
+		auto dark = qt::appearance_profile{ };
+		static_cast<void>(dark.select_mode(core::appearance_mode::dark));
+		workbench.adopt_appearance(dark);
+		process_events();
+		expect(dark.color(role::syntax_function) != light.color(role::syntax_function), "dark has its own function colour");
+		expectAsThePanes(dark, "dark");
+
+		// A cut line is coloured only as far as it is shown: the token across
+		// the cut ends there, and none is past it.
+		expect(workbench.select_conversation_line(core::diff_side::left, 2U), "the long line selects");
+		process_events();
+		const auto pane = block_formats(*workbench.left_pane(), 2);
+		const auto cut  = block_formats(*strip, 0);
+		const auto kept = std::ranges::count_if(pane, [](const QTextLayout::FormatRange& aRange) { return aRange.start < 4'096; });
+		std::cout << "bpr-1334 syntax cut pane-ranges=" << pane.size() << " strip-ranges=" << cut.size() << '\n';
+		expect(pane.size() == 1'500 && cut.size() == kept && kept == 1'366,
+			   "the strip colours the tokens it shows, and none past the 4,096-byte cut");
+		expect(std::ranges::equal(cut.mid(0, kept - 1), pane.mid(0, kept - 1)) && cut.back().start == 4'095 && cut.back().length == 1
+				   && cut.back().format == pane.at(kept - 1).format && block_formats(*strip, 1) == cut,
+			   "each shown token reads as in the pane, and the one across the cut ends at it");
+		workbench.hide();
+	}
 } // namespace
 
 namespace {
@@ -4799,6 +4947,7 @@ auto main(int argc, char** argv) -> int
 	test_the_reading_line_wears_the_current_line_band();
 	test_the_keyboard_line_cursor_and_return();
 	test_line_details_shows_the_current_line_base_over_head();
+	test_line_details_colours_tokens_as_the_panes_do();
 	std::cout << "diff-workbench-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -1,7 +1,5 @@
 #include "bpr/qt/line_details_pane.hpp"
 
-#include "bpr/core/appearance_contrast.hpp"
-#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 
 #include <QAbstractTextDocumentLayout>
@@ -16,11 +14,13 @@
 #include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextLayout>
 #include <QWidget>
 
 #include <algorithm>
 #include <cmath>
 #include <span>
+#include <utility>
 
 namespace bpr::qt {
 	namespace {
@@ -193,6 +193,7 @@ namespace bpr::qt {
 		ShownDiff           = nullptr;
 		RowBlocks           = 0U;
 		Emphasis.clear();
+		RowBytes.clear();
 		Empty = true;
 		if (!wasEmpty) {
 			++Presentations;
@@ -219,6 +220,7 @@ namespace bpr::qt {
 		Empty     = false;
 		RowBlocks = Shown.Rows.size();
 		Emphasis.clear();
+		RowBytes.assign(Shown.Rows.size(), QByteArray{ });
 
 		auto note = QTextCharFormat{ };
 		note.setForeground(palette().color(QPalette::PlaceholderText));
@@ -244,6 +246,7 @@ namespace bpr::qt {
 				continue;
 			}
 			const auto bytes = row_bytes(row, aDiff);
+			RowBytes[index]  = QByteArray{ reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()) };
 			cursor.insertText(
 				QString::fromUtf8(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())), plain);
 			for (const auto& span : row.Emphasis) {
@@ -274,6 +277,7 @@ namespace bpr::qt {
 		moveCursor(QTextCursor::Start);
 		verticalScrollBar()->setValue(0);
 		place_gutter();
+		apply_syntax();
 		repaint_bands();
 		reveal_first_change();
 	}
@@ -337,8 +341,59 @@ namespace bpr::qt {
 			return;
 		}
 		Colors = aColors;
+		apply_syntax();
 		repaint_bands();
 		Gutter->update();
+	}
+
+	void line_details_pane::set_token_spans(application::shared_token_spans aBase, application::shared_token_spans aHead)
+	{
+		if (BaseSpans == aBase && HeadSpans == aHead) {
+			return;
+		}
+		BaseSpans = std::move(aBase);
+		HeadSpans = std::move(aHead);
+		apply_syntax();
+		// The emphasis keeps each token's colour over its fill, so it is laid
+		// again over the new colours.
+		repaint_bands();
+	}
+
+	void line_details_pane::apply_syntax()
+	{
+		if (Empty) {
+			return;
+		}
+		auto kept = std::vector<application::token_span>{ };
+		for (std::size_t index = 0U; index < RowBlocks; ++index) {
+			const auto block = document()->findBlockByNumber(static_cast<int>(index));
+			if (!block.isValid()) {
+				continue;
+			}
+			const auto& row     = Shown.Rows[index];
+			const auto& spans   = row.Side == core::diff_side::left ? BaseSpans : HeadSpans;
+			auto        formats = QList<QTextLayout::FormatRange>{ };
+			if (spans && row.Line.has_value() && row.Kind != line_details_row_kind::absent) {
+				const auto& bytes = RowBytes[index];
+				const auto  shown = std::span<const std::uint8_t>{ reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+																   static_cast<std::size_t>(bytes.size()) };
+				// Only what the row shows is coloured: a token past the core's
+				// cut is left out, and one across it ends there, so a cut line
+				// costs its shown part however long the line is.
+				kept.clear();
+				for (const auto& span : spans_of_line(*spans, *row.Line)) {
+					if (span.Column >= shown.size()) {
+						continue;
+					}
+					auto clipped   = span;
+					clipped.Length = static_cast<std::uint32_t>(
+						std::min<std::size_t>(span.Length, shown.size() - span.Column));
+					kept.push_back(clipped);
+				}
+				formats = code_syntax_format_ranges({ .LineBytes = shown, .Spans = kept, .Colors = &Colors.Syntax });
+			}
+			static_cast<void>(apply_syntax_format_ranges(*document(), block, formats));
+		}
 	}
 
 	void line_details_pane::repaint_bands()
@@ -371,26 +426,19 @@ namespace bpr::qt {
 			wash.format.setProperty(QTextFormat::FullWidthSelection, true);
 			selections.push_back(wash);
 		}
+		const auto& normal = Colors.Syntax[core::index_of(core::appearance_role::syntax_normal)];
 		for (const auto& span : Emphasis) {
 			const auto  side = Shown.Rows[static_cast<std::size_t>(span.Block)].Side;
 			const auto& fill = side == core::diff_side::left ? Colors.IntralineRemoved : Colors.IntralineAdded;
 			if (!fill.isValid()) {
 				continue;
 			}
-			const auto block = document()->findBlockByNumber(span.Block);
-			if (!block.isValid()) {
-				continue;
-			}
-			auto emphasis   = QTextEdit::ExtraSelection{ };
-			emphasis.cursor = QTextCursor{ block };
-			emphasis.cursor.setPosition(block.position() + span.From);
-			emphasis.cursor.setPosition(block.position() + span.To, QTextCursor::KeepAnchor);
-			emphasis.format.setBackground(fill);
-			if (Colors.Supplied && Colors.Ink.isValid()) {
-				emphasis.format.setForeground(to_presentation_color(core::readable_emphasis_foreground(
-					to_appearance_color(Colors.Ink), to_appearance_color(fill), Colors.Variant)));
-			}
-			selections.push_back(emphasis);
+			// The panes' own mark: the fill as a background, each token's
+			// colour kept over it.
+			append_intraline_emphasis_span(selections, document()->findBlockByNumber(span.Block), span.From, span.To, fill,
+										   Colors.Supplied && normal.isValid()
+											   ? std::optional{ code_emphasis_ink{ .Normal = normal, .Variant = Colors.Variant } }
+											   : std::nullopt);
 		}
 		setExtraSelections(selections);
 	}

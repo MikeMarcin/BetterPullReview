@@ -73,6 +73,13 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   strip's one horizontal bar, both rows together, and the gutter stays put.
   The bar covers neither a row nor the gutter, legacy or overlay (v003).
   A new line opens scrolled to its first changed character.
+- Each row is coloured as its side's pane colours that line (v004, after
+  the owner rejected v003: "there's no syntax highlighting"). The base row
+  takes the base blob's classification and the head row the head blob's,
+  the spans the panes already hold, through the same format ranges. The
+  change highlight is a background under them, so a changed token keeps its
+  colour, moved only as far as it must to stay readable on the fill, as in
+  the panes. A cut row is coloured only as far as it is shown.
 - A mouse selection that spans lines shows each selected line's pair, capped
   at 16 lines, followed by a line that says how many more were selected.
 - Unchanged lines show both versions without highlights. A removed line shows
@@ -95,8 +102,8 @@ The existing Detail pane becomes **Line details**. No second pane is added.
 - **C1 (direct).** In the production workbench, the current line's base and
   head rows appear under the comparison, each one unwrapped line under one
   shared horizontal bar with a fixed gutter, opening on the first changed
-  character, with line numbers and
-  intraline highlights from core. They follow a click, a change step and a
+  character, with line numbers, the panes' syntax colours for the same
+  line, and intraline highlights from core. They follow a click, a change step and a
   mouse selection across lines. Added, removed and unchanged lines each read
   sensibly.
 - **C2 (direct).** The strip is shown in a fresh profile. View > Line Details
