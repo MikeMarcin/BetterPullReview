@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1354"
 title: "Every tooltip shows next to its control"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","origin":"BPR-1335 owner look, session b4b76c70c8e54f1933410b582189d0e8, BPR-1335-add-button-v002 Accept note","decision_id":"e7d697dd-056d-418f-bc6d-ffa10b11d687","reservation":"docs/issues/_reservations/BPR-1353--BPR-1354--7fb3f9709caa.json","related_cards":["BPR-1335","BPR-1328","BPR-1083"],"acceptance":["BPR-1354:inventory","BPR-1354:one-placement","BPR-1354:position","BPR-1354:control","BPR-1354:guard","BPR-1354:specification","BPR-1354:owner-look"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1354:inventory","outcome":"pass","revision":"07366641e","evidence":{"kind":"artifact","detail":"Card section Inventory lists every tooltip route found by grep over src and what each now does."}},{"criterion":"BPR-1354:one-placement","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"grep: no QToolTip::showText in src; install_anchored_tooltips answers every widget's tooltip event via standard_tooltip_target; painted controls use anchor_tooltips or show_anchored_tooltip."}},{"criterion":"BPR-1354:position","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"qt_anchored_tooltips (button, child, list item, tab, header section, menu action, bottom edge above) and qt_diff_workbench_scale_{100,125,200} (the +) pass: tooltip at anchored_tooltip_geometry, directly below, left edges aligned."}},{"criterion":"BPR-1354:control","outcome":"pass","revision":"b9aff5200","evidence":{"kind":"command","detail":"Against main's adapter: qt_anchored_tooltips 28 failures (anchored=0 qt=1), qt_diff_workbench_scale_100 fails at the +'s tooltip check."}},{"criterion":"BPR-1354:guard","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"architecture_boundaries refuses QToolTip::showText under src/adapters/qt and src/app; passes on the candidate."}},{"criterion":"BPR-1354:specification","outcome":"pass","revision":"07366641e","evidence":{"kind":"artifact","detail":"workbench-specification.md primary actions states the rule for every tooltip; conventional-comments-feedback.md points to it."}},{"criterion":"BPR-1354:owner-look","outcome":"pending","revision":"frozen-07366641e-v001","evidence":{"kind":"observation","detail":"Session 9f285bbed81efd15a3546759cad586f3, candidate BPR-1354-tooltips-v001, ready at cursor 3; frozen root /Users/jaeger/bpr1354-tooltips-v001.mvqqg7bo."}}]
+acceptance: [{"criterion":"BPR-1354:inventory","outcome":"pass","revision":"07366641e","evidence":{"kind":"artifact","detail":"Card section Inventory lists every tooltip route found by grep over src and what each now does."}},{"criterion":"BPR-1354:one-placement","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"grep: no QToolTip::showText in src; install_anchored_tooltips answers every widget's tooltip event via standard_tooltip_target; painted controls use anchor_tooltips or show_anchored_tooltip."}},{"criterion":"BPR-1354:position","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"qt_anchored_tooltips (button, child, list item, tab, header section, menu action, bottom edge above) and qt_diff_workbench_scale_{100,125,200} (the +) pass: tooltip at anchored_tooltip_geometry, directly below, left edges aligned."}},{"criterion":"BPR-1354:control","outcome":"pass","revision":"b9aff5200","evidence":{"kind":"command","detail":"Against main's adapter: qt_anchored_tooltips 28 failures (anchored=0 qt=1), qt_diff_workbench_scale_100 fails at the +'s tooltip check."}},{"criterion":"BPR-1354:guard","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"architecture_boundaries refuses QToolTip::showText under src/adapters/qt and src/app; passes on the candidate."}},{"criterion":"BPR-1354:specification","outcome":"pass","revision":"07366641e","evidence":{"kind":"artifact","detail":"workbench-specification.md primary actions states the rule for every tooltip; conventional-comments-feedback.md points to it."}},{"criterion":"BPR-1354:owner-look","outcome":"pass","revision":"07366641e","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1354-every-tooltip-shows-next-to-its-control.md","detail":"Owner Accept, no note, 2026-10-09T12:58:52Z: session 9f285bbed81efd15a3546759cad586f3, candidate BPR-1354-tooltips-v001 (fingerprint ae207a46031d..., frozen-07366641e-v001), decision 263367fa-f0ba-4ef0-aeb9-eacdc375e615 at event 4, handed back at 5, released at 6."}}]
 ---
 
 # BPR-1354: Every tooltip shows next to its control
@@ -194,7 +193,7 @@ is Qt's own tooltip panel, so the work is placement and wrapping only.
   first by pattern); everything that ran was rebuilt afterwards, and the
   frozen build is made from the commit in its own root.
 
-## Owner look (pending)
+## Owner look (accepted, below)
 
 One new short session, one question, Accept or Reject: "tooltips appear next
 to their control".
@@ -220,6 +219,24 @@ the frozen root with `freeze_attended_build.py remove`. A Reject names the
 tooltip that was still away from its control; route it through
 `standard_tooltip_target` or an `anchor_tooltips` source, with a position
 test for that kind.
+
+## Owner verdict, session v001
+
+Accept, 2026-10-09T12:58:52Z, decision `263367fa-f0ba-4ef0-aeb9-eacdc375e615`
+at session event 4, no note (candidate `BPR-1354-tooltips-v001`, fingerprint
+`ae207a46031d…`, revision `frozen-07366641e-v001`). The owner handed session
+`9f285bbed81efd15a3546759cad586f3` back at event 5, read from cursor 0.
+
+This satisfies `BPR-1354:owner-look`. The other six criteria stand on their
+recorded evidence, and the Linux and Windows station runs below pass
+`qt_anchored_tooltips` and `qt_diff_workbench_scale_{100,125,200}`. The card
+is Done.
+
+The host (pid 49193) was stopped and the candidate released with
+`resume-development --all` at event 6. The frozen root
+`/Users/jaeger/bpr1354-tooltips-v001.mvqqg7bo` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
 
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
