@@ -364,12 +364,13 @@ namespace {
 			{ "T2", "r2", std::nullopt, "note: Root two." },
 		};
 		auto first = refresh({ }, key, posts);
-		expect(first.Hashed == 3U && first.Recognized.size() == 3U, "the first observation hashes each body it parses, once");
+		expect(first.Hashed == 3U && first.Recognized.size() == 3U && !first.Carried, "the first observation hashes each body it parses, once, and carries nothing");
 		auto set = adopted({ }, std::move(first));
 		expect(post(set, "r1").Body && *post(set, "r1").Body == "issue: Root one.", "a post keeps the exact bytes it was read from");
 
 		auto same = refresh(set, key, posts);
 		expect(same.Reused == 3U && same.Hashed == 0U, "an unchanged observation hashes no body");
+		expect(same.Carried && same.Next.Conversations == set.Conversations, "the kept posts observed again carry their order and classification over");
 		expect(post(same.Next, "r1").Body == post(set, "r1").Body && post(same.Next, "p1").Body == post(set, "p1").Body,
 			   "a reused post shares its kept bytes, not a copy");
 		set = adopted(set, std::move(same));
@@ -378,6 +379,13 @@ namespace {
 		posts[0].Body = "issue: Root One.";
 		auto edited   = refresh(set, key, posts);
 		expect(edited.Recognized == names{ "r1" } && edited.Reused == 2U && edited.Hashed == 1U, "one changed byte parses that body again and hashes it alone");
+		// The same edit with a repeated page goes the general way, to the same set.
+		auto repeatedPage = posts;
+		repeatedPage.push_back(posts[1]);
+		const auto general = refresh(set, key, repeatedPage);
+		expect(edited.Carried && !general.Carried && general.Collapsed == 1U && summary(general.Next) == summary(edited.Next) && general.Recognized == edited.Recognized
+				   && general.ChangedConversations == edited.ChangedConversations,
+			   "a carried refresh gives what the general one gives");
 		set = adopted(set, std::move(edited));
 
 		// The kept bytes decide, not the kept digest. A kept digest that no

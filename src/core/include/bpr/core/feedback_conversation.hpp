@@ -158,6 +158,12 @@ namespace bpr::core {
 		/// [[BPR-1349]]. Bodies this refresh hashed: one for each recognized
 		/// body, whose annotation carries its digest, and none for a reuse.
 		std::size_t Hashed = 0U;
+		/// [[BPR-1349]]. The observation named exactly the kept posts, each in
+		/// its kept conversation with its kept reply link, and no page repeated
+		/// one. The kept order was carried over unsorted, and a conversation
+		/// whose posts were all unchanged kept its classification. The result
+		/// is the one the general path gives.
+		bool Carried = false;
 	};
 
 	/// \brief Recompute the set from one complete accepted observation of a

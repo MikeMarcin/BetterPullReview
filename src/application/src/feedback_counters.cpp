@@ -84,6 +84,7 @@ namespace bpr::application {
 		Work.BodiesParsed += update.Reparsed;
 		Work.BodiesReused += update.Reused;
 		Work.BodiesHashed += refresh.Hashed;
+		Work.RefreshesCarried += refresh.Carried ? 1U : 0U;
 		auto adopted = core::adopt_feedback_refresh(current, std::move(refresh));
 		if (!adopted) {
 			update.AnnotationRefusal = core::feedback_refresh_refusal::invalid_scope;
@@ -99,7 +100,10 @@ namespace bpr::application {
 		// Which paths changed, and whether a change reaches every scope: a new
 		// pull request, a new coverage, or a conversation whose file is unknown
 		// (it limits every file and folder count).
-		auto       full         = replaced || collection != Population.Collection;
+		auto full = replaced || collection != Population.Collection;
+		// [[BPR-1349]]. Whether a unit arrived, left or moved to another
+		// anchor: only then do the units' places, files and scopes change.
+		auto       relaid       = full;
 		auto       affected     = std::set<std::string>{ };
 		auto       unattributed = false;
 		const auto touch        = [&](const core::feedback_counter_unit& aUnit) {
@@ -122,34 +126,47 @@ namespace bpr::application {
 				const auto found = before.find(unit.Id);
 				if (found == before.end()) {
 					touch(unit);
+					relaid = true;
 					continue;
 				}
 				if (!same_unit(*found->second, unit)) {
 					touch(*found->second);
 					touch(unit);
+					relaid = relaid || found->second->Anchor != unit.Anchor;
 				}
 				before.erase(found);
 			}
 			for (const auto& [id, unit] : before) {
 				touch(*unit);
+				relaid = true;
 			}
 		}
+		// A change that reaches every scope reads them all afresh.
+		relaid = relaid || full;
 
 		Annotations = std::move(*adopted);
 		Population  = std::move(built.Population);
 		Observed    = true;
-		index_units();
+		// The same units at the same anchors keep their places in the
+		// population, which is in identity order, so the index still holds.
+		if (relaid) {
+			index_units();
+		}
 		update.Admitted   = true;
 		update.Collection = Population.Collection;
 
-		// Every scope a conversation is in now.
-		auto present = std::set<scope_key>{ { feedback_counter_scope_kind::pull_request, std::string{ } } };
-		if (!Unattributed.empty()) {
-			present.insert({ feedback_counter_scope_kind::unattributed, std::string{ } });
-		}
-		for (const auto& [path, units] : UnitsByPath) {
-			present.insert({ feedback_counter_scope_kind::file, path });
-			for_each_folder(path, [&](std::string aFolder) { present.insert({ feedback_counter_scope_kind::folder, std::move(aFolder) }); });
+		// Every scope a conversation is in now; unchanged, and every kept
+		// tally still present, unless the units were laid out again.
+		auto present = std::set<scope_key>{ };
+		if (relaid) {
+			present.insert({ feedback_counter_scope_kind::pull_request, std::string{ } });
+			if (!Unattributed.empty()) {
+				present.insert({ feedback_counter_scope_kind::unattributed, std::string{ } });
+			}
+			for (const auto& [path, units] : UnitsByPath) {
+				present.insert({ feedback_counter_scope_kind::file, path });
+				for_each_folder(path, [&](std::string aFolder) { present.insert({ feedback_counter_scope_kind::folder, std::move(aFolder) }); });
+			}
 		}
 		auto retally = std::set<scope_key>{ };
 		if (full) {
@@ -165,7 +182,7 @@ namespace bpr::application {
 			}
 		}
 
-		for (auto kept = Tallies.begin(); kept != Tallies.end();) {
+		for (auto kept = Tallies.begin(); relaid && kept != Tallies.end();) {
 			if (!present.contains(kept->first)) {
 				update.Removed.push_back(kept->second.Where);
 				kept = Tallies.erase(kept);
@@ -174,7 +191,7 @@ namespace bpr::application {
 			}
 		}
 		for (const auto& key : retally) {
-			if (!present.contains(key)) {
+			if (relaid && !present.contains(key)) {
 				continue;
 			}
 			auto       tally = tally_scope(key);
@@ -231,6 +248,7 @@ namespace bpr::application {
 
 	void feedback_counter_model::index_units()
 	{
+		++Work.UnitIndexes;
 		UnitsByPath.clear();
 		UnknownAnchors.clear();
 		Unattributed.clear();

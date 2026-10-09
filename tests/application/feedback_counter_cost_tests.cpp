@@ -252,6 +252,8 @@ namespace {
 		result.BodiesParsed           = aAfter.BodiesParsed - aBefore.BodiesParsed;
 		result.BodiesReused           = aAfter.BodiesReused - aBefore.BodiesReused;
 		result.BodiesHashed           = aAfter.BodiesHashed - aBefore.BodiesHashed;
+		result.RefreshesCarried       = aAfter.RefreshesCarried - aBefore.RefreshesCarried;
+		result.UnitIndexes            = aAfter.UnitIndexes - aBefore.UnitIndexes;
 		result.UnitsCompared          = aAfter.UnitsCompared - aBefore.UnitsCompared;
 		result.ScopesRetallied        = aAfter.ScopesRetallied - aBefore.ScopesRetallied;
 		result.ScopesTalliedOnRequest = aAfter.ScopesTalliedOnRequest - aBefore.ScopesTalliedOnRequest;
@@ -289,7 +291,7 @@ namespace {
 		std::ranges::sort(times);
 		std::cout << "feedback-cost workload=" << aShape.Name << " phase=" << aPhase << " columns=" << aColumns << " mode=" << aMode << " runs=" << times.size()
 				  << " observations=" << aResult.Work.Observations << " bodies_parsed=" << aResult.Work.BodiesParsed << " bodies_reused=" << aResult.Work.BodiesReused
-				  << " bodies_hashed=" << aResult.Work.BodiesHashed
+				  << " bodies_hashed=" << aResult.Work.BodiesHashed << " carried=" << aResult.Work.RefreshesCarried << " unit_indexes=" << aResult.Work.UnitIndexes
 				  << " units_compared=" << aResult.Work.UnitsCompared << " scopes_retallied=" << aResult.Work.ScopesRetallied
 				  << " scopes_tallied_on_request=" << aResult.Work.ScopesTalliedOnRequest << " units_tallied=" << aResult.Work.UnitsTallied
 				  << " alloc_calls=" << aResult.Calls << " alloc_bytes=" << aResult.Bytes << " min_us=" << static_cast<long long>(times.front())
@@ -348,6 +350,7 @@ namespace {
 			expect(first.Admitted && result.Work.BodiesParsed == posts && result.Work.BodiesReused == 0U && first.Retallied == result.Work.ScopesRetallied,
 				   std::string{ aShape.Name } + ": the first observation parses every body once");
 			expect(result.Work.BodiesHashed == posts, std::string{ aShape.Name } + ": the first observation hashes each body it parses, once");
+			expect(result.Work.RefreshesCarried == 0U && result.Work.UnitIndexes == 1U, std::string{ aShape.Name } + ": the first observation builds its set and its index");
 		}
 
 		auto       model = feedback_counter_model{ };
@@ -365,6 +368,8 @@ namespace {
 				   std::string{ aShape.Name } + ": an unchanged snapshot parses nothing and tallies only the pull request again");
 			// [[BPR-1349]]. Every body is proved unchanged by its kept bytes.
 			expect(result.Work.BodiesHashed == 0U, std::string{ aShape.Name } + ": an unchanged snapshot hashes no body");
+			expect(result.Work.RefreshesCarried == 1U && result.Work.UnitIndexes == 0U,
+				   std::string{ aShape.Name } + ": an unchanged snapshot carries the kept order over and keeps the index");
 		}
 
 		// The Overview's counts for each chip selection and mode, and a sort:
@@ -437,6 +442,7 @@ namespace {
 			expect(std::ranges::all_of(parsed, [](const std::size_t aCount) { return aCount == 1U; }) && result.Work.BodiesReused == posts - 1U,
 				   std::string{ aShape.Name } + ": a root edit parses that one body and reuses every other");
 			expect(result.Work.BodiesHashed == 1U, std::string{ aShape.Name } + ": a root edit hashes only the edited body");
+			expect(result.Work.RefreshesCarried == 1U && result.Work.UnitIndexes == 0U, std::string{ aShape.Name } + ": a root edit carries the kept order over and keeps the index");
 			expect(std::ranges::all_of(retally, [&](const std::size_t aCount) { return aCount == reach.size(); }) && std::ranges::all_of(changed, [&](const auto& aSet) { return aSet == reach; }),
 				   std::string{ aShape.Name } + ": a root edit tallies again exactly the pull request, the file and its three folders, and they are what changed");
 		}
@@ -452,6 +458,7 @@ namespace {
 			expect(result.Work.BodiesParsed == 1U && result.Work.ScopesRetallied == 1U && changed == 0U,
 				   std::string{ aShape.Name } + ": a reply's label parses one body and changes no count");
 			expect(result.Work.BodiesHashed == 1U, std::string{ aShape.Name } + ": a reply edit hashes only the edited body");
+			expect(result.Work.RefreshesCarried == 1U && result.Work.UnitIndexes == 0U, std::string{ aShape.Name } + ": a reply edit carries the kept order over and keeps the index");
 		}
 		// A website resolve or reopen: no body parsed, the same five scopes.
 		{
@@ -461,6 +468,7 @@ namespace {
 			expect(result.Work.BodiesParsed == 0U && result.Work.ScopesRetallied == reach.size() && std::ranges::all_of(changed, [&](const auto& aSet) { return aSet == reach; }),
 				   std::string{ aShape.Name } + ": a resolve parses no body and tallies again exactly the five scopes it reaches");
 			expect(result.Work.BodiesHashed == 0U, std::string{ aShape.Name } + ": a resolve hashes no body");
+			expect(result.Work.RefreshesCarried == 1U && result.Work.UnitIndexes == 0U, std::string{ aShape.Name } + ": a resolve carries the kept order over and keeps the index");
 		}
 	}
 }

@@ -65,6 +65,12 @@ namespace bpr::application {
 		/// [[BPR-1349]]. Bodies the core hashed: a reused body is proved
 		/// unchanged by its kept bytes, not by its digest.
 		std::uint64_t BodiesHashed = 0U;
+		/// [[BPR-1349]]. Observations whose annotation refresh carried the kept
+		/// order and unchanged classifications over instead of rebuilding them.
+		std::uint64_t RefreshesCarried = 0U;
+		/// [[BPR-1349]]. Times the units were indexed by file again, which an
+		/// observation does only when a unit arrived, left or changed anchor.
+		std::uint64_t UnitIndexes = 0U;
 		/// Units of a new population compared with the kept one.
 		std::uint64_t UnitsCompared = 0U;
 		/// Kept tallies taken again by an observation.

@@ -1,6 +1,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/application/feedback_counters.hpp"
 #include "bpr/application/feedback_sources.hpp"
+#include "bpr/core/feedback_conversation.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 
 #include <algorithm>
@@ -463,9 +464,45 @@ namespace {
 			   "every conversation is still counted once, the hostile ones included");
 	}
 
+	/// [[BPR-1349]]. The core's annotation posts as the counter model hands
+	/// them over: every post but a generated tour index's.
+	auto counted_posts(const application::feedback_sources& aSources) -> std::vector<core::feedback_post_observation>
+	{
+		auto references = std::set<std::string>{ };
+		for (const auto& conversation : aSources.Conversations) {
+			if (conversation.TourIndex) {
+				references.insert(conversation.Facts.Id);
+			}
+		}
+		auto posts = application::feedback_post_observations(aSources);
+		std::erase_if(posts, [&](const core::feedback_post_observation& aPost) { return references.contains(std::string{ aPost.Conversation }); });
+		return posts;
+	}
+
+	/// [[BPR-1349]]. Two refreshes of one base agree on everything a reader
+	/// sees: the next set's posts, bytes, annotations and conversations, and
+	/// what was recognized, reused, hashed, removed and changed.
+	auto same_refresh(const core::feedback_annotation_refresh& aLeft, const core::feedback_annotation_refresh& aRight) -> bool
+	{
+		const auto same_post = [](const core::feedback_post& aA, const core::feedback_post& aB) {
+			const auto sameBody       = (aA.Body == nullptr) == (aB.Body == nullptr) && (aA.Body == nullptr || *aA.Body == *aB.Body);
+			const auto sameAnnotation = aA.Annotation.has_value() == aB.Annotation.has_value()
+				&& (!aA.Annotation
+					|| (aA.Annotation->Status == aB.Annotation->Status && aA.Annotation->Label == aB.Annotation->Label && aA.Annotation->BodyDigest == aB.Annotation->BodyDigest
+						&& aA.Annotation->ParserRevision == aB.Annotation->ParserRevision && aA.Annotation->Diagnostics == aB.Annotation->Diagnostics
+						&& aA.Annotation->InspectedBytes == aB.Annotation->InspectedBytes));
+			return aA.Conversation == aB.Conversation && aA.Id == aB.Id && aA.ReplyTo == aB.ReplyTo && aA.Deleted == aB.Deleted && aA.Segment == aB.Segment && sameBody && sameAnnotation;
+		};
+		return aLeft.Refusal == aRight.Refusal && aLeft.Next.Scope == aRight.Next.Scope && aLeft.Next.Epoch == aRight.Next.Epoch
+			&& std::ranges::equal(aLeft.Next.Posts, aRight.Next.Posts, same_post) && aLeft.Next.Conversations == aRight.Next.Conversations
+			&& aLeft.Recognized == aRight.Recognized && aLeft.Removed == aRight.Removed && aLeft.ChangedConversations == aRight.ChangedConversations
+			&& aLeft.Reused == aRight.Reused && aLeft.Hashed == aRight.Hashed;
+	}
+
 	/// Random website edits, resolutions, moves, arrivals and departures: after
 	/// each, every kept tally is the core's own for its scope, and the update
-	/// names exactly the scopes whose counts changed.
+	/// names exactly the scopes whose counts changed. [[BPR-1349]]: the
+	/// refresh's carried path gives exactly what its general path gives.
 	void test_random_changes_match_the_core()
 	{
 		auto       random   = std::mt19937{ 1087U };
@@ -475,7 +512,14 @@ namespace {
 		auto       snapshot = base_snapshot();
 		auto       model    = feedback_counter_model{ };
 		static_cast<void>(model.observe(review_key(), snapshot));
-		auto next = 100;
+		auto kept = core::feedback_annotation_set{ };
+		{
+			const auto posts = counted_posts(application::observe_feedback_sources(snapshot));
+			kept             = *core::adopt_feedback_refresh(kept, core::refresh_feedback_annotations(kept, review_key(), posts));
+		}
+		auto carried = 0;
+		auto general = 0;
+		auto next    = 100;
 		for (int round = 0; round < 400; ++round) {
 			const auto before  = oracle(model.population());
 			auto&      threads = snapshot.ReviewThreads;
@@ -528,7 +572,23 @@ namespace {
 			}
 			expect(keys(update.Changed) == changed && keys(update.Removed) == removed, "round " + std::to_string(round) + ": the update names exactly the changed and removed scopes");
 			expect_matches_oracle(model, "round " + std::to_string(round));
+
+			// The same observation through the general path: one identical
+			// repeated page collapses, changes nothing else, and is never
+			// carried.
+			const auto sources  = application::observe_feedback_sources(snapshot);
+			const auto posts    = counted_posts(sources);
+			auto       repeated = posts;
+			repeated.push_back(posts.front());
+			auto       fast = core::refresh_feedback_annotations(kept, review_key(), posts);
+			const auto slow = core::refresh_feedback_annotations(kept, review_key(), repeated);
+			expect(!slow.Carried && slow.Collapsed == 1U && fast.Collapsed == 0U, "round " + std::to_string(round) + ": a repeated page takes the general path");
+			expect(same_refresh(fast, slow), "round " + std::to_string(round) + ": the carried and the general refresh agree");
+			(fast.Carried ? carried : general) += 1;
+			kept = *core::adopt_feedback_refresh(kept, std::move(fast));
 		}
+		std::cout << "carried refreshes: " << carried << ", general: " << general << '\n';
+		expect(carried > 200 && general > 50, "edits, resolutions and moves are carried; arrivals and departures take the general path");
 	}
 } // namespace
 

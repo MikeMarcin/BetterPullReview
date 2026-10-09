@@ -154,6 +154,70 @@ namespace bpr::core {
 			const auto [first, last] = std::ranges::unique(aRefresh.ChangedConversations);
 			aRefresh.ChangedConversations.erase(first, last);
 		}
+		/// [[BPR-1349]]. Where each kept post's observation is, when the
+		/// observation names exactly the kept posts, each in its kept
+		/// conversation with its kept reply link, and no page repeated one.
+		/// Both indexes are sorted by identity, so they pair up in one walk.
+		auto carried_order(const feedback_annotation_set& aCurrent, std::span<const feedback_post_observation> aPosts, const std::vector<id_index>& aObserved,
+						   const std::vector<id_index>& aPrevious, const std::vector<bool>& aRepeated) -> std::optional<std::vector<std::size_t>>
+		{
+			if (aPosts.size() != aCurrent.Posts.size() || std::ranges::find(aRepeated, true) != aRepeated.end()
+				|| !std::ranges::is_sorted(aCurrent.Posts, by_conversation)) {
+				return std::nullopt;
+			}
+			std::vector<std::size_t> order(aPosts.size());
+			for (std::size_t at = 0U; at < aObserved.size(); ++at) {
+				const auto& [id, observedAt] = aObserved[at];
+				const auto& [keptId, keptAt] = aPrevious[at];
+				const auto& kept             = aCurrent.Posts[keptAt];
+				const auto& observation      = aPosts[observedAt];
+				if (id != keptId || kept.Conversation != observation.Conversation || kept.ReplyTo.has_value() != observation.ReplyTo.has_value()
+					|| (kept.ReplyTo && *kept.ReplyTo != *observation.ReplyTo)) {
+					return std::nullopt;
+				}
+				order[keptAt] = observedAt;
+			}
+			return order;
+		}
+
+		/// [[BPR-1349]]. Classify the carried posts' conversations: one whose
+		/// posts are all unchanged keeps its kept classification; any other
+		/// is classified again and named when it differs. The kept
+		/// conversations are in the same order as the carried posts' runs,
+		/// which is checked; otherwise every conversation is classified.
+		void carry_classification(feedback_annotation_refresh& aRefresh, const feedback_annotation_set& aOld, const std::vector<bool>& aChanged)
+		{
+			const auto&                                      posts = aRefresh.Next.Posts;
+			std::vector<std::pair<std::size_t, std::size_t>> runs;
+			for (std::size_t begin = 0U; begin < posts.size();) {
+				auto end = begin + 1U;
+				while (end < posts.size() && posts[end].Conversation == posts[begin].Conversation) {
+					++end;
+				}
+				runs.emplace_back(begin, end);
+				begin = end;
+			}
+			const auto aligned = runs.size() == aOld.Conversations.size()
+				&& std::ranges::equal(runs, aOld.Conversations, [&](const auto& aRun, const feedback_conversation& aKept) { return posts[aRun.first].Conversation == aKept.Id; });
+			if (!aligned) {
+				classify_all(aRefresh, aOld);
+				return;
+			}
+			auto& next = aRefresh.Next.Conversations;
+			next.reserve(runs.size());
+			for (std::size_t index = 0U; index < runs.size(); ++index) {
+				const auto [begin, end] = runs[index];
+				const auto first        = aChanged.begin() + static_cast<std::ptrdiff_t>(begin);
+				if (std::none_of(first, first + static_cast<std::ptrdiff_t>(end - begin), [](const bool aChange) { return aChange; })) {
+					next.push_back(aOld.Conversations[index]);
+					continue;
+				}
+				next.push_back(classify_feedback_conversation(posts[begin].Conversation, std::span{ posts }.subspan(begin, end - begin)));
+				if (next.back() != aOld.Conversations[index]) {
+					aRefresh.ChangedConversations.push_back(next.back().Id);
+				}
+			}
+		}
 	}
 
 	auto stable_name(feedback_root_status aStatus) noexcept -> std::string_view
@@ -256,33 +320,58 @@ namespace bpr::core {
 		next.Scope          = aScope;
 		next.Epoch          = aCurrent.Epoch + 1U;
 		next.Posts.reserve(aPosts.size());
+		// One post from its observation and the kept post it continues, if
+		// any; true when its classification inputs may have changed.
+		const auto admit = [&](const feedback_post_observation& aObservation, const feedback_post* aPrior) -> bool {
+			feedback_post post{ .Conversation = std::string{ aObservation.Conversation },
+								.Id           = std::string{ aObservation.Id },
+								.ReplyTo      = aObservation.ReplyTo ? std::optional<std::string>{ *aObservation.ReplyTo } : std::nullopt,
+								.Deleted      = aObservation.Deleted,
+								.Segment      = aObservation.Segment };
+			auto          changed = true;
+			if (aObservation.Deleted) {
+				if (aPrior != nullptr && !aPrior->Deleted) {
+					refresh.Removed.push_back(post.Id);
+				}
+				changed = aPrior == nullptr || !aPrior->Deleted;
+			} else if (aPrior != nullptr && reusable(*aPrior, aObservation)) {
+				post.Annotation = aPrior->Annotation;
+				post.Body       = aPrior->Body;
+				++refresh.Reused;
+				changed = false;
+			} else {
+				post.Annotation = recognize_feedback_body(aObservation.Body, aObservation.Segment);
+				post.Body       = std::make_shared<const std::string>(aObservation.Body);
+				++refresh.Hashed;
+				refresh.Recognized.push_back(post.Id);
+			}
+			next.Posts.push_back(std::move(post));
+			return changed;
+		};
+
+		// [[BPR-1349]]. The kept posts observed again, as they usually are:
+		// the kept order is the next order, so nothing is sorted or looked up,
+		// and only conversations with a changed post are classified again.
+		if (const auto carried = refresh.ScopeReplaced ? std::nullopt : carried_order(aCurrent, aPosts, observed, previous, *repeated)) {
+			refresh.Carried = true;
+			std::vector<bool> changed(aCurrent.Posts.size());
+			for (std::size_t kept = 0U; kept < aCurrent.Posts.size(); ++kept) {
+				changed[kept] = admit(aPosts[(*carried)[kept]], &aCurrent.Posts[kept]);
+			}
+			std::ranges::sort(refresh.Recognized);
+			std::ranges::sort(refresh.Removed);
+			carry_classification(refresh, aCurrent, changed);
+			return refresh;
+		}
+
 		for (std::size_t at = 0U; at < aPosts.size(); ++at) {
 			const auto& observation = aPosts[at];
 			if ((*repeated)[at]) {
 				++refresh.Collapsed;
 				continue;
 			}
-			feedback_post post{ .Conversation = std::string{ observation.Conversation },
-								.Id           = std::string{ observation.Id },
-								.ReplyTo      = observation.ReplyTo ? std::optional<std::string>{ *observation.ReplyTo } : std::nullopt,
-								.Deleted      = observation.Deleted,
-								.Segment      = observation.Segment };
-			const auto    prior = refresh.ScopeReplaced ? std::nullopt : find_in(previous, observation.Id);
-			if (observation.Deleted) {
-				if (prior && !aCurrent.Posts[*prior].Deleted) {
-					refresh.Removed.push_back(post.Id);
-				}
-			} else if (prior && reusable(aCurrent.Posts[*prior], observation)) {
-				post.Annotation = aCurrent.Posts[*prior].Annotation;
-				post.Body       = aCurrent.Posts[*prior].Body;
-				++refresh.Reused;
-			} else {
-				post.Annotation = recognize_feedback_body(observation.Body, observation.Segment);
-				post.Body       = std::make_shared<const std::string>(observation.Body);
-				++refresh.Hashed;
-				refresh.Recognized.push_back(post.Id);
-			}
-			next.Posts.push_back(std::move(post));
+			const auto prior = refresh.ScopeReplaced ? std::nullopt : find_in(previous, observation.Id);
+			static_cast<void>(admit(observation, prior ? &aCurrent.Posts[*prior] : nullptr));
 		}
 		for (const auto& post : aCurrent.Posts) {
 			if (refresh.ScopeReplaced || (!post.Deleted && !find_in(observed, post.Id))) {
