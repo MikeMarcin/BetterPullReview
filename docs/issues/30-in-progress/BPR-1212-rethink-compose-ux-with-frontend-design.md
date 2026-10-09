@@ -1217,3 +1217,63 @@ or Reject with any change in the note; none is self-certified.
 Next: read the session's decisions. Accepts answer the v001 Reject and the
 two notes; a Reject comes back as v003. [[BPR-1345]] (start a review) is next.
 
+
+## Windows gates and a rebase onto main (bpr-main-win, 2026-10-09)
+
+**100 ms gates, measured on an idle Windows station.** Release tests-on,
+MSVC 19.50, Qt 6.11.2. The branch at `d785a3f13` was alternated with main
+(`772200c95`) as the control, three pairs at `-j1`, for
+`application_large_review_responsiveness` and
+`application_first_tab_comparison`:
+
+| | Branch | Main |
+|---|---|---|
+| Rows passing | 6/6 | 6/6 |
+| Worst pulse of any phase | 44.7–65.8 ms | 41.3–68.3 ms |
+| `keyboard_line_down` | 13.9–18.4 ms | 16.9–20.6 ms |
+| `keyboard_line_extend` | 14.1–16.6 ms | 14.5–17.8 ms |
+| `keyboard_line_reveal` | 17.1–18.1 ms | 17.2–20.7 ms |
+
+There were no `InputBudgetFailures` on either side. The gates owed above pass
+on Windows.
+
+**Rebase onto main.** A local copy rebased onto `1428dad74`. Only
+`application_review_round_trip_composition_contract.cmake` conflicted. It was
+resealed over main's intervening pins (full application and production
+manifest; mutation pin unchanged), and `PIN_CHECK_OK`. The rebased tree:
+- the 100 ms rows again pass 3 of 3 (`keyboard_line_*` 14.0–17.6 ms, worst
+  pulse 66.3 ms);
+- 25 of 26 focused rows pass (review mutation, submission, line draft Qt,
+  diff and window scale rows, round trip, `architecture_boundaries`).
+
+It is **not merged**. The rebased commits are kept unpushed in the
+`bpr-1212` worktree on the Windows station.
+
+**`application_line_draft_contract` fails on Windows,** 4 of 4 runs, alone and
+idle. It stops at the run budget (40 s, stage 2), at phase 30 (`left-current=0
+numbered=0`, `BASE_LINE_DRAFT_EVIDENCE:000`): base numbering never becomes
+known. The same row at main passes in 4.7 s; phase 30 is new here.
+
+Cause, traced with temporary prints (since removed):
+- `observe_base_numbering` asks the epoch host, and the resolver's job is
+  admitted as an ordinary job (no request, generation or offer token).
+- Before the actor runs it, the refresh that follows phase 29's
+  publication reaches `accept_now`. That calls `cancel_authority_jobs()` for
+  every accepted handoff, including one that preserves the active authority,
+  and stops every non-offer, non-mandatory job.
+- The resolver starts with `stop=1` and answers `cancelled` (status 4).
+- `github_application` treats `cancelled` as "asked again on the next
+  publication" (`BaseNumbering.reset()`), and no further selected-diff
+  publication comes, so the course waits out its budget.
+
+On macOS the resolver evidently ran before that accept. On Windows, where
+Git processes are slower, it is still queued. The code is the same at
+`d785a3f13`, so this is the branch's, not the rebase's.
+
+Candidate fixes for this card's owner:
+- (a) ask again when an accepted review keeps the comparison, not only on
+  a new publication;
+- (b) admit the resolver so an authority-preserving accept does not stop it
+  (it only reads retained objects).
+
+Either should be shown with a test that cancels the first answer.
