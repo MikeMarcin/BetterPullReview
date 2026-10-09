@@ -285,3 +285,11 @@ ctest --test-dir build/windows-dev -j4 --output-on-failure -R "^(application_lab
 
 Next: the coordinator's board move. No attended review is required by this
 card's criteria.
+
+## Coordinator verification (bpr-main-linux, 2026-10-08)
+
+At `5917fbedc`, in `build/dev`, 17 of 17 pass: both new rows, the extended
+store, counter, settings, range and overview rows, the network-isolation
+rows, the round-trip contract and `architecture_boundaries`. Done on Linux
+evidence. macOS and Windows runs are owed, and Windows must measure the two
+new uncontained rows (above).
