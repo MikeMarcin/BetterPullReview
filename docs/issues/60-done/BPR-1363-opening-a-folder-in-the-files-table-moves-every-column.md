@@ -286,3 +286,25 @@ The session was released with `resume-development --all` (cursor 6), its
 host (PID 75444) stopped through the session's `stop`, and the frozen root
 `/Users/jaeger/bpr1363-folder-counts-v002.xqvwchhl` removed with
 `scripts/freeze_attended_build.py remove`.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `fc89f79e3`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4` (52 rows for the two cards together):
+
+- **Pass:**
+  - `qt_files_tree` and `qt_files_tree_folder_rows_{125,200}`;
+  - `qt_pull_request_overview_page`,
+    `qt_pull_request_overview_folder_rows_{125,200}` and
+    `qt_pull_request_overview_chips_scale_{125,200}`;
+  - `qt_workbench_overview`, `qt_overview_read_marks`,
+    `qt_workbench_window_scale_{100,125,200}`,
+    `qt_composed_github_scale_{100,125,200}` and
+    `qt_composed_markdown_{1_0,1_25,2_0}`;
+  - `application_nested_overview_folders_public_path`,
+    `application_accepted_file_in_overview`,
+    `application_overview_double_click`, `application_overview_summary_{1,1_25,2}`,
+    `application_overview_{feedback,labels}_public_path`,
+    `application_setup_destination_public_path`,
+    `application_active_changed_scaling` and `application_offline_inventory`;
+  - `architecture_boundaries` and `test_network_isolation_manifest`.

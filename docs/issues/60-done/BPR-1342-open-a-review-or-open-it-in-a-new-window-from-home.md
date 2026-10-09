@@ -263,3 +263,16 @@ Controls, each reverted:
   that regression; the keystroke check is kept as a smoke test.
 
 Linux passes.
+
+## Windows: the course's identity check and the title row's elision (bpr-main-win, 2026-10-09)
+
+`application_personal_discovery_public_path` failed on Windows ("the first
+window has the pull request open behind Home") at every revision tried from
+`772200c95` on.
+- **Cause:** at the course's window width, the title row's elision
+  ([[BPR-1324]]) shows `octo-org/review-repository  #17` without the title,
+  because Windows' fonts leave it less room. The course required the label's
+  text to start `…#17 ` with the title after it.
+- **Fix (test-only):** the first window's check and the new window's wait now
+  read the label's tooltip, which always names the whole pull request. The row
+  passes 3 of 3 on Windows (Debug).

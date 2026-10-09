@@ -207,3 +207,35 @@ At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
   and the round-trip contract;
 - `qt_anchored_tooltips`, the composed GitHub, Home refusal, Home list, open
   on GitHub and open review from Home scale rows, and `qt_surface_capture_course_scale_100`.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `fc89f79e3`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4` (52 rows for the two cards together):
+
+- **Pass:**
+  - `qt_home_list_scale_{100,125,200}`, `qt_composed_github_scale_{100,125,200}`,
+    `qt_composed_home_refusal_scale_100`,
+    `qt_workbench_open_review_from_home_scale_{100,125,200}`,
+    `qt_workbench_open_on_github_scale_100`,
+    `qt_surface_capture_course_scale_100` and `qt_anchored_tooltips`;
+  - `application_home_open_feedback_public_path`,
+    `application_review_cycle_desktop_public_path`,
+    `application_review_cycle_publish_public_path`,
+    `application_attended_recent_replay`,
+    `application_profile_multi_window_public_path`,
+    `application_profile_window_review_restoration_public_path`,
+    `application_composition_contract`,
+    `application_workbench_composition_contract` and
+    `application_review_round_trip_composition_contract`;
+  - `architecture_boundaries` and `test_network_isolation_manifest`.
+- **Fails, and not this card's:** `application_personal_discovery_public_path`.
+It failed "the first window has the pull request open behind Home" 4 of 4
+  runs here, and the same at `772200c95`, before this card.
+  - **Cause:** at the course's window width, Windows' fonts leave the title row
+    too little room. [[BPR-1324]]'s elision then shows `owner/repository  #17`
+    without the title, by design. The course ([[BPR-1342]]'s) required the
+    label's text to start `…#17 ` with the title after it.
+  - **Fix (test-only):** it now reads the identity from the label's tooltip,
+    which always names the whole pull request. That applies to the first
+    window and to the new window's wait. The row passes 3 of 3.

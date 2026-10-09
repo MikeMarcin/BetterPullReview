@@ -539,7 +539,7 @@ try {
 			auto*      sibling  = owner->window(other);
 			expect(sibling != nullptr && other.Profile == first.Profile && other.Window != first.Window, "the new window is the same profile's, under the same owner");
 			wait_for([&] { return !sibling->showing_home() && sibling->session_panel()->status() == core::github_status::pull_request_ready
-							   && sibling->identity_label()->text().startsWith(QStringLiteral("octo-org/review-repository  #17 ")); },
+							   && sibling->identity_label()->toolTip().startsWith(QStringLiteral("octo-org/review-repository  #17 ")); },
 					 "the new window opens the row's pull request on its own",
 					 [&] { std::cerr << "sibling home=" << sibling->showing_home() << " status=" << static_cast<int>(sibling->session_panel()->status())
 									 << " identity=" << sibling->identity_label()->text().toStdString() << " first=" << shown.toStdString()
@@ -550,7 +550,10 @@ try {
 			sibling->close();
 			wait_for([&] { return owner->windows().size() == 1U && owner->windows().front() == first; }, "the second view closes and the first window stays");
 		};
-		expect(shown.startsWith(QStringLiteral("octo-org/review-repository  #17 ")) && status == core::github_status::pull_request_ready, "the first window has the pull request open behind Home");
+		// The label's text elides at the window's width (on Windows it drops
+		// the title here); its tooltip names the whole pull request.
+		expect(windowA->identity_label()->toolTip().startsWith(QStringLiteral("octo-org/review-repository  #17 ")) && status == core::github_status::pull_request_ready,
+			   "the first window has the pull request open behind Home");
 		auto* rows = static_cast<QListView*>(nullptr);
 		auto  row  = QModelIndex{ };
 		for (const auto group : { qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following }) {
