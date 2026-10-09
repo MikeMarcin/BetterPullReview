@@ -18,8 +18,13 @@ application offscreen with the launcher's own arguments until the file shows
 (and, for `--next-push`, again on the pushed head). A freeze whose launcher
 cannot reach the file fails here, not in front of the owner.
 
+A look that starts on the pull request's own opening page (its Overview)
+rather than on a file freezes with `--open-pull-request` instead of
+`--open-file`; its launcher passes `--attended-open-pull-request` and waits for
+`ATTENDED_PULL_REQUEST_OPENED` (BPR-1350's look at the Overview heading).
+
 Usage:
-    freeze_attended_build.py freeze --name NAME --fixture FIXTURE --open-file PATH
+    freeze_attended_build.py freeze --name NAME --fixture FIXTURE (--open-file PATH | --open-pull-request)
         [--commit REV] [--title TEXT] [--next-push] [--require RELPATH]... [--parent DIR]
         [--argument ARG]... [--target TARGET]... [--generate COMMAND]...
         [--ready LINE] [--wait SECONDS]
@@ -45,6 +50,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 MARKER = ".frozen-attended-build.json"
+OPENED = "ATTENDED_PULL_REQUEST_OPENED"
 BUILD = "build/app-release-tests"
 EXECUTABLE = f"{BUILD}/src/app/better_pull_review.app/Contents/MacOS/better_pull_review"
 FIXTURE_TREES = ("tests/fixtures/github/contracts/v1", "tests/fixtures/github/pull-requests")
@@ -53,11 +59,11 @@ LAUNCHER = '''#!/usr/bin/env python3
 """Open the frozen build for the owner's look: {title}.
 
 Frozen from {commit} by scripts/freeze_attended_build.py. Starts the
-fixture pull request {fixture} signed in, with {open_file} open in Review,
+fixture pull request {fixture} signed in, {opens},
 and leaves the window to you. Checks the build and the fixture tree first and
 reports within seconds if the application exits.
 {next_push_doc}
-    --check     make the same checks, then open it offscreen until the file
+    --check     make the same checks, then open it offscreen until it
                 shows and close it (what the freeze ran){next_push_check}
 """
 import os
@@ -74,6 +80,7 @@ SOURCE = ROOT / "src"
 EXECUTABLE = SOURCE / {executable!r}
 REQUIRED = [SOURCE / relative for relative in {required!r}]
 FIXTURE = {fixture!r}
+# None opens the pull request on its own opening page (its Overview).
 OPEN_FILE = {open_file!r}
 NEXT_PUSH = {next_push!r}
 # Further application arguments; {{build}} is the build tree in this root.
@@ -97,7 +104,8 @@ def preflight() -> bool:
 
 
 def arguments(data, phase):
-    result = [str(EXECUTABLE), "--github-fixture", FIXTURE, "--attended-launch", "--attended-open-file", OPEN_FILE, *EXTRA]
+    opening = ["--attended-open-pull-request"] if OPEN_FILE is None else ["--attended-open-file", OPEN_FILE]
+    result = [str(EXECUTABLE), "--github-fixture", FIXTURE, "--attended-launch", *opening, *EXTRA]
     if data is not None:
         result += ["--epoch-fixture-root", str(data / "data"), "--epoch-fixture-phase", phase]
     return result
@@ -223,10 +231,14 @@ push (only src/engine/renderer.cpp changes), close the window and run:
 NEXT_PUSH_CHECK = "; with the push, it\n                opens the pushed head too, on scratch data"
 
 
-def render_launcher(*, root: Path, title: str, commit: str, fixture: str, open_file: str, required: list[str], next_push: bool,
+def render_launcher(*, root: Path, title: str, commit: str, fixture: str, open_file: str | None, required: list[str], next_push: bool,
                     extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN", wait: int = 60) -> str:
-    """The launcher for one frozen root, from the one template."""
+    """The launcher for one frozen root, from the one template.
+
+    `open_file` None starts on the pull request's own opening page.
+    """
     return LAUNCHER.format(
+        opens="on its Overview" if open_file is None else f"with {open_file} open in Review",
         build=BUILD,
         extra=list(extra or []),
         ready=ready,
@@ -275,6 +287,12 @@ def set_writable(root: Path, writable: bool) -> None:
 
 
 def freeze(options: argparse.Namespace) -> int:
+    if options.open_pull_request:
+        if options.next_push or options.ready not in (None, OPENED):
+            return fail("--open-pull-request waits for ATTENDED_PULL_REQUEST_OPENED and has no next push")
+        options.ready = OPENED
+    elif options.ready is None:
+        options.ready = "ATTENDED_FILE_SHOWN"
     commit = git("rev-parse", "--verify", f"{options.commit}^{{commit}}")
     parent = Path(options.parent).expanduser().resolve()
     root = Path(tempfile.mkdtemp(prefix=f"{options.name}.", dir=str(parent)))
@@ -364,7 +382,10 @@ def main() -> int:
     frozen = commands.add_parser("freeze")
     frozen.add_argument("--name", required=True)
     frozen.add_argument("--fixture", required=True)
-    frozen.add_argument("--open-file", required=True)
+    opening = frozen.add_mutually_exclusive_group(required=True)
+    opening.add_argument("--open-file", help="the fixture file the look opens in Review")
+    opening.add_argument("--open-pull-request", action="store_true",
+                         help="open the pull request on its own opening page (its Overview), no file")
     frozen.add_argument("--commit", default="HEAD")
     frozen.add_argument("--title", default="")
     frozen.add_argument("--next-push", action="store_true")
@@ -375,7 +396,9 @@ def main() -> int:
     frozen.add_argument("--target", action="append", default=[], help="a further build target the launch needs")
     frozen.add_argument("--generate", action="append", default=[],
                         help="a shell command, run in src before the build, that writes a generated fixture")
-    frozen.add_argument("--ready", default="ATTENDED_FILE_SHOWN", help="the line that says the look is ready")
+    frozen.add_argument("--ready", default=None,
+                        help="the line that says the look is ready (ATTENDED_FILE_SHOWN, or with --open-pull-request "
+                             "ATTENDED_PULL_REQUEST_OPENED)")
     frozen.add_argument("--wait", type=int, default=60, help="seconds to wait for it")
     removed = commands.add_parser("remove")
     removed.add_argument("root")

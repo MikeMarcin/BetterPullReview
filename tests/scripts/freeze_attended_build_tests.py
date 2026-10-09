@@ -52,8 +52,24 @@ exec sleep 30
 """
 
 
+# Opens the pull request only when asked for it and for no file, as the
+# application refuses the two together.
+OVERVIEW_STAND_IN = """#!/bin/sh
+opened=no
+for argument in "$@"; do
+  case "$argument" in
+    --attended-open-file) echo "ATTENDED_LAUNCH_CONFIGURATION_FAILED"; exit 1 ;;
+    --attended-open-pull-request) opened=yes ;;
+  esac
+done
+if [ "$opened" = yes ]; then echo "ATTENDED_PULL_REQUEST_OPENED"; else echo "ATTENDED_FILE_FAILED:none"; fi
+exec sleep 30
+"""
+
+
 def frozen_root(directory: Path, name: str, *, required: list[str], next_push: bool, stand_in: str = STAND_IN,
-                extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN") -> Path:
+                extra: list[str] | None = None, ready: str = "ATTENDED_FILE_SHOWN",
+                open_file: str | None = "src/engine/renderer.cpp") -> Path:
     root = directory / name
     executable = root / "src" / freeze.EXECUTABLE
     executable.parent.mkdir(parents=True)
@@ -62,7 +78,7 @@ def frozen_root(directory: Path, name: str, *, required: list[str], next_push: b
     (root / "src/tests/fixtures/github/contracts/v1/conventional-comments-v1").mkdir(parents=True)
     (root / "launch.py").write_text(freeze.render_launcher(
         root=root, title="test", commit="0" * 40, fixture="conventional-comments-v1",
-        open_file="src/engine/renderer.cpp", required=required, next_push=next_push, extra=extra, ready=ready))
+        open_file=open_file, required=required, next_push=next_push, extra=extra, ready=ready))
     return root
 
 
@@ -113,6 +129,13 @@ def main() -> int:
         checked = launch(workshop, "--check")
         expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_WORKSHOP_SHOWN" in checked.stdout,
                f"further arguments name the root's own build tree and the look waits for its own line: {checked.stdout!r}")
+
+        overview = frozen_root(directory, "overview", required=[], next_push=False, stand_in=OVERVIEW_STAND_IN,
+                               ready=freeze.OPENED, open_file=None)
+        checked = launch(overview, "--check")
+        expect(checked.returncode == 0 and "CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED" in checked.stdout,
+               f"a look on the pull request's Overview opens it with no file: {checked.stdout!r}")
+        expect("on its Overview" in (overview / "launch.py").read_text(), "the Overview launcher says where it opens")
 
     if FAILURES:
         for failure in FAILURES:
