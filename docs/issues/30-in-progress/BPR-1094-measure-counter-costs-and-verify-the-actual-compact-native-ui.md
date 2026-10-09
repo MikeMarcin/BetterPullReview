@@ -248,3 +248,11 @@ Each was applied, built, run and reverted (`build/dev`).
   aligned allocations. Times include the steady-clock read; no
   frame-presentation or OS input latency is observed.
 - Findings 1 to 3 above are recorded, not fixed.
+
+## Coordinator verification (bpr-main-linux, 2026-10-08)
+
+At `125fb6219`, in `build/dev`, 27 of 27 pass: the counter, cost and overview
+rows, the network-isolation rows, the round-trip contract and
+`architecture_boundaries`. Parked for R33's native visible-window look (owner
+or the Mac station). Findings 1 to 3 are recorded above and go to the
+coordinator.
