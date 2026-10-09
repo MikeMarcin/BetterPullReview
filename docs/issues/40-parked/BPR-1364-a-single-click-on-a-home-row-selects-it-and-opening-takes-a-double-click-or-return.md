@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1364"
 title: "A single click on a Home row selects it; opening takes a double-click or Return"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
+parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner, BPR-1357 attended review, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1364--BPR-1364--15f2a5b9a853.json","related_cards":["BPR-1357","BPR-1342","BPR-1338","BPR-0776","BPR-0736","BPR-1157"]}
@@ -152,3 +153,22 @@ selection and focus painting are the style's own.
 GitHub for nothing and stays on Home") and
 `application_review_cycle_desktop_public_path` ("resumed from Home") all fail;
 with it restored they pass.
+
+## Owner look — prepared 2026-10-09
+
+- Landed on main as `57a08a877`. Frozen build of `57a08a877` with
+  `scripts/freeze_attended_build.py freeze` (source export and tests-on build
+  inside `/Users/jaeger/.mask/attended-review/bpr1364-home-single-click-v001.qsxvzbe2`;
+  `better_pull_review` SHA-256
+  `6ccffa367e91c916902c764f8e72ff691399ab9a6ab899e1a5f4ddacc7c201ec`), the
+  BPR-1357 launcher pattern: fixture `github-com`, `--attended-home-look
+  --fixture-read-delay-ms 4000 --fixture-read-fail-number 4001`. The
+  launcher's own offscreen check reached
+  `ATTENDED_HOME_SHOWN:rows=2:delay=4000ms`. Started with
+  `python3 /Users/jaeger/.mask/attended-review/bpr1364-home-single-click-v001.qsxvzbe2/launch.py`.
+- New short session `a6f8821efdd9cd5b947d000e9eef319c`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1364-home-single-click-v001/state`,
+  host detached. One Accept/Reject candidate, ready at event cursor 3:
+  `BPR-1364-single-click-selects-v001` (`BPR-1364:owner`).
+- Next: on hand-back, read `status --after 3`. Accept closes `BPR-1364:owner`
+  and the card; a Reject's note is the next round's change.
