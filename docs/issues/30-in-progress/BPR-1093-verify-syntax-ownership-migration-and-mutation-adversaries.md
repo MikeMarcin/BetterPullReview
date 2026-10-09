@@ -201,8 +201,8 @@ between a pending relabel and an old body.
 
 ### Gates
 
-- Dev rows, 36 of 36 in `build/dev` at `d154f5631` (with the structure-contract
-  fix): `application_label_publication_recovery`, the five
+- Dev rows, 36 of 36 in one `build/dev` pass at `068687a13` (the same sources
+  as `d154f5631`): `application_label_publication_recovery`, the five
   `application_agent_finding_workshop_*_contract` courses and
   `application_agent_finding_composition_contract` (the canary changed),
   `application_feedback_counters`, `application_feedback_draft_store`,
@@ -225,6 +225,11 @@ between a pending relabel and an old body.
   `core_feedback_*` rows, `core_suggestion_applicability`,
   `core_review_preflight`, both core boundary rows and
   `architecture_boundaries`.
+- Optimized tree: `cmake --preset app-release -B build/app-release-tests
+  -DBUILD_TESTING=ON -DCMAKE_TEST_BUILD_DEPENDS=ON` (GCC 15.2.0 `-O3 -DNDEBUG
+  -Werror`) built all 2,266 targets at `068687a13` (the same sources as
+  `d154f5631`), whose only warning is the vendored SQLite's; the eight new or
+  extended C++ and contract rows pass there; the tree was deleted.
 - `coding-format-check` with `/usr/bin/clang-format` 22.1.8 (1,358 files).
 - Pins: no pinned `src/app` source changed and nothing was resealed; the
   round-trip contract passes with every digest as it was; the mutation-branch
@@ -254,6 +259,27 @@ between a pending relabel and an old body.
 - Publish stays pressable while a relabel waits for its owner, because the
   editor's enablement follows the accepted projection; the composition
   refuses it with a reason (observed, not a defect).
+
+### Station commands
+
+macOS (arm64, the Mac station's checkout):
+
+```sh
+cmake --build build/dev
+ctest --test-dir build/dev --output-on-failure -R '^(application_label_publication_recovery|application_agent_finding_workshop_injection_contract|application_feedback_counters|application_feedback_draft_store|application_comment_range_draft_store|sqlite_workbench_settings_storage|application_overview_feedback_public_path|test_network_isolation_structure_contract|test_network_isolation_manifest|architecture_boundaries)$'
+ctest --test-dir build/dev-tour-cli --output-on-failure -R '^tour_cli_labels$'
+```
+
+Windows (bpr-main-win, PowerShell in the checkout): run
+`application_label_publication_recovery` and
+`application_agent_finding_workshop_injection_contract` contained first
+(registered without `WINDOWS_UNCONTAINED`, as BPR-1343 describes) and replace
+their "unmeasured (registered on Linux)" pins with the measured refusal, then:
+
+```powershell
+cmake --build build/windows-dev
+ctest --test-dir build/windows-dev -j4 --output-on-failure -R "^(application_label_publication_recovery|application_agent_finding_workshop_injection_contract|application_feedback_counters|application_feedback_draft_store|application_comment_range_draft_store|sqlite_workbench_settings_storage|application_overview_feedback_public_path|test_network_isolation_structure_contract|test_network_isolation_manifest|architecture_boundaries)$"
+```
 
 Next: the coordinator's board move. No attended review is required by this
 card's criteria.
