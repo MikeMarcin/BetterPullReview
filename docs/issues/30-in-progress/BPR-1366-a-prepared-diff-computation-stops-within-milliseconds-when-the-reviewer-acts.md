@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1366"
 title: "A prepared diff computation stops within milliseconds when the reviewer acts"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
