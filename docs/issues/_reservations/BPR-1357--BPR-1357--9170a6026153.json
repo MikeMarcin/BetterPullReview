@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1357"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home: immediate pending, progress, cancel and retry when opening a review; visible polite general status",
+  "created": "2026-10-09T05:16:42.720264+00:00",
+  "base": "6187dcb8f0caa7ffde51361880a79113da075e7a"
+}
