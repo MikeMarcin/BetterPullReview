@@ -413,3 +413,34 @@ the six states and the open menu with Read highlighted, light and dark at 2x
 the Files drawer, light and dark.
 
 Linux and Windows have not run v003. It adds no platform code.
+
+The candidate passed the focused set above as `6c0dca434`. It landed on main
+as `ba3c970b9`, rebased over an issue-ID allocation only, with identical
+source.
+
+## Owner look, session v003
+
+Pending: `BPR-1331:owner-look` is the owner's. One new short session, one
+candidate, one question, Accept or Reject.
+
+- Session `fa2c1dc9748e742614c16cfe36bb3943`, its own fresh state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1331-review-state-v003`,
+  ready and protected at event cursor 3. The host was started detached and
+  answered on loopback.
+- Candidate `BPR-1331-review-state-icon-v003` ("One coloured circle family
+  for a file's review state", revision `frozen-ba3c970b9-v003`, fingerprint
+  `dcfbb35c…`). It carries two offscreen 2x renders: the button in each state
+  and the menu with Read highlighted, light and dark; then Overview's column
+  and the Files drawer, light and dark.
+- Frozen root `/Users/jaeger/bpr1331-review-state-v003.i5hf09qz`, frozen by
+  `scripts/freeze_attended_build.py` from `ba3c970b9` (`--next-push`).
+  Executable SHA-256
+  `264beea3a84d2a7722b07e9798b8918bd36016069465d88b084f83965887e576`. The
+  launcher's own check showed `src/engine/renderer.cpp` on the first head
+  `b20cb443…` and on the pushed head `cd24836c…`.
+- Launch: `python3 /Users/jaeger/bpr1331-review-state-v003.i5hf09qz/launch.py`
+  (`--next-push` for the pushed head, `--fresh` to start over).
+
+Next: read the session's decisions (`status --after 3`). Accept satisfies
+`:owner-look` and the card finishes. A Reject comes back with its note for a
+v004.
