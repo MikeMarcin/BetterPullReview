@@ -305,3 +305,117 @@ vectors and its own card. It is not needed for this card's outcome.
 
 Approve Stage 1, Stage 1 and 2, or another direction. Until then the
 outcome is not met and the card stays In Progress with no product change.
+
+## Coordinator decision (2026-10-08)
+
+The coordinator approved Stage 1 exactly as proposed, then Stage 2 on this
+card. The faster SHA-256 is [[BPR-1358]]; `core::sha256` is not changed here.
+
+## Stage 1 landed: reuse by kept bytes (bpr-main-linux, 2026-10-08)
+
+Product commit `cc0570685`.
+
+**What changed.**
+
+- **Core** (`feedback_conversation`):
+  - `feedback_post::Body` is a `std::shared_ptr<const std::string>`: the
+    exact bytes the post's annotation was read from. It is absent for a
+    deleted post. A body is copied once, when it is recognized, and reused
+    posts share it from set to set. It is never written, and there is no
+    hidden global.
+  - `reusable()` compares those bytes with the observed body. Segment,
+    parser revision and not-deleted still apply. The body is no longer
+    hashed to prove it unchanged.
+  - `feedback_annotation_refresh::Hashed` counts bodies hashed: one for each
+    recognized body, whose annotation carries its digest.
+- **Application.**
+  - `feedback_counter_model::observe` reads its kept set in place instead of
+    copying it.
+  - `feedback_counter_work::BodiesHashed` adds up `Hashed`.
+- **Memory.** The kept set now holds one copy of the posts' text. That is
+  about 8 MB in the 10k workload and **at most 16 MiB** at the read model's
+  ceiling (`MaximumTotalTextBytes`). A first observation allocates about
+  9 MB more (68.6 against 59.3 MB at 10k). Every later observation
+  allocates less, because the kept set is no longer copied.
+
+**After Stage 1.** Optimized tree at `cc0570685`, idle, `ctest -j1`. Same
+machine, build and workloads as the before table above.
+
+| Work | 1k before → after | 10k before → after |
+|---|---|---|
+| First observation | 8.6 → 8.6 ms; hashed 2,015 | 105.4 → 93.8 ms; 447,245 / 68.6 MB; hashed 20,015 |
+| Unchanged snapshot | 8.6 → 3.3 ms; hashed 0 | 97.6 → 49.1 ms; 288,721 / 42.8 MB; hashed 0 |
+| Root edit | 9.4 → 3.4 ms; hashed 1 | 90.6 → 51.9 ms; hashed 1 |
+| Reply edit | 8.2 → 3.3 ms; hashed 1 | 90.0 → 50.2 ms; hashed 1 |
+| Resolve | 8.3 → 3.3 ms; hashed 0 | 93.1 → 53.4 ms; hashed 0 |
+| Chips 0 / 3 / 12, Open | 0.47 / 0.51 / 0.56 ms | 2.9 / 3.2 / 3.5 ms |
+
+Parsed, reused, scopes and units are exactly as before. The composed
+`large-review-v1` chip changes took 27.6, 27.6 and 26.3 ms, with 24
+publications for 24 changes. Both 100 ms rows pass with no input budget
+failure.
+
+**Tests.**
+
+- `core_feedback_conversation`, `reuse_by_kept_bytes`:
+  - each parsed body is hashed once; an unchanged refresh hashes none and
+    shares the kept bytes;
+  - one changed byte at the same length is parsed and hashed alone;
+  - the same bytes are reused even under a kept digest that no longer
+    matches them, and other bytes are parsed again even under a kept digest
+    that matches the observed body;
+  - a deleted post keeps no bytes, and is parsed again when it comes back.
+- `application_feedback_counter_costs` at 1k and 10k:
+  - the first observation hashes every body once;
+  - an unchanged snapshot and a resolve hash 0;
+  - a root edit and a reply edit hash 1.
+
+**Failing-before controls.** The control restores the digest rule in
+`reusable()` and counts each digest it takes as a hash. It was built, run
+and reverted. Each test stops at its first failure, so later assertions
+were shown by removing the earlier ones in turn (scratch copies):
+
+| Assertion | Under the digest rule |
+|---|---|
+| core "an unchanged observation hashes no body" | fails |
+| core "one changed byte parses that body again and hashes it alone" | fails |
+| core "the same bytes are reused whatever the kept digest says" | fails |
+| core "other kept bytes are parsed again, though the kept digest matches" | fails |
+| cost "1k: an unchanged snapshot hashes no body" | fails, hashed 2,015 |
+| cost "1k: a root edit hashes only the edited body" | fails, hashed 2,016 |
+| cost "1k: a reply edit hashes only the edited body" | fails, hashed 2,016 |
+| cost "1k: a resolve hashes no body" | fails |
+
+**BPR-1094's controls rerun** against `cc0570685`, each built, run and
+reverted in `build/dev`. All fail at the same checks as recorded:
+
+- C1 (`tally_of` ignores the kept tally): "1k: a chip or mode change parses
+  no body and tallies no conversation".
+- C2 (no kept annotations) and C3 (every scope re-tallied): "1k: an
+  unchanged snapshot parses nothing and tallies only the pull request
+  again".
+- C4 (folders not re-tallied): "1k: a root edit tallies again exactly the
+  pull request, the file and its three folders, and they are what changed".
+- C5/C6 (a chip request re-observes):
+  `application_overview_feedback_public_path` fails "ticking two chips in
+  Settings parses no body and tallies no conversation", and
+  `application_large_review_responsiveness` fails "chip changes read nothing
+  from the provider, parse no body and tally no conversation".
+- C7/C8 (a fresh model observed per chip request): the same two checks.
+
+**Rows.**
+
+- `build/dev`: 43 of 43:
+  - core: every `core_feedback_*` row and `core_review_preflight`;
+  - application: the counter, cost and overview rows, the review
+    submission rows and `application_label_authoring_contract`;
+  - Qt: the overview and settings rows and `qt_feedback_label_*`;
+  - composed: both 100 ms rows, the overview public paths and nested
+    folders;
+  - gates: `architecture_boundaries`, `test_network_isolation_manifest` and
+    `application_review_round_trip_composition_contract`.
+- `core-only`: 14 of 14, including `type_read_binding_contract`.
+- `/usr/bin/clang-format` 22.1.8 dry run clean on the six changed files;
+  `git diff --check` clean.
+- **Pins.** No `src/app` source changed. The round-trip contract passes
+  without a reseal.
