@@ -137,6 +137,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # share; both are registered uncontained and pass there.
     "application_overview_feedback_public_path": "dos-volume-name",
     "application_overview_labels_public_path": "dos-volume-name",
+    # [[BPR-1355]]. The thread-words course of the same setup-destination
+    # executable; registered uncontained like its siblings, not yet measured
+    # contained on Windows.
+    "application_thread_words_public_path": "unmeasured (registered on macOS)",
     # Measured on bpr-main-win 2026-10-08 at 7fc367064, each registered
     # contained for the measurement: overview_summary_public_path.exe stops at
     # "FAILED: private composed course root" (exit 3) in under 0.1 s at every

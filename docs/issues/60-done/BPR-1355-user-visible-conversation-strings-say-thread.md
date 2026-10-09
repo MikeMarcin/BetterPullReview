@@ -125,3 +125,12 @@ every path it changes; the acceptance records name `f3ccc8df4`.
 
 Windows and Linux were not run. The change is string literals and one test
 course.
+
+## Manifest entry (bpr-main-linux, 2026-10-09)
+
+`application_thread_words_public_path` was registered `WINDOWS_UNCONTAINED`
+without an entry in `scripts/verify_test_network_isolation.py`, so
+`test_network_isolation_manifest` failed on every platform (BPR-1343's rule).
+The entry is now there as "unmeasured (registered on macOS)". The Windows
+station measures the row and replaces the pin, as for the sibling
+setup-destination rows.
