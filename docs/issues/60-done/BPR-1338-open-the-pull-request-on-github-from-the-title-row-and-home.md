@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1338"
 title: "Open the pull request on GitHub from a button beside its title, and from Home's rows"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1338--BPR-1338--5020946253b6.json","related_cards":["BPR-1129","BPR-1251","BPR-1255","BPR-1324","BPR-0776","BPR-0280"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1338:exists","outcome":"pass","revision":"e8e1567c4","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1338-open-the-pull-request-on-github-from-the-title-row-and-home.md","detail":"The card's 'What exists' records that no menu item, title-row control or Home row gesture opened the pull request's own page before the change."}},{"criterion":"BPR-1338:admission","outcome":"pass","revision":"e8e1567c4","evidence":{"kind":"command","path":"tests/application/github_window_read_host_tests.cpp","detail":"core_markdown_navigation (page, queue and recent admission; unsafe host, owner and repository, other host or account, malformed names, out-of-range numbers, other-account reading and absent browser refused) and application_github_window_read_host test_pull_request_page_admission (exact canonical https://github.com/owner/repo/pull/42 while title and body hold address-like text; stale for another window, an old publication and after replacement; unavailable without a browser). Failing-before mutations (publication check, account check) fail. macOS."}},{"criterion":"BPR-1338:title-row","outcome":"pass","revision":"d8738b93c","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1338-open-the-pull-request-on-github-from-the-title-row-and-home.md","detail":"qt_workbench_open_on_github_scale_{100,125,200}: placement right after the name, tooltip, accessible name, one admitted open, absent with no pull request, before acceptance, in a local cycle and on Home; qt_workbench_title_row_scale_{100,125,200} and qt_workbench_window_scale_{100,125,200} 6/6 on macOS; qt_composed_markdown_*; application_uiforetw_selected_diff_contract mended at d50530461. Linux and Windows runs owed, not gating."}},{"criterion":"BPR-1338:home","outcome":"pass","revision":"d8738b93c","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1338-open-the-pull-request-on-github-from-the-title-row-and-home.md","detail":"qt_workbench_open_on_github_scale_*: Home row hover icon, its click, right-click menu and key on the current row, Recently viewed row, last list wins; qt_home_list_scale_* pass; application_personal_discovery_public_path opens a Needs me row and the Recently viewed row through the real composition; application_attended_recent_replay attended_open_on_github_course launches exactly the page once per gesture through the system browser. macOS."}},{"criterion":"BPR-1338:owner-look","outcome":"pass","revision":"d8738b93c","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1338-open-the-pull-request-on-github-from-the-title-row-and-home.md","detail":"Owner Accept, no notes, on the frozen build of d8738b93c in session f566ce97a272a070a50df9a65399649c, handed back at 9: BPR-1338-home-open-v002 (a15ab5e40dbb..., decision 9e8d7fd7) and BPR-1338-open-in-browser-v002 (20200b228054..., decision 3d6e6efe). v001 was rejected because no browser opened; fixed in d8738b93c. Windows and Linux runs owed, not gating."}}]
 ---
 
 # BPR-1338: Open the pull request on GitHub from a button beside its title, and from Home's rows
@@ -191,9 +191,9 @@ predate this card.
 
 ## Pending
 
-- `BPR-1338:owner-look`: one short attended session on a frozen build, with
-  `open-in-browser-v002` and `home-open-v002` (v001 rejected; see below).
-- Windows and Linux runs of the title-row and window rows. On Windows the
+- `BPR-1338:owner-look`: accepted 2026-10-08 on v002 (see "Owner verdicts —
+  session `f566ce97…`" below).
+- Owed, not gating the macOS close: Windows and Linux runs of the title-row and window rows. On Windows the
   button takes about 26 px more of the name's room. BPR-1324 is changing the
   Windows title row (shortcuts drop below 1300 px), so "the whole name fits at
   1280" and the Windows floor need a run after both land.
@@ -365,3 +365,27 @@ reaches `QDesktopServices::openUrl`.
   `BPR-1338-open-in-browser-v002` and `BPR-1338-home-open-v002`.
 - Next: on hand-back, read `status --after 6`. Accept on both closes
   `BPR-1338:owner-look`.
+
+## Owner verdicts — session `f566ce97a272a070a50df9a65399649c`, handed back at 9
+
+Read from cursor 6 to the hand-back at event 9. Both candidates were judged on
+the frozen build of `d8738b93c`.
+
+| Candidate | Fingerprint | Verdict |
+|---|---|---|
+| `BPR-1338-home-open-v002` | `a15ab5e40dbb…` | Accept, no note (`9e8d7fd7`, event 7, 03:11:53Z) |
+| `BPR-1338-open-in-browser-v002` | `20200b228054…` | Accept, no note (`3d6e6efe`, event 8, 03:12:16Z) |
+
+The two Accepts satisfy `BPR-1338:owner-look`: the title-row button and Home's
+rows each open the pull request in the owner's browser. The other criteria
+stand on the evidence above. The card is Done on macOS. Still owed, and not
+gating: the Windows and Linux runs of `qt_workbench_title_row_scale_*` and
+`qt_workbench_window_scale_*`, including the Windows floor and "the whole name
+fits at 1280" now that BPR-1324 has landed, and the native
+`application_profile_empty_desktop_native_menu_bar` run in the owner's Aqua
+session.
+
+The host was stopped, and both candidates were released with
+`resume-development --all` at event 10. The frozen root
+`/Users/jaeger/.mask/attended-review/bpr1338-open-on-github-v002` was deleted.
+The session's state folder keeps the record.
