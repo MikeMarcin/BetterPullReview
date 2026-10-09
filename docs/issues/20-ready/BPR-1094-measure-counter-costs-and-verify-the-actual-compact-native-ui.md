@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1094"
 title: "Measure counter costs and verify the actual compact native UI"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0049", "RFC-BPR-0050", "RFC-BPR-0051"]
 depends_on: ["BPR-1083", "BPR-1089", "BPR-1092"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-20","milestone":"verification","acceptance":["R29","R31","R32","R33","R44"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
