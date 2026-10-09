@@ -8238,10 +8238,14 @@ namespace bpr::qt {
 				}
 			}
 		}
-		// [[BPR-1212]] slice 1. A draft on several lines names them.
-		const auto words = !draft.has_value() ? QString{ }
-			: draft->StartLine.has_value()    ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
-											  : tr("Line %1").arg(draft->Anchor.Line + 1U);
+		// [[BPR-1212]] slice 1. A draft on several lines names them; v002, a
+		// draft on the base side says so.
+		const auto base  = draft.has_value() && draft->Anchor.Side == core::diff_side::left;
+		const auto words = !draft.has_value()      ? QString{ }
+			: draft->StartLine.has_value() && base ? tr("Base lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+			: draft->StartLine.has_value()         ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+			: base                                 ? tr("Base line %1").arg(draft->Anchor.Line + 1U)
+												   : tr("Line %1").arg(draft->Anchor.Line + 1U);
 		// The full composer's excerpt follows the same draft.
 		if (DraftExcerpt != nullptr) {
 			auto* const excerpt = static_cast<draft_excerpt_view*>(DraftExcerpt);
