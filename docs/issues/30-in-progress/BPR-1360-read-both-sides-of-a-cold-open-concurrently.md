@@ -7,7 +7,8 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux"]
-metadata: {"found_by":"BPR-1344's live probe on macOS (BPR-Test PR #43), 2026-10-09","reservation":"docs/issues/_reservations/BPR-1360--BPR-1360--54fd657dec33.json","related_cards":["BPR-1344","BPR-1327"],"filed_by":"bpr-main-win, at the coordinator's request","coordinator_amendment":{"date":"2026-10-09","decision":"assigned to bpr-main-linux for the portable epoch host and application work; the live macOS gain stays owed on the Mac"}}
+metadata: {"found_by":"BPR-1344's live probe on macOS (BPR-Test PR #43), 2026-10-09","reservation":"docs/issues/_reservations/BPR-1360--BPR-1360--54fd657dec33.json","related_cards":["BPR-1344","BPR-1327"],"filed_by":"bpr-main-win, at the coordinator's request","coordinator_amendment":{"date":"2026-10-09","decision":"assigned to bpr-main-linux for the portable epoch host and application work; the live macOS gain stays owed on the Mac"},"acceptance":["BPR-1360:host-test","BPR-1360:bpr-1359-rule","BPR-1360:cancellation","BPR-1360:rows","BPR-1360:mac-live"]}
+acceptance: [{"criterion":"BPR-1360:host-test","outcome":"pass","revision":"8a24f8dab","evidence":{"kind":"command","path":"tests/application/epoch_application_host_tests.cpp","detail":"application_epoch_host a_cold_open_reads_both_sides_at_once: the real diff host over the real epoch host, a fake transport whose exact reads each take 300 ms. Before (5fd933c6a product): open 603-607 ms, most in flight 1, fails at 'both sides' reads are on the wire together'. After: open 302-305 ms in every Debug run, most in flight 2, the second read starts about 300 ms before the first ends; asserts most in flight 2, second start before first end, open under 1.6 x one read (480 ms, sum 600). With --live-single-blob-ms=1044: 1046 ms (sum 2088); 2100: 2103 ms (sum 4200). Linux x86_64 WSL2, GCC 15.2 Debug; also passes in the GCC 15 -O3 Release tests-on tree."}},{"criterion":"BPR-1360:bpr-1359-rule","outcome":"pass","revision":"8a24f8dab","evidence":{"kind":"command","path":"tests/application/epoch_application_host_tests.cpp","detail":"application_epoch_host preparation_cannot_stop_or_delay_either_concurrent_reviewer_read: a prepared exact read held 20 s on the actor is stopped by the reviewer's cold open (cancelled, one stop observed); while both reviewer reads are on the wire, preparation asks for another prepared read, starts another window and stops it, and the diff host's preparation is emptied: neither reviewer read is stopped (stops observed stays 1), they overlap, nothing of preparation starts while they are on the wire, and the open takes 302-306 ms. Fails before at 'both of the reviewer's reads run together and preparation stops neither' (open 605 ms)."}},{"criterion":"BPR-1360:cancellation","outcome":"pass","revision":"8a24f8dab","evidence":{"kind":"command","path":"tests/application/epoch_application_host_tests.cpp","detail":"application_epoch_host a_superseded_cold_open_stops_both_reads: with both 20 s reads on the wire, the diff host's cancel stops both (two stops observed) and the job finishes well inside 5 s. Fails before at 'both of the open's reads are on the wire'."}},{"criterion":"BPR-1360:rows","outcome":"pending","revision":"8297e420c","evidence":{"kind":"command","detail":"Pass in build/dev (Debug): application_epoch_host, application_diff_host, architecture_boundaries, test_network_isolation_manifest, application_review_round_trip_composition_contract (no src/app source changed; no reseal), large_review_fixture_contract, large_review_replay_contract, gh_cli_transport, application_first_tab_comparison and 12 large-review rows (cache_bytes skips in Debug by design); core-only 259/259. GCC 15 -O3 -Werror tests-on tree builds clean; application_large_review_responsiveness and application_first_tab_comparison pass -j1 idle, BudgetsEnforced, no input-budget failures, largest pulse 63.7 / 60.2 ms. Not passing: application_large_review_prepared_open. Interleaved A/B on the same idle Release tree: 10 of 10 pass at 5fd933c6a, 2 of 10 at 8a24f8dab (Debug: 5 of 10 fail before, 7 of 10 after). Unprepared opens got faster (minimum visible 47.5-50.6 ms before, 38.6-42.6 ms after) while prepared opens stayed 40-44 ms, so 'every prepared open faster than every unprepared one' no longer holds. gh_cli_git_smart_transport is macOS-only and not registered here; the transport is untouched. Waiting on the coordinator's decision about that rule."}},{"criterion":"BPR-1360:mac-live","outcome":"pending","revision":"8297e420c","evidence":{"kind":"observation","detail":"Owed on the Mac: the live cold open of an unprepared modified file on MikeMarcin/BPR-Test#43 near one exact read (about 2.1 s, against 4.3 s before), X-RateLimit-Remaining checked first. Command in the card's 'Owed on the Mac' section. Not measurable on Linux."}}]
 ---
 
 # BPR-1360: A cold open reads both sides of its comparison at once
@@ -71,3 +72,163 @@ portable epoch-host and application code, so `platforms` gains `linux`.
   for an idle reviewer, prepared blob reads as preparation jobs).
 - **Live gain:** the macOS gain is measurable only on the Mac and stays owed
   there.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+Product at `8a24f8dab`, with a clang-tidy fix in `8297e420c` that does not
+change behaviour. WSL2 Ubuntu 26.04, GCC 15.2.0, offscreen, no live GitHub
+call and no model call.
+
+### Design
+
+- **Diff host.** `perform` asks for a modified file's two blobs together
+  through a new port call, `diff_blob_port::materialize_both`. By default it
+  returns nothing, and the host then reads one side at a time as before. Each
+  answer is still checked left first, as a single read would be. Preparation
+  goes through the same `perform`, but the epoch host only answers the pair for
+  the reviewer's own blobs.
+- **Epoch host.** `materialize_both` runs one job on the repository actor that
+  does both sides' cache and grant work. When both sides must be read exactly
+  from the network, the actor lends the left read to the diff worker, which is
+  blocked waiting for the result anyway. The actor makes the right read
+  itself, then waits for the lent read to come back. Two reads are on the wire
+  with no new thread. The lent read touches no cache session. Both answers are
+  rechecked and published under the actor's authority lock, which is held
+  until the waiter has them, as `materialize` does. Suppose the caller stops
+  waiting before taking the read, because it was stopped or hit `BlobWait`.
+  The actor then takes the read back and makes it itself; a stopped job's read
+  ends at once.
+- **BPR-1359.** The pair job is reviewer work. Constructing it stops a
+  prepared exact read in flight, and no prepared read is admitted while the
+  job is queued or running. Only the job's own stop stops either read: the
+  diff job's stop, forwarded from a superseded selection or cancel, or the
+  host's shutdown.
+- **Order and cancellation.** Results still reach the diff host's decision
+  lane as one terminal in order. A superseded selection stops both reads.
+
+### Test, before and after
+
+The new tests are in `application_epoch_host`. They run the real diff host
+over the real epoch host, with the diff host on its own worker thread and the
+actor on another. The fake transport records every read's start and end and
+the most reads in flight at once.
+
+| | open, 300 ms reads | most in flight | result |
+|---|---|---|---|
+| before (`5fd933c6a` product) | 603-607 ms | 1 | fails "both sides' reads are on the wire together" |
+| after | 302-305 ms (every run) | 2 | passes; second read starts about 300 ms before the first ends |
+
+The other two new tests also fail before the change:
+`preparation_cannot_stop_or_delay_either_concurrent_reviewer_read` fails at
+"both of the reviewer's reads run together and preparation stops neither",
+and `a_superseded_cold_open_stops_both_reads` fails at "both of the open's
+reads are on the wire". Measured round trips can be passed in: with
+`--live-single-blob-ms=1044` (Windows' median) the open takes 1046 ms against
+a sum of 2088, and with `2100` (macOS) it takes 2103 ms against 4200.
+
+### Touched functions (for the BPR-1344 rebase)
+
+- `diff_runtime_ports.hpp`: new `diff_blob_port::materialize_both`, a
+  virtual that returns nothing by default.
+- `epoch_application_host.hpp`: the `materialize_both` override and the
+  class comment on concurrent ingress.
+- `diff_application_host.cpp`: `implementation::perform` asks for both
+  sides; new `implementation::blob_request`. Preparation scheduling
+  (`pump_preparation`, `start_preparation`, `execute`) is untouched.
+- `epoch_application_host.cpp`:
+  - New `blob_pair_waiter` and `actor_blob_read`, after `blob_waiter`.
+  - New `begin_actor_blob_read`, `read_remote_blob` and
+    `finish_actor_blob_read`, before `materialize`. `materialize`'s actor
+    closure now calls these three, and its logic moved there unchanged.
+    BPR-1359's prepared branch is now in `begin_actor_blob_read`: the block
+    after `durably_sparse_anchor`, where `PreparedGrantSequence &&
+    !SelectedGrantSequence` holds. `read_remote_blob` releases the
+    `prepared_read_registration` after the network read, as the old block's
+    scope did. BPR-1344's "prepared blob reads become preparation jobs"
+    belongs in those two places.
+  - New `materialize_both` and `read_both_remote_blobs`, after
+    `materialize`, and the public forwarder.
+  - Untouched: `reviewer_work`, `prepared_read_registration`,
+    `enqueue_actor_work`, `run_on_actor`, `prepare_selected_diffs`,
+    `fetch_prepared_blobs`, and the actor FIFO.
+- `docs/architecture/system-architecture.md`: one paragraph after the
+  preparation section.
+
+### Rows
+
+`build/dev` (Debug) passed:
+
+- `application_epoch_host` (10 of 10 repeated runs), `application_diff_host`,
+  `architecture_boundaries`, `test_network_isolation_manifest`,
+  `application_review_round_trip_composition_contract`,
+  `large_review_fixture_contract`, `large_review_replay_contract` and
+  `gh_cli_transport`.
+- `application_first_tab_comparison`, and every large-review row but
+  `application_large_review_prepared_open`. `cache_bytes` skips in Debug by
+  design.
+- The core-only preset, 259 of 259.
+
+`coding-format-check` passes with clang-format 22.1.8. clang-tidy on the two
+touched host sources reports nothing in the new code; the
+`performance-no-automatic-move` findings on `noImport` predate this card.
+`verify_documentation.py` prints DOCUMENTATION_OK. No `src/app` source
+changed and the round-trip pin passes as is, so there was no reseal.
+
+`gh_cli_git_smart_transport` is macOS-only and not registered here; the
+transport is untouched.
+
+### The 100 ms rows (optimized tree)
+
+`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON
+-DCMAKE_TEST_BUILD_DEPENDS=ON` builds clean at GCC 15 -O3 -Werror. The only
+warning is in the vendored `sqlite3.c`. Run idle with `-j1`:
+
+- `application_large_review_responsiveness` passes: BudgetsEnforced, no input
+  budget failures or misses, largest pulse 63.7 ms.
+- `application_first_tab_comparison` passes: BudgetsEnforced, largest pulse
+  60.2 ms.
+- `application_epoch_host` passes.
+
+The tree was deleted afterwards.
+
+### `application_large_review_prepared_open`: this card makes it fail
+
+The row's rule is "every prepared open is faster than every unprepared one".
+Two interleaved A/B runs used the same idle machine and swapped only the
+`better_pull_review_large_review` binary between `5fd933c6a`'s product and
+`8a24f8dab`:
+
+| tree | before: failures | after: failures | unprepared min visible | prepared max visible |
+|---|---|---|---|---|
+| Release tests-on, -j1 idle | 0 of 10 | 8 of 10 | 47.5-50.6 ms before, 38.6-42.6 ms after | 40.1-43.2 ms before, 40.1-43.9 ms after |
+| Debug | 5 of 10 | 7 of 10 | 87.5-266 ms before, 77-265 ms after | noisy (shared host) |
+
+Earlier on this station, 6 more Release runs at `8a24f8dab` failed 4 times,
+and 10 Debug runs failed 9 times while the shared host was loaded. Every
+failure gives the same message.
+
+The prepared opens did not get slower. The unprepared opens got faster: in
+this local, complete-clone fixture both sides now come from the cache in one
+actor job, which saves about 8 ms. Prepared opens stay at about 41 ms, so the
+two distributions now overlap and the rule fails most of the time. In
+Release it passed every time before this card. This is a change in the row's
+outcome caused by this card, not BPR-1344's contention alone, so it waits on
+the coordinator's decision. The rule is not re-specified here.
+
+### Owed on the Mac
+
+The live gain: on `MikeMarcin/BPR-Test#43`, the cold open of an unprepared
+modified file should take about one exact read (about 2.1 s) instead of two
+(4.3 s). On the Mac station, at a `main` that contains `8a24f8dab`:
+
+```sh
+gh api rate_limit --jq '.resources.core.remaining, .resources.graphql.remaining'
+build/dev/tests/application/better_pull_review_application_epoch_host_tests --live-single-blob-ms=2100 --live-batch-ms=1881
+```
+
+Then rerun BPR-1344's live probe course, which made the 4.3 s figure,
+offscreen with preparation off. The probe is the Mac-local branch
+`claude/bpr-1344-live-probe` (`9bf77510d`, `c83e0596b`), rebased onto that
+`main`. Record the median shown time over the same files. Its exact
+invocation is recorded only on the Mac, so the command is not written out
+here.
