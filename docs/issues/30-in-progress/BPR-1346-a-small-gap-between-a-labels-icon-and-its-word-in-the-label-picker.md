@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1346"
 title: "A small gap between each label's icon and its word in the label picker"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P3"
