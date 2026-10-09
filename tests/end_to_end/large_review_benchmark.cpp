@@ -2203,15 +2203,32 @@ namespace bpr::e2e::large_review {
 						const auto& feedback = page->file_model()->feedback();
 						return feedback.has_value() && feedback->Request.Columns.Count == aCount && quiet(*application);
 					};
-					const auto tick           = [&](const core::feedback_label aLabel, const bool aOn) { editor->item_of(aLabel)->setCheckState(aOn ? Qt::Checked : Qt::Unchecked); };
+					const auto tick = [&](const core::feedback_label aLabel, const bool aOn) { editor->item_of(aLabel)->setCheckState(aOn ? Qt::Checked : Qt::Unchecked); };
+					// [[BPR-1351]]. Each chip change is counted on its own: the
+					// Overview's counts published between the tick and the
+					// settled, quiet window that shows it.
+					const auto publications = [&] { return access::scaling_evidence(*application).OverviewFeedbackPublications; };
+					auto       perChange    = std::vector<std::uint64_t>{ };
+					const auto counted      = [&](const auto& aChange) {
+						const auto before = publications();
+						aChange();
+						perChange.push_back(publications() - before);
+					};
 					const auto settle_columns = [&](const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
-						tick(aLabel, aOn);
-						QElapsedTimer waited;
-						waited.start();
-						while (!columns(aCount) && waited.elapsed() < 30'000) {
-							QApplication::processEvents(QEventLoop::AllEvents, 5);
-						}
-						require(columns(aCount), "a chip change in Settings reaches the Overview");
+						counted([&] {
+							tick(aLabel, aOn);
+							QElapsedTimer waited;
+							waited.start();
+							while (!columns(aCount) && waited.elapsed() < 30'000) {
+								QApplication::processEvents(QEventLoop::AllEvents, 5);
+							}
+							require(columns(aCount), "a chip change in Settings reaches the Overview");
+						});
+					};
+					const auto measure_columns = [&](const char* aPhase, const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
+						counted([&] {
+							require(measure_wait(*application, budget, report, aPhase, [&] { tick(aLabel, aOn); }, [&] { return columns(aCount); }), "a measured chip change timed out");
+						});
 					};
 					require(editor != nullptr && columns(0U), "the Overview starts with no chips");
 					const auto readsBefore = access::evidence(*application).AccountReadCount;
@@ -2220,32 +2237,51 @@ namespace bpr::e2e::large_review {
 					for (std::size_t label = 0U; label < core::feedback_label_count; ++label) {
 						labels.push_back(core::feedback_label_catalog()[label].Label);
 					}
+					// Twelve ticks up to all twelve chips, then twelve unticks
+					// back to none: 24 changes.
 					settle_columns(labels[0], true, 1U);
 					settle_columns(labels[1], true, 2U);
-					require(measure_wait(*application, budget, report, "overview_columns_3", [&] { tick(labels[2], true); }, [&] { return columns(3U); }), "three chips timed out");
+					measure_columns("overview_columns_3", labels[2], true, 3U);
 					for (std::size_t label = 3U; label + 1U < labels.size(); ++label) {
 						settle_columns(labels[label], true, static_cast<std::uint8_t>(label + 1U));
 					}
-					require(measure_wait(*application, budget, report, "overview_columns_12", [&] { tick(labels.back(), true); }, [&] { return columns(12U); }), "twelve chips timed out");
+					measure_columns("overview_columns_12", labels.back(), true, 12U);
 					for (std::size_t label = labels.size() - 1U; label > 1U; --label) {
 						settle_columns(labels[label], false, static_cast<std::uint8_t>(label));
 					}
 					settle_columns(labels[1], false, 1U);
-					require(measure_wait(*application, budget, report, "overview_columns_0", [&] { tick(labels[0], false); }, [&] { return columns(0U); }), "no chips timed out");
+					measure_columns("overview_columns_0", labels[0], false, 0U);
+					// A late echo of the last change would land after its wait.
+					counted([&] {
+						QElapsedTimer drained;
+						drained.start();
+						while (drained.elapsed() < 250) {
+							QApplication::processEvents(QEventLoop::AllEvents, 5);
+						}
+					});
+					const auto  trailing  = perChange.back();
 					const auto  workAfter = access::scaling_evidence(*application);
 					const auto& before    = workBefore.FeedbackWork;
 					const auto& after     = workAfter.FeedbackWork;
-					std::cerr << "large-review overview columns: provider_reads=" << access::evidence(*application).AccountReadCount - readsBefore
+					perChange.pop_back();
+					auto perChangeText = std::string{ };
+					for (const auto& count : perChange) {
+						perChangeText += (perChangeText.empty() ? "" : ",") + std::to_string(count);
+					}
+					std::cerr << "large-review overview columns: changes=" << perChange.size() << " provider_reads=" << access::evidence(*application).AccountReadCount - readsBefore
 							  << " observations=" << after.Observations - before.Observations << " bodies_parsed=" << after.BodiesParsed - before.BodiesParsed
 							  << " scopes_retallied=" << after.ScopesRetallied - before.ScopesRetallied
 							  << " scopes_tallied_on_request=" << after.ScopesTalliedOnRequest - before.ScopesTalliedOnRequest
 							  << " units_tallied=" << after.UnitsTallied - before.UnitsTallied
-							  << " publications=" << workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications << std::endl;
+							  << " publications=" << workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications
+							  << " per_change=" << perChangeText << " trailing=" << trailing << std::endl;
 					require(access::evidence(*application).AccountReadCount == readsBefore && workAfter.FeedbackObservations == workBefore.FeedbackObservations
 								&& workAfter.FeedbackBodiesParsed == workBefore.FeedbackBodiesParsed && after.Observations == before.Observations && after.BodiesParsed == before.BodiesParsed
-								&& after.ScopesRetallied == before.ScopesRetallied && after.UnitsTallied == before.UnitsTallied
-								&& workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications >= 2U * labels.size() - 1U,
-							"chip changes read nothing from the provider, parse no body and tally no conversation; each change publishes the counts");
+								&& after.ScopesRetallied == before.ScopesRetallied && after.UnitsTallied == before.UnitsTallied,
+							"chip changes read nothing from the provider, parse no body and tally no conversation");
+					require(perChange.size() == 2U * labels.size() && std::ranges::all_of(perChange, [](const std::uint64_t aCount) { return aCount == 1U; }) && trailing == 0U
+								&& workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications == perChange.size(),
+							"each of the 24 chip changes publishes the Overview's counts exactly once, and nothing follows the last");
 				}
 				// [[BPR-0940]]. The ordinary course reads the large file where a
 				// reviewer does: in Review, so its measurement, navigation and
