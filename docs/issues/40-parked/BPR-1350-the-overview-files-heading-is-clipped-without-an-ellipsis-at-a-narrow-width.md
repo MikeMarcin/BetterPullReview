@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1350"
 title: "The Overview Files heading is clipped without an ellipsis at a narrow width"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","found_by":"bpr-main-linux, BPR-1094's rendered checks, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1349--BPR-1351--2371e399c373.json","requested_skill":"frontend-design","owner_look":"required, on the Mac","related_rfcs":["RFC-BPR-0049","RFC-BPR-0050"],"related_cards":["BPR-1094","BPR-1089"]}
+parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1350:ellipsis","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and qt_pull_request_overview_chips_scale_{125,200}: at 1,000/800/600/420 px in four themes and both mark styles, the heading stays on the page and runs under no control in its row, and the narrowest page shortens it; renders show the ellipsis (1,000 px at 125%: '..., 2 not ...' before Open). Before: clipped at '2 not rea'."}},{"criterion":"BPR-1350:tooltip-and-name","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"The accessible name is always the whole sentence; when shortened the tooltip begins with it (anchored by BPR-1354). Controls: the page source before this change fails the accessible-name check at 100/125/200%; dropping the tooltip fails the tooltip check."}},{"criterion":"BPR-1350:owner-look","outcome":"pending","revision":"ed28a2a7d","evidence":{"kind":"observation","detail":"Owner look on the Mac: the frozen build and session are prepared by the coordinator. Offscreen renders only here; frontend-design guidance read from the marketplace copy (plugin not enabled on this station)."}}]
 ---
 
 # BPR-1350: The Overview Files heading is clipped without an ellipsis at a narrow width
