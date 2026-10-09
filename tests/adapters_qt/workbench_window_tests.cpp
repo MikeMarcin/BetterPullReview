@@ -12910,13 +12910,30 @@ namespace {
 		process_events();
 	}
 
+	/// [[BPR-1364]]. A plain double-click on a row: press, release, the
+	/// double-click, release.
+	void double_click_row(QAbstractItemView& aView, const QModelIndex& aIndex)
+	{
+		const auto at      = QPointF{ aView.visualRect(aIndex).center() };
+		const auto global  = aView.viewport()->mapToGlobal(at);
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		auto       doubled = QMouseEvent{ QEvent::MouseButtonDblClick, at, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(aView.viewport(), &press);
+		QApplication::sendEvent(aView.viewport(), &release);
+		QApplication::sendEvent(aView.viewport(), &doubled);
+		QApplication::sendEvent(aView.viewport(), &release);
+		process_events();
+	}
+
 	/// [[BPR-1342]]. The owner, 2026-10-08: "I should be able to open a review
 	/// and open a review in a new window from the home, including from right
 	/// click on a pr". Home's one row menu, for a queue row and a Recently
 	/// viewed row: Open Review (the default, Return), Open Review in New Window
 	/// (⌘Return), Resume for a Recently viewed row (⇧Return), then Open on
 	/// GitHub, each showing its key. ⌘Return, ⌘-click and middle-click open the
-	/// row in a new window; Return and a plain click open it here. Each names
+	/// row in a new window; Return and a double-click open it here, and a plain
+	/// single click only selects it ([[BPR-1364]]). Each names
 	/// the row, never an address, and a new window is offered exactly when the
 	/// profile's New Window is.
 	void test_open_review_from_home_rows()
@@ -13006,14 +13023,18 @@ namespace {
 		expect(opens.size() == 2U && windows.size() == 2U, "Return opens it here");
 
 		// The pointer: ⌘-click and middle-click open in a new window and keep
-		// the row selected; a plain click opens here.
+		// the row selected; a plain click only selects ([[BPR-1364]]) and a
+		// double-click opens here.
 		click_row(*view, index, Qt::LeftButton, Qt::ControlModifier);
 		expect(windows.size() == 3U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 2U, "⌘-click opens the row in a new window, not here");
 		expect(view->currentIndex() == index && view->selectionModel()->isSelected(index), "⌘-click leaves the row current and selected");
 		click_row(*view, index, Qt::MiddleButton, Qt::NoModifier);
 		expect(windows.size() == 4U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 2U, "middle-click opens the row in a new window");
 		click_row(*view, index, Qt::LeftButton, Qt::NoModifier);
-		expect(opens.size() == 3U && windows.size() == 4U, "a plain click still opens the row here");
+		expect(opens.size() == 2U && windows.size() == 4U && view->currentIndex() == index && view->selectionModel()->isSelected(index),
+			   "a plain click selects the row and opens nothing");
+		double_click_row(*view, index);
+		expect(opens.size() == 3U && windows.size() == 4U, "a double-click opens the row here");
 
 		// A Recently viewed row: the same menu with Resume, the same keys and clicks.
 		auto recent = application::recent_reviews_projection{ };
@@ -13051,6 +13072,10 @@ namespace {
 		expect(windows.size() == 7U && std::holds_alternative<application::recent_review_row>(windows.back()) && recents.size() == 3U, "⌘-click opens a Recently viewed row in a new window");
 		click_row(*recentList, recentList->model()->index(0, 0), Qt::MiddleButton, Qt::NoModifier);
 		expect(windows.size() == 8U && std::holds_alternative<application::recent_review_row>(windows.back()), "middle-click opens it in a new window");
+		click_row(*recentList, recentList->model()->index(0, 0), Qt::LeftButton, Qt::NoModifier);
+		expect(recents.size() == 3U && windows.size() == 8U && recentList->currentRow() == 0, "a plain click on a Recently viewed row selects it and opens nothing");
+		double_click_row(*recentList, recentList->model()->index(0, 0));
+		expect(recents.size() == 4U && !recents.back().Resume && windows.size() == 8U, "a double-click opens it here");
 
 		// What the host refuses is said; without the profile's New Window
 		// nothing is asked for.

@@ -45,3 +45,110 @@ also fill), Recently viewed, and the Review Cycles list beside them.
   change.
 - `BPR-1364:owner`: the owner accepts single-click selection on a frozen
   build (one Accept/Reject question).
+
+## What existed (inventory at `9df9fc891`)
+
+- **Queue rows** (every arrangement: state panels, the one card, group panels
+  and their state bands; personal discovery fills the same rows):
+  `home_list::adopt_rows` connected both `clicked` and `activated` to
+  `open_row`, so a single click opened the pull request. Return was already
+  read by the list itself ([[BPR-0736]]).
+- **Recently viewed** opened on `itemActivated`: a double-click on macOS and
+  Windows, but a single click wherever the style asks for single-click
+  activation (KDE). Return and ⇧Return were read by the window.
+- **Review Cycles** resumed on `itemActivated` too, and on macOS Return is an
+  item view's editing key, so the keyboard had no way to resume a cycle.
+- **What depended on a single click:** `qt_workbench_open_review_from_home`
+  ("a plain click still opens the row here"),
+  `qt_composed_github`'s Home row course ("clicking a row opens its pull
+  request") and the BPR-1357 course's clicks. Nothing in the product did.
+  The Repositories drawer (not Home) opens on a current-row change and is
+  unchanged.
+
+## Implementation
+
+The `frontend-design:frontend-design` skill was loaded first. This is an
+interaction change to a Qt surface with no new visual design: the gesture
+names stay the same everywhere ("Open Review", Return, double-click), and the
+selection and focus painting are the style's own.
+
+- `home_list::adopt_rows`: `doubleClicked` opens; neither `clicked` nor
+  `activated` is taken. Each rows view's accessible description is
+  `home_open_description()`, "Double-click or press Return to open".
+- `workbench_window`: Recently viewed opens on `itemDoubleClicked` and says
+  "Double-click or press Return to open; Shift and Return resume its saved
+  reading". Review Cycles resumes on `itemDoubleClicked` or Return (read in
+  `eventFilter`, `resume_home_cycle`), with the same description.
+- **A crash the change exposed.** A single click now leaves the keyboard in a
+  group's rows, so changing Group retired a focused list. `~QWidget` sends
+  that list's focus-out after its item-view part is gone, and the row button's
+  filter (`home_row_action::eventFilter`) asked it for its rows (EXC_BAD_ACCESS
+  in `home_row_action::refresh`). The filter now ignores a list that is no
+  longer an item view. `retire_groups` moves the keyboard off a panel before
+  deleting it. It also rescues BPR-1357's Cancel/Retry button, which lives in
+  the open row's list and would have been deleted with it, and places it
+  again. `set_grouping` and `set_state_headers` keep the keyboard on the same
+  pull request's row.
+- **A course bug found on the way.** `application_home_open_feedback_public_path`
+  triggered the checkable Home action at the start of each appearance; in the
+  second (dark) pass that toggled Home off and showed the review already open
+  behind it, so the dark pass never ran on Home. It now uses
+  `choose_home(true)` and asserts Home.
+- Specification: "Opening a row" and "While a row opens" in
+  `docs/ux/workbench-specification.md`.
+
+## Verification (macOS, `build/dev` Debug, offscreen, 2026-10-09)
+
+- `qt_home_list_scale_{100,125,200}`: new
+  `test_a_single_click_selects_and_a_double_click_opens`. In each of the four
+  arrangements a window-system single click on `#101` makes it current,
+  highlighted and focused and opens nothing; a double-click opens it once;
+  Return opens it; the description is the one above. With the keyboard on a
+  group's row carrying Cancel, None and then State headers keep the keyboard
+  on `#101`, and Cancel survives and moves to the new list. Under a style that
+  makes a single click an activation (`activated` fires once), the click
+  still only selects and a double-click opens.
+- `qt_composed_github_scale_{100,125,200}`: the Home row course now asserts a
+  single click opens nothing and selects and focuses the row (Open Review
+  enabled); a double-click opens `#73`; the row menu's Open Review opens it.
+  The Recently viewed course asserts a single click selects and opens nothing.
+  New `test_home_side_lists_select_on_a_single_click`: Recently viewed and
+  Review Cycles, under the platform style and the single-click-activation
+  style, select on a single click, open on a double-click, and Review Cycles
+  opens on Return.
+- `qt_workbench_open_review_from_home_scale_{100,125,200}`: a plain click
+  selects and opens nothing, and a double-click opens here, on a queue row
+  and a Recently viewed row.
+- `application_home_open_feedback_public_path` (3 s fixture delay, light then
+  dark, both on Home): a single click on `#17` asks GitHub for nothing and
+  stays on Home. A double-click says "Opening #17…" on that row with no
+  event-loop turn after it. A second double-click is the same request.
+  `#4001`'s failure and Retry, the bar and the status band are unchanged.
+  Return on `#17` says "Opening #17…" in the same turn, then the pull request
+  opens.
+- `application_review_cycle_desktop_public_path` and
+  `profile_cycle_handoff_public_path_tests.cpp` drive Home's cycles by
+  `itemDoubleClicked`; `application_review_cycle_publish_public_path` (real
+  window-system double-clicks) passes unchanged.
+- Also passing: `qt_workbench_window_scale_100`,
+  `qt_workbench_open_on_github_scale_100`, `qt_composed_home_refusal_scale_100`,
+  `qt_surface_capture_course_scale_100`, `qt_anchored_tooltips`,
+  `application_setup_destination_public_path`,
+  `application_attended_recent_replay`,
+  `application_profile_multi_window_public_path`,
+  `application_personal_discovery_public_path`,
+  `application_profile_window_review_restoration_public_path`,
+  `application_composition_contract`,
+  `application_review_round_trip_composition_contract` and
+  `application_workbench_composition_contract` (no pin moved:
+  `github_application.cpp` is unchanged), `architecture_boundaries`.
+  clang-format 22.1.8 on every changed source; clang-tidy 22 on
+  `home_list.cpp` clean.
+
+**Failing-before.** With the source change set aside and the tests kept,
+`qt_home_list_scale_100` (no description), `qt_composed_github_scale_100`
+("a single click on a row opens nothing"),
+`application_home_open_feedback_public_path` ("a single click on a row asks
+GitHub for nothing and stays on Home") and
+`application_review_cycle_desktop_public_path` ("resumed from Home") all fail;
+with it restored they pass.

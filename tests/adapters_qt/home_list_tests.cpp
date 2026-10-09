@@ -1,3 +1,4 @@
+#include "../support/window_system_mouse.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
@@ -15,6 +16,7 @@
 #include <QMouseEvent>
 #include <QPalette>
 #include <QPixmap>
+#include <QProxyStyle>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
@@ -31,6 +33,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -257,6 +260,26 @@ namespace {
 		QApplication::sendEvent(&aWidget, &release);
 		QApplication::processEvents();
 	}
+
+	/// \brief [[BPR-1364]]. `aCount` left clicks on a row, through the window
+	/// system as a hand makes them, so the click gives focus and two make a
+	/// double-click.
+	void press_row(QAbstractItemView& aView, const QModelIndex& aRow, const int aCount)
+	{
+		bpr::tests::window_system_clicks(*aView.viewport(), QRectF{ aView.visualRect(aRow) }.center(), aCount);
+	}
+
+	/// \brief [[BPR-1364]]. A style that activates an item on a single click,
+	/// as KDE's does.
+	class single_click_style final : public QProxyStyle
+	{
+	public:
+		auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget, QStyleHintReturn* const aReturn) const
+			-> int override
+		{
+			return aHint == QStyle::SH_ItemView_ActivateItemOnSingleClick ? 1 : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+	};
 
 	int            StateChanges = 0;
 	const QObject* StateTarget  = nullptr;
@@ -1227,6 +1250,108 @@ namespace {
 			   "focusing a row expands the group and the band that hold it");
 	}
 
+	// [[BPR-1364]]. The owner, 2026-10-09: "I don't like a single click on
+	// home card opening the pr." In every arrangement a single click on a row
+	// only selects it; a double-click or Return opens it.
+	void test_a_single_click_selects_and_a_double_click_opens()
+	{
+		home_fixture home;
+		home.Source.apply(two_account_queue());
+		home.List.set_queue_status(true, true);
+		auto opened = std::vector<std::int64_t>{ };
+		home.List.set_open_dispatch([&opened](const core::queue_item& aItem) { opened.push_back(aItem.Ref.Number); });
+		home.List.show();
+		home.List.activateWindow();
+		settle(300);
+
+		const auto arrangements = std::vector{
+			std::tuple{ application::home_grouping::none, true, "state panels" },
+			std::tuple{ application::home_grouping::none, false, "the one card" },
+			std::tuple{ application::home_grouping::organization, true, "a group's state band" },
+			std::tuple{ application::home_grouping::organization, false, "a group's rows" },
+		};
+		for (const auto& [grouping, headers, name] : arrangements) {
+			const auto where = std::string{ " (" } + name + ")";
+			home.List.set_grouping(grouping);
+			home.List.set_state_headers(headers);
+			settle(200);
+			auto* view = static_cast<QAbstractItemView*>(nullptr);
+			if (grouping == application::home_grouping::none) {
+				view = headers ? home.List.state_view(qt::home_group::needs_you) : home.List.flat_view();
+			} else {
+				auto* const group = home.List.group_panel(QStringLiteral("octo-org"));
+				expect(group != nullptr, "the octo-org group is shown" + where);
+				view = headers ? home.List.rows_view(*home.List.band_panel(*group, qt::home_group::needs_you)) : home.List.rows_view(*group);
+			}
+			expect(view != nullptr && view->isVisible(), "the rows are shown" + where);
+			expect(view->accessibleDescription() == QStringLiteral("Double-click or press Return to open"),
+				   "the rows say how they open, for keyboard and screen-reader users" + where);
+			const auto row = view->model()->index(0, 0);
+			expect(row.data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/app#101"), "the first row is #101" + where);
+			view->selectionModel()->clear();
+			view->clearFocus();
+			opened.clear();
+			QApplication::processEvents();
+
+			press_row(*view, row, 1);
+			expect(opened.empty(), "a single click on a row opens nothing" + where);
+			expect(view->currentIndex() == row, "a single click makes the row current" + where);
+			expect(view->selectionModel()->isSelected(row), "a single click highlights the row" + where);
+			expect(view->hasFocus(), "a single click gives the row's list the keyboard" + where);
+			expect(home.List.current_queue_item().has_value() && home.List.current_queue_item()->Ref.Number == 101,
+				   "the clicked row is the page's current row" + where);
+
+			press_row(*view, row, 2);
+			expect(opened == std::vector<std::int64_t>{ 101 }, "a double-click opens the row once" + where);
+
+			send_key(*view, Qt::Key_Return);
+			expect(opened == std::vector<std::int64_t>{ 101, 101 }, "Return opens the current row" + where);
+		}
+
+		// A click leaves the keyboard on the row it selected, so changing the
+		// arrangement retires the list that holds it. The keyboard stays on
+		// that pull request's row, and the open row's Cancel, which lives in
+		// that list, survives it.
+		home.List.set_open(qt::home_row_open{ .Identity = QStringLiteral("octo-org/app#101"),
+											  .Phase    = qt::home_row_open_phase::waiting,
+											  .Line     = QStringLiteral("Opening #101: asking GitHub for the pull request…"),
+											  .Action   = QStringLiteral("Cancel") });
+		settle(50);
+		auto* const cancel = home.List.open_action();
+		expect(cancel != nullptr && cancel->isVisible() && home.List.current_view()->hasFocus(),
+			   "a group's row carries Cancel while the keyboard is on it");
+		home.List.set_grouping(application::home_grouping::none);
+		settle(200);
+		expect(home.List.current_view() == home.List.flat_view() && home.List.current_view()->hasFocus()
+				   && home.List.current_queue_item()->Ref.Number == 101,
+			   "regrouping keeps the keyboard on the same pull request's row");
+		expect(home.List.open_action() == cancel && cancel->isVisible() && cancel->parentWidget() == home.List.flat_view()->viewport(),
+			   "the open row's Cancel survives its list and moves to the row's new one");
+		home.List.set_state_headers(true);
+		settle(200);
+		expect(home.List.current_view() == home.List.state_view(qt::home_group::needs_you) && home.List.current_view()->hasFocus(),
+			   "turning State headers on keeps the keyboard on the row too");
+		home.List.set_open(qt::home_row_open{ });
+		settle(50);
+
+		// Where the style asks for single-click activation (KDE), a single
+		// click still only selects.
+		auto* const view   = home.List.state_view(qt::home_group::needs_you);
+		auto        style  = single_click_style{ };
+		auto        events = 0;
+		view->setStyle(&style);
+		const auto activations = QObject::connect(view, &QAbstractItemView::activated, view, [&events] { ++events; });
+		opened.clear();
+		const auto row = view->model()->index(0, 0);
+		press_row(*view, row, 1);
+		expect(events == 1, "the style makes a single click an activation");
+		expect(opened.empty() && view->currentIndex() == row, "and that single click still only selects the row");
+		press_row(*view, row, 2);
+		expect(opened == std::vector<std::int64_t>{ 101 }, "a double-click opens it under that style too");
+		QObject::disconnect(activations);
+		view->setStyle(nullptr);
+	}
+
 	// A6 and A7: an empty ready queue is one sentence whatever the view asks for.
 	void test_an_empty_queue_is_one_sentence_in_every_grouping()
 	{
@@ -1382,6 +1507,8 @@ auto main(int argc, char** argv) -> int
 	test_an_empty_queue_is_one_sentence_in_every_grouping();
 	test_a_sort_orders_rows_within_a_state();
 	test_a_large_grouped_queue_stays_incremental();
+	// [[BPR-1364]]. A single click selects; a double-click or Return opens.
+	test_a_single_click_selects_and_a_double_click_opens();
 
 	std::cout << "home-list-tests:pass\n";
 	return EXIT_SUCCESS;

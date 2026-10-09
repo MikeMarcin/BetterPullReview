@@ -797,7 +797,7 @@ try {
 	settle(lanes);
 	expect(window.showing_home() && window.home_cycles_list()->isVisible() && window.home_cycles_list()->count() == 1, "recent cycle on Home");
 	capture(window, QStringLiteral("desktop-home-recents"));
-	emit window.home_cycles_list()->itemActivated(window.home_cycles_list()->item(0));
+	emit window.home_cycles_list()->itemDoubleClicked(window.home_cycles_list()->item(0));
 	settle(lanes);
 	expect(window.showing_local_cycle() && page->notes()->count() == 2, "resumed from Home");
 
@@ -808,7 +808,7 @@ try {
 	settle(lanes);
 	expect(!window.showing_local_cycle() && !window.showing_home() && identity_text(window).contains(QStringLiteral("#7")) && !identity_text(window).contains(QStringLiteral("Local cycle")), "switched to the pull request");
 	capture(window, QStringLiteral("desktop-switch-to-pull-request"));
-	emit window.home_cycles_list()->itemActivated(window.home_cycles_list()->item(0));
+	emit window.home_cycles_list()->itemDoubleClicked(window.home_cycles_list()->item(0));
 	settle(lanes);
 	expect(window.showing_local_cycle() && identity_text(window).contains(QStringLiteral("Local cycle")) && page->notes()->count() == 2, "and back to the cycle");
 

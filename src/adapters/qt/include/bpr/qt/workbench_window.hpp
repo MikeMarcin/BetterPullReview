@@ -1421,6 +1421,9 @@ namespace bpr::qt {
 		void update_home_surface();
 		/// \brief [[BPR-0733]]. Sends one recently viewed row out, to open or to resume.
 		void dispatch_recent_review(int aRow, bool aResume);
+		/// \brief [[BPR-1157]] [[BPR-1364]]. Resumes one of Home's recent review
+		/// cycles, by a double-click or Return on its row.
+		void resume_home_cycle(int aRow);
 
 		/// [[BPR-0722]]. Pixels the other visible strip items leave the identity.
 		[[nodiscard]] auto strip_identity_budget() const -> int;

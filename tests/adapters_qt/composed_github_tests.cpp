@@ -1,3 +1,4 @@
+#include "../support/window_system_mouse.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "diff_publication_fixture.hpp"
@@ -50,6 +51,7 @@
 #include <QPersistentModelIndex>
 #include <QPixmap>
 #include <QPlainTextEdit>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollArea>
@@ -4580,8 +4582,14 @@ namespace {
 		expect(gestures.size() == 4U && gestures.back().Index == 2U
 				   && !gestures.back().Resume,
 			   "Return opens the current row, on every platform");
-		// The pointer's own activation arrives the way any list's does.
-		const auto row     = list->visualItemRect(list->item(0));
+		// [[BPR-1364]]. A single click on a row only selects it.
+		const auto row = list->visualItemRect(list->item(0));
+		tests::window_system_clicks(*list->viewport(), QPointF{ row.center() }, 1);
+		expect(gestures.size() == 4U && list->currentRow() == 0 && list->item(0)->isSelected() && list->hasFocus(),
+			   "a single click on a Recently viewed row makes it current and highlighted, and opens nothing");
+		expect(list->accessibleDescription().startsWith(QStringLiteral("Double-click or press Return to open")),
+			   "Recently viewed says how its rows open");
+		// The pointer opens a row by a double-click.
 		const auto local   = QPointF{ row.center() };
 		const auto global  = list->viewport()->mapToGlobal(local);
 		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, local, global,
@@ -4623,6 +4631,105 @@ namespace {
 				   && QApplication::focusWidget() == arriving.home_open_bar(),
 			   "a signed-out arrival lists what was read and still starts at the bar");
 		arriving.hide();
+	}
+
+	/// \brief [[BPR-1364]]. A style that activates an item on a single click,
+	/// as KDE's does.
+	class single_click_style final : public QProxyStyle
+	{
+	public:
+		auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget, QStyleHintReturn* const aReturn) const
+			-> int override
+		{
+			return aHint == QStyle::SH_ItemView_ActivateItemOnSingleClick ? 1 : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+	};
+
+	/// \brief [[BPR-1364]]. One left-button gesture on a list's row, through
+	/// the window system as a hand makes it: a single click, or a double-click.
+	void press_row(QAbstractItemView& aView, const QRect& aRow, const bool aDouble)
+	{
+		tests::window_system_clicks(*aView.viewport(), QPointF{ aRow.center() }, aDouble ? 2 : 1);
+	}
+
+	/// [[BPR-1364]]. The owner, 2026-10-09: "I don't like a single click on
+	/// home card opening the pr." Recently viewed and Review Cycles, Home's
+	/// other lists, select on a single click, even where the style makes a
+	/// single click an activation, and open by a double-click or Return.
+	auto test_home_side_lists_select_on_a_single_click() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+
+		auto opened = std::vector<application::recent_review_intent>{ };
+		window.set_recent_review_dispatch([&opened](application::recent_review_intent aIntent) { opened.push_back(aIntent); });
+		auto resumed = std::vector<core::local_cycle_subject>{ };
+		window.set_local_cycle_entry_dispatch([] { }, [&resumed](const core::local_cycle_subject& aSubject) { resumed.push_back(aSubject); });
+
+		auto projection = application::recent_reviews_projection{ };
+		projection.Entries.push_back(recent_entry("microsoft", "terminal", 42U, "Fix the conpty resize race", 1'772'000'000, false));
+		projection.Entries.push_back(recent_entry("qt", "qtbase", 9'001U, { }, 0, false));
+		window.publish(projection);
+		auto cycles                        = std::vector<application::review_cycle_recent>(2U);
+		cycles[0].Cycle.Title              = "Engine refactor";
+		cycles[0].Cycle.Subject.Generation = 7U;
+		cycles[0].Location                 = "/work/engine";
+		cycles[1].Cycle.Title              = "Docs pass";
+		cycles[1].Cycle.Subject.Generation = 8U;
+		window.present_local_cycle_recents(cycles);
+		// The lists lay out over a few turns; a click is made where a row is.
+		for (auto turn = 0; turn < 20; ++turn) {
+			QApplication::processEvents();
+		}
+		window.home_list()->ensureWidgetVisible(window.home_recent_list());
+		QApplication::processEvents();
+
+		auto* const recent = window.home_recent_list();
+		auto* const list   = window.home_cycles_list();
+		expect(recent->isVisible() && recent->count() == 2 && list->isVisible() && list->count() == 2,
+			   "Home shows Recently viewed and Review Cycles");
+		expect(list->accessibleDescription() == QStringLiteral("Double-click or press Return to open"),
+			   "Review Cycles says how its rows open");
+
+		auto style = single_click_style{ };
+		for (const auto styled : { false, true }) {
+			const auto where = std::string{ styled ? " (single-click activation style)" : " (the platform's style)" };
+			recent->setStyle(styled ? &style : nullptr);
+			list->setStyle(styled ? &style : nullptr);
+			opened.clear();
+			resumed.clear();
+
+			recent->setCurrentRow(0);
+			press_row(*recent, recent->visualItemRect(recent->item(1)), false);
+			expect(opened.empty() && recent->currentRow() == 1 && recent->item(1)->isSelected() && recent->hasFocus(),
+				   "a single click on a Recently viewed row selects it and opens nothing" + where);
+			press_row(*recent, recent->visualItemRect(recent->item(1)), true);
+			expect(opened.size() == 1U && opened.back().Index == 1U && !opened.back().Resume,
+				   "a double-click opens that Recently viewed row" + where);
+
+			list->setCurrentRow(0);
+			press_row(*list, list->visualItemRect(list->item(1)), false);
+			expect(resumed.empty() && list->currentRow() == 1 && list->item(1)->isSelected() && list->hasFocus(),
+				   "a single click on a review cycle selects it and opens nothing" + where);
+			press_row(*list, list->visualItemRect(list->item(1)), true);
+			expect(resumed.size() == 1U && resumed.back().Generation == 8U, "a double-click opens that review cycle" + where);
+			auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(list, &key);
+			QApplication::processEvents();
+			expect(resumed.size() == 2U && resumed.back().Generation == 8U, "Return opens the current review cycle, on every platform" + where);
+		}
+		recent->setStyle(nullptr);
+		list->setStyle(nullptr);
+		window.hide();
 	}
 
 	auto test_home_action_list_opens_rows_and_the_bar_on_overview() -> void
@@ -4722,19 +4829,31 @@ namespace {
 		intents.clear();
 		const auto rowRect = needsView->visualRect(first);
 		expect(!rowRect.isEmpty(), "the first row is on screen");
-		{
-			const auto at      = QPointF{ rowRect.center() };
-			auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-			auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
-			QApplication::sendEvent(needsView->viewport(), &press);
-			QApplication::sendEvent(needsView->viewport(), &release);
-		}
+		const auto opens73 = [&intents] {
+			const auto* const open = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
+			return intents.size() == 1U && open != nullptr
+				&& open->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
+			&& open->Number == core::pull_request_number{ 73U };
+		};
+		// [[BPR-1364]]. The owner, 2026-10-09: "I don't like a single click on
+		// home card opening the pr." A single click selects the row only. The
+		// clicks come through the window system, as a hand's do, so the click
+		// gives the list the keyboard and two of them make a double-click.
+		window.activateWindow();
 		QApplication::processEvents();
-		const auto* const open = intents.empty() ? nullptr : std::get_if<core::open_pull_request_intent>(&intents.back());
-		expect(intents.size() == 1U && open != nullptr
-				   && open->Repository == core::repository_locator{ .Owner = "better-pull-review", .Name = "desktop" }
-				   && open->Number == core::pull_request_number{ 73U },
-			   "clicking a row opens its pull request through the GitHub intent");
+		tests::window_system_clicks(*needsView->viewport(), QPointF{ rowRect.center() }, 1);
+		expect(intents.empty(), "a single click on a row opens nothing");
+		expect(needsView->hasFocus() && needsView->currentIndex() == first && needsView->selectionModel()->isSelected(first)
+				   && window.home_open_review_action()->isEnabled(),
+			   "a single click makes the row current, focused and highlighted, and offers Open Review for it");
+		// A double-click opens it.
+		tests::window_system_clicks(*needsView->viewport(), QPointF{ rowRect.center() }, 2);
+		expect(opens73(), "a double-click on a row opens its pull request through the GitHub intent");
+		// So does the row menu's Open Review, on the row the click selected.
+		intents.clear();
+		window.home_open_review_action()->trigger();
+		QApplication::processEvents();
+		expect(opens73(), "the row menu's Open Review opens the selected row");
 		window.choose_modality(qt::review_modality::review);
 		publish_pull_request(window);
 		QApplication::processEvents();
@@ -8747,6 +8866,7 @@ auto main(int argc, char** argv) -> int
 	test_home_sign_in_sentence_names_this_machine();
 	test_home_leads_with_the_bar_signed_in();
 	test_home_lists_recently_viewed_pull_requests();
+	test_home_side_lists_select_on_a_single_click();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_one_pane_places_github_threads_on_their_own_rows();

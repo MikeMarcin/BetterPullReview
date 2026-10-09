@@ -1,5 +1,6 @@
 #include "bpr/qt/home_list.hpp"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QEvent>
 #include <QHoverEvent>
@@ -282,6 +283,11 @@ namespace bpr::qt {
 		return left != right ? left < right : aLeft.row() < aRight.row();
 	}
 
+	auto home_open_description() -> QString
+	{
+		return QStringLiteral("Double-click or press Return to open");
+	}
+
 	// ---- home_row_action ----------------------------------------------------
 
 	home_row_action::home_row_action(QAbstractItemView& aView, const QString& aText, const int aRole)
@@ -368,6 +374,12 @@ namespace bpr::qt {
 
 	auto home_row_action::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
+		// [[BPR-1364]]. A list being destroyed with the keyboard still in it
+		// sends its own focus-out from `~QWidget`, after its item-view part is
+		// gone; its rows can no longer be asked anything.
+		if (qobject_cast<const QAbstractItemView*>(&View) == nullptr) {
+			return QToolButton::eventFilter(aWatched, aEvent);
+		}
 		if (aEvent != nullptr && aWatched == View.viewport()) {
 			switch (aEvent->type()) {
 			case QEvent::MouseMove:
@@ -547,12 +559,18 @@ namespace bpr::qt {
 	{
 		aView.setObjectName(aName);
 		aView.setAccessibleName(aAccessible);
+		aView.setAccessibleDescription(home_open_description());
 		aView.setModel(&aModel);
 		aView.setItemDelegate(Delegate);
 		aView.installEventFilter(this);
 		aView.viewport()->installEventFilter(this);
-		connect(&aView, &QAbstractItemView::clicked, this, [this, view = &aView](const QModelIndex& aIndex) { open_row(*view, aIndex); });
-		connect(&aView, &QAbstractItemView::activated, this, [this, view = &aView](const QModelIndex& aIndex) { open_row(*view, aIndex); });
+		// [[BPR-1364]]. A single click only selects: the row becomes current,
+		// takes focus and is highlighted. A double-click opens it, as Return
+		// does (read in `eventFilter`) and the row menu's Open Review does.
+		// Neither `clicked` nor `activated` is taken: `activated` is a single
+		// click wherever the style asks for single-click activation (KDE), and
+		// Return is already the list's own.
+		connect(&aView, &QAbstractItemView::doubleClicked, this, [this, view = &aView](const QModelIndex& aIndex) { open_row(*view, aIndex); });
 		connect(aView.selectionModel(), &QItemSelectionModel::currentChanged, this,
 				[this, view = &aView](const QModelIndex& aCurrent) { adopt_current(view, aCurrent); });
 		connect_model_signals(aModel, *this, [this] { schedule_refresh(); });
@@ -709,6 +727,7 @@ namespace bpr::qt {
 		// The row the reviewer had is kept: it is the same pull request, in a
 		// different arrangement of the same queue.
 		const auto current = current_queue_item();
+		const auto focused = current.has_value() && CurrentRows != nullptr && CurrentRows->hasFocus();
 		Grouping           = aGrouping;
 		// [[BPR-0783]] review finding. Every group panel is retired first. A key
 		// is a host and a value, so one word can be an owner here and an account
@@ -718,7 +737,8 @@ namespace bpr::qt {
 		retire_groups({ });
 		refresh();
 		if (current.has_value()) {
-			static_cast<void>(select(current->Ref, false));
+			// [[BPR-1364]]. With the keyboard on the row, it stays on that row.
+			static_cast<void>(select(current->Ref, focused));
 		}
 	}
 
@@ -728,10 +748,11 @@ namespace bpr::qt {
 			return;
 		}
 		const auto current = current_queue_item();
+		const auto focused = current.has_value() && CurrentRows != nullptr && CurrentRows->hasFocus();
 		StateHeaders       = aHeaders;
 		refresh();
 		if (current.has_value()) {
-			static_cast<void>(select(current->Ref, false));
+			static_cast<void>(select(current->Ref, focused));
 		}
 	}
 
@@ -1009,6 +1030,20 @@ namespace bpr::qt {
 			// before is still collapsed if it comes back.
 			if (CurrentRows != nullptr && group->Panel->isAncestorOf(CurrentRows)) {
 				CurrentRows = nullptr;
+			}
+			// [[BPR-1364]]. A single click leaves the keyboard in the row it
+			// selected, so the panel going may hold it: the list keeps it until
+			// a row is chosen again, rather than a destroyed list handing it on.
+			if (auto* const focused = QApplication::focusWidget();
+				focused != nullptr && group->Panel->isAncestorOf(focused)) {
+				setFocus(Qt::OtherFocusReason);
+			}
+			// The open row's Cancel or Retry lives in the list that shows the
+			// row; it outlives that list and is placed again once rows exist.
+			if (OpenAction != nullptr && group->Panel->isAncestorOf(OpenAction)) {
+				OpenAction->hide();
+				OpenAction->setParent(Column);
+				QMetaObject::invokeMethod(this, [this] { place_open_action(); }, Qt::QueuedConnection);
 			}
 			delete group->Panel;
 			Groups.erase(Groups.begin() + static_cast<std::ptrdiff_t>(index - 1U));

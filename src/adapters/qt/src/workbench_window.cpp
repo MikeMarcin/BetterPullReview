@@ -2877,8 +2877,9 @@ namespace bpr::qt {
 			HomeRecentList = recentList;
 			HomeRecentList->setObjectName(QStringLiteral("homeRecentList"));
 			HomeRecentList->setAccessibleName(QStringLiteral("Recently viewed pull requests"));
-			HomeRecentList->setAccessibleDescription(QStringLiteral(
-				"Return opens a pull request on its overview; Shift and Return resume its saved reading"));
+			// [[BPR-1364]]. A single click only selects the row.
+			HomeRecentList->setAccessibleDescription(
+				home_open_description() + QStringLiteral("; Shift and Return resume its saved reading"));
 			// The action is the row's menu as well as its hover and focus
 			// button, so the gesture is where the row is. [[BPR-1342]]: the
 			// row's menu is Home's one row menu, opened on the row the right
@@ -2899,7 +2900,10 @@ namespace bpr::qt {
 				popup_home_row_menu(HomeRecentList->viewport()->mapToGlobal(aPosition));
 			});
 			HomeRecentList->installEventFilter(this);
-			connect(HomeRecentList, &QListWidget::itemActivated, this,
+			// [[BPR-1364]]. The pointer opens a row by a double-click, never a
+			// single click: `itemActivated` is a single click wherever the style
+			// asks for single-click activation (KDE). Return is read below.
+			connect(HomeRecentList, &QListWidget::itemDoubleClicked, this,
 					[this](QListWidgetItem* const aItem) {
 						dispatch_recent_review(
 							aItem == nullptr ? -1 : HomeRecentList->row(aItem), false);
@@ -2939,6 +2943,11 @@ namespace bpr::qt {
 			HomeCyclesList = new QListWidget{ HomeCycles };
 			HomeCyclesList->setObjectName(QStringLiteral("homeReviewCyclesList"));
 			HomeCyclesList->setAccessibleName(QStringLiteral("Recent review cycles"));
+			// [[BPR-1364]]. As every Home list: a single click selects, a
+			// double-click or Return opens. Return is read in `eventFilter`,
+			// because on macOS it is an item view's editing key.
+			HomeCyclesList->setAccessibleDescription(home_open_description());
+			HomeCyclesList->installEventFilter(this);
 			HomeCyclesList->setMaximumHeight(HomeCyclesList->fontMetrics().lineSpacing() * 5 + 8);
 			HomeCyclesList->hide();
 			cyclesColumn->addWidget(HomeCyclesList);
@@ -2948,11 +2957,8 @@ namespace bpr::qt {
 					OpenProjectAction->trigger();
 				}
 			});
-			connect(HomeCyclesList, &QListWidget::itemActivated, this, [this](QListWidgetItem* const aItem) {
-				const auto row = aItem == nullptr ? -1 : HomeCyclesList->row(aItem);
-				if (row >= 0 && static_cast<std::size_t>(row) < CycleRecents.size() && ResumeCycleDispatch) {
-					ResumeCycleDispatch(CycleRecents[static_cast<std::size_t>(row)].Cycle.Subject);
-				}
+			connect(HomeCyclesList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* const aItem) {
+				resume_home_cycle(aItem == nullptr ? -1 : HomeCyclesList->row(aItem));
 			});
 			build_queue_landing(HomePage, *homeColumn);
 			if (auto* const landing = HomePage->findChild<QWidget*>(
@@ -11607,6 +11613,13 @@ namespace bpr::qt {
 			&& RecentReviews.Entries[static_cast<std::size_t>(row)].Resumable);
 	}
 
+	void workbench_window::resume_home_cycle(const int aRow)
+	{
+		if (aRow >= 0 && static_cast<std::size_t>(aRow) < CycleRecents.size() && ResumeCycleDispatch) {
+			ResumeCycleDispatch(CycleRecents[static_cast<std::size_t>(aRow)].Cycle.Subject);
+		}
+	}
+
 	void workbench_window::dispatch_recent_review(const int aRow, const bool aResume)
 	{
 		if (!RecentReviewDispatch || aRow < 0
@@ -11669,6 +11682,14 @@ namespace bpr::qt {
 			&& (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::StyleChange)) {
 			apply_strip_width();
 		}
+		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
+				&& (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
+				resume_home_cycle(HomeCyclesList->currentRow());
+				return true;
+			}
+		}
 		if (aWatched == HomeRecentList && aEvent != nullptr
 			&& aEvent->type() == QEvent::KeyPress) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
@@ -11680,7 +11701,7 @@ namespace bpr::qt {
 				// on the shifted key too and resume would also open. Taking
 				// the key means one behaviour on every platform, and the
 				// pointer's own activation still arrives through
-				// `itemActivated`.
+				// `itemDoubleClicked` ([[BPR-1364]]).
 				// [[BPR-1342]]. With ⌘ (Ctrl off macOS) the row opens in a
 				// new window, on Overview.
 				if (key->modifiers().testFlag(Qt::ControlModifier)) {

@@ -518,8 +518,16 @@ column, and RFC-BPR-0032 gives it one job per row.
   so a signed-out window still lists its public reading.
 - **Opening a row** ([[BPR-1342]], the owner, 2026-10-08: "I should be able
   to open a review and open a review in a new window from the home, including
-  from right click on a pr"). A click or Return opens the row's pull request
-  in this window, on Overview. ⌘Return (Ctrl+Return off macOS), ⌘-click
+  from right click on a pr"). A single click only selects a row: it becomes
+  current, takes the keyboard and is highlighted ([[BPR-1364]], the owner,
+  2026-10-09: "I don't like a single click on home card opening the pr."). A
+  double-click or Return opens the row's pull request in this window, on
+  Overview, as the row menu's Open Review does; this holds on every platform,
+  including where the style makes a single click an activation. Every Home
+  list (the queue in each arrangement, Recently viewed and Review Cycles)
+  says so in its accessible description: "Double-click or press Return to
+  open". Changing Group or State headers keeps the keyboard on the selected
+  row. ⌘Return (Ctrl+Return off macOS), ⌘-click
   (Ctrl-click) and middle-click open it in a new window of the same profile.
   On a Recently viewed row ⇧Return still resumes. A right click on a queue row
   or a Recently viewed row makes it current and opens Home's one row menu:
@@ -542,9 +550,9 @@ column, and RFC-BPR-0032 gives it one job per row.
   obvious immediate indication you actually tried to open a review if there
   is real network latency on the action."). A first read stays on Home until
   GitHub answers ([[BPR-1200]]), so the row that asked says so in the same
-  turn as the click or Return: its second line gives way to a turning mark in
-  the line's own ink and "Opening #42…", and a second click or Return on it
-  asks for nothing. After the core's wait (`core::home_open_wait_milliseconds`,
+  turn as the double-click or Return ([[BPR-1364]]): its second line gives
+  way to a turning mark in the line's own ink and "Opening #42…", and a
+  second double-click or Return on it asks for nothing. After the core's wait (`core::home_open_wait_milliseconds`,
   800 ms, measured by the application's clock) the line names the step the
   read is on ("Opening #42: asking GitHub for the pull request…") and the
   row's action place holds **Cancel** (Esc on the row presses it), which

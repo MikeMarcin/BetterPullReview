@@ -176,7 +176,7 @@ auto main(int aArgc, char** aArgv) -> int
 				say("RESUME_NOTHING_LISTED");
 				return false;
 			}
-			emit       window.home_cycles_list()->itemActivated(window.home_cycles_list()->item(0));
+			emit       window.home_cycles_list()->itemDoubleClicked(window.home_cycles_list()->item(0));
 			const auto open = wait_for([&] { return window.showing_local_cycle() && page->projection().Cycle && page->projection().Source && idle(*page); });
 			say(open ? "RESUMED " + page->projection().Cycle->Title : std::string{ "RESUME_FAILED" });
 		} else if (verb == "resume-title") {
@@ -187,7 +187,7 @@ auto main(int aArgc, char** aArgv) -> int
 			for (int row = 0; row < window.home_cycles_list()->count() && !found; ++row) {
 				auto* item = window.home_cycles_list()->item(row);
 				if (item->text().contains(QString::fromStdString(argument))) {
-					emit window.home_cycles_list()->itemActivated(item);
+					emit window.home_cycles_list()->itemDoubleClicked(item);
 					found = true;
 				}
 			}

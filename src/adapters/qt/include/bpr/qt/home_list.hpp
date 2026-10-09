@@ -58,6 +58,11 @@ namespace bpr::qt {
 	[[nodiscard]] auto home_group_name(
 		application::home_grouping aGrouping, const home_group_key& aKey) -> QString;
 
+	/// \brief [[BPR-1364]]. How every Home list says it opens a row: a single
+	/// click only selects, so the gesture is named for keyboard and
+	/// screen-reader users alike. Each Home list's accessible description.
+	[[nodiscard]] auto home_open_description() -> QString;
+
 	/// \brief [[BPR-0776]] [[BPR-0783]]. One slice of the decided, filtered queue:
 	/// a state panel, a group panel, or a state band inside a group.
 	///

@@ -2,8 +2,8 @@
 // composed application. The owner, 2026-10-09: "There's no obvious immediate
 // indication you actually tried to open a review if there is real network
 // latency on the action." The fixture transport holds a pull request's first
-// answers for several seconds. In the same turn as the click the row says it is
-// opening; after the core's wait it names the step and offers Cancel; Cancel
+// answers for several seconds. A single click only selects a row ([[BPR-1364]]);
+// in the same turn as the double-click or Return the row says it is opening; after the core's wait it names the step and offers Cancel; Cancel
 // stops the read on the wire; a failure says why on the row and Retry asks
 // again; the Home bar's opening is said in Home's status band, which also
 // carries Home's general status. Nothing reaches a live provider.
@@ -26,6 +26,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -103,14 +104,27 @@ namespace {
 	}
 
 	/// A real click on a row: press and release on its viewport, as a pointer
-	/// makes it, with no event loop turn in between or after.
-	void click(const found_row& aRow)
+	/// makes it, with no event loop turn in between or after. [[BPR-1364]]:
+	/// with `aDouble`, the double-click a hand makes (press, release, the
+	/// double-click, release), which is what opens a row.
+	void click(const found_row& aRow, const bool aDouble = false)
 	{
-		const auto point = aRow.View->visualRect(aRow.Index).center();
-		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ point }, aRow.View->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		const auto point   = QPointF{ aRow.View->visualRect(aRow.Index).center() };
+		const auto global  = aRow.View->viewport()->mapToGlobal(point);
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		auto       doubled = QMouseEvent{ QEvent::MouseButtonDblClick, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(aRow.View->viewport(), &press);
-		auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ point }, aRow.View->viewport()->mapToGlobal(QPointF{ point }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(aRow.View->viewport(), &release);
+		if (aDouble) {
+			QApplication::sendEvent(aRow.View->viewport(), &doubled);
+			QApplication::sendEvent(aRow.View->viewport(), &release);
+		}
+	}
+
+	void double_click(const found_row& aRow)
+	{
+		click(aRow, true);
 	}
 
 	[[nodiscard]] auto row_lines(qt::workbench_window& aWindow, const found_row& aRow) -> QString
@@ -216,28 +230,40 @@ try {
 		window->appearance_settings()->choose_mode(mode);
 		wait_for([&] { return owner->status().ProfileMode == mode; }, "the rendered appearance is accepted");
 		window->settings()->hide();
-		window->home_action()->trigger();
+		// Home is a toggle: with a review open behind it, triggering it while
+		// Home shows would leave Home. The course asks for Home itself.
+		window->choose_home(true);
 		QApplication::processEvents();
+		expect(window->showing_home(), "each appearance starts on Home");
 
-		// ---- the same turn as the click -----------------------------------
+		// ---- a single click only selects ([[BPR-1364]]) -------------------
 		const auto row          = row_of(*window, served_name);
 		const auto delayedFirst = delay->Delayed.load();
 		click(row);
+		QApplication::processEvents();
+		expect(!phase(*window).has_value() && window->showing_home() && delay->Delayed.load() == delayedFirst,
+			   "a single click on a row asks GitHub for nothing and stays on Home");
+		expect(row.View->currentIndex() == row.Index && row.View->selectionModel()->isSelected(row.Index),
+			   "a single click makes the row current and highlighted");
+		expect(!row_lines(*window, row).contains(QStringLiteral("Opening")), "a selected row does not say it is opening");
+
+		// ---- the same turn as the double-click -----------------------------
+		double_click(row);
 		// No event loop turn has run since the release.
-		expect(phase(*window) == core::home_open_phase::opening, "in the same turn as the click, the core's opening reaches the window");
+		expect(phase(*window) == core::home_open_phase::opening, "in the same turn as the double-click, the core's opening reaches the window");
 		expect(window->home_list()->row_delegate()->open().Identity == QString::fromUtf8(served_name)
 				   && window->home_list()->row_delegate()->open().Phase == qt::home_row_open_phase::opening,
-			   "in the same turn as the click, the clicked row is the open row");
-		expect(row_lines(*window, row).contains(QStringLiteral("Opening #17…")), "in the same turn as the click, the row says Opening #17…");
-		expect(window->home_list()->open_view() == row.View, "the clicked row's own list carries it");
+			   "in the same turn as the double-click, the double-clicked row is the open row");
+		expect(row_lines(*window, row).contains(QStringLiteral("Opening #17…")), "in the same turn as the double-click, the row says Opening #17…");
+		expect(window->home_list()->open_view() == row.View, "the double-clicked row's own list carries it");
 		expect(window->showing_home() && window->home_status_line()->isHidden(), "the row says it, so the band adds nothing");
 		wait_for([&] { return delay->Delayed.load() > delayedFirst; }, "the read reaches the slow transport");
 		renders(QStringLiteral("row-opening"));
 
-		// A second click is the same request.
+		// A second double-click is the same request.
 		const auto request = window->home_open()->State->Request;
-		click(row_of(*window, served_name));
-		expect(window->home_open()->State->Request == request, "a second click on the row being opened asks for nothing");
+		double_click(row_of(*window, served_name));
+		expect(window->home_open()->State->Request == request, "a second double-click on the row being opened asks for nothing");
 
 		// ---- after the wait: the step, and Cancel --------------------------
 		wait_for([&] { return phase(*window) == core::home_open_phase::waiting; }, "after the core's wait the opening is waiting", { }, 3000);
@@ -261,7 +287,7 @@ try {
 
 		// ---- a failure on its row, and Retry -------------------------------
 		const auto failingRow = row_of(*window, failing_name);
-		click(failingRow);
+		double_click(failingRow);
 		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->open_view() == failingRow.View, "the failing row is opening at once");
 		wait_for([&] { return phase(*window) == core::home_open_phase::failed; }, "the failing read fails after its wait", { }, 15000);
 		QApplication::processEvents();
@@ -313,8 +339,16 @@ try {
 		expect(window->home_status_line()->isHidden(), "a quiet Home hides the band again");
 		renders(QStringLiteral("idle"));
 
-		// ---- the pull request opens after its wait --------------------------
-		click(row_of(*window, served_name));
+		// ---- Return opens in the same turn, and the pull request opens -----
+		const auto keyed = row_of(*window, served_name);
+		keyed.View->setCurrentIndex(keyed.Index);
+		keyed.View->setFocus(Qt::OtherFocusReason);
+		{
+			auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(keyed.View, &key);
+		}
+		expect(phase(*window) == core::home_open_phase::opening && row_lines(*window, keyed).contains(QStringLiteral("Opening #17…")),
+			   "in the same turn as Return, the row says Opening #17…");
 		wait_for([&] { return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; }, "the slow read opens the pull request", { }, 20000);
 		expect(!window->home_open().has_value(), "a loaded read leaves nothing for Home to say");
 		window->home_action()->trigger();
