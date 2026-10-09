@@ -6,7 +6,7 @@ status: "Parked"
 rfcs: ["RFC-BPR-0051"]
 depends_on: []
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-17","milestone":"hooks-cli","acceptance":["R19","R34","R35","R36","R37"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1090"],"coordinator_amendment":{"date":"2026-10-08","decision":"BPR-1090's landed Review feedback hook and workshop_feedback_guidance() satisfy the dependency; its parked owner Settings look does not block this wiring"}}
-acceptance: [{"criterion":"R19","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Tour hooks keep their purposes: the guidance rides only on a workshop_comment gesture with an operation (core refuses it elsewhere: core_agent_context_supplement, application_agent_launch); a launch-panel turn with the helper on carries none (application_agent_finding_workshop_guidance_default_contract); application_review_tour_writing and application_writing_delivery pass unchanged."}},{"criterion":"R34","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Helper on: a press carries the shipped review-feedback-v1 text (default course). No agent installed: the press is told no revision, the draft is untouched, nothing is published, and a typed label is still read (no-agent course). No model call anywhere."}},{"criterion":"R35","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/application/agent_launch_tests.cpp","detail":"A customized hook saved on the Settings row is sent as written with source profile_override and the shipped version named (custom course, application_agent_launch); never merged with the default; a tour hook override is not guidance; helper off sends none and the press wire is byte-identical (pinned digest)."}},{"criterion":"R36","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Turning the helper on and saving the hook start no process and record no press; the guidance adds no argument, environment variable, executable or tool to any protocol's launch; zero GitHub submissions, target observations or stored comments in every course."}},{"criterion":"R37","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/core/feedback_workshop_candidate_tests.cpp","detail":"core_feedback_workshop_candidate, application_agent_comment_workshop_host, qt_review_draft_editor and the default/custom courses: the shared recognizer reads both texts, suggestion bytes and the question are compared, the change is shown under the before and after (unknown or malformed headers named), and Accept is one local edit with the candidate's bytes. Provenance: the runtime supplies no model identity on this path, so none is claimed."}},{"criterion":"BPR-1091:owner-look","outcome":"pending","revision":"a6ac530d3","evidence":{"kind":"freeform","detail":"The candidate line under the workshop's before and after is new visible UI; it was built from offscreen tests without the frontend-design skill, which is not installed on bpr-main-linux. The owner's look is left open for the coordinator."}}]
+acceptance: [{"criterion":"R19","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Tour hooks keep their purposes: the guidance rides only on a workshop_comment gesture with an operation (core refuses it elsewhere: core_agent_context_supplement, application_agent_launch); a launch-panel turn with the helper on carries none (application_agent_finding_workshop_guidance_default_contract); application_review_tour_writing and application_writing_delivery pass unchanged."}},{"criterion":"R34","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Helper on: a press carries the shipped review-feedback-v1 text (default course). No agent installed: the press is told no revision, the draft is untouched, nothing is published, and a typed label is still read (no-agent course). No model call anywhere."}},{"criterion":"R35","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/application/agent_launch_tests.cpp","detail":"A customized hook saved on the Settings row is sent as written with source profile_override and the shipped version named (custom course, application_agent_launch); never merged with the default; a tour hook override is not guidance; helper off sends none and the press wire is byte-identical (pinned digest)."}},{"criterion":"R36","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Turning the helper on and saving the hook start no process and record no press; the guidance adds no argument, environment variable, executable or tool to any protocol's launch; zero GitHub submissions, target observations or stored comments in every course."}},{"criterion":"R37","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/core/feedback_workshop_candidate_tests.cpp","detail":"core_feedback_workshop_candidate, application_agent_comment_workshop_host, qt_review_draft_editor and the default/custom courses: the shared recognizer reads both texts, suggestion bytes and the question are compared, the change is shown under the before and after (unknown or malformed headers named), and Accept is one local edit with the candidate's bytes. Provenance: the runtime supplies no model identity on this path, so none is claimed."}},{"criterion":"BPR-1091:owner-look","outcome":"pending","revision":"a96ede92d","evidence":{"kind":"freeform","detail":"Redrawn on macOS with the frontend-design skill as qt::workshop_candidate_line (BPR-1083 marks, a speech bubble for the question, the BPR-1084 ring; kept faint, changed with one word), checked offscreen in light and dark. Asked as one Accept/Reject in session 95f0e6691639bcefb2aa927bbe48083b (candidate BPR-1091-workshop-candidate-line-v001, frozen-bd17bef2e-v001); pending the owner."}}]
 parked_on: "human-review"
 ---
 
@@ -145,3 +145,79 @@ workshop as a clarify, and it keeps carrying the guidance. The RFC asks for
 drafting and promotion tasks to get it. The coordinator decided this. The
 candidate line's owner look will be prepared from the Mac with
 `frontend-design`.
+
+## macOS run and the candidate line in marks (2026-10-08)
+
+Station: macOS 26 (Darwin 25.6) arm64, AppleClang 21, Qt 6.11.2, dev preset
+`-Werror`. Engineering owner `rfc-implementer`, model `claude-opus-5-5`,
+effort `high`. The `frontend-design:frontend-design` skill was loaded before
+the design work.
+
+- **Focused rows on macOS at `396941494`** (before any change): 9 of 9 —
+  `core_feedback_workshop_candidate`, `application_agent_launch`,
+  `application_agent_comment_workshop_host`, `qt_review_draft_editor`, the
+  four workshop courses (`application_agent_finding_workshop_press_contract`,
+  `..._guidance_default_contract`, `..._guidance_custom_contract`,
+  `..._guidance_no_agent_contract`) and the pin row
+  `application_review_round_trip_composition_contract`. No macOS-only
+  failure; nothing to fix.
+- **Candidate line**, built and frozen as `bd17bef2e`, landed as `a96ede92d`
+  after a rebase over BPR-1343 (the same change; the frozen build is
+  `bd17bef2e`): `qt::workshop_candidate_line` replaces
+  the sentence. The label is its BPR-1083 mark (weight and if-minor in the
+  mark, a custom decoration as written); a label change is the mark before an
+  arrow and the mark after, with the Plain mark where a side has none. The
+  question is a speech bubble holding a `?`, not the `question` label's
+  square, because the first render put two different question marks side by
+  side ("[?] → [!]  ? removed"). The suggested change is the BPR-1084 ring. A
+  kept facet is faint and wordless; a change carries one word: added, removed
+  or changed. An unreadable header is its token under a wavy line in the
+  attention colour. Each facet has its own anchored tooltip (its sentence);
+  the whole sentence stays the accessible description and
+  `workshop_candidate_text()`, so the courses' word checks are unchanged.
+  Checked offscreen at 2x in light and dark, on its own (a sheet of seven
+  states) and in the real editor.
+- **Attended look**: `--attended-workshop-agent PATH` (tests-on builds, with
+  `--attended-open-file`) writes "question: Is the exhausted retry budget
+  reported to the caller?", saves a Review feedback override on the Settings
+  row (helper on), presses Clarify, converts the fixture agent's finding on
+  the queue and prints `ATTENDED_WORKSHOP_SHOWN:Label changed: question →
+  issue (blocking) · No longer asks a question`. The canary's guided answers
+  lost their test markers (the courses' constants moved with them).
+- **Rows at `bd17bef2e`** (and `architecture_boundaries`, `test_network_isolation_manifest` and the pin row again at `a96ede92d`): 11 of 11 — the nine above plus
+  `architecture_boundaries` and `test_network_isolation_manifest`; the
+  production-manifest pin was resealed for `main.cpp` (full-application and
+  mutation pins unchanged). `qt_review_draft_editor` gained facet checks: three
+  kept facets for a prose-only candidate, three changed ones for a stronger
+  candidate with a wider line, a tooltip per facet and none in the gaps.
+  `coding-format-check` (clang-format 23.1.1) passes; documentation gate
+  `DOCUMENTATION_OK`. clang-tidy was not run reliably here (Homebrew
+  clang-tidy cannot find the SDK's standard headers).
+
+### Owner look, session v001
+
+Pending: `BPR-1091:owner-look`. One short session, one candidate, one
+question, Accept or Reject.
+
+- Session `95f0e6691639bcefb2aa927bbe48083b`, its own fresh state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1091-workshop-line-v001`,
+  ready and protected at event cursor 3. Candidate
+  `BPR-1091-workshop-candidate-line-v001` ("Workshop candidate line",
+  revision `frozen-bd17bef2e-v001`, fingerprint `a48e929f…`), with 2x
+  light and dark renders of the editor and a sheet of the other states. The
+  host was started detached and answered on loopback.
+- Frozen root `/Users/jaeger/bpr1091-workshop-line-v001.WCZ48Y`: `git
+  archive` of `bd17bef2e` into `src/`, configured with `app-release` and
+  `BUILD_TESTING=ON` into `src/build/app-release-tests`, built
+  `better_pull_review` and the fixture agent, source read-only; executable
+  SHA-256 `e14ebc49e9f315adc5d3de2eadb34b739e4b3777f0c489180d3370202d71e66e`.
+  Offscreen with the launcher's arguments it printed the
+  `ATTENDED_WORKSHOP_SHOWN` line above.
+- Launch: `python3 /Users/jaeger/bpr1091-workshop-line-v001.WCZ48Y/launch.py`.
+  It checks the build, the fixture agent and the fixture tree first and
+  reports an exit within seconds.
+
+Next: read the session's decisions (`status --after 3`). Accept satisfies
+`:owner-look` and the card finishes; a Reject comes back with its note for a
+v002.
+
