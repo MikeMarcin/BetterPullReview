@@ -1,5 +1,6 @@
 #include "bpr/core/sha256.hpp"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cstddef>
@@ -9,9 +10,26 @@ namespace bpr::core {
 	void sha256_stream::update(const std::span<const std::uint8_t> aBytes) noexcept
 	{
 		ByteCount += aBytes.size();
-		for (const auto byte : aBytes) {
-			push(byte);
+		auto rest = aBytes;
+		// Top up a partly filled block first, then hash whole blocks straight
+		// from the input, and keep only the tail ([[BPR-1358]]).
+		if (BlockSize != 0U) {
+			const auto take = std::min(Block.size() - BlockSize, rest.size());
+			std::copy_n(rest.begin(), take, Block.begin() + static_cast<std::ptrdiff_t>(BlockSize));
+			BlockSize += take;
+			rest = rest.subspan(take);
+			if (BlockSize != Block.size()) {
+				return;
+			}
+			transform(Block);
+			BlockSize = 0U;
 		}
+		while (rest.size() >= Block.size()) {
+			transform(rest.first<64>());
+			rest = rest.subspan(Block.size());
+		}
+		std::copy(rest.begin(), rest.end(), Block.begin());
+		BlockSize = rest.size();
 	}
 
 	auto sha256_stream::finish() noexcept -> std::array<std::uint8_t, 32>
@@ -38,12 +56,12 @@ namespace bpr::core {
 	{
 		Block[BlockSize++] = aValue;
 		if (BlockSize == Block.size()) {
-			transform();
+			transform(Block);
 			BlockSize = 0U;
 		}
 	}
 
-	void sha256_stream::transform() noexcept
+	void sha256_stream::transform(const std::span<const std::uint8_t, 64> aBlock) noexcept
 	{
 		static constexpr std::array<std::uint32_t, 64> constants{
 			0x428a2f98U,
@@ -114,10 +132,10 @@ namespace bpr::core {
 		std::array<std::uint32_t, 64> words{ };
 		for (std::size_t index = 0U; index < 16U; ++index) {
 			const auto offset = index * 4U;
-			words[index]      = static_cast<std::uint32_t>(Block[offset]) << 24U
-				| static_cast<std::uint32_t>(Block[offset + 1U]) << 16U
-				| static_cast<std::uint32_t>(Block[offset + 2U]) << 8U
-				| static_cast<std::uint32_t>(Block[offset + 3U]);
+			words[index]      = static_cast<std::uint32_t>(aBlock[offset]) << 24U
+				| static_cast<std::uint32_t>(aBlock[offset + 1U]) << 16U
+				| static_cast<std::uint32_t>(aBlock[offset + 2U]) << 8U
+				| static_cast<std::uint32_t>(aBlock[offset + 3U]);
 		}
 		for (std::size_t index = 16U; index < words.size(); ++index) {
 			const auto s0 = std::rotr(words[index - 15U], 7)

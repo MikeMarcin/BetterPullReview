@@ -22,7 +22,7 @@ namespace bpr::core {
 
 	private:
 		void push(std::uint8_t aValue) noexcept;
-		void transform() noexcept;
+		void transform(std::span<const std::uint8_t, 64> aBlock) noexcept;
 
 		std::array<std::uint32_t, 8> State{
 			0x6a09e667U,

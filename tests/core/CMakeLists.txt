@@ -517,6 +517,21 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_core_setup_destination_tests
 )
 
+# [[BPR-1358]]. SHA-256 known answers, padding and block boundaries, and
+# every split of one input across update calls.
+bpr_add_executable(
+    test_better_pull_review_core_sha256_tests
+    sha256_tests.cpp
+)
+target_link_libraries(test_better_pull_review_core_sha256_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_core_sha256_tests)
+bpr_enable_warnings(test_better_pull_review_core_sha256_tests)
+bpr_add_network_isolated_test(
+    NAME core_sha256
+    COMMAND test_better_pull_review_core_sha256_tests
+)
+set_tests_properties(core_sha256 PROPERTIES PASS_REGULAR_EXPRESSION "core-sha256-tests:pass")
+
 bpr_add_executable(
     test_better_pull_review_core_pull_request_refusal_tests
     pull_request_refusal_tests.cpp

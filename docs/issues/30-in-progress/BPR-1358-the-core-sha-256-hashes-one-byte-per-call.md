@@ -23,9 +23,14 @@ observation of a pull request still hashes every body.
 
 ## Outcome
 
-The core hash is several times faster, by block-wise processing within the
-same pure, dependency-free core implementation. Its output is byte-for-byte
-identical.
+The core hash is faster by block-wise processing within the same pure,
+dependency-free, portable core implementation. Its output is byte-for-byte
+identical. *Corrected 2026-10-09 (coordinator): this card first said "several
+times faster". Portable scalar SHA-256 is bound by its compression function
+at about 12 cycles per byte (about 300 MB/s on this machine), so block-wise
+processing gives about 1.3×. Several times would need hardware SHA
+instructions through intrinsics, which the coordinator declined, since a
+refresh no longer hashes ([[BPR-1349]]).*
 
 ## Acceptance
 
@@ -42,3 +47,51 @@ identical.
 SHA-256 is a widely used primitive here: idempotency keys, digests, pins and
 receipts. Any change must keep every existing digest identical, and is its
 own card for that reason (coordinator, 2026-10-09).
+
+## Built and verified (bpr-main-linux, 2026-10-09)
+
+**Change.** `sha256_stream::update` used to push every byte through
+`push()`. It now tops up a partly filled block, hashes whole 64-byte blocks
+straight from the input through `transform(std::span<const std::uint8_t, 64>)`,
+and buffers only the tail. `finish()` and the compression function are
+unchanged. The code is portable C++23 with no new include beyond
+`<algorithm>`, and no dependency. A second rewrite of the round loop
+(uninitialized schedule, constant bounds, reduced choice and majority) gained
+nothing measurable and was not kept.
+
+**Digests identical.** The new row `core_sha256`
+(`tests/core/sha256_tests.cpp`) passes:
+- FIPS 180-4 / NIST: empty, "abc", the 448-bit and 896-bit messages, and one
+  million "a".
+- A deterministic pattern at 0, 1, 55, 56, 57, 63, 64, 65, 119, 120, 127, 128,
+  129 and 1000 bytes, and 1 MiB. The expected digests come from Python's
+  `hashlib`.
+- Every split point of 200 bytes across two `update` calls, 1 MiB fed in
+  uneven chunks, and an empty update.
+
+All 160 rows that use these digests pass in `build/dev`: core, idempotency
+keys, GitHub mutation and recorded-fixture contracts, review cycle, setup
+destination, agent launch, writing delivery, designated authority, SQLite,
+tour CLI, counters and the round-trip contract. The one exception was
+`application_review_cycle_desktop_public_path`, red on main from BPR-1342 and
+fixed separately in `eae64dd67`.
+
+**Controls** (each built, run and reverted):
+- The whole-block loop advancing 63 bytes fails "the 896-bit message".
+- The top-up stopping one byte short fails "a split at byte 1".
+- Leaving a full final block buffered aborts on the out-of-range buffer.
+
+**Throughput** (i9-10900KF, WSL2 Ubuntu 26.04, GCC 15.2.0 `-O3`, standalone
+harness over the core source, medians of 7):
+
+| Input | Before | After |
+|---|---|---|
+| 64 MiB in one call | 306.7 ms, 219 MB/s | 232.4 ms, 289 MB/s |
+| 20,015 bodies of 400 B (BPR-1349's 10k shape) | 41.1 ms | 32.4 ms |
+
+`application_feedback_counter_costs` in the optimized tests-on tree (Release,
+idle, `-j1`), first observation at 10k: 90.1 ms median (93.5 ms after
+BPR-1349). It is 8.3 ms at 1k. Unchanged refreshes hash nothing, as BPR-1349
+left them (`bodies_hashed=0`).
+
+macOS and Windows runs of `core_sha256` are owed.
