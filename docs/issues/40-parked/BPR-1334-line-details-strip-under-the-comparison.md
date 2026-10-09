@@ -588,3 +588,18 @@ Launch command:
 `python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v004/launch.py`.
 C1–C3 rest on the direct evidence above. C4 owes a quiet run of the 18
 (above). C5 waits on the owner and is not self-certified.
+
+## Follow-up: `qt_appearance_profile` (2026-10-09)
+
+`e7e5ffb3b` broke `qt_appearance_profile` ("the reprojected position keeps its
+comparison and semantic anchor"). A `git bisect` from `b62420807` (pass) to
+`54dfbd463` (fail), building only that test, named `e7e5ffb3b` as the first
+failing commit. Line details' default height is eight lines of its own font,
+and the strip takes the code font, so the course's larger code font grew the
+strip from 130 to 170 px and shrank the comparison viewport from 601 to 556 px
+(macOS offscreen); the synchronization rail then crossed a different segment.
+The product is as this card intends, so the test is what changed:
+`test_a_font_change_moves_geometry_and_not_semantics` now pins the strip at
+its shown height with `set_line_details_height` before the font change, as a
+reader's stored height does, so it measures only the font's effect. Test-only;
+no product or card-scope change. `qt_appearance_profile` passes on macOS.

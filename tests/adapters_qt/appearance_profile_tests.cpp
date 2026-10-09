@@ -2089,6 +2089,16 @@ namespace {
 		profile.apply_code_font_to(workbench);
 		process_events();
 
+		// [[BPR-1334]]. Line details' default height is eight lines of the code
+		// font, so a larger font would also grow the strip and shorten the
+		// comparison's viewport, and the rail would cross a different segment.
+		// That is a layout change, not this claim; the strip keeps a height
+		// the reader chose, as the window's stored height does.
+		const auto stripHeight = workbench.detail_pane()->height();
+		expect(stripHeight > 0, "line details sit under the comparison");
+		workbench.set_line_details_height(static_cast<std::uint32_t>(stripHeight));
+		process_events();
+
 		expect(workbench.navigate_change(core::change_navigation_direction::next,
 										 core::change_navigation_policy::stop),
 			   "the semantic navigation bridge selects a retained change");
