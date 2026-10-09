@@ -78,3 +78,19 @@ for it.
 **Owner question:** which second GitHub account (not `MikeMarcin`) should be
 the reviewer on BPR-Test, signed into a browser during an attended run of the
 course?
+
+## Row observations from the BPR-1367 probe — 2026-10-09
+
+[[BPR-1367]] made one review on `MikeMarcin/BPR-Test#45` (since closed, its
+branch deleted) to check two operation rows' response shapes. These are
+observations, not qualification: no row passes and the card stays Blocked.
+
+- **Enumerate staged comments** (`GET .../reviews/{id}/comments`): no `line`,
+  `side`, `start_line`, `start_side` or `subject_type`, pending or submitted.
+  The pull request's comment collection lists no pending comment. BPR-1367
+  reads a submitted review's lines from the collection and confirms pending
+  stops' lines only after Submit.
+- **Edit stop body** (`PATCH /pulls/comments/{id}`): 404 while the review is
+  pending, 200 after Submit. GraphQL `updatePullRequestReviewComment` edits a
+  pending comment. Filed as [[BPR-1368]]. Native publication cannot pass this
+  row until that is fixed.
