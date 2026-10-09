@@ -249,7 +249,8 @@ class format_gate_refuses_an_unsupported_tool(unittest.TestCase):
         completed, formatted = self.run_gate(FORMAT_CHECK_SCRIPT, NEWER_BANNER)
         self.assertEqual(completed.returncode, 2, completed.stderr)
         self.assertIn("unsupported clang-format", completed.stderr)
-        self.assertIn("clang-format-stub reports version 23.1.1", completed.stderr)
+        # The stub is clang-format-stub.bat on Windows and has no suffix elsewhere.
+        self.assertRegex(completed.stderr, r"clang-format-stub(\.bat)? reports version 23\.1\.1")
         self.assertIn("clang-format 22 exactly", completed.stderr)
         self.assertIn("brew install llvm@22", completed.stderr)
         self.assertIn("apt install clang-format-22", completed.stderr)

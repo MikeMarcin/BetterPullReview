@@ -102,3 +102,21 @@ Python discovery cases run there.
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
 At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `coding_format_check` (with `/usr/bin/clang-format` 22.1.8) and `coding_standard_format_gate_contract` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7a83a29c9`, Windows 11, MSVC 19.50, `cmake --preset windows-dev`:
+
+- The `Coding standard clang-format:` line names
+  `C:/Program Files/LLVM/bin/clang-format.exe`, which reports **22.1.8**.
+  Visual Studio's bundled LLVM here is 22.1.3; the gate found the LLVM install
+  first.
+- `coding_format_check` **passed** (42.6 s), not skipped.
+- `coding_standard_format_gate_contract` failed one test.
+  `test_format_check_refuses_a_newer_release_and_says_how_to_get_22` asserted
+  `clang-format-stub reports version 23.1.1`, but on Windows the refusal names
+  the stub by its file, `clang-format-stub.bat reports version 23.1.1`. The
+  gate behaved correctly. The assertion now accepts the optional `.bat`
+  (`tests/scripts/coding_standard_format_gate_tests.py`), and the row passes:
+  37 tests, 11 skipped on Windows by design (the `find_program` batch-stub
+  cases and the pinned-directory cases).
