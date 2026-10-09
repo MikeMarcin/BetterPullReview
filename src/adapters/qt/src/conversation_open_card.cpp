@@ -18,6 +18,7 @@
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -961,7 +962,7 @@ namespace bpr::qt {
 		setText(aText);
 		setFocusPolicy(Qt::StrongFocus);
 		setCursor(aKind == kind::reply_field ? Qt::IBeamCursor : Qt::PointingHandCursor);
-		if (aKind == kind::primary || aKind == kind::secondary) {
+		if (aKind == kind::primary || aKind == kind::secondary || aKind == kind::split) {
 			setFont(semibold(font()));
 		}
 		setSizePolicy(aKind == kind::reply_field ? QSizePolicy::Expanding : QSizePolicy::Maximum, QSizePolicy::Fixed);
@@ -974,11 +975,23 @@ namespace bpr::qt {
 		update();
 	}
 
+	void note_button::set_joined(const bool aJoined)
+	{
+		if (Joined == aJoined) {
+			return;
+		}
+		Joined = aJoined;
+		update();
+	}
+
 	auto note_button::sizeHint() const -> QSize
 	{
 		const auto metrics = QFontMetrics{ font() };
 		if (Kind == kind::reply_field) {
 			return { 200, std::max(32, metrics.height() + 12) };
+		}
+		if (Kind == kind::split) {
+			return { 24, std::max(26, metrics.height() + 8) };
 		}
 		return { metrics.horizontalAdvance(text()) + (icon().isNull() ? 22 : 42), std::max(26, metrics.height() + 8) };
 	}
@@ -989,7 +1002,33 @@ namespace bpr::qt {
 		const auto& colours = Style.Colours;
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		const auto box = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
-		if (Kind == kind::primary) {
+		if (Kind == kind::split) {
+			// [[BPR-1345]] v002. The primary pill's own fill, its left edge
+			// square against the pill, a hairline between, and a chevron.
+			auto fill = colours.Signal;
+			if (underMouse() && isEnabled()) {
+				fill = fill.lighter(107);
+			}
+			const auto ink = colours.Signal.lightness() > 150 ? QColor{ 0x0D, 0x11, 0x17 } : QColor{ Qt::white };
+			painter.setOpacity(isEnabled() ? 1.0 : 0.45);
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(fill);
+			painter.drawRoundedRect(box.adjusted(-1.0, 0.0, 0.0, 0.0), 6.0, 6.0);
+			painter.drawRect(QRectF{ box.left() - 1.0, box.top(), 7.0, box.height() });
+			auto divider = ink;
+			divider.setAlphaF(0.35F);
+			painter.setPen(QPen{ divider, 1.0 });
+			painter.drawLine(QPointF{ box.left(), box.top() + 5.0 }, QPointF{ box.left(), box.bottom() - 5.0 });
+			const auto middle = QPointF{ box.center().x() + 0.5, box.center().y() };
+			auto       arrow  = QPainterPath{ };
+			arrow.moveTo(middle + QPointF{ -3.5, -1.5 });
+			arrow.lineTo(middle + QPointF{ 0.0, 2.0 });
+			arrow.lineTo(middle + QPointF{ 3.5, -1.5 });
+			painter.setPen(QPen{ ink, 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawPath(arrow);
+			painter.setOpacity(1.0);
+		} else if (Kind == kind::primary) {
 			auto fill = colours.Signal;
 			if (underMouse() && isEnabled()) {
 				fill = fill.lighter(107);
@@ -997,7 +1036,11 @@ namespace bpr::qt {
 			painter.setOpacity(isEnabled() ? 1.0 : 0.45);
 			painter.setPen(Qt::NoPen);
 			painter.setBrush(fill);
-			painter.drawRoundedRect(box, 6.0, 6.0);
+			painter.drawRoundedRect(Joined ? box.adjusted(0.0, 0.0, 1.0, 0.0) : box, 6.0, 6.0);
+			if (Joined) {
+				// Joined to its split arrow: the right edge is square.
+				painter.drawRect(QRectF{ box.right() - 6.0, box.top(), 7.0, box.height() });
+			}
 			const auto ink     = colours.Signal.lightness() > 150 ? QColor{ 0x0D, 0x11, 0x17 } : QColor{ Qt::white };
 			const auto metrics = QFontMetrics{ font() };
 			auto       x       = (width() - metrics.horizontalAdvance(text()) - (icon().isNull() ? 0 : 20)) / 2;
@@ -1165,7 +1208,9 @@ namespace bpr::qt {
 		}
 		if (aCard.Writing) {
 			// [[BPR-1212]]. Maximize: the same draft in Discuss, with room.
-			const auto  key      = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText);
+			// [[BPR-1345]] v002. ⌘⇧↩ is Add single comment now; Maximize
+			// is ⌘⇧M.
+			const auto  key      = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_M }.toString(QKeySequence::NativeText);
 			auto* const maximize = tool(header, QStringLiteral("threadMaximizeDraft"), QStringLiteral("Open in Discuss, with room to write  %1").arg(key), conversation_glyph::maximize, palette);
 			maximize->setAccessibleName(QStringLiteral("Open in Discuss"));
 			connect(maximize, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::maximize_draft); } });
@@ -1414,27 +1459,26 @@ namespace bpr::qt {
 		Change = new suggestion_change_view{ Style, Foot };
 		Change->hide();
 		aFoot.addWidget(Change);
-		// [[BPR-1345]]. Who sees it and Discard on one row; the two ways out
-		// on the next, as the start-a-review frames draw them, so neither is
-		// cut off in a narrow drawer.
-		auto* const notice = new QHBoxLayout{ };
-		notice->setSpacing(4);
+		// [[BPR-1345]] v002. One row (owner, discard-review v001: "I don't
+		// like this button layout, stacked buttons is too much space"): who
+		// sees it, Delete, then Add single comment beside the main action.
+		// Where the two do not fit, the main action keeps the row and its
+		// split arrow carries Add single comment.
+		DraftActions = new QBoxLayout{ QBoxLayout::LeftToRight };
+		DraftActions->setSpacing(6);
 		auto* const privacy = new state_label{ QStringLiteral("Private until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
 		privacy->setObjectName(QStringLiteral("threadDraftPrivacy"));
 		privacy->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 		privacy->show_whole_or_glyph(QStringLiteral("Only you see this draft until you publish it."));
 		Privacy = privacy;
-		notice->addWidget(privacy, 1);
-		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Discard this draft"), conversation_glyph::trash, palette);
+		DraftActions->addWidget(privacy, 1);
+		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete this comment"), conversation_glyph::trash, palette);
+		discard->setAccessibleName(QStringLiteral("Delete comment"));
 		connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
-		notice->addWidget(discard);
-		aFoot.addLayout(notice);
+		DraftActions->addWidget(discard);
 		// The owner, 2026-10-08: "I don't know how to publish my draft
 		// comment". Add single comment says what it does: this one comment,
 		// now, exactly as Publish did; Start a review keeps it pending.
-		DraftActions = new QBoxLayout{ QBoxLayout::LeftToRight };
-		DraftActions->setSpacing(6);
-		DraftActions->addStretch(1);
 		Publish = new note_button{ note_button::kind::secondary, QStringLiteral("Add single comment"), Foot };
 		Publish->setObjectName(QStringLiteral("threadPublishDraft"));
 		Publish->setAccessibleName(QStringLiteral("Add single comment"));
@@ -1450,7 +1494,32 @@ namespace bpr::qt {
 				Action(Review == draft_review_state::pending ? card_action::close_draft : card_action::review_draft);
 			}
 		});
-		DraftActions->addWidget(ReviewAction);
+		// The arrow sits flush against the pill it belongs to.
+		auto* const pair = new QHBoxLayout{ };
+		pair->setSpacing(0);
+		pair->addWidget(ReviewAction);
+		SplitAction = new note_button{ note_button::kind::split, QString{ }, Foot };
+		SplitAction->setObjectName(QStringLiteral("threadReviewDraftMore"));
+		SplitAction->setAccessibleName(QStringLiteral("More ways to send this comment"));
+		SplitAction->setToolTip(QStringLiteral("More ways to send this comment"));
+		SplitAction->set_style(Style);
+		SplitAction->hide();
+		connect(SplitAction, &QAbstractButton::clicked, this, [this] {
+			auto* const menu = new QMenu{ this };
+			menu->setObjectName(QStringLiteral("threadReviewDraftMenu"));
+			menu->setAttribute(Qt::WA_DeleteOnClose);
+			auto* const single = menu->addAction(Publish->text());
+			single->setObjectName(QStringLiteral("threadReviewDraftSingle"));
+			single->setShortcut(QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return });
+			single->setShortcutContext(Qt::WidgetShortcut);
+			single->setShortcutVisibleInContextMenu(true);
+			single->setToolTip(Publish->toolTip());
+			single->setEnabled(Publish->isEnabled());
+			connect(single, &QAction::triggered, this, [this] { if (Action) { Action(card_action::publish_draft); } });
+			menu->popup(SplitAction->mapToGlobal(QPoint{ SplitAction->width() - menu->sizeHint().width(), SplitAction->height() }));
+		});
+		pair->addWidget(SplitAction);
+		DraftActions->addLayout(pair);
 		aFoot.addLayout(DraftActions);
 		present_review_state();
 		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
@@ -1546,41 +1615,41 @@ namespace bpr::qt {
 	auto open_thread_card::primary_action() const noexcept -> card_action
 	{
 		switch (Review) {
-		case draft_review_state::none:        return card_action::publish_draft;
+		case draft_review_state::none:
 		case draft_review_state::in_progress: return card_action::review_draft;
 		case draft_review_state::pending:     return card_action::close_draft;
 		}
-		return card_action::publish_draft;
+		return card_action::review_draft;
 	}
 
 	void open_thread_card::present_review_state()
 	{
-		// [[BPR-1345]]. The frames' two ways out: with no review in progress,
-		// Add single comment is today's Publish (⌘↩) and Start a review keeps
-		// the comment pending; while one is, Add review comment is the main
-		// action and takes ⌘↩. A pending draft is saved as it is written, so
-		// its main action only closes it, still pending.
+		// [[BPR-1345]]. The frames' two ways out. v002: ⌘↩ is the review's
+		// action in every state (Start a review, Add review comment, or on a
+		// pending draft the close that keeps it pending), ⌘⇧↩ is Add single
+		// comment, and each tooltip names its key.
 		if (Publish == nullptr || ReviewAction == nullptr) {
 			return;
 		}
-		const auto key = QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		const auto key    = QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		const auto single = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText);
 		Publish->setText(QStringLiteral("Add single comment"));
 		Publish->setAccessibleName(QStringLiteral("Add single comment"));
 		switch (Review) {
 		case draft_review_state::none:
-			Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now  %1").arg(key));
+			Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now  %1").arg(single));
 			ReviewAction->setText(QStringLiteral("Start a review"));
-			ReviewAction->setToolTip(QStringLiteral("Keep this comment pending in a review you finish later. Nothing is published."));
+			ReviewAction->setToolTip(QStringLiteral("Keep this comment pending in a review you finish later  %1").arg(key));
 			ReviewAction->setAccessibleDescription(QStringLiteral("Keeps this comment pending, unpublished, in a review you finish later from the review bar."));
 			break;
 		case draft_review_state::in_progress:
-			Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now, outside your review"));
+			Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now, outside your review  %1").arg(single));
 			ReviewAction->setText(QStringLiteral("Add review comment"));
 			ReviewAction->setToolTip(QStringLiteral("Add this comment to your pending review  %1").arg(key));
 			ReviewAction->setAccessibleDescription(QStringLiteral("Adds this comment to your review, pending until you finish the review. Nothing is published."));
 			break;
 		case draft_review_state::pending:
-			Publish->setToolTip(QStringLiteral("Take this comment out of your review and post it now on its own"));
+			Publish->setToolTip(QStringLiteral("Take this comment out of your review and post it now on its own  %1").arg(single));
 			ReviewAction->setText(QStringLiteral("Update review comment"));
 			ReviewAction->setToolTip(QStringLiteral("Keep this comment pending in your review  %1").arg(key));
 			ReviewAction->setAccessibleDescription(QStringLiteral("Closes this comment; it stays pending in your review with what you wrote."));
@@ -1602,21 +1671,24 @@ namespace bpr::qt {
 
 	void open_thread_card::fit_draft_actions()
 	{
-		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || Foot == nullptr) {
+		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr) {
 			return;
 		}
+		// Room for the lock, Delete and both pills side by side, or the
+		// main pill and its arrow; never a second row.
 		const auto margins   = Foot->layout() != nullptr ? Foot->layout()->contentsMargins() : QMargins{ };
 		const auto available = Foot->width() - margins.left() - margins.right();
-		const auto needed    = Publish->sizeHint().width() + ReviewAction->sizeHint().width() + DraftActions->spacing();
-		const auto direction = available > 0 && needed > available ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight;
-		if (DraftActions->direction() == direction) {
+		const auto lock      = Privacy != nullptr ? Privacy->minimumSizeHint().width() : 0;
+		auto*      trash     = Foot->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
+		const auto fixed     = lock + (trash != nullptr ? trash->sizeHint().width() : 0) + 3 * DraftActions->spacing() + 2;
+		const auto needed    = fixed + Publish->sizeHint().width() + ReviewAction->sizeHint().width();
+		const auto split     = available > 0 && needed > available;
+		if (split == !SplitAction->isHidden()) {
 			return;
 		}
-		DraftActions->setDirection(direction);
-		// Stacked, each takes the full width; side by side, its own.
-		for (auto* const button : { static_cast<QWidget*>(Publish), static_cast<QWidget*>(ReviewAction) }) {
-			button->setSizePolicy(direction == QBoxLayout::TopToBottom ? QSizePolicy::Expanding : QSizePolicy::Maximum, QSizePolicy::Fixed);
-		}
+		Publish->setVisible(!split);
+		SplitAction->setVisible(split);
+		ReviewAction->set_joined(split);
 		if (HeightChanged) {
 			HeightChanged();
 		}

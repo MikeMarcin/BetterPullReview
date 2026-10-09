@@ -1,11 +1,15 @@
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QTextEdit>
 #include <QToolButton>
 #include <cstdlib>
@@ -36,12 +40,23 @@ auto main(int argc, char** argv) -> int
 	editor.show();
 	QApplication::processEvents();
 	expect(editor.target_editor()->isHidden() && editor.body_editor()->isHidden(), "no-draft page hides empty identity and input panels");
-	expect(editor.findChild<QLabel*>(QStringLiteral("wholeReviewPurpose"))->text().contains(QStringLiteral("Nothing is published")), "page purpose and publication gesture explained");
+	// [[BPR-1345]] v002. What is published is said once, briefly, and only
+	// while a review is being written.
+	expect(editor.note_label()->text() == QStringLiteral("Nothing is published until you submit.") && editor.note_label()->isHidden(), "with no draft the page does not say what is published");
 	for (auto* action : { editor.submit_action(), editor.discard_action(), editor.reconcile_action(), editor.new_review_action() }) {
 		expect(!action->isEnabled() && !action->toolTip().isEmpty(), "unavailable no-draft action explains why");
 	}
 	editor.present(projection);
 	expect(editor.findChild<QLabel*>(QStringLiteral("wholeReviewDraftState"))->text().contains(QStringLiteral("kept")), "kept draft identified explicitly");
+	// [[BPR-1345]] v002. The host, head and account wait behind a disclosure
+	// that is closed by default (owner: "These details on finish review
+	// should be hidden by default.").
+	expect(!editor.details_toggle()->isChecked() && !editor.details_toggle()->isHidden() && editor.target_editor()->isHidden(),
+		   "the target and account are behind a closed disclosure");
+	editor.details_toggle()->click();
+	expect(!editor.target_editor()->isHidden(), "opening the disclosure shows them");
+	editor.details_toggle()->click();
+	expect(editor.target_editor()->isHidden(), "closing it hides them again");
 	editor.resize(300, 700);
 	editor.show();
 	QApplication::processEvents();
@@ -58,10 +73,12 @@ auto main(int argc, char** argv) -> int
 			   && editor.disposition_button(core::review_disposition::request_changes)->accessibleName() == QStringLiteral("Request changes")
 			   && editor.preflight_button()->accessibleName() == QStringLiteral("Your blocking feedback"),
 		   "named accessible inputs");
-	// [[BPR-1085]]. Three explicit decisions, the draft's one checked.
-	expect(editor.disposition_button(core::review_disposition::comment)->isChecked() && !editor.disposition_button(core::review_disposition::approve)->isChecked()
-			   && editor.disposition_button(core::review_disposition::approve)->isCheckable(),
-		   "the draft's decision is the one checked");
+	// [[BPR-1085]], [[BPR-1345]] v002. Three verdicts, each a button that
+	// submits; with a summary each can.
+	expect(!editor.disposition_button(core::review_disposition::approve)->isCheckable()
+			   && editor.disposition_button(core::review_disposition::comment)->isEnabled() && editor.disposition_button(core::review_disposition::approve)->isEnabled()
+			   && editor.disposition_button(core::review_disposition::request_changes)->isEnabled(),
+		   "the verdicts are buttons that submit, and with a summary each is offered");
 	expect(editor.preflight_button()->isVisible() && editor.preflight_button()->toolTip() == QStringLiteral("Your feedback on this revision has not been read: unknown, not none."),
 		   "an unread preflight says unknown, never none");
 	expect(editor.status_label()->textFormat() == Qt::PlainText && editor.status_label()->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard), "outcomes are literal and keyboard copyable");
@@ -73,10 +90,10 @@ auto main(int argc, char** argv) -> int
 	editor.body_editor()->setPlainText(QStringLiteral("Edited summary"));
 	expect(intents.size() == 1U && intents.back().Command.Kind == core::review_submission_command_kind::edit && intents.back().Command.Body == "Edited summary", "summary emits exact semantic edit");
 	expect(editor.shown_draft() == draft, "editing does not optimistically replace decided draft");
-	editor.disposition_button(core::review_disposition::approve)->click();
+	editor.choose_disposition(core::review_disposition::approve);
 	expect(intents.back().Command.Kind == core::review_submission_command_kind::choose_disposition && intents.back().Command.Disposition == core::review_disposition::approve, "choice emits typed disposition");
-	editor.disposition_button(core::review_disposition::request_changes)->click();
-	expect(intents.back().Command.Disposition == core::review_disposition::request_changes, "each decision button emits its own native disposition");
+	editor.choose_disposition(core::review_disposition::request_changes);
+	expect(intents.back().Command.Disposition == core::review_disposition::request_changes, "each decision emits its own native disposition");
 
 	// [[BPR-1085]]. The preflight: my blockers, my unsent blocking draft,
 	// guidance, uncertainty and others, apart; rows link to their items.
@@ -104,7 +121,8 @@ auto main(int argc, char** argv) -> int
 	const auto beforePreflight = intents.size();
 	editor.present(withPreflight);
 	expect(intents.size() == beforePreflight, "presenting the preflight emits no gesture and no decision");
-	expect(editor.disposition_button(core::review_disposition::approve)->isChecked(), "Approve stays the reviewer's explicit choice while blocking feedback is open");
+	expect(editor.shown_draft()->Disposition == core::review_disposition::approve && editor.disposition_button(core::review_disposition::approve)->isEnabled(),
+		   "Approve stays the reviewer's explicit choice while blocking feedback is open");
 	const auto chipWords = QStringLiteral("Yours on GitHub: 2 open blocking\nYours, not sent: 1 blocking\n1 chore, not marked blocking\n1 of yours: GitHub didn't say if resolved\nOthers: 2 open blocking (not yours)");
 	expect(editor.preflight_button()->toolTip() == chipWords && editor.preflight_button()->accessibleDescription() == chipWords, "the chip's tooltip and accessible description name each group");
 	auto* approve = editor.disposition_button(core::review_disposition::approve);
@@ -154,26 +172,31 @@ auto main(int argc, char** argv) -> int
 	expect(intents.back().Command.Kind == core::review_submission_command_kind::begin_submit && intents.back().Prepared == withPreflight.Prepared,
 		   "Submit carries the decision the editor showed");
 	editor.present(projection);
-	auto* submit = static_cast<QToolButton*>(nullptr);
+	QApplication::processEvents();
 	for (auto* button : editor.findChildren<QToolButton*>()) {
-		expect(button->isVisible() && editor.rect().contains(button->geometry()) && button->focusPolicy() == Qt::StrongFocus, "all buttons fit narrow editor and support focus");
-		if (button->defaultAction() == editor.submit_action()) {
-			submit = button;
+		if (button->isVisible()) {
+			expect(editor.rect().contains(button->geometry().translated(button->parentWidget()->mapTo(&editor, QPoint{ }))) && button->focusPolicy() == Qt::StrongFocus,
+				   "every shown button fits the narrow editor and takes focus");
 		}
 	}
-	expect(submit != nullptr, "submit has a real button");
-	submit->setFocus();
+	// [[BPR-1345]] v002. No separate Submit: the draft's own verdict, pressed
+	// from the keyboard, submits it with the decision shown.
+	auto* const comment = editor.disposition_button(core::review_disposition::comment);
+	comment->setFocus();
 	QKeyEvent press{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
 	QKeyEvent release{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
-	QApplication::sendEvent(submit, &press);
-	QApplication::sendEvent(submit, &release);
-	expect(intents.back().Command.Kind == core::review_submission_command_kind::begin_submit && intents.back().Command.Id == draft.Id, "keyboard button press emits exact submit intent");
+	QApplication::sendEvent(comment, &press);
+	QApplication::sendEvent(comment, &release);
+	expect(intents.back().Command.Kind == core::review_submission_command_kind::begin_submit && intents.back().Command.Id == draft.Id && intents.back().Prepared == projection.Prepared,
+		   "keyboard press on the draft's verdict emits the exact submit intent");
 	expect(editor.shown_draft() == draft, "submit awaits decided state");
 	projection.Draft    = core::apply(draft, { .Id = draft.Id, .Kind = core::review_submission_command_kind::begin_submit }).Draft;
 	projection.Controls = core::controls(*projection.Draft);
 	projection.Status   = QStringLiteral("Review status is unknown. Check status.");
 	editor.present(projection);
-	expect(editor.body_editor()->isReadOnly() && !editor.submit_action()->isEnabled() && !editor.discard_action()->isEnabled() && editor.reconcile_action()->isEnabled(), "pending projection exposes recovery only");
+	expect(editor.body_editor()->isReadOnly() && !editor.submit_action()->isEnabled() && !editor.discard_action()->isEnabled() && editor.reconcile_action()->isEnabled()
+			   && !comment->isEnabled() && !editor.disposition_button(core::review_disposition::approve)->isEnabled() && comment->toolTip() == projection.Status,
+		   "pending projection exposes recovery only, and a verdict says why it waits");
 	editor.reconcile_action()->trigger();
 	expect(intents.back().Operation == qt::review_submission_editor_operation::reconcile, "recovery is a distinct gesture");
 	if (argc == 2) {
@@ -201,34 +224,161 @@ auto main(int argc, char** argv) -> int
 	auto finish         = projection;
 	finish.Draft        = finishing;
 	finish.Controls     = core::controls(finishing);
-	finish.Status       = QStringLiteral("Choose Comment, Approve, or Request changes.");
+	finish.Status       = { };
 	finish.Prepared     = core::prepare_review_decision(finishing, { });
 	editor.present(finish);
 	QApplication::processEvents();
 	expect(editor.title_label()->text() == QStringLiteral("Finish your review") && editor.pending_list()->isVisible()
 			   && editor.pending_rows() == QStringList{ QStringLiteral("renderer.cpp, line 431: question: Where does 0.01 come from?"), QStringLiteral("renderer.cpp, base lines 434–435: nit: scale could be constexpr.") },
 		   "Finish review lists the pending comments, each where it is and its first line");
-	expect(editor.carries_label()->isVisible() && editor.carries_label()->text() == QStringLiteral("Submits 2 line comments as one review.")
+	expect(editor.carries_label()->isVisible() && editor.carries_label()->text() == QStringLiteral("2 pending comments")
 			   && editor.body_editor()->placeholderText() == QStringLiteral("Leave a summary (optional)"),
-		   "it says what Submit sends, and the summary is optional");
+		   "the list says how many comments the review holds, and the summary is optional");
+	auto* const changesButton = editor.disposition_button(core::review_disposition::request_changes);
 	expect(editor.submit_action()->isEnabled() && editor.discard_action()->text() == QStringLiteral("Discard review")
-			   && editor.disposition_button(core::review_disposition::comment)->toolTip().contains(QStringLiteral("optional")),
-		   "Comment with no summary can be submitted, and Discard is Discard review");
-	auto changes            = finishing;
-	changes.Disposition     = core::review_disposition::request_changes;
-	auto requestChanges     = finish;
-	requestChanges.Draft    = changes;
-	requestChanges.Controls = core::controls(changes);
-	editor.present(requestChanges);
-	expect(!editor.submit_action()->isEnabled() && editor.submit_action()->toolTip().startsWith(QStringLiteral("Request changes needs a summary"))
-			   && editor.body_editor()->placeholderText() == QStringLiteral("Write a review summary…"),
-		   "Request changes still needs a summary, and says so");
-	editor.present(finish);
+			   && editor.disposition_button(core::review_disposition::comment)->isEnabled() && editor.disposition_button(core::review_disposition::approve)->isEnabled()
+			   && editor.disposition_button(core::review_disposition::comment)->toolTip() == QStringLiteral("Submit your review with its 2 comments, without approving."),
+		   "Comment with no summary submits the review and its comments, and Discard is Discard review");
+	expect(!changesButton->isEnabled() && changesButton->toolTip() == QStringLiteral("Request changes needs a summary. Write one above first.")
+			   && changesButton->accessibleDescription() == changesButton->toolTip(),
+		   "Request changes waits for a summary, and says so");
+	if (const auto target = qt::standard_tooltip_target(*changesButton, changesButton->rect().center()); true) {
+		expect(target.has_value() && target->Anchor == changesButton->rect() && target->Text == changesButton->toolTip(), "its reason is anchored to the button");
+	}
+	{
+		// Said once: one shown label says what is published, and no other
+		// shown text repeats the verdicts.
+		auto said = 0;
+		for (const auto* label : editor.findChildren<QLabel*>()) {
+			if (label->isVisible() && label->text().contains(QStringLiteral("published"), Qt::CaseInsensitive)) {
+				++said;
+			}
+			expect(!label->isVisible() || !label->text().contains(QStringLiteral("Choose Comment, Approve")), "no label repeats the verdicts");
+		}
+		expect(said == 1 && editor.note_label()->isVisible() && editor.status_label()->isHidden(), "what is published is said once, and an empty status takes no room");
+	}
 	if (argc == 2) {
 		expect(editor.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-finish.png")), "finish render saved");
 	}
-	for (auto* row : editor.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingRow"))) {
-		expect(editor.rect().contains(row->geometry().translated(editor.pending_list()->pos())) && !row->toolTip().isEmpty(), "each row fits the page and its tooltip names the whole comment");
+	const auto rowsShown = editor.pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
+	const auto deletes   = editor.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
+	expect(rowsShown.size() == 2 && deletes.size() == 2, "each pending comment is a row with its own Delete");
+	for (auto* row : rowsShown) {
+		const auto box = QRect{ row->mapTo(&editor, QPoint{ }), row->size() };
+		expect(editor.rect().contains(box) && !row->toolTip().isEmpty() && row->focusPolicy() == Qt::StrongFocus, "each row fits the page, takes focus, and its tooltip names the whole comment");
+	}
+
+	// [[BPR-1345]] v002. A row goes to its comment; Delete asks first and
+	// names the comment; Cancel deletes nothing.
+	auto goneTo  = std::vector<core::review_submission_comment>{ };
+	auto deleted = std::vector<core::review_submission_comment>{ };
+	editor.set_pending_reveal([&](const core::review_submission_comment& aComment) { goneTo.push_back(aComment); });
+	editor.set_pending_delete([&](const core::review_submission_comment& aComment) { deleted.push_back(aComment); });
+	const auto beforeRows = intents.size();
+	rowsShown.at(1)->click();
+	expect(goneTo.size() == 1U && goneTo.front() == range && intents.size() == beforeRows, "a row goes to its comment and submits nothing");
+	deletes.at(0)->click();
+	QApplication::processEvents();
+	auto* question = editor.delete_confirmation();
+	expect(question != nullptr && question->isVisible() && question->text() == QStringLiteral("Delete this comment from your review?")
+			   && question->informativeText().startsWith(QStringLiteral("renderer.cpp, line 431: question: Where does 0.01 come from?"))
+			   && static_cast<QAbstractButton*>(question->defaultButton()) == question->escapeButton() && deleted.empty(),
+		   "Delete asks first, naming the comment, with Cancel the default");
+	question->escapeButton()->click();
+	QApplication::processEvents();
+	expect(deleted.empty() && editor.delete_confirmation() == nullptr, "Cancel deletes nothing");
+	deletes.at(0)->click();
+	QApplication::processEvents();
+	question = editor.delete_confirmation();
+	question->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm"))->click();
+	QApplication::processEvents();
+	expect(deleted.size() == 1U && deleted.front() == first && intents.size() == beforeRows, "Delete comment deletes exactly that comment, through the window");
+
+	// [[BPR-1345]] v002. Each verdict submits at once as itself. A page whose
+	// dispatch is the workflow's: it applies the command and presents again.
+	{
+		auto  liveIntents = std::vector<qt::review_submission_editor_intent>{ };
+		auto  liveDraft   = finishing;
+		auto* livePage    = static_cast<qt::review_submission_editor*>(nullptr);
+		auto  closed      = 0;
+		auto  presentLive = [&] {
+			auto shownNow     = finish;
+			shownNow.Draft    = liveDraft;
+			shownNow.Controls = core::controls(liveDraft);
+			shownNow.Prepared = core::prepare_review_decision(liveDraft, { });
+			livePage->present(shownNow);
+		};
+		qt::review_submission_editor live{ [&](qt::review_submission_editor_intent aIntent) {
+			liveIntents.push_back(aIntent);
+			if (aIntent.Operation == qt::review_submission_editor_operation::command) {
+				if (aIntent.Command.Kind == core::review_submission_command_kind::begin_submit
+					&& aIntent.Prepared != core::prepare_review_decision(liveDraft, { })) {
+					return;
+				}
+				if (const auto outcome = core::apply(liveDraft, aIntent.Command); outcome.Draft) {
+					liveDraft = *outcome.Draft;
+				}
+				presentLive();
+			}
+		} };
+		livePage = &live;
+		live.set_discard_observer([&] { ++closed; });
+		live.resize(420, 760);
+		live.show();
+		presentLive();
+		QApplication::processEvents();
+		live.disposition_button(core::review_disposition::approve)->click();
+		expect(liveIntents.size() == 2U && liveIntents[0].Command.Kind == core::review_submission_command_kind::choose_disposition
+				   && liveIntents[0].Command.Disposition == core::review_disposition::approve && liveIntents[1].Command.Kind == core::review_submission_command_kind::begin_submit
+				   && liveDraft.State == core::review_submission_state::submitting && liveDraft.Disposition == core::review_disposition::approve,
+			   "Approve submits at once as an approval: one press chooses it and submits");
+		liveDraft = finishing;
+		liveIntents.clear();
+		presentLive();
+		live.disposition_button(core::review_disposition::request_changes)->click();
+		expect(liveIntents.empty() && liveDraft.State == core::review_submission_state::drafting, "Request changes with no summary submits nothing");
+		live.body_editor()->setPlainText(QStringLiteral("Please make the scale constexpr."));
+		QApplication::processEvents();
+		expect(live.disposition_button(core::review_disposition::request_changes)->isEnabled()
+				   && live.disposition_button(core::review_disposition::request_changes)->toolTip() == QStringLiteral("Submit your review and request changes."),
+			   "with a summary, Request changes is offered");
+		live.disposition_button(core::review_disposition::request_changes)->click();
+		expect(liveDraft.State == core::review_submission_state::submitting && liveDraft.Disposition == core::review_disposition::request_changes
+				   && liveDraft.Body == "Please make the scale constexpr.",
+			   "and submits the review with it as its own verdict");
+
+		// Discard review asks first, naming how many comments it deletes;
+		// confirmed, it discards and the page closes.
+		liveDraft = finishing;
+		liveIntents.clear();
+		presentLive();
+		live.discard_action()->trigger();
+		QApplication::processEvents();
+		auto* discard = live.discard_confirmation();
+		expect(discard != nullptr && discard->isVisible() && discard->text() == QStringLiteral("Discard your review and its 2 pending comments?")
+				   && discard->informativeText().contains(QStringLiteral("deleted")) && liveIntents.empty() && closed == 0,
+			   "Discard review asks first and names the count");
+		discard->escapeButton()->click();
+		QApplication::processEvents();
+		expect(liveIntents.empty() && liveDraft.State == core::review_submission_state::drafting && closed == 0, "Cancel keeps the review");
+		live.discard_action()->trigger();
+		QApplication::processEvents();
+		live.discard_confirmation()->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"))->click();
+		QApplication::processEvents();
+		expect(liveIntents.size() == 1U && liveIntents.front().Command.Kind == core::review_submission_command_kind::discard
+				   && liveDraft.State == core::review_submission_state::discarded && closed == 1,
+			   "confirmed, the review is discarded and the page is asked to close");
+		// An empty draft has nothing to lose: no question.
+		liveDraft = core::review_submission_draft{ .Id = core::review_submission_draft_id{ 2U }, .Target = draft.Target, .ActingAccount = draft.ActingAccount };
+		presentLive();
+		expect(!live.disposition_button(core::review_disposition::comment)->isEnabled()
+				   && live.disposition_button(core::review_disposition::comment)->toolTip() == QStringLiteral("Comment needs a summary when the review has no line comments.")
+				   && live.disposition_button(core::review_disposition::approve)->isEnabled(),
+			   "with no summary and no comment, Comment says what it needs and Approve is offered");
+		live.discard_action()->trigger();
+		QApplication::processEvents();
+		expect(live.discard_confirmation() == nullptr && liveDraft.State == core::review_submission_state::discarded && closed == 2, "an empty draft is discarded without a question");
+		live.hide();
 	}
 	editor.present(projection);
 	expect(editor.title_label()->text() == QStringLiteral("Compose review") && !editor.pending_list()->isVisible() && !editor.carries_label()->isVisible()

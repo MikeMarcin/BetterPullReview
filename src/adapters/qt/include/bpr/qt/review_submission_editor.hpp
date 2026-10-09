@@ -6,6 +6,7 @@
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QColor>
+#include <QPointer>
 #include <QString>
 #include <QStringList>
 #include <QWidget>
@@ -16,9 +17,9 @@
 #include <string>
 
 class QAction;
-class QButtonGroup;
 class QLabel;
 class QMenu;
+class QMessageBox;
 class QPlainTextEdit;
 class QTextEdit;
 class QToolButton;
@@ -68,29 +69,60 @@ namespace bpr::qt {
 		explicit review_submission_editor(review_submission_editor_dispatch aDispatch, QWidget* aParent = nullptr);
 		void               present(const review_submission_editor_projection& aProjection);
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
-		/// \brief [[BPR-1085]]. Comment, Approve and Request changes: three
-		/// explicit, exclusive buttons carrying the native dispositions.
+		/// \brief [[BPR-1085]], [[BPR-1345]] v002. Comment, Approve and Request
+		/// changes: the three buttons that finish the review, each submitting
+		/// it at once with its own native verdict (owner, finish-review v001:
+		/// "these should be the action buttons that finish the review").
+		/// Each is enabled only when the review can be submitted as it; a
+		/// disabled one says why in its tooltip.
 		[[nodiscard]] auto disposition_button(core::review_disposition aDisposition) const noexcept -> QToolButton*;
+		/// \brief Chooses a verdict without submitting: the draft keeps it.
+		void choose_disposition(core::review_disposition aDisposition);
 		/// \brief [[BPR-1085]]. The chip that counts my own blocking feedback and
 		/// opens its list.
 		[[nodiscard]] auto preflight_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto preflight_menu() const noexcept -> QMenu*;
+		/// \brief Submits with the verdict the draft holds. No button shows it
+		/// since [[BPR-1345]] v002: the verdict buttons submit.
 		[[nodiscard]] auto submit_action() const noexcept -> QAction*;
+		/// \brief Discard, or Discard review. A review with a summary or
+		/// pending comments asks first, naming what it deletes.
 		[[nodiscard]] auto discard_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1345]] v002. Discard review's question while it is
+		/// open, or null.
+		[[nodiscard]] auto discard_confirmation() const noexcept -> QMessageBox*;
+		/// \brief [[BPR-1345]] v002. A pending row's Delete question while it
+		/// is open, or null.
+		[[nodiscard]] auto delete_confirmation() const noexcept -> QMessageBox*;
 		[[nodiscard]] auto reconcile_action() const noexcept -> QAction*;
 		[[nodiscard]] auto new_review_action() const noexcept -> QAction*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1345]]. The page's title: "Finish your review" while
 		/// the review carries line comments, else "Compose review".
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
-		/// \brief [[BPR-1345]]. "Pending in this review" and one row per
-		/// carried comment, hidden with none.
+		/// \brief [[BPR-1345]]. One row per carried comment, hidden with none.
+		/// \details v002: a row is a button that goes to its comment, beside
+		/// a Delete button.
 		[[nodiscard]] auto pending_list() const noexcept -> QWidget*;
 		/// \brief [[BPR-1345]]. The rows' words, in order: "renderer.cpp,
 		/// line 431: question: Where does 0.01 come from?".
 		[[nodiscard]] auto pending_rows() const -> QStringList;
-		/// \brief [[BPR-1345]]. "Submits 2 line comments as one review."
+		/// \brief [[BPR-1345]]. The list's heading: "2 pending comments".
 		[[nodiscard]] auto carries_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1345]] v002. "Nothing is published until you
+		/// submit.", said once, while a review is being written.
+		[[nodiscard]] auto note_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1345]] v002. The disclosure that shows the host, the
+		/// head and the account; closed by default.
+		[[nodiscard]] auto details_toggle() const noexcept -> QToolButton*;
+		/// \brief [[BPR-1345]] v002. Where a pending row goes: the window
+		/// shows the comment at its line. Navigation only.
+		void set_pending_reveal(std::function<void(const core::review_submission_comment&)> aReveal);
+		/// \brief [[BPR-1345]] v002. A pending row's Delete, once confirmed.
+		void set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete);
+		/// \brief [[BPR-1345]] v002. Called once a confirmed Discard review
+		/// has discarded the review, so the window can close the page.
+		void               set_discard_observer(std::function<void()> aObserver);
 		[[nodiscard]] auto target_editor() const noexcept -> QTextEdit*;
 		[[nodiscard]] auto shown_draft() const noexcept -> const std::optional<core::review_submission_draft>&;
 		/// \brief [[BPR-1085]]. The whole presentation last shown, its preflight
@@ -110,38 +142,55 @@ namespace bpr::qt {
 		void               set_attention_colour(const QColor& aColour);
 		[[nodiscard]] auto attention_colour() const -> QColor;
 
+	protected:
+		void changeEvent(QEvent* aEvent) override;
+
 	private:
-		void                                         present_preflight(const review_submission_editor_projection& aProjection);
-		void                                         present_pending();
-		void                                         emit_command(core::review_submission_command_kind aKind);
-		void                                         emit_operation(review_submission_editor_operation aOperation);
-		QString                                      LastAnnouncement;
-		review_submission_editor_dispatch            Dispatch;
-		std::optional<core::review_submission_draft> Draft;
-		std::function<void()>                        PresentationObserver;
-		std::function<void(const std::string&)>      Reveal;
-		std::optional<feedback_mark_theme>           MarkTheme;
-		std::optional<QColor>                        Attention;
-		review_submission_editor_projection          Shown;
-		QPlainTextEdit*                              Body        = nullptr;
-		QButtonGroup*                                Disposition = nullptr;
-		std::array<QToolButton*, 3>                  Decisions{ };
-		QToolButton*                                 Preflight     = nullptr;
-		QMenu*                                       PreflightMenu = nullptr;
-		QTextEdit*                                   Target        = nullptr;
-		QLabel*                                      Status        = nullptr;
-		QLabel*                                      DraftState    = nullptr;
-		QLabel*                                      Title         = nullptr;
-		QLabel*                                      Purpose       = nullptr;
-		QWidget*                                     Pending       = nullptr;
-		QVBoxLayout*                                 PendingRows   = nullptr;
-		QLabel*                                      Carries       = nullptr;
-		std::vector<core::review_submission_comment> Listed;
-		QStringList                                  ListedRows;
-		QAction*                                     Submit    = nullptr;
-		QAction*                                     Discard   = nullptr;
-		QAction*                                     Reconcile = nullptr;
-		QAction*                                     NewReview = nullptr;
+		void                                                        present_preflight(const review_submission_editor_projection& aProjection);
+		void                                                        present_pending();
+		void                                                        present_verdicts();
+		void                                                        submit_as(core::review_disposition aDisposition);
+		void                                                        confirm_discard();
+		void                                                        discard_now();
+		void                                                        confirm_delete(const core::review_submission_comment& aComment);
+		void                                                        emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
+		void                                                        emit_operation(review_submission_editor_operation aOperation);
+		QString                                                     LastAnnouncement;
+		review_submission_editor_dispatch                           Dispatch;
+		std::optional<core::review_submission_draft>                Draft;
+		std::function<void()>                                       PresentationObserver;
+		std::function<void(const std::string&)>                     Reveal;
+		std::function<void(const core::review_submission_comment&)> PendingReveal;
+		std::function<void(const core::review_submission_comment&)> PendingDelete;
+		std::function<void()>                                       DiscardObserver;
+		std::optional<feedback_mark_theme>                          MarkTheme;
+		std::optional<QColor>                                       Attention;
+		review_submission_editor_projection                         Shown;
+		QPlainTextEdit*                                             Body = nullptr;
+		std::array<QToolButton*, 3>                                 Decisions{ };
+		QToolButton*                                                Preflight       = nullptr;
+		QMenu*                                                      PreflightMenu   = nullptr;
+		QTextEdit*                                                  Target          = nullptr;
+		QLabel*                                                     Status          = nullptr;
+		QLabel*                                                     DraftState      = nullptr;
+		QLabel*                                                     Title           = nullptr;
+		QLabel*                                                     Purpose         = nullptr;
+		QWidget*                                                    Pending         = nullptr;
+		QVBoxLayout*                                                PendingRows     = nullptr;
+		QLabel*                                                     Carries         = nullptr;
+		QToolButton*                                                Details         = nullptr;
+		QWidget*                                                    Recovery        = nullptr;
+		QToolButton*                                                DiscardButton   = nullptr;
+		QToolButton*                                                ReconcileButton = nullptr;
+		QToolButton*                                                NewReviewButton = nullptr;
+		QPointer<QMessageBox>                                       DiscardQuestion;
+		QPointer<QMessageBox>                                       DeleteQuestion;
+		std::vector<core::review_submission_comment>                Listed;
+		QStringList                                                 ListedRows;
+		QAction*                                                    Submit    = nullptr;
+		QAction*                                                    Discard   = nullptr;
+		QAction*                                                    Reconcile = nullptr;
+		QAction*                                                    NewReview = nullptr;
 	};
 }
 #endif

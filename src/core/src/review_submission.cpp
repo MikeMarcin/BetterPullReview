@@ -269,14 +269,30 @@ namespace bpr::core {
 		if (!valid(aDraft)) {
 			return { };
 		}
-		const auto editing = aDraft.State == state::drafting;
+		const auto editing   = aDraft.State == state::drafting;
+		const auto submitsAs = [&aDraft, editing](const review_disposition aDisposition) {
+			auto chosen        = aDraft;
+			chosen.Disposition = aDisposition;
+			return editing && command_rejection(chosen, { .Id = aDraft.Id, .Kind = kind::begin_submit }) == rejection::none;
+		};
 		return {
 			.Edit      = editing,
 			.Submit    = editing && command_rejection(aDraft, { .Id = aDraft.Id, .Kind = kind::begin_submit }) == rejection::none,
 			.Discard   = editing,
 			.Reconcile = aDraft.State == state::submitting,
-			.NewReview = aDraft.State == state::submitted || aDraft.State == state::discarded
+			.NewReview = aDraft.State == state::submitted || aDraft.State == state::discarded,
+			.SubmitAs  = { submitsAs(review_disposition::comment), submitsAs(review_disposition::approve), submitsAs(review_disposition::request_changes) }
 		};
+	}
+
+	auto submits_as(const review_submission_controls& aControls, const review_disposition aDisposition) noexcept -> bool
+	{
+		switch (aDisposition) {
+		case review_disposition::comment:         return aControls.SubmitAs[0];
+		case review_disposition::approve:         return aControls.SubmitAs[1];
+		case review_disposition::request_changes: return aControls.SubmitAs[2];
+		}
+		return false;
 	}
 
 	auto valid(const review_disposition aDisposition) noexcept -> bool

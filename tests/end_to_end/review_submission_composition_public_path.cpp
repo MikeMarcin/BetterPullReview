@@ -7,6 +7,7 @@
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -15,6 +16,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
@@ -127,7 +129,9 @@ auto main(int argc, char** argv) -> int
 			if (editor.new_review_action()->isEnabled()) {
 				editor.new_review_action()->trigger();
 			}
-			editor.disposition_button(disposition)->click();
+			// [[BPR-1345]] v002: a verdict button submits; the verdict is
+			// chosen first here, and Submit sends it below.
+			editor.choose_disposition(disposition);
 			const auto body = disposition == core::review_disposition::approve ? QString{ } : QStringLiteral("Whole review <literal> summary.");
 			editor.body_editor()->setPlainText(body);
 			expect(editor.submit_action()->isEnabled(), "ready disposition enables submit");
@@ -403,7 +407,13 @@ auto main(int argc, char** argv) -> int
 		expect(frozen.shown_draft() == oldDraft && frozen.body_editor()->isReadOnly()
 				   && !frozen.submit_action()->isEnabled(),
 			   "changed head cannot silently submit or rebind original summary");
+		// [[BPR-1345]] v002: Discard asks first when there are words to lose.
 		frozen.discard_action()->trigger();
+		QApplication::processEvents();
+		expect(frozen.discard_confirmation() != nullptr && frozen.discard_confirmation()->text() == QStringLiteral("Discard your review summary?"),
+			   "Discard asks before it deletes a written summary");
+		frozen.discard_confirmation()->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"))->click();
+		QApplication::processEvents();
 		frozen.new_review_action()->trigger();
 		expect(frozen.shown_draft()->Id != oldDraft.Id && frozen.shown_draft()->Target != oldDraft.Target
 				   && frozen.shown_draft()->Body.empty(),
@@ -476,8 +486,8 @@ auto main(int argc, char** argv) -> int
 						  "my labelled root is mine; another reviewer's blocker is counted apart, never as mine");
 			expect(submissions() == quiet && composer.shown_draft()->Disposition == core::review_disposition::comment && composer.shown_draft()->State == state::drafting,
 				   "a label read from GitHub submits nothing and chooses no decision");
-			approve->click();
-			expect(composer.shown_draft()->Disposition == core::review_disposition::approve && approve->isChecked() && !approve->icon().isNull()
+			composer.choose_disposition(core::review_disposition::approve);
+			expect(composer.shown_draft()->Disposition == core::review_disposition::approve && approve->isEnabled() && !approve->icon().isNull()
 					   && approve->toolTip().contains(QStringLiteral("approving does not resolve")),
 				   "Approve stays available and chosen explicitly while my blocking feedback is open, with its dot and tooltip");
 			auto* const menu = composer.preflight_menu();
@@ -516,7 +526,7 @@ auto main(int argc, char** argv) -> int
 			composer.new_review_action()->trigger();
 			expect(chip().startsWith(QStringLiteral("Yours on GitHub: 1 open blocking")) && composer.preflight_menu()->actions().at(1)->text().contains(QStringLiteral("Keep the second current-head anchor exact.")),
 				   "my blocking feedback is there to inspect before deciding");
-			composer.disposition_button(core::review_disposition::request_changes)->click();
+			composer.choose_disposition(core::review_disposition::request_changes);
 			composer.body_editor()->setPlainText(QStringLiteral("Requesting changes after reading my own blocking feedback."));
 			composer.submit_action()->trigger();
 			submitted(composer);

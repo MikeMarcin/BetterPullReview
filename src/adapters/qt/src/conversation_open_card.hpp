@@ -157,9 +157,15 @@ namespace bpr::qt {
 			/// [[BPR-1345]]. An outlined pill beside the primary one: Add
 			/// single comment while a review is the draft's main action.
 			secondary,
+			/// [[BPR-1345]] v002. The primary pill's arrow, joined to its right
+			/// edge, that opens the actions the narrow drawer folds away.
+			split,
 		};
 		note_button(kind aKind, const QString& aText, QWidget* aParent);
-		void               set_style(const open_card_style& aStyle);
+		void set_style(const open_card_style& aStyle);
+		/// \brief [[BPR-1345]] v002. A primary pill with its split arrow
+		/// joined to its right edge squares that edge.
+		void               set_joined(bool aJoined);
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 
 	protected:
@@ -168,6 +174,7 @@ namespace bpr::qt {
 	private:
 		kind            Kind;
 		open_card_style Style;
+		bool            Joined = false;
 	};
 
 	/// \brief [[BPR-1290]]. The open thread, in place at its line: the header
@@ -190,9 +197,11 @@ namespace bpr::qt {
 		void present_draft(const std::optional<draft_composer_presentation>& aDraft);
 		/// \brief [[BPR-1212]]. Whether this card is my draft's composer.
 		[[nodiscard]] auto writing() const noexcept -> bool;
-		/// \brief [[BPR-1345]]. What ⌘↩ does in the composer: Add single
-		/// comment with no review in progress, Add review comment while one
-		/// is, and on a pending draft the close that keeps it pending.
+		/// \brief [[BPR-1345]]. What ⌘↩ does in the composer. v002 (owner,
+		/// finish-review v001: "Start a review, add to review should be the
+		/// default for cmd+enter"): Start a review with no review in
+		/// progress, Add review comment while one is, and on a pending draft
+		/// the close that keeps it pending. ⌘⇧↩ is Add single comment.
 		[[nodiscard]] auto primary_action() const noexcept -> card_action;
 		/// \brief [[BPR-1212]]. What the draft's suggestion block changes, as
 		/// drawn under its field; hidden without a block.
@@ -236,8 +245,9 @@ namespace bpr::qt {
 		void build(const thread_card& aCard);
 		void build_composer(const thread_card& aCard, QVBoxLayout& aFoot);
 		void refresh_reply_controls();
-		/// [[BPR-1345]]. Stacks the composer's two actions when the drawer is
-		/// too narrow for them side by side.
+		/// [[BPR-1345]] v002. One row: the privacy note, Delete and the two
+		/// ways out side by side, or, where they do not fit, the main action
+		/// with a split arrow that carries Add single comment.
 		void fit_draft_actions();
 		void present_review_state();
 		void resizeEvent(QResizeEvent* aEvent) override;
@@ -261,6 +271,7 @@ namespace bpr::qt {
 		/// [[BPR-1345]]. Start a review, Add review comment, or on a pending
 		/// draft Update review comment; and where the draft stands.
 		note_button*       ReviewAction = nullptr;
+		note_button*       SplitAction  = nullptr;
 		QBoxLayout*        DraftActions = nullptr;
 		QWidget*           Privacy      = nullptr;
 		draft_review_state Review       = draft_review_state::none;

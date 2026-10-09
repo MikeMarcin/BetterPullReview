@@ -17,7 +17,14 @@ cmake_minimum_required(VERSION 4.4.2)
 #           exactly the two (path, lines, side, words), and each is marked
 #           published on GitHub's acceptance.
 # refused   The server refuses the review (422): the draft stays pending with
-#           its text; Discard review takes it out and keeps it.
+#           its text; Discard review, confirmed, deletes it and closes the
+#           page (v002).
+# again     v002, the owner's discard-review v001 flow: an older draft is
+#           kept; a review of two is started and Finish review opened; one
+#           comment is deleted from the page and the review discarded; a
+#           summary is discarded on Compose review; the older draft is taken
+#           into a new review, which Comment submits with exactly it, and
+#           nothing says "Review draft discarded.".
 # uncertain The answer and the review list are lost: the draft is held with
 #           its text and no retry; Check status, once the list reads again,
 #           finds the review and marks it published, with one review sent.
@@ -38,7 +45,8 @@ foreach(course_spec IN ITEMS
     "pending|persistent|START_REVIEW_PENDING_EVIDENCE:11111"
     "finish|persistent|START_REVIEW_FINISH_EVIDENCE:11111"
     "refused|fresh|START_REVIEW_REFUSED_EVIDENCE:1111"
-    "uncertain|fresh|START_REVIEW_UNCERTAIN_EVIDENCE:1111")
+    "uncertain|fresh|START_REVIEW_UNCERTAIN_EVIDENCE:1111"
+    "again|fresh|START_REVIEW_AGAIN_EVIDENCE:111111111")
     string(REPLACE "|" ";" course_parts "${course_spec}")
     list(GET course_parts 0 course)
     list(GET course_parts 1 root)

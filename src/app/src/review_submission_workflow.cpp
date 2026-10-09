@@ -35,9 +35,12 @@ namespace bpr::app {
 			return QStringLiteral("Not submitted: the %1 changed after you chose Submit review. Check the review and submit again.").arg(words.join(QStringLiteral(", ")));
 		}
 
+		/// [[BPR-1345]] v002. A new review needs no words of its own: the
+		/// page says what each verdict needs where it is (owner, finish-review
+		/// v001: "remove some of this duplicate text").
 		[[nodiscard]] auto new_draft_status() -> QString
 		{
-			return QStringLiteral("Choose a review type and enter a summary. Approve may have an empty summary.");
+			return { };
 		}
 
 		/// [[BPR-1345]]. Why the pending comments cannot ride this review.
@@ -202,6 +205,17 @@ namespace bpr::app {
 
 	void review_submission_workflow::apply_review_comments()
 	{
+		// [[BPR-1345]] v002. A review that is finished, submitted or
+		// discarded, is never the next one: when pending drafts arrive while
+		// it is the draft shown, a new review starts for them. The owner's
+		// v001 flow kept a discarded summary draft here, so the next review's
+		// comments were never carried and finishing it said "Review draft
+		// discarded.".
+		if (Draft && (Draft->State == draft_state::submitted || Draft->State == draft_state::discarded) && !Comments.empty() && !Pending && Unresolved.empty()
+			&& !Locking && Current && Ready) {
+			new_draft();
+			return;
+		}
 		// [[BPR-1345]]. Only a review still being written takes the pending
 		// drafts; Submit freezes the ones it carries.
 		if (!Draft || Draft->State != draft_state::drafting) {
@@ -281,12 +295,15 @@ namespace bpr::app {
 		}
 		auto result = core::controls(*Draft);
 		if (!Current || DraftBinding != std::optional{ Current->Binding }) {
-			result.Edit   = false;
-			result.Submit = false;
+			result.Edit     = false;
+			result.Submit   = false;
+			result.SubmitAs = { };
 		}
-		// [[BPR-1345]]. Pending comments this review cannot carry stop Submit.
+		// [[BPR-1345]]. Pending comments this review cannot carry stop Submit,
+		// as every verdict.
 		if (CommentsRefusal != core::review_submission_rejection::none) {
-			result.Submit = false;
+			result.Submit   = false;
+			result.SubmitAs = { };
 		}
 		return result;
 	}
@@ -371,10 +388,6 @@ namespace bpr::app {
 			status = comments_status(CommentsRefusal);
 		} else if (Locking) {
 			status = QStringLiteral("Holding the pending comments for this review…");
-		} else if (Draft && Draft->State == draft_state::drafting && !Draft->Comments.empty() && status == new_draft_status()) {
-			// [[BPR-1345]]. Comment needs no summary when the review carries
-			// line comments.
-			status = QStringLiteral("Choose Comment, Approve, or Request changes. The summary is optional unless you request changes.");
 		}
 		project_preflight();
 		Editor.present({ .Draft             = Draft,
@@ -469,8 +482,9 @@ namespace bpr::app {
 					}
 				}
 			}
-			// [[BPR-1345]]. Discard review takes the pending drafts out of the
-			// review and keeps them; the summary goes and a new one starts.
+			// [[BPR-1345]] v002. Discard review deletes every pending comment
+			// of the review with its summary (owner, discard-review v001:
+			// "Discard review should delete all the review comments").
 			const auto discardsReview = kind == command_kind::discard && !Draft->Comments.empty();
 			auto       outcome        = core::apply(*Draft, aIntent.Command);
 			if (!outcome.Draft) {
@@ -523,13 +537,16 @@ namespace bpr::app {
 					send(std::move(request));
 				}
 			} else if (kind == command_kind::discard) {
-				Status = QStringLiteral("Review draft discarded.");
-				if (discardsReview) {
-					if (DiscardReview) {
-						DiscardReview();
-					}
+				if (discardsReview && DiscardReview) {
+					DiscardReview();
+				}
+				// [[BPR-1345]] v002. A discarded review is gone: the next one
+				// starts at once, so nothing it said is shown again. An
+				// unfinished submission still waits for New review.
+				if (Unresolved.empty()) {
 					new_draft();
-					Status = QStringLiteral("Review discarded. Its comments are kept as drafts beside the code.");
+				} else {
+					Status = QStringLiteral("Review discarded. Choose New review to check the unfinished one.");
 				}
 			}
 		}
@@ -604,6 +621,9 @@ namespace bpr::app {
 					reconcile();
 				} else if (!Draft) {
 					new_draft();
+				} else {
+					// A finished review never takes the next one's comments.
+					apply_review_comments();
 				}
 			}
 		} else if (const auto* result = std::get_if<application::review_submission_result>(&aTerminal.Outcome)) {

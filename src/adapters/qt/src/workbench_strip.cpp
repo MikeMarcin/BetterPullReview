@@ -1087,7 +1087,9 @@ namespace bpr::qt {
 		const auto comments = Pending == 1U ? QStringLiteral("one pending comment") : QStringLiteral("%1 pending comments").arg(Pending);
 		const auto said     = Submitting ? QStringLiteral("Your review is being submitted.") : QStringLiteral("Your review holds %1.").arg(comments);
 		setAccessibleDescription(QStringLiteral("%1 Finish review opens its summary in Discuss.").arg(said));
-		setToolTip(QStringLiteral("%1\nFinish review opens the summary in Discuss, where you submit it.").arg(said));
+		// [[BPR-1345]] v002. Its key, named where it is.
+		const auto key = QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		setToolTip(QStringLiteral("Finish review  %1\n%2 It opens the summary in Discuss, where you submit it.").arg(key, said));
 		updateGeometry();
 		update();
 	}

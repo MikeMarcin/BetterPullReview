@@ -192,7 +192,10 @@ Discuss"), and Esc or Back returns to where it was opened. While a review is
 in progress ([[BPR-1345]]) a chip before Compose review says "Review · N
 pending", N exactly the drafts pending in it (or "Review · submitting" while a
 submitted review holds them), with **Finish review**, which opens the same
-summary in Discuss. Each navigation
+summary in Discuss. Finish review is also Command+Option+Return
+(`Ctrl+Alt+Return`), from anywhere in the window, while a review is in
+progress and not being submitted; the chip's tooltip names the key
+([[BPR-1345]] v002). Each navigation
 label and its pair share a horizontal accent rail. File and Changes stay named
 at every width and when their position is unavailable; narrow layouts shorten
 only the position wording.
@@ -954,8 +957,10 @@ never invents enabled state.
 | Move the selected line; with Shift, extend the selection ([[BPR-1212]]) | `Up`, `Down`; `Shift+Up`, `Shift+Down`, in a code pane |
 | Add comment on the selected lines, in the code ([[BPR-1212]]) | `Return` (keypad `Enter` too) |
 | Suggest change on the selected lines, in the code ([[BPR-1212]]) | `Shift+Return` |
-| The drawer draft's main action: Add single comment, or Add review comment while a review is in progress ([[BPR-1345]]) | `Ctrl+Return` (⌘↩) |
-| Open the drawer's draft in Discuss, and back to the code | `Ctrl+Shift+Return` (⌘⇧↩) |
+| The drawer draft's main action: Start a review, Add review comment while a review is in progress, or keep a pending draft pending ([[BPR-1345]] v002) | `Ctrl+Return` (⌘↩) |
+| The drawer draft's Add single comment: post this one comment now ([[BPR-1345]] v002) | `Ctrl+Shift+Return` (⌘⇧↩) |
+| Finish review: open the review's summary in Discuss ([[BPR-1345]] v002) | `Ctrl+Alt+Return` (⌘⌥↩) |
+| Open the drawer's draft in Discuss, and back to the code ([[BPR-1345]] v002; ⌘⇧↩ before) | `Ctrl+Shift+M` (⌘⇧M) |
 | Back from Discuss's composer; leave a drawer draft (kept when written, dropped when empty) | `Esc` |
 | Hide or show every drawer ([[BPR-1295]]) | `Ctrl+B` (⌘B) |
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
@@ -1504,28 +1509,53 @@ and its codes as the reply has them; the foot holds a lock with "Private until
 you publish", shown whole or not at all (the lock alone where the drawer is too
 narrow, with "Only you see this draft until you publish it." as its tooltip;
 [[BPR-1212]] v002, the owner: "this 'only you see it unti...' doesnt fit"),
-and Discard on one row, and its two ways out on the next ([[BPR-1345]], the
-owner's Accept of `start-a-review-v001`): **Add single comment**, today's
-Publish, which posts this one comment now, and **Start a review**, which keeps
-it pending, unpublished, in a review finished later. With no review in
-progress Command+Return is Add single comment; while one is, **Add review
-comment** is the main action and takes Command+Return, and the foot says
-"Pending until you finish the review". A draft already pending offers **Update
-review comment** (Command+Return), which closes it still pending; its edits are
-kept as typed. In a narrow drawer the two buttons stack, neither cut off. Each
-pending draft is its dashed note at its line, named "Pending in your review",
-whichever line is selected. Finish review opens the summary in Discuss as
-"Finish your review": the pending comments by file, each with its lines and its
-first line of words; Comment, Approve and Request changes; a summary that is
-optional for Comment and Approve and required for Request changes; "Submits N
-line comments as one review."; **Submit review** and **Discard review**.
-Submit sends one GitHub review whose comments are exactly the pending drafts
-(lines, ranges and both sides). Every carried draft is held for that
-submission before anything is sent, and is marked published only when GitHub's
-review list and comment collection show the review with exactly those
-comments; a refusal returns each to pending with its text, and an unknown
-answer keeps each held, with its text, until Check status settles it. Discard
-review takes every pending draft out of the review and keeps it as a draft.
+then Delete and the two ways out, all on one row ([[BPR-1345]], the owner's
+Accept of `start-a-review-v001`; v002, the owner: "stacked buttons is too much
+space"): **Add single comment**, today's Publish, which posts this one comment
+now, outlined beside **Start a review**, which keeps it pending, unpublished,
+in a review finished later. While a review is in progress **Add review
+comment** is the main action and the foot says "Pending until you finish the
+review"; a draft already pending offers **Update review comment**, which
+closes it still pending, its edits kept as typed. Command+Return is always the
+main action (owner, v001: "Start a review, add to review should be the default
+for cmd+enter"); Command+Shift+Return is Add single comment; each button's
+anchored tooltip names its key. Where the drawer is too narrow for both pills,
+the main action keeps the row with a split arrow joined to its right edge, and
+the arrow's menu carries Add single comment with its key; nothing stacks or is
+cut off. Delete asks first when the draft has words ("Delete this comment?",
+or "… from your review?" for a pending one; Cancel is the default), and
+deletes the draft from this computer. Each pending draft is its dashed note at
+its line, named "Pending in your review", whichever line is selected.
+
+Finish review opens the summary in Discuss as "Finish your review", one column
+no wider than a comfortable line (v002, the owner: "Make this page beautiful,
+and remove some of this duplicate text and reduce the wall of text feel"): the
+title; "N pending comments" with the blocking-feedback chip at its end; the
+comments in one hairline box, a row each with its file (faint when it repeats
+the row above), its lines in the code font and the highlight's ink, and its
+first line of words, each row a button that goes to the comment at its line
+in Review and each with a Delete that asks first, naming the comment; the
+summary in the same box, optional while the review carries line comments; the
+three verdicts **Comment**, **Approve** and **Request changes**, which submit
+the review at once, each as its own verdict, and are each enabled only when
+the core says the review can be submitted so (Request changes waits for a
+summary, Comment for a summary or a line comment; a disabled one says why in
+its tooltip); "Nothing is published until you submit." said once, with
+**Discard review** quiet at the end of the same line; and "Pull request and
+account", a disclosure closed by default, over the host, head and account.
+The status line shows only an outcome; Check status and New review show only
+when they can act. No separate Submit review step remains: the verdict
+pressed is the one submitted, and a verdict's own tooltip already says what it
+does before it is pressed. Submit sends one GitHub review whose comments are
+exactly the pending drafts (lines, ranges and both sides). Every carried draft
+is held for that submission before anything is sent, and is marked published
+only when GitHub's review list and comment collection show the review with
+exactly those comments; a refusal returns each to pending with its text, and
+an unknown answer keeps each held, with its text, until Check status settles
+it. Discard review asks first, naming how many pending comments it deletes;
+confirmed, it deletes every pending comment of the review and its summary,
+and the page closes. A finished review, submitted or discarded, is never the
+next one: the next review starts at once with its own comments.
 Return in the field is a new line. Esc keeps a
 written draft as its dashed note and drops an empty one, and focus returns to
 the code on the same line; opening the note writes it again. A draft on
@@ -1538,7 +1568,7 @@ offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour sto
 at the end of its last line, set monospaced and unwrapped, and shows what the
 block changes as it is edited. Neither key nor item acts on lines the core
 refuses together, Suggest change does not act on the base side, and the menu
-says why in a row under the items. Maximize (Command+Shift+Return) opens the
+says why in a row under the items. Maximize (Command+Shift+M) opens the
 same draft in Discuss, where the full composer lives: the conversations narrow
 to a list at the left, and at the right the draft's lines with three either
 side under the same bracket, and the full editor. Back to the code sits at the

@@ -1651,6 +1651,16 @@ namespace bpr::qt {
 		connect(chip, &QToolButton::clicked, this, [this] { open_review_composition(false); });
 		ReviewChipAction = rowWidget(ReviewBar, chip, QStringLiteral("reviewBarReviewChipAction"));
 		ReviewChipAction->setVisible(false);
+		// [[BPR-1345]] v002. Finish review has a key of its own (owner,
+		// finish-review v001: "find some hotkey for finish review, maybe
+		// cmd+option+enter"), bound once, for the whole window.
+		FinishReviewAction = new QAction{ tr("Finish review"), this };
+		FinishReviewAction->setObjectName(QStringLiteral("finishReviewAction"));
+		FinishReviewAction->setShortcuts({ QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Enter } });
+		FinishReviewAction->setShortcutContext(Qt::WindowShortcut);
+		FinishReviewAction->setEnabled(false);
+		addAction(FinishReviewAction);
+		connect(FinishReviewAction, &QAction::triggered, this, [this] { open_review_composition(false); });
 		ReviewBar->addAction(ComposeReviewAction);
 		ReviewBar->addAction(CommentAction);
 		// [[BPR-1133]]. Comment's arrow opens its menu, which names what
@@ -2045,7 +2055,14 @@ namespace bpr::qt {
 					}
 					break;
 				case card_action::delete_draft:
-					leave_drawer_draft(true);
+					// [[BPR-1345]] v002. Delete asks first when there are
+					// words to lose.
+					confirm_delete_drawer_draft();
+					break;
+				case card_action::finish_review:
+					if (FinishReviewAction != nullptr && FinishReviewAction->isEnabled()) {
+						FinishReviewAction->trigger();
+					}
 					break;
 				case card_action::maximize_draft:
 					maximize_drawer_draft();
@@ -2421,22 +2438,23 @@ namespace bpr::qt {
 			auto*       back = new QPushButton{ aBack, page };
 			back->setObjectName(aName + QStringLiteral("Back"));
 			back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
-			const auto key = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText);
+			// [[BPR-1345]] v002. ⌘⇧M, as Maximize took the draft here; ⌘⇧↩
+			// is Add single comment now.
+			const auto key = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_M }.toString(QKeySequence::NativeText);
 			back->setToolTip(tr("%1, without publishing  %2 or Esc").arg(aBack, key));
 			back->setAccessibleDescription(tr("Return to the previous surface without submitting"));
 			connect(back, &QPushButton::clicked, this, [this] { close_review_composition(); });
 			// [[BPR-1129]]. Esc is Back, from anywhere on the page; so is
-			// ⌘⇧↩, the key that brought the draft here ([[BPR-1212]]).
+			// ⌘⇧M, the key that brought the draft here ([[BPR-1212]];
+			// ⌘⇧↩ until [[BPR-1345]] v002).
 			auto* const escape = new QShortcut{ QKeySequence{ Qt::Key_Escape }, scroll };
 			escape->setObjectName(aName + QStringLiteral("Escape"));
 			escape->setContext(Qt::WidgetWithChildrenShortcut);
 			connect(escape, &QShortcut::activated, this, [this] { close_review_composition(); });
-			for (const auto& sequence : { QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }, QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Enter } }) {
-				auto* const restore = new QShortcut{ sequence, scroll };
-				restore->setObjectName(aName + QStringLiteral("Restore"));
-				restore->setContext(Qt::WidgetWithChildrenShortcut);
-				connect(restore, &QShortcut::activated, this, [this] { close_review_composition(); });
-			}
+			auto* const restore = new QShortcut{ QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_M }, scroll };
+			restore->setObjectName(aName + QStringLiteral("Restore"));
+			restore->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(restore, &QShortcut::activated, this, [this] { close_review_composition(); });
 			auto* const title = new QLabel{ page };
 			title->setObjectName(aName + QStringLiteral("Title"));
 			title->setTextFormat(Qt::PlainText);
@@ -2505,6 +2523,22 @@ namespace bpr::qt {
 		ReviewSubmissionEditor->set_presentation_observer([this] { update_compose_mark(); });
 		// [[BPR-1085]]. A preflight row links back to its exact item: my unsent
 		// draft opens its page; a conversation is revealed in Discuss.
+		// [[BPR-1345]] v002. A pending row goes to its comment; its Delete,
+		// once confirmed, goes to the composition; a confirmed Discard review
+		// closes the page.
+		ReviewSubmissionEditor->set_pending_reveal([this](const core::review_submission_comment& aComment) {
+			reveal_pending_comment(QString::fromStdString(aComment.Path), aComment.Side, aComment.Line);
+		});
+		ReviewSubmissionEditor->set_pending_delete([this](const core::review_submission_comment& aComment) {
+			if (PendingCommentDeleteDispatch) {
+				PendingCommentDeleteDispatch(aComment.Draft, aComment.DraftRevision);
+			}
+		});
+		ReviewSubmissionEditor->set_discard_observer([this] {
+			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
+				close_review_composition();
+			}
+		});
 		ReviewSubmissionEditor->set_item_reveal([this](const std::string& aIdentity) {
 			if (aIdentity.starts_with("draft:")) {
 				open_review_composition(true);
@@ -6956,6 +6990,7 @@ namespace bpr::qt {
 			Finder->set_draft(std::move(draft));
 		}
 		resume_conversation_pick();
+		resume_pending_comment_pick();
 	}
 
 	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
@@ -8384,6 +8419,107 @@ namespace bpr::qt {
 		if (ReviewChipAction->isVisible() != shown) {
 			ReviewChipAction->setVisible(shown);
 			apply_strip_width();
+		}
+		if (FinishReviewAction != nullptr) {
+			FinishReviewAction->setEnabled(PendingReviewComments > 0U && !held);
+		}
+	}
+
+	auto workbench_window::finish_review_action() const noexcept -> QAction*
+	{
+		return FinishReviewAction;
+	}
+
+	auto workbench_window::delete_draft_confirmation() const noexcept -> QMessageBox*
+	{
+		return DeleteDraftConfirmation.data();
+	}
+
+	void workbench_window::set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
+	{
+		PendingCommentDeleteDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::confirm_delete_drawer_draft()
+	{
+		const auto* const body = ReviewEditor != nullptr ? ReviewEditor->body_editor() : nullptr;
+		if (body == nullptr || body->toPlainText().trimmed().isEmpty()) {
+			leave_drawer_draft(true);
+			return;
+		}
+		if (DeleteDraftConfirmation != nullptr) {
+			DeleteDraftConfirmation->close();
+		}
+		const auto& shown   = ReviewEditor->shown_draft();
+		const auto  pending = shown.has_value() && core::pending_in_review(*shown);
+		auto* const box     = new QMessageBox{ this };
+		box->setObjectName(QStringLiteral("deleteDraftConfirmation"));
+		box->setAttribute(Qt::WA_DeleteOnClose);
+		box->setWindowModality(Qt::WindowModal);
+		box->setIcon(QMessageBox::Warning);
+		box->setTextFormat(Qt::PlainText);
+		const auto question = pending ? tr("Delete this comment from your review?") : tr("Delete this comment?");
+		box->setWindowTitle(question);
+		box->setText(question);
+		box->setInformativeText(tr("Its text is deleted from this computer. This can't be undone."));
+		auto* const confirm = box->addButton(tr("Delete comment"), QMessageBox::DestructiveRole);
+		confirm->setObjectName(QStringLiteral("deleteDraftConfirmationConfirm"));
+		auto* const cancel = box->addButton(QMessageBox::Cancel);
+		cancel->setObjectName(QStringLiteral("deleteDraftConfirmationCancel"));
+		box->setDefaultButton(cancel);
+		box->setEscapeButton(cancel);
+		DeleteDraftConfirmation = box;
+		const auto id           = shown.has_value() ? std::optional{ shown->Id } : std::nullopt;
+		connect(box, &QMessageBox::buttonClicked, this, [this, confirm, id](QAbstractButton* const aButton) {
+			// The draft asked about, and no other.
+			const auto& now = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
+			if (aButton == confirm && now.has_value() && std::optional{ now->Id } == id) {
+				leave_drawer_draft(true);
+			}
+		});
+		box->open();
+	}
+
+	void workbench_window::reveal_pending_comment(const QString& aPath, const core::diff_side aSide, const std::uint32_t aLine)
+	{
+		if (CompositionPage != nullptr) {
+			close_review_composition();
+		}
+		PendingCommentPick = pending_comment_pick{
+			.File   = core::file_identity_of(aPath.toStdString()),
+			.Side   = aSide,
+			.Line   = aLine,
+			.Before = ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
+				? std::optional{ ComparisonSurface->current_result()->Alignment.Digest }
+				: std::nullopt,
+		};
+		choose_home(false);
+		choose_modality(review_modality::review);
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		if (!context.has_value() || context->Key.File != PendingCommentPick->File) {
+			if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
+				Dispatch(core::select_workbench_file_intent{ .File = *file });
+			}
+		}
+		resume_pending_comment_pick();
+	}
+
+	void workbench_window::resume_pending_comment_pick()
+	{
+		if (!PendingCommentPick.has_value() || ComparisonSurface == nullptr || (Modality != nullptr && Modality->current() != review_modality::review)) {
+			return;
+		}
+		const auto context = ComparisonSurface->current_context();
+		const auto digest  = ComparisonSurface->current_result() != nullptr ? std::optional{ ComparisonSurface->current_result()->Alignment.Digest } : std::nullopt;
+		if (context.has_value() && context->Key.File == PendingCommentPick->File && digest.has_value()) {
+			const auto pick = *PendingCommentPick;
+			PendingCommentPick.reset();
+			static_cast<void>(ComparisonSurface->select_conversation_line(pick.Side, pick.Line));
+			return;
+		}
+		// Another file's comparison arrived first: the reviewer went on.
+		if (context.has_value() && context->Key.File != PendingCommentPick->File && digest.has_value() && digest != PendingCommentPick->Before) {
+			PendingCommentPick.reset();
 		}
 	}
 
@@ -12055,6 +12191,7 @@ namespace bpr::qt {
 			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
 		resume_conversation_pick();
+		resume_pending_comment_pick();
 		return true;
 	}
 
@@ -12900,6 +13037,7 @@ namespace bpr::qt {
 		// its thread's line.
 		resume_deferred_reply();
 		resume_conversation_pick();
+		resume_pending_comment_pick();
 	}
 
 	auto workbench_window::detail_pane() const noexcept -> QPlainTextEdit*

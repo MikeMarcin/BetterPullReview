@@ -510,6 +510,10 @@ namespace bpr::qt {
 		/// the composition keeps the shown draft pending in the review and
 		/// answers whether it took it. Nothing is published.
 		void set_start_review_dispatch(std::function<bool()> aDispatch);
+		/// \brief [[BPR-1345]] v002. Where a confirmed Delete of a pending
+		/// comment on Finish your review goes: the composition deletes that
+		/// draft at the revision the page listed. Nothing is published.
+		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
@@ -681,6 +685,17 @@ namespace bpr::qt {
 		/// with Finish review; hidden with no review in progress.
 		[[nodiscard]] auto review_chip() const noexcept -> QToolButton*;
 		[[nodiscard]] auto review_chip_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1345]] v002. Finish review: ⌘⌥↩ (Ctrl+Alt+Return),
+		/// window-owned, enabled while a review is in progress and not being
+		/// submitted; it opens the review's summary in Discuss.
+		[[nodiscard]] auto finish_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1345]] v002. The drawer draft's Delete question while
+		/// it is open, or null.
+		[[nodiscard]] auto delete_draft_confirmation() const noexcept -> QMessageBox*;
+		/// \brief [[BPR-1345]] v002. Goes to a pending comment from Finish
+		/// your review: Review, its file, and its line selected once that
+		/// file's comparison shows. Navigation only.
+		void reveal_pending_comment(const QString& aPath, core::diff_side aSide, std::uint32_t aLine);
 		/// \brief [[BPR-1345]]. Where the shown draft stands with the review.
 		[[nodiscard]] auto draft_review() const -> draft_review_state;
 		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
@@ -1511,6 +1526,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1212]]. Leaves the drawer draft: a written draft is
 		/// kept at its line, an empty one dropped, and focus goes to the code.
 		void leave_drawer_draft(bool aDiscard);
+		/// [[BPR-1345]] v002. Delete in the drawer asks first when the draft
+		/// has words.
+		void confirm_delete_drawer_draft();
 		/// \brief [[BPR-1212]]. Maximize: the drawer draft goes to Discuss.
 		void maximize_drawer_draft();
 		/// \brief [[BPR-1212]]. The exact head lines the shown draft is on.
@@ -1546,6 +1564,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1293]]. Opens a waiting pick once its file's
 		/// comparison shows its thread; drops it once another file shows.
 		void resume_conversation_pick();
+		/// [[BPR-1345]] v002. Selects a pending comment's line once its file's
+		/// comparison is the one shown.
+		void resume_pending_comment_pick();
 		/// \brief [[BPR-1293]]. Tells the finder where Review is.
 		void present_finder_reading();
 		/// \brief [[BPR-1356]]. Discuss with the route's filters cleared and
@@ -1785,6 +1806,11 @@ namespace bpr::qt {
 		std::function<bool()> StartReviewDispatch;
 		std::size_t           PendingReviewComments = 0U;
 		std::size_t           HeldReviewComments    = 0U;
+		/// [[BPR-1345]] v002. Finish review's key, the pending row Delete's
+		/// sink and the drawer Delete's question.
+		QAction*                                                  FinishReviewAction = nullptr;
+		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
+		QPointer<QMessageBox>                                     DeleteDraftConfirmation;
 		/// [[BPR-1133]]. Comment's arrow menu.
 		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,
@@ -1932,6 +1958,16 @@ namespace bpr::qt {
 			std::optional<core::file_comparison_digest> Before;
 		};
 		std::optional<conversation_pick> PendingPick;
+		/// [[BPR-1345]] v002. A pending comment waiting for its file's
+		/// comparison.
+		struct pending_comment_pick
+		{
+			core::file_identity                         File{ };
+			core::diff_side                             Side = core::diff_side::right;
+			std::uint32_t                               Line = 0U;
+			std::optional<core::file_comparison_digest> Before;
+		};
+		std::optional<pending_comment_pick> PendingCommentPick;
 		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
 		/// cleared, until the reviewer changes one or picks again.
 		bool              ThreadsRevealNotice = false;

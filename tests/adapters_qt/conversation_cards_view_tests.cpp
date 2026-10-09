@@ -1,3 +1,4 @@
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
@@ -596,12 +597,17 @@ namespace {
 	}
 
 	/// \brief [[BPR-1345]]. Start a review, as the frames draw it: with no
-	/// review in progress the composer offers Add single comment (⌘↩, today's
+	/// review in progress the composer offers Add single comment (today's
 	/// Publish) and Start a review; while one is, Add review comment is the
-	/// main action and takes ⌘↩; a pending draft's main action closes it,
-	/// still pending. The privacy note says so. Saved pending drafts are
-	/// notes at their lines that say they are pending and publish nothing on
-	/// their own; in a narrow drawer the two actions stack, neither cut off.
+	/// main action; a pending draft's main action closes it, still pending.
+	/// The privacy note says so. Saved pending drafts are notes at their lines
+	/// that say they are pending and publish nothing on their own.
+	/// v002 (owner, discard-review and finish-review v001): ⌘↩ is the main
+	/// action in every state, ⌘⇧↩ is Add single comment, ⌘⌥↩ asks to finish
+	/// the review and ⌘⇧M maximizes; each tooltip names its key, anchored to
+	/// its button. The actions keep one row: side by side with room, and in a
+	/// narrow drawer the main action with a split arrow that carries Add
+	/// single comment, never stacked.
 	auto test_start_a_review_in_the_composer() -> void
 	{
 		qt::conversation_cards_view view;
@@ -650,24 +656,38 @@ namespace {
 		};
 		const auto  words   = [&view](const char* aName) { return button(view, aName) != nullptr ? button(view, aName)->text() : QString{ }; };
 		auto* const privacy = view.open_card()->findChild<QWidget*>(QStringLiteral("threadDraftPrivacy"));
-		const auto  press   = [&view] {
-			QKeyEvent key{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		const auto  press   = [&view](const Qt::KeyboardModifiers aModifiers = Qt::ControlModifier, const int aKey = Qt::Key_Return) {
+			QKeyEvent key{ QEvent::KeyPress, aKey, aModifiers };
 			QApplication::sendEvent(view.draft_editor(), &key);
+		};
+		const auto main     = QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		const auto single   = QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		const auto anchored = [](QAbstractButton* aButton) {
+			const auto target = qt::standard_tooltip_target(*aButton, aButton->rect().center());
+			return target.has_value() && target->Anchor == aButton->rect() && target->Text == aButton->toolTip();
 		};
 
 		present(qt::draft_review_state::none);
 		expect(words("threadPublishDraft") == QStringLiteral("Add single comment") && words("threadReviewDraft") == QStringLiteral("Start a review")
-				   && button(view, "threadPublishDraft")->toolTip().startsWith(QStringLiteral("Post this one comment to the pull request now"))
+				   && button(view, "threadPublishDraft")->toolTip() == QStringLiteral("Post this one comment to the pull request now  %1").arg(single)
+				   && button(view, "threadReviewDraft")->toolTip() == QStringLiteral("Keep this comment pending in a review you finish later  %1").arg(main)
+				   && anchored(button(view, "threadPublishDraft")) && anchored(button(view, "threadReviewDraft"))
 				   && button(view, "threadReviewDraft")->isEnabled() && privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish"),
-			   "with no review in progress: Add single comment, today's Publish with its key, and Start a review");
+			   "with no review in progress: Add single comment with ⌘⇧↩ and Start a review with ⌘↩, each named in its anchored tooltip");
 		press();
+		expect(actions.back() == qt::card_action::review_draft, "⌘↩ is Start a review, the default (owner: \"Start a review, add to review should be the default for cmd+enter\")");
+		press(Qt::ControlModifier | Qt::ShiftModifier);
+		expect(actions.back() == qt::card_action::publish_draft, "⌘⇧↩ is Add single comment");
+		press(Qt::ControlModifier | Qt::AltModifier);
+		expect(actions.back() == qt::card_action::finish_review, "⌘⌥↩ asks to finish the review; the window decides whether one is in progress");
+		press(Qt::ControlModifier | Qt::ShiftModifier, Qt::Key_M);
+		expect(actions.back() == qt::card_action::maximize_draft, "⌘⇧M maximizes, now that ⌘⇧↩ is Add single comment");
 		button(view, "threadReviewDraft")->click();
-		expect(actions.size() >= 2U && actions[actions.size() - 2U] == qt::card_action::publish_draft && actions.back() == qt::card_action::review_draft,
-			   "⌘↩ is Add single comment, and Start a review asks to keep it pending");
+		expect(actions.back() == qt::card_action::review_draft, "Start a review asks to keep it pending");
 
 		present(qt::draft_review_state::in_progress);
 		expect(words("threadPublishDraft") == QStringLiteral("Add single comment") && words("threadReviewDraft") == QStringLiteral("Add review comment")
-				   && button(view, "threadReviewDraft")->toolTip().contains(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
+				   && button(view, "threadReviewDraft")->toolTip().endsWith(main) && button(view, "threadPublishDraft")->toolTip().endsWith(single)
 				   && privacy->accessibleName() == QStringLiteral("Pending until you finish the review"),
 			   "while a review is in progress Add review comment is the main action, with ⌘↩, and the note says the review is pending");
 		press();
@@ -683,14 +703,37 @@ namespace {
 			   "which only closes it, still pending: ⌘↩ and the button alike");
 
 		present(qt::draft_review_state::none);
-		auto* const single = button(view, "threadPublishDraft");
-		auto* const review = button(view, "threadReviewDraft");
-		expect(single->geometry().top() == review->geometry().top(), "in a drawer with room the two ways out sit side by side");
-		view.resize(220, 640);
+		auto* const singleButton = button(view, "threadPublishDraft");
+		auto* const review       = button(view, "threadReviewDraft");
+		auto* const trash        = button(view, "threadDeleteDraft");
+		auto* const more         = button(view, "threadReviewDraftMore");
+		const auto  middle       = [](QWidget* aWidget) { return aWidget->mapTo(aWidget->window(), aWidget->rect().center()).y(); };
+		expect(trash != nullptr && trash->toolTip() == QStringLiteral("Delete this comment") && trash->accessibleName() == QStringLiteral("Delete comment"),
+			   "Delete is named for what it does");
+		view.resize(520, 640);
 		QApplication::processEvents();
 		QApplication::processEvents();
-		expect(single->geometry().top() != review->geometry().top() && single->width() >= single->sizeHint().width() && review->width() >= review->sizeHint().width(),
-			   "in a narrow drawer they stack, and neither is cut off");
+		expect(singleButton->isVisible() && more != nullptr && !more->isVisible()
+				   && std::abs(middle(singleButton) - middle(review)) <= 1 && std::abs(middle(trash) - middle(review)) <= 2
+				   && singleButton->geometry().right() < review->geometry().left() && singleButton->width() >= singleButton->sizeHint().width(),
+			   "with room: one row, the privacy note, Delete, then Add single comment beside the main action");
+		view.resize(260, 640);
+		QApplication::processEvents();
+		QApplication::processEvents();
+		expect(!singleButton->isVisible() && more->isVisible() && std::abs(middle(more) - middle(review)) <= 1
+				   && std::abs(middle(trash) - middle(review)) <= 2 && more->geometry().left() - review->geometry().right() <= 1
+				   && review->width() >= review->sizeHint().width() && view.open_card()->rect().contains(more->geometry().translated(more->parentWidget()->mapTo(view.open_card(), QPoint{ }))),
+			   "in a narrow drawer: still one row, the main action with its split arrow joined to it, nothing stacked or cut off");
+		more->click();
+		QApplication::processEvents();
+		auto* const menu = view.findChild<QMenu*>(QStringLiteral("threadReviewDraftMenu"));
+		auto* const item = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadReviewDraftSingle")) : nullptr;
+		expect(menu != nullptr && item != nullptr && item->text() == QStringLiteral("Add single comment") && item->shortcut() == QKeySequence{ Qt::CTRL | Qt::SHIFT | Qt::Key_Return },
+			   "the split arrow's menu carries Add single comment with its key");
+		item->trigger();
+		menu->close();
+		QApplication::processEvents();
+		expect(actions.back() == qt::card_action::publish_draft, "and it adds the single comment");
 	}
 
 	/// \brief [[BPR-1290]]. Notes hang from their lines; one open thread is
@@ -829,15 +872,16 @@ namespace {
 					   comparison);
 		expect(view.layouts() == layouts && view.draft_editor() != nullptr && view.draft_editor()->hasFocus(),
 			   "typing the draft lays nothing out again and keeps the composer and its focus");
-		QKeyEvent maximize{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier };
+		// [[BPR-1345]] v002: ⌘⇧M maximizes, ⌘⇧↩ adds the single comment.
+		QKeyEvent maximize{ QEvent::KeyPress, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier };
 		QApplication::sendEvent(view.draft_editor(), &maximize);
-		QKeyEvent publish{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QKeyEvent publish{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier };
 		QApplication::sendEvent(view.draft_editor(), &publish);
 		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
 		QApplication::sendEvent(view.draft_editor(), &escape);
 		expect(actions.size() == 3U && actions[0].first == qt::card_action::maximize_draft && actions[1].first == qt::card_action::publish_draft
 				   && actions[2].first == qt::card_action::close_draft,
-			   "in the draft, Ctrl+Shift+Return maximizes, Ctrl+Return publishes and Esc asks to close; the window decides");
+			   "in the draft, Ctrl+Shift+M maximizes, Ctrl+Shift+Return publishes it alone and Esc asks to close; the window decides");
 		view.present_draft(qt::draft_composer_presentation{
 			.Body        = QStringLiteral("```suggestion\nint b = 2;\n```"),
 			.Publishable = true,

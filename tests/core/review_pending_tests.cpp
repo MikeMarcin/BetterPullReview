@@ -211,6 +211,37 @@ namespace {
 		return apply(aDraft, { .Id = aDraft.Id, .Kind = review_submission_command_kind::set_comments, .Comments = std::move(aComments) });
 	}
 
+	/// [[BPR-1345]] v002. The three verdict buttons submit directly, each its
+	/// own verdict, so the core says which of them can submit now: Approve
+	/// always, Comment when it has a summary or carries a line comment, and
+	/// Request changes only with a summary. None while the review is not
+	/// being written.
+	void test_each_verdict_says_whether_it_can_submit()
+	{
+		using disposition = review_disposition;
+		const auto all    = [](const review_submission_controls& aControls, const bool aComment, const bool aApprove, const bool aChanges) {
+			return submits_as(aControls, disposition::comment) == aComment && submits_as(aControls, disposition::approve) == aApprove
+				&& submits_as(aControls, disposition::request_changes) == aChanges;
+		};
+		const auto empty = review();
+		expect(all(controls(empty), false, true, false), "with no summary and no line comment only Approve submits");
+		const auto carried = set(empty, { comment(1U) });
+		expect(carried.Draft && all(controls(*carried.Draft), true, true, false), "with a line comment Comment submits too; Request changes still needs a summary");
+		auto summarised = *carried.Draft;
+		summarised.Body = "Please fix the scale.";
+		expect(all(controls(summarised), true, true, true), "with a summary every verdict submits");
+		auto blank = summarised;
+		blank.Body = " \n\t";
+		expect(all(controls(blank), true, true, false), "a blank summary is no summary");
+		auto approving        = summarised;
+		approving.Disposition = disposition::approve;
+		expect(all(controls(approving), true, true, true) && controls(approving).Submit, "the chosen verdict does not change what the others can do");
+		const auto submitting = apply(summarised, { .Id = summarised.Id, .Kind = review_submission_command_kind::begin_submit });
+		expect(submitting.Draft && all(controls(*submitting.Draft), false, false, false), "a review being submitted submits no verdict");
+		const auto discarded = apply(summarised, { .Id = summarised.Id, .Kind = review_submission_command_kind::discard });
+		expect(discarded.Draft && all(controls(*discarded.Draft), false, false, false), "nor does a discarded one");
+	}
+
 	void test_a_review_carries_its_comments()
 	{
 		expect(summary_required(review_disposition::comment, { }) && !summary_required(review_disposition::approve, { }), "the summary rule without comments is unchanged");
@@ -301,6 +332,7 @@ int main()
 	test_discard_review_and_add_single_comment();
 	test_a_submitted_review_holds_its_drafts();
 	test_a_review_carries_its_comments();
+	test_each_verdict_says_whether_it_can_submit();
 	test_submit_binds_the_comments_it_showed();
 	std::cout << "core_review_pending: ok\n";
 	return EXIT_SUCCESS;

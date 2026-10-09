@@ -1,21 +1,24 @@
 #include "bpr/qt/review_submission_editor.hpp"
 
 #include "bpr/qt/appearance_profile.hpp"
+#include "conversation_glyphs.hpp"
 
+#include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QAction>
-#include <QButtonGroup>
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPainter>
 #include <QPen>
 #include <QPlainTextEdit>
 #include <QPolygonF>
+#include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
@@ -199,6 +202,268 @@ namespace bpr::qt {
 		{
 			return review_submission_editor::tr("%n %1, not marked blocking", nullptr, static_cast<int>(aGuidance.Published + aGuidance.Pending)).arg(feedback_label_text(aGuidance.Label));
 		}
+
+		[[nodiscard]] auto decisions_name(const core::review_disposition aDisposition) -> QString
+		{
+			switch (aDisposition) {
+			case core::review_disposition::comment:         return review_submission_editor::tr("Comment");
+			case core::review_disposition::approve:         return review_submission_editor::tr("Approve");
+			case core::review_disposition::request_changes: return review_submission_editor::tr("Request changes");
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto blend(const QColor& aFrom, const QColor& aTo, const qreal aAmount) -> QColor
+		{
+			return QColor::fromRgbF(static_cast<float>(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aAmount),
+									static_cast<float>(aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aAmount),
+									static_cast<float>(aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aAmount));
+		}
+
+		[[nodiscard]] auto luminance(const QColor& aColour) -> double
+		{
+			const auto channel = [](const double aValue) { return aValue <= 0.03928 ? aValue / 12.92 : std::pow((aValue + 0.055) / 1.055, 2.4); };
+			return 0.2126 * channel(aColour.redF()) + 0.7152 * channel(aColour.greenF()) + 0.0722 * channel(aColour.blueF());
+		}
+
+		/// [[BPR-1345]] v002. The highlight as ink for words on the text
+		/// ground: as it is where it reads (4.5:1), else moved toward the
+		/// text's own ink just until it does, so it keeps its hue where it can.
+		/// A high-contrast theme's highlight is a fill, not a colour for words.
+		[[nodiscard]] auto accent_ink(const QPalette& aPalette) -> QColor
+		{
+			const auto ground    = aPalette.color(QPalette::Active, QPalette::Base);
+			const auto highlight = aPalette.color(QPalette::Active, QPalette::Highlight);
+			const auto text      = aPalette.color(QPalette::Active, QPalette::Text);
+			const auto reads     = [&ground](const QColor& aInk) {
+				const auto light = std::max(luminance(ground), luminance(aInk));
+				const auto dark  = std::min(luminance(ground), luminance(aInk));
+				return (light + 0.05) / (dark + 0.05) >= 4.5;
+			};
+			for (auto step = 0; step <= 10; ++step) {
+				if (const auto ink = blend(highlight, text, step / 10.0); reads(ink)) {
+					return ink;
+				}
+			}
+			return text;
+		}
+
+		/// [[BPR-1345]] v002. One of the three verdicts that finish a review:
+		/// an outlined pill in the drawer's own shape (6 px corners, the
+		/// palette's rule for its edge), the highlight's tint under the
+		/// pointer and its ring on focus. No verdict is coloured: on this
+		/// page colour is not a judgement, and none is nudged.
+		class verdict_button final : public QToolButton
+		{
+		public:
+			explicit verdict_button(QWidget* aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+				setCursor(Qt::PointingHandCursor);
+				setFocusPolicy(Qt::StrongFocus);
+				setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+				setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				return { metrics.horizontalAdvance(text()) + 32 + (icon().isNull() ? 0 : 20), std::max(30, metrics.height() + 14) };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return sizeHint();
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto        painter = QPainter{ this };
+				const auto& colours = palette();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box       = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				const auto ink       = colours.color(QPalette::Active, QPalette::ButtonText);
+				const auto ground    = colours.color(QPalette::Active, QPalette::Base);
+				const auto highlight = colours.color(QPalette::Active, QPalette::Highlight);
+				const auto hovered   = isEnabled() && (underMouse() || isDown());
+				painter.setOpacity(isEnabled() ? 1.0 : 0.45);
+				painter.setPen(QPen{ hovered ? highlight : blend(ground, ink, 0.28), 1.0 });
+				painter.setBrush(hovered ? blend(ground, highlight, isDown() ? 0.22 : 0.12) : ground);
+				painter.drawRoundedRect(box, 6.0, 6.0);
+				const auto metrics = QFontMetrics{ font() };
+				const auto glyph   = icon().isNull() ? 0 : 20;
+				auto       x       = (width() - metrics.horizontalAdvance(text()) - glyph) / 2;
+				if (glyph > 0) {
+					icon().paint(&painter, QRect{ x, (height() - 16) / 2, 16, 16 });
+					x += glyph;
+				}
+				painter.setPen(ink);
+				painter.drawText(QRect{ x, 0, width() - x, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+				painter.setOpacity(1.0);
+				if (hasFocus()) {
+					painter.setPen(QPen{ highlight, 2.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box, 6.0, 6.0);
+				}
+			}
+		};
+
+		/// [[BPR-1345]] v002. The box the pending comments sit in: the text
+		/// ground with a hairline edge, the one boxed thing on the page
+		/// besides the summary.
+		class pending_box final : public QWidget
+		{
+		public:
+			explicit pending_box(QWidget* aParent)
+				: QWidget{ aParent }
+			{ }
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto        painter = QPainter{ this };
+				const auto& colours = palette();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ground = colours.color(QPalette::Active, QPalette::Base);
+				painter.setPen(QPen{ blend(ground, colours.color(QPalette::Active, QPalette::Text), 0.16), 1.0 });
+				painter.setBrush(ground);
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+			}
+		};
+
+		/// [[BPR-1345]] v002. One pending comment, as a button that goes to it:
+		/// its file, its lines in the code font and the highlight, and its
+		/// first line of words, in three aligned columns.
+		class pending_row final : public QAbstractButton
+		{
+		public:
+			pending_row(QString aFile, QString aLines, QString aWords, QWidget* aParent)
+				: QAbstractButton{ aParent }
+				, File{ std::move(aFile) }
+				, Lines{ std::move(aLines) }
+				, Words{ std::move(aWords) }
+			{
+				setObjectName(QStringLiteral("wholeReviewPendingOpen"));
+				setAttribute(Qt::WA_Hover, true);
+				setCursor(Qt::PointingHandCursor);
+				setFocusPolicy(Qt::StrongFocus);
+				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+			}
+
+			/// \brief The widths this row's file name and lines need, in its own
+			/// fonts.
+			[[nodiscard]] auto file_width() const -> int
+			{
+				auto bold = font();
+				bold.setWeight(QFont::DemiBold);
+				return QFontMetrics{ bold }.horizontalAdvance(File) + 2;
+			}
+
+			[[nodiscard]] static auto lines_width(const QString& aLines, const QFont& aCode) -> int
+			{
+				return QFontMetrics{ aCode }.horizontalAdvance(aLines) + 2;
+			}
+
+			/// \brief The same file as the row above: its name is drawn faint, so
+			/// each file is read once.
+			void set_repeat(const bool aRepeat)
+			{
+				Repeat = aRepeat;
+				update();
+			}
+
+			void set_columns(const int aFile, const int aLines, const QFont& aCode)
+			{
+				FileColumn  = aFile;
+				LinesColumn = aLines;
+				Code        = aCode;
+				update();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				return { FileColumn + LinesColumn + 160, std::max(28, QFontMetrics{ font() }.height() + 10) };
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return { 80, sizeHint().height() };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto        painter = QPainter{ this };
+				const auto& colours = palette();
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ground    = colours.color(QPalette::Active, QPalette::Base);
+				const auto ink       = colours.color(QPalette::Active, QPalette::Text);
+				const auto highlight = colours.color(QPalette::Active, QPalette::Highlight);
+				const auto box       = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				if (underMouse() || isDown()) {
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(blend(ground, highlight, isDown() ? 0.18 : 0.09));
+					painter.drawRoundedRect(box, 4.0, 4.0);
+				}
+				auto bold = font();
+				bold.setWeight(QFont::DemiBold);
+				auto x = gutter;
+				painter.setFont(bold);
+				painter.setPen(Repeat ? colours.color(QPalette::Active, QPalette::PlaceholderText) : ink);
+				painter.drawText(QRect{ x, 0, FileColumn, height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ bold }.elidedText(File, Qt::ElideMiddle, FileColumn));
+				x += FileColumn + spacing;
+				painter.setFont(Code);
+				painter.setPen(accent_ink(colours));
+				painter.drawText(QRect{ x, 0, LinesColumn, height() }, Qt::AlignRight | Qt::AlignVCenter, Lines);
+				x += LinesColumn + spacing;
+				painter.setFont(font());
+				painter.setPen(ink);
+				painter.drawText(QRect{ x, 0, std::max(0, width() - x - gutter), height() }, Qt::AlignLeft | Qt::AlignVCenter,
+								 QFontMetrics{ font() }.elidedText(Words, Qt::ElideRight, std::max(0, width() - x - gutter)));
+				if (hasFocus()) {
+					painter.setPen(QPen{ highlight, 2.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box, 4.0, 4.0);
+				}
+			}
+
+		private:
+			static constexpr int gutter  = 8;
+			static constexpr int spacing = 14;
+			QString              File;
+			QString              Lines;
+			QString              Words;
+			QFont                Code;
+			int                  FileColumn  = 0;
+			int                  LinesColumn = 0;
+			bool                 Repeat      = false;
+		};
+
+		/// [[BPR-1345]] v002. A question asked before something is deleted:
+		/// window modal, the deleting button named for what it does, Cancel
+		/// the default and Esc.
+		[[nodiscard]] auto destructive_question(QWidget* aOwner, const QString& aName, const QString& aText, const QString& aDetail, const QString& aConfirm) -> QMessageBox*
+		{
+			auto* const box = new QMessageBox{ aOwner };
+			box->setObjectName(aName);
+			box->setAttribute(Qt::WA_DeleteOnClose);
+			box->setWindowModality(Qt::WindowModal);
+			box->setIcon(QMessageBox::Warning);
+			box->setTextFormat(Qt::PlainText);
+			box->setWindowTitle(aText);
+			box->setText(aText);
+			box->setInformativeText(aDetail);
+			auto* const confirm = box->addButton(aConfirm, QMessageBox::DestructiveRole);
+			confirm->setObjectName(aName + QStringLiteral("Confirm"));
+			auto* const cancel = box->addButton(QMessageBox::Cancel);
+			cancel->setObjectName(aName + QStringLiteral("Cancel"));
+			box->setDefaultButton(cancel);
+			box->setEscapeButton(cancel);
+			return box;
+		}
 	} // namespace
 
 	auto review_preflight_summary(const std::optional<core::review_preflight>& aPreflight) -> QString
@@ -224,77 +489,43 @@ namespace bpr::qt {
 		: QWidget{ aParent }
 		, Dispatch{ std::move(aDispatch) }
 	{
+		// [[BPR-1345]] v002. Finish your review, made calm (owner,
+		// discard-review v001: "Make this page beautiful, and remove some of
+		// this duplicate text and reduce the wall of text feel."): the title,
+		// the pending comments in one box, the summary, and the three
+		// verdicts that submit it; what is published is said once; the host,
+		// head and account wait behind a disclosure. One column, no wider
+		// than a comfortable line, left aligned on the page.
 		setObjectName(QStringLiteral("wholeReviewEditor"));
+		setMaximumWidth(760);
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(0, 0, 0, 0);
+		layout->setSpacing(10);
 		Title = new QLabel{ tr("Compose review"), this };
 		Title->setObjectName(QStringLiteral("wholeReviewTitle"));
-		layout->addWidget(Title);
-		Purpose = new QLabel{ this };
-		Purpose->setObjectName(QStringLiteral("wholeReviewPurpose"));
-		Purpose->setWordWrap(true);
-		Purpose->setMinimumWidth(0);
-		Purpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		layout->addWidget(Purpose);
-		// [[BPR-1345]]. The comments the review carries, each where it is and
-		// what it says, as the finish-review frame lists them.
-		Pending = new QWidget{ this };
-		Pending->setObjectName(QStringLiteral("wholeReviewPending"));
-		Pending->setAccessibleName(tr("Pending in this review"));
-		PendingRows = new QVBoxLayout{ Pending };
-		PendingRows->setContentsMargins(0, 4, 0, 4);
-		PendingRows->setSpacing(2);
-		auto* const pendingTitle = new QLabel{ tr("Pending in this review"), Pending };
-		pendingTitle->setObjectName(QStringLiteral("wholeReviewPendingTitle"));
-		auto titleFont = pendingTitle->font();
+		auto titleFont = Title->font();
+		titleFont.setPointSizeF(titleFont.pointSizeF() * 1.3);
 		titleFont.setWeight(QFont::DemiBold);
-		pendingTitle->setFont(titleFont);
-		PendingRows->addWidget(pendingTitle);
-		Pending->hide();
-		layout->addWidget(Pending);
+		Title->setFont(titleFont);
+		layout->addWidget(Title);
 		DraftState = new QLabel{ this };
 		DraftState->setObjectName(QStringLiteral("wholeReviewDraftState"));
 		DraftState->setWordWrap(true);
+		DraftState->setTextFormat(Qt::PlainText);
 		layout->addWidget(DraftState);
-		Target = new QTextEdit{ this };
-		Target->setObjectName(QStringLiteral("wholeReviewTarget"));
-		Target->setReadOnly(true);
-		Target->setAcceptRichText(false);
-		Target->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
-		Target->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		Target->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		Target->setFrameShape(QFrame::NoFrame);
-		Target->setAccessibleName(tr("Review target and acting account"));
-		Target->setMinimumWidth(0);
-		Target->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-		connect(Target->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged,
-				this, [this](QSizeF aSize) { Target->setFixedHeight(static_cast<int>(std::ceil(aSize.height())) + 2 * Target->frameWidth()); });
-
-		layout->addWidget(Target);
-		// [[BPR-1085]]. The three native decisions are explicit, exclusive
-		// buttons (owner, preflight B); each carries its native disposition.
-		Disposition    = new QButtonGroup{ this };
-		auto* decision = new QHBoxLayout;
-		decision->setSpacing(4);
-		const auto names = std::array{ tr("Comment"), tr("Approve"), tr("Request changes") };
-		const auto ids   = std::array{ QStringLiteral("wholeReviewComment"), QStringLiteral("wholeReviewApprove"), QStringLiteral("wholeReviewRequestChanges") };
-		for (std::size_t index = 0U; index < Decisions.size(); ++index) {
-			auto* button = new QToolButton{ this };
-			button->setObjectName(ids[index]);
-			button->setText(names[index]);
-			button->setCheckable(true);
-			button->setFocusPolicy(Qt::StrongFocus);
-			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-			button->setAccessibleName(names[index]);
-			Disposition->addButton(button, static_cast<int>(index));
-			decision->addWidget(button);
-			Decisions[index] = button;
-		}
-		Disposition->setExclusive(true);
-		decision->addStretch();
-		layout->addLayout(decision);
-		auto* preflightRow = new QHBoxLayout;
-		Preflight          = new preflight_chip{ this };
+		// The list's heading, with my blocking feedback's chip at its end.
+		auto* const heading = new QHBoxLayout;
+		heading->setSpacing(8);
+		Carries = new QLabel{ this };
+		Carries->setObjectName(QStringLiteral("wholeReviewCarries"));
+		Carries->setTextFormat(Qt::PlainText);
+		auto headingFont = Carries->font();
+		headingFont.setWeight(QFont::DemiBold);
+		Carries->setFont(headingFont);
+		Carries->hide();
+		heading->addWidget(Carries);
+		heading->addStretch();
+		Preflight = new preflight_chip{ this };
 		Preflight->setObjectName(QStringLiteral("wholeReviewPreflight"));
 		Preflight->setFocusPolicy(Qt::StrongFocus);
 		Preflight->setAccessibleName(tr("Your blocking feedback"));
@@ -303,40 +534,79 @@ namespace bpr::qt {
 		PreflightMenu->setObjectName(QStringLiteral("wholeReviewPreflightMenu"));
 		PreflightMenu->setToolTipsVisible(true);
 		Preflight->setMenu(PreflightMenu);
-		preflightRow->addWidget(Preflight);
-		preflightRow->addStretch();
-		layout->addLayout(preflightRow);
-		Body = new QPlainTextEdit{ this };
+		heading->addWidget(Preflight);
+		layout->addLayout(heading);
+		// [[BPR-1345]]. The comments the review carries, each where it is and
+		// what it says; v002: each goes to its comment, and can be deleted.
+		Pending = new pending_box{ this };
+		Pending->setObjectName(QStringLiteral("wholeReviewPending"));
+		Pending->setAccessibleName(tr("Pending in this review"));
+		PendingRows = new QVBoxLayout{ Pending };
+		PendingRows->setContentsMargins(4, 4, 4, 4);
+		PendingRows->setSpacing(0);
+		Pending->hide();
+		layout->addWidget(Pending);
+		// The summary sits in the same hairline box as the list, so the two
+		// read as one family in every theme, high contrast included.
+		auto* const summaryBox = new pending_box{ this };
+		summaryBox->setObjectName(QStringLiteral("wholeReviewSummaryBox"));
+		auto* const summaryRows = new QVBoxLayout{ summaryBox };
+		summaryRows->setContentsMargins(6, 6, 6, 6);
+		Body = new QPlainTextEdit{ summaryBox };
 		Body->setObjectName(QStringLiteral("wholeReviewSummary"));
 		Body->setAccessibleName(tr("Review summary"));
 		Body->setPlaceholderText(tr("Write a review summary…"));
 		Body->setTabChangesFocus(true);
+		Body->setFrameShape(QFrame::NoFrame);
+		// Room for a few paragraphs; the page, not the field, takes what is
+		// left, so an empty summary is not a wall.
 		Body->setMinimumHeight(160);
-		layout->addWidget(Body, 1);
-		Carries = new QLabel{ this };
-		Carries->setObjectName(QStringLiteral("wholeReviewCarries"));
-		Carries->setWordWrap(true);
-		Carries->setTextFormat(Qt::PlainText);
-		Carries->hide();
-		layout->addWidget(Carries);
-		Submit         = new QAction{ tr("Submit review"), this };
-		Discard        = new QAction{ tr("Discard"), this };
-		Reconcile      = new QAction{ tr("Check status"), this };
-		NewReview      = new QAction{ tr("New review"), this };
-		const auto row = [this, layout](QAction* aFirst, QAction* aSecond) {
-			auto* actions = new QHBoxLayout;
-			for (auto* action : { aFirst, aSecond }) {
-				auto* button = new QToolButton{ this };
-				button->setDefaultAction(action);
-				button->setFocusPolicy(Qt::StrongFocus);
-				button->setAccessibleName(action->text());
-				actions->addWidget(button);
-			}
-			actions->addStretch();
-			layout->addLayout(actions);
+		summaryRows->addWidget(Body);
+		layout->addWidget(summaryBox);
+		// The three verdicts, and Discard at the far end, quiet.
+		auto* decision = new QHBoxLayout;
+		decision->setSpacing(8);
+		const auto names = std::array{ tr("Comment"), tr("Approve"), tr("Request changes") };
+		const auto ids   = std::array{ QStringLiteral("wholeReviewComment"), QStringLiteral("wholeReviewApprove"), QStringLiteral("wholeReviewRequestChanges") };
+		for (std::size_t index = 0U; index < Decisions.size(); ++index) {
+			auto* button = new verdict_button{ this };
+			button->setObjectName(ids[index]);
+			button->setText(names[index]);
+			button->setAccessibleName(names[index]);
+			decision->addWidget(button);
+			Decisions[index] = button;
+			connect(button, &QToolButton::clicked, this, [this, index] { submit_as(decision_order[index]); });
+		}
+		decision->addStretch();
+		Submit          = new QAction{ tr("Submit review"), this };
+		Discard         = new QAction{ tr("Discard"), this };
+		Reconcile       = new QAction{ tr("Check status"), this };
+		NewReview       = new QAction{ tr("New review"), this };
+		const auto flat = [this](QAction* aAction, const QString& aName) {
+			auto* button = new QToolButton{ this };
+			button->setObjectName(aName);
+			button->setDefaultAction(aAction);
+			button->setAutoRaise(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setAccessibleName(aAction->text());
+			return button;
 		};
-		row(Submit, Discard);
-		row(Reconcile, NewReview);
+		layout->addLayout(decision);
+		// Said once, briefly (owner: "nothing is published until..." twice),
+		// with Discard at the far end of the same line, quiet.
+		auto* const after = new QHBoxLayout;
+		after->setSpacing(8);
+		Purpose = new QLabel{ tr("Nothing is published until you submit."), this };
+		Purpose->setObjectName(QStringLiteral("wholeReviewPurpose"));
+		Purpose->setTextFormat(Qt::PlainText);
+		Purpose->setForegroundRole(QPalette::PlaceholderText);
+		Purpose->setWordWrap(true);
+		Purpose->setMinimumWidth(0);
+		Purpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		after->addWidget(Purpose, 1);
+		DiscardButton = flat(Discard, QStringLiteral("wholeReviewDiscard"));
+		after->addWidget(DiscardButton);
+		layout->addLayout(after);
 		Status = new QLabel{ this };
 		Status->setObjectName(QStringLiteral("wholeReviewStatus"));
 		Status->setAccessibleName(tr("Review submission status"));
@@ -345,12 +615,59 @@ namespace bpr::qt {
 		Status->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
 		Status->setMinimumWidth(0);
 		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		layout->insertWidget(3, Status);
-		layout->addStretch();
+		layout->addWidget(Status);
+		// Recovery appears only when it can be used.
+		Recovery            = new QWidget{ this };
+		auto* const recover = new QHBoxLayout{ Recovery };
+		recover->setContentsMargins(0, 0, 0, 0);
+		ReconcileButton = flat(Reconcile, QStringLiteral("wholeReviewReconcile"));
+		NewReviewButton = flat(NewReview, QStringLiteral("wholeReviewNewReview"));
+		ReconcileButton->setParent(Recovery);
+		NewReviewButton->setParent(Recovery);
+		recover->addWidget(ReconcileButton);
+		recover->addWidget(NewReviewButton);
+		recover->addStretch();
+		layout->addWidget(Recovery);
+		// The host, the head and the account, behind a disclosure closed by
+		// default (owner: "These details on finish review should be hidden by
+		// default.").
+		Details = new QToolButton{ this };
+		Details->setObjectName(QStringLiteral("wholeReviewDetails"));
+		Details->setText(tr("Pull request and account"));
+		Details->setCheckable(true);
+		Details->setChecked(false);
+		Details->setAutoRaise(true);
+		Details->setArrowType(Qt::RightArrow);
+		Details->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		Details->setFocusPolicy(Qt::StrongFocus);
+		Details->setAccessibleName(tr("Pull request and account"));
+		Details->setToolTip(tr("Show the host, the pull request, its head and the account that submits"));
+		layout->addWidget(Details);
+		Target = new QTextEdit{ this };
+		Target->setObjectName(QStringLiteral("wholeReviewTarget"));
+		Target->setReadOnly(true);
+		Target->setAcceptRichText(false);
+		Target->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+		Target->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Target->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		Target->setFrameShape(QFrame::NoFrame);
+		Target->setForegroundRole(QPalette::PlaceholderText);
+		Target->viewport()->setAutoFillBackground(false);
+		Target->setAccessibleName(tr("Review target and acting account"));
+		Target->setMinimumWidth(0);
+		Target->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+		connect(Target->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged,
+				this, [this](QSizeF aSize) { Target->setFixedHeight(static_cast<int>(std::ceil(aSize.height())) + 2 * Target->frameWidth()); });
+		Target->hide();
+		layout->addWidget(Target);
+		connect(Details, &QToolButton::toggled, this, [this](const bool aOpen) {
+			Details->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
+			Target->setVisible(aOpen && !Shown.TargetDescription.isEmpty());
+		});
+		layout->addStretch(1);
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] { emit_command(core::review_submission_command_kind::edit); });
-		connect(Disposition, &QButtonGroup::idClicked, this, [this] { emit_command(core::review_submission_command_kind::choose_disposition); });
 		connect(Submit, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::begin_submit); });
-		connect(Discard, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::discard); });
+		connect(Discard, &QAction::triggered, this, [this] { confirm_discard(); });
 		connect(Reconcile, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::reconcile); });
 		connect(NewReview, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::new_review); });
 		setFocusProxy(Body);
@@ -359,37 +676,33 @@ namespace bpr::qt {
 	void review_submission_editor::present(const review_submission_editor_projection& aProjection)
 	{
 		const QSignalBlocker bodyBlock{ Body };
-		const QSignalBlocker dispositionBlock{ Disposition };
 		Draft           = aProjection.Draft;
 		Shown           = aProjection;
 		const auto text = Draft ? QString::fromUtf8(Draft->Body) : QString{ };
 		if (Body->toPlainText() != text) {
 			Body->setPlainText(text);
 		}
-		if (Draft) {
-			Decisions[decision_index(Draft->Disposition)]->setChecked(true);
-		}
 		if (Target->toPlainText() != aProjection.TargetDescription) {
 			Target->setPlainText(aProjection.TargetDescription);
 		}
-		Target->setVisible(!aProjection.TargetDescription.isEmpty());
+		Details->setVisible(!aProjection.TargetDescription.isEmpty());
+		Target->setVisible(Details->isChecked() && !aProjection.TargetDescription.isEmpty());
+		Body->parentWidget()->setVisible(Draft.has_value());
 		Body->setVisible(Draft.has_value());
 		for (auto* button : Decisions) {
 			button->setVisible(Draft.has_value());
 		}
 		Preflight->setVisible(Draft.has_value());
 		present_pending();
-		QString state;
+		// What the draft is, said only when it is not simply being written.
+		QString    state;
+		const auto drafting = Draft.has_value() && Draft->State == core::review_submission_state::drafting;
 		if (!Draft) {
 			state = tr("No review draft is available.");
 		} else {
 			switch (Draft->State) {
 			case core::review_submission_state::drafting:
-				// [[BPR-1345]]. "Start a review" is the draft's gesture now, so
-				// this page no longer says it.
-				state = !Draft->Comments.empty() ? tr("Your review holds its pending comments. Nothing is published until you submit it.")
-					: core::kept(*Draft)         ? tr("Your review draft is kept. It has not been published.")
-												 : tr("Write a summary below for a review of this pull request.");
+				state = Draft->Comments.empty() && core::kept(*Draft) ? tr("Your review draft is kept.") : QString{ };
 				break;
 			case core::review_submission_state::submitting:
 				state = tr("Submission is in progress or awaiting confirmation. Check status before trying again.");
@@ -403,36 +716,35 @@ namespace bpr::qt {
 			}
 		}
 		DraftState->setText(state);
+		DraftState->setVisible(!state.isEmpty());
+		Purpose->setVisible(drafting);
 		Status->setText(aProjection.Status);
+		Status->setVisible(!aProjection.Status.isEmpty());
 		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
 		Body->setReadOnly(!connected || !aProjection.Controls.Edit);
-		for (auto* button : Decisions) {
-			button->setEnabled(connected && aProjection.Controls.Edit);
-		}
 		Submit->setEnabled(connected && aProjection.Controls.Submit);
 		Discard->setEnabled(connected && aProjection.Controls.Discard);
 		const auto carried = Draft.has_value() && !Draft->Comments.empty();
 		Discard->setText(carried ? tr("Discard review") : tr("Discard"));
+		DiscardButton->setAccessibleName(Discard->text());
+		DiscardButton->setVisible(Draft.has_value());
 		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile);
 		NewReview->setEnabled(connected && aProjection.Controls.NewReview);
-		// [[BPR-1212]], [[BPR-1345]]. GitHub refuses a Comment review with no
-		// text unless it carries line comments (probed on
-		// MikeMarcin/BPR-Test#41, 2026-10-08); Request changes needs text.
-		const auto unavailable = !Draft || !aProjection.Controls.Edit ? aProjection.Status
-			: carried && Draft->Disposition == core::review_disposition::request_changes
-			? tr("Request changes needs a summary. Comment may have none: this review carries line comments.")
-			: carried ? aProjection.Status
-					  : tr("Comment and Request changes need a summary: this review carries no line comments, and GitHub refuses one with no text. Approve may have an empty summary.");
+		ReconcileButton->setVisible(Reconcile->isEnabled());
+		NewReviewButton->setVisible(NewReview->isEnabled());
+		Recovery->setVisible(Reconcile->isEnabled() || NewReview->isEnabled());
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
 		present_preflight(aProjection);
-		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.") : unavailable);
-		Discard->setToolTip(Discard->isEnabled() ? (carried ? tr("Take the pending comments out of the review, keeping each as a draft beside the code, and discard this summary.")
+		present_verdicts();
+		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.")
+											   : (aProjection.Status.isEmpty() ? tr("This review cannot be submitted as it is.") : aProjection.Status));
+		Discard->setToolTip(Discard->isEnabled() ? (carried ? tr("Delete this review's pending comments and its summary. You are asked first.")
 															: tr("Discard this unpublished review draft."))
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
 		Reconcile->setToolTip(Reconcile->isEnabled() ? tr("Check whether this exact review was submitted.") : tr("Check status is available only for a review awaiting confirmation."));
 		NewReview->setToolTip(NewReview->isEnabled() ? tr("Start a new draft for the current pull request revision.") : tr("Finish or discard the current draft before starting another. %1").arg(aProjection.Status));
-		const auto* chosen       = Disposition->checkedButton();
-		const auto  announcement = aProjection.TargetDescription + QStringLiteral("\n") + (chosen != nullptr ? chosen->text() : QString{ }) + QStringLiteral(". ") + aProjection.Status;
+		const auto chosen       = Draft ? decisions_name(Draft->Disposition) : QString{ };
+		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + chosen + QStringLiteral(". ") + aProjection.Status;
 		if (announcement != LastAnnouncement) {
 			LastAnnouncement = announcement;
 			QAccessibleAnnouncementEvent event{ this, announcement };
@@ -481,10 +793,6 @@ namespace bpr::qt {
 			approve->setToolTip(tr("Approve this pull request."));
 		}
 		approve->setAccessibleDescription(approve->toolTip());
-		Decisions[decision_index(core::review_disposition::comment)]->setToolTip(
-			Shown.Draft.has_value() && !Shown.Draft->Comments.empty() ? tr("Comment without approving. The summary is optional: the review carries its line comments.")
-																	  : tr("Comment without approving. Needs a summary unless the review carries line comments; start one with Start a review on a draft."));
-		Decisions[decision_index(core::review_disposition::request_changes)]->setToolTip(tr("Request changes."));
 
 		PreflightMenu->clear();
 		const auto reveal = [this](QAction* aAction, const std::string& aId) {
@@ -537,92 +845,241 @@ namespace bpr::qt {
 	}
 	void review_submission_editor::present_pending()
 	{
-		// [[BPR-1345]]. The title, the purpose, the list and what Submit
-		// sends follow the comments the review carries.
+		// [[BPR-1345]]. The title, the heading and the list follow the
+		// comments the review carries.
 		const auto  carried  = Draft.has_value() ? Draft->Comments : std::vector<core::review_submission_comment>{ };
 		const auto& comments = carried;
 		Title->setText(comments.empty() ? tr("Compose review") : tr("Finish your review"));
-		Purpose->setText(comments.empty()
-							 ? tr("Write a summary for this pull request and choose Comment, Approve, or Request changes. Nothing is published until you choose Submit review. "
-								  "To send line comments with it, choose Start a review on a draft beside the code; Add single comment posts one on its own.")
-							 : tr("Choose Comment, Approve, or Request changes. Submit review sends the summary and the pending comments below as one review; nothing is published until then."));
 		const auto relist = std::exchange(Listed, comments) != comments || ListedRows.size() != static_cast<qsizetype>(comments.size());
-		while (relist && PendingRows->count() > 1) {
-			auto* const item = PendingRows->takeAt(1);
+		while (relist && PendingRows->count() > 0) {
+			auto* const item = PendingRows->takeAt(0);
 			if (auto* const widget = item->widget(); widget != nullptr) {
+				widget->hide();
 				widget->deleteLater();
 			}
 			delete item;
 		}
 		if (relist) {
 			ListedRows.clear();
-			// Grouped by file, as the reviewer met them: the file's name, then
-			// each comment's lines in the code font and the highlight, and its
-			// first line of words.
-			auto       file = QString{ };
-			auto       code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-			const auto ink  = palette().color(QPalette::Active, QPalette::Highlight);
+			auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			code.setPointSizeF(font().pointSizeF() * 0.95);
+			auto shown = std::vector<std::pair<QString, QString>>{ };
 			for (const auto& comment : comments) {
-				const auto path = text_of(comment.Path);
-				const auto name = path.section(QLatin1Char{ '/' }, -1);
-				if (path != file) {
-					file              = path;
-					auto* const title = new QLabel{ name, Pending };
-					title->setObjectName(QStringLiteral("wholeReviewPendingFile"));
-					title->setTextFormat(Qt::PlainText);
-					title->setToolTip(path);
-					auto heading = title->font();
-					heading.setWeight(QFont::DemiBold);
-					title->setFont(heading);
-					PendingRows->addWidget(title);
-				}
+				const auto name  = text_of(comment.Path).section(QLatin1Char{ '/' }, -1);
 				const auto lines = comment.StartLine ? QStringLiteral("%1–%2").arg(*comment.StartLine + 1U).arg(comment.Line + 1U) : QString::number(comment.Line + 1U);
-				const auto where = comment.Side == core::diff_side::left ? tr("base %1").arg(lines) : lines;
-				auto       first = text_of(comment.Body).section(QLatin1Char{ '\n' }, 0, 0).trimmed();
+				shown.emplace_back(name, comment.Side == core::diff_side::left ? tr("base %1").arg(lines) : lines);
+			}
+			// The columns line up: the widest file name (to a limit) and the
+			// widest lines, measured in the rows' own fonts once they exist.
+			auto fileColumn  = 0;
+			auto linesColumn = pending_row::lines_width(QStringLiteral("0000"), code);
+			auto made        = std::vector<pending_row*>{ };
+			for (std::size_t index = 0U; index < comments.size(); ++index) {
+				const auto& comment       = comments[index];
+				const auto  path          = text_of(comment.Path);
+				const auto& [name, where] = shown[index];
+				const auto lines          = comment.StartLine ? QStringLiteral("%1–%2").arg(*comment.StartLine + 1U).arg(comment.Line + 1U) : QString::number(comment.Line + 1U);
+				auto       first          = text_of(comment.Body).section(QLatin1Char{ '\n' }, 0, 0).trimmed();
 				if (first.isEmpty()) {
 					first = tr("(no text yet)");
 				}
-				auto* const row    = new QWidget{ Pending };
-				auto* const across = new QHBoxLayout{ row };
-				across->setContentsMargins(8, 0, 0, 0);
-				across->setSpacing(10);
-				auto* const place = new QLabel{ where, row };
-				place->setObjectName(QStringLiteral("wholeReviewPendingLines"));
-				place->setTextFormat(Qt::PlainText);
-				code.setPointSizeF(font().pointSizeF() * 0.95);
-				place->setFont(code);
-				auto accent = place->palette();
-				accent.setColor(QPalette::WindowText, ink);
-				place->setPalette(accent);
-				place->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-				place->setMinimumWidth(QFontMetrics{ code }.horizontalAdvance(QStringLiteral("base 0000")));
-				across->addWidget(place);
-				auto* const words = new QLabel{ first, row };
-				words->setObjectName(QStringLiteral("wholeReviewPendingRow"));
-				words->setTextFormat(Qt::PlainText);
-				words->setMinimumWidth(0);
-				words->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-				words->setToolTip(QStringLiteral("%1\n%2").arg(path, text_of(comment.Body)));
-				across->addWidget(words, 1);
-				const auto spoken = comment.Side == core::diff_side::left
+				const auto  spoken = comment.Side == core::diff_side::left
 					? (comment.StartLine ? tr("%1, base lines %2: %3") : tr("%1, base line %2: %3"))
 					: (comment.StartLine ? tr("%1, lines %2: %3") : tr("%1, line %2: %3"));
-				const auto said   = spoken.arg(name, lines, first);
-				row->setAccessibleName(said);
-				words->setAccessibleName(said);
+				const auto  said   = spoken.arg(name, lines, first);
+				auto* const row    = new QWidget{ Pending };
+				row->setObjectName(QStringLiteral("wholeReviewPendingItem"));
+				auto* const across = new QHBoxLayout{ row };
+				across->setContentsMargins(0, 0, 0, 0);
+				across->setSpacing(2);
+				auto* const open = new pending_row{ name, where, first, row };
+				open->set_repeat(index > 0U && comments[index - 1U].Path == comment.Path);
+				fileColumn  = std::max(fileColumn, std::min(open->file_width(), 240));
+				linesColumn = std::max(linesColumn, pending_row::lines_width(where, code));
+				made.push_back(open);
+				open->setAccessibleName(said);
+				open->setAccessibleDescription(tr("Go to this comment beside the code"));
+				open->setToolTip(QStringLiteral("%1\n%2").arg(path, text_of(comment.Body)));
+				connect(open, &QAbstractButton::clicked, this, [this, comment] {
+					if (PendingReveal) {
+						PendingReveal(comment);
+					}
+				});
+				across->addWidget(open, 1);
+				auto* const remove = new QToolButton{ row };
+				remove->setObjectName(QStringLiteral("wholeReviewPendingDelete"));
+				remove->setAutoRaise(true);
+				remove->setFocusPolicy(Qt::StrongFocus);
+				remove->setIcon(conversation_icon(conversation_glyph::trash, palette()));
+				remove->setIconSize(QSize{ 16, 16 });
+				remove->setToolTip(tr("Delete this comment from your review"));
+				remove->setAccessibleName(tr("Delete comment: %1").arg(said));
+				connect(remove, &QToolButton::clicked, this, [this, comment] { confirm_delete(comment); });
+				across->addWidget(remove);
 				ListedRows.push_back(said);
 				PendingRows->addWidget(row);
 			}
+			for (auto* const open : made) {
+				open->set_columns(fileColumn, linesColumn, code);
+			}
 		}
 		Pending->setVisible(!comments.empty());
-		Carries->setText(comments.size() == 1U ? tr("Submits one line comment as one review.") : tr("Submits %1 line comments as one review.").arg(comments.size()));
+		Carries->setText(comments.size() == 1U ? tr("1 pending comment") : tr("%1 pending comments").arg(comments.size()));
 		Carries->setVisible(!comments.empty());
-		const auto optional = !comments.empty() && Draft.has_value() && Draft->Disposition != core::review_disposition::request_changes;
-		Body->setPlaceholderText(optional ? tr("Leave a summary (optional)") : tr("Write a review summary…"));
+		Body->setPlaceholderText(!comments.empty() ? tr("Leave a summary (optional)") : tr("Write a review summary…"));
+	}
+	void review_submission_editor::present_verdicts()
+	{
+		// [[BPR-1345]] v002. Each verdict submits as itself, when the core
+		// says it can; a disabled one says why.
+		const auto connected = Draft.has_value() && static_cast<bool>(Dispatch);
+		const auto editable  = connected && Shown.Controls.Edit;
+		const auto carried   = Draft.has_value() && !Draft->Comments.empty();
+		const auto blank     = Draft.has_value() && QString::fromUtf8(Draft->Body).trimmed().isEmpty();
+		const auto count     = Draft.has_value() ? Draft->Comments.size() : 0U;
+		const auto blocked   = Shown.Status.isEmpty() ? tr("This review cannot be submitted now.") : Shown.Status;
+		for (const auto disposition : decision_order) {
+			auto* const button  = Decisions[decision_index(disposition)];
+			const auto  enabled = connected && core::submits_as(Shown.Controls, disposition);
+			button->setEnabled(enabled);
+			auto tip = QString{ };
+			switch (disposition) {
+			case core::review_disposition::comment:
+				tip = enabled                       ? (count == 1U   ? tr("Submit your review with its comment, without approving.")
+														   : carried ? tr("Submit your review with its %1 comments, without approving.").arg(count)
+																	 : tr("Submit your review as a comment, without approving."))
+					: editable && blank && !carried ? tr("Comment needs a summary when the review has no line comments.")
+													: blocked;
+				break;
+			case core::review_disposition::approve:
+				// The preflight's words: what approving does not do.
+				tip = enabled ? button->toolTip() : blocked;
+				break;
+			case core::review_disposition::request_changes:
+				tip = enabled           ? tr("Submit your review and request changes.")
+					: editable && blank ? tr("Request changes needs a summary. Write one above first.")
+										: blocked;
+				break;
+			}
+			button->setToolTip(tip);
+			button->setAccessibleDescription(tip);
+		}
+	}
+	void review_submission_editor::submit_as(const core::review_disposition aDisposition)
+	{
+		if (!Draft || !Dispatch || !core::submits_as(Shown.Controls, aDisposition)) {
+			return;
+		}
+		if (Draft->Disposition != aDisposition) {
+			emit_command(core::review_submission_command_kind::choose_disposition, aDisposition);
+		}
+		// The verdict pressed is the one submitted, or nothing is.
+		if (!Draft || Draft->Disposition != aDisposition || !core::submits_as(Shown.Controls, aDisposition)) {
+			return;
+		}
+		emit_command(core::review_submission_command_kind::begin_submit);
+	}
+	void review_submission_editor::choose_disposition(const core::review_disposition aDisposition)
+	{
+		emit_command(core::review_submission_command_kind::choose_disposition, aDisposition);
+	}
+	void review_submission_editor::confirm_discard()
+	{
+		if (!Draft || !Dispatch || !Shown.Controls.Discard) {
+			return;
+		}
+		// [[BPR-1345]] v002. "Discard review should delete all the review
+		// comments and should come with a confirmation so it's not done
+		// accidentally." A draft with nothing in it goes without asking.
+		const auto count   = Draft->Comments.size();
+		const auto summary = !QString::fromUtf8(Draft->Body).trimmed().isEmpty();
+		if (count == 0U && !summary) {
+			discard_now();
+			return;
+		}
+		if (DiscardQuestion != nullptr) {
+			DiscardQuestion->close();
+		}
+		const auto  text   = count == 0U ? tr("Discard your review summary?")
+			: count == 1U                ? tr("Discard your review and its 1 pending comment?")
+										 : tr("Discard your review and its %1 pending comments?").arg(count);
+		const auto  detail = count == 0U ? tr("The summary is deleted from this computer. Nothing was published. This can't be undone.")
+			: summary                    ? tr("The comments and the summary are deleted from this computer. Nothing was published. This can't be undone.")
+										 : tr("The comments are deleted from this computer. Nothing was published. This can't be undone.");
+		auto* const box    = destructive_question(window(), QStringLiteral("discardReviewConfirmation"), text, detail, count == 0U ? tr("Discard") : tr("Discard review"));
+		auto* const yes    = box->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"));
+		DiscardQuestion    = box;
+		const auto id      = Draft->Id;
+		connect(box, &QMessageBox::buttonClicked, this, [this, yes, id](QAbstractButton* const aButton) {
+			if (aButton == yes && Draft && Draft->Id == id) {
+				discard_now();
+			}
+		});
+		box->open();
+	}
+	void review_submission_editor::discard_now()
+	{
+		if (!Draft) {
+			return;
+		}
+		const auto id = Draft->Id;
+		emit_command(core::review_submission_command_kind::discard);
+		// Discarded, the page has nothing left to show: the window closes it.
+		if (DiscardObserver && (!Draft || Draft->Id != id || Draft->State == core::review_submission_state::discarded)) {
+			DiscardObserver();
+		}
+	}
+	void review_submission_editor::confirm_delete(const core::review_submission_comment& aComment)
+	{
+		if (!PendingDelete) {
+			return;
+		}
+		if (DeleteQuestion != nullptr) {
+			DeleteQuestion->close();
+		}
+		const auto  name  = text_of(aComment.Path).section(QLatin1Char{ '/' }, -1);
+		const auto  lines = aComment.StartLine ? tr("lines %1–%2").arg(*aComment.StartLine + 1U).arg(aComment.Line + 1U) : tr("line %1").arg(aComment.Line + 1U);
+		const auto  first = text_of(aComment.Body).section(QLatin1Char{ '\n' }, 0, 0).trimmed();
+		auto* const box   = destructive_question(window(), QStringLiteral("deleteCommentConfirmation"), tr("Delete this comment from your review?"),
+												 tr("%1, %2: %3\nIt is deleted from this computer. This can't be undone.").arg(name, lines, first), tr("Delete comment"));
+		auto* const yes   = box->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm"));
+		DeleteQuestion    = box;
+		connect(box, &QMessageBox::buttonClicked, this, [this, yes, aComment](QAbstractButton* const aButton) {
+			if (aButton == yes && PendingDelete) {
+				PendingDelete(aComment);
+			}
+		});
+		box->open();
+	}
+	void review_submission_editor::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		// A theme change redraws the icons in the new ink.
+		if (aEvent->type() == QEvent::PaletteChange && Pending != nullptr) {
+			for (auto* const remove : Pending->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
+				remove->setIcon(conversation_icon(conversation_glyph::trash, palette()));
+			}
+		}
 	}
 	auto review_submission_editor::title_label() const noexcept -> QLabel* { return Title; }
 	auto review_submission_editor::pending_list() const noexcept -> QWidget* { return Pending; }
 	auto review_submission_editor::carries_label() const noexcept -> QLabel* { return Carries; }
+	auto review_submission_editor::note_label() const noexcept -> QLabel* { return Purpose; }
+	auto review_submission_editor::details_toggle() const noexcept -> QToolButton* { return Details; }
+	auto review_submission_editor::discard_confirmation() const noexcept -> QMessageBox* { return DiscardQuestion.data(); }
+	auto review_submission_editor::delete_confirmation() const noexcept -> QMessageBox* { return DeleteQuestion.data(); }
+	void review_submission_editor::set_pending_reveal(std::function<void(const core::review_submission_comment&)> aReveal)
+	{
+		PendingReveal = std::move(aReveal);
+	}
+	void review_submission_editor::set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete)
+	{
+		PendingDelete = std::move(aDelete);
+	}
+	void review_submission_editor::set_discard_observer(std::function<void()> aObserver)
+	{
+		DiscardObserver = std::move(aObserver);
+	}
 	auto review_submission_editor::pending_rows() const -> QStringList
 	{
 		return ListedRows;
@@ -639,6 +1096,7 @@ namespace bpr::qt {
 	{
 		MarkTheme = aTheme;
 		present_preflight(Shown);
+		present_verdicts();
 	}
 	void review_submission_editor::set_attention_colour(const QColor& aColour)
 	{
@@ -647,6 +1105,7 @@ namespace bpr::qt {
 		}
 		Attention = aColour;
 		present_preflight(Shown);
+		present_verdicts();
 	}
 	auto review_submission_editor::attention_colour() const -> QColor
 	{
@@ -656,7 +1115,7 @@ namespace bpr::qt {
 		const auto variant = palette().color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light;
 		return to_presentation_color(builtin_appearance_palette(variant)[core::index_of(core::appearance_role::state_attention)]);
 	}
-	void review_submission_editor::emit_command(core::review_submission_command_kind aKind)
+	void review_submission_editor::emit_command(core::review_submission_command_kind aKind, const std::optional<core::review_disposition> aDisposition)
 	{
 		if (!Draft || !Dispatch) {
 			return;
@@ -666,8 +1125,7 @@ namespace bpr::qt {
 			command.Body = Body->toPlainText().toUtf8().toStdString();
 		}
 		if (aKind == core::review_submission_command_kind::choose_disposition) {
-			const auto chosen   = Disposition->checkedId();
-			command.Disposition = decision_order[chosen >= 0 && chosen < static_cast<int>(decision_order.size()) ? static_cast<std::size_t>(chosen) : 0U];
+			command.Disposition = aDisposition.value_or(Draft->Disposition);
 		}
 		auto intent = review_submission_editor_intent{ .Command = std::move(command) };
 		if (aKind == core::review_submission_command_kind::begin_submit) {

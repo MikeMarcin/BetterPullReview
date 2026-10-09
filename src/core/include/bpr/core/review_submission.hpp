@@ -3,6 +3,7 @@
 
 #include "bpr/core/review_round_trip.hpp"
 
+#include <array>
 #include <cstddef>
 #include <span>
 #include <string_view>
@@ -158,14 +159,21 @@ namespace bpr::core {
 	/// \brief Decided ordinary actions for the current immutable PR-scoped draft.
 	struct review_submission_controls
 	{
-		bool Edit                                                 = false;
-		bool Submit                                               = false;
-		bool Discard                                              = false;
-		bool Reconcile                                            = false;
-		bool NewReview                                            = false;
-		auto operator<=>(const review_submission_controls&) const = default;
+		bool Edit      = false;
+		bool Submit    = false;
+		bool Discard   = false;
+		bool Reconcile = false;
+		bool NewReview = false;
+		/// [[BPR-1345]] v002. Whether the review can be submitted now as each
+		/// verdict, in the order Comment, Approve, Request changes: the three
+		/// buttons that finish a review submit directly, each its own verdict.
+		std::array<bool, 3> SubmitAs                                             = { };
+		auto                operator<=>(const review_submission_controls&) const = default;
 	};
 	[[nodiscard]] auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls;
+	/// \brief [[BPR-1345]] v002. Whether `aControls` let the review be
+	/// submitted as `aDisposition`.
+	[[nodiscard]] auto submits_as(const review_submission_controls& aControls, review_disposition aDisposition) noexcept -> bool;
 	/// \brief [[BPR-1129]]. Whether a draft holds review work that is kept: a
 	/// summary or a chosen verdict while drafting, or a submission not yet
 	/// settled. An empty comment draft, a submitted and a discarded one keep

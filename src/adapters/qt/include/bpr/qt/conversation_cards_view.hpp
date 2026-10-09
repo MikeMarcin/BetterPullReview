@@ -76,7 +76,8 @@ namespace bpr::qt {
 		/// [[BPR-1290]]. Give up the reply written in place.
 		cancel_reply,
 		/// [[BPR-1212]]. Open the draft written in the drawer in Discuss,
-		/// where the full composer is (⌘⇧↩).
+		/// where the full composer is (⌘⇧M since [[BPR-1345]] v002; ⌘⇧↩
+		/// before).
 		maximize_draft,
 		/// [[BPR-1212]]. Leave the draft written in the drawer (Esc, Close):
 		/// the window keeps a written draft and drops an empty one.
@@ -85,6 +86,10 @@ namespace bpr::qt {
 		/// review: Start a review, or Add review comment once one is in
 		/// progress. Nothing is published.
 		review_draft,
+		/// [[BPR-1345]] v002. Finish review (⌘⌥↩) from the draft's field:
+		/// the window opens the review's summary when a review is in
+		/// progress.
+		finish_review,
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands

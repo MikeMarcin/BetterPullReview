@@ -776,11 +776,18 @@ namespace bpr::app::detail {
 	/// Finish review and submits Comment with no summary; `refused` has the
 	/// server refuse the review and then discards it; `uncertain` loses the
 	/// server's answer and its reads, then checks status once they are back.
+	/// v002: `again` is the owner's discard-review v001 flow. It keeps an
+	/// older draft, starts a review of two, opens Finish review by its key,
+	/// deletes one comment from the page and discards the review, then
+	/// discards a summary on the Compose review page as well. It then takes
+	/// the older draft into a new review, finishes it with Comment, and
+	/// checks that nothing says "Review draft discarded.".
 	enum class start_review_course {
 		pending,
 		finish,
 		refused,
 		uncertain,
+		again,
 	};
 
 	enum class start_review_probe_result {
@@ -822,8 +829,25 @@ namespace bpr::app::detail {
 		// `refused`.
 		/// A refused review left its draft pending, with its text.
 		bool RefusedKept = false;
-		/// Discard review took it out of the review and kept the draft.
-		bool DiscardKept = false;
+		/// v002: Discard review, confirmed, deleted the review's pending
+		/// comments and closed the page; a draft not in the review stayed.
+		bool DiscardDeleted = false;
+		// `again`.
+		/// Delete on a row of Finish your review, confirmed, deleted that
+		/// one comment and no other.
+		bool RowDeleted = false;
+		/// Discard on Compose review, with a summary and no comments, asked,
+		/// discarded and closed the page.
+		bool SecondDiscard = false;
+		/// The older draft, taken into a new review by ⌘↩, was its one
+		/// pending comment.
+		bool AgainStarted = false;
+		/// Finish your review listed it, offered Comment, and said nothing
+		/// of an earlier discard.
+		bool AgainOffered = false;
+		/// Comment submitted one review carrying exactly that comment, and it
+		/// was marked published.
+		bool AgainSubmitted = false;
 		// `uncertain`.
 		/// With the answer lost the draft was held, its text kept, and no
 		/// retry was offered.

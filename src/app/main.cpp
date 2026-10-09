@@ -1172,7 +1172,7 @@ namespace {
 		bool                                                   PublishedFileSwitchPassed = false;
 		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
 		std::string                                            PublishedFileSwitchDiagnostic;
-		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain`.
+		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain|again`.
 		std::optional<bpr::app::detail::start_review_course> StartReviewCourse;
 		bool                                                 StartReviewPassed = false;
 		bpr::app::detail::start_review_probe_evidence        StartReviewEvidence;
@@ -4848,7 +4848,11 @@ namespace {
 				stream << "START_REVIEW_FINISH_EVIDENCE:" << evidence.Restored << evidence.FinishOpened << evidence.CommentWithoutSummary << evidence.SubmittedExact << evidence.MarkedPublished << '\n';
 				break;
 			case bpr::app::detail::start_review_course::refused:
-				stream << "START_REVIEW_REFUSED_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.RefusedKept << evidence.DiscardKept << '\n';
+				stream << "START_REVIEW_REFUSED_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.RefusedKept << evidence.DiscardDeleted << '\n';
+				break;
+			case bpr::app::detail::start_review_course::again:
+				stream << "START_REVIEW_AGAIN_EVIDENCE:" << evidence.Started << evidence.Added << evidence.FinishOpened << evidence.RowDeleted << evidence.DiscardDeleted
+					   << evidence.SecondDiscard << evidence.AgainStarted << evidence.AgainOffered << evidence.AgainSubmitted << '\n';
 				break;
 			case bpr::app::detail::start_review_course::uncertain:
 				stream << "START_REVIEW_UNCERTAIN_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.Reconciled << '\n';
@@ -9805,6 +9809,7 @@ auto main(int argc, char** argv) -> int
 								.StartReviewCourse               = startReviewCourse == std::optional<std::string_view>{ "pending" } ? std::optional{ bpr::app::detail::start_review_course::pending } : startReviewCourse == std::optional<std::string_view>{ "finish" } ? std::optional{ bpr::app::detail::start_review_course::finish }
 									: startReviewCourse == std::optional<std::string_view>{ "refused" }                                                                                                                                                                   ? std::optional{ bpr::app::detail::start_review_course::refused }
 									: startReviewCourse == std::optional<std::string_view>{ "uncertain" }                                                                                                                                                                 ? std::optional{ bpr::app::detail::start_review_course::uncertain }
+									: startReviewCourse == std::optional<std::string_view>{ "again" }                                                                                                                                                                     ? std::optional{ bpr::app::detail::start_review_course::again }
 																																																																		  : std::nullopt,
 								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
 																																																																						   : std::nullopt,

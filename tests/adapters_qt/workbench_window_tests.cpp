@@ -6375,18 +6375,19 @@ namespace {
 		auto cursor = cards->draft_editor()->textCursor();
 		cursor.setPosition(9);
 		cards->draft_editor()->setTextCursor(cursor);
-		send(cards->draft_editor(), Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier);
+		// [[BPR-1345]] v002: Maximize is ⌘⇧M; ⌘⇧↩ is Add single comment.
+		send(cards->draft_editor(), Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
 		auto* const excerpt = window.findChild<QWidget*>(QStringLiteral("discussDraftExcerpt"));
 		expect(composing(window, page) && window.current_modality() == qt::review_modality::discuss && !drawer_writing(window)
 				   && window.review_editor()->body_editor()->hasFocus() && window.review_editor()->body_editor()->textCursor().position() == 9
 				   && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("question: Why not 2?")
 				   && excerpt != nullptr && excerpt->isVisible() && excerpt->accessibleDescription().contains(QStringLiteral("Line 10")),
-			   "Ctrl+Shift+Return opens the draft in Discuss with its text, caret and the lines it is on");
+			   "Ctrl+Shift+M opens the draft in Discuss with its text, caret and the lines it is on");
 		save_render(window, QStringLiteral("compose-discuss-draft"));
 		window.review_editor()->body_editor()->moveCursor(QTextCursor::End);
 		window.review_editor()->body_editor()->insertPlainText(QStringLiteral(" Or 3?"));
 		settle();
-		window_key(window, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier);
+		window_key(window, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier);
 		expect(window.current_modality() == qt::review_modality::review && !composing(window, page) && drawer_writing(window)
 				   && cards->draft_editor()->toPlainText() == QStringLiteral("question: Why not 2? Or 3?")
 				   && cards->draft_editor()->textCursor().position() == cards->draft_editor()->toPlainText().size(),
@@ -6434,8 +6435,10 @@ namespace {
 		// Publish posts this one draft, once, and nothing else did.
 		auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
 		expect(publish != nullptr && publish->isEnabled(), "a written draft can be published");
-		send(cards->draft_editor(), Qt::Key_Return, Qt::ControlModifier);
-		expect(publishes() == 1, "Ctrl+Return publishes the draft once");
+		// [[BPR-1345]] v002: Ctrl+Shift+Return is Add single comment; Ctrl+Return
+		// is the review's.
+		send(cards->draft_editor(), Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier);
+		expect(publishes() == 1, "Ctrl+Shift+Return publishes the draft once");
 
 		// [[BPR-1335]]. The "+" button on a head line no thread is on: it
 		// shows while the pointer is in its column at the start of the
@@ -6566,9 +6569,25 @@ namespace {
 		expect(window.review_editor()->body_editor()->toPlainText() == QStringLiteral("local text"), "the drawer's text is the draft editor's");
 		auto* const discard = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadDeleteDraft")) : nullptr;
 		expect(discard != nullptr, "the draft has Discard");
+		// [[BPR-1345]] v002. Delete asks first when the draft has words; Cancel
+		// keeps it as it is.
 		discard->click();
 		process_events();
-		expect(!drawer_writing(window) && stack->currentWidget()->objectName() != QStringLiteral("workbenchDiscussPage"), "Discard closes the draft and the code stays");
+		auto* question = window.delete_draft_confirmation();
+		expect(question != nullptr && question->isVisible() && question->text() == QStringLiteral("Delete this comment?")
+				   && question->informativeText() == QStringLiteral("Its text is deleted from this computer. This can't be undone.") && drawer_writing(window),
+			   "Delete asks first, and the draft stays open while it asks");
+		question->escapeButton()->click();
+		process_events();
+		expect(drawer_writing(window) && cards->draft_editor()->toPlainText() == QStringLiteral("local text")
+				   && std::ranges::none_of(drafts, [](const core::review_draft_command& aCommand) { return aCommand.Kind == core::review_draft_command_kind::discard; }),
+			   "Cancel deletes nothing");
+		discard->click();
+		process_events();
+		question = window.delete_draft_confirmation();
+		question->findChild<QAbstractButton*>(QStringLiteral("deleteDraftConfirmationConfirm"))->click();
+		process_events();
+		expect(!drawer_writing(window) && stack->currentWidget()->objectName() != QStringLiteral("workbenchDiscussPage"), "Delete comment closes the draft and the code stays");
 		expect(shows(), "after Discard and Back the drawer shows the file's thread card without another selection");
 		save_render(window, QStringLiteral("discard-back-drawer"));
 		const auto discards  = std::ranges::count_if(drafts, [](const core::review_draft_command& aCommand) {
@@ -8883,12 +8902,40 @@ namespace {
 		process_events();
 		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))) && window.current_modality() == qt::review_modality::discuss,
 			   "Finish review opens the review summary in Discuss");
+		// [[BPR-1345]] v002. Finish review's key, ⌘⌥↩, bound once for the
+		// window and named in the chip's anchored tooltip.
+		const auto finishKey = QKeySequence{ Qt::CTRL | Qt::ALT | Qt::Key_Return };
+		auto*      finish    = window.finish_review_action();
+		expect(finish != nullptr && finish->isEnabled() && finish->shortcut() == finishKey && finish->shortcutContext() == Qt::WindowShortcut
+				   && chip->toolTip().startsWith(QStringLiteral("Finish review  %1").arg(finishKey.toString(QKeySequence::NativeText))),
+			   "Finish review has its key, and the chip's tooltip names it");
+		{
+			auto bound = 0;
+			for (auto* const action : window.findChildren<QAction*>()) {
+				if (action->shortcuts().contains(finishKey)) {
+					++bound;
+				}
+			}
+			for (auto* const shortcut : window.findChildren<QShortcut*>()) {
+				if (shortcut->key() == finishKey) {
+					++bound;
+				}
+			}
+			expect(bound == 1, "⌘⌥↩ is bound once in the window");
+		}
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(!composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))), "back in Review");
+		window_key(window, Qt::Key_Return, Qt::ControlModifier | Qt::AltModifier);
+		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))) && window.current_modality() == qt::review_modality::discuss,
+			   "⌘⌥↩ opens Finish your review from anywhere in the window");
 		window.present_saved_drafts({ draft(1U, 4U, true, "key-1"), draft(2U, 9U, true) });
 		process_events();
-		expect(chipAction->isVisible() && chip->submitting() && chip->summary() == QStringLiteral("Review \u00B7 submitting"), "drafts a submitted review holds say it is being submitted");
+		expect(chipAction->isVisible() && chip->submitting() && chip->summary() == QStringLiteral("Review \u00B7 submitting") && !finish->isEnabled(),
+			   "drafts a submitted review holds say it is being submitted, and Finish review waits");
 		window.present_saved_drafts({ draft(3U, 12U, false) });
 		process_events();
-		expect(!chipAction->isVisible(), "with nothing pending or held the chip goes");
+		expect(!chipAction->isVisible() && !finish->isEnabled(), "with nothing pending or held the chip goes, and so does Finish review's key");
 		window.hide();
 	}
 
@@ -8964,7 +9011,8 @@ namespace {
 		save_render(window, QStringLiteral("publish-text-v002-drawer"));
 
 		// Maximize to Discuss: the restore is at the top right of the page.
-		auto maximize = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier };
+		// [[BPR-1345]] v002: ⌘⇧M; ⌘⇧↩ is Add single comment.
+		auto maximize = QKeyEvent{ QEvent::KeyPress, Qt::Key_M, Qt::ControlModifier | Qt::ShiftModifier };
 		QCoreApplication::sendEvent(cards->draft_editor(), &maximize);
 		process_events();
 		auto* const page  = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));

@@ -1310,6 +1310,22 @@ endfunction()
 # counter only: no decision, grant, target, provider, credential, GitHub
 # write, mutation or publication path; mutation pin unchanged; no new src/app
 # source.
+# BPR-1345 v002 reseal (bpr-main-mac, 2026-10-09): over the BPR-1369 reseal
+# above; the BPR-1367 and BPR-1368 commits before it touched only
+# review_submission_fixture.cpp and left both pins matching.
+# github_application.cpp's Discard review deletes every pending draft (discard
+# commands in one store transaction) instead of clearing the marks, and a new
+# delete_pending_comment discards one pending draft at the revision Finish your
+# review listed; review_submission_workflow.cpp starts a new review draft after
+# any discard and when pending comments arrive while the shown draft is
+# submitted or discarded, so a finished review never takes the next one's
+# comments (the stale state behind the owner's "Review draft discarded.").
+# Testing only: main.cpp's `again` start-review course and its fixture-access
+# evidence, and an optional render directory for the look; the threaded-reply
+# course confirms the drawer's Delete question; the UIforETW review-bar order
+# check counts the review chip v001 added before Compose review. No grant, target,
+# provider, credential, GitHub write or publication path changes; mutation pin
+# unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1328,7 +1344,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"fa4d19543e715296e4a10b7afc6ca34f06aa1df0323843ade7326a8d3e3bcf0b"
+		"8f04d2efb323c0f38b436eb45a72538fbc6b93b5469b541fa0a7a60a4af4a90d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1532,7 +1548,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "891665a131ddb28f3c33dad9eeddbbb281de5443c65ce8f31637c7c0e73a5b5a"
+        "edbe131f34c6f4b840ff1735297daaa058773315a180a7e20ce13bd805225b32"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -2700,15 +2700,27 @@ namespace bpr::qt {
 			if (typing) {
 				const auto drafting = OpenCard->id() == draft_card_id;
 				if ((key.key() == Qt::Key_Return || key.key() == Qt::Key_Enter) && key.modifiers().testFlag(Qt::ControlModifier)) {
-					// [[BPR-1212]]. ⌘⇧↩ takes the draft to Discuss; in a reply it
-					// does nothing rather than publish. ⌘↩ publishes.
-					const auto maximize = key.modifiers().testFlag(Qt::ShiftModifier);
-					// [[BPR-1345]]. On a draft, ⌘↩ is the composer's main
-					// action: Add single comment, or Add review comment while
-					// a review is in progress.
-					if (OpenCard->Action && (!maximize || drafting)) {
-						OpenCard->Action(maximize ? card_action::maximize_draft : drafting ? OpenCard->primary_action()
-																						   : card_action::publish_reply);
+					// [[BPR-1345]] v002 (owner, finish-review v001): on a draft
+					// ⌘↩ is the review's action (Start a review, Add review
+					// comment, or keep a pending one), ⌘⇧↩ is Add single
+					// comment and ⌘⌥↩ is Finish review. In a reply ⌘↩
+					// publishes it and the others do nothing.
+					const auto single = key.modifiers().testFlag(Qt::ShiftModifier);
+					const auto finish = key.modifiers().testFlag(Qt::AltModifier);
+					if (OpenCard->Action && drafting) {
+						OpenCard->Action(finish ? card_action::finish_review : single ? card_action::publish_draft
+																					  : OpenCard->primary_action());
+					} else if (OpenCard->Action && !single && !finish) {
+						OpenCard->Action(card_action::publish_reply);
+					}
+					return true;
+				}
+				if (key.key() == Qt::Key_M && key.modifiers().testFlag(Qt::ControlModifier) && key.modifiers().testFlag(Qt::ShiftModifier)
+					&& !key.modifiers().testFlag(Qt::AltModifier)) {
+					// [[BPR-1212]]. Maximize takes the draft to Discuss; ⌘⇧M
+					// since [[BPR-1345]] v002 gave ⌘⇧↩ to Add single comment.
+					if (OpenCard->Action && drafting) {
+						OpenCard->Action(card_action::maximize_draft);
 					}
 					return true;
 				}

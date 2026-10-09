@@ -2292,7 +2292,8 @@ bpr_bound_automated_run(
 )
 
 # [[BPR-1345]]. Start a review: pending drafts sent with the review as its
-# line comments, kept across a restart, refused, lost and reconciled.
+# line comments, kept across a restart, refused, lost and reconciled; v002
+# adds the owner's discard flow (`again`).
 bpr_add_network_isolated_test(
     NAME application_start_review_contract
     WINDOWS_UNCONTAINED
@@ -2312,10 +2313,10 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_start_review_contract
-    TIMEOUT 240
+    TIMEOUT 300
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 4
-    RESERVE_MS 4000
+    RUNS 5
+    RESERVE_MS 5000
 )
 
 # [[BPR-1331]]. The private progress button across a push: a changed file

@@ -7069,6 +7069,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				},
 				[this] { discard_review_comments(); });
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
+			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(core::revisioned_review_draft_command{ .Command = std::move(aCommand) });
@@ -10597,8 +10598,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			change_review_drafts(std::move(commands), [](bool) { });
 		}
 
-		/// [[BPR-1345]]. Discard review: every pending draft leaves the review
-		/// and stays a draft, with its text.
+		/// [[BPR-1345]] v002. Discard review deletes every pending draft of the
+		/// review, in one durable write (owner, discard-review v001: "Discard
+		/// review should delete all the review comments"). A draft a
+		/// submission holds is never pending, so it is never deleted here.
 		void discard_review_comments()
 		{
 			if (Closing || !SharedDrafts) {
@@ -10610,13 +10613,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					continue;
 				}
 				auto command             = core::revisioned_review_draft_command{ };
-				command.Command          = core::review_draft_command{ .Id = saved.Draft.Id, .Kind = core::review_draft_command_kind::edit, .Body = saved.Draft.Body };
+				command.Command          = core::review_draft_command{ .Id = saved.Draft.Id, .Kind = core::review_draft_command_kind::discard };
 				command.ExpectedRevision = saved.Revision;
 				command.Scope            = saved.Scope;
-				command.ChangePending    = true;
 				commands.push_back(std::move(command));
 			}
 			change_review_drafts(std::move(commands), [](bool) { });
+		}
+
+		/// [[BPR-1345]] v002. Delete, from Finish your review: the one pending
+		/// draft the page listed, at the revision it listed; a draft changed
+		/// since, or no longer pending, is left as it is.
+		void delete_pending_comment(const core::review_draft_id aDraft, const std::uint64_t aRevision)
+		{
+			if (Closing || !SharedDrafts) {
+				return;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, aDraft);
+			if (!read.Accepted || read.Accepted->Revision != aRevision || !core::pending_in_review(read.Accepted->Draft)) {
+				return;
+			}
+			auto command             = core::revisioned_review_draft_command{ };
+			command.Command          = core::review_draft_command{ .Id = aDraft, .Kind = core::review_draft_command_kind::discard };
+			command.ExpectedRevision = aRevision;
+			command.Scope            = read.Accepted->Scope;
+			change_review_drafts({ std::move(command) }, [](bool) { });
 		}
 
 		void accept_shared_draft(const core::revisioned_review_draft& aAccepted)
@@ -17040,6 +17061,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_discarded,
 				awaiting_held,
 				awaiting_reconciled,
+				// [[BPR-1345]] v002, `again`.
+				awaiting_old_line,
+				awaiting_old_text,
+				awaiting_old_kept,
+				awaiting_finish_again,
+				awaiting_row_deleted,
+				awaiting_review_discarded,
+				awaiting_compose_page,
+				awaiting_compose_written,
+				awaiting_compose_discarded,
+				awaiting_old_again,
+				awaiting_again_pending,
+				awaiting_again_page,
+				awaiting_again_submitted,
 				passed,
 				failed,
 			};
@@ -17047,6 +17082,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			/// The lines written on, in order, and the third, published one.
 			std::vector<std::uint32_t>   Lines;
 			std::optional<std::uint32_t> Third;
+			/// [[BPR-1345]] v002. The older draft, kept out of the review.
+			std::optional<std::uint32_t>         Old;
+			std::optional<core::review_draft_id> OldDraft;
 			/// The drafts the review carries.
 			std::vector<core::review_draft_id> Drafts;
 			std::size_t                        NativeBefore = 0U;
@@ -23930,9 +23968,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair with its position, the
-		// change pair with its position, private progress, a spacer, Compose
-		// review and Comment. Review details is the comparison's menu's.
-		const auto exactReviewBarOrder = reviewBarActions.size() == 14
+		// change pair with its position, private progress, a spacer, the
+		// review chip ([[BPR-1345]], hidden with no review in progress),
+		// Compose review and Comment. Review details is the comparison's
+		// menu's.
+		const auto exactReviewBarOrder = reviewBarActions.size() == 15
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
@@ -23945,8 +23985,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& reviewBarActions[9] == nextChange
 			&& reviewBar->widgetForAction(reviewBarActions[10]) == reviewControls
 			&& widgetActionNamed(reviewBarActions, 11, "reviewBarSpacerAction")
-			&& reviewBarActions[12] == window->compose_review_action()
-			&& reviewBarActions[13] == window->comment_action()
+			&& reviewBarActions[12] == window->review_chip_action()
+			&& reviewBarActions[13] == window->compose_review_action()
+			&& reviewBarActions[14] == window->comment_action()
 			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
 		if (!exactRowOrder || !exactReviewBarOrder) {
 			// [[BPR-0859]]. An exact row order that no longer holds names the
@@ -25792,6 +25833,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("no-drawer-discard");
 			}
 			discard->click();
+			QCoreApplication::processEvents();
+			// [[BPR-1345]] v002: Delete asks first when the draft has words.
+			auto* const question = window->delete_draft_confirmation();
+			auto* const yes      = question != nullptr ? question->findChild<QAbstractButton*>(QStringLiteral("deleteDraftConfirmationConfirm")) : nullptr;
+			if (yes == nullptr) {
+				return fail("drawer-delete-asked-nothing");
+			}
+			yes->click();
+			QCoreApplication::processEvents();
 			probe.Phase = state_type::phase::awaiting_line_discarded;
 			return result::pending;
 		}
@@ -27430,7 +27480,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QStringLiteral("nit: these two lines could be one. (BPR-1345 range)"),
 			QStringLiteral("BPR-1345: this one goes on its own."),
 		};
-		const auto ready = [&] {
+		// [[BPR-1345]] v002, `again`: the older draft and a summary that
+		// is discarded.
+		const auto older      = QStringLiteral("suggestion: an older draft, kept out of the review. (BPR-1345 again)");
+		const auto summarised = QStringLiteral("A summary to discard. (BPR-1345 again)");
+		const auto ready      = [&] {
 			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
 				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value()
 				&& !implementation->PrivateDraftCommandPending && !implementation->PrivateDraftSelectionPending;
@@ -27482,9 +27536,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					|| (!probe.Lines.empty() && candidate == probe.Lines.front() + 1U)) {
 					continue;
 				}
-				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
-					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0
-					&& std::ranges::none_of(saved(), [candidate](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == candidate && !aDraft.Draft.Body.empty(); })) {
+				// A saved draft's line is passed over before it is selected, so
+				// the selection does not move every tick (v002, `again`).
+				if (std::ranges::none_of(saved(), [candidate](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == candidate && !aDraft.Draft.Body.empty(); })
+					&& window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
+					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
 					return candidate;
 				}
 			}
@@ -27538,7 +27594,70 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto shown = [&](const std::size_t aCount) {
 			return summary->title_label()->text() == QStringLiteral("Finish your review") && summary->pending_rows().size() == static_cast<qsizetype>(aCount)
 				&& summary->carries_label()->isVisibleTo(window)
-				&& summary->carries_label()->text() == (aCount == 1U ? QStringLiteral("Submits one line comment as one review.") : QStringLiteral("Submits %1 line comments as one review.").arg(aCount));
+				&& summary->carries_label()->text() == (aCount == 1U ? QStringLiteral("1 pending comment") : QStringLiteral("%1 pending comments").arg(aCount));
+		};
+		// [[BPR-1345]] v002. A key in the drawer draft's field, as typed.
+		const auto press = [&](const Qt::Key aKey, const Qt::KeyboardModifiers aModifiers) -> bool {
+			auto* const field = cards->draft_editor();
+			if (field == nullptr) {
+				return false;
+			}
+			auto down = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+			auto up   = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers };
+			QCoreApplication::sendEvent(field, &down);
+			QCoreApplication::sendEvent(field, &up);
+			QCoreApplication::processEvents();
+			return true;
+		};
+		// [[BPR-1345]] v002. With BPR_START_REVIEW_RENDER_DIRECTORY set, the
+		// window as the owner will see it, in each theme, for the look.
+		const auto renders = qEnvironmentVariable("BPR_START_REVIEW_RENDER_DIRECTORY");
+		const auto render  = [&](const QString& aName, QWidget* aWidget = nullptr) {
+			if (renders.isEmpty()) {
+				return;
+			}
+			QDir{ }.mkpath(renders);
+			static_cast<void>((aWidget != nullptr ? aWidget : static_cast<QWidget*>(window))->grab().save(renders + QLatin1Char{ '/' } + aName + QStringLiteral(".png"), "PNG"));
+		};
+		const auto renderThemes = [&](const QString& aName) {
+			if (renders.isEmpty() || window->appearance_settings() == nullptr) {
+				return;
+			}
+			const auto modes = std::array{ std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") },
+										   std::pair{ core::appearance_mode::high_contrast_light, QStringLiteral("high-contrast-light") },
+										   std::pair{ core::appearance_mode::high_contrast_dark, QStringLiteral("high-contrast-dark") } };
+			for (const auto& [mode, name] : modes) {
+				window->appearance_settings()->choose_mode(mode);
+				for (auto turn = 0; turn < 6; ++turn) {
+					QCoreApplication::processEvents();
+				}
+				render(aName + QLatin1Char{ '-' } + name);
+			}
+			window->appearance_settings()->choose_mode(core::appearance_mode::light);
+			for (auto turn = 0; turn < 6; ++turn) {
+				QCoreApplication::processEvents();
+			}
+		};
+		// [[BPR-1345]] v002. Presses a question's deleting button.
+		const auto confirm = [](QMessageBox* const aBox, const char* aButton) -> bool {
+			auto* const yes = aBox != nullptr ? aBox->findChild<QAbstractButton*>(QString::fromLatin1(aButton)) : nullptr;
+			if (yes == nullptr) {
+				return false;
+			}
+			yes->click();
+			QCoreApplication::processEvents();
+			return true;
+		};
+		// [[BPR-1345]] v002. The page as the owner asked for it: Comment
+		// offered, Request changes waiting for a summary and saying so,
+		// the details closed, and what is published said once.
+		const auto calm = [&] {
+			auto* const comment = summary->disposition_button(core::review_disposition::comment);
+			auto* const changes = summary->disposition_button(core::review_disposition::request_changes);
+			auto* const approve = summary->disposition_button(core::review_disposition::approve);
+			return comment->isEnabled() && approve->isEnabled() && !changes->isEnabled() && changes->toolTip().startsWith(QStringLiteral("Request changes needs a summary"))
+				&& !summary->details_toggle()->isChecked() && !summary->target_editor()->isVisibleTo(window)
+				&& summary->note_label()->isVisibleTo(window) && summary->note_label()->text() == QStringLiteral("Nothing is published until you submit.");
 		};
 		const auto start_one = [&](const state_type::phase aAfter) -> result {
 			switch (probe.Phase) {
@@ -27604,7 +27723,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("file-not-revealed");
 			}
 			if (revealed == detail::fixture_file_reveal_result::shown) {
-				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_restored : state_type::phase::awaiting_first_line;
+				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_restored
+					: aCourse == course::again          ? state_type::phase::awaiting_old_line
+														: state_type::phase::awaiting_first_line;
 			}
 			return result::pending;
 		}
@@ -27612,7 +27733,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_first_text:
 		case state_type::phase::awaiting_first_offer:
 		case state_type::phase::awaiting_first_pending:
-			return start_one(aCourse == course::pending ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
+			return start_one(aCourse == course::pending || aCourse == course::again ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
 		case state_type::phase::awaiting_second_line: {
 			// The range ends on the line below its first, which is free.
 			auto line = pick();
@@ -27651,12 +27772,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (single->text() != QStringLiteral("Add single comment") || review->text() != QStringLiteral("Add review comment") || !chipSays(1U)) {
 				return fail("second-offer-not-add-review-comment");
 			}
+			if (aCourse == course::again) {
+				renderThemes(QStringLiteral("drawer-add-review-comment"));
+			}
 			// ⌘↩ is the main action while a review is in progress.
-			auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
-			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Return, Qt::ControlModifier };
-			QCoreApplication::sendEvent(field, &press);
-			QCoreApplication::sendEvent(field, &release);
-			QCoreApplication::processEvents();
+			static_cast<void>(press(Qt::Key_Return, Qt::ControlModifier));
 			probe.Phase = state_type::phase::awaiting_second_pending;
 			return result::pending;
 		}
@@ -27676,7 +27796,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.Drawn = true;
-			probe.Phase          = state_type::phase::awaiting_third_line;
+			probe.Phase          = aCourse == course::again ? state_type::phase::awaiting_finish_again : state_type::phase::awaiting_third_line;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_third_line: {
@@ -27695,8 +27815,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!written(words[2]) || single == nullptr || !single->isEnabled()) {
 				return result::pending;
 			}
-			single->click();
-			QCoreApplication::processEvents();
+			// v002: ⌘⇧↩ is Add single comment.
+			static_cast<void>(press(Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier));
 			probe.Phase = state_type::phase::awaiting_third_published;
 			return result::pending;
 		}
@@ -27770,14 +27890,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto expected = aCourse == course::finish ? 2U : 1U;
 			const auto opened   = openFinish();
 			note("opened=" + std::to_string(opened ? 1 : 0) + " title=" + summary->title_label()->text().toStdString() + " rows=" + std::to_string(summary->pending_rows().size())
-				 + " submit=" + std::to_string(summary->submit_action()->isEnabled() ? 1 : 0) + " status=" + summary->status_label()->text().toStdString());
-			if (!opened || !shown(expected) || !summary->submit_action()->isEnabled()) {
+				 + " comment=" + std::to_string(summary->disposition_button(core::review_disposition::comment)->isEnabled() ? 1 : 0) + " status=" + summary->status_label()->text().toStdString());
+			if (!opened || !shown(expected) || !summary->disposition_button(core::review_disposition::comment)->isEnabled()) {
 				return result::pending;
 			}
 			probe.Evidence.FinishOpened = window->current_modality() == qt::review_modality::discuss;
-			// Comment, the default, with no summary.
-			probe.Evidence.CommentWithoutSummary = summary->shown_draft().has_value() && summary->shown_draft()->Disposition == core::review_disposition::comment
-				&& summary->body_editor()->toPlainText().isEmpty() && summary->body_editor()->placeholderText() == QStringLiteral("Leave a summary (optional)");
+			// Comment, with no summary, is one of the three buttons that
+			// submit (v002).
+			probe.Evidence.CommentWithoutSummary = summary->shown_draft().has_value() && summary->body_editor()->toPlainText().isEmpty()
+				&& summary->body_editor()->placeholderText() == QStringLiteral("Leave a summary (optional)") && calm();
 			if (!probe.Evidence.FinishOpened || !probe.Evidence.CommentWithoutSummary) {
 				return fail("finish-page-not-as-drawn");
 			}
@@ -27786,7 +27907,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				server.RefuseNextReview = aCourse == course::refused;
 				server.LoseNextReview   = aCourse == course::uncertain;
 			}
-			summary->submit_action()->trigger();
+			summary->disposition_button(core::review_disposition::comment)->click();
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
 			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain ? state_type::phase::awaiting_held
@@ -27839,8 +27960,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!summary->discard_action()->isEnabled() || summary->discard_action()->text() != QStringLiteral("Discard review")) {
 				return result::pending;
 			}
+			// v002: Discard review asks first, naming what it deletes.
 			summary->discard_action()->trigger();
 			QCoreApplication::processEvents();
+			if (summary->discard_confirmation() == nullptr || !summary->discard_confirmation()->text().contains(QStringLiteral("1 pending comment"))) {
+				return fail("discard-asked-nothing");
+			}
+			if (!confirm(summary->discard_confirmation(), "discardReviewConfirmationConfirm")) {
+				return fail("discard-not-confirmed");
+			}
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_discarded;
 			return result::pending;
@@ -27848,14 +27976,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_discarded: {
 			const auto all  = saved();
 			const auto kept = std::ranges::find_if(all, [&](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == probe.Lines.front(); });
-			note("pending=" + std::to_string(pending().size()) + " chip=" + std::to_string(chipShown->isVisible() ? 1 : 0));
+			note("pending=" + std::to_string(pending().size()) + " chip=" + std::to_string(chipShown->isVisible() ? 1 : 0) + " page=" + std::to_string(finishPage() != nullptr ? 1 : 0));
 			if (!pending().empty() || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("discard-not-settled");
 			}
-			probe.Evidence.DiscardKept = kept != all.end() && !kept->Draft.InReview && kept->Draft.State == core::review_draft_state::drafting
-				&& kept->Draft.Body == words[0].toStdString() && posts().size() == 1U;
-			if (!probe.Evidence.DiscardKept) {
-				return fail("discard-lost-the-draft");
+			// v002: deleted, not kept, and the page closed.
+			probe.Evidence.DiscardDeleted = kept == all.end() && finishPage() == nullptr && posts().size() == 1U;
+			if (!probe.Evidence.DiscardDeleted) {
+				return fail("discard-kept-the-draft");
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
@@ -27893,6 +28021,233 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.Evidence.Reconciled = posts().size() == 1U;
 			if (!probe.Evidence.Reconciled) {
 				return fail("reconciled-after-a-second-post");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::awaiting_old_line: {
+			// The older draft, written first and kept out of the review.
+			const auto line = pick();
+			note("line=" + std::to_string(line.value_or(0U)));
+			if (!line || !ready() || !write(older)) {
+				return result::pending;
+			}
+			probe.Old   = line;
+			probe.Phase = state_type::phase::awaiting_old_text;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_old_text:
+			note("written=" + std::to_string(written(older) ? 1 : 0));
+			if (!written(older)) {
+				return result::pending;
+			}
+			// Esc keeps a written draft at its line.
+			static_cast<void>(press(Qt::Key_Escape, Qt::NoModifier));
+			probe.Phase = state_type::phase::awaiting_old_kept;
+			return result::pending;
+		case state_type::phase::awaiting_old_kept: {
+			const auto all  = saved();
+			const auto kept = std::ranges::find_if(all, [&](const core::revisioned_review_draft& aDraft) { return probe.Old && aDraft.Draft.Anchor.Line == *probe.Old; });
+			note("kept=" + std::to_string(kept != all.end() ? 1 : 0) + " writing=" + std::to_string(cards->writing_draft() ? 1 : 0));
+			if (kept == all.end() || cards->writing_draft() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("older-draft-not-kept");
+			}
+			if (kept->Draft.Body != older.toStdString() || core::pending_in_review(kept->Draft)) {
+				return fail("older-draft-not-as-written");
+			}
+			probe.OldDraft = kept->Draft.Id;
+			probe.Waited   = 0U;
+			probe.Phase    = state_type::phase::awaiting_first_line;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_finish_again: {
+			// Finish review by its window action, ⌘⌥↩'s.
+			auto* const finish = window->finish_review_action();
+			note("finish=" + std::to_string(finish != nullptr && finish->isEnabled() ? 1 : 0) + " rows=" + std::to_string(summary->pending_rows().size()));
+			if (finish == nullptr || !finish->isEnabled()) {
+				return result::pending;
+			}
+			if (finishPage() == nullptr) {
+				finish->trigger();
+				QCoreApplication::processEvents();
+			}
+			if (finishPage() == nullptr || !shown(2U)) {
+				return result::pending;
+			}
+			probe.Evidence.FinishOpened = window->current_modality() == qt::review_modality::discuss && calm();
+			if (!probe.Evidence.FinishOpened) {
+				return fail("finish-again-not-as-drawn");
+			}
+			renderThemes(QStringLiteral("finish-your-review"));
+			// Delete the second row, the range.
+			auto visible = std::vector<QToolButton*>{ };
+			for (auto* const button : summary->pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
+				if (button->isVisibleTo(window)) {
+					visible.push_back(button);
+				}
+			}
+			if (visible.size() != 2U) {
+				return fail("row-deletes-not-two");
+			}
+			visible.back()->click();
+			QCoreApplication::processEvents();
+			render(QStringLiteral("delete-comment-question"), summary->delete_confirmation());
+			if (summary->delete_confirmation() == nullptr || !confirm(summary->delete_confirmation(), "deleteCommentConfirmationConfirm")) {
+				return fail("row-delete-asked-nothing");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_row_deleted;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_row_deleted: {
+			const auto now = pending();
+			note("pending=" + std::to_string(now.size()) + " rows=" + std::to_string(summary->pending_rows().size()));
+			if (now.size() != 1U || !chipSays(1U) || summary->pending_rows().size() != 1 || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("row-not-deleted");
+			}
+			const auto all            = saved();
+			probe.Evidence.RowDeleted = probe.Lines.size() == 2U && now.front().Draft.Anchor.Line == probe.Lines.front()
+				&& std::ranges::none_of(all, [&](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == probe.Lines.back(); })
+				&& finishPage() != nullptr && posts().empty();
+			if (!probe.Evidence.RowDeleted) {
+				return fail("row-delete-not-exact");
+			}
+			summary->discard_action()->trigger();
+			QCoreApplication::processEvents();
+			render(QStringLiteral("discard-review-question"), summary->discard_confirmation());
+			if (summary->discard_confirmation() == nullptr || !summary->discard_confirmation()->text().contains(QStringLiteral("1 pending comment"))
+				|| !confirm(summary->discard_confirmation(), "discardReviewConfirmationConfirm")) {
+				return fail("discard-review-asked-nothing");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_review_discarded;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_review_discarded: {
+			const auto all = saved();
+			note("pending=" + std::to_string(pending().size()) + " page=" + std::to_string(finishPage() != nullptr ? 1 : 0) + " chip=" + std::to_string(chipShown->isVisible() ? 1 : 0));
+			if (!pending().empty() || chipShown->isVisible() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("review-not-discarded");
+			}
+			probe.Evidence.DiscardDeleted = finishPage() == nullptr && posts().empty()
+				&& std::ranges::none_of(all, [&](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == probe.Lines.front(); })
+				&& std::ranges::any_of(all, [&](const core::revisioned_review_draft& aDraft) { return std::optional{ aDraft.Draft.Id } == probe.OldDraft && aDraft.Draft.Body == older.toStdString(); });
+			if (!probe.Evidence.DiscardDeleted) {
+				return fail("discard-review-not-exact");
+			}
+			window->compose_review_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_compose_page;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_compose_page: {
+			const auto& draft = summary->shown_draft();
+			note("page=" + std::to_string(finishPage() != nullptr ? 1 : 0) + " title=" + summary->title_label()->text().toStdString());
+			if (finishPage() == nullptr || !draft || draft->State != core::review_submission_state::drafting || !summary->body_editor()->isVisibleTo(window)) {
+				return ++probe.Waited < 400U ? result::pending : fail("compose-not-opened");
+			}
+			if (summary->title_label()->text() != QStringLiteral("Compose review") || !draft->Comments.empty() || !draft->Body.empty()) {
+				return fail("compose-not-a-new-review");
+			}
+			summary->body_editor()->setPlainText(summarised);
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_compose_written;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_compose_written: {
+			const auto& draft = summary->shown_draft();
+			if (!draft || draft->Body != summarised.toStdString() || !summary->discard_action()->isEnabled()) {
+				return ++probe.Waited < 400U ? result::pending : fail("compose-not-written");
+			}
+			summary->discard_action()->trigger();
+			QCoreApplication::processEvents();
+			if (summary->discard_confirmation() == nullptr || !confirm(summary->discard_confirmation(), "discardReviewConfirmationConfirm")) {
+				return fail("compose-discard-asked-nothing");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_compose_discarded;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_compose_discarded: {
+			note("page=" + std::to_string(finishPage() != nullptr ? 1 : 0));
+			if (finishPage() != nullptr || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("compose-discard-not-closed");
+			}
+			probe.Evidence.SecondDiscard = posts().empty() && pending().empty();
+			if (!probe.Evidence.SecondDiscard) {
+				return fail("compose-discard-not-exact");
+			}
+			// Back to the older draft, at its line.
+			if (!probe.Old || !window->comparison_surface()->select_conversation_line(core::diff_side::right, *probe.Old)) {
+				return fail("older-line-not-selected");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_old_again;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_old_again: {
+			const auto& draft = implementation->ReviewDraft;
+			note("draft=" + std::to_string(draft && std::optional{ draft->Id } == probe.OldDraft ? 1 : 0) + " writing=" + std::to_string(cards->writing_draft() ? 1 : 0));
+			if (!draft || std::optional{ draft->Id } != probe.OldDraft || !ready() || !write(older) || !written(older)) {
+				return ++probe.Waited < 400U ? result::pending : fail("older-draft-not-opened");
+			}
+			// ⌘↩: Start a review.
+			static_cast<void>(press(Qt::Key_Return, Qt::ControlModifier));
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_again_pending;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_again_pending: {
+			const auto now = pending();
+			note("pending=" + std::to_string(now.size()) + " chip=" + chip->summary().toStdString());
+			if (now.size() != 1U || !chipSays(1U) || cards->writing_draft() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("older-draft-not-pending");
+			}
+			probe.Evidence.AgainStarted = std::optional{ now.front().Draft.Id } == probe.OldDraft && now.front().Draft.Body == older.toStdString() && posts().empty();
+			if (!probe.Evidence.AgainStarted) {
+				return fail("older-draft-not-pending-exactly");
+			}
+			probe.Drafts = { now.front().Draft.Id };
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_again_page;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_again_page: {
+			auto* const state  = summary->findChild<QLabel*>(QStringLiteral("wholeReviewDraftState"));
+			const auto  opened = openFinish();
+			note("opened=" + std::to_string(opened ? 1 : 0) + " title=" + summary->title_label()->text().toStdString() + " rows=" + std::to_string(summary->pending_rows().size())
+				 + " state=" + (state != nullptr ? state->text().toStdString() : std::string{ }) + " status=" + summary->status_label()->text().toStdString());
+			if (!opened || !shown(1U)) {
+				return ++probe.Waited < 400U ? result::pending : fail("again-page-not-shown");
+			}
+			// The owner saw "Review draft discarded." here.
+			const auto said             = summary->status_label()->text() + (state != nullptr ? state->text() : QString{ });
+			probe.Evidence.AgainOffered = !said.contains(QStringLiteral("discarded"), Qt::CaseInsensitive) && calm()
+				&& summary->pending_rows().front().endsWith(older);
+			if (!probe.Evidence.AgainOffered) {
+				return fail("again-page-stale");
+			}
+			summary->disposition_button(core::review_disposition::comment)->click();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_again_submitted;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_again_submitted: {
+			const auto sent      = posts();
+			const auto published = count_published();
+			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " status=" + summary->status_label()->text().toStdString());
+			if (sent.size() != 1U || published != 1U || chipShown->isVisible() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("again-not-submitted");
+			}
+			const auto object             = QJsonDocument::fromJson(QByteArray::fromStdString(sent.front())).object();
+			const auto comments           = object.value(QStringLiteral("comments")).toArray();
+			probe.Evidence.AgainSubmitted = object.value(QStringLiteral("event")).toString() == QStringLiteral("COMMENT") && comments.size() == 1
+				&& comments.at(0).toObject().value(QStringLiteral("body")).toString() == older && probe.Old
+				&& comments.at(0).toObject().value(QStringLiteral("line")).toInt() == static_cast<int>(*probe.Old) + 1 && pending().empty();
+			if (!probe.Evidence.AgainSubmitted) {
+				return fail("again-submitted-not-exact");
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

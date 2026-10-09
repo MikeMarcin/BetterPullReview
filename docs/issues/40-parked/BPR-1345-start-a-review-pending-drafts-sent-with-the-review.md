@@ -91,8 +91,11 @@ Building it takes:
   GitHub review whose comments are exactly the pending drafts (lines, ranges
   and sides), Comment with no summary is allowed only when it holds comments,
   and each draft is marked published only on GitHub's acceptance. A refusal or
-  an uncertain answer keeps every draft and its text. Discard review clears
-  the pending marks and keeps the drafts.
+  an uncertain answer keeps every draft and its text. Discard review, after
+  a confirmation that names the count, deletes every pending comment of the
+  review and closes the page (amended for v002 by the owner's discard-review
+  v001 note; v001 cleared the marks and kept the drafts). The three verdicts
+  submit directly (owner, finish-review v001).
 - AC4: Composed public path through the fixture server and the real
   composition root, failing-before controls for each rule, the 100 ms
   interaction gates, the round-trip pin resealed. One live probe on
@@ -306,7 +309,7 @@ dated note says what moved.
   review.
 - The pending list in Discuss names each comment; it does not yet open it.
 
-### Owner look v001 (pending)
+### Owner look v001 (answered)
 
 One new short session, not the long default one. Four questions, each Accept
 or Reject with any change in the note; none is self-certified.
@@ -330,3 +333,256 @@ or Reject with any change in the note; none is self-certified.
 
 Next: read the session's decisions. Accepts answer AC1 to AC3's owner halves
 (AC5); a Reject comes back as v002.
+
+## Owner verdicts v001 (2026-10-09)
+
+Session `7f4f63492b862fe14af5ea8e11ca26ce` (state
+`/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1345-start-a-review-v001`),
+read from cursor 12, handed back at event 19. Where a candidate was answered
+twice, the later decision stands.
+
+- `BPR-1345-write-a-comment-v001` (AC1, fingerprint `3bb9205a…`): **Accept**,
+  no note, decision `8af7409a-b3a6-4ded-898d-57707610ec92`, event 18.
+- `BPR-1345-review-in-progress-v001` (AC2, fingerprint `4c053a8a…`):
+  **Accept**, no note, decision `4a7fc8c1-4764-4ade-886f-c2d9ad1cfc81`,
+  event 17.
+- `BPR-1345-discard-review-v001` (AC3's Discard review, fingerprint
+  `db2c99da…`): **Reject**, decision `619bcbd8-a594-4935-bafb-cb9bb3ab4dab`,
+  event 14 (it revises event 13's note by adding its last paragraph). The
+  owner's note, verbatim:
+
+  > I don't like this button layout, stacked buttons is too much space
+  >
+  > These details on finish review should be hidden by default.
+  >
+  > Make this page beautiful, and remove some of this duplicate text and
+  > reduce the wall of text feel.
+  >
+  > Discard review should delete all the review comments and should come with
+  > a confirmation so it's not done accidentally. It should also close the
+  > review page if confirmed.
+  >
+  > And fwiw `Review draft discarded.` comes up in the current flow after you
+  > go to one of the draft comments that was from the original discarded
+  > review and start a new review on it and try to finish that review.
+
+  Attachments, kept in `/Users/jaeger/bpr-owner-att/`:
+  `BPR-1345-discard-review-v001-0.png` (the drawer stacks "Add single
+  comment" and "Add review comment" as full-width buttons),
+  `BPR-1345-discard-review-v001-1.png` (the finish page's host, head and
+  "Submitting as" lines) and `BPR-1345-discard-review-v001-2.png` (the finish
+  page's repeated text: "Choose Comment, Approve, or Request changes" twice
+  and "nothing is published until…" twice).
+- `BPR-1345-finish-review-v001` (AC3, fingerprint `547ee944…`): **Reject**,
+  decision `92d1924d-b7cf-4c14-a106-d33445bc5d20`, event 16 (it revises event
+  15's note by adding its last sentence). The owner's note, verbatim:
+
+  > We're lacking the ability to delete a comment.
+  >
+  > Start a review, add to review should be the default for cmd+enter.
+  >
+  > Do like cmd+shift+enter for single comment. And find some hotkey for
+  > finish review, maybe cmd+option+enter
+  >
+  > I feel like these should be the action buttons that finish the review.
+  > Not sure there's a good reason to have a separate submit review. If there
+  > is a good reason to keep the 2 action flow then argue for it.
+
+  Attachment `BPR-1345-finish-review-v001-0.png`: the Comment, Approve and
+  Request changes buttons.
+
+The Accepts answer AC1's and AC2's owner halves (AC5 for them). AC3 is v002's.
+
+## v002 (bpr-main-mac, 2026-10-09)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on
+`bpr-main-mac` (macOS, Apple clang, Qt 6.11.2, Debug `build/dev`,
+offscreen). The `frontend-design:frontend-design` skill was loaded first.
+Built in `/Users/jaeger/bpr-wt/bpr1345` on branch `bpr-1345-start-a-review`,
+rebased onto `67ab0e6d3` (BPR-1360 and BPR-1369 landed during the round).
+
+### Design
+
+The finish page keeps the drawer's own visual language rather than adding a
+new one: the drawer's 6 px pills, the palette's hairline for edges, the
+highlight's tint under the pointer and its ring on focus. The one emphatic
+thing on the page is the row of verdicts. No verdict is coloured, because on
+this page colour would read as a judgement and nudge one choice over another.
+The list and the summary share one hairline box family, so the page reads as
+a single column, no wider than 760 px and left aligned. A file name that
+repeats the row above is drawn faint. Line numbers use the highlight as ink
+only where it reaches 4.5:1 on the text ground, and are otherwise moved toward
+the text ink until they do (high-contrast themes). Words appear once: the
+title, "N pending comments", the placeholder, the verdicts, "Nothing is
+published until you submit." and Discard review. Everything else is in
+tooltips, which the application anchors to their controls.
+
+**Why there is no separate Submit review step.** The owner asked for an
+argument if one exists. I found none strong enough to keep a second click on
+every review. The two-step flow protects against a mis-click, but a verdict
+button already names exactly what it does, its tooltip says so before the
+press, and Approve keeps BPR-1085's amber dot and its "approving does not
+resolve" tooltip while my blocking feedback is open. A `gh`-transport profile
+still asks its CLI confirmation before any write. The pressed verdict is the
+one submitted, and the prepared decision (BPR-1085) binds it. The question
+text says this, so the owner can still reject it.
+
+### What changed
+
+1. **Drawer actions, one row** (`conversation_open_card`). The lock, Delete,
+   then Add single comment (outlined) beside the main action (filled), all on
+   one row. Where both pills do not fit, the main action keeps the row and a
+   split arrow is joined to its right edge (`threadReviewDraftMore`); its menu
+   carries Add single comment with its key. Nothing stacks.
+2. **Keys, each bound once.** In the drawer draft's field ⌘↩ is the main
+   action in every state (Start a review, Add review comment, or Update review
+   comment), ⌘⇧↩ is Add single comment, and ⌘⌥↩ finishes the review.
+   Maximize and its restore move from ⌘⇧↩ to ⌘⇧M. Finish review is also a
+   window action (`finishReviewAction`, `Ctrl+Alt+Return` and keypad Enter,
+   window context), enabled while a review is in progress and not being
+   submitted. Each tooltip names its key, and the chip's tooltip begins
+   "Finish review  ⌘⌥↩". A reply's ⌘↩ still publishes the reply. The window
+   test counts ⌘⌥↩ bound once, and the existing collision test still passes.
+3. **Delete a comment.** The drawer's trash is "Delete comment". When the
+   draft has words it asks first ("Delete this comment?", or "… from your
+   review?" for a pending draft; Cancel is the default and Esc), then deletes
+   the draft from this computer. On Finish your review each row has its own
+   Delete, which asks first and names the comment. Confirmed, the
+   composition's `delete_pending_comment` discards that one draft at the
+   revision the page listed; a draft changed since, or no longer pending, is
+   left as it is.
+4. **Finish your review** (`review_submission_editor`), as described in
+   Design. Each verdict submits directly as itself, enabled only when the
+   core's new `review_submission_controls::SubmitAs` says the review can be
+   submitted so (`core::submits_as`). Request changes waits for a summary and
+   says so; Comment waits for a summary or a line comment. A row goes to its
+   comment (`workbench_window::reveal_pending_comment`: Review, its file, and
+   the line selected once that file's comparison shows). "Pull request and
+   account" is a disclosure, closed by default. The status line shows only
+   outcomes, and Check status and New review show only when they can act. The
+   workflow no longer sends guidance as status. `submit_action()` remains,
+   unshown, for callers that submit the chosen verdict.
+5. **Discard review deletes.** It asks first, naming the count ("Discard your
+   review and its 2 pending comments?"). Confirmed, `discard_review_comments`
+   discards every pending draft of the review in one store transaction (no
+   longer clearing marks), and the page closes (`set_discard_observer`). A
+   summary-only draft asks only when it has words.
+6. **The "Review draft discarded." bug.** *Stale state:* the review
+   submission workflow kept a terminal summary draft as the current one. v001
+   page stayed open after Discard review and listed "Discard" for the fresh
+   draft. Pressing it (or discarding any summary-only draft) left the
+   workflow's draft `discarded` with no new draft, and Status "Review draft
+   discarded.". `apply_review_comments` ignores comments while the draft is
+   not drafting, so a later Start a review on an old draft was never carried.
+   Finish review then showed "Review draft discarded.", "This draft was
+   discarded" and a disabled Submit. A submitted review had the same
+   shape. *Fix* (`review_submission_workflow`): every discard starts a new
+   draft at once, unless an unfinished submission waits for New review. When
+   pending comments arrive while the shown draft is submitted or discarded, a
+   new draft starts for them. Discovery applies the same rule. The page never
+   shows an earlier review's words again.
+
+Also: the UIforETW review-bar order check expected 14 actions and now counts
+the review chip that v001 put before Compose review (15). That check had
+been red since v001. The threaded-reply course confirms the drawer's Delete
+question.
+
+### Verification (macOS, Debug, offscreen)
+
+- `core_review_pending`: new `test_each_verdict_says_whether_it_can_submit`.
+- `qt_review_submission_editor_scale_{100,125,200}`: the disclosure is closed
+  by default and opens; the verdicts are buttons that submit; a keyboard press
+  on the draft's verdict emits the exact submit with the decision shown;
+  Request changes waits for a summary and its reason is anchored; the page
+  says what is published once and an empty status takes no room; each row
+  goes to its comment and its Delete asks first, Cancel deleting nothing; a
+  page whose dispatch is the workflow's submits Approve and Request changes
+  at once, each as itself; Discard review asks, naming the count, Cancel
+  keeps, confirmed discards and asks the window to close; an empty draft is
+  discarded without a question.
+- `qt_conversation_cards_view`: ⌘↩ is Start a review, ⌘⇧↩ Add single
+  comment, ⌘⌥↩ finish, ⌘⇧M maximize; tooltips name keys and are anchored;
+  one row with room, split arrow joined and nothing cut off in a narrow
+  drawer; the arrow's menu adds the single comment.
+- `qt_workbench_line_draft`: Finish review's action, key and chip tooltip;
+  ⌘⌥↩ bound once; ⌘⌥↩ through the window system opens Finish your review;
+  disabled while submitting or with nothing pending. ⌘⇧M maximizes.
+- `qt_workbench_conversation_reveal`: the drawer's Delete asks, Cancel keeps,
+  Delete comment deletes; ⌘⇧↩ publishes once.
+- `application_start_review_contract` (now five courses, the composed
+  application over the fixture server): `pending`
+  `START_REVIEW_PENDING_EVIDENCE:11111` (the third comment by ⌘⇧↩),
+  `finish` `START_REVIEW_FINISH_EVIDENCE:11111` (the page as asked, submitted
+  by the Comment verdict), `refused` `START_REVIEW_REFUSED_EVIDENCE:1111`
+  (Discard review asks, deletes the draft and closes the page), `uncertain`
+  `START_REVIEW_UNCERTAIN_EVIDENCE:1111`, and the owner's flow `again`
+  `START_REVIEW_AGAIN_EVIDENCE:111111111`. That course keeps an older draft
+  out of the review, starts a review of two, opens Finish review by its
+  action, deletes one row, and discards the review, which deletes it, keeps
+  the older draft and closes the page. It then discards a written summary on
+  Compose review, takes the older draft into a new review by ⌘↩, and finishes
+  it: the page lists it, says nothing of a discard, and Comment submits one
+  review carrying exactly it.
+- `application_review_submission_composition_public_path` (and scales 125,
+  200), `application_threaded_reply_contract`,
+  `application_uiforetw_selected_diff_contract`,
+  `application_review_round_trip_composition_contract` (resealed),
+  `application_composition_contract`.
+- After rebasing onto `67ab0e6d3`, the 37 focused rows above (with
+  `epoch_application_host` and the UIforETW contract) pass again at `-j6`.
+- One broad pass before that rebase: 181 Qt-window, composed and application
+  rows at `-j8`.
+  Passing apart from the round-trip pin (resealed after) and the UIforETW
+  order (fixed after). Two failures predate this card:
+  `qt_workbench_home_discovery_scale_{100,125,200}` (noted on BPR-1365) and
+  `application_native_notification_attended_contract`, which needs attended
+  input.
+- Renders of the composed application in light, dark, high-contrast light and
+  high-contrast dark (drawer with Add review comment; Finish your review; the
+  Delete and Discard questions), from the `again` course with
+  `BPR_START_REVIEW_RENDER_DIRECTORY`.
+- `coding-format` (clang-format 22.1.8) on every changed file;
+  `DOCUMENTATION_OK`.
+
+**Failing-before controls.** For each control, one mutation was applied, the
+row built and run, and the file restored byte for byte. Every control failed.
+
+| Mutation | Row | Failure |
+|---|---|---|
+| Every verdict follows the chosen one | `core_review_pending` | "with no summary and no line comment only Approve submits" |
+| The drawer never splits | `qt_conversation_cards_view` | "in a narrow drawer: still one row, the main action with its split arrow joined to it, nothing stacked or cut off" |
+| ⌘↩ publishes, as v001 | `qt_conversation_cards_view` | "⌘↩ is Start a review, the default …" |
+| ⌘⇧↩ maximizes, as v001 | `qt_conversation_cards_view` | "in the draft, Ctrl+Shift+M maximizes, Ctrl+Shift+Return publishes it alone …" |
+| Finish review has no key | `qt_workbench_line_draft` | "Finish review has its key, and the chip's tooltip names it" |
+| A row's Delete asks nothing | `qt_review_submission_editor_scale_100` | "Delete asks first, naming the comment, with Cancel the default" |
+| The drawer's Delete asks nothing | `qt_workbench_conversation_reveal` | "Delete asks first, and the draft stays open while it asks" |
+| The composition deletes no row | `application_start_review_contract` | `again`: "row-not-deleted" |
+| A verdict only chooses, as v001 | `qt_review_submission_editor_scale_100` | "keyboard press on the draft's verdict emits the exact submit intent" |
+| The details show by default | `qt_review_submission_editor_scale_100` | "the target and account are behind a closed disclosure" |
+| What is published is said with no draft and twice | `qt_review_submission_editor_scale_100` | "what is published is said once, and an empty status takes no room" |
+| Discard review keeps the drafts, as v001 | `application_start_review_contract` | `refused`: "discard-kept-the-draft" |
+| Discard review asks nothing | `qt_review_submission_editor_scale_100` | "Discard review asks first and names the count" |
+| The page stays open after Discard review | `application_start_review_contract` | `refused`: "discard-kept-the-draft" (the page is still shown) |
+| The stale discarded draft, as v001 | `application_start_review_contract` | `again`: "again-page-not-shown", the page saying "Review draft discarded." |
+
+**The 100 ms gates** (`build/app-release-tests`, Apple clang Release, tests
+on, run `-j1`), on the rebased candidate at a load average near 50 just after
+its build: `application_large_review_responsiveness` passes with budgets
+enforced, no `InputBudgetFailures` and no `UnenforcedLimitMisses` (largest
+input interval 10.9 ms, p95 6.6 ms, largest wheel event 3.9 ms), and
+`application_first_tab_comparison` passes. Before the rebase, at a load near
+3.5: 11.0 ms, 7.0 ms and 4.2 ms.
+
+**Pin.** Resealed over BPR-1369's reseal (BPR-1367 and BPR-1368 before it
+left both pins matching): `full_application` `8f04d2ef…`,
+`production_app_manifest` `edbe131f…`; the mutation pin is unchanged. The
+dated note says what moved.
+
+**Limits.**
+- macOS only; Windows and Linux runs of these rows are owed by the stations.
+- A pending row goes to its comment's line in Review; it does not open the
+  drawer composer on it.
+- Undo is not offered for Delete or Discard review; each asks first instead.
+- The v001 session's host (pid 70880) and the frozen v001 application the
+  owner launched (pid 17530) are not this round's processes and were left
+  running; the v001 root is not removed.
