@@ -137,3 +137,11 @@ model `claude-opus-5-5`, effort `high`.
 - **Question reading** is a deterministic reading of `?` in prose, not a judgment of uncertainty; prose changes stay visible as the before and after.
 - **Provenance**: no model or effort identity is supplied by this runtime path, so none is recorded or shown.
 - **Platforms**: Linux only; macOS and Windows runs are owed (the three courses are pinned uncontained on Windows like the workshop press). No live GitHub, no model call.
+
+### Coordinator decision (2026-10-08)
+
+The agent-assisted composition (private notes to draft) goes through the
+workshop as a clarify, and it keeps carrying the guidance. The RFC asks for
+drafting and promotion tasks to get it. The coordinator decided this. The
+candidate line's owner look will be prepared from the Mac with
+`frontend-design`.
