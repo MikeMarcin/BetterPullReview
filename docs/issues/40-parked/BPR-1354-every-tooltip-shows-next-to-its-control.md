@@ -2,12 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1354"
 title: "Every tooltip shows next to its control"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","origin":"BPR-1335 owner look, session b4b76c70c8e54f1933410b582189d0e8, BPR-1335-add-button-v002 Accept note","decision_id":"e7d697dd-056d-418f-bc6d-ffa10b11d687","reservation":"docs/issues/_reservations/BPR-1353--BPR-1354--7fb3f9709caa.json","related_cards":["BPR-1335","BPR-1328","BPR-1083"],"acceptance":["BPR-1354:inventory","BPR-1354:one-placement","BPR-1354:position","BPR-1354:control","BPR-1354:guard","BPR-1354:specification","BPR-1354:owner-look"]}
+parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1354:inventory","outcome":"pass","revision":"07366641e","evidence":{"kind":"artifact","detail":"Card section Inventory lists every tooltip route found by grep over src and what each now does."}},{"criterion":"BPR-1354:one-placement","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"grep: no QToolTip::showText in src; install_anchored_tooltips answers every widget's tooltip event via standard_tooltip_target; painted controls use anchor_tooltips or show_anchored_tooltip."}},{"criterion":"BPR-1354:position","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"qt_anchored_tooltips (button, child, list item, tab, header section, menu action, bottom edge above) and qt_diff_workbench_scale_{100,125,200} (the +) pass: tooltip at anchored_tooltip_geometry, directly below, left edges aligned."}},{"criterion":"BPR-1354:control","outcome":"pass","revision":"b9aff5200","evidence":{"kind":"command","detail":"Against main's adapter: qt_anchored_tooltips 28 failures (anchored=0 qt=1), qt_diff_workbench_scale_100 fails at the +'s tooltip check."}},{"criterion":"BPR-1354:guard","outcome":"pass","revision":"07366641e","evidence":{"kind":"command","detail":"architecture_boundaries refuses QToolTip::showText under src/adapters/qt and src/app; passes on the candidate."}},{"criterion":"BPR-1354:specification","outcome":"pass","revision":"07366641e","evidence":{"kind":"artifact","detail":"workbench-specification.md primary actions states the rule for every tooltip; conventional-comments-feedback.md points to it."}},{"criterion":"BPR-1354:owner-look","outcome":"pending","revision":"frozen-07366641e-v001","evidence":{"kind":"observation","detail":"Session 9f285bbed81efd15a3546759cad586f3, candidate BPR-1354-tooltips-v001, ready at cursor 3; frozen root /Users/jaeger/bpr1354-tooltips-v001.mvqqg7bo."}}]
 ---
 
 # BPR-1354: Every tooltip shows next to its control
@@ -191,3 +193,30 @@ is Qt's own tooltip panel, so the work is placement and wrapping only.
 - The build folder briefly had two builds in it (another agent stopped the
   first by pattern); everything that ran was rebuilt afterwards, and the
   frozen build is made from the commit in its own root.
+
+## Owner look (pending)
+
+One new short session, one question, Accept or Reject: "tooltips appear next
+to their control".
+
+- Session `9f285bbed81efd15a3546759cad586f3`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1354-tooltips-v001`,
+  repo root the main checkout, candidate `BPR-1354-tooltips-v001` (revision
+  `frozen-07366641e-v001`, fingerprint `ae207a46031d…`), criterion
+  `BPR-1354:owner-look`, ready at event cursor 3. The host runs detached; the
+  offline page is `review.html` in the state directory.
+- Frozen root `/Users/jaeger/bpr1354-tooltips-v001.mvqqg7bo`, made by
+  `scripts/freeze_attended_build.py freeze` from `07366641e` (fixture
+  `inline-drawer-v1`, file `src/ui/conversation_cards_view.cpp`), executable
+  SHA-256 `57f1c75f7fc4…`. Its own `--check` reached `ATTENDED_FILE_SHOWN` on
+  head `89df5e59…`.
+- Launch: `python3 /Users/jaeger/bpr1354-tooltips-v001.mvqqg7bo/launch.py`.
+
+## Next
+
+Read session `9f285bbe…` from cursor 3. Accept satisfies
+`BPR-1354:owner-look`; then finish the card, release the session and remove
+the frozen root with `freeze_attended_build.py remove`. A Reject names the
+tooltip that was still away from its control; route it through
+`standard_tooltip_target` or an `anchor_tooltips` source, with a position
+test for that kind.
