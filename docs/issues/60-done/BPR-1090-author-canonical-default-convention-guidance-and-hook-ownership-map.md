@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1090"
 title: "Author canonical default convention guidance and hook ownership map"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0051"]
 depends_on: ["BPR-1076", "BPR-1086"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-16","milestone":"hooks-cli","acceptance":["R34","R35","R36","R37"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
-parked_on: "human-review"
-acceptance: [{"criterion":"R34","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"command","path":"tests/application/writing_delivery_tests.cpp","detail":"application_writing_delivery: the shipped review-feedback-v1 default names all twelve catalog IDs with their meanings, blocking/non-blocking/if-minor, plain prose, uncertainty kept as questions, issue not a GitHub Issue, the suggestion label vs a GitHub suggested change and fenced suggestion block, and Request changes as a separate action; no model is needed and every core feature is unchanged with the label helper off (nothing sent). Controls fail."}},{"criterion":"R35","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"command","path":"tests/application/tour_cli_tests.cpp","detail":"tour_cli_composition: bpr tour hooks lists problem, solution, outline, comment, feedback with versions, customized and active, plus label_helper, directly and through a running owner; feedback edit survives a new process and leaves the tour hooks unchanged; reset restores the shipped text. sqlite_workbench_settings_storage: v15 migrates keeping the four overrides, revision and window summary fractions, feedback empty (default); override stored as written; reset stores empty. Tour hooks unchanged and still ask for no label. Ledger hook ownership map uses the real names and sources."}},{"criterion":"R36","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"command","path":"tests/application/writing_delivery_tests.cpp","detail":"The feedback hook builds no writing prompt and decodes no writing result; assist context --hook feedback is invalid_hook; the Settings Test is disabled and test_writing_hook refuses it before any launch. No new grant, provider, network or publication path (round-trip pins resealed, mutation pin unchanged)."}},{"criterion":"R37","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"observation","detail":"Card scope: the default guidance tells the agent to keep the reviewer's label, uncertainty and suggestion bytes, to return a local draft candidate only, and not to reveal private severity, provenance or model identity (asserted in application_writing_delivery). Enforcing this on workshop candidates is BPR-1091's."}},{"criterion":"BPR-1090:owner-look","outcome":"pending","revision":"54b4b89eb","evidence":{"kind":"freeform","detail":"Attended session df50c8413c8a1b3a29db57916d6b8941 (state /Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1090-feedback-row-v001), candidate BPR-1090-feedback-row-v001 on the frozen build /Users/jaeger/bpr1090-feedback-hook-look-v001.VnZ20v; one Accept/Reject question on the Review feedback Settings row."}}]
+acceptance: [{"criterion":"R34","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"command","path":"tests/application/writing_delivery_tests.cpp","detail":"application_writing_delivery: the shipped review-feedback-v1 default names all twelve catalog IDs with their meanings, blocking/non-blocking/if-minor, plain prose, uncertainty kept as questions, issue not a GitHub Issue, the suggestion label vs a GitHub suggested change and fenced suggestion block, and Request changes as a separate action; no model is needed and every core feature is unchanged with the label helper off (nothing sent). Controls fail."}},{"criterion":"R35","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"command","path":"tests/application/tour_cli_tests.cpp","detail":"tour_cli_composition: bpr tour hooks lists problem, solution, outline, comment, feedback with versions, customized and active, plus label_helper, directly and through a running owner; feedback edit survives a new process and leaves the tour hooks unchanged; reset restores the shipped text. sqlite_workbench_settings_storage: v15 migrates keeping the four overrides, revision and window summary fractions, feedback empty (default); override stored as written; reset stores empty. Tour hooks unchanged and still ask for no label. Ledger hook ownership map uses the real names and sources."}},{"criterion":"R36","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"command","path":"tests/application/writing_delivery_tests.cpp","detail":"The feedback hook builds no writing prompt and decodes no writing result; assist context --hook feedback is invalid_hook; the Settings Test is disabled and test_writing_hook refuses it before any launch. No new grant, provider, network or publication path (round-trip pins resealed, mutation pin unchanged)."}},{"criterion":"R37","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"observation","detail":"Card scope: the default guidance tells the agent to keep the reviewer's label, uncertainty and suggestion bytes, to return a local draft candidate only, and not to reveal private severity, provenance or model identity (asserted in application_writing_delivery). Enforcing this on workshop candidates is BPR-1091's."}},{"criterion":"BPR-1090:owner-look","outcome":"pass","revision":"54b4b89eb","evidence":{"kind":"observation","detail":"Owner Accept on candidate BPR-1090-feedback-row-v001 (fingerprint 6b6b785c..., frozen build of 54b4b89eb, landed as 941b4a03d/e20113341 with identical src/tests/cmake) in session df50c8413c8a1b3a29db57916d6b8941, decision 51eb7b84-f1f8-4a9e-8ff0-8e54af686cca (2026-10-09T02:28:08Z), handed back at event 6. The note's asides (section banners, info glyphs, Agents & context layout and text) are recorded as owner input on BPR-1288, not as defects in this row."}}]
 ---
 
 # BPR-1090: Author canonical default convention guidance and hook ownership map
@@ -104,7 +103,7 @@ passes; round-trip pins resealed over `1e277adcc` (mutation pin unchanged).
   makes a pending tour writing request stale (unchanged contract).
 - macOS only; Linux and Windows runs are owed. No live GitHub, no model call.
 
-### Owner look, session v001 (pending)
+### Owner look, session v001
 
 `BPR-1090:owner-look` is the owner's, not self-certified. One short attended
 session asks one question, Accept or Reject: the Review feedback row reads and
@@ -129,5 +128,38 @@ unavailable). Offscreen renders were checked first
   exit within seconds. The fixture profile is private; the owner's own profile
   is not opened.
 
-Next: read the session's decision. Accept satisfies `:owner-look` and the card
-finishes; Reject comes back with what to change, for a v002 candidate.
+### Owner decision, session df50c841 (2026-10-09)
+
+Session `df50c8413c8a1b3a29db57916d6b8941`, read from cursor 0 to event 6
+(handed back).
+
+| Candidate | Verdict |
+|---|---|
+| `BPR-1090-feedback-row-v001` | Accept (`51eb7b84`, 02:28:08Z) |
+
+The note, verbatim (line breaks as given):
+
+> aside: these gray section banners with white text are ugly as sin
+> aside 2: something looks off about all these little info buttons, i dont tink theyre supposed to have that rect, and its not centered if they are.
+>
+> There's some layout problems on this agents page and a crapton of text.
+
+Three screenshots came with it, committed as
+[`BPR-1090-owner-ref-section-banner.png`](../../design/owner-refs/BPR-1090-owner-ref-section-banner.png),
+[`BPR-1090-owner-ref-info-buttons.png`](../../design/owner-refs/BPR-1090-owner-ref-info-buttons.png)
+and
+[`BPR-1090-owner-ref-agents-page.png`](../../design/owner-refs/BPR-1090-owner-ref-agents-page.png).
+
+The Accept was given on the frozen build of `54b4b89eb` (executable
+`be9b40c5e70e…`), whose `src/`, `tests/` and `cmake/` are identical to the
+landed `941b4a03d` and `e20113341`. It satisfies `BPR-1090:owner-look`. R34 to
+R37 stand on their recorded evidence. The asides are about Settings as a
+whole, not about the Review feedback row, and are recorded as owner input on
+[BPR-1288](../10-backlog/BPR-1288-redesign-settings-section-headers-and-the-reviews-and-queue-page.md):
+the section banners were already its scope, and the info glyphs, the Agents &
+context layout and the text volume were added to it. Linux and Windows runs
+remain owed and do not block. The card is Done.
+
+The session's candidate was released (`resume-development --all`, event 7).
+The host was already stopped. The frozen root
+`/Users/jaeger/bpr1090-feedback-hook-look-v001.VnZ20v` was deleted.
