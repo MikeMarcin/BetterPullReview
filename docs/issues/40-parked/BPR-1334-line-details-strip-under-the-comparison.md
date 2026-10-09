@@ -540,10 +540,19 @@ an `origin/main` control binary built in the same tree:
   4 and 5 rows, the control 3 and 5, in the same phases.
 
 The history course's line is `int fixture_0030 = …;`. The strip's added
-work there is two rows of about 20 bytes per publication. No mechanism links
-it to a Git epoch refresh pulse, but this is not yet a clean 18/18. A quiet
-run of the 18, with `history` alternated against the control, is still
-owed, and C4 is not reclaimed until that run is made.
+work there is two rows of about 20 bytes per publication. A probe that was
+never committed timed every strip entry point inside the optimized courses at
+load near 300, where pulses of 100–250 ms came from other phases, and was then
+reverted:
+- `history`: `set_token_spans` was at worst 0.93 ms over 174 calls, `present`
+  0.29 ms and `present_empty` 0.03 ms.
+- `responsiveness`: `present` was at worst 0.53 ms.
+
+So the strip, including what v004 adds, is at most about 1 ms of any pulse.
+Even so, this is not a clean 18/18. A quiet run of the 18, with `history`
+alternated against the control, is still owed, and C4 is not reclaimed until
+that run is made. The machine stayed at load 100–425 from other worktrees'
+builds from 21:30 to 00:10.
 
 ## Owner look v004 (C5, pending)
 
