@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1360"
+  ],
+  "reserve_for": "cold-open-both-sides",
+  "purpose": "read both sides of a cold open concurrently (BPR-1344 follow-up)",
+  "created": "2026-10-09T07:53:19.220954+00:00",
+  "base": "e58663dd0ea84a359233899c593cf47f7a8a0ff5"
+}
