@@ -162,6 +162,12 @@ namespace bpr::qt {
 		/// Updates an existing identity, preserving every persistent index.
 		void               apply_item(const core::queue_item& aItem);
 		[[nodiscard]] auto item_for(const core::pull_request_ref& aRef) const -> std::optional<core::queue_item>;
+		/// \brief [[BPR-1365]]. The pull request this window has open, or none.
+		///
+		/// \details Its row answers `home_row_role::reviewing` and says so in its
+		/// accessible description; only the rows it leaves and reaches change.
+		void               set_reviewing(std::optional<core::pull_request_ref> aRef);
+		[[nodiscard]] auto reviewing() const noexcept -> const std::optional<core::pull_request_ref>&;
 
 		void clear();
 
@@ -186,6 +192,7 @@ namespace bpr::qt {
 		std::vector<core::queue_item>                 Items;
 		std::map<core::pull_request_ref, std::size_t> Positions;
 		std::vector<home_account>                     Accounts;
+		std::optional<core::pull_request_ref>         Reviewing;
 	};
 
 	/// \brief Filters and explicitly reorders the decided landing queue.

@@ -632,7 +632,11 @@ namespace bpr::qt {
 			}
 			auto* const item = new QListWidgetItem{ text };
 			item->setToolTip(detail);
-			item->setData(Qt::AccessibleDescriptionRole, detail);
+			// [[BPR-1365]]. The review this window has open is said in words, as
+			// its tag says it on the row.
+			item->setData(Qt::AccessibleDescriptionRole,
+						  aEntry.Open ? QStringLiteral("%1; %2").arg(home_reviewing_description(), detail) : detail);
+			item->setData(home_row_role::reviewing, aEntry.Open);
 			// [[BPR-0776]]. The queue row's anatomy. A recent row has no state, so
 			// no reason word and no colour; its time is the host's reading of
 			// when it was viewed, and it offers Resume only where a reading was
@@ -2903,8 +2907,8 @@ namespace bpr::qt {
 				if (item == nullptr) {
 					return;
 				}
+				claim_home_selection(home_selection_list::recent);
 				HomeRecentList->setCurrentItem(item);
-				HomeRecentRowLast = true;
 				popup_home_row_menu(HomeRecentList->viewport()->mapToGlobal(aPosition));
 			});
 			HomeRecentList->installEventFilter(this);
@@ -2916,6 +2920,13 @@ namespace bpr::qt {
 						dispatch_recent_review(
 							aItem == nullptr ? -1 : HomeRecentList->row(aItem), false);
 					});
+			// [[BPR-1365]]. A row made current while another list has Home's
+			// keyboard is not shown selected.
+			connect(HomeRecentList->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this] {
+				if (HomeSelection != home_selection_list::recent) {
+					home_hide_selection(*HomeRecentList);
+				}
+			});
 			connect(HomeRecentList, &QListWidget::currentRowChanged, this,
 					[this](int) {
 						update_recent_resume_action();
@@ -2963,6 +2974,11 @@ namespace bpr::qt {
 			connect(openProject, &QToolButton::clicked, this, [this] {
 				if (OpenProjectAction != nullptr) {
 					OpenProjectAction->trigger();
+				}
+			});
+			connect(HomeCyclesList->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this] {
+				if (HomeSelection != home_selection_list::cycles) {
+					home_hide_selection(*HomeCyclesList);
 				}
 			});
 			connect(HomeCyclesList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem* const aItem) {
@@ -3581,20 +3597,19 @@ namespace bpr::qt {
 		// [[BPR-1342]]. ⌘Return, ⌘-click or middle-click on a queue row.
 		HomeList->set_new_window_dispatch([this](const core::queue_item& aItem) { request_review_window(aItem.Ref); });
 		// Which of Home's lists the reviewer is in: the one that last took the
-		// keyboard. A menu taking it for a moment changes nothing.
+		// keyboard. A menu taking it for a moment changes nothing. [[BPR-1365]]:
+		// it is also the one list that shows a selection.
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget* const aNow) {
 			if (aNow == nullptr || HomeList == nullptr) {
 				return;
 			}
 			if (aNow == HomeRecentList) {
-				HomeRecentRowLast = true;
+				claim_home_selection(home_selection_list::recent);
+			} else if (aNow == HomeCyclesList) {
+				claim_home_selection(home_selection_list::cycles);
 			} else if (qobject_cast<QListView*>(aNow) != nullptr && HomeList->isAncestorOf(aNow)) {
-				HomeRecentRowLast = false;
-			} else {
-				return;
+				claim_home_selection(home_selection_list::queue);
 			}
-			update_open_on_github_action();
-			update_home_review_actions();
 		});
 		// [[BPR-1342]]. Home's one row menu, for a queue row and a Recently
 		// viewed row alike: Open Review (the default, in this window), Open
@@ -3637,7 +3652,7 @@ namespace bpr::qt {
 			}
 		});
 		HomeList->set_row_menu_dispatch([this](const QPoint& aGlobal) {
-			HomeRecentRowLast = false;
+			claim_home_selection(home_selection_list::queue);
 			popup_home_row_menu(aGlobal);
 		});
 		// The empty lane's link names the saved repositories, so it opens their
@@ -10461,7 +10476,12 @@ namespace bpr::qt {
 		// whichever list; over a review the open pull request, by the
 		// publication on screen.
 		if (showing_home()) {
-			if (HomeRecentRowLast && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
+			// [[BPR-1365]]. A review cycle has no page; with its row selected
+			// there is no pull request on Home to name.
+			if (HomeSelection == home_selection_list::cycles) {
+				return std::nullopt;
+			}
+			if (HomeSelection == home_selection_list::recent && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
 				&& static_cast<std::size_t>(HomeRecentList->currentRow()) < RecentReviews.Entries.size()) {
 				return application::recent_review_row{ static_cast<std::size_t>(HomeRecentList->currentRow()) };
 			}
@@ -10501,10 +10521,10 @@ namespace bpr::qt {
 
 	auto workbench_window::home_review_target() const -> std::optional<std::variant<core::queue_item, application::recent_review_row>>
 	{
-		if (!showing_home()) {
+		if (!showing_home() || HomeSelection == home_selection_list::cycles) {
 			return std::nullopt;
 		}
-		if (HomeRecentRowLast && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
+		if (HomeSelection == home_selection_list::recent && HomeRecentList != nullptr && HomeRecentList->currentRow() >= 0
 			&& static_cast<std::size_t>(HomeRecentList->currentRow()) < RecentReviews.Entries.size()) {
 			return application::recent_review_row{ static_cast<std::size_t>(HomeRecentList->currentRow()) };
 		}
@@ -11349,6 +11369,11 @@ namespace bpr::qt {
 
 	void workbench_window::update_pull_request_queue_actions()
 	{
+		// [[BPR-1365]]. The queue row of the open pull request says so, by the
+		// same exact identity Follow names.
+		if (QueueLanding != nullptr) {
+			QueueLanding->set_reviewing(open_queue_ref());
+		}
 		if (FollowPullRequest == nullptr || SavePullRequestRepository == nullptr) {
 			return;
 		}
@@ -11644,8 +11669,12 @@ namespace bpr::qt {
 			}
 			if (!RecentReviews.Entries.empty()) {
 				const auto rows = static_cast<int>(RecentReviews.Entries.size());
+				// [[BPR-1365]]. Current, but selected only while Recently viewed is
+				// the list with Home's keyboard: a publication never paints a
+				// second selection beside the queue's.
 				HomeRecentList->setCurrentRow(
-					previousRow >= 0 && previousRow < rows ? previousRow : 0);
+					previousRow >= 0 && previousRow < rows ? previousRow : 0,
+					HomeSelection == home_selection_list::recent ? QItemSelectionModel::ClearAndSelect : QItemSelectionModel::NoUpdate);
 			}
 		}
 		// [[BPR-0776]]. The rows are the last panel of Home's list, which appears
@@ -11693,6 +11722,27 @@ namespace bpr::qt {
 		HomeRecentResumeAction->setEnabled(
 			row >= 0 && static_cast<std::size_t>(row) < RecentReviews.Entries.size()
 			&& RecentReviews.Entries[static_cast<std::size_t>(row)].Resumable);
+	}
+
+	void workbench_window::claim_home_selection(const home_selection_list aList)
+	{
+		HomeSelection = aList;
+		if (HomeList != nullptr) {
+			HomeList->set_selection_shown(aList == home_selection_list::queue);
+		}
+		for (const auto& [list, view] : { std::pair{ home_selection_list::recent, static_cast<QAbstractItemView*>(HomeRecentList) },
+										  std::pair{ home_selection_list::cycles, static_cast<QAbstractItemView*>(HomeCyclesList) } }) {
+			if (view == nullptr) {
+				continue;
+			}
+			if (list == aList) {
+				home_show_selection(*view);
+			} else {
+				home_hide_selection(*view);
+			}
+		}
+		update_open_on_github_action();
+		update_home_review_actions();
 	}
 
 	void workbench_window::resume_home_cycle(const int aRow)

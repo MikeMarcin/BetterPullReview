@@ -1427,6 +1427,17 @@ namespace bpr::qt {
 		/// \brief [[BPR-1157]] [[BPR-1364]]. Resumes one of Home's recent review
 		/// cycles, by a double-click or Return on its row.
 		void resume_home_cycle(int aRow);
+		/// [[BPR-1365]]. Home's lists: the queue (every arrangement's rows),
+		/// Recently viewed and Review Cycles.
+		enum class home_selection_list : std::uint8_t {
+			queue,
+			recent,
+			cycles,
+		};
+		/// \brief [[BPR-1365]]. Makes one Home list the one that shows a
+		/// selection: its current row is selected, natively, and every other
+		/// list keeps its current row but selects nothing.
+		void claim_home_selection(home_selection_list aList);
 
 		/// [[BPR-0722]]. Pixels the other visible strip items leave the identity.
 		[[nodiscard]] auto strip_identity_budget() const -> int;
@@ -2219,8 +2230,9 @@ namespace bpr::qt {
 		QAction*                                                      HomeOpenReviewAction       = nullptr;
 		QAction*                                                      HomeOpenReviewWindowAction = nullptr;
 		std::function<bool(const application::review_window_intent&)> ReviewWindowDispatch;
-		/// Which of Home's lists last made a row current: the queue's or Recently viewed.
-		bool HomeRecentRowLast = false;
+		/// Which of Home's lists last took the keyboard. Its current row is
+		/// Home's one selection, and the row Home's actions name.
+		home_selection_list HomeSelection = home_selection_list::queue;
 
 		/// [[BPR-0668]]. Whether the comparison gave the drawer any files.
 		bool                          FileRowsPresent          = false;

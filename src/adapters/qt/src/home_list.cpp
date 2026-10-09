@@ -283,6 +283,24 @@ namespace bpr::qt {
 		return left != right ? left < right : aLeft.row() < aRight.row();
 	}
 
+	void home_hide_selection(QAbstractItemView& aView)
+	{
+		if (auto* const selection = aView.selectionModel(); selection != nullptr && selection->hasSelection()) {
+			selection->clearSelection();
+		}
+	}
+
+	void home_show_selection(QAbstractItemView& aView)
+	{
+		auto* const selection = aView.selectionModel();
+		if (selection == nullptr) {
+			return;
+		}
+		if (const auto current = selection->currentIndex(); current.isValid() && !selection->isSelected(current)) {
+			selection->select(current, QItemSelectionModel::ClearAndSelect);
+		}
+	}
+
 	auto home_open_description() -> QString
 	{
 		return QStringLiteral("Double-click or press Return to open");
@@ -573,6 +591,14 @@ namespace bpr::qt {
 		connect(&aView, &QAbstractItemView::doubleClicked, this, [this, view = &aView](const QModelIndex& aIndex) { open_row(*view, aIndex); });
 		connect(aView.selectionModel(), &QItemSelectionModel::currentChanged, this,
 				[this, view = &aView](const QModelIndex& aCurrent) { adopt_current(view, aCurrent); });
+		// [[BPR-1365]]. While another Home list has the keyboard, a row made
+		// current here (a refresh restoring it, a right click) is not shown
+		// selected: Home shows one selection.
+		connect(aView.selectionModel(), &QItemSelectionModel::selectionChanged, this, [this, view = &aView] {
+			if (!SelectionShown) {
+				home_hide_selection(*view);
+			}
+		});
 		connect_model_signals(aModel, *this, [this] { schedule_refresh(); });
 		// [[BPR-1338]]. Open on GitHub: an icon on the hovered row and on the
 		// current row while its list has focus, and the row's menu.
@@ -597,6 +623,23 @@ namespace bpr::qt {
 			view->setCurrentIndex(index);
 			RowMenuDispatch(view->viewport()->mapToGlobal(aPosition));
 		});
+	}
+
+	void home_list::set_selection_shown(const bool aShown)
+	{
+		SelectionShown = aShown;
+		if (!aShown) {
+			for (auto* const view : row_views()) {
+				home_hide_selection(*view);
+			}
+		} else if (CurrentRows != nullptr) {
+			home_show_selection(*CurrentRows);
+		}
+	}
+
+	auto home_list::selection_shown() const noexcept -> bool
+	{
+		return SelectionShown;
 	}
 
 	void home_list::set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch)

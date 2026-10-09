@@ -8,6 +8,7 @@
 #include <QPalette>
 #include <QRect>
 #include <QSize>
+#include <QString>
 #include <QStringList>
 #include <QStyledItemDelegate>
 #include <QtTypes>
@@ -49,8 +50,16 @@ namespace bpr::qt {
 			/// GitHub"), or empty for none. Drawn as an icon-only button
 			/// where a row has no labelled action.
 			icon_action,
+			/// [[BPR-1365]]. True for the pull request this window has open.
+			reviewing,
 		};
 	} // namespace home_row_role
+
+	/// \brief [[BPR-1365]]. The tag on the row of the review this window has
+	/// open: "Reviewing", the word Home's landing title says it in.
+	[[nodiscard]] auto home_reviewing_text() -> QString;
+	/// \brief [[BPR-1365]]. What that row's accessible description begins with.
+	[[nodiscard]] auto home_reviewing_description() -> QString;
 
 	/// \brief Home's three state colours at text strength.
 	struct home_state_colours
@@ -177,6 +186,12 @@ namespace bpr::qt {
 	/// the style's own selection, hover and focus painting; its text wraps and is
 	/// never elided; its colours and fonts come from the style option, except the
 	/// reason word, which is the one place a state colour is drawn.
+	///
+	/// [[BPR-1365]]. The row of the review this window has open is not a
+	/// selection: unselected, its ground is the palette's AlternateBase (the
+	/// theme's current-line tint) and it carries a "Reviewing" tag in neutral
+	/// ink beside the time. Selected, the style's selection covers the tint and
+	/// the tag takes the selected ink, so the two never look alike.
 	class home_row_delegate final : public QStyledItemDelegate
 	{
 	public:
@@ -204,6 +219,10 @@ namespace bpr::qt {
 		/// \details The labelled action's place, or the icon action's where the
 		/// row has no labelled one.
 		[[nodiscard]] static auto action_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex)
+			-> QRect;
+		/// \brief [[BPR-1365]]. Where the Reviewing tag is painted, in the
+		/// option's coordinates; empty for a row that is not the open review.
+		[[nodiscard]] auto reviewing_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QRect;
 		/// \brief Where the reason word is painted, in the option's coordinates.
 		[[nodiscard]] auto reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const

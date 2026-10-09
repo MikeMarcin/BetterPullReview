@@ -47,6 +47,12 @@ namespace bpr::qt {
 		constexpr auto open_mark_gap = 6;
 		/// The opening mark's arc: a quarter of a turn, at this share of its ring.
 		constexpr auto open_arc_degrees = 100;
+		/// [[BPR-1365]]. The Reviewing tag: its text's room inside the outline,
+		/// above and beside it, and the outline's corner. A small radius, so it
+		/// is never read as an account chip's pill.
+		constexpr auto tag_pad_x  = 6;
+		constexpr auto tag_pad_y  = 1;
+		constexpr auto tag_radius = 3.0;
 		/// [[BPR-0783]]. The one host a chip never repeats.
 		constexpr auto default_host = QLatin1StringView{ "github.com" };
 		/// Between a login and the host it is not on by default.
@@ -180,6 +186,8 @@ namespace bpr::qt {
 				Time                = aIndex.data(home_row_role::time).toString();
 				Progress            = aIndex.data(home_row_role::progress).toString();
 				Chip                = aIndex.data(home_row_role::account_chip).toString();
+				// [[BPR-1365]]. The review this window has open says so in a word.
+				Tag = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				// [[BPR-1357]]. The row a pull request is being opened from says
 				// so in place of why it is listed, behind a mark, and its action
 				// place holds Cancel or Retry instead of the hover action.
@@ -213,13 +221,16 @@ namespace bpr::qt {
 				const auto chipExtent = home_chip_size(SideFont, Chip);
 				ChipWidth             = chipExtent.width();
 				ChipHeight            = chipExtent.height();
+				TagWidth              = Tag.isEmpty() ? 0 : sideMetrics.horizontalAdvance(Tag) + (tag_pad_x * 2);
+				TagHeight             = Tag.isEmpty() ? 0 : SideLineHeight + (tag_pad_y * 2);
 
 				Width                = row_width(aOption);
 				TextLeft             = home_row_delegate::inset + (aMarks ? home_row_delegate::mark_width : 0);
 				const auto right     = Width - home_row_delegate::inset;
 				SideLeft             = right - SideWidth;
 				ChipLeft             = SideLeft - (SideWidth > 0 && ChipWidth > 0 ? home_row_delegate::column_gap : 0) - ChipWidth;
-				const auto textRight = SideWidth > 0 || ChipWidth > 0 ? ChipLeft - home_row_delegate::column_gap : right;
+				TagLeft              = ChipLeft - ((SideWidth > 0 || ChipWidth > 0) && TagWidth > 0 ? home_row_delegate::column_gap : 0) - TagWidth;
+				const auto textRight = SideWidth > 0 || ChipWidth > 0 || TagWidth > 0 ? TagLeft - home_row_delegate::column_gap : right;
 				TextWidth            = std::max(1, textRight - TextLeft);
 
 				auto identityFormat   = QTextLayout::FormatRange{ };
@@ -250,7 +261,7 @@ namespace bpr::qt {
 					+ (SecondHeight > 0 ? home_row_delegate::line_gap + SecondHeight : 0);
 				const auto sideLines = (Time.isEmpty() ? 0 : 1) + (Progress.isEmpty() ? 0 : 1);
 				const auto side      = (home_row_delegate::vertical_padding * 2)
-					+ std::max({ sideLines * SideLineHeight, actionExtent.height(), ChipHeight });
+					+ std::max({ sideLines * SideLineHeight, actionExtent.height(), ChipHeight, TagHeight });
 				RowHeight   = std::max({ home_row_delegate::minimum_row_height, content, side });
 				TotalHeight = RowHeight + (has_hairline(aIndex) ? home_row_delegate::hairline : 0);
 				ContentTop  = ((RowHeight - content) / 2) + home_row_delegate::vertical_padding;
@@ -311,6 +322,7 @@ namespace bpr::qt {
 			QString     Time;
 			QString     Progress;
 			QString     Chip;
+			QString     Tag;
 			QFont       SideFont;
 			QTextLayout FirstLayout;
 			QTextLayout SecondLayout;
@@ -325,6 +337,9 @@ namespace bpr::qt {
 			int         TextWidth      = 1;
 			int         SideLeft       = 0;
 			int         ChipLeft       = 0;
+			int         TagWidth       = 0;
+			int         TagHeight      = 0;
+			int         TagLeft        = 0;
 			int         FirstHeight    = 0;
 			int         SecondHeight   = 0;
 			int         RowHeight      = 0;
@@ -405,6 +420,16 @@ namespace bpr::qt {
 		return aHost.isEmpty() || aHost == default_host
 			? aLogin
 			: aLogin + chip_host_separator + aHost;
+	}
+
+	auto home_reviewing_text() -> QString
+	{
+		return QStringLiteral("Reviewing");
+	}
+
+	auto home_reviewing_description() -> QString
+	{
+		return QStringLiteral("Reviewing in this window");
 	}
 
 	auto home_tile_extent(const QFont& aFont) -> int
@@ -540,6 +565,13 @@ namespace bpr::qt {
 		const auto       reasonInk = selected ? colours.color(group, QPalette::HighlightedText) : tone;
 		const row_layout layout{ option, aIndex, Marks, reasonInk, &Open };
 
+		// [[BPR-1365]]. The open review's quiet ground, under the style's: the
+		// theme's current-line tint, never its selection. A selected row is the
+		// style's to fill.
+		if (!selected && !layout.Tag.isEmpty()) {
+			aPainter->fillRect(QRect{ option.rect.left(), option.rect.top(), layout.Width, layout.RowHeight },
+							   colours.color(group, QPalette::AlternateBase));
+		}
 		// The style draws the row's ground: hover, selection and focus, natively.
 		auto native = option;
 		native.text.clear();
@@ -601,6 +633,23 @@ namespace bpr::qt {
 						   layout.SideFont,
 						   home_chip_ink_for(colours, group, selected));
 		}
+		if (!layout.Tag.isEmpty()) {
+			// [[BPR-1365]]. A word in neutral ink in a thin outline: on Home colour
+			// means state, so the tag claims none. A selected row keeps the
+			// style's selected ink, as the chip does.
+			const auto tagInk  = selected ? colours.color(group, QPalette::HighlightedText) : colours.color(group, QPalette::Text);
+			const auto outline = selected ? tagInk : colours.color(group, QPalette::PlaceholderText);
+			const auto tag     = QRect{ layout.TagLeft, (layout.RowHeight - layout.TagHeight) / 2, layout.TagWidth, layout.TagHeight };
+			aPainter->save();
+			aPainter->setRenderHint(QPainter::Antialiasing, true);
+			aPainter->setPen(QPen{ outline, 1.0 });
+			aPainter->setBrush(Qt::NoBrush);
+			aPainter->drawRoundedRect(QRectF{ tag }.adjusted(0.5, 0.5, -0.5, -0.5), tag_radius, tag_radius);
+			aPainter->setFont(layout.SideFont);
+			aPainter->setPen(tagInk);
+			aPainter->drawText(tag, Qt::AlignCenter, layout.Tag);
+			aPainter->restore();
+		}
 		if (has_hairline(aIndex)) {
 			aPainter->fillRect(QRect{ inset, layout.RowHeight, std::max(0, layout.Width - inset), hairline },
 							   colours.color(group, QPalette::Mid));
@@ -631,6 +680,21 @@ namespace bpr::qt {
 					  aOption.rect.top() + ((layout.RowHeight - size.height()) / 2),
 					  size.width(),
 					  size.height() };
+	}
+
+	auto home_row_delegate::reviewing_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+		-> QRect
+	{
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
+		if (layout.Tag.isEmpty()) {
+			return { };
+		}
+		return QRect{ option.rect.left() + layout.TagLeft,
+					  option.rect.top() + ((layout.RowHeight - layout.TagHeight) / 2),
+					  layout.TagWidth,
+					  layout.TagHeight };
 	}
 
 	auto home_row_delegate::reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const

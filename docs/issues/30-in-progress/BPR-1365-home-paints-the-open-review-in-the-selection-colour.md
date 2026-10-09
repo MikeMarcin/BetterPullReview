@@ -50,3 +50,126 @@ Cycles. All four themes are in scope.
   change.
 - `BPR-1365:owner`: the owner accepts the change on a frozen build (one
   Accept/Reject question).
+
+## What painted it (inventory at `1adeb4cfc`)
+
+- **Recently viewed was selected, not marked.** `apply_recent_reviews` kept a
+  current row with `setCurrentRow`, and in a single-selection list that also
+  selects it. Every publication of Recently viewed therefore selected its
+  first row, which after opening a review is the review open behind Home.
+- **The style painted every selection alike.** `home_row_delegate::paint`
+  leaves the ground to the style, which fills any selected row in an active
+  window with the palette's Highlight whether or not its list has the
+  keyboard. The app's palette sets Active and Inactive Highlight to the same
+  colour. So Needs me `#17`, selected by the click, and Recently viewed
+  `#17`, selected by the publication, showed the same blue.
+- **One current row covered only the queue.** `home_list::adopt_current`
+  clears the other queue views when a row becomes current, but Recently
+  viewed and Review Cycles sat outside it, and nothing anywhere marked the
+  open review.
+
+## Implementation
+
+The `frontend-design:frontend-design` skill was loaded first. Design choice:
+on Home colour means state (blue is Waiting on others), and on macOS the
+accent is the selection's own blue family, so the open review gets no hue.
+It gets the theme's current-line tint (AlternateBase, the ground the code
+canvas gives "where you are") and a **Reviewing** tag. That is the word Home's
+title already uses ("Reviewing octo-org/… #17"); "Open" would read as GitHub's
+pull-request state and as a command beside Open Review.
+
+- **Application / composition.** `recent_review_entry::Open`. `publish_recent`
+  marks the entry whose destination equals this window's `ReadingDestination`,
+  and Recently viewed is published again when an accepted read or handoff sets
+  that destination or an invalidation clears it. `github_application.cpp`
+  changed, so the round-trip pins are resealed in the same commit.
+- **Qt.** `home_row_role::reviewing`, with `home_reviewing_text()` ("Reviewing")
+  and `home_reviewing_description()` ("Reviewing in this window"), which
+  starts the row's accessible description. `review_landing_model::set_reviewing`
+  marks the queue row with the window's exact `open_queue_ref()`; the window
+  sets it in `update_pull_request_queue_actions`. `home_row_delegate` paints
+  the tint under the style's ground only when the row is not selected, and the
+  tag (secondary font, Text ink, PlaceholderText outline, 3-point radius so it
+  never reads as an account chip) left of the time. A selected row keeps the
+  selection and the tag takes HighlightedText. `reviewing_rect` says where the
+  tag is.
+- **One selection.** `workbench_window::home_selection_list` (queue, recent,
+  cycles) replaces `HomeRecentRowLast`; `claim_home_selection` runs when focus
+  enters a Home list and from both row menus. The claimed list's current row
+  is selected; every other list keeps its current row and has its selection
+  cleared (`home_hide_selection` / `home_show_selection`).
+  `home_list::set_selection_shown` does this for every queue view, and a guard
+  on each list's `selectionChanged` keeps any later programmatic current-row
+  change (a refresh restoring the row, a right click, a publication) from
+  selecting outside the owner. `apply_recent_reviews` sets its row with
+  `NoUpdate` unless Recently viewed owns the selection. With a review cycle
+  selected, Home's pull-request actions name no row.
+- Specification: "One selection, and the open review" in
+  `docs/ux/workbench-specification.md`.
+
+## Verification (macOS, `build/dev` Debug, offscreen, 2026-10-09)
+
+- `qt_home_list_scale_{100,125,200}`: new
+  `test_the_open_review_is_quiet_and_never_the_selection` in light, dark,
+  high-contrast light and high-contrast dark. The queue row and the Recently
+  viewed row of the open review are on AlternateBase (pixel, ±6), and a row
+  that is not open is not. The tag is inside the row and inked. The other row
+  has no tag. The accessible description starts "Reviewing in this window".
+  Selected, the open row is Highlight (±24). Hidden, the queue keeps its
+  current row and selects nothing, even when `select(ref, false)` restores
+  another row. Shown again, the current row is selected. It writes four
+  renders, `home-list-<scale>-reviewing-<theme>.png`.
+- `qt_composed_github_scale_{100,125,200}`: new
+  `test_home_shows_one_selection_and_the_open_review_quietly` through the
+  window. A publication makes Recently viewed's first row current without
+  selecting it. With the queue's `#73` selected (window-system click) beside
+  the open `#73`, the selected row is Highlight and the open row is
+  AlternateBase, not Highlight. A republication takes no selection. A click
+  moves the one selection to Recently viewed and then to Review Cycles, and
+  the queue keeps its current row. The keyboard's return to the queue selects
+  only it.
+- `application_home_open_feedback_public_path` (composed application): after
+  opening `#17` and returning Home, in all four themes, the composition marks
+  Recently viewed's `#17` and only it. The queue's `#17` says so and `#4001`
+  does not. A window-system click on the queue's `#17` is Home's one selection
+  and Recently viewed selects nothing. Pixel checks: the selected row is
+  Highlight and the open `#17` is AlternateBase, not Highlight. A click moves
+  the selection to Recently viewed (then Highlight) and back. With
+  `--render-directory` it writes `<theme>-reviewing.png` and
+  `<theme>-reviewing-recent-selected.png` for light, dark, high_contrast_light
+  and high_contrast_dark.
+- Also passing: `qt_review_landing_model`,
+  `qt_workbench_open_review_from_home_scale_{100,125,200}`,
+  `qt_workbench_open_on_github_scale_100`, `qt_workbench_window_scale_100`,
+  `qt_composed_home_sign_in`, `qt_composed_home_refusal_scale_100`,
+  `qt_surface_capture_course_scale_100`, `core_home_open`,
+  `application_home_open_host`, `application_attended_recent_replay`,
+  `application_recent_account_isolation`,
+  `application_profile_window_review_restoration_public_path`,
+  `application_document_tabs_restoration_public_path`,
+  `application_profile_multi_window_public_path`,
+  `application_personal_discovery_public_path`,
+  `application_review_cycle_desktop_public_path`,
+  `application_review_cycle_publish_public_path`,
+  `test_network_isolation_manifest`, `architecture_boundaries` and every
+  `*_composition_contract` (round-trip pins resealed:
+  full digest `498510165f41…`, manifest `26ccd144c16d…`).
+- `qt_workbench_home_discovery_scale_100` fails ("the empty Needs me lane is
+  not shown while nothing is saved; Review Cycles stays") with this card's
+  source set aside too, at `1adeb4cfc`. It predates this card and is not
+  touched by it.
+- clang-format 22.1.8 on every changed source. clang-tidy 22:
+  `home_row_delegate.cpp` and `review_landing_model.cpp` clean. The findings
+  on `home_list.hpp` (`portability-template-virtual-member-function` on
+  `home_fitted_view`) and `workbench_window.cpp:13073` (`compact_below`, from
+  `1cd9f15e4b`) are on main as well.
+
+**Failing-before.** With the behaviour set aside and the tests kept (no tag
+or tint, `reviewing` false, `set_selection_shown` and the guards no-ops,
+`claim_home_selection` only recording the list, `apply_recent_reviews`
+selecting), `qt_composed_github_scale_100` ("publishing Recently viewed makes
+its first row current without selecting it"), `qt_home_list_scale_100` ("the
+open pull request's queue row is the one this window is reviewing, and says
+so (light)") and `application_home_open_feedback_public_path` ("Recently
+viewed says which of its entries is the open review") fail. Restored, they
+pass.

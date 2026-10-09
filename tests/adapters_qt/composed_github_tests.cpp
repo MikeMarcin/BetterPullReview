@@ -4732,6 +4732,127 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1365]]. The ground a Home row is painted with, sampled in
+	/// the window's own render left of the row's text, where only the row's
+	/// ground (and the style's selection over it) is drawn.
+	[[nodiscard]] auto row_ground(QWidget& aWindow, const QAbstractItemView& aView, const QRect& aRow) -> QColor
+	{
+		const auto image = aWindow.grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto at    = aView.viewport()->mapTo(&aWindow, QPoint{ aRow.left() + 6, aRow.center().y() });
+		return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+	}
+
+	[[nodiscard]] auto near_colour(const QColor& aActual, const QColor& aExpected, const int aTolerance = 6) -> bool
+	{
+		return std::abs(aActual.red() - aExpected.red()) <= aTolerance && std::abs(aActual.green() - aExpected.green()) <= aTolerance
+			&& std::abs(aActual.blue() - aExpected.blue()) <= aTolerance;
+	}
+
+	[[nodiscard]] auto selected_rows(const QAbstractItemView& aView) -> qsizetype
+	{
+		return aView.selectionModel() != nullptr ? aView.selectionModel()->selectedIndexes().size() : 0;
+	}
+
+	/// [[BPR-1365]]. The owner, accepting BPR-1364: "Separate problem: the color
+	/// of recent is the same as the color of selected." Recently viewed made its
+	/// first row current, and so selected, on every publication, and the style
+	/// filled it with the selection beside the queue's selected row. Home now
+	/// shows one selection, in the list that last took its keyboard, and the
+	/// open review is drawn quietly, never with the selection's fill.
+	auto test_home_shows_one_selection_and_the_open_review_quietly() -> void
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ },
+			qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ },
+			profiles(),
+			[](application::github_intent) { },
+		};
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		QApplication::processEvents();
+		publish_session_ready(window);
+		QApplication::processEvents();
+		auto needsMe = core::queue_item{
+			.Ref        = { .Host = "github.com", .Account = "octo-reviewer", .Repository = "better-pull-review/desktop", .Number = 73 },
+			.Membership = { .Role = core::github_role::requested_reviewer },
+			.Bucket     = core::attention_bucket::initial_review_requested,
+		};
+		needsMe.Facts = core::queue_item_facts{ .Title = "Preserve the DRCS font", .Author = "octocat" };
+		window.publish(application::queue_landing_projection{
+			.Status = application::queue_landing_status::ready,
+			.Items  = { needsMe },
+		});
+		auto projection = application::recent_reviews_projection{ };
+		projection.Entries.push_back(recent_entry("better-pull-review", "desktop", 73U, "Preserve the DRCS font", 1'772'000'000, true));
+		projection.Entries.back().Open = true;
+		projection.Entries.push_back(recent_entry("microsoft", "terminal", 42U, "Fix the conpty resize race", 1'771'000'000, false));
+		window.publish(projection);
+		auto cycles                        = std::vector<application::review_cycle_recent>(1U);
+		cycles[0].Cycle.Title              = "Engine refactor";
+		cycles[0].Cycle.Subject.Generation = 7U;
+		window.present_local_cycle_recents(cycles);
+		for (auto turn = 0; turn < 20; ++turn) {
+			QApplication::processEvents();
+		}
+
+		auto* const queue   = window.home_list()->state_view(qt::home_group::needs_you);
+		auto* const recent  = window.home_recent_list();
+		auto* const cycle   = window.home_cycles_list();
+		const auto  row     = queue->model()->index(0, 0);
+		const auto  palette = queue->palette();
+		expect(queue->isVisible() && recent->isVisible() && recent->count() == 2 && cycle->isVisible(), "Home shows the queue, Recently viewed and Review Cycles");
+		expect(selected_rows(*recent) == 0 && recent->currentRow() == 0,
+			   "publishing Recently viewed makes its first row current without selecting it");
+		expect(recent->item(0)->data(qt::home_row_role::reviewing).toBool() && !recent->item(1)->data(qt::home_row_role::reviewing).toBool(),
+			   "only the open review's row is the one this window is reviewing");
+		expect(recent->item(0)->data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
+			   "the open review's row says so to assistive technology");
+
+		// The owner's capture: the queue's #73 selected, and the open #73 in
+		// Recently viewed beside it.
+		press_row(*queue, queue->visualRect(row), false);
+		QApplication::processEvents();
+		expect(queue->selectionModel()->isSelected(row) && selected_rows(*recent) == 0 && selected_rows(*cycle) == 0,
+			   "a click on a queue row is Home's one selection");
+		const auto selectedGround = row_ground(window, *queue, queue->visualRect(row));
+		const auto openGround     = row_ground(window, *recent, recent->visualItemRect(recent->item(0)));
+		const auto highlight      = palette.color(QPalette::Active, QPalette::Highlight);
+		expect(near_colour(selectedGround, highlight, 24), "the selected row keeps the native selection colour");
+		expect(!near_colour(openGround, highlight, 24), "the open review is not painted with the selection colour");
+		expect(near_colour(openGround, recent->palette().color(QPalette::Active, QPalette::AlternateBase)),
+			   "the open review's ground is the theme's quiet current-line tint");
+		const auto restingGround = row_ground(window, *recent, recent->visualItemRect(recent->item(1)));
+		expect(near_colour(restingGround, recent->palette().color(QPalette::Active, QPalette::Base)), "a row that is neither keeps the list's ground");
+
+		// A publication while the queue holds the selection selects nothing.
+		window.publish(application::recent_reviews_projection{ });
+		window.publish(projection);
+		QApplication::processEvents();
+		expect(selected_rows(*recent) == 0 && queue->selectionModel()->isSelected(row), "a republished Recently viewed takes no selection from the queue");
+
+		// The selection moves with the keyboard, and the list it leaves keeps its current row.
+		press_row(*recent, recent->visualItemRect(recent->item(1)), false);
+		QApplication::processEvents();
+		expect(recent->item(1)->isSelected() && selected_rows(*queue) == 0 && selected_rows(*cycle) == 0,
+			   "a click on Recently viewed moves Home's one selection there");
+		expect(window.home_list()->current_queue_item().has_value() && window.home_list()->current_queue_item()->Ref.Number == 73,
+			   "the queue keeps its current row while another list has the selection");
+		window.publish(projection);
+		QApplication::processEvents();
+		expect(recent->item(1)->isSelected() && selected_rows(*queue) == 0, "a publication keeps the selection where the keyboard is");
+		press_row(*cycle, cycle->visualItemRect(cycle->item(0)), false);
+		QApplication::processEvents();
+		expect(cycle->item(0)->isSelected() && selected_rows(*recent) == 0 && selected_rows(*queue) == 0, "a click on a review cycle moves it there");
+		queue->setFocus(Qt::TabFocusReason);
+		QApplication::processEvents();
+		expect(queue->selectionModel()->isSelected(row) && selected_rows(*recent) == 0 && selected_rows(*cycle) == 0,
+			   "the keyboard's return to the queue selects its current row again, and only it");
+		window.hide();
+	}
+
 	auto test_home_action_list_opens_rows_and_the_bar_on_overview() -> void
 	{
 		std::vector<application::github_intent> intents;
@@ -8867,6 +8988,7 @@ auto main(int argc, char** argv) -> int
 	test_home_leads_with_the_bar_signed_in();
 	test_home_lists_recently_viewed_pull_requests();
 	test_home_side_lists_select_on_a_single_click();
+	test_home_shows_one_selection_and_the_open_review_quietly();
 	test_a_pull_request_without_a_comparison_still_lists_its_files();
 	test_read_drawer_shows_threads_as_cards_with_scope_and_actions();
 	test_one_pane_places_github_threads_on_their_own_rows();

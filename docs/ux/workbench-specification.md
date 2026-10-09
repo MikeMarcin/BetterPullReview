@@ -478,6 +478,25 @@ column, and RFC-BPR-0032 gives it one job per row.
   either a 3-point mark at the row's left or the rail of the panel holding
   it. Row text wraps rather than eliding, and the style paints its own
   selection, hover and focus.
+- **One selection, and the open review** ([[BPR-1365]], the owner,
+  2026-10-09: "Separate problem: the color of recent is the same as the
+  color of selected."). Home shows one selection, in the list that last took
+  its keyboard: the queue (in every arrangement), Recently viewed or Review
+  Cycles. Clicking or tabbing into a list moves the selection there. The
+  others keep their current row, so they still know which row Return and the
+  row menu mean, but select nothing, and a publication of Recently viewed or
+  Review Cycles never selects a row in a list that does not have the
+  keyboard. The selection is the style's own, in the theme's selection
+  colour. The review this window has open (the composition marks its
+  Recently viewed entry; the queue row with the same exact identity follows)
+  is drawn quietly, never with the selection's fill. Unselected, its ground
+  is the theme's current-line tint (AlternateBase) and it carries a
+  **Reviewing** tag, the word Home's title uses for it, in neutral ink in a
+  thin outline beside the time. Selected, it is the style's selection like
+  any other row, and the tag takes the selected ink. Its accessible
+  description begins "Reviewing in this window". With a review cycle
+  selected, Home's pull-request actions (Open Review, Open on GitHub) name no
+  row.
 - **Panels.** With State headers on — the default — each state is a bordered
   card with a rail in its colour and a tinted header carrying the name and
   the count. A header sticks to the top of the scroll area while its panel is

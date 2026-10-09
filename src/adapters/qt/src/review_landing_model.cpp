@@ -3,6 +3,7 @@
 #include "bpr/qt/home_row_delegate.hpp"
 
 #include <QDateTime>
+#include <QList>
 #include <QLocale>
 #include <QStringList>
 
@@ -326,8 +327,11 @@ namespace bpr::qt {
 			return item->Facts.Title.empty()
 				? home_identity(*item)
 				: QStringLiteral("%1 %2").arg(home_identity(*item), text(item->Facts.Title));
-		case Qt::AccessibleDescriptionRole:
-			return QStringLiteral("%1 %2").arg(home_why_sentence(*item), home_reason_word(item->Bucket));
+		case Qt::AccessibleDescriptionRole: {
+			const auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), home_reason_word(item->Bucket));
+			// [[BPR-1365]]. The open review is said in words, as it is drawn.
+			return Reviewing == item->Ref ? QStringLiteral("%1; %2").arg(home_reviewing_description(), why) : why;
+		}
 		case repository_role:
 			return text(item->Ref.Repository);
 		case host_role:
@@ -373,6 +377,8 @@ namespace bpr::qt {
 		case home_row_role::icon_action:
 			// [[BPR-1338]]. Every queue row's pull request has a page on GitHub.
 			return QStringLiteral("Open on GitHub");
+		case home_row_role::reviewing:
+			return Reviewing == item->Ref;
 		case home_row_role::time:
 		case home_row_role::progress:
 		case home_row_role::row_action:
@@ -489,6 +495,28 @@ namespace bpr::qt {
 	{
 		const auto found = position_of(aRef);
 		return found ? std::optional{ Items[*found] } : std::nullopt;
+	}
+
+	void review_landing_model::set_reviewing(std::optional<core::pull_request_ref> aRef)
+	{
+		if (Reviewing == aRef) {
+			return;
+		}
+		const auto left  = Reviewing ? position_of(*Reviewing) : std::nullopt;
+		Reviewing        = std::move(aRef);
+		const auto came  = Reviewing ? position_of(*Reviewing) : std::nullopt;
+		const auto roles = QList<int>{ home_row_role::reviewing, Qt::AccessibleDescriptionRole };
+		for (const auto row : { left, came }) {
+			if (row.has_value()) {
+				const auto changed = index(static_cast<int>(*row), 0);
+				emit       dataChanged(changed, changed, roles);
+			}
+		}
+	}
+
+	auto review_landing_model::reviewing() const noexcept -> const std::optional<core::pull_request_ref>&
+	{
+		return Reviewing;
 	}
 
 	void review_landing_model::apply_item(const core::queue_item& aItem)

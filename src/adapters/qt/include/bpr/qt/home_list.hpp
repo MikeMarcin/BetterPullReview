@@ -63,6 +63,12 @@ namespace bpr::qt {
 	/// screen-reader users alike. Each Home list's accessible description.
 	[[nodiscard]] auto home_open_description() -> QString;
 
+	/// \brief [[BPR-1365]]. Clears a Home list's selection and keeps its current
+	/// row, so the list still knows which row Return and Open Review mean.
+	void home_hide_selection(QAbstractItemView& aView);
+	/// \brief [[BPR-1365]]. Selects a Home list's current row, if it has one.
+	void home_show_selection(QAbstractItemView& aView);
+
 	/// \brief [[BPR-0776]] [[BPR-0783]]. One slice of the decided, filtered queue:
 	/// a state panel, a group panel, or a state band inside a group.
 	///
@@ -285,6 +291,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto open_action() const noexcept -> QToolButton*;
 		void               set_open_action_dispatch(std::function<void()> aDispatch);
 
+		/// \brief [[BPR-1365]]. Whether the queue's current row shows as selected.
+		///
+		/// \details Home shows one selection, in the list that last took its
+		/// keyboard. While another list has it, the queue keeps its current row
+		/// but selects nothing, whatever makes a row current meanwhile.
+		void               set_selection_shown(bool aShown);
+		[[nodiscard]] auto selection_shown() const noexcept -> bool;
+
 		/// \brief Recounts every panel, and shows or hides each by what it holds.
 		void refresh();
 		/// \brief Makes one queue identity current; a focusing selection expands
@@ -451,6 +465,7 @@ namespace bpr::qt {
 		bool                       Onboarding         = false;
 		bool                       RefreshPending     = false;
 		bool                       RestoringSelection = false;
+		bool                       SelectionShown     = true;
 		/// Set while the list itself is moving a collapse, so adopting a view
 		/// never reports it back as the reviewer's own gesture.
 		bool ApplyingCollapse = false;

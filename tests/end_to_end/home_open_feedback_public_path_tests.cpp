@@ -9,6 +9,7 @@
 // carries Home's general status. Nothing reaches a live provider.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
@@ -30,6 +31,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QStatusBar>
@@ -139,6 +141,23 @@ namespace {
 		return aWindow.home_list()->row_delegate()->line_texts(option, aRow.Index).join(QString{ }).simplified();
 	}
 
+	/// [[BPR-1365]]. The ground a row is painted with, in the window's render,
+	/// left of the row's text where only its ground and any selection are drawn.
+	[[nodiscard]] auto ground(QWidget& aWindow, const QAbstractItemView& aView, const QModelIndex& aIndex) -> QColor
+	{
+		const auto image = aWindow.grab().toImage();
+		const auto ratio = image.devicePixelRatio();
+		const auto rect  = aView.visualRect(aIndex);
+		const auto at    = aView.viewport()->mapTo(&aWindow, QPoint{ rect.left() + 6, rect.center().y() });
+		return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+	}
+
+	[[nodiscard]] auto near_colour(const QColor& aActual, const QColor& aExpected, const int aTolerance) -> bool
+	{
+		return std::abs(aActual.red() - aExpected.red()) <= aTolerance && std::abs(aActual.green() - aExpected.green()) <= aTolerance
+			&& std::abs(aActual.blue() - aExpected.blue()) <= aTolerance;
+	}
+
 	[[nodiscard]] auto phase(qt::workbench_window& aWindow) -> std::optional<core::home_open_phase>
 	{
 		const auto& open = aWindow.home_open();
@@ -223,6 +242,67 @@ try {
 		expect(window->grab().save(renderDirectory + QStringLiteral("/%1-%2.png").arg(QString::fromUtf8(core::stable_name(mode)), aName)), "render saved");
 	};
 	const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark };
+
+	// [[BPR-1365]]. The owner, accepting BPR-1364: "Separate problem: the color
+	// of recent is the same as the color of selected." Home over the open #17:
+	// the composition marks Recently viewed's #17 as the open review, the
+	// queue's #17 says it too, neither is drawn with the selection's fill, and
+	// Home shows one selection, in the list that last took the keyboard.
+	const auto reviewing_course = [&](const QString& aName) {
+		auto* const recent    = window->home_recent_list();
+		const auto  servedQ   = QString::fromUtf8(served_name);
+		const auto  recentRow = [&] {
+			for (auto row = 0; row < recent->count(); ++row) {
+				if (recent->item(row)->data(qt::home_row_role::identity).toString() == servedQ) {
+					return row;
+				}
+			}
+			return -1;
+		};
+		wait_for([&] { return recentRow() >= 0 && recent->item(recentRow())->data(qt::home_row_role::reviewing).toBool(); },
+				 "Recently viewed says which of its entries is the open review");
+		for (auto row = 0; row < recent->count(); ++row) {
+			expect(recent->item(row)->data(qt::home_row_role::reviewing).toBool() == (row == recentRow()), "only the open review is marked in Recently viewed");
+		}
+		// The owner's capture: the queue's #17 selected beside the open #17. A
+		// click is made in the active window, as a hand's is, on the rows Home
+		// shows once it has settled.
+		window->activateWindow();
+		wait_for([&] { return window->isActiveWindow(); }, "the window is active");
+		for (auto turn = 0; turn < 20; ++turn) {
+			QApplication::processEvents();
+		}
+		window->home_list()->ensureWidgetVisible(recent);
+		QApplication::processEvents();
+		const auto queued = row_of(*window, served_name);
+		const auto failed = row_of(*window, failing_name);
+		expect(queued.View != nullptr && queued.View->isVisible() && failed.View != nullptr, "both pull requests are on Home");
+		expect(queued.Index.data(qt::home_row_role::reviewing).toBool() && !failed.Index.data(qt::home_row_role::reviewing).toBool(),
+			   "the queue's row of the open pull request says so, and no other");
+		expect(queued.Index.data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
+			   "and says it to assistive technology");
+		tests::window_system_clicks(*queued.View->viewport(), QPointF{ queued.View->visualRect(queued.Index).center() }, 1);
+		expect(!phase(*window).has_value() && window->showing_home(), "the click only selects");
+		expect(queued.View->selectionModel()->isSelected(queued.Index) && recent->selectedItems().isEmpty(),
+			   "the queue's row is Home's one selection; Recently viewed selects nothing");
+		const auto recentIndex = recent->model()->index(recentRow(), 0);
+		const auto highlight   = recent->palette().color(QPalette::Active, QPalette::Highlight);
+		expect(near_colour(ground(*window, *queued.View, queued.Index), queued.View->palette().color(QPalette::Active, QPalette::Highlight), 24),
+			   "the selected row keeps the native selection colour");
+		expect(!near_colour(ground(*window, *recent, recentIndex), highlight, 24), "the open review is not painted in the selection colour");
+		expect(near_colour(ground(*window, *recent, recentIndex), recent->palette().color(QPalette::Active, QPalette::AlternateBase), 6),
+			   "the open review sits on the theme's quiet tint");
+		renders(aName);
+
+		// The selection follows the keyboard to Recently viewed and back.
+		tests::window_system_clicks(*recent->viewport(), QPointF{ recent->visualRect(recentIndex).center() }, 1);
+		expect(!phase(*window).has_value() && recent->item(recentRow())->isSelected() && !queued.View->selectionModel()->hasSelection(),
+			   "a click on Recently viewed moves the one selection there");
+		expect(near_colour(ground(*window, *recent, recentIndex), highlight, 24), "selected, the open review is the native selection");
+		renders(aName + QStringLiteral("-recent-selected"));
+		tests::window_system_clicks(*queued.View->viewport(), QPointF{ queued.View->visualRect(queued.Index).center() }, 1);
+		expect(queued.View->selectionModel()->isSelected(queued.Index) && recent->selectedItems().isEmpty(), "and back to the queue");
+	};
 
 	delay->Milliseconds = delay_ms;
 	delay->FailNumber   = failing;
@@ -353,6 +433,18 @@ try {
 		expect(!window->home_open().has_value(), "a loaded read leaves nothing for Home to say");
 		window->home_action()->trigger();
 		QApplication::processEvents();
+		reviewing_course(QStringLiteral("reviewing"));
+	}
+	// [[BPR-1365]]. The high-contrast themes, over the same open review.
+	delay->Milliseconds = 0U;
+	for (const auto mode : { core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+		window->appearance_settings()->choose_mode(mode);
+		wait_for([&] { return owner->status().ProfileMode == mode; }, "the rendered appearance is accepted");
+		window->settings()->hide();
+		window->choose_home(true);
+		QApplication::processEvents();
+		expect(window->showing_home(), "each appearance shows Home over the open review");
+		reviewing_course(QStringLiteral("reviewing"));
 	}
 
 	static_cast<void>(QAccessible::installUpdateHandler(previous));

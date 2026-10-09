@@ -5973,7 +5973,10 @@ namespace bpr::app {
 					continue;
 				}
 				const auto resumable = entry.Position.has_value() && matches;
-				projection.Entries.push_back({ entry.Destination, entry.Title, entry.ViewedAt, resumable });
+				// [[BPR-1365]]. The entry this window is reading, so Home can tell
+				// the open review from a selected row.
+				const auto open = ReadingDestination.has_value() && entry.Destination == *ReadingDestination;
+				projection.Entries.push_back({ entry.Destination, entry.Title, entry.ViewedAt, resumable, open });
 				map.push_back(index);
 			}
 			RecentIndexMap = std::move(map);
@@ -6673,9 +6676,14 @@ namespace bpr::app {
 							TabHost->reset();
 						}
 					}
+					const auto opened  = ReadingDestination != destination;
 					ReadingDestination = destination;
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
 					Profile->ReviewRestoration->accepted_title(destination, std::string_view{ snapshot->PullRequest.Title }.substr(0, core::maximum_recent_review_title));
+					// [[BPR-1365]]. Which recent entry is open moved with it.
+					if (opened) {
+						publish_recent();
+					}
 					if (PendingRestoration && RestorationReadRequest == accepted->Context.Request
 						&& destination == PendingRestoration->Destination && Profile->ReviewRestoration->current_restore(DraftWindow, PendingRestoration->Request)) {
 						RestorationReadAccepted = true;
@@ -12506,8 +12514,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {
-				ReadingDestination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number, aHandoff.Account };
-				AgentReview        = agent_review_facts{
+				const auto destination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number, aHandoff.Account };
+				const auto opened      = ReadingDestination != destination;
+				ReadingDestination     = destination;
+				// [[BPR-1365]]. Recently viewed says which of its entries is open.
+				if (opened) {
+					publish_recent();
+				}
+				AgentReview = agent_review_facts{
 					.Host        = aHandoff.Host,
 					.Account     = aHandoff.Account,
 					.Generation  = aHandoff.IdentityGeneration,
@@ -12606,9 +12620,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReadingRestoration && RestorationReadAccepted) {
 				finish_reading_restoration(false);
 			}
+			const auto closed = ReadingDestination.has_value();
 			ReadingDestination.reset();
 			AcceptedReadingPosition.reset();
 			AgentReview.reset();
+			// [[BPR-1365]]. No recent entry is open any more.
+			if (closed) {
+				publish_recent();
+			}
 #if defined(BPR_AGENT_INTEGRATIONS)
 			if (AgentHost != nullptr) {
 				AgentHost->clear();

@@ -1352,6 +1352,107 @@ namespace {
 		view->setStyle(nullptr);
 	}
 
+	/// [[BPR-1365]]. The review this window has open is drawn quietly and never
+	/// with the selection's fill, in every theme, in the queue and in Recently
+	/// viewed; and the queue shows its selection only while it has Home's
+	/// keyboard. `aRenderPath` names each theme's render.
+	void test_the_open_review_is_quiet_and_never_the_selection(const QString& aRenderPath)
+	{
+		constexpr auto modes = std::array{
+			std::pair{ core::appearance_mode::light, "light" },
+			std::pair{ core::appearance_mode::dark, "dark" },
+			std::pair{ core::appearance_mode::high_contrast_light, "high-contrast-light" },
+			std::pair{ core::appearance_mode::high_contrast_dark, "high-contrast-dark" },
+		};
+		for (const auto& [mode, name] : modes) {
+			const auto where   = std::string{ " (" } + name + ")";
+			auto       profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			const auto palette = profile.derive(QApplication::palette());
+			expect(!close_to(palette.color(QPalette::Active, QPalette::AlternateBase), palette.color(QPalette::Active, QPalette::Highlight), 24),
+				   "the theme's quiet tint is not its selection" + where);
+
+			home_fixture home;
+			home.List.setPalette(palette);
+			const auto queue = one_account_queue();
+			home.Source.apply(queue);
+			home.Source.set_reviewing(queue[0].Ref);
+			home.List.set_queue_status(true, true);
+			auto* const recent = new qt::home_recent_view{ };
+			auto* const open   = recent_item(QStringLiteral("octo-org/app#101"), QStringLiteral("A title"), true, QStringLiteral("6:59 AM"));
+			open->setData(qt::home_row_role::reviewing, true);
+			recent->addItem(open);
+			recent->addItem(recent_item(QStringLiteral("microsoft/terminal#42"), QStringLiteral("Fix the conpty resize race"), false, QStringLiteral("Tue")));
+			home.List.adopt_recent(*recent);
+			home.List.set_recent(2, QStringLiteral("2 viewed; 1 saved reading"));
+			home.List.show();
+			home.List.activateWindow();
+			settle(200);
+
+			auto* const view     = home.List.state_view(qt::home_group::needs_you);
+			auto* const delegate = home.List.row_delegate();
+			const auto  first    = view->model()->index(0, 0);
+			expect(first.data(qt::home_row_role::reviewing).toBool()
+					   && first.data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
+				   "the open pull request's queue row is the one this window is reviewing, and says so" + where);
+			auto* const waiting = home.List.state_view(qt::home_group::waiting_on_others);
+			expect(!waiting->model()->index(0, 0).data(qt::home_row_role::reviewing).toBool()
+					   && delegate->reviewing_rect(option_for(*waiting, waiting->model()->index(0, 0)), waiting->model()->index(0, 0)).isEmpty(),
+				   "another row is not, and has no tag" + where);
+			const auto tag = delegate->reviewing_rect(option_for(*view, first), first);
+			expect(!tag.isEmpty() && view->visualRect(first).contains(tag), "the open review's row carries its tag inside the row" + where);
+
+			const auto ground = [&home](const QAbstractItemView& aView, const QModelIndex& aIndex) {
+				const auto image = home.List.grab().toImage();
+				const auto ratio = image.devicePixelRatio();
+				const auto rect  = aView.visualRect(aIndex);
+				const auto at    = aView.viewport()->mapTo(&home.List, QPoint{ rect.left() + 6, rect.center().y() });
+				return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+			};
+			const auto alternate = palette.color(QPalette::Active, QPalette::AlternateBase);
+			const auto highlight = palette.color(QPalette::Active, QPalette::Highlight);
+			expect(close_to(ground(*view, first), alternate, 6), "the open review's queue row is on the quiet tint" + where);
+			expect(close_to(ground(*recent, recent->model()->index(0, 0)), alternate, 6), "the open review's Recently viewed row is on the quiet tint" + where);
+			expect(!close_to(ground(*recent, recent->model()->index(1, 0)), alternate, 2), "a row that is not open is not tinted" + where);
+
+			// The tag's word is drawn in the row's ink: some of its pixels are
+			// far from the tint it sits on.
+			const auto image  = home.List.grab().toImage();
+			const auto ratio  = image.devicePixelRatio();
+			const auto origin = view->viewport()->mapTo(&home.List, tag.topLeft());
+			auto       inked  = 0;
+			for (auto y = static_cast<int>(origin.y() * ratio); y < static_cast<int>((origin.y() + tag.height()) * ratio); ++y) {
+				for (auto x = static_cast<int>(origin.x() * ratio); x < static_cast<int>((origin.x() + tag.width()) * ratio); ++x) {
+					inked += close_to(image.pixelColor(x, y), alternate, 48) ? 0 : 1;
+				}
+			}
+			expect(inked > 20, "the tag's word and outline are drawn" + where);
+
+			// Selected, the open review is the style's selection, in its colour.
+			view->setFocus(Qt::OtherFocusReason);
+			view->setCurrentIndex(first);
+			settle(30);
+			expect(close_to(ground(*view, first), highlight, 24), "a selected row, open or not, is the native selection" + where);
+			if (!aRenderPath.isEmpty()) {
+				auto path = QString{ aRenderPath }.replace(QStringLiteral(".png"), QStringLiteral("-reviewing-%1.png").arg(QString::fromLatin1(name)));
+				expect(home.List.grab().save(path), "the reviewing render is saved" + where);
+			}
+
+			// The queue keeps its current row and shows no selection while
+			// another of Home's lists has the keyboard, whatever makes a row
+			// current meanwhile.
+			home.List.set_selection_shown(false);
+			expect(view->currentIndex() == first && !view->selectionModel()->hasSelection(), "hidden, the queue keeps its current row and selects nothing" + where);
+			expect(home.List.select(queue[1].Ref, false), "a restoring selection finds the row");
+			expect(std::ranges::none_of(std::array{ view, waiting }, [](const QAbstractItemView* aView) { return aView->selectionModel()->hasSelection(); }),
+				   "a row made current while hidden is not shown selected" + where);
+			home.List.set_selection_shown(true);
+			expect(home.List.current_queue_item().has_value() && home.List.current_queue_item()->Ref == queue[1].Ref
+					   && home.List.current_view()->selectionModel()->isSelected(home.List.current_view()->currentIndex()),
+				   "shown again, the current row is selected" + where);
+		}
+	}
+
 	// A6 and A7: an empty ready queue is one sentence whatever the view asks for.
 	void test_an_empty_queue_is_one_sentence_in_every_grouping()
 	{
@@ -1509,6 +1610,8 @@ auto main(int argc, char** argv) -> int
 	test_a_large_grouped_queue_stays_incremental();
 	// [[BPR-1364]]. A single click selects; a double-click or Return opens.
 	test_a_single_click_selects_and_a_double_click_opens();
+	// [[BPR-1365]]. The open review is quiet; Home shows one selection.
+	test_the_open_review_is_quiet_and_never_the_selection(renderPath);
 
 	std::cout << "home-list-tests:pass\n";
 	return EXIT_SUCCESS;

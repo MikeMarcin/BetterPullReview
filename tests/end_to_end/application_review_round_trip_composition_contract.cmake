@@ -1276,6 +1276,15 @@ endfunction()
 # --cancel-first-base-numbering to set it. Reads only; no grant, target,
 # provider, credential, GitHub write, mutation or publication path; mutation
 # pin unchanged; no new src/app source.
+# BPR-1365 reseal (2026-10-09): over the BPR-1212 v002 base-numbering reseal
+# above; no other intervening pinned-scope change. github_application.cpp
+# marks the Recently viewed entry whose destination is this window's
+# ReadingDestination as Open, and publishes Recently viewed again when that
+# destination is set by an accepted read or handoff or cleared by an
+# invalidation, so Home can draw the open review apart from a selected row.
+# Presentation of an existing projection only; no grant, target, provider,
+# credential, GitHub write, mutation or publication path; mutation pin
+# unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1294,7 +1303,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ce0ef8461a47c95b61c3cc0bbf6211f671e019a435a4ed7a5685ee3fbfd9c36c"
+		"498510165f413d83efa27766aed627f0dd0d6cde76349d0d172103bef5da76f2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1498,7 +1507,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e5a53e666828068b0e7b4afc2d81caa0a212c4117fca21dcd8a60dc33c6e8bf5"
+        "26ccd144c16dfe157810bbf666c17177ca4cc077658d56610a2867c89a6b30aa"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
