@@ -321,3 +321,69 @@ Release build (binary `99519275…`) and `launch.py` (`5fa75ff5…`, modes
 one-change files between two others) and both attended entries reach ready
 offscreen, `arrows` on `docs/api/reference.md` and `keys` on the
 inline-drawer pull request's 1557-line `src/ui/conversation_cards_view.cpp`.
+
+### v003: bounded, always-enabled arrows; tooltips under their controls
+
+v002 look recorded above (Accept keys; Reject arrows; Reject key tooltips).
+Its candidates were released (`resume-development --all`, cursor 17) and its
+frozen root `artifacts/bpr-1328/change-keys-frozen-v002/` deleted.
+
+Product commit `f88d25546` (rebased on `38a70a792`).
+
+**C1, unattended, pass.** `core_workbench_interaction`: the new
+`test_navigation_commands_are_bounded_and_always_enabled` (a one-change
+comparison in every file position bounds both change commands with
+`at_first_change`/`at_last_change`, still enabled; first and last file bound
+the file commands; a press at a file bound decides nothing; an inactive
+workbench disables all four with no bound; wrap has no bound), and the command
+table now requires an enabled, unbounded command to be exactly an accepted
+gesture and a refusal to be explained by the bound. Failing-before control:
+making `bounded_command` disable every bound, the pre-card behaviour, fails
+"the first change bounds previous change, still enabled".
+
+**C2, unattended, pass.** `application_change_arrows_across_files`, real
+composition on `nested-folders-v1`: all 17 files opened with Next file, each
+walked to its last change and back (8 in-file steps), 37 presses at a bound
+(each file's two ends, Previous change and Previous file at the start, Next
+file at the end) leave the same file, change and comparison object, every
+arrow enabled, and the status bar naming the bound; 12 one-change files
+between two others name both bounds.
+
+**C5 anchoring, unattended, pass.** `qt_workbench_window_scale_{100,125,200}`:
+`test_strip_tooltips_sit_directly_below_their_controls` sends a tooltip event
+to all 23 visible title-row and review-bar controls with a tooltip and requires
+the anchored tooltip with the control's own text at exactly
+`anchored_tooltip_geometry` (directly below, left edges aligned, moved left
+only to stay on the 800-pixel offscreen screen) and no `QToolTip`.
+`test_change_arrows_are_bounded_and_always_enabled` covers the window: arrows,
+keys (⌥↓, ⌥↑, ⌥PgDn, ⌥⌘↓) and file arrows at their bounds send nothing,
+stay enabled and show the bound in the status bar. Mutation controls: no bound
+check in `dispatch_navigation` fails "next change at the file's last change
+sends nothing and stays on that change"; no `anchor_descendant_tooltips` in
+`workbench_strip` fails "Updates: the anchored tooltip shows the control's own
+tooltip".
+
+Focused set at the product source: `core_workbench_interaction`,
+`architecture_boundaries`, `qt_workbench_window_scale_{100,125,200}`,
+`qt_hide_drawers_native_menu_key`, `qt_feedback_label_threads`,
+`application_change_arrows_across_files` and
+`application_review_round_trip_composition_contract` (resealed over the
+BPR-1338 attended-browser reseal; mutation pin unchanged) pass. Format check
+passes on the changed files; clang-tidy on `anchored_tooltip.cpp`,
+`workbench_interaction.cpp` and `workbench_strip.cpp` reports nothing.
+`test_network_isolation_manifest` was not run to completion: it needs every
+test executable built, and no test registration changed. The documentation
+gate passes.
+
+**Owner look (C3, C5) pending.** Fresh short session
+`b8abe3a59fc6912343d5f3bc64fac01c` (state
+`/Users/jaeger/.mask/bpr-1328-change-keys-20261008-v003/attended-review`),
+cursor 8, two ready, protected Accept/Reject candidates on one frozen build:
+`BPR-1328-arrows-v003` (C3, `d93b38e5…`) and `BPR-1328-key-tooltips-v003`
+(C5, `34d0741a…`). Frozen root `artifacts/bpr-1328/change-keys-frozen-v003/` holds the
+exported source of `f88d25546` (archive `3163d2bd…`, deleted after
+extraction), its Release build with its own dependency cache (binary
+`dcf603e9…`) and `launch.py` (`e74455d1…`, no arguments). Its public course
+passes offscreen (17 files, 37 bounds, 8 steps, 12 one-change files between
+two others) and the attended entry reaches ready offscreen and natively once
+(Cocoa) on `docs/api/reference.md`, closed afterwards.
