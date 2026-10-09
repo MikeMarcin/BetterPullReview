@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1337"
 title: "Beautify the top section of Discuss"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1337--BPR-1337--2dee31ef43be.json","requested_skill":"frontend-design","related_cards":["BPR-1212","BPR-1089","BPR-1083","BPR-1290","BPR-1293","BPR-1294"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1337:inventory","outcome":"pass","revision":"55dec39a4","evidence":{"kind":"artifact","path":"docs/design/BPR-1337-discuss-top/before.png","detail":"application_discuss_top_public_path before renders at 1440x900, light and dark, on overview-labels-v1 (34 labelled threads, 3 PR comments, 2 review summaries); the card's Inventory section lists what looked unpolished."}},{"criterion":"BPR-1337:candidates","outcome":"pass","revision":"55dec39a4","evidence":{"kind":"artifact","path":"docs/design/BPR-1337-discuss-top/candidate-a.png","detail":"Two real Qt candidates, A (one band, candidate-a.png) and B (heading over tools, candidate-b.png); A chosen with the written rationale in the card (height, one language with Conversations' bar, narrow width, counts as status, minimal words)."}},{"criterion":"BPR-1337:built","outcome":"pass","revision":"55dec39a4","evidence":{"kind":"command","detail":"application_discuss_top_public_path (composed, 1440x900: one row under 50 px from x 12, counts and tooltip, base in light and dark, drill-down pill, wraps beside the composer) and three new qt_github_conversation_panel tests (accessible names, tab order, narrow 300 px wrap, themes and the dot() ink fix); five failing-before controls fail as recorded; 19 focused rows, coding-format-check and tidy pass on macOS arm64. Linux and Windows runs owed by the stations, not blocking."}},{"criterion":"BPR-1337:owner-look","outcome":"pass","revision":"55dec39a4","evidence":{"kind":"observation","detail":"Session 6e2b595ff9c4160456b63e491b0f69c0: BPR-1337-discuss-top-choice-v001 (design-55dec39a4-v001) selected 'A: one band', no note, decision 198433b7-859d-480f-a87e-26f3fc7d6dcb (2026-10-09T01:33:21Z); BPR-1337-discuss-top-built-v001 (frozen-55dec39a4-v001, executable 4bc752801a45...f761) Accept, no note, decision 9d0e321b-a9a8-468b-bc3b-cd409d35b3d4 (2026-10-09T01:31:50Z); handed back at event 10."}}]
 ---
 
 # BPR-1337: Beautify the top section of Discuss
@@ -188,7 +188,7 @@ Both are real Qt renders of the same build, switched for the comparison only.
   changed translation units passed.
 - Linux and Windows runs of these rows are owed by the stations.
 
-## Owner look, session v001 (pending)
+## Owner look, session v001
 
 One new short session, not the long default one. Two questions, each asking
 about a single criterion; neither is self-certified.
@@ -214,9 +214,29 @@ about a single criterion; neither is self-certified.
   Discuss. It checks the build, its fingerprint and the fixture tree first,
   and reports an early exit.
 
+## Owner decision, session 6e2b595f (2026-10-09)
+
+Session `6e2b595ff9c4160456b63e491b0f69c0`, read from cursor 0 to event 10
+(handed back).
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1337-discuss-top-choice-v001` | Selected "A: one band" (`198433b7`, 01:33:21Z) | (none) |
+| `BPR-1337-discuss-top-built-v001` | Accept (`9d0e321b`, 01:31:50Z) | (none) |
+
+The choice confirms candidate A, the one built. The Accept was given on the
+frozen build of `55dec39a4` (executable `4bc752801a45…f761`). Together they
+satisfy `BPR-1337:owner-look`. The other criteria stand on their recorded
+evidence at `55dec39a4`. Linux and Windows runs of the rows remain owed and do
+not block; a failure there opens a new card. The card is Done.
+
+Both candidates were released (`resume-development --all`, event 11). The
+host was already stopped. The frozen root
+`/Users/jaeger/bpr1337-discuss-top-look-v001.bQqqmd` was deleted.
+
 ## Next
 
-Read the session's decisions:
+Done (owner picked A and accepted the built band). The plan, kept as written:
 - If the owner picks A and accepts the built band, finish the card.
 - If the owner picks B, build B from the recorded candidate description. The
   chips take words, and the counts become a heading with Clear beside it.
