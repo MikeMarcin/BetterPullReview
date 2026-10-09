@@ -514,8 +514,10 @@ namespace {
 		static_cast<void>(model.observe(review_key(), snapshot));
 		auto kept = core::feedback_annotation_set{ };
 		{
-			const auto posts = counted_posts(application::observe_feedback_sources(snapshot));
-			kept             = *core::adopt_feedback_refresh(kept, core::refresh_feedback_annotations(kept, review_key(), posts));
+			// The posts view the sources' strings, so the sources stay alive.
+			const auto sources = application::observe_feedback_sources(snapshot);
+			const auto posts   = counted_posts(sources);
+			kept               = *core::adopt_feedback_refresh(kept, core::refresh_feedback_annotations(kept, review_key(), posts));
 		}
 		auto carried = 0;
 		auto general = 0;

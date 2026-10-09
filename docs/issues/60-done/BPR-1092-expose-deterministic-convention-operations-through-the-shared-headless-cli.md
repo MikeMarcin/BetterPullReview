@@ -192,3 +192,24 @@ or `test_network_isolation_manifest` fails there (BPR-1343's rule).
 
 The command stays `bpr tour labels …`, as built, in the existing family. No
 top-level `bpr labels` alias is added.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `4ea2eb2a0`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug,
+`BPR_BUILD_TOUR_CLI=ON`), the card's selection with `-j4`:
+
+- **Pass (11 of 12):**
+  - `tour_cli_labels` (its POSIX owner race skipped, as expected),
+    `tour_cli_composition`, `tour_cli_process_commands`,
+    `tour_cli_public_entry` and `skill_pr_tour_package`;
+  - `sqlite_tour_owner_channel`, `application_overview_feedback` and
+    `core_feedback_partition`;
+  - `architecture_boundaries`, `test_network_isolation_manifest` and
+    `application_review_round_trip_composition_contract`.
+- **`tour_cli_labels` pin:** measured contained earlier and pinned
+  `dos-volume-name` in `e58663dd0`. Its first `tour open` exits 7 with
+  profile_unavailable.
+- **`application_feedback_counters` failed:** `0xC0000409`, "operator*()
+  called on empty optional". The cause is a test bug from [[BPR-1349]]
+  Stage 2, not this card; see that card. With the one-line fix the row passes
+  (232 carried refreshes, 168 general).

@@ -556,3 +556,27 @@ and cost rows, the overview rows, `qt_pull_request_overview_page`,
 `application_large_review_benchmark`, the round-trip contract and
 `architecture_boundaries`. Done on Linux evidence; macOS and Windows runs are
 owed.
+
+## Windows: a dangling view in the seeded-rounds test (bpr-main-win, 2026-10-09)
+
+`application_feedback_counters` aborted on Windows Debug with "operator*()
+called on empty optional" in `test_random_changes_match_the_core`, before
+round 0. The setup line built its posts from a temporary:
+`counted_posts(application::observe_feedback_sources(snapshot))`.
+`core::feedback_post_observation` holds `std::string_view`s into those
+sources, so the posts dangled once the statement ended.
+- **Windows:** the MSVC Debug heap overwrote the freed strings, the refresh
+  saw two different facts under one identity (`duplicate_post`), and the
+  unchecked `*adopt_feedback_refresh(...)` dereferenced the refusal.
+- **Linux and macOS:** the freed bytes happened to survive, so the test passed
+  there by undefined behaviour.
+
+The rounds themselves keep a named `sources`, so only the setup line was
+wrong. It now does the same. The product's own callers keep their sources
+alive; a search found no other temporary passed to
+`feedback_post_observations`.
+
+With the fix, 232 refreshes are carried and 168 take the general path, against
+231 and 169 on Linux. `std::uniform_int_distribution` is
+implementation-defined, so MSVC walks other rounds from the same seed, and
+the test's bounds (over 200 and over 50) hold on both.
