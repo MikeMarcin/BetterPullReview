@@ -1,4 +1,5 @@
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -1680,6 +1681,241 @@ namespace {
 		expect(asked.back().Mode == core::feedback_resolution_mode::all && !asked.back().Sort && !model->feedback(), "another pull request starts at the default, unsorted, with no counts");
 	}
 
+	/// \brief [[BPR-1094]]. The chips at the scale this row runs at (1.0,
+	/// 1.25 or 2.0), in every built-in theme, with Icons
+	/// and with Letters (RFC-BPR-0050 R31, R33):
+	/// The palettes are the four built-in appearance profiles (light, dark and
+	/// both high-contrast themes), applied as the application applies them.
+	/// - identity: each label's chip draws its own mark through the page's
+	///   `feedback_mark_theme`, Letters draws differently from Icons, and the
+	///   cell's accessible text names every label;
+	/// - state and coverage: Open and All say which they are, a conversation
+	///   of unknown state shows ?, and All gives each count's breakdown;
+	/// - full content: one-, two- and three-digit counts sit whole inside
+	///   their chips and the cell, and the chips folded into +n are named in
+	///   the cell's accessible text and its menu;
+	/// - keyboard and scroll: Tab reaches a chip with a ring, Right moves on,
+	///   Enter lists it, a refresh keeps the chip and the scroll position, and
+	///   End scrolls the last row into view, where Tab still reaches its chip.
+	/// With BPR_OVERVIEW_CHIPS_RENDER_ROOT set, each look is saved there.
+	void test_chips_read_at_this_scale_in_every_theme_and_style()
+	{
+		using core::feedback_label;
+		using core::feedback_resolution;
+		const auto scaleName = QString::number(qRound(qApp->devicePixelRatio() * 100.0));
+		auto       projected = projection();
+		projected.Files.clear();
+		auto paths = std::vector<std::string>{ };
+		for (auto index = 0; index < 60; ++index) {
+			const auto path = "Engine/Part" + std::to_string(index % 3) + "/File" + (index < 10 ? "0" : "") + std::to_string(index) + ".cpp";
+			paths.push_back(path);
+			projected.Files.push_back(row(path, application::overview_file_operation::modified, application::overview_change_since_review::unchanged, core::file_read_state::seen));
+		}
+		std::ranges::sort(projected.Files, { }, &application::overview_file_row::Path);
+		std::ranges::sort(paths);
+		const auto& busy    = paths[0];
+		const auto& unknown = paths[3];
+		const auto& last    = paths.back();
+		// busy: 128 open and 64 resolved issues, 12 questions, a nitpick and
+		// three plain conversations; unknown: one issue of unknown state; the
+		// last file: an issue and a question; and a praise on no file.
+		auto       units = std::vector<unit_spec>{ };
+		const auto add   = [&](const std::string& aPrefix, const std::size_t aCount, const std::optional<feedback_label> aLabel, const feedback_resolution aState, const std::string& aPath) {
+			for (std::size_t index = 0U; index < aCount; ++index) {
+				units.push_back({ .Id = "review-thread:" + aPrefix + std::to_string(index), .Label = aLabel, .State = aState, .Path = aPath });
+			}
+		};
+		add("io", 128U, feedback_label::issue, feedback_resolution::unresolved, busy);
+		add("ir", 64U, feedback_label::issue, feedback_resolution::resolved, busy);
+		add("q", 12U, feedback_label::question, feedback_resolution::unresolved, busy);
+		add("n", 1U, feedback_label::nitpick, feedback_resolution::unresolved, busy);
+		add("p", 3U, std::nullopt, feedback_resolution::unresolved, busy);
+		add("u", 1U, feedback_label::issue, feedback_resolution::unknown, unknown);
+		add("li", 1U, feedback_label::issue, feedback_resolution::unresolved, last);
+		add("lq", 1U, feedback_label::question, feedback_resolution::unresolved, last);
+		add("pr", 1U, feedback_label::praise, feedback_resolution::unresolved, { });
+		const auto review = population(units);
+		// Every label once on the busy file, for all twelve chips.
+		auto every = std::vector<unit_spec>{ };
+		auto all12 = std::vector<feedback_label>{ };
+		for (std::size_t label = 0U; label < core::feedback_label_count; ++label) {
+			const auto which = core::feedback_label_catalog()[label].Label;
+			all12.push_back(which);
+			for (std::size_t copy = 0U; copy <= label; ++copy) {
+				every.push_back({ .Id = "review-thread:e" + std::to_string(label) + "-" + std::to_string(copy), .Label = which, .State = feedback_resolution::unresolved, .Path = busy });
+			}
+		}
+		every.push_back({ .Id = "review-thread:eplain", .Label = std::nullopt, .State = feedback_resolution::unresolved, .Path = busy });
+		const auto twelve = population(every);
+
+		const auto crop = [](const QImage& aImage, const QRectF& aBox) {
+			const auto scale = aImage.devicePixelRatio();
+			return aImage.copy(QRect{ static_cast<int>(aBox.left() * scale), static_cast<int>(aBox.top() * scale), static_cast<int>(16.0 * scale), static_cast<int>(16.0 * scale) });
+		};
+		const auto root = qEnvironmentVariable("BPR_OVERVIEW_CHIPS_RENDER_ROOT");
+		// The four built-in appearance profiles, as the application applies them.
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto themeName  = std::string{ core::stable_name(profile.variant()) };
+			auto       issueMarks = std::vector<QImage>{ };
+			for (const auto style : { qt::feedback_mark_style::icons, qt::feedback_mark_style::letters }) {
+				const auto                     name = themeName + (style == qt::feedback_mark_style::icons ? " icons" : " letters") + " at " + scaleName.toStdString() + "%";
+				qt::pull_request_overview_page page;
+				profile.apply_to(page);
+				page.adopt_appearance(profile);
+				auto marks  = qt::feedback_mark_theme{ };
+				marks.Tints = qt::feedback_label_tints_of(profile.palette());
+				marks.Style = style;
+				page.set_label_marks(marks);
+				auto asked   = std::vector<application::overview_feedback_request>{ };
+				auto drilled = std::vector<application::overview_drill_down>{ };
+				page.set_feedback_dispatch([&](const application::overview_feedback_request& aRequest) { asked.push_back(aRequest); });
+				page.set_drill_down_dispatch([&](const application::overview_drill_down& aDown) { drilled.push_back(aDown); });
+				page.resize(1'000, 560);
+				page.present(projected);
+				page.set_label_columns(*core::make_feedback_label_columns(std::vector{ feedback_label::issue, feedback_label::question, feedback_label::nitpick }));
+				page.show();
+				settle();
+				page.present_feedback(feedback_for(review, asked.back(), paths));
+				settle();
+				auto* const view = page.files_view();
+
+				// Identity: the label chips, their marks and their names.
+				const auto chips = chips_of(page, cell(page, busy));
+				expect(chips.size() == 4U && chips[0].Label == feedback_label::issue && chips[0].Count == 128U && chips[1].Label == feedback_label::question && chips[1].Count == 12U
+						   && chips[2].Label == feedback_label::nitpick && chips[2].Count == 1U && chips[3].Kind == qt::overview_comment_chip::kind::other && chips[3].Count == 3U,
+					   name + ": issue 128, question 12, nitpick 1 and Other 3 on the busy file");
+				expect(cell(page, busy).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 128, question 12, nitpick 1, Other 3 open conversations"),
+					   name + ": the cell's accessible text names each label and its count");
+				view->clearSelection();
+				view->setCurrentIndex(QModelIndex{ });
+				settle();
+				const auto image = view->viewport()->grab().toImage();
+				const auto issue = crop(image, chips[0].Box);
+				expect(issue != crop(image, chips[1].Box) && issue != crop(image, chips[2].Box) && crop(image, chips[1].Box) != crop(image, chips[2].Box),
+					   name + ": issue, question and nitpick each draw a mark of their own");
+				issueMarks.push_back(issue);
+				for (std::size_t one = 0U; one < all12.size(); ++one) {
+					const auto first = page.count_mark({ .Kind = core::feedback_count_kind::dedicated, .Label = all12[one] }, true).toImage();
+					expect(first == qt::feedback_mark_pixmap(all12[one], { }, qt::feedback_mark_colours_for(marks, all12[one], page.palette()), page.devicePixelRatioF()).toImage(),
+						   name + ": a chip's mark is the label's mark in the page's mark theme");
+					for (auto two = one + 1U; two < all12.size(); ++two) {
+						expect(first != page.count_mark({ .Kind = core::feedback_count_kind::dedicated, .Label = all12[two] }, true).toImage(),
+							   name + ": the twelve marks are told apart: " + std::string{ core::stable_name(all12[one]) } + " and " + std::string{ core::stable_name(all12[two]) });
+					}
+				}
+
+				// Full content: each count's digits fit inside its chip, and every
+				// chip inside the cell, without overlapping its neighbour.
+				const auto cellRect = view->visualRect(cell(page, busy));
+				// The chips' digits are the files' font at 85%, demibold.
+				auto chipFont = view->font();
+				chipFont.setPointSizeF(chipFont.pointSizeF() * 0.85);
+				chipFont.setWeight(QFont::DemiBold);
+				const auto digits = QFontMetricsF{ chipFont };
+				for (std::size_t index = 0U; index < chips.size(); ++index) {
+					const auto& chip = chips[index];
+					expect(QRectF{ cellRect }.contains(chip.Box), name + ": every chip stays inside its cell");
+					expect(chip.Box.width() >= 16.0 + 3.0 + digits.horizontalAdvance(QString::number(static_cast<qulonglong>(chip.Count))),
+						   name + ": a chip is wide enough for all its digits");
+					if (index != 0U) {
+						expect(chips[index - 1U].Box.right() <= chip.Box.left(), name + ": chips do not overlap");
+					}
+				}
+
+				// State and coverage: Open and All say which they are; unknown is ?.
+				expect(page.open_counts_button()->isVisible() && page.open_counts_button()->isChecked() && !page.open_counts_button()->accessibleName().isEmpty()
+						   && !page.open_counts_button()->icon().isNull() && page.all_counts_button()->isVisible() && !page.all_counts_button()->isChecked()
+						   && !page.all_counts_button()->accessibleName().isEmpty(),
+					   name + ": Open is on and says so; All is offered");
+				const auto unknownChips = chips_of(page, cell(page, unknown));
+				expect(unknownChips.size() == 1U && unknownChips[0].Kind == qt::overview_comment_chip::kind::uncertain && cell(page, unknown).data().toString() == QStringLiteral("? 1")
+						   && cell(page, unknown).data(Qt::AccessibleTextRole).toString().contains(QStringLiteral("whose state is unknown")),
+					   name + ": an issue of unknown state shows ?, with its reason in words, never a clean zero");
+				expect(page.uncertain_button()->isVisible() && page.uncertain_button()->text() == QStringLiteral("1"), name + ": the ? chip beside the switch counts it");
+				if (!root.isEmpty()) {
+					expect(page.grab().save(root + QStringLiteral("/chips-%1-%2-%3-open.png").arg(QString::fromStdString(themeName), style == qt::feedback_mark_style::icons ? QStringLiteral("icons") : QStringLiteral("letters"), scaleName)),
+						   name + ": the render is saved");
+				}
+
+				// Keyboard: Tab onto the busy file's issue chip, Right to the
+				// question, Enter lists it; a refresh keeps the chip.
+				page.activateWindow();
+				view->setFocus();
+				view->setCurrentIndex(cell(page, busy));
+				settle();
+				key(*view, Qt::Key_Tab);
+				expect(page.focused_chip() && page.focused_chip()->Label == feedback_label::issue && ring_pixels(page, *page.focused_chip()) > 12,
+					   name + ": Tab steps onto the issue chip, which wears a ring");
+				key(*view, Qt::Key_Right);
+				key(*view, Qt::Key_Return);
+				expect(!drilled.empty() && drilled.back().Path == busy && drilled.back().Target == core::feedback_count_target{ .Kind = core::feedback_count_kind::dedicated, .Label = feedback_label::question },
+					   name + ": Right then Enter lists exactly the busy file's questions");
+				page.present_feedback(feedback_for(review, asked.back(), paths));
+				settle();
+				expect(page.focused_chip() && page.focused_chip()->Label == feedback_label::question && view->currentIndex() == cell(page, busy),
+					   name + ": a refresh keeps the cell and the chip the keyboard is on");
+
+				// Scroll: End brings the last row into view, Tab still reaches its
+				// chip, and a refresh keeps the position.
+				key(*view, Qt::Key_Escape);
+				key(*view, Qt::Key_End);
+				const auto bottom = view->currentIndex();
+				expect(view->verticalScrollBar()->value() > 0 && view->viewport()->rect().contains(view->visualRect(bottom)),
+					   name + ": End scrolls the last row fully into view");
+				key(*view, Qt::Key_Tab);
+				expect(page.focused_chip() && view->viewport()->rect().contains(page.focused_chip()->Box.toAlignedRect()), name + ": Tab reaches the last row's chip, in view");
+				const auto position = view->verticalScrollBar()->value();
+				const auto requests = asked.size();
+				page.present_feedback(feedback_for(review, asked.back(), paths));
+				settle();
+				expect(view->verticalScrollBar()->value() == position && page.focused_chip(), name + ": a refresh keeps the scroll position and the chip");
+				QWheelEvent wheel{ QPointF{ 40, 40 }, view->viewport()->mapToGlobal(QPointF{ 40, 40 }), QPoint{ }, QPoint{ 0, 360 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+				QApplication::sendEvent(view->viewport(), &wheel);
+				settle();
+				expect(view->verticalScrollBar()->value() < position && asked.size() == requests, name + ": the wheel scrolls the files and asks the host for nothing");
+
+				// All: each count gives its breakdown, the three-digit total whole.
+				page.all_counts_button()->click();
+				page.present_feedback(feedback_for(review, asked.back(), paths));
+				settle();
+				expect(page.all_counts_button()->isChecked() && cell(page, busy).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 192 (128 open, 64 resolved), question 12 (12 open), nitpick 1 (1 open), Other 3 (3 open) conversations"),
+					   name + ": All says each count's breakdown");
+				const auto allChips = chips_of(page, cell(page, busy));
+				expect(!allChips.empty() && allChips[0].Count == 192U && QRectF{ view->visualRect(cell(page, busy)) }.contains(allChips[0].Box), name + ": 192 sits whole in its chip");
+
+				// All twelve: the chips that fit, then +n; the cell's accessible
+				// text and its menu name every label in full.
+				page.choose_mode(core::feedback_resolution_mode::unresolved);
+				page.set_label_columns(*core::make_feedback_label_columns(all12));
+				page.present_feedback(feedback_for(twelve, asked.back(), paths));
+				settle();
+				const auto many = chips_of(page, cell(page, busy));
+				const auto more = std::ranges::find(many, qt::overview_comment_chip::kind::more, &qt::overview_comment_chip::Kind);
+				expect(more != many.end() && static_cast<std::size_t>(more - many.begin()) + more->Folded.size() == 13U, name + ": twelve chips and Other fold into +n, none lost");
+				const auto spoken = cell(page, busy).data(Qt::AccessibleTextRole).toString();
+				auto*      menu   = page.make_comments_menu(cell(page, busy));
+				expect(menu != nullptr, name + ": the cell has a menu");
+				for (const auto label : all12) {
+					const auto word = QString::fromUtf8(std::string{ core::stable_name(label) }.c_str());
+					expect(spoken.contains(word + QLatin1Char(' ')), name + ": the accessible text names " + word.toStdString());
+					expect(std::ranges::any_of(menu->actions(), [&](QAction* aAction) { return aAction->text().startsWith(word + QLatin1Char(':')); }),
+						   name + ": the menu names " + word.toStdString() + " in full");
+				}
+				delete menu;
+				if (!root.isEmpty()) {
+					view->scrollToTop();
+					settle();
+					expect(page.grab().save(root + QStringLiteral("/chips-%1-%2-%3-twelve.png").arg(QString::fromStdString(themeName), style == qt::feedback_mark_style::icons ? QStringLiteral("icons") : QStringLiteral("letters"), scaleName)),
+						   name + ": the twelve-chip render is saved");
+				}
+				page.hide();
+			}
+			expect(issueMarks.size() == 2U && issueMarks[0] != issueMarks[1], themeName + ": Letters draws the issue chip differently from Icons");
+		}
+	}
+
 	/// \brief [[BPR-1339]]. The read column shows the row's mark: an accepted
 	/// file says and draws accepted whatever its read state, in a mark of its
 	/// own, and a receipt update that only accepts moves it. The owner,
@@ -1770,6 +2006,12 @@ auto main(int argc, char** argv) -> int
 	if (scale > 0) {
 		expect(qFuzzyCompare(application.devicePixelRatio(), scale), "the requested display scale is effective");
 	}
+	// [[BPR-1094]]. The 125% and 200% rows run the chips at their scale only.
+	if (argc > 1 && std::string_view{ argv[1] } == "--chips") {
+		test_chips_read_at_this_scale_in_every_theme_and_style();
+		std::cout << "pull-request-overview-chips:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
 	test_history_publication_does_not_touch_file_rows();
 	test_cached_catalogue_availability_and_navigation();
 	test_column_sizing_measures_visible_files();
@@ -1786,6 +2028,7 @@ auto main(int argc, char** argv) -> int
 	test_chip_activation_names_exactly_its_count();
 	test_modified_mark_reads_on_every_row();
 	test_the_read_column_shows_the_mark();
+	test_chips_read_at_this_scale_in_every_theme_and_style();
 	std::cout << "pull-request-overview-page-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

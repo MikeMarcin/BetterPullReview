@@ -520,11 +520,21 @@ namespace {
 		// every drill-down, the keyboard and a read receipt are local: none of
 		// them reads the provider again or asks it for anything (R11, R40).
 		const auto readsBefore = github_application_fixture_access::evidence(*owner).AccountReadCount;
-		const auto local       = [&](const char* aWhat) {
+		// [[BPR-1094]]. Nor do they touch the label buckets: no observation, no
+		// body parsed, no scope tallied again and no conversation tallied.
+		const auto workBefore = github_application_fixture_access::scaling_evidence(*owner);
+		const auto feedback   = [&] { return github_application_fixture_access::scaling_evidence(*owner).FeedbackWork; };
+		const auto local      = [&](const char* aWhat) {
 			const auto mutation = github_application_fixture_access::review_mutation_evidence(*owner);
 			expect(github_application_fixture_access::evidence(*owner).AccountReadCount == readsBefore && mutation.Submissions == 0U && mutation.TargetObservations == 0U
 					   && mutation.StoredComments == 0U && mutation.Resolutions == 0U,
 				   std::string{ aWhat } + " reads nothing from the provider and asks it for nothing");
+			const auto work       = feedback();
+			const auto windowWork = github_application_fixture_access::scaling_evidence(*owner);
+			expect(windowWork.FeedbackObservations == workBefore.FeedbackObservations && windowWork.FeedbackBodiesParsed == workBefore.FeedbackBodiesParsed
+					   && work.Observations == workBefore.FeedbackWork.Observations && work.BodiesParsed == workBefore.FeedbackWork.BodiesParsed
+					   && work.ScopesRetallied == workBefore.FeedbackWork.ScopesRetallied && work.UnitsTallied == workBefore.FeedbackWork.UnitsTallied,
+				   std::string{ aWhat } + " parses no body and tallies no conversation");
 		};
 
 		// A typical subset, chosen in Settings: issue and nitpick.
@@ -537,6 +547,9 @@ namespace {
 		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("issue 1 · Other 1") && cell("src/main.cpp").data().toString() == QStringLiteral("nitpick 1")
 				   && cell("src/ui/widgets/button.cpp").data().toString() == QStringLiteral("Other 1"),
 			   "renderer.cpp: issue 1 and Other 1 (the suggestion); main.cpp: nitpick 1; button.cpp: Other 1 (the chore)");
+		local("ticking two chips in Settings");
+		expect(github_application_fixture_access::scaling_evidence(*owner).OverviewFeedbackPublications == workBefore.OverviewFeedbackPublications + 2U,
+			   "each chip change publishes the Overview's counts once");
 		capture(window, QStringLiteral("overview-feedback-two-chips.png"));
 
 		// A click on renderer.cpp's issue chip lists exactly that conversation.
@@ -601,11 +614,20 @@ namespace {
 		wait_for([&] { return listed() == std::set<std::string>{ "review-thread:PRRT_cc_1" }; }, "the issue is listed again");
 		local("listing the issue again");
 		// The thread is resolved on the website; a public Refresh reads it.
+		const auto beforeResolve = feedback();
 		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_1", std::nullopt, true);
 		window.github_refresh_action()->trigger();
 		wait_for([&] { return listed().empty() && panel->listing_caption()->text().endsWith(QStringLiteral("— 0 conversations")); },
 				 "after the resolve, the open issue count lists nothing, and says so", [&] { std::cerr << "caption=" << panel->listing_caption()->text().toStdString() << " included=" << model->feedback()->PullRequest.Counts.Included << " status=" << window.github_status_text() << " refresh=" << window.github_refresh_action()->isEnabled() << '\n'; });
 		expect(panel->cards()->hasFocus() && window.current_modality() == qt::review_modality::discuss, "the refresh moved no focus");
+		// [[BPR-1094]]. The resolve reads no body again and tallies again only
+		// the pull request, renderer.cpp and its two folders.
+		const auto afterResolve = feedback();
+		std::cout << "resolve-work: observations=" << afterResolve.Observations - beforeResolve.Observations << " parsed=" << afterResolve.BodiesParsed - beforeResolve.BodiesParsed
+				  << " retallied=" << afterResolve.ScopesRetallied - beforeResolve.ScopesRetallied << " units=" << afterResolve.UnitsTallied - beforeResolve.UnitsTallied << '\n';
+		expect(afterResolve.Observations == beforeResolve.Observations + 1U && afterResolve.BodiesParsed == beforeResolve.BodiesParsed
+				   && afterResolve.ScopesRetallied == beforeResolve.ScopesRetallied + 4U,
+			   "a website resolve parses no body and tallies again exactly the pull request, the file and its two folders");
 		window.choose_modality(qt::review_modality::overview);
 		QApplication::processEvents();
 		expect(cell("src/engine/renderer.cpp").data().toString() == QStringLiteral("Other 1") && view->currentIndex() == issueCell,
@@ -618,10 +640,20 @@ namespace {
 		capture(window, QStringLiteral("overview-feedback-all.png"));
 		// A website edit to the suggestion's root makes it an issue: it leaves
 		// Other and joins the issue chip, never both.
+		const auto beforeEdit = feedback();
 		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_2", std::string{ "issue (non-blocking): Clamp the width to at least one pixel." }, std::nullopt);
 		window.github_refresh_action()->trigger();
 		wait_for([&] { return cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved) conversations"); },
 				 "a website label edit moves the conversation from Other to issue", [&] { std::cerr << "cell=" << cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString().toStdString() << '\n'; });
+		// [[BPR-1094]]. A root edit parses that one body and tallies again
+		// only the scopes it reaches; every other body is reused.
+		const auto afterEdit = feedback();
+		std::cout << "root-edit-work: observations=" << afterEdit.Observations - beforeEdit.Observations << " parsed=" << afterEdit.BodiesParsed - beforeEdit.BodiesParsed
+				  << " reused=" << afterEdit.BodiesReused - beforeEdit.BodiesReused << " retallied=" << afterEdit.ScopesRetallied - beforeEdit.ScopesRetallied
+				  << " units=" << afterEdit.UnitsTallied - beforeEdit.UnitsTallied << '\n';
+		expect(afterEdit.Observations == beforeEdit.Observations + 1U && afterEdit.BodiesParsed == beforeEdit.BodiesParsed + 1U
+				   && afterEdit.ScopesRetallied == beforeEdit.ScopesRetallied + 4U,
+			   "a website root edit parses one body and tallies again exactly the pull request, the file and its two folders");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "overview-feedback course quiescence");
 	}

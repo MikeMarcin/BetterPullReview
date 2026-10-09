@@ -587,6 +587,28 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "pull-request-overview-page-tests:pass"
         TIMEOUT 120
 )
+# [[BPR-1094]]. The Overview's chips at 125% and 200%: every built-in theme,
+# Icons and Letters, identity, ?, Open and All, whole counts, +n, the keyboard
+# route and scrolling. The 100% row above runs the same test.
+foreach(bpr_chips_scale IN ITEMS 125 200)
+    if(bpr_chips_scale STREQUAL "125")
+        set(bpr_chips_factor "1.25")
+    else()
+        set(bpr_chips_factor "2.0")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_pull_request_overview_chips_scale_${bpr_chips_scale}
+        COMMAND test_better_pull_review_qt_pull_request_overview_page_tests --chips
+    )
+    set_tests_properties(
+        qt_pull_request_overview_chips_scale_${bpr_chips_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_chips_factor}"
+            PASS_REGULAR_EXPRESSION "pull-request-overview-chips:pass"
+            TIMEOUT 120
+    )
+endforeach()
 
 bpr_add_executable(
     test_better_pull_review_qt_comparison_scroll_controller_tests

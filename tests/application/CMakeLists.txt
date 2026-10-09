@@ -992,3 +992,15 @@ bpr_enable_hardening(test_better_pull_review_overview_feedback_tests)
 bpr_enable_warnings(test_better_pull_review_overview_feedback_tests)
 bpr_add_network_isolated_test(NAME application_overview_feedback COMMAND test_better_pull_review_overview_feedback_tests)
 set_tests_properties(application_overview_feedback PROPERTIES TIMEOUT 120 PASS_REGULAR_EXPRESSION "overview-feedback-tests:pass")
+
+# [[BPR-1094]]. What the label counters cost on 1,000 and 10,000 synthetic
+# conversations, with no chips, three and all twelve: work, allocations and
+# time are reported; only structural facts are asserted. Serial, so its times
+# are not shared with another row.
+bpr_add_executable(test_better_pull_review_feedback_counter_costs feedback_counter_cost_tests.cpp)
+target_link_libraries(test_better_pull_review_feedback_counter_costs PRIVATE BetterPullReview::Application)
+target_compile_definitions(test_better_pull_review_feedback_counter_costs PRIVATE "BPR_BENCH_BUILD_CONFIGURATION=\"$<CONFIG>\"")
+bpr_enable_hardening(test_better_pull_review_feedback_counter_costs)
+bpr_enable_warnings(test_better_pull_review_feedback_counter_costs)
+bpr_add_network_isolated_test(NAME application_feedback_counter_costs COMMAND test_better_pull_review_feedback_counter_costs)
+set_tests_properties(application_feedback_counter_costs PROPERTIES RUN_SERIAL TRUE TIMEOUT 300 PASS_REGULAR_EXPRESSION "feedback-counter-costs:measured")

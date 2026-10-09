@@ -11647,6 +11647,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<application::overview_feedback_request>                                              FeedbackRequest;
 		std::optional<std::pair<application::overview_drill_down, application::overview_feedback_request>> FeedbackDrillDown;
 		std::uint64_t                                                                                      OverviewFeedbackPublications = 0U;
+		std::uint64_t                                                                                      FeedbackObservations         = 0U;
+		std::uint64_t                                                                                      FeedbackBodiesParsed         = 0U;
 		std::uint64_t                                                                                      OverviewReceiptUpdates       = 0U;
 		std::uint64_t                                                                                      OverviewReceiptRows          = 0U;
 
@@ -12064,6 +12066,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto& handoff  = *LastAcceptedHandoff;
 			const auto  observed = FeedbackCounters.observe(
 				core::cached_review_key{ handoff.HostAuthority.bytes(), handoff.Profile, handoff.Host, handoff.Account, handoff.Locator, handoff.Number }, *snapshot);
+			// [[BPR-1094]]. Counted here as well as in the model, so the
+			// evidence would show a model made afresh.
+			++FeedbackObservations;
+			FeedbackBodiesParsed += observed.Reparsed;
 			if (!observed.Admitted) {
 				return;
 			}
@@ -18515,16 +18521,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		const auto& owner = *selected;
 		return {
-			.Workbench                  = owner.WorkbenchHost ? owner.WorkbenchHost->work_statistics() : application::workbench_work_statistics{ },
-			.Ledger                     = owner.ReviewLedgerHost ? owner.ReviewLedgerHost->statistics() : application::review_ledger_host_statistics{ },
-			.Queue                      = owner.QueueHost ? owner.QueueHost->statistics() : application::review_queue_host_statistics{ },
-			.OverviewBuilds             = owner.OverviewBuilds,
-			.OverviewReceiptVisits      = owner.OverviewReceiptVisits,
-			.OverviewHistoryUpdates     = owner.OverviewHistoryUpdates,
-			.ConversationThreadsVisited = owner.ConversationThreadsVisited,
-			.ConversationPostsVisited   = owner.ConversationPostsVisited,
-			.OverviewReceiptUpdates     = owner.OverviewReceiptUpdates,
-			.OverviewReceiptRows        = owner.OverviewReceiptRows,
+			.Workbench                    = owner.WorkbenchHost ? owner.WorkbenchHost->work_statistics() : application::workbench_work_statistics{ },
+			.Ledger                       = owner.ReviewLedgerHost ? owner.ReviewLedgerHost->statistics() : application::review_ledger_host_statistics{ },
+			.Queue                        = owner.QueueHost ? owner.QueueHost->statistics() : application::review_queue_host_statistics{ },
+			.OverviewBuilds               = owner.OverviewBuilds,
+			.OverviewReceiptVisits        = owner.OverviewReceiptVisits,
+			.OverviewHistoryUpdates       = owner.OverviewHistoryUpdates,
+			.ConversationThreadsVisited   = owner.ConversationThreadsVisited,
+			.ConversationPostsVisited     = owner.ConversationPostsVisited,
+			.OverviewReceiptUpdates       = owner.OverviewReceiptUpdates,
+			.OverviewReceiptRows          = owner.OverviewReceiptRows,
+			.FeedbackWork                 = owner.FeedbackCounters.work(),
+			.OverviewFeedbackPublications = owner.OverviewFeedbackPublications,
+			.FeedbackObservations         = owner.FeedbackObservations,
+			.FeedbackBodiesParsed         = owner.FeedbackBodiesParsed,
 		};
 	}
 

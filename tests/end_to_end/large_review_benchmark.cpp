@@ -13,6 +13,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
+#include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -1392,7 +1393,9 @@ namespace bpr::e2e::large_review {
 		}
 		// [[BPR-1089]]. The Overview's count switch and sort over 515 files and
 		// 1,000 threads, each one input against the unchanged 100 ms target.
-		for (const auto* name : { "overview_counts_all", "overview_counts_open", "overview_sort_by_comments", "overview_file_order" }) {
+		// [[BPR-1094]]. Settings' chip changes to three, twelve and none, each
+		// one input against the same target.
+		for (const auto* name : { "overview_counts_all", "overview_counts_open", "overview_sort_by_comments", "overview_file_order", "overview_columns_3", "overview_columns_12", "overview_columns_0" }) {
 			phase(name, aReport.InputIntervalLimitMs, !known_input_miss(name));
 		}
 		require(!aReport.ChangeActionMs.empty() && aReport.InputsDuringMeasurement != 0U && aReport.WheelEvents == 1000U,
@@ -2189,6 +2192,60 @@ namespace bpr::e2e::large_review {
 					require(measure_wait(*application, budget, report, "overview_counts_open", [&] { page->open_counts_button()->click(); }, [&] { return answered(core::feedback_resolution_mode::unresolved, false); }), "Overview Open timed out");
 					require(measure_wait(*application, budget, report, "overview_sort_by_comments", [&] { page->choose_sort(core::feedback_count_target{ .Kind = core::feedback_count_kind::included }); }, [&] { return answered(core::feedback_resolution_mode::unresolved, true); }), "Overview sort timed out");
 					require(measure_wait(*application, budget, report, "overview_file_order", [&] { page->choose_sort(std::nullopt); }, [&] { return answered(core::feedback_resolution_mode::unresolved, false); }), "Overview file order timed out");
+					// [[BPR-1094]]. Settings' Overview chips over the same 1,000
+					// threads: the tick that makes three chips, the tick that
+					// makes all twelve and the untick that leaves none are each
+					// one input. They are answered from the kept label buckets:
+					// no provider read, no observation, no body parsed and no
+					// conversation tallied.
+					auto* const editor  = window.label_columns_editor();
+					const auto  columns = [&](const std::uint8_t aCount) {
+						const auto& feedback = page->file_model()->feedback();
+						return feedback.has_value() && feedback->Request.Columns.Count == aCount && quiet(*application);
+					};
+					const auto tick           = [&](const core::feedback_label aLabel, const bool aOn) { editor->item_of(aLabel)->setCheckState(aOn ? Qt::Checked : Qt::Unchecked); };
+					const auto settle_columns = [&](const core::feedback_label aLabel, const bool aOn, const std::uint8_t aCount) {
+						tick(aLabel, aOn);
+						QElapsedTimer waited;
+						waited.start();
+						while (!columns(aCount) && waited.elapsed() < 30'000) {
+							QApplication::processEvents(QEventLoop::AllEvents, 5);
+						}
+						require(columns(aCount), "a chip change in Settings reaches the Overview");
+					};
+					require(editor != nullptr && columns(0U), "the Overview starts with no chips");
+					const auto readsBefore = access::evidence(*application).AccountReadCount;
+					const auto workBefore  = access::scaling_evidence(*application);
+					auto       labels      = std::vector<core::feedback_label>{ };
+					for (std::size_t label = 0U; label < core::feedback_label_count; ++label) {
+						labels.push_back(core::feedback_label_catalog()[label].Label);
+					}
+					settle_columns(labels[0], true, 1U);
+					settle_columns(labels[1], true, 2U);
+					require(measure_wait(*application, budget, report, "overview_columns_3", [&] { tick(labels[2], true); }, [&] { return columns(3U); }), "three chips timed out");
+					for (std::size_t label = 3U; label + 1U < labels.size(); ++label) {
+						settle_columns(labels[label], true, static_cast<std::uint8_t>(label + 1U));
+					}
+					require(measure_wait(*application, budget, report, "overview_columns_12", [&] { tick(labels.back(), true); }, [&] { return columns(12U); }), "twelve chips timed out");
+					for (std::size_t label = labels.size() - 1U; label > 1U; --label) {
+						settle_columns(labels[label], false, static_cast<std::uint8_t>(label));
+					}
+					settle_columns(labels[1], false, 1U);
+					require(measure_wait(*application, budget, report, "overview_columns_0", [&] { tick(labels[0], false); }, [&] { return columns(0U); }), "no chips timed out");
+					const auto  workAfter = access::scaling_evidence(*application);
+					const auto& before    = workBefore.FeedbackWork;
+					const auto& after     = workAfter.FeedbackWork;
+					std::cerr << "large-review overview columns: provider_reads=" << access::evidence(*application).AccountReadCount - readsBefore
+							  << " observations=" << after.Observations - before.Observations << " bodies_parsed=" << after.BodiesParsed - before.BodiesParsed
+							  << " scopes_retallied=" << after.ScopesRetallied - before.ScopesRetallied
+							  << " scopes_tallied_on_request=" << after.ScopesTalliedOnRequest - before.ScopesTalliedOnRequest
+							  << " units_tallied=" << after.UnitsTallied - before.UnitsTallied
+							  << " publications=" << workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications << std::endl;
+					require(access::evidence(*application).AccountReadCount == readsBefore && workAfter.FeedbackObservations == workBefore.FeedbackObservations
+								&& workAfter.FeedbackBodiesParsed == workBefore.FeedbackBodiesParsed && after.Observations == before.Observations && after.BodiesParsed == before.BodiesParsed
+								&& after.ScopesRetallied == before.ScopesRetallied && after.UnitsTallied == before.UnitsTallied
+								&& workAfter.OverviewFeedbackPublications - workBefore.OverviewFeedbackPublications >= 2U * labels.size() - 1U,
+							"chip changes read nothing from the provider, parse no body and tally no conversation; each change publishes the counts");
 				}
 				// [[BPR-0940]]. The ordinary course reads the large file where a
 				// reviewer does: in Review, so its measurement, navigation and

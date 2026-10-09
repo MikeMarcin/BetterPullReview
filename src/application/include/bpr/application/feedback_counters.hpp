@@ -49,6 +49,32 @@ namespace bpr::application {
 		std::size_t TourIndexReferences = 0U;
 	};
 
+	/// \brief [[BPR-1094]]. What a model has done since it was made: cost
+	/// evidence, never policy (RFC-BPR-0049 R29, R44).
+	/// \details Every field only grows. A reader takes two samples and
+	/// subtracts, so a column change, a mode change or a sort can be shown to
+	/// have read no body and tallied no conversation, and a root edit to have
+	/// read one body and tallied only the scopes it reached.
+	struct feedback_counter_work
+	{
+		/// Snapshots offered to `observe`.
+		std::uint64_t Observations = 0U;
+		/// Bodies the core parsed, and bodies it reused unread.
+		std::uint64_t BodiesParsed = 0U;
+		std::uint64_t BodiesReused = 0U;
+		/// Units of a new population compared with the kept one.
+		std::uint64_t UnitsCompared = 0U;
+		/// Kept tallies taken again by an observation.
+		std::uint64_t ScopesRetallied = 0U;
+		/// Tallies taken on request for a scope with no kept tally, such as a
+		/// listed file no conversation is on.
+		std::uint64_t ScopesTalliedOnRequest = 0U;
+		/// Units handed to the core across both kinds of tally.
+		std::uint64_t UnitsTallied = 0U;
+
+		auto operator==(const feedback_counter_work&) const -> bool = default;
+	};
+
 	class feedback_counter_model final
 	{
 	public:
@@ -59,6 +85,8 @@ namespace bpr::application {
 		auto observe(const core::cached_review_key& aScope, const github_pull_request_snapshot& aSnapshot, bool aStale = false) -> feedback_counter_update;
 
 		[[nodiscard]] auto generation() const noexcept -> std::uint64_t { return Generation; }
+		/// \brief [[BPR-1094]]. The work done so far.
+		[[nodiscard]] auto work() const noexcept -> const feedback_counter_work& { return Work; }
 		/// Whether a snapshot has been admitted.
 		[[nodiscard]] auto observed() const noexcept -> bool { return Observed; }
 		[[nodiscard]] auto population() const noexcept -> const core::feedback_population& { return Population; }
@@ -93,6 +121,9 @@ namespace bpr::application {
 		std::vector<std::size_t>                          Unattributed;
 		std::map<scope_key, core::feedback_counter_tally> Tallies;
 		std::uint64_t                                     Generation = 0U;
+		/// [[BPR-1094]]. Counted by const reads too, so it is mutable; the model
+		/// is used on one thread.
+		mutable feedback_counter_work Work;
 	};
 }
 

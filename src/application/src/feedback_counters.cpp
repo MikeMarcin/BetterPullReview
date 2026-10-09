@@ -49,6 +49,7 @@ namespace bpr::application {
 	{
 		auto update  = feedback_counter_update{ .Generation = Generation, .Collection = Population.Collection };
 		auto sources = observe_feedback_sources(aSnapshot);
+		++Work.Observations;
 
 		// A generated tour index is a reference to its stops, which are counted
 		// as themselves; it is no conversation of its own.
@@ -78,7 +79,9 @@ namespace bpr::application {
 		}
 		update.Reparsed = refresh.Recognized.size();
 		update.Reused   = refresh.Reused;
-		auto adopted    = core::adopt_feedback_refresh(current, std::move(refresh));
+		Work.BodiesParsed += update.Reparsed;
+		Work.BodiesReused += update.Reused;
+		auto adopted = core::adopt_feedback_refresh(current, std::move(refresh));
 		if (!adopted) {
 			update.AnnotationRefusal = core::feedback_refresh_refusal::invalid_scope;
 			return update;
@@ -111,6 +114,7 @@ namespace bpr::application {
 			for (const auto& unit : Population.Units) {
 				before.emplace(unit.Id, &unit);
 			}
+			Work.UnitsCompared += built.Population.Units.size();
 			for (const auto& unit : built.Population.Units) {
 				const auto found = before.find(unit.Id);
 				if (found == before.end()) {
@@ -177,6 +181,7 @@ namespace bpr::application {
 			}
 			Tallies.insert_or_assign(key, std::move(tally));
 			++update.Retallied;
+			++Work.ScopesRetallied;
 		}
 		// Every kept tally names the same accepted observation, so counts read
 		// together are one snapshot.
@@ -244,6 +249,7 @@ namespace bpr::application {
 		if (const auto* kept = tally(aScope)) {
 			return *kept;
 		}
+		++Work.ScopesTalliedOnRequest;
 		return tally_scope({ aScope.Kind, aScope.Path });
 	}
 
@@ -255,6 +261,7 @@ namespace bpr::application {
 	{
 		const auto where = core::feedback_counter_scope{ .Kind = aKey.first, .Path = aKey.second };
 		if (aKey.first == feedback_counter_scope_kind::pull_request) {
+			Work.UnitsTallied += Population.Units.size();
 			return core::tally_feedback_counters(Population, where);
 		}
 		auto       part = core::feedback_population{ .Scope = Population.Scope, .Epoch = Population.Epoch, .Collection = Population.Collection, .Excluded = Population.Excluded };
@@ -266,6 +273,7 @@ namespace bpr::application {
 		if (aKey.first == feedback_counter_scope_kind::unattributed) {
 			// Every unit it holds, and nothing a file holds.
 			take(Unattributed);
+			Work.UnitsTallied += part.Units.size();
 			return core::tally_feedback_counters(part, where);
 		}
 		if (aKey.first == feedback_counter_scope_kind::file) {
@@ -287,6 +295,7 @@ namespace bpr::application {
 			}
 		}
 		take(UnknownAnchors);
+		Work.UnitsTallied += part.Units.size();
 		return core::tally_feedback_counters(part, where);
 	}
 }

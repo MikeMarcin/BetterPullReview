@@ -1214,6 +1214,16 @@ endfunction()
 # --review-progress-push-probe course and an ATTENDED_HEAD line inside
 # BPR_BUILD_TESTING. No grant, target, provider, credential, GitHub write,
 # mutation or publication path; mutation pin unchanged; no new src/app source.
+# BPR-1094 reseal (2026-10-08): over the BPR-1328 v003 rebased reseal above,
+# whose pins match at a5cba14fb (checked in a detached worktree); no other
+# intervening pinned-scope commit. github_application.cpp: the window counts
+# each observation of its label buckets and the bodies it parsed
+# (FeedbackObservations, FeedbackBodiesParsed), and scaling_evidence reports
+# them with the model's feedback_counter_work and the Overview count
+# publications; github_application_fixture_access.hpp names the four fields
+# inside BPR_BUILD_TESTING. Evidence counters only: no decision, grant, target,
+# provider, credential, GitHub write, mutation or publication path; mutation
+# pin unchanged; no new src/app source. Reviewed on BPR-1094.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1232,7 +1242,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c163820abf814f6a951a00767519f983e3e0746cc069170b0164b1f58a2dfaf8"
+		"6b25419a4cc143be4a259160b5ab9d853465b7bd96bb700e7291de4e69a602a2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1436,7 +1446,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b0812c6fb7640e28f18fca0dbe22dfa85466829c2766539c6054ea977ca52d24"
+        "19e93e5f0333fc80a9e6f3eefeb6bf6a86f7a4164be1ad1c1af440fdf3ff118f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

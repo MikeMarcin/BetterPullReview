@@ -10,6 +10,7 @@
 #include "bpr/application/agent_chat_session_host.hpp"
 #include "bpr/application/agent_comment_workshop_host.hpp"
 #include "bpr/application/agent_finding_host.hpp"
+#include "bpr/application/feedback_counters.hpp"
 #include "bpr/application/github_publication_port.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
@@ -1124,6 +1125,14 @@ namespace bpr::app::detail {
 		std::uint64_t                              ConversationPostsVisited   = 0U;
 		std::uint64_t                              OverviewReceiptUpdates     = 0U;
 		std::uint64_t                              OverviewReceiptRows        = 0U;
+		/// [[BPR-1094]]. The window's label buckets: bodies parsed, scopes and
+		/// units tallied, and how often the Overview's counts were published.
+		application::feedback_counter_work FeedbackWork;
+		std::uint64_t                      OverviewFeedbackPublications = 0U;
+		/// Observations offered to the buckets and bodies they parsed, counted
+		/// by the window, so they keep counting if the model were made afresh.
+		std::uint64_t FeedbackObservations = 0U;
+		std::uint64_t FeedbackBodiesParsed = 0U;
 	};
 
 	/// \brief Samples comparison ownership without driving any host.
