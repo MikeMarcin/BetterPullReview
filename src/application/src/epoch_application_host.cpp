@@ -5435,7 +5435,7 @@ namespace bpr::application {
 						|| waiter->Lend == blob_pair_waiter::lent_read::offered;
 				});
 				if (waiter->Result.has_value()) {
-					return std::move(*waiter->Result);
+					return std::move(waiter->Result);
 				}
 				if (!woken || waiter->Abandoned) {
 					break;
