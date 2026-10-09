@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1352"
 title: "Pin clang-format to major release 22, so a file formatted on one station passes every station's format gate"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"coordinator, 2026-10-08: main red on Linux's coding_format_check for four files formatted on the Mac with Homebrew's clang-format 23.1.1","reservation":"docs/issues/_reservations/BPR-1352--BPR-1352--15c5b707b1ee.json","related_cards":["BPR-0367","BPR-0865","BPR-1243"]}
+acceptance: [{"criterion":"BPR-1352:pinned-gate","outcome":"pass","revision":"2576c5281","evidence":{"kind":"command","path":"tests/scripts/coding_standard_format_gate_tests.py","detail":"coding_standard_format_gate_contract: 37 tests pass on macOS (ctest --preset core-only). format_check.py and format.py refuse 21.1.8 and 23.1.1 without invoking the tool, naming version, path, brew install llvm@22 and apt install clang-format-22; the row skips for 23; 22.1.8 is accepted. 19 of the new cases fail (9 failures, 10 errors) against the unpinned scripts at c2ea0e158."}},{"criterion":"BPR-1352:discovery","outcome":"pass","revision":"2576c5281","evidence":{"kind":"command","path":"_coding-standard/cmake/CodingStandardClangFormat.cmake","detail":"Mac station, PATH gives /opt/homebrew/opt/llvm/bin/clang-format 23.1.1 first: cmake --preset core-only prints 'Coding standard clang-format: /opt/homebrew/opt/llvm@22/bin/clang-format'; reconfiguring with -DBPR_CLANG_FORMAT_EXECUTABLE=/opt/homebrew/opt/llvm/bin/clang-format warns 'needs clang-format 22 exactly (... reports version 23.1.1)' and caches the llvm@22 tool. format_check.py with no --clang-format reports '/opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)'. A contract case holds the CMake NAMES/HINTS equal to PINNED_CLANG_FORMAT_NAMES/DIRECTORIES."}},{"criterion":"BPR-1352:tree-clean-under-22","outcome":"pass","revision":"0da57c0ac","evidence":{"kind":"command","path":"_coding-standard/scripts/format_check.py","detail":"After the format-only commit, python3 _coding-standard/scripts/format_check.py --root . checks 1359 files with clang-format 22.1.8: 'Formatting check passed.'; ctest -R coding_format_check passes. The four files' non-whitespace diff is two include moves."}},{"criterion":"BPR-1352:documentation","outcome":"pass","revision":"0da57c0ac","evidence":{"kind":"command","path":"scripts/verify_documentation.py","detail":"DOCUMENTATION_OK; verify_documentation_tests.py 67 tests OK."}}]
 ---
 
 # BPR-1352: Pin clang-format to major release 22, so a file formatted on one station passes every station's format gate
