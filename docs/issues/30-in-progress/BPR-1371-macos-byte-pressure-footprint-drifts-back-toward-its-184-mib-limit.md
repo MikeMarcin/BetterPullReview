@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1371"
 title: "macOS: the byte-pressure course's footprint drifts back toward its 184 MiB limit while the live heap stays flat"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
