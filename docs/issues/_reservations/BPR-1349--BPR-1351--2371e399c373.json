@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1349",
+    "BPR-1350",
+    "BPR-1351"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-1094 findings: 10k refresh rebuild cost; clipped Files heading; double count publication",
+  "created": "2026-10-09T04:35:56.365019+00:00",
+  "base": "2e6d69b43dcd38ee4b344a027bdb490cea85519e"
+}
