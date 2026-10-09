@@ -96,3 +96,10 @@ BPR-1349). It is 8.3 ms at 1k. Unchanged refreshes hash nothing, as BPR-1349
 left them (`bodies_hashed=0`).
 
 macOS and Windows runs of `core_sha256` are owed.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `core_sha256`.

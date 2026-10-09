@@ -570,3 +570,13 @@ sampling), WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev`, offscreen:
 `qt_diff_workbench_scale_200` pass, including "the button is blue with a white
 cross" at 125% and 200%. The Linux half of the owed runs is discharged; Windows
 is still owed.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `qt_workbench_window_scale_{100,125,200}`,
+  `qt_diff_workbench_scale_{100,125,200}`, `qt_workbench_conversation_reveal`,
+  `qt_workbench_line_draft` and `qt_composed_inline_drawer_scale_{100,125,200}`.
+- The Windows half of the owed runs is discharged.

@@ -139,3 +139,12 @@ One new short session, one question, Accept or Reject.
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
 At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `core_workbench_interaction`, `qt_conversation_finder_scale_{100,125,200}` and `qt_workbench_window_scale_{100,125,200}` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `core_workbench_interaction`, `qt_conversation_finder_scale_{100,125,200}`,
+  `qt_workbench_window_scale_{100,125,200}` and, after `ca01e7bf3`,
+  `application_workbench_composition_contract`.

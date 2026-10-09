@@ -94,3 +94,15 @@ Windows and Linux have not run this change; it adds no platform code.
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
 At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `application_overview_double_click` and `qt_workbench_window_scale_{100,125,200}` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `application_overview_double_click`,
+  `qt_workbench_window_scale_{100,125,200}` and `test_network_isolation_manifest`.
+- **Pin measured:** `application_overview_double_click` passes as registered.
+  Contained through the sandbox launcher it fails "private composed course
+  root" before any course step, as its `dos-volume-name` pin predicted. The
+  pin's comment now says measured.

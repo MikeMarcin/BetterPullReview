@@ -479,3 +479,10 @@ composition pins are resealed over the edit in the same commit. Test-only; no
 product change. On macOS `application_workbench_composition_contract` (both
 the normal run and the cut-selection-wire counterexample) and
 `application_review_round_trip_composition_contract` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `application_workbench_composition_contract`, after `ca01e7bf3`.

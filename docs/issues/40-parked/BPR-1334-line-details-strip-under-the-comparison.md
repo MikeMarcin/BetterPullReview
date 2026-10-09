@@ -603,3 +603,10 @@ The product is as this card intends, so the test is what changed:
 its shown height with `set_line_details_height` before the font change, as a
 reader's stored height does, so it measures only the font's effect. Test-only;
 no product or card-scope change. `qt_appearance_profile` passes on macOS.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `qt_appearance_profile`, after `2339d0912`.

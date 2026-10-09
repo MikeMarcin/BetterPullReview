@@ -133,3 +133,10 @@ owed to the stations.
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
 At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: `qt_feedback_label_controls` and `qt_dif_workshop_placement` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+- **Pass:** `qt_feedback_label_controls` and `qt_dif_workshop_placement`.

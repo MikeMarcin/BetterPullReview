@@ -448,3 +448,16 @@ v004.
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
 At `b0ef8d7b9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner: v003's `qt_review_state_icon`, `qt_files_tree` and `qt_overview_read_marks` pass.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), offscreen,
+network-isolated runner, `-j4`:
+
+v003's selection:
+- **Pass:** `qt_files_tree`, `qt_overview_read_marks`, `qt_review_state_icon`,
+  `architecture_boundaries`, `qt_workbench_window_scale_100`,
+  `application_review_round_trip_composition_contract`,
+  `application_review_ledger_composition_contract`,
+  `application_review_progress_push_contract` and
+  `application_accepted_file_in_overview`.
