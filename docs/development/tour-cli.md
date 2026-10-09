@@ -36,7 +36,8 @@ vault and whether the gh transport exists there, and say "development install;
 no release package" and "not yet qualified" on every platform (see "Platform
 status" below). Unsupported options
 refuse before command execution. Available commands include `connect`, `open`, `status`, `show`, `edit`, `add`,
-`move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, `publish`, `recover`, and `capabilities`.
+`move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, `publish`, `recover`, `hooks`, `assist`,
+`outline`, `labels` and `capabilities`.
 `open` accepts a full HTTPS PR URL from any directory, or a decimal PR number
 with `--repo HOST/OWNER/REPO`. Multiple roots require `--root` with a returned
 candidate label or a unique review URL/ID. `open --offline` uses one exact saved
@@ -286,7 +287,7 @@ Without that journal, a pending server candidate cannot recreate lost approval.
 ## Working while the desktop is open
 
 The profile has one owner. When the desktop owns it, `status`, `show`, `edit`,
-`move`, `remove`, `ready`, `undo` and `redo` are forwarded over a same-user local
+`move`, `remove`, `ready`, `undo`, `redo` and `labels edit` are forwarded over a same-user local
 socket beside the desktop's activation endpoint; the CLI never opens the store,
 takes the lease or starts the desktop. An owner that predates the channel answers
 `owner_protocol_unsupported` (exit 4). `add`, `show --source` and `walk` read
@@ -296,7 +297,7 @@ and the CLI builds the stop as it does standalone, so only the stop is recorded.
 A draft no window has open answers `interaction_required` (exit 3); open the pull
 request in the desktop and retry. `open`, refresh, publish and recover answer
 `interaction_required` while a desktop owns the profile, and `assist --sources`
-does too. The channel is a same-user local socket on macOS and Linux and an
+and `labels counts` do too. The channel is a same-user local socket on macOS and Linux and an
 owner-private named pipe on Windows ([[BPR-1168]]), protocol 6; an owner of
 another protocol version answers `owner_protocol_unsupported` before anything is
 sent. The same channel
@@ -369,6 +370,87 @@ Stop reasons are `stale`, `expired`, `unknown_ticket`, `unknown_proposal`,
 
 An owner serves `assist` and `outline` like other local commands, from the desktop's
 open draft when there is one, and answers with its own clock and hook revision.
+
+## Feedback labels
+
+`bpr tour labels` ([[BPR-1092]], RFC-BPR-0051 R38, R39, R41) gives a terminal or an
+agent the Conventional Comments rules the desktop uses. Each subcommand is decided by
+the core and application functions the desktop calls; none reads a label with a
+pattern of its own, keeps a store or publishes anything. The RFC asks for these to be
+documented in a `CLI-INTEGRATION.md`; no such page exists, and this page is the CLI's
+contract.
+
+| Command | What it answers | Needs |
+|---|---|---|
+| `labels` or `labels catalog` | The twelve labels in catalog order, each with its description, guidance and icon role; the three standard decorations; the catalog (`bpr.feedback-label-catalog.v1`, revision 1) and grammar revision (1). | nothing |
+| `labels parse --file PATH\|- [--published]` | How the shared recognizer reads one body (at most 65536 bytes of UTF-8). | nothing |
+| `labels edit stop:ID CHANGE --expected-revision N` | One explicit label edit of a local tour stop's comment, through the stop's owner. | `--profile`, `--draft` |
+| `labels counts [--columns ID,ID\|none] [--mode open\|all]` | The Overview's label counts for the draft's pull request. | `--profile`, `--draft` |
+
+CHANGE is `--label ID|plain`, or one of `--expectation
+blocking|non-blocking|if-minor|none`, `--decoration TOKEN` or `--remove-decoration
+TOKEN`, or a label with one of those three. `--label plain` removes the whole header
+and takes no decoration. Human text is the default; `--json` writes the usual envelope.
+
+**Catalog and parse** open no profile and create no file, so they also work beside a
+running desktop; they refuse `--profile`. `parse` reports the status (`recognized`,
+`plain`, `unknown_label`, `malformed` or `limited`), label, guidance, expectation and
+header form; the raw label, header, subject and discussion as half-open UTF-8 byte
+spans of the exact bytes given; each decoration as written with its kind; the
+diagnostics; and the body's SHA-256. The text is never rewritten. `--published` reads
+a published post as the counters do: a published tour stop only inside the narrative
+its envelope maps, and an envelope that does not map gives no author text
+(`classification_unavailable`), never a guessed label.
+
+**Edit** plans `core::plan_feedback_tour_stop_edit` against the revision you read. Its
+header decision is the one the desktop's label chip makes
+(`decide_feedback_composition_edit`), and the result is the ordinary `edit_stop`
+command `review_tour_host` executes, so the owner's revision check, undo journal and
+request IDs apply unchanged. Only the header's bytes change: the subject, the
+discussion, any suggested-change fence, line endings and UTF-8 are kept, and a comment
+that is still only a header can be labelled before its subject is written. An edit
+that changes nothing sends nothing. Refusals: `revision_conflict` (exit 4, the newer
+text is kept), `read_only` (2), `invalid_label`, `invalid_decoration`, `invalid_edit`
+and `invalid_input` (2), `input_too_large` (2), and `unsupported_header` or
+`restructuring_required` (5): a malformed header, or a comment that begins with a
+quote, list, heading, fence, HTML or table, stays exactly as written; change it with
+`edit stop:ID:body`. After `outcome_unknown`, repeating the command with the same
+`--request-id` and the revision you read returns the owner's record
+(`operation_recorded`) when it committed and the stop already reads as that edit
+leaves it, and sends nothing; the same ID with another edit is `command_refused`, and
+an unrecorded ID with an old revision is an ordinary `revision_conflict`.
+
+Review comment drafts have no headless owner. `labels edit comment:ID` (or `draft:ID`)
+answers `capability_unavailable` (exit 5), and `capabilities` says so under
+`labels.comment_drafts`; label them in the desktop's comment editor.
+
+**Counts** read the draft's exact pull request once through the reader `preview
+--refresh` uses, then count it as the desktop window does: `feedback_counter_model`
+observes the accepted snapshot and `project_overview_feedback` answers the Overview's
+request. The chips and the mode default to the profile's Settings (Reviews & queue ›
+Comment labels: Overview chips and Overview counts); `--columns` and `--mode` choose
+them for one command only. Reading Settings the first time creates the profile's
+settings store with its defaults, as `hooks show` does. JSON `data.counts` gives
+`unit` (`conversation`), `columns`, `columns_source` and `mode_source` (`settings` or
+`option`), `mode`, `generation`, `epoch`, `collection`, `exact`, `limits`,
+`tour_index_references`, the rows `pull_request` and `not_on_a_file`, the `folders`
+and `files` that hold a conversation, and `quiet_files` and `quiet_folders` (`count`,
+and whether their zeros are `exact`). Each row gives `kind`, `path`, `included`,
+`scope_total`, `uncertain` (the ? count), `unattributed`, `unclassified`, `exact`,
+`limits`, `states` (`unresolved`, `resolved`, `unknown`, `not_applicable`), `labels`
+(each chip's `id`, `count` and `states`) and `other` (`count`, `states` and its parts
+`unselected`, `plain`, `custom`, `unclassified`). The chips' counts and `other` add up
+to `included`. A count is a conversation, counted once by its root's label; local tour
+stops are drafts and are not counted. An incomplete answer is never a clean zero: a
+partial read, unknown resolution or an unreadable label sets `exact` to false and names
+the limit, with a `counts_not_exact` warning (on standard error in text). A read the
+counter cannot admit is `counts_unavailable` (exit 5). While a desktop owns the
+profile, counts answer `interaction_required` (exit 3) and read nothing; its Overview
+shows the same numbers.
+
+The additions are additive: the envelope stays `bpr.tour.cli-result.v1` and
+`cli_contract` stays 1. `capabilities` lists `labels` and describes it in a `labels`
+object.
 
 ## The pr-tour skill
 
