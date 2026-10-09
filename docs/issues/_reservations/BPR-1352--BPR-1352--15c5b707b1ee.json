@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1352"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Pin clang-format to major 22 so Mac and Linux format gates agree",
+  "created": "2026-10-09T04:40:16.690869+00:00",
+  "base": "e602e2cf9b2e723c7b6148b865b4974f3d2e5bf4"
+}
