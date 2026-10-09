@@ -455,3 +455,92 @@ The strip drew every row in the plain code ink: it took no classification,
 while the panes above it colour the same lines. The candidate was released
 with `resume-development` (event 7). Its host was already stopped, and
 `artifacts/bpr-1334/line-details-frozen-v003/` was deleted.
+
+## v004 — rows in the panes' syntax colours (2026-10-08)
+
+Design: `frontend-design:frontend-design` was loaded first. Nothing new is
+drawn: the strip takes the panes' colours, so a row reads as the line it
+repeats.
+
+- **Product.** `line_details_pane::set_token_spans` adopts the base and the
+  head blob's classification, the `shared_token_spans` the panes already
+  hold; `diff_workbench::adopt_token_spans` hands both over, and the reset
+  that drops a comparison's spans drops the strip's too.
+  `line_details_colors` carries the panes' role table (`Syntax`, which
+  replaces `Ink`). `apply_syntax` colours each row from its side's spans for
+  its line through `code_syntax_format_ranges` and
+  `apply_syntax_format_ranges`, the functions the panes use. It runs on a
+  new projection, a late classification and a theme change. Only the shown
+  bytes are coloured: a span past the core's 4,096-byte cut is dropped, and
+  one across it is clipped there. The row's shown bytes are kept with the
+  row, so a classification that lands later needs no diff pointer.
+- **Change highlight.** The panes' intraline mark moved into one shared
+  `append_intraline_emphasis_span` (`code_sample_painter`). It lays the fill
+  as a background over the exact range, the plain ink readable over it, and
+  each classified token's own colour over it, moved only as far as
+  `core::readable_emphasis_foreground` needs. `diff_workbench` and the strip
+  both call it, so the panes' behaviour is unchanged and a changed token reads
+  the same in both.
+- The 100 ms gates are not touched: the strip colours at most its 33 rows of
+  at most 4,096 bytes each, on events it already handled.
+
+**Tests.** `qt_diff_workbench_scale_{100,125,200}` gains
+`test_line_details_colours_tokens_as_the_panes_do`. The spans arrive after
+the line is shown. In light and then in dark, each row's layout formats
+equal its pane's formats for the same line (five ranges each). The function
+and the string read in the profile's colours. Every highlighted character of
+the changed token is painted
+`readable_emphasis_foreground(token colour, intraline fill)`, not the plain
+ink's. On a 4,500-byte line of tokens, the pane has 1,500 ranges and the
+strip 1,366: the token across the cut is clipped to one character and none
+lies past it. `application_line_details_public_path` (composed, real
+classifier) waits for the classification. It then checks that the SQL line's
+base and head rows equal the panes' formats for line 6 (a check that
+`--attended` prints rather than ends on). On the cut minified line it checks
+that the strip's 1,120 ranges stop at 4,096 while the pane's 3,915 run past
+it, and that each shown range equals the pane's.
+
+**Failing-before controls** (each mutation reverted after its scale-100 run):
+- Syntax not applied (v003's strip) fails "light: the base row's token
+  colours are the base pane's for that line", with 0 ranges.
+- The strip's old emphasis (plain ink only) fails "light: a changed character
+  of a token keeps the token's colour over the change highlight".
+- Rows coloured against the uncut line fail "the strip colours the tokens it
+  shows, and none past the 4,096-byte cut", with 1,500 ranges.
+- `adopt_token_spans` not handing the spans to the strip fails the light
+  check with 0 ranges.
+- A theme change not recolouring fails "dark: the base row's token colours
+  are the base pane's for that line".
+
+**Rows.** Release, tests on, Apple clang `-O3`, Qt 6.11.2, macOS 26.6.2,
+M4 Pro, offscreen. At the frozen candidate `7e43eba32` (over `2762359ec`)
+and again at the landed tree `7b13f6a51` (over `15c86f2ed`; clang-format 22
+clean on the changed files), `qt_diff_workbench_scale_{100,125,200}`,
+`application_line_details_public_path`, `architecture_boundaries` and
+`application_review_round_trip_composition_contract` pass (pins match; the
+change is outside the pinned scope). `DOCUMENTATION_OK`. Format applied.
+`tidy.py` reports nothing on `line_details_pane.cpp`,
+`code_sample_painter.cpp` or the public-path course. On `diff_workbench.cpp`
+and its test, its only findings predate this change (`optional-value-conversion`
+at 2717–2718, `column_x`).
+
+**Large-review rows (the 18).** Under the same tests at the pre-rebase
+candidate (load 12–23), 17 of 18 passed. `application_large_review_history`
+failed once on one 100.1 ms pulse in `epoch_refresh_29`. The other rows' worst
+pulses were 33–92 ms, with no input-budget failures. Earlier, at load 30–110,
+`launch` (414 ms before `main`, a process-start phase),
+`pathological` and `cache_bytes` failed once each and then passed. A/B against
+an `origin/main` control binary built in the same tree:
+- `cache_bytes`: the control failed 1 of 3 at the same 187 MB footprint.
+- `history`, alternated at load 7–28: the candidate failed 3 of 7
+  (`epoch_refresh_29` pulses of 100.1 and 185.7 ms, and
+  `historical_base_selection` 117.8 ms). The control failed 0 of 4 there,
+  and 1 more at load 145.
+- All 18, alternated at load 180–310 at the merged tree: the candidate failed
+  4 and 5 rows, the control 3 and 5, in the same phases.
+
+The history course's line is `int fixture_0030 = …;`. The strip's added
+work there is two rows of about 20 bytes per publication. No mechanism links
+it to a Git epoch refresh pulse, but this is not yet a clean 18/18. A quiet
+run of the 18, with `history` alternated against the control, is still
+owed, and C4 is not reclaimed until that run is made.
