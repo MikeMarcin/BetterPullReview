@@ -251,3 +251,25 @@ Pending: `BPR-1331:owner-look` is the owner's, Accept or Reject.
 - Launch: `python3 /Users/jaeger/bpr1331-review-state-v002.o_c2hktq/launch.py`.
 
 Next: read the session's decisions (`status --after 9`).
+
+## Owner verdict, session v002
+
+Reject, 2026-10-09T04:10:42Z, decision `6d9fa78e-5c7c-45fd-982d-0e1fa0b5dc11`
+at session event 11 (candidate `BPR-1331-review-state-icon-v002`,
+fingerprint `2f93777b…`, revision `frozen-54dfbd463-v002`). The note,
+verbatim:
+
+> It's very weird to me that we have 2 icon languages for the same concept. Pick one. I think the I think the circles here is probably better overall but it should get some color. All green aint the best either.
+
+One attachment: the private progress menu open under the button (which shows
+the broken-ring unread mark), its four actions drawn in the older pictorial
+icons: a green ball for Seen, a green tick for Read, a green arrow for Accept
+and a red cross for Exclude.
+
+`BPR-1331:owner-look` stays pending. The direction for v003: one icon
+language for the button and its menu, the circles, with colour, and not all
+green. The session was handed back at event 13, released with
+`resume-development --all`, and the root
+`/Users/jaeger/bpr1331-review-state-v002.o_c2hktq` removed with
+`scripts/freeze_attended_build.py remove`; v003 freezes its own root and opens
+its own short session.
