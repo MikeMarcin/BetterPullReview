@@ -1179,6 +1179,10 @@ namespace {
 		std::string                                                  ReviewProgressPushDiagnostic;
 		// [[BPR-1212]]. `--line-draft-course`: only the course's line-draft phases.
 		bool LineDraftCourse = false;
+		// [[BPR-1212]]. `--cancel-first-base-numbering`: the first base-numbering
+		// answer applies as cancelled; armed on the course's first tick.
+		bool CancelFirstBaseNumbering       = false;
+		bool BaseNumberingCancellationArmed = false;
 		std::optional<bpr::app::detail::defect_composition_probe>
 			DefectCompositionProbe;
 		// [[BPR-0654]]. `--overview-since-review`.
@@ -5661,6 +5665,10 @@ namespace {
 		bpr::app::github_application& aApplication,
 		automated_run&                aRun)
 	{
+		if (aRun.CancelFirstBaseNumbering && !aRun.BaseNumberingCancellationArmed) {
+			bpr::app::detail::github_application_fixture_access::cancel_base_numbering_answers(aApplication, 1U);
+			aRun.BaseNumberingCancellationArmed = true;
+		}
 		const auto result = bpr::app::detail::github_application_fixture_access::exercise_label_authoring(
 			aApplication, aRun.LabelAuthoringEvidenceDirectory, aRun.LineDraftCourse);
 		aRun.LabelAuthoringDiagnostic = bpr::app::detail::github_application_fixture_access::label_authoring_diagnostic(aApplication);
@@ -9379,11 +9387,13 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
-		const auto attendedPullRequest    = QStringLiteral("%1/%2#%3").arg(QString::fromStdString(fixtureExpectations.Owner), QString::fromStdString(fixtureExpectations.Repository), QString::number(fixtureExpectations.Number));
-		const auto labelAuthoringEvidence = argument_value(argc, argv, "--label-authoring-evidence");
-		const auto lineDraftCourse        = has_argument(argc, argv, "--line-draft-course");
+		const auto attendedPullRequest      = QStringLiteral("%1/%2#%3").arg(QString::fromStdString(fixtureExpectations.Owner), QString::fromStdString(fixtureExpectations.Repository), QString::number(fixtureExpectations.Number));
+		const auto labelAuthoringEvidence   = argument_value(argc, argv, "--label-authoring-evidence");
+		const auto lineDraftCourse          = has_argument(argc, argv, "--line-draft-course");
+		const auto cancelFirstBaseNumbering = has_argument(argc, argv, "--cancel-first-base-numbering");
 		if ((labelAuthoringProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value()))
-			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe) || (lineDraftCourse && !labelAuthoringProbe)) {
+			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe) || (lineDraftCourse && !labelAuthoringProbe)
+			|| (cancelFirstBaseNumbering && !lineDraftCourse)) {
 			QTextStream{ stdout } << "LABEL_AUTHORING_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9738,6 +9748,7 @@ auto main(int argc, char** argv) -> int
 								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
 																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,
+								.CancelFirstBaseNumbering        = cancelFirstBaseNumbering,
 								.DefectCompositionProbe          = defectCompositionProbe,
 								.OverviewSinceReviewRequested    = overviewSinceReview,
 								.ReviewBehaviourRequested        = reviewBehaviour,

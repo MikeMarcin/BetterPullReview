@@ -8978,19 +8978,55 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (Closing || !BaseNumbering || BaseNumbering->Request != aObservation.Request) {
 						return;
 					}
-					// Not answerable yet: asked again on the next publication.
-					if (aObservation.Status == application::github_base_numbering_status::stale
-						|| aObservation.Status == application::github_base_numbering_status::cancelled) {
+					auto status = aObservation.Status;
+#if defined(BPR_BUILD_TESTING)
+					if (ForcedBaseNumberingCancellations != 0U) {
+						--ForcedBaseNumberingCancellations;
+						status = application::github_base_numbering_status::cancelled;
+					}
+#endif
+					// An accept that keeps the comparison stops queued epoch
+					// work, this question among it, and may bring no new
+					// publication: a cancelled question is asked again at once.
+					if (status == application::github_base_numbering_status::cancelled) {
+						BaseNumbering.reset();
+						rearm_base_numbering();
+						return;
+					}
+					// The cache no longer serves this review: asked again on the
+					// next publication or accepted review.
+					if (status == application::github_base_numbering_status::stale) {
 						BaseNumbering.reset();
 						return;
 					}
-					BaseNumbering->Status = aObservation.Status;
+					BaseNumberingCancellations = 0U;
+					BaseNumbering->Status      = status;
 					apply_base_numbering();
 				});
+			// An authority being replaced admits no epoch work yet: asked
+			// again once the accept has had its turn.
 			if (!admitted) {
 				BaseNumbering.reset();
+				rearm_base_numbering();
 			}
 			apply_base_numbering();
+		}
+
+		/// \brief [[BPR-1212]]. Asks a cancelled or not yet admitted question
+		/// again shortly, a bounded number of times in a row (about two
+		/// seconds), so an accept in progress can finish first.
+		void rearm_base_numbering()
+		{
+			constexpr auto maximum_cancellations = std::size_t{ 80U };
+			if (Closing || Window == nullptr || BaseNumberingCancellations >= maximum_cancellations) {
+				return;
+			}
+			++BaseNumberingCancellations;
+			QTimer::singleShot(25, Window.get(), [this] {
+				if (!Closing && !BaseNumbering) {
+					observe_base_numbering();
+				}
+			});
 		}
 
 		void apply_base_numbering()
@@ -12551,6 +12587,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				compose_review_submission(aHandoff);
 				compose_review_tour(aHandoff);
 				EpochHost->accept(std::move(aHandoff));
+				// [[BPR-1212]]. The accept stops queued epoch work. When it keeps
+				// the comparison and its base numbering is neither known nor
+				// asked, ask now: no new publication need follow.
+				if (RefreshKeptTabView && !BaseNumbering) {
+					BaseNumberingCancellations = 0U;
+					observe_base_numbering();
+				}
 			}
 		}
 
@@ -16940,11 +16983,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		bool                                                      PreparationScheduled  = false;
 		std::atomic_size_t                                        PreparationsInFlight{ 0U };
 #if defined(BPR_BUILD_TESTING)
-		bool        PreparationDisabled   = false;
-		std::size_t PreparationRounds     = 0U;
-		std::size_t PreparedResolutions   = 0U;
-		std::size_t PreparedRemoteBlobs   = 0U;
-		std::size_t PreparedRemoteBatches = 0U;
+		/// [[BPR-1212]]. Answers to turn into `cancelled` before they apply.
+		std::size_t ForcedBaseNumberingCancellations = 0U;
+		bool        PreparationDisabled              = false;
+		std::size_t PreparationRounds                = 0U;
+		std::size_t PreparedResolutions              = 0U;
+		std::size_t PreparedRemoteBlobs              = 0U;
+		std::size_t PreparedRemoteBatches            = 0U;
 #endif
 		std::unique_ptr<application::workbench_settings_port>           SessionWorkbenchSettings;
 		profile_window_layout_port*                                     DurableWindowLayout       = nullptr;
@@ -16974,6 +17019,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<application::github_base_numbering_status> Status;
 		};
 		std::optional<base_numbering_state> BaseNumbering;
+		/// [[BPR-1212]]. Cancelled answers in a row for the asked question.
+		std::size_t BaseNumberingCancellations = 0U;
 		struct agent_review_facts
 		{
 			core::git_host_id                Host;
@@ -18705,6 +18752,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.FeedbackObservations         = owner.FeedbackObservations,
 			.FeedbackBodiesParsed         = owner.FeedbackBodiesParsed,
 		};
+	}
+
+	void detail::github_application_fixture_access::cancel_base_numbering_answers(github_application& aApplication, const std::size_t aCount)
+	{
+		aApplication.Implementation->ForcedBaseNumberingCancellations = aCount;
 	}
 
 	void detail::github_application_fixture_access::set_preparation_enabled(github_application& aApplication, const bool aEnabled)

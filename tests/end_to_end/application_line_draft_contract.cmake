@@ -23,44 +23,54 @@ endforeach()
 
 math(EXPR bpr_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 
-execute_process(
-    COMMAND
-        "${CMAKE_COMMAND}"
-        -E
-        env
-        "QT_QPA_PLATFORM=offscreen"
-        "${BPR_APPLICATION}"
-        --github-fixture
-        conventional-comments-v1
-        --label-authoring-probe
-        --line-draft-course
-        --automated-run-budget-ms
-        "${BPR_RUN_BUDGET_MS}"
-    RESULT_VARIABLE probe_result
-    OUTPUT_VARIABLE probe_output
-    ERROR_VARIABLE probe_error
-    TIMEOUT ${bpr_timeout}
-)
-if(NOT probe_result EQUAL 0)
-    message(FATAL_ERROR
-        "line draft process failed (${probe_result})\n"
-        "stdout:\n${probe_output}\n"
-        "stderr:\n${probe_error}"
+# [[BPR-1212]]. The second run turns the first base-numbering answer into
+# `cancelled`, as an accept that keeps the comparison leaves it. The course
+# must still learn the numbering and publish the base line.
+foreach(bpr_variant IN ITEMS plain cancel-first-base-numbering)
+    set(bpr_variant_arguments)
+    if(bpr_variant STREQUAL "cancel-first-base-numbering")
+        set(bpr_variant_arguments --cancel-first-base-numbering)
+    endif()
+    execute_process(
+        COMMAND
+            "${CMAKE_COMMAND}"
+            -E
+            env
+            "QT_QPA_PLATFORM=offscreen"
+            "${BPR_APPLICATION}"
+            --github-fixture
+            conventional-comments-v1
+            --label-authoring-probe
+            --line-draft-course
+            ${bpr_variant_arguments}
+            --automated-run-budget-ms
+            "${BPR_RUN_BUDGET_MS}"
+        RESULT_VARIABLE probe_result
+        OUTPUT_VARIABLE probe_output
+        ERROR_VARIABLE probe_error
+        TIMEOUT ${bpr_timeout}
     )
-endif()
-foreach(marker IN ITEMS
-    PUBLIC_PATH_OK
-    LABEL_AUTHORING_OK
-    LINE_DRAFT_EVIDENCE:111111
-    BASE_LINE_DRAFT_EVIDENCE:111
-)
-    string(FIND "${probe_output}" "${marker}" found)
-    if(found EQUAL -1)
+    if(NOT probe_result EQUAL 0)
         message(FATAL_ERROR
-            "line draft process omitted ${marker}\n"
-            "stdout:\n${probe_output}"
+            "line draft process failed (${bpr_variant}: ${probe_result})\n"
+            "stdout:\n${probe_output}\n"
+            "stderr:\n${probe_error}"
         )
     endif()
+    foreach(marker IN ITEMS
+        PUBLIC_PATH_OK
+        LABEL_AUTHORING_OK
+        LINE_DRAFT_EVIDENCE:111111
+        BASE_LINE_DRAFT_EVIDENCE:111
+    )
+        string(FIND "${probe_output}" "${marker}" found)
+        if(found EQUAL -1)
+            message(FATAL_ERROR
+                "line draft process omitted ${marker} (${bpr_variant})\n"
+                "stdout:\n${probe_output}"
+            )
+        endif()
+    endforeach()
 endforeach()
 
 message(STATUS "LINE_DRAFT_CONTRACT_OK")

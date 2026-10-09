@@ -1202,7 +1202,10 @@ namespace bpr::app::detail {
 			-> diff_work_fixture_evidence;
 		/// \brief [[BPR-1327]]. Turns preparation off or on in the active
 		/// window, so one course can measure opening files both ways.
-		static void               set_preparation_enabled(github_application& aApplication, bool aEnabled);
+		static void set_preparation_enabled(github_application& aApplication, bool aEnabled);
+		/// \brief [[BPR-1212]]. The next `aCount` base-numbering answers apply as
+		/// `cancelled`, as an accept that stops queued epoch work leaves them.
+		static void               cancel_base_numbering_answers(github_application& aApplication, std::size_t aCount);
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
 		/// \brief [[BPR-1338]]. The last address the recording browser was handed; empty before any.
