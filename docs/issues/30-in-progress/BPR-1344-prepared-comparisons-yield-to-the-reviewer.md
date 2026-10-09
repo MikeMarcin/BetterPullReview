@@ -228,3 +228,11 @@ limit with room. A preparation-off control on this base was not run.
 **Not run here:** the Debug margin of [[BPR-1369]]'s wall guard (Linux saw its
 tightest at 6.0 ms in Debug, timed to first paint), and the macOS and Linux
 selections. Both are requested from the coordinator.
+
+**On the merged tree** (this change on `970796e2b`, Release): [[BPR-1327]]'s
+selection passes 19 of 19. `application_epoch_host`, `application_diff_host`,
+`application_workbench_host`, `core_comparison_preparation`, `gh_cli_transport`,
+`github_provider`, `architecture_boundaries` and the round-trip contract pass.
+`test_network_isolation_manifest` fails only on [[BPR-1345]]'s
+`application_start_review_contract`, which was registered "unmeasured
+(registered on macOS)" in between; the Windows station measures it next.
