@@ -502,3 +502,39 @@ controls, not for main). It holds:
 It still lacks the window's reasons and names, the composition's merge-base
 gate and a composed publish course.
 
+## Owner look on v002 (pending)
+
+One new short session, two candidates, one Accept or Reject question each.
+
+- Session `b4b76c70c8e54f1933410b582189d0e8`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1335-v002`,
+  repo root the main checkout, ready at event cursor 6. The host runs
+  detached; the offline page is `review.html` in the state directory.
+- `BPR-1335-add-button-v002` (revision `frozen-b864e319d-v002`, fingerprint
+  `d70e6b786fd7…`), criterion `BPR-1335:markers`: the "+" only in its
+  column. The 2x renders are inline: the pointer on line 2's code, in its
+  column (light and dark), and a drag from line 2 to line 6.
+- `BPR-1335-base-side-v001` (revision `answer-b864e319d-v001`, fingerprint
+  `68f67a508103…`), criterion `BPR-1335:base-side`: the reason above, and
+  Accept to go ahead with the proposed follow-up.
+- Frozen root `/Users/jaeger/bpr1335-add-button-v002.a9imrgo8`, made by
+  `scripts/freeze_attended_build.py freeze` from `b864e319d` (fixture
+  `inline-drawer-v1`, file `src/ui/conversation_cards_view.cpp`). Its own
+  `--check` reached `ATTENDED_FILE_SHOWN` on head `89df5e59…`.
+- Launch: `python3 /Users/jaeger/bpr1335-add-button-v002.a9imrgo8/launch.py`.
+- v001's session `6541cdcd…` is released with its Reject kept, and its frozen
+  root is removed.
+
+## Next
+
+Read session `b4b76c70…` from cursor 6.
+
+- Accept on `BPR-1335-add-button-v002` satisfies `BPR-1335:markers`.
+- Accept on `BPR-1335-base-side-v001` satisfies `BPR-1335:base-side`. Then
+  allocate the follow-up card, with the plan above and the
+  `bpr-1335-base-side-wip` branch, and finish this card.
+- A Reject on either comes back with the change in its note.
+
+Then remove the frozen root with `freeze_attended_build.py remove`. Windows
+runs of the two rows are still owed to the station.
+
