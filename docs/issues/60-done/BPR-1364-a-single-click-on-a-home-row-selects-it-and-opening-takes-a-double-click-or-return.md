@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1364"
 title: "A single click on a Home row selects it; opening takes a double-click or Return"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
-parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner, BPR-1357 attended review, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1364--BPR-1364--15f2a5b9a853.json","related_cards":["BPR-1357","BPR-1342","BPR-1338","BPR-0776","BPR-0736","BPR-1157"]}
-acceptance: []
+acceptance: [{"criterion":"BPR-1364:select","outcome":"pass","revision":"57a08a877","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1364-a-single-click-on-a-home-row-selects-it-and-opening-takes-a-double-click-or-return.md","detail":"qt_home_list_scale_{100,125,200} test_a_single_click_selects_and_a_double_click_opens (four arrangements, platform style and single-click-activation style) and qt_composed_github_scale_* test_home_side_lists_select_on_a_single_click (Recently viewed, Review Cycles): a single click makes the row current, focused and selected and opens nothing."}},{"criterion":"BPR-1364:open","outcome":"pass","revision":"57a08a877","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1364-a-single-click-on-a-home-row-selects-it-and-opening-takes-a-double-click-or-return.md","detail":"qt_home_list_scale_*, qt_composed_github_scale_*, qt_workbench_open_review_from_home_scale_*: a double-click opens once, Return opens the current row, the row menu's Open Review opens it; Review Cycles opens on Return."}},{"criterion":"BPR-1364:same-turn","outcome":"pass","revision":"57a08a877","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1364-a-single-click-on-a-home-row-selects-it-and-opening-takes-a-double-click-or-return.md","detail":"application_home_open_feedback_public_path (3 s fixture delay, light and dark on Home): a single click on #17 asks GitHub for nothing; a double-click says 'Opening #17...' with no event-loop turn after it; Return the same."}},{"criterion":"BPR-1364:accessible","outcome":"pass","revision":"57a08a877","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1364-a-single-click-on-a-home-row-selects-it-and-opening-takes-a-double-click-or-return.md","detail":"qt_home_list_scale_* and qt_composed_github_scale_*: every Home list's accessible description says 'Double-click or press Return to open'."}},{"criterion":"BPR-1364:failing-before","outcome":"pass","revision":"57a08a877","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1364-a-single-click-on-a-home-row-selects-it-and-opening-takes-a-double-click-or-return.md","detail":"With the source change set aside and the tests kept, qt_home_list_scale_100, qt_composed_github_scale_100, application_home_open_feedback_public_path and application_review_cycle_desktop_public_path fail; restored, they pass."}},{"criterion":"BPR-1364:owner","outcome":"pass","revision":"57a08a877","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1364-a-single-click-on-a-home-row-selects-it-and-opening-takes-a-double-click-or-return.md","detail":"Owner Accept, 2026-10-09T14:00:34Z: session a6f8821efdd9cd5b947d000e9eef319c, candidate BPR-1364-single-click-selects-v001 (frozen 57a08a877, fingerprint 91948414e63d...), decision fa5709d1-e47f-4d14-9bf4-1aa70df7086b at event 4, handed back at 5, released at 6. Note: 'Separate problem: the color of recent is the same as the color of selected.' -> BPR-1365."}}]
 ---
 
 # BPR-1364: A single click on a Home row selects it; opening takes a double-click or Return
@@ -172,3 +171,26 @@ with it restored they pass.
   `BPR-1364-single-click-selects-v001` (`BPR-1364:owner`).
 - Next: on hand-back, read `status --after 3`. Accept closes `BPR-1364:owner`
   and the card; a Reject's note is the next round's change.
+
+## Owner verdict and closeout — 2026-10-09
+
+Session `a6f8821efdd9cd5b947d000e9eef319c` (state
+`/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1364-home-single-click-v001/state`),
+handed back at event 5, read from cursor 3. Candidate
+`BPR-1364-single-click-selects-v001` (revision `frozen-57a08a877-v001`,
+fingerprint `91948414e63d…`): **Accept**, 2026-10-09T14:00:34Z, decision
+`fa5709d1-e47f-4d14-9bf4-1aa70df7086b` at event 4. This satisfies
+`BPR-1364:owner`.
+
+The owner's note, verbatim: "Separate problem: the color of recent is the
+same as the color of selected." The attached dark-theme capture (kept as
+`/Users/jaeger/bpr-owner-att/BPR-1364-single-click-selects-v001-0.png`)
+shows Needs me `#17` selected and Recently viewed `#17`, the review open
+behind Home, in the identical blue fill. It is a separate problem and is
+[[BPR-1365]]; it does not hold this card.
+
+The candidate was released with `resume-development --all` at event 6, the
+host (pid 83554) was stopped by its process ID and the frozen root
+`/Users/jaeger/.mask/attended-review/bpr1364-home-single-click-v001.qsxvzbe2`
+was removed with `scripts/freeze_attended_build.py remove`. The session's
+state folder keeps the record. The card is Done.
