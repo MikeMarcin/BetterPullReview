@@ -6406,18 +6406,18 @@ namespace {
 		expect(publishes() == 1, "Ctrl+Return publishes the draft once");
 
 		// [[BPR-1335]]. The "+" button on a head line no thread is on: it
-		// shows while the pointer is on the line's code, at the start of the
-		// code, and a click starts a comment there.
+		// shows while the pointer is in its column at the start of the
+		// line's code (v002), and a click starts a comment there.
 		expect(window.comparison_surface()->thread_markers(), "the comparison shows its threads");
 		static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, 4U));
 		process_events();
 		const auto  fifth = code->viewport()->mapFrom(window.comparison_surface(), window.comparison_surface()->line_rect(core::diff_side::right, 4U).center());
-		const auto  aim   = QPointF{ 160.0, static_cast<qreal>(fifth.y()) };
+		const auto  aim   = QPointF{ 4.0, static_cast<qreal>(fifth.y()) };
 		QMouseEvent hover{ QEvent::MouseMove, aim, code->viewport()->mapToGlobal(aim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(code->viewport(), &hover);
 		auto* const addButton = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
 		expect(addButton != nullptr && !addButton->isHidden() && window.comparison_surface()->line_add_rect() == addButton->geometry(),
-			   "the pointer on line 5's code shows its \"+\"");
+			   "the pointer in line 5's \"+\" column shows its \"+\"");
 		const auto  centre = QPointF{ addButton->rect().center() };
 		QMouseEvent press{ QEvent::MouseButtonPress, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(addButton, &press);
@@ -8340,11 +8340,11 @@ namespace {
 		const auto codeY = [&surface, right](const std::uint32_t aLine) {
 			return static_cast<qreal>(right->viewport()->mapFrom(surface, surface->line_rect(core::diff_side::right, aLine).center()).y());
 		};
-		const auto  from = QPointF{ 160.0, codeY(3U) };
+		const auto  from = QPointF{ 4.0, codeY(3U) };
 		QMouseEvent hoverLine{ QEvent::MouseMove, from, right->viewport()->mapToGlobal(from), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(right->viewport(), &hoverLine);
 		auto* const addButton = right->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
-		expect(addButton != nullptr && !addButton->isHidden(), "the pointer on line 4's code shows its \"+\"");
+		expect(addButton != nullptr && !addButton->isHidden(), "the pointer in line 4's \"+\" column shows its \"+\"");
 		const auto  centre = QPointF{ addButton->rect().center() };
 		const auto  onto   = right->viewport()->mapToGlobal(QPointF{ 160.0, codeY(5U) });
 		QMouseEvent pressAdd{ QEvent::MouseButtonPress, centre, addButton->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };

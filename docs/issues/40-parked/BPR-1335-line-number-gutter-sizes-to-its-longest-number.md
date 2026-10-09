@@ -49,7 +49,12 @@ The code panes' line-number gutter (`source_pane` in
   how a line shows its thread once the marker column is gone from both panes.
   The "+" and the thread marker stay hit-testable and accessible. The v001
   verdict chose the tinted number and asked for GitHub's "+"; v001 of
-  `BPR-1335-add-button` asks for Accept or Reject on both together.
+  `BPR-1335-add-button` asks for Accept or Reject on both together. Its
+  verdict kept the look and the place and asked that the "+" be drawn only
+  while the pointer is over its column; v002 asks that alone.
+- `BPR-1335:base-side` (added by the owner's v001 note): the owner has the
+  reason the base (left) pane offers no new comment, and chooses whether the
+  follow-up that would make it possible goes ahead.
 
 ## Cause
 
@@ -339,13 +344,30 @@ GitHub-style add button".
   released (`resume-development --all`, sequence 6) with its Reject kept, and
   its checkout, the `bpr-1335` worktree, and its build tree are removed.
 
-## Next
+## Owner verdict on `BPR-1335-add-button-v001`, 2026-10-09
 
-Read session `6541cdcd…` from cursor 3. Accept satisfies `BPR-1335:markers`.
-Every other criterion passed on main, so the card finishes; remove the frozen
-root with `freeze_attended_build.py remove`. Reject comes back with the
-change in its note, for v002. Windows and Linux runs of the two rows are
-owed to the stations (`platforms` names all three).
+Session `6541cdcdee84a0c761d8b7a1410a2073`, candidate
+`BPR-1335-add-button-v001` (revision `frozen-7de324815-v001`, fingerprint
+`16e3f3ee2d3a…`): **Reject** (decision
+`15f36203-cc0e-4bad-b3aa-85fe8018c24f`, 04:02:28Z, handed back at event 5;
+cursor 3 to 5 read). Note, verbatim:
+
+> It is the github style like I asked for, and I like the positioning. But i
+> find it somewhat distracting always being drawn. Maybe we only draw it when
+> the cursor is over the column where it would go?
+>
+> And why can't I add a comment from the left pane? Seems like that would be
+> reasonably useful, is there a technical reason I can't?
+
+Read as: the tinted numbers, the button's look and its position stay. The
+"+" is drawn only while the pointer is over its own column, the strip across
+the number and code boundary where it is drawn, not anywhere on the line.
+Its place and the drag across lines stay. The second paragraph asks whether
+the base (left) pane can take a new comment, and if not, why not.
+
+The session is released (`stop`, then `resume-development --all`, sequence
+6) with its Reject kept. Frozen root `bpr1335-add-button-v001.jo2yocwy` was
+removed with `freeze_attended_build.py remove`.
 
 ## Linux station run (bpr-main-linux, 2026-10-08)
 
@@ -369,3 +391,114 @@ At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
     device pixel of it. It is awaiting the coordinator.
 
 Windows is still owed.
+
+## v002: the "+" only in its column (on main), and the base pane's answer
+
+The frontend-design skill was loaded for this slice. Worktree
+`/Users/jaeger/Documents/GitHub/bpr-1335-v002`, branch `bpr-1335-v002`.
+
+### The "+" column
+
+- The head pane's "+" is drawn only while the pointer is over its own
+  column: the button's own horizontal extent, the strip across the number
+  and code boundary where it sits, on a line it is offered on (a head line
+  no thread is on). On the rest of the line's code, and on the digits,
+  nothing is drawn. The part of the column in the number's padding shows it
+  as the part over the code does. Moving on into the code, leaving the code,
+  a press or drag in the code, or scrolling hides it, as before.
+- The look, the place, the tooltip, the accessible button, the click, the
+  drag across lines and its wash are unchanged. A drag in progress keeps its
+  button while the pointer is out on the code.
+- `source_pane::add_button_rect` is the one place the button's rectangle is
+  computed; `add_line_under` takes a point of the pane and answers the line
+  whose column it is in, for the code's viewport and the gutter alike.
+- The Linux station's colour-sample failure at 1.25x and 2x (above) is fixed
+  in the test as the coordinator asked: the cross is sampled at
+  `QRectF(place).center()`, as the brightest device pixel within one of it.
+
+### Controls (failing before)
+
+The new `test_tinted_numbers_and_the_add_button`, built against main's Qt
+adapter (`a5cba14fb`): `qt_diff_workbench_scale_{100,125,200}` fail at
+"light: the pointer on line 2's code, away from the "+" column, draws no
+"+"".
+
+### Checks on the candidate
+
+macOS arm64 Debug, offscreen, load average 70 to 320 (other agents' builds).
+
+- `qt_diff_workbench_scale_{100,125,200}`, `qt_workbench_conversation_reveal`,
+  `qt_workbench_line_draft` and `qt_workbench_window_scale_{100,125,200}`:
+  8 of 8 pass. At 2x the button is at x 31 against the code's edge at 33,
+  15 by 15, face `#0969da`, cross `#ffffff`, light and dark.
+- The test: away from the column on line 2's code, and on its digits, no
+  "+"; in the column over the code, and in the column's part in the
+  number's padding, the same "+"; just past the button on the code it goes;
+  back in the column it comes back; leaving the code hides it. Click, drags
+  both ways and the text-selection checks as before, from the column.
+- Offscreen renders at 2x, light and dark: the pointer on line 2's code
+  (nothing drawn), in its column (the "+"), and a drag from line 2 to 6.
+- The round-trip pins (`full_application`, `production_app_manifest`,
+  `production_mutation_branch`) are unchanged (`BPR_PRINT_PINNED_DIGESTS`);
+  nothing under `src/app` changed.
+- `clang-format` 22.1.8, the gate's pinned major (BPR-1352), is clean on the
+  changed files after the rebase onto `dcb317bd7`. That rebase brought only
+  BPR-1352's format-only changes and board edits, so the rows above, run
+  before it, stand.
+
+### Why the base pane takes no new comment
+
+The owner asked: "why can't I add a comment from the left pane? ... is there a
+technical reason I can't?" Yes, there is one, and GitHub is not it.
+
+- **GitHub takes base-side comments.** Checked live on the owner's test
+  repository, `MikeMarcin/BPR-Test` #42 (opened, probed and closed by this
+  slice; its two branches deleted). With `commit_id` the head, `side: LEFT`
+  was accepted on a removed line (line 10), on a base context line (line 8)
+  and as a range (`start_line` 8, `line` 11, `start_side: LEFT`). A base
+  line outside the diff (line 2) was refused with 422, "pull_request_review_
+  thread.line could not be resolved".
+- **BPR's base pane is not GitHub's base side.** GitHub numbers `LEFT` lines
+  in the merge base of the base branch and the head. BPR's base pane shows
+  the base branch's accepted tip. When the base branch has moved on since
+  the pull request branched, the two differ, and a line number read off
+  BPR's base pane names other text on GitHub, or nothing. The provider
+  contract carries no merge-base identity, so BPR cannot tell the two cases
+  apart today. `docs/architecture/github-host-implementation.md` records
+  this, and the composition sets `leftHasCurrentDiffRevision = false` for
+  the same reason (`github_application.cpp`, "GitHub's current PR diff uses
+  a merge-base coordinate on LEFT ..."). That is also why existing base-side
+  threads are never pinned to the base pane. A derived merge base is
+  RFC-BPR-0029 Decision 4's "derived comparison" candidate, which that RFC
+  leaves unvalidated.
+- Offering the "+" on the base pane now would post comments on the wrong
+  lines whenever the base has moved. That is line identity, so it was not
+  shipped.
+
+**Proposed follow-up, if the owner accepts.**
+1. The host computes, with the local Git cache and no fetch, whether the base
+   pane's commit is an ancestor of the head (the existing `is_ancestor` /
+   `derive_comparison_base` port). When it is, the merge base is that commit,
+   and the base pane's numbering is GitHub's.
+2. That one fact sets the window's `LeftConversationEndpointCurrent`.
+   Existing base-side threads are then pinned to the base pane, and new
+   base-side comments are offered, together. Otherwise both stay off, and
+   the base pane says why.
+3. The mutation host requires the same fact for a new base-side comment.
+4. Proof: a fixture with a moved base, and one live round on BPR-Test.
+
+The base-side half is already written and kept on the local branch
+`bpr-1335-base-side-wip` (`cf85998b9`; not pushed, not built beyond its
+controls, not for main). It holds:
+- the core's base-side rule (`decide_comment_range` and `base_outside_hunk`);
+- `side: LEFT` in the mutation host and the GitHub contract, with no
+  file-comment fallback;
+- a version-2 recovery record that keeps each child's side;
+- the base pane's own "+";
+- tests that fail on main: `core_review_round_trip`,
+  `core_review_comment_range`, `application_review_mutation_application_host`,
+  `sqlite_review_mutation_recovery_storage` and `github_mutation_contract`.
+
+It still lacks the window's reasons and names, the composition's merge-base
+gate and a composed publish course.
+

@@ -1338,10 +1338,14 @@ right-click menu, Comment (Option-C) on a line no thread is on, and the "+"
 button each open the line's draft as a draft thread in the drawer, pinned at
 its line, writing. The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
 don't like the + replacing the line number, i think github actual does it
-better"): a small blue button with a white cross that shows while the pointer
-is on a head line no thread is on, over its code or its number, at the start
-of the line's code, across the boundary with the number and never over a
-digit. Its tooltip is "Add comment (↩)". It takes no keyboard focus; Return
+better"): a small blue button with a white cross on a head line no thread is
+on, at the start of the line's code, across the boundary with the number and
+never over a digit. It is drawn only while the pointer is over its own
+column, the strip across that boundary where it sits; elsewhere on the line's
+code or on its digits nothing is drawn ([[BPR-1335]] v002, owner, 2026-10-09:
+"i find it somewhat distracting always being drawn. Maybe we only draw it
+when the cursor is over the column where it would go?"). Its tooltip is "Add
+comment (↩)". It takes no keyboard focus; Return
 and the context menu are the keyboard's way to the same comment. Pressing it
 never reaches the code, so it neither starts nor changes a text selection, and
 a press anywhere else in the code is the text's. Dragging it across lines

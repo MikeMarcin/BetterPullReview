@@ -336,8 +336,8 @@ namespace bpr::qt {
 		/// zero-based lines it covered, in order: Add comment.
 		void set_line_add_dispatch(std::function<void(std::uint32_t aFirst, std::uint32_t aLast)> aDispatch);
 		/// \brief [[BPR-1212]], [[BPR-1335]]. Where the head pane's "+" button
-		/// is while the pointer is on its line, in the pane's coordinates;
-		/// empty while it is not shown.
+		/// is while the pointer is in its column on its line, in the pane's
+		/// coordinates; empty while it is not shown.
 		[[nodiscard]] auto line_add_rect() const -> QRect;
 		/// \brief [[BPR-1290]]. Told when a thread's scroll-bar tick is
 		/// Shift-clicked, with its side and zero-based source line. A plain

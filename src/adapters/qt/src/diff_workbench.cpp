@@ -611,7 +611,7 @@ namespace bpr::qt {
 			}
 
 			/// \brief [[BPR-1212]], [[BPR-1335]]. The "+" button on a head line
-			/// without a thread, shown while the pointer is on the line; none
+			/// without a thread, shown while the pointer is in its column; none
 			/// without a dispatch. It is told the first and last lines.
 			void set_add_dispatch(std::function<void(std::uint32_t, std::uint32_t)> aDispatch)
 			{
@@ -637,6 +637,43 @@ namespace bpr::qt {
 				}
 				const auto row = line_row_rect(*line);
 				if (aViewportY < row.top() || aViewportY > row.bottom()) {
+					return std::nullopt;
+				}
+				return line;
+			}
+
+			/// \brief [[BPR-1335]] v002. Where a line's "+" is drawn, in the
+			/// pane's coordinates: at the start of its code, across the
+			/// boundary with its number. Empty while the line is not laid out.
+			[[nodiscard]] auto add_button_rect(const std::uint32_t aLine) const -> QRect
+			{
+				const auto row = line_row_rect(aLine);
+				if (row.isEmpty()) {
+					return { };
+				}
+				// GitHub's place. The left edge stays in the gutter's padding,
+				// two pixels into it, so a pixel of padding still parts it from
+				// the digit.
+				const auto side = std::clamp(row.height(), AddButtonMinSide, AddButtonSide);
+				const auto code = viewport()->geometry().topLeft();
+				return QRect{ code.x() - (GutterPadding - 2), code.y() + row.top() + (row.height() - side) / 2, side, side };
+			}
+
+			/// \brief [[BPR-1335]] v002. The line whose "+" a point of the pane
+			/// is over: the line's own "+" column, the strip across the number
+			/// and code boundary that the button is drawn in. Elsewhere on the
+			/// line, on its code or its digits, nothing is drawn. The owner, on
+			/// v001: "i find it somewhat distracting always being drawn. Maybe we
+			/// only draw it when the cursor is over the column where it would
+			/// go?"
+			[[nodiscard]] auto add_line_under(const QPoint aPanePoint) const -> std::optional<std::uint32_t>
+			{
+				const auto line = add_line_at(aPanePoint.y() - viewport()->geometry().top());
+				if (!line.has_value()) {
+					return std::nullopt;
+				}
+				const auto place = add_button_rect(*line);
+				if (aPanePoint.x() < place.left() || aPanePoint.x() > place.right()) {
 					return std::nullopt;
 				}
 				return line;
@@ -1054,12 +1091,12 @@ namespace bpr::qt {
 				}
 				QWidget::mousePressEvent(aEvent);
 			}
-			/// [[BPR-1335]]. The pointer on a head line's number shows the line's
-			/// "+" at the start of its code, as on the code itself.
+			/// [[BPR-1335]]. The pointer in the "+" column's part in the number's
+			/// padding shows the line's "+", as its part over the code does.
 			void mouseMoveEvent(QMouseEvent* const aEvent) override
 			{
 				const auto point = aEvent->position().toPoint();
-				Pane->set_add_hover(aEvent->buttons() == Qt::NoButton ? Pane->add_line_at(point.y() - Pane->gutter_header()) : std::nullopt);
+				Pane->set_add_hover(aEvent->buttons() == Qt::NoButton ? Pane->add_line_under(mapToParent(point)) : std::nullopt);
 				setCursor(Pane->mark_at(point) != nullptr ? Qt::PointingHandCursor : Qt::ArrowCursor);
 				QWidget::mouseMoveEvent(aEvent);
 			}
@@ -1095,6 +1132,7 @@ namespace bpr::qt {
 		/// replacing the line number, i think github actual does it better".
 		/// GitHub shows a small blue button on the hovered line, over the
 		/// boundary between the number and the code, and the number stays.
+		/// It is drawn only while the pointer is over that column (v002).
 		/// Here its left edge sits in the gutter's right padding, so it never
 		/// covers a digit, and the rest lies over the code's left margin and
 		/// first characters, as GitHub's does.
@@ -1223,12 +1261,7 @@ namespace bpr::qt {
 				return;
 			}
 			AddHover = line;
-			// GitHub's place: at the start of the line's code, over the boundary
-			// with its number. The left edge stays in the gutter's padding, two
-			// pixels into it, so a pixel of padding still parts it from the digit.
-			const auto side = std::clamp(row.height(), AddButtonMinSide, AddButtonSide);
-			const auto code = viewport()->geometry().topLeft();
-			AddButton->setGeometry(QRect{ code.x() - (GutterPadding - 2), code.y() + row.top() + (row.height() - side) / 2, side, side });
+			AddButton->setGeometry(add_button_rect(*line));
 			AddButton->set_line(*line);
 			AddButton->set_colour(NewThreadMarkColor);
 			AddButton->show();
@@ -1246,7 +1279,7 @@ namespace bpr::qt {
 				return;
 			}
 			// Leaving the code or its number for the button keeps it; the next
-			// move over the code or the gutter places it again.
+			// move in the column, over the code or the gutter, places it again.
 			if (!AddButton->isHidden() && AddButton->rect().contains(AddButton->mapFromGlobal(QCursor::pos()))) {
 				return;
 			}
@@ -1258,7 +1291,7 @@ namespace bpr::qt {
 			switch (aEvent->type()) {
 			case QEvent::MouseMove: {
 				const auto* const move = static_cast<QMouseEvent*>(aEvent);
-				set_add_hover(move->buttons() == Qt::NoButton ? add_line_at(qRound(move->position().y())) : std::nullopt);
+				set_add_hover(move->buttons() == Qt::NoButton ? add_line_under(viewport()->mapToParent(move->position().toPoint())) : std::nullopt);
 				break;
 			}
 			case QEvent::MouseButtonPress:
@@ -1297,8 +1330,8 @@ namespace bpr::qt {
 		{
 			Gutter    = new gutter_area{ this };
 			AddButton = new add_button{ this };
-			// [[BPR-1335]]. The pointer on a line's code, not only on its number,
-			// shows the line's "+".
+			// [[BPR-1335]]. The pointer in the "+" column over the code, not
+			// only over the number's padding, shows the line's "+".
 			viewport()->setMouseTracking(true);
 			// The width follows the digit count, so it changes when a document is
 			// replaced and not while scrolling one.
