@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1342"
 title: "Open a review, or open it in a new window, from Home and its row menu"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1342--BPR-1342--e04e479ee80b.json","related_cards":["BPR-1338","BPR-1017","BPR-0987","BPR-0776","BPR-0736"],"related_rfcs":["RFC-BPR-0024","RFC-BPR-0026","RFC-BPR-0033"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1342:exists","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"observation","detail":"The card's 'What exists (inventory at 7e0c3e1a5)' records how Home opened a pull request before: queue click/Return in this window on Overview (BPR-0987 return), Recently viewed Open and Shift+Return Resume, row menus with only Open on GitHub (and Resume), New Window opening Home with no pull request carried."}},{"criterion":"BPR-1342:menu","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"command","detail":"qt_workbench_open_review_from_home_scale_{100,125,200}: a queue row's and a Recently viewed row's HomeRowMenu show Open Review (default, bold, Return), Open Review in New Window (Cmd+Return), Resume (Recently viewed only, Shift+Return), then Open on GitHub (Shift+Cmd+O), each naming its row; renders of both menus inspected. Failing-before control: menu items removed fails 'the menu is Open Review (the default), Open Review in New Window, Resume, then Open on GitHub'."}},{"criterion":"BPR-1342:keys","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"command","detail":"qt_workbench_open_review_from_home_scale_*: Return and a plain click open here; Cmd+Return, Cmd-click and middle-click ask for a new window and keep the row selected on queue and Recently viewed rows; Shift+Return still resumes. Controls: queue Cmd+Return ignored, Recently viewed Cmd+Return ignored, pointer handling off each fail at their named assertion."}},{"criterion":"BPR-1342:composition","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"command","detail":"application_personal_discovery_public_path through the real profile desktop: Open Review in New Window from the Following row's menu and Cmd+Return on its Recently viewed row each admit one more window of the same profile and runtime owner, which reads PR 17 and lands on Overview while the first window keeps its view; core_markdown_navigation refuses another host, another account, no account, unsafe names and an account's reading without its session; application_profile_management_host carries the review only on the fresh window's start. Controls: host drops the review, desktop never opens it, composition refuses every request, core without account or authority check each fail."}},{"criterion":"BPR-1342:same-pr","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"command","detail":"application_personal_discovery_public_path: with PR 17 open in the first window, Open Review in New Window opens a second view of it in a new window and the first window keeps its view, per RFC-BPR-0024; Open Review here keeps BPR-0987's return without reading again."}},{"criterion":"BPR-1342:failing-before","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"command","detail":"Nine mutation controls listed in the card's Evidence each fail at the named assertion and were restored byte for byte; application_review_round_trip_composition_contract resealed and passing at the rebased head, with architecture_boundaries, core_dependency_boundary, coding-format-check and git diff --check. Uncovered: restored-window attachment (recorded)."}},{"criterion":"BPR-1342:owner-look","outcome":"pass","revision":"05d3ab05d","evidence":{"kind":"observation","detail":"Owner accepted BPR-1342-open-review-from-home-v001 ('open review from Home', the one question set, including the second-view decision) with no note: decision f6d8c390, event 4, handed back at 5, session 3af3750636d854bea2950b78926d045a, on the frozen build of f880a6238 (executable SHA-256 942546768d801ed2...), the same change landed as 6374333dc and 05d3ab05d."}}]
 ---
 
 # BPR-1342: Open a review, or open it in a new window, from Home and its row menu
@@ -186,8 +186,9 @@ passes (the host test has no retained-window case).
 
 ## Pending
 
-- `BPR-1342:owner-look`: one short attended session on a frozen build.
-- Windows and Linux runs of the new Qt rows and the discovery course.
+- Windows and Linux runs of the new Qt rows and the discovery course. They
+  remain owed and do not block; a failure there opens a new card against this
+  change.
 
 ## Owner look — prepared 2026-10-08
 
@@ -215,3 +216,24 @@ passes (the host test has no retained-window case).
   build is `f880a6238`, the same BPR-1342 change on `9a8208fba`.
 - Next: on hand-back, read `status --after 3`. Accept closes
   `BPR-1342:owner-look`; a Reject's note is the next round's change.
+
+## Owner decision, session 3af37506 (2026-10-08)
+
+Session `3af3750636d854bea2950b78926d045a`, read from cursor 3 to event 5
+(handed back).
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1342-open-review-from-home-v001` | Accept (`f6d8c390`, 00:36:55Z) | (none) |
+
+The verdict was given on the frozen build of `f880a6238` (executable SHA-256
+`942546768d801ed2…`), the same BPR-1342 change that landed on main as
+`6374333dc` and `05d3ab05d`. It satisfies `BPR-1342:owner-look`, asked as one
+question: "open review from Home", including the second view of a pull request
+already open. The other criteria stand on their recorded evidence at
+`05d3ab05d` (Evidence, above).
+The card is Done.
+
+The session's candidate was released (`resume-development --all`, event 6).
+The host was already stopped. The frozen root
+`/Users/jaeger/.mask/attended-review/bpr1342-open-review-v001` was deleted.
