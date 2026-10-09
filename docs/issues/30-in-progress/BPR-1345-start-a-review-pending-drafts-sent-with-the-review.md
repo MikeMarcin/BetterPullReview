@@ -192,7 +192,7 @@ Add single comment (outlined) and the main action (filled): Start a review;
 Add review comment (⌘↩) while a review is in progress, with "Pending until you
 finish the review"; Update review comment (⌘↩, closes it still pending) on a
 pending draft, whose header says Pending. The two stack in a narrow drawer.
-Pending drafts are notes at their lines named "Pending in your review". The
+Pending drafts are notes at their lines tagged "Pending in your review" in the writing blue ("Pending" where the drawer is narrow). The
 review bar's chip, before Compose review: "● Review · N pending" on the
 highlight's tint and Finish review on the highlight, one button, named and
 described; "Review · submitting" while drafts are held. Finish review opens

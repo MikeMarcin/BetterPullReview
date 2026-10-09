@@ -2015,11 +2015,18 @@ namespace bpr::qt {
 		aPainter.setFont(small);
 		const auto smallMetrics = QFontMetrics{ small };
 		if (aCard.Draft) {
-			const auto words = aCard.Pending ? QStringLiteral("Pending") : QStringLiteral("Draft");
+			// [[BPR-1345]]. A draft pending in my review says so in the
+			// writing blue, as the start-a-review frames tag it.
+			// In a narrow drawer, "Pending", so the name keeps its room.
+			const auto whole = QStringLiteral("Pending in your review");
+			const auto words = !aCard.Pending                                     ? QStringLiteral("Draft")
+				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
+																				  : QStringLiteral("Pending");
+			const auto ink   = aCard.Pending ? colours.Signal : colours.Faint;
 			const auto w     = smallMetrics.horizontalAdvance(words);
-			aPainter.setPen(colours.Faint);
+			aPainter.setPen(ink);
 			aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
-			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::lock, colours.Faint);
+			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::lock, ink);
 			right -= w + 20;
 		} else {
 			if (aCard.Resolved) {
