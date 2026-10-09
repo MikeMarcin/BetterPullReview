@@ -1870,16 +1870,33 @@ namespace {
 				const auto position = view->verticalScrollBar()->value();
 				const auto maximum  = view->verticalScrollBar()->maximum();
 				const auto requests = asked.size();
+				expect(position == maximum, name + ": End leaves the files at the bottom");
 				page.present_feedback(feedback_for(review, asked.back(), paths));
 				settle();
-				// BPR-1094: macOS fails this check; print what each half read.
+				// [[BPR-1094]]. A refresh keeps the reader's place: at the bottom
+				// it stays at the bottom, and the chip and its row stay in view.
+				// macOS lays the first present out 1 px taller than the refresh
+				// (maximum 47, then 46, at 20fb3889e) and clamps the value with
+				// it, so the bottom is asserted, not the pixel.
 				std::cout << "bpr-1094 refresh " << name << " value=" << position << "->" << view->verticalScrollBar()->value() << " maximum=" << maximum << "->"
 						  << view->verticalScrollBar()->maximum() << " chip=" << (page.focused_chip() ? "kept" : "null") << '\n';
-				expect(view->verticalScrollBar()->value() == position && page.focused_chip(), name + ": a refresh keeps the scroll position and the chip");
+				expect(view->verticalScrollBar()->value() == view->verticalScrollBar()->maximum() && std::abs(view->verticalScrollBar()->maximum() - maximum) <= 1
+						   && page.focused_chip() && view->viewport()->rect().contains(page.focused_chip()->Box.toAlignedRect()),
+					   name + ": a refresh at the bottom stays at the bottom, with the chip in view");
+				// Away from the bottom, a refresh keeps the exact position.
+				const auto middle = view->verticalScrollBar()->maximum() / 2;
+				view->verticalScrollBar()->setValue(middle);
+				settle();
+				page.present_feedback(feedback_for(review, asked.back(), paths));
+				settle();
+				expect(view->verticalScrollBar()->value() == middle, name + ": a refresh in the middle keeps the scroll position");
+				view->verticalScrollBar()->setValue(view->verticalScrollBar()->maximum());
+				settle();
+				const auto  lowest = view->verticalScrollBar()->value();
 				QWheelEvent wheel{ QPointF{ 40, 40 }, view->viewport()->mapToGlobal(QPointF{ 40, 40 }), QPoint{ }, QPoint{ 0, 360 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 				QApplication::sendEvent(view->viewport(), &wheel);
 				settle();
-				expect(view->verticalScrollBar()->value() < position && asked.size() == requests, name + ": the wheel scrolls the files and asks the host for nothing");
+				expect(view->verticalScrollBar()->value() < lowest && asked.size() == requests, name + ": the wheel scrolls the files and asks the host for nothing");
 
 				// All: each count gives its breakdown, the three-digit total whole.
 				page.all_counts_button()->click();

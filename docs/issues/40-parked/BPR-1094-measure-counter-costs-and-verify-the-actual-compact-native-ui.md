@@ -265,3 +265,34 @@ Finding 3 miscounted. The large-review course makes 24 Settings chip changes
 `>= 2*12-1`. The 24 publications are exactly one per change, and there is no
 double publication. [[BPR-1351]] now asserts one publication per change and
 none after the last.
+
+## macOS refresh-position failure (bpr-main-linux, 2026-10-09)
+
+`qt_pull_request_overview_page` failed on macOS at "a refresh keeps the scroll
+position and the chip". The diagnostic commit `20fb3889e` printed the Mac's
+values (arm64, Debug, offscreen):
+
+```
+light icons at 100%: value=47->46 maximum=47->46 chip=kept
+light icons at 125%: value=47->46 maximum=47->46 chip=kept
+light icons at 200%: value=47->46 maximum=47->46 chip=kept
+```
+
+The view was at the bottom before and after. macOS lays the first present out
+1 px taller than the identical re-present, so the maximum and the clamped
+value both drop by 1. The chip stays focused. Linux prints `46->46 / 46->46`
+and does not reproduce the extra pixel at any font DPI from 72 to 132 (tried
+with `QT_FONT_DPI`). Its source on macOS is not identified, and the shown
+content is the same.
+
+The test now asserts what the reader needs, on the coordinator's fallback:
+- **At the bottom:** a refresh stays at the bottom, the maximum moves by at
+  most 1 px, and the focused chip and its row stay in view.
+- **In the middle:** a new check scrolls to half the maximum, and a refresh
+  keeps the exact value.
+
+The control is a product mutation that moves the scroll value by 1 after
+each present. It fails at "a refresh at the bottom stays at the bottom",
+then was reverted. Linux passes. A macOS re-run of `qt_pull_request_overview_page`
+is owed, and if a later card finds the extra first-present pixel, it can
+tighten the bottom check back to an exact value.
