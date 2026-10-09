@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1365"
 title: "Home paints the open review in the selection colour; only one Home list shows a selection"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
