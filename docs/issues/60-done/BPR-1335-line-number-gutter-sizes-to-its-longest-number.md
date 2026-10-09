@@ -545,7 +545,11 @@ to 9 read.
   `68f67a508103…`), criterion `BPR-1335:base-side`: **Accept** (decision
   `aa39b2f7-bdc6-4ac0-acb9-66417c610e42`, 05:08:01Z), no note. The follow-up
   goes ahead as [[BPR-1353]], with the plan above and the branch
-  `bpr-1335-base-side-wip` (`cf85998b9`), now pushed to `origin`.
+  `bpr-1335-base-side-wip` (`cf85998b9`), now pushed to `origin`. Later the
+  same day [[BPR-1353]] was closed as superseded: [[BPR-1212]] v002 (branch
+  `bpr-1212-v002`, `d785a3f13`) already carries base-side comments with the
+  merge-base check, `side: LEFT` publication and base threads on the left
+  pane. Nothing is built from the WIP branch.
 
 The session is released (`stop`, then `resume-development --all`, sequence
 10) with both Accepts kept. Frozen root `bpr1335-add-button-v002.a9imrgo8`

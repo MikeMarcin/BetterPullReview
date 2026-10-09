@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1353"
 title: "Base-side comments when the base pane is the merge base"
-status: "Ready"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"feature","origin":"BPR-1335 owner look, session b4b76c70c8e54f1933410b582189d0e8, BPR-1335-base-side-v001 Accept","decision_id":"aa39b2f7-bdc6-4ac0-acb9-66417c610e42","reservation":"docs/issues/_reservations/BPR-1353--BPR-1354--7fb3f9709caa.json","related_cards":["BPR-1335","BPR-1290","BPR-1212"],"wip_branch":"bpr-1335-base-side-wip","wip_commit":"cf85998b9","acceptance":["BPR-1353:gate","BPR-1353:offer","BPR-1353:pin","BPR-1353:publish","BPR-1353:moved-base","BPR-1353:live"]}
+metadata: {"kind":"feature","origin":"BPR-1335 owner look, session b4b76c70c8e54f1933410b582189d0e8, BPR-1335-base-side-v001 Accept","decision_id":"aa39b2f7-bdc6-4ac0-acb9-66417c610e42","reservation":"docs/issues/_reservations/BPR-1353--BPR-1354--7fb3f9709caa.json","related_cards":["BPR-1335","BPR-1290","BPR-1212"],"wip_branch":"bpr-1335-base-side-wip","wip_commit":"cf85998b9","superseded_by":"BPR-1212","superseded_at":"d785a3f13","acceptance":["BPR-1353:gate","BPR-1353:offer","BPR-1353:pin","BPR-1353:publish","BPR-1353:moved-base","BPR-1353:live"]}
 ---
 
 # BPR-1353: Base-side comments when the base pane is the merge base
@@ -26,6 +26,17 @@ since the pull request branched, a base-pane line number names other text on
 GitHub, or nothing. The owner **accepted** going ahead with the follow-up
 (session `b4b76c70c8e54f1933410b582189d0e8`, decision
 `aa39b2f7-bdc6-4ac0-acb9-66417c610e42`, 2026-10-09T05:08:01Z, no note).
+
+## Superseded by BPR-1212
+
+Closed as a duplicate on 2026-10-09, the day it was filed, on the
+coordinator's word. [[BPR-1212]] v002 (branch `bpr-1212-v002`, at
+`d785a3f13`) already implements this follow-up: base-side comments behind the
+merge-base check, `side: LEFT` publication, and base-side threads pinned to the
+left pane. It waits on the owner's review and its 100 ms gates before it
+merges, and its acceptance stands in for every criterion below. Nothing here
+was built; nothing is to be built from `bpr-1335-base-side-wip`, which stays on
+`origin` until the coordinator removes it. The plan is kept as it was filed.
 
 ## Plan
 
