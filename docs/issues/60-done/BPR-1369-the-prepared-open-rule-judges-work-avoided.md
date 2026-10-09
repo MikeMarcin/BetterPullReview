@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1369"
 title: "The prepared-open rule judges work avoided, not a wall-time race"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
