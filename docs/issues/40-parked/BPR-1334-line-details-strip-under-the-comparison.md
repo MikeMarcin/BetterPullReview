@@ -514,8 +514,8 @@ it, and that each shown range equals the pane's.
 
 **Rows.** Release, tests on, Apple clang `-O3`, Qt 6.11.2, macOS 26.6.2,
 M4 Pro, offscreen. At the frozen candidate `7e43eba32` (over `2762359ec`)
-and again at the landed tree `7b13f6a51` (over `15c86f2ed`; clang-format 22
-clean on the changed files), `qt_diff_workbench_scale_{100,125,200}`,
+and again at the rebased tree over `15c86f2ed` (clang-format 22 clean on
+the changed files), `qt_diff_workbench_scale_{100,125,200}`,
 `application_line_details_public_path`, `architecture_boundaries` and
 `application_review_round_trip_composition_contract` pass (pins match; the
 change is outside the pinned scope). `DOCUMENTATION_OK`. Format applied.
@@ -544,3 +544,38 @@ work there is two rows of about 20 bytes per publication. No mechanism links
 it to a Git epoch refresh pulse, but this is not yet a clean 18/18. A quiet
 run of the 18, with `history` alternated against the control, is still
 owed, and C4 is not reclaimed until that run is made.
+
+## Owner look v004 (C5, pending)
+
+**Frozen root.** `artifacts/bpr-1334/line-details-frozen-v004/` holds
+`source/`, which is `git archive 7e43eba32` (`diff -rq` clean). The
+line-details-v1 fixture (`construction.json`, `objects.pack` and the contract
+directory) was regenerated inside `source/` by its three repository scripts
+when the build was frozen, and matches the archive byte for byte. `build/` is
+a Release build with tests on, configured from that `source/` with its CPM
+cache inside the root; the attended executable names no path outside the
+root. `launch.py` has sha256 `73850c35…`; it checks the three fixture files
+and the executable, and reports an exit within 30 s. The attended executable
+`build/tests/end_to_end/line_details_public_path` has sha256 `f4f8fc0c…`.
+At the frozen build, `qt_diff_workbench_scale_{100,125,200}` and
+`application_line_details_public_path` pass. **Native start:** `launch.py`
+reached `READY` on this Mac's Cocoa desktop in about 7 s, at load near 300,
+with no self-check note; the new syntax check runs before the window opens.
+The candidate was then closed with SIGTERM and its course root removed by
+hand. Nothing on the desktop was captured or driven.
+
+The product landed as `5fbc155e9`. It differs from the frozen `7e43eba32`
+only by upstream commits outside the Line details paths: BPR-1094, BPR-1335,
+BPR-1346 to BPR-1349 and BPR-1355. BPR-1335 touches `diff_workbench.cpp`, for
+the "+" column only.
+
+One new short session, `42f024b816d83ebe52af5d7aa579b881`. Its state is
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v004/attended-review`,
+its repository root is the main checkout, and its host is detached
+(`serve.log` beside the state). It holds one Accept/Reject candidate,
+`BPR-1334-line-details-v004` ("line details v004"), at revision `5fbc155e9`
+with fingerprint `e956fff9…`, ready and protected. The event cursor is 4.
+Launch command:
+`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v004/launch.py`.
+C1–C3 rest on the direct evidence above. C4 owes a quiet run of the 18
+(above). C5 waits on the owner and is not self-certified.
