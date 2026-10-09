@@ -47,7 +47,7 @@ function(bpr_prepare_private_root root)
     bpr_narrow_owner_private("${root}")
 endfunction()
 
-function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
+function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence expected_mark)
     set(run_budget_ms "${BPR_RUN_BUDGET_MS}")
     if(epoch_phase STREQUAL "single")
         set(run_budget_ms "${BPR_SINGLE_RUN_BUDGET_MS}")
@@ -83,6 +83,7 @@ function(bpr_run_review_ledger_probe course epoch_phase root expected_evidence)
         GITHUB_FIXTURE_REVIEW_LEDGER_OK:github.com
         REVIEW_LEDGER_COMPOSITION_${course_marker}_OK
         REVIEW_LEDGER_COMPOSITION_EVIDENCE:${expected_evidence}
+        "${expected_mark}"
         REVIEW_LEDGER_OK
         WORKBENCH_HOST_COMPOSED_OK
     )
@@ -108,8 +109,12 @@ endfunction()
 # write.
 bpr_private_data_root(BPR_ROOT)
 bpr_prepare_private_root("${BPR_ROOT}")
-bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 111111011111011)
-bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011)
+# [[BPR-1331]]. The private progress button says accepted after the gestures,
+# and unread when the changed file is opened on the pushed head.
+bpr_run_review_ledger_probe(seed seed "${BPR_ROOT}" 111111011111011
+    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: accepted\n")
+bpr_run_review_ledger_probe(reopen reuse "${BPR_ROOT}" 111111111111011
+    "REVIEW_LEDGER_PROGRESS_MARK:Private progress: unread\n")
 
 set(bpr_unavailable_root "${BPR_ROOT}-unavailable")
 bpr_prepare_private_root("${bpr_unavailable_root}")
@@ -128,6 +133,7 @@ bpr_run_review_ledger_probe(
     single
     "${bpr_unavailable_root}"
     111111011111110
+    "REVIEW_LEDGER_COMPOSITION_EVIDENCE:"
 )
 if(NOT IS_DIRECTORY
     "${bpr_unavailable_root}/state/v1/review-ledger.sqlite3"

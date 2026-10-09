@@ -78,6 +78,19 @@ The construction carries no `recorded_from`, names no URL, and its fixture test
 regenerates it byte for byte. Like `uiforetw-74`, it serves the builder's
 commits, one head, and github.com's capability snapshot.
 
+### `conventional-comments-v1`'s next push
+
+Added for [[BPR-1331]], so the private progress button can be judged when the
+pull request gets an update. `scripts/build_conventional_comments_next_push_pack.py`
+builds a third commit on the nested-folders head that changes only
+`src/engine/renderer.cpp` by two lines, into
+`tests/fixtures/github/pull-requests/conventional-comments-next-push-v1/next-push.pack`.
+The descriptor names it as the fixture's next push, served as the second head
+only under an epoch phase: `single` over a data root serves the first head,
+`reuse` over the same root the push. Without a root the fixture serves its one
+head as before. `application_review_progress_push_contract` pins what the
+button shows across the push.
+
 ### `inline-drawer-v1`, conventional comments plus a long file with threads
 
 Added for [[BPR-1290]], so the inline Comments drawer can be judged against its

@@ -737,6 +737,21 @@ namespace bpr::app::detail {
 		auto operator<=>(const published_file_switch_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1331]]. The private progress course across a push of
+	/// `conventional-comments-v1`: `before` marks three files on the first
+	/// head, `after` reads them back on the pushed head, which changed only
+	/// `src/engine/renderer.cpp`.
+	enum class review_progress_push_course {
+		before,
+		after,
+	};
+
+	enum class review_progress_push_result {
+		pending,
+		passed,
+		failed,
+	};
+
 	enum class defect_composition_probe {
 		seed,
 		reopen,
@@ -933,6 +948,10 @@ namespace bpr::app::detail {
 		/// [[BPR-0656]]. The ledger host loaded the review's conversation
 		/// receipts when the pull request opened: the read state is composed.
 		bool ReadStateObserved = false;
+		/// [[BPR-1331]]. The private progress button's accessible name once
+		/// the course's receipt is shown: after the gestures on the first
+		/// head, and on reopening the changed file on the pushed head.
+		std::string ProgressMark;
 
 		auto operator<=>(const review_ledger_composition_probe_evidence&) const
 			= default;
@@ -1393,6 +1412,9 @@ namespace bpr::app::detail {
 		/// listed; the gesture is the drawer's own selection.
 		[[nodiscard]] static auto reveal_fixture_file(github_application& aApplication, std::string_view aPath)
 			-> fixture_file_reveal_result;
+		/// \brief [[BPR-1331]]. The open pull request's accepted head, in
+		/// hexadecimal, or empty before one is accepted.
+		[[nodiscard]] static auto accepted_head(const github_application& aApplication) -> std::string;
 		/// \brief [[BPR-1293]]. For an attended look: \p aThread read through
 		/// \p aComment, recorded through the review ledger as Mark read
 		/// records it, so the posts after it are new. False when the accepted
@@ -1429,6 +1451,18 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto published_file_switch_evidence(const github_application& aApplication)
 			-> published_file_switch_probe_evidence;
 		[[nodiscard]] static auto published_file_switch_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1331]]. Opens `src/engine/renderer.cpp`,
+		/// `src/main.cpp` and `src/ui/widgets/button.cpp` in Review in turn and
+		/// reads the private progress button on each once its receipt is
+		/// shown; `before` first accepts the first two and excludes the third.
+		[[nodiscard]] static auto exercise_review_progress_push(github_application& aApplication, review_progress_push_course aCourse)
+			-> review_progress_push_result;
+		/// \brief Each file's path and the button's accessible name on it,
+		/// `path=name` joined by `;`, plus the pull request's head.
+		[[nodiscard]] static auto review_progress_push_marks(const github_application& aApplication)
+			-> std::string;
+		[[nodiscard]] static auto review_progress_push_diagnostic(const github_application& aApplication)
 			-> std::string;
 		[[nodiscard]] static auto dormant_live_provider_selection_evidence_for(
 			const github_application& aApplication)

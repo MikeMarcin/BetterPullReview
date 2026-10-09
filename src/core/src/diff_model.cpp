@@ -466,6 +466,25 @@ namespace bpr::core {
 		return identity_from<file_comparison_digest>(encoder);
 	}
 
+	auto file_material(const file_comparison_key& aKey) noexcept
+		-> file_comparison_digest
+	{
+		if (!valid(aKey)) {
+			return { };
+		}
+		auto encoder = canonical_encoder<640U>{ };
+		encoder.append_domain("BPR-file-material-v1");
+		append_authority(encoder, aKey.Authority);
+		encoder.append_u64(aKey.Repository.value());
+		encoder.append_u64(aKey.PullRequest.value());
+		append_blob(encoder, aKey.LeftBlob);
+		append_blob(encoder, aKey.RightBlob);
+		encoder.append(aKey.File.bytes());
+		encoder.append(aKey.Options.bytes());
+		encoder.append_u64(aKey.Algorithm.value());
+		return identity_from<file_comparison_digest>(encoder);
+	}
+
 	auto segment_identity(const file_comparison_digest aComparison,
 						  const alignment_kind         aKind,
 						  const line_span              aLeft,

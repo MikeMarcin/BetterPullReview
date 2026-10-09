@@ -172,3 +172,31 @@ candidate, one question, Accept or Reject.
 Next: read the session's decisions (`status --after 3`). Accept satisfies
 `:owner-look` and the card finishes; a Reject comes back with its note for a
 v002.
+
+## Owner verdict, session v001
+
+Reject, 2026-10-09T01:25:14Z, decision `b7476112-bcea-4b2d-a1ff-43422b3f2e06`
+at session event 4. The note, verbatim:
+
+> …/aito  main❯ python3 /Users/jaeger/bpr1339-overview-accepted-v001.3IHAyM/launch.py
+> FIXTURES_MISSING: /Users/jaeger/bpr1339-overview-accepted-v001.3IHAyM/src/tests/fixtures/github/pull-requests/conventional-comments-v1
+
+Not a verdict on the mark: the build never opened. `BPR-1339:owner-look`
+stays pending.
+
+Cause: the launcher, not the root. The export was complete (24 MB of
+`src/tests`, the `conventional-comments-v1` contract present at
+`src/tests/fixtures/github/contracts/v1/conventional-comments-v1`). The
+launcher checked `tests/fixtures/github/pull-requests/conventional-comments-v1`,
+a directory no commit has had: that fixture is a contract served with the
+nested-folders pack. The freeze's offscreen check ran the executable with the
+launcher's arguments, not the launcher, so its own fixture check first ran in
+front of the owner. BPR-1331's v001 launcher was the same file.
+
+Hardening: `scripts/freeze_attended_build.py` writes every launcher from one
+template and runs the launcher's own `--check` (its fixture check, then an
+offscreen launch to the file) at freeze time; a freeze whose launcher cannot
+reach the file fails before the root is handed over.
+`freeze_attended_build_contract` renders the template around a stand-in
+executable and shows the v001 path failing its own check. The root `AGENTS.md`
+frozen-build rule names the script.

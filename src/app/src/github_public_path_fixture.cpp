@@ -287,6 +287,12 @@ namespace bpr::app::detail {
 			bool                      Paged          = false;
 			bool                      WindowReading  = false;
 			bool                      OrdinaryUpdate = false;
+			/// [[BPR-1331]]. A one-head fixture's next push: under an epoch
+			/// phase it is served as `HeadTwoOid` from `NextPushPack`, which
+			/// holds every object reachable from it. Outside a phase the
+			/// fixture serves its one head exactly as before.
+			std::string_view                NextPushOid;
+			std::optional<std::string_view> NextPushPack = std::nullopt;
 		};
 
 		/// \brief Selects the descriptor the named fixture serves.
@@ -442,6 +448,10 @@ namespace bpr::app::detail {
 					.HeadOneBlob         = "",
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "nested-folders-v1/objects.pack" },
+					// [[BPR-1331]]. Clamps renderer.cpp's resize and changes no
+					// other file (`scripts/build_conventional_comments_next_push_pack.py`).
+					.NextPushOid  = "cd24836cfb58a9c14f4d3464d68a57ff8aa2a186",
+					.NextPushPack = "conventional-comments-next-push-v1/next-push.pack",
 				};
 			// [[BPR-1089]]. The nested-folders pull request, pack and identity
 			// alike, with many labelled threads, pull request comments and
@@ -4048,7 +4058,8 @@ namespace bpr::app::detail {
 	auto github_public_path_fixture_serves_second_head(
 		const github_public_path_fixture aFixture) noexcept -> bool
 	{
-		return !descriptor(aFixture).HeadTwoOid.empty();
+		const auto served = descriptor(aFixture);
+		return !served.HeadTwoOid.empty() || !served.NextPushOid.empty();
 	}
 
 	class github_public_path_fixture_components::implementation final
@@ -4074,7 +4085,11 @@ namespace bpr::app::detail {
 					"GitHub public-path installed Git is unavailable"
 				};
 			}
-			auto       served          = descriptor(aFixture);
+			auto served = descriptor(aFixture);
+			if (aOptions.EpochPhase != github_epoch_fixture_phase::single && !served.NextPushOid.empty()) {
+				served.HeadTwoOid       = served.NextPushOid;
+				served.Packs.SecondFile = served.NextPushPack;
+			}
 			const auto distinctAccount = aOptions.DistinctProfileAccounts && aOptions.Profile != core::default_bpr_profile_id;
 			if (distinctAccount) {
 				served.AccountId = core::github_account_id{ 1000U + aOptions.Profile.value() };

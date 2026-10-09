@@ -11464,7 +11464,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& WorkbenchHost->generation() == SelectedDiffPublication->Request.Context.Generation
 				&& WorkbenchHost->selected() == std::optional{ SelectedDiffPublication->Request.File.File }
 				&& ReviewLedgerHost->retained().File == SelectedDiffPublication->Request.File.File
-				&& ReviewLedgerHost->retained().Material == core::comparison_digest(SelectedDiffPublication->Key)) {
+				&& ReviewLedgerHost->retained().Material == core::file_material(SelectedDiffPublication->Key)) {
 				// A reload publishes, and publishing refreshes the overview. A
 				// failed reload retains the last accepted receipt and order: it
 				// does not mean the selected comparison material is absent.
@@ -11550,7 +11550,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 			}
-			const auto material = core::comparison_digest(
+			// [[BPR-1331]]. The file's material, not its comparison: the
+			// comparison names this epoch, so a push would reopen a file
+			// whose bytes did not change.
+			const auto material = core::file_material(
 				SelectedDiffPublication->Key);
 			if (!material.valid()) {
 				return;
@@ -16306,7 +16309,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			application::review_ledger_host_statistics       InitialStatistics;
 			core::file_identity                              File;
 			core::file_material_id                           Material;
-			core::file_material_id                           ReopenedMaterial;
+			// [[BPR-1331]]. The comparison the probe's note and defect attach
+			// to; the receipt attaches to `Material`.
+			core::file_comparison_digest Comparison;
+			core::file_material_id       ReopenedMaterial;
 		};
 		std::optional<review_ledger_composition_probe_state>
 			ReviewLedgerCompositionProbe;
@@ -16484,6 +16490,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string Diagnostic;
 		};
 		std::optional<published_file_switch_probe_state> PublishedFileSwitchProbe;
+		// [[BPR-1331]]. The private progress course across a push.
+		struct review_progress_push_probe_state
+		{
+			std::size_t File     = 0U;
+			bool        Revealed = false;
+			bool        Acted    = false;
+			std::size_t Waited   = 0U;
+			bool        Passed   = false;
+			bool        Failed   = false;
+			std::string Marks;
+			std::string Diagnostic;
+		};
+		std::optional<review_progress_push_probe_state> ReviewProgressPushProbe;
 		struct defect_composition_probe_state
 		{
 			enum class phase {
@@ -23949,6 +23968,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const auto truth = [](const bool aValue) {
 			return aValue ? "true" : "false";
 		};
+		// [[BPR-1331]]. What the review bar's private progress button says.
+		const auto progressMark = [window] {
+			const auto* const button = window->findChild<QWidget*>(QStringLiteral("workbenchReviewControlsButton"));
+			return button != nullptr ? button->accessibleName().toStdString() : std::string{ "absent" };
+		};
 		// What the ledger's own counters say, for the phases that wait on it.
 		const auto ledgerFacts = [&](QTextStream& aStream) {
 			const auto statistics = ledger->statistics();
@@ -24018,11 +24042,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			}
 			const auto& selected   = *implementation->LastSelectedDiff;
-			const auto  material   = core::comparison_digest(selected.Key);
+			const auto  material   = core::file_material(selected.Key);
 			const auto  retained   = ledger->retained();
 			const auto  statistics = ledger->statistics();
 			probe.File             = selected.Request.File.File;
 			probe.Material         = material;
+			probe.Comparison       = core::comparison_digest(selected.Key);
 			probe.Evidence.RealFileGesture
 				= window->statistics().FileSelections > 0U;
 			probe.Evidence.RealSelectedDiff
@@ -24103,7 +24128,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&& receipt.Material == probe.Material
 					&& receipt.Read == core::file_read_state::unread
 					&& !receipt.Accepted && !receipt.Excluded;
-				const auto priorHead = implementation->Fixture != nullptr
+				probe.Evidence.ProgressMark = progressMark();
+				const auto priorHead        = implementation->Fixture != nullptr
 					? core::parse_git_commit_oid(
 						  implementation->Fixture->evidence().HeadOneOid)
 					: std::optional<core::git_commit_oid>{ };
@@ -24127,7 +24153,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						&& review_ledger_probe_defect_match_is_non_vacuous(
 							  probe.File, storedComparison, *defectThread)
 						&& storedComparison.valid()
-						&& storedComparison != probe.Material
+						&& storedComparison != probe.Comparison
 						&& privateState->Notes
 							== std::vector{ expectedNote }
 						&& priorHead.has_value()
@@ -24190,18 +24216,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& receipt.Material == probe.Material
 				&& receipt.Read == core::file_read_state::read
 				&& receipt.Accepted && !receipt.Excluded;
+			probe.Evidence.ProgressMark    = progressMark();
 			const auto* const defectThread = implementation->accepted_thread(
 				review_ledger_probe_thread_identity());
 			if (!probe.Evidence.GestureSequence || defectThread == nullptr) {
 				return fail();
 			}
 			const auto note = review_ledger_probe_note(
-				probe.File, probe.Material);
+				probe.File, probe.Comparison);
 			probe.PrivateDefect = review_ledger_probe_defect(
-				probe.File, probe.Material, *defectThread);
+				probe.File, probe.Comparison, *defectThread);
 			if (!probe.PrivateDefect.has_value()
 				|| !review_ledger_probe_defect_match_is_non_vacuous(
-					probe.File, probe.Material, *defectThread)) {
+					probe.File, probe.Comparison, *defectThread)) {
 				return fail();
 			}
 			const auto answered = [&probe](const bool aAccepted) {
@@ -24242,7 +24269,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& review_ledger_probe_defect_matches_thread(
 												privateState->Defects.front(),
 												probe.File,
-												probe.Material,
+												probe.Comparison,
 												*defectThread);
 			probe.Evidence.DurableReceipt               = true;
 			implementation->ReviewLedgerRoundTripPassed = true;
@@ -25366,6 +25393,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		reveal.Phase = state_type::phase::shown;
 		return result::shown;
+	}
+
+	auto detail::github_application_fixture_access::accepted_head(const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->LastAcceptedHandoff.has_value()) {
+			return { };
+		}
+		return std::string{ core::canonical_hex(implementation->LastAcceptedHandoff->Head).view() };
 	}
 
 	auto detail::github_application_fixture_access::seed_attended_comment_draft(
@@ -26629,6 +26665,114 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return result::failed;
 	}
 
+	auto detail::github_application_fixture_access::exercise_review_progress_push(
+		github_application& aApplication, const detail::review_progress_push_course aCourse) -> detail::review_progress_push_result
+	{
+		using result               = detail::review_progress_push_result;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ReviewProgressPushProbe.has_value()) {
+			implementation->ReviewProgressPushProbe.emplace();
+		}
+		auto& probe = *implementation->ReviewProgressPushProbe;
+		if (probe.Failed) {
+			return result::failed;
+		}
+		if (probe.Passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewLedgerHost == nullptr || !implementation->LastAcceptedHandoff.has_value()) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const ledger = implementation->ReviewLedgerHost.get();
+		const auto  fail   = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " failed=" + std::string{ aWhy };
+			probe.Failed = true;
+			return result::failed;
+		};
+		enum class gesture : std::uint8_t {
+			accept,
+			exclude,
+		};
+		struct course_file
+		{
+			std::string_view Path;
+			gesture          Gesture;
+		};
+		// renderer.cpp is the one file the push changes.
+		constexpr auto files = std::array{
+			course_file{ .Path = "src/engine/renderer.cpp", .Gesture = gesture::accept },
+			course_file{ .Path = "src/main.cpp", .Gesture = gesture::accept },
+			course_file{ .Path = "src/ui/widgets/button.cpp", .Gesture = gesture::exclude },
+		};
+		if (probe.File == 0U && !probe.Revealed && probe.Marks.empty()) {
+			const auto& evidence = implementation->Fixture->evidence();
+			const auto  expected = core::parse_git_commit_oid(aCourse == detail::review_progress_push_course::after ? evidence.HeadTwoOid : evidence.HeadOneOid);
+			if (!expected.has_value() || implementation->LastAcceptedHandoff->Head != *expected) {
+				return ++probe.Waited < 400U ? result::pending : fail("head");
+			}
+			probe.Marks  = "head=" + std::string{ core::canonical_hex(implementation->LastAcceptedHandoff->Head).view() };
+			probe.Waited = 0U;
+		}
+		if (probe.File == files.size()) {
+			probe.Passed = true;
+			return result::passed;
+		}
+		const auto& file = files[probe.File];
+		if (!probe.Revealed) {
+			const auto revealed = reveal_fixture_file(aApplication, file.Path);
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("reveal " + std::string{ file.Path });
+			}
+			probe.Revealed = revealed == detail::fixture_file_reveal_result::shown;
+			return result::pending;
+		}
+		// The file's receipt is shown once the ledger has answered the
+		// observation of exactly this file's material.
+		const auto& selected = implementation->LastSelectedDiff;
+		const auto  retained = ledger->retained();
+		const auto  shown    = ledger->is_quiescent() && selected.has_value() && selected->Request.File.PresentationPath == file.Path
+			&& retained.File == selected->Request.File.File && retained.Material == core::file_material(selected->Key);
+		if (!shown) {
+			return ++probe.Waited < 400U ? result::pending : fail("receipt " + std::string{ file.Path });
+		}
+		if (aCourse == detail::review_progress_push_course::before && !probe.Acted) {
+			auto* const action = file.Gesture == gesture::accept ? window->accept_action() : window->exclude_action();
+			if (action == nullptr || !action->isEnabled()) {
+				return fail("gesture " + std::string{ file.Path });
+			}
+			probe.Acted = true;
+			action->trigger();
+			return result::pending;
+		}
+		if (aCourse == detail::review_progress_push_course::before && !(file.Gesture == gesture::accept ? retained.Accepted : retained.Excluded)) {
+			return ++probe.Waited < 400U ? result::pending : fail("durable " + std::string{ file.Path });
+		}
+		const auto* const button = window->findChild<QWidget*>(QStringLiteral("workbenchReviewControlsButton"));
+		probe.Marks += ";" + std::string{ file.Path } + "=" + (button != nullptr ? button->accessibleName().toStdString() : std::string{ "absent" });
+		++probe.File;
+		probe.Revealed = false;
+		probe.Acted    = false;
+		probe.Waited   = 0U;
+		return result::pending;
+	}
+
+	auto detail::github_application_fixture_access::review_progress_push_marks(const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->ReviewProgressPushProbe.has_value() ? implementation->ReviewProgressPushProbe->Marks : std::string{ };
+	}
+
+	auto detail::github_application_fixture_access::review_progress_push_diagnostic(const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->ReviewProgressPushProbe.has_value() ? implementation->ReviewProgressPushProbe->Diagnostic : std::string{ };
+	}
+
 	auto detail::github_application_fixture_access::published_file_switch_evidence(
 		const github_application& aApplication) -> detail::published_file_switch_probe_evidence
 	{
@@ -27540,7 +27684,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		implementation->ReviewLedgerWasPresentOnEntry
 			= statistics.MaterialReceiptHits > 0U;
 		const auto& selected = *implementation->LastSelectedDiff;
-		const auto  material = core::comparison_digest(selected.Key);
+		const auto  material = core::file_material(selected.Key);
 		const auto  before   = implementation->ReviewLedgerHost->retained();
 		if (before.File != selected.Request.File.File
 			|| before.Material != material) {

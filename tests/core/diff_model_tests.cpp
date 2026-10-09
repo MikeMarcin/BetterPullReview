@@ -1,6 +1,8 @@
 #include "bpr/core/diff_model.hpp"
 
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/file_progress_mark.hpp"
+#include "bpr/core/review_ledger.hpp"
 
 #include <array>
 #include <cstddef>
@@ -488,6 +490,77 @@ namespace {
 		mixedHashes.RightBlob = blob(52U, git_hash_algorithm::sha256);
 		expect(!valid(mixedHashes),
 			   "two present blobs must use the same object algorithm");
+	}
+
+	// [[BPR-1331]]. A push advances both anchors' epochs. The comparison
+	// digest names them, so it moves for every file; the material a receipt
+	// attaches to does not, unless a blob moved. Through the real carry-over,
+	// the private progress mark a file shows after a push follows its bytes.
+	auto test_file_material_outlives_a_push() -> void
+	{
+		const auto key           = comparison_key();
+		auto       pushed        = key;
+		pushed.LeftAnchor.Epoch  = epoch_ordinal{ 3 };
+		pushed.RightAnchor.Epoch = epoch_ordinal{ 4 };
+		expect(valid(pushed) && comparison_digest(pushed) != comparison_digest(key),
+			   "a push moves every file's comparison digest");
+		expect(file_material(key).valid() && file_material(pushed) == file_material(key),
+			   "a push keeps the material of a file whose blobs did not move");
+		expect(file_material(key) != comparison_digest(key),
+			   "material and comparison are separate identities");
+		auto changed      = pushed;
+		changed.RightBlob = blob(52U);
+		expect(file_material(changed) != file_material(key),
+			   "a push that changes the file's bytes moves its material");
+		auto rebased     = pushed;
+		rebased.LeftBlob = blob(22U);
+		expect(file_material(rebased) != file_material(key),
+			   "a new base blob is new compared material");
+
+		auto variants = std::vector<file_comparison_key>{ };
+		variants.push_back(key);
+		variants.back().Authority.Repository = repository_id{ 102U };
+		variants.back().Repository           = repository_id{ 102U };
+		variants.push_back(key);
+		variants.back().Authority.PullRequest = pull_request_id{ 203U };
+		variants.back().PullRequest           = pull_request_id{ 203U };
+		variants.push_back(key);
+		variants.back().File = opaque<file_identity>(32U);
+		variants.push_back(key);
+		variants.back().Options = opaque<diff_options_digest>(33U);
+		variants.push_back(key);
+		variants.back().Algorithm = diff_algorithm_revision{ 2U };
+		variants.push_back(key);
+		variants.back().Authority.Account = github_account_id{ 41U };
+		for (const auto& variant : variants) {
+			expect(valid(variant) && file_material(variant) != file_material(key),
+				   "every dimension but the anchors changes the material");
+		}
+		auto noBlobs = key;
+		noBlobs.LeftBlob.reset();
+		noBlobs.RightBlob.reset();
+		expect(!file_material(noBlobs).valid(), "an invalid key has no material");
+
+		// The receipts a reviewer left on the first head, carried to the push.
+		const auto file     = key.File;
+		auto       accepted = file_receipt{ .File = file, .Material = file_material(key), .Read = file_read_state::read, .Accepted = true };
+		const auto kept     = carry_over(accepted, { .File = file, .Material = file_material(pushed) });
+		expect(kept.Disposition == receipt_carry_over::retained && progress_mark(kept.Receipt) == file_progress_mark::accepted,
+			   "an accepted file the push did not change stays accepted");
+		const auto reopened = carry_over(accepted, { .File = file, .Material = file_material(changed) });
+		expect(reopened.Disposition == receipt_carry_over::reopened_material_changed
+				   && reopened.Receipt.Read == file_read_state::unread && !reopened.Receipt.Accepted
+				   && progress_mark(reopened.Receipt) == file_progress_mark::unread,
+			   "an accepted file the push changed reopens unread, not seen, and loses its acceptance");
+		auto       excluded      = file_receipt{ .File = file, .Material = file_material(key), .Read = file_read_state::seen, .Excluded = true };
+		const auto stillExcluded = carry_over(excluded, { .File = file, .Material = file_material(changed) });
+		expect(stillExcluded.Disposition == receipt_carry_over::reopened_material_changed
+				   && progress_mark(stillExcluded.Receipt) == file_progress_mark::excluded,
+			   "an excluded file stays excluded through a push that changes it");
+		const auto byComparison = carry_over(file_receipt{ .File = file, .Material = comparison_digest(key), .Read = file_read_state::read, .Accepted = true },
+											 { .File = file, .Material = comparison_digest(pushed) });
+		expect(byComparison.Disposition == receipt_carry_over::reopened_material_changed,
+			   "keyed by the comparison digest, an unchanged file would reopen on every push");
 	}
 
 	auto test_canonical_record_tables() -> void
@@ -1268,6 +1341,7 @@ namespace {
 int main()
 {
 	test_options_and_comparison_identity();
+	test_file_material_outlives_a_push();
 	test_canonical_record_tables();
 	test_source_references();
 	test_stable_record_identities();

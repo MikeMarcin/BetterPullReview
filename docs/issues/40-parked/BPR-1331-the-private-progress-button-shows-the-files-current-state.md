@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 parked_on: "human-review"
-metadata: {"origin":"Owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1331--BPR-1331--755aeb836635.json","related_cards":["BPR-1129","BPR-1083","BPR-0647","BPR-1296"],"acceptance":["BPR-1331:core-decides","BPR-1331:glyphs","BPR-1331:follows","BPR-1331:owner-look"]}
+metadata: {"origin":"Owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1331--BPR-1331--755aeb836635.json","related_cards":["BPR-1129","BPR-1083","BPR-0647","BPR-1296"],"acceptance":["BPR-1331:core-decides","BPR-1331:glyphs","BPR-1331:follows","BPR-1331:push","BPR-1331:owner-look"]}
 ---
 
 # BPR-1331: The private progress button shows the file's current state
@@ -85,8 +85,12 @@ This is the review bar's ✓▾ button, the selected file's private progress
 - `BPR-1331:follows`: the icon follows a menu change, a file switch, a
   palette refresh and an unavailable ledger. **Pass** at `22fd752f5`:
   `qt_review_state_icon`.
+- `BPR-1331:push`: across a push, a changed file's button reopens unread,
+  an unchanged file keeps its mark, an excluded file stays excluded (the
+  owner's v001 note). **Pass**: `application_review_progress_push_contract`,
+  `core_diff_model`; see "When the pull request gets a push".
 - `BPR-1331:owner-look`: pending, the owner's Accept or Reject of
-  "review-state icon" on the frozen build.
+  "review-state icon" on the frozen build, including the push.
 
 ## Verification
 
@@ -148,3 +152,79 @@ candidate, one question, Accept or Reject.
 Next: read the session's decisions (`status --after 3`). Accept satisfies
 `:owner-look` and the card finishes; a Reject comes back with its note for a
 v002.
+
+## Owner verdict, session v001
+
+Reject, 2026-10-09T02:19:42Z, decision `d9d02f72-5f3a-4f96-8429-7616e5ae3401`
+at session event 4. The note, verbatim:
+
+> …/aito  main❯ python3 /Users/jaeger/bpr1331-review-state-v001.uwoGJs/launch.py
+> FIXTURES_MISSING: /Users/jaeger/bpr1331-review-state-v001.uwoGJs/src/tests/fixtures/github/pull-requests/conventional-comments-v1
+>
+> I just want to make sure the flow continues to make sense when the PR gets an update.
+
+The build never opened, so `BPR-1331:owner-look` stays pending. The cause and
+the launcher hardening are on [[BPR-1339]] ("Owner verdict, session v001"):
+the launcher checked a fixture path no commit has had, and the freeze never
+ran the launcher itself.
+
+## When the pull request gets a push
+
+The owner's question. RFC-BPR-0007: a receipt survives a new epoch exactly
+when the compared material is unchanged. When it changed, the core reopens
+the read progression to unread (not seen) and drops the acceptance; exclusion
+is a standing statement about the file and survives. So after a push:
+
+| File | Before the push | After the push |
+|---|---|---|
+| changed by the push | accepted | unread (broken ring) |
+| not changed by the push | accepted | accepted |
+| excluded, changed or not | excluded | excluded |
+
+The button shows the open file's receipt once the ledger has answered for the
+file's new material, on opening the file. Overview and the Files drawer show
+the stored receipt until then.
+
+**Found and fixed: unchanged files reopened too.** The composed application
+attached the receipt to `core::comparison_digest` of the selected comparison.
+That digest encodes both anchors, and an anchor names its epoch, so every push
+moved every file's digest and every file came back unread on opening, changed
+or not. RFC-BPR-0007's "changed material invalidates only affected receipts"
+was verified at the core and host with hand-made material identities; nothing
+ran a real push through the composition. The receipt now attaches to
+`core::file_material` (`src/core/include/bpr/core/diff_model.hpp`): the
+comparison digest's dimensions without the anchors (pull request, file, both
+blobs, options, algorithm), domain `BPR-file-material-v1`. Notes, defects and
+drafts keep the comparison digest. One consequence: receipts written before
+this change carry the old identity, so each file reopens once, the first time
+it is opened after the update.
+
+**Fixture.** `conventional-comments-v1` now has a next push
+(`tests/fixtures/github/pull-requests/conventional-comments-next-push-v1`,
+`scripts/build_conventional_comments_next_push_pack.py`): head
+`cd24836cfb58a9c14f4d3464d68a57ff8aa2a186` on top of `b20cb4434…`, changing
+only `src/engine/renderer.cpp` lines 12 and 13 (the clamp its line-12 thread
+asks for "before the next push"). It is served only under an epoch phase:
+`single` over a data root is the first head, `reuse` over the same root the
+push.
+
+**Tests.**
+
+- `application_review_progress_push_contract` (new, real composition, two
+  processes over one data root): on the first head the course accepts
+  `renderer.cpp` and `src/main.cpp` and excludes `src/ui/widgets/button.cpp`
+  through the review bar's actions; on the push it reopens each and reads the
+  private progress button's accessible name: `renderer.cpp` "Private progress:
+  unread", `main.cpp` "Private progress: accepted", `button.cpp` "Private
+  progress: excluded". **Failing-before control:** with `file_material`
+  returning the comparison digest, the same course reads `main.cpp` as
+  "Private progress: unread".
+- `core_diff_model` (`test_file_material_outlives_a_push`): advancing both
+  anchors' epochs moves the comparison digest and keeps the material; a moved
+  head or base blob moves it; every other dimension moves it; through
+  `core::carry_over`, an unchanged accepted file stays `accepted`, a changed
+  one reopens `unread` without its acceptance, an excluded one stays
+  `excluded`, and a receipt keyed by the comparison digest would reopen.
+- `application_review_ledger_composition_contract` now also reads the button:
+  "accepted" after the seed gestures on `github-com`, "unread" when the
+  changed file is reopened on its second head.

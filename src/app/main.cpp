@@ -1172,6 +1172,11 @@ namespace {
 		bool                                                   PublishedFileSwitchPassed = false;
 		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
 		std::string                                            PublishedFileSwitchDiagnostic;
+		// [[BPR-1331]]. `--review-progress-push-probe before|after`.
+		std::optional<bpr::app::detail::review_progress_push_course> ReviewProgressPushProbe;
+		bool                                                         ReviewProgressPushPassed = false;
+		std::string                                                  ReviewProgressPushMarks;
+		std::string                                                  ReviewProgressPushDiagnostic;
 		// [[BPR-1212]]. `--line-draft-course`: only the course's line-draft phases.
 		bool LineDraftCourse = false;
 		std::optional<bpr::app::detail::defect_composition_probe>
@@ -3567,8 +3572,11 @@ namespace {
 		const auto fixtureCourseRan = aRun.Fixture && !aRun.Device.Registered
 			&& !aRun.Device.OrphanCourse && !aRun.PublicPreview.Enabled;
 		if (fixtureCourseRan) {
+			// [[BPR-1331]]. The push course's first run reads one head, so the
+			// pushed head is fetched once when it arrives, as a reviewer's is.
 			const auto expectedSmartCalls = aRun.MaintenanceProbe
-					== automated_run::epoch_maintenance_probe::verify_deleted
+						== automated_run::epoch_maintenance_probe::verify_deleted
+					|| aRun.ReviewProgressPushProbe.has_value()
 				? 1
 				: expected_fixture_smart_calls(aRun.EpochPhase);
 			// The fixture's own verdict, computed from the fixture's own facts
@@ -4783,6 +4791,9 @@ namespace {
 				   << evidence.PrivateRecords << evidence.PublicPathAvailable
 				   << evidence.UnavailableVisible << evidence.HostOnlyProbe
 				   << evidence.ReadStateObserved << '\n';
+			if (!evidence.ProgressMark.empty()) {
+				stream << "REVIEW_LEDGER_PROGRESS_MARK:" << QString::fromStdString(evidence.ProgressMark) << '\n';
+			}
 		}
 		if (aRun.ThreadedReplyProbe) {
 			const auto& evidence = aRun.ThreadedReplyEvidence;
@@ -4810,6 +4821,11 @@ namespace {
 				   << "PUBLISHED_FILE_SWITCH_EVIDENCE:" << evidence.Written << evidence.ShownBefore << evidence.OtherFileShown
 				   << evidence.Kept << evidence.ShownAfterReturn << '\n';
 			stream << "PUBLISHED_FILE_SWITCH_DIAGNOSTIC:" << QString::fromStdString(aRun.PublishedFileSwitchDiagnostic) << '\n';
+		}
+		if (aRun.ReviewProgressPushProbe.has_value()) {
+			stream << (aRun.ReviewProgressPushPassed ? "REVIEW_PROGRESS_PUSH_OK\n" : "REVIEW_PROGRESS_PUSH_FAILED\n")
+				   << "REVIEW_PROGRESS_PUSH_MARKS:" << QString::fromStdString(aRun.ReviewProgressPushMarks) << '\n'
+				   << "REVIEW_PROGRESS_PUSH_DIAGNOSTIC:" << QString::fromStdString(aRun.ReviewProgressPushDiagnostic) << '\n';
 		}
 		if (aRun.ReviewRoundTripCompositionProbe) {
 			const auto& evidence = aRun.ReviewRoundTripCompositionEvidence;
@@ -4875,6 +4891,7 @@ namespace {
 			&& !aRun.Appearance.Enabled
 			&& !aRun.ReviewRoundTripCompositionProbe && !aRun.ThreadedReplyProbe
 			&& !aRun.LabelAuthoringProbe && !aRun.PublishedFileSwitchProbe
+			&& !aRun.ReviewProgressPushProbe.has_value()
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
 			// public-path expectation matches its markers contiguously, so a
@@ -5306,6 +5323,9 @@ namespace {
 						const auto marked = bpr::app::detail::github_application_fixture_access::apply_fixture_read_state(aApplication, *readState);
 						QTextStream{ stdout } << (marked ? QStringLiteral("ATTENDED_READ_STATE:%1").arg(*marked) : QStringLiteral("ATTENDED_READ_STATE_FAILED")) << '\n';
 					}
+					// [[BPR-1331]]. Which head is shown, so a launcher can tell
+					// the first head from a pushed one.
+					QTextStream{ stdout } << "ATTENDED_HEAD:" << QString::fromStdString(bpr::app::detail::github_application_fixture_access::accepted_head(aApplication)) << '\n';
 					finish(QStringLiteral("ATTENDED_FILE_SHOWN:%1").arg(QString::fromStdString(path)));
 					if (look == "workshop") {
 						schedule_attended_workshop_look(aApplication);
@@ -5575,6 +5595,27 @@ namespace {
 		aRun.PublishedFileSwitchEvidence = bpr::app::detail::github_application_fixture_access::published_file_switch_evidence(aApplication);
 		aRun.PublishedFileSwitchPassed   = result == bpr::app::detail::published_file_switch_probe_result::passed;
 		if (!aRun.PublishedFileSwitchPassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
+	}
+
+	// [[BPR-1331]]. One tick of the private progress course across a push.
+	void advance_review_progress_push_probe(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		using access                      = bpr::app::detail::github_application_fixture_access;
+		const auto state                  = access::exercise_review_progress_push(aApplication, *aRun.ReviewProgressPushProbe);
+		aRun.ReviewProgressPushMarks      = access::review_progress_push_marks(aApplication);
+		aRun.ReviewProgressPushDiagnostic = access::review_progress_push_diagnostic(aApplication);
+		if (state == bpr::app::detail::review_progress_push_result::pending) {
+			return;
+		}
+		aRun.ReviewProgressPushPassed = state == bpr::app::detail::review_progress_push_result::passed;
+		if (!aRun.ReviewProgressPushPassed) {
 			fail_automated_run(aApplication, aRun);
 			return;
 		}
@@ -6440,6 +6481,10 @@ namespace {
 				}
 				if (aRun->PublishedFileSwitchProbe) {
 					advance_published_file_switch_probe(aApplication, *aRun);
+					break;
+				}
+				if (aRun->ReviewProgressPushProbe.has_value()) {
+					advance_review_progress_push_probe(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ThreadedReplyProbe && aRun->ThreadedReplyStarted
@@ -8521,6 +8566,9 @@ auto main(int argc, char** argv) -> int
 		const auto labelAuthoringProbe    = has_argument(argc, argv, "--label-authoring-probe");
 		fixtureOptions.LabelHelper        = has_argument(argc, argv, "--label-helper") || labelAuthoringProbe;
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
+		// [[BPR-1331]]. The private progress course across a push: `before`
+		// on the first head, `after` on the pushed one, over one data root.
+		const auto reviewProgressPushProbe = argument_value(argc, argv, "--review-progress-push-probe");
 		// [[BPR-1326]]. The file-switch course reads again after publishing.
 		const auto publishedFileSwitchProbe  = has_argument(argc, argv, "--published-file-switch-probe");
 		const auto publishedFileSwitchTiming = argument_value(argc, argv, "--published-file-switch-timing");
@@ -9208,6 +9256,16 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "PUBLISHED_FILE_SWITCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
+		// [[BPR-1331]]. `before` runs on the first head (`single`), `after`
+		// on the pushed one (`reuse`), both over one epoch data root.
+		if (reviewProgressPushProbe.has_value()
+			&& (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value() || labelAuthoringProbe || publishedFileSwitchProbe
+				|| !epochFixtureRoot.has_value()
+				|| !((*reviewProgressPushProbe == "before" && fixtureOptions.EpochPhase == bpr::app::detail::github_epoch_fixture_phase::single)
+					 || (*reviewProgressPushProbe == "after" && fixtureOptions.EpochPhase == bpr::app::detail::github_epoch_fixture_phase::reuse)))) {
+			QTextStream{ stdout } << "REVIEW_PROGRESS_PUSH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
 		if ((nativeNotificationProbe && nativeNotificationAttended)
 			|| (nativeNotificationRequestCut
 				&& nativeNotificationActivationCut)
@@ -9541,6 +9599,8 @@ auto main(int argc, char** argv) -> int
 								.PublishedFileSwitchProbe        = publishedFileSwitchProbe,
 								.PublishedFileSwitchTiming       = publishedFileSwitchTiming == std::optional<std::string_view>{ "late" } ? bpr::app::detail::published_file_switch_timing::late : publishedFileSwitchTiming == std::optional<std::string_view>{ "draft" } ? bpr::app::detail::published_file_switch_timing::draft
 																																																																		   : bpr::app::detail::published_file_switch_timing::settled,
+								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
+																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,
 								.DefectCompositionProbe          = defectCompositionProbe,
 								.OverviewSinceReviewRequested    = overviewSinceReview,

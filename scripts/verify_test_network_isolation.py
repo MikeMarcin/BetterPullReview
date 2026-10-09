@@ -760,6 +760,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # is not owner-private.", the profile_unavailable refusal
     # cycle_cli_public_path measures. It is run uncontained.
     "application_review_cycle_recovery_corpus": "dos-volume-name",
+    # [[BPR-1331]]. Registered uncontained like the published file switch row,
+    # whose fixture and composed application it shares; not yet measured
+    # contained on Windows.
+    "application_review_progress_push_contract": "unmeasured (registered on macOS)",
 }
 # BPR-0573 integration audit at 0ff88046 listed source registrations with no
 # measured Windows exception, counted only as pending source inventory so they

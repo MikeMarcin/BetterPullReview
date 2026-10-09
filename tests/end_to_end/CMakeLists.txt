@@ -2289,6 +2289,33 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
+# [[BPR-1331]]. The private progress button across a push: a changed file
+# reopens unread, an unchanged one keeps its mark, an excluded one stays out.
+bpr_add_network_isolated_test(
+    NAME application_review_progress_push_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-progress-push-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_review_progress_push_contract.cmake"
+)
+set_tests_properties(
+    application_review_progress_push_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REVIEW_PROGRESS_PUSH_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_review_progress_push_contract
+    TIMEOUT 120
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 2
+    RESERVE_MS 4000
+)
+
 # [[BPR-1212]]. The keyboard line cursor and Return in the composed application.
 bpr_add_network_isolated_test(
     NAME application_line_draft_contract

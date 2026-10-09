@@ -401,6 +401,19 @@ namespace bpr::core {
 	/// \brief Computes the comparison digest result.
 	[[nodiscard]] auto comparison_digest(
 		const file_comparison_key& aKey) noexcept -> file_comparison_digest;
+	/// \brief [[BPR-1331]]. The material a file receipt attaches to.
+	///
+	/// \details RFC-BPR-0007: a new epoch keeps a receipt exactly when the
+	/// compared material is unchanged. The comparison digest cannot answer
+	/// that, because its two anchors name epochs and every push advances
+	/// them: a receipt keyed by it reopened every file on every push,
+	/// changed or not. The material is the comparison digest without the
+	/// anchors: the pull request, the file, the two blobs and the options
+	/// and algorithm that compared them. A push keeps it for a file whose
+	/// blobs did not move and moves it for one whose did. Zero for an
+	/// invalid key, like `comparison_digest`.
+	[[nodiscard]] auto file_material(
+		const file_comparison_key& aKey) noexcept -> file_comparison_digest;
 	/// \brief Computes the segment identity result.
 	[[nodiscard]] auto segment_identity(file_comparison_digest aComparison,
 										alignment_kind         aKind,
