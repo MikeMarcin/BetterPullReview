@@ -6,6 +6,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/steady_columns.hpp"
 #include "overview_summary_splitter.hpp"
 #include "painted_glyph_icon.hpp"
 #include <QStringDecoder>
@@ -1474,14 +1475,14 @@ namespace bpr::qt {
 			if (aRole == folder_role) {
 				return true;
 			}
+			if (aRole == file_count_role) {
+				return static_cast<qulonglong>(item->FileCount);
+			}
 			if (aIndex.column() != file_column && aIndex.column() != operation_column) {
 				return { };
 			}
 			if (aRole == Qt::DisplayRole && aIndex.column() == file_column) {
 				return item->Path.isEmpty() ? QStringLiteral("/") : item->Path;
-			}
-			if (aRole == Qt::DisplayRole && aIndex.column() == operation_column) {
-				return QString::number(item->FileCount);
 			}
 			if (aRole == Qt::ToolTipRole || aRole == Qt::AccessibleTextRole) {
 				return QStringLiteral("Folder %1, %2 files").arg(item->Path.isEmpty() ? QStringLiteral("/") : item->Path).arg(item->FileCount);
@@ -1636,12 +1637,36 @@ namespace bpr::qt {
 	{
 	}
 
+	namespace {
+		/// [[BPR-1363]]. A folder path's file count follows it, muted, after
+		/// this much space: "src/engine  2".
+		[[nodiscard]] auto folder_count_gap(const QFont& aFont) -> int
+		{
+			return QFontMetrics{ aFont }.horizontalAdvance(QStringLiteral("  "));
+		}
+
+		[[nodiscard]] auto folder_count_text(const QModelIndex& aIndex) -> QString
+		{
+			return QString::number(aIndex.data(overview_file_model::file_count_role).toULongLong());
+		}
+
+		[[nodiscard]] auto item_text_margin(const QStyleOptionViewItem& aOption) -> int
+		{
+			const auto* const style = aOption.widget != nullptr ? aOption.widget->style() : QApplication::style();
+			return style->pixelMetric(QStyle::PM_FocusFrameHMargin, &aOption, aOption.widget) + 1;
+		}
+	} // namespace
+
 	auto overview_row_delegate::sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 		-> QSize
 	{
-		const auto folderPath = aIndex.column() == overview_file_model::file_column
-			&& aIndex.data(overview_file_model::folder_role).toBool();
-		auto option = aOption;
+		const auto folder = aIndex.data(overview_file_model::folder_role).toBool();
+		auto       option = aOption;
+		if (folder && aIndex.column() == overview_file_model::operation_column) {
+			// [[BPR-1363]]. A folder row's first cell holds its disclosure mark alone.
+			return QSize{ disclosure_width(aOption), std::max(QStyledItemDelegate::sizeHint(option, aIndex).height(), 22) };
+		}
+		const auto folderPath = folder && aIndex.column() == overview_file_model::file_column;
 		if (folderPath) {
 			// Measured in the weight it is painted in, so the path is never elided.
 			option.font.setWeight(QFont::DemiBold);
@@ -1649,7 +1674,7 @@ namespace bpr::qt {
 		auto hint = QStyledItemDelegate::sizeHint(option, aIndex);
 		hint.setHeight(std::max(hint.height(), 22));
 		if (folderPath) {
-			hint.setWidth(hint.width() + disclosure_width(aOption));
+			hint.setWidth(hint.width() + folder_count_gap(aOption.font) + QFontMetrics{ aOption.font }.horizontalAdvance(folder_count_text(aIndex)));
 		}
 		return hint;
 	}
@@ -1665,15 +1690,15 @@ namespace bpr::qt {
 		return QRect{ aOption.rect.left(), aOption.rect.top(), disclosure_width(aOption), aOption.rect.height() };
 	}
 
-	void overview_row_delegate::paint_folder(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+	void overview_row_delegate::paint_disclosure(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 	{
 		// [[BPR-1213]]. The rows stay flat, so the view has no indentation to
-		// draw its branch in; the folder's own cell carries the native
-		// disclosure mark before its path.
+		// draw its branch in; the folder row draws the native disclosure mark
+		// itself. [[BPR-1363]]: in its first cell, so the mark is the leftmost
+		// thing on the row (owner, 2026-10-09).
 		auto option = aOption;
 		initStyleOption(&option, aIndex);
 		const auto* const style = option.widget != nullptr ? option.widget->style() : QApplication::style();
-		const auto        text  = option.text;
 		option.text.clear();
 		style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
 
@@ -1685,16 +1710,42 @@ namespace bpr::qt {
 		branch.state = (option.state & (QStyle::State_Enabled | QStyle::State_Active | QStyle::State_Selected | QStyle::State_MouseOver))
 			| QStyle::State_Children | QStyle::State_Item | (expanded ? QStyle::State_Open : QStyle::State_None);
 		style->drawPrimitive(QStyle::PE_IndicatorBranch, &branch, aPainter, option.widget);
+	}
+
+	void overview_row_delegate::paint_folder(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+	{
+		// The folder's whole path, where every file name starts, then its
+		// file count in the regular weight ([[BPR-1363]]).
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const auto* const style = option.widget != nullptr ? option.widget->style() : QApplication::style();
+		const auto        text  = option.text;
+		option.text.clear();
+		style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
+
+		const auto group = option.state & QStyle::State_Active ? QPalette::Active : QPalette::Inactive;
+		const auto ink   = option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText);
+		const auto count = folder_count_text(aIndex);
+		const auto gap   = folder_count_gap(option.font);
+		const auto room  = gap + QFontMetrics{ option.font }.horizontalAdvance(count);
 
 		auto label = option;
 		label.text = text;
-		label.rect.setLeft(branch.rect.right() + 1);
+		label.rect.setRight(option.rect.right() - room);
 		label.backgroundBrush = Qt::NoBrush;
 		label.state &= ~(QStyle::State_HasFocus | QStyle::State_Selected);
 		label.font.setWeight(QFont::DemiBold);
-		const auto group = option.state & QStyle::State_Active ? QPalette::Active : QPalette::Inactive;
-		label.palette.setColor(QPalette::Text, option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText));
+		label.palette.setColor(QPalette::Text, ink);
 		style->drawControl(QStyle::CE_ItemViewItem, &label, aPainter, label.widget);
+
+		const auto margin = item_text_margin(option);
+		const auto shown  = std::min(QFontMetrics{ label.font }.horizontalAdvance(text), std::max(0, label.rect.width() - (2 * margin)));
+		aPainter->save();
+		aPainter->setClipRect(option.rect);
+		aPainter->setFont(option.font);
+		aPainter->setPen(ink);
+		aPainter->drawText(QRect{ option.rect.left() + margin + shown + gap, option.rect.top(), room, option.rect.height() }, Qt::AlignLeft | Qt::AlignVCenter, count);
+		aPainter->restore();
 	}
 
 	void overview_row_delegate::paint(
@@ -1736,6 +1787,10 @@ namespace bpr::qt {
 				|| column == overview_file_model::changed_column
 				|| column == overview_file_model::read_column
 				|| column == overview_file_model::comments_column);
+		if (folder && column == overview_file_model::operation_column) {
+			paint_disclosure(aPainter, aOption, aIndex);
+			return;
+		}
 		if (folder && column == overview_file_model::file_column) {
 			paint_folder(aPainter, aOption, aIndex);
 			return;
@@ -2258,12 +2313,14 @@ namespace bpr::qt {
 		Files->setSelectionMode(QAbstractItemView::SingleSelection);
 		Files->setFrameShape(QFrame::NoFrame);
 		Files->setEditTriggers(QAbstractItemView::NoEditTriggers);
-		Files->header()->setStretchLastSection(true);
-		// Size from the visible rows. Measuring every column of the complete
-		// review here blocks the first Overview show on the GUI lane.
-		Files->header()->setResizeContentsPrecision(0);
-		Files->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-		Files->header()->setSectionResizeMode(overview_file_model::note_column, QHeaderView::Stretch);
+		// [[BPR-1363]]. Each column as wide as the widest cell of the whole
+		// tree, every file whether its folder is open or not, so opening or
+		// closing a folder, a scroll or a refresh moves no column; Note takes
+		// the rest. Delegate measures stay bounded on a large review: only the
+		// widest few cells by their text are measured.
+		FileColumns = new steady_columns{ *Files, overview_file_model::note_column, [](const QModelIndex& aIndex) {
+											 return aIndex.data(overview_file_model::folder_role).toBool() ? 1 : 0;
+										 } };
 		connect(Model, &QAbstractItemModel::rowsInserted, this,
 				[this](const QModelIndex& aModelParent, const int aFirst, const int aLast) {
 					expand_new_folders(*Files, aModelParent, aFirst, aLast);
@@ -2624,6 +2681,7 @@ namespace bpr::qt {
 		Projection->Entry     = aUpdate.Entry;
 		Projection->EntryPath = aUpdate.EntryPath;
 		Model->update_rows(aUpdate.Rows);
+		FileColumns->apply();
 		present_files_heading(*Projection);
 		set_value(overview_value::files_read,
 				  QStringLiteral("%1 of %2").arg(count_text(Projection->Progress.FilesRead), count_text(Projection->Progress.FilesTotal)),
@@ -2739,6 +2797,7 @@ namespace bpr::qt {
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, true);
 		}
+		FileColumns->apply();
 		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Open a file to read its exact retained base and head when available. Current thread counts and review progress unavailable."));
 		CachedThreadsHeading->setText(aOverview.ReviewThreads
 										  ? QStringLiteral("Cached review threads — %1 observed · freshness unknown").arg(count_text(aOverview.ReviewThreads->size()))
@@ -3052,13 +3111,7 @@ namespace bpr::qt {
 			Uncertain->setAccessibleDescription(qualifier_clauses(*whole).join(QStringLiteral("; ")));
 			Uncertain->setEnabled(whole->Uncertain != 0U);
 		}
-		auto* const header = Files->header();
-		if (shown) {
-			header->setSectionResizeMode(overview_file_model::comments_column, QHeaderView::Fixed);
-			header->resizeSection(overview_file_model::comments_column, overview_comments_width);
-		} else {
-			header->setSectionResizeMode(overview_file_model::comments_column, QHeaderView::ResizeToContents);
-		}
+		FileColumns->set_fixed_width(overview_file_model::comments_column, shown ? std::optional{ overview_comments_width } : std::nullopt);
 	}
 
 	void pull_request_overview_page::refresh_feedback_icons()

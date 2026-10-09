@@ -64,6 +64,7 @@ add_library(
         src/conversation_open_card.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp
+        src/steady_columns.cpp
         src/resident_filter.cpp
         src/theme_preview_strip.cpp
         src/code_sample_painter.cpp

@@ -400,6 +400,27 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "files-tree-tests:pass"
         TIMEOUT 60
 )
+# [[BPR-1363]]. The Files drawer's folder rows at 125% and 200%: opening and
+# closing folders moves no column, and the disclosure mark is the leftmost
+# thing on the row. The row above runs the same tests at 100%.
+foreach(bpr_folder_rows_scale IN ITEMS 125 200)
+    if(bpr_folder_rows_scale STREQUAL "125")
+        set(bpr_folder_rows_factor "1.25")
+    else()
+        set(bpr_folder_rows_factor "2.0")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_files_tree_folder_rows_${bpr_folder_rows_scale}
+        COMMAND test_better_pull_review_qt_files_tree_tests --folder-rows
+    )
+    set_tests_properties(
+        qt_files_tree_folder_rows_${bpr_folder_rows_scale}
+        PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${bpr_folder_rows_factor}"
+            PASS_REGULAR_EXPRESSION "files-tree-folder-rows:pass"
+            TIMEOUT 60
+    )
+endforeach()
 
 bpr_add_executable(
     test_better_pull_review_qt_repositories_drawer_tests
@@ -606,6 +627,29 @@ foreach(bpr_chips_scale IN ITEMS 125 200)
             ENVIRONMENT
                 "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_chips_factor}"
             PASS_REGULAR_EXPRESSION "pull-request-overview-chips:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
+# [[BPR-1363]]. The Overview's folder rows at 125% and 200%: opening and
+# closing folders moves no column, and the disclosure mark is the leftmost
+# thing on the row. The 100% row above runs the same tests.
+foreach(bpr_folder_rows_scale IN ITEMS 125 200)
+    if(bpr_folder_rows_scale STREQUAL "125")
+        set(bpr_folder_rows_factor "1.25")
+    else()
+        set(bpr_folder_rows_factor "2.0")
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_pull_request_overview_folder_rows_${bpr_folder_rows_scale}
+        COMMAND test_better_pull_review_qt_pull_request_overview_page_tests --folder-rows
+    )
+    set_tests_properties(
+        qt_pull_request_overview_folder_rows_${bpr_folder_rows_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_folder_rows_factor}"
+            PASS_REGULAR_EXPRESSION "pull-request-overview-folder-rows:pass"
             TIMEOUT 120
     )
 endforeach()

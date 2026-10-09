@@ -44,6 +44,7 @@ namespace bpr::qt {
 	class overview_description_view;
 	class overview_summary_splitter;
 	class markdown_body_view;
+	class steady_columns;
 
 	/// \brief The colours the overview's marks are drawn in.
 	///
@@ -164,6 +165,9 @@ namespace bpr::qt {
 			unresolved_role,
 			/// [[BPR-1089]]. True on the "Not on a file" row.
 			remainder_role,
+			/// [[BPR-1363]]. On a folder row, the files it holds; its path
+			/// shows the count after it.
+			file_count_role,
 		};
 
 		explicit overview_file_model(QObject* aParent = nullptr);
@@ -246,7 +250,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QSize override;
 
-		/// \brief Where a folder cell draws its disclosure mark, in view coordinates.
+		/// \brief Where a folder row's first cell (`aOption.rect`) draws its
+		/// disclosure mark, in view coordinates: at the row's left edge
+		/// ([[BPR-1363]]).
 		[[nodiscard]] static auto disclosure_rect(const QStyleOptionViewItem& aOption) -> QRect;
 
 		/// \brief [[BPR-1089]]. The chip to ring while the view has focus.
@@ -256,6 +262,7 @@ namespace bpr::qt {
 		[[nodiscard]] static auto disclosure_width(const QStyleOptionViewItem& aOption) -> int;
 		void                      paint_cell(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_folder(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
+		void                      paint_disclosure(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const;
 		void                      paint_chips(QPainter* aPainter, const QStyleOptionViewItem& aOption, const core::feedback_counter_projection& aCounts, core::feedback_resolution_mode aMode) const;
 
 		const overview_colours&            Colours;
@@ -505,7 +512,9 @@ namespace bpr::qt {
 		QToolButton*                                          LabelKey      = nullptr;
 		QWidget*                                              LabelKeyPopup = nullptr;
 		overview_row_delegate*                                RowDelegate   = nullptr;
-		std::optional<overview_chip_focus>                    ChipFocus;
+		/// [[BPR-1363]]. The Files table's widths, from the whole tree.
+		steady_columns*                    FileColumns = nullptr;
+		std::optional<overview_chip_focus> ChipFocus;
 	};
 } // namespace bpr::qt
 

@@ -2,6 +2,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/resident_filter.hpp"
+#include "bpr/qt/steady_columns.hpp"
 
 #include <QContextMenuEvent>
 #include <QFont>
@@ -1005,7 +1006,10 @@ namespace bpr::qt {
 		setEditTriggers(QAbstractItemView::NoEditTriggers);
 		setIndentation(14);
 		setFocusPolicy(Qt::StrongFocus);
-		header()->setStretchLastSection(true);
+		// [[BPR-1363]]. The one column fills the tree less a scroll bar's
+		// width wherever scroll bars take space, so a bar that comes when
+		// opened folders outgrow the tree moves no count at the right edge.
+		new steady_columns{ *this, 0 };
 	}
 
 	auto files_tree_view::tree_model() const noexcept -> files_tree_model*

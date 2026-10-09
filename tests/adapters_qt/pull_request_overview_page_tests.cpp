@@ -41,13 +41,16 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <optional>
 #include <set>
 #include <source_location>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -432,8 +435,11 @@ namespace {
 		measured.initFrom(view);
 		const auto deepFolder = QModelIndex{ deep.parent() }.siblingAtColumn(qt::overview_file_model::file_column);
 		expect(view->visualRect(deepFolder).width()
-				   >= qt::overview_row_delegate::disclosure_rect(measured).width() + QFontMetrics{ bold }.horizontalAdvance(deepFolder.data().toString()),
-			   "the longest folder path fits its cell beside the disclosure mark, unelided");
+				   >= QFontMetrics{ bold }.horizontalAdvance(deepFolder.data().toString()) + QFontMetrics{ view->font() }.horizontalAdvance(QStringLiteral("  1")),
+			   "the longest folder path fits its cell with its file count after it, unelided");
+		expect(view->visualRect(QModelIndex{ deep.parent() }.siblingAtColumn(qt::overview_file_model::operation_column)).width()
+				   >= qt::overview_row_delegate::disclosure_rect(measured).width(),
+			   "the folder row's first cell holds its disclosure mark");
 		auto* accessible = QAccessible::queryAccessibleInterface(view);
 		auto* table      = accessible == nullptr ? nullptr : accessible->tableInterface();
 		expect(table != nullptr, "native Overview tree exposes an accessible table");
@@ -473,9 +479,9 @@ namespace {
 		view->setCurrentIndex(file);
 		auto option = QStyleOptionViewItem{ };
 		option.initFrom(view);
-		option.rect           = view->visualRect(QModelIndex{ renderer }.siblingAtColumn(qt::overview_file_model::file_column));
+		option.rect           = view->visualRect(QModelIndex{ renderer }.siblingAtColumn(qt::overview_file_model::operation_column));
 		const auto disclosure = qt::overview_row_delegate::disclosure_rect(option);
-		expect(disclosure.width() > 0 && option.rect.contains(disclosure), "the folder cell reserves its disclosure mark");
+		expect(disclosure.width() > 0 && option.rect.contains(disclosure), "the folder row's first cell reserves its disclosure mark");
 		click(*view, disclosure.center());
 		expect(!view->isExpanded(renderer) && view->visualRect(file).isEmpty() && view->currentIndex().siblingAtColumn(0) == renderer
 				   && dispatches == 0,
@@ -925,6 +931,26 @@ namespace {
 		expect(scroll->viewport()->rect().contains(page.entry_button()->mapTo(scroll->viewport(), QPoint{ 1, 1 })),
 			   "review entry remains reachable after the complete participant list");
 	}
+	/// \brief [[BPR-1363]]. Every column's left edge and width, in viewport
+	/// coordinates.
+	[[nodiscard]] auto column_geometry(const QTreeView& aView) -> std::vector<std::pair<int, int>>
+	{
+		auto geometry = std::vector<std::pair<int, int>>{ };
+		for (auto column = 0; column < qt::overview_file_model::column_count; ++column) {
+			geometry.emplace_back(aView.header()->sectionViewportPosition(column), aView.header()->sectionSize(column));
+		}
+		return geometry;
+	}
+
+	[[nodiscard]] auto describe(const std::vector<std::pair<int, int>>& aGeometry) -> std::string
+	{
+		auto text = std::string{ };
+		for (const auto& [left, width] : aGeometry) {
+			text += ' ' + std::to_string(left) + '+' + std::to_string(width);
+		}
+		return text;
+	}
+
 	class observed_overview_delegate final : public QStyledItemDelegate
 	{
 	public:
@@ -950,6 +976,11 @@ namespace {
 		QAbstractItemDelegate& Delegate;
 	};
 
+	/// \brief A thousand-file review sizes its columns from the whole tree,
+	/// yet takes the delegate's measure of only a bounded few cells, so the
+	/// first Overview show stays quick on the GUI lane ([[BPR-1363]]: the
+	/// widest name fits before it is ever scrolled into view, and scrolling
+	/// moves no column).
 	void test_column_sizing_measures_visible_files()
 	{
 		qt::pull_request_overview_page page;
@@ -957,7 +988,7 @@ namespace {
 		auto projected = projection();
 		projected.Files.clear();
 		for (auto index = 0; index < 1000; ++index) {
-			projected.Files.push_back(row("src/file_" + std::to_string(index) + ".cpp",
+			projected.Files.push_back(row(index == 999 ? "src/a_much_longer_file_name_than_any_other_999.cpp" : "src/file_" + std::to_string(index) + ".cpp",
 										  application::overview_file_operation::modified,
 										  application::overview_change_since_review::unchanged, std::nullopt));
 		}
@@ -969,17 +1000,269 @@ namespace {
 		page.show();
 		settle();
 		expect(!delegate->Paths.empty() && delegate->Paths.size() < 100U,
-			   "initial Overview sizes columns from visible files, not the complete thousand-file table");
-		expect(page.file_model()->file_count() == 1000U, "column sampling retains every exact file row");
-		const auto last = page.file_model()->index_for_path(QStringLiteral("src/file_999.cpp"));
-		view->scrollTo(last, QAbstractItemView::PositionAtBottom);
+			   "initial Overview measures a bounded few cells, not the complete thousand-file table");
+		expect(page.file_model()->file_count() == 1000U, "column sizing retains every exact file row");
+		const auto last = page.file_model()->index_for_path(QStringLiteral("src/a_much_longer_file_name_than_any_other_999.cpp"));
+		expect(!view->viewport()->rect().intersects(view->visualRect(last))
+				   && view->sizeHintForIndex(last).width() <= view->header()->sectionSize(qt::overview_file_model::file_column),
+			   "the widest file name fits its column before it is ever shown");
+		const auto before = column_geometry(*view);
 		delegate->Paths.clear();
-		view->header()->resizeSections(QHeaderView::ResizeToContents);
+		view->scrollTo(last, QAbstractItemView::PositionAtBottom);
 		settle();
-		expect(view->viewport()->rect().intersects(view->visualRect(last))
-				   && delegate->Paths.contains(QStringLiteral("src/file_999.cpp"))
-				   && delegate->Paths.size() < 100U,
-			   "scrolling sizes the newly visible last file without measuring the whole review");
+		expect(view->viewport()->rect().intersects(view->visualRect(last)) && column_geometry(*view) == before && delegate->Paths.size() < 100U,
+			   "scrolling to the last file moves no column and measures nothing more of the review");
+	}
+
+	/// \brief [[BPR-1363]]. The owner's nested-folders pull request
+	/// (`nested-folders-v1`), file for file.
+	[[nodiscard]] auto nested_folders_projection() -> application::pull_request_overview_projection
+	{
+		using operation = application::overview_file_operation;
+		auto projected  = projection();
+		projected.Files.clear();
+		struct entry final
+		{
+			const char*   Path;
+			operation     Operation;
+			std::uint64_t Additions;
+			std::uint64_t Deletions;
+		};
+		for (const auto& source : std::vector<entry>{
+				 { "README.md", operation::modified, 2U, 1U },
+				 { "docs/api/reference.md", operation::modified, 1U, 0U },
+				 { "docs/api/v2/endpoints.md", operation::added, 4U, 0U },
+				 { "docs/guide.md", operation::modified, 1U, 0U },
+				 { "src/engine/renderer.cpp", operation::modified, 7U, 0U },
+				 { "src/engine/renderer.h", operation::modified, 5U, 0U },
+				 { "src/engine/shaders/basic.frag", operation::modified, 2U, 1U },
+				 { "src/engine/shaders/basic.vert", operation::modified, 2U, 1U },
+				 { "src/engine/shaders/post/bloom.frag", operation::added, 5U, 0U },
+				 { "src/engine/shaders/post/tonemap.frag", operation::added, 5U, 0U },
+				 { "src/main.cpp", operation::modified, 1U, 0U },
+				 { "src/ui/widgets/button.cpp", operation::modified, 1U, 1U },
+				 { "src/ui/widgets/button.h", operation::modified, 1U, 0U },
+				 { "src/ui/widgets/slider.cpp", operation::added, 6U, 0U },
+				 { "tests/engine/renderer_tests.cpp", operation::modified, 1U, 0U },
+				 { "tests/ui/widgets/button_tests.cpp", operation::added, 11U, 0U },
+				 { "tools/build/scripts/package.py", operation::modified, 2U, 1U },
+			 }) {
+			auto file      = row(source.Path, source.Operation, application::overview_change_since_review::unchanged, core::file_read_state::unread);
+			file.Additions = source.Additions;
+			file.Deletions = source.Deletions;
+			projected.Files.push_back(std::move(file));
+		}
+		projected.Progress.FilesTotal = projected.Files.size();
+		projected.Progress.FilesRead  = 0U;
+		return projected;
+	}
+
+	/// \brief [[BPR-1363]]. The owner, 2026-10-09: "I dont like that opening
+	/// this disclosure shift the column widths". Opening or closing a folder,
+	/// all of them, a refresh, or a scroll never moves a column or changes its
+	/// width; the File column holds every file and folder of the whole tree,
+	/// shown or not; and a width the user drags stays.
+	void test_folder_disclosure_never_moves_a_column()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1100, 640);
+		const auto projected = nested_folders_projection();
+		page.present(projected);
+		page.show();
+		settle();
+		auto* const view   = page.files_view();
+		auto* const model  = page.file_model();
+		auto* const header = view->header();
+		page.collapse_folders_button()->click();
+		settle();
+		const auto closed = column_geometry(*view);
+		const auto same   = [&](const std::string_view aStep) {
+			settle();
+			const auto now = column_geometry(*view);
+			if (now != closed) {
+				std::cerr << "columns before:" << describe(closed) << "\ncolumns after: " << describe(now) << '\n';
+			}
+			expect(now == closed, aStep);
+		};
+		auto folders = std::vector<QPersistentModelIndex>{ };
+		for (auto folder = 0; folder < model->rowCount(); ++folder) {
+			if (model->index(folder, 0).data(qt::overview_file_model::folder_role).toBool()) {
+				folders.emplace_back(model->index(folder, 0));
+			}
+		}
+		expect(folders.size() == 12U, "the nested-folders pull request has twelve folder rows");
+		// The owner's step: open docs/api alone, then close it.
+		const auto api = QPersistentModelIndex{ model->index_for_path(QStringLiteral("docs/api/reference.md")).parent() };
+		view->setExpanded(api, true);
+		same("opening docs/api moves no column and changes no width");
+		view->setExpanded(api, false);
+		same("closing docs/api again moves no column");
+		for (const auto& folder : folders) {
+			view->setExpanded(folder, true);
+			same("opening each folder in turn moves no column");
+		}
+		const auto scrolls = view->verticalScrollBar()->maximum() > 0;
+		expect(scrolls, "with every folder open the table scrolls, so a scroll bar can come and go");
+		view->scrollToBottom();
+		same("scrolling to the last file moves no column");
+		for (const auto& folder : folders) {
+			view->setExpanded(folder, false);
+			same("closing each folder in turn moves no column");
+		}
+		page.expand_folders_button()->click();
+		same("expand all moves no column");
+		page.collapse_folders_button()->click();
+		same("collapse all moves no column");
+		page.present(projected);
+		same("a refresh of the same pull request moves no column");
+
+		// Every cell of the whole tree fits its column, whether its folder is
+		// open or not, at the delegate's own measure.
+		for (const auto& folder : folders) {
+			for (auto column = 0; column < qt::overview_file_model::column_count; ++column) {
+				if (column == qt::overview_file_model::note_column || column == qt::overview_file_model::comments_column) {
+					continue;
+				}
+				expect(view->sizeHintForIndex(folder.sibling(folder.row(), column)).width() <= header->sectionSize(column),
+					   "every folder cell fits its column");
+				for (auto file = 0; file < model->rowCount(folder); ++file) {
+					expect(view->sizeHintForIndex(model->index(file, column, folder)).width() <= header->sectionSize(column),
+						   "every file cell fits its column, its folder closed");
+				}
+			}
+		}
+
+		// A width the user drags on the File column's edge stays.
+		const auto fileColumn = qt::overview_file_model::file_column;
+		const auto edge       = header->sectionViewportPosition(fileColumn) + header->sectionSize(fileColumn) - 1;
+		const auto dragged    = header->sectionSize(fileColumn) + 40;
+		const auto at         = [&](const int aX) { return QPointF{ static_cast<qreal>(aX), header->height() / 2.0 }; };
+		const auto send       = [&](const QEvent::Type aType, const int aX, const Qt::MouseButtons aButtons) {
+			QMouseEvent event{ aType, at(aX), QPointF{ header->viewport()->mapToGlobal(at(aX)) }, Qt::LeftButton, aButtons, Qt::NoModifier };
+			QApplication::sendEvent(header->viewport(), &event);
+		};
+		send(QEvent::MouseMove, edge, Qt::NoButton);
+		send(QEvent::MouseButtonPress, edge, Qt::LeftButton);
+		send(QEvent::MouseMove, edge + 20, Qt::LeftButton);
+		send(QEvent::MouseMove, edge + 40, Qt::LeftButton);
+		send(QEvent::MouseButtonRelease, edge + 40, Qt::NoButton);
+		settle();
+		expect(header->sectionSize(fileColumn) == dragged, "a drag on the File column's edge widens it");
+		const auto draggedGeometry = column_geometry(*view);
+		expect(draggedGeometry[qt::overview_file_model::added_column].first == closed[qt::overview_file_model::added_column].first + 40,
+			   "the columns after it move with the drag");
+		page.expand_folders_button()->click();
+		settle();
+		page.collapse_folders_button()->click();
+		settle();
+		page.present(projected);
+		settle();
+		expect(column_geometry(*view) == draggedGeometry, "the dragged width stays through opening, closing and a refresh");
+	}
+
+	/// \brief [[BPR-1363]]. The leftmost and rightmost device pixels of a
+	/// row band that differ from the band's commonest colour, its ground, in
+	/// logical coordinates; nothing when the band is bare.
+	[[nodiscard]] auto ink_span(const QImage& aImage, const QRect& aBand) -> std::optional<std::pair<qreal, qreal>>
+	{
+		const auto ratio  = aImage.devicePixelRatio();
+		const auto top    = static_cast<int>(std::ceil(aBand.top() * ratio)) + 1;
+		const auto bottom = static_cast<int>(std::floor((aBand.bottom() + 1) * ratio)) - 2;
+		const auto left   = static_cast<int>(std::ceil(aBand.left() * ratio));
+		const auto right  = std::min(aImage.width(), static_cast<int>(std::floor((aBand.right() + 1) * ratio))) - 1;
+		auto       counts = std::map<QRgb, int>{ };
+		for (auto y = top; y <= bottom; ++y) {
+			for (auto x = left; x <= right; ++x) {
+				++counts[aImage.pixel(x, y)];
+			}
+		}
+		const auto ground = std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; })->first;
+		const auto inked  = [&](const int aX) {
+			for (auto y = top; y <= bottom; ++y) {
+				const auto pixel = aImage.pixel(aX, y);
+				if (std::abs(qRed(pixel) - qRed(ground)) + std::abs(qGreen(pixel) - qGreen(ground)) + std::abs(qBlue(pixel) - qBlue(ground)) > 60) {
+					return true;
+				}
+			}
+			return false;
+		};
+		auto first = left;
+		while (first <= right && !inked(first)) {
+			++first;
+		}
+		if (first > right) {
+			return std::nullopt;
+		}
+		auto last = right;
+		while (!inked(last)) {
+			--last;
+		}
+		return std::pair{ first / ratio, (last + 1) / ratio };
+	}
+
+	/// \brief [[BPR-1363]]. The owner, 2026-10-09: "The disclosure arrow not
+	/// being the leftmost thing on the overview page for the folder rows is
+	/// really bothering me." On every folder row the disclosure mark is the
+	/// leftmost thing painted; the folder's file count follows its path; and
+	/// the path starts where every file name starts.
+	void test_folder_disclosure_is_the_leftmost_mark()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1100, 640);
+		page.present(nested_folders_projection());
+		page.show();
+		settle();
+		auto* const view  = page.files_view();
+		auto* const model = page.file_model();
+		page.collapse_folders_button()->click();
+		view->clearSelection();
+		view->setCurrentIndex({ });
+		settle();
+		const auto image = view->viewport()->grab().toImage();
+		auto       bold  = view->font();
+		bold.setWeight(QFont::DemiBold);
+		auto folders = 0;
+		for (auto row = 0; row < model->rowCount(); ++row) {
+			const auto folder = model->index(row, qt::overview_file_model::operation_column);
+			if (!folder.data(qt::overview_file_model::folder_role).toBool()) {
+				continue;
+			}
+			++folders;
+			const auto path   = folder.siblingAtColumn(qt::overview_file_model::file_column);
+			const auto count  = QString::number(folder.data(qt::overview_file_model::file_count_role).toULongLong());
+			auto       option = QStyleOptionViewItem{ };
+			option.initFrom(view);
+			option.rect         = view->visualRect(folder);
+			const auto arrow    = qt::overview_row_delegate::disclosure_rect(option);
+			const auto rowBand  = QRect{ 0, option.rect.top(), view->viewport()->width(), option.rect.height() };
+			const auto whole    = ink_span(image, rowBand);
+			const auto inArrow  = ink_span(image, arrow);
+			const auto pathCell = view->visualRect(path);
+			const auto pathInk  = ink_span(image, pathCell);
+			expect(whole && inArrow && pathInk, "a folder row paints its disclosure mark and its path");
+			expect(whole->first == inArrow->first && whole->first < pathInk->first && inArrow->second <= pathCell.left() + 1,
+				   "the disclosure mark is the leftmost thing painted on a folder row");
+			expect(path.data().toString() == (folder.data(Qt::AccessibleTextRole).toString().section(QLatin1Char(','), 0, 0).mid(7))
+					   && folder.data(Qt::AccessibleTextRole).toString().endsWith(QStringLiteral(", %1 files").arg(count)),
+				   "the folder's accessible text still names its path and file count");
+			expect(folder.data(Qt::DisplayRole).toString().isEmpty(), "the folder row's first cell shows no count of its own");
+			// After the path's advance and half the space between them.
+			const auto countCell = QRect{ pathCell.left() + 3 + QFontMetrics{ bold }.horizontalAdvance(path.data().toString()) + QFontMetrics{ view->font() }.horizontalAdvance(QLatin1Char(' ')), pathCell.top(),
+										  pathCell.width(), pathCell.height() }
+									   .intersected(pathCell);
+			const auto countInk  = ink_span(image, countCell);
+			expect(countInk && countInk->second - countInk->first <= QFontMetrics{ view->font() }.horizontalAdvance(count) + 2,
+				   "the folder's file count follows its path");
+		}
+		expect(folders == 12, "every folder row was checked");
+		const auto reference = model->index_for_path(QStringLiteral("docs/api/reference.md"));
+		view->setExpanded(reference.parent(), true);
+		settle();
+		expect(view->visualRect(reference).left() == view->visualRect(reference.parent().siblingAtColumn(qt::overview_file_model::file_column)).left(),
+			   "a file's name starts where its folder's path starts");
+		if (const auto target = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !target.isEmpty()) {
+			expect(page.grab().save(target, "PNG"), "the folder rows render is saved for inspection");
+		}
 	}
 
 	void test_cached_catalogue_availability_and_navigation()
@@ -2116,6 +2399,13 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-chips:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1363]]. The 125% and 200% rows run the folder rows at their scale.
+	if (argc > 1 && std::string_view{ argv[1] } == "--folder-rows") {
+		test_folder_disclosure_never_moves_a_column();
+		test_folder_disclosure_is_the_leftmost_mark();
+		std::cout << "pull-request-overview-folder-rows:pass dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
 	// [[BPR-1331]] v003. The read column's marks alone.
 	if (argc > 1 && std::string_view{ argv[1] } == "--read-marks") {
 		test_the_read_column_shows_the_mark();
@@ -2125,6 +2415,8 @@ auto main(int argc, char** argv) -> int
 	test_history_publication_does_not_touch_file_rows();
 	test_cached_catalogue_availability_and_navigation();
 	test_column_sizing_measures_visible_files();
+	test_folder_disclosure_never_moves_a_column();
+	test_folder_disclosure_is_the_leftmost_mark();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();

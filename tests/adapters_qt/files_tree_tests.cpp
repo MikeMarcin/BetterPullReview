@@ -4,17 +4,22 @@
 #include "bpr/qt/resident_filter.hpp"
 
 #include <QApplication>
+#include <QHeaderView>
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPersistentModelIndex>
+#include <QScrollBar>
 #include <QStyleOptionViewItem>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -676,11 +681,136 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1363]]. The owner's nested-folders pull request in the
+	/// Files drawer: opening and closing folders, so that the rows outgrow the
+	/// tree and a scroll bar comes and goes, never moves or narrows the
+	/// column, so the counts at its right edge stay where they are.
+	void test_folder_disclosure_never_moves_the_column()
+	{
+		qt::files_tree_view view;
+		view.resize(320, 300);
+		view.show();
+		QApplication::processEvents();
+		auto rows = std::vector<qt::workbench_drawer_row>{ };
+		for (const auto* path : { "README.md", "docs/api/reference.md", "docs/api/v2/endpoints.md", "docs/guide.md", "src/engine/renderer.cpp",
+								  "src/engine/renderer.h", "src/engine/shaders/basic.frag", "src/engine/shaders/basic.vert",
+								  "src/engine/shaders/post/bloom.frag", "src/engine/shaders/post/tonemap.frag", "src/main.cpp",
+								  "src/ui/widgets/button.cpp", "src/ui/widgets/button.h", "src/ui/widgets/slider.cpp",
+								  "tests/engine/renderer_tests.cpp", "tests/ui/widgets/button_tests.cpp", "tools/build/scripts/package.py" }) {
+			rows.push_back(file(path));
+		}
+		view.apply(rows);
+		QApplication::processEvents();
+		view.collapseAll();
+		QApplication::processEvents();
+		const auto geometry = [&view] { return std::pair{ view.header()->sectionViewportPosition(0), view.header()->sectionSize(0) }; };
+		const auto closed   = geometry();
+		const auto same     = [&](const std::string_view aStep) {
+			QApplication::processEvents();
+			const auto now = geometry();
+			if (now != closed) {
+				std::cerr << "column before: " << closed.first << '+' << closed.second << " after: " << now.first << '+' << now.second << '\n';
+			}
+			expect(now == closed, aStep);
+		};
+		expect(view.verticalScrollBar()->maximum() == 0, "with every folder closed the rows fit");
+		view.expandAll();
+		same("opening every folder moves and narrows nothing");
+		expect(view.verticalScrollBar()->maximum() > 0, "with every folder open the rows outgrow the tree");
+		view.scrollToBottom();
+		same("scrolling moves nothing");
+		view.collapseAll();
+		same("closing every folder moves and widens nothing");
+		const auto* model = view.model();
+		for (auto folder = 0; folder < model->rowCount(); ++folder) {
+			view.expand(model->index(folder, 0));
+			same("opening each folder in turn moves nothing");
+		}
+		view.apply(rows);
+		same("a refresh moves nothing");
+		view.resize(360, 300);
+		QApplication::processEvents();
+		expect(geometry().second > closed.second, "a wider tree still widens its column");
+	}
+
+	/// \brief [[BPR-1363]]. The leftmost device pixel of a band that differs
+	/// from the band's commonest colour, in logical coordinates.
+	[[nodiscard]] auto first_ink(const QImage& aImage, const QRect& aBand) -> std::optional<qreal>
+	{
+		const auto ratio  = aImage.devicePixelRatio();
+		const auto top    = static_cast<int>(std::ceil(aBand.top() * ratio)) + 1;
+		const auto bottom = static_cast<int>(std::floor((aBand.bottom() + 1) * ratio)) - 2;
+		const auto right  = std::min(aImage.width(), static_cast<int>(std::floor((aBand.right() + 1) * ratio))) - 1;
+		auto       counts = std::map<QRgb, int>{ };
+		for (auto y = top; y <= bottom; ++y) {
+			for (auto x = 0; x <= right; ++x) {
+				++counts[aImage.pixel(x, y)];
+			}
+		}
+		const auto ground = std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; })->first;
+		for (auto x = 0; x <= right; ++x) {
+			for (auto y = top; y <= bottom; ++y) {
+				const auto pixel = aImage.pixel(x, y);
+				if (std::abs(qRed(pixel) - qRed(ground)) + std::abs(qGreen(pixel) - qGreen(ground)) + std::abs(qBlue(pixel) - qBlue(ground)) > 60) {
+					return x / ratio;
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
+	/// \brief [[BPR-1363]]. In the Files drawer too, a folder row's
+	/// disclosure mark is the leftmost thing painted on it: the view draws it
+	/// in the row's indentation, before the folder's name.
+	void test_folder_disclosure_is_the_leftmost_mark()
+	{
+		qt::files_tree_view view;
+		view.resize(320, 500);
+		view.show();
+		QApplication::processEvents();
+		view.apply({ file("README.md"), file("docs/api/reference.md"), file("docs/guide.md"), file("src/engine/renderer.cpp"), file("src/main.cpp") });
+		view.collapseAll();
+		view.expand(view.tree_model()->index(0, 0));
+		view.clearSelection();
+		view.setCurrentIndex({ });
+		QApplication::processEvents();
+		const auto  image   = view.viewport()->grab().toImage();
+		const auto* model   = view.model();
+		auto        checked = 0;
+		const auto  check   = [&](const QModelIndex& aFolder) {
+			const auto rect = view.visualRect(aFolder);
+			const auto ink  = first_ink(image, QRect{ 0, rect.top(), view.viewport()->width(), rect.height() });
+			expect(ink && *ink >= rect.left() - view.indentation() && *ink < rect.left(), "the disclosure mark is the leftmost thing on a drawer folder row");
+			++checked;
+		};
+		for (auto row = 0; row < model->rowCount(); ++row) {
+			const auto top = model->index(row, 0);
+			if (top.data(qt::files_tree_model::folder_role).toBool()) {
+				check(top);
+				for (auto child = 0; child < model->rowCount(top); ++child) {
+					if (const auto inner = model->index(child, 0, top); view.isExpanded(top) && inner.data(qt::files_tree_model::folder_role).toBool()) {
+						check(inner);
+					}
+				}
+			}
+		}
+		expect(checked >= 3, "top-level and nested drawer folders were checked");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	// [[BPR-1363]]. The 125% and 200% rows run the folder rows at their scale.
+	if (argc > 1 && std::string_view{ argv[1] } == "--folder-rows") {
+		test_folder_disclosure_never_moves_the_column();
+		test_folder_disclosure_is_the_leftmost_mark();
+		std::cout << "files-tree-folder-rows:pass dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
+	test_folder_disclosure_never_moves_the_column();
+	test_folder_disclosure_is_the_leftmost_mark();
 	test_file_deltas_equal_complete_projection();
 	test_file_lookup_reuses_indexes();
 	test_receipt_updates_preserve_tree_indexes();
