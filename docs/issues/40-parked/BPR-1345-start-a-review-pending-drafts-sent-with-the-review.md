@@ -817,3 +817,34 @@ unchanged. The dated note says what moved.
 - A confirmation that restores an earlier unfinished submission closes the
   page as well. That submission is shown, with Check status, the next time
   Compose review or Finish review opens.
+
+### Owner look v003 (pending)
+
+One new short session, not the long default one: three Accept/Reject
+questions, one per rejected v002 item. None is self-certified.
+
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v003.i2hsl035`:
+  `4f9d0f98b` exported and built there (optimized, tests on) by
+  `scripts/freeze_attended_build.py`, executable SHA-256
+  `121661a3079c5468878bcfb193a1509528a22abe9f40c7c4df3f960de228dbe0`. Its own
+  check printed `ATTENDED_FILE_SHOWN` for `src/ui/conversation_cards_view.cpp`
+  on `inline-drawer-v1`. The frozen executable passed the `again`
+  (`START_REVIEW_AGAIN_EVIDENCE:1111111111`), `refused` (`1111`) and
+  `uncertain` (`1111`) courses offscreen, and the `again` run made the
+  session's renders. Launch:
+  `python3 /Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v003.i2hsl035/launch.py`.
+  Everything goes to the fixture server; nothing reaches GitHub.
+- Session `15cc2ae59c19c6c52ad63fbc46e73f35`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1345-start-a-review-v003/state`
+  (repository root `/Users/jaeger/Documents/GitHub/BetterPullReview`). All
+  three candidates were ready at event cursor 9; the host runs detached
+  (pid 28600).
+- Candidates, revision `frozen-4f9d0f98b-v003`:
+  `BPR-1345-delete-comment-v003` (`5ac9bbaa…`),
+  `BPR-1345-discard-review-v003` (`da743d34…`) and
+  `BPR-1345-finish-closes-v003` (`01d868ac…`). Each carries renders from the
+  frozen application; the delete question also carries the unit render of a
+  labelled comment, its mark in the gutter.
+
+Next: on hand-back, read `status --after 9`. Accepts answer AC3's owner half
+and the v003 items (AC5); a Reject's note is the next round's change.
