@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1370"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A text blob read proves its account in its own GraphQL answer, without separate viewer checks",
+  "created": "2026-10-09T19:27:03.802291+00:00",
+  "base": "bad010633ea2095204d369cdcb587f92756625d7"
+}
