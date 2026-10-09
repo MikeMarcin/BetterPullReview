@@ -18,7 +18,10 @@ remaining designated live-server readback requirement.
 - Qt 6.8 or newer, including CoreTools (`rcc`), for the Qt adapter and application
 - Python 3.10 or newer for structural and runtime verification scripts
 - Git 2.39 or newer for installed-Git contract tests
-- Clang-format and clang-tidy 22.1.8 for coding-standard verification
+- Clang-format and clang-tidy 22.1.8 for coding-standard verification. The
+  format gate takes clang-format 22 and no other major release
+  (`brew install llvm@22`, `apt install clang-format-22`; see "The format
+  gate needs clang-format 22, exactly")
 - On Linux, stable `libsecret-1>=0.20.0` and its development metadata
 - On Linux, libxcb's development metadata (`xcb` in `pkg-config`), for the
   application's X11 activation host ([[BPR-1024]])
@@ -1079,25 +1082,31 @@ python3 scripts/survey_gcc_aggregate_cleanups.py --build-dir build/dev --build-d
   build of a base that adds aggregate initializers under `src/`. Both presets
   take about five minutes at `--jobs 10`.
 
-### The format gate needs clang-format 22 or newer
+### The format gate needs clang-format 22, exactly
 
-The tree is rendered by **clang-format 22 or newer**, and both format scripts
-now refuse an older tool rather than returning a verdict from it:
+The tree is rendered by **clang-format 22**, and both format scripts refuse any
+other major release rather than returning a verdict from it ([[BPR-1352]]):
 
 ```
-error: unsupported clang-format: /usr/bin/clang-format reports version 21.1.8
-       This project's .clang-format requires clang-format 22 or newer. …
+error: unsupported clang-format: /opt/homebrew/opt/llvm/bin/clang-format reports version 23.1.1
+       This project's .clang-format is rendered by clang-format 22 exactly. …
+       Install clang-format 22; the gate looks for it first:
+         macOS: brew install llvm@22  (found at /opt/homebrew/opt/llvm@22/bin/clang-format)
+         Debian/Ubuntu: sudo apt install clang-format-22  (found as clang-format-22)
+         Windows: install LLVM 22.x, …
 ```
 
-There are three tiers, and only the third can produce a verdict:
+Each major release renders the style file differently, so only 22 can produce
+a verdict:
 
 | clang-format | What happens |
 |---|---|
 | 17 and earlier | **Cannot read `.clang-format` at all**: `unknown key 'AlignFunctionPointers'`, an option added in 18. The tool falls back to a default style, so every file looks dirty for a reason that has nothing to do with the file. Verified directly with Apple clang-format 16.0.0. |
 | 18 through 21 | Read the style file, but render an empty braced initializer as `{}` where this tree holds `{ }` |
-| 22 and newer | Render the tree as it is committed |
+| 22 | Renders the tree as it is committed |
+| 23 | Reads the style file, but orders some include blocks differently, aligns runs of consecutive assignments differently, and indents a designated initializer's continuation lines differently |
 
-The middle tier is the one that looks like a real result and is not. Measured on
+The 18-to-21 tier looks like a real result and is not. Measured on
 Ubuntu 26.04, 21.1.8 reported 292 of 375 files needing formatting where 22.1.2
 reported one; every one of the 151 files under `src/` containing `{ }` was in the
 older tool's list, and every file it called clean contained none. So the failures
@@ -1105,14 +1114,42 @@ were never selective, and a passing run under an unrecorded version was never
 proof. No key restores the space under `Cpp11BracedListStyle: false` in those
 releases — `SpaceInEmptyBraces` is not an option they accept.
 
-`format.py` refuses for the stronger reason: an older tool would not merely
+23 is subtler: most files agree. The gate used to accept "22 or newer". Then
+Homebrew's default `llvm` moved to 23.1.1 while the Linux station stayed on
+22.1.8, and four files formatted on the Mac failed Linux's
+`coding_format_check`:
+
+- `src/adapters/qt/src/anchored_tooltip.cpp` and
+  `tests/end_to_end/change_arrows_across_files_public_path_tests.cpp`: include
+  order;
+- `tests/adapters_qt/workbench_window_tests.cpp`: assignment alignment;
+- `tests/core/workbench_interaction_tests.cpp`: both assignment alignment and a
+  designated initializer's continuation indent.
+
+A file formatted by either release fails the other's check.
+
+**Getting 22.** Without `--clang-format`, the scripts take the first
+clang-format that reports 22, from:
+
+1. `clang-format-22` on `PATH`;
+2. `clang-format` in `/opt/homebrew/opt/llvm@22/bin`,
+   `/usr/local/opt/llvm@22/bin` or `/usr/lib/llvm-22/bin`;
+3. `clang-format` on `PATH`.
+
+| Platform | Install | What the search finds |
+|---|---|---|
+| macOS | `brew install llvm@22` | `/opt/homebrew/opt/llvm@22/bin/clang-format`. The formula is keg-only, so it does not displace Homebrew's default `llvm` on `PATH` |
+| Debian, Ubuntu | `sudo apt install clang-format-22` | `/usr/bin/clang-format-22` |
+| Windows | Install LLVM 22.x, or use a Visual Studio whose bundled LLVM is 22.x | Not searched for; see below |
+
+`format.py` refuses for the stronger reason: another release would not merely
 misreport those files, it would rewrite them.
 
 Pass `--allow-unsupported-clang-format` to run anyway. The scripts still print
 the diagnostic and label the result advisory, because a verdict from a tool that
 renders the style file differently is not a gate verdict.
-`coding_standard_format_gate_contract` covers the refusal, the override, and the
-accepted path.
+`coding_standard_format_gate_contract` covers the refusal of 21 and of 23, the
+override, the accepted path, and both searches.
 
 ### The sweep checks formatting: `coding_format_check`
 
@@ -1123,14 +1160,22 @@ row, a fully green sweep could hide an unformatted tree. That happened twice:
 `95343750` when this row was added.
 
 The row uses the clang-format that configure found. Configure does not simply
-take the first one on `PATH`. It asks each candidate on CMake's program search
-path for its version and passes over any older than 22. On `bpr-linux`,
-`PATH` gives 21.1.8 from `~/.local/bin` first, and `/usr/bin/clang-format` is
-22.1.8. Configure picks the second, and prints the result:
+take the first one on `PATH`. It searches the same places as the scripts:
+`clang-format-22` first, then the pinned install directories, then
+`clang-format` on CMake's program search path. It asks each candidate for its
+version and passes over any release other than 22. On `bpr-linux`, `PATH`
+gives 21.1.8 from `~/.local/bin` first, and `/usr/bin/clang-format` is 22.1.8.
+On the Mac, `PATH` gives Homebrew's 23.1.1, and `llvm@22` holds 22.1.8.
+Configure picks the 22, and prints the result:
 
 ```
--- Coding standard clang-format: /usr/bin/clang-format
+-- Coding standard clang-format: /opt/homebrew/opt/llvm@22/bin/clang-format
 ```
+
+A build tree configured before the pin can have Homebrew's 23 cached. On the
+next configure, CMake warns
+`BPR_CLANG_FORMAT_EXECUTABLE is /opt/homebrew/opt/llvm/bin/clang-format, but
+the format gate needs clang-format 22 exactly` and searches again.
 
 The `coding-format` and `coding-format-check` targets now use the same tool.
 To choose one yourself, set `-DBPR_CLANG_FORMAT_EXECUTABLE=<path>`.
@@ -1139,9 +1184,9 @@ The row has three outcomes:
 
 | Result | Meaning |
 |---|---|
-| Passed | Every file is formatted, as judged by a supported clang-format |
+| Passed | Every file is formatted, as judged by clang-format 22 |
 | Failed | The row lists the files needing formatting. Fix them with `coding-format` |
-| Skipped | There was no supported clang-format, so there is no verdict. The row prints why |
+| Skipped | There was no clang-format 22, so there is no verdict. The row prints why |
 
 A skip is not a pass. It appears in CTest's "The following tests did not run"
 list and in the JUnit `skipped` count. When you report a sweep, report the
@@ -1153,7 +1198,8 @@ reported as skipped. This was measured on CMake 4.4.2.
 
 On **Windows**, `clang-format` is not on `PATH` by default even with Visual
 Studio 2022 installed, so the gate's first failure on a fresh checkout is
-`Tool not found on PATH: clang-format` rather than a formatting complaint, and
+`no clang-format found; this project needs clang-format 22` rather than a
+formatting complaint, and
 configure finds no tool, so `coding_format_check` is skipped. Add
 the Visual Studio LLVM directory before configuring:
 
@@ -1163,10 +1209,13 @@ $env:PATH = "$env:PATH;${env:ProgramFiles}\Microsoft Visual Studio\18\Community\
 
 Adjust the edition and version segments to the installed instance. You can
 also give the executable directly: pass `--clang-format` to the scripts, or
-`-DBPR_CLANG_FORMAT_EXECUTABLE` to configure. Check what the toolchain actually
-supplies before trusting a run: Visual Studio's bundled LLVM has satisfied the
-minimum since it moved to 22.x, and an instance still shipping 21 or earlier
-gets the refusal above.
+`-DBPR_CLANG_FORMAT_EXECUTABLE` to configure. The pinned install directories
+are Homebrew and Debian paths, so on Windows the search finds only
+`clang-format-22.exe` or `clang-format.exe` on `PATH`, and the tool must report
+22. Check what the toolchain actually supplies before trusting a run: Visual
+Studio's bundled LLVM is accepted while it is 22.x. An instance shipping 21 or
+earlier, or a later update that moves it to 23, gets the refusal above; install
+LLVM 22.x and name it instead.
 
 ### A passing row can leave cases unchecked
 
@@ -1198,7 +1247,7 @@ first KiB of a passing row's output there. So when the report has something to
 name, it also prints `CTEST_FULL_OUTPUT`, and CTest keeps the whole output.
 
 When you report a sweep, list these lines as well as the rows that did not run.
-A skipped row, such as `coding_format_check` without a supported clang-format,
+A skipped row, such as `coding_format_check` without a clang-format 22,
 gave no verdict. A row with skipped cases gave a verdict on everything except
 the named cases.
 

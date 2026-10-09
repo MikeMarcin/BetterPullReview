@@ -16,7 +16,7 @@ from _coding_standard import (
     normalize_input_paths,
     read_nul_paths_from_stdin,
     repo_root,
-    resolve_tool,
+    resolve_clang_format,
     supports_option,
     version_text,
 )
@@ -85,7 +85,15 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check selected C/C++ files with clang-format without modifying them.")
     parser.add_argument("paths", nargs="*", help="Files or directories to check. Defaults to normal project source roots.")
     parser.add_argument("--root", type=Path, default=None, help="Project root to scan. Defaults to the current working directory.")
-    parser.add_argument("--clang-format", default="clang-format", help="clang-format executable path or PATH name.")
+    parser.add_argument(
+        "--clang-format",
+        default=None,
+        help=(
+            "clang-format executable path or PATH name. Defaults to the first clang-format 22 found:"
+            " clang-format-22 on PATH, then Homebrew's llvm@22 and Debian's llvm-22, then clang-format"
+            " on PATH."
+        ),
+    )
     add_clang_format_version_argument(parser)
     parser.add_argument("--from-stdin", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
@@ -96,7 +104,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     root = repo_root(args.root)
 
     try:
-        clang_format = resolve_tool(args.clang_format)
+        clang_format = resolve_clang_format(args.clang_format)
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 2

@@ -561,11 +561,12 @@ bpr_add_network_isolated_test(
 # above tests the gate script. This row runs the gate on the project, so an
 # unformatted file under src/ or tests/ fails the sweep.
 #
-# It runs the clang-format that configure found (CodingStandardClangFormat.cmake).
-# Configure passes over an older tool earlier on PATH. Where no supported tool
-# exists, the row reports Skipped: an old or missing tool says nothing about
-# whether the source is formatted, so it must not fail the row. A skip still
-# appears in the sweep's summary, so it is not mistaken for a pass.
+# It runs the clang-format 22 that configure found
+# (CodingStandardClangFormat.cmake). Configure passes over any other release
+# earlier on PATH ([[BPR-1352]]). Where there is no 22, the row reports Skipped:
+# another release or a missing tool says nothing about whether the source is
+# formatted, so it must not fail the row. A skip still appears in the sweep's
+# summary, so it is not mistaken for a pass.
 #
 # The skip is an exit code, not an output expression. If CTest stopped applying
 # SKIP_RETURN_CODE before the inherited TEST_RUNNER_CHILD_EXIT_FAILED error

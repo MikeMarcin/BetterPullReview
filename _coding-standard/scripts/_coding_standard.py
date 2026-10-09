@@ -10,14 +10,48 @@ from pathlib import Path
 from typing import Iterable, Iterator, List, Optional, Sequence, Set, TextIO, Tuple
 
 
-# The root `.clang-format` is rendered by clang-format 22 and later. Release 21
-# and earlier strip the space out of an empty braced initializer -- they emit
-# `{}` where this style file's own sources hold `{ }` -- and no setting restores
-# it, because `SpaceInEmptyBraces` is not a key those releases accept. The
-# difference is not cosmetic to the gate: on this tree it makes an older tool
-# report several hundred files dirty that a supported tool reports clean, and it
-# would make `format.py` rewrite every one of them.
-MINIMUM_CLANG_FORMAT_VERSION: Tuple[int, ...] = (22,)
+# The root `.clang-format` is rendered by clang-format 22, and only by 22
+# ([[BPR-1352]]). The style file does not pin a renderer; the tree does. Release
+# 21 and earlier strip the space out of an empty braced initializer -- they emit
+# `{}` where this tree holds `{ }` -- and no setting restores it, because
+# `SpaceInEmptyBraces` is not a key those releases accept. Release 23 reads the
+# same file and renders it differently again: it sorts some include blocks in
+# another order, aligns runs of consecutive assignments differently and indents
+# a designated initializer's continuation lines differently. A file formatted by
+# one major release fails the other's check, so a gate that accepts a range of
+# releases gives two stations two verdicts on one tree. Homebrew's default
+# `llvm` moved to 23 while Linux stayed on 22, and main went red on Linux.
+REQUIRED_CLANG_FORMAT_MAJOR: int = 22
+
+# Where a clang-format 22 is installed when the station's default is another
+# release. The discovery in `find_clang_format` and the CMake lookup in
+# `cmake/CodingStandardClangFormat.cmake` search these in this order before
+# PATH's `clang-format`; `coding_standard_format_gate_tests.py` holds the two
+# lists together.
+PINNED_CLANG_FORMAT_NAMES: Sequence[str] = (
+    f"clang-format-{REQUIRED_CLANG_FORMAT_MAJOR}",
+    "clang-format",
+)
+PINNED_CLANG_FORMAT_DIRECTORIES: Sequence[str] = (
+    # Homebrew on Apple silicon and on Intel: `brew install llvm@22`. The
+    # formula is keg-only, so its tools are never on PATH by default.
+    f"/opt/homebrew/opt/llvm@{REQUIRED_CLANG_FORMAT_MAJOR}/bin",
+    f"/usr/local/opt/llvm@{REQUIRED_CLANG_FORMAT_MAJOR}/bin",
+    # Debian and Ubuntu: `apt install clang-format-22` installs here and links
+    # /usr/bin/clang-format-22.
+    f"/usr/lib/llvm-{REQUIRED_CLANG_FORMAT_MAJOR}/bin",
+)
+
+# How to get the required release, printed by every refusal.
+CLANG_FORMAT_INSTALL_HINTS: Sequence[str] = (
+    f"macOS: brew install llvm@{REQUIRED_CLANG_FORMAT_MAJOR}"
+    f"  (found at /opt/homebrew/opt/llvm@{REQUIRED_CLANG_FORMAT_MAJOR}/bin/clang-format)",
+    f"Debian/Ubuntu: sudo apt install clang-format-{REQUIRED_CLANG_FORMAT_MAJOR}"
+    f"  (found as clang-format-{REQUIRED_CLANG_FORMAT_MAJOR})",
+    f"Windows: install LLVM {REQUIRED_CLANG_FORMAT_MAJOR}.x, or use a Visual Studio whose"
+    " bundled LLVM is 22.x, and name it with --clang-format or"
+    " -DBPR_CLANG_FORMAT_EXECUTABLE",
+)
 
 # Anchored on the banner text rather than "the first number in the output". Every
 # distribution's banner contains this phrase, and some put digits before it: the
@@ -144,6 +178,84 @@ def clang_format_version(tool: str) -> Optional[Tuple[int, ...]]:
     return tuple(int(part) for part in match.groups() if part is not None)
 
 
+def is_required_clang_format(version: Optional[Sequence[int]]) -> bool:
+    """True for a version whose major release is the one this tree is rendered by."""
+    return version is not None and len(version) > 0 and version[0] == REQUIRED_CLANG_FORMAT_MAJOR
+
+
+def unsupported_clang_format_reason(tool: str, version: Optional[Sequence[int]]) -> str:
+    """Name the tool and what it reported, for a refusal or a skip."""
+    if version is None:
+        return f"cannot read a version from {tool}"
+    return f"{tool} reports version {version_text(version)}"
+
+
+def _executable(path: Path) -> bool:
+    return path.is_file() and os.access(str(path), os.X_OK)
+
+
+def clang_format_candidates() -> List[str]:
+    """Every clang-format this station offers, in the order the gate prefers them.
+
+    `clang-format-22` on PATH, then `clang-format` in each pinned directory, then
+    `clang-format` on PATH. Duplicates reached through another name or a symlink
+    appear once.
+    """
+    found: List[str] = []
+    seen: Set[str] = set()
+
+    def add(candidate: Optional[str]) -> None:
+        if candidate is None:
+            return
+        key = os.path.realpath(candidate)
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(candidate)
+
+    pinned_name, plain_name = PINNED_CLANG_FORMAT_NAMES
+    add(shutil.which(pinned_name))
+    suffix = ".exe" if os.name == "nt" else ""
+    for directory in PINNED_CLANG_FORMAT_DIRECTORIES:
+        for name in PINNED_CLANG_FORMAT_NAMES:
+            candidate = Path(directory) / f"{name}{suffix}"
+            if _executable(candidate):
+                add(str(candidate))
+    add(shutil.which(plain_name))
+    return found
+
+
+def find_clang_format() -> str:
+    """Return the clang-format the gate runs when the caller names none.
+
+    The first candidate that reports major release 22. When none does, the one
+    PATH gives (or, without one, the first found), so the version refusal names
+    the tool a person would otherwise have run. Raises FileNotFoundError, naming
+    how to install 22, when the station has no clang-format at all.
+    """
+    candidates = clang_format_candidates()
+    for candidate in candidates:
+        if is_required_clang_format(clang_format_version(candidate)):
+            return candidate
+    on_path = shutil.which(PINNED_CLANG_FORMAT_NAMES[1])
+    if on_path is not None:
+        return on_path
+    if candidates:
+        return candidates[0]
+    hints = "; ".join(CLANG_FORMAT_INSTALL_HINTS)
+    raise FileNotFoundError(
+        f"no clang-format found; this project needs clang-format {REQUIRED_CLANG_FORMAT_MAJOR}."
+        f" {hints}"
+    )
+
+
+def resolve_clang_format(name_or_path: Optional[str]) -> str:
+    """The tool a format script runs: the one named, else `find_clang_format()`."""
+    if name_or_path is None:
+        return find_clang_format()
+    return resolve_tool(name_or_path)
+
+
 def check_clang_format_version(
     tool: str,
     *,
@@ -151,45 +263,48 @@ def check_clang_format_version(
     mutating: bool = False,
     stream: Optional[TextIO] = None,
 ) -> Tuple[bool, Optional[Tuple[int, ...]]]:
-    """Report whether `tool` is a clang-format this project's style file supports.
+    """Report whether `tool` is the clang-format release this tree is rendered by.
 
     Returns `(usable, version)`. `usable` is False only when the caller must
-    stop: an unsupported or unreadable version without `allow_unsupported`. With
-    `allow_unsupported` the diagnostic is still written, because a verdict from
-    an unsupported tool is advisory whether or not the caller wanted it.
+    stop: another major release or an unreadable version without
+    `allow_unsupported`. With `allow_unsupported` the diagnostic is still
+    written, because a verdict from another release is advisory whether or not
+    the caller wanted it.
     """
     out = stream if stream is not None else sys.stderr
     version = clang_format_version(tool)
-    minimum = version_text(MINIMUM_CLANG_FORMAT_VERSION)
-
-    if version is None:
-        reason = f"cannot read a version from {tool}"
-    elif version >= MINIMUM_CLANG_FORMAT_VERSION:
+    if is_required_clang_format(version):
         return True, version
-    else:
-        reason = f"{tool} reports version {version_text(version)}"
 
-    print(f"error: unsupported clang-format: {reason}", file=out)
+    required = REQUIRED_CLANG_FORMAT_MAJOR
     print(
-        f"       This project's .clang-format requires clang-format {minimum} or newer."
-        " Releases before"
-        f" {minimum} render an empty braced initializer as `{{}}` where this tree holds `{{ }}`,",
+        f"error: unsupported clang-format: {unsupported_clang_format_reason(tool, version)}",
+        file=out,
+    )
+    print(
+        f"       This project's .clang-format is rendered by clang-format {required} exactly."
+        f" Other major releases format the same file differently: {required - 1} and earlier"
+        " write `{}` where this tree holds `{ }`, and 23 sorts includes, aligns consecutive"
+        " assignments and indents designated-initializer continuations differently,",
         file=out,
     )
     if mutating:
         print(
-            "       so an older tool would rewrite hundreds of files that a supported tool"
+            f"       so another release would rewrite files that clang-format {required}"
             " reports clean.",
             file=out,
         )
     else:
         print(
-            "       so an older tool reports hundreds of files dirty that a supported tool"
+            f"       so another release reports files dirty that clang-format {required}"
             " reports clean.",
             file=out,
         )
+    print(f"       Install clang-format {required}; the gate looks for it first:", file=out)
+    for hint in CLANG_FORMAT_INSTALL_HINTS:
+        print(f"         {hint}", file=out)
     print(
-        f"       Install clang-format {minimum} or newer, or pass"
+        f"       Or pass --clang-format <path to a clang-format {required}>, or"
         f" {UNSUPPORTED_CLANG_FORMAT_OVERRIDE} to run anyway and treat the result as advisory.",
         file=out,
     )
@@ -210,8 +325,9 @@ def add_clang_format_version_argument(parser: "object") -> None:
         UNSUPPORTED_CLANG_FORMAT_OVERRIDE,
         action="store_true",
         help=(
-            "Run even when clang-format is older than the version this project's style file"
-            " requires. The result is advisory rather than a gate verdict."
+            "Run even when clang-format is not the major release this project's tree is"
+            f" rendered by ({REQUIRED_CLANG_FORMAT_MAJOR}). The result is advisory rather than"
+            " a gate verdict."
         ),
     )
 

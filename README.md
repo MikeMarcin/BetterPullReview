@@ -400,9 +400,11 @@ architecture](docs/architecture/github-host-implementation.md) and
 Prerequisites are CMake 4.4.2, Ninja, a C++23 compiler, Qt 6.8+ with CoreTools
 for the native application, Python 3.10+ for tests, and Git 2.39+ for
 installed-Git contract tests. Clang-format and clang-tidy are required for the
-coding-standard gates; LLVM 22.1.8 is the validated tooling version. On Linux,
-libsecret 0.20+ and libxcb development metadata are also required.
-Compatible newer installations are supported.
+coding-standard gates; LLVM 22.1.8 is the validated tooling version, and the
+format gate takes clang-format 22 and no other major release (`brew install
+llvm@22`, `apt install clang-format-22`). On Linux, libsecret 0.20+ and libxcb
+development metadata are also required. Compatible newer installations of the
+other tools are supported.
 
 Dependency discovery is centralized before product targets are declared.
 Qt 6.11.2 is acquired by a pinned provider and resolved in package mode,

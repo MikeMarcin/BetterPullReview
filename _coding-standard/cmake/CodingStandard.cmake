@@ -29,7 +29,7 @@ if(BPR_CLANG_FORMAT_EXECUTABLE)
   set(CODING_STANDARD_CLANG_FORMAT_ARGUMENTS --clang-format "${BPR_CLANG_FORMAT_EXECUTABLE}")
   message(STATUS "Coding standard clang-format: ${BPR_CLANG_FORMAT_EXECUTABLE}")
 else()
-  message(STATUS "Coding standard clang-format: no supported version found; coding_format_check will be skipped")
+  message(STATUS "Coding standard clang-format: no clang-format 22 found; coding_format_check will be skipped")
 endif()
 
 add_custom_target(coding-format

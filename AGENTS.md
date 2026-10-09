@@ -122,6 +122,14 @@ python3 scripts/verify_documentation.py --root .
 python3 tests/scripts/verify_documentation_tests.py
 ```
 
+The format gate runs **clang-format 22, exactly** and refuses any other major
+release: 23 orders includes and aligns assignments differently, so a file
+formatted with Homebrew's default 23 fails Linux's 22 (BPR-1352). On macOS
+`brew install llvm@22`; on Linux `apt install clang-format-22`. The scripts and
+configure find either one ahead of `PATH`'s `clang-format`. Reformat with
+`coding-format` or `_coding-standard/scripts/format.py`, never a bare
+`clang-format -i` from `PATH`.
+
 Both documentation commands require **Python 3.10 or newer** and refuse to run
 otherwise, naming the version they found and the interpreter they found it at.
 On macOS `/usr/bin/python3` is older than that, so `python3` must resolve to a

@@ -25,14 +25,36 @@ python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --warnin
 
 Pass explicit paths after the options to limit the scan.
 
-## Supported clang-format Versions
+## The clang-format Version: 22, Exactly
 
-`.clang-format` is rendered by **clang-format 22 or newer**, recorded as
-`MINIMUM_CLANG_FORMAT_VERSION` in `scripts/_coding_standard.py`. Both
+The tree is rendered by **clang-format 22**, and only 22. The required major
+release is `REQUIRED_CLANG_FORMAT_MAJOR` in `scripts/_coding_standard.py`. Both
 `format_check.py` and `format.py` read the tool's reported version first and
-refuse an older one, naming what they found and what they need.
+refuse any other major release. The refusal names the version found, the tool's
+path, and how to install 22.
 
-The boundary is not arbitrary, and it has two independent causes:
+Without `--clang-format`, the scripts look for a 22 themselves, in this order:
+
+1. `clang-format-22` on `PATH` (Debian and Ubuntu's `clang-format-22` package);
+2. `clang-format` in `/opt/homebrew/opt/llvm@22/bin`,
+   `/usr/local/opt/llvm@22/bin` and `/usr/lib/llvm-22/bin` (Homebrew's
+   keg-only `llvm@22`, and Debian's LLVM 22 directory);
+3. `clang-format` on `PATH`.
+
+They take the first one that reports 22. When none does, they run
+`clang-format` from `PATH` so that the refusal names the tool you would
+otherwise have run.
+
+To install 22:
+
+| Platform | Command | Tool |
+|---|---|---|
+| macOS | `brew install llvm@22` | `/opt/homebrew/opt/llvm@22/bin/clang-format` |
+| Debian, Ubuntu | `sudo apt install clang-format-22` | `/usr/bin/clang-format-22` |
+| Windows | Install LLVM 22.x, or use a Visual Studio whose bundled LLVM is 22.x | Pass `--clang-format`, or `-DBPR_CLANG_FORMAT_EXECUTABLE` to configure |
+
+A range of releases is not enough, because each major release renders the
+same style file differently:
 
 - **17 and earlier cannot read the style file.** `AlignFunctionPointers` was
   added in 18, so an older tool reports `unknown key` and silently falls back to
@@ -43,12 +65,25 @@ The boundary is not arbitrary, and it has two independent causes:
   `Cpp11BracedListStyle` produces `{}` either way in those releases, and
   `SpaceInEmptyBraces` is not an option they accept. Every file containing `{ }`
   therefore disagrees, which is most of a migrated tree.
+- **23 reads it and renders some files differently.** It orders some include
+  blocks differently, aligns runs of consecutive assignments differently, and
+  indents a designated initializer's continuation lines differently. When the
+  gate accepted "22 or newer", the Mac's Homebrew default moved to 23.1.1 while
+  Linux stayed on 22.1.8. Four files formatted on the Mac then failed Linux's
+  `coding_format_check` ([[BPR-1352]]).
 
-The second tier is the dangerous one: it produces a plausible-looking result.
+The second and third tiers are the dangerous ones: they produce a
+plausible-looking result.
 
 Pass `--allow-unsupported-clang-format` to run anyway. The diagnostic is still
 printed and the result is labelled advisory: a tool that renders the style file
 differently can report a file's state, but not the project's.
+
+When LLVM 22 is retired, move the pin deliberately. Change
+`REQUIRED_CLANG_FORMAT_MAJOR`, the CMake lookup's names and hints, and the
+banners in `tests/scripts/coding_standard_format_gate_tests.py`. Then reformat
+the tree with the new release in one format-only commit, and have every station
+install that release.
 
 ## CMake Integration
 
@@ -65,18 +100,22 @@ This adds non-default local targets:
 - `coding-tidy`
 
 Configure finds the clang-format these targets run
-(`cmake/CodingStandardClangFormat.cmake`). It asks each `clang-format` on
-CMake's program search path whether it is supported, using
-`scripts/supported_clang_format.py`. If it is older, the search moves on to the
-next one. So a station whose `PATH` puts 21 ahead of a 22 elsewhere still gets
-the 22. The result is cached as `BPR_CLANG_FORMAT_EXECUTABLE`, and you can set
-that variable to choose a tool. When configure finds none, the targets fall
-back to `clang-format` on `PATH`, and the gate refuses as described above.
+(`cmake/CodingStandardClangFormat.cmake`). It searches the same places, in the
+same order, as the scripts above: `clang-format-22`, then the pinned install
+directories, then `clang-format` on `PATH`. It asks each candidate whether it is
+22, using `scripts/supported_clang_format.py`, and passes over any other
+release. So a Mac whose `PATH` gives Homebrew's 23 still gets the `llvm@22`,
+and a station whose `PATH` puts 21 ahead of a 22 still gets the 22. The result
+is cached as `BPR_CLANG_FORMAT_EXECUTABLE`, and you can set that variable to
+choose a tool. A cached tool that is not 22, such as a tree configured before
+the pin, is reported with a warning and searched for again. When configure
+finds none, the targets fall back to the scripts' own search, and the gate
+refuses as described above.
 
 The same tool runs the repo-wide check as the CTest row `coding_format_check`,
 through `scripts/format_check_or_skip.py`. The row fails when a file is
 unformatted. It reports **Skipped**, not failed, when configure found no
-supported tool or the tool it found is no longer supported. That result is not
+clang-format 22 or the tool it found is no longer 22. That result is not
 a formatting verdict.
 
 BetterPullReview adapts the neutral helper to reuse the centrally discovered

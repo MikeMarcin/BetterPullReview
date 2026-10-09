@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Say whether one clang-format can return a verdict for this style file.
+"""Say whether one clang-format can return a verdict for this tree.
 
-Exits 0 and prints the version when the tool resolves and reports
-MINIMUM_CLANG_FORMAT_VERSION or newer. Exits 1 with the gate's own diagnostic
-otherwise. CMake's discovery asks this of every candidate it finds, so configure
-and the gate share one minimum and one banner parser rather than two.
+Exits 0 and prints the version when the tool resolves and reports major release
+REQUIRED_CLANG_FORMAT_MAJOR. Exits 1 with the gate's own diagnostic otherwise.
+CMake's discovery asks this of every candidate it finds, so configure and the
+gate share one pinned release and one banner parser rather than two.
 """
 from __future__ import annotations
 
