@@ -80,3 +80,39 @@ default, shown in bold) and "Open in Discuss", each showing its key (Return,
   documentation gate passes.
 - `BPR-1356:owner-look`: the owner accepts the frozen build in a new short
   attended session.
+
+## Verification (macOS, offscreen, 2026-10-09)
+
+Designed with the `frontend-design` skill: a quiet text pill that appears
+only with intent (pointer or keyboard cursor), matching the strip segment's
+word, and a menu that follows Home's row menu ([[BPR-1342]]).
+
+- **Fails before.** The window course's first part, built against the
+  unchanged sources at `710e06796`, failed with `FAILED: Shift+Return opens
+  the thread in Discuss` (`qt_workbench_window_scale_100`). The core course
+  does not compile without `route_workbench_thread`.
+- **Passes after**, on `f77a95cb3` (rebased onto `a0eb15f5e`), 20 rows:
+  `core_workbench_interaction`, `qt_conversation_finder_scale_100/125/200`,
+  `qt_workbench_window_scale_100/125/200`, `qt_composed_github_scale_100/125/200`,
+  `qt_github_conversation_panel`, `qt_workbench_title_row_scale_100/125/200`,
+  `architecture_boundaries`, `application_large_review_benchmark`,
+  `application_review_round_trip_composition_contract` (pins unchanged: no
+  `src/app` source moved), `application_overview_feedback_public_path`,
+  `application_attended_recent_replay`,
+  `application_uiforetw_selected_diff_contract`.
+  `architecture_boundary_contract` passed on the previous base `bfec328be`.
+- `application_workbench_composition_contract` fails
+  (`WORKBENCH_PROJECTION_WIRE_FAILED`, `WORKBENCH_SELECTED_DIFF_REQUEST_FAILED`
+  and six more) identically on the base `bfec328be` without this change, so
+  it is not counted here.
+- clang-format 22.1.8 clean on every touched file. clang-tidy 22 reports no
+  diagnostic on a line this change touches; the six it reports in these files
+  (`compact_below`, `menu_at`, `native_caret`, `all_enabled`,
+  `selected_after_review`, a copied `command`) predate it.
+- `python3 scripts/verify_documentation.py --root .` prints
+  `DOCUMENTATION_OK`; `tests/scripts/verify_documentation_tests.py` runs 67
+  tests OK.
+- Renders (offscreen, 1.0x): the button on the hovered and cursor rows, the
+  row menu, Discuss on the opened thread, and Discuss after three filters
+  were turned off with the notice; the finder at four palettes and the
+  narrowest width with the cursor row's button.
