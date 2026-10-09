@@ -328,7 +328,12 @@ v002 look recorded above (Accept keys; Reject arrows; Reject key tooltips).
 Its candidates were released (`resume-development --all`, cursor 17) and its
 frozen root `artifacts/bpr-1328/change-keys-frozen-v002/` deleted.
 
-Product commit `f88d25546` (rebased on `38a70a792`).
+The frozen candidate is `f88d25546` (on `38a70a792`). Main moved before the push;
+on main the same product patch is the BPR-1328 bounded-arrows commit rebased onto `54dfbd463`
+(identical by `git range-diff`), followed by a reseal of the round-trip pins over
+BPR-1331's `7dfde8915`, which had changed `github_application.cpp` and `main.cpp`
+without moving them; the round-trip contract and the change-arrows course pass
+again there.
 
 **C1, unattended, pass.** `core_workbench_interaction`: the new
 `test_navigation_commands_are_bounded_and_always_enabled` (a one-change

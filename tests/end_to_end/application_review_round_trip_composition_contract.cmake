@@ -1206,6 +1206,14 @@ endfunction()
 # alone. No grant, target, provider, credential, GitHub write, mutation or
 # publication path; mutation pin unchanged; no new src/app source. Reviewed on
 # BPR-1328.
+# BPR-1328 v003 reseal, rebased: over 7dfde8915 (BPR-1331), which changed
+# github_application.cpp and main.cpp without moving these pins. Read here, not
+# BPR-1331's own review: the private-progress receipt attaches to
+# core::file_material instead of core::comparison_digest (the same dimensions
+# without the epoch anchors), and main.cpp gains the fixture-only
+# --review-progress-push-probe course and an ATTENDED_HEAD line inside
+# BPR_BUILD_TESTING. No grant, target, provider, credential, GitHub write,
+# mutation or publication path; mutation pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1224,7 +1232,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5caaf2fd0a3c57f1e0e00b6f9a94031669cd359dc8194f7c1af55cd1db3722d6"
+		"c163820abf814f6a951a00767519f983e3e0746cc069170b0164b1f58a2dfaf8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1428,7 +1436,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c671f33c4c51ac2222fdf08589d6331def3283410457a4620fa6f5fcfd61b0e8"
+        "b0812c6fb7640e28f18fca0dbe22dfa85466829c2766539c6054ea977ca52d24"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
