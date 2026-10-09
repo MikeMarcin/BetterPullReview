@@ -106,6 +106,11 @@ network, or process effects.
   create branches, pull requests, reviews, comments and threads there, and
   resolve or close what they made. Do not delete the repository, change its
   settings or collaborators, or touch any other repository.
+- Live GitHub calls spend the owner's own `gh` rate limit (5,000 an hour,
+  shared with everything else on that account). Before and during a live run,
+  check the `X-RateLimit-Remaining` response header, not `gh api rate_limit`,
+  which kept reporting 5000 while BPR-1344's probe ran the account dry.
+  Keep a margin and stop when it runs low.
 - Never commit credentials, private repository content, transient inspection
   artifacts, build output, or secret-bearing logs.
 
