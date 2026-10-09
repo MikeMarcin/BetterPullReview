@@ -288,3 +288,30 @@ at load average 5–10; the largest responsiveness pulse is 33.1 ms
 clean on the changed files; clang-tidy on `line_details_pane.cpp` clean.
 Documentation: `DOCUMENTATION_OK`.
 
+
+**Merged tree.** Rebased onto `origin/main` `c6e78d9e2` (BPR-1091 and
+BPR-1092, none on Line details paths) as `f2f9ce1e0`. At the merged tree
+`qt_diff_workbench_scale_{100,125,200}`, `application_line_details_public_path`,
+`architecture_boundaries` and `application_review_round_trip_composition_contract`
+pass (pins match; no reseal).
+
+## Owner look v002 (C5, pending)
+
+**Frozen root.** `artifacts/bpr-1334/line-details-frozen-v002/` holds
+`source/` (`git archive f09687aa0`, the pre-rebase commit; `diff -rq` clean
+against the worktree; source tree digest `c68053e6…`), `build/` (Release,
+tests on) and `launch.py` (sha256 `83be3038…`), which checks the fixture tree
+and the executable and reports an exit within 30 s. The attended executable
+`build/tests/end_to_end/line_details_public_path` (sha256 `7ec6d695…`) passes
+its course and reaches `LINE_DETAILS_ATTENDED_READY` offscreen. The landed
+`f2f9ce1e0` differs from it only by the BPR-1091/BPR-1092 commits above.
+
+One new short session, `3e36d128a75c3e250a312d78e593f8c4`, state
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v002/attended-review`
+(repository root: the main checkout), host detached. One Accept/Reject
+candidate, `BPR-1334-line-details-v002` ("line details v002"), revision
+`f2f9ce1e0`, fingerprint `07bda61b…`, ready and protected; event cursor 4.
+Launch command:
+`python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v002/launch.py`.
+C1–C4 rest on the direct evidence above. C5 waits on the owner and is not
+self-certified.
