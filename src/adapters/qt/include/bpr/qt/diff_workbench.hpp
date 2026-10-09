@@ -354,8 +354,9 @@ namespace bpr::qt {
 		/// \brief The tick Shift-click would go to while Shift is held over
 		/// the bar, as ringed.
 		[[nodiscard]] auto targeted_thread_tick() const -> std::optional<diff_thread_tick>;
-		/// \brief Where one pane's marker for a zero-based line is, in this
-		/// widget's coordinates; empty while not shown.
+		/// \brief Where one pane's tinted number cell for a thread on a
+		/// zero-based line is, in this widget's coordinates; empty while not
+		/// shown.
 		[[nodiscard]] auto line_mark_rect(core::diff_side aSide, std::uint32_t aLine) const -> QRect;
 		/// \brief Told after every applied scroll frame and geometry rebuild.
 		void set_frame_observer(std::function<void()> aObserver);

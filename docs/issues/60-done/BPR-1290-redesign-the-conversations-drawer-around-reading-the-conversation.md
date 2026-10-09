@@ -133,6 +133,10 @@ Read from the code and the screenshot, not from the owner:
   scroll bar. Amended 2026-10-06 by the owner's v001 Reject (below): a thread
   is chosen from the scroll bar by Shift-click on its tick, which scrolls the
   code to its line and opens it; a plain press on the bar stays the bar's own.
+  Amended 2026-10-08 by the owner's choice on [[BPR-1335]] (session
+  3c9017b5, option 1): the gutter has no marker column; "its marker in the
+  code's gutter" is now its tinted line number, pressed anywhere on its cell,
+  and the code's context menu offers Open thread for the selected line.
   The filters are Only new and Hide resolved. The keys are
   Up/Down between threads, Return to open, Esc to close, R to reply, N for
   the next new thread, Command+Return (Ctrl+Return) to publish, and

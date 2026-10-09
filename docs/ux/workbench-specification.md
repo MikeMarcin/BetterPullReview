@@ -983,7 +983,9 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   past a one-sided block the same screen row legitimately carries different
   numbers in each pane. The gutter is sized to the document's digit count
   rather than to what is on screen, because a column that grew while scrolling
-  would shift the code sideways under the reader. Its colours are the
+  would shift the code sideways under the reader. It is the longest number's
+  digits times the font's widest digit, with 4 pixels either side and nothing
+  else: no column for threads ([[BPR-1335]]). Its colours are the
   `code_gutter_background` and `code_line_number_text` roles, which the
   appearance contrast rules already validate in every profile. The conversation
   anchor marker stays at the text viewport's inner edge, so it sits beside the
@@ -1027,7 +1029,7 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
 - Return comments on the selected lines and Shift+Return suggests a change to
   them, as a draft in the drawer ([[BPR-1212]]; see "Writing a new comment").
   Return, Shift+Return, the code's right-click Add comment and Suggest change,
-  and the gutter's "+" take one path. The core decides the selection first
+  and the "+" button take one path. The core decides the selection first
   (`core::decide_comment_range`): a new comment needs the right side; several
   lines must be on one side and inside one hunk of the pull request's diff
   (the change groups with three lines of context, as GitHub's diff draws
@@ -1333,8 +1335,18 @@ My unpublished draft is a dashed note at its line.
 comment to show up in the drawer instead of the full screen add comment
 window"). Return on a selected line of the code, Add comment on the code's
 right-click menu, Comment (Option-C) on a line no thread is on, and the "+"
-the gutter shows on a head line under the pointer each open the line's draft
-as a draft thread in the drawer, pinned at its line, writing. Its edge and
+button each open the line's draft as a draft thread in the drawer, pinned at
+its line, writing. The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
+don't like the + replacing the line number, i think github actual does it
+better"): a small blue button with a white cross that shows while the pointer
+is on a head line no thread is on, over its code or its number, at the start
+of the line's code, across the boundary with the number and never over a
+digit. Its tooltip is "Add comment (↩)". It takes no keyboard focus; Return
+and the context menu are the keyboard's way to the same comment. Pressing it
+never reaches the code, so it neither starts nor changes a text selection, and
+a press anywhere else in the code is the text's. Dragging it across lines
+washes them blue and, on release, comments on all of them, through the same
+core decision as Shift and the arrows. Its edge and
 notch are blue and a blue bracket marks its line in the gutter: amber is where
 you read, blue is where you write. The header holds the line, Draft (or
 Suggested change), Maximize and Close; under it the field with the label chip
@@ -1361,7 +1373,7 @@ window is no longer a destination of its own (AC5, amended). Local projects
 keep their own flow ([[BPR-1212]] Q2: B).
 
 A thread opens in place: one at a time, pinned exactly at its line, with the
-line washed amber in the code, its gutter marker ringed and the open card's
+line washed amber in the code, its line number barred amber and the open card's
 amber edge and notch pointing at it. The other notes make room above and
 below. The open thread shows every post in posting order with its avatar,
 mark, rail, unread dot and complete body, and a reply that answers anything
@@ -1407,10 +1419,13 @@ is nearest the pointer, within a few pixels of its edge, is the one chosen; its
 tooltip says "Shift-click to go to line N: …", and with Shift held over it the
 pointer is a hand, the tick is ringed and the tooltip shows at once, without
 the hover delay a tooltip otherwise has (the owner's v002 note). A modifier key
-alone does not take a tooltip away. The code's gutter
-carries a marker per thread, the root post's label mark or a plain square, a
-blue dot when new, faded when resolved; pressing it opens or closes the
-thread. Keys in the drawer: Up and Down move between threads, Return opens,
+alone does not take a tooltip away. In the code's gutter a thread's line
+number keeps its place and its cell is tinted ([[BPR-1335]], owner's option
+1): amber, blue when the thread has new posts, lighter when resolved, and
+outlined, dashed, for my unpublished draft. Pressing anywhere on the tinted
+cell opens or closes the thread, and its tooltip describes it. A selected line
+with a thread says so in its accessible description, and the code's context
+menu offers **Open thread** for it. Keys in the drawer: Up and Down move between threads, Return opens,
 Esc closes, R replies, N opens the next thread with new posts (Shift+N the
 previous), and Shift+F10 or the context-menu key opens the thread's actions.
 The drawer is 375 pixels wide by default and drags from 280 to 760.

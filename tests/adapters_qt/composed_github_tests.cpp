@@ -3224,13 +3224,14 @@ namespace {
 		// line lower would not match.
 		expect(first->TargetY != lineY(13U), "negative control: the note does not match the line below its own");
 
-		// The gutter's markers and the scroll bar's ticks, one per thread.
+		// The gutter's tinted numbers and the scroll bar's ticks, one per
+		// thread ([[BPR-1335]]).
 		const auto marks = surface->line_marks(core::diff_side::right);
 		expect(surface->thread_markers() && marks.size() == 7U
-				   && std::ranges::any_of(marks, [](const qt::diff_line_mark& aMark) { return aMark.Line == 59U && aMark.Label == core::feedback_label::issue && aMark.Kind == qt::diff_line_mark_kind::new_thread; })
+				   && std::ranges::any_of(marks, [](const qt::diff_line_mark& aMark) { return aMark.Line == 59U && aMark.Kind == qt::diff_line_mark_kind::new_thread; })
 				   && std::ranges::any_of(marks, [](const qt::diff_line_mark& aMark) { return aMark.Line == 11U && aMark.Resolved && aMark.Kind == qt::diff_line_mark_kind::thread; })
 				   && !surface->line_mark_rect(core::diff_side::right, 11U).isEmpty(),
-			   "the gutter marks each thread's line with its first post's mark, blue when new, faded when resolved");
+			   "the gutter tints each thread's line number, blue when new, lighter when resolved");
 		expect(surface->thread_ticks().size() == 7U, "the code's scroll bar carries a tick per thread");
 		expect(surface->line_mark_rect(core::diff_side::right, 12U).isEmpty(), "negative control: a line with no thread has no marker");
 		capture_layout_state(window, QStringLiteral("inline-closed"));
@@ -3298,7 +3299,7 @@ namespace {
 		expect(std::ranges::count_if(openMarks, &qt::diff_line_mark::Open) == 1
 				   && std::ranges::find_if(openMarks, &qt::diff_line_mark::Open)->Line == 59U
 				   && std::ranges::count_if(surface->thread_ticks(), &qt::diff_thread_tick::Open) == 1,
-			   "the open thread's line is washed, its marker ringed and its tick amber");
+			   "the open thread's line is washed, its number barred and its tick amber");
 		expect(surface->selection().has_value() && surface->selection()->PreferredLine.Line == 59U,
 			   "opening a thread reveals its exact line in the code");
 		std::cout << "inline-drawer:open-ms=" << openMs << '\n';

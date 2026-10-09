@@ -6409,6 +6409,8 @@ namespace {
 		// shows while the pointer is on the line's code, at the start of the
 		// code, and a click starts a comment there.
 		expect(window.comparison_surface()->thread_markers(), "the comparison shows its threads");
+		static_cast<void>(window.comparison_surface()->reveal_conversation_line(core::diff_side::right, 4U));
+		process_events();
 		const auto  fifth = code->viewport()->mapFrom(window.comparison_surface(), window.comparison_surface()->line_rect(core::diff_side::right, 4U).center());
 		const auto  aim   = QPointF{ 160.0, static_cast<qreal>(fifth.y()) };
 		QMouseEvent hover{ QEvent::MouseMove, aim, code->viewport()->mapToGlobal(aim), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
