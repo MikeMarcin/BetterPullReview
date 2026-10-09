@@ -58,6 +58,10 @@ network, or process effects.
 - Implementers never drive or capture the owner's live macOS desktop
   (`screencapture`, `cliclick`, foreground windows): it may be screen-shared.
   Use offscreen renders and the frozen build; the owner looks themselves.
+- Never read the owner's browser profiles, history, cookies, open-tab files,
+  keychains or other personal application data to confirm a result. Verify
+  through the product's own output or a stub, and ask the owner to confirm what
+  only they can see (BPR-1338 v002 read Chrome's session and history files).
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Ask a keep-or-change judgment as Accept or Reject, with the change in the
