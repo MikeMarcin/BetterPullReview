@@ -34,6 +34,12 @@ RAW_REGISTRATION_OWNER = "cmake/BprTestIsolation.cmake"
 LIVE_TEST_NAME = "live_review_mutation_designated_target"
 LIVE_TEST_LABEL = "bpr_live_mutation"
 WINDOWS_BACKEND = "windows-appcontainer"
+# [[BPR-1343]]. The label the test wrapper adds, on every platform, to a row
+# registered WINDOWS_UNCONTAINED, and the pin a non-Windows author may write
+# until the Windows station measures the row: "unmeasured (registered on
+# macOS)". Windows refuses that pin until it is replaced by the measured line.
+WINDOWS_UNCONTAINED_REGISTRATION_LABEL = "bpr_windows_uncontained_registration"
+UNMEASURED_PIN_PREFIX = "unmeasured (registered on "
 WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # The Windows boundary is an AppContainer, and three things a lowbox token
 # cannot do are needed by the tests below; each was measured on the Windows
@@ -163,6 +169,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_line_draft_contract": "dos-volume-name",
     "application_diff_zoom_public_path": "dos-volume-name",
     "application_line_details_public_path": "dos-volume-name",
+    # [[BPR-1327]], [[BPR-1340]]. Measured on bpr-main-win 2026-10-08 at
+    # 9809b3786, registered contained for the measurement: the prepared-open
+    # benchmark stops at "large-review-benchmark-failed: private data root
+    # parent", and the Updates-line course's composed application refuses
+    # startup at the registry ("STARTUP_PROFILE_REFUSAL:registry_unavailable").
+    "application_large_review_prepared_open": "dos-volume-name",
+    "application_epoch_update_line_public_path": "dos-volume-name",
     # BPR-0622: measured on JaegAW 2026-09-17. Contained, the canary course exits
     # 3 with no output at std::filesystem::canonical of its root argument, the
     # same lowbox refusal as the BPR-0806 rows; it passes uncontained.
@@ -1200,6 +1213,40 @@ def uncontained_registration_count(
     return count
 
 
+def pin_registration_failures(manifest: dict[str, Any], *, windows: bool) -> list[str]:
+    """[[BPR-1343]]. Every WINDOWS_UNCONTAINED registration has its Windows pin.
+
+    The wrapper labels such a row on every platform, so a macOS or Linux author
+    learns at once that the row needs an entry in WINDOWS_UNCONTAINED_TESTS.
+    An unmeasured pin is accepted there; on Windows it is refused until the
+    row has been measured contained and its measured refusal recorded.
+    """
+    failures: list[str] = []
+    tests = manifest.get("tests")
+    if not isinstance(tests, list):
+        return failures
+    for test in tests:
+        name = test.get("name")
+        labels = property_value(test, "LABELS")
+        if not isinstance(name, str) or not isinstance(labels, list):
+            continue
+        if WINDOWS_UNCONTAINED_REGISTRATION_LABEL not in labels:
+            continue
+        pin = WINDOWS_UNCONTAINED_TESTS.get(name)
+        if pin is None:
+            failures.append(
+                f"{name} is registered WINDOWS_UNCONTAINED without an entry in "
+                "WINDOWS_UNCONTAINED_TESTS; add one in the same commit, "
+                f'"{UNMEASURED_PIN_PREFIX}<platform>)" until Windows measures it'
+            )
+        elif windows and pin.startswith(UNMEASURED_PIN_PREFIX):
+            failures.append(
+                f"{name} is pinned {pin!r}; measure it contained on Windows and "
+                "record its measured refusal"
+            )
+    return failures
+
+
 def property_value(test: dict[str, Any], name: str) -> Any | None:
     for candidate in test.get("properties", []):
         if candidate.get("name") == name:
@@ -1973,6 +2020,9 @@ def main() -> int:
         except json.JSONDecodeError as error:
             failures.append(f"ctest manifest is not JSON: {error}")
             manifest = {"tests": []}
+    failures.extend(
+        pin_registration_failures(manifest, windows=arguments.backend == WINDOWS_BACKEND)
+    )
 
     try:
         prefix = expected_prefix(

@@ -48,6 +48,8 @@ from scripts.verify_test_network_isolation import (  # noqa: E402
     STAGE_ZERO_PRELOADER,
     STAGE_ZERO_PRELOADER_SOURCE,
     WINDOWS_UNCONTAINED_LABEL,
+    WINDOWS_UNCONTAINED_REGISTRATION_LABEL,
+    pin_registration_failures,
     WINDOWS_UNCONTAINED_TESTS,
     WORKSPACE_REFUSAL_EXPRESSION,
     boundary_marker_failures,
@@ -459,6 +461,47 @@ class ConfiguredManifestTests(unittest.TestCase):
     # The Windows exemption is exact in both directions and exists on no other
     # backend. Each case below would pass if the verifier merely tolerated a
     # missing prefix, which is the failure these tests exist to refuse.
+    # [[BPR-1343]]. A WINDOWS_UNCONTAINED registration needs its pin on every
+    # backend; an unmeasured pin satisfies every backend but Windows.
+    def test_uncontained_registration_requires_a_pin_on_every_backend(self) -> None:
+        def manifest(name: str) -> dict[str, Any]:
+            return {
+                "tests": [
+                    {
+                        "name": name,
+                        "properties": [
+                            {"name": "LABELS", "value": ["bpr_network_isolated", WINDOWS_UNCONTAINED_REGISTRATION_LABEL]},
+                        ],
+                    }
+                ]
+            }
+
+        for windows in (False, True):
+            failures = pin_registration_failures(manifest("application_unpinned_row"), windows=windows)
+            self.assertEqual(len(failures), 1, failures)
+            self.assertIn("without an entry in WINDOWS_UNCONTAINED_TESTS", failures[0])
+        measured = next(name for name, pin in WINDOWS_UNCONTAINED_TESTS.items() if not pin.startswith("unmeasured"))
+        for windows in (False, True):
+            self.assertEqual(pin_registration_failures(manifest(measured), windows=windows), [])
+        unlabelled = {"tests": [{"name": "application_unpinned_row", "properties": [{"name": "LABELS", "value": ["bpr_network_isolated"]}]}]}
+        self.assertEqual(pin_registration_failures(unlabelled, windows=True), [])
+
+    def test_unmeasured_pin_is_refused_only_on_windows(self) -> None:
+        name = "application_unmeasured_row"
+        manifest = {
+            "tests": [
+                {
+                    "name": name,
+                    "properties": [{"name": "LABELS", "value": ["bpr_network_isolated", WINDOWS_UNCONTAINED_REGISTRATION_LABEL]}],
+                }
+            ]
+        }
+        with unittest.mock.patch.dict(WINDOWS_UNCONTAINED_TESTS, {name: "unmeasured (registered on macOS)"}):
+            self.assertEqual(pin_registration_failures(manifest, windows=False), [])
+            failures = pin_registration_failures(manifest, windows=True)
+            self.assertEqual(len(failures), 1, failures)
+            self.assertIn("measure it contained on Windows", failures[0])
+
     def test_pinned_windows_test_passes_uncontained_only_with_its_label(self) -> None:
         name = sorted(WINDOWS_UNCONTAINED_TESTS)[0]
         self.assertEqual(

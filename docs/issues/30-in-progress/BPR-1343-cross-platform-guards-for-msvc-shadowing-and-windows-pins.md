@@ -59,3 +59,67 @@ in Windows' `test_network_isolation_manifest`.
   and an unmeasured pin only on Windows. The structure contract pins each case.
 - Windows runs both checks green on the current tree. macOS and Linux runs are
   owed to their stations.
+
+## Implementation (bpr-main-win, 2026-10-08)
+
+**The shadowing check** (`cmake/VerifyArchitectureBoundaries.cmake`). Every
+`.cpp` and `.hpp` under `src/adapters/qt` is read with comments, character
+literals and string literals removed, and with a statement keyword before a
+name treated as a use. A declaration naming `data` or `d_ptr` is refused, with
+a message pointing at `src/adapters/qt/AGENTS.md`. The forms caught are:
+
+- a typed or `auto` local, a parameter, or a range-for variable;
+- a lambda capture.
+
+A method named `data(...)`, `.data()` and `->data`, a qualified name, `aData`
+and `metadata` pass. The list is justified in the comment: C4458 warns only for
+hidden *data* members, and the tree's many locals named `size`, `width` or
+`rect` hide member functions and build clean on MSVC.
+
+**The pin-registration check.**
+
+- `cmake/BprTestIsolation.cmake` adds the label
+  `bpr_windows_uncontained_registration` to every `WINDOWS_UNCONTAINED` row,
+  on every platform.
+- `scripts/verify_test_network_isolation.py`'s `pin_registration_failures`
+  runs on every backend. It refuses a labelled row without an entry in
+  `WINDOWS_UNCONTAINED_TESTS`. On Windows it also refuses an entry beginning
+  `unmeasured (registered on`.
+- `tests/AGENTS.md` carries the rule: the pin comes in the same commit.
+
+**Evidence** (bpr-main-win, the `windows-dev` tree, reconfigured).
+
+- `architecture_boundaries` passes on the tree.
+- `architecture_boundary_contract` passes: 148 tests, among them the new
+  cases. Seven declaration forms are refused, and the eight allowed forms are
+  accepted.
+- `test_network_isolation_structure_contract` passes: 69 tests, among them the
+  new cases.
+  - An unpinned registration fails on both backends.
+  - A measured pin passes on both.
+  - An unlabelled row is ignored.
+  - An unmeasured pin passes off Windows and fails on Windows.
+- `test_network_isolation_manifest` passes once the two rows below are pinned.
+
+**Controls on the live tree.**
+
+- With the BPR-1336 `data` local put back in
+  `appearance_settings_panel::code_zoom()`, `architecture_boundaries` refuses
+  it: "Qt adapter declaration hides a Qt base class data member:
+  src/adapters/qt/src/appearance_settings_panel.cpp names a local, parameter or
+  capture `data`…". The file was restored afterwards.
+- On its first run, the manifest's new check named two real unpinned rows:
+  "application_large_review_prepared_open is registered WINDOWS_UNCONTAINED
+  without an entry in WINDOWS_UNCONTAINED_TESTS…", and the same for
+  `application_epoch_update_line_public_path`.
+
+Those two rows were then measured contained and pinned `dos-volume-name`:
+
+- [[BPR-1327]]'s prepared-open benchmark stops at "private data root parent".
+- [[BPR-1340]]'s Updates-line course refuses startup at the registry.
+
+Uncontained, both pass.
+
+**Limits.** macOS and Linux runs of the two checks are owed to their stations.
+Off Windows, an unpinned row now fails `test_network_isolation_manifest` there
+too.

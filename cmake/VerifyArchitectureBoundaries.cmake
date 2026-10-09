@@ -5656,6 +5656,41 @@ if(EXISTS "${github_cli_transport}")
     endif()
 endif()
 
+# [[BPR-1343]]. A Qt adapter local, parameter or capture named after a data
+# member a Qt base class carries hides it. MSVC reports C4458, the project
+# builds with warnings as errors, and Windows stops compiling, while Clang and
+# GCC say nothing: [[BPR-1090]]'s and [[BPR-1336]]'s `data` each broke main.
+# Only data members warn (a local named `size` or `width` hides a member
+# function and is silent), so the list is exactly the data members widget code
+# can meet: QWidget::data and QObject::d_ptr. A method named `data(...)`, a
+# model's override, is a function and is allowed. Comments, character and
+# string literals name nothing; a qualified name or a statement keyword before
+# the name is a use, not a declaration.
+set(qt_shadowed_members data d_ptr)
+file(GLOB_RECURSE qt_shadow_sources "${BPR_ROOT}/src/adapters/qt/*.cpp" "${BPR_ROOT}/src/adapters/qt/*.hpp")
+foreach(source IN LISTS qt_shadow_sources)
+    file(READ "${source}" qt_shadow_code)
+    string(REGEX REPLACE "/\\*([^*]|\\*+[^*/])*\\*+/" " " qt_shadow_code "${qt_shadow_code}")
+    string(REGEX REPLACE "//[^\n]*" " " qt_shadow_code "${qt_shadow_code}")
+    string(REGEX REPLACE "'([^'\\\\\n]|\\\\.)'" " " qt_shadow_code "${qt_shadow_code}")
+    string(REGEX REPLACE "\"([^\"\\\\\n]|\\\\.)*\"" " " qt_shadow_code "${qt_shadow_code}")
+    string(REGEX REPLACE "(^|[^A-Za-z0-9_])(return|throw|co_return|co_yield|case|else|delete)[ \t]+" "\\1; " qt_shadow_code "${qt_shadow_code}")
+    foreach(qt_shadowed IN LISTS qt_shadowed_members)
+        string(REPLACE "${qt_shadowed}::" "qualified_name::" qt_shadow_probe "${qt_shadow_code}")
+        if(qt_shadow_probe MATCHES "[A-Za-z0-9_>&*][ \t\n]+[&*]*${qt_shadowed}[ \t]*[=;,){:]"
+           OR qt_shadow_probe MATCHES "[[,][ \t]*[&=]?[ \t]*${qt_shadowed}[ \t]*[],=]")
+            file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source}")
+            message(
+                FATAL_ERROR
+                "Qt adapter declaration hides a Qt base class data member: "
+                "${relative_file} names a local, parameter or capture "
+                "`${qt_shadowed}`, which MSVC reports as C4458 and the Windows "
+                "build refuses. Rename it (see src/adapters/qt/AGENTS.md)."
+            )
+        endif()
+    endforeach()
+endforeach()
+
 message(STATUS "Application, provider, and Qt architecture boundaries verified")
 
 file(GLOB_RECURSE quill_boundary_sources "${BPR_ROOT}/src/*.cpp" "${BPR_ROOT}/src/*.hpp")

@@ -1563,6 +1563,44 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 changed = dict(sources, **{path: source.replace(boundary, "removed_boundary")})
                 self.assert_failure("Tour editor lost its " + boundary + " boundary", changed)
 
+    def test_qt_adapter_local_hiding_a_qwidget_data_member_is_rejected(self) -> None:
+        # [[BPR-1343]]. Each declaration form that hides QWidget::data or
+        # QObject::d_ptr breaks the MSVC build.
+        for source in (
+            "\t\tconst auto data = Hook->currentData();\n",
+            "QVariant data = value;\n",
+            "void show(const QByteArray& data) {}\n",
+            "for (const auto& data : items) {}\n",
+            "auto task = [this, data] { };\n",
+            "auto task = [&data]() { };\n",
+            "auto* d_ptr = nullptr;\n",
+        ):
+            with self.subTest(source=source):
+                self.assert_failure(
+                    "Qt adapter declaration hides a Qt base class data member",
+                    {"src/adapters/qt/src/shadowing_widget.cpp": source},
+                )
+
+    def test_qt_adapter_uses_of_data_that_hide_nothing_are_allowed(self) -> None:
+        # [[BPR-1343]]. A model override, calls, comments, strings, member
+        # access, a qualified name and the coding standard's `aData` hide
+        # nothing.
+        result = self.run_check(
+            {
+                "src/adapters/qt/src/shadowing_widget.cpp": (
+                    "auto data(const QModelIndex& aIndex, const int aRole) const -> QVariant override;\n"
+                    "Status->setText(QString::fromUtf8(aText.data(), 3));\n"
+                    "// keep the data, then the rest; data = x\n"
+                    "auto s = QStringLiteral(\"the data, then\"); auto t = \"data = 1;\";\n"
+                    "auto v = ptr->data;\n"
+                    "auto w = data::value;\n"
+                    "void f(const QByteArray& aData) {}\n"
+                    "const auto metadata = x;\n"
+                ),
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_qprocess_is_rejected_outside_designated_runner(self) -> None:
         self.assert_failure(
             "QProcess ownership violation",

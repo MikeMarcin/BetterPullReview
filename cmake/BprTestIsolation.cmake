@@ -726,6 +726,16 @@ function(bpr_add_network_isolated_test)
         APPEND
         PROPERTY LABELS "${bpr_isolation_label}"
     )
+    # [[BPR-1343]]. Every platform marks a WINDOWS_UNCONTAINED registration, so
+    # test_network_isolation_manifest requires its Windows pin wherever the row
+    # is written, not only on the Windows station.
+    if(bpr_test_WINDOWS_UNCONTAINED)
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY LABELS "bpr_windows_uncontained_registration"
+        )
+    endif()
 
     bpr_apply_automated_test_environment("${bpr_test_NAME}")
 

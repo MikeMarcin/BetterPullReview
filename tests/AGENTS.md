@@ -107,3 +107,10 @@ Tests are direct evidence, not naming evidence.
   the absence of a crash, and a fixed finding goes back into the corpus as a
   regression seed.
 - A test must fail or visibly disagree when its claimed behavior is false.
+- Registering a test `WINDOWS_UNCONTAINED` requires its entry in
+  `WINDOWS_UNCONTAINED_TESTS` (`scripts/verify_test_network_isolation.py`) in
+  the same commit ([[BPR-1343]]). Off Windows, write
+  `"unmeasured (registered on <platform>)"`. `test_network_isolation_manifest`
+  accepts that marker off Windows and fails without an entry on every platform;
+  Windows keeps failing until the station measures the row contained and
+  records its refusal.
