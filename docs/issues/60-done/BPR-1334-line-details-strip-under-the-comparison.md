@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1334"
 title: "Line details: the current line, base over head, full width under the comparison"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner chat request, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1334--BPR-1334--7d299944dc95.json","related_cards":["BPR-0646","BPR-1264","BPR-1212","BPR-1330","BPR-1313"],"requested_skill":"frontend-design","acceptance":["BPR-1334:C1","BPR-1334:C2","BPR-1334:C3","BPR-1334:C4","BPR-1334:C5"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1334:C1","outcome":"pass","revision":"5fbc155e9","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1334-line-details-strip-under-the-comparison.md","detail":"qt_diff_workbench_scale_{100,125,200} and application_line_details_public_path (composed, real classifier): base and head rows under the comparison, one unwrapped line under one shared horizontal bar, fixed gutter, first changed character, line numbers, the panes' syntax colours (v004) and core intraline emphasis; follows click, change step and selection. Failing-before controls fail each. macOS Release -O3 at 7e43eba32 and the rebased tree."}},{"criterion":"BPR-1334:C2","outcome":"pass","revision":"f6f247e8b","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1334-line-details-strip-under-the-comparison.md","detail":"qt_settings_window, sqlite_workbench_settings_storage, application_profile_window_layout_public_path: shown in a fresh profile, View > Line Details hides and shows it, Settings agrees, survives a profile restart; 'profile column not written' control fails."}},{"criterion":"BPR-1334:C3","outcome":"pass","revision":"f6f247e8b","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1334-line-details-strip-under-the-comparison.md","detail":"qt_diff_workbench_scale_* and application_profile_window_layout_public_path: the seam resizes the strip with hold_resize_cursor and the height survives a restart per window; 'cursor hold removed' and 'held height dropped' controls fail."}},{"criterion":"BPR-1334:C4","outcome":"pass","revision":"772200c95","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1334-line-details-strip-under-the-comparison.md","detail":"100,000-byte line truncated with marker and range capped (application_line_details_public_path, 4,096-byte cut). Windows quiet run (bpr-main-win, 1428dad74): large-review rows at -j1, three alternating pairs against control 0f1ba22f0; no input-budget failure on either side, worst pulses 19-70.4 ms candidate vs 19-71.6 ms control; the two failing rows fail identically on the control (BPR-1327/BPR-1344). Accepted as C4 by the coordinator 2026-10-09; no macOS quiet run."}},{"criterion":"BPR-1334:C5","outcome":"pass","revision":"5fbc155e9","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1334-line-details-strip-under-the-comparison.md","detail":"Owner Accept, no note, 2026-10-09T12:59:28Z: session 42f024b816d83ebe52af5d7aa579b881, candidate BPR-1334-line-details-v004 (fingerprint e956fff972d8..., revision 5fbc155e9, frozen from 7e43eba32), decision 959ebc1b-54b0-4b1a-bc02-52b0aa541174 at event 5, handed back at 6, released at 7. v001-v003 rejected earlier."}}]
 ---
 
 # BPR-1334: Line details under the comparison
@@ -118,7 +118,7 @@ The existing Detail pane becomes **Line details**. No second pane is added.
   and answers Accept or Reject for "line details strip" (v001, rejected) and
   then "line details v002" (rejected: the frozen build did not start
   natively) and then "line details v003" (rejected: no syntax highlighting)
-  and then "line details v004".
+  and then "line details v004" (accepted, 2026-10-09).
 
 ## Verification (2026-10-08, bpr-main-mac implementer)
 
@@ -554,7 +554,7 @@ alternated against the control, is still owed, and C4 is not reclaimed until
 that run is made. The machine stayed at load 100–425 from other worktrees'
 builds from 21:30 to 00:10.
 
-## Owner look v004 (C5, pending)
+## Owner look v004 (C5, accepted below)
 
 **Frozen root.** `artifacts/bpr-1334/line-details-frozen-v004/` holds
 `source/`, which is `git archive 7e43eba32` (`diff -rq` clean). The
@@ -651,3 +651,27 @@ pulse near 100 ms on Windows. Every row's worst pulse stays within a few
 milliseconds of the control's. The two failing rows fail the same way without
 this card, so they are not C4's. A macOS quiet run remains the coordinator's
 call.
+
+## Owner verdict on v004, and closeout — 2026-10-09
+
+Session `42f024b816d83ebe52af5d7aa579b881` (state
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v004/attended-review`),
+handed back at event 6, read from cursor 0. Candidate
+`BPR-1334-line-details-v004` ("line details v004", revision `5fbc155e9`,
+fingerprint `e956fff972d8…`): **Accept**, 2026-10-09T12:59:28Z, decision
+`959ebc1b-54b0-4b1a-bc02-52b0aa541174` at event 5, no note. This satisfies
+C5.
+
+**C4.** The coordinator accepted the Windows quiet run above as C4's pass on
+2026-10-09: no input-budget failure on either side, every row's worst pulse
+within a few milliseconds of the control's, and the two failing rows failing
+the same way without this card. No macOS quiet run was made; the coordinator
+did not require one.
+
+C1–C3 rest on the direct evidence above. The card is Done.
+
+The host (pid 86606) was stopped and the candidate released with
+`resume-development --all` at event 7. The frozen root
+`artifacts/bpr-1334/line-details-frozen-v004/` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
