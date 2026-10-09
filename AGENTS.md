@@ -76,6 +76,10 @@ network, or process effects.
   keychains or other personal application data to confirm a result. Verify
   through the product's own output or a stub, and ask the owner to confirm what
   only they can see (BPR-1338 v002 read Chrome's session and history files).
+- Anything parked on the owner reaches them as an attended-review session or a
+  wizard, never only as a chat note: a look-and-judge criterion gets a frozen
+  build and an Accept/Reject question, a manual procedure (display scaling,
+  VoiceOver, another machine or account) gets a wizard (owner, 2026-10-09).
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Ask a keep-or-change judgment as Accept or Reject, with the change in the
