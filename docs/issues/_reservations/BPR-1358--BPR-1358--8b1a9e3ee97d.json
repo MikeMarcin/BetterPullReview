@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1358"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Faster core SHA-256 (from BPR-1349's cost breakdown)",
+  "created": "2026-10-09T05:41:05.716758+00:00",
+  "base": "f3edc6126167e593e2a78b2efeaf8b9aa1cb1149"
+}
