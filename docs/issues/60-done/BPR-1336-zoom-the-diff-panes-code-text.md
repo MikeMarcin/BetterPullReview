@@ -330,3 +330,13 @@ The session's candidate was released (`resume-development --all`, event 7).
 The host was already stopped. The frozen root
 `artifacts/bpr-1336/diff-zoom-frozen-v002` was deleted.
 
+
+## Linux station run (bpr-main-linux, 2026-10-08)
+
+At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner:
+- **Pass:** `qt_workbench_window_scale_{100,125,200}`,
+  `qt_diff_workbench_scale_100`, `application_diff_zoom_public_path`,
+  `qt_appearance_settings_panel`, `core_appearance_policy` and
+  `application_appearance_{host,profile_consumers,gesture_contract,store_fallback_contract,theme_customization_contract}`.
+- **Fail:** `qt_diff_workbench_scale_125` and `_200`, at BPR-1335's "+"
+  button colour sample, not at a zoom check. See [[BPR-1335]].

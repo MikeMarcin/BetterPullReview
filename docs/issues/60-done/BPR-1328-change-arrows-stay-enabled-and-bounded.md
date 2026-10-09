@@ -421,3 +421,18 @@ and `application_change_arrows_across_files`. There the keys read
 `Alt+Down`/`Alt+Up` and `Ctrl+Alt+Down`/`Ctrl+Alt+Up`, the code pane scrolls on
 `Ctrl+End`/`Ctrl+Home`, and the desktop may take `Ctrl+Alt+Up/Down` (see
 Conflicts).
+
+## Linux station run (bpr-main-linux, 2026-10-08)
+
+At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner:
+- **Pass:** `core_workbench_interaction`, `qt_workbench_window_scale_{100,125,200}` and
+  `application_change_arrows_across_files`.
+- **Not registered on Linux:** `qt_hide_drawers_native_menu_key`, so it was
+  not run.
+- **Format gate:** `coding-format-check` (clang-format 22.1.8) flags
+  `src/adapters/qt/src/anchored_tooltip.cpp` (include order) and
+  `tests/end_to_end/change_arrows_across_files_public_path_tests.cpp`. That is
+  22-versus-23 drift, reported to the coordinator. The repo pins only a
+  minimum version.
+
+Windows is still owed.

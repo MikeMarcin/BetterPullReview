@@ -273,3 +273,14 @@ green. The session was handed back at event 13, released with
 `/Users/jaeger/bpr1331-review-state-v002.o_c2hktq` removed with
 `scripts/freeze_attended_build.py remove`; v003 freezes its own root and opens
 its own short session.
+
+## Linux station run (bpr-main-linux, 2026-10-08)
+
+At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass:
+- the push contract, `application_review_progress_push_contract`;
+- `core_diff_model` and `core_review_ledger`;
+- `qt_review_state_icon`, `qt_workbench_window_scale_{100,125,200}` and
+  `qt_workbench_focus_order_scale_{100,125,200}`;
+- `qt_dif_workshop_placement` and `qt_document_tabs_scale_100`.
+
+Windows is still owed.

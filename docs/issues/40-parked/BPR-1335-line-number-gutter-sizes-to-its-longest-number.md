@@ -346,3 +346,26 @@ Every other criterion passed on main, so the card finishes; remove the frozen
 root with `freeze_attended_build.py remove`. Reject comes back with the
 change in its note, for v002. Windows and Linux runs of the two rows are
 owed to the stations (`platforms` names all three).
+
+## Linux station run (bpr-main-linux, 2026-10-08)
+
+At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner:
+- **Pass:** `qt_workbench_window_scale_{100,125,200}` and
+  `qt_diff_workbench_scale_100`, plus `qt_workbench_conversation_reveal`,
+  `qt_workbench_line_draft` and `qt_composed_inline_drawer_scale_{100,125,200}`.
+- **Fail:** `qt_diff_workbench_scale_125` and `qt_diff_workbench_scale_200`,
+  at "light: the button is blue with a white cross". The cross pixel read
+  `#3785e1` at 1.25× and `#c2daf6` at 2×. The face was `#0969da` at both.
+- **Diagnosis:** a test-sampling fault, not a rendering defect.
+  - A temporary capture, reverted and not committed, shows a correct blue
+    rounded button with a centred white cross at both scales.
+  - The button is 14×14 logical at (29,20). `QRect::center()` is (35,26),
+    half a pixel before the true centre (35.5,26.5). Scaled to device pixels,
+    it lands on the cross's anti-aliased edge instead of its white core.
+  - At 100% the sample still hits white, and the Mac's metrics evidently
+    give a size or position where it does too.
+  - The proposed test-only fix samples at the exact centre
+    (`QRectF(place).center()`), or takes the brightest pixel within one
+    device pixel of it. It is awaiting the coordinator.
+
+Windows is still owed.
