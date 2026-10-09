@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1346"
 title: "A small gap between each label's icon and its word in the label picker"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"polish","origin":"BPR-1091 owner look, session 0d079940affe6da5c393df07d82a22d8, BPR-1091-workshop-candidate-line-v002 Accept note","decision_id":"945adb1b-962e-45ec-a113-3534de2187e5","reservation":"docs/issues/_reservations/BPR-1346--BPR-1348--d02ea45d5cd2.json","related_cards":["BPR-1091","BPR-1083","BPR-1347"],"acceptance":["BPR-1346:gap","BPR-1346:owner-look"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1346:gap","outcome":"pass","revision":"5fd30f04f","evidence":{"kind":"command","path":"tests/adapters_qt/feedback_label_controls_tests.cpp","detail":"qt_feedback_label_controls measures mark-to-word ink gap on the chip, Plain and all twelve label buttons in light and dark: before 2/3/2 px (fails), after 6/7/6 at 1x and 6.5/7/6.5 at 2x. Focused rows 28/28 at 2f9682d21 and 8/8 at e5063a79c; DOCUMENTATION_OK. macOS."}},{"criterion":"BPR-1346:owner-look","outcome":"pending","revision":"e5063a79c","evidence":{"kind":"observation","detail":"Session 41bb446e7df8954d6162fe3592b78cec, candidate BPR-1346-label-gap-v001 (fingerprint 8d6ce31bd0ff...), frozen root /Users/jaeger/bpr1346-1347-v001.wegp_apd, ready at cursor 6."}}]
+acceptance: [{"criterion":"BPR-1346:gap","outcome":"pass","revision":"5fd30f04f","evidence":{"kind":"command","path":"tests/adapters_qt/feedback_label_controls_tests.cpp","detail":"qt_feedback_label_controls measures mark-to-word ink gap on the chip, Plain and all twelve label buttons in light and dark: before 2/3/2 px (fails), after 6/7/6 at 1x and 6.5/7/6.5 at 2x. Focused rows 28/28 at 2f9682d21 and 8/8 at e5063a79c; DOCUMENTATION_OK. macOS."}},{"criterion":"BPR-1346:owner-look","outcome":"pass","revision":"e5063a79c","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1346-a-small-gap-between-a-labels-icon-and-its-word-in-the-label-picker.md","detail":"Owner Accept, no note, 2026-10-09T13:02:25Z: session 41bb446e7df8954d6162fe3592b78cec, candidate BPR-1346-label-gap-v001 (fingerprint 8d6ce31bd0ff..., frozen-e5063a79c-v001), decision 27abab91-83e3-4dbf-936b-f596ece70c56 at event 7, handed back at 9, released at 10."}}]
 ---
 
 # BPR-1346: A small gap between each label's icon and its word in the label picker
@@ -101,7 +100,7 @@ rule.
   `verify_documentation.py`: `DOCUMENTATION_OK`. No pinned source changed.
   macOS only.
 
-## Owner look, session v001 (pending)
+## Owner look, session v001 (accepted, below)
 
 One new short session, two candidates, one Accept or Reject question each
 (shared with [[BPR-1347]]).
@@ -129,6 +128,24 @@ Read session `41bb446e…` from cursor 6. Accept on `BPR-1346-label-gap-v001` sa
 note. When both cards are settled, remove the root with
 `freeze_attended_build.py remove`. Windows and Linux runs of the rows are
 owed to the stations.
+
+## Owner verdict, session v001
+
+Accept, 2026-10-09T13:02:25Z, decision `27abab91-83e3-4dbf-936b-f596ece70c56` at session event 7, no note
+(candidate `BPR-1346-label-gap-v001`, fingerprint `8d6ce31bd0ff…`, revision
+`frozen-e5063a79c-v001`). The owner handed session
+`41bb446e7df8954d6162fe3592b78cec` back at event 9, read from cursor 0;
+[[BPR-1347]]'s `BPR-1347-dif-workshop-row-v001` was accepted in the same hand-back.
+
+This satisfies `BPR-1346:owner-look`. `BPR-1346:gap` stands on its recorded
+evidence, and the Linux and Windows station runs below pass its rows. The
+card is Done.
+
+The host (pid 66656) was stopped and both candidates released with
+`resume-development --all` at event 10. The frozen root
+`/Users/jaeger/bpr1346-1347-v001.wegp_apd` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
 
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
