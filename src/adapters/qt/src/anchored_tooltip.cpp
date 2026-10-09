@@ -1,13 +1,19 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 
+#include <QAbstractItemModel>
+#include <QAbstractItemView>
+#include <QAction>
 #include <QApplication>
-#include <QChildEvent>
+#include <QCoreApplication>
 #include <QCursor>
 #include <QEvent>
 #include <QGuiApplication>
+#include <QHeaderView>
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
+#include <QModelIndex>
 #include <QPaintEvent>
 #include <QPointer>
 #include <QResizeEvent>
@@ -16,6 +22,7 @@
 #include <QStyleHintReturnMask>
 #include <QStyleOptionFrame>
 #include <QStylePainter>
+#include <QTabBar>
 #include <QTimer>
 #include <QToolTip>
 #include <QVariant>
@@ -30,16 +37,19 @@ namespace bpr::qt {
 		/// tooltip stays at most.
 		constexpr int pointer_check_ms = 100;
 		constexpr int lifetime_ms      = 10000;
+		/// About how many characters a tooltip's line holds before it wraps.
+		constexpr int wrap_characters = 80;
 
 		/// The tooltip window: the style's own tooltip panel, palette and font
 		/// around plain text, as `QToolTip`'s label draws them.
 		class anchored_tip final : public QLabel
 		{
 		public:
-			anchored_tip(QWidget& aOwner, const QRect& aAnchor, const QString& aText)
+			anchored_tip(QWidget& aOwner, const QRect& aAnchor, const QString& aText, const anchored_tooltip_hold aHold)
 				: QLabel{ &aOwner, Qt::ToolTip | Qt::BypassGraphicsProxyWidget }
 				, Owner{ &aOwner }
 				, Anchor{ aAnchor }
+				, Hold{ aHold }
 			{
 				setObjectName(QStringLiteral("anchoredTooltip"));
 				setForegroundRole(QPalette::ToolTipText);
@@ -88,11 +98,24 @@ namespace bpr::qt {
 					screen = Owner->screen();
 				}
 				const auto area = screen != nullptr ? screen->availableGeometry() : QRect{ anchor.topLeft() - QPoint{ 4096, 4096 }, QSize{ 8192, 8192 } };
-				setGeometry(anchored_tooltip_geometry(anchor, sizeHint(), area));
+				// One line, unless that line is longer than about eighty
+				// characters or wider than the screen: then it wraps there. A
+				// tooltip as wide as the window is not next to anything.
+				auto       size  = sizeHint();
+				const auto limit = std::min(area.width(), (fontMetrics().averageCharWidth() * wrap_characters) + (2 * margin()));
+				if (size.width() > limit) {
+					setWordWrap(true);
+					size = QSize{ limit, heightForWidth(limit) };
+				}
+				setGeometry(anchored_tooltip_geometry(anchor, size, area));
 				qApp->installEventFilter(this);
 				show();
 				raise();
-				Pointer.start();
+				// A keyboard reviewer's pointer is anywhere, or nowhere: a
+				// tooltip shown for focus does not follow it ([[BPR-0790]]).
+				if (Hold == anchored_tooltip_hold::pointer) {
+					Pointer.start();
+				}
 				Lifetime.start();
 			}
 
@@ -110,6 +133,10 @@ namespace bpr::qt {
 			{
 				switch (aEvent->type()) {
 				case QEvent::Leave:
+					if (aWatched == Owner && Hold == anchored_tooltip_hold::pointer) {
+						dismiss();
+					}
+					break;
 				case QEvent::Hide:
 					if (aWatched == Owner) {
 						dismiss();
@@ -165,11 +192,18 @@ namespace bpr::qt {
 				return Owner != nullptr ? QRect{ Owner->mapToGlobal(Anchor.topLeft()), Anchor.size() } : QRect{ };
 			}
 
-			QPointer<QWidget> Owner;
-			QRect             Anchor;
-			QTimer            Pointer;
-			QTimer            Lifetime;
+			QPointer<QWidget>     Owner;
+			QRect                 Anchor;
+			anchored_tooltip_hold Hold = anchored_tooltip_hold::pointer;
+			QTimer                Pointer;
+			QTimer                Lifetime;
 		};
+
+		/// Set on a widget whose tooltips `anchor_tooltips` answers, so the
+		/// application-wide placement leaves them to it.
+		constexpr auto own_source_property = "bprAnchoredTooltipSource";
+		/// Set on the application once its placement is installed.
+		constexpr auto installed_property = "bprAnchoredTooltips";
 
 		auto current() -> QPointer<anchored_tip>&
 		{
@@ -216,59 +250,54 @@ namespace bpr::qt {
 			anchored_tooltip_source Source;
 		};
 
-		/// [[BPR-1328]]. Follows every widget inside one root and answers its
-		/// tooltip events with its own tooltip, anchored below it.
-		class anchored_descendant_filter final : public QObject
+		/// `QAction::toolTip()` with no tooltip of its own set: its text
+		/// without an ellipsis or mnemonic ampersands, as Qt derives it. A menu
+		/// shows only a tooltip that was set ([[BPR-1354]] keeps that).
+		auto derived_tooltip(QString aText) -> QString
+		{
+			aText.remove(QStringLiteral("..."));
+			for (auto index = qsizetype{ 0 }; index < aText.size(); ++index) {
+				if (aText.at(index) == QLatin1Char{ '&' }) {
+					aText.remove(index, 1);
+				}
+			}
+			return aText.trimmed();
+		}
+
+		/// [[BPR-1354]]. Answers every tooltip event of the application with
+		/// an anchored tooltip, before the widget would have handed it to
+		/// `QToolTip`. Installed once on the application object, which calls
+		/// it for every receiver: when it answers nothing, the event goes on
+		/// to the widget as before, and Qt hands an unanswered tooltip event
+		/// to the parent, which comes back through here.
+		class anchored_application_filter final : public QObject
 		{
 		public:
-			explicit anchored_descendant_filter(QWidget& aRoot)
-				: QObject{ &aRoot }
-				, Root{ &aRoot }
+			explicit anchored_application_filter(QObject& aApplication)
+				: QObject{ &aApplication }
 			{
-				follow(aRoot);
+				setObjectName(QStringLiteral("anchoredTooltipPlacement"));
 			}
 
 		protected:
 			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
 			{
-				if (aEvent->type() == QEvent::ChildAdded) {
-					// Watching every widget inside the root sees a widget's
-					// own children arrive too, even while its constructor
-					// builds them.
-					if (auto* const child = static_cast<QChildEvent*>(aEvent)->child(); child != nullptr && child->isWidgetType()) {
-						follow(*child);
-					}
-					return QObject::eventFilter(aWatched, aEvent);
-				}
-				if (aEvent->type() != QEvent::ToolTip || aWatched == Root || !aWatched->isWidgetType()) {
+				if (aEvent->type() != QEvent::ToolTip || !aWatched->isWidgetType()) {
 					return QObject::eventFilter(aWatched, aEvent);
 				}
 				auto* const widget = static_cast<QWidget*>(aWatched);
-				if (widget->toolTip().isEmpty() || Root == nullptr || !Root->isAncestorOf(widget)) {
+				if (widget->property(own_source_property).toBool()) {
+					return QObject::eventFilter(aWatched, aEvent);
+				}
+				const auto target = standard_tooltip_target(*widget, static_cast<QHelpEvent*>(aEvent)->pos());
+				if (!target.has_value()) {
 					return QObject::eventFilter(aWatched, aEvent);
 				}
 				QToolTip::hideText();
-				show_anchored_tooltip(*widget, widget->rect(), widget->toolTip());
+				show_anchored_tooltip(*widget, target->Anchor, target->Text);
+				aEvent->accept();
 				return true;
 			}
-
-		private:
-			void follow(QObject& aObject)
-			{
-				if (aObject.property(followed_property).toBool()) {
-					return;
-				}
-				aObject.setProperty(followed_property, true);
-				aObject.installEventFilter(this);
-				for (auto* const child : aObject.children()) {
-					if (child->isWidgetType()) {
-						follow(*child);
-					}
-				}
-			}
-
-			static constexpr auto followed_property = "bprAnchoredDescendantTooltip";
-			QPointer<QWidget>     Root;
 		};
 	} // namespace
 
@@ -284,7 +313,7 @@ namespace bpr::qt {
 		return QRect{ QPoint{ left, top }, aTip };
 	}
 
-	void show_anchored_tooltip(QWidget& aOwner, const QRect& aAnchor, const QString& aText)
+	void show_anchored_tooltip(QWidget& aOwner, const QRect& aAnchor, const QString& aText, const anchored_tooltip_hold aHold)
 	{
 		auto& tip = current();
 		if (tip != nullptr && tip->isVisible() && tip->names(aOwner, aAnchor, aText)) {
@@ -294,7 +323,7 @@ namespace bpr::qt {
 		if (aText.isEmpty()) {
 			return;
 		}
-		tip = new anchored_tip{ aOwner, aAnchor, aText };
+		tip = new anchored_tip{ aOwner, aAnchor, aText, aHold };
 		tip->present();
 	}
 
@@ -314,11 +343,64 @@ namespace bpr::qt {
 
 	void anchor_tooltips(QWidget& aWidget, anchored_tooltip_source aSource)
 	{
+		aWidget.setProperty(own_source_property, true);
 		aWidget.installEventFilter(new anchored_tooltip_filter{ aWidget, std::move(aSource) });
 	}
 
-	void anchor_descendant_tooltips(QWidget& aRoot)
+	auto standard_tooltip_target(const QWidget& aWidget, const QPoint aPosition) -> std::optional<anchored_tooltip_target>
 	{
-		static_cast<void>(new anchored_descendant_filter{ aRoot });
+		if (const auto* const menu = qobject_cast<const QMenu*>(&aWidget); menu != nullptr) {
+			// A menu shows an action's tooltip only when it shows tooltips
+			// at all and the action has one of its own, as `QMenu` does.
+			auto* const action = menu->actionAt(aPosition);
+			if (!menu->toolTipsVisible() || action == nullptr || action->toolTip().isEmpty() || action->toolTip() == derived_tooltip(action->text())) {
+				return std::nullopt;
+			}
+			return anchored_tooltip_target{ .Anchor = menu->actionGeometry(action), .Text = action->toolTip() };
+		}
+		if (const auto* const bar = qobject_cast<const QTabBar*>(&aWidget); bar != nullptr) {
+			if (const auto index = bar->tabAt(aPosition); index >= 0 && !bar->tabToolTip(index).isEmpty()) {
+				return anchored_tooltip_target{ .Anchor = bar->tabRect(index), .Text = bar->tabToolTip(index) };
+			}
+		} else if (const auto* const view = qobject_cast<const QAbstractItemView*>(aWidget.parentWidget()); view != nullptr && view->viewport() == &aWidget) {
+			if (const auto* const header = qobject_cast<const QHeaderView*>(view); header != nullptr) {
+				const auto section = header->logicalIndexAt(aPosition);
+				const auto text    = section >= 0 && header->model() != nullptr ? header->model()->headerData(section, header->orientation(), Qt::ToolTipRole).toString() : QString{ };
+				if (!text.isEmpty()) {
+					const auto start = header->sectionViewportPosition(section);
+					const auto size  = header->sectionSize(section);
+					return anchored_tooltip_target{ .Anchor = header->orientation() == Qt::Horizontal ? QRect{ start, 0, size, aWidget.height() } : QRect{ 0, start, aWidget.width(), size }, .Text = text };
+				}
+			} else if (const auto index = view->indexAt(aPosition); index.isValid()) {
+				if (const auto text = index.data(Qt::ToolTipRole).toString(); !text.isEmpty()) {
+					const auto item = view->visualRect(index).intersected(aWidget.rect());
+					return anchored_tooltip_target{ .Anchor = item.isEmpty() ? QRect{ aPosition, QSize{ 1, 1 } } : item, .Text = text };
+				}
+			}
+		}
+		if (!aWidget.toolTip().isEmpty()) {
+			return anchored_tooltip_target{ .Anchor = aWidget.rect(), .Text = aWidget.toolTip() };
+		}
+		return std::nullopt;
+	}
+
+	void install_anchored_tooltips()
+	{
+		auto* const application = QCoreApplication::instance();
+		if (application == nullptr || application->property(installed_property).toBool()) {
+			return;
+		}
+		application->setProperty(installed_property, true);
+		application->installEventFilter(new anchored_application_filter{ *application });
 	}
 } // namespace bpr::qt
+
+namespace {
+	/// [[BPR-1354]]. Every widget's tooltip is anchored from the moment the
+	/// application object exists, with no surface left to opt in.
+	void install_anchored_tooltips_at_startup()
+	{
+		bpr::qt::install_anchored_tooltips();
+	}
+} // namespace
+Q_COREAPP_STARTUP_FUNCTION(install_anchored_tooltips_at_startup)

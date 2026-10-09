@@ -1,3 +1,4 @@
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -9,6 +10,7 @@
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QGuiApplication>
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLabel>
@@ -21,6 +23,7 @@
 #include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
+#include <QScreen>
 #include <QStyle>
 #include <QStyleOptionToolButton>
 #include <QTimeZone>
@@ -1049,8 +1052,28 @@ namespace {
 		const auto away = QPoint{ line->width() - 3, qt::epoch_line::height_pixels - 2 };
 		auto       help = QHelpEvent{ QEvent::ToolTip, away, line->mapToGlobal(away) };
 		QApplication::sendEvent(line, &help);
-		expect(QToolTip::text() == line->statement(), "away from a node the tooltip is the history statement");
-		QToolTip::hideText();
+		// [[BPR-1354]]. Directly below the line, left edges aligned, not at
+		// the pointer.
+		const auto anchoredBelow = [](const QWidget& aTip, const QRect& aAnchor) {
+			const auto area = QGuiApplication::screenAt(aAnchor.center()) != nullptr ? QGuiApplication::screenAt(aAnchor.center())->availableGeometry() : aTip.screen()->availableGeometry();
+			return aTip.geometry() == qt::anchored_tooltip_geometry(aAnchor, aTip.size(), area)
+				&& (aTip.geometry().top() == aAnchor.bottom() + 1 + qt::anchored_tooltip_gap || aTip.geometry().bottom() + 1 + qt::anchored_tooltip_gap == aAnchor.top());
+		};
+		const auto* statementTip = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+		expect(statementTip != nullptr && statementTip->text() == line->statement() && !QToolTip::isVisible()
+				   && anchoredBelow(*statementTip, QRect{ line->mapToGlobal(QPoint{ 0, 0 }), line->size() }),
+			   "away from a node the tooltip is the history statement, directly below the line");
+		qt::hide_anchored_tooltip();
+		// A node is painted, with no widget of its own: its tooltip sits below
+		// the node and its label, the band the pointer finds it in.
+		const auto node     = line->node_centre(0U);
+		auto       nodeHelp = QHelpEvent{ QEvent::ToolTip, node, line->mapToGlobal(node) };
+		QApplication::sendEvent(line, &nodeHelp);
+		const auto* nodeTip    = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+		const auto  nodeAnchor = QRect{ line->mapToGlobal(QPoint{ node.x() - 7, 0 }), QSize{ 15, 30 } };
+		expect(nodeTip != nullptr && !nodeTip->text().isEmpty() && nodeTip->text() != line->statement() && !QToolTip::isVisible() && anchoredBelow(*nodeTip, nodeAnchor),
+			   "a node's tooltip names its update, directly below the node and its label");
+		qt::hide_anchored_tooltip();
 
 		const auto markInk = [line] {
 			// The exclamation's stroke, inside the ring before the track.

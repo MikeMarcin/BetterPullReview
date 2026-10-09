@@ -1,12 +1,12 @@
 #include "bpr/qt/info_glyph.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
+
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFontMetrics>
 #include <QIcon>
 #include <QMetaObject>
-#include <QPoint>
-#include <QToolTip>
 
 #include <utility>
 
@@ -38,14 +38,15 @@ namespace bpr::qt {
 
 	void info_glyph::show_popover()
 	{
-		// Deliberately unbound to a rect. `QToolTip::showText` given a rect hides
-		// the tip as soon as the pointer leaves it, which is right for a tip the
-		// pointer summoned and wrong for this one: a keyboard reviewer's pointer
-		// is somewhere else entirely, or nowhere, so the rect form showed the
-		// sentence to nobody and the focus route quietly reached no one
-		// ([[BPR-0790]]). Hovering still shows the same sentence through the tool
-		// tip, and RFC-BPR-0034's row language requires both routes to work.
-		QToolTip::showText(mapToGlobal(QPoint{ 0, height() }), Consequence, this);
+		// Held by focus, not by the pointer. A tip that hides as soon as the
+		// pointer leaves the glyph is right for a tip the pointer summoned and
+		// wrong for this one: a keyboard reviewer's pointer is somewhere else
+		// entirely, or nowhere, so that form showed the sentence to nobody and
+		// the focus route quietly reached no one ([[BPR-0790]]). Hovering still
+		// shows the same sentence through the tooltip, and RFC-BPR-0034's row
+		// language requires both routes to work. Either way it sits right
+		// below the glyph ([[BPR-1354]]).
+		show_anchored_tooltip(*this, rect(), Consequence, anchored_tooltip_hold::focus);
 	}
 
 	void info_glyph::focusInEvent(QFocusEvent* const aEvent)
@@ -74,8 +75,8 @@ namespace bpr::qt {
 	void info_glyph::focusOutEvent(QFocusEvent* const aEvent)
 	{
 		QToolButton::focusOutEvent(aEvent);
-		if (QToolTip::isVisible() && QToolTip::text() == Consequence) {
-			QToolTip::hideText();
+		if (const auto* const tip = anchored_tooltip(); tip != nullptr && tip->parentWidget() == this) {
+			hide_anchored_tooltip();
 		}
 	}
 

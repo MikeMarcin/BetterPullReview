@@ -3,6 +3,7 @@
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/type_preview.hpp"
@@ -14,6 +15,8 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QFontMetricsF>
+#include <QGuiApplication>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -26,6 +29,7 @@
 #include <QPlainTextEdit>
 #include <QPointingDevice>
 #include <QProxyStyle>
+#include <QScreen>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
@@ -38,6 +42,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -994,6 +999,30 @@ namespace {
 					   && button->accessibleDescription().contains(QStringLiteral("line 2")) && button->focusPolicy() == Qt::NoFocus
 					   && accessible != nullptr && accessible->role() == QAccessible::Button,
 				   name + ": the button says Add comment (↩), names its line, and is an accessible button that leaves focus to the code");
+			// [[BPR-1354]]. The owner on v002: "bug: Why is this damned
+			// tooltip far away again. This is a consistent problem." Its
+			// tooltip sits directly below the button, left edges aligned, not
+			// at the pointer plus the cursor's height.
+			{
+				qt::hide_anchored_tooltip();
+				QToolTip::hideText();
+				const auto centre = button->rect().center();
+				auto       help   = QHelpEvent{ QEvent::ToolTip, centre, button->mapToGlobal(centre) };
+				QApplication::sendEvent(button, &help);
+				const auto* const tip    = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+				const auto        global = QRect{ button->mapToGlobal(QPoint{ 0, 0 }), button->size() };
+				const auto        area   = button->screen()->availableGeometry();
+				const auto        box    = tip != nullptr ? tip->geometry() : QRect{ };
+				std::cout << "bpr-1354 add-button tooltip " << name << " anchored=" << (tip != nullptr) << " qt=" << QToolTip::isVisible() << " button=" << global.x() << ','
+						  << global.y() << ' ' << global.width() << 'x' << global.height() << " tip=" << box.x() << ',' << box.y() << '\n';
+				expect(tip != nullptr && tip->text() == button->toolTip() && !QToolTip::isVisible(),
+					   name + ": the \"+\"'s tooltip is the anchored one, not Qt's at the pointer");
+				expect(box == qt::anchored_tooltip_geometry(global, box.size(), area)
+						   && (box.top() == global.bottom() + 1 + qt::anchored_tooltip_gap || box.bottom() + 1 + qt::anchored_tooltip_gap == global.top())
+						   && box.left() == std::max(area.left(), std::min(global.left(), area.left() + area.width() - box.width())),
+					   name + ": the \"+\"'s tooltip sits directly below the button (above it at the screen's edge), left edges aligned");
+				qt::hide_anchored_tooltip();
+			}
 			const auto hovered    = gutter->grab().toImage();
 			const auto numberBand = QRect{ 0, gutter_y(core::diff_side::right, 1U) - row_height / 2, gutter->width(), row_height };
 			expect(band(hovered, numberBand) == band(still, numberBand), name + ": line 2's number is painted exactly as before; the \"+\" never replaces it");

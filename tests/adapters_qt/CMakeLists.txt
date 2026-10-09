@@ -1926,3 +1926,27 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "feedback-label-threads-tests:pass"
 )
+
+# [[BPR-1354]]. Every tooltip sits next to its control: a button, a list item,
+# a tab, a header section, a menu action, and a button at the screen's edge.
+bpr_add_executable(
+    test_better_pull_review_qt_anchored_tooltip_tests
+    anchored_tooltip_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_anchored_tooltip_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_anchored_tooltip_tests)
+bpr_enable_warnings(test_better_pull_review_qt_anchored_tooltip_tests)
+bpr_add_network_isolated_test(
+    NAME qt_anchored_tooltips
+    COMMAND test_better_pull_review_qt_anchored_tooltip_tests
+)
+set_tests_properties(
+    qt_anchored_tooltips
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "anchored-tooltip-tests:pass"
+)

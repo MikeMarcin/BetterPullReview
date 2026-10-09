@@ -804,13 +804,33 @@ platform's notation ("Next change (⌥↓)", "Previous file (⌥⌘↑)"); a sec
 names the bound, and the status tip carries that line. The stop-versus-wrap
 wrap policy, used only by a fixture probe, still wraps inside the comparison.
 
-Every control in the title row and the review bar shows its tooltip directly
-below itself, left edges aligned and four pixels apart, or above it where below
-would leave the screen, with BPR-1083's anchored tooltip ([[BPR-1328]]). The
-owner rejected the pointer-placed tooltip: "Whys this tooltip so far from the
-button?" The strip follows every widget added to it, so the arrows, the
-private-progress menu button, Compose review, Comment, the comparison menu,
-the modality segments and the drawer toggles all anchor their tooltips.
+Every tooltip in the application shows directly below the control it names,
+left edges aligned and four pixels apart, or directly above it where below
+would leave the screen, moved left only to stay on the screen
+([[BPR-1354]]). A line longer than about eighty characters wraps. The owner
+rejected Qt's placement, at the pointer plus the cursor's height, three times:
+"The tooltip feels strangely far away." ([[BPR-1083]] v004), "Whys this
+tooltip so far from the button?" ([[BPR-1328]], the title row and review bar)
+and "bug: Why is this damned tooltip far away again. This is a consistent
+problem." (BPR-1354, the diff's "+"). The control's rectangle is the anchor:
+
+- a widget's own tooltip anchors to the widget, and a child without one shows
+  its parent's, anchored to the parent;
+- an item of a list or tree anchors to the item, a tab to the tab, a header
+  section to the section, and a menu action, in a menu that shows its
+  actions' tooltips, to the action's row;
+- a control painted inside another widget anchors to its painted rectangle:
+  the diff's "+" button, a thread's tinted number, a scroll-bar tick, a mark
+  and its rail, an avatar, an Overview chip, a node on the updates line (and
+  the line's history statement to the whole line).
+
+A tooltip the pointer asked for goes when the pointer leaves its control, on a
+press, a key other than a modifier, or the wheel. One a keyboard reviewer asked
+for (an info glyph focused from the keyboard, an Overview chip reached with
+Tab, a link reached with Tab, "Nothing new in this file.") stays while the
+control keeps focus and goes on the next key or press. Both go after ten
+seconds. The system tray icon's tooltip is the operating system's and is not
+placed by the application.
 
 The owner settled the keys on 2026-10-08: "Okay final choice: option cmd down
 next file. Option down next change", after "let cmd+down scroll to the bottom
@@ -1391,7 +1411,7 @@ column, the strip across that boundary where it sits; elsewhere on the line's
 code or on its digits nothing is drawn ([[BPR-1335]] v002, owner, 2026-10-09:
 "i find it somewhat distracting always being drawn. Maybe we only draw it
 when the cursor is over the column where it would go?"). Its tooltip is "Add
-comment (↩)". It takes no keyboard focus; Return
+comment (↩)", directly below the button ([[BPR-1354]]). It takes no keyboard focus; Return
 and the context menu are the keyboard's way to the same comment. Pressing it
 never reaches the code, so it neither starts nor changes a text selection, and
 a press anywhere else in the code is the text's. Dragging it across lines

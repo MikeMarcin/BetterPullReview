@@ -5922,8 +5922,12 @@ namespace {
 		const auto empty = QPoint{ line->width() / 2 + 5, qt::epoch_line::height_pixels - 2 };
 		QHelpEvent help{ QEvent::ToolTip, empty, line->mapToGlobal(empty) };
 		QApplication::sendEvent(line, &help);
-		expect(QToolTip::text() == line->statement(), "away from a node the line's tooltip is its history statement");
-		QToolTip::hideText();
+		const auto* const statementTip = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+		const auto        lineGlobal   = QRect{ line->mapToGlobal(QPoint{ 0, 0 }), line->size() };
+		expect(statementTip != nullptr && statementTip->text() == line->statement() && !QToolTip::isVisible()
+				   && statementTip->geometry() == qt::anchored_tooltip_geometry(lineGlobal, statementTip->size(), line->screen()->availableGeometry()),
+			   "away from a node the line's tooltip is its history statement, directly below the line ([[BPR-1354]])");
+		qt::hide_anchored_tooltip();
 		expect(line->history_marked() && disclosure->history_marked()
 				   && disclosure->accessibleName() == QStringLiteral("Updates, history incomplete")
 				   && disclosure->toolTip().contains(line->statement())

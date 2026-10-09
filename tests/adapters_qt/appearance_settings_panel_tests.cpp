@@ -11,6 +11,7 @@
 /// tree.
 
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_role_display.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -29,6 +30,7 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -444,14 +446,25 @@ namespace {
 			// The popover is shown one turn of the event loop after the focus
 			// event, so let that turn run before looking for it.
 			settle();
+			// [[BPR-1354]]: right below the glyph, held by focus rather than
+			// by a pointer that is nowhere near it.
+			const auto* const popover = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+			const auto        global  = QRect{ glyph->mapToGlobal(QPoint{ 0, 0 }), glyph->size() };
 			expect(
-				QToolTip::isVisible() && QToolTip::text() == sentence,
+				popover != nullptr && popover->text() == sentence && !QToolTip::isVisible(),
 				"and focusing it shows the popover carrying that same sentence, "
 				"with no pointer anywhere near the glyph");
+			if (popover != nullptr) {
+				std::cout << "bpr-1354 glyph popover glyph=" << global.x() << ',' << global.y() << ' ' << global.width() << 'x' << global.height() << " tip=" << popover->geometry().x() << ','
+						  << popover->geometry().y() << ' ' << popover->width() << 'x' << popover->height() << " visible=" << glyph->isVisible() << '\n';
+			}
+			expect(
+				popover != nullptr && popover->geometry() == qt::anchored_tooltip_geometry(global, popover->size(), glyph->screen()->availableGeometry()),
+				"and the popover sits directly below the glyph, left edges aligned");
 			glyph->clearFocus();
 			settle();
 			expect(
-				!QToolTip::isVisible() || QToolTip::text() != sentence,
+				qt::anchored_tooltip() == nullptr,
 				"and the popover goes away when the glyph loses focus");
 		}
 	}

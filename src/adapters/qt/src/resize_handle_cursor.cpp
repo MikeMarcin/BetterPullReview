@@ -1,5 +1,6 @@
 #include "bpr/qt/resize_handle_cursor.hpp"
 
+#include <QApplication>
 #include <QCursor>
 #include <QEvent>
 #include <QObject>
@@ -21,7 +22,12 @@ namespace bpr::qt {
 			{
 				setObjectName(QStringLiteral("resizeCursorHold"));
 				aHandle.setAttribute(Qt::WA_Hover);
-				aHandle.installEventFilter(this);
+				// On the application, not the handle: the application's
+				// tooltip placement ([[BPR-1354]]) answers the seam's tooltip
+				// event there, so a filter on the handle would never see it,
+				// and the tooltip's arrival is one of the moments the cursor
+				// is put back.
+				qApp->installEventFilter(this);
 			}
 
 		protected:

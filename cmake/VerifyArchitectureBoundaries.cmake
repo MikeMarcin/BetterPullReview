@@ -1162,6 +1162,37 @@ foreach(qt_file IN LISTS qt_files)
     endforeach()
 endforeach()
 
+# [[BPR-1354]]. Every tooltip sits next to its control, through the one
+# anchored placement in src/adapters/qt/src/anchored_tooltip.cpp, which answers
+# every widget's tooltip event once the application object exists.
+# `QToolTip::showText` puts its window at the pointer plus the cursor's height,
+# which the owner rejected three times ([[BPR-1083]] v004, [[BPR-1328]], and
+# BPR-1354: "bug: Why is this damned tooltip far away again. This is a
+# consistent problem."), so no Qt source names it. A painted control shows its
+# tooltip with show_anchored_tooltip or names it with anchor_tooltips.
+file(
+    GLOB_RECURSE tooltip_placement_files
+    LIST_DIRECTORIES false
+    "${BPR_ROOT}/src/adapters/qt/*.cpp"
+    "${BPR_ROOT}/src/adapters/qt/*.hpp"
+    "${BPR_ROOT}/src/adapters/qt/*.mm"
+    "${BPR_ROOT}/src/app/*.cpp"
+    "${BPR_ROOT}/src/app/*.hpp"
+    "${BPR_ROOT}/src/app/*.mm"
+)
+foreach(tooltip_file IN LISTS tooltip_placement_files)
+    file(READ "${tooltip_file}" contents)
+    if(contents MATCHES "QToolTip::showText")
+        file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${tooltip_file}")
+        message(
+            FATAL_ERROR
+            "Tooltip placement violation in ${relative_file}: QToolTip::showText "
+            "places a tooltip at the pointer, away from its control; use "
+            "show_anchored_tooltip or anchor_tooltips (BPR-1354)"
+        )
+    endif()
+endforeach()
+
 # The single test-only public identity reader is deliberately outside the
 # product adapter graph. Keep that narrow allowance visible: no other network
 # isolation test source may acquire Qt/network authority, and this source may

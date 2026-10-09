@@ -3336,7 +3336,7 @@ namespace bpr::qt {
 			return;
 		}
 		const auto tip = chip_tooltip(*aChip, *counts, any_columns(Model->feedback()));
-		show_anchored_tooltip(*Files->viewport(), aChip->Box.toAlignedRect(), tip);
+		show_anchored_tooltip(*Files->viewport(), aChip->Box.toAlignedRect(), tip, anchored_tooltip_hold::focus);
 		QAccessibleAnnouncementEvent announcement{ Files, QString{ tip }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }) };
 		announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 		QAccessible::updateAccessibility(&announcement);

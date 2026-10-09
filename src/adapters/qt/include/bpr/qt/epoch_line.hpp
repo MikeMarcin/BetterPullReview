@@ -148,7 +148,6 @@ namespace bpr::qt {
 		void contextMenuEvent(QContextMenuEvent* aEvent) override;
 		void focusInEvent(QFocusEvent* aEvent) override;
 		void focusOutEvent(QFocusEvent* aEvent) override;
-		auto event(QEvent* aEvent) -> bool override;
 
 	private:
 		/// \brief Where the track starts: past the mark when there is one.

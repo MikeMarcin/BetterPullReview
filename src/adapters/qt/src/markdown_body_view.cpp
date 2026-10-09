@@ -655,7 +655,7 @@ namespace bpr::qt {
 				return anchored_tooltip_target{ .Anchor = Rendered->cursorRect(Rendered->cursorForPosition(aPosition)), .Text = target };
 			});
 			Rendered->LinkFocused = [this](const QString& aTarget) {
-				show_anchored_tooltip(*Rendered->viewport(), Rendered->cursorRect(), aTarget);
+				show_anchored_tooltip(*Rendered->viewport(), Rendered->cursorRect(), aTarget, anchored_tooltip_hold::focus);
 			};
 		} else {
 			Rendered->LeaveLinks = [this](const bool aNext) {

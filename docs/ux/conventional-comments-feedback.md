@@ -127,6 +127,8 @@ icon, one tint role and one shortcode (owner, BPR-1079 v2; BPR-1080 v1 to v4).
   the wheel. This holds everywhere a mark has a tooltip: the preview, thread
   cards (a rail names its post at the post's mark) and drawer entries, the
   reader's mark, the chip, the menu's entries and toggles, and completion.
+  Since [[BPR-1354]] every tooltip in the application is placed this way (the
+  workbench specification's primary actions state the rule).
   Code: `anchored_tooltip` in the Qt adapter.
 - **Colour is never the only cue** (owner). The shape names the label, and
   the fill shows blocking, so both read in greyscale. Measured on the frames:

@@ -1,5 +1,7 @@
 #include "bpr/qt/epoch_line.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
+
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -8,7 +10,6 @@
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFontMetrics>
-#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QLocale>
 #include <QMenu>
@@ -18,7 +19,6 @@
 #include <QPen>
 #include <QRectF>
 #include <QTimeZone>
-#include <QToolTip>
 
 #include <algorithm>
 #include <cmath>
@@ -109,6 +109,16 @@ namespace bpr::qt {
 		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		setFixedHeight(height_pixels);
 		setAttribute(Qt::WA_Hover, true);
+		// [[BPR-1130]]. A node names its update, right below the node and
+		// its label; anywhere else on the line the tooltip is the history
+		// statement the caption used to carry, below the line
+		// ([[BPR-1354]]: no longer at the pointer).
+		anchor_tooltips(*this, [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+			if (const auto hit = update_at(aPosition); hit) {
+				return anchored_tooltip_target{ .Anchor = QRect{ node_x(*hit) - hit_radius, 0, (2 * hit_radius) + 1, label_top + label_height }, .Text = node_tooltip(*hit) };
+			}
+			return anchored_tooltip_target{ .Anchor = rect(), .Text = statement() };
+		});
 	}
 
 	void epoch_line::paint_history_mark(QPainter& aPainter, const QRect& aBounds, const QPalette& aPalette)
@@ -840,21 +850,5 @@ namespace bpr::qt {
 	{
 		QWidget::focusOutEvent(aEvent);
 		update();
-	}
-
-	auto epoch_line::event(QEvent* const aEvent) -> bool
-	{
-		if (aEvent->type() == QEvent::ToolTip) {
-			auto* const help = static_cast<QHelpEvent*>(aEvent);
-			// [[BPR-1130]]. A node names its update; anywhere else on the line
-			// the tooltip is the history statement the caption used to carry.
-			if (const auto hit = update_at(help->pos()); hit) {
-				QToolTip::showText(help->globalPos(), node_tooltip(*hit), this);
-			} else {
-				QToolTip::showText(help->globalPos(), statement(), this);
-			}
-			return true;
-		}
-		return QWidget::event(aEvent);
 	}
 } // namespace bpr::qt

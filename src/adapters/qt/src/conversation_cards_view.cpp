@@ -2496,7 +2496,7 @@ namespace bpr::qt {
 			}
 		}
 		if (unread.empty()) {
-			show_anchored_tooltip(*viewport(), QRect{ note_margin, 0, viewport()->width() - 2 * note_margin, 4 }, QStringLiteral("Nothing new in this file."));
+			show_anchored_tooltip(*viewport(), QRect{ note_margin, 0, viewport()->width() - 2 * note_margin, 4 }, QStringLiteral("Nothing new in this file."), anchored_tooltip_hold::focus);
 			return;
 		}
 		std::ranges::stable_sort(unread, [](const thread_card* aLeft, const thread_card* aRight) {
