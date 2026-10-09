@@ -155,3 +155,27 @@ At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
   against unprepared 94 to 131 ms: the assertion compares two overlapping
   distributions. This card changed preparation's batch blob reads and names
   this row, so it is reported to the coordinator rather than called a flake.
+
+### The intermittent prepared open predates this card (bpr-main-linux, 2026-10-09)
+
+`application_large_review_prepared_open` fails intermittently at "a prepared
+open was no faster than every unprepared one". To see whether this card
+introduced it, the row was run back to back on the same idle station, in
+`build/dev` (Debug):
+
+| Revision | Failures |
+|---|---|
+| `ad2ebe11f` (`8c6445e85^`, the commit before this card's product) | 3 of 10 |
+| Current head (`fc89f79e3` plus docs) | 6 of 10, and 2 of 7 earlier the same day (8 of 17) |
+
+The optimized Release tests-on tree failed 1 of 6 at `fc89f79e3`. Every
+failure has the same message.
+
+The rule was already intermittent before this card, so this card did not
+introduce it. The rates are too noisy to say whether it shifted. On the
+coordinator's direction, this is the preparation contention [[BPR-1344]] is
+fixing: Windows saw the prepared-open rule fail under today's scheduling and
+pass with "preparation waits for an idle reviewer". The assertion is not
+re-specified. BPR-1344 has only a reservation so far
+(`docs/issues/_reservations/BPR-1344--BPR-1344--7a3656cbb78d.json`), so this
+note is for its card to carry.
