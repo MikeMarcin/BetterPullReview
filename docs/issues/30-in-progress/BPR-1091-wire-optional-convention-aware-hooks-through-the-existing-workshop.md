@@ -111,6 +111,15 @@ model `claude-opus-5-5`, effort `high`.
 ### Gates
 
 - Dev rows at `3a6756185`: 88 of 88 (`ctest -R "agent|workshop|writing|feedback|review_draft_editor|suggestion|tour_cli|settings_window|dif_|architecture_boundaries$|test_network_isolation_manifest|round_trip_composition_contract"`), including `architecture_boundaries`, `test_network_isolation_manifest`, `application_review_round_trip_composition_contract`, every `application_agent_*` row and the new `core_feedback_workshop_candidate` and three guidance courses. `architecture_boundary_contract` passed before the rebase.
+- `core-only`: 253 of 254 at `3a6756185`; the one failure was
+  `type_read_binding_contract` on this card's own new structured binding in
+  `agent_context_supplement_tests.cpp` (MSVC C4189 without `[[maybe_unused]]`),
+  fixed in `a36d99199`, after which it, `core_agent_context_supplement`,
+  `core_feedback_workshop_candidate` and both architecture rows pass. The 27
+  script contract rows of `tests/CMakeLists.txt` pass in dev.
+- Optimized tree (`app-release`, `BUILD_TESTING=ON`, GCC 15.2.0 `-O3 -DNDEBUG
+  -Werror`): every target built with no warning; the nine rows this card added
+  or extended pass there; the tree was deleted.
 - `coding-format-check` with `/usr/bin/clang-format` 22.1.8.
 - Pins: origin/main's own pins matched at `6752a7136` (detached worktree); full-application and production-manifest resealed; mutation-branch pin unchanged.
 
