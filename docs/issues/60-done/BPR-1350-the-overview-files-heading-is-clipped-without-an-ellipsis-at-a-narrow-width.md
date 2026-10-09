@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1350"
 title: "The Overview Files heading is clipped without an ellipsis at a narrow width"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","found_by":"bpr-main-linux, BPR-1094's rendered checks, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1349--BPR-1351--2371e399c373.json","requested_skill":"frontend-design","owner_look":"required, on the Mac","related_rfcs":["RFC-BPR-0049","RFC-BPR-0050"],"related_cards":["BPR-1094","BPR-1089"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1350:ellipsis","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and qt_pull_request_overview_chips_scale_{125,200}: at 1,000/800/600/420 px in four themes and both mark styles, the heading stays on the page and runs under no control in its row, and the narrowest page shortens it; renders show the ellipsis (1,000 px at 125%: '..., 2 not ...' before Open). Before: clipped at '2 not rea'."}},{"criterion":"BPR-1350:tooltip-and-name","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"The accessible name is always the whole sentence; when shortened the tooltip begins with it (anchored by BPR-1354). Controls: the page source before this change fails the accessible-name check at 100/125/200%; dropping the tooltip fails the tooltip check."}},{"criterion":"BPR-1350:owner-look","outcome":"pending","revision":"frozen-ed28a2a7d-v001","evidence":{"kind":"observation","detail":"Session 4395ac1375d6c5d1e37bb79d863fb2e8, candidate BPR-1350-files-heading-v001, ready at cursor 3; frozen root /Users/jaeger/bpr1350-files-heading-v001.ijmh105y (overview-labels-v1, opens on its Overview)."}}]
+acceptance: [{"criterion":"BPR-1350:ellipsis","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and qt_pull_request_overview_chips_scale_{125,200}: at 1,000/800/600/420 px in four themes and both mark styles, the heading stays on the page and runs under no control in its row, and the narrowest page shortens it; renders show the ellipsis (1,000 px at 125%: '..., 2 not ...' before Open). Before: clipped at '2 not rea'."}},{"criterion":"BPR-1350:tooltip-and-name","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"The accessible name is always the whole sentence; when shortened the tooltip begins with it (anchored by BPR-1354). Controls: the page source before this change fails the accessible-name check at 100/125/200%; dropping the tooltip fails the tooltip check."}},{"criterion":"BPR-1350:owner-look","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1350-the-overview-files-heading-is-clipped-without-an-ellipsis-at-a-narrow-width.md","detail":"Owner Accept, no note, 2026-10-09T12:56:37Z: session 4395ac1375d6c5d1e37bb79d863fb2e8, candidate BPR-1350-files-heading-v001 (fingerprint fd88439e541d..., frozen-ed28a2a7d-v001), decision 5de1251b-2fb5-4b54-b03c-7e9bacfffd4e at event 4, handed back at 5, released at 6."}}]
 ---
 
 # BPR-1350: The Overview Files heading is clipped without an ellipsis at a narrow width
@@ -113,11 +112,11 @@ scales, the round-trip contract, `architecture_boundaries` and
 catalogue-unavailable heading) also passes. `coding-format-check` (clang-format
 22) and `DOCUMENTATION_OK` pass. Not run: the optimized `-O3` tree.
 
-**Owner look: open.** The Mac freezes the build and opens the session. Look
+**Owner look: accepted** (see "Owner verdict, session v001"). The Mac freezes the build and opens the session. Look
 at the ellipsis at narrow widths, the tooltip beside the heading, and the
 420 px case, where only the ellipsis fits.
 
-## Owner look (pending)
+## Owner look (accepted, below)
 
 One new short session, one question, Accept or Reject: "the Files heading
 shortens with an ellipsis and shows the whole sentence in its tooltip". The
@@ -158,6 +157,24 @@ Read session `4395ac13…` from cursor 3. Accept satisfies
 the frozen root with `freeze_attended_build.py remove`. A Reject names what
 the owner saw (a cut word, the heading under a button, a missing or
 misplaced tooltip).
+
+## Owner verdict, session v001
+
+Accept, 2026-10-09T12:56:37Z, decision `5de1251b-2fb5-4b54-b03c-7e9bacfffd4e`
+at session event 4, no note (candidate `BPR-1350-files-heading-v001`,
+fingerprint `fd88439e541d…`, revision `frozen-ed28a2a7d-v001`). The owner
+handed session `4395ac1375d6c5d1e37bb79d863fb2e8` back at event 5, read from
+cursor 0.
+
+This satisfies `BPR-1350:owner-look`. `BPR-1350:ellipsis` and
+`BPR-1350:tooltip-and-name` stand on their recorded evidence, and the Windows
+station run below passes their rows. The card is Done.
+
+The host (pid 65613) was stopped and the candidate released with
+`resume-development --all` at event 6. The frozen root
+`/Users/jaeger/bpr1350-files-heading-v001.ijmh105y` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
 
 ## Windows station run (bpr-main-win, 2026-10-09)
 
