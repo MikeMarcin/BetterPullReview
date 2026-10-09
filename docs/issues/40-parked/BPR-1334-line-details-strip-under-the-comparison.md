@@ -110,7 +110,8 @@ The existing Detail pane becomes **Line details**. No second pane is added.
 - **C5 (owner).** The owner looks at a frozen build with long changed lines
   and answers Accept or Reject for "line details strip" (v001, rejected) and
   then "line details v002" (rejected: the frozen build did not start
-  natively) and then "line details v003".
+  natively) and then "line details v003" (rejected: no syntax highlighting)
+  and then "line details v004".
 
 ## Verification (2026-10-08, bpr-main-mac implementer)
 
@@ -411,7 +412,7 @@ BPR-1343), the same rows and `architecture_boundaries` pass, the pins match,
 and `DOCUMENTATION_OK`. It landed as `e43c666c5`, whose only addition is
 BPR-1336's zoom test follow-up. That commit touches no Line details path.
 
-## Owner look v003 (C5, pending)
+## Owner look v003 (C5, rejected)
 
 **Frozen root.** `artifacts/bpr-1334/line-details-frozen-v003/` holds
 `source/` (`git archive e1f003d51`, `diff -rq` clean) and `build/`. The
@@ -433,3 +434,17 @@ Launch command:
 `python3 /Users/jaeger/Documents/GitHub/BetterPullReview/artifacts/bpr-1334/line-details-frozen-v003/launch.py`.
 C1–C4 rest on the direct evidence above. C5 waits on the owner and is not
 self-certified.
+
+## Owner verdict on v003 — 2026-10-08
+
+Session `e45c5020c1c1b1dd90c41f66b8dd373a` (state
+`/Users/jaeger/.mask/bpr-1334-line-details-20261008-v003/attended-review`),
+handed back at event 6. Candidate `BPR-1334-line-details-v003` at
+`e43c666c5`, fingerprint `538d0513…`: **Reject**. The owner's note, verbatim:
+
+> there's no syntax highlighting.
+
+The strip drew every row in the plain code ink: it took no classification,
+while the panes above it colour the same lines. The candidate was released
+with `resume-development` (event 7). Its host was already stopped, and
+`artifacts/bpr-1334/line-details-frozen-v003/` was deleted.
