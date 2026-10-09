@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1371"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "macOS cache_bytes footprint drift toward the 184 MiB limit",
+  "created": "2026-10-09T23:40:49.870446+00:00",
+  "base": "a2f02ce613d4a06f2df2914cd8b4961d52163879"
+}
