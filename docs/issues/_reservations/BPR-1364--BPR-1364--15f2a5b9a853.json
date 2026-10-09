@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1364"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home: a single click on a pull-request row only selects it; opening takes a double-click, Return or Open Review",
+  "created": "2026-10-09T13:07:08.252627+00:00",
+  "base": "60fea77300f99e6ec4f6c5476b0bd94d9fc2510a"
+}
