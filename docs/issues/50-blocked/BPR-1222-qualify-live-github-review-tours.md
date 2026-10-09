@@ -94,3 +94,36 @@ observations, not qualification: no row passes and the card stays Blocked.
   pending, 200 after Submit. GraphQL `updatePullRequestReviewComment` edits a
   pending comment. Filed as [[BPR-1368]]. Native publication cannot pass this
   row until that is fixed.
+
+## Row evidence from the BPR-1368 live run — 2026-10-09
+
+[[BPR-1368]] published one two-stop native tour on `MikeMarcin/BPR-Test#46`
+(since closed, both branches deleted) at `2ad076bcb`. The production
+`review_submission_session::publish_tour` ran over the production
+`gh_cli_transport` (`gh` 2.101.0, macOS, account `MikeMarcin`) through the
+hand-run `staged_review_session --live-tour` harness, not through the
+application's gestures. This is row evidence, not qualification: no row
+passes here and the card stays Blocked.
+
+| Operation row | Transport | Observed |
+|---|---|---|
+| Create pending line batch | `gh api` | 200; one pending review, a RIGHT range (head 9 to 11) and a LEFT line (base 5) |
+| Enumerate staged comments | `gh api` | pending: the review's own list, matched by ID, node, URL, author and body; submitted: lines read from the collection |
+| Edit stop body, pending | `gh api graphql` | both stops edited by `updatePullRequestReviewComment` while pending; GitHub's answers matched the contract; no REST edit sent |
+| Submit prepared review | `gh api` | `COMMENTED` with the final index body |
+
+An independent `gh api` read afterwards found the review `COMMENTED`, stop 1 on
+RIGHT 9 to 11, stop 2 on LEFT 5, and each stop's final body linking the other
+stop and the overview. 48 REST and 4 GraphQL calls; `X-RateLimit-Remaining`
+stayed at or above 4967 and 4972.
+
+What this does not cover, so the card's course still needs:
+
+- a second GitHub account as the website-only reviewer, and the attended
+  course (AC40-07, AC42-08: Start here, Next/Previous, replies, updates);
+- every row through native HTTPS (AC41-04); this run used `gh api` only;
+- pending file-subject staging and standalone fallbacks (AC41-06), pending
+  root (summary) edits, ambiguous-result reconciliation, published
+  maintenance, separately previewed description edits and clean-profile
+  reimport, none of which this run exercised;
+- the shipped application's own Preview, Publish, Stop and Resume gestures.
