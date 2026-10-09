@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1093"
 title: "Verify syntax, ownership, migration and mutation adversaries"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0047", "RFC-BPR-0048", "RFC-BPR-0049", "RFC-BPR-0051"]
 depends_on: ["BPR-1084", "BPR-1085", "BPR-1086", "BPR-1089", "BPR-1092"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-19","milestone":"verification","acceptance":["R40","R41","R42","R43"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"}}
