@@ -256,7 +256,7 @@ namespace {
 		static_assert(std::is_same_v<
 					  decltype(guidance),
 					  const std::optional<core::supplement_feedback_guidance>>);
-		const auto& [guidanceSource, guidanceVersion, guidanceText] = core::supplement_feedback_guidance{ };
+		[[maybe_unused]] const auto& [guidanceSource, guidanceVersion, guidanceText] = core::supplement_feedback_guidance{ };
 		static_assert(std::is_same_v<decltype(guidanceSource), const core::feedback_guidance_source>);
 		static_assert(std::is_same_v<decltype(guidanceVersion), const std::string>);
 		static_assert(std::is_same_v<decltype(guidanceText), const std::string>);
