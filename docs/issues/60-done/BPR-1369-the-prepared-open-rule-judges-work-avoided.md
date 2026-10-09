@@ -147,3 +147,27 @@ At `249a17cd7`, in `build/dev` (Debug):
 Done on Linux evidence. macOS and Windows runs of the new rule are owed. The
 Windows station rebases its [[BPR-1344]] change to this course onto
 `7edbe699f`.
+
+## macOS station run (2026-10-09)
+
+At `22590d9f0`, on Apple clang, offscreen, through CTest's network-isolated
+launcher, one run after another. The machine was shared with other agents:
+load average 31 at the first run, 11-17 for most of them (14 cores). No live
+GitHub call and no model call.
+
+| tree | runs passed | read counts | median unprepared | slowest prepared | margin to the limit |
+|---|---|---|---|---|---|
+| Release tests-on (`app-release` with `BUILD_TESTING=ON`) | 10 of 10 | every run: unprepared 0+0 before, 1+1 during; prepared 1+1 before, 0+0 during | 68.0-74.7 ms | 21.2-23.0 ms | 62.8-70.7 ms |
+| Debug (`build/dev`) | 10 of 10 | same | 81.6-94.2 ms | 44.7-66.7 ms | 42.9-70.8 ms |
+
+On this Mac a prepared open is about a third of an unprepared one in
+Release (about half in Debug). The old rule, slowest prepared open faster
+than the fastest unprepared one, would also have passed every run here, by
+44.9-48.8 ms in Release and 17.5-45.5 ms in Debug. The overlap that made it
+fail on Linux does not appear on this machine.
+
+Also passing in `build/dev`, `-j1`: every `application_large_review_*` row
+(`cache_bytes` skips in Debug by design), `application_first_tab_comparison`,
+`application_epoch_host`, `application_diff_host` and
+`gh_cli_git_smart_transport`. Both trees were deleted afterwards. A Windows
+run of the new rule is still owed.
