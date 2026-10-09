@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1336"
 title: "Zoom the code in the comparison: View > Zoom In, Zoom Out and Actual Size"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner chat request, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1336--BPR-1336--e0eddadebca1.json","related_cards":["BPR-1334","BPR-1335","BPR-1328","BPR-1295","BPR-1107","BPR-1291","BPR-0118"],"requested_skill":"frontend-design","acceptance":["BPR-1336:C1","BPR-1336:C2","BPR-1336:C3","BPR-1336:C4","BPR-1336:C5","BPR-1336:C6"]}
-parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1336:C1","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200}, qt_diff_workbench_scale_{100,125,200} and application_diff_zoom_public_path: View > Zoom In/Zoom Out/Actual Size and their keys step both panes, the gutter, the tab stop and the detail pane through the core ladder and clamps with reasons; Code size and the drawer's code font are unchanged."}},{"criterion":"BPR-1336:C2","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"Every key in the assembled window and desktop bar bound once; Cmd-0 still Home and Plain in the label menu, Cmd-Opt-0 is Actual Size and not Plain; editor_keeps_typed_text keeps AltGr+0 '}' in editable fields only (Windows filter not run here); Cmd-scroll and pinch step, plain scroll still scrolls."}},{"criterion":"BPR-1336:C3","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"sqlite_appearance_settings_storage (schema 9, v8/v7 migrate to 100%, 49/301 refused), application_appearance_host (two gestures two steps, persists, restart, reset), qt_appearance_settings_panel (Diff zoom row), application_profile_startup_public_path (Work reopens at 125%, Default unchanged)."}},{"criterion":"BPR-1336:C4","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"qt_diff_workbench: reader's line at y 127 stays within one row in the same turn and after remeasurement at 150% and Actual Size; pill and polite announcement say 'Code zoom 150%, 13.50 pt/points' and the pill leaves after ~1.2 s."}},{"criterion":"BPR-1336:C5","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"Frozen Release build of 7a35a4bed, application_large_review_responsiveness twice: zoom dispatch 3.7-6.1 ms, largest input gap 12.7-17.0 ms, completion 334-387 ms on the 20,000-line comparison; a 150 ms stall control fails the gates."}},{"criterion":"BPR-1336:C6","outcome":"pending","revision":"7a35a4bed","evidence":{"kind":"freeform","detail":"Owner look pending in fresh session 2a0daa3bc755d694f88a49274b1484cf, candidate BPR-1336-diff-zoom-v002 (fingerprint 8a4dd304...), frozen root artifacts/bpr-1336/diff-zoom-frozen-v002 (binary 86c6e7a2)."}}]
+acceptance: [{"criterion":"BPR-1336:C1","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"qt_workbench_window_scale_{100,125,200}, qt_diff_workbench_scale_{100,125,200} and application_diff_zoom_public_path: View > Zoom In/Zoom Out/Actual Size and their keys step both panes, the gutter, the tab stop and the detail pane through the core ladder and clamps with reasons; Code size and the drawer's code font are unchanged."}},{"criterion":"BPR-1336:C2","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"Every key in the assembled window and desktop bar bound once; Cmd-0 still Home and Plain in the label menu, Cmd-Opt-0 is Actual Size and not Plain; editor_keeps_typed_text keeps AltGr+0 '}' in editable fields only (Windows filter not run here); Cmd-scroll and pinch step, plain scroll still scrolls."}},{"criterion":"BPR-1336:C3","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"sqlite_appearance_settings_storage (schema 9, v8/v7 migrate to 100%, 49/301 refused), application_appearance_host (two gestures two steps, persists, restart, reset), qt_appearance_settings_panel (Diff zoom row), application_profile_startup_public_path (Work reopens at 125%, Default unchanged)."}},{"criterion":"BPR-1336:C4","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"qt_diff_workbench: reader's line at y 127 stays within one row in the same turn and after remeasurement at 150% and Actual Size; pill and polite announcement say 'Code zoom 150%, 13.50 pt/points' and the pill leaves after ~1.2 s."}},{"criterion":"BPR-1336:C5","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"command","detail":"Frozen Release build of 7a35a4bed, application_large_review_responsiveness twice: zoom dispatch 3.7-6.1 ms, largest input gap 12.7-17.0 ms, completion 334-387 ms on the 20,000-line comparison; a 150 ms stall control fails the gates."}},{"criterion":"BPR-1336:C6","outcome":"pass","revision":"7a35a4bed","evidence":{"kind":"observation","detail":"Owner Accept, no note, on candidate BPR-1336-diff-zoom-v002 'diff zoom' (fingerprint 8a4dd304..., frozen Release build of 7a35a4bed, binary 86c6e7a2) in session 2a0daa3bc755d694f88a49274b1484cf, decision e2ae12e4-d515-4785-9ab3-d1539706c720 (2026-10-09T01:22:49Z), handed back at event 6."}}]
 ---
 
 # BPR-1336: Zoom the code in the comparison
@@ -311,3 +310,23 @@ moment while it waits, then asserts that.
 | Debug, with the fix | passes (21.9 s) |
 | Release, with the fix | passes (9.6 s) |
 | Control: the product never shows the pill (`ZoomIndicator->show()` removed), Debug | fails at "the indicator says 125%" |
+
+## Owner decision, session 2a0daa3b (2026-10-09)
+
+Session `2a0daa3bc755d694f88a49274b1484cf`, read from cursor 0 to event 6
+(handed back).
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1336-diff-zoom-v002` ("diff zoom") | Accept (`e2ae12e4`, 01:22:49Z) | (none) |
+
+The verdict was given on the frozen Release build of `7a35a4bed` (binary
+`86c6e7a2…`, fingerprint `8a4dd304…`). It satisfies `BPR-1336:C6`, asked as
+one question. C1 to C5 stand on their recorded evidence at `7a35a4bed`, with
+the Windows follow-up above. The drawer's snippets keep Code size, as built.
+The card is Done.
+
+The session's candidate was released (`resume-development --all`, event 7).
+The host was already stopped. The frozen root
+`artifacts/bpr-1336/diff-zoom-frozen-v002` was deleted.
+
