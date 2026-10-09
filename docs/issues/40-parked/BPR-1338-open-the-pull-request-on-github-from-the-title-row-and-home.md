@@ -67,8 +67,9 @@ title-row control and no row gesture for the pull request's own page.
 - `BPR-1338:home`: a queue row's context menu and hover icon open that row's
   pull request; the key opens the focused row. The Home rows pass.
 - `BPR-1338:owner-look`: the owner accepts the open-in-browser button
-  (`open-in-browser-v001`) and Home's open (`home-open-v001`) in one short
-  attended session on a frozen build.
+  and Home's open in one short attended session on a frozen build, and each
+  opens the pull request in the owner's browser (v001 rejected; now
+  `open-in-browser-v002` and `home-open-v002`).
 - Windows and Linux runs of the title-row rows are owed, not gating this card's
   macOS close; BPR-1324 is changing the Windows title row at the same time.
 
@@ -191,7 +192,7 @@ predate this card.
 ## Pending
 
 - `BPR-1338:owner-look`: one short attended session on a frozen build, with
-  `open-in-browser-v001` and `home-open-v001`.
+  `open-in-browser-v002` and `home-open-v002` (v001 rejected; see below).
 - Windows and Linux runs of the title-row and window rows. On Windows the
   button takes about 26 px more of the name's room. BPR-1324 is changing the
   Windows title row (shortcuts drop below 1300 px), so "the whole name fits at
@@ -313,3 +314,54 @@ reaches `QDesktopServices::openUrl`.
   `google/UIforETW#74`, is real and public, so the browser shows a real page,
   https://github.com/google/UIforETW/pull/74, answered 200 when checked. The
   look still reads nothing from GitHub.
+
+**Evidence (macOS, `build/dev` Debug, targets only, on `d8738b93c`).**
+
+- `application_attended_recent_replay` runs `attended_open_on_github_course`
+  on the launcher's composition: `uiforetw-74`, the fixture account, and
+  `AttendedWindowBrowser`. The platform launch is substituted. The title
+  row's button, a Following row and a Recently viewed row each launch exactly
+  `https://github.com/google/UIforETW/pull/74`, once per gesture, and the
+  recorder stays untouched. Device sign-in reaches no platform launch.
+  Without the option, the same gestures reach the recorder and never the
+  platform.
+- Failing-before control: the composition change was reverted to
+  `WindowBrowser = deviceBrowser` and the course was run again. It failed at
+  "an attended look hands exactly the pull request's page to the system
+  browser: the title row's button" with `launches=0 recorded=1`, which is the
+  owner's v001 result. The file was then restored byte for byte.
+- These also pass: `core_dependency_boundary`, `architecture_boundaries`,
+  `application_device_authorization_browser_{handoff,absent,address}`,
+  `application_composition_capabilities_{inside_boundary,product_run}`,
+  `application_attended_launch_contract`, `composed_application_hosts` and
+  `application_personal_discovery_public_path`.
+  `application_review_round_trip_composition_contract` passes after the
+  reseal (full `cb188cd0…`, manifest `a5471bbf…`, mutation unchanged).
+  `clang-format`, `git diff --check` and the documentation gate pass too.
+- Native, once: the frozen v002 build ran on Aqua outside the boundary with
+  `--github-fixture uiforetw-74 --attended-launch
+  --attended-open-pull-request --attended-open-on-github`. It printed
+  `ATTENDED_OPEN_ON_GITHUB_TRIGGERED:status=Opened the pull request on GitHub
+  in your browser.` The default browser is Chrome. Its live session file
+  (`Sessions/Session_…`, started 19:34) was written at 20:07:29, right after
+  the trigger, and now contains `https://github.com/google/UIforETW/pull/74`.
+  Chrome's history had last recorded that address about 25 days earlier. No
+  screen was captured and the desktop was not driven. The tab is left open
+  in the owner's Chrome.
+
+## Owner look v002 — prepared 2026-10-08
+
+- Session `f566ce97a272a070a50df9a65399649c` released v001 (`7f794456…`,
+  `resume-development --all` at 10). Its frozen root was deleted.
+- The frozen build of `d8738b93c` (source export and Debug tests-on build) is
+  inside `/Users/jaeger/.mask/attended-review/bpr1338-open-on-github-v002`.
+  It is started with
+  `python3 /Users/jaeger/.mask/attended-review/bpr1338-open-on-github-v002/launch.py`,
+  which checks the build and the `uiforetw-74` fixture and reports an exit
+  within seconds.
+- New short session `f566ce97a272a070a50df9a65399649c`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1338-open-v002/state`,
+  host detached. Two Accept/Reject candidates, both ready at cursor 6:
+  `BPR-1338-open-in-browser-v002` and `BPR-1338-home-open-v002`.
+- Next: on hand-back, read `status --after 6`. Accept on both closes
+  `BPR-1338:owner-look`.
