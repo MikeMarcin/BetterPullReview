@@ -1385,8 +1385,11 @@ namespace {
 			// [[BPR-1200]]. The held lane withholds every answer, so nothing yet
 			// shows that this connection can read the pull request: the opening
 			// is said under the Home bar rather than on an empty Overview.
+			// [[BPR-1357]]. In Home's status band, by name, behind the busy mark
+			// (with the step once the core's wait has passed).
 			expect(window.showing_home() && !window.overview_page()->isVisible()
-					   && window.home_open_notice()->text() == QStringLiteral("Loading the pull request.")
+					   && window.home_open_notice()->text().startsWith(QStringLiteral("Opening octo-org/review-repository#17"))
+					   && window.home_status_line()->isVisible() && window.home_status_line()->tone() == qt::home_status_tone::busy
 					   && window.session_panel()->status() == core::github_status::loading_pull_request
 					   && !window.overview_page()->presented(),
 				   "a real pending setup opening is said on Home until GitHub has answered for it");

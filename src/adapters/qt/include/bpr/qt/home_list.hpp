@@ -27,6 +27,7 @@
 #include <vector>
 
 class QLabel;
+class QTimer;
 class QVBoxLayout;
 
 namespace bpr::qt {
@@ -264,6 +265,21 @@ namespace bpr::qt {
 		/// can dispatch its whole view.
 		void set_view_observer(std::function<void()> aObserver);
 
+		/// \brief [[BPR-1357]]. The row a pull request is being opened from.
+		///
+		/// \details Every shown row with that identity says so; the one that
+		/// asked (the current row, or the first in reading order) carries the
+		/// Cancel or Retry button. The mark turns while the phase is opening
+		/// or waiting. The list decides nothing: the phase, line and action are
+		/// the window's presentation of the core's state.
+		void set_open(home_row_open aOpen);
+		/// \brief The shown list that carries the open row's action, or null when
+		/// no shown row is the one being opened from.
+		[[nodiscard]] auto open_view() const -> QAbstractItemView*;
+		/// \brief The open row's Cancel or Retry button.
+		[[nodiscard]] auto open_action() const noexcept -> QToolButton*;
+		void               set_open_action_dispatch(std::function<void()> aDispatch);
+
 		/// \brief Recounts every panel, and shows or hides each by what it holds.
 		void refresh();
 		/// \brief Makes one queue identity current; a focusing selection expands
@@ -373,6 +389,15 @@ namespace bpr::qt {
 		auto               focus_row(QAbstractItemView& aView, int aRow) -> bool;
 		/// \brief The panel that holds one rows view, or null.
 		[[nodiscard]] auto panel_of(const QAbstractItemView& aView) const -> home_panel*;
+		/// \brief [[BPR-1357]]. The row of a view that is the open row, or invalid.
+		[[nodiscard]] auto open_index(const QAbstractItemView& aView) const -> QModelIndex;
+		/// \brief [[BPR-1357]]. Puts the open row's button on its row, or hides it.
+		void place_open_action();
+		/// \brief [[BPR-1357]]. One turn of the opening mark, on the rows that show it.
+		void turn_open_mark();
+		/// \brief [[BPR-1357]]. Whether a row is being opened, so a second gesture
+		/// on it asks for nothing.
+		[[nodiscard]] auto opening(const QModelIndex& aIndex) const -> bool;
 
 		review_landing_filter_model&                 Queue;
 		QWidget*                                     Column   = nullptr;
@@ -404,6 +429,10 @@ namespace bpr::qt {
 		QPersistentModelIndex NewWindowPress;
 		QIcon                 PageIcon;
 		QString               PageToolTip;
+		/// [[BPR-1357]]. The open row's button, and the timer that turns its mark.
+		QToolButton*          OpenAction = nullptr;
+		QTimer*               OpenTurn   = nullptr;
+		std::function<void()> OpenActionDispatch;
 		/// The collapse of a group panel and of the bands inside it, keyed by the
 		/// owner, repository or account it names. It lives as long as the window
 		/// and is never dispatched, so nothing writes those names to a store.

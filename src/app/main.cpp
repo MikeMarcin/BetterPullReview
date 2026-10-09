@@ -5343,6 +5343,100 @@ namespace {
 		timer->start();
 	}
 
+	// [[BPR-1357]]. `--attended-home-look`: before a person looks, the
+	// fixture's account signs in, opens its pull request once from the Home
+	// bar (so Recently viewed holds it), saves its repository from Settings ›
+	// Repositories (so discovery lists Home's rows), and returns to Home. Only
+	// then is the slow network armed, so everything the person opens from Home
+	// waits `aDelay` milliseconds on each of its first two answers. One line
+	// says whether it got there.
+	void schedule_attended_home_look(
+		bpr::app::github_application&                                aApplication,
+		QString                                                      aPullRequest,
+		std::shared_ptr<bpr::app::detail::github_read_delay_fixture> aDelay,
+		const std::uint32_t                                          aMilliseconds)
+	{
+		enum class step : std::uint8_t {
+			connect,
+			open,
+			opened,
+			save,
+			saved,
+		};
+		struct look_state
+		{
+			step                        Step = step::connect;
+			automated_clock::time_point Started;
+		};
+		auto        state = std::make_shared<look_state>(look_state{ .Started = automated_clock::now() });
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, pullRequest = std::move(aPullRequest), delay = std::move(aDelay), aMilliseconds, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - state->Started > std::chrono::seconds{ 90 }) {
+				finish(QStringLiteral("ATTENDED_HOME_FAILED:timeout:step=%1").arg(static_cast<int>(state->Step)));
+				return;
+			}
+			const auto rows = [&window] {
+				auto count = 0;
+				for (const auto group : { bpr::qt::home_group::needs_you, bpr::qt::home_group::waiting_on_others, bpr::qt::home_group::following }) {
+					if (auto* const model = window.home_list()->state_model(group); model != nullptr) {
+						count += model->rowCount();
+					}
+				}
+				return count;
+			};
+			switch (state->Step) {
+			case step::connect:
+				if (window.github_connect_action()->isEnabled()) {
+					window.github_connect_action()->trigger();
+					state->Step = step::open;
+				}
+				return;
+			case step::open:
+				if (window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled()) {
+					window.home_open_bar()->setText(pullRequest);
+					window.home_open_action()->trigger();
+					state->Step = step::opened;
+				}
+				return;
+			case step::opened:
+				if (!window.showing_home() && window.github_status_text() == "Pull request ready.") {
+					window.home_action()->trigger();
+					state->Step = step::save;
+				}
+				return;
+			case step::save:
+				if (window.showing_home() && window.add_saved_repository_action() != nullptr) {
+					window.open_repository_addition();
+					window.saved_repository_name()->setText(pullRequest.section(QLatin1Char{ '#' }, 0, 0));
+					if (auto* const add = window.repository_addition_draft()->findChild<QPushButton*>(QStringLiteral("repositoryAdditionAdd")); add != nullptr && add->isEnabled()) {
+						add->click();
+						state->Step = step::saved;
+					}
+				}
+				return;
+			case step::saved:
+				if (!window.repository_addition_draft()->isVisible() && rows() >= 2) {
+					window.settings()->hide();
+					window.home_action()->trigger();
+					delay->Milliseconds = aMilliseconds;
+					finish(QStringLiteral("ATTENDED_HOME_SHOWN:rows=%1:delay=%2ms").arg(rows()).arg(aMilliseconds));
+				}
+				return;
+			}
+		});
+		timer->start();
+	}
+
 	// [[BPR-1289]]. `--attended-open-settings`: before a person looks,
 	// Settings opens over the window through the workbench's own Settings
 	// action, as Command-comma opens it, and one line says whether it showed.
@@ -9230,6 +9324,46 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedWorkshopAgent } };
 			fixtureOptions.LabelHelper          = true;
 		}
+		// [[BPR-1357]]. A slow network for a pull request's first answers, and
+		// a pull request whose reads fail after it; with `--attended-home-look`
+		// it is armed only once Home is ready for the person.
+		const auto attendedHomeLook = has_argument(argc, argv, "--attended-home-look");
+		const auto parse_count      = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
+			if (!aText.has_value()) {
+				return std::nullopt;
+			}
+			auto       value  = std::uint32_t{ 0U };
+			const auto parsed = std::from_chars(aText->data(), aText->data() + aText->size(), value);
+			return parsed.ec == std::errc{ } && parsed.ptr == aText->data() + aText->size() ? std::optional{ value } : std::nullopt;
+		};
+		const auto readDelayText    = argument_value(argc, argv, "--fixture-read-delay-ms");
+		const auto readFailText     = argument_value(argc, argv, "--fixture-read-fail-number");
+		const auto readDelay        = parse_count(readDelayText);
+		const auto readFailNumber   = parse_count(readFailText);
+		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
+		if ((readDelayText.has_value() && !readDelay.has_value()) || (readFailText.has_value() && !readFailNumber.has_value())
+			|| (attendedHomeLook && (!attendedLaunch || attendedOpenPullRequest || attendedOpenSettings || attendedPreflightLook.has_value() || attendedTourStop || attendedWorkshopAgent.has_value() || attendedReadState))) {
+			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+		if (readDelay.has_value() || readFailNumber.has_value()) {
+			readDelayFixture               = std::make_shared<bpr::app::detail::github_read_delay_fixture>();
+			readDelayFixture->Milliseconds = attendedHomeLook ? 0U : readDelay.value_or(0U);
+			readDelayFixture->FailNumber   = readFailNumber.value_or(0U);
+			fixtureOptions.ReadDelay       = readDelayFixture;
+		}
+		if (attendedHomeLook) {
+			// Home's rows: the fixture's own pull request asks for my review,
+			// and one of mine waits on a reviewer; the second is the one whose
+			// reads fail when `--fixture-read-fail-number` names it.
+			fixtureOptions.RepeatReadSessions = true;
+			fixtureOptions.PersonalDiscovery  = bpr::app::detail::github_personal_discovery_fixture{
+				.OpenPullRequests = {
+					{ .Number = static_cast<std::uint32_t>(fixtureExpectations.Number), .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" } },
+					{ .Number = readFailNumber.value_or(4001U), .Author = "octo-reviewer", .RequestedUsers = { "alice" } },
+				},
+			};
+		}
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
 			|| (attendedOpenOnGithub && !attendedOpenPullRequest)
@@ -9658,8 +9792,12 @@ auto main(int argc, char** argv) -> int
 						}
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}
-					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),
-											 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt, attendedOpenOnGithub);
+					if (attendedHomeLook) {
+						schedule_attended_home_look(*application, attendedPullRequest, readDelayFixture ? readDelayFixture : std::make_shared<bpr::app::detail::github_read_delay_fixture>(), readDelay.value_or(0U));
+					} else {
+						schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),
+												 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt, attendedOpenOnGithub);
+					}
 				}
 				if (heldOpenForInspection && attendedOpenSettings) {
 					schedule_attended_settings(*application);

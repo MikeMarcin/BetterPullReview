@@ -976,6 +976,9 @@ namespace bpr::qt {
 		StatusLabel->setTextInteractionFlags(Qt::TextSelectableByKeyboard
 											 | Qt::TextSelectableByMouse);
 		statusBar()->addWidget(StatusLabel, 1);
+		// [[BPR-1357]]. What was just done is said in Home's band too, for as
+		// long as the status bar says it.
+		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_home_status(); });
 		// [[BPR-0775]] mandate r2. Dif rests in the window's bottom-left corner
 		// while Home is not the first-launch card. This slot reserves the start
 		// of the status line for him; the sprite is laid over it (see
@@ -2751,10 +2754,38 @@ namespace bpr::qt {
 			HomeOpenDetails->setAutoDefault(false);
 			HomeOpenDetails->setFocusPolicy(Qt::StrongFocus);
 			HomeOpenDetails->hide();
+			// [[BPR-1357]]. Both now speak in Home's status band, directly under
+			// the bar, at body size behind a mark that says their tone. The band
+			// also carries Home's general status, which was a line at the
+			// window's bottom edge, and Cancel or Retry for what the bar opened.
+			HomeStatus     = new qt::home_status_line{ HomePage };
+			HomeStatusText = new QLabel{ HomeStatus };
+			HomeStatusText->setObjectName(QStringLiteral("homeStatusText"));
+			HomeStatusText->setAccessibleName(QStringLiteral("Home status"));
+			HomeStatusText->setWordWrap(true);
+			HomeStatusText->setTextFormat(Qt::PlainText);
+			HomeStatusText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			HomeStatusText->hide();
+			HomeOpenCancel = new QPushButton{ tr("Cancel"), HomeStatus };
+			HomeOpenCancel->setObjectName(QStringLiteral("homeOpenCancel"));
+			HomeOpenCancel->setAutoDefault(false);
+			HomeOpenCancel->setFocusPolicy(Qt::StrongFocus);
+			HomeOpenCancel->hide();
+			HomeOpenRetry = new QPushButton{ tr("Retry"), HomeStatus };
+			HomeOpenRetry->setObjectName(QStringLiteral("homeOpenRetry"));
+			HomeOpenRetry->setAutoDefault(false);
+			HomeOpenRetry->setFocusPolicy(Qt::StrongFocus);
+			HomeOpenRetry->hide();
+			connect(HomeOpenCancel, &QPushButton::clicked, this, [this] { dispatch_home_open_action(); });
+			connect(HomeOpenRetry, &QPushButton::clicked, this, [this] { dispatch_home_open_action(); });
+			HomeStatus->adopt_text(*HomeOpenNotice);
+			HomeStatus->adopt_text(*HomeStatusText);
+			HomeStatus->adopt_button(*HomeOpenCancel);
+			HomeStatus->adopt_button(*HomeOpenRetry);
+			HomeStatus->adopt_button(*HomeOpenDetails);
 			auto* const noticeRow = new QHBoxLayout{ };
-			noticeRow->setContentsMargins(24, 2, 24, 0);
-			noticeRow->addWidget(HomeOpenNotice, 1);
-			noticeRow->addWidget(HomeOpenDetails, 0, Qt::AlignTop);
+			noticeRow->setContentsMargins(24, 8, 24, 0);
+			noticeRow->addWidget(HomeStatus, 1);
 			homeColumn->addLayout(noticeRow);
 			connect(HomeOpenDetails, &QPushButton::clicked, this, [this] {
 				if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
@@ -3523,6 +3554,8 @@ namespace bpr::qt {
 		// profile it resolved.
 		HomeList->set_state_colours(home_state_colours_for(appearance_profile{ }));
 		HomeList->set_open_dispatch([this](const core::queue_item& aItem) { open_pull_request_item(aItem); });
+		// [[BPR-1357]]. Cancel or Retry on the row being opened.
+		HomeList->set_open_action_dispatch([this] { dispatch_home_open_action(); });
 		// [[BPR-1338]]. Open on GitHub from a queue row: its icon names the row
 		// directly; its menu holds the window's action, which names the row the
 		// right click made current, as the action's key does.
@@ -4568,6 +4601,10 @@ namespace bpr::qt {
 		}
 		QueueStatusNotable = notable;
 		update_home_surface();
+		// [[BPR-1357]]. A queue row that appeared or went may carry the opening.
+		if (HomeOpen.has_value()) {
+			refresh_home_open();
+		}
 	}
 
 	void workbench_window::dispatch_queue_rule(
@@ -9967,6 +10004,10 @@ namespace bpr::qt {
 			if (!wasAnswered && ReadProgress->PagesReceived >= minimum_answered_pages) {
 				update_home_landing();
 			}
+			// [[BPR-1357]]. The step a waiting opening names.
+			if (HomeOpen.has_value() && HomeOpen->State.has_value() && HomeOpen->State->Phase == core::home_open_phase::waiting) {
+				refresh_home_open();
+			}
 		}
 		if (aUpdate.Transition.has_value()) {
 			apply_github_transition(*aUpdate.Transition);
@@ -10057,6 +10098,11 @@ namespace bpr::qt {
 		case core::github_status::session_failed:
 		case core::github_status::session_cancelled:
 			break;
+		}
+		// [[BPR-1357]]. An opening the application follows is announced in the
+		// opening's own words, once, by `refresh_home_open`.
+		if (source == HomePage && HomeOpen.has_value()) {
+			return;
 		}
 		// [[BPR-1200]]. A refusal with its own card is announced in the card's
 		// words, so a reader hears what a sighted reviewer reads.
@@ -11412,16 +11458,22 @@ namespace bpr::qt {
 		if (slash <= 0 || aItem.Ref.Number <= 0) {
 			return;
 		}
-		// [[BPR-0651]] [[BPR-0650]]. A pull request chosen from a list
-		// arrives on Overview.
-		OpenOnOverview = true;
-		GithubDispatch(core::open_pull_request_intent{
+		auto intent = core::open_pull_request_intent{
 			.Repository = core::repository_locator{
 				.Owner = repository.left(slash).toStdString(),
 				.Name  = repository.mid(slash + 1).toStdString(),
 			},
 			.Number = core::pull_request_number{ static_cast<std::uint32_t>(aItem.Ref.Number) },
-		});
+		};
+		// [[BPR-1357]]. The pull request already being opened asks for nothing
+		// again, whichever row or key asked: the core says it is in flight.
+		if (HomeOpen.has_value() && core::home_open_in_flight(HomeOpen->State, intent.Repository, intent.Number)) {
+			return;
+		}
+		// [[BPR-0651]] [[BPR-0650]]. A pull request chosen from a list
+		// arrives on Overview.
+		OpenOnOverview = true;
+		GithubDispatch(std::move(intent));
 	}
 
 	auto workbench_window::home_open_action() const noexcept -> QAction*
@@ -11517,6 +11569,10 @@ namespace bpr::qt {
 		}
 		update_home_surface();
 		update_recent_resume_action();
+		// [[BPR-1357]]. A row that appeared or went may carry the opening.
+		if (HomeOpen.has_value()) {
+			refresh_home_open();
+		}
 	}
 
 	void workbench_window::update_home_surface()
@@ -11560,6 +11616,15 @@ namespace bpr::qt {
 		const auto index = static_cast<std::size_t>(aRow);
 		if (aResume && !RecentReviews.Entries[index].Resumable) {
 			return;
+		}
+		// [[BPR-1357]]. A row already being opened asks for nothing again.
+		if (const auto* const item = HomeRecentList->item(aRow);
+			HomeOpen.has_value() && item != nullptr && HomeList != nullptr && HomeList->row_delegate() != nullptr) {
+			const auto& open = HomeList->row_delegate()->open();
+			if ((open.Phase == home_row_open_phase::opening || open.Phase == home_row_open_phase::waiting)
+				&& item->data(home_row_role::identity).toString() == open.Identity) {
+				return;
+			}
 		}
 		// [[BPR-0733]] [[BPR-0651]]. A pull request chosen from a list arrives
 		// on Overview, exactly as a queue row's does.
@@ -12047,19 +12112,31 @@ namespace bpr::qt {
 		if (SessionPanel->status() == core::github_status::loading_pull_request) {
 			DismissedHomeRefusal.clear();
 		}
+		// [[BPR-1357]]. The opening the core and the application decided, when
+		// no shown row says it: what the bar asked for, or a row Home no longer
+		// shows. A row that says it is where the reviewer is looking.
+		const auto& state       = HomeOpen.has_value() ? HomeOpen->State : std::optional<core::home_open_state>{ };
+		const auto  inFlight    = state.has_value() && state->Phase != core::home_open_phase::failed;
+		const auto  failed      = state.has_value() && state->Phase == core::home_open_phase::failed;
+		const auto  bandOpening = inFlight && !HomeOpenOnRow;
 		// A setup stage's own notice speaks first, then a review restoration's,
 		// then the refusal of the last load, unless the reviewer has already
 		// begun rewriting what was said.
 		const auto refusal = home_refusal_text();
 		const auto passive = !HomeRestorationNotice.isEmpty() ? HomeRestorationNotice : refusal;
-		const auto spoken  = HomeSetupNotice.isEmpty() && !passive.isEmpty()
-			&& passive != DismissedHomeRefusal;
+		// [[BPR-1357]]. A failure a row already says is said there, not twice.
+		const auto rowSaysFailure = failed && HomeOpenOnRow && HomeRestorationNotice.isEmpty();
+		const auto spoken         = HomeSetupNotice.isEmpty() && !passive.isEmpty()
+			&& passive != DismissedHomeRefusal && !rowSaysFailure;
 		const auto refused = spoken && HomeRestorationNotice.isEmpty();
 		// [[BPR-0775]]. A first load in progress is said here as well, where the
 		// pull request was named, since the stack's page that said it is not
-		// Home's. It is not a refusal, so it has no Copy details.
+		// Home's. It is not a refusal, so it has no Copy details. [[BPR-1357]]:
+		// with the application's opening it names the pull request and the step;
+		// a row that says it leaves this line to the rest of Home's status.
 		const auto loading = SessionPanel->status() == core::github_status::loading_pull_request && !HasGithubPullRequest
-			? QString::fromStdString(SessionPanel->status_text())
+			? (bandOpening ? home_open_text(false)
+						   : (HomeOpen.has_value() ? QString{ } : QString::fromStdString(SessionPanel->status_text())))
 			: QString{ };
 		const auto notice  = !HomeSetupNotice.isEmpty() ? HomeSetupNotice
 			: spoken                                    ? passive
@@ -12069,7 +12146,6 @@ namespace bpr::qt {
 		const auto wording = refused ? home_refusal_wording() : std::nullopt;
 		const auto carded  = wording.has_value() && HomeRefusal != nullptr;
 		HomeOpenNotice->setText(carded ? QString{ } : notice);
-		HomeOpenNotice->setVisible(!carded && !notice.isEmpty());
 		HomeRefusalDetails.clear();
 		if (refused) {
 			HomeRefusalDetails = QString::fromStdString(SessionPanel->status_text());
@@ -12077,12 +12153,221 @@ namespace bpr::qt {
 				HomeRefusalDetails += QLatin1Char('\n') + refusal;
 			}
 		}
+		const auto said = !carded && !notice.isEmpty();
 		HomeOpenDetails->setVisible(refused && !carded);
+		if (HomeOpenCancel != nullptr && HomeOpenRetry != nullptr) {
+			// Offered only where the core offers them, and only beside the line
+			// that says the opening.
+			const auto sayingOpening = said && notice == loading && bandOpening;
+			HomeOpenCancel->setVisible(sayingOpening && HomeOpen->Cancellable);
+			HomeOpenRetry->setVisible(refused && failed && !HomeOpenOnRow && HomeOpen->Retryable);
+		}
+		if (HomeStatus != nullptr && said) {
+			HomeStatus->set_tone(refused                                         ? home_status_tone::problem
+									 : (!loading.isEmpty() && notice == loading) ? home_status_tone::busy
+																				 : home_status_tone::notice);
+		}
+		HomeOpenNotice->setVisible(said);
 		if (HomeRefusal != nullptr) {
 			if (carded) {
 				HomeRefusal->present(*wording);
 			}
 			HomeRefusal->setVisible(carded);
+		}
+		update_home_status();
+	}
+
+	auto workbench_window::home_status_line() const noexcept -> qt::home_status_line*
+	{
+		return HomeStatus;
+	}
+
+	auto workbench_window::home_status_text() const noexcept -> QLabel*
+	{
+		return HomeStatusText;
+	}
+
+	auto workbench_window::home_open_cancel_button() const noexcept -> QPushButton*
+	{
+		return HomeOpenCancel;
+	}
+
+	auto workbench_window::home_open_retry_button() const noexcept -> QPushButton*
+	{
+		return HomeOpenRetry;
+	}
+
+	auto workbench_window::home_open() const noexcept -> const std::optional<application::home_open_projection>&
+	{
+		return HomeOpen;
+	}
+
+	void workbench_window::set_home_open_dispatch(application::home_open_dispatch aDispatch)
+	{
+		HomeOpenDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_home_failure_ink(const QColor& aInk)
+	{
+		if (HomeStatus != nullptr) {
+			HomeStatus->set_failure_ink(aInk);
+		}
+	}
+
+	void workbench_window::present(const application::home_open_projection& aProjection)
+	{
+		HomeOpen = aProjection.State.has_value() ? std::optional{ aProjection } : std::nullopt;
+		refresh_home_open();
+	}
+
+	void workbench_window::dispatch_home_open_action()
+	{
+		if (!HomeOpenDispatch || !HomeOpen.has_value() || !HomeOpen->State.has_value()) {
+			return;
+		}
+		// The request the projection named; the application admits it against
+		// the core's state, so a stale press asks for nothing.
+		const auto request = HomeOpen->State->Request;
+		if (HomeOpen->State->Phase == core::home_open_phase::failed) {
+			if (HomeOpen->Retryable) {
+				HomeOpenDispatch(application::retry_home_open{ request });
+			}
+			return;
+		}
+		if (HomeOpen->Cancellable) {
+			HomeOpenDispatch(application::cancel_home_open{ request });
+		}
+	}
+
+	auto workbench_window::home_open_text(const bool aRow) const -> QString
+	{
+		if (!HomeOpen.has_value() || !HomeOpen->State.has_value()) {
+			return { };
+		}
+		const auto& state = *HomeOpen->State;
+		const auto  name  = aRow ? QStringLiteral("#%1").arg(state.Number.value())
+								 : QStringLiteral("%1/%2#%3")
+									   .arg(QString::fromStdString(state.Repository.Owner), QString::fromStdString(state.Repository.Name))
+									   .arg(state.Number.value());
+		switch (state.Phase) {
+		case core::home_open_phase::opening:
+			return QStringLiteral("Opening %1…").arg(name);
+		case core::home_open_phase::waiting: {
+			// The step the read is on, from its own bounded progress.
+			auto step = QStringLiteral("asking GitHub for the pull request");
+			if (ReadProgress.has_value()) {
+				switch (ReadProgress->Phase) {
+				case application::github_read_phase::metadata:
+					if (ReadProgress->PagesReceived != 0U) {
+						step = QStringLiteral("reading the pull request");
+					}
+					break;
+				case application::github_read_phase::files:                 step = QStringLiteral("reading changed files"); break;
+				case application::github_read_phase::commits:               step = QStringLiteral("reading commits"); break;
+				case application::github_read_phase::reviews:               step = QStringLiteral("reading reviews"); break;
+				case application::github_read_phase::review_threads:        step = QStringLiteral("reading review threads"); break;
+				case application::github_read_phase::comments:              step = QStringLiteral("reading comments"); break;
+				case application::github_read_phase::checks:                step = QStringLiteral("reading checks"); break;
+				case application::github_read_phase::related_pull_requests: step = QStringLiteral("reading related pull requests"); break;
+				case application::github_read_phase::update_history:        step = QStringLiteral("reading update history"); break;
+				}
+			}
+			return QStringLiteral("Opening %1: %2…").arg(name, step);
+		}
+		case core::home_open_phase::failed: {
+			const auto reason = detail::reason_text(state.Reason, std::nullopt, std::nullopt);
+			return reason.isEmpty() ? QStringLiteral("Couldn't open %1.").arg(name)
+									: QStringLiteral("Couldn't open %1. %2").arg(name, reason);
+		}
+		}
+		return { };
+	}
+
+	void workbench_window::refresh_home_open()
+	{
+		auto open = home_row_open{ };
+		if (HomeOpen.has_value() && HomeOpen->State.has_value()) {
+			const auto& state = *HomeOpen->State;
+			open.Identity     = QStringLiteral("%1/%2#%3")
+									.arg(QString::fromStdString(state.Repository.Owner), QString::fromStdString(state.Repository.Name))
+									.arg(state.Number.value());
+			open.Phase        = state.Phase == core::home_open_phase::opening ? home_row_open_phase::opening
+				: state.Phase == core::home_open_phase::waiting               ? home_row_open_phase::waiting
+																			  : home_row_open_phase::failed;
+			open.Line         = home_open_text(true);
+			open.Action       = HomeOpen->Cancellable ? tr("Cancel") : HomeOpen->Retryable ? tr("Retry")
+																						   : QString{ };
+		}
+		if (HomeList != nullptr) {
+			HomeList->set_open(open);
+			HomeOpenOnRow = HomeList->open_view() != nullptr;
+		} else {
+			HomeOpenOnRow = false;
+		}
+		update_home_open_notice();
+		// One polite announcement for each thing the opening says, wherever it
+		// is shown; a reader hears the step and the failure as a sighted
+		// reviewer reads them.
+		const auto announcement = open.Phase == home_row_open_phase::none ? QString{ }
+			: open.Phase == home_row_open_phase::waiting && HomeOpen->Cancellable
+			? home_open_text(false) + QStringLiteral(" Cancel is available.")
+			: home_open_text(false);
+		if (!announcement.isEmpty() && announcement != LastHomeOpenAnnouncement && HomePage != nullptr) {
+			LastHomeOpenAnnouncement = announcement;
+			QAccessibleAnnouncementEvent event{ HomePage, announcement };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+		if (announcement.isEmpty()) {
+			LastHomeOpenAnnouncement.clear();
+		}
+	}
+
+	void workbench_window::update_home_status()
+	{
+		if (HomeStatusText == nullptr || HomeOpenNotice == nullptr || SessionPanel == nullptr) {
+			return;
+		}
+		// [[BPR-1357]]. Home's general status, said in the band when the bar's
+		// own line is not: a problem the window has, a connection under way, or
+		// what was just done. The session line is idle and stays in the status
+		// bar, so a quiet Home adds nothing.
+		auto text = QString{ };
+		auto tone = home_status_tone::notice;
+		if (Failure) {
+			text = failure_text(*Failure);
+			tone = home_status_tone::problem;
+		} else if (ProfileFailure) {
+			text = profile_management_failure_text(*ProfileFailure);
+			tone = home_status_tone::problem;
+		} else if (AgentWorkspacesUnavailable) {
+			text = QStringLiteral("Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit.");
+			tone = home_status_tone::problem;
+		} else if (SavedLayoutUnavailable) {
+			text = failure_text(application::workbench_host_failure::settings_unavailable);
+			tone = home_status_tone::problem;
+		} else if (SessionPanel->status() == core::github_status::establishing_session) {
+			const auto host = QString::fromStdString(SessionPanel->active_host_text());
+			text            = host.isEmpty() ? QStringLiteral("Connecting to GitHub…") : QStringLiteral("Connecting to %1…").arg(host);
+			tone            = home_status_tone::busy;
+		} else if (const auto message = statusBar() != nullptr ? statusBar()->currentMessage() : QString{ }; !message.isEmpty()) {
+			text = message;
+		}
+		const auto shown = !text.isEmpty() && HomeOpenNotice->isHidden();
+		HomeStatusText->setText(shown ? text : QString{ });
+		if (shown && HomeStatus != nullptr) {
+			HomeStatus->set_tone(tone);
+		}
+		HomeStatusText->setVisible(shown);
+		const auto announcement = shown && showing_home() ? text : QString{ };
+		if (!announcement.isEmpty() && announcement != LastHomeStatusAnnouncement && HomeStatus != nullptr) {
+			LastHomeStatusAnnouncement = announcement;
+			QAccessibleAnnouncementEvent event{ HomeStatus, announcement };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+		if (announcement.isEmpty()) {
+			LastHomeStatusAnnouncement.clear();
 		}
 	}
 
@@ -14223,6 +14508,7 @@ namespace bpr::qt {
 	{
 		update_review_readiness();
 		StatusLabel->setText(status_line());
+		update_home_status();
 		update_strip_positions();
 		update_rail_summaries();
 		update_home_landing();

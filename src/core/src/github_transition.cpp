@@ -123,6 +123,22 @@ namespace bpr::core {
 				&& aState.ActiveNumber == aContext.Number;
 		}
 
+		/// [[BPR-1357]]. The read a context names, at one stage.
+		[[nodiscard]] auto read_delta(
+			const pull_request_request_context& aContext,
+			const pull_request_read_stage       aStage,
+			const github_reason_code            aReason = github_reason_code::none) -> pull_request_read_delta
+		{
+			return pull_request_read_delta{
+				.Request    = aContext.Request,
+				.Repository = aContext.Repository,
+				.Number     = aContext.Number,
+				.Stage      = aStage,
+				.Refresh    = aContext.ExpectedPullRequest.has_value(),
+				.Reason     = aReason,
+			};
+		}
+
 		[[nodiscard]] constexpr auto valid_capability_state(
 			const github_capability_state aState) noexcept -> bool
 		{
@@ -171,7 +187,8 @@ namespace bpr::core {
 				return reject(github_reason_code::invalid_profile);
 			}
 
-			const auto previous = identity_scope(aState);
+			const auto previous  = identity_scope(aState);
+			const auto abandoned = aState.PendingPullRequest;
 			advance_and_clear_identity_scope(aState);
 			aState.ActiveProfile = aIntent.Profile;
 			aState.AccessMode    = aIntent.Mode;
@@ -200,6 +217,10 @@ namespace bpr::core {
 			output.Capabilities = capability_delta(aState);
 			output.PullRequest  = pull_request_summary_delta{ .Summary = std::nullopt };
 			output.Status       = github_status_delta{ .Status = github_status::establishing_session };
+			// [[BPR-1357]]. A read the new identity abandoned ended here.
+			if (abandoned.has_value()) {
+				output.Read = read_delta(*abandoned, pull_request_read_stage::cancelled, github_reason_code::cancelled);
+			}
 			publish_commands(aState, output);
 			return output;
 		}
@@ -207,7 +228,8 @@ namespace bpr::core {
 		[[nodiscard]] auto deactivate_identity(github_state& aState)
 			-> github_transition_output
 		{
-			const auto previous = identity_scope(aState);
+			const auto previous  = identity_scope(aState);
+			const auto abandoned = aState.PendingPullRequest;
 			advance_and_clear_identity_scope(aState);
 
 			github_transition_output output;
@@ -225,6 +247,9 @@ namespace bpr::core {
 			output.Capabilities = capability_delta(aState);
 			output.PullRequest  = pull_request_summary_delta{ .Summary = std::nullopt };
 			output.Status       = github_status_delta{ .Status = github_status::no_profile };
+			if (abandoned.has_value()) {
+				output.Read = read_delta(*abandoned, pull_request_read_stage::cancelled, github_reason_code::cancelled);
+			}
 			publish_commands(aState, output);
 			return output;
 		}
@@ -385,6 +410,7 @@ namespace bpr::core {
 			output.Changed = github_changed_domain::status | github_changed_domain::pull_request;
 			output.Requests.emplace_back(fetch_pull_request_request{ .Context = context });
 			output.Status = github_status_delta{ .Status = github_status::loading_pull_request };
+			output.Read   = read_delta(context, pull_request_read_stage::pending);
 			if (!aRefresh) {
 				output.PullRequest = pull_request_summary_delta{ .Summary = std::nullopt };
 			}
@@ -436,6 +462,7 @@ namespace bpr::core {
 				auto output    = reject(github_reason_code::completion_identity_mismatch);
 				output.Status  = github_status_delta{ .Status = github_status::pull_request_failed };
 				output.Changed = output.Changed | github_changed_domain::status;
+				output.Read    = read_delta(aEvent.Context, pull_request_read_stage::failed, github_reason_code::completion_identity_mismatch);
 				publish_commands(aState, output);
 				return output;
 			}
@@ -455,6 +482,7 @@ namespace bpr::core {
 			};
 			output.PullRequest = pull_request_summary_delta{ .Summary = summary(aState) };
 			output.Status      = github_status_delta{ .Status = github_status::pull_request_ready };
+			output.Read        = read_delta(aEvent.Context, pull_request_read_stage::loaded);
 			publish_commands(aState, output);
 			return output;
 		}
@@ -472,6 +500,7 @@ namespace bpr::core {
 			auto output    = reject(reason_for(aFailure));
 			output.Status  = github_status_delta{ .Status = github_status::pull_request_failed };
 			output.Changed = output.Changed | github_changed_domain::status;
+			output.Read    = read_delta(aContext, pull_request_read_stage::failed, reason_for(aFailure));
 			// [[BPR-1200]]. A read with no accepted review behind it refused the
 			// pull request it named, on this connection. A refresh expects the
 			// review it already has and keeps it, so it refuses nothing here.
@@ -501,6 +530,7 @@ namespace bpr::core {
 			auto output    = reject(github_reason_code::cancelled);
 			output.Status  = github_status_delta{ .Status = github_status::pull_request_cancelled };
 			output.Changed = output.Changed | github_changed_domain::status;
+			output.Read    = read_delta(aContext, pull_request_read_stage::cancelled, github_reason_code::cancelled);
 			publish_commands(aState, output);
 			return output;
 		}

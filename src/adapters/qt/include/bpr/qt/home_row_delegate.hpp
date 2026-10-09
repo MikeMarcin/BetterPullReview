@@ -12,6 +12,8 @@
 #include <QStyledItemDelegate>
 #include <QtTypes>
 
+#include <cstdint>
+
 class QPainter;
 
 namespace bpr::qt {
@@ -56,6 +58,9 @@ namespace bpr::qt {
 		QColor NeedsMe;
 		QColor WaitingOnOthers;
 		QColor Following;
+		/// [[BPR-1357]]. The ink a row says it could not be opened in: the
+		/// theme's defect colour, which every variant holds at text strength.
+		QColor Failure;
 
 		/// \brief The colour of one of Home's groups.
 		[[nodiscard]] auto for_group(home_group aGroup) const -> QColor;
@@ -129,6 +134,42 @@ namespace bpr::qt {
 		const QFont&         aFont,
 		const home_chip_ink& aInk);
 
+	/// \brief [[BPR-1357]]. Where the pull request a Home row opens stands.
+	enum class home_row_open_phase : std::uint8_t {
+		none,
+		/// Asked for; a turning mark in the line's ink and "Opening #42…".
+		opening,
+		/// Still unanswered after the core's wait: the step it is on, and Cancel.
+		waiting,
+		/// It could not be opened: the reason in the failure ink, and Retry.
+		failed,
+	};
+
+	/// \brief [[BPR-1357]]. The one Home row a pull request is being opened from.
+	///
+	/// \details Presentation of the core's opening, by the row's identity: the
+	/// row's second line gives way to `Line` behind a mark, and the action
+	/// place holds `Action` ("Cancel" or "Retry") for as long as it is shown.
+	/// `Frame` turns the opening mark; it is animation, and decides nothing.
+	struct home_row_open
+	{
+		QString             Identity;
+		home_row_open_phase Phase = home_row_open_phase::none;
+		QString             Line;
+		QString             Action;
+		int                 Frame = 0;
+
+		auto operator==(const home_row_open&) const -> bool = default;
+	};
+
+	/// \brief How many steps the opening mark turns through in one revolution.
+	inline constexpr int home_open_frames = 12;
+
+	/// \brief [[BPR-1357]]. Draws the opening mark: a faint ring and a turning arc.
+	void draw_home_open_mark(QPainter& aPainter, const QRect& aRect, int aFrame, const QColor& aArc, const QColor& aRing);
+	/// \brief [[BPR-1357]]. Draws the failure mark: a ring with an exclamation in it.
+	void draw_home_failure_mark(QPainter& aPainter, const QRect& aRect, const QFont& aFont, const QColor& aInk);
+
 	/// \brief [[BPR-0776]]. Draws one Home row: identity and title, the why
 	/// sentence ending in the reason word, and the time and progress at the right.
 	///
@@ -145,6 +186,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto state_colours() const noexcept -> const home_state_colours&;
 		/// \brief Draws a 3-point mark at each row's left ([[BPR-0783]], State headers off).
 		void set_marks(bool aMarks);
+		/// \brief [[BPR-1357]]. The row a pull request is being opened from.
+		void               set_open(home_row_open aOpen);
+		[[nodiscard]] auto open() const noexcept -> const home_row_open&;
+		/// \brief Whether a row is the one being opened from.
+		[[nodiscard]] auto opens(const QModelIndex& aIndex) const -> bool;
+		/// \brief Where a row's open action ("Cancel" or "Retry") sits, in the
+		/// option's coordinates; empty for a row that has none.
+		[[nodiscard]] auto open_action_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;
 
 		void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			override;
@@ -175,6 +224,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto state_colour(const QModelIndex& aIndex) const -> QColor;
 
 		home_state_colours Colours;
+		home_row_open      Open;
 		bool               Marks = false;
 	};
 } // namespace bpr::qt

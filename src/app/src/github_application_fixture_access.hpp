@@ -152,6 +152,25 @@ namespace bpr::app::detail {
 		std::atomic<unsigned> GitRefusals{ 0U };
 	};
 
+	/// \brief [[BPR-1357]]. A slow network for a pull request's first answers.
+	///
+	/// \details Holds the first read of a pull request (its repository, then
+	/// the pull request itself) on the fixture transport for `Milliseconds`
+	/// each, so Home's opening can be seen and cancelled. A cancelled read stops
+	/// waiting at once. `FailNext` answers that many first reads with a network
+	/// failure after their wait, for the failure course and its Retry, and
+	/// every first read of pull request `FailNumber` fails the same way.
+	/// Nothing else the fixture serves is delayed.
+	struct github_read_delay_fixture
+	{
+		std::atomic<std::uint32_t> Milliseconds{ 0U };
+		std::atomic<std::uint32_t> FailNext{ 0U };
+		std::atomic<std::uint32_t> FailNumber{ 0U };
+		std::atomic<std::uint32_t> Delayed{ 0U };
+		std::atomic<std::uint32_t> Cancelled{ 0U };
+		std::atomic<std::uint32_t> Failed{ 0U };
+	};
+
 	/// \brief [[BPR-1198]]. Read-only identities at an epoch refresh boundary.
 	struct epoch_refresh_identity_evidence
 	{
@@ -361,6 +380,8 @@ namespace bpr::app::detail {
 		/// [[BPR-0990]]. Serves personal discovery over this repository list.
 		std::optional<github_personal_discovery_fixture> PersonalDiscovery;
 		std::shared_ptr<github_rate_limit_fixture>       RateLimit;
+		/// [[BPR-1357]]. Delays a pull request's first reads; none when null.
+		std::shared_ptr<github_read_delay_fixture> ReadDelay;
 	};
 
 	struct queue_notification_fixture_evidence

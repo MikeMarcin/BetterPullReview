@@ -501,6 +501,36 @@ namespace bpr::core {
 		auto operator<=>(const accepted_session_delta&) const = default;
 	};
 
+	/// \brief [[BPR-1357]]. Where one pull request read stands.
+	enum class pull_request_read_stage : std::uint8_t {
+		/// The read was requested and nothing has answered it yet.
+		pending,
+		/// The read was accepted.
+		loaded,
+		/// The read failed; `Reason` says why.
+		failed,
+		/// The read was cancelled before it finished.
+		cancelled,
+	};
+
+	/// \brief [[BPR-1357]]. One pull request read, named by its request identity.
+	///
+	/// \details Decided with every transition that starts or ends a read, so a
+	/// surface that asked for a pull request can show that it is being opened in
+	/// the same turn as the gesture, and can tell its own read's end from any
+	/// other. A refresh carries `Refresh`, because it is not an opening.
+	struct pull_request_read_delta
+	{
+		request_id              Request;
+		repository_locator      Repository;
+		pull_request_number     Number;
+		pull_request_read_stage Stage   = pull_request_read_stage::pending;
+		bool                    Refresh = false;
+		github_reason_code      Reason  = github_reason_code::none;
+
+		auto operator<=>(const pull_request_read_delta&) const = default;
+	};
+
 	enum class github_changed_domain : std::uint16_t {
 		none         = 0,
 		identity     = 1U << 0U,
@@ -545,6 +575,8 @@ namespace bpr::core {
 		std::optional<accepted_snapshot_delta>    AcceptedSnapshot;
 		std::vector<github_diagnostic>            Diagnostics;
 		std::optional<pull_request_refusal>       Refusal;
+		/// [[BPR-1357]]. The read this transition started or ended, if any.
+		std::optional<pull_request_read_delta> Read;
 
 		auto operator<=>(const github_transition_output&) const = default;
 	};

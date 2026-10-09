@@ -128,6 +128,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-0990]]. The multi-window row's private root and fixture composition,
     # so the same refusal; pinned by that shape, not yet measured contained.
     "application_personal_discovery_public_path": "dos-volume-name",
+    # [[BPR-1357]]. The personal-discovery row's private root and fixture
+    # composition, so the same refusal; pinned by that shape, not yet measured
+    # contained.
+    "application_home_open_feedback_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
     # [[BPR-1089]]. Measured on bpr-main-win 2026-10-07 at e31a3f357, each
     # registered contained for the measurement: the courses stop at "FAILED:

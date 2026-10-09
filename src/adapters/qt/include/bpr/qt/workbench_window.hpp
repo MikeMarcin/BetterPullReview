@@ -29,6 +29,7 @@
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_refusal.hpp"
+#include "bpr/qt/home_status_line.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
@@ -1028,6 +1029,27 @@ namespace bpr::qt {
 		/// \brief [[BPR-1200]]. The card under the bar that says a pull request
 		/// was refused on this connection and offers what could open it.
 		[[nodiscard]] auto home_refusal_card() const noexcept -> home_refusal*;
+		/// \brief [[BPR-1357]]. Home's status band under the bar: what the bar
+		/// asked for, then Home's general status, at body size behind a mark.
+		[[nodiscard]] auto home_status_line() const noexcept -> qt::home_status_line*;
+		/// \brief [[BPR-1357]]. Home's general status in the band: a problem the
+		/// window has, a connection under way, or what was just done. Hidden
+		/// while Home is quiet; the session line stays in the status bar.
+		[[nodiscard]] auto home_status_text() const noexcept -> QLabel*;
+		/// \brief [[BPR-1357]]. Cancel and Retry for an opening the band says.
+		[[nodiscard]] auto home_open_cancel_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto home_open_retry_button() const noexcept -> QPushButton*;
+		/// \brief [[BPR-1357]]. The pull request Home asked to open, as the
+		/// application's Home-open host decided it, in the gesture's own turn.
+		///
+		/// \details The row that asked shows it; the band under the bar shows it
+		/// when no shown row does. Cancel and Retry are offered only where the
+		/// projection says the core offers them.
+		void               present(const application::home_open_projection& aProjection);
+		[[nodiscard]] auto home_open() const noexcept -> const std::optional<application::home_open_projection>&;
+		void               set_home_open_dispatch(application::home_open_dispatch aDispatch);
+		/// \brief [[BPR-1357]]. The theme's failure ink for Home's marks.
+		void set_home_failure_ink(const QColor& aInk);
 		/// \brief [[BPR-0771]]. Says the composition's review-restoration notice under the bar.
 		///
 		/// \details The window is the one writer of the notice under the bar: a
@@ -1581,7 +1603,16 @@ namespace bpr::qt {
 		/// last chosen.
 		void update_server_cards();
 		/// \brief Says the setup notice, or a pull request's load refusal, under the bar.
-		void               update_home_open_notice();
+		void update_home_open_notice();
+		/// \brief [[BPR-1357]]. Re-presents the opening on its row and the band.
+		void refresh_home_open();
+		/// \brief [[BPR-1357]]. What the opening says now: "Opening #42…", then
+		/// the step it is on, or why it failed. `aRow` drops the repository,
+		/// which the row already shows.
+		[[nodiscard]] auto home_open_text(bool aRow) const -> QString;
+		/// \brief [[BPR-1357]]. Home's general status in the band, and its tone.
+		void               update_home_status();
+		void               dispatch_home_open_action();
 		[[nodiscard]] auto home_refusal_text() const -> QString;
 		/// \brief [[BPR-1200]]. The core's words for the refusal Home is showing, if it has its own.
 		[[nodiscard]] auto home_refusal_wording() const -> std::optional<core::pull_request_refusal_wording>;
@@ -1996,19 +2027,29 @@ namespace bpr::qt {
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
 		// The open pull request as the queue names it: owner/name, number and
 		// title, and whether it was read signed out.
-		std::string                                                  OpenQueueRepository;
-		std::int64_t                                                 OpenQueueNumber = 0;
-		std::string                                                  OpenQueueTitle;
-		bool                                                         OpenQueuePublicPreview = false;
-		QLabel*                                                      SettingsQueueStatus    = nullptr;
-		QLineEdit*                                                   HomeOpenBar            = nullptr;
-		QLabel*                                                      HomeOpenLabel          = nullptr;
-		QWidget*                                                     HomeOpenFrame          = nullptr;
-		QAction*                                                     HomeFocusBarAction     = nullptr;
-		QAction*                                                     HomeOpenAction         = nullptr;
-		QLabel*                                                      HomeOpenNotice         = nullptr;
-		QPushButton*                                                 HomeOpenDetails        = nullptr;
-		home_refusal*                                                HomeRefusal            = nullptr;
+		std::string                                      OpenQueueRepository;
+		std::int64_t                                     OpenQueueNumber = 0;
+		std::string                                      OpenQueueTitle;
+		bool                                             OpenQueuePublicPreview = false;
+		QLabel*                                          SettingsQueueStatus    = nullptr;
+		QLineEdit*                                       HomeOpenBar            = nullptr;
+		QLabel*                                          HomeOpenLabel          = nullptr;
+		QWidget*                                         HomeOpenFrame          = nullptr;
+		QAction*                                         HomeFocusBarAction     = nullptr;
+		QAction*                                         HomeOpenAction         = nullptr;
+		QLabel*                                          HomeOpenNotice         = nullptr;
+		QPushButton*                                     HomeOpenDetails        = nullptr;
+		qt::home_status_line*                            HomeStatus             = nullptr;
+		QLabel*                                          HomeStatusText         = nullptr;
+		QPushButton*                                     HomeOpenCancel         = nullptr;
+		QPushButton*                                     HomeOpenRetry          = nullptr;
+		std::optional<application::home_open_projection> HomeOpen;
+		application::home_open_dispatch                  HomeOpenDispatch;
+		/// Whether a shown Home row carries the opening, so the band does not.
+		bool                                                         HomeOpenOnRow = false;
+		QString                                                      LastHomeOpenAnnouncement;
+		QString                                                      LastHomeStatusAnnouncement;
+		home_refusal*                                                HomeRefusal = nullptr;
 		QString                                                      HomeSetupNotice;
 		QString                                                      HomeRestorationNotice;
 		QString                                                      HomeRefusalDetails;

@@ -14,6 +14,7 @@
 #include <QPen>
 #include <QPointF>
 #include <QRectF>
+#include <QSizeF>
 #include <QStyle>
 #include <QStyleOptionToolButton>
 #include <QStyleOptionViewItem>
@@ -23,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace bpr::qt {
 	namespace {
@@ -41,6 +43,10 @@ namespace bpr::qt {
 		constexpr auto tile_radius = 3.0;
 		/// The initial is set inside the tile rather than at the tile's own size.
 		constexpr auto tile_initial_scale = 0.78;
+		/// [[BPR-1357]]. Between the open row's mark and its line.
+		constexpr auto open_mark_gap = 6;
+		/// The opening mark's arc: a quarter of a turn, at this share of its ring.
+		constexpr auto open_arc_degrees = 100;
 		/// [[BPR-0783]]. The one host a chip never repeats.
 		constexpr auto default_host = QLatin1StringView{ "github.com" };
 		/// Between a login and the host it is not on by default.
@@ -164,7 +170,8 @@ namespace bpr::qt {
 		class row_layout final
 		{
 		public:
-			row_layout(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex, const bool aMarks, const QColor& aReasonInk)
+			row_layout(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex, const bool aMarks, const QColor& aReasonInk,
+					   const home_row_open* const aOpen = nullptr)
 			{
 				const auto identity = aIndex.data(home_row_role::identity).toString();
 				const auto title    = aIndex.data(home_row_role::title).toString();
@@ -173,10 +180,19 @@ namespace bpr::qt {
 				Time                = aIndex.data(home_row_role::time).toString();
 				Progress            = aIndex.data(home_row_role::progress).toString();
 				Chip                = aIndex.data(home_row_role::account_chip).toString();
+				// [[BPR-1357]]. The row a pull request is being opened from says
+				// so in place of why it is listed, behind a mark, and its action
+				// place holds Cancel or Retry instead of the hover action.
+				const auto* const open = aOpen != nullptr && aOpen->Phase != home_row_open_phase::none && !aOpen->Identity.isEmpty()
+						&& identity == aOpen->Identity
+					? aOpen
+					: nullptr;
+				Opening                = open != nullptr;
+				OpenAction             = open != nullptr ? open->Action : QString{ };
 
 				First  = title.isEmpty() ? identity : identity + identity_separator + title;
-				Second = why;
-				if (!reason.isEmpty()) {
+				Second = open != nullptr ? open->Line : why;
+				if (!reason.isEmpty() && !Opening) {
 					if (!Second.isEmpty()) {
 						Second += QLatin1Char{ ' ' };
 					}
@@ -188,7 +204,7 @@ namespace bpr::qt {
 				SideFont                = secondary_font(aOption.font);
 				const auto sideMetrics  = QFontMetrics{ SideFont };
 				SideLineHeight          = sideMetrics.height();
-				const auto actionExtent = row_action_size(aOption, aIndex);
+				const auto actionExtent = Opening ? action_size(aOption, OpenAction) : row_action_size(aOption, aIndex);
 				SideWidth               = std::max({ sideMetrics.horizontalAdvance(Time),
 													 sideMetrics.horizontalAdvance(Progress),
 													 actionExtent.width() });
@@ -223,7 +239,12 @@ namespace bpr::qt {
 					}
 					secondFormats.push_back(reasonFormat);
 				}
-				SecondHeight = Second.isEmpty() ? 0 : lay_out(SecondLayout, Second, SideFont, TextWidth, secondFormats);
+				// The open row's line is set at the first line's size, behind a
+				// mark as tall as that line: it is what the reviewer is waiting on.
+				const auto& secondFont = Opening ? aOption.font : SideFont;
+				MarkExtent             = Opening ? QFontMetrics{ aOption.font }.height() : 0;
+				SecondIndent           = Opening ? MarkExtent + open_mark_gap : 0;
+				SecondHeight           = Second.isEmpty() ? 0 : lay_out(SecondLayout, Second, secondFont, std::max(1, TextWidth - SecondIndent), secondFormats);
 
 				const auto content = (home_row_delegate::vertical_padding * 2) + FirstHeight
 					+ (SecondHeight > 0 ? home_row_delegate::line_gap + SecondHeight : 0);
@@ -283,6 +304,10 @@ namespace bpr::qt {
 
 			QString     First;
 			QString     Second;
+			QString     OpenAction;
+			bool        Opening      = false;
+			int         MarkExtent   = 0;
+			int         SecondIndent = 0;
 			QString     Time;
 			QString     Progress;
 			QString     Chip;
@@ -328,6 +353,7 @@ namespace bpr::qt {
 			.NeedsMe         = aProfile.attention_color(attention_tone::needs_me),
 			.WaitingOnOthers = aProfile.attention_color(attention_tone::waiting_on_others),
 			.Following       = aProfile.attention_color(attention_tone::following),
+			.Failure         = aProfile.color(core::appearance_role::state_defect),
 		};
 	}
 
@@ -512,7 +538,7 @@ namespace bpr::qt {
 		const auto&      colours   = option.palette;
 		const auto       tone      = state_colour(aIndex);
 		const auto       reasonInk = selected ? colours.color(group, QPalette::HighlightedText) : tone;
-		const row_layout layout{ option, aIndex, Marks, reasonInk };
+		const row_layout layout{ option, aIndex, Marks, reasonInk, &Open };
 
 		// The style draws the row's ground: hover, selection and focus, natively.
 		auto native = option;
@@ -531,7 +557,27 @@ namespace bpr::qt {
 		const auto quiet = colours.color(group, selected ? QPalette::HighlightedText : QPalette::PlaceholderText);
 		aPainter->setPen(ink);
 		layout.FirstLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft), static_cast<qreal>(layout.ContentTop) });
-		if (!layout.Second.isEmpty()) {
+		if (layout.Opening) {
+			// [[BPR-1357]]. The line the reviewer waits on, in full ink behind
+			// its mark; a failure in the failure ink, which every theme holds at
+			// text strength. A selected row keeps the style's selected ink.
+			const auto failed  = Open.Phase == home_row_open_phase::failed;
+			const auto failure = Colours.Failure.isValid() ? Colours.Failure : ink;
+			const auto lineInk = selected ? ink : failed ? failure
+														 : ink;
+			const auto mark    = QRect{ layout.TextLeft, layout.SecondTop, layout.MarkExtent, layout.MarkExtent };
+			if (failed) {
+				draw_home_failure_mark(*aPainter, mark, option.font, lineInk);
+			} else {
+				// The arc is the line's own ink on a faint ring of it: on Home
+				// colour means state, and blue is Waiting on others.
+				auto faint = ink;
+				faint.setAlphaF(0.25F);
+				draw_home_open_mark(*aPainter, mark, Open.Frame, ink, faint);
+			}
+			aPainter->setPen(lineInk);
+			layout.SecondLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft + layout.SecondIndent), static_cast<qreal>(layout.SecondTop) });
+		} else if (!layout.Second.isEmpty()) {
 			aPainter->setPen(quiet);
 			layout.SecondLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft), static_cast<qreal>(layout.SecondTop) });
 		}
@@ -570,7 +616,7 @@ namespace bpr::qt {
 		}
 		auto option = aOption;
 		initStyleOption(&option, aIndex);
-		const row_layout layout{ option, aIndex, Marks, QColor{ } };
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
 		return { layout.Width, layout.TotalHeight };
 	}
 
@@ -601,7 +647,93 @@ namespace bpr::qt {
 	{
 		auto option = aOption;
 		initStyleOption(&option, aIndex);
-		const row_layout layout{ option, aIndex, Marks, QColor{ } };
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
 		return layout.lines();
+	}
+
+	void home_row_delegate::set_open(home_row_open aOpen)
+	{
+		Open = std::move(aOpen);
+	}
+
+	auto home_row_delegate::open() const noexcept -> const home_row_open&
+	{
+		return Open;
+	}
+
+	auto home_row_delegate::opens(const QModelIndex& aIndex) const -> bool
+	{
+		return aIndex.isValid() && Open.Phase != home_row_open_phase::none && !Open.Identity.isEmpty()
+			&& aIndex.data(home_row_role::identity).toString() == Open.Identity;
+	}
+
+	auto home_row_delegate::open_action_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect
+	{
+		if (!opens(aIndex) || Open.Action.isEmpty()) {
+			return { };
+		}
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const auto       size = action_size(option, Open.Action);
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
+		return QRect{ option.rect.left() + layout.Width - inset - size.width(),
+					  option.rect.top() + ((layout.RowHeight - size.height()) / 2),
+					  size.width(),
+					  size.height() };
+	}
+
+	void draw_home_open_mark(QPainter& aPainter, const QRect& aRect, const int aFrame, const QColor& aArc, const QColor& aRing)
+	{
+		if (aRect.isEmpty()) {
+			return;
+		}
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		// A ring two points inside the line's height, and an arc on it that
+		// turns one step a frame.
+		const auto side   = static_cast<qreal>(std::min(aRect.width(), aRect.height()));
+		const auto stroke = std::max(qreal{ 1.5 }, side / 8.0);
+		const auto inset  = (stroke / 2.0) + 2.0;
+		const auto box    = QRectF{ QPointF{ aRect.left() + ((aRect.width() - side) / 2.0), aRect.top() + ((aRect.height() - side) / 2.0) },
+									QSizeF{ side, side } }
+								.adjusted(inset, inset, -inset, -inset);
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.setPen(QPen{ aRing, stroke });
+		aPainter.drawEllipse(box);
+		auto arc = QPen{ aArc, stroke };
+		arc.setCapStyle(Qt::RoundCap);
+		aPainter.setPen(arc);
+		constexpr auto step  = 360 / home_open_frames;
+		const auto     start = 90 - ((((aFrame % home_open_frames) + home_open_frames) % home_open_frames) * step);
+		aPainter.drawArc(box, start * 16, -open_arc_degrees * 16);
+		aPainter.restore();
+	}
+
+	void draw_home_failure_mark(QPainter& aPainter, const QRect& aRect, const QFont& aFont, const QColor& aInk)
+	{
+		if (aRect.isEmpty()) {
+			return;
+		}
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		const auto side   = static_cast<qreal>(std::min(aRect.width(), aRect.height()));
+		const auto stroke = std::max(qreal{ 1.5 }, side / 8.0);
+		const auto inset  = (stroke / 2.0) + 2.0;
+		const auto box    = QRectF{ QPointF{ aRect.left() + ((aRect.width() - side) / 2.0), aRect.top() + ((aRect.height() - side) / 2.0) },
+									QSizeF{ side, side } }
+								.adjusted(inset, inset, -inset, -inset);
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.setPen(QPen{ aInk, stroke });
+		aPainter.drawEllipse(box);
+		auto mark = aFont;
+		mark.setWeight(QFont::Bold);
+		if (mark.pointSizeF() > 0.0) {
+			mark.setPointSizeF(mark.pointSizeF() * tile_initial_scale);
+		} else if (mark.pixelSize() > 0) {
+			mark.setPixelSize(std::max(1, static_cast<int>(std::lround(mark.pixelSize() * tile_initial_scale))));
+		}
+		aPainter.setFont(mark);
+		aPainter.drawText(box, Qt::AlignCenter, QStringLiteral("!"));
+		aPainter.restore();
 	}
 } // namespace bpr::qt

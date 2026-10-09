@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -48,6 +49,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1596,6 +1598,7 @@ namespace bpr::app::detail {
 			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
 			std::shared_ptr<github_rate_limit_fixture>       RateLimit;
 			std::shared_ptr<github_offline_fixture>          Offline;
+			std::shared_ptr<github_read_delay_fixture>       ReadDelay;
 			std::size_t                                      DiscoverySearches    = 0U;
 			std::size_t                                      DiscoveryDetailReads = 0U;
 			std::vector<std::string>                         DiscoverySearchTerms;
@@ -2116,6 +2119,33 @@ namespace bpr::app::detail {
 					State->BeforeFilesPage(aStop);
 					if (aStop.stop_requested()) {
 						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+				}
+				// [[BPR-1357]]. A slow network for a pull request's first
+				// answers, held before any lock so nothing else waits on it.
+				if (const auto* read = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+					State->ReadDelay && read != nullptr && !read->ExpectedPullRequest.has_value()
+					&& (aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::get_pull_request)) {
+					const auto milliseconds = State->ReadDelay->Milliseconds.load();
+					if (milliseconds != 0U) {
+						++State->ReadDelay->Delayed;
+						const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ milliseconds };
+						while (std::chrono::steady_clock::now() < until && !aStop.stop_requested()) {
+							std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+						}
+						if (aStop.stop_requested()) {
+							++State->ReadDelay->Cancelled;
+							return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+						}
+					}
+					// Whichever of the two answers comes first fails the read.
+					auto remaining = State->ReadDelay->FailNext.load();
+					while (remaining != 0U && !State->ReadDelay->FailNext.compare_exchange_weak(remaining, remaining - 1U)) { }
+					const auto failNumber = State->ReadDelay->FailNumber.load();
+					if (remaining != 0U || (failNumber != 0U && read->Number.value() == failNumber)) {
+						++State->ReadDelay->Failed;
+						return github_wire_error{ .Correlation = aRequest.Correlation,
+												  .Error       = provider_error(application::github_provider_failure::network) };
 					}
 				}
 				std::unique_lock historyLock{ State->HistoryCompileMutex, std::defer_lock };
@@ -4159,6 +4189,7 @@ namespace bpr::app::detail {
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);
 			Recording->Offline                 = std::move(aOptions.Offline);
+			Recording->ReadDelay               = aOptions.ReadDelay;
 			Factory                            = std::make_shared<fixture_transport_factory>(Recording);
 			VaultState                         = aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault();
 			// Every shipped platform vault has a real second slot since

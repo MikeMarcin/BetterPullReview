@@ -13,6 +13,7 @@
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QStyleOptionViewItem>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -24,6 +25,8 @@ namespace bpr::qt {
 		/// The all-empty sentence sits at a row's inset inside its panel.
 		constexpr auto sentence_inset          = 14;
 		constexpr auto sentence_inset_vertical = 12;
+		/// [[BPR-1357]]. One step of the opening mark: a turn in about a second.
+		constexpr auto open_turn_interval = 80;
 
 		constexpr auto groups = std::array{
 			home_group::needs_you,
@@ -330,6 +333,11 @@ namespace bpr::qt {
 				return false;
 			}
 			const auto index = model->index(aRow, 0, View.rootIndex());
+			// [[BPR-1357]]. The row being opened holds Cancel or Retry there.
+			if (const auto* const delegate = dynamic_cast<const home_row_delegate*>(View.itemDelegate());
+				delegate != nullptr && delegate->opens(index)) {
+				return false;
+			}
 			// [[BPR-1338]]. The icon action takes the place only where no
 			// labelled action holds it.
 			return Role == home_row_role::row_action
@@ -505,6 +513,26 @@ namespace bpr::qt {
 		Layout->addWidget(RecentPanel);
 		Layout->addStretch(1);
 		setWidget(Column);
+
+		// [[BPR-1357]]. The open row's Cancel or Retry: a real button on the row
+		// that asked, so it paints natively and assistive technology reaches it.
+		// It moves to the list that shows the row; Escape on that row presses it.
+		OpenAction = new QToolButton{ Column };
+		OpenAction->setObjectName(QStringLiteral("homeRowOpenActionButton"));
+		OpenAction->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		OpenAction->setFocusPolicy(Qt::NoFocus);
+		OpenAction->hide();
+		connect(OpenAction, &QToolButton::clicked, this, [this] {
+			if (OpenActionDispatch) {
+				OpenActionDispatch();
+			}
+		});
+		// The mark's turn is animation only: what is shown, and for how long, is
+		// the core's opening and the application's wait.
+		OpenTurn = new QTimer{ this };
+		OpenTurn->setObjectName(QStringLiteral("homeOpenMarkTurn"));
+		OpenTurn->setInterval(open_turn_interval);
+		connect(OpenTurn, &QTimer::timeout, this, [this] { turn_open_mark(); });
 
 		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) { update_sticky_headers(); });
 		connect(verticalScrollBar(), &QScrollBar::rangeChanged, this, [this](int, int) { update_sticky_headers(); });
@@ -887,6 +915,7 @@ namespace bpr::qt {
 			}
 		}
 		update_sticky_headers();
+		place_open_action();
 	}
 
 	auto home_list::ordered_keys() const -> std::vector<home_group_key>
@@ -1146,7 +1175,9 @@ namespace bpr::qt {
 
 	void home_list::open_row(const QAbstractItemView& aView, const QModelIndex& aIndex)
 	{
-		if (!OpenDispatch) {
+		// [[BPR-1357]]. A row already being opened asks for nothing again: a
+		// double click or a second Return is the same request.
+		if (!OpenDispatch || opening(aIndex)) {
 			return;
 		}
 		if (const auto item = item_of(aView, aIndex); item.has_value()) {
@@ -1608,6 +1639,152 @@ namespace bpr::qt {
 		}
 	}
 
+	void home_list::set_open(home_row_open aOpen)
+	{
+		const auto& previous = Delegate->open();
+		aOpen.Frame          = previous.Frame;
+		if (aOpen == previous) {
+			return;
+		}
+		const auto relaid = aOpen.Identity != previous.Identity || aOpen.Phase != previous.Phase || aOpen.Line != previous.Line
+			|| aOpen.Action != previous.Action;
+		Delegate->set_open(std::move(aOpen));
+		const auto turning = Delegate->open().Phase == home_row_open_phase::opening || Delegate->open().Phase == home_row_open_phase::waiting;
+		if (turning && !OpenTurn->isActive()) {
+			OpenTurn->start();
+		} else if (!turning) {
+			OpenTurn->stop();
+		}
+		if (relaid) {
+			// The open row's line is set larger than a reason, so its height may
+			// change: every list lays out again, which refits each panel.
+			auto views = row_views();
+			if (RecentView != nullptr) {
+				views.push_back(RecentView);
+			}
+			for (auto* const view : views) {
+				view->doItemsLayout();
+				view->viewport()->update();
+			}
+		}
+		place_open_action();
+	}
+
+	auto home_list::open_index(const QAbstractItemView& aView) const -> QModelIndex
+	{
+		auto* const model = aView.model();
+		if (model == nullptr || Delegate->open().Phase == home_row_open_phase::none) {
+			return { };
+		}
+		if (Delegate->opens(aView.currentIndex())) {
+			return aView.currentIndex();
+		}
+		for (auto row = 0; row < model->rowCount(aView.rootIndex()); ++row) {
+			if (const auto index = model->index(row, 0, aView.rootIndex()); Delegate->opens(index)) {
+				return index;
+			}
+		}
+		return { };
+	}
+
+	auto home_list::open_view() const -> QAbstractItemView*
+	{
+		if (Delegate->open().Phase == home_row_open_phase::none) {
+			return nullptr;
+		}
+		// Shown lists only, in reading order, with Recently viewed last; the
+		// list whose current row is the open row first, since that is the
+		// one the reviewer used.
+		auto views = row_views();
+		if (RecentView != nullptr) {
+			views.push_back(RecentView);
+		}
+		const auto shown = [this](const QAbstractItemView* const aView) {
+			auto* const panel = aView == RecentView ? RecentPanel : panel_of(*aView);
+			return aView->isVisibleTo(Column) && (panel == nullptr || (panel->isVisibleTo(Column) && !panel->collapsed()));
+		};
+		for (auto* const view : views) {
+			if (shown(view) && Delegate->opens(view->currentIndex())) {
+				return view;
+			}
+		}
+		for (auto* const view : views) {
+			if (shown(view) && open_index(*view).isValid()) {
+				return view;
+			}
+		}
+		return nullptr;
+	}
+
+	auto home_list::open_action() const noexcept -> QToolButton*
+	{
+		return OpenAction;
+	}
+
+	void home_list::set_open_action_dispatch(std::function<void()> aDispatch)
+	{
+		OpenActionDispatch = std::move(aDispatch);
+	}
+
+	auto home_list::opening(const QModelIndex& aIndex) const -> bool
+	{
+		const auto phase = Delegate->open().Phase;
+		return (phase == home_row_open_phase::opening || phase == home_row_open_phase::waiting) && Delegate->opens(aIndex);
+	}
+
+	void home_list::place_open_action()
+	{
+		if (OpenAction == nullptr) {
+			return;
+		}
+		const auto& open = Delegate->open();
+		auto* const view = open.Action.isEmpty() ? nullptr : open_view();
+		if (view == nullptr) {
+			OpenAction->hide();
+			return;
+		}
+		const auto index = open_index(*view);
+		if (OpenAction->parentWidget() != view->viewport()) {
+			OpenAction->setParent(view->viewport());
+		}
+		auto option = QStyleOptionViewItem{ };
+		option.initFrom(view);
+		option.rect   = view->visualRect(index);
+		option.font   = view->font();
+		option.widget = view;
+		OpenAction->setText(open.Action);
+		const auto identity = index.data(home_row_role::identity).toString();
+		OpenAction->setAccessibleName(open.Phase == home_row_open_phase::failed
+										  ? QStringLiteral("Retry opening %1").arg(identity)
+										  : QStringLiteral("Cancel opening %1").arg(identity));
+		OpenAction->setToolTip(open.Phase == home_row_open_phase::failed
+								   ? QStringLiteral("Open %1 again").arg(identity)
+								   : QStringLiteral("Stop opening %1 (Esc)").arg(identity));
+		OpenAction->setGeometry(Delegate->open_action_rect(option, index));
+		OpenAction->show();
+		OpenAction->raise();
+	}
+
+	void home_list::turn_open_mark()
+	{
+		auto open = Delegate->open();
+		if (open.Phase != home_row_open_phase::opening && open.Phase != home_row_open_phase::waiting) {
+			OpenTurn->stop();
+			return;
+		}
+		open.Frame = (open.Frame + 1) % home_open_frames;
+		Delegate->set_open(open);
+		auto views = row_views();
+		if (RecentView != nullptr) {
+			views.push_back(RecentView);
+		}
+		for (auto* const view : views) {
+			if (const auto index = open_index(*view); index.isValid() && view->isVisibleTo(Column)) {
+				view->viewport()->update(view->visualRect(index));
+			}
+		}
+	}
+
 	auto home_list::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
 		if (aEvent == nullptr) {
@@ -1654,11 +1831,25 @@ namespace bpr::qt {
 		if (read_new_window_click(aWatched, aEvent)) {
 			return true;
 		}
+		// [[BPR-1357]]. A list that changed its size moved its rows.
+		if ((aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::LayoutRequest) && OpenAction != nullptr
+			&& OpenAction->parentWidget() == aWatched) {
+			QMetaObject::invokeMethod(this, [this] { place_open_action(); }, Qt::QueuedConnection);
+		}
 		if (aEvent->type() != QEvent::KeyPress) {
 			return QScrollArea::eventFilter(aWatched, aEvent);
 		}
-		const auto* const key       = static_cast<QKeyEvent*>(aEvent);
-		const auto        unshifted = key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier;
+		const auto* const key = static_cast<QKeyEvent*>(aEvent);
+		// [[BPR-1357]]. Escape on the row being opened presses its Cancel.
+		if (key->key() == Qt::Key_Escape && OpenAction != nullptr && OpenAction->isVisible()
+			&& Delegate->open().Phase == home_row_open_phase::waiting) {
+			if (auto* const view = qobject_cast<QAbstractItemView*>(aWatched);
+				view != nullptr && view == open_view() && Delegate->opens(view->currentIndex())) {
+				OpenAction->click();
+				return true;
+			}
+		}
+		const auto unshifted = key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier;
 		for (auto* const view : views) {
 			if (aWatched != view) {
 				continue;

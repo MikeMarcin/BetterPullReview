@@ -7,6 +7,7 @@
 #include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/github_model.hpp"
+#include "bpr/core/home_open.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 #include "bpr/core/review_queue.hpp"
 
@@ -330,6 +331,39 @@ namespace bpr::application {
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};
+
+	/// \brief [[BPR-1357]]. What Home shows of the pull request it asked to open.
+	///
+	/// \details Empty when nothing is being opened and the last open did not
+	/// fail. Published in the same turn as the gesture that asked, so the row or
+	/// the bar that asked can show it before anything reaches GitHub.
+	struct home_open_projection
+	{
+		std::optional<core::home_open_state> State;
+		/// The core's decisions on what the state offers.
+		bool Cancellable = false;
+		bool Retryable   = false;
+
+		auto operator<=>(const home_open_projection&) const = default;
+	};
+
+	/// \brief [[BPR-1357]]. Cancel or Retry on what Home shows, by its read.
+	struct cancel_home_open
+	{
+		core::request_id Request;
+
+		auto operator<=>(const cancel_home_open&) const = default;
+	};
+
+	struct retry_home_open
+	{
+		core::request_id Request;
+
+		auto operator<=>(const retry_home_open&) const = default;
+	};
+
+	using home_open_intent   = std::variant<cancel_home_open, retry_home_open>;
+	using home_open_dispatch = std::function<void(home_open_intent)>;
 
 	/// \brief Provides the github projection port contract.
 	class github_projection_port

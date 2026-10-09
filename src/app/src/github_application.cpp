@@ -35,6 +35,7 @@
 
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/github_read_admission.hpp"
+#include "bpr/application/home_open_host.hpp"
 
 #include "designated_review_public_observer.hpp"
 #include "gh_cli_git_smart_transport.hpp"
@@ -5943,8 +5944,11 @@ namespace bpr::app {
 
 		std::unique_ptr<window_read_decision_lane>            ReadDecision;
 		std::shared_ptr<application::github_window_read_host> WindowRead;
-		std::optional<application::queue_consumer_id>         QueueConsumer;
-		std::optional<core::window_review_open_request>       PendingRestoration;
+		/// [[BPR-1357]]. What this window's Home shows of the pull request it
+		/// asked to open, and the clock behind its wait.
+		std::unique_ptr<application::home_open_host>    HomeOpen;
+		std::optional<application::queue_consumer_id>   QueueConsumer;
+		std::optional<core::window_review_open_request> PendingRestoration;
 		/// [[BPR-0733]]. Policy indices behind the rows this window lists.
 		std::vector<std::size_t>                              RecentIndexMap;
 		std::optional<application::recent_reviews_projection> RecentPublished;
@@ -6697,7 +6701,43 @@ namespace bpr::app {
 			if (!Profile->CachedOverviews) {
 				Profile->CachedOverviews = adapters::sqlite::make_cached_review_overview_store(Profile->ApplicationDataRoot);
 			}
-			auto weak  = std::weak_ptr<const int>{ WindowLifetime };
+			auto weak = std::weak_ptr<const int>{ WindowLifetime };
+			// [[BPR-1357]]. The application's clock for Home's wait: one bounded
+			// single shot on the window's own thread, which is the decision
+			// lane's. The host drops an elapse for a read the core no longer shows.
+			HomeOpen = std::make_unique<application::home_open_host>(
+				[this, weak](const std::uint32_t aMilliseconds, std::function<void()> aElapsed) {
+					if (weak.expired() || Closing || !Window) {
+						return;
+					}
+					QTimer::singleShot(static_cast<int>(aMilliseconds), Window.get(), [weak, elapsed = std::move(aElapsed)] {
+						if (!weak.expired()) {
+							elapsed();
+						}
+					});
+				},
+				[this, weak](const application::home_open_projection& aProjection) {
+					if (!weak.expired() && !Closing && Window) {
+						Window->present(aProjection);
+					}
+				});
+			Window->set_home_open_dispatch([this, weak](const application::home_open_intent& aIntent) {
+				if (weak.expired() || Closing || !WindowRead || !HomeOpen) {
+					return;
+				}
+				if (const auto* const cancel = std::get_if<application::cancel_home_open>(&aIntent)) {
+					// Admitted against the core's state: the read Home shows, still
+					// the lane's pending one.
+					if (HomeOpen->admit_cancel(cancel->Request, WindowRead->state())) {
+						WindowRead->cancel();
+					}
+					return;
+				}
+				if (const auto retry = HomeOpen->admit_retry(std::get<application::retry_home_open>(aIntent).Request)) {
+					// The same path a row takes, so a Retry is an ordinary open.
+					dispatch_intent(application::github_intent{ *retry });
+				}
+			});
 			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
@@ -6707,6 +6747,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	DefectThreadNames.reset();
 }
 					publish_review_conversations(aUpdate.Presentation);
+					// [[BPR-1357]]. In the same turn as the transition, so the row or
+					// bar that asked shows it before control returns to the event loop.
+					if (HomeOpen) {
+						HomeOpen->observe(aUpdate.Transition, WindowRead->state());
+					}
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
@@ -6733,6 +6778,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (WindowRead->accepted_snapshot()){ presentation.Transition.reset();
 }
 					Window->publish(presentation);
+					// [[BPR-1357]]. A session change can drop the lane's read silently.
+					if (HomeOpen) {
+						HomeOpen->reconcile(WindowRead->state());
+					}
 					observe_setup_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
 					if (weak.expired() || Closing){ return;
 }
@@ -15638,6 +15687,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (auto* const home = Window->home_list(); home != nullptr) {
 				home->set_state_colours(qt::home_state_colours_for(*AppearanceProfile));
 			}
+			// [[BPR-1357]]. Home's status band marks a problem in the theme's failure ink.
+			Window->set_home_failure_ink(AppearanceProfile->color(core::appearance_role::state_defect));
 			// [[BPR-1083]]. The label tints of the theme on screen, for every
 			// surface that draws a Conventional Comments mark.
 			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));

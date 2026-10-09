@@ -1241,6 +1241,16 @@ endfunction()
 # decision, grant, target, provider, credential, GitHub write, mutation or
 # publication path; mutation pin unchanged; no new src/app source. Recorded on
 # BPR-1328.
+# BPR-1357 reseal (2026-10-09): over the BPR-1328 follow-up reseal above; no other
+# intervening pinned-scope change. Home says at once that a review is opening:
+# the window's read-lane publication feeds application::home_open_host in the
+# same turn; its wait is one QTimer::singleShot on the window; Cancel calls the
+# read host's existing cancel() only when the core admits the request, and
+# Retry is an ordinary open through dispatch_intent. apply_appearance hands the
+# window the theme's failure ink. Read-only presentation and an existing
+# cancellation; no grant, target, provider, credential, GitHub write, mutation
+# or publication path; mutation pin unchanged; no new src/app source. The
+# tests-on fixture gains a cancellable read delay. Self-review on BPR-1357.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1259,7 +1269,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"343835229ef17c2b14ca05600b089354a1019094b3cf45d51fdd75d0625d4b61"
+		"abfd31c871b46b52a1b434888c90a98db673a45800e7a87208dc4f2af05b9a6e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1463,7 +1473,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2862e42d24d3259390f3d26f0ab51fe7488f26bdbd1f28352a6ffe51496a08e6"
+        "0300e2db265ca0c93f1848116cc0bc823e9707cb2a8b0314bed641cbe5076ece"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

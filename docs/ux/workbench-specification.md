@@ -538,6 +538,36 @@ column, and RFC-BPR-0032 gives it one job per row.
   profile may show the same pull request at different positions
   (RFC-BPR-0024). Open Review in this window keeps [[BPR-0987]]: a window
   already showing it returns to it without reading again.
+- **While a row opens** ([[BPR-1357]], the owner, 2026-10-09: "There's no
+  obvious immediate indication you actually tried to open a review if there
+  is real network latency on the action."). A first read stays on Home until
+  GitHub answers ([[BPR-1200]]), so the row that asked says so in the same
+  turn as the click or Return: its second line gives way to a turning mark in
+  the line's own ink and "Opening #42…", and a second click or Return on it
+  asks for nothing. After the core's wait (`core::home_open_wait_milliseconds`,
+  800 ms, measured by the application's clock) the line names the step the
+  read is on ("Opening #42: asking GitHub for the pull request…") and the
+  row's action place holds **Cancel** (Esc on the row presses it), which
+  stops the read on the wire and leaves the row as it was. A failure keeps
+  the row's line, in the theme's failure ink behind a ringed exclamation,
+  saying why ("Couldn't open #42. The GitHub host could not be reached…"),
+  with **Retry** where asking again can help; the line under the bar does not
+  repeat it. What is shown follows the read's request identity as the core
+  decided it (`core::home_open_state`), so a late answer for another read
+  changes nothing. Each change is announced once, politely.
+- **Home's status band** ([[BPR-1357]], the owner, 2026-10-09: "I think the
+  general status text on the home page is still a bit lacking, it's kind of
+  hard to see."). Directly under the Open bar, at body size in full ink,
+  behind a mark that says its tone: busy (the turning mark on a neutral band),
+  problem (the ringed exclamation on a tint of the failure ink) or notice (no
+  mark, a neutral band). Only a problem is coloured, because on Home colour
+  means state and blue is Waiting on others. It says, in this order: a setup stage's
+  notice, a review restoration's, a load's refusal ([[BPR-0771]]); what the
+  bar asked to open, with Cancel after the wait and Retry on a failure; a
+  problem the window has; a connection under way; then what was just done,
+  for as long as the status bar says it. It is hidden while Home is quiet,
+  so nothing is added to an idle Home, and each new sentence is announced
+  politely.
 - **The status bar** on Home carries the session line ("Signed in as
   MikeMarcin on github.com.") and never "No pull request is open in the
   workbench.", because Home is what the window shows when none is. The
