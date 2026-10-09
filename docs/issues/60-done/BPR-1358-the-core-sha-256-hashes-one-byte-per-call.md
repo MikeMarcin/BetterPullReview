@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1358"
 title: "The core SHA-256 runs at about 110 MB/s, one byte per call"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"performance","found_by":"bpr-main-linux, BPR-1349's cost breakdown, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1358--BPR-1358--8b1a9e3ee97d.json","related_cards":["BPR-1349","BPR-1094"]}
+acceptance: [{"criterion":"BPR-1358:known-answers","outcome":"pass","revision":"8c8364d64","evidence":{"kind":"command","detail":"core_sha256: FIPS 180-4 vectors, 14 boundary lengths, 1 MiB, every 200-byte split and uneven chunks; 160 digest-using rows pass; three update mutations fail it."}},{"criterion":"BPR-1358:throughput","outcome":"pass","revision":"8c8364d64","evidence":{"kind":"command","detail":"i9-10900KF, GCC 15 -O3: 219 -> 289 MB/s on 64 MiB; 20,015 x 400 B 41.1 -> 32.4 ms; application_feedback_counter_costs first observation at 10k 90.1 ms (93.5 after BPR-1349). Outcome corrected to the portable 1.3x by the coordinator."}},{"criterion":"BPR-1358:no-dependency","outcome":"pass","revision":"8c8364d64","evidence":{"kind":"command","detail":"Portable C++23 in src/core only; core boundary rows and architecture_boundaries pass."}}]
 ---
 
 # BPR-1358: The core SHA-256 runs at about 110 MB/s, one byte per call
