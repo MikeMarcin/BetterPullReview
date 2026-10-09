@@ -1060,4 +1060,106 @@ namespace bpr::qt {
 			painter.drawRoundedRect(QRectF{ frame }.adjusted(inset, inset, -inset, -inset), 5.0 - inset, 5.0 - inset);
 		}
 	}
+
+	namespace {
+		constexpr int chip_height  = 24;
+		constexpr int chip_padding = 9;
+		constexpr int chip_dot     = 7;
+		constexpr int chip_gap     = 6;
+	}
+
+	review_progress_chip::review_progress_chip(QWidget* const aParent)
+		: QToolButton{ aParent }
+	{
+		setObjectName(QStringLiteral("reviewBarReviewChip"));
+		setText(QStringLiteral("Finish review"));
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::PointingHandCursor);
+		setAttribute(Qt::WA_Hover, true);
+		setAccessibleName(QStringLiteral("Finish review"));
+		set_count(0U, false);
+	}
+
+	void review_progress_chip::set_count(const std::size_t aPending, const bool aSubmitting)
+	{
+		Pending             = aPending;
+		Submitting          = aSubmitting;
+		const auto comments = Pending == 1U ? QStringLiteral("one pending comment") : QStringLiteral("%1 pending comments").arg(Pending);
+		const auto said     = Submitting ? QStringLiteral("Your review is being submitted.") : QStringLiteral("Your review holds %1.").arg(comments);
+		setAccessibleDescription(QStringLiteral("%1 Finish review opens its summary in Discuss.").arg(said));
+		setToolTip(QStringLiteral("%1\nFinish review opens the summary in Discuss, where you submit it.").arg(said));
+		updateGeometry();
+		update();
+	}
+
+	auto review_progress_chip::pending() const noexcept -> std::size_t { return Pending; }
+	auto review_progress_chip::submitting() const noexcept -> bool { return Submitting; }
+
+	auto review_progress_chip::summary() const -> QString
+	{
+		return Submitting ? QStringLiteral("Review \u00B7 submitting") : QStringLiteral("Review \u00B7 %1 pending").arg(Pending);
+	}
+
+	auto review_progress_chip::segment_width() const -> int
+	{
+		auto bold = font();
+		bold.setWeight(QFont::DemiBold);
+		return chip_padding + chip_dot + chip_gap + QFontMetrics{ bold }.horizontalAdvance(summary()) + chip_padding;
+	}
+
+	auto review_progress_chip::sizeHint() const -> QSize
+	{
+		auto bold = font();
+		bold.setWeight(QFont::DemiBold);
+		const auto action = chip_padding + QFontMetrics{ bold }.horizontalAdvance(text()) + chip_padding;
+		return QSize{ segment_width() + action, std::max(chip_height, fontMetrics().height() + 8) };
+	}
+
+	auto review_progress_chip::minimumSizeHint() const -> QSize
+	{
+		return sizeHint();
+	}
+
+	void review_progress_chip::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto& colours = palette();
+		const auto  group   = isEnabled() ? QPalette::Active : QPalette::Disabled;
+		auto        accent  = colours.color(group, QPalette::Highlight);
+		if (isDown()) {
+			accent = accent.darker(112);
+		} else if (underMouse() && isEnabled()) {
+			accent = accent.lighter(106);
+		}
+		const auto tall  = std::min(height(), std::max(chip_height, fontMetrics().height() + 8));
+		const auto frame = QRectF{ 0.75, (height() - tall) / 2.0 + 0.75, width() - 1.5, tall - 1.5 };
+		const auto split = static_cast<qreal>(segment_width());
+		auto       tint  = accent;
+		tint.setAlpha(34);
+		// The tint under the count, then the accent under the action, inside
+		// one rounded edge.
+		auto outline = QPainterPath{ };
+		outline.addRoundedRect(frame, 6.0, 6.0);
+		painter.setClipPath(outline);
+		painter.fillRect(QRectF{ frame.left(), frame.top(), split - frame.left(), frame.height() }, tint);
+		painter.fillRect(QRectF{ split, frame.top(), frame.right() - split, frame.height() }, accent);
+		painter.setClipping(false);
+		painter.setPen(QPen{ accent, 1.5 });
+		painter.setBrush(Qt::NoBrush);
+		painter.drawPath(outline);
+		const auto middle = frame.center().y();
+		painter.setPen(Qt::NoPen);
+		painter.setBrush(accent);
+		painter.drawEllipse(QPointF{ chip_padding + (chip_dot / 2.0), middle }, chip_dot / 2.0, chip_dot / 2.0);
+		auto bold = font();
+		bold.setWeight(QFont::DemiBold);
+		painter.setFont(bold);
+		const auto left = static_cast<qreal>(chip_padding + chip_dot + chip_gap);
+		painter.setPen(colours.color(group, QPalette::WindowText));
+		painter.drawText(QRectF{ left, frame.top(), split - left, frame.height() }, Qt::AlignLeft | Qt::AlignVCenter, summary());
+		painter.setPen(colours.color(group, QPalette::HighlightedText));
+		painter.drawText(QRectF{ split, frame.top(), frame.right() - split, frame.height() }, Qt::AlignCenter, text());
+	}
 } // namespace bpr::qt

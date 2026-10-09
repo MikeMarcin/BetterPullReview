@@ -545,6 +545,14 @@ namespace bpr::qt {
 					command.StartLine   = revisioned.PendingRange->second;
 				}
 				revisioned.PendingRange.reset();
+			} else if (aKind == core::review_draft_command_kind::edit && revisioned.PendingMark.has_value()) {
+				// [[BPR-1345]]. So does a pending mark, in an edit of its own:
+				// a range waiting first goes first.
+				if (revisioned.PendingMark->first == command.Command.Id) {
+					command.ChangePending = true;
+					command.Pending       = revisioned.PendingMark->second;
+				}
+				revisioned.PendingMark.reset();
 			}
 			if (aKind == core::review_draft_command_kind::edit) {
 				revisioned.Candidate = command;
@@ -694,6 +702,22 @@ namespace bpr::qt {
 		return true;
 	}
 
+	auto review_draft_editor::change_pending(std::optional<core::review_pending_mark> aMark) -> bool
+	{
+		auto& state = Members.Revisioned;
+		if (!state.Dispatch || !state.Selected || !state.Accepted || state.Conflict || !Members.ShownDraft
+			|| Members.ShownDraft->Id != state.Accepted->Draft.Id || Members.ShownDraft->ReplyToThread.has_value() || Members.Body->isReadOnly()) {
+			return false;
+		}
+		if (Members.ShownDraft->InReview == aMark && !state.PendingMark.has_value()) {
+			return true;
+		}
+		Members.ShownDraft->InReview = aMark;
+		state.PendingMark            = std::pair{ Members.ShownDraft->Id, std::move(aMark) };
+		emit_draft(core::review_draft_command_kind::edit);
+		return true;
+	}
+
 	void review_draft_editor::describe_reply_placement(std::optional<core::suggestion_placement_observation> aPlacement)
 	{
 		if (Members.ReplyPlacement == aPlacement) {
@@ -813,6 +837,7 @@ namespace bpr::qt {
 		if (candidate.Command != aCommand.Command || candidate.Scope != aCommand.Scope || candidate.ExpectedRevision != aCommand.ExpectedRevision
 			|| candidate.ChangeReplyTarget != aCommand.ChangeReplyTarget || candidate.ReplyToThread != aCommand.ReplyToThread
 			|| candidate.ChangeRange != aCommand.ChangeRange || candidate.StartLine != aCommand.StartLine
+			|| candidate.ChangePending != aCommand.ChangePending || candidate.Pending != aCommand.Pending
 			|| aCommand.Command.Kind != core::review_draft_command_kind::edit || aCommand.ChangeReplyTarget
 			|| aAccepted.Scope != aCommand.Scope || aAccepted.Draft.Id != aCommand.Command.Id || aAccepted.Draft.Body != aCommand.Command.Body
 			|| aAccepted.Revision < aCommand.ExpectedRevision || aAccepted.Revision - aCommand.ExpectedRevision > 1
@@ -828,10 +853,14 @@ namespace bpr::qt {
 		// The text typed while this edit was answered goes next, on the
 		// revision just accepted; showing the accepted body would undo it.
 		// [[BPR-1212]]. So does a range set meanwhile.
-		if (deferred && (body_text() != aAccepted.Draft.Body || state.PendingRange.has_value())) {
+		// [[BPR-1345]]. A pending mark waiting behind a range goes next too.
+		if ((deferred && (body_text() != aAccepted.Draft.Body || state.PendingRange.has_value())) || state.PendingMark.has_value()) {
 			Members.ShownDraft = aAccepted.Draft;
 			if (state.PendingRange.has_value() && state.PendingRange->first == aAccepted.Draft.Id) {
 				Members.ShownDraft->StartLine = state.PendingRange->second;
+			}
+			if (state.PendingMark.has_value() && state.PendingMark->first == aAccepted.Draft.Id) {
+				Members.ShownDraft->InReview = state.PendingMark->second;
 			}
 			emit_draft(core::review_draft_command_kind::edit);
 			refresh_enablement();
@@ -1046,6 +1075,7 @@ namespace bpr::qt {
 		Members.ShownReceipt.reset();
 		Members.PublicationStatus.clear();
 		Members.Revisioned.PendingRange.reset();
+		Members.Revisioned.PendingMark.reset();
 		Members.ApplyingPresentation = true;
 		if (!Members.Revisioned.Candidate) {
 			Members.Body->clear();

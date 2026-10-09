@@ -102,6 +102,7 @@ namespace {
 	auto record(application::review_submission_request aRequest = request()) -> application::review_submission_recovery_record { return { .Request = aRequest, .RequestFingerprint = application::review_submission_request_fingerprint(aRequest), .AuthorityFingerprint = application::review_submission_authority_fingerprint(*aRequest.LiveBinding), .BaselineReviewIds = std::vector{ application::review_database_id{ 40U } }, .Transmission = application::review_mutation_recovery_transmission::prepared }; }
 	auto receipt(const application::review_submission_request& aRequest = request(), std::uint64_t aId = 45U) -> application::review_submission_receipt { return { .ReviewDatabaseId = application::review_database_id{ aId }, .ReviewNodeId = "PRR_exact", .Target = aRequest.Proposal.Target, .ActingAccount = aRequest.Proposal.ActingAccount, .Disposition = aRequest.Proposal.Disposition }; }
 	auto database(const temporary_directory& aRoot) -> std::filesystem::path { return aRoot.Path / "state" / "v1" / "review-mutation-recovery.sqlite3"; }
+	auto database_path(const temporary_directory& aRoot) -> std::filesystem::path { return database(aRoot); }
 	void test_storage_round_trip()
 	{
 		temporary_directory root;
@@ -254,9 +255,81 @@ namespace {
 		const auto full = store->admit(record());
 		expect(!full && full.error() == application::review_mutation_recovery_failure::capacity, "record capacity fails without eviction");
 	}
+	/// [[BPR-1345]]. A review that carries line comments is snapshotted as
+	/// version 2 with each comment's draft, revision, path, side, lines and
+	/// words, and reads back exactly after a restart; a summary-only one keeps
+	/// version 1 and its fingerprint. An unresolved attempt is withdrawn once
+	/// it is definitely not published; a resolved one never is.
+	void test_line_comments_and_withdrawal()
+	{
+		temporary_directory root;
+		auto                store = storage(root.Path);
+		auto                input = request();
+		input.IdempotencyKey      = "review-with-comments";
+		input.Proposal.Body.clear();
+		auto first              = core::review_submission_comment{ };
+		first.Draft             = core::review_draft_id{ 7U };
+		first.DraftRevision     = 4U;
+		first.Path              = "src/engine/renderer.cpp";
+		first.Side              = core::diff_side::right;
+		first.Line              = 430U;
+		first.Body              = "question: Where does 0.01 come from?";
+		auto second             = first;
+		second.Draft            = core::review_draft_id{ 8U };
+		second.Side             = core::diff_side::left;
+		second.Line             = 12U;
+		second.StartLine        = 9U;
+		second.Body             = "nit: \u00E9 \r\n kept byte for byte";
+		input.Proposal.Comments = { first, second };
+		const auto summaryOnly  = request();
+		expect(application::review_submission_request_fingerprint(input) != application::review_submission_request_fingerprint(summaryOnly),
+			   "the comments are part of the request's fingerprint");
+		auto withoutComments              = input;
+		withoutComments.Proposal.Comments = { };
+		withoutComments.Proposal.Body     = "x";
+		expect(application::review_submission_request_fingerprint(withoutComments) != application::review_submission_request_fingerprint(input), "and change it");
+		const auto expected = record(input);
+		auto       admitted = store->admit(expected);
+		expect(admitted && admitted->Inserted && admitted->Record == expected, "a review with line comments is admitted exactly");
+		store.reset();
+		store       = storage(root.Path);
+		auto loaded = store->load(input.IdempotencyKey);
+		expect(loaded && *loaded && (**loaded).Request == input && (**loaded).Request.Proposal.Comments == input.Proposal.Comments,
+			   "after a restart the comments read back exactly, the range and the base side included");
+		auto version = std::uint64_t{ 0U };
+		{
+			sqlite3* database = nullptr;
+			expect(sqlite3_open_v2(database_path(root).string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK, "read the journal");
+			sqlite3_stmt* statement = nullptr;
+			expect(sqlite3_prepare_v2(database, "SELECT request FROM submission_attempt WHERE idempotency_key='review-with-comments'", -1, &statement, nullptr) == SQLITE_OK, "read the request");
+			if (sqlite3_step(statement) == SQLITE_ROW && sqlite3_column_bytes(statement, 0) >= 8) {
+				const auto* const bytes = static_cast<const unsigned char*>(sqlite3_column_blob(statement, 0));
+				for (auto index = 0; index < 8; ++index) {
+					version |= static_cast<std::uint64_t>(bytes[index]) << (8U * static_cast<unsigned>(index));
+				}
+			}
+			sqlite3_finalize(statement);
+			sqlite3_close(database);
+		}
+		expect(version == 2U, "it is stored as request version 2");
+
+		expect(store->withdraw(input.IdempotencyKey, expected.RequestFingerprint).has_value() && store->load(input.IdempotencyKey) && !*store->load(input.IdempotencyKey),
+			   "an unresolved attempt is withdrawn");
+		expect(store->withdraw(input.IdempotencyKey, expected.RequestFingerprint).has_value(), "withdrawing a missing attempt changes nothing");
+
+		const auto plain = record(summaryOnly);
+		expect(store->admit(plain) && store->mark_possibly_transmitted(summaryOnly.IdempotencyKey, plain.RequestFingerprint), "a summary-only attempt, sent");
+		auto wrong = plain.RequestFingerprint;
+		wrong[0] ^= 1U;
+		expect(!store->withdraw(summaryOnly.IdempotencyKey, wrong) && *store->load(summaryOnly.IdempotencyKey), "another fingerprint withdraws nothing");
+		expect(store->resolve(summaryOnly.IdempotencyKey, plain.RequestFingerprint, receipt(summaryOnly)).has_value(), "it resolves");
+		expect(!store->withdraw(summaryOnly.IdempotencyKey, plain.RequestFingerprint) && *store->load(summaryOnly.IdempotencyKey),
+			   "a resolved attempt is never withdrawn");
+	}
 }
 auto main() -> int
 try {
+	test_line_comments_and_withdrawal();
 	test_staged_journal();
 	test_version_four_migration();
 	test_storage_round_trip();

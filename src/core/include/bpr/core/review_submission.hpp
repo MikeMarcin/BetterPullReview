@@ -4,6 +4,9 @@
 #include "bpr/core/review_round_trip.hpp"
 
 #include <cstddef>
+#include <span>
+#include <string_view>
+#include <vector>
 
 namespace bpr::core {
 	using review_submission_draft_id   = strong_id<struct review_submission_draft_id_tag>;
@@ -11,6 +14,32 @@ namespace bpr::core {
 
 	/// \brief Bounds decoded semantic UTF-8 bytes, independently of wire encoding limits.
 	inline constexpr std::size_t maximum_review_submission_body_bytes = 64U * 1024U;
+	/// \brief [[BPR-1345]]. At most this many line comments ride one review.
+	inline constexpr std::size_t maximum_review_submission_comments = 50U;
+	/// \brief [[BPR-1345]]. The summary, every comment's body and every path
+	/// together, so the review's one request stays inside the transports'
+	/// 64 KiB request limit with room for its JSON.
+	inline constexpr std::size_t maximum_review_submission_content_bytes = 56U * 1024U;
+
+	/// \brief [[BPR-1345]]. One pending draft the review carries as a GitHub
+	/// review comment.
+	/// \details `Line` is the zero-based line of the draft's anchor (GitHub's
+	/// `line` is one more), `StartLine` the first line of a range on the same
+	/// side (GitHub's `start_line`), and `Side` GitHub's `side`. `Draft` and
+	/// `DraftRevision` are the exact private draft and the revision whose text
+	/// `Body` is; only they may be marked published by this review.
+	struct review_submission_comment
+	{
+		review_draft_id              Draft;
+		std::uint64_t                DraftRevision = 0U;
+		std::string                  Path;
+		diff_side                    Side = diff_side::right;
+		std::uint32_t                Line = 0U;
+		std::optional<std::uint32_t> StartLine;
+		std::string                  Body;
+
+		auto operator<=>(const review_submission_comment&) const = default;
+	};
 
 	/// \brief Names the private draft, pending submission, and terminal states.
 	enum class review_submission_state : std::uint8_t {
@@ -33,6 +62,9 @@ namespace bpr::core {
 		review_disposition           Disposition = review_disposition::comment;
 		review_submission_state      State       = review_submission_state::drafting;
 		review_submission_attempt_id Attempt;
+		/// [[BPR-1345]]. The pending drafts the review carries, set while it
+		/// is written and frozen by Submit.
+		std::vector<review_submission_comment> Comments = { };
 
 		auto operator<=>(const review_submission_draft&) const = default;
 	};
@@ -45,6 +77,8 @@ namespace bpr::core {
 		begin_submit,
 		complete_submit,
 		fail_submit,
+		/// [[BPR-1345]]. Replaces the carried comments while drafting.
+		set_comments,
 	};
 
 	/// \brief Carries one command without any authority replacement fields.
@@ -59,6 +93,8 @@ namespace bpr::core {
 		std::string                    Body;
 		review_disposition             Disposition = review_disposition::comment;
 		review_submission_attempt_id   Attempt;
+		/// [[BPR-1345]]. The comments `set_comments` carries.
+		std::vector<review_submission_comment> Comments = { };
 
 		auto operator<=>(const review_submission_command&) const = default;
 	};
@@ -80,6 +116,16 @@ namespace bpr::core {
 		not_submitting,
 		stale_attempt,
 		attempt_exhausted,
+		/// [[BPR-1345]]. A comment with no draft, revision or path, invalid
+		/// text, a side GitHub has not, a range that does not end below its
+		/// start, or one draft carried twice.
+		invalid_comment,
+		too_many_comments,
+		/// A carried comment with no words.
+		blank_comment,
+		/// The summary, the comments and their paths together are too long
+		/// for one request.
+		review_too_large,
 	};
 
 	/// \brief Reports accepted state or a refusal without copying the input.
@@ -103,6 +149,8 @@ namespace bpr::core {
 		github_account_id            ActingAccount;
 		std::string                  Body;
 		review_disposition           Disposition = review_disposition::comment;
+		/// [[BPR-1345]]. Sent as the review's comments, in this order.
+		std::vector<review_submission_comment> Comments = { };
 
 		auto operator<=>(const review_submission_proposal&) const = default;
 	};
@@ -128,7 +176,17 @@ namespace bpr::core {
 	[[nodiscard]] auto valid(review_disposition aDisposition) noexcept -> bool;
 	/// \brief Checks nonzero PR authority identities and a valid expected head.
 	[[nodiscard]] auto valid(const review_mutation_target& aTarget) noexcept -> bool;
-	/// \brief Checks draft invariants; submitted non-Approve text must be nonblank.
+	/// \brief [[BPR-1345]]. Whether a review with this disposition and these
+	/// comments needs summary text: Request changes always, Comment only when
+	/// it carries no line comment (GitHub refuses that with no text, probed on
+	/// `MikeMarcin/BPR-Test#41`), Approve never.
+	[[nodiscard]] auto summary_required(review_disposition aDisposition, std::span<const review_submission_comment> aComments) noexcept -> bool;
+	/// \brief [[BPR-1345]]. Why these comments cannot ride a review with this
+	/// summary, or none. With `aSubmitting` every comment must have words.
+	[[nodiscard]] auto review_comments_rejection(std::string_view aSummary, std::span<const review_submission_comment> aComments, bool aSubmitting) noexcept
+		-> review_submission_rejection;
+	/// \brief Checks draft invariants; submitted text must be nonblank where
+	/// `summary_required` says so.
 	[[nodiscard]] auto valid(const review_submission_draft& aDraft) noexcept -> bool;
 	/// \brief Checks proposal identity, disposition and submission-ready text.
 	[[nodiscard]] auto valid(const review_submission_proposal& aProposal) noexcept -> bool;

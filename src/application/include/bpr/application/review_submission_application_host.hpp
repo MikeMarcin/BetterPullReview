@@ -23,10 +23,16 @@ namespace bpr::application {
 		core::request_generation     Generation;
 		auto                         operator<=>(const review_submission_host_context&) const = default;
 	};
+	/// \brief [[BPR-1345]]. What was admitted under one submission key.
+	struct review_submission_lookup
+	{
+		std::string                                                                      Key;
+		std::expected<std::optional<review_submission_request>, review_mutation_failure> Request = std::unexpected(review_mutation_failure::unavailable);
+	};
 	struct review_submission_host_terminal
 	{
-		review_submission_host_context                                                                                          Context;
-		std::variant<review_submission_discovery, review_submission_result, staged_review_discovery, staged_publication_result> Outcome;
+		review_submission_host_context                                                                                                                    Context;
+		std::variant<review_submission_discovery, review_submission_result, staged_review_discovery, staged_publication_result, review_submission_lookup> Outcome;
 	};
 	class review_submission_projection_port
 	{
@@ -66,6 +72,9 @@ namespace bpr::application {
 		[[nodiscard]] auto discover_tours() -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context>;
 		[[nodiscard]] auto reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context>;
+		/// \brief [[BPR-1345]]. Reads what was admitted under `aKey`; never
+		/// submits. A found request is reconciled with `reconcile`.
+		[[nodiscard]] auto lookup(std::string aKey) -> std::optional<review_submission_host_context>;
 		void               cancel(review_submission_host_context aContext) noexcept;
 		void               shutdown() noexcept;
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;

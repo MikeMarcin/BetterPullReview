@@ -899,7 +899,7 @@ namespace {
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 14
+			return ordered.size() == 15
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -912,8 +912,11 @@ namespace {
 				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "workbenchReviewControlsAction")
 				&& named(ordered, 11, "reviewBarSpacerAction")
-				&& ordered[12] == window.compose_review_action()
-				&& ordered[13] == window.comment_action();
+				// [[BPR-1345]]. "Review · N pending" with Finish review, before
+				// Compose review, shown only while a review is in progress.
+				&& ordered[12] == window.review_chip_action()
+				&& ordered[13] == window.compose_review_action()
+				&& ordered[14] == window.comment_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -8830,6 +8833,65 @@ namespace {
 	// drawer draft's Maximize was; publish-draft-v001, "this 'only you see it
 	// unti...' doesnt fit": the draft's privacy note shows its words whole or
 	// only its lock, with the sentence as the lock's tooltip, never cut off.
+	/// [[BPR-1345]]. The review bar's chip while a review is in progress: hidden
+	/// with none; "Review · N pending" with Finish review, N exact, right before
+	/// Compose review, tinted then solid in the palette's highlight; Finish
+	/// review opens the summary in Discuss; a submitted review's held drafts
+	/// say it is being submitted.
+	void test_the_review_chip_counts_the_review_and_opens_finish()
+	{
+		qt::workbench_window window;
+		window.resize(1'600, 900);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const chipAction = window.review_chip_action();
+		auto* const chip       = static_cast<qt::review_progress_chip*>(window.review_chip());
+		expect(chipAction != nullptr && chip != nullptr && !chipAction->isVisible(), "with no review in progress the bar has no chip");
+		const auto bar     = window.review_bar()->actions();
+		const auto compose = bar.indexOf(window.compose_review_action());
+		expect(compose > 0 && bar.at(compose - 1) == chipAction, "the chip sits right before Compose review");
+		const auto draft = [](const std::uint64_t aId, const std::uint32_t aLine, const bool aPending, const std::string_view aKey = { }) {
+			auto value        = core::review_comment_draft{ };
+			value.Id          = core::review_draft_id{ aId };
+			value.Anchor.Side = core::diff_side::right;
+			value.Anchor.Line = aLine;
+			value.Body        = "pending " + std::to_string(aId);
+			if (aPending) {
+				value.InReview = core::review_pending_mark{ .Path = "src/a.cpp", .Head = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 1U } }, .Submission = std::string{ aKey } };
+			}
+			if (!aKey.empty()) {
+				value.State = core::review_draft_state::publishing;
+			}
+			return value;
+		};
+		window.present_saved_drafts({ draft(1U, 4U, true), draft(2U, 9U, true), draft(3U, 12U, false) });
+		process_events();
+		expect(chipAction->isVisible() && chip->pending() == 2U && !chip->submitting() && chip->summary() == QStringLiteral("Review \u00B7 2 pending")
+				   && chip->text() == QStringLiteral("Finish review") && chip->accessibleName() == QStringLiteral("Finish review")
+				   && chip->accessibleDescription().contains(QStringLiteral("2 pending comments")) && chip->focusPolicy() == Qt::StrongFocus,
+			   "two pending drafts: \"Review · 2 pending\" with Finish review, named and described, the third draft not counted");
+		if (chip->isVisible()) {
+			const auto image = chip->grab().toImage();
+			const auto ratio = image.devicePixelRatio();
+			const auto ink   = chip->palette().color(QPalette::Active, QPalette::Highlight);
+			const auto at    = [&image, ratio](const int aX, const int aY) { return image.pixelColor(qRound(aX * ratio), qRound(aY * ratio)); };
+			expect(chip->width() >= chip->sizeHint().width() && at(chip->width() - 5, chip->height() / 2) == ink && at(4, chip->height() / 2) != ink,
+				   "the chip is whole, its action on the highlight and its count on a tint of it");
+		}
+		chip->click();
+		process_events();
+		expect(composing(window, window.findChild<QScrollArea*>(QStringLiteral("composeReviewPage"))) && window.current_modality() == qt::review_modality::discuss,
+			   "Finish review opens the review summary in Discuss");
+		window.present_saved_drafts({ draft(1U, 4U, true, "key-1"), draft(2U, 9U, true) });
+		process_events();
+		expect(chipAction->isVisible() && chip->submitting() && chip->summary() == QStringLiteral("Review \u00B7 submitting"), "drafts a submitted review holds say it is being submitted");
+		window.present_saved_drafts({ draft(3U, 12U, false) });
+		process_events();
+		expect(!chipAction->isVisible(), "with nothing pending or held the chip goes");
+		window.hide();
+	}
+
 	void test_discuss_restore_top_right_and_whole_privacy_note()
 	{
 		qt::workbench_window window;
@@ -14539,6 +14601,7 @@ auto main(int argc, char** argv) -> int
 		test_return_in_the_code_starts_a_draft_on_the_selection();
 		test_right_click_on_any_line_and_on_base_lines();
 		test_discuss_restore_top_right_and_whole_privacy_note();
+		test_the_review_chip_counts_the_review_and_opens_finish();
 		std::cout << "workbench-line-draft:pass\n";
 		return EXIT_SUCCESS;
 	}

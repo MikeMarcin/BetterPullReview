@@ -249,6 +249,16 @@ namespace bpr::application {
 			review_thread_resolution_publication_request aRequest,
 			review_mutation_execution_grant              aRequestGrant = { })
 			-> review_mutation_request_context;
+		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
+		/// decided exactly as Publish decides it and without publishing: the
+		/// file's path and the head it is written on, with the anchor.
+		/// \details Start a review keeps the answer as the draft's pending
+		/// mark, so a review comment is admitted on the same terms as one
+		/// published on its own: the current head, the selected file, the
+		/// source's lines, and on a base line the evidence that its numbering
+		/// is GitHub's. No effect is queued.
+		[[nodiscard]] auto comment_destination(const review_mutation_publication_request& aRequest) const
+			-> std::expected<review_mutation_anchor_binding, review_mutation_failure>;
 		void cancel(review_mutation_request_context aContext) noexcept;
 		/// Queues a read-only repair pass on the serialized mutation effect lane.
 		void repair_pending_publications();

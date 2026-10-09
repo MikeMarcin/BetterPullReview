@@ -8,6 +8,11 @@
 
 namespace bpr::app::detail {
 	namespace {
+		/// [[BPR-1345]]. The production review session over this fixture's
+		/// server, journalling in the provider's own store.
+		[[nodiscard]] auto make_production_review(std::shared_ptr<review_submission_fixture_state>, application::review_submission_recovery_port&, application::review_submission_live_binding)
+			-> std::unique_ptr<application::review_submission_port>;
+
 		class fixture_provider final : public application::review_submission_port
 		{
 		public:
@@ -17,7 +22,12 @@ namespace bpr::app::detail {
 				: State{ std::move(aState) }
 				, Store{ std::move(aStore) }
 				, Binding{ std::move(aBinding) }
+				, Production{ make_production_review(State, *Store, Binding) }
 			{ }
+			auto admitted(const std::string& aKey, std::stop_token aStop) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure> override
+			{
+				return Production->admitted(aKey, aStop);
+			}
 			auto pending(std::stop_token aStop) -> application::review_submission_discovery override
 			{
 				if (aStop.stop_requested()) {
@@ -35,6 +45,11 @@ namespace bpr::app::detail {
 			}
 			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override
 			{
+				// [[BPR-1345]]. A review with line comments: the exact production
+				// request, journal and reconciliation, against this server.
+				if (!aRequest.Proposal.Comments.empty()) {
+					return Production->submit_and_reconcile(aRequest, aStop);
+				}
 				if (aStop.stop_requested() || !aRequest.LiveBinding || *aRequest.LiveBinding != Binding) {
 					return { .Request = aRequest, .Publication = application::review_submission_publication::definitely_not_published };
 				}
@@ -85,6 +100,13 @@ namespace bpr::app::detail {
 			}
 			auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override
 			{
+				if (!aRequest.Proposal.Comments.empty()) {
+					{
+						std::scoped_lock lock{ State->Mutex };
+						++State->Reconciliations;
+					}
+					return Production->reconcile(aRequest, aStop);
+				}
 				if (aStop.stop_requested()) {
 					return { .Request = aRequest };
 				}
@@ -121,6 +143,7 @@ namespace bpr::app::detail {
 			std::shared_ptr<review_submission_fixture_state>              State;
 			std::unique_ptr<application::review_submission_recovery_port> Store;
 			application::review_submission_live_binding                   Binding;
+			std::unique_ptr<application::review_submission_port>          Production;
 		};
 	}
 	auto make_review_submission_fixture_provider(std::shared_ptr<review_submission_fixture_state>              aState,
@@ -172,7 +195,18 @@ namespace bpr::app::detail {
 			}
 			auto review_json(const application::staged_review_entity& r) const -> std::string
 			{
-				return "{\"id\":" + std::to_string(r.Id.value()) + ",\"node_id\":" + json_text(r.NodeId) + ",\"html_url\":" + json_text(r.WebUrl) + ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"user\":" + user_json() + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(r.Commit).view() }) + ",\"body\":" + json_text(r.Body) + ",\"state\":\"" + (r.State == application::staged_review_state::pending ? "PENDING" : "COMMENTED") + "\"" + (r.State == application::staged_review_state::pending ? "" : ",\"submitted_at\":\"2026-09-26T12:34:56Z\"") + "}";
+				return "{\"id\":" + std::to_string(r.Id.value()) + ",\"node_id\":" + json_text(r.NodeId) + ",\"html_url\":" + json_text(r.WebUrl) + ",\"pull_request_url\":" + json_text(api() + pull()) + ",\"user\":" + user_json() + ",\"commit_id\":" + json_text(std::string{ core::canonical_hex(r.Commit).view() }) + ",\"body\":" + json_text(r.Body) + ",\"state\":\"" + std::string{ state_name(r.State) } + "\"" + (r.State == application::staged_review_state::pending ? "" : ",\"submitted_at\":\"2026-09-26T12:34:56Z\"") + "}";
+			}
+			static auto state_name(const application::staged_review_state aState) -> std::string_view
+			{
+				switch (aState) {
+				case application::staged_review_state::pending:           return "PENDING";
+				case application::staged_review_state::commented:         return "COMMENTED";
+				case application::staged_review_state::approved:          return "APPROVED";
+				case application::staged_review_state::changes_requested: return "CHANGES_REQUESTED";
+				case application::staged_review_state::dismissed:         return "DISMISSED";
+				}
+				return "COMMENTED";
 			}
 			auto comments_json(const std::vector<application::staged_review_comment>& comments) const -> std::string
 			{
@@ -213,6 +247,26 @@ namespace bpr::app::detail {
 					if (w.Path == pull()) {
 						const auto& t = Binding.Target;
 						return success("{\"id\":" + std::to_string(t.PullRequestDatabaseId) + ",\"node_id\":" + json_text(t.PullRequestNodeId) + ",\"number\":" + std::to_string(t.Number.value()) + ",\"state\":\"open\",\"body\":" + json_text(State->StagedDescription.value_or(Description)) + ",\"head\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.Semantic.ExpectedHead).view() }) + ",\"ref\":" + json_text(t.HeadRef) + "},\"base\":{\"sha\":" + json_text(std::string{ core::canonical_hex(t.BaseOid).view() }) + ",\"ref\":" + json_text(t.BaseRef) + ",\"repo\":{\"id\":" + std::to_string(t.BaseRepositoryDatabaseId) + ",\"node_id\":" + json_text(t.RepositoryNodeId) + ",\"full_name\":" + json_text(t.Repository.Owner + "/" + t.Repository.Name) + "}}}");
+					}
+					// [[BPR-1345]]. The pull request's review comments, each
+					// naming its review, as the submission session reads them.
+					if (w.Path == pull() + "/comments?per_page=100") {
+						return success(comments_json(State->PreviousComments));
+					}
+					// [[BPR-1345]]. The ordinary review list the submission
+					// session reads before and after its POST.
+					if (w.Path == pull() + "/reviews?per_page=100") {
+						if (State->HideReviewReads) {
+							return wire::github_mutation_wire_error{ };
+						}
+						std::string all = "[";
+						for (const auto& review : State->PreviousReviews) {
+							if (all.size() > 1) {
+								all += ",";
+							}
+							all += review_json(review);
+						}
+						return success(all + "]");
 					}
 					if (w.Path == pull() + "/reviews?per_page=100&page=1") {
 						if (State->StagedConflict) {
@@ -277,6 +331,37 @@ namespace bpr::app::detail {
 				}
 				const auto object = QJsonDocument::fromJson(QByteArray::fromStdString(w.Body)).object();
 				const auto body   = object["body"].toString().toStdString();
+				if (w.Method == wire::http_method::post && w.Path == pull() + "/reviews" && object.contains("event")) {
+					// [[BPR-1345]]. An ordinary review that carries line comments:
+					// created whole, its comments in it, or refused whole.
+					State->ReviewPosts.push_back(w.Body);
+					++State->Submissions;
+					if (std::exchange(State->RefuseNextReview, false)) {
+						return wire::github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = wire::github_mutation_transmission::indeterminate, .HttpStatus = 422U };
+					}
+					const auto event = object["event"].toString();
+					const auto id    = 801 + State->PreviousReviews.size();
+					auto       state = application::staged_review_state::commented;
+					if (event == QStringLiteral("APPROVE")) {
+						state = application::staged_review_state::approved;
+					} else if (event == QStringLiteral("REQUEST_CHANGES")) {
+						state = application::staged_review_state::changes_requested;
+					}
+					State->PreviousReviews.push_back(application::staged_review_entity{ application::review_database_id{ id }, "PRR_" + std::to_string(id), root() + "#pullrequestreview-" + std::to_string(id), actor(), Binding.Target.Semantic.ExpectedHead, body, state });
+					for (const auto& entry : object["comments"].toArray()) {
+						const auto c     = entry.toObject();
+						const auto cid   = 901 + State->PreviousComments.size();
+						const auto left  = c["side"] == "LEFT";
+						const auto last  = static_cast<std::uint32_t>(c["line"].toInt() - 1);
+						const auto first = c.contains("start_line") ? static_cast<std::uint32_t>(c["start_line"].toInt() - 1) : last;
+						State->PreviousComments.push_back({ static_cast<std::uint64_t>(cid), "PRRC_" + std::to_string(cid), root() + "#discussion_r" + std::to_string(cid), actor(), application::review_database_id{ id }, core::tour_code_destination{ .Commit = left ? Binding.Target.BaseOid : Binding.Target.Semantic.ExpectedHead, .Path = c["path"].toString().toStdString(), .Side = left ? core::diff_side::left : core::diff_side::right, .FirstLine = first, .LastLine = last }, c["body"].toString().toStdString(), false });
+					}
+					if (std::exchange(State->LoseNextReview, false)) {
+						State->HideReviewReads = true;
+						return wire::github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = wire::github_mutation_transmission::indeterminate };
+					}
+					return success(review_json(State->PreviousReviews.back()));
+				}
 				if (w.Method == wire::http_method::post && w.Path == pull() + "/reviews" && !object.contains("event")) {
 					if (State->StagedReview) {
 						State->PreviousReviews.push_back(*State->StagedReview);
@@ -376,4 +461,44 @@ namespace bpr::app::detail {
 		};
 	}
 	auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state> state, std::unique_ptr<application::review_submission_recovery_port> store, application::review_submission_live_binding binding, std::string description) -> std::unique_ptr<application::review_submission_port> { return std::make_unique<staged_fixture_provider>(std::move(state), std::move(store), std::move(binding), std::move(description)); }
+	namespace {
+		/// [[BPR-1345]]. The ordinary provider's store, lent to the session.
+		class borrowed_recovery final : public application::review_submission_recovery_port
+		{
+		public:
+			explicit borrowed_recovery(application::review_submission_recovery_port& aStore)
+				: Store{ aStore }
+			{ }
+			auto pending() -> std::expected<std::vector<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Store.pending(); }
+			auto load(const std::string& aKey) -> std::expected<std::optional<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override { return Store.load(aKey); }
+			auto admit(const application::review_submission_recovery_record& aRecord) -> std::expected<application::review_submission_recovery_admission, application::review_mutation_recovery_failure> override { return Store.admit(aRecord); }
+			auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Store.mark_possibly_transmitted(aKey, aFingerprint); }
+			auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_submission_receipt& aReceipt) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Store.resolve(aKey, aFingerprint, aReceipt); }
+			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.withdraw(aKey, aFingerprint); }
+
+		private:
+			application::review_submission_recovery_port& Store;
+		};
+		class production_review final : public application::review_submission_port
+		{
+		public:
+			production_review(std::shared_ptr<review_submission_fixture_state> aState, application::review_submission_recovery_port& aStore, const application::review_submission_live_binding& aBinding)
+				: Wire{ std::move(aState), aBinding, std::string{ } }
+				, Session{ Wire, { .CredentialContext = { .Request = core::request_id{ 1 }, .ApplicationSession = core::application_session_id{ 1 }, .Authority = { .Profile = core::host_profile_id{ 1 }, .ProfileRevision = application::github_profile_revision{ 1 }, .Host = aBinding.Target.Semantic.Host, .Hostname = aBinding.Target.Hostname, .Account = aBinding.ActingIdentity.Account, .ServerContract = aBinding.Target.ServerContract }, .IdentityGeneration = core::github_identity_generation{ 1 } }, .Target = aBinding.Target, .ActingIdentity = aBinding.ActingIdentity }, std::make_shared<staged_fixture_lease>(), std::make_unique<borrowed_recovery>(aStore) }
+			{ }
+			auto pending(std::stop_token aStop) -> application::review_submission_discovery override { return Session.pending(aStop); }
+			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override { return Session.submit_and_reconcile(aRequest, aStop); }
+			auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override { return Session.reconcile(aRequest, aStop); }
+			auto admitted(const std::string& aKey, std::stop_token aStop) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure> override { return Session.admitted(aKey, aStop); }
+
+		private:
+			staged_fixture_wire             Wire;
+			wire::review_submission_session Session;
+		};
+		auto make_production_review(std::shared_ptr<review_submission_fixture_state> aState, application::review_submission_recovery_port& aStore, application::review_submission_live_binding aBinding)
+			-> std::unique_ptr<application::review_submission_port>
+		{
+			return std::make_unique<production_review>(std::move(aState), aStore, aBinding);
+		}
+	}
 }

@@ -195,6 +195,7 @@ namespace bpr::adapters::sqlite::detail {
 	inline void fields(private_codec& aCodec, core::review_composition_state& aValue) { aCodec.values(aValue.Id, aValue.Binding, aValue.Mode, aValue.Lifecycle, aValue.SourceSetDigest, aValue.SourceCount, aValue.Target, aValue.Candidate); }
 	inline void fields(private_codec& aCodec, core::review_composition_revision& aValue) { aCodec.values(aValue.Identity, aValue.SourceSetDigest, aValue.Actor, aValue.Body, aValue.Derivation); }
 	inline void fields(private_codec& aCodec, core::review_composition_link& aValue) { aCodec.values(aValue.Scope, aValue.Composition, aValue.Revision, aValue.BodyDigest); }
+	inline void fields(private_codec& aCodec, core::review_pending_mark& aValue) { aCodec.values(aValue.Path, aValue.Head, aValue.Submission); }
 	inline void fields(private_codec& aCodec, core::review_comment_draft& aValue) { aCodec.values(aValue.Id, aValue.Anchor, aValue.Body, aValue.State, aValue.ReplyToThread); }
 	inline void fields(private_codec& aCodec, core::revisioned_review_draft& aValue) { aCodec.values(aValue.Draft, aValue.Revision, aValue.Scope, aValue.Composition); }
 	inline void fields(private_codec& aCodec, application::private_composition_record& aValue) { aCodec.values(aValue.State, aValue.Version, aValue.Sources); }
@@ -208,8 +209,12 @@ namespace bpr::adapters::sqlite::detail {
 		// [[BPR-1212]]. A draft on several lines is version 2, with its first
 		// line after the version 1 fields; a single-line draft keeps exactly
 		// its version 1 bytes, and every stored version 1 row reads as one line.
+		// [[BPR-1345]]. A draft pending in a review is version 3: its optional
+		// first line, then its pending mark. Every other draft keeps its
+		// version 1 or 2 bytes, and every stored one reads as not pending.
 		if constexpr (std::is_same_v<T, application::private_draft_record>) {
-			version = aValue.Draft.Draft.StartLine ? 2 : 1;
+			version = aValue.Draft.Draft.InReview ? 3 : aValue.Draft.Draft.StartLine ? 2
+																					 : 1;
 		}
 		codec.value(version);
 		codec.value(aValue);
@@ -219,6 +224,10 @@ namespace bpr::adapters::sqlite::detail {
 		if constexpr (std::is_same_v<T, application::private_draft_record>) {
 			if (version == 2) {
 				codec.value(*aValue.Draft.Draft.StartLine);
+			}
+			if (version == 3) {
+				codec.value(aValue.Draft.Draft.StartLine);
+				codec.value(*aValue.Draft.Draft.InReview);
 			}
 		}
 		if constexpr (std::is_same_v<T, application::private_publication_record>) {
@@ -240,7 +249,8 @@ namespace bpr::adapters::sqlite::detail {
 		codec.Input           = aBytes;
 		std::uint64_t version = 0;
 		codec.value(version);
-		if (version != 1 && !((std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record> || std::is_same_v<T, application::private_draft_record>) && version == 2)) {
+		if (version != 1 && !((std::is_same_v<T, core::agent_run_provenance> || std::is_same_v<T, application::private_publication_record> || std::is_same_v<T, application::private_draft_record>) && version == 2)
+			&& !(std::is_same_v<T, application::private_draft_record> && version == 3)) {
 			return { };
 		}
 		T result{ };
@@ -260,6 +270,12 @@ namespace bpr::adapters::sqlite::detail {
 				auto start = std::uint32_t{ 0U };
 				codec.value(start);
 				result.Draft.Draft.StartLine = start;
+			}
+			if (version == 3) {
+				codec.value(result.Draft.Draft.StartLine);
+				auto mark = core::review_pending_mark{ };
+				codec.value(mark);
+				result.Draft.Draft.InReview = std::move(mark);
 			}
 		}
 		if (!codec.Good || !codec.Input.empty()) {

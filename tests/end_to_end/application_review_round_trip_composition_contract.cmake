@@ -1285,6 +1285,19 @@ endfunction()
 # Presentation of an existing projection only; no grant, target, provider,
 # credential, GitHub write, mutation or publication path; mutation pin
 # unchanged; no new src/app source.
+# BPR-1345 start-a-review reseal (bpr-main-mac, 2026-10-09): over the
+# BPR-1365 reseal above. github_application.cpp keeps a
+# pending mark on the shown draft through the editor's edit path (its path and
+# head decided by the mutation host's comment_destination, as Publish decides
+# them), passes the pending drafts to the review submission workflow as its
+# line comments, holds them in one store transaction before the submission is
+# sent, completes or releases them on its answer, and clears the marks on
+# Discard review; Add single comment takes a pending draft out of the review
+# in the same revision, and a draft a submission holds is never published on
+# its own. The review submission's one POST now carries the comments; its
+# grant, target and actor binding are unchanged. Testing only: the
+# start-a-review course and its fixture-access evidence. Mutation pin
+# unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1303,7 +1316,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"498510165f413d83efa27766aed627f0dd0d6cde76349d0d172103bef5da76f2"
+		"ee58f1a4b93d38ee70802e6f9b912b339a8300f03b01bbec1c9f2da0e7b2cc09"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1507,7 +1520,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "26ccd144c16dfe157810bbf666c17177ca4cc077658d56610a2867c89a6b30aa"
+        "d0c0681ad7a42ecb22b524aebf32cc71a5a9a28c78b0cf86c6e6691abc36b218"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

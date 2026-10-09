@@ -75,6 +75,16 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<review_submission_recovery_record, review_mutation_recovery_failure> = 0;
 
 		[[nodiscard]] virtual auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const review_submission_receipt& aReceipt) -> std::expected<review_submission_recovery_record, review_mutation_recovery_failure> = 0;
+		/// \brief [[BPR-1345]]. Removes the unresolved attempt admitted with
+		/// this exact fingerprint once it is definitely not published: never
+		/// sent, or refused by GitHub. A resolved attempt is never removed; a
+		/// missing one is already gone.
+		[[nodiscard]] virtual auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aFingerprint);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
 	};
 }
 

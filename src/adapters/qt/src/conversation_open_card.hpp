@@ -18,7 +18,9 @@
 #include <string>
 #include <vector>
 
+class QBoxLayout;
 class QLabel;
+class QResizeEvent;
 class QVBoxLayout;
 class QPalette;
 class QPlainTextEdit;
@@ -152,6 +154,9 @@ namespace bpr::qt {
 		enum class kind : std::uint8_t {
 			primary,
 			reply_field,
+			/// [[BPR-1345]]. An outlined pill beside the primary one: Add
+			/// single comment while a review is the draft's main action.
+			secondary,
 		};
 		note_button(kind aKind, const QString& aText, QWidget* aParent);
 		void               set_style(const open_card_style& aStyle);
@@ -185,6 +190,10 @@ namespace bpr::qt {
 		void present_draft(const std::optional<draft_composer_presentation>& aDraft);
 		/// \brief [[BPR-1212]]. Whether this card is my draft's composer.
 		[[nodiscard]] auto writing() const noexcept -> bool;
+		/// \brief [[BPR-1345]]. What ⌘↩ does in the composer: Add single
+		/// comment with no review in progress, Add review comment while one
+		/// is, and on a pending draft the close that keeps it pending.
+		[[nodiscard]] auto primary_action() const noexcept -> card_action;
 		/// \brief [[BPR-1212]]. What the draft's suggestion block changes, as
 		/// drawn under its field; hidden without a block.
 		[[nodiscard]] auto change_view() const noexcept -> QWidget*;
@@ -227,6 +236,11 @@ namespace bpr::qt {
 		void build(const thread_card& aCard);
 		void build_composer(const thread_card& aCard, QVBoxLayout& aFoot);
 		void refresh_reply_controls();
+		/// [[BPR-1345]]. Stacks the composer's two actions when the drawer is
+		/// too narrow for them side by side.
+		void fit_draft_actions();
+		void present_review_state();
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 		std::string              Id;
 		open_card_style          Style;
@@ -244,7 +258,13 @@ namespace bpr::qt {
 		feedback_label_controls* Labels      = nullptr;
 		QLabel*                  ReplyStatus = nullptr;
 		note_button*             Publish     = nullptr;
-		suggestion_mark*         Suggestion  = nullptr;
+		/// [[BPR-1345]]. Start a review, Add review comment, or on a pending
+		/// draft Update review comment; and where the draft stands.
+		note_button*       ReviewAction = nullptr;
+		QBoxLayout*        DraftActions = nullptr;
+		QWidget*           Privacy      = nullptr;
+		draft_review_state Review       = draft_review_state::none;
+		suggestion_mark*   Suggestion   = nullptr;
 		/// [[BPR-1212]]. The composer's line button, state and change view.
 		QToolButton* Where      = nullptr;
 		QWidget*     DraftState = nullptr;

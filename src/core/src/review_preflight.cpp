@@ -93,6 +93,7 @@ namespace bpr::core {
 		case review_preflight_change::summary:     return "summary";
 		case review_preflight_change::disposition: return "disposition";
 		case review_preflight_change::selection:   return "selection";
+		case review_preflight_change::comments:    return "comments";
 		}
 		return "draft";
 	}
@@ -237,6 +238,19 @@ namespace bpr::core {
 			update_length(selection, draft->Body.size());
 			selection.update(bytes_of(draft->Body));
 		}
+		auto comments = sha256_stream{ };
+		update_length(comments, aDraft.Comments.size());
+		for (const auto& comment : aDraft.Comments) {
+			update_length(comments, comment.Draft.value());
+			update_length(comments, comment.DraftRevision);
+			update_length(comments, comment.Path.size());
+			comments.update(bytes_of(comment.Path));
+			update_length(comments, static_cast<std::uint64_t>(comment.Side));
+			update_length(comments, comment.Line);
+			update_length(comments, comment.StartLine ? std::uint64_t{ *comment.StartLine } + 1U : 0U);
+			update_length(comments, comment.Body.size());
+			comments.update(bytes_of(comment.Body));
+		}
 		return review_prepared_decision{
 			.Draft       = aDraft.Id,
 			.Target      = aDraft.Target,
@@ -244,6 +258,7 @@ namespace bpr::core {
 			.Disposition = aDraft.Disposition,
 			.Summary     = sha256(bytes_of(aDraft.Body)),
 			.Selection   = selection.finish(),
+			.Comments    = comments.finish(),
 		};
 	}
 
@@ -273,6 +288,9 @@ namespace bpr::core {
 		}
 		if (aPrepared.Selection != aCurrent.Selection) {
 			changes.push_back(review_preflight_change::selection);
+		}
+		if (aPrepared.Comments != aCurrent.Comments) {
+			changes.push_back(review_preflight_change::comments);
 		}
 		return changes;
 	}

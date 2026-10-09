@@ -1172,6 +1172,11 @@ namespace {
 		bool                                                   PublishedFileSwitchPassed = false;
 		bpr::app::detail::published_file_switch_probe_evidence PublishedFileSwitchEvidence;
 		std::string                                            PublishedFileSwitchDiagnostic;
+		// [[BPR-1345]]. `--start-review-course pending|finish|refused|uncertain`.
+		std::optional<bpr::app::detail::start_review_course> StartReviewCourse;
+		bool                                                 StartReviewPassed = false;
+		bpr::app::detail::start_review_probe_evidence        StartReviewEvidence;
+		std::string                                          StartReviewDiagnostic;
 		// [[BPR-1331]]. `--review-progress-push-probe before|after`.
 		std::optional<bpr::app::detail::review_progress_push_course> ReviewProgressPushProbe;
 		bool                                                         ReviewProgressPushPassed = false;
@@ -3578,7 +3583,11 @@ namespace {
 		if (fixtureCourseRan) {
 			// [[BPR-1331]]. The push course's first run reads one head, so the
 			// pushed head is fetched once when it arrives, as a reviewer's is.
-			const auto expectedSmartCalls = aRun.MaintenanceProbe
+			// [[BPR-1345]]. The start-a-review course's restarted run reads the
+			// same head over the same data root, whose objects are already held.
+			const auto expectedSmartCalls = aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::finish }
+				? 0
+				: aRun.MaintenanceProbe
 						== automated_run::epoch_maintenance_probe::verify_deleted
 					|| aRun.ReviewProgressPushProbe.has_value()
 				? 1
@@ -4828,6 +4837,25 @@ namespace {
 				   << evidence.Kept << evidence.ShownAfterReturn << '\n';
 			stream << "PUBLISHED_FILE_SWITCH_DIAGNOSTIC:" << QString::fromStdString(aRun.PublishedFileSwitchDiagnostic) << '\n';
 		}
+		if (aRun.StartReviewCourse.has_value()) {
+			const auto& evidence = aRun.StartReviewEvidence;
+			stream << (aRun.StartReviewPassed ? "START_REVIEW_OK\n" : "START_REVIEW_FAILED\n");
+			switch (*aRun.StartReviewCourse) {
+			case bpr::app::detail::start_review_course::pending:
+				stream << "START_REVIEW_PENDING_EVIDENCE:" << evidence.Started << evidence.Added << evidence.Drawn << evidence.SingleAlone << evidence.NavigationKept << '\n';
+				break;
+			case bpr::app::detail::start_review_course::finish:
+				stream << "START_REVIEW_FINISH_EVIDENCE:" << evidence.Restored << evidence.FinishOpened << evidence.CommentWithoutSummary << evidence.SubmittedExact << evidence.MarkedPublished << '\n';
+				break;
+			case bpr::app::detail::start_review_course::refused:
+				stream << "START_REVIEW_REFUSED_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.RefusedKept << evidence.DiscardKept << '\n';
+				break;
+			case bpr::app::detail::start_review_course::uncertain:
+				stream << "START_REVIEW_UNCERTAIN_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.UncertainHeld << evidence.Reconciled << '\n';
+				break;
+			}
+			stream << "START_REVIEW_DIAGNOSTIC:" << QString::fromStdString(aRun.StartReviewDiagnostic) << '\n';
+		}
 		if (aRun.ReviewProgressPushProbe.has_value()) {
 			stream << (aRun.ReviewProgressPushPassed ? "REVIEW_PROGRESS_PUSH_OK\n" : "REVIEW_PROGRESS_PUSH_FAILED\n")
 				   << "REVIEW_PROGRESS_PUSH_MARKS:" << QString::fromStdString(aRun.ReviewProgressPushMarks) << '\n'
@@ -4897,6 +4925,7 @@ namespace {
 			&& !aRun.Appearance.Enabled
 			&& !aRun.ReviewRoundTripCompositionProbe && !aRun.ThreadedReplyProbe
 			&& !aRun.LabelAuthoringProbe && !aRun.PublishedFileSwitchProbe
+			&& !aRun.StartReviewCourse.has_value()
 			&& !aRun.ReviewProgressPushProbe.has_value()
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
@@ -5699,6 +5728,27 @@ namespace {
 		aRun.PublishedFileSwitchEvidence = bpr::app::detail::github_application_fixture_access::published_file_switch_evidence(aApplication);
 		aRun.PublishedFileSwitchPassed   = result == bpr::app::detail::published_file_switch_probe_result::passed;
 		if (!aRun.PublishedFileSwitchPassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
+	}
+
+	// [[BPR-1345]]. One tick of the start-a-review course.
+	void advance_start_review_course(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		const auto result = bpr::app::detail::github_application_fixture_access::exercise_start_review(
+			aApplication, *aRun.StartReviewCourse);
+		aRun.StartReviewDiagnostic = bpr::app::detail::github_application_fixture_access::start_review_diagnostic(aApplication);
+		if (result == bpr::app::detail::start_review_probe_result::pending) {
+			return;
+		}
+		aRun.StartReviewEvidence = bpr::app::detail::github_application_fixture_access::start_review_evidence(aApplication);
+		aRun.StartReviewPassed   = result == bpr::app::detail::start_review_probe_result::passed;
+		if (!aRun.StartReviewPassed) {
 			fail_automated_run(aApplication, aRun);
 			return;
 		}
@@ -6585,6 +6635,10 @@ namespace {
 				}
 				if (aRun->PublishedFileSwitchProbe) {
 					advance_published_file_switch_probe(aApplication, *aRun);
+					break;
+				}
+				if (aRun->StartReviewCourse.has_value()) {
+					advance_start_review_course(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ReviewProgressPushProbe.has_value()) {
@@ -8677,6 +8731,9 @@ auto main(int argc, char** argv) -> int
 		const auto publishedFileSwitchProbe  = has_argument(argc, argv, "--published-file-switch-probe");
 		const auto publishedFileSwitchTiming = argument_value(argc, argv, "--published-file-switch-timing");
 		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || publishedFileSwitchProbe;
+		// [[BPR-1345]]. The start-a-review course reads again after publishing.
+		const auto startReviewCourse         = argument_value(argc, argv, "--start-review-course");
+		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -9745,6 +9802,10 @@ auto main(int argc, char** argv) -> int
 								.PublishedFileSwitchProbe        = publishedFileSwitchProbe,
 								.PublishedFileSwitchTiming       = publishedFileSwitchTiming == std::optional<std::string_view>{ "late" } ? bpr::app::detail::published_file_switch_timing::late : publishedFileSwitchTiming == std::optional<std::string_view>{ "draft" } ? bpr::app::detail::published_file_switch_timing::draft
 																																																																		   : bpr::app::detail::published_file_switch_timing::settled,
+								.StartReviewCourse               = startReviewCourse == std::optional<std::string_view>{ "pending" } ? std::optional{ bpr::app::detail::start_review_course::pending } : startReviewCourse == std::optional<std::string_view>{ "finish" } ? std::optional{ bpr::app::detail::start_review_course::finish }
+									: startReviewCourse == std::optional<std::string_view>{ "refused" }                                                                                                                                                                   ? std::optional{ bpr::app::detail::start_review_course::refused }
+									: startReviewCourse == std::optional<std::string_view>{ "uncertain" }                                                                                                                                                                 ? std::optional{ bpr::app::detail::start_review_course::uncertain }
+																																																																		  : std::nullopt,
 								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
 																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,

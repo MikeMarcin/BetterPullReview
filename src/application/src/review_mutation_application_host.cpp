@@ -1010,6 +1010,19 @@ namespace bpr::application {
 		return Implementation->publish(std::move(aRequest), std::move(aRequestGrant));
 	}
 
+	auto review_mutation_application_host::comment_destination(const review_mutation_publication_request& aRequest) const
+		-> std::expected<review_mutation_anchor_binding, review_mutation_failure>
+	{
+		if (aRequest.Proposal.ReplyToThread.has_value()) {
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
+		auto validated = Implementation->validate(aRequest);
+		if (!validated) {
+			return std::unexpected(validated.error());
+		}
+		return std::move(validated->Anchor);
+	}
+
 	auto review_mutation_application_host::resolve(
 		review_thread_resolution_publication_request aRequest,
 		review_mutation_execution_grant              aRequestGrant)

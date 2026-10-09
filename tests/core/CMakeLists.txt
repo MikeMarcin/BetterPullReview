@@ -951,6 +951,14 @@ bpr_enable_hardening(test_review_comment_range)
 bpr_enable_warnings(test_review_comment_range)
 bpr_add_network_isolated_test(NAME core_review_comment_range COMMAND test_review_comment_range)
 
+# [[BPR-1345]]. Start a review: the pending mark, the lock a submitted review
+# holds, and the review that carries pending drafts as its line comments.
+bpr_add_executable(test_review_pending review_pending_tests.cpp)
+target_link_libraries(test_review_pending PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_review_pending)
+bpr_enable_warnings(test_review_pending)
+bpr_add_network_isolated_test(NAME core_review_pending COMMAND test_review_pending)
+
 bpr_add_executable(test_better_pull_review_core_home_open_tests home_open_tests.cpp)
 target_link_libraries(test_better_pull_review_core_home_open_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_core_home_open_tests)

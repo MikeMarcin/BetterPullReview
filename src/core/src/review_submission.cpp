@@ -78,6 +78,27 @@ namespace bpr::core {
 			return aRequireNonblank && blank ? rejection::blank_body : rejection::none;
 		}
 
+		[[nodiscard]] auto valid_utf8(const std::string_view aText) noexcept -> bool
+		{
+			std::size_t position = 0U;
+			while (position < aText.size()) {
+				if (!next_code_point(aText, position)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		/// [[BPR-1345]]. The summary's own rule, then the carried comments'.
+		[[nodiscard]] auto validate_review(const std::string_view aBody, const review_disposition aDisposition,
+										   const std::span<const review_submission_comment> aComments, const bool aSubmitting) noexcept -> rejection
+		{
+			if (const auto reason = review_comments_rejection(aBody, aComments, aSubmitting); reason != rejection::none) {
+				return reason;
+			}
+			return validate_body(aBody, aSubmitting && summary_required(aDisposition, aComments));
+		}
+
 		[[nodiscard]] auto validate_draft_identity(const review_submission_draft& aDraft) noexcept -> rejection
 		{
 			if (aDraft.Id.value() == 0U || !valid(aDraft.Target)
@@ -107,7 +128,7 @@ namespace bpr::core {
 				return reason;
 			}
 			const auto pendingOrSubmitted = aDraft.State == state::submitting || aDraft.State == state::submitted;
-			return validate_body(aDraft.Body, pendingOrSubmitted && aDraft.Disposition != review_disposition::approve);
+			return validate_review(aDraft.Body, aDraft.Disposition, aDraft.Comments, pendingOrSubmitted);
 		}
 
 		[[nodiscard]] auto validate_command(const review_submission_command& aCommand) noexcept -> rejection
@@ -123,6 +144,7 @@ namespace bpr::core {
 			case kind::choose_disposition:
 			case kind::discard:
 			case kind::begin_submit:
+			case kind::set_comments:
 				return aCommand.Attempt.value() == 0U ? rejection::none : rejection::invalid_identity;
 			case kind::complete_submit:
 			case kind::fail_submit:
@@ -159,7 +181,7 @@ namespace bpr::core {
 				if (aDraft.State != state::submitting) {
 					return rejection::not_submitting;
 				}
-				return validate_body(aDraft.Body, aDraft.Disposition != review_disposition::approve);
+				return validate_review(aDraft.Body, aDraft.Disposition, aDraft.Comments, true);
 			}
 			if (aDraft.State == state::submitting) {
 				return rejection::already_submitting;
@@ -168,17 +190,65 @@ namespace bpr::core {
 				return reason;
 			}
 			if (aCommand.Kind == kind::edit) {
-				return validate_body(aCommand.Body, false);
+				if (const auto reason = validate_body(aCommand.Body, false); reason != rejection::none) {
+					return reason;
+				}
+				return review_comments_rejection(aCommand.Body, aDraft.Comments, false) == rejection::review_too_large ? rejection::review_too_large : rejection::none;
+			}
+			if (aCommand.Kind == kind::set_comments) {
+				return review_comments_rejection(aDraft.Body, aCommand.Comments, false);
 			}
 			if (aCommand.Kind == kind::begin_submit) {
 				if (aDraft.Attempt.value() == std::numeric_limits<std::uint64_t>::max()) {
 					return rejection::attempt_exhausted;
 				}
-				return validate_body(aDraft.Body, aDraft.Disposition != review_disposition::approve);
+				return validate_review(aDraft.Body, aDraft.Disposition, aDraft.Comments, true);
 			}
 			return rejection::none;
 		}
 	} // namespace
+
+	auto summary_required(const review_disposition aDisposition, const std::span<const review_submission_comment> aComments) noexcept -> bool
+	{
+		return aDisposition == review_disposition::request_changes || (aDisposition == review_disposition::comment && aComments.empty());
+	}
+
+	auto review_comments_rejection(const std::string_view aSummary, const std::span<const review_submission_comment> aComments, const bool aSubmitting) noexcept
+		-> review_submission_rejection
+	{
+		if (aComments.size() > maximum_review_submission_comments) {
+			return rejection::too_many_comments;
+		}
+		auto content = aSummary.size();
+		for (auto index = std::size_t{ 0U }; index < aComments.size(); ++index) {
+			const auto& comment = aComments[index];
+			const auto  side    = comment.Side == diff_side::left || comment.Side == diff_side::right;
+			if (comment.Draft.value() == 0U || comment.DraftRevision == 0U || comment.Path.empty() || comment.Path.size() > maximum_pending_mark_path_bytes
+				|| comment.Path.find('\0') != std::string::npos || !valid_utf8(comment.Path) || !side
+				|| (comment.StartLine && *comment.StartLine >= comment.Line)
+				|| comment.Body.size() > maximum_review_submission_body_bytes || !valid_utf8(comment.Body)) {
+				return rejection::invalid_comment;
+			}
+			for (auto earlier = std::size_t{ 0U }; earlier < index; ++earlier) {
+				if (aComments[earlier].Draft == comment.Draft) {
+					return rejection::invalid_comment;
+				}
+			}
+			content += comment.Body.size() + comment.Path.size();
+		}
+		// A summary alone keeps its own 64 KiB bound.
+		if (!aComments.empty() && content > maximum_review_submission_content_bytes) {
+			return rejection::review_too_large;
+		}
+		if (aSubmitting) {
+			for (const auto& comment : aComments) {
+				if (validate_body(comment.Body, true) != rejection::none) {
+					return rejection::blank_comment;
+				}
+			}
+		}
+		return rejection::none;
+	}
 
 	auto kept(const review_submission_draft& aDraft) noexcept -> bool
 	{
@@ -236,7 +306,7 @@ namespace bpr::core {
 		return aProposal.Draft.value() != 0U && aProposal.Attempt.value() != 0U
 			&& valid(aProposal.Target) && aProposal.ActingAccount.value() != 0U
 			&& valid(aProposal.Disposition)
-			&& validate_body(aProposal.Body, aProposal.Disposition != review_disposition::approve) == rejection::none;
+			&& validate_review(aProposal.Body, aProposal.Disposition, aProposal.Comments, true) == rejection::none;
 	}
 
 	auto apply(const review_submission_draft&   aDraft,
@@ -267,6 +337,9 @@ namespace bpr::core {
 		case kind::fail_submit:
 			outcome.Draft->State = state::drafting;
 			break;
+		case kind::set_comments:
+			outcome.Draft->Comments = aCommand.Comments;
+			break;
 		}
 		outcome.Changed = *outcome.Draft != aDraft;
 		return outcome;
@@ -278,7 +351,7 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		return review_submission_proposal{
-			.Draft = aDraft.Id, .Attempt = aDraft.Attempt, .Target = aDraft.Target, .ActingAccount = aDraft.ActingAccount, .Body = aDraft.Body, .Disposition = aDraft.Disposition
+			.Draft = aDraft.Id, .Attempt = aDraft.Attempt, .Target = aDraft.Target, .ActingAccount = aDraft.ActingAccount, .Body = aDraft.Body, .Disposition = aDraft.Disposition, .Comments = aDraft.Comments
 		};
 	}
 } // namespace bpr::core

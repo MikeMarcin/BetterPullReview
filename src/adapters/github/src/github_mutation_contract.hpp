@@ -112,6 +112,9 @@ namespace bpr::adapters::github::detail {
 		application::review_mutation_acting_identity ActingIdentity;
 		core::review_disposition                     Disposition = core::review_disposition::comment;
 		std::string                                  Body;
+		/// [[BPR-1345]]. The pending drafts the review carries, sent as its
+		/// `comments`; none keeps a summary-only review's exact bytes.
+		std::vector<core::review_submission_comment> Comments = { };
 
 		auto operator<=>(const review_submission_request&) const = default;
 	};
@@ -365,6 +368,32 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&        aResponse,
 		const application::review_mutation_request& aExpected)
 		-> review_mutation_parse_result<review_mutation_server_reconciliation>;
+
+	/// \brief [[BPR-1345]]. One comment of the pull request's comment
+	/// collection, with the review it belongs to. GitHub's list of one
+	/// review's comments carries no line or side, so a review's comments are
+	/// read here. Lines are zero-based.
+	struct review_comment_collection_entry
+	{
+		std::uint64_t                Review = 0U;
+		std::string                  Path;
+		core::diff_side              Side = core::diff_side::right;
+		std::optional<std::uint32_t> Line;
+		std::optional<std::uint32_t> StartLine;
+		std::string                  Body;
+		std::string                  CommitId;
+		std::uint64_t                Author = 0U;
+		std::string                  Login;
+		/// A comment on a line or range, not on the file.
+		bool OnLine = false;
+		bool Reply  = false;
+
+		auto operator==(const review_comment_collection_entry&) const -> bool = default;
+	};
+	/// \brief [[BPR-1345]]. Reads one complete page of the pull request's
+	/// review comments; a longer collection is not read in part.
+	[[nodiscard]] auto parse_review_comment_collection(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget)
+		-> review_mutation_parse_result<std::vector<review_comment_collection_entry>>;
 
 	/// \brief Rejects incomplete pagination and retains every baseline review ID.
 	[[nodiscard]] auto parse_review_submission_observations(const review_mutation_wire_response& aResponse, const review_submission_request& aExpected) -> review_mutation_parse_result<review_submission_reconciliation>;

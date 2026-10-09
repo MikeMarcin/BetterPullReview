@@ -225,6 +225,40 @@ namespace bpr::qt {
 		bool Marked = false;
 	};
 
+	/// \brief [[BPR-1345]]. The review bar's chip while a review is in
+	/// progress: "Review · 2 pending" on the accent's tint, then Finish
+	/// review on the accent, as one button.
+	///
+	/// \details The start-a-review frames draw it at the bar's right, before
+	/// Compose review. The count is what the window was given; the chip
+	/// decides nothing. Its action, Finish review, opens the review summary
+	/// in Discuss. Drawn whole in the palette's highlight, so it follows the
+	/// system accent and the theme.
+	class review_progress_chip final : public QToolButton
+	{
+	public:
+		explicit review_progress_chip(QWidget* aParent = nullptr);
+
+		/// \brief Pending comments in the review, or a review being submitted.
+		void               set_count(std::size_t aPending, bool aSubmitting);
+		[[nodiscard]] auto pending() const noexcept -> std::size_t;
+		[[nodiscard]] auto submitting() const noexcept -> bool;
+		/// \brief The tinted segment's words: "Review · 2 pending".
+		[[nodiscard]] auto summary() const -> QString;
+
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		[[nodiscard]] auto segment_width() const -> int;
+
+		std::size_t Pending    = 0U;
+		bool        Submitting = false;
+	};
+
 	/// \brief The four review modalities, in strip order, which is their
 	/// keys' order.
 	///

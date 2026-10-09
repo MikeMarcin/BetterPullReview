@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <type_traits>
 
@@ -49,6 +50,9 @@ namespace {
 		std::size_t                                                 Created = 0U, Destroyed = 0U, Submitted = 0U, Reconciled = 0U, Tours = 0U;
 		std::vector<application::review_submission_request>         Pending;
 		std::function<void(application::review_submission_result&)> Answer;
+		/// [[BPR-1345]]. What each key's lookup answers.
+		std::map<std::string, std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure>> Admitted;
+		std::size_t                                                                                                                       Lookups = 0U;
 	};
 	struct provider final : application::review_submission_port
 	{
@@ -104,6 +108,13 @@ namespace {
 		{
 			++State->Reconciled;
 			return result(aRequest);
+		}
+		auto admitted(const std::string& aKey, std::stop_token) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure> override
+		{
+			expect(State->InEffect, "a lookup runs on the effect lane");
+			++State->Lookups;
+			const auto found = State->Admitted.find(aKey);
+			return found == State->Admitted.end() ? std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure>{ std::nullopt } : found->second;
 		}
 	};
 	struct effects final : application::effect_executor
@@ -277,6 +288,33 @@ namespace {
 			expect(bad.Projection.Terminals.size() == 1U && bad.outcome().Request == request() && !bad.outcome().Receipt && bad.outcome().Publication == application::review_submission_publication::indeterminate, "bad or missing terminal stays correlated and indeterminate");
 		}
 	}
+	/// [[BPR-1345]]. A held draft's submission is looked up by its key: the
+	/// request admitted under it, none, or an unavailable read, each one
+	/// typed terminal, read only. A request for another account is refused;
+	/// a key that is no key queues nothing.
+	void test_lookup_by_key()
+	{
+		fixture f;
+		f.State->Admitted.emplace("fixture-review-key", std::optional{ request() });
+		f.State->Admitted.emplace("unreadable", std::unexpected(application::review_mutation_failure::unavailable));
+		auto foreign                               = request();
+		foreign.IdempotencyKey                     = "foreign";
+		foreign.LiveBinding->ActingIdentity.NodeId = "another-actor";
+		f.State->Admitted.emplace("foreign", std::optional{ foreign });
+		const auto look = [&f](std::string aKey) -> application::review_submission_lookup {
+			expect(f.Host.lookup(aKey).has_value(), "a lookup is accepted");
+			f.drain();
+			return std::get<application::review_submission_lookup>(f.Projection.Terminals.back().Outcome);
+		};
+		const auto found = look("fixture-review-key");
+		expect(found.Key == "fixture-review-key" && found.Request && *found.Request == request(), "the admitted request comes back exactly");
+		const auto absent = look("never-admitted");
+		expect(absent.Request && !*absent.Request, "a key nothing was admitted under answers none");
+		expect(!look("unreadable").Request, "an unavailable read is its own answer");
+		expect(!look("foreign").Request, "a request admitted for another account is refused");
+		expect(f.State->Submitted == 0U && f.State->Reconciled == 0U && f.State->Lookups == 4U, "a lookup never submits or reconciles");
+		expect(!f.Host.lookup("") && !f.Host.lookup(std::string(300U, 'k')) && !f.Host.lookup("two words"), "a key that is no key queues nothing");
+	}
 	void test_cancellation_shutdown_and_reentrancy()
 	{
 		for (const auto mode : { 0, 1, 2 }) {
@@ -316,6 +354,7 @@ auto main() -> int
 	test_staged_authority();
 	test_exact_authority_and_async_delivery();
 	test_recovery_and_bad_results();
+	test_lookup_by_key();
 	test_cancellation_shutdown_and_reentrancy();
 	std::cout << "review-submission-application-host-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -179,6 +179,61 @@ auto main(int argc, char** argv) -> int
 	if (argc == 2) {
 		expect(editor.grab().save(QString::fromLocal8Bit(argv[1])), "render saved");
 	}
+
+	// [[BPR-1345]]. Finish review: the review carries pending drafts, listed
+	// each where it is and what it says; Comment needs no summary; Discard is
+	// Discard review; what Submit sends is said in words.
+	auto finishing      = draft;
+	finishing.Body      = { };
+	auto first          = core::review_submission_comment{ };
+	first.Draft         = core::review_draft_id{ 7U };
+	first.DraftRevision = 2U;
+	first.Path          = "src/engine/renderer.cpp";
+	first.Line          = 430U;
+	first.Body          = "question: Where does 0.01 come from?\nIt looks arbitrary.";
+	auto range          = first;
+	range.Draft         = core::review_draft_id{ 8U };
+	range.Side          = core::diff_side::left;
+	range.Line          = 434U;
+	range.StartLine     = 433U;
+	range.Body          = "nit: scale could be constexpr.";
+	finishing.Comments  = { first, range };
+	auto finish         = projection;
+	finish.Draft        = finishing;
+	finish.Controls     = core::controls(finishing);
+	finish.Status       = QStringLiteral("Choose Comment, Approve, or Request changes.");
+	finish.Prepared     = core::prepare_review_decision(finishing, { });
+	editor.present(finish);
+	QApplication::processEvents();
+	expect(editor.title_label()->text() == QStringLiteral("Finish your review") && editor.pending_list()->isVisible()
+			   && editor.pending_rows() == QStringList{ QStringLiteral("renderer.cpp, line 431: question: Where does 0.01 come from?"), QStringLiteral("renderer.cpp, base lines 434–435: nit: scale could be constexpr.") },
+		   "Finish review lists the pending comments, each where it is and its first line");
+	expect(editor.carries_label()->isVisible() && editor.carries_label()->text() == QStringLiteral("Submits 2 line comments as one review.")
+			   && editor.body_editor()->placeholderText() == QStringLiteral("Leave a summary (optional)"),
+		   "it says what Submit sends, and the summary is optional");
+	expect(editor.submit_action()->isEnabled() && editor.discard_action()->text() == QStringLiteral("Discard review")
+			   && editor.disposition_button(core::review_disposition::comment)->toolTip().contains(QStringLiteral("optional")),
+		   "Comment with no summary can be submitted, and Discard is Discard review");
+	auto changes            = finishing;
+	changes.Disposition     = core::review_disposition::request_changes;
+	auto requestChanges     = finish;
+	requestChanges.Draft    = changes;
+	requestChanges.Controls = core::controls(changes);
+	editor.present(requestChanges);
+	expect(!editor.submit_action()->isEnabled() && editor.submit_action()->toolTip().startsWith(QStringLiteral("Request changes needs a summary"))
+			   && editor.body_editor()->placeholderText() == QStringLiteral("Write a review summary…"),
+		   "Request changes still needs a summary, and says so");
+	editor.present(finish);
+	if (argc == 2) {
+		expect(editor.grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-finish.png")), "finish render saved");
+	}
+	for (auto* row : editor.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingRow"))) {
+		expect(editor.rect().contains(row->geometry().translated(editor.pending_list()->pos())) && !row->toolTip().isEmpty(), "each row fits the page and its tooltip names the whole comment");
+	}
+	editor.present(projection);
+	expect(editor.title_label()->text() == QStringLiteral("Compose review") && !editor.pending_list()->isVisible() && !editor.carries_label()->isVisible()
+			   && editor.discard_action()->text() == QStringLiteral("Discard"),
+		   "a review with no pending comment is Compose review as before");
 	std::cout << "review-submission-editor:pass scale=" << editor.devicePixelRatioF() << '\n';
 	return EXIT_SUCCESS;
 }

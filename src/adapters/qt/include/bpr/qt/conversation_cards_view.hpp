@@ -81,6 +81,21 @@ namespace bpr::qt {
 		/// [[BPR-1212]]. Leave the draft written in the drawer (Esc, Close):
 		/// the window keeps a written draft and drops an empty one.
 		close_draft,
+		/// [[BPR-1345]]. Keep the draft written in the drawer pending in the
+		/// review: Start a review, or Add review comment once one is in
+		/// progress. Nothing is published.
+		review_draft,
+	};
+
+	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands
+	/// with the reviewer's review.
+	enum class draft_review_state : std::uint8_t {
+		/// No review is in progress: Start a review starts one.
+		none,
+		/// Other drafts are pending: Add review comment adds this one.
+		in_progress,
+		/// This draft is pending in the review already.
+		pending,
 	};
 
 	/// \brief The notes' filters ([[BPR-0649]], [[BPR-1290]]).
@@ -163,6 +178,9 @@ namespace bpr::qt {
 		bool                         Outdated          = false;
 		bool                         AnchorUnavailable = false;
 		bool                         Draft             = false;
+		/// [[BPR-1345]]. My draft is pending in my review, or held by its
+		/// submission.
+		bool Pending = false;
 		/// [[BPR-1212]]. My draft, open and being written in the drawer: the
 		/// composer, not the note. It carries no posts; the composer shows
 		/// what the draft editor holds.
@@ -270,6 +288,10 @@ namespace bpr::qt {
 		/// [[BPR-1329]]. The draft editor offers Publish again as a retry of
 		/// the same publication.
 		bool Retry = false;
+		/// [[BPR-1345]]. Where the draft stands with the review, which
+		/// decides its foot: Add single comment and Start a review, or Add
+		/// review comment as the main action while a review is in progress.
+		draft_review_state Review = draft_review_state::none;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
 	};

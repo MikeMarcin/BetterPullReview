@@ -167,9 +167,12 @@ namespace bpr::qt {
 		/// [[BPR-1212]]. The draft and the first line its next edit sets
 		/// (none makes it one line), until that edit is dispatched.
 		std::optional<std::pair<core::review_draft_id, std::optional<std::uint32_t>>> PendingRange;
-		QTimer*                                                                       Flush   = nullptr;
-		QAction*                                                                      Reload  = nullptr;
-		QAction*                                                                      Reapply = nullptr;
+		/// [[BPR-1345]]. The draft and the pending mark its next edit sets
+		/// (none takes it out of the review), until that edit is dispatched.
+		std::optional<std::pair<core::review_draft_id, std::optional<core::review_pending_mark>>> PendingMark;
+		QTimer*                                                                                   Flush   = nullptr;
+		QAction*                                                                                  Reload  = nullptr;
+		QAction*                                                                                  Reapply = nullptr;
 	};
 	struct review_draft_editor_members
 	{
@@ -367,6 +370,13 @@ namespace bpr::qt {
 		/// the draft owner is answered first. False, and nothing is sent, when
 		/// the shown draft is not editable here.
 		auto change_range(std::optional<std::uint32_t> aStartLine) -> bool;
+		/// \brief [[BPR-1345]]. Keeps the shown draft pending in the review
+		/// with \p aMark, or takes it out with none, in one ordinary edit
+		/// through this editor's edit path, with whatever the body holds then.
+		/// \details Like `change_range`, shown at once and settled by the edit.
+		/// False, and nothing is sent, when the shown draft is not editable
+		/// here or is a reply.
+		auto change_pending(std::optional<core::review_pending_mark> aMark) -> bool;
 		/// \brief [[BPR-1084]]. What the thread the shown reply answers is
 		/// attached to, from the accepted conversation projection, or none.
 		/// \details Only the mark beside Publish reads it. A reply with none

@@ -10,7 +10,7 @@ namespace bpr::adapters::github::detail {
 	namespace {
 		auto wire_input(const application::review_submission_request& aRequest) -> review_submission_request
 		{
-			return { .Target = aRequest.LiveBinding->Target, .ActingIdentity = aRequest.LiveBinding->ActingIdentity, .Disposition = aRequest.Proposal.Disposition, .Body = aRequest.Proposal.Body };
+			return { .Target = aRequest.LiveBinding->Target, .ActingIdentity = aRequest.LiveBinding->ActingIdentity, .Disposition = aRequest.Proposal.Disposition, .Body = aRequest.Proposal.Body, .Comments = aRequest.Proposal.Comments };
 		}
 		auto result(const application::review_submission_request& aRequest, application::review_submission_publication aPublication = application::review_submission_publication::indeterminate, application::review_mutation_failure aFailure = application::review_mutation_failure::unavailable) -> application::review_submission_result { return { .Request = aRequest, .Publication = aPublication, .Failure = aFailure }; }
 		auto receipt(const review_submission_observation& aReview) -> application::review_submission_receipt { return { .ReviewDatabaseId = application::review_database_id{ aReview.ReviewDatabaseId }, .ReviewNodeId = aReview.ReviewNodeId, .Target = aReview.Target.Semantic, .ActingAccount = aReview.Author.Account, .Disposition = aReview.Disposition }; }
@@ -87,6 +87,15 @@ namespace bpr::adapters::github::detail {
 			outcome.Duplicate   = true;
 			return outcome;
 		}
+		if (aRecord.Transmission == application::review_mutation_recovery_transmission::prepared && aRecord.State == application::review_mutation_recovery_state::unresolved) {
+			// [[BPR-1345]]. Its witness never admitted the POST, so nothing
+			// left this computer: it was definitely not published, and is
+			// withdrawn rather than restored as unfinished at every start.
+			if (Recovery->withdraw(aRecord.Request.IdempotencyKey, aRecord.RequestFingerprint)) {
+				outcome.Publication = application::review_submission_publication::definitely_not_published;
+			}
+			return outcome;
+		}
 		if (aRecord.Transmission != application::review_mutation_recovery_transmission::possibly_transmitted || !aRecord.BaselineReviewIds) {
 			return outcome;
 		}
@@ -94,9 +103,54 @@ namespace bpr::adapters::github::detail {
 		if (!observed) {
 			return outcome;
 		}
-		return resolve_observed(aRecord, *observed, aDuplicate);
+		return resolve_observed(aRecord, *observed, aDuplicate, aStop);
 	}
-	auto review_submission_session::resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate) -> application::review_submission_result
+	auto review_submission_session::carries_exactly(const application::review_submission_request& aRequest, const application::review_database_id aReview, std::stop_token aStop) -> bool
+	{
+		// GitHub's list of one review's comments has no line or side (seen on
+		// MikeMarcin/BPR-Test#44, 2026-10-09); the pull request's comment
+		// collection names each comment's review, path, lines and side.
+		auto wire = compile_review_comment_collection_request(Configuration.Target, Configuration.Target.ServerContract);
+		if (!wire) {
+			return false;
+		}
+		const auto  completion = perform(*wire, aStop);
+		const auto* success    = std::get_if<github_mutation_wire_success>(&completion);
+		if (success == nullptr) {
+			return false;
+		}
+		const auto listed = parse_review_comment_collection(success->Response, Configuration.Target);
+		if (!listed) {
+			return false;
+		}
+		const auto head      = core::canonical_hex(Configuration.Target.Semantic.ExpectedHead);
+		auto       unmatched = std::vector<const review_comment_collection_entry*>{ };
+		for (const auto& comment : *listed) {
+			if (comment.Review != aReview.value()) {
+				continue;
+			}
+			if (comment.Reply || !comment.OnLine || !comment.Line || comment.CommitId != head.view() || comment.Author != Configuration.ActingIdentity.DatabaseId
+				|| comment.Login != Configuration.ActingIdentity.Login) {
+				return false;
+			}
+			unmatched.push_back(&comment);
+		}
+		if (unmatched.size() != aRequest.Proposal.Comments.size()) {
+			return false;
+		}
+		for (const auto& sent : aRequest.Proposal.Comments) {
+			const auto found = std::ranges::find_if(unmatched, [&sent](const review_comment_collection_entry* aComment) {
+				return aComment->Path == sent.Path && aComment->Side == sent.Side && aComment->Line == std::optional{ sent.Line } && aComment->StartLine == sent.StartLine
+					&& aComment->Body == sent.Body;
+			});
+			if (found == unmatched.end()) {
+				return false;
+			}
+			unmatched.erase(found);
+		}
+		return unmatched.empty();
+	}
+	auto review_submission_session::resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop) -> application::review_submission_result
 	{
 		auto                                                  outcome = result(aRecord.Request);
 		std::optional<application::review_submission_receipt> candidate;
@@ -111,6 +165,12 @@ namespace bpr::adapters::github::detail {
 			candidate = current;
 		}
 		if (!candidate) {
+			return outcome;
+		}
+		// [[BPR-1345]]. A review that carried line comments is this one only
+		// if GitHub holds exactly those comments in it: a single comment
+		// published meanwhile is also a new review with no summary.
+		if (!aRecord.Request.Proposal.Comments.empty() && !carries_exactly(aRecord.Request, candidate->ReviewDatabaseId, aStop)) {
 			return outcome;
 		}
 		auto resolved = Recovery->resolve(aRecord.Request.IdempotencyKey, aRecord.RequestFingerprint, *candidate);
@@ -186,12 +246,18 @@ namespace bpr::adapters::github::detail {
 			if (admitted->Record != expected) {
 				return result(aRequest);
 			}
+			// [[BPR-1345]]. A request admitted but refused before its witness
+			// was never sent; it is withdrawn, not left to be restored.
+			const auto withdrawn = [this, &expected](application::review_submission_result aResult) {
+				static_cast<void>(Recovery->withdraw(expected.Request.IdempotencyKey, expected.RequestFingerprint));
+				return aResult;
+			};
 			const auto current = observe_exact(aStop);
 			if (!current) {
-				return result(aRequest, publication::definitely_not_published, current.error());
+				return withdrawn(result(aRequest, publication::definitely_not_published, current.error()));
 			}
 			if (aStop.stop_requested() || !Lease->active()) {
-				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled);
+				return withdrawn(result(aRequest, publication::definitely_not_published, application::review_mutation_failure::cancelled));
 			}
 			auto witnessed  = std::make_shared<std::atomic_bool>(false);
 			auto completion = github_mutation_wire_completion{ github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate } };
@@ -219,13 +285,26 @@ namespace bpr::adapters::github::detail {
 			},
 													 completion);
 			if (!witnessed->load() && definitelyUnsent) {
-				return result(aRequest, publication::definitely_not_published);
+				return withdrawn(result(aRequest, publication::definitely_not_published));
 			}
 			const auto persisted = Recovery->load(aRequest.IdempotencyKey);
 			if (!persisted || !*persisted || !application::valid(**persisted) || (**persisted).Request != aRequest || (**persisted).BaselineReviewIds != expected.BaselineReviewIds || (**persisted).Transmission != application::review_mutation_recovery_transmission::possibly_transmitted || !observed) {
 				return result(aRequest);
 			}
-			return resolve_observed(**persisted, *observed, false);
+			// [[BPR-1345]]. GitHub answered 422: it refused the review, which
+			// it creates whole or not at all. With no new exact review of mine
+			// observed after the answer, it was definitely not published, and
+			// its record is withdrawn so it is not restored as unfinished.
+			const auto* refusal = std::get_if<github_mutation_wire_error>(&completion);
+			if (refusal != nullptr && refusal->HttpStatus == 422U
+				&& std::ranges::all_of(observed->ExactReviews, [&expected](const review_submission_observation& aReview) {
+					   return std::ranges::binary_search(*expected.BaselineReviewIds, application::review_database_id{ aReview.ReviewDatabaseId });
+				   })) {
+				const auto unpublished = result(aRequest, publication::definitely_not_published, application::review_mutation_failure::unsupported);
+				static_cast<void>(Recovery->withdraw(aRequest.IdempotencyKey, (**persisted).RequestFingerprint));
+				return unpublished;
+			}
+			return resolve_observed(**persisted, *observed, false, aStop);
 		} catch (...) {
 			return result(aRequest);
 		}
@@ -249,6 +328,30 @@ namespace bpr::adapters::github::detail {
 				requests.push_back(record.Request);
 			}
 			return requests;
+		} catch (...) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+	}
+	auto review_submission_session::admitted(const std::string& aKey, std::stop_token aStop) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock lock{ Mutex };
+			if (aStop.stop_requested() || !Recovery || !Lease || !Lease->active() || !valid(Configuration)) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			auto loaded = Recovery->load(aKey);
+			if (!loaded) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!*loaded) {
+				return std::optional<application::review_submission_request>{ };
+			}
+			const auto& record = **loaded;
+			if (!application::valid(record) || record.Request.IdempotencyKey != aKey
+				|| !application::same_review_submission_identity(*record.Request.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			return std::optional{ record.Request };
 		} catch (...) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}

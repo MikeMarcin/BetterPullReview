@@ -8,6 +8,7 @@
 
 #include <array>
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -48,6 +49,33 @@ namespace bpr::core {
 	[[nodiscard]] auto name(review_draft_state aState) noexcept
 		-> std::string_view;
 
+	inline constexpr std::size_t maximum_pending_mark_path_bytes       = 4096U;
+	inline constexpr std::size_t maximum_pending_mark_submission_bytes = 256U;
+
+	/// \brief [[BPR-1345]]. A draft kept pending in a review the reviewer
+	/// finishes later, GitHub's "Start a review".
+	///
+	/// \details The mark is kept with the draft on this computer and names
+	/// where the comment goes when the review is submitted: the file's path at
+	/// the head the draft was written on. The draft itself still names its
+	/// line or range and side, and its revision says which text is meant.
+	/// `Submission` is empty while the review is being written. When the
+	/// reviewer submits, every carried draft is moved to `publishing` with the
+	/// submission's idempotency key here, in one durable write before anything
+	/// is sent, so a draft a submission holds can be neither edited nor
+	/// published on its own until that submission's answer is known.
+	struct review_pending_mark
+	{
+		std::string    Path;
+		git_commit_oid Head;
+		std::string    Submission;
+
+		auto operator<=>(const review_pending_mark&) const = default;
+	};
+
+	/// \brief Checks a bounded path, a valid head and a bounded printable key.
+	[[nodiscard]] auto valid(const review_pending_mark& aMark) noexcept -> bool;
+
 	/// \brief Holds one comment a reviewer is composing.
 	///
 	/// \details The anchor is RFC-BPR-0004's semantic source-line identity, not
@@ -75,6 +103,10 @@ namespace bpr::core {
 		/// (`valid_comment_range`); a reply is anchored by its thread and has
 		/// none.
 		std::optional<std::uint32_t> StartLine = { };
+		/// [[BPR-1345]]. Pending in the reviewer's review, or none. Only a
+		/// new comment on a line or range of either side can be; a reply
+		/// cannot.
+		std::optional<review_pending_mark> InReview = { };
 
 		[[nodiscard]] auto shared() const noexcept -> bool
 		{
@@ -83,6 +115,20 @@ namespace bpr::core {
 
 		auto operator<=>(const review_comment_draft&) const = default;
 	};
+
+	/// rief [[BPR-1345]]. A draft still being written that is pending in
+	/// the review: counted in it and sent with it.
+	[[nodiscard]] constexpr auto pending_in_review(const review_comment_draft& aDraft) noexcept -> bool
+	{
+		return aDraft.InReview.has_value() && aDraft.State == review_draft_state::drafting;
+	}
+
+	/// rief [[BPR-1345]]. A draft a submitted review holds until its answer
+	/// is known. Only that review's answer may complete or release it.
+	[[nodiscard]] constexpr auto held_by_review(const review_comment_draft& aDraft) noexcept -> bool
+	{
+		return aDraft.InReview.has_value() && !aDraft.InReview->Submission.empty() && aDraft.State == review_draft_state::publishing;
+	}
 
 	/// \brief Admits new inline comments and replies on either side.
 	/// \details This is target shape only; current-head, authority and endpoint checks
@@ -145,6 +191,10 @@ namespace bpr::core {
 		not_publishing,
 		/// [[BPR-1212]]. A line range GitHub would refuse (`valid_comment_range`).
 		invalid_range,
+		/// [[BPR-1345]]. A pending mark this draft cannot take or lose here:
+		/// a reply, an invalid mark, or a submission key changed other than by
+		/// the review that holds the draft.
+		invalid_review_mark,
 	};
 
 	/// \brief Returns the stable name for the supplied value.

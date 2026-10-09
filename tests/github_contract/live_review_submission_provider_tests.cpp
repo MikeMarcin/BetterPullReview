@@ -12,7 +12,9 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -272,9 +274,14 @@ namespace {
 		bool                                   WrongRepository = false, MovedContext = false;
 		bool                                   DefinitelyUnsent = false, LoseResponse = false, MalformedResponse = false, ThrowAfterSend = false, WrongActor = false, WrongHead = false, Incomplete = false, WitnessRejected = false;
 		std::stop_source*                      CancelOnPost = nullptr;
-		std::function<void()>                  OnTarget;
-		std::function<void()>                  OnPublished;
-		auto                                   perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		/// [[BPR-1345]]. The pull request's review comments, review 45's
+		/// among them, as its comment collection answers them, and a 422
+		/// refusal of the next review.
+		std::optional<std::string> Comments45;
+		bool                       Refuse422 = false;
+		std::function<void()>      OnTarget;
+		std::function<void()>      OnPublished;
+		auto                       perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
 			// [[BPR-1121]]. The session calls this and catches what it throws, so a
 			// failure here, or in the hooks it calls, still ends the process rather
@@ -315,10 +322,17 @@ namespace {
 				}
 				return github_mutation_wire_success{ .Response = { .Status = 200, .Headers = std::move(headers), .Body = list(Reviews) } };
 			}
+			if (Comments45 && key == scripted_request{ .Method = http_method::get, .Path = "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100" }) {
+				return github_mutation_wire_success{ .Response = { .Status = 200, .Body = *Comments45 } };
+			}
 			if (key == review_post()) {
 				++Posts;
 				if (DefinitelyUnsent) {
 					return github_mutation_wire_error{ };
+				}
+				if (Refuse422) {
+					expect(static_cast<bool>(aWitness) && aWitness(), "a refused POST was still witnessed first");
+					return github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = 422U };
 				}
 				expect(static_cast<bool>(aWitness), "POST requires durable witness");
 				WitnessRejected = !aWitness();
@@ -663,6 +677,18 @@ namespace {
 			expected.Receipt = receipt;
 		}
 		const auto loaded = store->load(wire.Request.IdempotencyKey);
+		// [[BPR-1345]]. An attempt killed before its witness was never sent:
+		// the first recovery says so and withdraws it, so a later one finds
+		// no row, which alone proves nothing and sends nothing.
+		if (prepared && loaded && !*loaded) {
+			review_submission_session again{ wire, configuration(), std::make_shared<lease>(), std::move(store) };
+			expect(again.pending() && again.pending()->empty() && wire.Trace.empty(), "a withdrawn attempt is not discovered again");
+			const auto repeat = again.reconcile(wire.Request);
+			expect(repeat.Publication == application::review_submission_publication::indeterminate && !repeat.Receipt && wire.Posts == 0U,
+				   "with its row withdrawn, a later recovery claims nothing and sends nothing");
+			std::cout << aPhase << ":pass\n";
+			return;
+		}
 		expect(loaded && *loaded && **loaded == expected, "abrupt restart retains exact request, authority, baseline, witness and receipt");
 		auto current = configuration();
 		if (moved) {
@@ -677,13 +703,21 @@ namespace {
 		const auto                pending = session.pending();
 		expect(pending && *pending == (resolved ? std::vector<application::review_submission_request>{ } : std::vector{ wire.Request }) && wire.Trace.empty(), "fresh discovery returns only original unresolved attempt without effects");
 		const auto result      = session.reconcile(wire.Request);
-		const auto publication = prepared || witnessed ? application::review_submission_publication::indeterminate : application::review_submission_publication::published;
+		const auto publication = prepared ? application::review_submission_publication::definitely_not_published
+			: witnessed                   ? application::review_submission_publication::indeterminate
+										  : application::review_submission_publication::published;
 		expect(result.Request == wire.Request && result.Publication == publication && wire.Posts == 0U, "kill recovery has exact outcome without POST");
 		expect(result.Receipt == (prepared || witnessed ? std::optional<application::review_submission_receipt>{ } : receipt), "kill recovery cannot manufacture or retarget receipt");
+		if (prepared) {
+			const auto remaining = session.pending();
+			expect(remaining && remaining->empty(), "an attempt never sent is withdrawn, not left pending");
+			std::cout << aPhase << ":pass\n";
+			return;
+		}
 		const auto retry = session.submit_and_reconcile(wire.Request);
 		expect(retry.Request == result.Request && retry.Publication == result.Publication && retry.Receipt == result.Receipt && wire.Posts == 0U, "explicit original-attempt retry cannot duplicate publication");
 		const auto remaining = session.pending();
-		expect(remaining && *remaining == (prepared || witnessed ? std::vector{ wire.Request } : std::vector<application::review_submission_request>{ }), "only unresolved attempts stay pending after recovery");
+		expect(remaining && *remaining == (witnessed ? std::vector{ wire.Request } : std::vector<application::review_submission_request>{ }), "only unresolved attempts stay pending after recovery");
 		std::cout << aPhase << ":pass\n";
 	}
 	void restart(std::string_view aPhase, const std::filesystem::path& aRoot)
@@ -709,7 +743,12 @@ namespace {
 		}
 		review_submission_session session{ wire, current, authority, storage(aRoot) };
 		auto                      restored = wire.Request;
-		if (aPhase.starts_with("--recover-")) {
+		if (aPhase == "--recover-prepared") {
+			// [[BPR-1345]]. The first process withdrew the attempt it never
+			// sent; nothing is discovered, and a recovery sends nothing.
+			const auto pending = session.pending();
+			expect(pending && pending->empty() && wire.Trace.empty(), "an attempt refused before its witness is withdrawn, not discovered");
+		} else if (aPhase.starts_with("--recover-")) {
 			const auto pending = session.pending();
 			expect(pending && *pending == std::vector{ wire.Request } && wire.Trace.empty(), "fresh process discovers exact original request and retry key");
 			restored = pending->front();
@@ -720,11 +759,304 @@ namespace {
 		} else if (aPhase == "--recover-unresolved" || aPhase == "--recover-moved") {
 			expect(result.Publication == application::review_submission_publication::published && wire.Posts == 0U, "fresh process resolves without POST");
 		} else if (aPhase == "--write-prepared") {
-			expect(wire.Posts == 0U, "prepared phase sends nothing");
+			expect(wire.Posts == 0U && result.Publication == application::review_submission_publication::definitely_not_published, "prepared phase sends nothing and says so");
 		} else {
 			expect(result.Publication == application::review_submission_publication::indeterminate && wire.Trace.empty(), "prepared restart cannot adopt unrelated later review");
 		}
 		std::cout << aPhase << ":pass\n";
+	}
+	/// [[BPR-1345]]. One review comment as GitHub lists it in review 45.
+	[[nodiscard]] auto listed_comment(const std::uint64_t aId, const core::review_submission_comment& aComment) -> std::string
+	{
+		const auto side = std::string{ aComment.Side == core::diff_side::left ? "LEFT" : "RIGHT" };
+		auto       text = std::string{ "{\"id\":" } + std::to_string(aId) + ",\"node_id\":\"PRRC_" + std::to_string(aId) + "\",\"html_url\":\"https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r" + std::to_string(aId)
+			+ "\",\"pull_request_url\":\"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1\",\"body\":\"" + aComment.Body + "\",\"path\":\"" + aComment.Path
+			+ "\",\"commit_id\":\"1111111111111111111111111111111111111111\",\"user\":{\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\",\"login\":\"fixture-reviewer\"},\"pull_request_review_id\":45,\"line\":"
+			+ std::to_string(std::uint64_t{ aComment.Line } + 1U) + ",\"side\":\"" + side + "\",\"subject_type\":\"line\"";
+		if (aComment.StartLine) {
+			text += ",\"start_line\":" + std::to_string(std::uint64_t{ *aComment.StartLine } + 1U) + ",\"start_side\":\"" + side + "\"";
+		}
+		return text + "}";
+	}
+	/// [[BPR-1345]]. A review that carries pending drafts: published only when
+	/// the one new review GitHub lists holds exactly those comments; a single
+	/// comment's review, or another comment set, is not it; a 422 is a
+	/// definite refusal and its attempt is withdrawn; what was admitted under
+	/// a key is read without any request.
+	void test_a_review_carries_its_comments_exactly()
+	{
+		auto first          = core::review_submission_comment{ };
+		first.Draft         = core::review_draft_id{ 7U };
+		first.DraftRevision = 3U;
+		first.Path          = "src/engine/renderer.cpp";
+		first.Line          = 430U;
+		first.Body          = "question: Where does 0.01 come from?";
+		auto range          = first;
+		range.Draft         = core::review_draft_id{ 8U };
+		range.Side          = core::diff_side::left;
+		range.Line          = 12U;
+		range.StartLine     = 10U;
+		range.Body          = "nit: one line would do.";
+		const auto carried  = [&] {
+			auto value              = request();
+			value.IdempotencyKey    = "review-with-comments";
+			value.Proposal.Body     = { };
+			value.Proposal.Comments = { first, range };
+			return value;
+		};
+		{
+			temporary_directory root;
+			transport           wire;
+			wire.Request    = carried();
+			wire.Comments45 = "[" + listed_comment(901U, range) + "," + listed_comment(902U, first) + "]";
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			expect(session.admitted(wire.Request.IdempotencyKey) && !*session.admitted(wire.Request.IdempotencyKey), "nothing is admitted under an unused key");
+			const auto result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == application::review_submission_publication::published && result.Receipt && result.Receipt->ReviewDatabaseId.value() == 45U && wire.Posts == 1U,
+				   "the review is published when GitHub holds exactly its comments, in any order");
+			expect(std::ranges::count(wire.Trace, review_mutation_operation::observe_review_comments) == 1, "its comments are read once, after the POST");
+			const auto admitted = session.admitted(wire.Request.IdempotencyKey);
+			expect(admitted && *admitted && **admitted == wire.Request, "what was admitted under its key is read back exactly");
+		}
+		for (const auto& listed : { std::string{ "[]" }, "[" + listed_comment(902U, first) + "]",
+									"[" + listed_comment(901U, first) + "," + listed_comment(902U, first) + "]" }) {
+			temporary_directory root;
+			transport           wire;
+			wire.Request    = carried();
+			wire.Comments45 = listed;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == application::review_submission_publication::indeterminate && !result.Receipt && wire.Posts == 1U,
+				   "a new review without exactly these comments (a single comment's review) is not this one");
+			expect(session.pending() && session.pending()->size() == 1U, "and the attempt stays to be reconciled");
+		}
+		{
+			temporary_directory root;
+			transport           wire;
+			wire.Request   = carried();
+			wire.NewCount  = 0U;
+			wire.Refuse422 = true;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == application::review_submission_publication::definitely_not_published && wire.Posts == 1U,
+				   "GitHub's 422, with no new review of mine after it, is a definite refusal");
+			expect(session.pending() && session.pending()->empty() && session.admitted(wire.Request.IdempotencyKey) && !*session.admitted(wire.Request.IdempotencyKey),
+				   "and its attempt is withdrawn, not restored as unfinished");
+		}
+		{
+			temporary_directory root;
+			transport           wire;
+			wire.Request     = carried();
+			wire.Refuse422   = true;
+			wire.NewCount    = 1U;
+			wire.OnPublished = nullptr;
+			// A 422 answer but a new exact review listed after it: not a refusal.
+			wire.Reviews.push_back(review(wire.Request, 45U));
+			wire.Comments45     = "[" + listed_comment(901U, first) + "," + listed_comment(902U, range) + "]";
+			const auto baseline = wire.Reviews;
+			wire.Reviews        = { };
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			wire.OnTarget     = [&] { wire.Reviews = baseline; };
+			const auto result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication != application::review_submission_publication::definitely_not_published, "a 422 is no refusal when a new exact review is listed after it");
+		}
+	}
+	// [[BPR-1345]]. The live probe's two halves, run by hand against
+	// responses a probe of MikeMarcin/BPR-Test saved to a scratch folder:
+	// `--compile-live DIR` writes the exact review bodies BPR sends, and
+	// `--replay-live DIR` runs the production session over GitHub's own
+	// answers. Not registered as a row: it needs the probe's folder.
+	struct live_probe
+	{
+		std::map<std::string, std::string> Values;
+		std::filesystem::path              Folder;
+		explicit live_probe(const std::filesystem::path& aFolder)
+			: Folder{ aFolder }
+		{
+			std::ifstream input{ aFolder / "state.env" };
+			for (std::string line; std::getline(input, line);) {
+				const auto equals = line.find('=');
+				if (equals != std::string::npos) {
+					Values.emplace(line.substr(0U, equals), line.substr(equals + 1U));
+				}
+			}
+			expect(Values.contains("head") && Values.contains("number"), "the probe's state is read");
+		}
+		[[nodiscard]] auto text(const char* aKey) const -> std::string { return Values.at(aKey); }
+		[[nodiscard]] auto number(const char* aKey) const -> std::uint64_t { return std::stoull(Values.at(aKey)); }
+		[[nodiscard]] auto file(const char* aName) const -> std::string
+		{
+			std::ifstream      input{ Folder / aName, std::ios::binary };
+			std::ostringstream bytes;
+			bytes << input.rdbuf();
+			return bytes.str();
+		}
+		void write(const char* aName, const std::string& aBytes) const
+		{
+			std::ofstream output{ Folder / aName, std::ios::binary };
+			output << aBytes;
+		}
+		[[nodiscard]] auto binding() const -> application::review_submission_live_binding
+		{
+			auto target                     = ::target();
+			target.Semantic.ExpectedHead    = *core::parse_git_commit_oid(text("head"));
+			target.Number                   = core::pull_request_number{ static_cast<std::uint32_t>(number("number")) };
+			target.RepositoryDatabaseId     = number("repo_id");
+			target.RepositoryNodeId         = text("repo_node");
+			target.PullRequestDatabaseId    = number("pr_id");
+			target.PullRequestNodeId        = text("pr_node");
+			target.BaseRepositoryDatabaseId = number("repo_id");
+			target.BaseOid                  = *core::parse_git_commit_oid(text("base"));
+			target.BaseRef                  = text("base_ref");
+			target.HeadRef                  = text("head_ref");
+			auto actor                      = identity();
+			actor.DatabaseId                = number("user_id");
+			actor.NodeId                    = text("user_node");
+			actor.Login                     = text("login");
+			return { .Target = target, .ActingIdentity = actor };
+		}
+		[[nodiscard]] auto request(std::vector<core::review_submission_comment> aComments, std::string aKey) const -> application::review_submission_request
+		{
+			auto value              = ::request();
+			value.IdempotencyKey    = std::move(aKey);
+			value.LiveBinding       = binding();
+			value.Proposal.Target   = value.LiveBinding->Target.Semantic;
+			value.Proposal.Body     = { };
+			value.Proposal.Comments = std::move(aComments);
+			return value;
+		}
+		[[nodiscard]] auto store(const std::filesystem::path& aRoot) const -> std::unique_ptr<application::review_submission_recovery_port>
+		{
+			auto value = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aRoot, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = static_cast<std::int64_t>(number("number")) });
+			expect(value.has_value(), "the probe's submission store opens");
+			return std::move(*value);
+		}
+		[[nodiscard]] auto comments() const -> std::vector<core::review_submission_comment>
+		{
+			// Head line 10 changed, head lines 19 to 21 added, base line 5 removed.
+			auto changed          = core::review_submission_comment{ };
+			changed.Draft         = core::review_draft_id{ 1U };
+			changed.DraftRevision = 2U;
+			changed.Path          = text("path");
+			changed.Line          = 9U;
+			changed.Body          = "BPR-1345 live probe: one line on the head.";
+			auto added            = changed;
+			added.Draft           = core::review_draft_id{ 2U };
+			added.Line            = 20U;
+			added.StartLine       = 18U;
+			added.Body            = "BPR-1345 live probe: a range of added lines.";
+			auto removed          = changed;
+			removed.Draft         = core::review_draft_id{ 3U };
+			removed.Side          = core::diff_side::left;
+			removed.Line          = 4U;
+			removed.Body          = "BPR-1345 live probe: a removed base line.";
+			return { changed, added, removed };
+		}
+		[[nodiscard]] auto refused() const -> std::vector<core::review_submission_comment>
+		{
+			auto outside = comments().front();
+			outside.Line = 30U;
+			outside.Body = "BPR-1345 live probe: a line outside the diff.";
+			return { outside };
+		}
+	};
+	void compile_live(const std::filesystem::path& aFolder)
+	{
+		const live_probe probe{ aFolder };
+		const auto       body = [](const application::review_submission_request& aRequest) {
+			auto input = review_submission_request{ .Target = aRequest.LiveBinding->Target, .ActingIdentity = aRequest.LiveBinding->ActingIdentity, .Disposition = aRequest.Proposal.Disposition, .Body = aRequest.Proposal.Body, .Comments = aRequest.Proposal.Comments };
+			auto wire  = compile_review_submission_request(input);
+			expect(wire.has_value(), "the probe's review compiles");
+			return wire->Body;
+		};
+		probe.write("review-body.json", body(probe.request(probe.comments(), "live-probe-review")));
+		probe.write("refused-body.json", body(probe.request(probe.refused(), "live-probe-refused")));
+		std::cout << "compile-live:pass\n";
+	}
+	struct replay_transport final : github_mutation_wire_transport
+	{
+		const live_probe& Probe;
+		std::string       Before, After, Posted, Comments;
+		int               PostStatus = 200;
+		bool              Sent       = false;
+		std::string       SentBody;
+		explicit replay_transport(const live_probe& aProbe)
+			: Probe{ aProbe }
+		{ }
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		{
+			const bpr::tests::exit_on_failure insideTheSession;
+			const auto&                       wire = aRequest.Wire;
+			const auto                        pull = "/repos/MikeMarcin/BPR-Test/pulls/" + Probe.text("number");
+			const auto                        ok   = [](std::string aBody) { return github_mutation_wire_success{ .Response = { .Status = 200, .Body = std::move(aBody) } }; };
+			if (wire.Method == http_method::get && wire.Path == "/user") {
+				return ok("{\"login\":\"" + Probe.text("login") + "\",\"id\":" + Probe.text("user_id") + ",\"node_id\":\"" + Probe.text("user_node") + "\"}");
+			}
+			if (wire.Method == http_method::get && wire.Path == pull) {
+				return ok(Probe.file("pull-observed.json"));
+			}
+			if (wire.Method == http_method::get && wire.Path == pull + "/reviews?per_page=100") {
+				return ok(Sent ? After : Before);
+			}
+			if (wire.Method == http_method::get && wire.Path == pull + "/comments?per_page=100") {
+				return ok(Comments);
+			}
+			if (wire.Method == http_method::post && wire.Path == pull + "/reviews") {
+				expect(aWitness && aWitness(), "the replayed POST is witnessed first");
+				Sent     = true;
+				SentBody = wire.Body;
+				if (PostStatus != 200) {
+					return github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = static_cast<std::uint16_t>(PostStatus) };
+				}
+				return ok(Posted);
+			}
+			std::cerr << "FAILED: unreplayed request " << wire.Path << '\n';
+			bpr::tests::fail();
+		}
+	};
+	void replay_live(const std::filesystem::path& aFolder)
+	{
+		const live_probe probe{ aFolder };
+		{
+			temporary_directory root;
+			replay_transport    wire{ probe };
+			wire.Before                                       = probe.file("reviews-before.json");
+			wire.After                                        = probe.file("reviews-after.json");
+			wire.Posted                                       = probe.file("review-post.json");
+			wire.Comments                                     = probe.file("pr-comments.json");
+			auto configuration                                = ::configuration();
+			configuration.Target                              = probe.binding().Target;
+			configuration.ActingIdentity                      = probe.binding().ActingIdentity;
+			configuration.CredentialContext.Authority.Account = configuration.ActingIdentity.Account;
+			review_submission_session session{ wire, configuration, std::make_shared<lease>(), probe.store(root.Path) };
+			const auto                request = probe.request(probe.comments(), "live-probe-review");
+			const auto                result  = session.submit_and_reconcile(request);
+			if (wire.SentBody != probe.file("review-body.json")) {
+				std::cerr << "sent: " << wire.SentBody << "\nlive: " << probe.file("review-body.json") << '\n';
+			}
+			expect(wire.SentBody == probe.file("review-body.json"), "the body replayed is the body the probe sent live");
+			expect(result.Publication == application::review_submission_publication::published && result.Receipt
+					   && result.Receipt->ReviewDatabaseId.value() == probe.number("review_id"),
+				   "GitHub's own review list and comments resolve the review with comments, exactly");
+		}
+		{
+			temporary_directory root;
+			replay_transport    wire{ probe };
+			wire.Before                  = probe.file("reviews-after.json");
+			wire.After                   = probe.file("reviews-after-refusal.json");
+			wire.PostStatus              = std::stoi(probe.file("refused-post.status"));
+			auto configuration           = ::configuration();
+			configuration.Target         = probe.binding().Target;
+			configuration.ActingIdentity = probe.binding().ActingIdentity;
+			review_submission_session session{ wire, configuration, std::make_shared<lease>(), probe.store(root.Path) };
+			const auto                request = probe.request(probe.refused(), "live-probe-refused");
+			const auto                result  = session.submit_and_reconcile(request);
+			expect(wire.SentBody == probe.file("refused-body.json"), "the refused body replayed is the one sent live");
+			expect(wire.PostStatus == 422 && result.Publication == application::review_submission_publication::definitely_not_published
+					   && session.pending() && session.pending()->empty(),
+				   "GitHub's 422 and its unchanged review list are a definite refusal, withdrawn");
+		}
+		std::cout << "replay-live:pass\n";
 	}
 	struct row
 	{
@@ -737,6 +1069,7 @@ namespace {
 		row{ "dispositions_and_old_reviews", &test_dispositions_and_old_reviews },
 		row{ "uncertainty_and_cancellation", &test_uncertainty_and_cancellation },
 		row{ "historical_recovery", &test_historical_recovery },
+		row{ "review_carries_its_comments_exactly", &test_a_review_carries_its_comments_exactly },
 	};
 }
 auto main(int aArgc, char** aArgv) -> int
@@ -760,7 +1093,11 @@ try {
 	}
 	if (aArgc == 3) {
 		const auto phase = std::string_view{ aArgv[1] };
-		if (phase.starts_with("--kill-")) {
+		if (phase == "--compile-live") {
+			compile_live(aArgv[2]);
+		} else if (phase == "--replay-live") {
+			replay_live(aArgv[2]);
+		} else if (phase.starts_with("--kill-")) {
 			kill_publication(phase, aArgv[2]);
 		} else if (phase.starts_with("--recover-killed-")) {
 			recover_killed_publication(phase, aArgv[2]);

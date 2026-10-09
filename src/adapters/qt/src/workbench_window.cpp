@@ -1643,6 +1643,14 @@ namespace bpr::qt {
 		};
 		ComposeReviewAction = makeComposition(tr("Compose &review"), QStringLiteral("composeReviewAction"), QStringLiteral("Alt+R"), false);
 		CommentAction       = makeComposition(tr("Co&mment"), QStringLiteral("composeInlineDraftAction"), QStringLiteral("Alt+C"), true);
+		// [[BPR-1345]]. While a review is in progress the bar says so, with
+		// how many comments it holds, and Finish review opens its summary in
+		// Discuss (the start-a-review frames, owner's Accept 2026-10-08).
+		auto* const chip = new review_progress_chip{ ReviewBar };
+		ReviewChip       = chip;
+		connect(chip, &QToolButton::clicked, this, [this] { open_review_composition(false); });
+		ReviewChipAction = rowWidget(ReviewBar, chip, QStringLiteral("reviewBarReviewChipAction"));
+		ReviewChipAction->setVisible(false);
 		ReviewBar->addAction(ComposeReviewAction);
 		ReviewBar->addAction(CommentAction);
 		// [[BPR-1133]]. Comment's arrow opens its menu, which names what
@@ -2044,6 +2052,14 @@ namespace bpr::qt {
 					break;
 				case card_action::close_draft:
 					leave_drawer_draft(false);
+					break;
+				case card_action::review_draft:
+					// [[BPR-1345]]. Start a review, or Add review comment: the
+					// draft stays as written, pending in the review, and the
+					// composer closes on it. Nothing is published.
+					if (StartReviewDispatch && StartReviewDispatch()) {
+						leave_drawer_draft(false);
+					}
 					break;
 				case card_action::mark_read:
 					// [[BPR-0656]]. The ledger host advances the cursor and
@@ -6944,11 +6960,22 @@ namespace bpr::qt {
 
 	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
 	{
+		// [[BPR-1345]]. The review in progress is what the saved drafts say:
+		// each pending in it, or held while it is submitted.
+		const auto pending    = static_cast<std::size_t>(std::ranges::count_if(aDrafts, [](const core::review_comment_draft& aDraft) { return core::pending_in_review(aDraft); }));
+		const auto held       = static_cast<std::size_t>(std::ranges::count_if(aDrafts, [](const core::review_comment_draft& aDraft) { return core::held_by_review(aDraft); }));
+		const auto changed    = pending != PendingReviewComments || held != HeldReviewComments;
+		PendingReviewComments = pending;
+		HeldReviewComments    = held;
+		update_review_chip();
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
 		ConversationPanel->cards()->set_saved_drafts(std::move(aDrafts));
 		apply_thread_marks();
+		if (changed && ConversationPanel->cards()->writing_draft()) {
+			present_inline_draft();
+		}
 	}
 
 	void workbench_window::apply_thread_marks()
@@ -8330,7 +8357,49 @@ namespace bpr::qt {
 			.Change      = std::move(change),
 			.Notice      = notice,
 			.Retry       = ReviewEditor->publication_retry_offered(),
+			.Review      = draft_review(),
 		});
+	}
+
+	auto workbench_window::draft_review() const -> draft_review_state
+	{
+		const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
+		if (shown.has_value() && core::pending_in_review(*shown)) {
+			return draft_review_state::pending;
+		}
+		return PendingReviewComments > 0U ? draft_review_state::in_progress : draft_review_state::none;
+	}
+
+	void workbench_window::update_review_chip()
+	{
+		if (ReviewChip == nullptr || ReviewChipAction == nullptr) {
+			return;
+		}
+		auto* const chip = static_cast<review_progress_chip*>(ReviewChip);
+		const auto  held = HeldReviewComments > 0U;
+		if (chip->pending() != PendingReviewComments || chip->submitting() != held) {
+			chip->set_count(PendingReviewComments, held);
+		}
+		const auto shown = PendingReviewComments > 0U || held;
+		if (ReviewChipAction->isVisible() != shown) {
+			ReviewChipAction->setVisible(shown);
+			apply_strip_width();
+		}
+	}
+
+	auto workbench_window::review_chip() const noexcept -> QToolButton*
+	{
+		return ReviewChip;
+	}
+
+	auto workbench_window::review_chip_action() const noexcept -> QAction*
+	{
+		return ReviewChipAction;
+	}
+
+	void workbench_window::set_start_review_dispatch(std::function<bool()> aDispatch)
+	{
+		StartReviewDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::enter_overview_at(

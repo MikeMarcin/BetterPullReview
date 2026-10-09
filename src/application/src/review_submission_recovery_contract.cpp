@@ -73,6 +73,21 @@ namespace bpr::application {
 			const auto authority = review_submission_authority_fingerprint(*aRequest.LiveBinding);
 			bytes.append(reinterpret_cast<const char*>(authority.data()), authority.size());
 		}
+		// [[BPR-1345]]. Line comments follow everything else, so a summary-only
+		// request keeps the fingerprint it always had.
+		if (!proposal.Comments.empty()) {
+			bytes.append("comments");
+			append(bytes, proposal.Comments.size());
+			for (const auto& comment : proposal.Comments) {
+				append(bytes, comment.Draft.value());
+				append(bytes, comment.DraftRevision);
+				append(bytes, comment.Path);
+				append(bytes, static_cast<std::uint64_t>(comment.Side));
+				append(bytes, std::uint64_t{ comment.Line });
+				append(bytes, comment.StartLine ? std::uint64_t{ *comment.StartLine } + 1U : 0U);
+				append(bytes, comment.Body);
+			}
+		}
 		return digest(bytes);
 	}
 	auto same_review_submission_identity(const review_submission_live_binding& aLeft, const review_submission_live_binding& aRight) -> bool

@@ -12,6 +12,9 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure>;
 		[[nodiscard]] auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
 		[[nodiscard]] auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop = { }) -> application::review_submission_result;
+		/// \brief [[BPR-1345]]. The request admitted under `aKey` in this
+		/// scope, or none. Reads the journal only.
+		[[nodiscard]] auto admitted(const std::string& aKey, std::stop_token aStop = { }) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure>;
 
 		[[nodiscard]] auto pending_tours(std::stop_token aStop = { }) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure>;
 		[[nodiscard]] auto publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop = { }, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
@@ -23,7 +26,10 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto observe_exact(std::stop_token aStop, bool aHistorical = false) -> std::expected<void, application::review_mutation_failure>;
 		[[nodiscard]] auto observe_reviews(const application::review_submission_request& aRequest, std::stop_token aStop) -> review_mutation_parse_result<review_submission_reconciliation>;
 		[[nodiscard]] auto finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
-		[[nodiscard]] auto resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate) -> application::review_submission_result;
+		[[nodiscard]] auto resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop) -> application::review_submission_result;
+		/// \brief [[BPR-1345]]. Whether the review GitHub lists as new holds
+		/// exactly the line comments the request carried.
+		[[nodiscard]] auto carries_exactly(const application::review_submission_request& aRequest, application::review_database_id aReview, std::stop_token aStop) -> bool;
 		[[nodiscard]] auto observe_staged(application::staged_review_request aRequest, std::stop_token aStop) -> review_mutation_parse_result<application::staged_review_observation>;
 		[[nodiscard]] auto reconcile_staged(application::staged_publication_record& aRecord, std::stop_token aStop) -> application::staged_publication_state;
 		[[nodiscard]] auto verify_tour_update(const application::staged_publication_record&, std::stop_token) -> bool;

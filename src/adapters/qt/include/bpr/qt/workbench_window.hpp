@@ -506,6 +506,10 @@ namespace bpr::qt {
 		void set_review_draft_dispatch(
 			workbench_review_draft_dispatch aDraftDispatch);
 		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
+		/// \brief [[BPR-1345]]. Where Start a review and Add review comment go:
+		/// the composition keeps the shown draft pending in the review and
+		/// answers whether it took it. Nothing is published.
+		void set_start_review_dispatch(std::function<bool()> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
@@ -673,6 +677,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1129]]. Compose review: Option-R (Alt+R), window-owned,
 		/// marked while a review draft is kept.
 		[[nodiscard]] auto compose_review_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1345]]. The review bar's "Review · N pending" chip
+		/// with Finish review; hidden with no review in progress.
+		[[nodiscard]] auto review_chip() const noexcept -> QToolButton*;
+		[[nodiscard]] auto review_chip_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1345]]. Where the shown draft stands with the review.
+		[[nodiscard]] auto draft_review() const -> draft_review_state;
 		[[nodiscard]] auto prepare_tour_action() const noexcept -> QAction*;
 		[[nodiscard]] auto add_tour_stop_action() const noexcept -> QAction*;
 		[[nodiscard]] auto tour_editor() const noexcept -> review_tour_editor*;
@@ -1369,6 +1379,8 @@ namespace bpr::qt {
 		void apply_review_bar_width();
 		/// \brief [[BPR-1129]]. Marks Compose review while a review draft is kept.
 		void update_compose_mark();
+		/// [[BPR-1345]]. The chip counts what the saved drafts say.
+		void update_review_chip();
 		/// \brief [[BPR-1133]]. The review thread Comment answers: the one the
 		/// reviewer chose, or the one on the line they selected.
 		[[nodiscard]] auto comment_reply_thread() const -> std::optional<std::string>;
@@ -1765,6 +1777,14 @@ namespace bpr::qt {
 		QAction*            UpdatesLineAction   = nullptr;
 		QAction*            ComposeReviewAction = nullptr;
 		QAction*            CommentAction       = nullptr;
+		/// [[BPR-1345]]. The review in progress: its chip, the action that
+		/// shows it in the bar, Start a review's sink, and how many of my
+		/// saved drafts are pending in it or held by its submission.
+		QToolButton*          ReviewChip       = nullptr;
+		QAction*              ReviewChipAction = nullptr;
+		std::function<bool()> StartReviewDispatch;
+		std::size_t           PendingReviewComments = 0U;
+		std::size_t           HeldReviewComments    = 0U;
 		/// [[BPR-1133]]. Comment's arrow menu.
 		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,

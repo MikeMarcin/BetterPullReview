@@ -1396,8 +1396,10 @@ namespace bpr::qt {
 			// and carries no post.
 			const auto writing = Writing && id == draft_card_id;
 			card.Writing       = writing;
-			card.Side          = draft->Anchor.Side;
-			card.Line          = draft->Anchor.Line + 1U;
+			// [[BPR-1345]]. Pending in my review, or held by its submission.
+			card.Pending = core::pending_in_review(*draft) || core::held_by_review(*draft);
+			card.Side    = draft->Anchor.Side;
+			card.Line    = draft->Anchor.Line + 1U;
 			if (draft->StartLine.has_value()) {
 				card.FirstLine = *draft->StartLine + 1U;
 			}
@@ -1409,7 +1411,7 @@ namespace bpr::qt {
 					.Mine         = true,
 					.Label        = mark.Label,
 					.Emphasis     = mark.Emphasis,
-					.Name         = feedback_post_name(QStringLiteral("Your note, not published"), mark),
+					.Name         = feedback_post_name(card.Pending ? QStringLiteral("Pending in your review") : QStringLiteral("Your note, not published"), mark),
 					.HeaderLength = mark.Label.has_value() ? header_length_of(draft->Body) : 0,
 				});
 			}
@@ -2013,7 +2015,7 @@ namespace bpr::qt {
 		aPainter.setFont(small);
 		const auto smallMetrics = QFontMetrics{ small };
 		if (aCard.Draft) {
-			const auto words = QStringLiteral("Draft");
+			const auto words = aCard.Pending ? QStringLiteral("Pending") : QStringLiteral("Draft");
 			const auto w     = smallMetrics.horizontalAdvance(words);
 			aPainter.setPen(colours.Faint);
 			aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
@@ -2694,8 +2696,11 @@ namespace bpr::qt {
 					// [[BPR-1212]]. ⌘⇧↩ takes the draft to Discuss; in a reply it
 					// does nothing rather than publish. ⌘↩ publishes.
 					const auto maximize = key.modifiers().testFlag(Qt::ShiftModifier);
+					// [[BPR-1345]]. On a draft, ⌘↩ is the composer's main
+					// action: Add single comment, or Add review comment while
+					// a review is in progress.
 					if (OpenCard->Action && (!maximize || drafting)) {
-						OpenCard->Action(maximize ? card_action::maximize_draft : drafting ? card_action::publish_draft
+						OpenCard->Action(maximize ? card_action::maximize_draft : drafting ? OpenCard->primary_action()
 																						   : card_action::publish_reply);
 					}
 					return true;

@@ -1638,8 +1638,86 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-1345]]. A review that carries pending drafts sends them as its
+	/// `comments`, each with GitHub's path, line and side and, for a range,
+	/// start_line and start_side, in sorted key order between the summary
+	/// and the head; a summary-only review keeps its exact bytes. Comment
+	/// with no summary compiles only with a comment; Request changes still
+	/// needs one; every comment needs words and a path; the whole request
+	/// stays inside the 64 KiB limit.
+	void test_a_review_sends_its_pending_comments()
+	{
+		auto first          = core::review_submission_comment{ };
+		first.Draft         = core::review_draft_id{ 7U };
+		first.DraftRevision = 3U;
+		first.Path          = "src/engine/renderer.cpp";
+		first.Line          = 430U;
+		first.Body          = "question: Where does 0.01 come from?";
+		auto range          = first;
+		range.Draft         = core::review_draft_id{ 8U };
+		range.Line          = 435U;
+		range.StartLine     = 433U;
+		range.Body          = "nit: \"scale\" could be constexpr.";
+		auto base           = first;
+		base.Draft          = core::review_draft_id{ 9U };
+		base.Side           = core::diff_side::left;
+		base.Line           = 11U;
+		base.Body           = "Was this ever reached?";
+
+		auto input          = submission();
+		input.Body          = { };
+		input.Comments      = { first, range, base };
+		const auto compiled = compile_review_submission_request(input);
+		expect(compiled.has_value() && compiled->Operation == review_mutation_operation::create_review && compiled->Method == http_method::post
+				   && compiled->Path == "/repos/MikeMarcin/BPR-Test/pulls/1/reviews",
+			   "a review with comments is the same one POST to the reviews collection");
+		expect(compiled->Body
+				   == R"({"body":"","comments":[{"body":"question: Where does 0.01 come from?","line":431,"path":"src/engine/renderer.cpp","side":"RIGHT"},)"
+					  R"({"body":"nit: \"scale\" could be constexpr.","line":436,"path":"src/engine/renderer.cpp","side":"RIGHT","start_line":434,"start_side":"RIGHT"},)"
+					  R"({"body":"Was this ever reached?","line":12,"path":"src/engine/renderer.cpp","side":"LEFT"}],)"
+					  R"("commit_id":"1111111111111111111111111111111111111111","event":"COMMENT"})",
+			   "each pending draft is a review comment: one-based lines, both sides, a range's first line, sorted keys");
+		expect(validate_outbound_review_mutation_request(*compiled).has_value(), "the review with comments revalidates against its semantic request");
+		auto tampered = *compiled;
+		tampered.Body.replace(tampered.Body.find("431"), 3U, "432");
+		expect(!validate_outbound_review_mutation_request(tampered).has_value(), "a comment moved on the wire is refused");
+		const auto observed = compile_review_submission_observation_request(input);
+		expect(observed && observed->Method == http_method::get && observed->Body.empty(), "its observation reads the review list, with no body");
+
+		auto plain = submission();
+		expect(compile_review_submission_request(plain)->Body == R"({"body":"Review summary.","commit_id":"1111111111111111111111111111111111111111","event":"COMMENT"})",
+			   "a summary-only review keeps its exact bytes");
+		plain.Body = { };
+		expect(!compile_review_submission_request(plain).has_value(), "Comment with no summary and no comment is refused, as GitHub refuses it");
+		auto changes        = input;
+		changes.Disposition = core::review_disposition::request_changes;
+		expect(!compile_review_submission_request(changes).has_value(), "Request changes needs a summary, comments or not");
+		changes.Body = "Please fix.";
+		expect(compile_review_submission_request(changes).has_value(), "with one it compiles");
+		auto blank             = input;
+		blank.Comments[1].Body = " \n";
+		expect(!compile_review_submission_request(blank).has_value(), "a comment with no words is refused");
+		auto pathless             = input;
+		pathless.Comments[0].Path = { };
+		expect(!compile_review_submission_request(pathless).has_value(), "a comment with no path is refused");
+		auto inverted                  = input;
+		inverted.Comments[1].StartLine = 436U;
+		expect(!compile_review_submission_request(inverted).has_value(), "a range that does not end below its start is refused");
+		auto twice        = input;
+		twice.Comments[1] = twice.Comments[0];
+		expect(!compile_review_submission_request(twice).has_value(), "one draft rides once");
+		auto large = input;
+		for (auto& comment : large.Comments) {
+			comment.Body = std::string(20U * 1024U, 'x');
+		}
+		expect(!compile_review_submission_request(large).has_value(), "a review that cannot fit one request is refused before any send");
+	}
+}
+
 auto main() -> int
 {
+	test_a_review_sends_its_pending_comments();
 	const auto fixture = fixture_object{
 		{ "fraction", 1.5 },
 		{ "large", std::uint64_t{ 9'007'199'254'740'993U } },

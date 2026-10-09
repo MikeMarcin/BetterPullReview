@@ -13,6 +13,7 @@
 #include "bpr/core/feedback_draft_edit.hpp"
 #include "scratch_root.hpp"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <optional>
@@ -237,12 +238,114 @@ namespace {
 		}
 		expect(reopened->find_publication()->Records.empty(), "labelling drafts publishes nothing");
 	}
+
+	[[nodiscard]] auto pending(const revisioned_review_draft& aDraft, const review_draft_command_kind aKind, std::optional<review_pending_mark> aMark) -> revisioned_review_draft_command
+	{
+		auto command             = revisioned_review_draft_command{ };
+		command.Command.Id       = aDraft.Draft.Id;
+		command.Command.Kind     = aKind;
+		command.Command.Body     = aKind == review_draft_command_kind::edit ? aDraft.Draft.Body : std::string{ };
+		command.ExpectedRevision = aDraft.Revision;
+		command.Scope            = aDraft.Scope;
+		command.ChangePending    = true;
+		command.Pending          = std::move(aMark);
+		return command;
+	}
+
+	/// [[BPR-1345]]. Start a review through the same durable owners: a pending
+	/// draft is version 3 and comes back after a restart with its mark; a
+	/// review's Submit holds every carried draft in one transaction, or none
+	/// when one changed; its refusal releases them still pending, its
+	/// acceptance completes them; Discard review keeps the draft and its
+	/// earlier record version; storage refuses a mark on another head or a
+	/// reply. Nothing is published.
+	void a_pending_mark_survives_a_restart_and_a_review_holds_its_drafts()
+	{
+		fixture    f;
+		const auto mark = review_pending_mark{ .Path = "src/engine/renderer.cpp", .Head = f.Binding.Revision.HeadOid };
+		auto       one  = review_draft_id{ };
+		auto       two  = review_draft_id{ };
+		{
+			desktop app(f, *f.Store);
+			auto    first = app.Drafts.allocate_draft(f.line(1), f.Index, "question: Where does 0.01 come from?");
+			auto    range = app.Drafts.allocate_draft(f.line(2), f.Index);
+			expect(first && range && app.Shared.adopt(app.Authority, *first) && app.Shared.adopt(app.Authority, *range), "two drafts");
+			one                = first->records().front().Draft.Draft.Id;
+			two                = range->records().front().Draft.Draft.Id;
+			const auto ranged2 = app.commit(ranged(*app.Shared.read(app.Window, two).Accepted, 0U, "nit: one line would do."));
+			expect(ranged2 && ranged2->Draft.StartLine == 0U, "the second is a range");
+
+			const auto started = app.commit(pending(*app.Shared.read(app.Window, one).Accepted, review_draft_command_kind::edit, mark));
+			expect(started && pending_in_review(started->Draft) && started->Draft.InReview == mark && record_version(f.ledger(), one) == 3U,
+				   "Start a review stores the draft pending, as version 3");
+			const auto added = app.commit(pending(*ranged2, review_draft_command_kind::edit, mark));
+			expect(added && pending_in_review(added->Draft) && added->Draft.StartLine == 0U && record_version(f.ledger(), two) == 3U,
+				   "a range is pending with its first line, as version 3");
+
+			auto elsewhere = mark;
+			elsewhere.Head = git_commit_oid{ git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 0x5A } };
+			auto other     = app.Drafts.allocate_draft(f.line(0), f.Index, "On another head?");
+			expect(other && app.Shared.adopt(app.Authority, *other), "a third draft");
+			const auto otherId = other->records().front().Draft.Draft.Id;
+			expect(!app.Drafts.change_draft(pending(*app.Shared.read(app.Window, otherId).Accepted, review_draft_command_kind::edit, elsewhere))
+					   && !f.Store->load_draft(otherId)->Draft.Draft.InReview,
+				   "storage refuses a mark on a head the draft was not written on");
+		}
+		auto reopened = std::move(*make_private_review_store(f.Config));
+		{
+			desktop    app(f, *reopened);
+			const auto first = app.restore(one);
+			const auto range = app.restore(two);
+			expect(pending_in_review(first.Draft) && first.Draft.InReview == mark && pending_in_review(range.Draft) && range.Draft.StartLine == 0U
+					   && range.Draft.Body == "nit: one line would do.",
+				   "after a restart both are pending again, with their marks, range and text");
+
+			// One changed since: none is held.
+			auto stale = std::vector{ pending(first, review_draft_command_kind::begin_publish, review_pending_mark{ mark.Path, mark.Head, "key-1" }),
+									  pending(range, review_draft_command_kind::begin_publish, review_pending_mark{ mark.Path, mark.Head, "key-1" }) };
+			stale.back().ExpectedRevision -= 1U;
+			expect(!app.Drafts.change_drafts(stale) && pending_in_review(reopened->load_draft(one)->Draft.Draft) && pending_in_review(reopened->load_draft(two)->Draft.Draft),
+				   "a Submit whose drafts changed holds none of them");
+
+			auto       hold = std::vector{ pending(first, review_draft_command_kind::begin_publish, review_pending_mark{ mark.Path, mark.Head, "key-1" }),
+										   pending(range, review_draft_command_kind::begin_publish, review_pending_mark{ mark.Path, mark.Head, "key-1" }) };
+			const auto held = app.Drafts.change_drafts(hold);
+			expect(held && held->records().size() == 2U && app.Shared.adopt(app.Authority, *held), "Submit holds both in one transaction");
+			const auto heldOne = *app.Shared.read(app.Window, one).Accepted;
+			const auto heldTwo = *app.Shared.read(app.Window, two).Accepted;
+			expect(held_by_review(heldOne.Draft) && held_by_review(heldTwo.Draft) && heldOne.Draft.InReview->Submission == "key-1",
+				   "each is held by the submission's key");
+			auto edit          = pending(heldOne, review_draft_command_kind::edit, std::nullopt);
+			edit.ChangePending = false;
+			edit.Command.Body  = "changed while submitted";
+			expect(!app.Drafts.change_draft(edit) && reopened->load_draft(one)->Draft.Draft.Body == first.Draft.Body, "a held draft is not edited");
+
+			const auto released = app.Drafts.change_drafts(std::vector{ pending(heldOne, review_draft_command_kind::fail_publish, mark) });
+			expect(released && app.Shared.adopt(app.Authority, *released) && pending_in_review(reopened->load_draft(one)->Draft.Draft)
+					   && reopened->load_draft(one)->Draft.Draft.Body == first.Draft.Body,
+				   "a refused review releases its draft, still pending, with its text");
+
+			auto complete             = revisioned_review_draft_command{ };
+			complete.Command          = review_draft_command{ .Id = two, .Kind = review_draft_command_kind::complete_publish };
+			complete.ExpectedRevision = heldTwo.Revision;
+			complete.Scope            = heldTwo.Scope;
+			const auto published      = app.Drafts.change_drafts(std::vector{ complete });
+			expect(published && reopened->load_draft(two)->Draft.Draft.State == review_draft_state::published, "an accepted review completes its draft");
+
+			const auto restored = *app.Shared.read(app.Window, one).Accepted;
+			const auto kept     = app.commit(pending(restored, review_draft_command_kind::edit, std::nullopt));
+			expect(kept && !kept->Draft.InReview && kept->Draft.Body == first.Draft.Body && record_version(f.ledger(), one) == 1U,
+				   "Discard review keeps the draft, one line again as version 1");
+		}
+		expect(reopened->find_publication()->Records.empty(), "a pending review publishes nothing through the comment journal");
+	}
 } // namespace
 
 int main()
 {
 	a_range_survives_a_restart_and_one_line_keeps_its_bytes();
 	a_label_edit_keeps_the_range_and_its_record_version();
+	a_pending_mark_survives_a_restart_and_a_review_holds_its_drafts();
 	std::cout << "COMMENT_RANGE_DRAFT_STORE_OK\n";
 	return EXIT_SUCCESS;
 }

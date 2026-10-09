@@ -69,6 +69,11 @@ namespace bpr::application {
 		[[nodiscard]] auto restore(std::optional<core::git_commit_oid> aHead = { }, std::optional<core::review_draft_id> aDraft = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief Uses the existing draft reducer; linked edits atomically retain a reviewer successor.
 		[[nodiscard]] auto change_draft(const core::revisioned_review_draft_command&) -> private_run_result<durable_draft_commit>;
+		/// \brief [[BPR-1345]]. Applies every command through the same draft
+		/// reducer in one store transaction: all of them, or none. A review's
+		/// Submit holds its pending drafts this way, and its answer completes
+		/// or releases them. Linked prose edits are refused here.
+		[[nodiscard]] auto change_drafts(std::span<const core::revisioned_review_draft_command>) -> private_run_result<durable_draft_commit>;
 
 	private:
 		private_review_store_port& Store;

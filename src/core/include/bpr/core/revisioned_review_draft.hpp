@@ -32,6 +32,17 @@ namespace bpr::core {
 		/// refuse is a policy refusal (`review_draft_rejection::invalid_range`).
 		bool                         ChangeRange = false;
 		std::optional<std::uint32_t> StartLine   = { };
+		/// [[BPR-1345]]. Sets the draft's pending mark to `Pending` (none
+		/// takes it out of the review) in the same revision as the command.
+		/// \details With an edit, while the draft is written: Start a review
+		/// sets a mark with no submission key, Discard review clears it. With
+		/// begin_publish: Add single comment clears it, and a review's Submit
+		/// gives the existing mark its submission key, which locks the draft
+		/// to that review. With fail_publish: that review, definitely not
+		/// published, takes its key off again and the draft stays pending.
+		/// Anything else is a policy refusal (`invalid_review_mark`).
+		bool                               ChangePending = false;
+		std::optional<review_pending_mark> Pending       = { };
 	};
 	enum class revisioned_draft_refusal : std::uint8_t { none,
 														 conflict,

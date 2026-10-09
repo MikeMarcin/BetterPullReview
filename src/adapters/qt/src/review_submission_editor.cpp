@@ -6,6 +6,8 @@
 #include <QAccessible>
 #include <QAction>
 #include <QButtonGroup>
+#include <QFontDatabase>
+#include <QFontMetrics>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
@@ -225,16 +227,31 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("wholeReviewEditor"));
 		auto* layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(0, 0, 0, 0);
-		auto* title = new QLabel{ tr("Compose review"), this };
-		layout->addWidget(title);
-		auto* purpose = new QLabel{ tr("Write a summary for this pull request and choose Comment, Approve, or Request changes. Nothing is published until you choose Submit review. "
-									   "Your line comments are not part of this review: each is published on its own with Publish on its draft beside the code."),
-									this };
-		purpose->setObjectName(QStringLiteral("wholeReviewPurpose"));
-		purpose->setWordWrap(true);
-		purpose->setMinimumWidth(0);
-		purpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		layout->addWidget(purpose);
+		Title = new QLabel{ tr("Compose review"), this };
+		Title->setObjectName(QStringLiteral("wholeReviewTitle"));
+		layout->addWidget(Title);
+		Purpose = new QLabel{ this };
+		Purpose->setObjectName(QStringLiteral("wholeReviewPurpose"));
+		Purpose->setWordWrap(true);
+		Purpose->setMinimumWidth(0);
+		Purpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		layout->addWidget(Purpose);
+		// [[BPR-1345]]. The comments the review carries, each where it is and
+		// what it says, as the finish-review frame lists them.
+		Pending = new QWidget{ this };
+		Pending->setObjectName(QStringLiteral("wholeReviewPending"));
+		Pending->setAccessibleName(tr("Pending in this review"));
+		PendingRows = new QVBoxLayout{ Pending };
+		PendingRows->setContentsMargins(0, 4, 0, 4);
+		PendingRows->setSpacing(2);
+		auto* const pendingTitle = new QLabel{ tr("Pending in this review"), Pending };
+		pendingTitle->setObjectName(QStringLiteral("wholeReviewPendingTitle"));
+		auto titleFont = pendingTitle->font();
+		titleFont.setWeight(QFont::DemiBold);
+		pendingTitle->setFont(titleFont);
+		PendingRows->addWidget(pendingTitle);
+		Pending->hide();
+		layout->addWidget(Pending);
 		DraftState = new QLabel{ this };
 		DraftState->setObjectName(QStringLiteral("wholeReviewDraftState"));
 		DraftState->setWordWrap(true);
@@ -296,6 +313,12 @@ namespace bpr::qt {
 		Body->setTabChangesFocus(true);
 		Body->setMinimumHeight(160);
 		layout->addWidget(Body, 1);
+		Carries = new QLabel{ this };
+		Carries->setObjectName(QStringLiteral("wholeReviewCarries"));
+		Carries->setWordWrap(true);
+		Carries->setTextFormat(Qt::PlainText);
+		Carries->hide();
+		layout->addWidget(Carries);
 		Submit         = new QAction{ tr("Submit review"), this };
 		Discard        = new QAction{ tr("Discard"), this };
 		Reconcile      = new QAction{ tr("Check status"), this };
@@ -355,13 +378,18 @@ namespace bpr::qt {
 			button->setVisible(Draft.has_value());
 		}
 		Preflight->setVisible(Draft.has_value());
+		present_pending();
 		QString state;
 		if (!Draft) {
 			state = tr("No review draft is available.");
 		} else {
 			switch (Draft->State) {
 			case core::review_submission_state::drafting:
-				state = core::kept(*Draft) ? tr("Your review draft is kept. It has not been published.") : tr("Start a review draft. Write your summary below.");
+				// [[BPR-1345]]. "Start a review" is the draft's gesture now, so
+				// this page no longer says it.
+				state = !Draft->Comments.empty() ? tr("Your review holds its pending comments. Nothing is published until you submit it.")
+					: core::kept(*Draft)         ? tr("Your review draft is kept. It has not been published.")
+												 : tr("Write a summary below for a review of this pull request.");
 				break;
 			case core::review_submission_state::submitting:
 				state = tr("Submission is in progress or awaiting confirmation. Check status before trying again.");
@@ -383,18 +411,24 @@ namespace bpr::qt {
 		}
 		Submit->setEnabled(connected && aProjection.Controls.Submit);
 		Discard->setEnabled(connected && aProjection.Controls.Discard);
+		const auto carried = Draft.has_value() && !Draft->Comments.empty();
+		Discard->setText(carried ? tr("Discard review") : tr("Discard"));
 		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile);
 		NewReview->setEnabled(connected && aProjection.Controls.NewReview);
-		const auto unavailable = !Draft || !aProjection.Controls.Edit
-			? aProjection.Status
-			// [[BPR-1212]]. GitHub refuses a Comment or Request changes review
-			// with no text unless it carries line comments, and this review
-			// carries none (probed on MikeMarcin/BPR-Test#41, 2026-10-08).
-			: tr("Comment and Request changes need a summary: this review carries no line comments, and GitHub refuses one with no text. Approve may have an empty summary.");
+		// [[BPR-1212]], [[BPR-1345]]. GitHub refuses a Comment review with no
+		// text unless it carries line comments (probed on
+		// MikeMarcin/BPR-Test#41, 2026-10-08); Request changes needs text.
+		const auto unavailable = !Draft || !aProjection.Controls.Edit ? aProjection.Status
+			: carried && Draft->Disposition == core::review_disposition::request_changes
+			? tr("Request changes needs a summary. Comment may have none: this review carries line comments.")
+			: carried ? aProjection.Status
+					  : tr("Comment and Request changes need a summary: this review carries no line comments, and GitHub refuses one with no text. Approve may have an empty summary.");
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
 		present_preflight(aProjection);
 		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.") : unavailable);
-		Discard->setToolTip(Discard->isEnabled() ? tr("Discard this unpublished review draft.") : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
+		Discard->setToolTip(Discard->isEnabled() ? (carried ? tr("Take the pending comments out of the review, keeping each as a draft beside the code, and discard this summary.")
+															: tr("Discard this unpublished review draft."))
+												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
 		Reconcile->setToolTip(Reconcile->isEnabled() ? tr("Check whether this exact review was submitted.") : tr("Check status is available only for a review awaiting confirmation."));
 		NewReview->setToolTip(NewReview->isEnabled() ? tr("Start a new draft for the current pull request revision.") : tr("Finish or discard the current draft before starting another. %1").arg(aProjection.Status));
 		const auto* chosen       = Disposition->checkedButton();
@@ -447,7 +481,9 @@ namespace bpr::qt {
 			approve->setToolTip(tr("Approve this pull request."));
 		}
 		approve->setAccessibleDescription(approve->toolTip());
-		Decisions[decision_index(core::review_disposition::comment)]->setToolTip(tr("Comment without approving. Needs a summary; line comments are published from their drafts."));
+		Decisions[decision_index(core::review_disposition::comment)]->setToolTip(
+			Shown.Draft.has_value() && !Shown.Draft->Comments.empty() ? tr("Comment without approving. The summary is optional: the review carries its line comments.")
+																	  : tr("Comment without approving. Needs a summary unless the review carries line comments; start one with Start a review on a draft."));
 		Decisions[decision_index(core::review_disposition::request_changes)]->setToolTip(tr("Request changes."));
 
 		PreflightMenu->clear();
@@ -498,6 +534,98 @@ namespace bpr::qt {
 		if (preflight->Others > 0U) {
 			note({ }, tr("Others: %n open blocking (not yours)", nullptr, static_cast<int>(preflight->Others)));
 		}
+	}
+	void review_submission_editor::present_pending()
+	{
+		// [[BPR-1345]]. The title, the purpose, the list and what Submit
+		// sends follow the comments the review carries.
+		const auto  carried  = Draft.has_value() ? Draft->Comments : std::vector<core::review_submission_comment>{ };
+		const auto& comments = carried;
+		Title->setText(comments.empty() ? tr("Compose review") : tr("Finish your review"));
+		Purpose->setText(comments.empty()
+							 ? tr("Write a summary for this pull request and choose Comment, Approve, or Request changes. Nothing is published until you choose Submit review. "
+								  "To send line comments with it, choose Start a review on a draft beside the code; Add single comment posts one on its own.")
+							 : tr("Choose Comment, Approve, or Request changes. Submit review sends the summary and the pending comments below as one review; nothing is published until then."));
+		const auto relist = std::exchange(Listed, comments) != comments || ListedRows.size() != static_cast<qsizetype>(comments.size());
+		while (relist && PendingRows->count() > 1) {
+			auto* const item = PendingRows->takeAt(1);
+			if (auto* const widget = item->widget(); widget != nullptr) {
+				widget->deleteLater();
+			}
+			delete item;
+		}
+		if (relist) {
+			ListedRows.clear();
+			// Grouped by file, as the reviewer met them: the file's name, then
+			// each comment's lines in the code font and the highlight, and its
+			// first line of words.
+			auto       file = QString{ };
+			auto       code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			const auto ink  = palette().color(QPalette::Active, QPalette::Highlight);
+			for (const auto& comment : comments) {
+				const auto path = text_of(comment.Path);
+				const auto name = path.section(QLatin1Char{ '/' }, -1);
+				if (path != file) {
+					file              = path;
+					auto* const title = new QLabel{ name, Pending };
+					title->setObjectName(QStringLiteral("wholeReviewPendingFile"));
+					title->setTextFormat(Qt::PlainText);
+					title->setToolTip(path);
+					auto heading = title->font();
+					heading.setWeight(QFont::DemiBold);
+					title->setFont(heading);
+					PendingRows->addWidget(title);
+				}
+				const auto lines = comment.StartLine ? QStringLiteral("%1–%2").arg(*comment.StartLine + 1U).arg(comment.Line + 1U) : QString::number(comment.Line + 1U);
+				const auto where = comment.Side == core::diff_side::left ? tr("base %1").arg(lines) : lines;
+				auto       first = text_of(comment.Body).section(QLatin1Char{ '\n' }, 0, 0).trimmed();
+				if (first.isEmpty()) {
+					first = tr("(no text yet)");
+				}
+				auto* const row    = new QWidget{ Pending };
+				auto* const across = new QHBoxLayout{ row };
+				across->setContentsMargins(8, 0, 0, 0);
+				across->setSpacing(10);
+				auto* const place = new QLabel{ where, row };
+				place->setObjectName(QStringLiteral("wholeReviewPendingLines"));
+				place->setTextFormat(Qt::PlainText);
+				code.setPointSizeF(font().pointSizeF() * 0.95);
+				place->setFont(code);
+				auto accent = place->palette();
+				accent.setColor(QPalette::WindowText, ink);
+				place->setPalette(accent);
+				place->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+				place->setMinimumWidth(QFontMetrics{ code }.horizontalAdvance(QStringLiteral("base 0000")));
+				across->addWidget(place);
+				auto* const words = new QLabel{ first, row };
+				words->setObjectName(QStringLiteral("wholeReviewPendingRow"));
+				words->setTextFormat(Qt::PlainText);
+				words->setMinimumWidth(0);
+				words->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+				words->setToolTip(QStringLiteral("%1\n%2").arg(path, text_of(comment.Body)));
+				across->addWidget(words, 1);
+				const auto spoken = comment.Side == core::diff_side::left
+					? (comment.StartLine ? tr("%1, base lines %2: %3") : tr("%1, base line %2: %3"))
+					: (comment.StartLine ? tr("%1, lines %2: %3") : tr("%1, line %2: %3"));
+				const auto said   = spoken.arg(name, lines, first);
+				row->setAccessibleName(said);
+				words->setAccessibleName(said);
+				ListedRows.push_back(said);
+				PendingRows->addWidget(row);
+			}
+		}
+		Pending->setVisible(!comments.empty());
+		Carries->setText(comments.size() == 1U ? tr("Submits one line comment as one review.") : tr("Submits %1 line comments as one review.").arg(comments.size()));
+		Carries->setVisible(!comments.empty());
+		const auto optional = !comments.empty() && Draft.has_value() && Draft->Disposition != core::review_disposition::request_changes;
+		Body->setPlaceholderText(optional ? tr("Leave a summary (optional)") : tr("Write a review summary…"));
+	}
+	auto review_submission_editor::title_label() const noexcept -> QLabel* { return Title; }
+	auto review_submission_editor::pending_list() const noexcept -> QWidget* { return Pending; }
+	auto review_submission_editor::carries_label() const noexcept -> QLabel* { return Carries; }
+	auto review_submission_editor::pending_rows() const -> QStringList
+	{
+		return ListedRows;
 	}
 	void review_submission_editor::set_presentation_observer(std::function<void()> aObserver)
 	{

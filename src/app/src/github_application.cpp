@@ -168,6 +168,7 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QImage>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
@@ -7007,6 +7008,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					ReviewSubmission->dispatch(std::move(aIntent));
 				}
 			});
+			// [[BPR-1345]]. Start a review: pending drafts ride the review.
+			ReviewSubmission->set_review_comment_hooks(
+				[this](const application::review_submission_request& aRequest, std::function<void(bool)> aDone) { hold_review_comments(aRequest, std::move(aDone)); },
+				[this](const std::string& aKey, application::review_submission_publication aPublication, const std::optional<application::review_submission_request>& aRequest) {
+					settle_review_comments(aKey, aPublication, aRequest);
+				},
+				[this] { discard_review_comments(); });
+			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(core::revisioned_review_draft_command{ .Command = std::move(aCommand) });
@@ -10325,12 +10334,229 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			auto drafts = std::vector<core::review_comment_draft>{ };
-			if (SharedDrafts) {
-				for (const auto& saved : SharedDrafts->recovery_snapshot()) {
-					drafts.push_back(saved.Draft);
-				}
+			auto saved  = SharedDrafts ? SharedDrafts->recovery_snapshot() : std::vector<core::revisioned_review_draft>{ };
+			for (const auto& draft : saved) {
+				drafts.push_back(draft.Draft);
 			}
 			Window->present_saved_drafts(std::move(drafts));
+			publish_review_comments(saved);
+		}
+
+		/// [[BPR-1345]]. The review carries every draft pending in it on this
+		/// head, in file and line order, as the draft owner holds it; a draft a
+		/// submission holds is settled by that submission's answer.
+		void publish_review_comments(const std::vector<core::revisioned_review_draft>& aSaved)
+		{
+			if (!ReviewSubmission || !SharedDrafts) {
+				return;
+			}
+			const auto& head     = SharedDrafts->authority().Target.ExpectedHead;
+			auto        comments = std::vector<core::review_submission_comment>{ };
+			auto        held     = std::vector<std::string>{ };
+			for (const auto& saved : aSaved) {
+				const auto& draft = saved.Draft;
+				if (core::pending_in_review(draft) && draft.InReview->Head == head) {
+					auto comment          = core::review_submission_comment{ };
+					comment.Draft         = draft.Id;
+					comment.DraftRevision = saved.Revision;
+					comment.Path          = draft.InReview->Path;
+					comment.Side          = draft.Anchor.Side;
+					comment.Line          = draft.Anchor.Line;
+					comment.StartLine     = draft.StartLine;
+					comment.Body          = draft.Body;
+					comments.push_back(std::move(comment));
+				} else if (core::held_by_review(draft) && std::ranges::find(held, draft.InReview->Submission) == held.end()) {
+					held.push_back(draft.InReview->Submission);
+				}
+			}
+			std::ranges::sort(comments, [](const core::review_submission_comment& aLeft, const core::review_submission_comment& aRight) {
+				return std::tie(aLeft.Path, aLeft.Side, aLeft.Line, aLeft.Draft) < std::tie(aRight.Path, aRight.Side, aRight.Line, aRight.Draft);
+			});
+			ReviewSubmission->observe_review_comments(std::move(comments));
+			if (!held.empty()) {
+				ReviewSubmission->resolve_held(std::move(held));
+			}
+		}
+
+		/// [[BPR-1345]]. Start a review, or Add review comment: the shown
+		/// draft stays as written and becomes pending in the review, marked
+		/// with where it goes, decided exactly as Publish decides it.
+		[[nodiscard]] auto start_review_on_shown_draft() -> bool
+		{
+			auto* const editor = Window != nullptr ? Window->review_editor() : nullptr;
+			if (Closing || editor == nullptr || !ReviewDraft || !SharedDrafts || ReviewMutationHost == nullptr) {
+				return false;
+			}
+			if (ReviewDraft->State != core::review_draft_state::drafting || ReviewDraft->ReplyToThread) {
+				editor->present_publication_refusal(QStringLiteral("Only a new comment being written can be added to a review."));
+				return false;
+			}
+			if (!SelectedDiffPublication || !SelectedSemanticSelection) {
+				editor->present(application::review_mutation_failure::undesignated_target);
+				return false;
+			}
+			auto proposal          = core::review_publication_proposal{ };
+			proposal.Draft         = ReviewDraft->Id;
+			proposal.Anchor        = ReviewDraft->Anchor;
+			proposal.Body          = editor->body_text();
+			proposal.StartLine     = ReviewDraft->StartLine;
+			auto request           = application::review_mutation_publication_request{ };
+			request.Proposal       = std::move(proposal);
+			request.Selection      = *SelectedSemanticSelection;
+			request.SelectedDiff   = *SelectedDiffPublication;
+			const auto destination = ReviewMutationHost->comment_destination(request);
+			if (!destination) {
+				editor->present(destination.error());
+				return false;
+			}
+			auto mark = core::review_pending_mark{ };
+			mark.Path = destination->Path;
+			mark.Head = destination->Commit;
+			if (mark.Head != SharedDrafts->authority().Target.ExpectedHead || !core::valid(mark)) {
+				editor->present(application::review_mutation_failure::stale_head);
+				return false;
+			}
+			if (QString::fromStdString(request.Proposal.Body).trimmed().isEmpty()) {
+				editor->present_publication_refusal(QStringLiteral("Write the comment before adding it to a review."));
+				return false;
+			}
+			return editor->change_pending(std::move(mark));
+		}
+
+		/// [[BPR-1345]]. Changes several drafts in one durable write, then
+		/// presents them; answers whether every change was accepted.
+		void change_review_drafts(std::vector<core::revisioned_review_draft_command> aCommands, std::function<void(bool)> aDone)
+		{
+			if (aCommands.empty()) {
+				aDone(true);
+				return;
+			}
+			if (Closing || !SharedDrafts) {
+				aDone(false);
+				return;
+			}
+			const auto owner   = SharedDrafts;
+			const auto present = [this, owner](const std::vector<core::revisioned_review_draft_command>& aChanged) {
+				present_saved_drafts();
+				for (const auto& command : aChanged) {
+					if (ReviewDraft && ReviewDraft->Id == command.Command.Id) {
+						if (const auto accepted = owner->read(DraftConsumer, command.Command.Id); accepted.Accepted) {
+							accept_shared_draft(*accepted.Accepted);
+						}
+					}
+				}
+			};
+			if (PrivateReview && PrivateDraftsReady) {
+				PrivateReview->change_drafts(aCommands, [this, owner, commands = aCommands, present, done = std::move(aDone)](auto aCommit) {
+					const auto adopted = !Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit);
+					if (adopted) {
+						present(commands);
+					}
+					done(adopted);
+				});
+				return;
+			}
+			auto applied = std::vector<core::revisioned_review_draft_command>{ };
+			for (const auto& command : aCommands) {
+				const auto outcome = SharedDrafts->apply(DraftConsumer, command);
+				if (outcome.Failure || !outcome.Accepted) {
+					present(applied);
+					aDone(false);
+					return;
+				}
+				applied.push_back(command);
+			}
+			present(applied);
+			aDone(true);
+		}
+
+		/// [[BPR-1345]]. Holds every draft a submission carries, at the exact
+		/// revision it carries, with the submission's key, before it is sent.
+		void hold_review_comments(const application::review_submission_request& aRequest, std::function<void(bool)> aDone)
+		{
+			if (Closing || !SharedDrafts) {
+				aDone(false);
+				return;
+			}
+			auto commands = std::vector<core::revisioned_review_draft_command>{ };
+			for (const auto& comment : aRequest.Proposal.Comments) {
+				const auto read = SharedDrafts->read(DraftConsumer, comment.Draft);
+				if (!read.Accepted || read.Accepted->Revision != comment.DraftRevision || !core::pending_in_review(read.Accepted->Draft)
+					|| read.Accepted->Draft.Body != comment.Body || read.Accepted->Draft.InReview->Path != comment.Path) {
+					aDone(false);
+					return;
+				}
+				auto mark                = *read.Accepted->Draft.InReview;
+				mark.Submission          = aRequest.IdempotencyKey;
+				auto command             = core::revisioned_review_draft_command{ };
+				command.Command          = core::review_draft_command{ .Id = comment.Draft, .Kind = core::review_draft_command_kind::begin_publish };
+				command.ExpectedRevision = comment.DraftRevision;
+				command.Scope            = read.Accepted->Scope;
+				command.ChangePending    = true;
+				command.Pending          = std::move(mark);
+				commands.push_back(std::move(command));
+			}
+			change_review_drafts(std::move(commands), std::move(aDone));
+		}
+
+		/// [[BPR-1345]]. A submission's answer settles the drafts it holds:
+		/// published completes each draft it carried at its exact held
+		/// revision; definitely not published releases each, still pending.
+		void settle_review_comments(const std::string& aKey, const application::review_submission_publication aPublication,
+									const std::optional<application::review_submission_request>& aRequest)
+		{
+			if (Closing || !SharedDrafts || aPublication == application::review_submission_publication::indeterminate) {
+				return;
+			}
+			const auto published = aPublication == application::review_submission_publication::published;
+			auto       commands  = std::vector<core::revisioned_review_draft_command>{ };
+			for (const auto& saved : SharedDrafts->recovery_snapshot()) {
+				const auto& draft = saved.Draft;
+				if (!core::held_by_review(draft) || draft.InReview->Submission != aKey) {
+					continue;
+				}
+				const auto carried = aRequest ? std::ranges::find(aRequest->Proposal.Comments, draft.Id, &core::review_submission_comment::Draft) : decltype(aRequest->Proposal.Comments.cend()){ };
+				const auto exact   = aRequest && carried != aRequest->Proposal.Comments.cend() && saved.Revision == carried->DraftRevision + 1U && draft.Body == carried->Body;
+				if (published && !exact) {
+					// Published, but not as this draft now reads: it is not
+					// marked published, and stays held for its owner to see.
+					continue;
+				}
+				auto command             = core::revisioned_review_draft_command{ };
+				command.Command          = core::review_draft_command{ .Id = draft.Id, .Kind = published ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish };
+				command.ExpectedRevision = saved.Revision;
+				command.Scope            = saved.Scope;
+				if (!published) {
+					auto mark = *draft.InReview;
+					mark.Submission.clear();
+					command.ChangePending = true;
+					command.Pending       = std::move(mark);
+				}
+				commands.push_back(std::move(command));
+			}
+			change_review_drafts(std::move(commands), [](bool) { });
+		}
+
+		/// [[BPR-1345]]. Discard review: every pending draft leaves the review
+		/// and stays a draft, with its text.
+		void discard_review_comments()
+		{
+			if (Closing || !SharedDrafts) {
+				return;
+			}
+			auto commands = std::vector<core::revisioned_review_draft_command>{ };
+			for (const auto& saved : SharedDrafts->recovery_snapshot()) {
+				if (!core::pending_in_review(saved.Draft)) {
+					continue;
+				}
+				auto command             = core::revisioned_review_draft_command{ };
+				command.Command          = core::review_draft_command{ .Id = saved.Draft.Id, .Kind = core::review_draft_command_kind::edit, .Body = saved.Draft.Body };
+				command.ExpectedRevision = saved.Revision;
+				command.Scope            = saved.Scope;
+				command.ChangePending    = true;
+				commands.push_back(std::move(command));
+			}
+			change_review_drafts(std::move(commands), [](bool) { });
 		}
 
 		void accept_shared_draft(const core::revisioned_review_draft& aAccepted)
@@ -10343,7 +10569,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReviewDraftRevision = aAccepted.Revision;
 			if (Window && Window->review_editor()) {
 				Window->review_editor()->present(aAccepted);
-				Window->review_editor()->allow_publication_retry(PrivateReview && !PendingReviewMutation && aAccepted.Draft.State == core::review_draft_state::publishing);
+				Window->review_editor()->allow_publication_retry(PrivateReview && !PendingReviewMutation && aAccepted.Draft.State == core::review_draft_state::publishing && !core::held_by_review(aAccepted.Draft));
 			}
 			refresh_agent_private_context_choices();
 			publish_preflight_selection();
@@ -11032,6 +11258,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				settle(false);
 				return;
 			}
+			if (publish && core::held_by_review(*ReviewDraft)) {
+				// [[BPR-1345]]. A submitted review holds this draft until its
+				// answer is known; nothing publishes it on its own meanwhile.
+				refusePublish(QStringLiteral("Not published: this comment is being submitted with your review. Check the review in Discuss."));
+				settle(false);
+				return;
+			}
+			if (publish && ReviewDraft->InReview && !aRevisionedCommand.ChangePending) {
+				// [[BPR-1345]]. Add single comment on a pending draft posts it
+				// on its own and takes it out of the review, in one revision.
+				aRevisionedCommand.ChangePending = true;
+				aRevisionedCommand.Pending.reset();
+			}
 			if (Window->review_editor()->workshop_accepting(aRevisionedCommand)) {
 				Window->begin_dif_draft(aRevisionedCommand);
 			}
@@ -11456,7 +11695,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto* const editor = Window->review_editor();
 			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
-			editor->allow_publication_retry(PrivateReview && !aTerminal.Result && ReviewDraft->State == core::review_draft_state::publishing);
+			editor->allow_publication_retry(PrivateReview && !aTerminal.Result && ReviewDraft->State == core::review_draft_state::publishing && !core::held_by_review(*ReviewDraft));
 			if (aTerminal.Result.has_value()) {
 				editor->present(*aTerminal.Result, ReviewReconciliation);
 				if (InlineReviewBinding) {
@@ -16716,6 +16955,46 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string Diagnostic;
 		};
 		std::optional<published_file_switch_probe_state> PublishedFileSwitchProbe;
+		// [[BPR-1345]]. The start-a-review course.
+		struct start_review_probe_state
+		{
+			enum class phase {
+				awaiting_file,
+				awaiting_first_line,
+				awaiting_first_text,
+				awaiting_first_offer,
+				awaiting_first_pending,
+				awaiting_second_line,
+				awaiting_second_text,
+				awaiting_second_offer,
+				awaiting_second_pending,
+				awaiting_third_line,
+				awaiting_third_text,
+				awaiting_third_published,
+				awaiting_other_file,
+				awaiting_return,
+				awaiting_restored,
+				awaiting_finish_page,
+				awaiting_submitted,
+				awaiting_refused,
+				awaiting_discarded,
+				awaiting_held,
+				awaiting_reconciled,
+				passed,
+				failed,
+			};
+			detail::start_review_probe_evidence Evidence;
+			/// The lines written on, in order, and the third, published one.
+			std::vector<std::uint32_t>   Lines;
+			std::optional<std::uint32_t> Third;
+			/// The drafts the review carries.
+			std::vector<core::review_draft_id> Drafts;
+			std::size_t                        NativeBefore = 0U;
+			std::size_t                        Waited       = 0U;
+			phase                              Phase        = phase::awaiting_file;
+			std::string                        Diagnostic;
+		};
+		std::optional<start_review_probe_state> StartReviewProbe;
 		// [[BPR-1331]]. The private progress course across a push.
 		struct review_progress_push_probe_state
 		{
@@ -27021,6 +27300,557 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			break;
 		}
 		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::exercise_start_review(
+		github_application& aApplication, const detail::start_review_course aCourse) -> detail::start_review_probe_result
+	{
+		using result               = detail::start_review_probe_result;
+		using course               = detail::start_review_course;
+		using state_type           = github_application::implementation::start_review_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->StartReviewProbe.has_value()) {
+			implementation->StartReviewProbe.emplace();
+		}
+		auto& probe = *implementation->StartReviewProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewMutationHost == nullptr || !implementation->ReviewSubmissionServer) {
+			return result::pending;
+		}
+		auto* const window    = &*implementation->Window;
+		auto* const cards     = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		auto* const editor    = window->review_editor();
+		auto* const model     = window->conversation_model();
+		auto* const summary   = window->review_submission_editor_view();
+		auto* const chip      = static_cast<qt::review_progress_chip*>(window->review_chip());
+		auto* const chipShown = window->review_chip_action();
+		if (cards == nullptr || editor == nullptr || model == nullptr || summary == nullptr || chip == nullptr || chipShown == nullptr) {
+			return result::pending;
+		}
+		auto&      server = *implementation->ReviewSubmissionServer;
+		const auto fail   = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path  = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto other = std::string_view{ "src/engine/renderer.h" };
+		const auto     words = std::array{
+			QStringLiteral("question: Where does this value come from? (BPR-1345 first)"),
+			QStringLiteral("nit: these two lines could be one. (BPR-1345 range)"),
+			QStringLiteral("BPR-1345: this one goes on its own."),
+		};
+		const auto ready = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value()
+				&& !implementation->PrivateDraftCommandPending && !implementation->PrivateDraftSelectionPending;
+		};
+		const auto saved = [&] {
+			return implementation->SharedDrafts ? implementation->SharedDrafts->recovery_snapshot() : std::vector<core::revisioned_review_draft>{ };
+		};
+		const auto pending = [&] {
+			auto drafts = std::vector<core::revisioned_review_draft>{ };
+			for (auto& draft : saved()) {
+				if (core::pending_in_review(draft.Draft)) {
+					drafts.push_back(std::move(draft));
+				}
+			}
+			std::ranges::sort(drafts, { }, [](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line; });
+			return drafts;
+		};
+		// Published drafts leave the saved list; each carried one is read by
+		// its identity.
+		const auto count_published = [&] {
+			return static_cast<std::size_t>(std::ranges::count_if(probe.Drafts, [&](const core::review_draft_id aDraft) {
+				if (!implementation->SharedDrafts) {
+					return false;
+				}
+				const auto read = implementation->SharedDrafts->read(implementation->DraftConsumer, aDraft);
+				return read.Accepted && read.Accepted->Draft.State == core::review_draft_state::published && read.Accepted->Draft.InReview;
+			}));
+		};
+		const auto count_held = [&] {
+			const auto all = saved();
+			return static_cast<std::size_t>(std::ranges::count_if(all, [](const core::revisioned_review_draft& aDraft) { return core::held_by_review(aDraft.Draft); }));
+		};
+		const auto posts = [&server] {
+			const auto lock = std::scoped_lock{ server.Mutex };
+			return server.ReviewPosts;
+		};
+		const auto chipSays = [&](const std::size_t aCount) {
+			return chipShown->isVisible() && chip->pending() == aCount && !chip->submitting()
+				&& chip->summary() == QStringLiteral("Review · %1 pending").arg(aCount);
+		};
+		const auto composerButton = [&](const char* aName) -> QAbstractButton* {
+			auto* const open = cards->open_card();
+			return open != nullptr ? open->findChild<QAbstractButton*>(QString::fromLatin1(aName)) : nullptr;
+		};
+		// The first current-head line no thread or draft is on, chosen in Review.
+		const auto pick = [&]() -> std::optional<std::uint32_t> {
+			for (auto candidate = std::uint32_t{ 0U }; candidate < 64U; ++candidate) {
+				if (std::ranges::find(probe.Lines, candidate) != probe.Lines.end() || probe.Third == std::optional{ candidate }
+					|| (!probe.Lines.empty() && candidate == probe.Lines.front() + 1U)) {
+					continue;
+				}
+				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate)
+					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0
+					&& std::ranges::none_of(saved(), [candidate](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == candidate && !aDraft.Draft.Body.empty(); })) {
+					return candidate;
+				}
+			}
+			return std::nullopt;
+		};
+		// Opens the selected line's draft in the drawer and writes its words.
+		const auto write = [&](const QString& aWords) -> bool {
+			const auto& draft = implementation->ReviewDraft;
+			if (!draft || draft->ReplyToThread || !window->comment_action()->isEnabled()) {
+				return false;
+			}
+			if (!cards->writing_draft()) {
+				window->comment_action()->trigger();
+				QCoreApplication::processEvents();
+			}
+			auto* const field = cards->draft_editor();
+			if (field == nullptr) {
+				return false;
+			}
+			if (field->toPlainText() != aWords) {
+				field->setPlainText(aWords);
+				QCoreApplication::processEvents();
+			}
+			return true;
+		};
+		const auto written = [&](const QString& aWords) {
+			const auto& draft = implementation->ReviewDraft;
+			return draft && draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting && ready();
+		};
+		// Each pending draft is a note at its line, marked pending, with its
+		// gutter marker.
+		const auto drawn = [&](const std::vector<core::revisioned_review_draft>& aPending) {
+			return !aPending.empty() && std::ranges::all_of(aPending, [&](const core::revisioned_review_draft& aDraft) {
+				const auto line = aDraft.Draft.Anchor.Line;
+				const auto card = std::ranges::find_if(cards->cards(), [line](const qt::thread_card& aCard) { return aCard.Draft && aCard.Line == std::optional{ line + 1U }; });
+				return card != cards->cards().end() && card->Pending && card->Placed
+					&& std::ranges::any_of(window->comparison_surface()->line_marks(core::diff_side::right), [line](const qt::diff_line_mark& aMark) { return aMark.Line == line && aMark.Draft; });
+			});
+		};
+		const auto finishPage = [&]() -> QWidget* {
+			auto* const page = window->findChild<QScrollArea*>(QStringLiteral("composeReviewPage"));
+			return page != nullptr && page->isVisibleTo(window) ? page : nullptr;
+		};
+		const auto openFinish = [&]() -> bool {
+			if (finishPage() == nullptr) {
+				chip->click();
+				QCoreApplication::processEvents();
+			}
+			return finishPage() != nullptr;
+		};
+		const auto shown = [&](const std::size_t aCount) {
+			return summary->title_label()->text() == QStringLiteral("Finish your review") && summary->pending_rows().size() == static_cast<qsizetype>(aCount)
+				&& summary->carries_label()->isVisibleTo(window)
+				&& summary->carries_label()->text() == (aCount == 1U ? QStringLiteral("Submits one line comment as one review.") : QStringLiteral("Submits %1 line comments as one review.").arg(aCount));
+		};
+		const auto start_one = [&](const state_type::phase aAfter) -> result {
+			switch (probe.Phase) {
+			case state_type::phase::awaiting_first_line: {
+				const auto line = pick();
+				note("line=" + std::to_string(line.value_or(0U)) + " ready=" + std::to_string(ready() ? 1 : 0));
+				if (!line || !ready() || !write(words[0])) {
+					return result::pending;
+				}
+				probe.Lines        = { *line };
+				probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
+				probe.Phase        = state_type::phase::awaiting_first_text;
+				return result::pending;
+			}
+			case state_type::phase::awaiting_first_text:
+				note("written=" + std::to_string(written(words[0]) ? 1 : 0));
+				if (!written(words[0])) {
+					return result::pending;
+				}
+				probe.Phase = state_type::phase::awaiting_first_offer;
+				return result::pending;
+			case state_type::phase::awaiting_first_offer: {
+				auto* const single = composerButton("threadPublishDraft");
+				auto* const review = composerButton("threadReviewDraft");
+				note("single=" + (single ? single->text().toStdString() : std::string{ "-" }) + " review=" + (review ? review->text().toStdString() : std::string{ "-" }));
+				if (single == nullptr || review == nullptr || !review->isEnabled()) {
+					return result::pending;
+				}
+				if (single->text() != QStringLiteral("Add single comment") || review->text() != QStringLiteral("Start a review") || chipShown->isVisible()) {
+					return fail("first-offer-not-start-a-review");
+				}
+				review->click();
+				QCoreApplication::processEvents();
+				probe.Phase = state_type::phase::awaiting_first_pending;
+				return result::pending;
+			}
+			case state_type::phase::awaiting_first_pending: {
+				const auto now = pending();
+				note("pending=" + std::to_string(now.size()) + " chip=" + chip->summary().toStdString() + " writing=" + std::to_string(cards->writing_draft() ? 1 : 0));
+				if (now.size() != 1U || !chipSays(1U) || cards->writing_draft() || !ready() || !drawn(now)) {
+					return result::pending;
+				}
+				const auto& mark       = now.front().Draft.InReview;
+				probe.Evidence.Started = now.front().Draft.Anchor.Line == probe.Lines.front() && now.front().Draft.Body == words[0].toStdString()
+					&& mark->Path == path && mark->Submission.empty() && implementation->Fixture->review_mutation_evidence().NativePosts == probe.NativeBefore
+					&& posts().empty();
+				if (!probe.Evidence.Started) {
+					return fail("first-not-pending-exactly");
+				}
+				probe.Drafts = { now.front().Draft.Id };
+				probe.Phase  = aAfter;
+				return result::pending;
+			}
+			default:
+				return result::pending;
+			}
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				probe.Phase = aCourse == course::finish ? state_type::phase::awaiting_restored : state_type::phase::awaiting_first_line;
+			}
+			return result::pending;
+		}
+		case state_type::phase::awaiting_first_line:
+		case state_type::phase::awaiting_first_text:
+		case state_type::phase::awaiting_first_offer:
+		case state_type::phase::awaiting_first_pending:
+			return start_one(aCourse == course::pending ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
+		case state_type::phase::awaiting_second_line: {
+			// The range ends on the line below its first, which is free.
+			auto line = pick();
+			if (line && *line == 0U) {
+				line = std::nullopt;
+			}
+			note("line=" + std::to_string(line.value_or(0U)));
+			if (!line || !ready() || !write(words[1])) {
+				return result::pending;
+			}
+			probe.Lines.push_back(*line);
+			probe.Phase = state_type::phase::awaiting_second_text;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_second_text: {
+			const auto& draft = implementation->ReviewDraft;
+			note("written=" + std::to_string(written(words[1]) ? 1 : 0) + " start=" + (draft && draft->StartLine ? std::to_string(*draft->StartLine) : std::string{ "-" }));
+			if (!written(words[1])) {
+				return result::pending;
+			}
+			if (!draft->StartLine) {
+				static_cast<void>(editor->change_range(probe.Lines.back() - 1U));
+				return result::pending;
+			}
+			probe.Phase = state_type::phase::awaiting_second_offer;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_second_offer: {
+			auto* const single = composerButton("threadPublishDraft");
+			auto* const review = composerButton("threadReviewDraft");
+			auto* const field  = cards->draft_editor();
+			note("single=" + (single ? single->text().toStdString() : std::string{ "-" }) + " review=" + (review ? review->text().toStdString() : std::string{ "-" }));
+			if (single == nullptr || review == nullptr || field == nullptr || !review->isEnabled()) {
+				return result::pending;
+			}
+			if (single->text() != QStringLiteral("Add single comment") || review->text() != QStringLiteral("Add review comment") || !chipSays(1U)) {
+				return fail("second-offer-not-add-review-comment");
+			}
+			// ⌘↩ is the main action while a review is in progress.
+			auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+			auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Return, Qt::ControlModifier };
+			QCoreApplication::sendEvent(field, &press);
+			QCoreApplication::sendEvent(field, &release);
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_second_pending;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_second_pending: {
+			const auto now = pending();
+			note("pending=" + std::to_string(now.size()) + " chip=" + chip->summary().toStdString());
+			if (now.size() != 2U || !chipSays(2U) || cards->writing_draft() || !ready()) {
+				return result::pending;
+			}
+			const auto& range    = now.back().Draft;
+			probe.Evidence.Added = range.Anchor.Line == probe.Lines.back() && range.StartLine == std::optional{ probe.Lines.back() - 1U }
+				&& range.Body == words[1].toStdString() && implementation->Fixture->review_mutation_evidence().NativePosts == probe.NativeBefore && posts().empty();
+			if (!probe.Evidence.Added) {
+				return fail("second-not-pending-exactly");
+			}
+			if (!drawn(now)) {
+				return result::pending;
+			}
+			probe.Evidence.Drawn = true;
+			probe.Phase          = state_type::phase::awaiting_third_line;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_third_line: {
+			const auto line = pick();
+			note("line=" + std::to_string(line.value_or(0U)));
+			if (!line || !ready() || !write(words[2])) {
+				return result::pending;
+			}
+			probe.Third = line;
+			probe.Phase = state_type::phase::awaiting_third_text;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_third_text: {
+			auto* const single = composerButton("threadPublishDraft");
+			note("written=" + std::to_string(written(words[2]) ? 1 : 0));
+			if (!written(words[2]) || single == nullptr || !single->isEnabled()) {
+				return result::pending;
+			}
+			single->click();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_third_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_third_published: {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			note("native=" + std::to_string(mutations.NativePosts) + " pending=" + std::to_string(pending().size()));
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || !ready()) {
+				return result::pending;
+			}
+			probe.Evidence.SingleAlone = mutations.NativePosts == probe.NativeBefore + 1U && mutations.LastPath == path && probe.Third
+				&& mutations.LastLine == *probe.Third + 1U && mutations.LastBody == words[2].toStdString() && pending().size() == 2U && chipSays(2U) && posts().empty();
+			if (!probe.Evidence.SingleAlone) {
+				return fail("single-comment-not-alone");
+			}
+			probe.Phase = state_type::phase::awaiting_other_file;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_other_file: {
+			const auto revealed = reveal_fixture_file(aApplication, other);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)) + " chip=" + chip->summary().toStdString());
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("other-file-not-revealed");
+			}
+			if (revealed != detail::fixture_file_reveal_result::shown || !ready()) {
+				return result::pending;
+			}
+			if (!chipSays(2U)) {
+				return fail("other-file-lost-the-review");
+			}
+			probe.Phase = state_type::phase::awaiting_return;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_return: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			const auto now      = pending();
+			note("reveal=" + std::to_string(static_cast<int>(revealed)) + " pending=" + std::to_string(now.size()));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed-again");
+			}
+			if (revealed != detail::fixture_file_reveal_result::shown || !ready() || !drawn(now)) {
+				return result::pending;
+			}
+			probe.Evidence.NavigationKept = now.size() == 2U && chipSays(2U) && posts().empty()
+				&& implementation->Fixture->review_mutation_evidence().NativePosts == probe.NativeBefore + 1U;
+			if (!probe.Evidence.NavigationKept) {
+				return fail("navigation-changed-the-review");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::awaiting_restored: {
+			// After the restart: the two the pending course left.
+			const auto now = pending();
+			note("pending=" + std::to_string(now.size()) + " chip=" + chip->summary().toStdString() + " ready=" + std::to_string(ready() ? 1 : 0));
+			if (now.size() != 2U || !chipSays(2U) || !ready() || !drawn(now)) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-restored");
+			}
+			probe.Evidence.Restored = now.front().Draft.Body == words[0].toStdString() && now.back().Draft.Body == words[1].toStdString()
+				&& now.back().Draft.StartLine == std::optional{ now.back().Draft.Anchor.Line - 1U } && posts().empty();
+			if (!probe.Evidence.Restored) {
+				return fail("restored-not-exact");
+			}
+			for (const auto& draft : now) {
+				probe.Lines.push_back(draft.Draft.Anchor.Line);
+				probe.Drafts.push_back(draft.Draft.Id);
+			}
+			probe.Phase = state_type::phase::awaiting_finish_page;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_finish_page: {
+			const auto expected = aCourse == course::finish ? 2U : 1U;
+			const auto opened   = openFinish();
+			note("opened=" + std::to_string(opened ? 1 : 0) + " title=" + summary->title_label()->text().toStdString() + " rows=" + std::to_string(summary->pending_rows().size())
+				 + " submit=" + std::to_string(summary->submit_action()->isEnabled() ? 1 : 0) + " status=" + summary->status_label()->text().toStdString());
+			if (!opened || !shown(expected) || !summary->submit_action()->isEnabled()) {
+				return result::pending;
+			}
+			probe.Evidence.FinishOpened = window->current_modality() == qt::review_modality::discuss;
+			// Comment, the default, with no summary.
+			probe.Evidence.CommentWithoutSummary = summary->shown_draft().has_value() && summary->shown_draft()->Disposition == core::review_disposition::comment
+				&& summary->body_editor()->toPlainText().isEmpty() && summary->body_editor()->placeholderText() == QStringLiteral("Leave a summary (optional)");
+			if (!probe.Evidence.FinishOpened || !probe.Evidence.CommentWithoutSummary) {
+				return fail("finish-page-not-as-drawn");
+			}
+			{
+				const auto lock         = std::scoped_lock{ server.Mutex };
+				server.RefuseNextReview = aCourse == course::refused;
+				server.LoseNextReview   = aCourse == course::uncertain;
+			}
+			summary->submit_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = aCourse == course::refused ? state_type::phase::awaiting_refused : aCourse == course::uncertain ? state_type::phase::awaiting_held
+																														   : state_type::phase::awaiting_submitted;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_submitted: {
+			const auto sent      = posts();
+			const auto remaining = pending();
+			const auto published = count_published();
+			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " pending=" + std::to_string(remaining.size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
+			if (sent.size() != 1U || published != 2U || chipShown->isVisible() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-submitted");
+			}
+			// The one request as the server received it.
+			const auto object             = QJsonDocument::fromJson(QByteArray::fromStdString(sent.front())).object();
+			const auto comments           = object.value(QStringLiteral("comments")).toArray();
+			const auto line               = [](const std::uint32_t aLine) { return static_cast<int>(aLine) + 1; };
+			const auto first              = comments.size() == 2 ? comments.at(0).toObject() : QJsonObject{ };
+			const auto second             = comments.size() == 2 ? comments.at(1).toObject() : QJsonObject{ };
+			probe.Evidence.SubmittedExact = object.value(QStringLiteral("event")).toString() == QStringLiteral("COMMENT") && object.value(QStringLiteral("body")).toString().isEmpty()
+				&& comments.size() == 2 && probe.Lines.size() == 2U
+				&& first.value(QStringLiteral("path")).toString() == QString::fromLatin1(path.data(), static_cast<qsizetype>(path.size()))
+				&& first.value(QStringLiteral("line")).toInt() == line(probe.Lines[0]) && first.value(QStringLiteral("side")).toString() == QStringLiteral("RIGHT")
+				&& !first.contains(QStringLiteral("start_line")) && first.value(QStringLiteral("body")).toString() == words[0]
+				&& second.value(QStringLiteral("path")).toString() == QString::fromLatin1(path.data(), static_cast<qsizetype>(path.size()))
+				&& second.value(QStringLiteral("line")).toInt() == line(probe.Lines[1]) && second.value(QStringLiteral("side")).toString() == QStringLiteral("RIGHT")
+				&& second.value(QStringLiteral("start_line")).toInt() == line(probe.Lines[1] - 1U) && second.value(QStringLiteral("start_side")).toString() == QStringLiteral("RIGHT")
+				&& second.value(QStringLiteral("body")).toString() == words[1];
+			probe.Evidence.MarkedPublished = remaining.empty() && summary->status_label()->text() == QStringLiteral("Review submitted and confirmed on GitHub with its 2 line comments.");
+			if (!probe.Evidence.SubmittedExact || !probe.Evidence.MarkedPublished) {
+				return fail("submitted-not-exact");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::awaiting_refused: {
+			const auto sent = posts();
+			const auto now  = pending();
+			note("posts=" + std::to_string(sent.size()) + " pending=" + std::to_string(now.size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
+			if (sent.size() != 1U || now.size() != 1U || count_held() != 0U || !chipSays(1U) || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("refusal-not-settled");
+			}
+			probe.Evidence.RefusedKept = now.front().Draft.Body == words[0].toStdString() && now.front().Draft.Anchor.Line == probe.Lines.front()
+				&& now.front().Draft.InReview->Submission.empty()
+				&& summary->status_label()->text().startsWith(QStringLiteral("Review was not published."));
+			if (!probe.Evidence.RefusedKept) {
+				return fail("refusal-lost-the-draft");
+			}
+			if (!summary->discard_action()->isEnabled() || summary->discard_action()->text() != QStringLiteral("Discard review")) {
+				return result::pending;
+			}
+			summary->discard_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_discarded;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_discarded: {
+			const auto all  = saved();
+			const auto kept = std::ranges::find_if(all, [&](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == probe.Lines.front(); });
+			note("pending=" + std::to_string(pending().size()) + " chip=" + std::to_string(chipShown->isVisible() ? 1 : 0));
+			if (!pending().empty() || chipShown->isVisible() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("discard-not-settled");
+			}
+			probe.Evidence.DiscardKept = kept != all.end() && !kept->Draft.InReview && kept->Draft.State == core::review_draft_state::drafting
+				&& kept->Draft.Body == words[0].toStdString() && posts().size() == 1U;
+			if (!probe.Evidence.DiscardKept) {
+				return fail("discard-lost-the-draft");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::awaiting_held: {
+			const auto all  = saved();
+			const auto held = std::ranges::find_if(all, [](const core::revisioned_review_draft& aDraft) { return core::held_by_review(aDraft.Draft); });
+			note("posts=" + std::to_string(posts().size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString()
+				 + " reconcile=" + std::to_string(summary->reconcile_action()->isEnabled() ? 1 : 0));
+			if (held == all.end() || !summary->reconcile_action()->isEnabled() || !chipShown->isVisible() || !chip->submitting()) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-held");
+			}
+			probe.Evidence.UncertainHeld = posts().size() == 1U && held->Draft.Body == words[0].toStdString() && pending().empty()
+				&& !editor->publication_retry_offered()
+				&& summary->status_label()->text().startsWith(QStringLiteral("Review status is unknown."));
+			if (!probe.Evidence.UncertainHeld) {
+				return fail("uncertain-not-held-exactly");
+			}
+			{
+				const auto lock        = std::scoped_lock{ server.Mutex };
+				server.HideReviewReads = false;
+			}
+			summary->reconcile_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reconciled;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reconciled: {
+			const auto published = count_published();
+			note("posts=" + std::to_string(posts().size()) + " published=" + std::to_string(published) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
+			if (published != 1U || count_held() != 0U || chipShown->isVisible() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-reconciled");
+			}
+			probe.Evidence.Reconciled = posts().size() == 1U;
+			if (!probe.Evidence.Reconciled) {
+				return fail("reconciled-after-a-second-post");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::passed:
+			return result::passed;
+		case state_type::phase::failed:
+		default:
+			break;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::start_review_evidence(const github_application& aApplication) -> detail::start_review_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->StartReviewProbe.has_value()) {
+			return { };
+		}
+		return implementation->StartReviewProbe->Evidence;
+	}
+
+	auto detail::github_application_fixture_access::start_review_diagnostic(const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->StartReviewProbe.has_value()) {
+			return { };
+		}
+		return implementation->StartReviewProbe->Diagnostic;
 	}
 
 	auto detail::github_application_fixture_access::exercise_review_progress_push(

@@ -7,6 +7,7 @@
 
 #include <QColor>
 #include <QString>
+#include <QStringList>
 #include <QWidget>
 #include <array>
 #include <functional>
@@ -21,6 +22,7 @@ class QMenu;
 class QPlainTextEdit;
 class QTextEdit;
 class QToolButton;
+class QVBoxLayout;
 
 namespace bpr::qt {
 	enum class review_submission_editor_operation { command,
@@ -78,6 +80,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto reconcile_action() const noexcept -> QAction*;
 		[[nodiscard]] auto new_review_action() const noexcept -> QAction*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1345]]. The page's title: "Finish your review" while
+		/// the review carries line comments, else "Compose review".
+		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
+		/// \brief [[BPR-1345]]. "Pending in this review" and one row per
+		/// carried comment, hidden with none.
+		[[nodiscard]] auto pending_list() const noexcept -> QWidget*;
+		/// \brief [[BPR-1345]]. The rows' words, in order: "renderer.cpp,
+		/// line 431: question: Where does 0.01 come from?".
+		[[nodiscard]] auto pending_rows() const -> QStringList;
+		/// \brief [[BPR-1345]]. "Submits 2 line comments as one review."
+		[[nodiscard]] auto carries_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto target_editor() const noexcept -> QTextEdit*;
 		[[nodiscard]] auto shown_draft() const noexcept -> const std::optional<core::review_submission_draft>&;
 		/// \brief [[BPR-1085]]. The whole presentation last shown, its preflight
@@ -99,6 +112,7 @@ namespace bpr::qt {
 
 	private:
 		void                                         present_preflight(const review_submission_editor_projection& aProjection);
+		void                                         present_pending();
 		void                                         emit_command(core::review_submission_command_kind aKind);
 		void                                         emit_operation(review_submission_editor_operation aOperation);
 		QString                                      LastAnnouncement;
@@ -117,10 +131,17 @@ namespace bpr::qt {
 		QTextEdit*                                   Target        = nullptr;
 		QLabel*                                      Status        = nullptr;
 		QLabel*                                      DraftState    = nullptr;
-		QAction*                                     Submit        = nullptr;
-		QAction*                                     Discard       = nullptr;
-		QAction*                                     Reconcile     = nullptr;
-		QAction*                                     NewReview     = nullptr;
+		QLabel*                                      Title         = nullptr;
+		QLabel*                                      Purpose       = nullptr;
+		QWidget*                                     Pending       = nullptr;
+		QVBoxLayout*                                 PendingRows   = nullptr;
+		QLabel*                                      Carries       = nullptr;
+		std::vector<core::review_submission_comment> Listed;
+		QStringList                                  ListedRows;
+		QAction*                                     Submit    = nullptr;
+		QAction*                                     Discard   = nullptr;
+		QAction*                                     Reconcile = nullptr;
+		QAction*                                     NewReview = nullptr;
 	};
 }
 #endif

@@ -961,7 +961,7 @@ namespace bpr::qt {
 		setText(aText);
 		setFocusPolicy(Qt::StrongFocus);
 		setCursor(aKind == kind::reply_field ? Qt::IBeamCursor : Qt::PointingHandCursor);
-		if (aKind == kind::primary) {
+		if (aKind == kind::primary || aKind == kind::secondary) {
 			setFont(semibold(font()));
 		}
 		setSizePolicy(aKind == kind::reply_field ? QSizePolicy::Expanding : QSizePolicy::Maximum, QSizePolicy::Fixed);
@@ -1006,6 +1006,18 @@ namespace bpr::qt {
 				x += 20;
 			}
 			painter.setPen(ink);
+			painter.drawText(QRect{ x, 0, width() - x, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
+			painter.setOpacity(1.0);
+		} else if (Kind == kind::secondary) {
+			// [[BPR-1345]]. The same pill, outlined: the panel's own ground,
+			// the rule for its edge and the ink for its words.
+			painter.setOpacity(isEnabled() ? 1.0 : 0.45);
+			painter.setPen(QPen{ underMouse() && isEnabled() ? colours.Faint : colours.Rule2, 1.0 });
+			painter.setBrush(colours.Panel);
+			painter.drawRoundedRect(box, 6.0, 6.0);
+			const auto metrics = QFontMetrics{ font() };
+			const auto x       = (width() - metrics.horizontalAdvance(text())) / 2;
+			painter.setPen(colours.Ink);
 			painter.drawText(QRect{ x, 0, width() - x, height() }, Qt::AlignLeft | Qt::AlignVCenter, text());
 			painter.setOpacity(1.0);
 		} else {
@@ -1113,6 +1125,9 @@ namespace bpr::qt {
 			auto* const state = new state_label{ QStringLiteral("Draft"), conversation_glyph::lock, Style.Colours.Signal, header };
 			DraftState        = state;
 			row->addWidget(state);
+		} else if (aCard.Draft && aCard.Pending) {
+			// [[BPR-1345]]. Sent with the review when it is finished.
+			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.Signal, header });
 		} else if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
 		} else if (aCard.Resolved) {
@@ -1252,7 +1267,13 @@ namespace bpr::qt {
 			connect(edit, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::edit_draft); } });
 			auto* const remove = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Delete draft"), conversation_glyph::trash, palette);
 			connect(remove, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
-			actions->addWidget(publish);
+			// [[BPR-1345]]. A pending draft goes with the review; it is opened
+			// to change it, and nothing here publishes it on its own.
+			if (aCard.Pending) {
+				publish->hide();
+			} else {
+				actions->addWidget(publish);
+			}
 			actions->addWidget(edit);
 			actions->addStretch(1);
 			actions->addWidget(remove);
@@ -1393,29 +1414,45 @@ namespace bpr::qt {
 		Change = new suggestion_change_view{ Style, Foot };
 		Change->hide();
 		aFoot.addWidget(Change);
-		auto* const actions = new QHBoxLayout{ };
-		actions->setSpacing(4);
+		// [[BPR-1345]]. Who sees it and Discard on one row; the two ways out
+		// on the next, as the start-a-review frames draw them, so neither is
+		// cut off in a narrow drawer.
+		auto* const notice = new QHBoxLayout{ };
+		notice->setSpacing(4);
 		auto* const privacy = new state_label{ QStringLiteral("Private until you publish"), conversation_glyph::lock, Style.Colours.Faint, Foot };
 		privacy->setObjectName(QStringLiteral("threadDraftPrivacy"));
 		privacy->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 		privacy->show_whole_or_glyph(QStringLiteral("Only you see this draft until you publish it."));
-		actions->addWidget(privacy, 1);
+		Privacy = privacy;
+		notice->addWidget(privacy, 1);
 		auto* const discard = tool(Foot, QStringLiteral("threadDeleteDraft"), QStringLiteral("Discard this draft"), conversation_glyph::trash, palette);
 		connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::delete_draft); } });
-		actions->addWidget(discard);
+		notice->addWidget(discard);
+		aFoot.addLayout(notice);
 		// The owner, 2026-10-08: "I don't know how to publish my draft
-		// comment". Publish says what it does: this one comment, now.
-		const auto key = QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText);
-		Publish        = new note_button{ note_button::kind::primary, QStringLiteral("Publish"), Foot };
+		// comment". Add single comment says what it does: this one comment,
+		// now, exactly as Publish did; Start a review keeps it pending.
+		DraftActions = new QBoxLayout{ QBoxLayout::LeftToRight };
+		DraftActions->setSpacing(6);
+		DraftActions->addStretch(1);
+		Publish = new note_button{ note_button::kind::secondary, QStringLiteral("Add single comment"), Foot };
 		Publish->setObjectName(QStringLiteral("threadPublishDraft"));
-		Publish->setIcon(conversation_icon(conversation_glyph::send, palette));
-		Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now  %1").arg(key));
-		Publish->setAccessibleName(QStringLiteral("Publish"));
+		Publish->setAccessibleName(QStringLiteral("Add single comment"));
 		Publish->setAccessibleDescription(QStringLiteral("Posts this one comment to the pull request now, on its own. No review is submitted."));
 		Publish->set_style(Style);
 		connect(Publish, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::publish_draft); } });
-		actions->addWidget(Publish);
-		aFoot.addLayout(actions);
+		DraftActions->addWidget(Publish);
+		ReviewAction = new note_button{ note_button::kind::primary, QStringLiteral("Start a review"), Foot };
+		ReviewAction->setObjectName(QStringLiteral("threadReviewDraft"));
+		ReviewAction->set_style(Style);
+		connect(ReviewAction, &QAbstractButton::clicked, this, [this] {
+			if (Action) {
+				Action(Review == draft_review_state::pending ? card_action::close_draft : card_action::review_draft);
+			}
+		});
+		DraftActions->addWidget(ReviewAction);
+		aFoot.addLayout(DraftActions);
+		present_review_state();
 		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
 			if (!ReplyStatus->isHidden() && LastNotice.isEmpty()) {
 				ReplyStatus->hide();
@@ -1484,13 +1521,18 @@ namespace bpr::qt {
 			// [[BPR-1329]]. A notice that no longer holds goes with it.
 			ReplyStatus->hide();
 		}
-		if (Publish != nullptr) {
-			const auto retry = aDraft.has_value() && aDraft->Retry;
-			Publish->setText(retry ? QStringLiteral("Retry") : QStringLiteral("Publish"));
-			Publish->setAccessibleName(retry ? QStringLiteral("Retry publishing this comment") : QStringLiteral("Publish"));
+		Review = aDraft.has_value() ? aDraft->Review : draft_review_state::none;
+		present_review_state();
+		if (Publish != nullptr && aDraft.has_value() && aDraft->Retry) {
+			Publish->setText(QStringLiteral("Retry"));
+			Publish->setAccessibleName(QStringLiteral("Retry publishing this comment"));
 			Publish->updateGeometry();
 		}
+		if (DraftState != nullptr && Review == draft_review_state::pending) {
+			static_cast<state_label*>(DraftState)->set_text(QStringLiteral("Pending"));
+		}
 		refresh_reply_controls();
+		fit_draft_actions();
 		if (HeightChanged) {
 			HeightChanged();
 		}
@@ -1499,6 +1541,91 @@ namespace bpr::qt {
 	auto open_thread_card::writing() const noexcept -> bool
 	{
 		return Writing;
+	}
+
+	auto open_thread_card::primary_action() const noexcept -> card_action
+	{
+		switch (Review) {
+		case draft_review_state::none:        return card_action::publish_draft;
+		case draft_review_state::in_progress: return card_action::review_draft;
+		case draft_review_state::pending:     return card_action::close_draft;
+		}
+		return card_action::publish_draft;
+	}
+
+	void open_thread_card::present_review_state()
+	{
+		// [[BPR-1345]]. The frames' two ways out: with no review in progress,
+		// Add single comment is today's Publish (⌘↩) and Start a review keeps
+		// the comment pending; while one is, Add review comment is the main
+		// action and takes ⌘↩. A pending draft is saved as it is written, so
+		// its main action only closes it, still pending.
+		if (Publish == nullptr || ReviewAction == nullptr) {
+			return;
+		}
+		const auto key = QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText);
+		Publish->setText(QStringLiteral("Add single comment"));
+		Publish->setAccessibleName(QStringLiteral("Add single comment"));
+		switch (Review) {
+		case draft_review_state::none:
+			Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now  %1").arg(key));
+			ReviewAction->setText(QStringLiteral("Start a review"));
+			ReviewAction->setToolTip(QStringLiteral("Keep this comment pending in a review you finish later. Nothing is published."));
+			ReviewAction->setAccessibleDescription(QStringLiteral("Keeps this comment pending, unpublished, in a review you finish later from the review bar."));
+			break;
+		case draft_review_state::in_progress:
+			Publish->setToolTip(QStringLiteral("Post this one comment to the pull request now, outside your review"));
+			ReviewAction->setText(QStringLiteral("Add review comment"));
+			ReviewAction->setToolTip(QStringLiteral("Add this comment to your pending review  %1").arg(key));
+			ReviewAction->setAccessibleDescription(QStringLiteral("Adds this comment to your review, pending until you finish the review. Nothing is published."));
+			break;
+		case draft_review_state::pending:
+			Publish->setToolTip(QStringLiteral("Take this comment out of your review and post it now on its own"));
+			ReviewAction->setText(QStringLiteral("Update review comment"));
+			ReviewAction->setToolTip(QStringLiteral("Keep this comment pending in your review  %1").arg(key));
+			ReviewAction->setAccessibleDescription(QStringLiteral("Closes this comment; it stays pending in your review with what you wrote."));
+			break;
+		}
+		Publish->setAccessibleDescription(Review == draft_review_state::pending
+											  ? QStringLiteral("Takes this comment out of your review and posts it to the pull request now, on its own.")
+											  : QStringLiteral("Posts this one comment to the pull request now, on its own. No review is submitted."));
+		ReviewAction->setAccessibleName(ReviewAction->text());
+		if (auto* const privacy = static_cast<state_label*>(Privacy); privacy != nullptr) {
+			const auto reviewing = Review != draft_review_state::none;
+			privacy->set_text(reviewing ? QStringLiteral("Pending until you finish the review") : QStringLiteral("Private until you publish"));
+			privacy->show_whole_or_glyph(reviewing ? QStringLiteral("Only you see your review's comments until you finish the review.")
+												   : QStringLiteral("Only you see this draft until you publish it."));
+		}
+		Publish->updateGeometry();
+		ReviewAction->updateGeometry();
+	}
+
+	void open_thread_card::fit_draft_actions()
+	{
+		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || Foot == nullptr) {
+			return;
+		}
+		const auto margins   = Foot->layout() != nullptr ? Foot->layout()->contentsMargins() : QMargins{ };
+		const auto available = Foot->width() - margins.left() - margins.right();
+		const auto needed    = Publish->sizeHint().width() + ReviewAction->sizeHint().width() + DraftActions->spacing();
+		const auto direction = available > 0 && needed > available ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight;
+		if (DraftActions->direction() == direction) {
+			return;
+		}
+		DraftActions->setDirection(direction);
+		// Stacked, each takes the full width; side by side, its own.
+		for (auto* const button : { static_cast<QWidget*>(Publish), static_cast<QWidget*>(ReviewAction) }) {
+			button->setSizePolicy(direction == QBoxLayout::TopToBottom ? QSizePolicy::Expanding : QSizePolicy::Maximum, QSizePolicy::Fixed);
+		}
+		if (HeightChanged) {
+			HeightChanged();
+		}
+	}
+
+	void open_thread_card::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		fit_draft_actions();
 	}
 
 	auto open_thread_card::change_view() const noexcept -> QWidget*
@@ -1572,6 +1699,11 @@ namespace bpr::qt {
 	{
 		if (Publish != nullptr && ReplyBox != nullptr) {
 			Publish->setEnabled(Publishable && !ReplyBox->toPlainText().trimmed().isEmpty());
+		}
+		// [[BPR-1345]]. A review takes a comment with words; closing a
+		// pending one is always possible.
+		if (ReviewAction != nullptr && ReplyBox != nullptr) {
+			ReviewAction->setEnabled(Review == draft_review_state::pending || (!ReplyBox->isReadOnly() && !ReplyBox->toPlainText().trimmed().isEmpty()));
 		}
 		if (Suggestion != nullptr && ReplyBox != nullptr) {
 			Suggestion->present(core::decide_suggestion_applicability(ReplyBox->toPlainText().toStdString(), Placement));

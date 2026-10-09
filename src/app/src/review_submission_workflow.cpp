@@ -29,9 +29,30 @@ namespace bpr::app {
 				case core::review_preflight_change::summary:     words.push_back(QStringLiteral("summary")); break;
 				case core::review_preflight_change::disposition: words.push_back(QStringLiteral("review type")); break;
 				case core::review_preflight_change::selection:   words.push_back(QStringLiteral("unsent comments")); break;
+				case core::review_preflight_change::comments:    words.push_back(QStringLiteral("pending comments")); break;
 				}
 			}
 			return QStringLiteral("Not submitted: the %1 changed after you chose Submit review. Check the review and submit again.").arg(words.join(QStringLiteral(", ")));
+		}
+
+		[[nodiscard]] auto new_draft_status() -> QString
+		{
+			return QStringLiteral("Choose a review type and enter a summary. Approve may have an empty summary.");
+		}
+
+		/// [[BPR-1345]]. Why the pending comments cannot ride this review.
+		[[nodiscard]] auto comments_status(const core::review_submission_rejection aRefusal) -> QString
+		{
+			switch (aRefusal) {
+			case core::review_submission_rejection::too_many_comments:
+				return QStringLiteral("This review holds more than %1 pending comments. Add some on their own with Add single comment, then finish the review.").arg(core::maximum_review_submission_comments);
+			case core::review_submission_rejection::review_too_large:
+				return QStringLiteral("This review is too long to send at once. Shorten the summary or add some comments on their own with Add single comment.");
+			case core::review_submission_rejection::blank_comment:
+				return QStringLiteral("A pending comment has no text. Write it or discard it, then submit the review.");
+			default:
+				return QStringLiteral("A pending comment cannot be sent with this review. Open it beside the code to check it.");
+			}
 		}
 	}
 
@@ -88,6 +109,10 @@ namespace bpr::app {
 			Pending.reset();
 		}
 		Unresolved.clear();
+		Lookups.clear();
+		LookedUp.clear();
+		LookupKey.reset();
+		Recovering.reset();
 		Current = std::move(Next);
 		Next.reset();
 		if (Generation.value() == std::numeric_limits<std::uint64_t>::max()) {
@@ -154,13 +179,95 @@ namespace bpr::app {
 													  .Target        = DraftBinding->Target.Semantic,
 													  .ActingAccount = DraftBinding->ActingIdentity.Account };
 		Pending.reset();
-		Status = QStringLiteral("Choose a review type and enter a summary. Approve may have an empty summary.");
+		Status = new_draft_status();
+		apply_review_comments();
+	}
+
+	void review_submission_workflow::set_review_comment_hooks(comment_lock aLock, review_answer aAnswer, review_discard aDiscard)
+	{
+		LockComments  = std::move(aLock);
+		Answer        = std::move(aAnswer);
+		DiscardReview = std::move(aDiscard);
+	}
+
+	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments)
+	{
+		if (Closing || aComments == Comments) {
+			return;
+		}
+		Comments = std::move(aComments);
+		apply_review_comments();
+		present();
+	}
+
+	void review_submission_workflow::apply_review_comments()
+	{
+		// [[BPR-1345]]. Only a review still being written takes the pending
+		// drafts; Submit freezes the ones it carries.
+		if (!Draft || Draft->State != draft_state::drafting) {
+			return;
+		}
+		auto outcome = core::apply(*Draft, { .Id = Draft->Id, .Kind = command_kind::set_comments, .Comments = Comments });
+		if (outcome.Draft) {
+			Draft           = std::move(outcome.Draft);
+			CommentsRefusal = core::review_comments_rejection(Draft->Body, Draft->Comments, true);
+			if (CommentsRefusal == core::review_submission_rejection::blank_comment) {
+				// Shown, and refused by Submit itself.
+				CommentsRefusal = core::review_submission_rejection::none;
+			}
+			return;
+		}
+		CommentsRefusal = outcome.Rejection;
+		if (auto cleared = core::apply(*Draft, { .Id = Draft->Id, .Kind = command_kind::set_comments }); cleared.Draft) {
+			Draft = std::move(cleared.Draft);
+		}
+	}
+
+	void review_submission_workflow::resolve_held(std::vector<std::string> aKeys)
+	{
+		if (Closing) {
+			return;
+		}
+		for (auto& key : aKeys) {
+			const auto settling = (Pending && Pending->IdempotencyKey == key) || (LookupKey && *LookupKey == key)
+				|| (Recovering && Recovering->IdempotencyKey == key);
+			if (!settling && std::ranges::find(Lookups, key) == Lookups.end() && std::ranges::find(LookedUp, key) == LookedUp.end()) {
+				Lookups.push_back(std::move(key));
+			}
+		}
+		next_lookup();
+	}
+
+	void review_submission_workflow::next_lookup()
+	{
+		if (Closing || !Ready || !Host || Context || Locking || Lookups.empty()) {
+			return;
+		}
+		auto key = Lookups.front();
+		Lookups.erase(Lookups.begin());
+		LookedUp.push_back(key);
+		if (Pending && Pending->IdempotencyKey == key) {
+			// This workflow's own attempt answers for its drafts.
+			next_lookup();
+			return;
+		}
+		Context = Host->lookup(key);
+		if (Context) {
+			LookupKey = std::move(key);
+		}
+	}
+
+	void review_submission_workflow::answer(const application::review_submission_request& aRequest, const application::review_submission_publication aPublication)
+	{
+		if (Answer && !aRequest.Proposal.Comments.empty() && aPublication != application::review_submission_publication::indeterminate) {
+			Answer(aRequest.IdempotencyKey, aPublication, aRequest);
+		}
 	}
 
 	void review_submission_workflow::restore(application::review_submission_request aRequest)
 	{
 		const auto& proposal = aRequest.Proposal;
-		Draft                = core::review_submission_draft{ .Id = proposal.Draft, .Target = proposal.Target, .ActingAccount = proposal.ActingAccount, .Body = proposal.Body, .Disposition = proposal.Disposition, .State = draft_state::submitting, .Attempt = proposal.Attempt };
+		Draft                = core::review_submission_draft{ .Id = proposal.Draft, .Target = proposal.Target, .ActingAccount = proposal.ActingAccount, .Body = proposal.Body, .Disposition = proposal.Disposition, .State = draft_state::submitting, .Attempt = proposal.Attempt, .Comments = proposal.Comments };
 		DraftBinding         = aRequest.LiveBinding;
 		NextDraft            = std::max(NextDraft, proposal.Draft.value() == std::numeric_limits<std::uint64_t>::max() ? proposal.Draft.value() : proposal.Draft.value() + 1U);
 		Pending              = std::move(aRequest);
@@ -169,12 +276,16 @@ namespace bpr::app {
 
 	auto review_submission_workflow::decided_controls() const -> core::review_submission_controls
 	{
-		if (!Draft || !Ready || !Host || Context || Closing) {
+		if (!Draft || !Ready || !Host || Context || Closing || Locking) {
 			return { };
 		}
 		auto result = core::controls(*Draft);
 		if (!Current || DraftBinding != std::optional{ Current->Binding }) {
 			result.Edit   = false;
+			result.Submit = false;
+		}
+		// [[BPR-1345]]. Pending comments this review cannot carry stop Submit.
+		if (CommentsRefusal != core::review_submission_rejection::none) {
 			result.Submit = false;
 		}
 		return result;
@@ -256,6 +367,14 @@ namespace bpr::app {
 		auto status = Status;
 		if (Ready && Draft && Draft->State == draft_state::drafting && Current && DraftBinding != std::optional{ Current->Binding }) {
 			status = QStringLiteral("The pull request revision changed. Discard this frozen draft and start a new review.");
+		} else if (Draft && Draft->State == draft_state::drafting && CommentsRefusal != core::review_submission_rejection::none) {
+			status = comments_status(CommentsRefusal);
+		} else if (Locking) {
+			status = QStringLiteral("Holding the pending comments for this review…");
+		} else if (Draft && Draft->State == draft_state::drafting && !Draft->Comments.empty() && status == new_draft_status()) {
+			// [[BPR-1345]]. Comment needs no summary when the review carries
+			// line comments.
+			status = QStringLiteral("Choose Comment, Approve, or Request changes. The summary is optional unless you request changes.");
 		}
 		project_preflight();
 		Editor.present({ .Draft             = Draft,
@@ -350,30 +469,84 @@ namespace bpr::app {
 					}
 				}
 			}
-			auto outcome = core::apply(*Draft, aIntent.Command);
+			// [[BPR-1345]]. Discard review takes the pending drafts out of the
+			// review and keeps them; the summary goes and a new one starts.
+			const auto discardsReview = kind == command_kind::discard && !Draft->Comments.empty();
+			auto       outcome        = core::apply(*Draft, aIntent.Command);
 			if (!outcome.Draft) {
-				Status = QStringLiteral("The summary must be valid text, at most 64 KiB, and nonblank unless approving.");
+				Status = outcome.Rejection == core::review_submission_rejection::blank_comment || outcome.Rejection == core::review_submission_rejection::review_too_large
+						|| outcome.Rejection == core::review_submission_rejection::too_many_comments
+					? comments_status(outcome.Rejection)
+					: QStringLiteral("The summary must be valid text, at most 64 KiB, and nonblank unless approving or carrying line comments.");
 				present();
 				return;
 			}
 			Draft = std::move(outcome.Draft);
 			if (kind == command_kind::begin_submit) {
-				Pending = application::review_submission_request{ .Proposal       = *core::propose(*Draft),
-																  .IdempotencyKey = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString(),
-																  .LiveBinding    = DraftBinding };
-				Context = Host->submit(*Pending, IssueGrant(Current->Authority.ApplicationSession, Generation, *Pending));
-				if (Context) {
-					Status = QStringLiteral("Submitting the exact review shown…");
-				} else {
+				auto request = application::review_submission_request{ .Proposal       = *core::propose(*Draft),
+																	   .IdempotencyKey = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString(),
+																	   .LiveBinding    = DraftBinding };
+				Pending      = request;
+				if (!request.Proposal.Comments.empty() && LockComments) {
+					// Every carried draft is held for this submission, durably,
+					// before anything can be sent.
+					Locking = true;
+					present();
+					LockComments(request, [this, request](const bool aHeld) {
+						Locking = false;
+						if (Closing || !Pending || *Pending != request || !Draft || Draft->State != draft_state::submitting) {
+							// Superseded before it was sent: what was held is released.
+							if (aHeld) {
+								answer(request, application::review_submission_publication::definitely_not_published);
+							}
+							present();
+							return;
+						}
+						if (!aHeld) {
+							complete(command_kind::fail_submit);
+							Pending.reset();
+							answer(request, application::review_submission_publication::definitely_not_published);
+							Status = QStringLiteral("Not submitted: a pending comment changed or could not be held for this review. Check the comments and submit again.");
+							present();
+							return;
+						}
+						send(request);
+						present();
+					});
+					return;
+				}
+				if (!request.Proposal.Comments.empty()) {
 					complete(command_kind::fail_submit);
 					Pending.reset();
-					Status = QStringLiteral("Review was not submitted. Refresh the pull request and try again.");
+					Status = QStringLiteral("Review was not submitted: its pending comments could not be held. Refresh the pull request and try again.");
+				} else {
+					send(std::move(request));
 				}
 			} else if (kind == command_kind::discard) {
 				Status = QStringLiteral("Review draft discarded.");
+				if (discardsReview) {
+					if (DiscardReview) {
+						DiscardReview();
+					}
+					new_draft();
+					Status = QStringLiteral("Review discarded. Its comments are kept as drafts beside the code.");
+				}
 			}
 		}
 		present();
+	}
+
+	void review_submission_workflow::send(application::review_submission_request aRequest)
+	{
+		Context = Host ? Host->submit(aRequest, IssueGrant(Current->Authority.ApplicationSession, Generation, aRequest)) : std::nullopt;
+		if (Context) {
+			Status = QStringLiteral("Submitting the exact review shown…");
+			return;
+		}
+		complete(command_kind::fail_submit);
+		Pending.reset();
+		answer(aRequest, application::review_submission_publication::definitely_not_published);
+		Status = QStringLiteral("Review was not submitted. Refresh the pull request and try again.");
 	}
 
 	void review_submission_workflow::publish(const application::review_submission_host_terminal& aTerminal)
@@ -384,6 +557,40 @@ namespace bpr::app {
 			return;
 		}
 		Context.reset();
+		// [[BPR-1345]]. A held draft's submission, looked up by its key: none
+		// admitted means none sent; an admitted one is reconciled, read only.
+		if (const auto* lookup = std::get_if<application::review_submission_lookup>(&aTerminal.Outcome)) {
+			LookupKey.reset();
+			if (!lookup->Request) {
+				// Unread: asked again when the drafts are next presented.
+				std::erase(LookedUp, lookup->Key);
+			} else if (!*lookup->Request) {
+				if (Answer) {
+					Answer(lookup->Key, application::review_submission_publication::definitely_not_published, std::nullopt);
+				}
+			} else if (Host) {
+				Recovering = **lookup->Request;
+				Context    = Host->reconcile(*Recovering);
+				if (!Context) {
+					Recovering.reset();
+				}
+			}
+			if (!Context) {
+				next_lookup();
+			}
+			present();
+			return;
+		}
+		if (const auto* result = std::get_if<application::review_submission_result>(&aTerminal.Outcome); result != nullptr && Recovering) {
+			const auto recovered = std::exchange(Recovering, std::nullopt);
+			if (result->Request == *recovered
+				&& (result->Publication != application::review_submission_publication::published || (result->Receipt && application::valid(*result->Receipt, *recovered)))) {
+				answer(*recovered, result->Publication);
+			}
+			next_lookup();
+			present();
+			return;
+		}
 		if (const auto* discovery = std::get_if<application::review_submission_discovery>(&aTerminal.Outcome)) {
 			Ready = discovery->has_value();
 			if (!Ready) {
@@ -406,20 +613,33 @@ namespace bpr::app {
 			}
 			if (result->Publication == application::review_submission_publication::published
 				&& result->Receipt && application::valid(*result->Receipt, *Pending)) {
+				const auto submitted = *Pending;
 				complete(command_kind::complete_submit);
 				std::erase_if(Unresolved, [this](const auto& aRequest) { return aRequest.IdempotencyKey == Pending->IdempotencyKey; });
 				Pending.reset();
-				Status = QStringLiteral("Review submitted and confirmed on GitHub.");
+				const auto carried = submitted.Proposal.Comments.size();
+				Status             = carried == 0U ? QStringLiteral("Review submitted and confirmed on GitHub.")
+					: carried == 1U                ? QStringLiteral("Review submitted and confirmed on GitHub with its line comment.")
+												   : QStringLiteral("Review submitted and confirmed on GitHub with its %1 line comments.").arg(carried);
 				if (!Unresolved.empty()) {
 					Status += QStringLiteral(" Choose New review to inspect the next unfinished review.");
 				}
+				answer(submitted, application::review_submission_publication::published);
 			} else if (result->Publication == application::review_submission_publication::definitely_not_published) {
+				const auto refused = *Pending;
 				complete(command_kind::fail_submit);
+				std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
 				Pending.reset();
-				Status = QStringLiteral("Review was not published. Your summary is retained.");
+				Status = refused.Proposal.Comments.empty()
+					? QStringLiteral("Review was not published. Your summary is retained.")
+					: QStringLiteral("Review was not published. Your summary and its pending comments are kept; check them and submit again.");
+				answer(refused, application::review_submission_publication::definitely_not_published);
 			} else {
 				Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
 			}
+		}
+		if (!Context) {
+			next_lookup();
 		}
 		present();
 	}

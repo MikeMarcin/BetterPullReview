@@ -82,8 +82,19 @@ namespace bpr::core {
 			return "not_publishing";
 		case review_draft_rejection::invalid_range:
 			return "invalid_range";
+		case review_draft_rejection::invalid_review_mark:
+			return "invalid_review_mark";
 		}
 		return "none";
+	}
+
+	auto valid(const review_pending_mark& aMark) noexcept -> bool
+	{
+		const auto printable = [](const char aCharacter) { return aCharacter > ' ' && aCharacter < '\x7f'; };
+		return !aMark.Path.empty() && aMark.Path.size() <= maximum_pending_mark_path_bytes
+			&& aMark.Path.find('\0') == std::string::npos && aMark.Head.valid()
+			&& aMark.Submission.size() <= maximum_pending_mark_submission_bytes
+			&& std::ranges::all_of(aMark.Submission, printable);
 	}
 
 	auto apply(

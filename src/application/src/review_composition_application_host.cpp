@@ -1,4 +1,5 @@
 #include "bpr/application/review_composition_application_host.hpp"
+#include "bpr/core/review_submission.hpp"
 #include "private_review_operations.hpp"
 #include <algorithm>
 #include <array>
@@ -246,6 +247,37 @@ namespace bpr::application {
 			durable_draft_commit result;
 			result.Scope = f.Scope;
 			result.Records.push_back(record);
+			return result;
+		});
+	}
+	auto review_composition_application_host::change_drafts(std::span<const core::revisioned_review_draft_command> aCommands) -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] {
+			require(!aCommands.empty() && aCommands.size() <= core::maximum_review_submission_comments);
+			auto                 f = take(Store.frontier());
+			private_store_write  write{ .ExpectedNextIdentity = f.NextIdentity };
+			durable_draft_commit result;
+			result.Scope = f.Scope;
+			for (const auto& command : aCommands) {
+				require(command.Scope.value() != 0 && !command.Composition && !command.ChangeReplyTarget);
+				require(std::ranges::none_of(aCommands.first(static_cast<std::size_t>(&command - aCommands.data())), [&command](const auto& aEarlier) { return aEarlier.Command.Id == command.Command.Id; }));
+				auto record = take(Store.load_draft(command.Command.Id));
+				require(record.Draft.Revision == command.ExpectedRevision);
+				// A linked draft's prose changes only through change_draft.
+				require(!record.Draft.Composition || command.Command.Kind != core::review_draft_command_kind::edit || command.Command.Body == record.Draft.Draft.Body);
+				record.Draft.Scope = command.Scope;
+				auto changed       = core::apply(record.Draft, command);
+				require(changed.Refusal == core::revisioned_draft_refusal::none);
+				record.Draft       = changed.Accepted;
+				record.Draft.Scope = { };
+				if (changed.Changed) {
+					write.Drafts.push_back({ record, command.ExpectedRevision });
+				}
+				result.Records.push_back(record);
+			}
+			if (!write.Drafts.empty()) {
+				take(Store.commit(write));
+			}
 			return result;
 		});
 	}

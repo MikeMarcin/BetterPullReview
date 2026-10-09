@@ -21,6 +21,7 @@ namespace bpr::adapters::github {
 	auto live_review_submission_provider::pending(std::stop_token aStop) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure> { return Session.pending(aStop); }
 	auto live_review_submission_provider::submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result { return Session.submit_and_reconcile(aRequest, aStop); }
 	auto live_review_submission_provider::reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result { return Session.reconcile(aRequest, aStop); }
+	auto live_review_submission_provider::admitted(const std::string& aKey, std::stop_token aStop) -> std::expected<std::optional<application::review_submission_request>, application::review_mutation_failure> { return Session.admitted(aKey, aStop); }
 	auto live_review_submission_provider::pending_tours(std::stop_token aStop) -> std::expected<std::vector<application::staged_review_plan>, application::review_mutation_failure> { return Session.pending_tours(aStop); }
 	auto live_review_submission_provider::publish_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, application::staged_child_authorizer aAuthorize) -> application::staged_publication_result
 	{

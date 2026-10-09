@@ -595,6 +595,104 @@ namespace {
 		expect(view.measurements() == measurements + 1000U, "a third width measures its notes afresh");
 	}
 
+	/// \brief [[BPR-1345]]. Start a review, as the frames draw it: with no
+	/// review in progress the composer offers Add single comment (⌘↩, today's
+	/// Publish) and Start a review; while one is, Add review comment is the
+	/// main action and takes ⌘↩; a pending draft's main action closes it,
+	/// still pending. The privacy note says so. Saved pending drafts are
+	/// notes at their lines that say they are pending and publish nothing on
+	/// their own; in a narrow drawer the two actions stack, neither cut off.
+	auto test_start_a_review_in_the_composer() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(360, 640);
+		view.show();
+		QApplication::processEvents();
+		auto lineY = std::map<std::uint32_t, int>{ { 12U, 100 }, { 30U, 300 }, { 40U, 420 } };
+		view.set_line_locator([&lineY](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			const auto found = lineY.find(aLine);
+			return found == lineY.end() ? std::nullopt : std::optional{ found->second };
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.adopt({ });
+		const auto comparison = core::file_comparison_digest{ };
+		auto       pending    = core::review_comment_draft{ };
+		pending.Id            = core::review_draft_id{ 2U };
+		pending.Anchor        = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 29U };
+		pending.Body          = "question: Where does 0.01 come from?";
+		pending.InReview      = core::review_pending_mark{ .Path = "src/a.cpp", .Head = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 1U } } };
+		auto plain            = pending;
+		plain.Id              = core::review_draft_id{ 3U };
+		plain.Anchor.Line     = 11U;
+		plain.Body            = "Not in the review.";
+		plain.InReview.reset();
+		view.set_saved_drafts({ pending, plain });
+		view.set_draft(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = core::source_line_ref{ .Comparison = comparison, .Side = core::diff_side::right, .Line = 39U }, .Body = "nit: scale could be constexpr." }, comparison);
+		QApplication::processEvents();
+		const auto note = [&view](const std::uint32_t aLine) { return std::ranges::find_if(view.cards(), [aLine](const qt::thread_card& aCard) { return aCard.Draft && aCard.Line == std::optional{ aLine }; }); };
+		expect(note(30U) != view.cards().end() && note(30U)->Pending && note(30U)->Placed && note(30U)->Posts.front().Name.contains(QStringLiteral("Pending in your review"))
+				   && note(12U) != view.cards().end() && !note(12U)->Pending,
+			   "a saved pending draft is a note at its line that says it is pending in the review; another draft is not");
+
+		auto actions = std::vector<qt::card_action>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string&) { actions.push_back(aAction); });
+		view.open_thread(note(30U)->Id);
+		QApplication::processEvents();
+		expect(actions == std::vector{ qt::card_action::edit_draft } && view.open_card() == nullptr,
+			   "opening a pending note asks to edit it, through its line; nothing publishes it from the note");
+		actions.clear();
+		const auto draftId = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Draft && aCard.Line == std::optional{ 40U }; })->Id;
+		view.open_thread(draftId);
+		QApplication::processEvents();
+		const auto present = [&view](const qt::draft_review_state aReview) {
+			view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("nit: scale could be constexpr."), .Publishable = true, .Lines = QStringLiteral("Line 40"), .Review = aReview });
+			QApplication::processEvents();
+		};
+		const auto  words   = [&view](const char* aName) { return button(view, aName) != nullptr ? button(view, aName)->text() : QString{ }; };
+		auto* const privacy = view.open_card()->findChild<QWidget*>(QStringLiteral("threadDraftPrivacy"));
+		const auto  press   = [&view] {
+			QKeyEvent key{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+			QApplication::sendEvent(view.draft_editor(), &key);
+		};
+
+		present(qt::draft_review_state::none);
+		expect(words("threadPublishDraft") == QStringLiteral("Add single comment") && words("threadReviewDraft") == QStringLiteral("Start a review")
+				   && button(view, "threadPublishDraft")->toolTip().startsWith(QStringLiteral("Post this one comment to the pull request now"))
+				   && button(view, "threadReviewDraft")->isEnabled() && privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish"),
+			   "with no review in progress: Add single comment, today's Publish with its key, and Start a review");
+		press();
+		button(view, "threadReviewDraft")->click();
+		expect(actions.size() >= 2U && actions[actions.size() - 2U] == qt::card_action::publish_draft && actions.back() == qt::card_action::review_draft,
+			   "⌘↩ is Add single comment, and Start a review asks to keep it pending");
+
+		present(qt::draft_review_state::in_progress);
+		expect(words("threadPublishDraft") == QStringLiteral("Add single comment") && words("threadReviewDraft") == QStringLiteral("Add review comment")
+				   && button(view, "threadReviewDraft")->toolTip().contains(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
+				   && privacy->accessibleName() == QStringLiteral("Pending until you finish the review"),
+			   "while a review is in progress Add review comment is the main action, with ⌘↩, and the note says the review is pending");
+		press();
+		expect(actions.back() == qt::card_action::review_draft, "and ⌘↩ adds the comment to the review");
+
+		present(qt::draft_review_state::pending);
+		auto* const state = view.open_card()->findChild<QWidget*>(QStringLiteral("threadState"));
+		expect(words("threadReviewDraft") == QStringLiteral("Update review comment") && state != nullptr && state->accessibleName() == QStringLiteral("Pending"),
+			   "a pending draft's main action is Update review comment, and its header says Pending");
+		press();
+		button(view, "threadReviewDraft")->click();
+		expect(actions[actions.size() - 2U] == qt::card_action::close_draft && actions.back() == qt::card_action::close_draft,
+			   "which only closes it, still pending: ⌘↩ and the button alike");
+
+		present(qt::draft_review_state::none);
+		auto* const single = button(view, "threadPublishDraft");
+		auto* const review = button(view, "threadReviewDraft");
+		expect(single->geometry().top() == review->geometry().top(), "in a drawer with room the two ways out sit side by side");
+		view.resize(220, 640);
+		QApplication::processEvents();
+		QApplication::processEvents();
+		expect(single->geometry().top() != review->geometry().top() && single->width() >= single->sizeHint().width() && review->width() >= review->sizeHint().width(),
+			   "in a narrow drawer they stack, and neither is cut off");
+	}
+
 	/// \brief [[BPR-1290]]. Notes hang from their lines; one open thread is
 	/// pinned exactly at its line and the others make room above and below.
 	auto test_notes_hang_from_their_lines_and_one_opens_pinned() -> void
@@ -1462,6 +1560,7 @@ auto main(int argc, char** argv) -> int
 	test_new_boundary_is_never_the_first_thing_in_a_thread();
 	test_discuss_lists_threads_that_open_in_place();
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
+	test_start_a_review_in_the_composer();
 	test_chips_wheel_and_overflow();
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_helper();

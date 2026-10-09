@@ -33,6 +33,15 @@ namespace bpr::app::detail {
 		bool                                                StaleNextResult  = false;
 		std::size_t                                         Submissions      = 0U;
 		std::size_t                                         Reconciliations  = 0U;
+		/// [[BPR-1345]]. A review that carries line comments goes through the
+		/// production session to this server: each POST's exact body, a 422
+		/// for the next one, or the next one created with its answer lost.
+		std::vector<std::string> ReviewPosts;
+		bool                     RefuseNextReview = false;
+		bool                     LoseNextReview   = false;
+		/// The review list cannot be read: set when the next review's answer
+		/// is lost, so its outcome is unknown until the reads come back.
+		bool HideReviewReads = false;
 	};
 	[[nodiscard]] auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state>, std::unique_ptr<application::review_submission_recovery_port>, application::review_submission_live_binding, std::string) -> std::unique_ptr<application::review_submission_port>;
 	[[nodiscard]] auto make_review_submission_fixture_provider(

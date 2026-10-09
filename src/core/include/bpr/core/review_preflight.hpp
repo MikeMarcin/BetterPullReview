@@ -178,6 +178,9 @@ namespace bpr::core {
 		/// SHA-256 over the selected drafts, in identity order, each its
 		/// identity and its body.
 		std::array<std::uint8_t, 32> Selection{ };
+		/// [[BPR-1345]]. SHA-256 over the line comments the review carries, in
+		/// order, each its draft, revision, path, side, lines and body.
+		std::array<std::uint8_t, 32> Comments{ };
 		auto                         operator==(const review_prepared_decision&) const -> bool = default;
 	};
 	/// \brief Prepare only a valid draft still being written.
@@ -195,6 +198,8 @@ namespace bpr::core {
 		summary,
 		disposition,
 		selection,
+		/// [[BPR-1345]]. The pending comments the review carries.
+		comments,
 	};
 	[[nodiscard]] auto stable_name(review_preflight_change aChange) noexcept -> std::string_view;
 	/// \brief Every change, in enum order. A prepared decision is still valid

@@ -59,6 +59,18 @@ namespace bpr::application {
 		/// \details A missing local row cannot establish definite nonpublication.
 
 		[[nodiscard]] virtual auto reconcile(const review_submission_request& aRequest, std::stop_token aStop = { }) -> review_submission_result = 0;
+		/// \brief [[BPR-1345]]. The request admitted under this key in this
+		/// scope, resolved or not, or none when nothing was ever admitted
+		/// under it. Read only: it never authorizes a POST.
+		/// \details Admission precedes every transmission, so no admitted
+		/// request is proof that nothing under this key was sent.
+		[[nodiscard]] virtual auto admitted(const std::string& aKey, std::stop_token aStop = { })
+			-> std::expected<std::optional<review_submission_request>, review_mutation_failure>
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unavailable);
+		}
 	};
 }
 

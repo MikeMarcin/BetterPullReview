@@ -768,6 +768,73 @@ namespace bpr::app::detail {
 		auto operator<=>(const published_file_switch_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1345]]. Start a review in the composed application over
+	/// `conventional-comments-v1`, on `src/engine/renderer.cpp`. `pending`
+	/// starts a review on one line, adds a range to it, publishes a third
+	/// comment on its own and opens another file and comes back; `finish`,
+	/// over the same data root after a restart, finds the two pending, opens
+	/// Finish review and submits Comment with no summary; `refused` has the
+	/// server refuse the review and then discards it; `uncertain` loses the
+	/// server's answer and its reads, then checks status once they are back.
+	enum class start_review_course {
+		pending,
+		finish,
+		refused,
+		uncertain,
+	};
+
+	enum class start_review_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct start_review_probe_evidence
+	{
+		// `pending`.
+		/// The drawer draft offered Add single comment and Start a review;
+		/// Start a review kept it pending with nothing published.
+		bool Started = false;
+		/// With a review in progress the next draft's main action was Add
+		/// review comment, ⌘↩ added it, and the bar said "Review · 2 pending".
+		bool Added = false;
+		/// Each pending draft was drawn at its line, with its gutter marker.
+		bool Drawn = false;
+		/// Add single comment on a third draft published exactly that one;
+		/// the review still held two and nothing was submitted.
+		bool SingleAlone = false;
+		/// Another file opened and this one again: still two pending, still
+		/// nothing published.
+		bool NavigationKept = false;
+		// `finish`.
+		/// After the restart both drafts were pending again, counted and drawn.
+		bool Restored = false;
+		/// Finish review opened the summary in Discuss with both listed.
+		bool FinishOpened = false;
+		/// Comment with no summary could be submitted.
+		bool CommentWithoutSummary = false;
+		/// One review was sent whose comments were exactly the two drafts:
+		/// their path, lines, side and words.
+		bool SubmittedExact = false;
+		/// On GitHub's acceptance each draft was marked published, and the
+		/// review bar's chip went.
+		bool MarkedPublished = false;
+		// `refused`.
+		/// A refused review left its draft pending, with its text.
+		bool RefusedKept = false;
+		/// Discard review took it out of the review and kept the draft.
+		bool DiscardKept = false;
+		// `uncertain`.
+		/// With the answer lost the draft was held, its text kept, and no
+		/// retry was offered.
+		bool UncertainHeld = false;
+		/// Check status found the review and marked the draft published,
+		/// with one review sent.
+		bool Reconciled = false;
+
+		auto operator<=>(const start_review_probe_evidence&) const = default;
+	};
+
 	/// [[BPR-1331]]. The private progress course across a push of
 	/// `conventional-comments-v1`: `before` marks three files on the first
 	/// head, `after` reads them back on the pushed head, which changed only
@@ -1493,6 +1560,13 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto published_file_switch_evidence(const github_application& aApplication)
 			-> published_file_switch_probe_evidence;
 		[[nodiscard]] static auto published_file_switch_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1345]]. One tick of the start-a-review course.
+		[[nodiscard]] static auto exercise_start_review(github_application& aApplication, start_review_course aCourse)
+			-> start_review_probe_result;
+		[[nodiscard]] static auto start_review_evidence(const github_application& aApplication)
+			-> start_review_probe_evidence;
+		[[nodiscard]] static auto start_review_diagnostic(const github_application& aApplication)
 			-> std::string;
 		/// \brief [[BPR-1331]]. Opens `src/engine/renderer.cpp`,
 		/// `src/main.cpp` and `src/ui/widgets/button.cpp` in Review in turn and

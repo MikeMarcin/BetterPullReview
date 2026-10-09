@@ -33,6 +33,28 @@ namespace bpr::app {
 		/// drafts bind a prepared decision.
 		void observe_selection(std::vector<core::review_preflight_draft>, std::map<std::string, qt::review_submission_preflight_reference>);
 
+		/// [[BPR-1345]]. Holds the carried drafts for one submission, durably,
+		/// before anything is sent: each pending draft moves to publishing
+		/// with the request's idempotency key. Answers true only when every
+		/// one is held at the exact revision the request carries.
+		using comment_lock = std::function<void(const application::review_submission_request&, std::function<void(bool)>)>;
+		/// [[BPR-1345]]. What GitHub's answer means for the drafts a
+		/// submission under this key holds: published completes them,
+		/// definitely not published releases them to pending again. The
+		/// request is absent when nothing was ever admitted under the key.
+		using review_answer = std::function<void(const std::string&, application::review_submission_publication, const std::optional<application::review_submission_request>&)>;
+		/// [[BPR-1345]]. Discard review: takes every pending draft out of the
+		/// review and keeps it as a draft.
+		using review_discard = std::function<void()>;
+		void set_review_comment_hooks(comment_lock, review_answer, review_discard);
+		/// [[BPR-1345]]. The pending drafts this review carries, as the draft
+		/// owner holds them now, for the review's account and head.
+		void observe_review_comments(std::vector<core::review_submission_comment> aComments);
+		/// [[BPR-1345]]. The keys of submissions that hold drafts. Each one
+		/// this workflow is not already settling is looked up, and its answer
+		/// settles its drafts.
+		void resolve_held(std::vector<std::string> aKeys);
+
 	private:
 		using preflight_key = std::pair<std::uint64_t, application::review_submission_live_binding>;
 		struct selection
@@ -50,6 +72,10 @@ namespace bpr::app {
 		void                                                                          complete(core::review_submission_command_kind);
 		[[nodiscard]] auto                                                            decided_controls() const -> core::review_submission_controls;
 		void                                                                          project_preflight();
+		void                                                                          apply_review_comments();
+		void                                                                          send(application::review_submission_request aRequest);
+		void                                                                          answer(const application::review_submission_request& aRequest, application::review_submission_publication aPublication);
+		void                                                                          next_lookup();
 		application::effect_executor&                                                 Effects;
 		application::decision_executor&                                               Decisions;
 		qt::review_submission_editor&                                                 Editor;
@@ -76,6 +102,17 @@ namespace bpr::app {
 		QString                                                                       Status;
 		bool                                                                          Ready   = false;
 		bool                                                                          Closing = false;
+		/// [[BPR-1345]]. Start a review.
+		comment_lock                                          LockComments;
+		review_answer                                         Answer;
+		review_discard                                        DiscardReview;
+		std::vector<core::review_submission_comment>          Comments;
+		core::review_submission_rejection                     CommentsRefusal = core::review_submission_rejection::none;
+		bool                                                  Locking         = false;
+		std::vector<std::string>                              Lookups;
+		std::vector<std::string>                              LookedUp;
+		std::optional<std::string>                            LookupKey;
+		std::optional<application::review_submission_request> Recovering;
 	};
 	/// Tour composition reuses the summary host, exact grants and journal session.
 	class review_tour_publication_workflow final : public application::review_submission_projection_port

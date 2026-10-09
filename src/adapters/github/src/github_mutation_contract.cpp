@@ -184,16 +184,44 @@ namespace bpr::adapters::github::detail {
 			std::string_view State;
 		};
 
+		/// [[BPR-1345]]. One line comment a review carries: GitHub's `path`,
+		/// `line` and `side`, and for a range `start_line` and `start_side`,
+		/// in sorted key order. Absent members are skipped.
+		struct review_submission_comment_json
+		{
+			std::string_view                Body;
+			std::uint64_t                   Line = 0U;
+			std::string_view                Path;
+			std::string_view                Side;
+			std::optional<std::uint64_t>    StartLine;
+			std::optional<std::string_view> StartSide;
+
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"body", &review_submission_comment_json::Body,
+					"line", &review_submission_comment_json::Line,
+					"path", &review_submission_comment_json::Path,
+					"side", &review_submission_comment_json::Side,
+					"start_line", &review_submission_comment_json::StartLine,
+					"start_side", &review_submission_comment_json::StartSide);
+			};
+		};
+
 		struct review_submission_json
 		{
 			std::string_view Body;
-			std::string_view CommitId;
-			std::string_view Event;
+			/// [[BPR-1345]]. Present only when the review carries line
+			/// comments, so a summary-only review's bytes are unchanged.
+			std::optional<std::vector<review_submission_comment_json>> Comments;
+			std::string_view                                           CommitId;
+			std::string_view                                           Event;
 
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
 					"body", &review_submission_json::Body,
+					"comments", &review_submission_json::Comments,
 					"commit_id", &review_submission_json::CommitId,
 					"event", &review_submission_json::Event);
 			};
@@ -365,9 +393,12 @@ namespace bpr::adapters::github::detail {
 			std::optional<std::uint64_t> InReplyToId;
 			std::string                  Body;
 			review_author_json           User;
+			/// [[BPR-1345]]. The review the comment belongs to.
+			std::optional<std::uint64_t> ReviewId;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
+					"pull_request_review_id", &comment_response_json::ReviewId,
 					"id", &comment_response_json::Id,
 					"node_id", &comment_response_json::NodeId,
 					"path", &comment_response_json::Path,
@@ -883,8 +914,12 @@ namespace bpr::adapters::github::detail {
 				aRequest.Target.HeadRef, aRequest.ActingIdentity.NodeId,
 				aRequest.ActingIdentity.Login
 			};
+			// [[BPR-1345]]. Comment needs no summary when the review carries
+			// line comments; each of them needs words, and every path is text.
 			return std::ranges::all_of(texts, utf8_round_trip)
-				&& (aRequest.Disposition == core::review_disposition::approve
+				&& core::review_comments_rejection(aRequest.Body, aRequest.Comments, true) == core::review_submission_rejection::none
+				&& std::ranges::all_of(aRequest.Comments, [](const core::review_submission_comment& aComment) { return utf8_round_trip(aComment.Path) && utf8_round_trip(aComment.Body); })
+				&& (!core::summary_required(aRequest.Disposition, aRequest.Comments)
 					|| !QString::fromUtf8(aRequest.Body.data(), static_cast<qsizetype>(aRequest.Body.size())).trimmed().isEmpty());
 		}
 
@@ -2141,11 +2176,23 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
 		const auto commit = core::canonical_hex(aRequest.Target.Semantic.ExpectedHead);
-		const auto object = review_submission_json{
+		auto       object = review_submission_json{
 			.Body     = aRequest.Body,
 			.CommitId = commit.view(),
 			.Event    = submission_names(aRequest.Disposition)->Event,
 		};
+		if (!aRequest.Comments.empty()) {
+			auto& comments = object.Comments.emplace();
+			for (const auto& comment : aRequest.Comments) {
+				const auto side  = comment.Side == core::diff_side::left ? std::string_view{ "LEFT" } : std::string_view{ "RIGHT" };
+				auto       value = review_submission_comment_json{ .Body = comment.Body, .Line = std::uint64_t{ comment.Line } + 1U, .Path = comment.Path, .Side = side };
+				if (comment.StartLine) {
+					value.StartLine = std::uint64_t{ *comment.StartLine } + 1U;
+					value.StartSide = side;
+				}
+				comments.push_back(value);
+			}
+		}
 		auto bytes = glz::write<review_json_options{ }>(object);
 		if (!bytes.has_value() || bytes->size() > maximum_review_mutation_body_bytes) {
 			return failed(review_mutation_contract_failure::invalid_request);
@@ -2666,6 +2713,53 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return result;
+	}
+
+	auto parse_review_comment_collection(const review_mutation_wire_response& aResponse, const application::review_mutation_target_binding& aTarget)
+		-> review_mutation_parse_result<std::vector<review_comment_collection_entry>>
+	{
+		if (!compile_review_comment_collection_request(aTarget, aTarget.ServerContract)) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (has_header(aResponse, "location") || (aResponse.Status >= 300 && aResponse.Status < 400)) {
+			return failed(review_mutation_contract_failure::redirect);
+		}
+		// One page: a pull request with more comments than one page holds is
+		// not read in part.
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse) || has_header(aResponse, "link")) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		if (aResponse.Body.size() > maximum_review_mutation_response_bytes) {
+			return failed(review_mutation_contract_failure::response_limit);
+		}
+		const auto comments = document<std::vector<comment_response_json>>(aResponse);
+		if (!comments || comments->size() > 100U) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		auto entries = std::vector<review_comment_collection_entry>{ };
+		for (const auto& comment : *comments) {
+			if (comment.Id == 0U || !bounded_text(comment.NodeId, 256U) || !utf8_round_trip(comment.Path) || !utf8_round_trip(comment.Body)
+				|| comment.Body.size() > maximum_review_mutation_body_bytes || comment.StartLine.has_value() != comment.StartSide.has_value()
+				|| (comment.Side && *comment.Side != "LEFT" && *comment.Side != "RIGHT") || (comment.StartSide && comment.StartSide != comment.Side)
+				|| (comment.Line && (*comment.Line == 0U || *comment.Line > std::uint64_t{ std::numeric_limits<std::uint32_t>::max() } + 1U))
+				|| (comment.StartLine && (*comment.StartLine == 0U || !comment.Line || *comment.StartLine >= *comment.Line))) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			auto entry      = review_comment_collection_entry{ };
+			entry.Review    = comment.ReviewId.value_or(0U);
+			entry.Path      = comment.Path;
+			entry.Side      = comment.Side == std::optional<std::string>{ "LEFT" } ? core::diff_side::left : core::diff_side::right;
+			entry.Line      = comment.Line ? std::optional{ static_cast<std::uint32_t>(*comment.Line - 1U) } : std::nullopt;
+			entry.StartLine = comment.StartLine ? std::optional{ static_cast<std::uint32_t>(*comment.StartLine - 1U) } : std::nullopt;
+			entry.Body      = comment.Body;
+			entry.CommitId  = comment.CommitId;
+			entry.Author    = comment.User.Id;
+			entry.Login     = comment.User.Login;
+			entry.OnLine    = comment.SubjectType.value_or("line") == "line" && comment.Side.has_value();
+			entry.Reply     = comment.InReplyToId.has_value();
+			entries.push_back(std::move(entry));
+		}
+		return entries;
 	}
 
 	auto parse_review_comment_observations(

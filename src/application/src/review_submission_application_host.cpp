@@ -118,7 +118,8 @@ namespace bpr::application {
 							   reconcile,
 							   discover_tours,
 							   publish_tour,
-							   reconcile_tour };
+							   reconcile_tour,
+							   lookup };
 		struct record
 		{
 			review_submission_host_context           Context;
@@ -127,6 +128,7 @@ namespace bpr::application {
 			std::optional<staged_review_plan>        Plan;
 			review_submission_execution_grant        Grant;
 			std::stop_source                         Stop;
+			std::string                              Key;
 		};
 		review_submission_provider_factory Factory;
 		review_submission_live_binding     Binding;
@@ -162,6 +164,9 @@ namespace bpr::application {
 			}
 			if (aRecord.Operation == operation::discover) {
 				return { aRecord.Context, review_submission_discovery{ std::unexpected(aFailure) } };
+			}
+			if (aRecord.Operation == operation::lookup) {
+				return { aRecord.Context, review_submission_lookup{ .Key = aRecord.Key, .Request = std::unexpected(aFailure) } };
 			}
 			return { aRecord.Context, review_submission_result{ .Request = *aRecord.Request, .Publication = aBeforeEffect && aRecord.Operation == operation::submit ? review_submission_publication::definitely_not_published : review_submission_publication::indeterminate, .Failure = aFailure } };
 		}
@@ -232,6 +237,14 @@ namespace bpr::application {
 				}
 				return { aRecord->Context, std::move(pending) };
 			}
+			if (aRecord->Operation == operation::lookup) {
+				auto found = provider->admitted(aRecord->Key, aRecord->Stop.get_token());
+				if (found && *found
+					&& (!valid(**found) || (**found).IdempotencyKey != aRecord->Key || !(**found).LiveBinding || !same_review_submission_identity(*(**found).LiveBinding, Binding))) {
+					return refused(*aRecord, review_mutation_failure::undesignated_target, true);
+				}
+				return { aRecord->Context, review_submission_lookup{ .Key = aRecord->Key, .Request = std::move(found) } };
+			}
 			auto        result   = aRecord->Operation == operation::submit
 				? provider->submit_and_reconcile(*aRecord->Request, aRecord->Stop.get_token())
 				: provider->reconcile(*aRecord->Request, aRecord->Stop.get_token());
@@ -253,13 +266,18 @@ namespace bpr::application {
 			}
 			return { aRecord->Context, std::move(result) };
 		}
-		auto enqueue(operation aOperation, const review_submission_request* aRequest, review_submission_execution_grant aGrant, const staged_review_plan* aPlan = nullptr) -> std::optional<review_submission_host_context>
+		auto enqueue(operation aOperation, const review_submission_request* aRequest, review_submission_execution_grant aGrant, const staged_review_plan* aPlan = nullptr, std::string aKey = { }) -> std::optional<review_submission_host_context>
 		{
 			std::shared_ptr<record> request;
 			{
 				std::scoped_lock lock{ Mutex };
 				if (Closing || Active || !Factory || Session.value() == 0U || Generation.value() == 0U
 					|| !valid(Binding) || Next == std::numeric_limits<std::uint64_t>::max()) {
+					return std::nullopt;
+				}
+				if (aOperation == operation::lookup
+					&& (aKey.empty() || aKey.size() > maximum_review_submission_idempotency_key_bytes
+						|| !std::ranges::all_of(aKey, [](const char aValue) { return aValue > ' ' && aValue < '\x7f'; }))) {
 					return std::nullopt;
 				}
 				if (aPlan) {
@@ -293,6 +311,7 @@ namespace bpr::application {
 					request->Plan = *aPlan;
 				}
 				request->Grant = std::move(aGrant);
+				request->Key   = std::move(aKey);
 				Active         = request;
 			}
 			auto self = shared_from_this();
@@ -322,6 +341,7 @@ namespace bpr::application {
 	auto review_submission_application_host::discover_tours() -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::discover_tours, nullptr, { }); }
 	auto review_submission_application_host::publish_tour(const staged_review_plan& aPlan, review_submission_execution_grant aGrant) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::publish_tour, nullptr, std::move(aGrant), &aPlan); }
 	auto review_submission_application_host::reconcile_tour(const staged_review_plan& aPlan) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::reconcile_tour, nullptr, { }, &aPlan); }
+	auto review_submission_application_host::lookup(std::string aKey) -> std::optional<review_submission_host_context> { return Implementation->enqueue(implementation::operation::lookup, nullptr, { }, nullptr, std::move(aKey)); }
 	void review_submission_application_host::cancel(review_submission_host_context aContext) noexcept
 	{
 		std::scoped_lock lock{ Implementation->Mutex };

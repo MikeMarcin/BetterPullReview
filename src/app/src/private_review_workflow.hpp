@@ -43,6 +43,8 @@ namespace bpr::app {
 		void select_draft(core::source_line_ref, draft_completion);
 		void select_reply(core::source_line_ref, std::string, draft_completion);
 		void change_draft(core::revisioned_review_draft_command, draft_completion);
+		/// [[BPR-1345]]. Every command in one store transaction, or none.
+		void change_drafts(std::vector<core::revisioned_review_draft_command>, draft_completion);
 		/// [[BPR-1245]]. Records the draft as it stands on this lane, after every draft change
 		/// already queued, as one reviewer revision that History then shows; answers on the decision lane.
 		void record_workshop_press(core::review_draft_id, press_completion);

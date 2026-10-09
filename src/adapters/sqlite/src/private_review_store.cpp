@@ -848,6 +848,13 @@ namespace bpr::adapters::sqlite::detail {
 				}
 			}
 		}
+		/// [[BPR-1345]]. A pending mark is a new comment's, on the head the
+		/// draft was written on.
+		[[nodiscard]] auto valid_review_mark(const private_draft_record& aRecord) -> bool
+		{
+			const auto& draft = aRecord.Draft.Draft;
+			return !draft.InReview || (valid(*draft.InReview) && !draft.ReplyToThread && draft.InReview->Head == aRecord.Binding.Revision.HeadOid);
+		}
 		private_draft_record read_draft(private_database& aDb, std::uint64_t aId)
 		{
 			auto q = aDb.sql("SELECT d.record,d.body,c.body FROM private_draft d LEFT JOIN private_content c ON c.scope_id=d.scope_id AND c.id=d.content_id WHERE d.scope_id=?1 AND d.id=?2", aDb.Scope, aId);
@@ -855,7 +862,7 @@ namespace bpr::adapters::sqlite::detail {
 			auto record             = q.record<private_draft_record>(0);
 			record.Draft.Draft.Body = q.text(q.null(1) ? 2 : 1);
 			q.done();
-			require(record.Binding.Scope == aDb.Identity && record.Draft.Scope.value() == 0 && valid_comment_range(record.Draft.Draft), error::integrity);
+			require(record.Binding.Scope == aDb.Identity && record.Draft.Scope.value() == 0 && valid_comment_range(record.Draft.Draft) && valid_review_mark(record), error::integrity);
 			if (record.Draft.Composition) {
 				require(record.Draft.Composition->BodyDigest == private_digest(record.Draft.Draft.Body), error::integrity);
 			}
@@ -866,7 +873,7 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& item : aDrafts) {
 				const auto& d = item.Record;
 				require(valid_private_binding(d.Binding) && d.Binding.Scope == aDb.Identity && valid_private_id(d.Draft.Draft.Id) && d.Draft.Revision > 0 && d.Draft.Scope.value() == 0 && d.Draft.Draft.Body.size() <= maximum_shared_draft_body_bytes && static_cast<unsigned>(d.Draft.Draft.State) <= 3);
-				require(d.Binding.Comparison == d.Draft.Draft.Anchor.Comparison && supported_comment_target(d.Draft.Draft.Anchor.Side) && valid_comment_range(d.Draft.Draft));
+				require(d.Binding.Comparison == d.Draft.Draft.Anchor.Comparison && supported_comment_target(d.Draft.Draft.Anchor.Side) && valid_comment_range(d.Draft.Draft) && valid_review_mark(d));
 				if (d.Draft.Draft.ReplyToThread) {
 					require(d.Draft.Draft.ReplyToThread->size() <= maximum_shared_draft_reply_bytes);
 				}

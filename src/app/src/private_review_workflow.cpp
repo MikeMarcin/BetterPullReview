@@ -742,6 +742,17 @@ namespace bpr::app {
 		},
 			 std::move(aCompletion));
 	}
+	void private_review_workflow::change_drafts(std::vector<core::revisioned_review_draft_command> aCommands, draft_completion aCompletion)
+	{
+		post([commands = std::move(aCommands)](context& aContext) {
+			result                                           output;
+			application::review_composition_application_host host(*aContext.Store);
+			output.Drafts  = accepted(host.change_drafts(commands));
+			output.Refresh = false;
+			return output;
+		},
+			 std::move(aCompletion));
+	}
 	void private_review_workflow::record_workshop_press(core::review_draft_id aDraft, press_completion aCompletion)
 	{
 		if (Closing || !Current || !Binding || !Index) {

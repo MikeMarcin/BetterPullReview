@@ -1073,10 +1073,13 @@ namespace bpr::adapters::sqlite {
 		}
 
 		// The snapshot has its own version and preserves full-width IDs and literal body bytes.
+		// [[BPR-1345]]. A review that carries line comments is version 2, with
+		// its comments after the version 1 fields; a summary-only review keeps
+		// exactly its version 1 bytes.
 		auto encode_submission(const application::review_submission_request& aRequest) -> std::vector<std::uint8_t>
 		{
 			submission_writer out;
-			out.integer(1U);
+			out.integer(aRequest.Proposal.Comments.empty() ? 1U : 2U);
 			const auto& proposal = aRequest.Proposal;
 			const auto& target   = aRequest.LiveBinding->Target;
 			const auto& actor    = aRequest.LiveBinding->ActingIdentity;
@@ -1107,12 +1110,25 @@ namespace bpr::adapters::sqlite {
 			out.integer(actor.DatabaseId);
 			out.text(actor.NodeId);
 			out.text(actor.Login);
+			if (!proposal.Comments.empty()) {
+				out.integer(proposal.Comments.size());
+				for (const auto& comment : proposal.Comments) {
+					out.integer(comment.Draft.value());
+					out.integer(comment.DraftRevision);
+					out.text(comment.Path);
+					out.integer(static_cast<std::uint64_t>(comment.Side));
+					out.integer(comment.Line);
+					out.integer(comment.StartLine ? std::uint64_t{ *comment.StartLine } + 1U : 0U);
+					out.text(comment.Body);
+				}
+			}
 			return out.Bytes;
 		}
 		auto decode_submission(std::span<const std::uint8_t> aBytes) -> std::optional<application::review_submission_request>
 		{
 			submission_reader in{ aBytes };
-			if (in.integer() != 1U) {
+			const auto        version = in.integer();
+			if (version != 1U && version != 2U) {
 				return std::nullopt;
 			}
 			application::review_submission_request request;
@@ -1156,9 +1172,28 @@ namespace bpr::adapters::sqlite {
 			}
 			target.Open = true;
 			in.identity(actor.Account);
-			actor.DatabaseId       = in.integer();
-			actor.NodeId           = in.text();
-			actor.Login            = in.text();
+			actor.DatabaseId = in.integer();
+			actor.NodeId     = in.text();
+			actor.Login      = in.text();
+			if (version == 2U) {
+				const auto count = in.bounded(core::maximum_review_submission_comments);
+				if (count == 0U) {
+					return std::nullopt;
+				}
+				for (auto index = std::uint64_t{ 0U }; index < count; ++index) {
+					auto comment = core::review_submission_comment{ };
+					in.identity(comment.Draft);
+					comment.DraftRevision = in.integer();
+					comment.Path          = in.text(core::maximum_pending_mark_path_bytes);
+					comment.Side          = static_cast<core::diff_side>(in.bounded(static_cast<std::uint64_t>(core::diff_side::right)));
+					comment.Line          = static_cast<std::uint32_t>(in.bounded(std::numeric_limits<std::uint32_t>::max()));
+					if (const auto start = in.bounded(std::numeric_limits<std::uint32_t>::max()); start != 0U) {
+						comment.StartLine = static_cast<std::uint32_t>(start - 1U);
+					}
+					comment.Body = in.text(core::maximum_review_submission_body_bytes);
+					proposal.Comments.push_back(std::move(comment));
+				}
+			}
 			proposal.Target        = target.Semantic;
 			proposal.ActingAccount = actor.Account;
 			return in.done() && application::valid(request) ? std::optional{ std::move(request) } : std::nullopt;
@@ -1489,6 +1524,44 @@ namespace bpr::adapters::sqlite {
 					}
 					return candidate;
 				});
+			}
+
+			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				// [[BPR-1345]]. The connection runs with no trigger depth, so a
+				// DELETE from the attempt table, a foreign-key parent with a
+				// cascading action, cannot even be prepared. Its one child row
+				// is deleted first, explicitly, and foreign-key actions are off
+				// for this transaction alone; they are on again before return.
+				if (!detail::execute(Database, "PRAGMA foreign_keys = OFF")) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto       withdrawn = transaction<void>([&]() -> std::expected<void, failure> {
+					auto loaded = load_locked(aKey);
+					if (!loaded) {
+						return std::unexpected(loaded.error());
+					}
+					if (!*loaded) {
+						return { };
+					}
+					if ((**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved || (**loaded).Receipt) {
+						return std::unexpected(failure::conflict);
+					}
+					for (const auto* statement : { "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
+						auto erase = detail::prepare(Database, statement);
+						if (!erase || !scope_key(erase->Value, 1, aKey) || ::sqlite3_step(erase->Value) != SQLITE_DONE) {
+							return std::unexpected(failure::unavailable);
+						}
+					}
+					return { };
+				});
+				const auto restored  = detail::execute(Database, "PRAGMA foreign_keys = ON");
+				const auto enforced  = detail::scalar_integer(Database, "PRAGMA foreign_keys");
+				if (!restored || !enforced || *enforced != 1) {
+					return std::unexpected(failure::unavailable);
+				}
+				return withdrawn;
 			}
 
 		private:
