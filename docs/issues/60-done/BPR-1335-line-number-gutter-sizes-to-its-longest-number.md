@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1335"
 title: "The line-number gutter sizes to the longest number it shows"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1335--BPR-1335--645a64497526.json","related_cards":["BPR-0455","BPR-1290","BPR-1212","BPR-1264"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1335:cause","outcome":"pass","revision":"54c5a5988","evidence":{"kind":"artifact","detail":"Card section Cause records the four reasons the gutter was wider (padding, digit floors, one digit width, staged adoption)."}},{"criterion":"BPR-1335:width","outcome":"pass","revision":"54c5a5988","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200}: 9/99/1557/100000-line files give digits x widest digit advance + 8 px (16/24/40/56 px)."}},{"criterion":"BPR-1335:control","outcome":"pass","revision":"54c5a5988","evidence":{"kind":"command","detail":"The same test against the source before the change fails at all three scales (9-line file: gutter=28 expected=16)."}},{"criterion":"BPR-1335:stable","outcome":"pass","revision":"54c5a5988","evidence":{"kind":"command","detail":"Width holds scrolling the 100000-line file to its end, widest number painted whole, font change resizes the gutter."}},{"criterion":"BPR-1335:rows","outcome":"pass","revision":"b864e319d","evidence":{"kind":"command","detail":"qt_diff_workbench_scale_{100,125,200}, qt_workbench_window_scale_{100,125,200}, qt_workbench_conversation_reveal, qt_workbench_line_draft: 8 of 8 pass on v002 (macOS); Linux station passes at e602e2cf9 rows except the colour sample fixed in v002."}},{"criterion":"BPR-1335:markers","outcome":"pass","revision":"frozen-b864e319d-v002","evidence":{"kind":"observation","detail":"Owner Accept on BPR-1335-add-button-v002, session b4b76c70c8e54f1933410b582189d0e8, decision e7d697dd-056d-418f-bc6d-ffa10b11d687, note: 'bug: Why is this damned tooltip far away again. This is a consistent problem.' (filed as BPR-1354)."}},{"criterion":"BPR-1335:base-side","outcome":"pass","revision":"answer-b864e319d-v001","evidence":{"kind":"observation","detail":"Owner Accept on BPR-1335-base-side-v001, session b4b76c70c8e54f1933410b582189d0e8, decision aa39b2f7-bdc6-4ac0-acb9-66417c610e42; follow-up filed as BPR-1353."}}]
 ---
 
 # BPR-1335: The line-number gutter sizes to the longest number it shows
@@ -502,7 +502,7 @@ controls, not for main). It holds:
 It still lacks the window's reasons and names, the composition's merge-base
 gate and a composed publish course.
 
-## Owner look on v002 (pending)
+## Owner look on v002
 
 One new short session, two candidates, one Accept or Reject question each.
 
@@ -525,16 +525,35 @@ One new short session, two candidates, one Accept or Reject question each.
 - v001's session `6541cdcd…` is released with its Reject kept, and its frozen
   root is removed.
 
-## Next
+## Owner verdict on v002, 2026-10-09
 
-Read session `b4b76c70…` from cursor 6.
+Session `b4b76c70c8e54f1933410b582189d0e8`, handed back at event 9; cursor 6
+to 9 read.
 
-- Accept on `BPR-1335-add-button-v002` satisfies `BPR-1335:markers`.
-- Accept on `BPR-1335-base-side-v001` satisfies `BPR-1335:base-side`. Then
-  allocate the follow-up card, with the plan above and the
-  `bpr-1335-base-side-wip` branch, and finish this card.
-- A Reject on either comes back with the change in its note.
+- `BPR-1335-add-button-v002` (revision `frozen-b864e319d-v002`, fingerprint
+  `d70e6b786fd7…`), criterion `BPR-1335:markers`: **Accept** (decision
+  `e7d697dd-056d-418f-bc6d-ffa10b11d687`, 05:06:32Z). Note, verbatim:
 
-Then remove the frozen root with `freeze_attended_build.py remove`. Windows
-runs of the two rows are still owed to the station.
+  > bug: Why is this damned tooltip far away again. This is a consistent problem.
 
+  The owner attached a screenshot (kept in the session file, not committed):
+  the "+" sits on line 608, and its "Add comment (↩)" tooltip shows about
+  three lines lower, near line 611, and to the right of the button. The "+"
+  itself is accepted; the tooltip placement is filed as [[BPR-1354]], which
+  fixes it for every control, not only this one.
+- `BPR-1335-base-side-v001` (revision `answer-b864e319d-v001`, fingerprint
+  `68f67a508103…`), criterion `BPR-1335:base-side`: **Accept** (decision
+  `aa39b2f7-bdc6-4ac0-acb9-66417c610e42`, 05:08:01Z), no note. The follow-up
+  goes ahead as [[BPR-1353]], with the plan above and the branch
+  `bpr-1335-base-side-wip` (`cf85998b9`), now pushed to `origin`.
+
+The session is released (`stop`, then `resume-development --all`, sequence
+10) with both Accepts kept. Frozen root `bpr1335-add-button-v002.a9imrgo8`
+was removed with `freeze_attended_build.py remove`.
+
+## Close-out
+
+Every criterion is met: `cause`, `width`, `control`, `stable` and `rows` by
+slice 1 and the rows rerun on each later slice; `markers` by the v002 Accept;
+`base-side` by its Accept. Windows runs of the two rows are still owed to the
+station; platform eligibility is metadata, so they do not hold the card open.
