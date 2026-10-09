@@ -213,3 +213,9 @@ the frozen root
 `/Users/jaeger/.mask/attended-review/bpr1365-home-reviewing-v001.x8t3w3e7`
 was removed with `scripts/freeze_attended_build.py remove`. The session's
 state folder keeps the record. The card is Done.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `9b1603193`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass: `qt_home_list_scale_{100,125,200}`,
+`qt_composed_github_scale_{100,125,200}` and
+`application_home_open_feedback_public_path`.

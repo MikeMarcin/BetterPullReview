@@ -942,3 +942,13 @@ Cleanup: the session's candidates were released, its host (pid 28600) was
 stopped, and the frozen root
 `/Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v003.i2hsl035`
 was removed with `scripts/freeze_attended_build.py remove`.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `9b1603193`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass:
+- `application_start_review_contract`, which runs all five courses (pending,
+  finish, refused, uncertain, again) and checks each course's evidence marker;
+- `qt_destructive_question_scale_{100,200}` and
+  `qt_review_submission_editor_scale_{100,125,200}`;
+- `qt_workbench_conversation_reveal`, `qt_workbench_line_draft` and
+  `qt_workbench_window_scale_{100,125,200}`.
