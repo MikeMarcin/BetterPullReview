@@ -13,6 +13,8 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFontInfo>
+#include <QFormLayout>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -21,19 +23,24 @@
 #include <QMetaObject>
 #include <QPlainTextEdit>
 #include <QPoint>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QStackedWidget>
+#include <QStyleFactory>
 #include <QSysInfo>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include <array>
 
 #include <cstdlib>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -393,7 +400,7 @@ namespace {
 		expect(panel != nullptr && path != nullptr && save != nullptr && choose != nullptr && status != nullptr && signIn != nullptr && heading != nullptr,
 			   "Agents & context mounts the Claude rows");
 		expect(heading->text() == QStringLiteral("Claude") && path->text().isEmpty() && status->text().isEmpty(), "nothing is claimed before the profile publishes");
-		expect(signIn->text() == QStringLiteral("Sign-in is left to Claude and the wrapper; BetterPullReview never asks you to sign in to Claude."),
+		expect(signIn->text() == QStringLiteral("Claude and your wrapper handle sign-in. BetterPullReview never asks."),
 			   "one line says sign-in is Claude's and the wrapper's (owner, 2026-10-06: no switch)");
 		expect(page->findChildren<QCheckBox*>().size() == 1, "no sign-in switch is offered; the only check box is the private draft");
 
@@ -472,6 +479,97 @@ namespace {
 		workbench.withdraw_agent_surfaces();
 		settings->search_field()->setText(QStringLiteral("process wrapper"));
 		expect(panel->isHidden() && !result_names(*settings).contains(QStringLiteral("Process wrapper")), "withdrawn agent surfaces take the Claude rows with them");
+	}
+
+	/// \brief Keeps form fields at their size hint, as the macOS style does,
+	/// so an offscreen run lays the Claude rows out the way the owner saw them.
+	class size_hint_fields_style final : public QProxyStyle
+	{
+	public:
+		using QProxyStyle::QProxyStyle;
+
+		[[nodiscard]] auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget, QStyleHintReturn* const aReturn) const
+			-> int override
+		{
+			if (aHint == SH_FormLayoutFieldGrowthPolicy) {
+				return QFormLayout::FieldsStayAtSizeHint;
+			}
+			return QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+	};
+
+	/// \brief [[BPR-1301]] sign-in-line-v002, rejected "Cant read this". Every
+	/// line under Claude on Agents & context is drawn whole, in the page's own
+	/// text size, at 4.5:1 or better against the page in the light, dark and
+	/// both high-contrast themes and in the unthemed (native) palette.
+	void test_agents_page_claude_rows_are_readable()
+	{
+		const auto previous = QApplication::style()->name();
+		QApplication::setStyle(new size_hint_fields_style{ QStyleFactory::create(previous) });
+		{
+			qt::workbench_window workbench;
+			auto* const          settings = workbench.settings();
+			auto* const          page     = settings->page_widget(qt::settings_page::agents_and_context);
+			auto* const          panel    = workbench.claude_wrapper();
+			panel->set_dispatch([](std::string) { }, [] { });
+			panel->present({ });
+			panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude", .Origin = core::claude_found_in::path });
+			const auto lines = std::array{
+				page->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus")),
+				page->findChild<QLabel*>(QStringLiteral("claudeWrapperFound")),
+				page->findChild<QLabel*>(QStringLiteral("claudeWrapperHelp")),
+				page->findChild<QLabel*>(QStringLiteral("claudeSignIn")),
+			};
+			for (auto* const line : lines) {
+				expect(line != nullptr, "Agents & context mounts every Claude line");
+			}
+			const auto whole = [&](const int aWidth, const std::string_view aWhen) {
+				settings->resize(aWidth, 820);
+				settings->present(qt::settings_page::agents_and_context);
+				QApplication::processEvents();
+				for (auto* const line : lines) {
+					expect(line->isVisibleTo(page) && line->height() >= line->heightForWidth(line->width()),
+						   std::string{ "no Claude line is cut off with fields at their size hint, " } + std::string{ aWhen } + ": "
+							   + line->objectName().toStdString());
+				}
+			};
+			whole(900, "at the reviewed width");
+			whole(680, "in a narrow window");
+			whole(1300, "in a wide window");
+			for (auto* const line : lines) {
+				expect(QFontInfo{ line->font() }.pointSizeF() >= QFontInfo{ page->font() }.pointSizeF(),
+					   "every Claude line is set at the page's own text size: " + line->objectName().toStdString());
+			}
+			const auto readable = [&](const std::string_view aTheme) {
+				QApplication::processEvents();
+				const auto ground = page->palette().color(QPalette::Active, page->backgroundRole());
+				for (auto* const line : lines) {
+					const auto ink   = line->palette().color(QPalette::Active, line->foregroundRole());
+					const auto ratio = qt::contrast_ratio(qt::to_appearance_color(ink), qt::to_appearance_color(ground));
+					expect(ratio >= 4.5,
+						   std::string{ "WCAG AA (4.5:1) against the page in " } + std::string{ aTheme } + ": " + line->objectName().toStdString() + " reads "
+							   + std::to_string(ratio) + ":1");
+				}
+			};
+			readable("the native palette");
+			for (const auto& [mode, theme] : std::array{ std::pair{ core::appearance_mode::light, "Light" },
+														 std::pair{ core::appearance_mode::dark, "Dark" },
+														 std::pair{ core::appearance_mode::high_contrast_light, "High Contrast Light" },
+														 std::pair{ core::appearance_mode::high_contrast_dark, "High Contrast Dark" } }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				profile.apply_to(*settings);
+				readable(theme);
+				if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
+					settings->resize(900, 820);
+					QApplication::processEvents();
+					expect(settings->grab().save(directory + QStringLiteral("/agents-and-context-claude-%1.png").arg(QString::fromLatin1(theme).toLower().replace(QLatin1Char{ ' ' }, QLatin1Char{ '-' }))),
+						   "the themed Agents & context render is saved");
+				}
+			}
+			settings->hide();
+		}
+		QApplication::setStyle(QStyleFactory::create(previous));
 	}
 
 	/// \brief [[BPR-1289]]. The index is the pages as shown: a withdrawn page is
@@ -594,6 +692,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_search_finds_and_goes_to_a_setting();
 	test_settings_search_reads_the_pages_as_shown();
 	test_agents_page_claude_wrapper_rows();
+	test_agents_page_claude_rows_are_readable();
 	std::cout << "settings-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

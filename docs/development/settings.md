@@ -218,9 +218,11 @@ wrapper always wins ([[BPR-1301]], owner 2026-10-07). **Choose…** picks the fi
 path is checked before it is saved and again before every launch, and a
 refused path is not saved: the row says why in one line (not absolute, starts
 with `~`, nothing there, a folder, not executable, and on Windows not an `.exe`
-or a `.bat`/`.cmd`, which only `cmd.exe` runs). The **Sign-in** line says sign-in
-is left to Claude and the wrapper; BetterPullReview never asks you to sign in
-to Claude. See the [AI agent boundary](../architecture/ai-agent-boundary.md#claude-process-wrapper).
+or a `.bat`/`.cmd`, which only `cmd.exe` runs). The **Sign-in** line reads
+"Claude and your wrapper handle sign-in. BetterPullReview never asks." Every
+line under Claude is set in the page's own text colour and size, at 4.5:1 or
+better against the page in each theme, and wraps without being cut off.
+See the [AI agent boundary](../architecture/ai-agent-boundary.md#claude-process-wrapper).
 
 ## Storage & privacy
 

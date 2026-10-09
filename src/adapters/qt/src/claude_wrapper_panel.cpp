@@ -40,11 +40,17 @@ namespace bpr::qt {
 			}
 		}
 
+		/// Every line in these rows is set in the page's own text role and size,
+		/// like the page's other explanations. The quieter placeholder role read
+		/// below 4.5:1 against the page in the light and high-contrast light
+		/// themes and in macOS light ([[BPR-1301]] sign-in-line-v002, "Cant read
+		/// this").
 		[[nodiscard]] auto note(const QString& aText, QWidget* const aParent) -> QLabel*
 		{
 			auto* const label = new QLabel{ aText, aParent };
 			label->setTextFormat(Qt::PlainText);
 			label->setWordWrap(true);
+			label->setForegroundRole(QPalette::WindowText);
 			return label;
 		}
 	}
@@ -62,10 +68,16 @@ namespace bpr::qt {
 		heading->setFont(font);
 		column->addWidget(heading);
 
-		auto* const form    = new QFormLayout{ };
+		auto* const form = new QFormLayout{ };
+		// The field column takes the row's width under every style. macOS keeps
+		// fields at their size hint, which drew the wrapped explanation and the
+		// Sign-in line narrower than the width their height was measured at, so
+		// both were cut off top and bottom ([[BPR-1301]] sign-in-line-v002).
+		form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 		auto* const wrapper = new QWidget{ this };
 		auto* const stack   = new QVBoxLayout{ wrapper };
-		stack->setContentsMargins(0, 0, 0, 0);
+		// Space under the explanation, so the Sign-in row reads as its own row.
+		stack->setContentsMargins(0, 0, 0, 8);
 		auto* const line = new QHBoxLayout{ };
 		Path             = new QLineEdit{ wrapper };
 		Path->setObjectName(QStringLiteral("claudeWrapperPath"));
@@ -87,8 +99,8 @@ namespace bpr::qt {
 		SaveButton->setAccessibleName(tr("Save Claude process wrapper"));
 		line->addWidget(SaveButton);
 		stack->addLayout(line);
-		// The answer sits under the field it answers; the explanation, quieter,
-		// under that.
+		// The answer sits under the field it answers; the explanation under
+		// that, set apart by space rather than by a fainter colour.
 		Status = note({ }, wrapper);
 		Status->setObjectName(QStringLiteral("claudeWrapperStatus"));
 		Status->setAccessibleName(tr("Claude process wrapper status"));
@@ -108,7 +120,7 @@ namespace bpr::qt {
 								   "that sets up your provider and then runs it. Leave it empty to use the claude found on PATH."),
 								wrapper);
 		help->setObjectName(QStringLiteral("claudeWrapperHelp"));
-		help->setForegroundRole(QPalette::PlaceholderText);
+		stack->addSpacing(4);
 		stack->addWidget(help);
 		// The label names the path field itself, so search and assistive
 		// technology read "Process wrapper" for the field, not its row.
@@ -118,7 +130,7 @@ namespace bpr::qt {
 
 		// [[BPR-1301]], owner 2026-10-06 ("Accept (no switch)"). BetterPullReview
 		// has no sign-in of its own for an agent, so there is nothing to switch.
-		auto* const signIn = note(tr("Sign-in is left to Claude and the wrapper; BetterPullReview never asks you to sign in to Claude."), this);
+		auto* const signIn = note(tr("Claude and your wrapper handle sign-in. BetterPullReview never asks."), this);
 		signIn->setObjectName(QStringLiteral("claudeSignIn"));
 		form->addRow(tr("Sign-in"), signIn);
 		column->addLayout(form);
