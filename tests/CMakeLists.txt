@@ -27,6 +27,15 @@ if(BPR_BUILD_TOUR_CLI)
         "${PROJECT_SOURCE_DIR}/packaging/agent-skills/pr-tour" "$<TARGET_FILE:test_tour_cli_composition>")
     bpr_add_network_isolated_test(NAME tour_cli_public_entry
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_tests.py" "$<TARGET_FILE:app_bpr>")
+    # [[BPR-1092]]. `bpr tour labels` as real processes: the real `bpr` for the catalog, the pack's
+    # parser cases and label edits, the fixture CLI for counts, each compared with what the desktop's
+    # own core and application functions decide on the same fixture (`--desktop-services`), plus no
+    # store of its own, a conflict, a missing capability, partial coverage and a running owner.
+    bpr_add_network_isolated_test(NAME tour_cli_labels WINDOWS_UNCONTAINED
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/tour_cli_labels_tests.py" "$<TARGET_FILE:app_bpr>"
+        "$<TARGET_FILE:test_tour_cli_composition>"
+        "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1/fixtures/parser-cases.json")
+    set_tests_properties(tour_cli_labels PROPERTIES TIMEOUT 300 PASS_REGULAR_EXPRESSION "tour-cli-labels:pass")
     # [[BPR-1302]]. The real `bpr` through the real remote reader against a
     # loopback GitHub: one CONNECT proxy and TLS origin at 127.0.0.1 under a
     # disposable authority, reached through the adapter's BUILD_TESTING-only

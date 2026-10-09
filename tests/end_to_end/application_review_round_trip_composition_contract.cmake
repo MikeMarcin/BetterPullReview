@@ -1175,6 +1175,12 @@ endfunction()
 # write, mutation or publication path; full-application and mutation pins
 # unchanged; no new src/app source. Self-review on BPR-1091, not independent
 # review.
+# BPR-1092 inventory (2026-10-08): tour_feedback.cpp and tour_feedback.hpp
+# enter the tree inventory, in the tour runtime library only: `bpr tour labels`
+# names what the core catalog and recognizer, core::plan_feedback_tour_stop_edit
+# and the application counter model decide. No pinned source changed (no
+# github_application.cpp or production-manifest edit), so no digest moves; no
+# grant, target, provider, mutation or publication path; mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1354,6 +1360,8 @@ function(bpr_verify_app_source_tree app_source_root)
 		"src/tour_decisions.hpp"
 		"src/tour_editor.cpp"
 		"src/tour_editor.hpp"
+		"src/tour_feedback.cpp"
+		"src/tour_feedback.hpp"
 		"src/tour_main.cpp"
 		"src/tour_observation.hpp"
 		"src/tour_owner_service.cpp"

@@ -6,6 +6,12 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/application/feedback_counters.hpp"
+#include "bpr/application/overview_feedback.hpp"
+#include "bpr/core/feedback_conversation.hpp"
+#include "bpr/core/feedback_draft_edit.hpp"
+#include "bpr/core/feedback_label_columns.hpp"
+#include "bpr/core/review_tour_markdown.hpp"
 #include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -32,7 +38,78 @@ namespace {
 		int           Opens   = 0;
 		std::uint64_t Account = 18446744073709551615ULL;
 		bool          Roots = false, Multiple = false;
+		/// [[BPR-1092]] Review conversations in the read: `threads`, `rest` or `partial`. Empty
+		/// takes BPR_TOUR_FIXTURE_FEEDBACK, so a course can choose it for one process.
+		std::string Feedback;
 	};
+	/// [[BPR-1092]] One pull request's review conversations, the same for the CLI and the desktop
+	/// services the parity course compares. Native threads carry resolution; REST groups do not;
+	/// `partial` reads no inline conversation at all.
+	void add_feedback(application::github_pull_request_snapshot& aSnapshot, std::string_view aMode)
+	{
+		using namespace application;
+		const auto file = [](std::string aPath) {
+			github_file_record value;
+			value.Path   = std::move(aPath);
+			value.Change = github_file_change::modified;
+			return value;
+		};
+		aSnapshot.Files    = { file("src/engine/renderer.cpp"), file("docs/README.md"), file("src/quiet.cpp") };
+		const auto comment = [](std::string aId, std::string aBody, std::string aPath, std::optional<std::string> aReplyTo = std::nullopt) {
+			github_review_comment_record value;
+			value.Comment = github_comment_id{ std::move(aId) };
+			if (aReplyTo) {
+				value.ReplyTo = github_comment_id{ std::move(*aReplyTo) };
+			}
+			value.Body = std::move(aBody);
+			value.Path = std::move(aPath);
+			value.Line = 3U;
+			return value;
+		};
+		const auto thread = [](std::string aId, std::string aPath, bool aResolved, std::vector<github_review_comment_record> aComments) {
+			github_review_thread_record value;
+			value.Thread   = github_thread_id{ std::move(aId) };
+			value.Path     = std::move(aPath);
+			value.Line     = 3U;
+			value.Resolved = aResolved;
+			value.Comments = std::move(aComments);
+			return value;
+		};
+		aSnapshot.ReviewThreads.clear();
+		aSnapshot.ReviewCommentGroups.clear();
+		if (aMode == "threads") {
+			aSnapshot.ReviewThreadsAvailability = github_collection_availability::available;
+			aSnapshot.ReviewThreads             = {
+				thread("T1", "src/engine/renderer.cpp", false, { comment("c1", "issue (blocking): the cache races the renderer.\r\n", "src/engine/renderer.cpp"), comment("c2", "praise: good catch", "src/engine/renderer.cpp", "c1") }),
+				thread("T2", "src/engine/renderer.cpp", true, { comment("c3", "question: why a second lock?", "src/engine/renderer.cpp") }),
+				thread("T3", "docs/README.md", false, { comment("c4", "Looks fine to me.", "docs/README.md") }),
+				thread("T4", "", false, { comment("c5", "nitpick: rename the flag.", "") }),
+				thread("T5", "docs/README.md", false, { comment("c6", "**todo (if-minor, docs):** link the RFC.", "docs/README.md") }),
+				thread("T6", "src/engine/renderer.cpp", false, { comment("c7", "issue (blocking: unclosed", "src/engine/renderer.cpp") }),
+			};
+		} else if (aMode == "rest") {
+			aSnapshot.ReviewThreadsAvailability  = github_collection_availability::unavailable;
+			aSnapshot.ReviewCommentsAvailability = github_collection_availability::available;
+			github_review_comment_group_record first;
+			first.Root = comment("g1", "issue: from the public REST read", "src/engine/renderer.cpp");
+			github_review_comment_group_record second;
+			second.Root                   = comment("g2", "question: is this documented?", "docs/README.md");
+			aSnapshot.ReviewCommentGroups = { std::move(first), std::move(second) };
+		} else {
+			aSnapshot.ReviewThreadsAvailability  = github_collection_availability::unavailable;
+			aSnapshot.ReviewCommentsAvailability = github_collection_availability::unavailable;
+		}
+		github_issue_comment_record note;
+		note.Comment = github_comment_id{ "issue40" };
+		note.Body    = "note: the migration lands separately.";
+		aSnapshot.IssueComments.push_back(std::move(note));
+		github_review_record summary;
+		summary.DatabaseId = 41U;
+		summary.Review     = github_review_id{ "review41" };
+		summary.State      = github_review_state::commented;
+		summary.Body       = "suggestion: split the renderer.";
+		aSnapshot.Reviews.push_back(std::move(summary));
+	}
 	class fixture_reader final : public app::tour_remote_reader
 	{
 		fixture_state& State;
@@ -62,6 +139,9 @@ namespace {
 			s.Repository                = { .Repository = seed.Owner.Repository, .Node = application::github_node_id{ "repo" }, .Owner = result.Target.Repository.Owner, .Name = result.Target.Repository.Name };
 			s.PullRequest               = { .PullRequest = seed.Owner.PullRequest, .Repository = seed.Owner.Repository, .Number = aNumber, .Node = application::github_node_id{ "pull" }, .Body = "## Problem\r\nProblem **raw**\r\n## Solution\r\nSolution\r\n" };
 			s.ReviewThreadsAvailability = application::github_collection_availability::available;
+			if (const auto feedback = State.Feedback.empty() ? qEnvironmentVariable("BPR_TOUR_FIXTURE_FEEDBACK").toStdString() : State.Feedback; !feedback.empty()) {
+				add_feedback(s, feedback);
+			}
 			if (State.Roots) {
 				const auto prefix = "https://" + result.Target.Hostname + "/" + result.Target.Repository.Owner + "/" + result.Target.Repository.Name + "/pull/" + std::to_string(aNumber.value());
 				s.IssueComments.push_back({ .Comment = application::github_comment_id{ "comment8" }, .Author = s.Viewer, .Observation = { .DatabaseId = 8, .WebUrl = prefix + "#issuecomment-8", .UpdatedAt = "v1", .RawBody = "raw\x1b[2J body\r\n" } });
@@ -799,6 +879,258 @@ namespace {
 		auto after = status();
 		expect(revision(after) == rev && stop(after, 1) == stop(after, 0), "the forwarded stop is durable and equal");
 	}
+	/// [[BPR-1092]]. `bpr tour labels` through the shipped CLI: counts start from the profile's Settings,
+	/// a published stop is read as the counters read it, an edit beside a running owner is forwarded and
+	/// races honestly, a lost answer is never applied twice, and what bpr cannot do is said.
+	void label_courses()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cli-labels" };
+		const auto                           dataRoot = scratch.path() / "profile data";
+		const auto                           root     = QString::fromStdString(dataRoot.string());
+		fixture_state                        state;
+		auto                                 call   = [&](QStringList args) {args.append({"--data-root",root});return run(args,state); };
+		auto                                 opened = call({ "tour", "open", "https://github.com/o/r/pull/7", "--json" });
+		expect(opened.Exit == 0, "open the draft");
+		const auto id   = opened.json()["data"].toObject()["draft_id"].toString();
+		auto       code = [](const reply& aReply) { return aReply.json()["error"].toObject()["code"].toString(); };
+		auto       put  = [&](const char* name, const std::string& bytes) {
+			const auto    path = scratch.path() / name;
+			std::ofstream out{ path, std::ios::binary };
+			out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+			return QString::fromStdString(path.string());
+		};
+		auto revision = [&] { return call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["revision"].toString(); };
+		auto stopBody = [&](const QString& aStop) { return call({ "tour", "show", "stop:" + aStop, "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["text"].toString(); };
+		// Counts start from the profile's Settings chips and count mode, as the Overview does.
+		state.Feedback = "threads";
+		auto defaults  = call({ "tour", "labels", "counts", "--profile", "1", "--draft", id, "--json" });
+		expect(defaults.Exit == 0 && defaults.json()["data"].toObject()["counts"].toObject()["columns"].toArray().isEmpty() && defaults.json()["data"].toObject()["counts"].toObject()["mode"] == "open" && defaults.json()["data"].toObject()["counts"].toObject()["columns_source"] == "settings", "a new profile counts with no chips, Open, from Settings");
+		{
+			auto admitted = app::admit_profile(dataRoot, "1");
+			expect(admitted.has_value(), "the profile admits for a settings write");
+			auto store = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = admitted->Root });
+			expect(store.has_value(), "the profile's settings open");
+			auto preferences = (*store)->load_preferences({ });
+			expect(preferences.has_value(), "and load");
+			const std::array chips{ core::feedback_label::question, core::feedback_label::issue };
+			preferences->Behaviour.LabelColumns   = *core::make_feedback_label_columns(chips);
+			preferences->Behaviour.OverviewCounts = application::review_overview_counts::all;
+			expect((*store)->store_preferences(*preferences, { }).has_value(), "Settings choose question and issue, and All");
+		}
+		auto       chosen = call({ "tour", "labels", "counts", "--profile", "1", "--draft", id, "--json" });
+		const auto counts = chosen.json()["data"].toObject()["counts"].toObject();
+		expect(chosen.Exit == 0 && counts["columns"].toArray() == QJsonArray{ "question", "issue" } && counts["mode"] == "all" && counts["columns_source"] == "settings" && counts["mode_source"] == "settings", "the Settings chips, in their order, and All are the defaults");
+		const auto whole = counts["pull_request"].toObject();
+		expect(whole["labels"].toArray()[0].toObject()["count"] == "1" && whole["labels"].toArray()[1].toObject()["count"] == "1" && whole["unclassified"] == "1" && whole["included"] == "8", "All counts question 1 and issue 1 of the eight conversations; the malformed issue is unclassified, not an issue");
+		auto overridden = call({ "tour", "labels", "counts", "--columns", "none", "--mode", "open", "--profile", "1", "--draft", id, "--json" });
+		expect(overridden.json()["data"].toObject()["counts"].toObject()["columns_source"] == "option" && overridden.json()["data"].toObject()["counts"].toObject()["pull_request"].toObject()["included"] == "5", "an explicit choice overrides Settings for one command only");
+		expect(code(call({ "tour", "labels", "counts", "--columns", "issue,issue", "--profile", "1", "--draft", id, "--json" })) == "invalid_columns" && code(call({ "tour", "labels", "counts", "--columns", "Issue", "--profile", "1", "--draft", id, "--json" })) == "invalid_columns", "a repeated or misspelled chip is refused, never dropped");
+		state.Feedback.clear();
+		// A published stop is read inside its narrative, as the counters read it; the heading is never a label.
+		const std::array navigation{ core::tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" } };
+		const auto       published = *core::render_tour_stop("How", 2, "question: Does the cache outlive the view?", navigation);
+		auto             asPost    = call({ "tour", "labels", "parse", "--published", "--file", put("published.md", published), "--json" });
+		auto             asBody    = call({ "tour", "labels", "parse", "--file", put("published.md", published), "--json" });
+		expect(asPost.json()["data"].toObject()["label"] == "question" && asPost.json()["data"].toObject()["segment"] == "published_managed", "a published stop's narrative label is read");
+		expect(asBody.json()["data"].toObject()["status"] != "recognized", "read as an ordinary body, the generated heading is not a label");
+		const auto broken = published.substr(0, published.find("question:")) + "question: no footer\n";
+		auto       noMap  = call({ "tour", "labels", "parse", "--published", "--file", put("broken.md", broken), "--json" });
+		expect(noMap.json()["data"].toObject()["status"] == "plain" && noMap.json()["data"].toObject()["diagnostics"].toArray().contains(QJsonValue{ "classification_unavailable" }), "an envelope that does not map gives no author text, never a guessed label");
+		// A stop to label.
+		expect(call({ "tour", "add", "src/a.cpp:1-2", "--file", put("stop.md", "The cache outlives the view.\r\n"), "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() }).Exit == 0, "a stop with a comment");
+		const auto stop = call({ "tour", "status", "--profile", "1", "--draft", id, "--json" }).json()["data"].toObject()["stops"].toArray().last().toObject()["stop_id"].toString();
+		expect(code(call({ "tour", "labels", "edit", "comment:5", "--label", "issue", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() })) == "capability_unavailable", "a review comment draft has no headless owner, and says so");
+		expect(call({ "tour", "labels", "edit", "comment:5", "--label", "issue", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() }).Exit == 5, "with exit 5");
+		expect(code(call({ "tour", "labels", "edit", "problem", "--label", "issue", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() })) == "invalid_field", "the problem is not a comment");
+		expect(code(call({ "tour", "labels", "edit", "stop:" + stop, "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() })) == "invalid_input", "an edit names its change");
+		expect(code(call({ "tour", "labels", "edit", "stop:" + stop, "--label", "nit", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() })) == "invalid_label", "only catalog IDs are labels");
+		expect(code(call({ "tour", "labels", "edit", "stop:" + stop, "--label", "issue", "--profile", "1", "--draft", id, "--json" })) == "revision_required", "a machine edit names the revision it read");
+		{
+			app::tour_runtime holder{ dataRoot, "1" };
+			const auto        binding = holder.owner();
+			expect(binding.has_value(), "the holder owns the profile");
+			owner_thread serving{ *binding };
+			const auto   opens = state.Opens;
+			// The catalog and an annotation open no profile, so a running owner is never asked.
+			expect(call({ "tour", "labels", "--json" }).Exit == 0 && call({ "tour", "labels", "parse", "--file", put("p.md", "todo: x"), "--json" }).Exit == 0, "catalog and parse work beside an owner");
+			auto counted = call({ "tour", "labels", "counts", "--profile", "1", "--draft", id, "--json" });
+			expect(counted.Exit == 3 && code(counted) == "interaction_required" && state.Opens == opens, "counts beside a running owner are refused and read nothing");
+			// Forwarded: the owner applies the core plan as an ordinary edit of the stop.
+			const auto before    = revision();
+			auto       forwarded = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "question", "--profile", "1", "--draft", id, "--json", "--expected-revision", before, "--request-id", "label-1" });
+			expect(forwarded.Exit == 0 && forwarded.json()["data"].toObject()["operation_recorded"].toBool() && stopBody(stop) == "question: The cache outlives the view.\r\n", "a forwarded label edit commits through the owner, CRLF kept");
+			expect(forwarded.json()["data"].toObject()["label_edit"].toObject()["annotation"].toObject()["label"] == "question", "the answer carries the stop's new annotation");
+			// The other interface edits first: the label chosen against the older revision is a conflict.
+			const auto shown = revision();
+			expect(call({ "tour", "edit", "stop:" + stop + ":body", "--file", put("other.md", "Rewritten by the author.\n"), "--profile", "1", "--draft", id, "--json", "--expected-revision", shown }).Exit == 0, "the author rewrites the stop through the owner");
+			auto raced = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "issue", "--profile", "1", "--draft", id, "--json", "--expected-revision", shown });
+			expect(raced.Exit == 4 && code(raced) == "revision_conflict" && stopBody(stop) == "Rewritten by the author.\n", "the stale label is refused and the author's text is kept");
+			// A lost answer: the owner commits, the reply never arrives, and the retry applies nothing twice.
+			const auto current = revision();
+			serving.set(owner_thread::fault::drop_reply);
+			auto lost = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "issue", "--expectation", "blocking", "--profile", "1", "--draft", id, "--json", "--expected-revision", current, "--request-id", "label-lost" });
+			serving.set(owner_thread::fault::none);
+			expect(lost.Exit == 6 && code(lost) == "outcome_unknown", "a lost answer is uncertain");
+			const auto committed = revision();
+			expect(committed != current && stopBody(stop) == "issue (blocking): Rewritten by the author.\n", "the owner had committed it");
+			auto retried = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "issue", "--expectation", "blocking", "--profile", "1", "--draft", id, "--json", "--expected-revision", current, "--request-id", "label-lost" });
+			expect(retried.Exit == 0 && retried.json()["data"].toObject()["operation_recorded"].toBool() && revision() == committed && !retried.json()["data"].toObject()["changed"].toBool(), "the retry under the same ID reports the recorded outcome and applies nothing twice");
+			auto other = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "praise", "--profile", "1", "--draft", id, "--json", "--expected-revision", current, "--request-id", "label-lost" });
+			expect(code(other) == "command_refused" && revision() == committed, "the same ID with another edit is refused");
+			auto unknown = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "praise", "--profile", "1", "--draft", id, "--json", "--expected-revision", current, "--request-id", "never-sent" });
+			expect(code(unknown) == "revision_conflict", "an unrecorded ID with an old revision is an ordinary conflict");
+		}
+		// The owner is gone: what it committed is what a standalone read sees.
+		expect(stopBody(stop) == "issue (blocking): Rewritten by the author.\n", "the forwarded label is durable");
+		auto plain = call({ "tour", "labels", "edit", "stop:" + stop, "--label", "plain", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() });
+		expect(plain.Exit == 0 && stopBody(stop) == "Rewritten by the author.\n", "plain restores the author's text byte for byte");
+		auto undone = call({ "tour", "undo", "--profile", "1", "--draft", id, "--json", "--expected-revision", revision() });
+		expect(undone.Exit == 0 && stopBody(stop) == "issue (blocking): Rewritten by the author.\n", "a label edit is one ordinary undoable step");
+	}
+}
+namespace {
+	/// [[BPR-1092]] The desktop's side of the parity course, written independently of `bpr`: each mode
+	/// calls exactly the core and application functions the desktop composition calls, on the same
+	/// fixture, and prints what they decided. `catalog` is the chip menu's catalog; `parse FILE
+	/// [published]` is `recognize_feedback_prefix` (the chip, the marks) or, published, the counter's
+	/// reading; `compose FILE OPTION VALUE...` is `feedback_label_controls::apply`'s decision; `counts
+	/// FIXTURE MODE COLUMNS` is `observe_feedback_counters` and `publish_overview_feedback` of
+	/// `github_application.cpp`, over the snapshot the fixture reader returns.
+	auto qtext(std::string_view aValue) -> QString { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); }
+	auto read_file(const QString& aPath) -> std::string
+	{
+		std::ifstream in{ std::filesystem::path{ aPath.toStdString() }, std::ios::binary };
+		return { std::istreambuf_iterator<char>{ in }, std::istreambuf_iterator<char>{ } };
+	}
+	auto oracle_states(const core::feedback_state_counts& aStates) -> QJsonObject
+	{
+		return { { "unresolved", QString::number(aStates[0]) }, { "resolved", QString::number(aStates[1]) }, { "unknown", QString::number(aStates[2]) }, { "not_applicable", QString::number(aStates[3]) } };
+	}
+	auto oracle_row(const application::overview_feedback_row& aRow) -> QJsonObject
+	{
+		const auto& c = aRow.Counts;
+		QJsonArray  labels;
+		for (const auto& entry : c.Dedicated) {
+			labels.append(QJsonObject{ { "id", qtext(core::stable_name(entry.Label)) }, { "count", QString::number(entry.Count) }, { "states", oracle_states(entry.States) } });
+		}
+		QJsonArray limits;
+		for (const auto limit : c.Limits) {
+			limits.append(qtext(core::stable_name(limit)));
+		}
+		const char* kind = "pull_request";
+		if (aRow.Kind == application::overview_feedback_row_kind::file) {
+			kind = "file";
+		} else if (aRow.Kind == application::overview_feedback_row_kind::folder) {
+			kind = "folder";
+		} else if (aRow.Kind == application::overview_feedback_row_kind::remainder) {
+			kind = "not_on_a_file";
+		}
+		return { { "kind", kind }, { "path", qtext(aRow.Path) }, { "included", QString::number(c.Included) }, { "scope_total", QString::number(c.ScopeTotal) }, { "uncertain", QString::number(c.Uncertain) }, { "unattributed", QString::number(c.Unattributed) }, { "unclassified", QString::number(c.ScopeUnclassified) }, { "exact", c.Exact }, { "limits", limits }, { "states", oracle_states(c.States) }, { "labels", labels }, { "other", QJsonObject{ { "count", QString::number(c.Catchall) }, { "states", oracle_states(c.CatchallStates) }, { "unselected", QString::number(c.CatchallParts.Unselected) }, { "plain", QString::number(c.CatchallParts.Plain) }, { "custom", QString::number(c.CatchallParts.Custom) }, { "unclassified", QString::number(c.CatchallParts.Unclassified) } } } };
+	}
+	auto oracle_header_edit(const QStringList& aOptions) -> std::optional<core::feedback_header_edit>
+	{
+		core::feedback_header_edit edit;
+		for (qsizetype i = 0; i + 1 < aOptions.size(); i += 2) {
+			const auto& name  = aOptions[i];
+			const auto  value = aOptions[i + 1].toStdString();
+			if (name == "--label" && value == "plain") {
+				edit.Change = core::feedback_label_change::remove;
+			} else if (name == "--label") {
+				const auto label = core::find_feedback_label(value);
+				if (!label) {
+					return std::nullopt;
+				}
+				edit.Change = core::feedback_label_change::set;
+				edit.Label  = *label;
+			} else if (name == "--expectation") {
+				if (value == "blocking") {
+					edit.Expectation = core::feedback_expectation::blocking;
+				} else if (value == "non-blocking") {
+					edit.Expectation = core::feedback_expectation::non_blocking;
+				} else if (value == "if-minor") {
+					edit.Expectation = core::feedback_expectation::if_minor;
+				} else {
+					edit.Expectation = core::feedback_expectation::unspecified;
+				}
+			} else if (name == "--decoration" || name == "--remove-decoration") {
+				core::feedback_decoration_change change;
+				change.Token    = value;
+				change.Written  = name == "--decoration";
+				edit.Decoration = std::move(change);
+			}
+		}
+		return edit;
+	}
+	auto desktop_services(const QStringList& aArguments) -> int
+	{
+		const auto  mode = aArguments.value(1);
+		QJsonObject out;
+		if (mode == "catalog") {
+			QJsonArray labels;
+			for (const auto& entry : core::feedback_label_catalog()) {
+				labels.append(QJsonObject{ { "id", qtext(entry.Id) }, { "description", qtext(entry.Description) }, { "guidance", qtext(core::stable_name(entry.Guidance)) }, { "icon_role", qtext(entry.IconRole) } });
+			}
+			out["labels"] = labels;
+		} else if (mode == "parse" && aArguments.size() >= 3) {
+			const auto body       = read_file(aArguments[2]);
+			const auto annotation = aArguments.value(3) == "published" ? core::recognize_feedback_body(body, core::published_feedback_segment(body)) : core::recognize_feedback_prefix(body);
+			QJsonArray decorations;
+			for (const auto& decoration : annotation.Decorations) {
+				decorations.append(qtext(core::feedback_text(body, decoration.Raw)));
+			}
+			QJsonArray diagnostics;
+			for (const auto diagnostic : annotation.Diagnostics) {
+				diagnostics.append(qtext(core::stable_name(diagnostic)));
+			}
+			const auto span = [&](const std::optional<core::feedback_span>& aSpan) { return aSpan ? QJsonValue{ qtext(core::feedback_text(body, *aSpan)) } : QJsonValue{ QJsonValue::Null }; };
+			out             = { { "status", qtext(core::stable_name(annotation.Status)) }, { "label", annotation.Label ? QJsonValue{ qtext(core::stable_name(*annotation.Label)) } : QJsonValue{ QJsonValue::Null } }, { "expectation", qtext(core::stable_name(annotation.Expectation)) }, { "guidance", annotation.Guidance ? QJsonValue{ qtext(core::stable_name(*annotation.Guidance)) } : QJsonValue{ QJsonValue::Null } }, { "raw_label", span(annotation.RawLabel) }, { "header", span(annotation.Header) }, { "subject", span(annotation.Subject) }, { "decorations", decorations }, { "diagnostics", diagnostics }, { "body_sha256", QString::fromLatin1(QByteArray(reinterpret_cast<const char*>(annotation.BodyDigest.data()), 32).toHex()) } };
+		} else if (mode == "compose" && aArguments.size() >= 3) {
+			const auto body = read_file(aArguments[2]);
+			const auto edit = oracle_header_edit(aArguments.mid(3));
+			if (!edit) {
+				return 2;
+			}
+			const auto annotation = core::recognize_feedback_prefix(body);
+			const auto decision   = core::decide_feedback_composition_edit(core::feedback_header_edit_request{ .Body = body, .Segment = { }, .ExpectedDigest = annotation.BodyDigest, .Edit = *edit });
+			out                   = { { "refusal", qtext(core::stable_name(decision.Refusal)) }, { "changed", decision.Changed }, { "body", decision.Changed ? qtext(decision.Body) : qtext(body) } };
+		} else if (mode == "counts" && aArguments.size() >= 5) {
+			fixture_state state;
+			state.Feedback = aArguments[2].toStdString();
+			auto read      = fixture_reader{ state }.open("github.com", core::repository_locator{ "o", "r" }, core::pull_request_number{ 7 }, false);
+			if (!read) {
+				return 3;
+			}
+			application::overview_feedback_request request;
+			request.Mode = aArguments[3] == "all" ? core::feedback_resolution_mode::all : core::feedback_resolution_mode::unresolved;
+			if (aArguments[4] != "none") {
+				request.Columns = core::read_feedback_label_columns(aArguments[4].toStdString()).Columns;
+			}
+			const auto&                         target = read->Target;
+			application::feedback_counter_model model;
+			const auto                          observed = model.observe(core::cached_review_key{ target.Owner.HostAuthority.bytes(), target.HostProfile, target.Owner.Host, target.Owner.Account, target.Repository, target.Number }, read->Snapshot);
+			std::vector<std::string>            paths;
+			for (const auto& file : read->Snapshot.Files) {
+				paths.push_back(file.Path);
+			}
+			const auto projection = application::project_overview_feedback(model, paths, request);
+			if (!observed.Admitted || !projection) {
+				return 4;
+			}
+			QJsonArray files;
+			QJsonArray folders;
+			for (const auto& row : projection->Files) {
+				files.append(oracle_row(row));
+			}
+			for (const auto& row : projection->Folders) {
+				folders.append(oracle_row(row));
+			}
+			out = { { "pull_request", oracle_row(projection->PullRequest) }, { "not_on_a_file", oracle_row(projection->Remainder) }, { "files", files }, { "folders", folders }, { "collection", qtext(core::stable_name(observed.Collection)) }, { "generation", QString::number(projection->Generation) } };
+		} else {
+			return 2;
+		}
+		std::cout << QJsonDocument{ out }.toJson(QJsonDocument::Compact).constData() << '\n';
+		return 0;
+	}
 }
 /// \brief A separate owner process for crash courses: `--serve-owner DATA_ROOT PROFILE [--stall-after-commit]`.
 /// It holds the profile lease and serves the tour endpoint until it is killed. With the stall flag
@@ -849,6 +1181,9 @@ int main(int argc, char** argv)
 	}
 #endif
 	QCoreApplication app{ argc, argv };
+	if (argc > 1 && std::string_view{ argv[1] } == "--desktop-services") {
+		return desktop_services(QCoreApplication::arguments().mid(1));
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--serve-owner") {
 		return serve_owner_process(QCoreApplication::arguments().mid(1));
 	}
@@ -862,4 +1197,5 @@ int main(int argc, char** argv)
 	assist_courses();
 	forwarded_assist();
 	agent_boundary_courses();
+	label_courses();
 }

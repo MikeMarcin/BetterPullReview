@@ -1,6 +1,7 @@
 #include "tour_runtime.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_tour_import.hpp"
@@ -546,6 +547,56 @@ namespace bpr::app {
 			return std::unexpected(state.error());
 		}
 		return tour_hooks_json(*state);
+	}
+	auto tour_runtime::feedback_counts(std::string_view aDraft, bool aGh, const tour_counts_options& aOptions) -> tour_cli_result<tour_counted>
+	{
+		if (Implementation->Forward) {
+			return failure("interaction_required", "A running desktop owns this profile and its provider. Read the counts in its Overview, or close it and retry; nothing was read.", 3);
+		}
+		auto loaded = load(aDraft, true);
+		if (!loaded) {
+			return std::unexpected(loaded.error());
+		}
+		auto&                                  self = *Implementation;
+		application::overview_feedback_request request;
+		if (!aOptions.Columns || !aOptions.Mode) {
+			// The chips and the starting mode are the profile's Settings, as the desktop's Overview starts from them.
+			auto preferences = self.effect([&]() -> std::optional<application::workbench_profile_preferences> {
+				auto store = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = self.Root });
+				if (!store) {
+					return std::nullopt;
+				}
+				auto value = (*store)->load_preferences({ });
+				return value ? std::optional{ std::move(*value) } : std::nullopt;
+			});
+			if (!preferences) {
+				return failure("storage_unavailable", "The profile's label settings are unavailable; give --columns and --mode explicitly.", 7);
+			}
+			request.Columns = preferences->Behaviour.LabelColumns;
+			request.Mode    = preferences->Behaviour.OverviewCounts == application::review_overview_counts::all ? core::feedback_resolution_mode::all : core::feedback_resolution_mode::unresolved;
+		}
+		if (aOptions.Columns) {
+			request.Columns = *aOptions.Columns;
+		}
+		if (aOptions.Mode) {
+			request.Mode = *aOptions.Mode;
+		}
+		auto        reader = self.Readers(self.Root, self.Profile);
+		const auto& target = loaded->Target;
+		auto        read   = reader->open(target.Hostname, target.Repository, target.Number, aGh);
+		if (!read) {
+			return std::unexpected(read.error());
+		}
+		if (read->Target.Owner != target.Owner || read->Target.Draft != target.Draft) {
+			return failure("identity_changed", "The current account or PR differs from the saved draft.", 4);
+		}
+		auto counts = count_tour_feedback(target, read->Snapshot, request);
+		if (!counts) {
+			return std::unexpected(counts.error());
+		}
+		counts->ColumnsFromOption = aOptions.Columns.has_value();
+		counts->ModeFromOption    = aOptions.Mode.has_value();
+		return tour_counted{ std::move(*loaded), std::move(*counts) };
 	}
 	auto tour_runtime::prepare_publication(std::string_view aDraft, bool aGh, tour_publication_options aOptions, std::string_view aAttempt, bool aRecover) -> tour_cli_result<tour_publication_preview>
 	{

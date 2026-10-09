@@ -7,6 +7,7 @@
 #include "bpr/application/review_tour_source.hpp"
 #include "tour_assist.hpp"
 #include "tour_cli_types.hpp"
+#include "tour_feedback.hpp"
 #include "tour_publication_plan.hpp"
 #include <filesystem>
 #include <functional>
@@ -52,6 +53,12 @@ namespace bpr::app {
 		/// Assist context, an assist or outline outcome, or hooks: one bounded JSON document, or empty.
 		std::string AssistJson{ };
 	};
+	/// \brief [[BPR-1092]]. The draft whose pull request was read, and its label counts.
+	struct tour_counted
+	{
+		tour_local_snapshot  Snapshot;
+		tour_feedback_counts Counts;
+	};
 	/// \brief Read-only preview or journal recovery; the plan itself grants no writes.
 	struct tour_publication_preview
 	{
@@ -95,6 +102,11 @@ namespace bpr::app {
 		[[nodiscard]] auto hooks_store(core::writing_hook aHook, std::string aInstructions) -> tour_cli_result<std::string>;
 		/// \brief Reads the durable outcome of one exact earlier local request; never replays it.
 		[[nodiscard]] auto request_status(std::string_view aDraft, std::string_view aRequest) -> tour_cli_result<tour_local_snapshot>;
+		/// \brief [[BPR-1092]]. Reads the draft's exact pull request once through the existing reader, as
+		/// `preview --refresh` does, and counts its conversations as the desktop's Overview does, with the
+		/// profile's Settings chips and count mode unless \p aOptions names them. A running owner holds the
+		/// provider, so this is refused there rather than forwarded.
+		[[nodiscard]] auto feedback_counts(std::string_view aDraft, bool aGh, const tour_counts_options& aOptions) -> tour_cli_result<tour_counted>;
 		[[nodiscard]] auto prepare_publication(std::string_view, bool aGh, tour_publication_options, std::string_view aAttempt = { }, bool aRecover = false) -> tour_cli_result<tour_publication_preview>;
 		/// \brief Reobserves an exact preview after a live terminal confirmation; never persists a grant.
 		[[nodiscard]] auto        publish(const tour_publication_preview&, bool aGh) -> tour_cli_result<tour_publication_preview>;

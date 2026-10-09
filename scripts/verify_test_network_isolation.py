@@ -688,6 +688,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "tour_cli_publication": "dos-volume-name",
     "tour_cli_composition": "dos-volume-name",
     "tour_cli_process_commands": "dos-volume-name",
+    # [[BPR-1092]]. Registered uncontained like the tour CLI rows above, whose
+    # profile root it shares; not yet measured contained on Windows.
+    "tour_cli_labels": "unmeasured (registered on Linux)",
     "cycle_cli_public_path": "dos-volume-name",
     # [[BPR-1185]]. Measured on JaegAW 2026-10-05 at 9c717f15a in a tour-cli
     # tree with tests, contained through the sandbox launcher: its first

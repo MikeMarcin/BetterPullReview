@@ -6,6 +6,7 @@
 #include "terminal_text.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_editor.hpp"
+#include "tour_feedback.hpp"
 #include "tour_text_input.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -31,7 +32,7 @@ namespace bpr::app {
 			std::optional<core::tour_attention> WalkAttention;
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
-		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover", "hooks", "assist", "outline" }; }
+		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover", "hooks", "assist", "outline", "labels" }; }
 		/// [[BPR-1068]] What this build offers on its own platform. Nothing here is a
 		/// qualification: no platform has a release package or an observed live
 		/// sign-in, read or publication, so every one says so.
@@ -95,8 +96,8 @@ namespace bpr::app {
 			if (aArguments.size() > 80) {
 				return refuse("input_too_large", "Too many command arguments.");
 			}
-			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source", "--refresh", "--compatibility", "--description" };
-			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt", "--request-id", "--hook", "--field", "--range-bytes", "--quote", "--sources", "--session", "--ticket", "--result", "--indices" };
+			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source", "--refresh", "--compatibility", "--description", "--published" };
+			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt", "--request-id", "--hook", "--field", "--range-bytes", "--quote", "--sources", "--session", "--ticket", "--result", "--indices", "--label", "--expectation", "--decoration", "--remove-decoration", "--columns", "--mode" };
 			QStringList       words;
 			for (qsizetype i = 0; i < aArguments.size(); ++i) {
 				const auto& value = aArguments[i];
@@ -152,6 +153,15 @@ namespace bpr::app {
 				if (result.Positional.size() != 2 || result.Positional[0] != "use") {
 					return refuse("invalid_input", "Use outline use PROPOSAL --indices LIST.");
 				}
+			} else if (result.Command == "labels") {
+				// [[BPR-1092]] `labels` alone is the catalog.
+				if (result.Positional.isEmpty()) {
+					result.Positional = { "catalog" };
+				}
+				const auto sub = result.Positional[0];
+				if (!(QStringList{ "catalog", "parse", "counts" }.contains(sub) && result.Positional.size() == 1) && !(sub == "edit" && result.Positional.size() == 2)) {
+					return refuse("invalid_input", "Use labels [catalog], labels parse --file PATH|-, labels edit stop:ID or labels counts.");
+				}
 			} else if (result.Positional.size() != expectedArguments) {
 				return refuse("invalid_input", "Unexpected positional arguments.");
 			}
@@ -162,7 +172,9 @@ namespace bpr::app {
 				}
 			}
 			QStringList allowed{ "--json", "--non-interactive", "--no-color", "--schema-version", "--data-root" };
-			if (result.Command != "capabilities") {
+			// [[BPR-1092]] The catalog and a body's annotation need no profile, so they take none.
+			const bool profileFree = result.Command == "labels" && (result.Positional[0] == "catalog" || result.Positional[0] == "parse");
+			if (result.Command != "capabilities" && !profileFree) {
 				allowed.append("--profile");
 			}
 			if (result.Command == "connect") {
@@ -224,6 +236,16 @@ namespace bpr::app {
 			}
 			if (result.Command == "outline") {
 				allowed.append({ "--draft", "--indices", "--after", "--request-id" });
+			}
+			if (result.Command == "labels") {
+				const auto& sub = result.Positional[0];
+				if (sub == "parse") {
+					allowed.append({ "--file", "--published" });
+				} else if (sub == "edit") {
+					allowed.append({ "--draft", "--label", "--expectation", "--decoration", "--remove-decoration", "--expected-revision", "--request-id" });
+				} else if (sub == "counts") {
+					allowed.append({ "--draft", "--columns", "--mode", "--transport" });
+				}
 			}
 			for (const auto& option : result.Values.keys()) {
 				if (!allowed.contains(option)) {
@@ -649,6 +671,7 @@ namespace bpr::app {
 		}
 		auto walk(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
 		auto assist_command(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
+		auto labels_command(const command_options&, tour_reader_factory) -> tour_cli_result<presentation>;
 
 		auto perform(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
 		{
@@ -658,12 +681,15 @@ namespace bpr::app {
 			if (aOptions.Command == "hooks" || aOptions.Command == "assist" || aOptions.Command == "outline") {
 				return assist_command(aOptions, std::move(aReaders));
 			}
+			if (aOptions.Command == "labels") {
+				return labels_command(aOptions, std::move(aReaders));
+			}
 			if (aOptions.Command == "capabilities" || aOptions.Command == "help") {
 				const char* const exportPolicy = tour_assist_policy() == tour_assist_export_policy::open
 					? "open"
 					: (tour_assist_policy() == tour_assist_export_policy::manual_only ? "manual_only" : "invalid");
-				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v6 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "problem", "solution", "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" }, { "platform", platform_status() } },
-									 "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline\nNo GUI or AI provider required.\nPlatform: " + platform_status()["os"].toString() + ", " + platform_status()["qualification"].toString() + ". Native vault: " + platform_status()["native_vault"].toString() + ". gh transport: " + platform_status()["gh_transport"].toString() + ".\n",
+				return presentation{ { { "cli_contract", "1" }, { "parent_tour_format", "1" }, { "local_draft_schema", "3" }, { "local_history", "atomic tour-state-v1; 16 entries and 8 MiB per direction" }, { "commands", QJsonArray::fromStringList(supported_commands()) }, { "max_field_bytes", QString::number(core::maximum_tour_field_bytes) }, { "max_frame_bytes", "1048576" }, { "gui_required", false }, { "ai_required", false }, { "remote_writes", false }, { "publication_gate", "production Tour host/transport qualification pending" }, { "terminal_color", "none" }, { "terminal_width", "COLUMNS 20..240; default 80" }, { "pager", "none; bounded pages and line-oriented walk" }, { "owner_protocol", "same-user local channel v6 (a named pipe on Windows) for local draft commands, assist and pinned source reads; owner_protocol_unsupported without one" }, { "assist", QJsonObject{ { "hooks", QJsonArray{ "problem", "solution", "outline", "comment" } }, { "hook_version", QString::fromUtf8(application::writing_hook_version.data(), static_cast<qsizetype>(application::writing_hook_version.size())) }, { "profile_hooks", QJsonArray{ "problem", "solution", "outline", "comment", "feedback" } }, { "feedback_hook_version", QString::fromUtf8(application::review_feedback_hook_version.data(), static_cast<qsizetype>(application::review_feedback_hook_version.size())) }, { "ticket_lifetime_seconds", "1800" }, { "max_result_bytes", "32768" }, { "max_sources", "8" }, { "model_launched_by_bpr", false }, { "verified_agent_identity", "unavailable" }, { "export_policy", exportPolicy } } }, { "labels", QJsonObject{ { "subcommands", QJsonArray{ "catalog", "parse", "edit", "counts" } }, { "catalog", "bpr.feedback-label-catalog.v1" }, { "catalog_revision", QString::number(core::feedback_catalog_revision) }, { "parser_revision", QString::number(core::feedback_parser_revision) }, { "edit_targets", QJsonArray{ "stop:ID" } }, { "comment_drafts", "unavailable: review comment drafts have no headless owner; label them in the desktop's comment editor" }, { "counts_source", "one read of the draft's pull request through the existing reader; interaction_required while a desktop owns the profile" }, { "counts_unit", "conversation" } } }, { "approval_modes", QJsonArray{ "human-terminal-exact-plan" } }, { "native_device_signin", "github.com; admitted platform vault required" }, { "gh_transport", "explicit opt-in; qualified macOS trust boundary only" }, { "platform", platform_status() } },
+									 "bpr tour — local review-tour terminal\nCLI contract: 1\nAvailable: capabilities, connect, open, status, show, edit, add, move, remove, ready, undo, redo, walk, preview, publish, recover, hooks, assist, outline, labels\nNo GUI or AI provider required.\nPlatform: " + platform_status()["os"].toString() + ", " + platform_status()["qualification"].toString() + ". Native vault: " + platform_status()["native_vault"].toString() + ". gh transport: " + platform_status()["gh_transport"].toString() + ".\n",
 									 { } };
 			}
 			const auto transport = aOptions.Values.value("--transport", "native");
@@ -1210,6 +1236,154 @@ namespace bpr::app {
 				return std::unexpected(inserted.error());
 			}
 			return finish(*inserted, "Inserted the chosen stops as Suggested. Each still needs your own comment and Ready.\n");
+		}
+
+		/// [[BPR-1092]] `labels catalog|parse|edit|counts`. The catalog and an annotation open no profile;
+		/// an edit is the core's tour-stop plan applied by the draft's owner, forwarded like any local edit;
+		/// counts read the pull request once and count it with the desktop's services.
+		auto labels_command(const command_options& aOptions, tour_reader_factory aReaders) -> tour_cli_result<presentation>
+		{
+			const auto sub = aOptions.Positional[0];
+			if (sub == "catalog") {
+				auto output = tour_label_catalog();
+				return presentation{ std::move(output.Data), std::move(output.Human), { } };
+			}
+			if (sub == "parse") {
+				if (!aOptions.Values.contains("--file")) {
+					return refuse("invalid_input", "Use labels parse --file PATH|- with the comment body.");
+				}
+				auto input = read_tour_text_input(aOptions.Values["--file"]);
+				if (!input) {
+					return std::unexpected(input.error());
+				}
+				auto output = tour_label_annotation(*input, aOptions.Values.contains("--published"));
+				return presentation{ std::move(output.Data), std::move(output.Human), { } };
+			}
+			if (!aOptions.Interactive && !aOptions.Values.contains("--profile")) {
+				return refuse("target_ambiguous", "Machine label commands require --profile and --draft.");
+			}
+			const auto transport = aOptions.Values.value("--transport", "native");
+			if (transport != "native" && transport != "gh") {
+				return refuse("unsupported_transport", "Use native or gh.");
+			}
+			const auto base = aOptions.Values.value("--data-root", QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+			if (!QDir::isAbsolutePath(base)) {
+				return refuse("invalid_profile_root", "--data-root must be an absolute private path.");
+			}
+			std::optional<tour_counts_options>        countsOptions;
+			std::optional<core::feedback_header_edit> edit;
+			if (sub == "counts") {
+				auto parsed = parse_tour_counts_options(aOptions.Values);
+				if (!parsed) {
+					return std::unexpected(parsed.error());
+				}
+				countsOptions = *parsed;
+			} else {
+				auto parsed = parse_tour_label_edit(aOptions.Values);
+				if (!parsed) {
+					return std::unexpected(parsed.error());
+				}
+				edit = std::move(*parsed);
+			}
+			auto runtime = std::make_unique<tour_runtime>(native_filesystem_path(base), aOptions.Values.value("--profile").toStdString(), aReaders);
+			if (const auto admission = runtime->admission(); !admission) {
+				return std::unexpected(admission.error());
+			}
+			const auto draftId = aOptions.Values.value("--draft").toStdString();
+			if (sub == "counts") {
+				auto counted = runtime->feedback_counts(draftId, transport == "gh", *countsOptions);
+				if (!counted) {
+					return std::unexpected(counted.error());
+				}
+				auto output    = tour_feedback_counts_output(counted->Counts);
+				auto data      = identities(counted->Snapshot);
+				data["counts"] = output.Data;
+				QJsonArray warnings;
+				if (!output.Data["exact"].toBool()) {
+					QStringList limits;
+					for (const auto& limit : output.Data["limits"].toArray()) {
+						limits.append(limit.toString());
+					}
+					warnings.append(QJsonObject{ { "code", "counts_not_exact" }, { "message", "These counts are not exact (" + limits.join(", ") + "): a zero here is not a clean zero." } });
+				}
+				const auto& target = counted->Snapshot.Target;
+				QStringList chips;
+				for (const auto& chip : output.Data["columns"].toArray()) {
+					chips.append(chip.toString());
+				}
+				const auto heading = QStringLiteral("%1/%2/%3#%4 · %5 · chips: %6\n").arg(text(target.Hostname), text(target.Repository.Owner), text(target.Repository.Name), QString::number(target.Number.value()), output.Data["mode"].toString() == "all" ? "All" : "Open", chips.isEmpty() ? QStringLiteral("none") : chips.join(", "));
+				return presentation{ data, heading + output.Human, warnings };
+			}
+			auto loaded = runtime->load(draftId, !aOptions.Interactive);
+			if (!loaded) {
+				return std::unexpected(loaded.error());
+			}
+			const auto target = aOptions.Positional[1];
+			const auto parts  = target.split(':');
+			const auto id     = parts.size() == 2 && parts[0] == "stop" ? number(parts[1]) : std::nullopt;
+			if (!id) {
+				if (target.startsWith("comment:") || target.startsWith("draft:")) {
+					return refuse("capability_unavailable", "Review comment drafts have no headless owner, so bpr cannot label one. Label it in the desktop's comment editor; tour stops are labelled with labels edit stop:ID.", 5);
+				}
+				return refuse("invalid_field", "Labels belong to a stop's comment: use labels edit stop:ID.");
+			}
+			const core::tour_stop_id stop{ *id };
+			auto                     basis = core::feedback_tour_stop_basis(loaded->Draft, stop);
+			if (!basis) {
+				return refuse("unknown_stop", "No stop has that stable ID.");
+			}
+			const bool machine  = !aOptions.Interactive;
+			const auto expected = aOptions.Values.contains("--expected-revision") ? number(aOptions.Values["--expected-revision"]) : (machine ? std::nullopt : std::optional{ loaded->Draft.Revision });
+			if (!expected) {
+				return refuse("revision_required", "Label edits require --expected-revision from the current snapshot.");
+			}
+			basis->Revision    = *expected;
+			const auto token   = tour_runtime::draft_token(loaded->Target);
+			auto       plan    = core::plan_feedback_tour_stop_edit(loaded->Draft, stop, *basis, *edit);
+			auto       current = std::optional<tour_local_snapshot>{ };
+			if (plan.Refusal == core::feedback_draft_edit_refusal::stale_draft && aOptions.Values.contains("--request-id")) {
+				// A retry after a lost answer: if the owner recorded this request, the stop as it is now
+				// already reads as the edit would leave it, and nothing is sent again.
+				auto recorded = runtime->request_status(token, aOptions.RequestId.toStdString());
+				if (!recorded) {
+					return std::unexpected(recorded.error());
+				}
+				if (recorded->Receipt) {
+					auto again = core::feedback_tour_stop_basis(recorded->Draft, stop);
+					if (!again || core::plan_feedback_tour_stop_edit(recorded->Draft, stop, *again, *edit).Decision.Changed) {
+						return refuse("command_refused", "This request ID is recorded, but the stop no longer reads as that edit leaves it. Read the stop; nothing was changed.");
+					}
+					current = std::move(*recorded);
+				}
+			}
+			if (!current && plan.Refusal != core::feedback_draft_edit_refusal::none) {
+				return std::unexpected(tour_label_edit_refusal(plan));
+			}
+			if (!current && plan.Command) {
+				auto mutated = runtime->mutate(token, { .Command = std::move(*plan.Command), .Operation = application::tour_service_operation::edit, .Origin = aOptions.Json ? application::tour_presentation_origin::command_client : application::tour_presentation_origin::terminal, .RequestId = aOptions.RequestId.toStdString() });
+				if (!mutated) {
+					return std::unexpected(mutated.error());
+				}
+				current = std::move(*mutated);
+			}
+			if (!current) {
+				current = std::move(*loaded);
+			}
+			auto rendered = render_snapshot(aOptions, *current);
+			if (!rendered) {
+				return rendered;
+			}
+			const auto found = std::ranges::find(current->Draft.Stops, stop, &core::tour_stop::Id);
+			if (found == current->Draft.Stops.end()) {
+				return refuse("unknown_stop", "The stop left the draft.", 4);
+			}
+			const auto annotation        = core::recognize_feedback_prefix(found->Body);
+			rendered->Data["changed"]    = plan.Decision.Changed && current->Draft.Revision != loaded->Draft.Revision;
+			rendered->Data["label_edit"] = QJsonObject{ { "stop_id", QString::number(stop.value()) }, { "replaced", QJsonObject{ { "begin", QString::number(plan.Decision.Replaced.Begin) }, { "end", QString::number(plan.Decision.Replaced.End) } } }, { "replacement", text(plan.Decision.Replacement) }, { "annotation", tour_label_annotation_json(found->Body, annotation) } };
+			const auto header            = annotation.Status == core::feedback_prefix_status::recognized ? text(core::feedback_text(found->Body, *annotation.Header)).trimmed() : QStringLiteral("plain");
+			rendered->Human += plan.Decision.Changed ? "Stop " + QString::number(stop.value()) + " now reads " + header + ". Saved locally; nothing was published.\n"
+													 : "Stop " + QString::number(stop.value()) + " already reads " + header + "; nothing changed.\n";
+			return rendered;
 		}
 
 	}
