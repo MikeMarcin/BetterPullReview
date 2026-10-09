@@ -240,3 +240,67 @@ offscreen with preparation off. The probe is the Mac-local branch
 `main`. Record the median shown time over the same files. Its exact
 invocation is recorded only on the Mac, so the command is not written out
 here.
+
+## macOS station run (2026-10-09)
+
+At `22590d9f0` (`main` with `248ae8117`, `803a0ba3f` and [[BPR-1369]]),
+Apple clang, offscreen. The machine was shared with other agents: 14 cores,
+load average 9-24 during the live runs.
+
+### Host test with the macOS round trip
+
+`build/dev/tests/application/better_pull_review_application_epoch_host_tests --live-single-blob-ms=2100 --live-batch-ms=1881`
+exits 0:
+
+- cold open, two exact reads of 2100 ms: open 2102.8 ms (sum 4200), most in
+  flight 2, the second read started 2100.4 ms before the first ended;
+- the reviewer's cold open behind a prepared exact read: 302.3 ms.
+
+### Live cold open on BPR-Test#43
+
+BPR-1344's probe course (`bench_bpr1344_live_prefetch off`), rebased onto
+`22590d9f0` on a local, unpushed branch. Only the conflicting timeline lines
+in `epoch_application_host.cpp` and the batch-body toggle that
+[[BPR-1359]] made obsolete were dropped. It runs the shipped composition
+offscreen with no fixture: GitHub CLI sign-in, opens `MikeMarcin/BPR-Test#43`
+(60 files), turns preparation off and times four cold opens of modified
+files (`module_05`, `_20`, `_35`, `_50`) from the selection until the
+comparison is shown. Release tests-on build, four runs, read only.
+
+| | opens | median | p90 | range | exact reads overlapping |
+|---|---|---|---|---|---|
+| before (BPR-1344's probe, 2026-10-08, three runs) | 12 | 4312 ms | 4766 ms | 3549-4823 ms | 0 of 12 |
+| after (this run, four runs) | 16 | 2348 ms | 3149 ms | 2229-4407 ms | 16 of 16, by 631-1074 ms |
+
+Per-run medians after: 2367, 2348, 2331 and 3015 ms. The fourth run had two
+slow opens (3515 and 4407 ms): each `gh` process there took 470-690 ms
+instead of about 330, and the load average rose to 24. Network conditions
+were otherwise comparable: the median `gh` process took 321 ms (351 before),
+and an exact read's five-process core 1020 ms (1086 before). Before the
+change the earlier probe ran at a load average of 60-340.
+
+The two sides now overlap, and a cold open costs about one exact read
+instead of two. It lands near 2.35 s, about 0.25 s above the 2.1 s
+estimate. The cause is in the timeline. The account check that
+`cli_observed_account_transport` makes before and after each read uses one
+`gh` process slot. The second side's check waits for the first side's
+(`proc.slot_wait` 300-500 ms), so the second read starts one `gh` call later.
+The inner reads themselves are not serialized: each read gets its own
+transport, and its lock never waited (`exact.locked wait_ms=0.0`). Making
+the two account checks share one observation would remove that stagger. It is
+recorded here and not filed.
+
+Rate limit, read from `X-RateLimit-Remaining` response headers before each
+run: core 4995 to 4606 after four runs (about 97 a run), GraphQL 4990 to
+4941. The run stopped well above the 1500 margin. No write was made to the
+repository.
+
+### Rows on macOS
+
+In `build/dev`, `-j1`: `application_epoch_host`, `application_diff_host`,
+`gh_cli_git_smart_transport` (macOS only; not run on Linux),
+`application_first_tab_comparison` and every `application_large_review_*`
+row pass (`cache_bytes` skips in Debug by design).
+`application_large_review_prepared_open` under [[BPR-1369]]'s rule passes 10
+of 10 in Release tests-on and 10 of 10 in Debug. BPR-1369 records the
+margins. Both trees were deleted afterwards.
