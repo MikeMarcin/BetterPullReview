@@ -183,8 +183,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # ("STARTUP_PROFILE_REFUSAL:registry_unavailable"), and the diff-zoom and
     # line-details courses at "FAILED: private composed course root".
     # [[BPR-1345]]. The line-draft contract's composed application over a
-    # private data root, four runs.
-    "application_start_review_contract": "unmeasured (registered on macOS)",
+    # private data root, five courses. Measured on bpr-main-win 2026-10-09 at
+    # 3947245ca in windows-dev-tour-cli Debug: contained through the sandbox
+    # launcher, the driver cannot narrow its data root before any course
+    # ("Failed to set permissions", bpr_narrow_owner_private.cmake:62 via
+    # application_start_review_contract.cmake:43). Uncontained it passes in
+    # Release; the Debug stall is BPR-1345's finding, not the container's.
+    "application_start_review_contract": "dos-volume-name",
     "application_comment_range_draft_store": "dos-volume-name",
     "application_line_draft_contract": "dos-volume-name",
     "application_diff_zoom_public_path": "dos-volume-name",

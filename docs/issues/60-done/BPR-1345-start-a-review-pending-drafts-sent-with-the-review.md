@@ -952,3 +952,38 @@ At `9b1603193`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
   `qt_review_submission_editor_scale_{100,125,200}`;
 - `qt_workbench_conversation_reveal`, `qt_workbench_line_draft` and
   `qt_workbench_window_scale_{100,125,200}`.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+Run on Windows 11, MSVC 14.51, Qt 6.11.2.
+
+**Pin.** `application_start_review_contract` was measured at `3947245ca` in
+`windows-dev-tour-cli` Debug, as the row is registered and then contained
+through the sandbox launcher. Contained, the driver cannot narrow its data
+root before any course: "Failed to set permissions" at
+`bpr_narrow_owner_private.cmake:62`, via
+`application_start_review_contract.cmake:43`. That is the private-root refusal
+the other composed rows have. The row is pinned `dos-volume-name`, and
+`test_network_isolation_manifest` passes (29.3 s).
+
+**Release passes.** Uncontained in a Release Ninja tests-on tree (`f2af6cea3`,
+which carries v002 and BPR-1344), the row passes twice: 25.40 s, then 26.55 s.
+
+**Debug stalls.** Uncontained in the Debug tree, it fails three times out of
+three. The first course, `pending`, uses up its whole 40 s budget at stage 2.
+A copy of the contract script with a 300 s budget shows this is a stall, not
+slowness. The course reaches phase 11 (the third line published natively,
+`native=1 pending=2`) and then stays at phase 12, `awaiting_other_file`.
+There, `reveal_fixture_file("src/engine/renderer.h")` stays `pending`
+(`reveal=0`) for the remaining time: 28,085 ticks in 300 s, with little CPU
+used. One Qt warning is logged; its content is redacted. On the same fixture,
+`application_label_authoring_contract` passes in Debug in 19.2 s.
+
+The reveal waits on one of three things:
+
+- the workbench host's outstanding requests to reach zero;
+- `renderer.h`'s row in the Files drawer;
+- the diff for `renderer.h` becoming the shown result in Review.
+
+Which one is still being measured. Linux passes the row in Debug, and macOS
+passed it at closeout.
