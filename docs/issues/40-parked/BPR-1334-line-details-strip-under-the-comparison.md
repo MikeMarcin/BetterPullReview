@@ -610,3 +610,44 @@ At `7672d5a8b`, Windows 11, MSVC 19.50, `build/windows-dev-tour-cli` (Debug), of
 network-isolated runner, `-j4`:
 
 - **Pass:** `qt_appearance_profile`, after `2339d0912`.
+
+## C4: Windows quiet run of the large-review rows (bpr-main-win, 2026-10-09)
+
+The Windows station was otherwise idle. Two Release tests-on trees (MSVC 19.50,
+Qt 6.11.2):
+- **candidate:** `772200c95` (main, with this card's `5fbc155e9`);
+- **control:** `0f1ba22f0`, the commit just before `5fbc155e9`.
+
+The large-review selection ran at `-j1` in three alternating pairs
+(candidate, control, candidate, control, …). On Windows it holds 19 rows: the
+18 plus the benchmark's contract rows.
+
+| Run | Candidate | Control |
+|---|---|---|
+| 1 | 17/19 | 17/19 |
+| 2 | 17/19 | 17/19 |
+| 3 | 17/19 | 16/19 (also `cache_bytes`) |
+
+- **Failures on both sides:** `application_large_review_active_work`
+  (`active_supersession_final_drain` 1577–2541 ms on the candidate, 1521–2265 on
+  the control, against 1250) and `application_large_review_history` (epoch
+  source selection over 2000 ms). Both are [[BPR-1327]]'s preparation on
+  Windows, which [[BPR-1344]] addresses. Neither is this card's.
+- **Control only, once:** `cache_bytes` failed its correctness check, "stale
+  comparison published while superseding file B remained selected". The
+  candidate passed it 3 of 3.
+- **The 100 ms input target:** no input-budget failure on either side in any
+  run. The worst pulse of every row was 19–70.4 ms on the candidate and
+  19–71.6 ms on the control. Each row's worst sat in the same phases on both
+  sides, mostly `paged_review_and_git_load`, history's epoch refreshes and
+  cache bytes' byte refreshes.
+  - `large-review-responsiveness`: candidate 57.3, 64.1 and 57.2 ms; control
+    57.3, 58.0 and 64.0 ms.
+  - `large-review-history`: candidate 57.5, 54.4 and 57.9 ms; control 49.6,
+    53.3 and 51.8 ms.
+
+**Verdict for C4:** on a quiet machine the strip adds no failure and no
+pulse near 100 ms on Windows. Every row's worst pulse stays within a few
+milliseconds of the control's. The two failing rows fail the same way without
+this card, so they are not C4's. A macOS quiet run remains the coordinator's
+call.
