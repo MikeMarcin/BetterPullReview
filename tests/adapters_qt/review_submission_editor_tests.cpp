@@ -1,4 +1,6 @@
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/destructive_question.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
 
 #include <QAbstractButton>
@@ -7,7 +9,6 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTextEdit>
@@ -43,7 +44,10 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1345]] v002. What is published is said once, briefly, and only
 	// while a review is being written.
 	expect(editor.note_label()->text() == QStringLiteral("Nothing is published until you submit.") && editor.note_label()->isHidden(), "with no draft the page does not say what is published");
-	for (auto* action : { editor.submit_action(), editor.discard_action(), editor.reconcile_action(), editor.new_review_action() }) {
+	// [[BPR-1345]] v003. No New review: a finished review is never shown,
+	// the next one starts at once.
+	expect(editor.findChild<QToolButton*>(QStringLiteral("wholeReviewNewReview")) == nullptr, "there is no New review button");
+	for (auto* action : { editor.submit_action(), editor.discard_action(), editor.reconcile_action() }) {
 		expect(!action->isEnabled() && !action->toolTip().isEmpty(), "unavailable no-draft action explains why");
 	}
 	editor.present(projection);
@@ -280,11 +284,18 @@ auto main(int argc, char** argv) -> int
 	deletes.at(0)->click();
 	QApplication::processEvents();
 	auto* question = editor.delete_confirmation();
-	expect(question != nullptr && question->isVisible() && question->text() == QStringLiteral("Delete this comment from your review?")
-			   && question->informativeText().startsWith(QStringLiteral("renderer.cpp, line 431: question: Where does 0.01 come from?"))
-			   && static_cast<QAbstractButton*>(question->defaultButton()) == question->escapeButton() && deleted.empty(),
-		   "Delete asks first, naming the comment, with Cancel the default");
-	question->escapeButton()->click();
+	// [[BPR-1345]] v003. The shared question: the comment's place on its own
+	// line, the comment itself rendered in its box, and only that it cannot
+	// be undone (owner, delete-comment v002).
+	expect(question != nullptr && question->isVisible() && question->question() == QStringLiteral("Delete this comment from your review?")
+			   && question->location() == QStringLiteral("renderer.cpp, line 431") && question->detail() == QStringLiteral("This can't be undone.")
+			   && question->subject_box()->isVisible() && question->subject_view() != nullptr
+			   && question->subject_view()->rendered_view()->toPlainText().startsWith(QStringLiteral("question: Where does 0.01 come from?"))
+			   && question->subject_view()->rendered_view()->toPlainText().contains(QStringLiteral("It looks arbitrary."))
+			   && question->subject_mark()->isVisible() && question->cancel_button()->isDefault() && question->confirm_button()->text() == QStringLiteral("Delete comment")
+			   && question->confirm_button()->role() == qt::question_button_role::destructive && deleted.empty(),
+		   "Delete asks first, showing the comment where it is, in its box, with Cancel the default");
+	question->cancel_button()->click();
 	QApplication::processEvents();
 	expect(deleted.empty() && editor.delete_confirmation() == nullptr, "Cancel deletes nothing");
 	deletes.at(0)->click();
@@ -355,10 +366,20 @@ auto main(int argc, char** argv) -> int
 		live.discard_action()->trigger();
 		QApplication::processEvents();
 		auto* discard = live.discard_confirmation();
-		expect(discard != nullptr && discard->isVisible() && discard->text() == QStringLiteral("Discard your review and its 2 pending comments?")
-				   && discard->informativeText().contains(QStringLiteral("deleted")) && liveIntents.empty() && closed == 0,
-			   "Discard review asks first and names the count");
-		discard->escapeButton()->click();
+		expect(discard != nullptr && discard->isVisible() && discard->question() == QStringLiteral("Discard your review and its 2 pending comments?")
+				   && discard->detail() == QStringLiteral("This can't be undone.") && discard->confirm_button()->text() == QStringLiteral("Discard review")
+				   && discard->confirm_button()->role() == qt::question_button_role::destructive && discard->cancel_button()->isDefault()
+				   && liveIntents.empty() && closed == 0,
+			   "Discard review asks first in the shared question, naming the count");
+		// [[BPR-1345]] v003. Discard review's own button is a deleting one:
+		// red words, no fill (owner, discard-review v002).
+		auto* const discardButton = live.discard_button();
+		expect(discardButton != nullptr && discardButton->property("questionRole").toString() == QStringLiteral("destructive") && discardButton->text() == QStringLiteral("Discard review")
+				   && discardButton->ink().hslSaturationF() > 0.35 && (discardButton->ink().hslHue() <= 25 || discardButton->ink().hslHue() >= 335)
+				   && qt::destructive_contrast(discardButton->ink(), live.palette().color(QPalette::Active, QPalette::Window)) >= 4.5,
+			   "Discard review is drawn in the deleting red, readable on the page");
+		QKeyEvent escape{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(discard, &escape);
 		QApplication::processEvents();
 		expect(liveIntents.empty() && liveDraft.State == core::review_submission_state::drafting && closed == 0, "Cancel keeps the review");
 		live.discard_action()->trigger();
@@ -378,6 +399,15 @@ auto main(int argc, char** argv) -> int
 		live.discard_action()->trigger();
 		QApplication::processEvents();
 		expect(live.discard_confirmation() == nullptr && liveDraft.State == core::review_submission_state::discarded && closed == 2, "an empty draft is discarded without a question");
+		// [[BPR-1345]] v003. GitHub's confirmation is said once, with the
+		// review it confirmed, so the window can close the page.
+		auto heard = std::vector<std::size_t>{ };
+		live.set_submitted_observer([&](const std::size_t aComments) { heard.push_back(aComments); });
+		auto confirmedDraft  = finishing;
+		confirmedDraft.State = core::review_submission_state::submitted;
+		live.confirm_submitted(confirmedDraft);
+		expect(heard == std::vector<std::size_t>{ 2U } && live.confirmed_submissions() == 1U && live.last_submitted() == confirmedDraft,
+			   "a confirmed review is announced once, with its comment count");
 		live.hide();
 	}
 	editor.present(projection);

@@ -44,6 +44,7 @@ add_library(
         src/suggestion_mark.cpp
         src/workshop_candidate_line.cpp
         src/review_submission_editor.cpp
+        src/destructive_question.cpp
         src/settings_window.cpp
             src/diagnostic_settings_panel.cpp
         src/profile_management_window.cpp

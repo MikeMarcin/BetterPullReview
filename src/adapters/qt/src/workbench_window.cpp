@@ -21,6 +21,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -2538,6 +2539,22 @@ namespace bpr::qt {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
 				close_review_composition();
 			}
+		});
+		// [[BPR-1345]] v003. A review GitHub confirmed closes the page and
+		// returns to the view the reviewer came from, Review or Discuss,
+		// with a brief line saying so (owner, finish-page v002). A refused or
+		// unknown answer keeps the page and its recovery.
+		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments) {
+			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
+				close_review_composition();
+			}
+			const auto said = aComments == 0U ? tr("Review submitted")
+				: aComments == 1U             ? tr("Review submitted with 1 comment")
+											  : tr("Review submitted with %1 comments").arg(aComments);
+			statusBar()->showMessage(said, 8000);
+			QAccessibleAnnouncementEvent event{ this, said };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
 		});
 		ReviewSubmissionEditor->set_item_reveal([this](const std::string& aIdentity) {
 			if (aIdentity.starts_with("draft:")) {
@@ -8430,7 +8447,7 @@ namespace bpr::qt {
 		return FinishReviewAction;
 	}
 
-	auto workbench_window::delete_draft_confirmation() const noexcept -> QMessageBox*
+	auto workbench_window::delete_draft_confirmation() const noexcept -> destructive_question*
 	{
 		return DeleteDraftConfirmation.data();
 	}
@@ -8452,28 +8469,24 @@ namespace bpr::qt {
 		}
 		const auto& shown   = ReviewEditor->shown_draft();
 		const auto  pending = shown.has_value() && core::pending_in_review(*shown);
-		auto* const box     = new QMessageBox{ this };
-		box->setObjectName(QStringLiteral("deleteDraftConfirmation"));
-		box->setAttribute(Qt::WA_DeleteOnClose);
-		box->setWindowModality(Qt::WindowModal);
-		box->setIcon(QMessageBox::Warning);
-		box->setTextFormat(Qt::PlainText);
-		const auto question = pending ? tr("Delete this comment from your review?") : tr("Delete this comment?");
-		box->setWindowTitle(question);
-		box->setText(question);
-		box->setInformativeText(tr("Its text is deleted from this computer. This can't be undone."));
-		auto* const confirm = box->addButton(tr("Delete comment"), QMessageBox::DestructiveRole);
-		confirm->setObjectName(QStringLiteral("deleteDraftConfirmationConfirm"));
-		auto* const cancel = box->addButton(QMessageBox::Cancel);
-		cancel->setObjectName(QStringLiteral("deleteDraftConfirmationCancel"));
-		box->setDefaultButton(cancel);
-		box->setEscapeButton(cancel);
+		// [[BPR-1345]] v003. The shared question: the comment's place, then
+		// the comment as this drawer reads it, in its box (owner,
+		// delete-comment v002).
+		auto* const box = new destructive_question{ *this, QStringLiteral("deleteDraftConfirmation"), pending ? tr("Delete this comment from your review?") : tr("Delete this comment?"),
+													tr("This can't be undone."), tr("Delete comment") };
+		if (shown.has_value()) {
+			const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+			const auto path    = context.has_value() ? path_of(context->Key.File) : QString{ };
+			auto*      cards   = ConversationPanel != nullptr ? ConversationPanel->cards() : nullptr;
+			box->set_subject(path.section(QLatin1Char{ '/' }, -1), comment_lines(shown->Anchor.Side, shown->Anchor.Line, shown->StartLine), body->toPlainText().toStdString(),
+							 "draft:" + std::to_string(shown->Id.value()), label_marks(), cards != nullptr ? cards->code_font() : font());
+		}
 		DeleteDraftConfirmation = box;
 		const auto id           = shown.has_value() ? std::optional{ shown->Id } : std::nullopt;
-		connect(box, &QMessageBox::buttonClicked, this, [this, confirm, id](QAbstractButton* const aButton) {
+		connect(box, &QDialog::accepted, this, [this, id] {
 			// The draft asked about, and no other.
 			const auto& now = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
-			if (aButton == confirm && now.has_value() && std::optional{ now->Id } == id) {
+			if (now.has_value() && std::optional{ now->Id } == id) {
 				leave_drawer_draft(true);
 			}
 		});

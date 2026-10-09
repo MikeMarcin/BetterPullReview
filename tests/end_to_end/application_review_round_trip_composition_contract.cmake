@@ -1331,6 +1331,19 @@ endfunction()
 # Finish your review row and checks it went to its comment's line in Review
 # (RowRevealed in the fixture-access evidence, main.cpp's evidence line).
 # Mutation pin unchanged; no new src/app source.
+# BPR-1345 v003 reseal (bpr-main-mac, 2026-10-09): over the v002 follow-up
+# reseal above, rebased onto 3084597af (BPR-1367's fixture change and
+# BPR-1370's GitHub adapter change left both pins matching). github_application.cpp: testing only. The start-review
+# course checks that a confirmed review closes Finish your review and returns
+# to Review with "Review submitted with N comments" in the status bar, that a
+# refused or unknown answer keeps the page, reads the shared destructive
+# question (`question()`, not QMessageBox's `text()`), and renders the
+# questions over the window in the four themes. review_submission_workflow.cpp
+# starts the next review at once after a confirmed submission (as after a
+# discard), restores the next unfinished one instead of waiting for New review,
+# and tells the editor which review was confirmed. No grant, target, provider,
+# credential, GitHub write or publication path changes; mutation pin
+# unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1349,7 +1362,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"303819424b78d295238be34a59f917c7b85994a0bbd1322d6225f57bf3ef80c6"
+		"20fc8b0865a6f6a3e2abf615d9ba241f7dde5dd9a2562a1dcfc5ae35bb5803a2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1553,7 +1566,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f5d1d596e04786530c80d35feee55da4fab5531760864723ec19b5b2c62b89b7"
+        "043f314547a89e77e7dcf4041bc882af476a83fb9e82fe110bd1f0ad9c05070e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

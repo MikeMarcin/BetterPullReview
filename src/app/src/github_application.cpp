@@ -57,6 +57,7 @@
 	#include "bpr/application/github_window_read_host.hpp"
 	#include "bpr/application/profile_epoch_actor_registry.hpp"
 	#include "bpr/application/workbench_preferences_host.hpp"
+	#include "bpr/qt/destructive_question.hpp"
 	#include "bpr/qt/settings_window.hpp"
 	#include "github_public_path_fixture.hpp"
 	#include "github_read_contract.hpp"
@@ -64,6 +65,7 @@
 	#include "review_submission_fixture.hpp"
 	#include "startup_diagnostic.hpp"
 	#include <QMenuBar>
+	#include <QPainter>
 	#include <QStatusBar>
 	#include <glaze/json.hpp>
 #endif
@@ -27640,8 +27642,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				QCoreApplication::processEvents();
 			}
 		};
+		// [[BPR-1345]] v003. A question in the window's every theme, drawn
+		// over the window it asks in, as the owner sees it.
+		const auto renderQuestion = [&](const QString& aName, QWidget* const aQuestion) {
+			if (renders.isEmpty() || aQuestion == nullptr || window->appearance_settings() == nullptr) {
+				return;
+			}
+			QDir{ }.mkpath(renders);
+			const auto modes = std::array{ std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") },
+										   std::pair{ core::appearance_mode::high_contrast_light, QStringLiteral("high-contrast-light") },
+										   std::pair{ core::appearance_mode::high_contrast_dark, QStringLiteral("high-contrast-dark") } };
+			for (const auto& [mode, name] : modes) {
+				window->appearance_settings()->choose_mode(mode);
+				for (auto turn = 0; turn < 6; ++turn) {
+					QCoreApplication::processEvents();
+				}
+				auto       scene    = window->grab();
+				const auto question = aQuestion->grab();
+				auto       painter  = QPainter{ &scene };
+				painter.fillRect(scene.rect(), QColor{ 0, 0, 0, 90 });
+				const auto ratio = scene.devicePixelRatio();
+				const auto size  = question.deviceIndependentSize();
+				painter.drawPixmap(QPointF{ (scene.width() / ratio - size.width()) / 2.0, (scene.height() / ratio - size.height()) / 2.0 }, question);
+				painter.end();
+				static_cast<void>(scene.save(renders + QLatin1Char{ '/' } + aName + QLatin1Char{ '-' } + name + QStringLiteral(".png"), "PNG"));
+				static_cast<void>(question.save(renders + QLatin1Char{ '/' } + aName + QLatin1Char{ '-' } + name + QStringLiteral("-alone.png"), "PNG"));
+			}
+			window->appearance_settings()->choose_mode(core::appearance_mode::light);
+			for (auto turn = 0; turn < 6; ++turn) {
+				QCoreApplication::processEvents();
+			}
+		};
 		// [[BPR-1345]] v002. Presses a question's deleting button.
-		const auto confirm = [](QMessageBox* const aBox, const char* aButton) -> bool {
+		const auto confirm = [](QWidget* const aBox, const char* aButton) -> bool {
 			auto* const yes = aBox != nullptr ? aBox->findChild<QAbstractButton*>(QString::fromLatin1(aButton)) : nullptr;
 			if (yes == nullptr) {
 				return false;
@@ -27939,7 +27972,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& second.value(QStringLiteral("line")).toInt() == line(probe.Lines[1]) && second.value(QStringLiteral("side")).toString() == QStringLiteral("RIGHT")
 				&& second.value(QStringLiteral("start_line")).toInt() == line(probe.Lines[1] - 1U) && second.value(QStringLiteral("start_side")).toString() == QStringLiteral("RIGHT")
 				&& second.value(QStringLiteral("body")).toString() == words[1];
-			probe.Evidence.MarkedPublished = remaining.empty() && summary->status_label()->text() == QStringLiteral("Review submitted and confirmed on GitHub with its 2 line comments.");
+			// [[BPR-1345]] v003. Confirmed, the page closes and the window
+			// returns to Review, where Finish review was pressed, and says so.
+			probe.Evidence.MarkedPublished = remaining.empty() && finishPage() == nullptr && window->current_modality() == qt::review_modality::review
+				&& window->statusBar()->currentMessage() == QStringLiteral("Review submitted with 2 comments") && summary->confirmed_submissions() == 1U
+				&& summary->shown_draft().has_value() && summary->shown_draft()->State == core::review_submission_state::drafting && summary->shown_draft()->Comments.empty();
 			if (!probe.Evidence.SubmittedExact || !probe.Evidence.MarkedPublished) {
 				return fail("submitted-not-exact");
 			}
@@ -27953,8 +27990,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (sent.size() != 1U || now.size() != 1U || count_held() != 0U || !chipSays(1U) || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("refusal-not-settled");
 			}
+			// [[BPR-1345]] v003. A refusal keeps the page open, with its words.
 			probe.Evidence.RefusedKept = now.front().Draft.Body == words[0].toStdString() && now.front().Draft.Anchor.Line == probe.Lines.front()
-				&& now.front().Draft.InReview->Submission.empty()
+				&& now.front().Draft.InReview->Submission.empty() && finishPage() != nullptr && summary->confirmed_submissions() == 0U
 				&& summary->status_label()->text().startsWith(QStringLiteral("Review was not published."));
 			if (!probe.Evidence.RefusedKept) {
 				return fail("refusal-lost-the-draft");
@@ -27965,7 +28003,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// v002: Discard review asks first, naming what it deletes.
 			summary->discard_action()->trigger();
 			QCoreApplication::processEvents();
-			if (summary->discard_confirmation() == nullptr || !summary->discard_confirmation()->text().contains(QStringLiteral("1 pending comment"))) {
+			if (summary->discard_confirmation() == nullptr || !summary->discard_confirmation()->question().contains(QStringLiteral("1 pending comment"))) {
 				return fail("discard-asked-nothing");
 			}
 			if (!confirm(summary->discard_confirmation(), "discardReviewConfirmationConfirm")) {
@@ -27999,7 +28037,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-held");
 			}
 			probe.Evidence.UncertainHeld = posts().size() == 1U && held->Draft.Body == words[0].toStdString() && pending().empty()
-				&& !editor->publication_retry_offered()
+				&& !editor->publication_retry_offered() && finishPage() != nullptr && summary->confirmed_submissions() == 0U
 				&& summary->status_label()->text().startsWith(QStringLiteral("Review status is unknown."));
 			if (!probe.Evidence.UncertainHeld) {
 				return fail("uncertain-not-held-exactly");
@@ -28020,7 +28058,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (published != 1U || count_held() != 0U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-reconciled");
 			}
-			probe.Evidence.Reconciled = posts().size() == 1U;
+			// Check status found it published: the page closes as on any
+			// confirmation.
+			probe.Evidence.Reconciled = posts().size() == 1U && finishPage() == nullptr && summary->confirmed_submissions() == 1U
+				&& window->statusBar()->currentMessage() == QStringLiteral("Review submitted with 1 comment");
 			if (!probe.Evidence.Reconciled) {
 				return fail("reconciled-after-a-second-post");
 			}
@@ -28110,7 +28151,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			visible.back()->click();
 			QCoreApplication::processEvents();
-			render(QStringLiteral("delete-comment-question"), summary->delete_confirmation());
+			renderQuestion(QStringLiteral("delete-comment-question"), summary->delete_confirmation());
 			if (summary->delete_confirmation() == nullptr || !confirm(summary->delete_confirmation(), "deleteCommentConfirmationConfirm")) {
 				return fail("row-delete-asked-nothing");
 			}
@@ -28151,8 +28192,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			summary->discard_action()->trigger();
 			QCoreApplication::processEvents();
-			render(QStringLiteral("discard-review-question"), summary->discard_confirmation());
-			if (summary->discard_confirmation() == nullptr || !summary->discard_confirmation()->text().contains(QStringLiteral("1 pending comment"))
+			renderQuestion(QStringLiteral("discard-review-question"), summary->discard_confirmation());
+			if (summary->discard_confirmation() == nullptr || !summary->discard_confirmation()->question().contains(QStringLiteral("1 pending comment"))
 				|| !confirm(summary->discard_confirmation(), "discardReviewConfirmationConfirm")) {
 				return fail("discard-review-asked-nothing");
 			}
@@ -28282,7 +28323,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto comments           = object.value(QStringLiteral("comments")).toArray();
 			probe.Evidence.AgainSubmitted = object.value(QStringLiteral("event")).toString() == QStringLiteral("COMMENT") && comments.size() == 1
 				&& comments.at(0).toObject().value(QStringLiteral("body")).toString() == older && probe.Old
-				&& comments.at(0).toObject().value(QStringLiteral("line")).toInt() == static_cast<int>(*probe.Old) + 1 && pending().empty();
+				&& comments.at(0).toObject().value(QStringLiteral("line")).toInt() == static_cast<int>(*probe.Old) + 1 && pending().empty()
+				&& finishPage() == nullptr && window->statusBar()->currentMessage() == QStringLiteral("Review submitted with 1 comment");
+			if (probe.Evidence.AgainSubmitted) {
+				renderThemes(QStringLiteral("submitted-returned"));
+			}
 			if (!probe.Evidence.AgainSubmitted) {
 				return fail("again-submitted-not-exact");
 			}

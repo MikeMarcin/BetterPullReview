@@ -63,9 +63,12 @@ namespace bpr::app {
 			application::workbench_pull_request_authority   Authority;
 			application::review_submission_provider_factory Factory;
 		};
-		void                                                                          retire();
-		void                                                                          start_selection();
-		void                                                                          new_draft();
+		void retire();
+		void start_selection();
+		void new_draft();
+		/// [[BPR-1345]] v003. After a confirmed or discarded review: the next
+		/// unfinished one if any, else a new draft. Nothing waits for New review.
+		void                                                                          next_review();
 		void                                                                          restore(application::review_submission_request);
 		void                                                                          reconcile();
 		void                                                                          present();

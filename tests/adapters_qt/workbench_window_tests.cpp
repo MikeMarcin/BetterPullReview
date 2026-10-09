@@ -9,6 +9,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/document_tab_strip.hpp"
@@ -19,6 +20,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -80,6 +82,7 @@
 #include <QTabWidget>
 #include <QTextBlock>
 #include <QTextDocument>
+#include <QTextEdit>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -6574,10 +6577,14 @@ namespace {
 		discard->click();
 		process_events();
 		auto* question = window.delete_draft_confirmation();
-		expect(question != nullptr && question->isVisible() && question->text() == QStringLiteral("Delete this comment?")
-				   && question->informativeText() == QStringLiteral("Its text is deleted from this computer. This can't be undone.") && drawer_writing(window),
+		// [[BPR-1345]] v003. The shared question, the draft's words in its
+		// box as the drawer reads them.
+		expect(question != nullptr && question->isVisible() && question->question() == QStringLiteral("Delete this comment?")
+				   && question->detail() == QStringLiteral("This can't be undone.") && question->subject_view() != nullptr
+				   && question->subject_view()->rendered_view()->toPlainText() == QStringLiteral("local text") && question->cancel_button()->isDefault()
+				   && drawer_writing(window),
 			   "Delete asks first, and the draft stays open while it asks");
-		question->escapeButton()->click();
+		question->cancel_button()->click();
 		process_events();
 		expect(drawer_writing(window) && cards->draft_editor()->toPlainText() == QStringLiteral("local text")
 				   && std::ranges::none_of(drafts, [](const core::review_draft_command& aCommand) { return aCommand.Kind == core::review_draft_command_kind::discard; }),

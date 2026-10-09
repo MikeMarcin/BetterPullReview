@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QWidget>
 #include <array>
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <optional>
@@ -19,16 +20,16 @@
 class QAction;
 class QLabel;
 class QMenu;
-class QMessageBox;
 class QPlainTextEdit;
 class QTextEdit;
 class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class danger_tool_button;
+	class destructive_question;
 	enum class review_submission_editor_operation { command,
-													reconcile,
-													new_review };
+													reconcile };
 	struct review_submission_editor_intent
 	{
 		review_submission_editor_operation Operation = review_submission_editor_operation::command;
@@ -89,13 +90,16 @@ namespace bpr::qt {
 		/// pending comments asks first, naming what it deletes.
 		[[nodiscard]] auto discard_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1345]] v002. Discard review's question while it is
-		/// open, or null.
-		[[nodiscard]] auto discard_confirmation() const noexcept -> QMessageBox*;
+		/// open, or null. v003: the shared destructive question.
+		[[nodiscard]] auto discard_confirmation() const noexcept -> destructive_question*;
 		/// \brief [[BPR-1345]] v002. A pending row's Delete question while it
-		/// is open, or null.
-		[[nodiscard]] auto delete_confirmation() const noexcept -> QMessageBox*;
+		/// is open, or null. v003: the shared destructive question, showing
+		/// the comment in its box.
+		[[nodiscard]] auto delete_confirmation() const noexcept -> destructive_question*;
+		/// \brief [[BPR-1345]] v003. Discard review's button: red words, the
+		/// deleting style.
+		[[nodiscard]] auto discard_button() const noexcept -> danger_tool_button*;
 		[[nodiscard]] auto reconcile_action() const noexcept -> QAction*;
-		[[nodiscard]] auto new_review_action() const noexcept -> QAction*;
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1345]]. The page's title: "Finish your review" while
 		/// the review carries line comments, else "Compose review".
@@ -122,7 +126,17 @@ namespace bpr::qt {
 		void set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete);
 		/// \brief [[BPR-1345]] v002. Called once a confirmed Discard review
 		/// has discarded the review, so the window can close the page.
-		void               set_discard_observer(std::function<void()> aObserver);
+		void set_discard_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1345]] v003. GitHub confirmed this review: the workflow
+		/// says so once, after the next review has started. The observer
+		/// hears how many line comments it carried, so the window can close
+		/// the page and say so (owner, finish-page v002: "once the review is
+		/// submitted I just want it to close and return to the PR instead").
+		void confirm_submitted(const core::review_submission_draft& aSubmitted);
+		void set_submitted_observer(std::function<void(std::size_t)> aObserver);
+		/// \brief The last review GitHub confirmed, and how many were.
+		[[nodiscard]] auto last_submitted() const noexcept -> const std::optional<core::review_submission_draft>&;
+		[[nodiscard]] auto confirmed_submissions() const noexcept -> std::size_t;
 		[[nodiscard]] auto target_editor() const noexcept -> QTextEdit*;
 		[[nodiscard]] auto shown_draft() const noexcept -> const std::optional<core::review_submission_draft>&;
 		/// \brief [[BPR-1085]]. The whole presentation last shown, its preflight
@@ -163,6 +177,9 @@ namespace bpr::qt {
 		std::function<void(const core::review_submission_comment&)> PendingReveal;
 		std::function<void(const core::review_submission_comment&)> PendingDelete;
 		std::function<void()>                                       DiscardObserver;
+		std::function<void(std::size_t)>                            SubmittedObserver;
+		std::optional<core::review_submission_draft>                LastSubmitted;
+		std::size_t                                                 Confirmed = 0U;
 		std::optional<feedback_mark_theme>                          MarkTheme;
 		std::optional<QColor>                                       Attention;
 		review_submission_editor_projection                         Shown;
@@ -180,17 +197,15 @@ namespace bpr::qt {
 		QLabel*                                                     Carries         = nullptr;
 		QToolButton*                                                Details         = nullptr;
 		QWidget*                                                    Recovery        = nullptr;
-		QToolButton*                                                DiscardButton   = nullptr;
+		danger_tool_button*                                         DiscardButton   = nullptr;
 		QToolButton*                                                ReconcileButton = nullptr;
-		QToolButton*                                                NewReviewButton = nullptr;
-		QPointer<QMessageBox>                                       DiscardQuestion;
-		QPointer<QMessageBox>                                       DeleteQuestion;
+		QPointer<destructive_question>                              DiscardQuestion;
+		QPointer<destructive_question>                              DeleteQuestion;
 		std::vector<core::review_submission_comment>                Listed;
 		QStringList                                                 ListedRows;
 		QAction*                                                    Submit    = nullptr;
 		QAction*                                                    Discard   = nullptr;
 		QAction*                                                    Reconcile = nullptr;
-		QAction*                                                    NewReview = nullptr;
 	};
 }
 #endif

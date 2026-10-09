@@ -1690,6 +1690,21 @@ foreach(bpr_home_list_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-1345]] v003. The shared question before a deletion in the compose
+# flow: structure, keys, the comment's box, and its red in the four themes.
+bpr_add_executable(test_better_pull_review_qt_destructive_question_tests destructive_question_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_destructive_question_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_destructive_question_tests)
+bpr_enable_warnings(test_better_pull_review_qt_destructive_question_tests)
+foreach(scale IN ITEMS 100 200)
+    math(EXPR scale_factor "${scale} / 100")
+    bpr_add_network_isolated_test(NAME qt_destructive_question_scale_${scale}
+        COMMAND test_better_pull_review_qt_destructive_question_tests)
+    set_tests_properties(qt_destructive_question_scale_${scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${scale_factor}"
+        PASS_REGULAR_EXPRESSION "destructive-question:pass")
+endforeach()
+
 # PR-scoped editor mechanics, independent of provider effects.
 bpr_add_executable(test_better_pull_review_qt_review_submission_editor_tests review_submission_editor_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_review_submission_editor_tests PRIVATE BetterPullReview::AdapterQt)

@@ -96,6 +96,7 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class destructive_question;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
 	///
@@ -691,7 +692,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto finish_review_action() const noexcept -> QAction*;
 		/// \brief [[BPR-1345]] v002. The drawer draft's Delete question while
 		/// it is open, or null.
-		[[nodiscard]] auto delete_draft_confirmation() const noexcept -> QMessageBox*;
+		[[nodiscard]] auto delete_draft_confirmation() const noexcept -> destructive_question*;
 		/// \brief [[BPR-1345]] v002. Goes to a pending comment from Finish
 		/// your review: Review, its file, and its line selected once that
 		/// file's comparison shows. Navigation only.
@@ -1810,7 +1811,7 @@ namespace bpr::qt {
 		/// sink and the drawer Delete's question.
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
-		QPointer<QMessageBox>                                     DeleteDraftConfirmation;
+		QPointer<destructive_question>                            DeleteDraftConfirmation;
 		/// [[BPR-1133]]. Comment's arrow menu.
 		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,

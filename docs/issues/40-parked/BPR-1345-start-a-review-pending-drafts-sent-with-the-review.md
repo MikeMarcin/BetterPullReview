@@ -589,7 +589,7 @@ check after it: `full_application` `30381942…`, `production_app_manifest`
   owner launched (pid 17530) are not this round's processes and were left
   running; the v001 root is not removed.
 
-### Owner look v002 (pending)
+### Owner look v002 (answered)
 
 One new short session, not the long default one: four Accept/Reject questions,
 one per item group. None is self-certified.
@@ -618,3 +618,202 @@ one per item group. None is self-certified.
 
 Next: on hand-back, read `status --after 12`. Accepts answer AC3's owner half
 and the v002 groups (AC5); a Reject's note is the next round's change.
+
+## Owner verdicts v002 (2026-10-09)
+
+Session `6b69681ee0f2c70e5c926cb85b3c72ae` (state
+`/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1345-start-a-review-v002/state`),
+read from cursor 12, handed back at event 17 with nothing pending. Each
+candidate was answered once.
+
+- `BPR-1345-drawer-actions-keys-v002` (fingerprint `18a67dd9…`): **Accept**,
+  no note, decision `97b6bfee-5d7c-450a-9c7d-40dc1d65af71`, event 15.
+- `BPR-1345-delete-comment-v002` (fingerprint `dd6f0162…`): **Reject**,
+  decision `3cdccbf0-fd3f-4351-b32e-c809129f8323`, event 13. The owner's
+  note, verbatim:
+
+  > Render the comment better. Put it in a box and start the comment below
+  > the location record. Render it basically like it would appear in the
+  > drawer.
+  >
+  > Make sure the comment is clearly separated from the dialog information.
+  > Color the delete box red ane ensure it looks dangerous sort of like this
+  > one from codex
+  >
+  > We don't need to say "it is deleted from this computer" The cannot be
+  > undone warning is sufficine.t
+
+  Attachments, kept in `/Users/jaeger/bpr-owner-att/`:
+  `BPR-1345-delete-comment-v002-0.png` (the native message box: a warning
+  triangle, the comment inline after its location, and "It is deleted from
+  this computer. This can't be undone.") and
+  `BPR-1345-delete-comment-v002-1.png` (the reference: a dark rounded panel,
+  a bold "Delete task?", muted words ending "This cannot be undone.", a close
+  ×, and a neutral Cancel beside Delete in red words on a dark red tint).
+- `BPR-1345-discard-review-v002` (fingerprint `a088537e…`): **Reject**,
+  decision `a8f82732-68c0-40eb-a24a-c73acbc1ffc4`, event 14. The owner's
+  note, verbatim:
+
+  > Style the discard button similar to the feedback I gave on delete comment.
+
+- `BPR-1345-finish-page-v002` (fingerprint `5a46d88b…`): **Reject**, decision
+  `de957e24-351c-4f71-9360-46af71807bc8`, event 16. The owner's note,
+  verbatim:
+
+  > I like everything but this new review page... once the review is
+  > submitted I just want it to close and return to the PR instead.
+
+  Attachment `BPR-1345-finish-page-v002-0.png`: after submitting, the page
+  stays open with "This review was submitted. Choose New review to write
+  another.", "Review submitted and confirmed on GitHub with its 2 line
+  comments." and a New review button.
+
+The Accept answers the drawer actions and keys (AC1's v002 change; AC5 for
+it). The three Rejects are v003's. Cleanup after reading: the session's
+candidates released (`resume-development --all`, event 18), its host stopped
+(pid 98607, `stop`), and both frozen roots removed with
+`scripts/freeze_attended_build.py remove`
+(`bpr1345-start-a-review-v002.90kd9blu`, and `bpr1345-start-a-review-v001.tb6uhcch`,
+from which no process was running).
+
+## v003 (bpr-main-mac, 2026-10-09)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on
+`bpr-main-mac` (macOS, Apple clang, Qt 6.11.2, Debug `build/dev`,
+offscreen). The `frontend-design:frontend-design` skill was loaded first.
+Built in `/Users/jaeger/bpr-wt/bpr1345` on branch `bpr-1345-start-a-review`,
+rebased onto `3084597af`.
+
+### Design
+
+The owner named the look, so v003 follows the reference rather than
+inventing one: a rounded panel, a bold question, a close ×, muted words, a
+neutral Cancel and a red deleting button. Two choices are v003's own. The
+panel is raised from the window and the comment's box is recessed back onto
+the window's ground, behind a hairline. The comment therefore reads as a
+quoted object apart from the question's words, and it sits as a drawer post
+does: the label's mark in a left gutter, the recognized header in semibold,
+the Markdown rendered in the drawer's reader and code font. Red appears in
+one place only, the deleting button (and Discard review on the page), so it
+keeps its meaning. Every colour derives from the palette of the window that
+asks, because the themes are applied per window; v002's native box ignored
+the dark theme.
+
+### What changed
+
+1. **One destructive question** (`destructive_question`, new in the Qt
+   adapter). A frameless, rounded, window-modal panel painted in the theme's
+   own colours: the question in bold, a close × (named "Close"), the muted
+   words "This can't be undone.", then Cancel and the deleting button on one
+   row at the right. Cancel is the default and takes the focus. Esc, Cancel
+   and × cancel; only the deleting button confirms. The deleting button's
+   words are red on a red tint in all four themes, at least 4.5:1 on that
+   tint (7:1 in a high-contrast theme), and it is named for what it does
+   ("Delete comment", "Discard review"). The question follows its window's
+   theme while it is open. It replaces the three compose-flow message boxes:
+   the drawer's Delete, a Finish your review row's Delete, and Discard
+   review. ("Forget server" is not in the compose flow and is unchanged.)
+2. **Delete comment.** Under the title, the location on its own line (the
+   file in semibold, then "lines 3–4" muted), then the comment in its box as
+   the drawer reads it, then "This can't be undone.". The words "deleted
+   from this computer" are gone (owner: "The cannot be undone warning is
+   sufficient").
+3. **Discard review.** The same question, naming the count ("Discard your
+   review and its 2 pending comments?", or "Discard your review summary?").
+   The page's Discard review button (`danger_tool_button`) has red words and
+   no fill at rest, and the red tint and edge under the pointer. It is a
+   secondary danger and does not compete with the verdicts. Its words read at
+   4.5:1 on the page in every theme.
+4. **A confirmed review closes the page.** When GitHub confirms the review
+   (on Submit, or later through Check status), the workflow starts the next
+   review at once and tells the editor which review was confirmed
+   (`confirm_submitted`). The window then closes Finish your review, returns
+   to the view the reviewer came from (Review or Discuss), and shows "Review
+   submitted with N comments" in the status bar for eight seconds, announced
+   politely. The "This review was submitted. Choose New review…" text and the
+   New review button are gone. Nothing waits for New review any more: a
+   confirmation or a discard moves on to the next unfinished submission if one
+   is waiting, else a new draft, and discovery replaces a finished draft. A
+   refused or unknown answer keeps the page, with its words and Check status.
+
+### Verification (macOS, Debug, offscreen)
+
+- New `qt_destructive_question_scale_{100,200}`: the panel's structure (bold
+  title, the window's title and accessible name; the words only "This can't
+  be undone."; the location on its own line; the comment's box below it and
+  above the words; the comment rendered with its mark in the left gutter and
+  its header set apart; a named ×; Cancel then the deleting button on one
+  row); Cancel the default and focused; Esc, Return on Cancel and × cancel,
+  the deleting button confirms; in each of the four themes the question takes
+  its window's palette, the deleting button is red words on a red tint at
+  4.5:1 (7:1 high contrast), the muted words and title read on the panel,
+  Cancel is neutral, the panel's edge shows, and Discard review's words are
+  red and read on the page. It renders both questions in each theme.
+- `qt_review_submission_editor_scale_{100,125,200}`: no New review button; a
+  row's Delete shows the comment where it is, in its box, Cancel the default;
+  Discard review asks in the shared question and its button is red; a
+  confirmation is announced once with its count.
+- `qt_workbench_window_scale_100` (`workbench_window_tests`): the drawer's
+  Delete asks in the shared question with the draft's words in the box.
+- `application_start_review_contract` (the composed application over the
+  fixture server): `finish` now requires the page closed, Review shown and
+  "Review submitted with 2 comments"; `refused` requires the page still open
+  with "Review was not published."; `uncertain` requires the page open while
+  the answer is unknown, and closed with "Review submitted with 1 comment"
+  once Check status finds it; `again` requires the page closed after its
+  submission. `application_review_submission_composition_public_path` (and
+  scales 125 and 200): each confirmation is heard once, the window says
+  "Review submitted…", and the next review is already shown.
+- On the rebased candidate, 26 focused rows pass at `-j6`, including the
+  above, `qt_workbench_line_draft`, `qt_workbench_conversation_reveal`,
+  `qt_conversation_cards_view`, `qt_workbench_window_scale_{100,125,200}`,
+  `application_threaded_reply_contract`,
+  `application_uiforetw_selected_diff_contract`,
+  `application_composition_contract`,
+  `application_review_round_trip_composition_contract` (resealed),
+  `core_review_pending`, `core_review_submission`, `architecture_boundaries`,
+  `architecture_boundary_contract` and `test_network_isolation_manifest`.
+- Renders of the composed application in light, dark, high-contrast light and
+  high-contrast dark, from the `again` course with
+  `BPR_START_REVIEW_RENDER_DIRECTORY`: both questions over the window, Finish
+  your review with the red Discard review, and Review after the submission
+  with its status line.
+- The 100 ms gates were not run again: v003 changes nothing on the input or
+  scroll path (a question panel, a status message, and the workflow's handling
+  of an answer), so v002's pass stands.
+- `coding-format` (clang-format 22.1.8) on every changed file;
+  `DOCUMENTATION_OK`.
+
+**Failing-before controls.** For each control, one mutation was applied, the
+row built and run, and the file restored byte for byte. Every control failed.
+
+| Mutation | Row | Failure |
+|---|---|---|
+| Delete's words say "It is deleted from this computer." again | `qt_review_submission_editor_scale_100` | "Delete asks first, showing the comment where it is, in its box, with Cancel the default" |
+| No comment box (the subject is not set) | `qt_review_submission_editor_scale_100` | the same |
+| The deleting button's words in the text colour | `qt_destructive_question_scale_100` | "the deleting button is red words on a red tint" |
+| The deleting button takes the focus | `qt_destructive_question_scale_100` | "Cancel is the default and takes the focus" |
+| The close × confirms | `qt_destructive_question_scale_100` | "the close mark cancels" |
+| Discard review drawn in the text colour | `qt_review_submission_editor_scale_100` | "Discard review is drawn in the deleting red, readable on the page" |
+| The page stays open on a confirmation | `application_start_review_contract` | `finish`: `START_REVIEW_FINISH_EVIDENCE:11110` (MarkedPublished) |
+| A refusal closes the page | `application_start_review_contract` (`refused` run directly) | `START_REVIEW_REFUSED_EVIDENCE:1100` (RefusedKept) |
+| The submitted review stays shown (no next review) | `application_review_submission_composition_public_path` | "the next review starts at once" |
+
+During the `refused` control's ctest run, the `pending` course also timed out
+once at an early phase at a load average near 140. Run directly under the
+same mutation, `pending` passed (`START_REVIEW_PENDING_EVIDENCE:11111`). The
+row passes on the candidate.
+
+**Pin.** Resealed over the v002 follow-up reseal: `full_application`
+`20fc8b08…`, `production_app_manifest` `043f3145…`. The mutation pin is
+unchanged. The dated note says what moved.
+
+**Limits.**
+- macOS only; Windows and Linux runs of these rows are owed by the stations.
+- The panel is a frameless top-level window. macOS draws its shadow; on
+  Windows and Linux it has its hairline edge and no shadow.
+- The status line is the window's status bar message; it goes after eight
+  seconds or when another message replaces it.
+- A confirmation that restores an earlier unfinished submission closes the
+  page as well. That submission is shown, with Check status, the next time
+  Compose review or Finish review opens.

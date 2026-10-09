@@ -1,6 +1,7 @@
 #include "bpr/qt/review_submission_editor.hpp"
 
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "conversation_glyphs.hpp"
 
 #include <QAbstractButton>
@@ -13,7 +14,6 @@
 #include <QImage>
 #include <QLabel>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPainter>
 #include <QPen>
 #include <QPlainTextEdit>
@@ -442,28 +442,6 @@ namespace bpr::qt {
 			bool                 Repeat      = false;
 		};
 
-		/// [[BPR-1345]] v002. A question asked before something is deleted:
-		/// window modal, the deleting button named for what it does, Cancel
-		/// the default and Esc.
-		[[nodiscard]] auto destructive_question(QWidget* aOwner, const QString& aName, const QString& aText, const QString& aDetail, const QString& aConfirm) -> QMessageBox*
-		{
-			auto* const box = new QMessageBox{ aOwner };
-			box->setObjectName(aName);
-			box->setAttribute(Qt::WA_DeleteOnClose);
-			box->setWindowModality(Qt::WindowModal);
-			box->setIcon(QMessageBox::Warning);
-			box->setTextFormat(Qt::PlainText);
-			box->setWindowTitle(aText);
-			box->setText(aText);
-			box->setInformativeText(aDetail);
-			auto* const confirm = box->addButton(aConfirm, QMessageBox::DestructiveRole);
-			confirm->setObjectName(aName + QStringLiteral("Confirm"));
-			auto* const cancel = box->addButton(QMessageBox::Cancel);
-			cancel->setObjectName(aName + QStringLiteral("Cancel"));
-			box->setDefaultButton(cancel);
-			box->setEscapeButton(cancel);
-			return box;
-		}
 	} // namespace
 
 	auto review_preflight_summary(const std::optional<core::review_preflight>& aPreflight) -> QString
@@ -581,7 +559,6 @@ namespace bpr::qt {
 		Submit          = new QAction{ tr("Submit review"), this };
 		Discard         = new QAction{ tr("Discard"), this };
 		Reconcile       = new QAction{ tr("Check status"), this };
-		NewReview       = new QAction{ tr("New review"), this };
 		const auto flat = [this](QAction* aAction, const QString& aName) {
 			auto* button = new QToolButton{ this };
 			button->setObjectName(aName);
@@ -604,7 +581,14 @@ namespace bpr::qt {
 		Purpose->setMinimumWidth(0);
 		Purpose->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		after->addWidget(Purpose, 1);
-		DiscardButton = flat(Discard, QStringLiteral("wholeReviewDiscard"));
+		// [[BPR-1345]] v003. Discard review deletes, so it is drawn as the
+		// question's deleting button is, quieter: red words, no fill at rest
+		// (owner, discard-review v002: "Style the discard button similar to
+		// the feedback I gave on delete comment.").
+		DiscardButton = new danger_tool_button{ this };
+		DiscardButton->setObjectName(QStringLiteral("wholeReviewDiscard"));
+		DiscardButton->setDefaultAction(Discard);
+		DiscardButton->setAccessibleName(Discard->text());
 		after->addWidget(DiscardButton);
 		layout->addLayout(after);
 		Status = new QLabel{ this };
@@ -621,11 +605,8 @@ namespace bpr::qt {
 		auto* const recover = new QHBoxLayout{ Recovery };
 		recover->setContentsMargins(0, 0, 0, 0);
 		ReconcileButton = flat(Reconcile, QStringLiteral("wholeReviewReconcile"));
-		NewReviewButton = flat(NewReview, QStringLiteral("wholeReviewNewReview"));
 		ReconcileButton->setParent(Recovery);
-		NewReviewButton->setParent(Recovery);
 		recover->addWidget(ReconcileButton);
-		recover->addWidget(NewReviewButton);
 		recover->addStretch();
 		layout->addWidget(Recovery);
 		// The host, the head and the account, behind a disclosure closed by
@@ -669,7 +650,6 @@ namespace bpr::qt {
 		connect(Submit, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::begin_submit); });
 		connect(Discard, &QAction::triggered, this, [this] { confirm_discard(); });
 		connect(Reconcile, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::reconcile); });
-		connect(NewReview, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::new_review); });
 		setFocusProxy(Body);
 		present({ .Status = tr("Sign in and open an active pull request to write a review. Back returns to the pull request.") });
 	}
@@ -708,10 +688,9 @@ namespace bpr::qt {
 				state = tr("Submission is in progress or awaiting confirmation. Check status before trying again.");
 				break;
 			case core::review_submission_state::submitted:
-				state = tr("This review was submitted. Choose New review to write another.");
-				break;
 			case core::review_submission_state::discarded:
-				state = tr("This draft was discarded. Choose New review to start again.");
+				// [[BPR-1345]] v003. A finished review is not shown: the page
+				// closes, and the next review starts at once.
 				break;
 			}
 		}
@@ -729,10 +708,8 @@ namespace bpr::qt {
 		DiscardButton->setAccessibleName(Discard->text());
 		DiscardButton->setVisible(Draft.has_value());
 		Reconcile->setEnabled(connected && aProjection.Controls.Reconcile);
-		NewReview->setEnabled(connected && aProjection.Controls.NewReview);
 		ReconcileButton->setVisible(Reconcile->isEnabled());
-		NewReviewButton->setVisible(NewReview->isEnabled());
-		Recovery->setVisible(Reconcile->isEnabled() || NewReview->isEnabled());
+		Recovery->setVisible(Reconcile->isEnabled());
 		Body->setToolTip(Body->isReadOnly() ? aProjection.Status : tr("Your summary is kept as a draft until you submit it."));
 		present_preflight(aProjection);
 		present_verdicts();
@@ -742,7 +719,6 @@ namespace bpr::qt {
 															: tr("Discard this unpublished review draft."))
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
 		Reconcile->setToolTip(Reconcile->isEnabled() ? tr("Check whether this exact review was submitted.") : tr("Check status is available only for a review awaiting confirmation."));
-		NewReview->setToolTip(NewReview->isEnabled() ? tr("Start a new draft for the current pull request revision.") : tr("Finish or discard the current draft before starting another. %1").arg(aProjection.Status));
 		const auto chosen       = Draft ? decisions_name(Draft->Disposition) : QString{ };
 		const auto announcement = aProjection.TargetDescription + QStringLiteral("\n") + chosen + QStringLiteral(". ") + aProjection.Status;
 		if (announcement != LastAnnouncement) {
@@ -1000,18 +976,17 @@ namespace bpr::qt {
 		if (DiscardQuestion != nullptr) {
 			DiscardQuestion->close();
 		}
-		const auto  text   = count == 0U ? tr("Discard your review summary?")
-			: count == 1U                ? tr("Discard your review and its 1 pending comment?")
-										 : tr("Discard your review and its %1 pending comments?").arg(count);
-		const auto  detail = count == 0U ? tr("The summary is deleted from this computer. Nothing was published. This can't be undone.")
-			: summary                    ? tr("The comments and the summary are deleted from this computer. Nothing was published. This can't be undone.")
-										 : tr("The comments are deleted from this computer. Nothing was published. This can't be undone.");
-		auto* const box    = destructive_question(window(), QStringLiteral("discardReviewConfirmation"), text, detail, count == 0U ? tr("Discard") : tr("Discard review"));
-		auto* const yes    = box->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"));
-		DiscardQuestion    = box;
-		const auto id      = Draft->Id;
-		connect(box, &QMessageBox::buttonClicked, this, [this, yes, id](QAbstractButton* const aButton) {
-			if (aButton == yes && Draft && Draft->Id == id) {
+		// [[BPR-1345]] v003. The shared question, its title naming what goes
+		// and its words only that it cannot be undone (owner, delete-comment
+		// v002: "The cannot be undone warning is sufficient").
+		const auto  text = count == 0U ? tr("Discard your review summary?")
+			: count == 1U              ? tr("Discard your review and its 1 pending comment?")
+									   : tr("Discard your review and its %1 pending comments?").arg(count);
+		auto* const box  = new destructive_question{ *window(), QStringLiteral("discardReviewConfirmation"), text, tr("This can't be undone."), count == 0U ? tr("Discard") : tr("Discard review") };
+		DiscardQuestion  = box;
+		const auto id    = Draft->Id;
+		connect(box, &QDialog::accepted, this, [this, id] {
+			if (Draft && Draft->Id == id) {
 				discard_now();
 			}
 		});
@@ -1037,15 +1012,16 @@ namespace bpr::qt {
 		if (DeleteQuestion != nullptr) {
 			DeleteQuestion->close();
 		}
-		const auto  name  = text_of(aComment.Path).section(QLatin1Char{ '/' }, -1);
-		const auto  lines = aComment.StartLine ? tr("lines %1–%2").arg(*aComment.StartLine + 1U).arg(aComment.Line + 1U) : tr("line %1").arg(aComment.Line + 1U);
-		const auto  first = text_of(aComment.Body).section(QLatin1Char{ '\n' }, 0, 0).trimmed();
-		auto* const box   = destructive_question(window(), QStringLiteral("deleteCommentConfirmation"), tr("Delete this comment from your review?"),
-												 tr("%1, %2: %3\nIt is deleted from this computer. This can't be undone.").arg(name, lines, first), tr("Delete comment"));
-		auto* const yes   = box->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm"));
-		DeleteQuestion    = box;
-		connect(box, &QMessageBox::buttonClicked, this, [this, yes, aComment](QAbstractButton* const aButton) {
-			if (aButton == yes && PendingDelete) {
+		// [[BPR-1345]] v003. Where the comment is, then the comment itself in
+		// a box as the drawer reads it, apart from the question's words.
+		auto* const box  = new destructive_question{ *window(), QStringLiteral("deleteCommentConfirmation"), tr("Delete this comment from your review?"), tr("This can't be undone."), tr("Delete comment") };
+		auto        code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+		code.setPointSizeF(font().pointSizeF() * 0.95);
+		box->set_subject(text_of(aComment.Path).section(QLatin1Char{ '/' }, -1), comment_lines(aComment.Side, aComment.Line, aComment.StartLine), aComment.Body,
+						 "pending:" + std::to_string(aComment.Draft.value()) + ":" + std::to_string(aComment.DraftRevision), MarkTheme.value_or(default_feedback_mark_theme(palette())), code);
+		DeleteQuestion = box;
+		connect(box, &QDialog::accepted, this, [this, aComment] {
+			if (PendingDelete) {
 				PendingDelete(aComment);
 			}
 		});
@@ -1066,8 +1042,23 @@ namespace bpr::qt {
 	auto review_submission_editor::carries_label() const noexcept -> QLabel* { return Carries; }
 	auto review_submission_editor::note_label() const noexcept -> QLabel* { return Purpose; }
 	auto review_submission_editor::details_toggle() const noexcept -> QToolButton* { return Details; }
-	auto review_submission_editor::discard_confirmation() const noexcept -> QMessageBox* { return DiscardQuestion.data(); }
-	auto review_submission_editor::delete_confirmation() const noexcept -> QMessageBox* { return DeleteQuestion.data(); }
+	auto review_submission_editor::discard_confirmation() const noexcept -> destructive_question* { return DiscardQuestion.data(); }
+	auto review_submission_editor::discard_button() const noexcept -> danger_tool_button* { return DiscardButton; }
+	void review_submission_editor::confirm_submitted(const core::review_submission_draft& aSubmitted)
+	{
+		LastSubmitted = aSubmitted;
+		++Confirmed;
+		if (SubmittedObserver) {
+			SubmittedObserver(aSubmitted.Comments.size());
+		}
+	}
+	void review_submission_editor::set_submitted_observer(std::function<void(std::size_t)> aObserver)
+	{
+		SubmittedObserver = std::move(aObserver);
+	}
+	auto review_submission_editor::last_submitted() const noexcept -> const std::optional<core::review_submission_draft>& { return LastSubmitted; }
+	auto review_submission_editor::confirmed_submissions() const noexcept -> std::size_t { return Confirmed; }
+	auto review_submission_editor::delete_confirmation() const noexcept -> destructive_question* { return DeleteQuestion.data(); }
 	void review_submission_editor::set_pending_reveal(std::function<void(const core::review_submission_comment&)> aReveal)
 	{
 		PendingReveal = std::move(aReveal);
@@ -1146,7 +1137,6 @@ namespace bpr::qt {
 	auto review_submission_editor::submit_action() const noexcept -> QAction* { return Submit; }
 	auto review_submission_editor::discard_action() const noexcept -> QAction* { return Discard; }
 	auto review_submission_editor::reconcile_action() const noexcept -> QAction* { return Reconcile; }
-	auto review_submission_editor::new_review_action() const noexcept -> QAction* { return NewReview; }
 	auto review_submission_editor::status_label() const noexcept -> QLabel* { return Status; }
 	auto review_submission_editor::target_editor() const noexcept -> QTextEdit* { return Target; }
 	auto review_submission_editor::shown_draft() const noexcept -> const std::optional<core::review_submission_draft>& { return Draft; }

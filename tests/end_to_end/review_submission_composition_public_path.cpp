@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -15,13 +16,14 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMainWindow>
 #include <QMenu>
-#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
+#include <QStatusBar>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -29,6 +31,7 @@
 #include <QToolButton>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <sqlite3.h>
 #include <stdexcept>
 
@@ -58,7 +61,7 @@ namespace {
 		// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
 		window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
 		window.home_open_action()->trigger();
-		wait([&] { auto* editor = window.review_submission_editor_view(); return editor->shown_draft().has_value() && (editor->discard_action()->isEnabled() || editor->new_review_action()->isEnabled()); }, "review discovery through ordinary PR open");
+		wait([&] { auto* editor = window.review_submission_editor_view(); return editor->shown_draft().has_value() && (editor->discard_action()->isEnabled() || editor->reconcile_action()->isEnabled()); }, "review discovery through ordinary PR open");
 		// [[BPR-0771]]. The Home bar opens on the reviewer's opening modality,
 		// Overview by default; the retired locator left the window on Review.
 		// This course is about the review surface, so it chooses Review.
@@ -72,15 +75,29 @@ namespace {
 				   && page->isAncestorOf(window.review_submission_editor_view()),
 			   "explicit Compose review opens the retained editor in the central page");
 	}
+	/// Confirmations already read, by editor; cleared with each application.
+	auto confirmations_seen() -> std::map<const qt::review_submission_editor*, std::size_t>&
+	{
+		static auto seen = std::map<const qt::review_submission_editor*, std::size_t>{ };
+		return seen;
+	}
 	void shutdown(app::github_application& aApp)
 	{
 		aApp.begin_shutdown();
 		wait([&] { return aApp.status().ShutdownComplete; }, "whole-review shutdown");
+		confirmations_seen().clear();
 	}
+	/// [[BPR-1345]] v003. GitHub confirmed the review: the editor says so once,
+	/// the window says "Review submitted…" and the next review starts at once.
 	void submitted(qt::review_submission_editor& aEditor)
 	{
-		wait([&] { return aEditor.shown_draft() && aEditor.shown_draft()->State == state::submitted; }, "exact review receipt");
-		expect(aEditor.status_label()->text().contains(QStringLiteral("confirmed")), "confirmation is visible");
+		auto& seen = confirmations_seen()[&aEditor];
+		wait([&] { return aEditor.confirmed_submissions() > seen; }, "exact review receipt");
+		seen = aEditor.confirmed_submissions();
+		expect(aEditor.last_submitted() && aEditor.last_submitted()->State == state::submitted, "the confirmed review is the submitted one");
+		auto* const window = qobject_cast<QMainWindow*>(aEditor.window());
+		expect(window != nullptr && window->statusBar()->currentMessage().startsWith(QStringLiteral("Review submitted")), "confirmation is visible");
+		expect(aEditor.shown_draft() && aEditor.shown_draft()->Id != aEditor.last_submitted()->Id, "the next review starts at once");
 	}
 }
 
@@ -126,9 +143,6 @@ auto main(int argc, char** argv) -> int
 		expect(!editor.submit_action()->isEnabled(), "blank comment refused");
 		const auto first = *editor.shown_draft();
 		for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
-			if (editor.new_review_action()->isEnabled()) {
-				editor.new_review_action()->trigger();
-			}
 			// [[BPR-1345]] v002: a verdict button submits; the verdict is
 			// chosen first here, and Submit sends it below.
 			editor.choose_disposition(disposition);
@@ -301,7 +315,7 @@ auto main(int argc, char** argv) -> int
 			const auto&      request = server->Reviews.back();
 			expect(request.Proposal.Body == body.toStdString() && request.Proposal.Disposition == disposition
 					   && request.Proposal.Target == first.Target && request.Proposal.ActingAccount == first.ActingAccount
-					   && request.Proposal.Draft == draft.Id && request.Proposal.Attempt == editor.shown_draft()->Attempt,
+					   && request.Proposal.Draft == draft.Id && request.Proposal.Attempt == editor.last_submitted()->Attempt,
 				   "server sees exact frozen request");
 		}
 		{
@@ -309,7 +323,6 @@ auto main(int argc, char** argv) -> int
 			expect(server->Submissions == 3U, "exactly three submissions for three explicit gestures");
 			server->RefuseBeforeSend = true;
 		}
-		editor.new_review_action()->trigger();
 		editor.body_editor()->setPlainText(QStringLiteral("Retain refused summary"));
 		editor.submit_action()->trigger();
 		wait([&] { return editor.shown_draft()->State == state::drafting; }, "definite refusal restores draft");
@@ -324,7 +337,6 @@ auto main(int argc, char** argv) -> int
 		expect(editor.shown_draft()->State == state::submitting && !editor.submit_action()->isEnabled(), "stale result cannot finish or retry review");
 		editor.reconcile_action()->trigger();
 		submitted(editor);
-		editor.new_review_action()->trigger();
 		editor.body_editor()->setPlainText(QStringLiteral("Recover after reopening"));
 		{
 			std::scoped_lock lock{ server->Mutex };
@@ -349,8 +361,8 @@ auto main(int argc, char** argv) -> int
 		expect(restoredNotes->body_editor()->toPlainText() == QStringLiteral("A private note, copied literally."), "promotion retained the durable private source");
 		auto& restored = *application->window().review_submission_editor_view();
 		submitted(restored);
-		expect(restored.shown_draft()->Id == pending.Id && restored.shown_draft()->Attempt == pending.Attempt
-				   && restored.shown_draft()->Body == pending.Body && restored.shown_draft()->Target == pending.Target,
+		expect(restored.last_submitted()->Id == pending.Id && restored.last_submitted()->Attempt == pending.Attempt
+				   && restored.last_submitted()->Body == pending.Body && restored.last_submitted()->Target == pending.Target,
 			   "real SQLite restores original attempt into reconstructed application");
 		{
 			std::scoped_lock lock{ server->Mutex };
@@ -358,6 +370,9 @@ auto main(int argc, char** argv) -> int
 		}
 		if (argc == 2) {
 			application->window().resize(1280, 900);
+			// [[BPR-1345]] v003. The confirmation closed the page; Compose
+			// review opens it again on the next review.
+			application->window().open_review_composition();
 			QApplication::processEvents();
 			auto* const page = application->window().findChild<QScrollArea*>(
 				QStringLiteral("composeReviewPage"));
@@ -376,7 +391,6 @@ auto main(int argc, char** argv) -> int
 			expect(application->window().grab().save(QString::fromLocal8Bit(argv[1])), "full-window render saved");
 		}
 		// A retired terminal must not complete a draft after changed authority.
-		restored.new_review_action()->trigger();
 		restored.body_editor()->setPlainText(QStringLiteral("Frozen across authority change"));
 		access::hold_review_submission_terminals(*application, true);
 		restored.submit_action()->trigger();
@@ -410,11 +424,10 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1345]] v002: Discard asks first when there are words to lose.
 		frozen.discard_action()->trigger();
 		QApplication::processEvents();
-		expect(frozen.discard_confirmation() != nullptr && frozen.discard_confirmation()->text() == QStringLiteral("Discard your review summary?"),
+		expect(frozen.discard_confirmation() != nullptr && frozen.discard_confirmation()->question() == QStringLiteral("Discard your review summary?"),
 			   "Discard asks before it deletes a written summary");
 		frozen.discard_confirmation()->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"))->click();
 		QApplication::processEvents();
-		frozen.new_review_action()->trigger();
 		expect(frozen.shown_draft()->Id != oldDraft.Id && frozen.shown_draft()->Target != oldDraft.Target
 				   && frozen.shown_draft()->Body.empty(),
 			   "discard and explicit new review adopt the new revision");
@@ -475,7 +488,6 @@ auto main(int argc, char** argv) -> int
 				std::scoped_lock lock{ server->Mutex };
 				expect(server->Submissions == 6U, "the preflight course starts after six submissions");
 			}
-			composer.new_review_action()->trigger();
 			expect(composer.shown_draft() && composer.shown_draft()->State == state::drafting, "a new review to decide");
 			wait([&] { return chip() == QStringLiteral("Yours on GitHub: 0 open blocking"); }, "the fixture's own threads are plain, read exactly, and none blocks");
 			const auto quiet = submissions();
@@ -523,7 +535,6 @@ auto main(int argc, char** argv) -> int
 					   "Approve with my open blocking feedback submits exactly the native approval, once");
 			}
 			// native-request-changes: inspect my blocking feedback, then choose.
-			composer.new_review_action()->trigger();
 			expect(chip().startsWith(QStringLiteral("Yours on GitHub: 1 open blocking")) && composer.preflight_menu()->actions().at(1)->text().contains(QStringLiteral("Keep the second current-head anchor exact.")),
 				   "my blocking feedback is there to inspect before deciding");
 			composer.choose_disposition(core::review_disposition::request_changes);
@@ -537,7 +548,6 @@ auto main(int argc, char** argv) -> int
 			}
 
 			// A selected unsent draft binds the decision; a stale view of it is refused.
-			composer.new_review_action()->trigger();
 			composer.body_editor()->setPlainText(QStringLiteral("Comment with a pending inline draft."));
 			course.close_review_composition();
 			course.choose_modality(qt::review_modality::review);

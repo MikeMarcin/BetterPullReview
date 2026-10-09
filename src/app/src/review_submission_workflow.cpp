@@ -428,15 +428,7 @@ namespace bpr::app {
 		}
 		const auto controls = decided_controls();
 		using operation     = qt::review_submission_editor_operation;
-		if (aIntent.Operation == operation::new_review) {
-			if (controls.NewReview) {
-				if (Unresolved.empty()) {
-					new_draft();
-				} else {
-					restore(Unresolved.front());
-				}
-			}
-		} else if (aIntent.Operation == operation::reconcile) {
+		if (aIntent.Operation == operation::reconcile) {
 			if (controls.Reconcile) {
 				reconcile();
 			}
@@ -541,13 +533,9 @@ namespace bpr::app {
 					DiscardReview();
 				}
 				// [[BPR-1345]] v002. A discarded review is gone: the next one
-				// starts at once, so nothing it said is shown again. An
-				// unfinished submission still waits for New review.
-				if (Unresolved.empty()) {
-					new_draft();
-				} else {
-					Status = QStringLiteral("Review discarded. Choose New review to check the unfinished one.");
-				}
+				// starts at once, so nothing it said is shown again. v003: an
+				// unfinished submission is the next one, as New review did.
+				next_review();
 			}
 		}
 		present();
@@ -566,8 +554,18 @@ namespace bpr::app {
 		Status = QStringLiteral("Review was not submitted. Refresh the pull request and try again.");
 	}
 
+	void review_submission_workflow::next_review()
+	{
+		if (Unresolved.empty()) {
+			new_draft();
+		} else {
+			restore(Unresolved.front());
+		}
+	}
+
 	void review_submission_workflow::publish(const application::review_submission_host_terminal& aTerminal)
 	{
+		auto confirmed = std::optional<core::review_submission_draft>{ };
 		if (Closing || !Context || aTerminal.Context != *Context) {
 			// Retired hosts can finish, but cannot inspect or replace the current draft.
 			start_selection();
@@ -619,7 +617,8 @@ namespace bpr::app {
 				} else if (!Unresolved.empty()) {
 					restore(Unresolved.front());
 					reconcile();
-				} else if (!Draft) {
+				} else if (!Draft || Draft->State == draft_state::submitted || Draft->State == draft_state::discarded) {
+					// [[BPR-1345]] v003. A finished review is never shown again.
 					new_draft();
 				} else {
 					// A finished review never takes the next one's comments.
@@ -637,14 +636,14 @@ namespace bpr::app {
 				complete(command_kind::complete_submit);
 				std::erase_if(Unresolved, [this](const auto& aRequest) { return aRequest.IdempotencyKey == Pending->IdempotencyKey; });
 				Pending.reset();
-				const auto carried = submitted.Proposal.Comments.size();
-				Status             = carried == 0U ? QStringLiteral("Review submitted and confirmed on GitHub.")
-					: carried == 1U                ? QStringLiteral("Review submitted and confirmed on GitHub with its line comment.")
-												   : QStringLiteral("Review submitted and confirmed on GitHub with its %1 line comments.").arg(carried);
-				if (!Unresolved.empty()) {
-					Status += QStringLiteral(" Choose New review to inspect the next unfinished review.");
-				}
 				answer(submitted, application::review_submission_publication::published);
+				// [[BPR-1345]] v003. Confirmed: the page closes and the window
+				// says so (owner, finish-page v002: "once the review is
+				// submitted I just want it to close and return to the PR
+				// instead"). The next review starts at once, so the page never
+				// shows a submitted one or asks for New review.
+				confirmed = Draft;
+				next_review();
 			} else if (result->Publication == application::review_submission_publication::definitely_not_published) {
 				const auto refused = *Pending;
 				complete(command_kind::fail_submit);
@@ -662,6 +661,9 @@ namespace bpr::app {
 			next_lookup();
 		}
 		present();
+		if (confirmed) {
+			Editor.confirm_submitted(*confirmed);
+		}
 	}
 }
 
