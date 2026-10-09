@@ -10,7 +10,6 @@
 #include <QLabel>
 #include <QPaintEvent>
 #include <QPointer>
-#include <QVariant>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QStyle>
@@ -19,6 +18,7 @@
 #include <QStylePainter>
 #include <QTimer>
 #include <QToolTip>
+#include <QVariant>
 #include <QWidget>
 
 #include <algorithm>

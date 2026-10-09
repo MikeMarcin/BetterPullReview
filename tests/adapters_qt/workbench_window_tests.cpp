@@ -8922,7 +8922,7 @@ namespace {
 				&& state.Navigation->File == order[aFile] && selectedOrdinal() == aChange;
 		};
 
-		const auto key = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
+		const auto key         = [](const char* const aKey) { return QKeySequence{ QString::fromLatin1(aKey) }.toString(QKeySequence::NativeText); };
 		const auto all_enabled = [&window] {
 			return std::ranges::all_of(navigation_actions(window), [](const QAction* const aAction) { return aAction->isEnabled(); });
 		};

@@ -28,11 +28,11 @@
 
 #include <QAction>
 #include <QApplication>
-#include <QStatusBar>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -198,7 +198,7 @@ int main(int aArgc, char** aArgv)
 		   "the first change of the first file keeps every arrow enabled and names the bounds");
 
 	// One press at a bound: nothing moves and nothing reloads.
-	auto       bounds = 0;
+	auto       bounds       = 0;
 	const auto pressAtBound = [&](QAction* const aAction, const QString& aMessage, const char* aWhat) {
 		const auto  here   = *where(window);
 		const auto* before = window.comparison_surface()->current_result().get();

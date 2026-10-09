@@ -594,16 +594,16 @@ namespace {
 		const auto previous = change_entry(change_navigation_direction::previous);
 		const auto next     = change_entry(change_navigation_direction::next);
 		const auto lonely   = workbench_change_cursor{
-			  .Group       = opaque<change_group_id>(1U),
-			  .Ordinal     = 1U,
-			  .ChangeCount = 1U,
+			.Group       = opaque<change_group_id>(1U),
+			.Ordinal     = 1U,
+			.ChangeCount = 1U,
 		};
 
 		// The owner's case, in every file position: one change is both ends of
 		// its comparison, and neither arrow greys out or leaves the file.
 		for (const auto& position : { resident(1U, 3U), resident(2U, 3U), resident(3U, 3U), resident(1U, 1U) }) {
-			auto state   = active(position);
-			state.Change = lonely;
+			auto state      = active(position);
+			state.Change    = lonely;
 			const auto deck = project_workbench_commands(state);
 			expect(bounded(deck.Commands[previous], workbench_reason_code::at_first_change)
 					   && bounded(deck.Commands[next], workbench_reason_code::at_last_change),
@@ -635,8 +635,8 @@ namespace {
 		}
 
 		// The wrap policy still wraps, so it has no bound.
-		auto wrapping   = active(resident(2U, 3U), change_navigation_policy::wrap);
-		wrapping.Change = lonely;
+		auto wrapping      = active(resident(2U, 3U), change_navigation_policy::wrap);
+		wrapping.Change    = lonely;
 		const auto wrapped = project_workbench_commands(wrapping);
 		expect(moves(wrapped.Commands[previous]) && moves(wrapped.Commands[next]),
 			   "the wrap policy has no bound inside the comparison");
