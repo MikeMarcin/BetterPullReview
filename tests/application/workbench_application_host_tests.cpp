@@ -561,8 +561,16 @@ namespace {
 					core::workbench_command_id::previous_change)];
 			const auto& nextCommand = projection.Commands->Commands[command_index(
 				core::workbench_command_id::next_change)];
-			expect(previousCommand.Enabled == aPrevious
-					   && nextCommand.Enabled == aNext,
+			// [[BPR-1328]]. Both change commands stay enabled while a pull
+			// request is open; a missing neighbour is a bound, not a dead arrow.
+			expect(previousCommand.Enabled && nextCommand.Enabled,
+				   "the change commands stay enabled at either end");
+			expect(previousCommand.Bound
+						   == (aPrevious ? core::workbench_reason_code::none
+										 : core::workbench_reason_code::at_first_change)
+					   && nextCommand.Bound
+						   == (aNext ? core::workbench_reason_code::none
+									 : core::workbench_reason_code::at_last_change),
 				   "the core projects the exact observed change neighbours");
 		};
 
@@ -756,9 +764,10 @@ namespace {
 			   "the host resolved the next ordinal to an identity");
 		const auto& next = navigated.Commands->Commands[command_index(
 			core::workbench_command_id::next_file)];
-		expect(!next.Enabled
-				   && next.DisabledReason == core::workbench_reason_code::at_last_file,
-			   "the core disabled the exhausted command");
+		// [[BPR-1328]]. The exhausted command stays enabled and is bounded.
+		expect(next.Enabled
+				   && next.Bound == core::workbench_reason_code::at_last_file,
+			   "the core bounds the exhausted command");
 
 		harnessed.Host.apply(core::navigate_workbench_file_intent{
 			.Direction = core::change_navigation_direction::next });

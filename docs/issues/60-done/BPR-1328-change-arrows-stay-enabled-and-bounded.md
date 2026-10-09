@@ -436,3 +436,25 @@ At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
   minimum version.
 
 Windows is still owed.
+
+## Follow-up: `application_workbench_host` (bpr-main-win, 2026-10-08)
+
+`dda61041d` made the change and file commands always enabled, but
+`tests/application/workbench_application_host_tests.cpp` still expected the
+old greyed-out arrows, so `application_workbench_host` failed on every
+platform ("the core projects the exact observed change neighbours"). The test
+now checks BPR-1328's rule: both change commands stay enabled, and in a
+separate assertion each one's `Bound` is `none`, `at_first_change` or
+`at_last_change` exactly as the observed cursor says. The same file's
+last-file check now expects `next_file` enabled with `Bound` `at_last_file`.
+Test-only; no product change.
+
+## Windows station run (bpr-main-win, 2026-10-08)
+
+At `2779ac75a` with this follow-up's test change, Windows 11, MSVC 19.50,
+`build/windows-dev-tour-cli` (Debug), offscreen, network-isolated runner:
+- **Pass:** `application_workbench_host`, `core_workbench_interaction`,
+  `qt_workbench_window_scale_{100,125,200}`,
+  `application_change_arrows_across_files` and `architecture_boundaries`.
+- **Not registered on Windows:** `qt_hide_drawers_native_menu_key`, so it was
+  not run.
