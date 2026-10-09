@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1331"
 title: "The private progress button shows the file's current state"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-parked_on: "human-review"
 metadata: {"origin":"Owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1331--BPR-1331--755aeb836635.json","related_cards":["BPR-1129","BPR-1083","BPR-0647","BPR-1296"],"acceptance":["BPR-1331:core-decides","BPR-1331:glyphs","BPR-1331:follows","BPR-1331:push","BPR-1331:owner-look"]}
+acceptance: [{"criterion":"BPR-1331:core-decides","outcome":"pass","revision":"22fd752f5","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1331-the-private-progress-button-shows-the-files-current-state.md","detail":"core_review_ledger test_one_progress_mark_sums_up_a_receipt walks the real transitions; control: dropping acceptance from progress_mark fails. Linux and Windows pass."}},{"criterion":"BPR-1331:glyphs","outcome":"pass","revision":"ba3c970b9","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1331-the-private-progress-button-shows-the-files-current-state.md","detail":"v003: qt_review_state_icon (one coloured family in four themes, six marks differ in monochrome at 1x and 2x, menu shows the family), qt_overview_read_marks and qt_files_tree; product-only reverts fail each. Pass on macOS, Linux (b0ef8d7b9) and Windows (7672d5a8b)."}},{"criterion":"BPR-1331:follows","outcome":"pass","revision":"ba3c970b9","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1331-the-private-progress-button-shows-the-files-current-state.md","detail":"qt_review_state_icon: the icon follows a menu change, a file switch, a palette refresh, a theme hand-over and an unavailable ledger; controls fail. Pass on macOS, Linux and Windows."}},{"criterion":"BPR-1331:push","outcome":"pass","revision":"54dfbd463","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1331-the-private-progress-button-shows-the-files-current-state.md","detail":"application_review_progress_push_contract (two processes, one data root): after a push renderer.cpp reads unread, main.cpp accepted, button.cpp excluded; control with file_material = comparison digest reads main.cpp unread. core_diff_model test_file_material_outlives_a_push. Pass on Windows (7672d5a8b)."}},{"criterion":"BPR-1331:owner-look","outcome":"pass","revision":"ba3c970b9","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1331-the-private-progress-button-shows-the-files-current-state.md","detail":"Owner Accept, no note, 2026-10-09T13:04:25Z: session fa2c1dc9748e742614c16cfe36bb3943, candidate BPR-1331-review-state-icon-v003 (fingerprint dcfbb35cd031..., frozen-ba3c970b9-v003), decision f24285c1-660c-41cf-848c-d0815387e5fc at event 4, handed back at 5, released at 6. v001 and v002 rejected earlier."}}]
 ---
 
 # BPR-1331: The private progress button shows the file's current state
@@ -91,8 +91,10 @@ This is the review bar's ✓▾ button, the selected file's private progress
   an unchanged file keeps its mark, an excluded file stays excluded (the
   owner's v001 note). **Pass**: `application_review_progress_push_contract`,
   `core_diff_model`; see "When the pull request gets a push".
-- `BPR-1331:owner-look`: pending, the owner's Accept or Reject of
-  "review-state icon" on the frozen build, including the push.
+- `BPR-1331:owner-look`: the owner's Accept or Reject of
+  "review-state icon" on the frozen build, including the push. **Pass**:
+  v001 and v002 were rejected; v003 was accepted on 2026-10-09 (see "Owner
+  verdict, session v003").
 
 ## Verification
 
@@ -420,7 +422,8 @@ source.
 
 ## Owner look, session v003
 
-Pending: `BPR-1331:owner-look` is the owner's. One new short session, one
+`BPR-1331:owner-look` is the owner's (accepted; see "Owner verdict, session
+v003"). One new short session, one
 candidate, one question, Accept or Reject.
 
 - Session `fa2c1dc9748e742614c16cfe36bb3943`, its own fresh state
@@ -444,6 +447,24 @@ candidate, one question, Accept or Reject.
 Next: read the session's decisions (`status --after 3`). Accept satisfies
 `:owner-look` and the card finishes. A Reject comes back with its note for a
 v004.
+
+## Owner verdict, session v003
+
+Accept, 2026-10-09T13:04:25Z, decision `f24285c1-660c-41cf-848c-d0815387e5fc`
+at session event 4, no note (candidate `BPR-1331-review-state-icon-v003`,
+fingerprint `dcfbb35cd0316ca042dc336c5112cd62ecff6fe915b48d77a599256f01d40e73`,
+revision `frozen-ba3c970b9-v003`). The owner handed session
+`fa2c1dc9748e742614c16cfe36bb3943` back at event 5, read from cursor 0.
+
+This satisfies `BPR-1331:owner-look`. The other criteria stand on their
+recorded evidence, and the Linux and Windows station runs below pass v003's
+rows. The card is Done.
+
+The host (pid 58807) was stopped and the candidate released with
+`resume-development --all` at event 6. The frozen root
+`/Users/jaeger/bpr1331-review-state-v003.i5hf09qz` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
 
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
