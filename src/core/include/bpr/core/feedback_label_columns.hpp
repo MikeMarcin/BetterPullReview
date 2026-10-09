@@ -60,8 +60,11 @@ namespace bpr::core {
 	/// \brief Checks a selection someone else built: the first refusal, if any.
 	[[nodiscard]] auto check_feedback_label_columns(const feedback_label_columns& aColumns) noexcept
 		-> std::expected<void, feedback_label_columns_refusal>;
-	/// \brief The selected labels in their order.
+	/// \brief The selected labels in their order; they view \p aColumns.
 	[[nodiscard]] auto labels_of(const feedback_label_columns& aColumns) noexcept -> std::span<const feedback_label>;
+	/// [[BPR-1361]]. Refused: the span would view a selection that dies at the
+	/// end of the call's full expression.
+	auto labels_of(const feedback_label_columns&& aColumns) noexcept -> std::span<const feedback_label> = delete;
 
 	/// \brief The longest stored selection text a reader accepts, in bytes.
 	/// \details All twelve IDs and their commas take 84 bytes; the bound

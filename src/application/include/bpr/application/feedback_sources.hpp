@@ -63,6 +63,9 @@ namespace bpr::application {
 	/// \brief The posts as the core's annotation refresh takes them; they view
 	/// \p aSources, which must outlive the result.
 	[[nodiscard]] auto feedback_post_observations(const feedback_sources& aSources) -> std::vector<core::feedback_post_observation>;
+	/// [[BPR-1361]]. Refused: the posts would view a source that dies at the
+	/// end of the call's full expression.
+	auto feedback_post_observations(const feedback_sources&& aSources) -> std::vector<core::feedback_post_observation> = delete;
 }
 
 #endif

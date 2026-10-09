@@ -42,7 +42,8 @@ namespace {
 
 	void every_label_and_order_round_trips()
 	{
-		expect(labels_of(feedback_label_columns{ }).empty() && feedback_label_columns_text({ }).empty(), "the default chooses no column and stores nothing");
+		const auto none = feedback_label_columns{ };
+		expect(labels_of(none).empty() && feedback_label_columns_text({ }).empty(), "the default chooses no column and stores nothing");
 		expect(read_feedback_label_columns("") == feedback_label_columns_reading{ }, "empty text reads as no column, with nothing dropped");
 		for (std::size_t index = 0U; index < feedback_label_count; ++index) {
 			const auto one  = columns({ label_at(index) });

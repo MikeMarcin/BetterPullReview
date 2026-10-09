@@ -58,3 +58,44 @@ dangle.
   `application_feedback_counter_cost`, `application_overview_feedback` and the
   preflight rows build and pass.
 - The card lists the other view-returning builders checked, with what was done.
+
+## Done (bpr-main-win, 2026-10-09)
+
+**Refused at compile time.** Each of the following has a deleted
+`const T&&` overload, so a prvalue or `const` rvalue argument selects it and
+does not compile:
+- `application::feedback_post_observations`;
+- `core::labels_of(const feedback_label_columns&)`, which returns a span into
+  its argument and had the same hazard;
+- the test helper `counted_posts`.
+
+One core test passed a temporary to `labels_of` within a single expression,
+which was safe. It now names the value.
+
+**Proof** (`tests/application/feedback_counters_tests.cpp`): concepts over a
+`requires` call with `static_assert`s.
+- Each builder accepts `const T&` and `T&`, and refuses `T` and `const T`.
+- A standalone MSVC control compiled the same check over a function without
+  the deleted overload: a temporary was accepted. So the assertion fails
+  exactly when the guard is missing.
+
+**Other view-returning builders checked** (every free function in
+`src/core/include` and `src/application/include` that returns a
+`std::string_view`, `std::span` or view-holding type):
+- **Static storage, cannot dangle:** `stable_name`/`name` of an enum,
+  `feedback_label_catalog`, `definition_of`, `emphasis_pairs` and
+  `agent_search_path_variable`.
+- **Request types consumed within one call:** `feedback_header_edit_request`,
+  `markdown_link_observation` and `pull_request_page_observation`.
+- **`feedback_text(std::string_view, feedback_span)`:** takes a borrowed view
+  already. Refusing `std::string&&` would also refuse valid same-expression
+  uses, so it is left as is.
+- **Member accessors** (`records()`, `rules()`, `root_identity()` and the
+  like): the general lifetime of `*this`, outside this card.
+
+**Windows results** (Debug, tour-cli tree, this change on `6eb957f6c`):
+- The full build passes, with every caller of both builders.
+- 17 of 17 pass: `core_feedback_*` (11 rows), `core_review_preflight`,
+  `application_feedback_counters`, `application_feedback_counter_costs`,
+  `application_overview_feedback`, `qt_feedback_label_controls`,
+  `tour_cli_labels` and `architecture_boundaries`.

@@ -2,6 +2,7 @@
 #include "bpr/application/feedback_counters.hpp"
 #include "bpr/application/feedback_sources.hpp"
 #include "bpr/core/feedback_conversation.hpp"
+#include "bpr/core/feedback_label_columns.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
 
 #include <algorithm>
@@ -466,6 +467,7 @@ namespace {
 
 	/// [[BPR-1349]]. The core's annotation posts as the counter model hands
 	/// them over: every post but a generated tour index's.
+	auto counted_posts(const application::feedback_sources&& aSources) -> std::vector<core::feedback_post_observation> = delete;
 	auto counted_posts(const application::feedback_sources& aSources) -> std::vector<core::feedback_post_observation>
 	{
 		auto references = std::set<std::string>{ };
@@ -593,6 +595,25 @@ namespace {
 		expect(carried > 200 && general > 50, "edits, resolutions and moves are carried; arrivals and departures take the general path");
 	}
 } // namespace
+
+namespace {
+	/// [[BPR-1361]]. A source the posts would view must be a named object: a
+	/// temporary, the way the seeded-rounds setup once passed one, does not
+	/// compile.
+	template <typename Sources>
+	concept observes_posts_of = requires(Sources&& aSources) {
+		application::feedback_post_observations(std::forward<Sources>(aSources));
+	};
+	template <typename Sources>
+	concept counts_posts_of = requires(Sources&& aSources) { counted_posts(std::forward<Sources>(aSources)); };
+	template <typename Columns>
+	concept lists_labels_of = requires(Columns&& aColumns) { core::labels_of(std::forward<Columns>(aColumns)); };
+
+	static_assert(observes_posts_of<const application::feedback_sources&> && observes_posts_of<application::feedback_sources&>);
+	static_assert(!observes_posts_of<application::feedback_sources> && !observes_posts_of<const application::feedback_sources>);
+	static_assert(counts_posts_of<const application::feedback_sources&> && !counts_posts_of<application::feedback_sources>);
+	static_assert(lists_labels_of<const core::feedback_label_columns&> && !lists_labels_of<core::feedback_label_columns>);
+}
 
 auto main() -> int
 try {
