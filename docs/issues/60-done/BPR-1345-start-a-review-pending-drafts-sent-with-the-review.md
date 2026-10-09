@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1345"
 title: "Start a review: pending drafts that the review submission sends as review comments"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"BPR-1212 owner look, session aae8f3fcd307cfca3bfb8ae0b28f1b83, start-a-review-v001 Accept","decision_id":"dc7e0a01-68f0-42b2-8d34-ede92665e96c","reservation":"docs/issues/_reservations/BPR-1345--BPR-1345--530408819266.json","design":"docs/design/BPR-1212-start-a-review-v1/index.html","related_cards":["BPR-1212","BPR-1085","BPR-1329","BPR-1294"],"related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"timing":"Build after BPR-1212's right-click v002 slice (coordinator, 2026-10-08)"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4ec36997e","evidence":{"kind":"observation","detail":"Drawer foot offers Add single comment (today's Publish bytes and key) and Start a review / Add review comment; a pending draft survives restart and is never published by navigation, local acceptance or another draft's single comment (application_start_review_contract pending and finish courses). Owner Accepts: write-a-comment v001 (decision 8af7409a, session 7f4f6349) and drawer-actions-keys v002 (decision 97b6bfee, session 6b69681e)."}},{"criterion":"AC2","outcome":"pass","revision":"4ec36997e","evidence":{"kind":"observation","detail":"Review chip shows 'Review · N pending' with Finish review, N exact, each pending draft drawn at its line (qt_workbench_line_draft, pending course). Owner Accept of review-in-progress v001 (decision 4a7fc8c1, session 7f4f6349)."}},{"criterion":"AC3","outcome":"pass","revision":"4ec36997e","evidence":{"kind":"observation","detail":"One GitHub review carrying exactly the pending drafts, summary rule, publication only on acceptance, refusal and unknown keep every draft (finish, refused, uncertain, again courses; live_review_submission_provider; github_mutation_contract). Discard review asks naming the count, deletes and closes the page; verdicts submit directly; a confirmed review closes the page. Owner Accepts in session 15cc2ae5: delete-comment v003 (81a1f1f7, with the cannot wording applied in 4ec36997e, no follow-up review per the owner), discard-review v003 (93a50f80), finish-closes v003 (2a220b19)."}},{"criterion":"AC4","outcome":"pass","revision":"4ec36997e","evidence":{"kind":"command","detail":"Composed public path over the fixture server and the real composition root (application_start_review_contract, review submission public path); failing-before controls per rule for v001, v002, v003 and the wording change; 100 ms gates pass (v002, input path unchanged since); round-trip pins resealed in v003 and matching at 4ec36997e; one live probe on MikeMarcin/BPR-Test#44. macOS rows; Windows and Linux rows owed by the stations."}},{"criterion":"AC5","outcome":"pass","revision":"4ec36997e","evidence":{"kind":"observation","detail":"One Accept/Reject question per criterion on exact frozen candidates in three short sessions (7f4f6349 v001, 6b69681e v002, 15cc2ae5 v003); every Reject rebuilt and later accepted; v003 handed back at event 14 with all three Accept."}}]
 ---
 
 # BPR-1345: Start a review, with pending drafts sent as review comments
@@ -818,7 +818,7 @@ unchanged. The dated note says what moved.
   page as well. That submission is shown, with Check status, the next time
   Compose review or Finish review opens.
 
-### Owner look v003 (pending)
+### Owner look v003 (answered)
 
 One new short session, not the long default one: three Accept/Reject
 questions, one per rejected v002 item. None is self-certified.
@@ -846,5 +846,99 @@ questions, one per rejected v002 item. None is self-certified.
   frozen application; the delete question also carries the unit render of a
   labelled comment, its mark in the gutter.
 
-Next: on hand-back, read `status --after 9`. Accepts answer AC3's owner half
-and the v003 items (AC5); a Reject's note is the next round's change.
+Read on hand-back below.
+
+## Owner verdicts v003 (2026-10-09)
+
+Session `15cc2ae59c19c6c52ad63fbc46e73f35` (state
+`/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1345-start-a-review-v003/state`),
+read from cursor 9, handed back at event 14 with nothing pending. All three
+are Accepts on revision `frozen-4f9d0f98b-v003`.
+
+- `BPR-1345-delete-comment-v003` (fingerprint `5ac9bbaa…`): **Accept**,
+  decision `81a1f1f7-bddc-465b-88a0-8b0b4d45f700`, event 11. It revises
+  event 10's Accept (decision `38c3f83f-0aaf-43cc-af67-99e2745fbb6c`, note
+  "This is good, but please say cannot instead of can't") by adding the note's
+  last clause. The owner's note, verbatim:
+
+  > This is good, but please say cannot instead of can't, no need for a
+  > follow-up review for that change.
+
+- `BPR-1345-discard-review-v003` (fingerprint `da743d34…`): **Accept**, no
+  note, decision `93a50f80-df15-43f8-9342-8cb019d1d6f5`, event 12.
+- `BPR-1345-finish-closes-v003` (fingerprint `01d868ac…`): **Accept**, no
+  note, decision `2a220b19-bcb6-4cfa-89d8-b339cd3f5141`, event 13.
+
+These answer AC3's owner half (Finish your review, Discard review and the
+page closing on a confirmed review) and the last of AC5. With v001's Accepts
+of write-a-comment and review-in-progress (AC1, AC2) and v002's Accept of
+the drawer actions and keys, every question asked of the owner is accepted.
+
+### The wording change (bpr-main-mac, 2026-10-09)
+
+In `4ec36997e`, the shared question's words are "This cannot be undone." in
+all three places the compose flow asks (the drawer's Delete, a Finish your
+review row's Delete, Discard review), and in the `destructive_question`
+documentation. The Qt rows check the exact words. The owner said no
+follow-up review is needed for it, so none was asked. The workbench
+specification now describes the shared question, Discard review's red button
+and the page closing on a confirmed review, and no longer mentions New
+review. No `src/app` source changed, so both round-trip pins still match.
+
+On macOS (Debug `build/dev`, offscreen, `-j6`), 13 of 13 pass:
+`qt_destructive_question_scale_{100,200}`,
+`qt_review_submission_editor_scale_{100,125,200}`,
+`qt_workbench_conversation_reveal`, `qt_conversation_cards_view`,
+`qt_workbench_line_draft`, `qt_workbench_window_scale_{100,125,200}`,
+`application_start_review_contract` and
+`application_review_round_trip_composition_contract`. `coding-format`
+(clang-format 22.1.8) leaves every changed file as it is. `DOCUMENTATION_OK`.
+
+**Failing-before controls.** Each production string was put back to "can't"
+and the row built and run, then the file restored byte for byte:
+
+| Mutation | Row | Failure |
+|---|---|---|
+| A row's Delete and Discard review say "can't" | `qt_review_submission_editor_scale_100` | fails |
+| The drawer's Delete says "can't" | `qt_workbench_conversation_reveal` | "Delete asks first, and the draft stays open while it asks" |
+
+Correction to v003's verification: the drawer's Delete is checked by
+`qt_workbench_conversation_reveal` (`--conversation-reveal`), not by
+`qt_workbench_window_scale_100`, which passed under the second mutation.
+
+## Closeout (bpr-main-mac, 2026-10-09)
+
+- AC1: drawer foot, pending mark and restart: built in v001 and v002, with
+  `application_start_review_contract`'s `pending` and `finish` courses. The
+  owner accepted write-a-comment v001 and drawer-actions-keys v002.
+- AC2: the review chip with its exact count and every pending draft drawn at
+  its line: owner Accept of review-in-progress v001, plus
+  `qt_workbench_line_draft` and the `pending` course.
+- AC3: one review carrying exactly the pending drafts, the summary rule,
+  publication only on GitHub's acceptance, and a refusal or unknown answer
+  keeping every draft. The `finish`, `refused`, `uncertain` and `again`
+  courses check these, along with `live_review_submission_provider` and
+  `github_mutation_contract`. Discard review with its confirmation (v002,
+  v003) and the verdicts submitting directly (v002): the owner accepted
+  discard-review v003 and finish-closes v003.
+- AC4: the composed public path through the fixture server, the
+  failing-before controls (v001, v002, v003 and the wording change), the
+  100 ms gates (v002; nothing on the input path changed since), the
+  round-trip pin resealed (v003, matching at `4ec36997e`), and one live
+  probe on `MikeMarcin/BPR-Test#44` (v001).
+- AC5: one Accept/Reject question per criterion in three short sessions
+  (`7f4f6349`, `6b69681e`, `15cc2ae5`). Every Reject was rebuilt and then
+  accepted.
+
+The card finishes on the coordinator's direction. These limits remain:
+- Windows and Linux runs of this card's rows are not recorded and are owed by
+  the stations.
+- A submission's comments are verified from one page of the pull request's
+  review comments, so on a pull request with more than 100 the outcome stays
+  unknown; the read is not paged (v001's limit).
+- A pending draft belongs to the head it was written on.
+
+Cleanup: the session's candidates were released, its host (pid 28600) was
+stopped, and the frozen root
+`/Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v003.i2hsl035`
+was removed with `scripts/freeze_attended_build.py remove`.
