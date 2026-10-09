@@ -516,8 +516,9 @@ question.
   by the Comment verdict), `refused` `START_REVIEW_REFUSED_EVIDENCE:1111`
   (Discard review asks, deletes the draft and closes the page), `uncertain`
   `START_REVIEW_UNCERTAIN_EVIDENCE:1111`, and the owner's flow `again`
-  `START_REVIEW_AGAIN_EVIDENCE:111111111`. That course keeps an older draft
+  `START_REVIEW_AGAIN_EVIDENCE:1111111111`. That course keeps an older draft
   out of the review, starts a review of two, opens Finish review by its
+  action, presses a row (Review, its line selected) and comes back by the
   action, deletes one row, and discards the review, which deletes it, keeps
   the older draft and closes the page. It then discards a written summary on
   Compose review, takes the older draft into a new review by ⌘↩, and finishes
@@ -557,6 +558,7 @@ row built and run, and the file restored byte for byte. Every control failed.
 | A row's Delete asks nothing | `qt_review_submission_editor_scale_100` | "Delete asks first, naming the comment, with Cancel the default" |
 | The drawer's Delete asks nothing | `qt_workbench_conversation_reveal` | "Delete asks first, and the draft stays open while it asks" |
 | The composition deletes no row | `application_start_review_contract` | `again`: "row-not-deleted" |
+| A row goes nowhere | `application_start_review_contract` | `again`: "row-not-revealed" |
 | A verdict only chooses, as v001 | `qt_review_submission_editor_scale_100` | "keyboard press on the draft's verdict emits the exact submit intent" |
 | The details show by default | `qt_review_submission_editor_scale_100` | "the target and account are behind a closed disclosure" |
 | What is published is said with no draft and twice | `qt_review_submission_editor_scale_100` | "what is published is said once, and an empty status takes no room" |
@@ -574,9 +576,9 @@ input interval 10.9 ms, p95 6.6 ms, largest wheel event 3.9 ms), and
 3.5: 11.0 ms, 7.0 ms and 4.2 ms.
 
 **Pin.** Resealed over BPR-1369's reseal (BPR-1367 and BPR-1368 before it
-left both pins matching): `full_application` `8f04d2ef…`,
-`production_app_manifest` `edbe131f…`; the mutation pin is unchanged. The
-dated note says what moved.
+left both pins matching) in `1cb430214`, and again for the testing-only row
+check after it: `full_application` `30381942…`, `production_app_manifest`
+`f5d1d596…`; the mutation pin is unchanged. The dated notes say what moved.
 
 **Limits.**
 - macOS only; Windows and Linux runs of these rows are owed by the stations.
@@ -586,3 +588,33 @@ dated note says what moved.
 - The v001 session's host (pid 70880) and the frozen v001 application the
   owner launched (pid 17530) are not this round's processes and were left
   running; the v001 root is not removed.
+
+### Owner look v002 (pending)
+
+One new short session, not the long default one: four Accept/Reject questions,
+one per item group. None is self-certified.
+
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v002.90kd9blu`:
+  `1cb430214` exported and built there (optimized, tests on) by
+  `scripts/freeze_attended_build.py`, executable SHA-256
+  `9068fc6e95ada710729e2dc55c271a9f5290e24c0b714e05359af2bb7fe5345c`. Its own
+  check printed `ATTENDED_FILE_SHOWN` for `src/ui/conversation_cards_view.cpp`
+  on `inline-drawer-v1`. The frozen executable passed the `again` course
+  offscreen (`START_REVIEW_AGAIN_EVIDENCE:111111111`, before the row check was
+  added; the product code is the same). Launch:
+  `python3 /Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v002.90kd9blu/launch.py`.
+  Everything goes to the fixture server; nothing reaches GitHub.
+- Session `6b69681ee0f2c70e5c926cb85b3c72ae`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1345-start-a-review-v002/state`
+  (repository root `/Users/jaeger/Documents/GitHub/BetterPullReview`). All four
+  candidates were ready at event cursor 12; the host runs detached (pid 98607).
+- Candidates, revision `frozen-1cb430214-v002`:
+  `BPR-1345-drawer-actions-keys-v002` (`18a67dd9…`),
+  `BPR-1345-delete-comment-v002` (`dd6f0162…`),
+  `BPR-1345-finish-page-v002` (`5a46d88b…`; its text argues against keeping a
+  separate Submit review step) and `BPR-1345-discard-review-v002`
+  (`a088537e…`; it walks through the owner's flow behind "Review draft
+  discarded."). Each carries renders from the composed application.
+
+Next: on hand-back, read `status --after 12`. Accepts answer AC3's owner half
+and the v002 groups (AC5); a Reject's note is the next round's change.

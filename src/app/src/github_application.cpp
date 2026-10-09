@@ -17066,6 +17066,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_old_text,
 				awaiting_old_kept,
 				awaiting_finish_again,
+				awaiting_row_revealed,
 				awaiting_row_deleted,
 				awaiting_review_discarded,
 				awaiting_compose_page,
@@ -17085,6 +17086,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			/// [[BPR-1345]] v002. The older draft, kept out of the review.
 			std::optional<std::uint32_t>         Old;
 			std::optional<core::review_draft_id> OldDraft;
+			bool                                 RowRevealed = false;
 			/// The drafts the review carries.
 			std::vector<core::review_draft_id> Drafts;
 			std::size_t                        NativeBefore = 0U;
@@ -28079,6 +28081,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("finish-again-not-as-drawn");
 			}
 			renderThemes(QStringLiteral("finish-your-review"));
+			if (!probe.RowRevealed) {
+				// A row goes to its comment: the second, the range.
+				auto rows = std::vector<QAbstractButton*>{ };
+				for (auto* const row : summary->pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"))) {
+					if (row->isVisibleTo(window)) {
+						rows.push_back(row);
+					}
+				}
+				if (rows.size() != 2U) {
+					return fail("rows-not-two");
+				}
+				rows.back()->click();
+				QCoreApplication::processEvents();
+				probe.Waited = 0U;
+				probe.Phase  = state_type::phase::awaiting_row_revealed;
+				return result::pending;
+			}
 			// Delete the second row, the range.
 			auto visible = std::vector<QToolButton*>{ };
 			for (auto* const button : summary->pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
@@ -28097,6 +28116,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_row_deleted;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_row_revealed: {
+			const auto selected = window->comparison_surface()->selection();
+			note("page=" + std::to_string(finishPage() != nullptr ? 1 : 0) + " modality=" + std::to_string(static_cast<int>(window->current_modality()))
+				 + " line=" + (selected ? std::to_string(selected->PreferredLine.Line) : std::string{ "-" }));
+			if (finishPage() != nullptr || window->current_modality() != qt::review_modality::review || !selected
+				|| selected->PreferredLine.Side != core::diff_side::right || probe.Lines.size() != 2U || selected->PreferredLine.Line != probe.Lines.back() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("row-not-revealed");
+			}
+			probe.Evidence.RowRevealed = posts().empty() && pending().size() == 2U;
+			if (!probe.Evidence.RowRevealed) {
+				return fail("row-reveal-changed-the-review");
+			}
+			probe.RowRevealed = true;
+			window->finish_review_action()->trigger();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_finish_again;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_row_deleted: {

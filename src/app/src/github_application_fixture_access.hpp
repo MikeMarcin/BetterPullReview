@@ -836,6 +836,9 @@ namespace bpr::app::detail {
 		/// Delete on a row of Finish your review, confirmed, deleted that
 		/// one comment and no other.
 		bool RowDeleted = false;
+		/// A row of Finish your review went to its comment: Review, its file,
+		/// its line selected; Finish review came back by its action.
+		bool RowRevealed = false;
 		/// Discard on Compose review, with a summary and no comments, asked,
 		/// discarded and closed the page.
 		bool SecondDiscard = false;

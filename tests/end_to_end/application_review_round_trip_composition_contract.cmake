@@ -1326,6 +1326,11 @@ endfunction()
 # check counts the review chip v001 added before Compose review. No grant, target,
 # provider, credential, GitHub write or publication path changes; mutation pin
 # unchanged; no new src/app source.
+# BPR-1345 v002 follow-up reseal (bpr-main-mac, 2026-10-09): over the v002
+# reseal above (1cb430214). Testing only: the `again` course also presses a
+# Finish your review row and checks it went to its comment's line in Review
+# (RowRevealed in the fixture-access evidence, main.cpp's evidence line).
+# Mutation pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1344,7 +1349,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8f04d2efb323c0f38b436eb45a72538fbc6b93b5469b541fa0a7a60a4af4a90d"
+		"303819424b78d295238be34a59f917c7b85994a0bbd1322d6225f57bf3ef80c6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1548,7 +1553,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "edbe131f34c6f4b840ff1735297daaa058773315a180a7e20ce13bd805225b32"
+        "f5d1d596e04786530c80d35feee55da4fab5531760864723ec19b5b2c62b89b7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -4851,7 +4851,7 @@ namespace {
 				stream << "START_REVIEW_REFUSED_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.RefusedKept << evidence.DiscardDeleted << '\n';
 				break;
 			case bpr::app::detail::start_review_course::again:
-				stream << "START_REVIEW_AGAIN_EVIDENCE:" << evidence.Started << evidence.Added << evidence.FinishOpened << evidence.RowDeleted << evidence.DiscardDeleted
+				stream << "START_REVIEW_AGAIN_EVIDENCE:" << evidence.Started << evidence.Added << evidence.FinishOpened << evidence.RowRevealed << evidence.RowDeleted << evidence.DiscardDeleted
 					   << evidence.SecondDiscard << evidence.AgainStarted << evidence.AgainOffered << evidence.AgainSubmitted << '\n';
 				break;
 			case bpr::app::detail::start_review_course::uncertain:
