@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1091"
 title: "Wire optional convention-aware hooks through the existing workshop"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0051"]
 depends_on: []
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-17","milestone":"hooks-cli","acceptance":["R19","R34","R35","R36","R37"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1090"],"coordinator_amendment":{"date":"2026-10-08","decision":"BPR-1090's landed Review feedback hook and workshop_feedback_guidance() satisfy the dependency; its parked owner Settings look does not block this wiring"}}
-acceptance: [{"criterion":"R19","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Tour hooks keep their purposes: the guidance rides only on a workshop_comment gesture with an operation (core refuses it elsewhere: core_agent_context_supplement, application_agent_launch); a launch-panel turn with the helper on carries none (application_agent_finding_workshop_guidance_default_contract); application_review_tour_writing and application_writing_delivery pass unchanged."}},{"criterion":"R34","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Helper on: a press carries the shipped review-feedback-v1 text (default course). No agent installed: the press is told no revision, the draft is untouched, nothing is published, and a typed label is still read (no-agent course). No model call anywhere."}},{"criterion":"R35","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/application/agent_launch_tests.cpp","detail":"A customized hook saved on the Settings row is sent as written with source profile_override and the shipped version named (custom course, application_agent_launch); never merged with the default; a tour hook override is not guidance; helper off sends none and the press wire is byte-identical (pinned digest)."}},{"criterion":"R36","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Turning the helper on and saving the hook start no process and record no press; the guidance adds no argument, environment variable, executable or tool to any protocol's launch; zero GitHub submissions, target observations or stored comments in every course."}},{"criterion":"R37","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/core/feedback_workshop_candidate_tests.cpp","detail":"core_feedback_workshop_candidate, application_agent_comment_workshop_host, qt_review_draft_editor and the default/custom courses: the shared recognizer reads both texts, suggestion bytes and the question are compared, the change is shown under the before and after (unknown or malformed headers named), and Accept is one local edit with the candidate's bytes. Provenance: the runtime supplies no model identity on this path, so none is claimed."}},{"criterion":"BPR-1091:owner-look","outcome":"pending","revision":"a96ede92d","evidence":{"kind":"freeform","detail":"Redrawn on macOS with the frontend-design skill as qt::workshop_candidate_line (BPR-1083 marks, a speech bubble for the question, the BPR-1084 ring; kept faint, changed with one word), checked offscreen in light and dark. Asked as one Accept/Reject in session 95f0e6691639bcefb2aa927bbe48083b (candidate BPR-1091-workshop-candidate-line-v001, frozen-bd17bef2e-v001); pending the owner."}}]
-parked_on: "human-review"
+acceptance: [{"criterion":"R19","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Tour hooks keep their purposes: the guidance rides only on a workshop_comment gesture with an operation (core refuses it elsewhere: core_agent_context_supplement, application_agent_launch); a launch-panel turn with the helper on carries none (application_agent_finding_workshop_guidance_default_contract); application_review_tour_writing and application_writing_delivery pass unchanged."}},{"criterion":"R34","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Helper on: a press carries the shipped review-feedback-v1 text (default course). No agent installed: the press is told no revision, the draft is untouched, nothing is published, and a typed label is still read (no-agent course). No model call anywhere."}},{"criterion":"R35","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/application/agent_launch_tests.cpp","detail":"A customized hook saved on the Settings row is sent as written with source profile_override and the shipped version named (custom course, application_agent_launch); never merged with the default; a tour hook override is not guidance; helper off sends none and the press wire is byte-identical (pinned digest)."}},{"criterion":"R36","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/end_to_end/agent_finding_composition_public_path.cpp","detail":"Turning the helper on and saving the hook start no process and record no press; the guidance adds no argument, environment variable, executable or tool to any protocol's launch; zero GitHub submissions, target observations or stored comments in every course."}},{"criterion":"R37","outcome":"pass","revision":"a6ac530d3","evidence":{"kind":"command","path":"tests/core/feedback_workshop_candidate_tests.cpp","detail":"core_feedback_workshop_candidate, application_agent_comment_workshop_host, qt_review_draft_editor and the default/custom courses: the shared recognizer reads both texts, suggestion bytes and the question are compared, the change is shown under the before and after (unknown or malformed headers named), and Accept is one local edit with the candidate's bytes. Provenance: the runtime supplies no model identity on this path, so none is claimed."}},{"criterion":"BPR-1091:owner-look","outcome":"pass","revision":"54dfbd463","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1091-wire-optional-convention-aware-hooks-through-the-existing-workshop.md","detail":"BPR-1091-workshop-candidate-line-v002 Accepted 2026-10-09T04:07:11Z (session 0d079940affe6da5c393df07d82a22d8, decision 945adb1b, fingerprint cfec51c6..., frozen build of 54dfbd463, handed back at 13). v001 never opened (launcher FIXTURES_MISSING). Followup notes filed as BPR-1346 (label icon gap) and BPR-1347 (Dif dead space in Discuss). macOS; Linux and Windows not run."}}]
 ---
 
 # BPR-1091: Wire optional convention-aware hooks through the existing workshop
@@ -262,3 +261,30 @@ Pending: `BPR-1091:owner-look` is the owner's, Accept or Reject.
 - Launch: `python3 /Users/jaeger/bpr1091-workshop-line-v002.7wkb9u0u/launch.py`.
 
 Next: read the session's decisions (`status --after 9`).
+
+### Owner verdict, session v002
+
+Accept, 2026-10-09T04:07:11Z, decision `945adb1b-962e-45ec-a113-3534de2187e5`
+at session event 10 (candidate `BPR-1091-workshop-candidate-line-v002`,
+fingerprint `cfec51c6…`, revision `frozen-54dfbd463-v002`). The note,
+verbatim:
+
+> followup: Can we add like a tiny space between the icon and the word?
+>
+> followup: Dif has become a liability here, there's way too much deadspace around him.
+
+Two attachments: the first shows the label picker open under the "question"
+chip (Plain comment, the twelve labels with their icons and shortcuts, the
+Adds row and the "Your own" field); the second shows Discuss with Dif in an
+otherwise empty band between the review bar and "Back to the code".
+
+`BPR-1091:owner-look` passes, so the card is Done on macOS. The notes are
+followups, not conditions on this card; each has its own card:
+[[BPR-1346]] (a small gap between a label's icon and its word in the label
+picker) and [[BPR-1347]] (the dead space around Dif at the top of Discuss).
+
+The session was handed back at event 13, released with
+`resume-development --all`, and the root
+`/Users/jaeger/bpr1091-workshop-line-v002.7wkb9u0u` removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.

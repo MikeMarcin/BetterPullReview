@@ -38,7 +38,7 @@ The five closeout cards (one per RFC, as authored) are retitled "Verify and clos
 | `PACK-CC-14` | [BPR-1088](../../issues/60-done/BPR-1088-persist-scoped-label-column-and-authoring-preferences.md) |
 | `PACK-CC-15` | [BPR-1089](../../issues/60-done/BPR-1089-deliver-resolution-aware-overview-columns-and-exact-drill-down.md) |
 | `PACK-CC-16` | [BPR-1090](../../issues/60-done/BPR-1090-author-canonical-default-convention-guidance-and-hook-ownership-map.md) |
-| `PACK-CC-17` | [BPR-1091](../../issues/40-parked/BPR-1091-wire-optional-convention-aware-hooks-through-the-existing-workshop.md) |
+| `PACK-CC-17` | [BPR-1091](../../issues/60-done/BPR-1091-wire-optional-convention-aware-hooks-through-the-existing-workshop.md) |
 | `PACK-CC-18` | [BPR-1092](../../issues/60-done/BPR-1092-expose-deterministic-convention-operations-through-the-shared-headless-cli.md) |
 | `PACK-CC-19` | [BPR-1093](../../issues/60-done/BPR-1093-verify-syntax-ownership-migration-and-mutation-adversaries.md) |
 | `PACK-CC-20` | [BPR-1094](../../issues/30-in-progress/BPR-1094-measure-counter-costs-and-verify-the-actual-compact-native-ui.md) |
