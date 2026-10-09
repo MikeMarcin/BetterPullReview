@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1351"
 title: "One Settings chip change can publish the Overview counts twice"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
