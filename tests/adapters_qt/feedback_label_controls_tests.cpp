@@ -8,10 +8,12 @@
 /// emits. A label chosen with a control must leave the editor exactly as the
 /// same text typed by hand does: one ordinary whole-body edit.
 
+#include "bpr/core/appearance_model.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 
@@ -19,11 +21,15 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QHelpEvent>
+#include <QIcon>
+#include <QImage>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPalette>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QStringList>
 #include <QTextCursor>
@@ -32,13 +38,16 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -642,6 +651,92 @@ namespace {
 			   "with no answer, the waiting change still goes, as it did before");
 	}
 
+	/// \brief The first and last columns where two renders of one widget differ.
+	[[nodiscard]] auto differing_columns(const QImage& aShown, const QImage& aWithout) -> std::pair<int, int>
+	{
+		auto first = -1;
+		auto last  = -1;
+		for (auto x = 0; x < std::min(aShown.width(), aWithout.width()); ++x) {
+			for (auto y = 0; y < std::min(aShown.height(), aWithout.height()); ++y) {
+				const auto a = aShown.pixelColor(x, y);
+				const auto b = aWithout.pixelColor(x, y);
+				if (std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue()) + std::abs(a.alpha() - b.alpha()) > 24) {
+					first = first < 0 ? x : first;
+					last  = x;
+					break;
+				}
+			}
+		}
+		return { first, last };
+	}
+
+	/// \brief [[BPR-1346]]. The logical gap between the mark's last ink and
+	/// the word's first ink on one tool button. The mark's ink is where the
+	/// button drawn with a blank icon differs; the word's is where the button
+	/// drawn with transparent text differs, so the style's frame and fill
+	/// cancel out on every platform.
+	[[nodiscard]] auto mark_to_word_gap(QToolButton& aButton) -> qreal
+	{
+		const auto shown = aButton.grab().toImage();
+		const auto icon  = aButton.icon();
+		auto       blank = icon.pixmap(aButton.iconSize(), aButton.devicePixelRatioF());
+		blank.fill(Qt::transparent);
+		aButton.setIcon(QIcon{ blank });
+		const auto noMark = aButton.grab().toImage();
+		aButton.setIcon(icon);
+		const auto palette = aButton.palette();
+		auto       hidden  = palette;
+		for (const auto role : { QPalette::ButtonText, QPalette::WindowText, QPalette::Text, QPalette::BrightText, QPalette::HighlightedText }) {
+			hidden.setColor(role, Qt::transparent);
+		}
+		aButton.setPalette(hidden);
+		const auto noWord = aButton.grab().toImage();
+		aButton.setPalette(palette);
+		const auto [markFirst, markLast] = differing_columns(shown, noMark);
+		const auto [wordFirst, wordLast] = differing_columns(shown, noWord);
+		expect(markFirst >= 0 && wordFirst >= 0 && wordLast > wordFirst, "the button draws both a mark and a word");
+		return static_cast<qreal>(wordFirst - markLast - 1) / shown.devicePixelRatio();
+	}
+
+	/// \brief [[BPR-1346]]. A small gap between each label's mark and its word
+	/// (owner, BPR-1091 v002: "Can we add like a tiny space between the icon
+	/// and the word?"): on Plain, on every label in the picker and on the
+	/// review bar's chip.
+	void test_a_small_gap_between_the_mark_and_the_word()
+	{
+		constexpr auto least = qreal{ 4.0 };
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			const auto* const name    = mode == core::appearance_mode::dark ? "dark" : "light";
+			auto              f       = fixture{ "question: Is it reported?" };
+			auto              profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(f.Window);
+			profile.apply_to(*f.menu());
+			f.controls()->set_theme(qt::default_feedback_mark_theme(f.Window.palette()));
+			settle();
+			save_render(f.Window, (std::string{ "chip-gap-" } + name).c_str());
+			const auto chip = mark_to_word_gap(*f.controls()->chip());
+			f.controls()->open_menu();
+			settle();
+			save_render(*f.menu(), (std::string{ "menu-gap-" } + name).c_str());
+			const auto plain = mark_to_word_gap(*f.menu()->plain_button());
+			auto       gaps  = std::vector<qreal>{ };
+			for (auto index = std::size_t{ 0U }; index < core::feedback_label_count; ++index) {
+				gaps.push_back(mark_to_word_gap(*f.menu()->label_button(static_cast<core::feedback_label>(static_cast<std::uint8_t>(index)))));
+			}
+			f.menu()->close();
+			settle();
+			std::cout << name << " mark-to-word gap: chip " << chip << ", Plain " << plain << ", praise " << gaps.front() << '\n';
+			expect(chip >= least, "the chip leaves a small gap between its mark and its word");
+			expect(plain >= least, "Plain leaves a small gap between its mark and its word");
+			// Each word's first letter has its own side bearing, so the gaps
+			// agree within a logical pixel rather than exactly.
+			const auto [narrowest, widest] = std::ranges::minmax(gaps);
+			expect(narrowest >= least && widest - narrowest <= 1.0, "every label button leaves the same small gap between its mark and its word");
+			expect(chip <= least + 4.0 && plain <= least + 4.0, "the gap stays small");
+		}
+	}
+
 	void test_the_chip_keeps_its_size_when_narrow()
 	{
 		auto       f    = fixture{ "suggestion (blocking): Narrow." };
@@ -667,6 +762,7 @@ auto main(int argc, char** argv) -> int
 	test_shortcodes_complete_and_replace_at_the_start();
 	test_a_shortcode_waits_for_the_unanswered_colon();
 	test_the_chip_keeps_its_size_when_narrow();
+	test_a_small_gap_between_the_mark_and_the_word();
 	std::cout << "feedback-label-controls-tests:pass\n";
 	return EXIT_SUCCESS;
 }

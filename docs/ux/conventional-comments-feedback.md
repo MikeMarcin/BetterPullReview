@@ -279,6 +279,10 @@ Consumers: the inline composition page and reply drafts
   decoration toggles stay live, and its accessible description and tooltip
   say the label is waiting for its subject. No mark is drawn on a thread for
   such a body, because only a recognized prefix gets one.
+- **A gap between mark and word** (owner, BPR-1091 v002, [[BPR-1346]]). The
+  chip, Plain and every label in its menu leave 4 logical pixels between the
+  mark and the word, carried by the mark's icon so the macOS style cannot
+  close it. The completion list's rows already leave a gap of their own.
 - **Helper off by default** (owner, Settings v1). With the label helper off,
   there is no completion or replacement, and `:qu:` is plain text. A label
   typed out in full counts either way. The last `(blocking)` used is never

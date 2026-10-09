@@ -19,6 +19,7 @@
 #include <QMetaObject>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPixmap>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
@@ -34,6 +35,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <string>
@@ -110,6 +112,31 @@ namespace bpr::qt {
 			return aEvent.key() == aKey && modifiers == Qt::ControlModifier;
 		}
 
+		// [[BPR-1346]]. The macOS style draws a tool button's icon flush
+		// against its text (owner, BPR-1091 v002: "Can we add like a tiny
+		// space between the icon and the word?"). The mark's icon carries the
+		// gap as transparent pixels at its right, so every style keeps it and
+		// it scales with the mark.
+		constexpr auto mark_word_gap = 4;
+
+		[[nodiscard]] auto mark_icon_size() -> QSize
+		{
+			return QSize{ static_cast<int>(feedback_mark_size) + mark_word_gap, static_cast<int>(feedback_mark_size) };
+		}
+
+		[[nodiscard]] auto mark_icon(const QPixmap& aMark) -> QIcon
+		{
+			const auto ratio  = aMark.devicePixelRatio();
+			const auto shape  = mark_icon_size();
+			auto       padded = QPixmap{ static_cast<int>(std::ceil(shape.width() * ratio)), static_cast<int>(std::ceil(shape.height() * ratio)) };
+			padded.setDevicePixelRatio(ratio);
+			padded.fill(Qt::transparent);
+			auto painter = QPainter{ &padded };
+			painter.drawPixmap(QPointF{ 0.0, 0.0 }, aMark);
+			painter.end();
+			return QIcon{ padded };
+		}
+
 		[[nodiscard]] auto make_toggle(QWidget* const aParent, const QString& aText, const QString& aName, const QString& aTip) -> QToolButton*
 		{
 			auto* const button = new QToolButton{ aParent };
@@ -161,7 +188,7 @@ namespace bpr::qt {
 		Chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Chip->setFocusPolicy(Qt::StrongFocus);
 		Chip->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		Chip->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
+		Chip->setIconSize(mark_icon_size());
 		row->addWidget(Chip);
 		anchor_tooltips(*Chip);
 		const auto tip = QStringLiteral("Adds (%1) to the label");
@@ -344,9 +371,9 @@ namespace bpr::qt {
 		const auto ratio = devicePixelRatioF();
 		if (State.Label.has_value()) {
 			const auto colours = feedback_mark_colours_for(Theme, *State.Label, palette());
-			Chip->setIcon(QIcon{ feedback_mark_pixmap(*State.Label, State.Emphasis, colours, ratio) });
+			Chip->setIcon(mark_icon(feedback_mark_pixmap(*State.Label, State.Emphasis, colours, ratio)));
 		} else {
-			Chip->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
+			Chip->setIcon(mark_icon(feedback_plain_mark_pixmap(palette(), ratio)));
 		}
 	}
 
@@ -639,7 +666,7 @@ namespace bpr::qt {
 		Plain->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Plain->setCheckable(true);
 		Plain->setAutoRaise(true);
-		Plain->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
+		Plain->setIconSize(mark_icon_size());
 		anchor_tooltips(*Plain);
 		column->addWidget(Plain);
 		auto* const labelHeading = new QLabel{ QStringLiteral("Label"), this };
@@ -656,7 +683,7 @@ namespace bpr::qt {
 			button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 			button->setCheckable(true);
 			button->setAutoRaise(true);
-			button->setIconSize(QSize{ static_cast<int>(feedback_mark_size), static_cast<int>(feedback_mark_size) });
+			button->setIconSize(mark_icon_size());
 			button->setAccessibleName(feedback_label_text(label));
 			button->setAccessibleDescription(QStringLiteral("%1 Code :%2:").arg(feedback_label_description(label), QString::fromLatin1(code.data(), static_cast<qsizetype>(code.size()))));
 			button->setToolTip(feedback_label_description(label));
@@ -728,11 +755,11 @@ namespace bpr::qt {
 	{
 		const auto ratio = devicePixelRatioF();
 		Plain->setChecked(!aState.Label.has_value());
-		Plain->setIcon(QIcon{ feedback_plain_mark_pixmap(palette(), ratio) });
+		Plain->setIcon(mark_icon(feedback_plain_mark_pixmap(palette(), ratio)));
 		for (std::size_t index = 0U; index < Labels.size(); ++index) {
 			const auto label = label_at(index);
 			Labels[index]->setChecked(aState.Label == label);
-			Labels[index]->setIcon(QIcon{ feedback_mark_pixmap(label, feedback_mark_emphasis{ }, feedback_mark_colours_for(aTheme, label, palette()), ratio) });
+			Labels[index]->setIcon(mark_icon(feedback_mark_pixmap(label, feedback_mark_emphasis{ }, feedback_mark_colours_for(aTheme, label, palette()), ratio)));
 		}
 		const auto written = std::array{ aState.Blocking, aState.NonBlocking, aState.IfMinor };
 		for (std::size_t index = 0U; index < Decorations.size(); ++index) {
