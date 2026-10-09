@@ -65,6 +65,13 @@ back-off stays the rule for a transport whose batch fails. BPR-1344's live
 figures from the probe were all taken with the array body, so they measured
 the fallback, not batching; they should be retaken on this fix.
 
+BPR-1344 has no card on `main` yet (only its reservation,
+`docs/issues/_reservations/BPR-1344--BPR-1344--7a3656cbb78d.json`), so this
+relation note is recorded here and waits to be copied onto BPR-1344's card
+when the Windows station files it. [[BPR-1360]] (a cold open reads both sides
+at once) is untouched by this card: both of a cold open's reads are the
+reviewer's own and never yield.
+
 ## Acceptance
 
 - `BPR-1359:batch-body`: the fake `gh` in `gh_cli_git_smart_transport`
@@ -82,4 +89,43 @@ the fallback, not batching; they should be retaken on this fix.
 
 ## Verification
 
-Pending.
+macOS arm64, `build/dev` (Debug) in worktree `/Users/jaeger/bpr-wt/bpr1359`,
+tests run at `02e6b1057` and unchanged by the rebase onto `4ea2eb2a0` (no
+upstream commit touches these files). No live GitHub call was made.
+
+- `gh_cli_git_smart_transport` (`BPR-1359:batch-body`): the fake `gh` parses
+  the batched read's exact standard input with `QJsonDocument` and exits 9
+  unless it is one object of exactly a string `query` and an object
+  `variables`. **Failing-before control:** on the array body it fails at
+  "the batched read's body is one JSON object with a string query and an
+  object of variables, not an array holding one". Passes on the fix.
+- `application_epoch_host`, new
+  `a_reviewer_selection_stops_preparations_exact_read` (`BPR-1359:yield`): a
+  prepared exact read held 20 s by the fake transport (which ends early when
+  stopped, as `gh` is killed) is on the actor; the reviewer resolves a cold
+  file. The prepared read reports cancelled, its stop is observed, and the
+  reviewer waited 1.5 to 7 ms in three runs. A prepared read queued ahead of
+  reviewer work is not started; the reviewer's own blob is still read.
+  **Failing-before control:** without the host change the reviewer waited
+  20000 ms and the course fails at "the reviewer's selection stops
+  preparation's exact read on the actor".
+- `application_epoch_host`, new
+  `a_failed_batch_backs_off_preparations_single_reads`
+  (`BPR-1359:back-off`): after a refused batch, a prepared blob is not read
+  on its own (no transport call); the reviewer's opened file is; a later
+  successful batch lifts the suspension, and a blob it answers absent is then
+  read alone. **Failing-before control:** without the host change it fails at
+  "after a failed batch, a prepared file's blob is not read on its own".
+- `gh_cli_transport` passes. clang-format 22.1.8 clean on every touched file;
+  clang-tidy 22 on `epoch_application_host.cpp` clean, on
+  `gh_cli_transport.cpp` only the two `using T` naming findings at lines 55
+  and 66, which predate this card. The composition contract's three pinned
+  digests still match (no pinned scope changed).
+
+Not run: the composed application (`application_large_review_prepared_open`
+and friends; a full Qt build was not justified on this loaded host for a
+change inside the epoch host's sparse path), and any live course. The live
+re-measurement on `MikeMarcin/BPR-Test#43` belongs to BPR-1344's course,
+with `X-RateLimit-Remaining` checked first. Windows and Linux have not built
+this change; the transport fix is macOS-only code, the host change is
+portable.
