@@ -33,7 +33,6 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPainterPathStroker>
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
@@ -63,7 +62,6 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <numbers>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -551,6 +549,9 @@ namespace bpr::qt {
 
 		constexpr int side_width = 300;
 		constexpr int chip_width = 58;
+		/// [[BPR-1331]] v003. The read column's mark: a 24-unit design box this
+		/// wide paints a mark ten pixels across, as the dot it replaced.
+		constexpr qreal read_mark_side = 15.0;
 
 		auto cached_side_text(core::cached_thread_side aSide) -> QString
 		{
@@ -1735,46 +1736,15 @@ namespace bpr::qt {
 			break;
 		}
 		case overview_file_model::read_column: {
-			// A hollow dot unread, a half dot seen, a filled dot read: three
-			// shapes, so the state survives without its colour. [[BPR-1339]]
-			// adds [[BPR-1331]]'s two stronger marks in the same circle: the
-			// filled dot with a tick cut out of it accepted, a ring struck
-			// through excluded.
-			constexpr auto radius = 4.5;
-			const auto     mark   = aIndex.data(overview_file_model::progress_role).toInt();
-			const auto     centre = QPointF{ rect.left() + 13.0, static_cast<qreal>(rect.center().y()) };
-			if (mark == static_cast<int>(core::file_progress_mark::accepted)) {
-				// One unit wider than the read dot, as the review bar's
-				// accepted mark is, so the cut tick keeps its weight.
-				auto disc = QPainterPath{ };
-				disc.addEllipse(centre, radius + 1.0, radius + 1.0);
-				auto tick = QPainterPath{ };
-				// The review bar's tick, scaled from its 8-unit disc to 5.5.
-				tick.moveTo(centre + QPointF{ -2.75, 0.15 });
-				tick.lineTo(centre + QPointF{ -0.7, 2.2 });
-				tick.lineTo(centre + QPointF{ 2.9, -2.05 });
-				auto cut = QPainterPathStroker{ };
-				cut.setWidth(1.5);
-				cut.setCapStyle(Qt::RoundCap);
-				cut.setJoinStyle(Qt::RoundJoin);
-				aPainter->fillPath(disc.subtracted(cut.createStroke(tick)), Colours.Accepted);
-				break;
-			}
-			aPainter->setPen(QPen{ ink, 1.2 });
-			aPainter->setBrush(Qt::NoBrush);
-			aPainter->drawEllipse(centre, radius, radius);
-			if (mark == static_cast<int>(core::file_progress_mark::excluded)) {
-				const auto reach = radius * std::numbers::sqrt2 / 2.0;
-				aPainter->drawLine(centre + QPointF{ -reach, reach }, centre + QPointF{ reach, -reach });
-			} else if (mark == static_cast<int>(core::file_progress_mark::read)) {
-				aPainter->setBrush(Colours.Accepted);
-				aPainter->setPen(Qt::NoPen);
-				aPainter->drawEllipse(centre, radius, radius);
-			} else if (mark == static_cast<int>(core::file_progress_mark::seen)) {
-				aPainter->setBrush(ink);
-				aPainter->setPen(Qt::NoPen);
-				aPainter->drawPie(QRectF{ centre.x() - radius, centre.y() - radius, 2.0 * radius, 2.0 * radius }, 90 * 16, 180 * 16);
-			}
+			// [[BPR-1331]] v003. The review bar's marks, one family wherever a
+			// file's progress shows: a ring unread (and with no receipt), half
+			// filled seen, a disc read, a disc with a tick cut out accepted, a
+			// ring struck through excluded, each in its own theme colour and
+			// its own shape, so the state survives without its colour.
+			const auto mark   = aIndex.data(overview_file_model::progress_role).toInt();
+			const auto centre = QPointF{ rect.left() + 13.0, static_cast<qreal>(rect.center().y()) };
+			const auto shown  = mark < 0 ? core::file_progress_mark::unread : static_cast<core::file_progress_mark>(mark);
+			paint_progress_mark(*aPainter, QRectF{ centre.x() - (read_mark_side / 2.0), centre.y() - (read_mark_side / 2.0), read_mark_side, read_mark_side }, shown, Colours.Progress);
 			break;
 		}
 		case overview_file_model::comments_column: {
@@ -2809,6 +2779,7 @@ namespace bpr::qt {
 		Colours.Unread   = aProfile.color(core::appearance_role::state_unread);
 		Colours.Accepted = aProfile.color(core::appearance_role::state_accepted);
 		Colours.Defect   = aProfile.color(core::appearance_role::state_defect);
+		Colours.Progress = progress_mark_colours_for(aProfile);
 		// [[BPR-1089]]. The state marks: open amber and resolved green.
 		Colours.States.Open       = aProfile.color(core::appearance_role::state_attention);
 		Colours.States.Resolved   = Colours.Accepted;

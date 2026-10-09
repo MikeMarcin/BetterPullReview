@@ -27,6 +27,15 @@ namespace bpr::qt {
 	/// \details A request for a size that is not square gets the largest
 	/// square inside it, as a pixmap icon of square pixmaps did.
 	[[nodiscard]] auto painted_glyph_icon(glyph_painter aPaint, const QColor& aInk, const QColor& aDisabled) -> QIcon;
+
+	/// \brief Paints a glyph `aSide` logical pixels square at the painter's
+	/// origin for one icon mode. The painter is antialiased.
+	using mode_glyph_painter = std::function<void(QPainter& aPainter, qreal aSide, QIcon::Mode aMode)>;
+
+	/// \brief [[BPR-1331]] v003. An icon that paints `aPaint` on request with
+	/// the mode the view asks for, for a glyph of several colours: the private
+	/// progress marks, whose menu rows ring the mark when highlighted.
+	[[nodiscard]] auto painted_mode_icon(mode_glyph_painter aPaint) -> QIcon;
 } // namespace bpr::qt
 
 #endif

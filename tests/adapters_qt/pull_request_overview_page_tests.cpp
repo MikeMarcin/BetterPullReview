@@ -2,6 +2,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include <QTextEdit>
 
@@ -1961,29 +1962,73 @@ namespace {
 			const auto rect = view->visualRect(cell(aName));
 			return aImage.copy(QRectF{ rect.left() * ratio, rect.top() * ratio, 26.0 * ratio, rect.height() * ratio }.toRect());
 		};
-		// The accepted mark: the read dot's colour round a tick cut out of its
-		// middle.
-		const auto tickCut = [&](const QImage& aCell) {
-			auto filled = 0;
+		// [[BPR-1331]] v003. Whether a cell paints a colour: a pixel within a
+		// small tolerance of it, since a ring ten pixels across is all
+		// antialiased edge at 1x.
+		const auto near = [](const QColor& aOne, const QColor& aTwo, const int aTolerance) {
+			return qAbs(aOne.red() - aTwo.red()) <= aTolerance && qAbs(aOne.green() - aTwo.green()) <= aTolerance && qAbs(aOne.blue() - aTwo.blue()) <= aTolerance;
+		};
+		const auto paints = [&near](const QImage& aCell, const QColor& aColour) {
 			for (auto y = 0; y < aCell.height(); ++y) {
 				for (auto x = 0; x < aCell.width(); ++x) {
-					filled += aCell.pixelColor(x, y) == page.colours().Accepted ? 1 : 0;
+					if (near(aCell.pixelColor(x, y), aColour, 12)) {
+						return true;
+					}
 				}
 			}
-			return filled > 0 && aCell.pixelColor(QPoint{ static_cast<int>(13.0 * ratio), aCell.height() / 2 }) != page.colours().Accepted;
+			return false;
+		};
+		// The accepted mark: a green disc round a tick cut out of it, so
+		// something far from green shows within three pixels of its centre.
+		const auto tickCut = [&](const QImage& aCell) {
+			const auto green  = page.colours().Progress.Accepted;
+			const auto middle = QPointF{ 13.0, std::floor(((static_cast<qreal>(aCell.height()) / ratio) - 1.0) / 2.0) };
+			auto       cut    = false;
+			for (auto y = middle.y() - 3.0; y <= middle.y() + 3.0; y += 0.5) {
+				for (auto x = middle.x() - 3.0; x <= middle.x() + 3.0; x += 0.5) {
+					cut = cut || !near(aCell.pixelColor(QPointF{ x * ratio, y * ratio }.toPoint()), green, 80);
+				}
+			}
+			return paints(aCell, green) && cut;
 		};
 		const auto image = view->viewport()->grab().toImage();
+		const auto root  = qEnvironmentVariable("BPR_OVERVIEW_MARK_RENDER_ROOT");
+		if (!root.isEmpty()) {
+			const auto rows = view->visualRect(cell("none")).united(view->visualRect(cell("excluded")));
+			expect(view->viewport()->grab(QRect{ 0, rows.top() - 2, 560, rows.height() + 4 }).save(root + QStringLiteral("/overview-marks.png")), "the marks render is saved");
+		}
 		for (std::size_t one = 0U; one < marks.size(); ++one) {
 			for (auto two = one + 1U; two < marks.size(); ++two) {
 				expect(crop(image, marks[one].first) != crop(image, marks[two].first), "each mark draws differently: " + marks[one].first + " and " + marks[two].first);
 			}
 		}
-		expect(tickCut(crop(image, "accepted")) && !tickCut(crop(image, "read")), "the accepted mark is the read dot with a tick cut out of it");
+		expect(tickCut(crop(image, "accepted")) && !tickCut(crop(image, "read")), "the accepted mark is a green disc with a tick cut out of it");
+		// [[BPR-1331]] v003. The owner on v002: "it should get some color. All
+		// green aint the best either." The column paints the review bar's
+		// family, each state in its own colour.
+		const auto& progress = page.colours().Progress;
+		expect(progress == qt::builtin_progress_mark_colours(core::appearance_variant::light), "before a theme arrives the marks take the built-in light colours");
+		expect(paints(crop(image, "none"), progress.Neutral) && paints(crop(image, "seen"), progress.Seen) && paints(crop(image, "read"), progress.Read)
+				   && paints(crop(image, "accepted"), progress.Accepted) && paints(crop(image, "excluded"), progress.Neutral)
+				   && paints(crop(image, "excluded"), progress.Excluded),
+			   "each mark is painted in its state's colour: neutral unread, amber seen, blue read, green accepted, a red strike excluded");
+		expect(!paints(crop(image, "read"), progress.Accepted) && !paints(crop(image, "seen"), progress.Accepted) && !paints(crop(image, "none"), progress.Accepted),
+			   "only the accepted mark is green");
 
-		const auto root = qEnvironmentVariable("BPR_OVERVIEW_MARK_RENDER_ROOT");
 		if (!root.isEmpty()) {
 			const auto rows = view->visualRect(cell("none")).united(view->visualRect(cell("excluded")));
-			expect(view->viewport()->grab(QRect{ 0, rows.top() - 2, 560, rows.height() + 4 }).save(root + QStringLiteral("/overview-marks.png")), "the marks render is saved");
+			// [[BPR-1331]] v003. The built-in light and dark themes, as the
+			// composition hands them over.
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				auto settings = qt::default_appearance_settings();
+				settings.Mode = mode;
+				auto themed   = qt::appearance_profile{ settings };
+				themed.apply_to(page);
+				page.adopt_appearance(themed);
+				settle();
+				expect(page.colours().Progress == qt::progress_mark_colours_for(themed), "the page adopts the theme's mark colours");
+				expect(view->viewport()->grab(QRect{ 0, rows.top() - 2, 560, rows.height() + 4 }).save(root + QStringLiteral("/overview-marks-%1.png").arg(name)), "the themed marks render is saved");
+			}
 		}
 
 		// An update that only accepts moves the row and its mark.
@@ -2010,6 +2055,12 @@ auto main(int argc, char** argv) -> int
 	if (argc > 1 && std::string_view{ argv[1] } == "--chips") {
 		test_chips_read_at_this_scale_in_every_theme_and_style();
 		std::cout << "pull-request-overview-chips:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-1331]] v003. The read column's marks alone.
+	if (argc > 1 && std::string_view{ argv[1] } == "--read-marks") {
+		test_the_read_column_shows_the_mark();
+		std::cout << "pull-request-overview-read-marks:pass\n";
 		return EXIT_SUCCESS;
 	}
 	test_history_publication_does_not_touch_file_rows();

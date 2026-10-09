@@ -19,7 +19,6 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPainterPathStroker>
 #include <QPen>
 #include <QPixmap>
 #include <QRectF>
@@ -32,8 +31,6 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <numbers>
-#include <optional>
 #include <utility>
 
 namespace bpr::qt {
@@ -79,54 +76,6 @@ namespace bpr::qt {
 		{
 			aAccent.setAlpha(soft_fill_alpha);
 			return aAccent;
-		}
-
-		/// \brief [[BPR-1331]]. Draws one private progress mark in a 24-unit box.
-		///
-		/// \details One 16-unit circle in every state, so the button keeps its
-		/// place and only the fill moves: broken ring, half disc, disc, disc
-		/// with a tick cut out, ring struck through. The shapes carry the state
-		/// without colour, as the Overview's read dots do.
-		void stroke_progress_mark(QPainter& aPainter, const strip_glyph aGlyph)
-		{
-			constexpr auto radius = 7.0;
-			const auto     centre = QPointF{ 12.0, 12.0 };
-			const auto     ink    = aPainter.pen().color();
-			if (aGlyph == strip_glyph::progress_unread) {
-				// Eight dashes round the ring: 3.2 units drawn, 2.3 left open.
-				auto pen = aPainter.pen();
-				pen.setCapStyle(Qt::FlatCap);
-				pen.setDashPattern({ 1.6, 1.15 });
-				aPainter.setPen(pen);
-				aPainter.drawEllipse(centre, radius, radius);
-			} else if (aGlyph == strip_glyph::progress_seen) {
-				aPainter.save();
-				aPainter.setPen(Qt::NoPen);
-				aPainter.setBrush(ink);
-				aPainter.drawPie(QRectF{ centre.x() - radius, centre.y() - radius, 2.0 * radius, 2.0 * radius }, 90 * 16, 180 * 16);
-				aPainter.restore();
-				aPainter.drawEllipse(centre, radius, radius);
-			} else if (aGlyph == strip_glyph::progress_read) {
-				aPainter.setBrush(ink);
-				aPainter.drawEllipse(centre, radius, radius);
-				aPainter.setBrush(Qt::NoBrush);
-			} else if (aGlyph == strip_glyph::progress_accepted) {
-				auto disc = QPainterPath{ };
-				disc.addEllipse(centre, radius + 1.0, radius + 1.0);
-				auto tick = QPainterPath{ };
-				tick.moveTo(8.0, 12.2);
-				tick.lineTo(11.0, 15.2);
-				tick.lineTo(16.2, 9.0);
-				auto cut = QPainterPathStroker{ };
-				cut.setWidth(2.2);
-				cut.setCapStyle(Qt::RoundCap);
-				cut.setJoinStyle(Qt::RoundJoin);
-				aPainter.fillPath(disc.subtracted(cut.createStroke(tick)), ink);
-			} else if (aGlyph == strip_glyph::progress_excluded) {
-				aPainter.drawEllipse(centre, radius, radius);
-				const auto reach = radius * std::numbers::sqrt2 / 2.0;
-				aPainter.drawLine(QPointF{ centre.x() - reach, centre.y() + reach }, QPointF{ centre.x() + reach, centre.y() - reach });
-			}
 		}
 
 		/// \brief Strokes one glyph in a 24-unit box.
@@ -237,13 +186,6 @@ namespace bpr::qt {
 				aPainter.drawPath(check);
 				break;
 			}
-			case strip_glyph::progress_unread:
-			case strip_glyph::progress_seen:
-			case strip_glyph::progress_read:
-			case strip_glyph::progress_accepted:
-			case strip_glyph::progress_excluded:
-				stroke_progress_mark(aPainter, aGlyph);
-				break;
 			case strip_glyph::compose_review: {
 				// A pencil leaning right, its point at the lower left.
 				auto pencil = QPainterPath{ };
@@ -330,26 +272,6 @@ namespace bpr::qt {
 			aPainter.restore();
 		}
 	} // namespace
-
-	auto progress_glyph(const std::optional<core::file_progress_mark> aMark) noexcept -> strip_glyph
-	{
-		if (!aMark.has_value()) {
-			return strip_glyph::private_progress;
-		}
-		switch (*aMark) {
-		case core::file_progress_mark::unread:
-			return strip_glyph::progress_unread;
-		case core::file_progress_mark::seen:
-			return strip_glyph::progress_seen;
-		case core::file_progress_mark::read:
-			return strip_glyph::progress_read;
-		case core::file_progress_mark::accepted:
-			return strip_glyph::progress_accepted;
-		case core::file_progress_mark::excluded:
-			return strip_glyph::progress_excluded;
-		}
-		return strip_glyph::private_progress;
-	}
 
 	auto strip_icon(const strip_glyph aGlyph, const QPalette& aPalette) -> QIcon
 	{

@@ -59,6 +59,7 @@ add_library(
         src/conversation_glyphs.cpp
         src/discuss_header.cpp
         src/painted_glyph_icon.cpp
+        src/progress_mark.cpp
         src/conversation_open_card.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp

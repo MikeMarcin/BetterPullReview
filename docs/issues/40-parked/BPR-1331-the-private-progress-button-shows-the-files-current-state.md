@@ -82,6 +82,8 @@ This is the review bar's ✓▾ button, the selected file's private progress
   `22fd752f5`: `qt_review_state_icon` compares the button's icon with each
   glyph at 1x and 2x, checks the six glyphs differ pairwise, and checks the
   name, tooltip and description per state.
+  v003 replaces the glyphs with one coloured family on every surface; see
+  "v003: one icon language, the circles, with colour".
 - `BPR-1331:follows`: the icon follows a menu change, a file switch, a
   palette refresh and an unavailable ledger. **Pass** at `22fd752f5`:
   `qt_review_state_icon`.
@@ -284,3 +286,130 @@ At `e602e2cf9`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
 - `qt_dif_workshop_placement` and `qt_document_tabs_scale_100`.
 
 Windows is still owed.
+
+## v003: one icon language, the circles, with colour
+
+The owner's v002 note asked for one picture of each state, the circles, with
+colour and not all green. `frontend-design:frontend-design` was loaded before
+the design.
+
+**Design.** One family, painted by one function,
+`qt::paint_progress_mark` (`src/adapters/qt/include/bpr/qt/progress_mark.hpp`),
+everywhere a file's private progress shows. Each mark is the v002 circle, 16
+units across in a 24-unit box. Its shape inside the circle carries the state
+without colour, and its colour, a theme role, makes it readable at a glance.
+Colour builds up as the review moves on:
+
+| Mark | Shape | Colour role | Light | Dark |
+|---|---|---|---|---|
+| unknown (no file, ledger unavailable) | dashed ring | `state_stale` | `#5B6570` | `#8B949E` |
+| unread (and no receipt) | ring | `state_stale` | `#5B6570` | `#8B949E` |
+| seen | ring, left half filled | `state_attention` | `#AD7A00` | `#D29922` |
+| read | filled disc | `state_unread` (the blue) | `#0969DA` | `#58A6FF` |
+| accepted | disc, tick cut out | `state_accepted` | `#1A7F37` | `#3FB950` |
+| excluded | ring struck through | ring `state_stale`, strike `state_defect` | `#CF222E` | `#FF7B72` |
+
+Read is blue rather than teal or purple. A colour study at 16 px showed
+teal too close to the accepted green on the light theme, and purple too loud.
+The blue is the theme role named "State unread". The vocabulary has no other
+blue, and adding one would change the core's closed role set. So a theme that
+recolours "State unread" also recolours the read mark. Recorded here, not
+hidden.
+
+**Surfaces.**
+
+- *Review bar button* (`workbench_window::refresh_progress_icons`): the
+  selected file's mark, as before. The plain tick for "no file selected" and
+  "unavailable" is now the family's dashed ring, so the button never leaves
+  the family.
+- *Its menu*: Seen, Read, Accept and Exclude show the seen, read, accepted and
+  excluded marks, so the menu is the family's legend. The icons stay the same
+  when a label flips (Mark unread, Revoke acceptance, Include). This replaces
+  the platform's `SP_Dialog*` pictures (green ball, green tick, green arrow,
+  red cross) from the owner's attachment. On a highlighted row the mark keeps
+  its colour inside a thin ring of the menu's own background, the way a tag
+  dot looks in a macOS menu, so the blue disc stays visible on a blue
+  selection.
+- *Overview's read column*: the same painter at 15 units, 10 px across, as
+  the dot it replaces. Read was green (`state_accepted`) and is now blue, and
+  seen is amber. The accepted mark the owner accepted on [[BPR-1339]] keeps
+  its shape and its green.
+- *Files drawer*: every file the overview has described shows its mark in the
+  same slot, not only the faint unread ring, as RFC-BPR-0007 says ("Overview's
+  read column and the Files drawer show the mark"). A file with no receipt
+  shows unread, as on Overview. The unread-comments accent dot
+  ([[BPR-0656]]) used to replace the ring. It now sits beside the counts, so
+  the two never share a slot.
+- *Status line*: text only ("Private progress: read, accepted."), no icon, so
+  it is unchanged. The Review Cycle view's "Mark reviewed" tick
+  ([[BPR-1182]]) marks the pull request, not a file's progress, so it keeps
+  the strip tick.
+
+The theme reaches the surfaces through the composition:
+`github_application::apply_appearance` hands the window
+`qt::progress_mark_colours_for(profile)` beside the attention amber.
+Overview and the Files drawer read the same colours in their own
+`adopt_appearance`. Before the hand-over, the window uses the built-in light
+or dark colours, whichever its palette is. The v002 `strip_glyph::progress_*`
+glyphs and `qt::progress_glyph` are gone. The menu icon and the strip glyphs
+share the adapter's one `QIconEngine` (`painted_mode_icon`, beside
+`painted_glyph_icon`), so `architecture_boundaries` keeps its single exempt
+`clone()`.
+
+Accessible names, tooltips, descriptions and the status text did not change.
+The v002 push behaviour did not change either (`core::file_material`, the
+table above).
+
+**Tests, all failing before the matching product change and passing after.**
+
+- `qt_review_state_icon` (`test_review_state_marks_are_one_coloured_family`,
+  `test_review_state_icon_shows_the_decided_mark`): in each of the four
+  built-in themes, the five colours differ and read and seen are not green.
+  Each mark paints its own colour, with excluded struck in the defect red.
+  The six marks differ in shape in monochrome at 1x and 2x. The button shows
+  the decided mark through every state, a menu change, a file switch, a
+  palette refresh and an unavailable ledger. The menu's four actions show the
+  family's marks through every state. A highlighted row keeps the blue. A
+  theme hand-over repaints the button and the menu.
+- `qt_overview_read_marks` (new row; `--read-marks` runs
+  `test_the_read_column_shows_the_mark` alone): each row paints its state's
+  colour, only accepted is green, and accepted is a green disc with a tick
+  cut out. Light and dark renders come from `BPR_OVERVIEW_MARK_RENDER_ROOT`.
+- `qt_files_tree` (`test_file_marks_are_the_review_bar_family`, delegate
+  painted at 2x, light and dark): each file's colour, a file with no receipt
+  unread, only accepted green, unread comments leave the mark alone and
+  sit beside the counts, and a file the overview has not described shows
+  no mark.
+- Failing-before controls, each a product-only revert on the candidate:
+  restoring the `SP_Dialog*` menu icons fails `qt_review_state_icon` ("Seen,
+  Read, Accept and Exclude show the seen, read, accepted and excluded marks
+  the button shows"). Painting Overview's read in the accepted green fails
+  `qt_overview_read_marks`. Drawing the drawer's mark only while unread fails
+  `qt_files_tree` ("each file's mark is painted in its state's colour").
+  Dropping the repaint from `set_progress_mark_colours` fails
+  `qt_review_state_icon` ("the theme's colours reach the button and the
+  menu"). Against the v002 product the new tests do not compile, because
+  `progress_mark.hpp` does not exist there.
+
+**Verification.** macOS arm64, `app-release` with `BUILD_TESTING=ON`
+(`build/rel` in the worktree), offscreen:
+`ctest -R '^(qt_files_tree|qt_overview_read_marks|qt_review_state_icon|architecture_boundaries|qt_workbench_window_scale_100|application_review_round_trip_composition_contract|application_review_ledger_composition_contract|application_review_progress_push_contract|application_accepted_file_in_overview)$'`
+passes. `qt_overview_read_marks` and `qt_files_tree` also pass at
+`QT_SCALE_FACTOR=2`, and `--review-state-icon` at 1.25. clang-format is clean
+on the changed lines. A direct clang-tidy run on the changed product files
+reports two findings, both on lines this card does not touch.
+
+- **Pins.** `github_application.cpp` changed, so the round-trip contract's
+  full-application and production-manifest digests are resealed in the same
+  commit. The mutation pin did not change.
+- **Not this card's failure.** `qt_pull_request_overview_page` fails on `main`
+  at `c2ea0e158` without this change, at [[BPR-1094]]'s new "light icons at
+  100%: a refresh keeps the scroll position and the chip" in this macOS
+  Release build. That is why the read column has its own row.
+
+**Renders** (offscreen, looked at before the owner look). The review bar in
+the six states and the open menu with Read highlighted, light and dark at 2x
+(`BPR_QT_RENDER_PATH` with `--review-state-icon`). Overview's read column and
+the Files drawer, light and dark.
+
+Linux and Windows have not run v003. It adds no platform code.

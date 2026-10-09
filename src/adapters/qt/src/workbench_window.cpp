@@ -34,6 +34,7 @@
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/usage_ring.hpp"
@@ -13806,8 +13807,9 @@ namespace bpr::qt {
 		Navigation[2].Action->setIcon(strip_icon(strip_glyph::previous_change, ink));
 		Navigation[3].Action->setIcon(strip_icon(strip_glyph::next_change, ink));
 		ReviewDetailsAction->setIcon(strip_icon(strip_glyph::review_details, ink));
-		// [[BPR-1331]]. The selected file's mark, in the new ink.
-		ReviewControlsButton->setIcon(strip_icon(progress_glyph(shown_progress_mark(Receipt, LedgerUnavailable)), ink));
+		// [[BPR-1331]]. The selected file's mark and the menu's marks, in the
+		// new palette.
+		refresh_progress_icons();
 		if (ComposeReviewAction != nullptr && CommentAction != nullptr) {
 			ComposeReviewAction->setIcon(strip_icon(strip_glyph::compose_review, ink));
 			CommentAction->setIcon(strip_icon(strip_glyph::comment, ink));
@@ -13837,16 +13839,51 @@ namespace bpr::qt {
 		if (SettingsAction != nullptr) {
 			SettingsAction->setIcon(strip_icon(strip_glyph::settings, ink));
 		}
+	}
 
-		constexpr auto receiptIcons = std::array{
-			QStyle::SP_DialogYesButton,
-			QStyle::SP_DialogApplyButton,
-			QStyle::SP_DialogOkButton,
-			QStyle::SP_DialogCancelButton,
+	void workbench_window::set_progress_mark_colours(const progress_mark_colours& aColours)
+	{
+		ProgressMarkColours = aColours;
+		refresh_progress_icons();
+	}
+
+	auto workbench_window::shown_progress_mark_colours() const -> progress_mark_colours
+	{
+		if (ProgressMarkColours.has_value()) {
+			return *ProgressMarkColours;
+		}
+		const auto dark = palette().color(QPalette::Active, QPalette::Window).lightness() < 128;
+		return builtin_progress_mark_colours(dark ? core::appearance_variant::dark : core::appearance_variant::light);
+	}
+
+	void workbench_window::refresh_progress_icons()
+	{
+		// [[BPR-1331]] v003. The owner rejected two pictures of one state
+		// ("Pick one. I think the circles here is probably better overall but
+		// it should get some color. All green aint the best either."), so the
+		// button and its menu paint the same marks Overview and the Files
+		// drawer do. The menu is the family's legend: each action shows the
+		// mark it is about, Seen, Read, Accepted and Excluded, whatever its
+		// label says now.
+		const auto colours  = shown_progress_mark_colours();
+		const auto disabled = palette().color(QPalette::Disabled, QPalette::ButtonText);
+		if (ReviewControlsButton != nullptr) {
+			ReviewControlsButton->setIcon(progress_mark_icon(shown_progress_mark(Receipt, LedgerUnavailable), colours, disabled));
+		}
+		if (ReviewControlsMenu == nullptr) {
+			return;
+		}
+		constexpr auto marks = std::array{
+			core::file_progress_mark::seen,
+			core::file_progress_mark::read,
+			core::file_progress_mark::accepted,
+			core::file_progress_mark::excluded,
 		};
-		for (std::size_t index = 0U; index < ReceiptActions.size(); ++index) {
-			ReceiptActions[index]->setIcon(nativeStyle->standardIcon(
-				receiptIcons[index], nullptr, this));
+		const auto& menu = ReviewControlsMenu->palette();
+		for (std::size_t index = 0U; index < ReceiptActions.size() && index < marks.size(); ++index) {
+			if (ReceiptActions[index] != nullptr) {
+				ReceiptActions[index]->setIcon(progress_mark_icon(marks[index], colours, menu.color(QPalette::Disabled, QPalette::Text), menu.color(QPalette::Active, QPalette::Window)));
+			}
 		}
 	}
 
@@ -14031,7 +14068,7 @@ namespace bpr::qt {
 			const auto click = offered.isEmpty() ? QStringLiteral("Click to open %1, none available now.").arg(listed(every))
 												 : QStringLiteral("Click to choose %1.").arg(listed(offered));
 			const auto key   = ReviewControlsButton->shortcut().toString(QKeySequence::NativeText);
-			ReviewControlsButton->setIcon(strip_icon(progress_glyph(mark), palette()));
+			ReviewControlsButton->setIcon(progress_mark_icon(mark, shown_progress_mark_colours(), palette().color(QPalette::Disabled, QPalette::ButtonText)));
 			ReviewControlsButton->setAccessibleName(QStringLiteral("Private progress: %1").arg(word));
 			ReviewControlsButton->setToolTip(QStringLiteral("Private progress: %1 (%2)\n%3\n%4").arg(word, key, state, click));
 			ReviewControlsButton->setStatusTip(state);

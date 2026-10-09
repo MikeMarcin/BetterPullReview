@@ -147,6 +147,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/motion_observer.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
@@ -15642,6 +15643,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_label_tints(qt::feedback_label_tints_of(AppearanceProfile->palette()));
 			// [[BPR-1085]]. Approve's dot takes the theme's attention amber.
 			Window->set_attention_colour(AppearanceProfile->color(core::appearance_role::state_attention));
+			// [[BPR-1331]] v003. The private progress marks in the theme's colours.
+			Window->set_progress_mark_colours(qt::progress_mark_colours_for(*AppearanceProfile));
 			if (auto* const conversations = Window->conversation_panel();
 				conversations != nullptr && conversations->cards() != nullptr) {
 				conversations->adopt_appearance(*AppearanceProfile);

@@ -3,6 +3,7 @@
 
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/review_ledger.hpp"
+#include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QAbstractItemModel>
@@ -196,11 +197,24 @@ namespace bpr::qt {
 			override;
 		void set_accent(const QColor& aAccent);
 		void set_operation_colours(const QColor& aAdded, const QColor& aRemoved);
+		/// \brief [[BPR-1331]] v003. The file marks' colours, the review bar's
+		/// family in the theme on screen.
+		void               set_progress_colours(const progress_mark_colours& aColours);
+		[[nodiscard]] auto progress_colours() const noexcept -> const progress_mark_colours&;
+
+		/// \brief [[BPR-1331]] v003. The side of the design box a file's mark
+		/// is painted in: ten pixels across, as Overview's.
+		static constexpr qreal mark_side = 15.0;
+		/// \brief Where a file's mark is centred, from the row's left, and
+		/// where its name starts.
+		static constexpr int mark_centre = 7;
+		static constexpr int name_inset  = 17;
 
 	private:
-		QColor Accent{ 0x09, 0x69, 0xDA };
-		QColor Added;
-		QColor Removed;
+		QColor                Accent{ 0x09, 0x69, 0xDA };
+		QColor                Added;
+		QColor                Removed;
+		progress_mark_colours Progress = builtin_progress_mark_colours(core::appearance_variant::light);
 	};
 
 	using files_tree_select_dispatch = std::function<void(const core::workbench_file_id&)>;

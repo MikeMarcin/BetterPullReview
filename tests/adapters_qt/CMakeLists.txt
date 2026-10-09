@@ -610,6 +610,20 @@ foreach(bpr_chips_scale IN ITEMS 125 200)
     )
 endforeach()
 
+# [[BPR-1331]] v003. The read column's marks, the review bar's family, on
+# their own: one picture of a file's progress, each state in its own colour.
+bpr_add_network_isolated_test(
+    NAME qt_overview_read_marks
+    COMMAND test_better_pull_review_qt_pull_request_overview_page_tests --read-marks
+)
+set_tests_properties(
+    qt_overview_read_marks
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment}"
+        PASS_REGULAR_EXPRESSION "pull-request-overview-read-marks:pass"
+        TIMEOUT 120
+)
+
 bpr_add_executable(
     test_better_pull_review_qt_comparison_scroll_controller_tests
     comparison_scroll_controller_tests.cpp

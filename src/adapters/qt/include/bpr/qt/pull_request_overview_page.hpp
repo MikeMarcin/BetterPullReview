@@ -5,6 +5,7 @@
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
+#include "bpr/qt/progress_mark.hpp"
 
 #include <QAbstractItemModel>
 #include <QColor>
@@ -60,6 +61,9 @@ namespace bpr::qt {
 		/// state marks' colours, for the Comments column's chips.
 		feedback_mark_theme    Marks;
 		feedback_state_colours States;
+		/// [[BPR-1331]] v003. The read column's marks, the review bar's
+		/// family, in the theme's colours; built-in light until adopted.
+		progress_mark_colours Progress = builtin_progress_mark_colours(core::appearance_variant::light);
 	};
 
 	/// \brief [[BPR-1089]]. One chip of a Comments cell, where it is drawn.

@@ -864,6 +864,16 @@ namespace bpr::qt {
 		Removed = aRemoved;
 	}
 
+	void files_tree_delegate::set_progress_colours(const progress_mark_colours& aColours)
+	{
+		Progress = aColours;
+	}
+
+	auto files_tree_delegate::progress_colours() const noexcept -> const progress_mark_colours&
+	{
+		return Progress;
+	}
+
 	void files_tree_delegate::paint(
 		QPainter* const             aPainter,
 		const QStyleOptionViewItem& aOption,
@@ -899,23 +909,19 @@ namespace bpr::qt {
 			}
 		}
 		auto rect = option.rect.adjusted(4, 0, -4, 0);
-		// [[BPR-0656]] [[BPR-0658]]. The read-state dot before a file: the
-		// accent while comments are unread, a faint ring while the file itself
-		// is unread, nothing once read. [[BPR-1339]]: the ring follows the
-		// file's mark, so an accepted file, done however far it was read,
-		// shows none.
+		// [[BPR-1331]] v003. Before a file, its mark in the review bar's
+		// family, as Overview's read column draws it: one picture of a file's
+		// progress wherever it shows. With the overview known and no receipt
+		// the file is unread. The unread comments' accent dot ([[BPR-0656]])
+		// moved from here to beside the counts, so the two never share a slot.
+		const auto overviewKnown = operationKind >= 0;
 		if (!folder) {
-			const auto centre = QPointF{ static_cast<qreal>(rect.left()) + 4.0, static_cast<qreal>(rect.center().y()) + 0.5 };
-			if (unread > 0) {
-				aPainter->setPen(Qt::NoPen);
-				aPainter->setBrush(Accent);
-				aPainter->drawEllipse(centre, 3.0, 3.0);
-			} else if (mark == static_cast<int>(core::file_progress_mark::unread)) {
-				aPainter->setPen(QPen{ faint, 1.0 });
-				aPainter->setBrush(Qt::NoBrush);
-				aPainter->drawEllipse(centre, 3.0, 3.0);
+			if (overviewKnown) {
+				const auto shown  = mark < 0 ? core::file_progress_mark::unread : static_cast<core::file_progress_mark>(mark);
+				const auto centre = QPointF{ static_cast<qreal>(rect.left() + mark_centre), static_cast<qreal>(rect.center().y()) + 0.5 };
+				paint_progress_mark(*aPainter, QRectF{ centre.x() - (mark_side / 2.0), centre.y() - (mark_side / 2.0), mark_side, mark_side }, shown, Progress);
 			}
-			rect.setLeft(rect.left() + 12);
+			rect.setLeft(rect.left() + name_inset);
 		}
 		auto small = option.font;
 		small.setPointSizeF(small.pointSizeF() * 0.85);
@@ -948,6 +954,13 @@ namespace bpr::qt {
 			aPainter->drawText(QRect{ detailLeft, rect.top(), width, rect.height() }, Qt::AlignRight | Qt::AlignVCenter, part.Text);
 			detailLeft -= 6;
 		}
+		if (!folder && unread > 0) {
+			// [[BPR-0656]]. Unread comments: the accent dot, before the counts.
+			aPainter->setPen(Qt::NoPen);
+			aPainter->setBrush(selected ? ink : Accent);
+			aPainter->drawEllipse(QPointF{ static_cast<qreal>(detailLeft) - 2.0, static_cast<qreal>(rect.center().y()) + 0.5 }, 3.0, 3.0);
+			detailLeft -= 11;
+		}
 		auto font = option.font;
 		if (folder) {
 			font.setWeight(QFont::DemiBold);
@@ -967,6 +980,7 @@ namespace bpr::qt {
 		Delegate->set_accent(aProfile.color(core::appearance_role::state_unread));
 		Delegate->set_operation_colours(aProfile.color(core::appearance_role::state_accepted),
 										aProfile.color(core::appearance_role::state_defect));
+		Delegate->set_progress_colours(progress_mark_colours_for(aProfile));
 		viewport()->update();
 	}
 

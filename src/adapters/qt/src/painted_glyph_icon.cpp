@@ -17,10 +17,8 @@ namespace bpr::qt {
 		class painted_glyph_engine final : public QIconEngine
 		{
 		public:
-			painted_glyph_engine(glyph_painter aPaint, const QColor& aInk, const QColor& aDisabled)
+			explicit painted_glyph_engine(mode_glyph_painter aPaint)
 				: Paint{ std::move(aPaint) }
-				, Ink{ aInk }
-				, Disabled{ aDisabled }
 			{
 			}
 
@@ -35,7 +33,7 @@ namespace bpr::qt {
 				const auto left = aRect.x() + ((aRect.width() - side) / 2);
 				const auto top  = aRect.y() + ((aRect.height() - side) / 2);
 				aPainter->translate(QPoint{ left, top });
-				Paint(*aPainter, static_cast<qreal>(side), ink(aMode));
+				Paint(*aPainter, static_cast<qreal>(side), aMode);
 				aPainter->restore();
 			}
 
@@ -59,7 +57,7 @@ namespace bpr::qt {
 				result.fill(Qt::transparent);
 				auto painter = QPainter{ &result };
 				painter.setRenderHint(QPainter::Antialiasing, true);
-				Paint(painter, static_cast<qreal>(side), ink(aMode));
+				Paint(painter, static_cast<qreal>(side), aMode);
 				return result;
 			}
 
@@ -71,7 +69,7 @@ namespace bpr::qt {
 
 			[[nodiscard]] auto clone() const -> QIconEngine* override
 			{
-				return new painted_glyph_engine{ Paint, Ink, Disabled };
+				return new painted_glyph_engine{ Paint };
 			}
 
 			[[nodiscard]] auto key() const -> QString override
@@ -85,19 +83,23 @@ namespace bpr::qt {
 			}
 
 		private:
-			[[nodiscard]] auto ink(const QIcon::Mode aMode) const -> const QColor&
-			{
-				return aMode == QIcon::Disabled ? Disabled : Ink;
-			}
-
-			glyph_painter Paint;
-			QColor        Ink;
-			QColor        Disabled;
+			mode_glyph_painter Paint;
 		};
 	} // namespace
 
 	auto painted_glyph_icon(glyph_painter aPaint, const QColor& aInk, const QColor& aDisabled) -> QIcon
 	{
-		return QIcon{ new painted_glyph_engine{ std::move(aPaint), aInk, aDisabled } };
+		// One ink for every mode but the disabled one.
+		if (!aPaint) {
+			return painted_mode_icon({ });
+		}
+		return painted_mode_icon([paint = std::move(aPaint), aInk, aDisabled](QPainter& aPainter, const qreal aSide, const QIcon::Mode aMode) {
+			paint(aPainter, aSide, aMode == QIcon::Disabled ? aDisabled : aInk);
+		});
+	}
+
+	auto painted_mode_icon(mode_glyph_painter aPaint) -> QIcon
+	{
+		return QIcon{ new painted_glyph_engine{ std::move(aPaint) } };
 	}
 } // namespace bpr::qt

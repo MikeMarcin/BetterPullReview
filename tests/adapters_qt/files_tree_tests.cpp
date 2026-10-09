@@ -1,5 +1,6 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/resident_filter.hpp"
 
 #include <QApplication>
@@ -204,6 +205,97 @@ namespace {
 		view.set_filter(QString{ });
 		expect(model->file_count() == 3U, "clearing the filter restores every file");
 		view.hide();
+	}
+
+	// [[BPR-1331]] v003. The owner on v002, 2026-10-09: "It's very weird to me
+	// that we have 2 icon languages for the same concept. Pick one. I think the
+	// circles here is probably better overall but it should get some color."
+	// Each file shows its mark in the review bar's family, Overview's, in the
+	// theme's colours; the unread comments' dot sits beside the counts.
+	auto test_file_marks_are_the_review_bar_family() -> void
+	{
+		using mark = core::file_progress_mark;
+		qt::files_tree_view view;
+		view.resize(480, 300);
+		view.set_order(qt::files_order::flat);
+		const auto names = std::array<std::string, 7>{ "unread.cpp", "seen.cpp", "read.cpp", "accepted.cpp", "excluded.cpp", "comments.cpp", "unknown.cpp" };
+		auto       rows  = std::vector<qt::workbench_drawer_row>{ };
+		for (const auto& name : names) {
+			rows.push_back(file(name));
+		}
+		view.apply(rows);
+		const auto marked = [](const std::string& aPath, const std::optional<mark> aMark, const std::optional<std::size_t> aUnread) {
+			auto row = overview(aPath, 3U, 1U, application::overview_change_since_review::unchanged, std::nullopt, aUnread);
+			row.Mark = aMark;
+			return row;
+		};
+		view.apply_overview(std::vector{ marked("unread.cpp", std::nullopt, 0U), marked("seen.cpp", mark::seen, 0U), marked("read.cpp", mark::read, 0U),
+										 marked("accepted.cpp", mark::accepted, 0U), marked("excluded.cpp", mark::excluded, 0U),
+										 marked("comments.cpp", mark::read, 2U) });
+		view.show();
+		QApplication::processEvents();
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			profile.apply_to(view);
+			view.adopt_appearance(profile);
+			QApplication::processEvents();
+			const auto& colours = view.delegate()->progress_colours();
+			expect(colours == qt::progress_mark_colours_for(profile), "the drawer adopts the theme's mark colours");
+			auto images = std::vector<QImage>{ };
+			for (const auto& path : names) {
+				// At 2x, so a ring's stroke has fully covered pixels of its colour.
+				auto image = QImage{ 960, 48, QImage::Format_ARGB32 };
+				image.setDevicePixelRatio(2.0);
+				image.fill(view.palette().color(QPalette::Base));
+				auto option = QStyleOptionViewItem{ };
+				option.initFrom(&view);
+				option.widget = &view;
+				option.rect   = QRect{ 0, 0, 480, 24 };
+				option.font   = view.font();
+				option.state  = QStyle::State_Enabled;
+				{
+					auto painter = QPainter{ &image };
+					view.delegate()->paint(&painter, option, view.tree_model()->index_for_file(core::file_identity_of(path)));
+				}
+				images.push_back(image);
+			}
+			if (const auto renderRoot = qEnvironmentVariable("BPR_FILES_TREE_RENDER_ROOT"); !renderRoot.isEmpty()) {
+				auto sheet = QImage{ 960, 48 * static_cast<int>(images.size()), QImage::Format_ARGB32 };
+				auto paint = QPainter{ &sheet };
+				for (std::size_t row = 0U; row < images.size(); ++row) {
+					auto plain = images[row];
+					plain.setDevicePixelRatio(1.0);
+					paint.drawImage(QPoint{ 0, 48 * static_cast<int>(row) }, plain);
+				}
+				paint.end();
+				expect(sheet.save(renderRoot + QStringLiteral("/files-marks-%1.png").arg(name)), "the drawer's marks render is saved");
+			}
+			// The mark's slot and the counts' end of the row, in device pixels.
+			const auto slot    = QRect{ 8, 0, 30, 48 };
+			const auto counts  = QRect{ 660, 0, 300, 48 };
+			const auto has     = [&](const std::size_t aRow, const QColor& aColour) { return pixels(images[aRow], slot, aColour) > 0; };
+			const auto exactly = [&](const std::size_t aRow, const QColor& aColour) {
+				for (auto y = slot.top(); y <= slot.bottom(); ++y) {
+					for (auto x = slot.left(); x <= slot.right(); ++x) {
+						if (images[aRow].pixelColor(x, y).rgb() == aColour.rgb()) {
+							return true;
+						}
+					}
+				}
+				return false;
+			};
+			expect(exactly(0U, colours.Neutral) && exactly(1U, colours.Seen) && exactly(2U, colours.Read) && exactly(3U, colours.Accepted)
+					   && exactly(4U, colours.Neutral) && exactly(4U, colours.Excluded),
+				   "each file's mark is painted in its state's colour, a file with no receipt as unread");
+			expect(!has(1U, colours.Accepted) && !has(2U, colours.Accepted) && !has(0U, colours.Accepted), "only an accepted file's mark is green");
+			expect(images[1].copy(slot) != images[2].copy(slot) && images[2].copy(slot) != images[3].copy(slot) && images[0].copy(slot) != images[4].copy(slot),
+				   "seen, read, accepted, unread and excluded draw differently");
+			expect(images[5].copy(slot) == images[2].copy(slot), "unread comments leave the file's mark as it is");
+			expect(pixels(images[5], counts, colours.Read) > 0 && pixels(images[2], counts, colours.Read) == 0,
+				   "the unread comments' accent dot sits beside the counts");
+			expect(!has(6U, colours.Neutral) && !has(6U, colours.Read), "a file the overview has not described shows no mark yet");
+		}
 	}
 
 	auto test_operation_colours_and_accessible_names() -> void
@@ -599,6 +691,7 @@ auto main(int argc, char** argv) -> int
 	test_selection_reports_files_and_only_the_reviewers_own();
 	test_folders_are_nonselectable_across_gestures_and_rebuilds();
 	test_operation_colours_and_accessible_names();
+	test_file_marks_are_the_review_bar_family();
 	std::cout << "files-tree-tests:pass\n";
 	return EXIT_SUCCESS;
 }

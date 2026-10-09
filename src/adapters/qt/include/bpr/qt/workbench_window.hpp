@@ -29,6 +29,7 @@
 #include "bpr/qt/github_pull_request_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_refusal.hpp"
+#include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/repositories_drawer.hpp"
 #include "bpr/qt/resident_filter.hpp"
@@ -920,6 +921,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-1085]]. The theme's attention amber (`state_attention`),
 		/// for Approve's dot while my blocking feedback is open.
 		void set_attention_colour(const QColor& aColour);
+		/// \brief [[BPR-1331]] v003. The private progress marks' colours in
+		/// the theme on screen, for the review bar's button and its menu.
+		void set_progress_mark_colours(const progress_mark_colours& aColours);
+		/// \brief The colours the progress marks are painted in: the theme's
+		/// once the composition supplies them, else the built-in light or dark
+		/// variant, whichever the window's palette is.
+		[[nodiscard]] auto shown_progress_mark_colours() const -> progress_mark_colours;
 		/// \brief The tints and mark style this window draws marks with.
 		[[nodiscard]] auto label_marks() const -> feedback_mark_theme;
 		/// \brief Opens a retained draft for writing without changing or
@@ -1316,6 +1324,10 @@ namespace bpr::qt {
 		void observe_handle_drag();
 		void configure_tool_buttons();
 		void refresh_toolbar_icons();
+		/// \brief [[BPR-1331]] v003. Paints the review bar's progress button
+		/// with the selected file's mark and each of its menu's actions with
+		/// the mark it names, all from one painter in the theme's colours.
+		void refresh_progress_icons();
 		void update_strip_positions();
 		void update_idle_direction();
 		void update_strip_identity();
@@ -2039,10 +2051,13 @@ namespace bpr::qt {
 		std::optional<feedback_label_tints> LabelTints;
 		/// [[BPR-1085]]. The theme's attention amber, once the composition
 		/// supplies it.
-		std::optional<QColor>          AttentionColour;
-		bool                           ApplyingBehaviour = false;
-		std::optional<review_modality> LastUsedModality;
-		bool                           ReturnComparisonPending = false;
+		std::optional<QColor> AttentionColour;
+		/// [[BPR-1331]] v003. The theme's progress mark colours, once the
+		/// composition supplies them.
+		std::optional<progress_mark_colours> ProgressMarkColours;
+		bool                                 ApplyingBehaviour = false;
+		std::optional<review_modality>       LastUsedModality;
+		bool                                 ReturnComparisonPending = false;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                      BehaviourPublished    = false;

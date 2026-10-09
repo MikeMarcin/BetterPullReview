@@ -1,8 +1,6 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_STRIP_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_STRIP_HPP
 
-#include "bpr/core/file_progress_mark.hpp"
-
 #include <QFrame>
 #include <QIcon>
 #include <QKeySequence>
@@ -61,28 +59,10 @@ namespace bpr::qt {
 		/// [[BPR-1295]]. Show drawers: the same window with both columns
 		/// outlined, the drawers that are hidden.
 		drawers_hidden,
-		/// [[BPR-1331]]. The private progress button's state marks, after the
-		/// Overview's read column ([[BPR-0647]]) and [[BPR-1083]]'s weight scale:
-		/// the emptier the mark, the less is claimed. Unread is a broken ring,
-		/// nothing claimed yet.
-		progress_unread,
-		/// [[BPR-1331]]. Seen: a ring with its left half filled.
-		progress_seen,
-		/// [[BPR-1331]]. Read: a filled disc.
-		progress_read,
-		/// [[BPR-1331]]. Accepted: the filled disc with a tick cut out of it.
-		progress_accepted,
-		/// [[BPR-1331]]. Excluded: a ring struck through, left out of review.
-		progress_excluded,
 		/// [[BPR-1338]]. Open on GitHub: a page whose corner an arrow leaves,
 		/// the common mark for "opens outside this application".
 		open_on_github,
 	};
-
-	/// \brief [[BPR-1331]]. The glyph the private progress button shows for
-	/// the mark the core decided; the plain tick while no file's progress is
-	/// known.
-	[[nodiscard]] auto progress_glyph(std::optional<core::file_progress_mark> aMark) noexcept -> strip_glyph;
 
 	/// \brief Paints one strip glyph for a palette.
 	[[nodiscard]] auto strip_icon(strip_glyph aGlyph, const QPalette& aPalette)

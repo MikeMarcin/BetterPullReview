@@ -1224,6 +1224,14 @@ endfunction()
 # inside BPR_BUILD_TESTING. Evidence counters only: no decision, grant, target,
 # provider, credential, GitHub write, mutation or publication path; mutation
 # pin unchanged; no new src/app source. Reviewed on BPR-1094.
+# BPR-1331 v003 reseal (2026-10-08): over the BPR-1094 reseal above; no other
+# intervening pinned-scope change. The owner rejected two pictures of one
+# private-progress state, so apply_appearance hands the window the theme's
+# progress mark colours (qt::progress_mark_colours_for, a presentation-only
+# struct of five QColors read from the appearance profile) beside the attention
+# amber it already hands over, and the file includes bpr/qt/progress_mark.hpp.
+# No grant, target, provider, credential, GitHub write, mutation or publication
+# path; mutation pin unchanged; no new src/app source. Self-review on BPR-1331.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1242,7 +1250,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6b25419a4cc143be4a259160b5ab9d853465b7bd96bb700e7291de4e69a602a2"
+		"be455223431255a27a4cc7e5c586f5f3940df5eb3c2a51e1526f586d478f340d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1446,7 +1454,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "19e93e5f0333fc80a9e6f3eefeb6bf6a86f7a4164be1ad1c1af440fdf3ff118f"
+        "3300a257ba01e9bc64eb801f2fde96241964bc53d3d50b650635a937c879d8f7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
