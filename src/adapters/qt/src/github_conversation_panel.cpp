@@ -177,7 +177,7 @@ namespace bpr::qt {
 		: QWidget{ aParent }
 	{
 		setObjectName(QStringLiteral("pullRequestConversationGroup"));
-		setAccessibleName(QStringLiteral("Read-only GitHub conversations"));
+		setAccessibleName(QStringLiteral("Read-only GitHub threads"));
 
 		auto* const layout = new QVBoxLayout{ this };
 		layout->setContentsMargins(0, 0, 0, 0);
@@ -233,7 +233,7 @@ namespace bpr::qt {
 		ScopeWholePr->setAccessibleName(QStringLiteral("Whole pull request"));
 		ScopeWholePr->setAccessibleDescription(QStringLiteral(
 			"Lists every thread of the pull request in file order"));
-		ScopeWholePr->setToolTip(QStringLiteral("Every conversation in the pull request, in file order"));
+		ScopeWholePr->setToolTip(QStringLiteral("Every thread in the pull request, in file order"));
 		ScopeWholePr->setCheckable(true);
 		ScopeWholePr->setAutoExclusive(true);
 		ScopeWholePr->setFocusPolicy(Qt::StrongFocus);
@@ -245,19 +245,19 @@ namespace bpr::qt {
 		ScopeThisFile->setText(QStringLiteral("File"));
 		ScopeThisFile->setAccessibleName(QStringLiteral("File scope"));
 		ScopeThisFile->setAccessibleDescription(QStringLiteral(
-			"Use the selected conversation file"));
-		ScopeThisFile->setToolTip(QStringLiteral("One file's conversations. Pull request comments and review summaries are not on a file, so they are left out."));
+			"Use the selected thread's file"));
+		ScopeThisFile->setToolTip(QStringLiteral("One file's threads. Pull request comments and review summaries are not on a file, so they are left out."));
 		ScopeThisFile->setCheckable(true);
 		ScopeThisFile->setChecked(true);
 		ScopeThisFile->setAutoExclusive(true);
 		ScopeThisFile->setFocusPolicy(Qt::StrongFocus);
 		DiscussFileChoice = new QComboBox{ scopeBox };
 		DiscussFileChoice->setObjectName(QStringLiteral("conversationFileScope"));
-		DiscussFileChoice->setAccessibleName(QStringLiteral("Conversation file scope"));
+		DiscussFileChoice->setAccessibleName(QStringLiteral("Thread file scope"));
 		DiscussFileChoice->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 		DiscussFileChoice->setMinimumContentsLength(22);
 		DiscussFileChoice->setMaximumWidth(360);
-		DiscussFileChoice->setToolTip(QStringLiteral("The file whose conversations are listed"));
+		DiscussFileChoice->setToolTip(QStringLiteral("The file whose threads are listed"));
 		scopeLayout->addWidget(ScopeWholePr);
 		scopeLayout->addWidget(ScopeThisFile);
 		scopeLayout->addSpacing(6);
@@ -285,7 +285,7 @@ namespace bpr::qt {
 		ClearFilters->setObjectName(QStringLiteral("conversationClearFilters"));
 		ClearFilters->setText(QStringLiteral("Clear"));
 		ClearFilters->setAccessibleName(QStringLiteral("Clear filters"));
-		ClearFilters->setAccessibleDescription(QStringLiteral("Show every conversation of the pull request, with no filter"));
+		ClearFilters->setAccessibleDescription(QStringLiteral("Show every thread of the pull request, with no filter"));
 		ClearFilters->setToolTip(QStringLiteral("Clear filters"));
 		ClearFilters->setFocusPolicy(Qt::StrongFocus);
 		DiscussControls->hide();
@@ -337,8 +337,8 @@ namespace bpr::qt {
 		ClearListing = clearListing;
 		ClearListing->setObjectName(QStringLiteral("conversationClearListing"));
 		ClearListing->setText(QStringLiteral("×"));
-		ClearListing->setToolTip(QStringLiteral("Show every conversation"));
-		ClearListing->setAccessibleName(QStringLiteral("Show every conversation"));
+		ClearListing->setToolTip(QStringLiteral("Show every thread"));
+		ClearListing->setAccessibleName(QStringLiteral("Show every thread"));
 		ClearListing->setFocusPolicy(Qt::StrongFocus);
 		listingLayout->addWidget(ListingMark);
 		listingLayout->addWidget(ListingCaption);
@@ -406,7 +406,7 @@ namespace bpr::qt {
 		// reviewer reads and chooses with, and they move this current index.
 		View = new QTreeView{ this };
 		View->setObjectName(QStringLiteral("githubConversationView"));
-		View->setAccessibleName(QStringLiteral("Selected conversation"));
+		View->setAccessibleName(QStringLiteral("Selected thread"));
 		View->setModel(Model);
 		View->setSelectionBehavior(QAbstractItemView::SelectRows);
 		View->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -774,11 +774,11 @@ namespace bpr::qt {
 		const auto fresh         = Cards->unread_thread_count();
 		auto       sentence      = QStringLiteral("%1 %2, %3 unresolved, %4 new")
 									   .arg(conversations)
-									   .arg(conversations == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations"))
+									   .arg(conversations == 1U ? QStringLiteral("thread") : QStringLiteral("threads"))
 									   .arg(unresolved)
 									   .arg(fresh);
 		if (Cards->cards().empty() && !Retained.empty()) {
-			sentence = QStringLiteral("No conversations match these filters. Clear filters to show all PR conversations.");
+			sentence = QStringLiteral("No threads match these filters. Clear filters to show all PR threads.");
 		}
 		auto notes = QStringList{ };
 		if (Cards->scope() == cards_scope::this_file && DiscussFile) {
@@ -793,7 +793,7 @@ namespace bpr::qt {
 		DiscussSummary->setToolTip(notes.join(QLatin1Char{ '\n' }));
 		auto parts      = std::vector<discuss_count_part>(2U);
 		parts[0].Number = QString::number(conversations);
-		parts[0].Words  = conversations == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations");
+		parts[0].Words  = conversations == 1U ? QStringLiteral("thread") : QStringLiteral("threads");
 		parts[1].Number = QString::number(unresolved);
 		parts[1].Words  = QStringLiteral("unresolved");
 		static_cast<discuss_counts*>(DiscussSummary)->set_parts(std::move(parts));

@@ -486,7 +486,7 @@ in `pull_request_overview_page`. The figures come from
     files, as it always does. Shift+Tab steps back, and from the first chip
     returns to the row.
   - Once on a chip, Left and Right move along the chips. Enter or Space
-    lists the chip's conversations ("+n" opens its menu). Escape returns to
+    lists the chip's threads ("+n" opens its menu). Escape returns to
     the row. Up, Down or a click on another row leaves the chip.
   - The chip the keyboard is on wears a 1.5 px rounded ring in the
     selection's text colour, the only focus mark on the row while it is on.
@@ -562,13 +562,14 @@ in `pull_request_overview_page`. The figures come from
     written back.
   - **Words** (owner, accepting `overview-chips-v001`: "'without a chip of
     their own' is a weird tooltip and we should adjust it"). Other's tooltip
-    reads "Other labels: 2 open conversations here." over "Labels not ticked
+    reads "Other labels: 2 open threads here." over "Labels not ticked
     in Settings' Overview chips, and comments with no label." The ? tooltip
-    reads "Not counted: 6 conversations" with one reason a line: "2 whose
+    reads "Not counted: 6 threads" with one reason a line: "2 whose
     state is unknown", "1 whose label can't be read", "3 that can't be
     resolved", "not every comment was loaded", "counted at an earlier
     refresh", "comments couldn't be loaded", "some comments' files are
     unknown". Every chip tooltip ends "Click or press Enter to list them."
+    The counts say threads, not conversations, since [[BPR-1355]].
   - **The operation mark** (owner, rejecting `overview-keyboard-v001`: "This
     black square is weird looking on a highlighted row without added chip").
     A modified file's mark was Mid filled under a Base letter, about 1.05:1

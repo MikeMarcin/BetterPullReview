@@ -291,7 +291,7 @@ namespace bpr::app {
 		application::feedback_counter_model model;
 		const auto                          update = model.observe(core::cached_review_key{ aTarget.Owner.HostAuthority.bytes(), aTarget.HostProfile, aTarget.Owner.Host, aTarget.Owner.Account, aTarget.Repository, aTarget.Number }, aSnapshot);
 		if (!update.Admitted) {
-			return refuse("counts_unavailable", "The pull request's conversations could not be counted (" + std::string{ core::stable_name(update.AnnotationRefusal) } + ", " + std::string{ core::stable_name(update.PopulationRefusal) } + "). No count is shown rather than a guessed one.", 5);
+			return refuse("counts_unavailable", "The pull request's threads could not be counted (" + std::string{ core::stable_name(update.AnnotationRefusal) } + ", " + std::string{ core::stable_name(update.PopulationRefusal) } + "). No count is shown rather than a guessed one.", 5);
 		}
 		std::vector<std::string> files;
 		files.reserve(aSnapshot.Files.size());
@@ -346,9 +346,9 @@ namespace bpr::app {
 			}
 		}
 		if (quietFiles != 0U) {
-			human += decimal(quietFiles) + (quietFilesExact ? " other listed files have no conversation.\n" : " other listed files show no conversation, but that zero is not exact.\n");
+			human += decimal(quietFiles) + (quietFilesExact ? " other listed files have no thread.\n" : " other listed files show no thread, but that zero is not exact.\n");
 		}
-		human += "Counts are conversations: a thread counts once, by its root's label. ? counts threads whose resolution is unknown or does not apply, or whose label cannot be read. Local tour stops are drafts and are not counted.\n";
+		human += "Counts are threads: each counts once, by its root's label. ? counts threads whose resolution is unknown or does not apply, or whose label cannot be read. Local tour stops are drafts and are not counted.\n";
 		return { data, human };
 	}
 }

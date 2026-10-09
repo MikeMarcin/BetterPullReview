@@ -442,7 +442,7 @@ namespace bpr::qt {
 		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card), tr("This thread has no current code anchor. Open its current comparison before replying."));
 		add(card_action::mark_read, QStringLiteral("Mark read"), card.UnreadCount > 0U, tr("This thread has no unread posts."));
 		add(card.Resolved ? card_action::unresolve : card_action::resolve, card.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
-			ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Thread resolution is not available for this conversation."));
+			ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Resolution is not available for this thread."));
 		add(Feed ? card_action::open_in_code : card_action::show_line, Feed ? QStringLiteral("Open in code") : QStringLiteral("Show line"),
 			has_code_anchor(card), tr("This thread's code anchor is unavailable."));
 		if (!card.Posts.empty()) {
@@ -694,7 +694,7 @@ namespace bpr::qt {
 		Feed = aFeed;
 		setVerticalScrollBarPolicy(Feed ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 		verticalScrollBar()->setValue(0);
-		setAccessibleName(Feed ? QStringLiteral("Conversations") : QStringLiteral("Threads in this file"));
+		setAccessibleName(Feed ? QStringLiteral("Threads") : QStringLiteral("Threads in this file"));
 		// The open card is rebuilt, and the old one deleted, on the next layout.
 		if (OpenCard != nullptr) {
 			OpenCard->setProperty("threadKey", QString{ });

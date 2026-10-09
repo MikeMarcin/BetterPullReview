@@ -33,7 +33,7 @@ namespace bpr::qt {
 		case core::actionability_reason::acceptance_outdated:
 			return QStringLiteral("This changed after you accepted it.");
 		case core::actionability_reason::unread_conversation:
-			return QStringLiteral("A conversation here has unread comments.");
+			return QStringLiteral("A thread here has unread comments.");
 		case core::actionability_reason::unread_material:
 			return QStringLiteral("You have not finished reading this.");
 		case core::actionability_reason::nothing_to_do:

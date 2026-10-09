@@ -79,7 +79,7 @@ namespace bpr::qt {
 					"Actionable pull-request files for the current review");
 			case core::workbench_drawer::conversations:
 				return QStringLiteral(
-					"Review conversations anchored to the current comparison");
+					"Review threads anchored to the current comparison");
 			case core::workbench_drawer::repositories:
 				return QStringLiteral(
 					"Repositories with their pull requests of interest");

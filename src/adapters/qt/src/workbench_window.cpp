@@ -553,7 +553,7 @@ namespace bpr::qt {
 					"Discuss to open one.");
 			case core::workbench_reason_code::discuss_shows_the_conversation:
 				return QStringLiteral(
-					"In Discuss the conversation is the page. Choose Review to "
+					"In Discuss the thread is the page. Choose Review to "
 					"hide or show the drawers.");
 			case core::workbench_reason_code::threads_finds_a_thread:
 				return QStringLiteral(
@@ -1680,7 +1680,7 @@ namespace bpr::qt {
 		CentralSplitter->setObjectName(QStringLiteral("workbenchCentralSplitter"));
 		CentralSplitter->setAccessibleName(QStringLiteral("Review workbench"));
 		CentralSplitter->setAccessibleDescription(QStringLiteral(
-			"Resizable file drawer, comparison centre, and conversation drawer"));
+			"Resizable file drawer, comparison centre, and comments drawer"));
 		// A drawer leaves through the core's drawer state, never through a drag
 		// to zero width that presentation decided by itself.
 		CentralSplitter->setChildrenCollapsible(false);
@@ -2231,7 +2231,7 @@ namespace bpr::qt {
 		defectLayout->addWidget(defectClose);
 		ConversationPanel->cards()->set_context_menu_builder([this](QMenu& aMenu, const std::string& aThread) { append_thread_defect_menu(aMenu, aThread); });
 		ClassifyDefect = new QAction{
-			tr("Classify selected conversation as defect"), this
+			tr("Classify selected thread as defect"), this
 		};
 		ClassifyDefect->setObjectName(QStringLiteral("classifySelectedDefect"));
 		PreviousDefect = new QAction{ tr("Previous defect"), this };
@@ -2569,7 +2569,7 @@ namespace bpr::qt {
 		TrayTabs->addTab(tr("Tour"));
 		TrayTabs->setAccessibleTabName(2, tr("Tour"));
 		TrayTabs->setAccessibleTabName(1, tr("Notes"));
-		TrayTabs->setTabToolTip(0, tr("The pull request's conversations, with their scope and filters"));
+		TrayTabs->setTabToolTip(0, tr("The pull request's threads, with their scope and filters"));
 		TrayTabs->setTabToolTip(1, tr("Your private notes, AI conversations and review feedback. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		TrayCommentsCount = new tray_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
@@ -6731,8 +6731,8 @@ namespace bpr::qt {
 		}
 		parts.push_back(where);
 		const auto count       = static_cast<qulonglong>(aListing.Count);
-		const auto caption     = QStringLiteral("%1 — %2 %3").arg(parts.join(QStringLiteral(" · ")), QString::number(count), count == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations"));
-		const auto description = QStringLiteral("Listed from the Overview: exactly the conversations this count counted. Show every conversation clears it.");
+		const auto caption     = QStringLiteral("%1 — %2 %3").arg(parts.join(QStringLiteral(" · ")), QString::number(count), count == 1U ? QStringLiteral("thread") : QStringLiteral("threads"));
+		const auto description = QStringLiteral("Listed from the Overview: exactly the threads this count counted. Show every thread clears it.");
 		if (aReveal) {
 			if (OverviewPage != nullptr && OverviewPage->isAncestorOf(QApplication::focusWidget())) {
 				OverviewReturnFocus = QApplication::focusWidget();
@@ -8564,7 +8564,7 @@ namespace bpr::qt {
 		auto* const helperInfo = new info_glyph{ QStringLiteral("The label chip and :shortcodes: while writing. Off: write labels yourself; they still count."), helperRow };
 		helperInfo->setObjectName(QStringLiteral("labelHelperInfo"));
 		helperLayout->addWidget(helperInfo);
-		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved conversations; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
+		auto* const countsInfo = new info_glyph{ QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads; All counts every one. Switching on an Overview changes only that view."), BehaviourEditor };
 		countsInfo->setObjectName(QStringLiteral("overviewCountsInfo"));
 		MarkColoursLink = new QToolButton{ BehaviourEditor };
 		MarkColoursLink->setObjectName(QStringLiteral("markColoursLink"));
@@ -13384,7 +13384,7 @@ namespace bpr::qt {
 		} else if (projection && projection->DisabledReason == core::workbench_reason_code::overview_keeps_drawers_collapsed) {
 			reason = QStringLiteral("Overview keeps every drawer closed");
 		} else if (projection && projection->DisabledReason == core::workbench_reason_code::discuss_shows_the_conversation) {
-			reason = QStringLiteral("In Discuss the conversation is the page");
+			reason = QStringLiteral("In Discuss the thread is the page");
 		} else if (projection && projection->DisabledReason == core::workbench_reason_code::threads_finds_a_thread) {
 			reason = QStringLiteral("In Threads the finder is the page");
 		}

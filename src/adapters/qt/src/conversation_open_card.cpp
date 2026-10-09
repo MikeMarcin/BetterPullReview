@@ -1153,7 +1153,7 @@ namespace bpr::qt {
 			support->setTextFormat(Qt::PlainText);
 			support->setWordWrap(true);
 			support->setFont(scaled(font(), 0.9));
-			support->setText(QStringLiteral("GitHub stores this as a file review comment. The code link in its first post places the conversation at this line."));
+			support->setText(QStringLiteral("GitHub stores this as a file review comment. The code link in its first post places the thread at this line."));
 			support->setContentsMargins(text_left, 6, text_right, 0);
 			column->addWidget(support);
 		}

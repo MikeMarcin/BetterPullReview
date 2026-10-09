@@ -1651,7 +1651,7 @@ namespace {
 				   && modality->action(qt::review_modality::threads)->objectName() == QStringLiteral("reviewModalityThreadsAction")
 				   && modality->button(qt::review_modality::threads)->objectName() == QStringLiteral("reviewModalityThreadsButton")
 				   && modality->button(qt::review_modality::discuss)->toolTip()
-					   == QStringLiteral("Collapse the files drawer and give the conversation the room (%1).")
+					   == QStringLiteral("Collapse the files drawer and give the thread the room (%1).")
 							  .arg(QKeySequence{ QStringLiteral("Ctrl+3") }.toString(QKeySequence::NativeText))
 				   && modality->button(qt::review_modality::discuss)->objectName() == QStringLiteral("reviewModalityDiscussButton"),
 			   "Threads' segment names both its keys; Discuss's tooltip names its key and its names are unchanged");
@@ -11342,7 +11342,7 @@ namespace {
 			   "Overview disables the command and says why");
 		window.choose_modality(qt::review_modality::discuss);
 		process_events();
-		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("In Discuss the conversation is the page"),
+		expect(!action->isEnabled() && action->toolTip() == QStringLiteral("In Discuss the thread is the page"),
 			   "Discuss disables it and says why");
 		window.choose_modality(qt::review_modality::threads);
 		process_events();

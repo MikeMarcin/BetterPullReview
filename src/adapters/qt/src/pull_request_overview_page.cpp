@@ -711,7 +711,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto conversations(const std::size_t aCount) -> QString
 		{
-			return aCount == 1U ? QStringLiteral("conversation") : QStringLiteral("conversations");
+			return aCount == 1U ? QStringLiteral("thread") : QStringLiteral("threads");
 		}
 
 		/// "1 open, 1 resolved, 1 state unknown": a breakdown in the states'
@@ -1283,8 +1283,8 @@ namespace bpr::qt {
 			return parts.join(QStringLiteral(" · "));
 		}
 		const auto open    = mode_word(aCounts.Mode);
-		auto       said    = parts.isEmpty() ? QStringLiteral("No %1conversations").arg(open.isEmpty() ? QString{ } : open + QLatin1Char{ ' ' })
-											 : QStringLiteral("%1 %2conversations").arg(parts.join(QStringLiteral(", ")), open.isEmpty() ? QString{ } : open + QLatin1Char{ ' ' });
+		auto       said    = parts.isEmpty() ? QStringLiteral("No %1threads").arg(open.isEmpty() ? QString{ } : open + QLatin1Char{ ' ' })
+											 : QStringLiteral("%1 %2threads").arg(parts.join(QStringLiteral(", ")), open.isEmpty() ? QString{ } : open + QLatin1Char{ ' ' });
 		const auto clauses = qualifier_clauses(aCounts);
 		if (!clauses.isEmpty()) {
 			said += QStringLiteral("; ") + clauses.join(QStringLiteral("; "));
@@ -1372,7 +1372,7 @@ namespace bpr::qt {
 			case Qt::AccessibleTextRole:
 				return comments_text(*counts, true);
 			case Qt::ToolTipRole:
-				return comments_text(*counts, true) + QStringLiteral("\nTab steps onto each chip; Enter lists its conversations.");
+				return comments_text(*counts, true) + QStringLiteral("\nTab steps onto each chip; Enter lists its threads.");
 			default:
 				break;
 			}
@@ -1496,8 +1496,8 @@ namespace bpr::qt {
 		// [[BPR-1089]]. Comments ▾ chooses the number the rows sort by.
 		if (aSection == comments_column && Feedback && (aRole == Qt::ToolTipRole || aRole == Qt::AccessibleDescriptionRole)) {
 			const auto open = Feedback->Request.Mode == core::feedback_resolution_mode::unresolved;
-			auto       tip  = QStringLiteral("%1 by label, in your Settings order; %2. Replies don't count.\nClick a chip, or Tab onto it and press Enter, to list its conversations.")
-								  .arg(open ? QStringLiteral("Open conversations") : QStringLiteral("Conversations"),
+			auto       tip  = QStringLiteral("%1 by label, in your Settings order; %2. Replies don't count.\nClick a chip, or Tab onto it and press Enter, to list its threads.")
+								  .arg(open ? QStringLiteral("Open threads") : QStringLiteral("Threads"),
 									   any_columns(Feedback) ? QStringLiteral("the bubble with dots holds the other labels") : QStringLiteral("no labels are ticked, so the bubble counts them all"));
 			tip += Feedback->Request.Sort ? QStringLiteral("\nSorted by %1, most first. Click to change.").arg(overview_count_name(*Feedback->Request.Sort, any_columns(Feedback)))
 										  : QStringLiteral("\nClick to sort by a label.");
@@ -2098,8 +2098,8 @@ namespace bpr::qt {
 			anchor_tooltips(*button);
 			return button;
 		};
-		OpenCounts = countsButton(QStringLiteral("Open"), QStringLiteral("overviewModeOpen"), QStringLiteral("Open conversations"), QStringLiteral("Unresolved conversations (default)"));
-		AllCounts  = countsButton(QStringLiteral("All"), QStringLiteral("overviewModeAll"), QStringLiteral("All conversations"), QStringLiteral("Every conversation: open, resolved, unknown"));
+		OpenCounts = countsButton(QStringLiteral("Open"), QStringLiteral("overviewModeOpen"), QStringLiteral("Open threads"), QStringLiteral("Unresolved threads (default)"));
+		AllCounts  = countsButton(QStringLiteral("All"), QStringLiteral("overviewModeAll"), QStringLiteral("All threads"), QStringLiteral("Every thread: open, resolved, unknown"));
 		AllCounts->setToolButtonStyle(Qt::ToolButtonTextOnly);
 		connect(OpenCounts, &QToolButton::toggled, this, [this](const bool aOn) {
 			if (aOn) {
@@ -2152,7 +2152,7 @@ namespace bpr::qt {
 			"Every file with its operation, line counts, whether it changed "
 			"since my last review, my read state, comment counts and my note; "
 			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files; "
-			"Tab steps from a row onto its comment chips, Enter or Space lists a chip's conversations and Escape returns to the row; "
+			"Tab steps from a row onto its comment chips, Enter or Space lists a chip's threads and Escape returns to the row; "
 			"the context-menu key lists every chip of the row"));
 		Files->setModel(Model);
 		RowDelegate = new overview_row_delegate{ Colours, Files };
@@ -2594,7 +2594,7 @@ namespace bpr::qt {
 	void pull_request_overview_page::present_loading()
 	{
 		Title->setText(QStringLiteral("Loading pull request…"));
-		Summary->setText(QStringLiteral("Details, files and conversations are loading in the background."));
+		Summary->setText(QStringLiteral("Details, files and threads are loading in the background."));
 		FilesHeading->setText(QStringLiteral("Files — loading…"));
 		if (auto* none = findChild<QLabel*>(QStringLiteral("overviewNoParticipants"))) {
 			none->setText(QStringLiteral("Loading participants…"));
@@ -2652,7 +2652,7 @@ namespace bpr::qt {
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, true);
 		}
-		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Open a file to read its exact retained base and head when available. Current conversation counts and review progress unavailable."));
+		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Open a file to read its exact retained base and head when available. Current thread counts and review progress unavailable."));
 		CachedThreadsHeading->setText(aOverview.ReviewThreads
 										  ? QStringLiteral("Cached review threads — %1 observed · freshness unknown").arg(count_text(aOverview.ReviewThreads->size()))
 										  : QStringLiteral("Review threads unavailable offline"));
@@ -3129,7 +3129,7 @@ namespace bpr::qt {
 				{ .Kind = core::feedback_count_kind::uncertain });
 		}
 		if (menu->actions().isEmpty()) {
-			menu->addAction(open ? QStringLiteral("No open conversations") : QStringLiteral("No conversations"))->setEnabled(false);
+			menu->addAction(open ? QStringLiteral("No open threads") : QStringLiteral("No threads"))->setEnabled(false);
 		}
 		const auto clauses = qualifier_clauses(*counts);
 		if (!clauses.isEmpty()) {
@@ -3428,7 +3428,7 @@ namespace bpr::qt {
 			item->setData(Qt::AccessibleTextRole, aAccessible);
 			item->setToolTip(aTip);
 		};
-		heading(QStringLiteral("Labels (the first comment of a conversation)"));
+		heading(QStringLiteral("Labels (the first comment of a thread)"));
 		for (std::size_t index = 0U; index < core::feedback_label_count; ++index) {
 			const auto label = static_cast<core::feedback_label>(index);
 			const auto code  = QString::fromUtf8(feedback_shortcode(label).data(), static_cast<qsizetype>(feedback_shortcode(label).size()));
@@ -3444,8 +3444,8 @@ namespace bpr::qt {
 		};
 		entry(bubble(true), QStringLiteral("Other labels"), QStringLiteral("Other labels: labels not ticked in Settings' Overview chips, and comments with no label"),
 			  QStringLiteral("Labels not ticked in Settings' Overview chips, and comments with no label"));
-		entry(bubble(false), QStringLiteral("Comments: all, when no label is ticked"), QStringLiteral("Comments: every conversation, when no label is ticked in Settings"),
-			  QStringLiteral("Every conversation, when no label is ticked in Settings' Overview chips"));
+		entry(bubble(false), QStringLiteral("Comments: all, when no label is ticked"), QStringLiteral("Comments: every thread, when no label is ticked in Settings"),
+			  QStringLiteral("Every thread, when no label is ticked in Settings' Overview chips"));
 		auto state  = Colours.States;
 		state.Faint = feedback_state_faint(palette());
 		for (const auto resolution : { core::feedback_resolution::unresolved, core::feedback_resolution::resolved, core::feedback_resolution::unknown, core::feedback_resolution::not_applicable }) {
@@ -3454,7 +3454,7 @@ namespace bpr::qt {
 			entry(QIcon{ feedback_state_mark_pixmap(resolution, state, ratio) }, words, words, words);
 		}
 		entry(QIcon{ feedback_state_mark_pixmap(core::feedback_resolution::unknown, state, ratio) }, QStringLiteral("? beside a count: some not counted"),
-			  QStringLiteral("Question mark beside a count: some conversations are not counted, such as those whose state is unknown"),
+			  QStringLiteral("Question mark beside a count: some threads are not counted, such as those whose state is unknown"),
 			  QStringLiteral("Its tooltip says why. Click it or press Enter on it to list them"));
 		// The keys, where someone looking up the marks will see them.
 		heading(QStringLiteral("Keys"));
@@ -3465,7 +3465,7 @@ namespace bpr::qt {
 		const auto keys = [&](const QString& aText) { entry(QIcon{ blank }, aText, aText, aText); };
 		keys(QStringLiteral("Tab: from a row onto its chips, then along them"));
 		keys(QStringLiteral("Left and Right: along the chips, once on one"));
-		keys(QStringLiteral("Enter or Space: list a chip's conversations"));
+		keys(QStringLiteral("Enter or Space: list a chip's threads"));
 		keys(QStringLiteral("Esc: back to the row"));
 		list->setCurrentRow(1);
 		const auto rows = list->count();

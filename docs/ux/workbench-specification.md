@@ -89,7 +89,14 @@ amended by the owner's answers the same day: "Hide drawers" and "just keep
 discuss for now even after 1294"). The modality was built as Conversations;
 the owner renamed it Threads on 2026-10-08 ([[BPR-1341]]: "I'm considering
 rebranding conversations as threads", then "Go ahead"), and the Comments
-drawer and its "Comments (n)" toggle keep their names. Threads is added and
+drawer and its "Comments (n)" toggle keep their names. Every other visible
+or accessible word for a review thread says thread too ([[BPR-1355]]): the
+drawer's list and its column header ("Threads"), Discuss's counts and file
+scope, the Overview's counts, chips and Label key, Settings' Overview counts
+help, the queue's attention reason and the tour CLI's count summary. Internal
+names, persisted keys, fixture names and GitHub API terms keep
+`conversation`, and the Notes tab's "AI conversations" (agent chats) are a
+different thing. Threads is added and
 Discuss is kept: the modalities are Overview, Review, Discuss and Threads, on
 `Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
 Threads takes ⌘4 (the owner's swap, above). `Ctrl+J` (⌘J) goes straight to Threads from Overview, Review
@@ -718,8 +725,8 @@ flow from the mounted control reaches the device host is proven end to end
 Previous/next change and previous/next file are always visible on the review
 bar ([[BPR-1129]]), in that semantic order after the comparison's menu, each
 pair followed by its position; private progress follows them. Files and
-Conversations are the title row's toggles, and Hide drawers sits after the
-Conversations toggle ([[BPR-1295]]). The navigation, drawer and
+Comments are the title row's toggles, and Hide drawers sits after the
+Comments toggle ([[BPR-1295]]). The navigation, drawer and
 private-progress presenters are icon-only, but each retains a stable visible
 tooltip, accessible name and description, strong-focus stop, and keyboard
 shortcut. No text toolbar appears at a narrower width: as the window narrows
@@ -800,7 +807,7 @@ pixels derived from the row's live active and disabled `ButtonText` roles.
 Palette, font, style, and theme changes rebuild those modes. This presentation
 refresh changes neither command identity nor projected enablement: disabled
 arrows (only with no pull request open, [[BPR-1328]]) remain readable and
-visually distinct, while the Files, Conversations,
+visually distinct, while the Files, Comments,
 Review details, and private-progress symbols retain their separate native
 icons.
 
@@ -831,7 +838,7 @@ never invents enabled state.
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
 | Toggle files drawer | `Alt+Shift+1` |
-| Toggle conversations drawer | `Alt+Shift+2` |
+| Toggle comments drawer | `Alt+Shift+2` |
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
 | Toggle source line numbers | `Alt+Shift+5` |
@@ -1465,12 +1472,12 @@ File is on (hidden otherwise); Only new as a chip with the ring-and-dot glyph
 and the count of threads with new posts in blue; Hide resolved as a chip with
 the struck ring; an Overview count's drill-down ([[BPR-1089]]) as a pill with
 the count's mark, its caption and a ×. At the right end are the counts, in
-semibold numbers with quieter words ("39 conversations  27 unresolved"), and
+semibold numbers with quieter words ("39 threads  27 unresolved"), and
 Clear filters as a funnel icon. The band wraps onto more rows when the list is
 narrow, as it is beside the composer ([[BPR-1212]]). Every control keeps its
-accessible name ("Whole pull request", "File scope", "Conversation file
+accessible name ("Whole pull request", "File scope", "Thread file
 scope", "Unread only", "Unresolved only", "Clear filters", "Show every
-conversation", "Threads summary") and has a tooltip. The counts' accessible
+thread", "Threads summary") and has a tooltip. The counts' accessible
 text is the whole sentence, with the pathless-content note in File scope. Tab
 walks scope, file, filters, the drill-down's ×, Clear, then the notes. The two
 scope segments are one stop, as radio buttons are: the arrows choose. A focus

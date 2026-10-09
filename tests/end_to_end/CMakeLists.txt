@@ -3113,6 +3113,17 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_discuss_top_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "discuss-top-public-path:pass")
+# [[BPR-1355]]. overview-labels-v1 in Overview, Review, Discuss, Threads and
+# Settings: no widget, action, item model or accessibility-tree string calls a
+# review thread a conversation ([[BPR-1341]] named them threads).
+bpr_add_network_isolated_test(
+    NAME application_thread_words_public_path
+    WINDOWS_UNCONTAINED
+    COMMAND test_setup_destination_public_path --thread-words
+)
+set_tests_properties(application_thread_words_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "thread-words-public-path:pass")
 
 bpr_add_executable(test_attended_recent_replay attended_recent_replay_tests.cpp)
 target_link_libraries(test_attended_recent_replay PRIVATE BetterPullReview::Composition BetterPullReview::AdapterGitHub)

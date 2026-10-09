@@ -16,10 +16,13 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_refusal.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractItemModel>
+#include <QAbstractItemView>
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -48,6 +51,7 @@
 #include <QStackedWidget>
 #include <QStatusBar>
 #include <QStyleOptionViewItem>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QTextEdit>
@@ -573,7 +577,7 @@ namespace {
 		};
 		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->listing().has_value() && listed() == std::set<std::string>{ "review-thread:PRRT_cc_1" }; },
 				 "Discuss lists exactly renderer.cpp's open issue");
-		expect(panel->listing_caption()->text() == QStringLiteral("issue · open · src/engine/renderer.cpp — 1 conversation") && panel->cards()->hasFocus(),
+		expect(panel->listing_caption()->text() == QStringLiteral("issue · open · src/engine/renderer.cpp — 1 thread") && panel->cards()->hasFocus(),
 			   "under a caption naming the count, with focus on the list");
 		capture(window, QStringLiteral("overview-feedback-drill-down.png"));
 
@@ -617,7 +621,7 @@ namespace {
 		const auto beforeResolve = feedback();
 		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_1", std::nullopt, true);
 		window.github_refresh_action()->trigger();
-		wait_for([&] { return listed().empty() && panel->listing_caption()->text().endsWith(QStringLiteral("— 0 conversations")); },
+		wait_for([&] { return listed().empty() && panel->listing_caption()->text().endsWith(QStringLiteral("— 0 threads")); },
 				 "after the resolve, the open issue count lists nothing, and says so", [&] { std::cerr << "caption=" << panel->listing_caption()->text().toStdString() << " included=" << model->feedback()->PullRequest.Counts.Included << " status=" << window.github_status_text() << " refresh=" << window.github_refresh_action()->isEnabled() << '\n'; });
 		expect(panel->cards()->hasFocus() && window.current_modality() == qt::review_modality::discuss, "the refresh moved no focus");
 		// [[BPR-1094]]. The resolve reads no body again and tallies again only
@@ -635,7 +639,7 @@ namespace {
 		// All: the resolved issue is back, with its breakdown.
 		page->all_counts_button()->click();
 		wait_for([&] { return counted(2U, core::feedback_resolution_mode::all); }, "All is counted from the kept buckets");
-		expect(cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1 (1 resolved), Other 1 (1 open) conversations"),
+		expect(cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1 (1 resolved), Other 1 (1 open) threads"),
 			   "All counts the resolved issue and says its state");
 		capture(window, QStringLiteral("overview-feedback-all.png"));
 		// A website edit to the suggestion's root makes it an issue: it leaves
@@ -643,7 +647,7 @@ namespace {
 		const auto beforeEdit = feedback();
 		github_application_fixture_access::stage_server_root(*owner, "PRRT_cc_2", std::string{ "issue (non-blocking): Clamp the width to at least one pixel." }, std::nullopt);
 		window.github_refresh_action()->trigger();
-		wait_for([&] { return cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved) conversations"); },
+		wait_for([&] { return cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved) threads"); },
 				 "a website label edit moves the conversation from Other to issue", [&] { std::cerr << "cell=" << cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString().toStdString() << '\n'; });
 		// [[BPR-1094]]. A root edit parses that one body and tallies again
 		// only the scopes it reaches; every other body is reused.
@@ -755,8 +759,8 @@ namespace {
 		page->all_counts_button()->click();
 		wait_for([&] { return counted(3U, core::feedback_resolution_mode::all); }, "All is counted");
 		expect(cell("src/engine/renderer.cpp").data(Qt::AccessibleTextRole).toString()
-					   == QStringLiteral("issue 2 (2 open), question 1 (1 open), suggestion 1 (1 resolved), Other 3 (2 open, 1 resolved) conversations")
-				   && remainder(Qt::AccessibleTextRole) == QStringLiteral("issue 3 (1 open, 2 not resolvable), question 1 (1 not resolvable), Other 2 (2 not resolvable) conversations"),
+					   == QStringLiteral("issue 2 (2 open), question 1 (1 open), suggestion 1 (1 resolved), Other 3 (2 open, 1 resolved) threads")
+				   && remainder(Qt::AccessibleTextRole) == QStringLiteral("issue 3 (1 open, 2 not resolvable), question 1 (1 not resolvable), Other 2 (2 not resolvable) threads"),
 			   "All gives each chip its breakdown, the unresolvable ones on Not on a file");
 		capture_themes("all");
 		// The Label key and a Comments menu are windows of their own; in a
@@ -888,8 +892,8 @@ namespace {
 								 << " clear=" << box(clear).left() << '-' << box(clear).right() << " summary=" << box(panel->discuss_summary()).right() << '\n'; });
 		expect(!panel->availability_label()->isVisible() && panel->discuss_summary()->toolTip().contains(QStringLiteral("34 review threads available.")),
 			   "the availability count is the counts' tooltip");
-		expect(panel->discuss_summary()->text() == QStringLiteral("39 conversations, 27 unresolved, 0 new")
-				   || panel->discuss_summary()->text().startsWith(QStringLiteral("39 conversations, 27 unresolved, ")),
+		expect(panel->discuss_summary()->text() == QStringLiteral("39 threads, 27 unresolved, 0 new")
+				   || panel->discuss_summary()->text().startsWith(QStringLiteral("39 threads, 27 unresolved, ")),
 			   "the counts say the whole pull request");
 		const auto themes = std::array{ std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } };
 		const auto look   = [&](const char* aState) {
@@ -958,6 +962,214 @@ namespace {
 		look("composer");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "discuss-top course quiescence");
+	}
+
+	/// \brief One string the window says, and where it says it.
+	struct window_word
+	{
+		QString Where;
+		QString Text;
+	};
+
+	/// \brief [[BPR-1355]]. Everything the window and its Settings say in words
+	/// or to assistive technology: each widget's text, title, placeholder,
+	/// tooltip and accessible name and description, tab and combo-box items,
+	/// every action's words, every item model's headers and rows in their
+	/// display, tooltip and accessible roles, and the accessibility tree.
+	[[nodiscard]] auto window_words() -> std::vector<window_word>
+	{
+		auto       words = std::vector<window_word>{ };
+		const auto add   = [&words](const QObject* aOwner, const char* aWhat, const QString& aText) {
+			if (!aText.isEmpty()) {
+				words.push_back({ QStringLiteral("%1 %2 (%3)").arg(QString::fromLatin1(aOwner->metaObject()->className()), aOwner->objectName(), QString::fromLatin1(aWhat)), aText });
+			}
+		};
+		auto       models     = std::set<const QAbstractItemModel*>{ };
+		const auto modelWords = [&](const QAbstractItemModel& aModel) {
+			if (!models.insert(&aModel).second) {
+				return;
+			}
+			constexpr auto roles = std::array{ Qt::DisplayRole, Qt::ToolTipRole, Qt::StatusTipRole, Qt::WhatsThisRole, Qt::AccessibleTextRole, Qt::AccessibleDescriptionRole };
+			for (auto column = 0; column < aModel.columnCount(); ++column) {
+				for (const auto role : roles) {
+					add(&aModel, "header", aModel.headerData(column, Qt::Horizontal, role).toString());
+				}
+			}
+			auto pending = std::vector<QModelIndex>{ QModelIndex{ } };
+			auto visited = 0;
+			while (!pending.empty() && visited < 20000) {
+				const auto parent = pending.back();
+				pending.pop_back();
+				for (auto row = 0; row < aModel.rowCount(parent); ++row) {
+					for (auto column = 0; column < aModel.columnCount(parent); ++column) {
+						const auto index = aModel.index(row, column, parent);
+						++visited;
+						for (const auto role : roles) {
+							add(&aModel, "row", aModel.data(index, role).toString());
+						}
+					}
+					pending.push_back(aModel.index(row, 0, parent));
+				}
+			}
+		};
+		auto widgets = std::vector<QWidget*>{ };
+		for (auto* const top : QApplication::topLevelWidgets()) {
+			widgets.push_back(top);
+			for (auto* const child : top->findChildren<QWidget*>()) {
+				widgets.push_back(child);
+			}
+		}
+		for (auto* const widget : widgets) {
+			add(widget, "window title", widget->windowTitle());
+			add(widget, "accessible name", widget->accessibleName());
+			add(widget, "accessible description", widget->accessibleDescription());
+			add(widget, "tooltip", widget->toolTip());
+			add(widget, "status tip", widget->statusTip());
+			add(widget, "what's this", widget->whatsThis());
+			for (const auto* property : { "text", "title", "placeholderText" }) {
+				if (const auto value = widget->property(property); value.typeId() == QMetaType::QString) {
+					add(widget, property, value.toString());
+				}
+			}
+			if (const auto* const tabs = qobject_cast<const QTabBar*>(widget); tabs != nullptr) {
+				for (auto tab = 0; tab < tabs->count(); ++tab) {
+					add(widget, "tab", tabs->tabText(tab));
+					add(widget, "tab tooltip", tabs->tabToolTip(tab));
+					add(widget, "tab accessible name", tabs->accessibleTabName(tab));
+				}
+			}
+			if (const auto* const combo = qobject_cast<const QComboBox*>(widget); combo != nullptr && combo->model() != nullptr) {
+				modelWords(*combo->model());
+			}
+			if (const auto* const view = qobject_cast<const QAbstractItemView*>(widget); view != nullptr && view->model() != nullptr) {
+				modelWords(*view->model());
+			}
+			for (const auto* const action : widget->findChildren<QAction*>(Qt::FindDirectChildrenOnly)) {
+				add(action, "action text", action->text());
+				add(action, "action tooltip", action->toolTip());
+				add(action, "action status tip", action->statusTip());
+				add(action, "action what's this", action->whatsThis());
+			}
+		}
+		// The accessibility tree, as a screen reader walks it.
+		for (auto* const top : QApplication::topLevelWidgets()) {
+			auto pending = std::vector<QAccessibleInterface*>{ QAccessible::queryAccessibleInterface(top) };
+			auto visited = 0;
+			while (!pending.empty() && visited < 50000) {
+				auto* const node = pending.back();
+				pending.pop_back();
+				if (node == nullptr || !node->isValid()) {
+					continue;
+				}
+				++visited;
+				const auto* const owner = node->object() != nullptr ? node->object() : top;
+				add(owner, "accessible tree name", node->text(QAccessible::Name));
+				add(owner, "accessible tree description", node->text(QAccessible::Description));
+				for (auto child = 0; child < node->childCount(); ++child) {
+					pending.push_back(node->child(child));
+				}
+			}
+		}
+		return words;
+	}
+
+	/// \brief [[BPR-1355]]. The window's words about review threads say
+	/// thread: [[BPR-1341]] named the modality Threads, and no visible or
+	/// accessible string still calls one a conversation. "AI conversations",
+	/// the Notes tab's agent chats, is a different thing and keeps its word.
+	void expect_no_conversation_words(const char* aState)
+	{
+		QApplication::processEvents();
+		auto found = std::set<QString>{ };
+		for (const auto& word : window_words()) {
+			auto text = word.Text;
+			text.remove(QStringLiteral("AI conversations"));
+			if (text.contains(QStringLiteral("conversation"), Qt::CaseInsensitive)) {
+				found.insert(word.Where + QStringLiteral(": ") + word.Text);
+			}
+		}
+		for (const auto& line : found) {
+			std::cerr << aState << ": " << line.toStdString() << '\n';
+		}
+		expect(found.empty(), "no visible or accessible string calls a review thread a conversation");
+	}
+
+	/// \brief [[BPR-1355]]. overview-labels-v1, 39 threads, in every modality
+	/// and in Settings: no window string says Conversation.
+	void run_thread_words_course()
+	{
+		auto temporary = QTemporaryDir{ };
+		expect(temporary.isValid(), "isolated thread-words course root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "private thread-words course root");
+		std::unique_ptr<app::github_application> owner;
+		auto                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::overview_labels_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "thread-words course startup");
+		expect(owner != nullptr, "thread-words course application");
+		auto& window = owner->window();
+		window.resize(1440, 900);
+		window.show();
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "thread-words course connection");
+		submit(window, QStringLiteral("https://github.com/bpr-fixtures/nested-folders/pull/21"));
+		auto* const page  = window.overview_page();
+		auto* const model = page->file_model();
+		wait_for([&] { return page->isVisible() && page->presented() && model->file_count() == 17U && model->feedback().has_value(); },
+				 "the pull request opens on Overview with its threads counted");
+		window.label_columns_editor()->item_of(core::feedback_label::issue)->setCheckState(Qt::Checked);
+		wait_for([&] { return model->feedback().has_value() && model->feedback()->Request.Columns.Count == 1U; }, "the issue chip reaches the Overview");
+		expect_no_conversation_words("overview");
+
+		window.choose_modality(qt::review_modality::review);
+		if (!window.files_drawer_toggle_action()->isChecked()) {
+			window.files_drawer_toggle_action()->trigger();
+		}
+		if (!window.conversations_drawer_toggle_action()->isChecked()) {
+			window.conversations_drawer_toggle_action()->trigger();
+		}
+		auto* const tree = window.files_tree();
+		const auto  file = core::file_identity_of("src/engine/renderer.cpp");
+		wait_for([&] { return tree->isVisible() && tree->tree_model()->index_for_file(file).isValid(); }, "Review shows the files drawer");
+		tree->setCurrentIndex(tree->tree_model()->index_for_file(file));
+		auto* const panel = window.conversation_panel();
+		wait_for([&] { return panel->isVisible() && panel->cards()->thread_count() == 7U; }, "the Comments drawer shows renderer.cpp's seven threads",
+				 [&] { std::cerr << "threads=" << panel->cards()->thread_count() << '\n'; });
+		expect_no_conversation_words("review");
+
+		window.choose_modality(qt::review_modality::discuss);
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && panel->discuss() && panel->cards()->thread_count() == 39U; },
+				 "Discuss lists every thread of the pull request");
+		auto       words = window_words();
+		const auto says  = [&words](const QString& aText) { return std::ranges::any_of(words, [&aText](const window_word& aWord) { return aWord.Text == aText; }); };
+		for (const auto& expected : { QStringLiteral("Threads"), QStringLiteral("Thread file scope"), panel->discuss_summary()->text() }) {
+			if (!says(expected)) {
+				std::cerr << "unread: " << expected.toStdString() << '\n';
+			}
+		}
+		expect(says(QStringLiteral("Threads")) && says(QStringLiteral("Thread file scope")) && panel->discuss_summary()->text().startsWith(QStringLiteral("39 threads, 27 unresolved, "))
+				   && says(panel->discuss_summary()->text()),
+			   "the scan reads Discuss's list, its file scope and its counts");
+		expect_no_conversation_words("discuss");
+
+		window.choose_modality(qt::review_modality::threads);
+		wait_for([&] { return window.current_modality() == qt::review_modality::threads && window.finder()->isVisible(); }, "Threads shows the finder");
+		expect_no_conversation_words("threads");
+
+		window.open_settings(qt::settings_page::general);
+		wait_for([&] { return window.settings() != nullptr && window.settings()->isVisible(); }, "Settings opens");
+		words = window_words();
+		expect(std::ranges::any_of(words, [](const window_word& aWord) { return aWord.Text.startsWith(QStringLiteral("Where the Overview's comment counts start. Open counts unresolved threads")); }),
+			   "the scan reads Settings' Overview counts help");
+		expect_no_conversation_words("settings");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "thread-words course quiescence");
 	}
 
 	void run_modified_missing_endpoint_course()
@@ -2199,6 +2411,11 @@ try {
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--discuss-top")) {
 		run_discuss_top_course();
 		std::cout << "discuss-top-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--thread-words")) {
+		run_thread_words_course();
+		std::cout << "thread-words-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--link-locations")) {

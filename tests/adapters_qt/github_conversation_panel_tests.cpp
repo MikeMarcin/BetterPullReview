@@ -141,7 +141,7 @@ namespace {
 				   && panel.cards()->isVisibleTo(&panel) && !panel.view()->isVisibleTo(&panel),
 			   "Discuss shows its scope, file and filter band above the same notes");
 		expect(panel.discuss_summary()->isVisibleTo(&panel) && panel.discuss_controls()->isAncestorOf(panel.discuss_summary())
-				   && panel.discuss_summary()->text() == QStringLiteral("1 conversation, 1 unresolved, 0 new"),
+				   && panel.discuss_summary()->text() == QStringLiteral("1 thread, 1 unresolved, 0 new"),
 			   "the band restates the counts, one conversation in the singular");
 		panel.filter_unread_button()->setChecked(true);
 		process_events();
@@ -514,7 +514,7 @@ namespace {
 			}
 			return result;
 		};
-		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 conversations"), QStringLiteral("Listed from the Overview"));
+		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 threads"), QStringLiteral("Listed from the Overview"));
 		process_events();
 		expect(ids() == std::set<std::string>{ "issue", "left-root" } && panel.listing().has_value() && panel.listing_caption()->isVisibleTo(&panel)
 				   && panel.listing_caption()->text().startsWith(QStringLiteral("issue · open")),
@@ -529,13 +529,13 @@ namespace {
 		process_events();
 		expect(ids() == std::set<std::string>{ "issue", "left-root" } && panel.cards()->current_thread() == "left-root",
 			   "a refresh keeps the list exact and the current thread");
-		panel.list_conversations({ "right-root" }, QStringLiteral("question · open · src/right.cpp — 1 conversation"), QStringLiteral("Listed from the Overview"));
+		panel.list_conversations({ "right-root" }, QStringLiteral("question · open · src/right.cpp — 1 thread"), QStringLiteral("Listed from the Overview"));
 		process_events();
 		expect(ids() == std::set<std::string>{ "right-root" }, "listing again replaces the list");
 		panel.clear_listing_button()->click();
 		process_events();
 		expect(!panel.listing() && ids().size() == 5U && !panel.listing_caption()->isVisibleTo(&panel) && cleared == 1, "the glyph shows every conversation again");
-		panel.list_conversations({ "review" }, QStringLiteral("Not counted · Pull request — 1 conversation"), QStringLiteral("Listed from the Overview"));
+		panel.list_conversations({ "review" }, QStringLiteral("Not counted · Pull request — 1 thread"), QStringLiteral("Listed from the Overview"));
 		panel.findChild<QToolButton*>(QStringLiteral("conversationClearFilters"))->click();
 		process_events();
 		expect(!panel.listing() && ids().size() == 5U && cleared == 2, "Clear filters clears the list too");
@@ -697,11 +697,11 @@ namespace {
 		const auto named = std::vector<std::pair<QWidget*, QString>>{
 			{ whole, QStringLiteral("Whole pull request") },
 			{ file, QStringLiteral("File scope") },
-			{ choice, QStringLiteral("Conversation file scope") },
+			{ choice, QStringLiteral("Thread file scope") },
 			{ unread, QStringLiteral("Unread only") },
 			{ unresolved, QStringLiteral("Unresolved only") },
 			{ clear, QStringLiteral("Clear filters") },
-			{ panel.clear_listing_button(), QStringLiteral("Show every conversation") },
+			{ panel.clear_listing_button(), QStringLiteral("Show every thread") },
 			{ summary, QStringLiteral("Threads summary") },
 		};
 		for (const auto& [control, name] : named) {
@@ -726,7 +726,7 @@ namespace {
 		expect(in_band(*band, *whole).left() == 12 && band->width() - in_band(*band, *clear).right() - 1 == 16,
 			   "the band starts at the list's edge and ends at its right margin");
 		expect(band->height() <= 50 && whole->height() == 30 && unread->height() == 30, "one 30-pixel row of chips in a band under 50 pixels");
-		expect(summary->text() == QStringLiteral("4 conversations, 2 unresolved, 0 new"), "the counts say the whole sentence");
+		expect(summary->text() == QStringLiteral("4 threads, 2 unresolved, 0 new"), "the counts say the whole sentence");
 
 		// The ordinary availability line is said by the counts.
 		expect(!panel.availability_label()->isVisibleTo(&panel) && summary->toolTip().contains(QStringLiteral("2 review threads available.")),
@@ -774,7 +774,7 @@ namespace {
 		expect(QApplication::focusWidget() == whole && whole->isChecked() && !choice->isVisibleTo(&panel), "Left chooses the whole pull request again");
 		// A drill-down's pill sits between the filters and the counts, and so
 		// does its × in the keyboard's order.
-		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 conversations"), QStringLiteral("Listed from the Overview"));
+		panel.list_conversations({ "issue", "left-root" }, QStringLiteral("issue · open · src/left.cpp — 2 threads"), QStringLiteral("Listed from the Overview"));
 		process_events();
 		auto* const pill = panel.findChild<QWidget*>(QStringLiteral("conversationListingRow"));
 		expect(pill->isVisibleTo(&panel) && in_band(*band, *pill).left() > in_band(*band, *unresolved).right() && in_band(*band, *pill).right() < in_band(*band, *summary).left()

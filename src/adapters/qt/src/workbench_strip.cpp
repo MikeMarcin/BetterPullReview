@@ -766,7 +766,7 @@ namespace bpr::qt {
 					.arg(modality_key(review_modality::review));
 			case review_modality::discuss:
 				return QStringLiteral(
-						   "Collapse the files drawer and give the conversation the room (%1).")
+						   "Collapse the files drawer and give the thread the room (%1).")
 					.arg(modality_key(review_modality::discuss));
 			case review_modality::threads:
 				// [[BPR-1293]]. The card's words, with both keys named.

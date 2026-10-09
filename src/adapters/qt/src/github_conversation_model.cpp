@@ -382,7 +382,7 @@ namespace bpr::qt {
 	{
 		if (aSection == 0 && aOrientation == Qt::Horizontal
 			&& aRequestedRole == Qt::DisplayRole) {
-			return QStringLiteral("Conversations");
+			return QStringLiteral("Threads");
 		}
 		return { };
 	}

@@ -1406,7 +1406,7 @@ namespace {
 		expect(chips.size() == 3U && chips[0].Label == core::feedback_label::issue && chips[0].Count == 1U && chips[1].Label == core::feedback_label::question
 				   && chips[1].Count == 1U && chips[2].Kind == qt::overview_comment_chip::kind::other && chips[2].Count == 1U,
 			   "issue 1, question 1 and Other 1 (the plain thread): disjoint, the resolved issue in none");
-		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1, question 1, Other 1 open conversations"),
+		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 1, question 1, Other 1 open threads"),
 			   "the cell's accessible text names label, count, unit and mode");
 		const auto lightingFolder = model->index_for_path(QString::fromStdString(lighting)).parent().siblingAtColumn(qt::overview_file_model::comments_column);
 		page.files_view()->clearSelection();
@@ -1431,11 +1431,11 @@ namespace {
 		const auto voxelChips = chips_of(page, cell(page, voxel));
 		expect(voxelChips.size() == 2U && voxelChips[0].Kind == qt::overview_comment_chip::kind::other && voxelChips[1].Kind == qt::overview_comment_chip::kind::uncertain,
 			   "an issue of unknown state is not counted as open, and the cell says so with its ? mark rather than look clear");
-		expect(cell(page, voxel).data(Qt::AccessibleTextRole).toString() == QStringLiteral("Other 1 open conversations; 1 whose state is unknown"),
+		expect(cell(page, voxel).data(Qt::AccessibleTextRole).toString() == QStringLiteral("Other 1 open threads; 1 whose state is unknown"),
 			   "the unknown resolution is in the accessible text, in plain words");
 		const auto uncertainTip = page.uncertain_button()->toolTip();
 		expect(page.uncertain_button()->isVisible() && page.uncertain_button()->text() == QStringLiteral("2")
-				   && uncertainTip.startsWith(QStringLiteral("Not counted: 2 conversations\n")) && uncertainTip.contains(QStringLiteral("• 1 whose state is unknown"))
+				   && uncertainTip.startsWith(QStringLiteral("Not counted: 2 threads\n")) && uncertainTip.contains(QStringLiteral("• 1 whose state is unknown"))
 				   && uncertainTip.contains(QStringLiteral("• 1 that can't be resolved")),
 			   "the ? chip beside the switch counts the unknown issue and the comment that can't be resolved, a reason a line");
 		expect(chips_of(page, cell(page, deep)).empty() && cell(page, deep).data().toString().isEmpty(), "a complete zero is blank, and only a complete zero");
@@ -1488,7 +1488,7 @@ namespace {
 		chips = chips_of(page, cell(page, lighting));
 		expect(chips[0].Label == core::feedback_label::issue && chips[0].Count == 2U && chips[0].States == core::feedback_state_counts{ 1U, 1U, 0U, 0U },
 			   "in All the issue chip counts two, one open and one resolved");
-		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved), Other 2 (2 open) conversations"),
+		expect(cell(page, lighting).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 2 (1 open, 1 resolved), Other 2 (2 open) threads"),
 			   "and each count says its breakdown");
 
 		// A stale answer, for a request no longer current, is dropped.
@@ -1572,7 +1572,7 @@ namespace {
 		auto focused = page.focused_chip();
 		expect(view->hasFocus() && focused && focused->Kind == qt::overview_comment_chip::kind::other, "Tab steps from the row onto its first chip, Other, and keeps focus in the files");
 		auto* tip = qobject_cast<QLabel*>(qt::anchored_tooltip());
-		expect(tip != nullptr && tip->isVisible() && tip->text().startsWith(QStringLiteral("Other labels: 1 open conversation here.\nLabels not ticked in Settings' Overview chips"))
+		expect(tip != nullptr && tip->isVisible() && tip->text().startsWith(QStringLiteral("Other labels: 1 open thread here.\nLabels not ticked in Settings' Overview chips"))
 				   && !tip->text().contains(QStringLiteral("chip of their own")) && tip->text().contains(QStringLiteral("press Enter")),
 			   "the chip's tooltip comes up beside it, in plain words, naming Enter");
 		expect(ringBefore == 0 && ring_pixels(page, *focused) > 12, "the chip the keyboard is on wears a ring in the selection's text colour; none before Tab");
@@ -1580,7 +1580,7 @@ namespace {
 		focused = page.focused_chip();
 		tip     = qobject_cast<QLabel*>(qt::anchored_tooltip());
 		expect(focused && focused->Kind == qt::overview_comment_chip::kind::uncertain && tip != nullptr
-				   && tip->text().startsWith(QStringLiteral("Not counted: 1 conversation\n• 1 whose state is unknown")),
+				   && tip->text().startsWith(QStringLiteral("Not counted: 1 thread\n• 1 whose state is unknown")),
 			   "Tab moves on to the ? chip, whose tooltip gives its reason in plain words");
 		key(*view, Qt::Key_Left);
 		expect(page.focused_chip() && page.focused_chip()->Kind == qt::overview_comment_chip::kind::other && view->currentIndex() == voxelRow,
@@ -1787,7 +1787,7 @@ namespace {
 				expect(chips.size() == 4U && chips[0].Label == feedback_label::issue && chips[0].Count == 128U && chips[1].Label == feedback_label::question && chips[1].Count == 12U
 						   && chips[2].Label == feedback_label::nitpick && chips[2].Count == 1U && chips[3].Kind == qt::overview_comment_chip::kind::other && chips[3].Count == 3U,
 					   name + ": issue 128, question 12, nitpick 1 and Other 3 on the busy file");
-				expect(cell(page, busy).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 128, question 12, nitpick 1, Other 3 open conversations"),
+				expect(cell(page, busy).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 128, question 12, nitpick 1, Other 3 open threads"),
 					   name + ": the cell's accessible text names each label and its count");
 				view->clearSelection();
 				view->setCurrentIndex(QModelIndex{ });
@@ -1881,7 +1881,7 @@ namespace {
 				page.all_counts_button()->click();
 				page.present_feedback(feedback_for(review, asked.back(), paths));
 				settle();
-				expect(page.all_counts_button()->isChecked() && cell(page, busy).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 192 (128 open, 64 resolved), question 12 (12 open), nitpick 1 (1 open), Other 3 (3 open) conversations"),
+				expect(page.all_counts_button()->isChecked() && cell(page, busy).data(Qt::AccessibleTextRole).toString() == QStringLiteral("issue 192 (128 open, 64 resolved), question 12 (12 open), nitpick 1 (1 open), Other 3 (3 open) threads"),
 					   name + ": All says each count's breakdown");
 				const auto allChips = chips_of(page, cell(page, busy));
 				expect(!allChips.empty() && allChips[0].Count == 192U && QRectF{ view->visualRect(cell(page, busy)) }.contains(allChips[0].Box), name + ": 192 sits whole in its chip");

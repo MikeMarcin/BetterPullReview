@@ -98,7 +98,7 @@ Comment labels ([[BPR-1088]]). **Label helper** turns on the comment
 editor's label chip completion and its leading `:shortcodes:` in every window
 of the profile once the choice is saved; a label typed out in full is
 recognized and counted either way. **Overview counts** is where a pull
-request's Overview starts, Open (unresolved conversations) or All; switching
+request's Overview starts, Open (unresolved threads) or All; switching
 on an Overview changes only that view. **Overview chips** lists the twelve
 labels: tick one to give it its own count in the Overview's Comments column,
 and drag a ticked one, or press Alt+Up or Alt+Down (⌥↑ ⌥↓ on macOS), to set
