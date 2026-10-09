@@ -1311,3 +1311,15 @@ now asserts three things:
 Control: making `decide_comment_range` ignore the evidence fails "without
 merge-base evidence, a base line is refused as GitHub's LEFT side" (reverted).
 Linux passes.
+
+## Status (bpr-main-mac, 2026-10-09)
+
+[[BPR-1345]] (start a review, from `start-a-review-v001`'s Accept) is built
+on `main` (`9c8740906`, `3c806caaa`) and parked on its own owner look. Read
+against this card's acceptance, one item is not recorded yet: AC3's rendered
+narrow, wide and larger-font states on Linux. The Linux run above lists the
+line-draft, composition and round-trip rows but not
+`qt_workbench_window_scale_{100,125,200}` or
+`qt_diff_workbench_scale_{100,125,200}`, which macOS and Windows recorded for
+v002. Everything else is answered: AC1 and AC2 by the slices, AC4 to AC6 by
+the owner's v001 and v002 Accepts, the 100 ms gates on Windows and Linux.

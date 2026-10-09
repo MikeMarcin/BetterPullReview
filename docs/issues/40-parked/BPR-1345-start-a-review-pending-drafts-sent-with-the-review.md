@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1345"
 title: "Start a review: pending drafts that the review submission sends as review comments"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","origin":"BPR-1212 owner look, session aae8f3fcd307cfca3bfb8ae0b28f1b83, start-a-review-v001 Accept","decision_id":"dc7e0a01-68f0-42b2-8d34-ede92665e96c","reservation":"docs/issues/_reservations/BPR-1345--BPR-1345--530408819266.json","design":"docs/design/BPR-1212-start-a-review-v1/index.html","related_cards":["BPR-1212","BPR-1085","BPR-1329","BPR-1294"],"related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"timing":"Build after BPR-1212's right-click v002 slice (coordinator, 2026-10-08)"}
+parked_on: "human-review"
 ---
 
 # BPR-1345: Start a review, with pending drafts sent as review comments
@@ -304,3 +305,28 @@ dated note says what moved.
   drafts of the earlier head are not shown, as before, and so are not in the
   review.
 - The pending list in Discuss names each comment; it does not yet open it.
+
+### Owner look v001 (pending)
+
+One new short session, not the long default one. Four questions, each Accept
+or Reject with any change in the note; none is self-certified.
+
+- Session `7f4f63492b862fe14af5ea8e11ca26ce`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1345-start-a-review-v001`
+  (repository root `/Users/jaeger/Documents/GitHub/BetterPullReview`), all
+  four candidates ready at event cursor 12. The review host runs detached.
+- Candidates, revision `frozen-3c806caaa-v001`: `BPR-1345-write-a-comment-v001`
+  (AC1, fingerprint `3bb9205a…`), `BPR-1345-review-in-progress-v001` (AC2,
+  `4c053a8a…`), `BPR-1345-finish-review-v001` (AC3, `547ee944…`) and
+  `BPR-1345-discard-review-v001` (AC3's Discard review, `db2c99da…`).
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v001.tb6uhcch`:
+  `3c806caaa` exported and built there (optimized, tests on) by
+  `scripts/freeze_attended_build.py`; executable SHA-256 `d3e6a1e48840…`. Its
+  own check printed `ATTENDED_FILE_SHOWN` for
+  `src/ui/conversation_cards_view.cpp` on `inline-drawer-v1`, and the frozen
+  executable passed the `refused` and `uncertain` courses offscreen.
+- Launch: `python3 /Users/jaeger/.mask/attended-review/bpr1345-start-a-review-v001.tb6uhcch/launch.py`.
+  Everything goes to the fixture server; nothing reaches GitHub.
+
+Next: read the session's decisions. Accepts answer AC1 to AC3's owner halves
+(AC5); a Reject comes back as v002.
