@@ -6,6 +6,7 @@
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/application/review_submission_port.hpp"
 #include "bpr/application/shared_draft_application_host.hpp"
+#include "bpr/core/review_comment_range.hpp"
 #include "scratch_root.hpp"
 #include <functional>
 #include <iostream>
@@ -466,7 +467,17 @@ namespace {
 		f.Binding.Comparison = index.diff().Alignment.Digest;
 		review_composition_application_host host(*f.Store);
 		const auto                          line = source_line_ref{ *f.Binding.Comparison, diff_side::left, 1 };
-		expect(!make_composition_target(f.Binding, line, index), "private compositions still require current-head right targets");
+		// [[BPR-1212]] v002: a private composition may start on a base line, as
+		// a new comment may. Publishing it as GitHub's `side: LEFT` passes the
+		// same guard as every base-line comment: without the host's evidence
+		// that the left document is the merge base GitHub numbers (a sparse
+		// history cannot derive it), the line is refused as base_side.
+		expect(make_composition_target(f.Binding, line, index).has_value(), "a private composition may start on a base line");
+		const auto& alignment = index.diff().Alignment;
+		expect(decide_comment_range(alignment, line, line, false).Refusal == comment_range_refusal::base_side,
+			   "without merge-base evidence, a base line is refused as GitHub's LEFT side");
+		expect(decide_comment_range(alignment, line, line, true).Refusal != comment_range_refusal::base_side,
+			   "with the host's merge-base evidence, the base side is no longer the refusal");
 		expect(!host.allocate_reply(f.Binding, line, index, ""), "reply requires an explicit thread identity");
 		auto reply = host.allocate_reply(f.Binding, line, index, "thread-left");
 		expect(reply && reply->records().size() == 1 && reply->records().front().Draft.Draft.ReplyToThread == "thread-left"

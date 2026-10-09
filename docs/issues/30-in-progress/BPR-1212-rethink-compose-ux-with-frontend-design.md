@@ -1292,3 +1292,22 @@ At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, n
   passes with budgets enforced and no input-budget failures: keyboard line
   down 11.0 ms, extend 10.0 ms, reveal 11.4 ms. `application_first_tab_comparison`
   and `application_line_draft_contract` also pass there.
+
+### Private compositions on base lines (bpr-main-linux, 2026-10-09)
+
+After v002 (`8671fa1f5`), `application_private_review_host` failed on every
+run at "private compositions still require current-head right targets":
+`make_composition_target` now accepts a left-side line. The coordinator
+decided that private compositions follow v002. The test
+(`tests/sqlite_contract/private_review_host_tests.cpp`, `durable_left_reply`)
+now asserts three things:
+- a private composition may start on a base line;
+- without the host's evidence that the left document is the merge base GitHub
+  numbers (the evidence a sparse history cannot give), `decide_comment_range`
+  refuses the base line as `base_side`, the same guard every base-line comment
+  meets at publication;
+- with that evidence, `base_side` is no longer the refusal.
+
+Control: making `decide_comment_range` ignore the evidence fails "without
+merge-base evidence, a base line is refused as GitHub's LEFT side" (reverted).
+Linux passes.
