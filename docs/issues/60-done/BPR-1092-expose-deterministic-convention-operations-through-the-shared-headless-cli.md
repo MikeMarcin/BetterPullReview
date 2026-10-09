@@ -187,3 +187,8 @@ evidence; macOS and Windows runs are owed (commands above). The Windows
 station must measure `tour_cli_labels` and replace its "unmeasured
 (registered on Linux)" entry in `scripts/verify_test_network_isolation.py`,
 or `test_network_isolation_manifest` fails there (BPR-1343's rule).
+
+### Coordinator decision (2026-10-08)
+
+The command stays `bpr tour labels …`, as built, in the existing family. No
+top-level `bpr labels` alias is added.
