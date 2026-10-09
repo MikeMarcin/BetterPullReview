@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1344"
+  ],
+  "reserve_for": "prefetch-yield",
+  "purpose": "File prefetch must yield to the reviewer's explicit selections (Windows budgets)",
+  "created": "2026-10-09T02:33:31.775021+00:00",
+  "base": "24c3fa6b1dba19394d4632b7de283557c5885f10"
+}
