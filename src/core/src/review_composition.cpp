@@ -108,7 +108,7 @@ namespace bpr::core {
 		auto target_shape(const private_composition_target& aTarget) -> bool
 		{
 			return valid_private_binding(aTarget.Binding) && aTarget.Binding.Comparison
-				&& aTarget.Line.Comparison == *aTarget.Binding.Comparison && aTarget.Line.Side == diff_side::right;
+				&& aTarget.Line.Comparison == *aTarget.Binding.Comparison && supported_comment_target(aTarget.Line.Side);
 		}
 		auto valid_source_actor(const private_source_observation& aSource) -> bool
 		{
@@ -455,7 +455,10 @@ namespace bpr::core {
 	auto make_composition_target(const private_review_binding& aBinding, source_line_ref aLine, const diff_semantic_index& aIndex)
 		-> std::expected<private_composition_target, private_review_refusal>
 	{
-		if (aLine.Side != diff_side::right || !valid_private_subject({ aBinding, aLine }, &aIndex)) {
+		// [[BPR-1212]]. Either side: a root on the base side is GitHub's
+		// `side: LEFT`, which publication admits only with the host's evidence
+		// that the base document is numbered as GitHub's.
+		if (!supported_comment_target(aLine.Side) || !valid_private_subject({ aBinding, aLine }, &aIndex)) {
 			return std::unexpected(private_review_refusal::invalid_target);
 		}
 		return private_composition_target{ aBinding, aLine };

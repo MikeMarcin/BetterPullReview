@@ -1602,6 +1602,40 @@ namespace {
 		const auto stray = parse_review_comment_response({ .Status = 201, .Body = rangeResponse(",\"start_line\":9,\"start_side\":\"RIGHT\"") }, single);
 		expect(!stray.has_value() && stray.error() == review_mutation_contract_failure::identity_mismatch, "a range ending at the line is not the single line's receipt");
 	}
+
+	// [[BPR-1212]] v002. A new comment on a base line is GitHub's `side: LEFT`,
+	// with `start_side: LEFT` for a range, and GitHub's answer is its receipt
+	// only on that side. It has no file-comment form.
+	void test_a_base_line_sends_side_left()
+	{
+		auto base                              = range_request(8U);
+		base.Proposal.Anchor.Side              = core::diff_side::left;
+		base.LiveBinding->Anchor.Semantic.Side = core::diff_side::left;
+		base.IdempotencyKey                    = application::idempotency_key_for(base.Proposal, base.Target);
+		expect(base.IdempotencyKey != range_request(8U).IdempotencyKey, "a base-side range's key differs from the head-side one's");
+		const auto compiled = compile_review_comment_request(base);
+		expect(compiled.has_value()
+				   && compiled->Body
+					   == "{\"body\":\"Please rename this.\","
+						  "\"commit_id\":\"1111111111111111111111111111111111111111\","
+						  "\"line\":13,\"path\":\"fixture/review.txt\",\"side\":\"LEFT\","
+						  "\"start_line\":9,\"start_side\":\"LEFT\"}",
+			   "base lines 9 to 13 send side LEFT and start_side LEFT on the head's path and commit");
+		expect(validate_outbound_review_mutation_request(*compiled).has_value(), "the base-side request revalidates canonically");
+		auto file = base;
+		file.Proposal.StartLine.reset();
+		file.Representation = core::review_publication_representation::file_comment_with_permalink;
+		file.IdempotencyKey = application::idempotency_key_for(file.Proposal, file.Target);
+		expect(!compile_review_comment_request(file).has_value(), "a base line never falls back to a file comment");
+
+		auto answer = comment_body();
+		answer.replace(answer.find("\"side\":\"RIGHT\""), 14U, "\"side\":\"LEFT\"");
+		answer.insert(answer.find(",\"body\""), ",\"start_line\":9,\"start_side\":\"LEFT\"");
+		const auto exact = parse_review_comment_response({ .Status = 201, .Body = answer }, base);
+		expect(exact.has_value() && exact->NodeId == "PRRC_fixture_44", "GitHub's answer on the left is the base-side comment's receipt");
+		const auto right = parse_review_comment_response({ .Status = 201, .Body = answer }, range_request(8U));
+		expect(!right.has_value(), "the same answer is not a head-side range's receipt");
+	}
 } // namespace
 
 auto main() -> int
@@ -1619,6 +1653,7 @@ auto main() -> int
 	test_staged_response_contract();
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_a_range_sends_githubs_multi_line_fields();
+	test_a_base_line_sends_side_left();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();
 	test_a_reply_is_reconciled_through_its_thread();

@@ -21,6 +21,10 @@ namespace bpr::application {
 		core::file_comparison_key    Key;
 		std::optional<std::uint32_t> LeftLines;
 		std::optional<std::uint32_t> RightLines;
+		/// [[BPR-1212]]. The left document is the merge base's version of the
+		/// file, so its line numbers are GitHub's `LEFT` lines
+		/// (`resolve_github_base_numbering` answered `same` for this key).
+		bool BaseNumberedAsGitHub = false;
 	};
 
 	/// \brief Host-owned source and changed-file facts for one publication admission.

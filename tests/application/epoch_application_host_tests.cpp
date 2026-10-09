@@ -349,7 +349,10 @@ namespace {
 		std::atomic<std::size_t>                                ExactBlobStopsObserved{ 0U };
 		std::vector<application::git_cache_tree_entry_request>  TreeEntryRequests;
 		std::deque<std::optional<core::git_blob_oid>>           TreeEntryResults;
-		std::vector<application::git_cache_rename_pair_request> RenamePairRequests;
+		// [[BPR-1212]]. The merge bases a fake cache answers, in order.
+		std::vector<application::git_cache_comparison_base_request>    ComparisonBaseRequests;
+		std::deque<application::git_cache_comparison_base_observation> ComparisonBaseResults;
+		std::vector<application::git_cache_rename_pair_request>        RenamePairRequests;
 		std::deque<application::git_cache_result<
 			application::git_rename_pair_observation>>
 																 RenamePairResults;
@@ -1816,6 +1819,24 @@ namespace {
 			return std::optional{ oid<core::git_blob_oid>(
 				static_cast<std::uint8_t>(
 					aRequest.Commit.bytes().front() + 1U)) };
+		}
+
+		[[nodiscard]] auto derive_comparison_base(
+			const application::git_cache_comparison_base_request& aRequest,
+			const std::stop_token                                 aStop)
+			-> application::git_cache_result<application::git_cache_comparison_base_observation> override
+		{
+			State.Calls.emplace_back("cache.derive-comparison-base");
+			State.ComparisonBaseRequests.push_back(aRequest);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (State.ComparisonBaseResults.empty()) {
+				return application::git_cache_comparison_base_observation{ };
+			}
+			auto result = std::move(State.ComparisonBaseResults.front());
+			State.ComparisonBaseResults.pop_front();
+			return result;
 		}
 
 		[[nodiscard]] auto find_rename_pairs(
@@ -6386,6 +6407,105 @@ namespace {
 			   "a closing host admits nothing and answers nothing more");
 	}
 
+	// [[BPR-1212]] v002. Whether a comparison's left document is numbered as
+	// GitHub numbers `LEFT` lines: the unique merge base of GitHub's base and
+	// the accepted head, from the retained objects, holds the same blob at the
+	// left path as the left commit does (or is the left commit). Otherwise the
+	// answer is `differs`, or `unavailable` without a unique merge base. Same
+	// admission as the changed-paths job.
+	void base_numbering_compares_the_merge_base_with_the_left_side()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto authority    = workbench_authority_for(value.Host->state());
+		const auto head         = value.Host->state().AcceptedRevision->Head;
+		const auto baseTip      = oid<core::git_commit_oid>(0x51U);
+		const auto left         = oid<core::git_commit_oid>(0x52U);
+		const auto mergeBase    = oid<core::git_commit_oid>(0x53U);
+		auto       observations = std::vector<application::github_base_numbering_observation>{ };
+		const auto record       = [&observations](const application::github_base_numbering_observation& aObservation) {
+			observations.push_back(aObservation);
+		};
+		const auto request = application::github_base_numbering_request{
+			.WorkbenchAuthority = authority,
+			.BaseTip            = baseTip,
+			.Head               = head,
+			.Left               = left,
+			.LeftPath           = "src/old.cpp",
+		};
+		const auto unique = [](const core::git_commit_oid aBase) {
+			return application::git_cache_comparison_base_observation{ .Status = application::git_comparison_base_status::unique, .Base = aBase };
+		};
+
+		// The merge base holds the same blob at the left path.
+		value.State.ComparisonBaseResults.push_back(unique(mergeBase));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x61U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x61U));
+		const auto lookupsBefore = value.State.TreeEntryRequests.size();
+		expect(value.Host->resolve_github_base_numbering(request, record) && observations.empty(), "an exact request for the accepted head is admitted and answers later");
+		drain(value);
+		expect(observations.size() == 1U && observations.back().Status == application::github_base_numbering_status::same
+				   && observations.back().MergeBase == mergeBase && observations.back().Request == request,
+			   "the same blob at the merge base is `same`");
+		expect(value.State.ComparisonBaseRequests.size() == 1U && value.State.ComparisonBaseRequests.back().Head == head
+				   && value.State.ComparisonBaseRequests.back().SelectedBase == baseTip
+				   && value.State.TreeEntryRequests.size() == lookupsBefore + 2U
+				   && value.State.TreeEntryRequests[lookupsBefore] == application::git_cache_tree_entry_request{ .Commit = mergeBase, .Path = "src/old.cpp" }
+				   && value.State.TreeEntryRequests[lookupsBefore + 1U] == application::git_cache_tree_entry_request{ .Commit = left, .Path = "src/old.cpp" }
+				   && value.Host->state().AcceptedComparison.has_value() && value.Host->outstanding_jobs() == 0U,
+			   "the merge base of GitHub's base and the head, then the left path at it and at the left commit, the comparison untouched");
+
+		// Another blob there.
+		value.State.ComparisonBaseResults.push_back(unique(mergeBase));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x61U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x62U));
+		expect(value.Host->resolve_github_base_numbering(request, record), "asked again");
+		drain(value);
+		expect(observations.size() == 2U && observations.back().Status == application::github_base_numbering_status::differs,
+			   "another blob at the merge base is `differs`");
+
+		// No file there at all.
+		value.State.ComparisonBaseResults.push_back(unique(mergeBase));
+		value.State.TreeEntryResults.emplace_back();
+		value.State.TreeEntryResults.emplace_back();
+		expect(value.Host->resolve_github_base_numbering(request, record), "asked a third time");
+		drain(value);
+		expect(observations.size() == 3U && observations.back().Status == application::github_base_numbering_status::differs,
+			   "no file at the merge base is `differs`, never `same`");
+
+		// The merge base is the left commit itself: no lookup is needed.
+		value.State.ComparisonBaseResults.push_back(unique(left));
+		const auto lookups = value.State.TreeEntryRequests.size();
+		expect(value.Host->resolve_github_base_numbering(request, record), "asked a fourth time");
+		drain(value);
+		expect(observations.size() == 4U && observations.back().Status == application::github_base_numbering_status::same
+				   && value.State.TreeEntryRequests.size() == lookups,
+			   "a merge base that is the left commit is `same` without a lookup");
+
+		// No unique merge base (several, none, or objects a sparse cache lacks).
+		for (const auto status : { application::git_comparison_base_status::multiple_merge_bases, application::git_comparison_base_status::no_common_ancestor,
+								   application::git_comparison_base_status::objects_unavailable }) {
+			value.State.ComparisonBaseResults.push_back({ .Status = status });
+			expect(value.Host->resolve_github_base_numbering(request, record), "asked without a unique merge base");
+			drain(value);
+			expect(observations.back().Status == application::github_base_numbering_status::unavailable && !observations.back().MergeBase,
+				   "without a unique merge base the answer is `unavailable`");
+		}
+
+		auto moved = request;
+		moved.Head = baseTip;
+		expect(!value.Host->resolve_github_base_numbering(moved, record), "a head other than the accepted head is refused before admission");
+		auto other                        = request;
+		other.WorkbenchAuthority.Snapshot = core::provider_snapshot_id{ 2U };
+		expect(!value.Host->resolve_github_base_numbering(other, record), "another snapshot's authority is refused before admission");
+		auto pathless = request;
+		pathless.LeftPath.clear();
+		expect(!value.Host->resolve_github_base_numbering(pathless, record), "a request without the left path is refused");
+		const auto answered = observations.size();
+		value.Host->shutdown();
+		expect(!value.Host->resolve_github_base_numbering(request, record) && observations.size() == answered, "a closing host admits nothing and answers nothing more");
+	}
+
 	void selected_diff_resolves_each_endpoint_without_provider_direction()
 	{
 		fixture value;
@@ -8617,5 +8737,6 @@ int main(int argc, char** argv)
 	a_cancelled_commit_cache_open_is_reported_as_cancelled();
 	shutdown_waits_for_worker_and_decision_quiescence();
 	changed_paths_resolve_beside_the_selected_comparison();
+	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;
 }

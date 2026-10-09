@@ -423,17 +423,20 @@ namespace bpr::application {
 			const auto& key         = publication.Key;
 			const auto& comparison  = publication.Request.Diff.Comparison;
 			// [[BPR-0657]]. A new root comment is anchored where it is
-			// published, so only the right side can carry one; a reply is
-			// anchored by the thread it answers, and the selection it was
-			// drafted from may be on either side.
-			if (!core::supported_comment_target(selected.PreferredLine.Side, aRequest.Proposal.ReplyToThread.has_value())) {
+			// published; a reply is anchored by the thread it answers, and the
+			// selection it was drafted from may be on either side.
+			// [[BPR-1212]]. A new root on the left is GitHub's `side: LEFT`,
+			// admitted below only with the source's evidence that the left
+			// document is numbered as GitHub's base.
+			if (!core::supported_comment_target(selected.PreferredLine.Side)) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
-			// [[BPR-1212]]. A range is a new comment on the right whose first
+			const auto newOnBase = selected.PreferredLine.Side == core::diff_side::left && !aRequest.Proposal.ReplyToThread.has_value();
+			// [[BPR-1212]]. A range is a new comment on one side whose first
 			// line precedes its anchor, the last line; whether both are in one
 			// hunk was decided against the diff before the draft took it.
 			if (aRequest.Proposal.StartLine
-				&& (aRequest.Proposal.ReplyToThread || aRequest.Proposal.Anchor.Side != core::diff_side::right
+				&& (aRequest.Proposal.ReplyToThread || !core::supported_comment_target(aRequest.Proposal.Anchor.Side)
 					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line)) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
@@ -502,6 +505,12 @@ namespace bpr::application {
 			if (!source->Material.RightLines || !lines || selected.PreferredLine.Line >= *lines) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
+			// [[BPR-1212]]. GitHub counts a `LEFT` line in the merge base's
+			// version of the file. Without the evidence that the left document
+			// is that version, a base line could land on another line.
+			if (newOnBase && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
 			auto path = portable_path_text(*publication.RightPath);
 			if (!path.has_value()) {
 				return std::unexpected(review_mutation_failure::unsupported);
@@ -528,7 +537,9 @@ namespace bpr::application {
 			return validated_publication{
 				.Anchor = std::move(anchor),
 				.Scope  = scope,
-				.Source = review_mutation_source_binding{ .Endpoint = publication.RightEndpoint, .Comparison = key, .LineCount = *source->Material.RightLines, .Placement = source->Placement },
+				// The line count is the anchor's side's: a base line is counted
+				// in the base document.
+				.Source = review_mutation_source_binding{ .Endpoint = publication.RightEndpoint, .Comparison = key, .LineCount = newOnBase ? *lines : *source->Material.RightLines, .Placement = source->Placement },
 			};
 		}
 

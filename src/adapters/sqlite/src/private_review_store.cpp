@@ -866,7 +866,7 @@ namespace bpr::adapters::sqlite::detail {
 			for (const auto& item : aDrafts) {
 				const auto& d = item.Record;
 				require(valid_private_binding(d.Binding) && d.Binding.Scope == aDb.Identity && valid_private_id(d.Draft.Draft.Id) && d.Draft.Revision > 0 && d.Draft.Scope.value() == 0 && d.Draft.Draft.Body.size() <= maximum_shared_draft_body_bytes && static_cast<unsigned>(d.Draft.Draft.State) <= 3);
-				require(d.Binding.Comparison == d.Draft.Draft.Anchor.Comparison && supported_comment_target(d.Draft.Draft.Anchor.Side, d.Draft.Draft.ReplyToThread.has_value()) && valid_comment_range(d.Draft.Draft));
+				require(d.Binding.Comparison == d.Draft.Draft.Anchor.Comparison && supported_comment_target(d.Draft.Draft.Anchor.Side) && valid_comment_range(d.Draft.Draft));
 				if (d.Draft.Draft.ReplyToThread) {
 					require(d.Draft.Draft.ReplyToThread->size() <= maximum_shared_draft_reply_bytes);
 				}

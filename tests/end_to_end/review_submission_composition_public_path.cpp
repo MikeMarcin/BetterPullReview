@@ -141,18 +141,27 @@ auto main(int argc, char** argv) -> int
 				wait([&] { return window.statistics().FileSelections > selections; }, "normal file selection dispatched");
 				expect(editor.shown_draft() == draft, "file navigation preserves the PR-scoped summary");
 				window.close_review_composition();
-				// [[BPR-1246]]. A new draft is offered only on a right-side line
-				// ([[BPR-0587]], [[BPR-1207]]): the deletion on the left gets no
-				// draft projection, and Comment and Publish stay refused there.
+				// [[BPR-1246]], [[BPR-1212]] v002. A deletion on the left is a
+				// GitHub `side: LEFT` line. Once the epoch host answers that this
+				// file's base is the merge base's version, it takes its draft as
+				// any line does; selecting it publishes nothing.
 				wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::left, 45U); }, "select the deletion on the left side");
+				wait([&] {
+					const auto& shown = window.review_editor()->shown_draft();
+					return window.left_conversation_endpoint_current() && shown && shown->Anchor.Side == core::diff_side::left && shown->Anchor.Line == 45U;
+				},
+					 "the left deletion takes its draft once its base numbering is known to be GitHub's");
+				expect(window.comment_action()->isEnabled() && window.review_editor()->publish_action()->isEnabled(), "the left deletion offers a new Comment and its Publish");
+				// Negative control: without that evidence the same line is refused
+				// with its reason, and forcing Comment opens nothing.
+				window.set_conversation_endpoint_placement(false, true);
 				QApplication::processEvents();
-				expect(!window.review_editor()->shown_draft() || window.review_editor()->shown_draft()->Anchor.Side != core::diff_side::left, "left deletion is offered no new draft");
-				expect(!window.comment_action()->isEnabled() && window.comment_action()->toolTip().contains(QStringLiteral("right, current-head"))
-						   && !window.review_editor()->publish_action()->isEnabled(),
-					   "left deletion does not offer a new Comment or Publish");
+				expect(!window.comment_action()->isEnabled() && window.comment_action()->toolTip().contains(QStringLiteral("not known to match")),
+					   "without the evidence a left line does not offer a new Comment, and says why");
 				window.comment_action()->setEnabled(true);
 				window.comment_action()->trigger();
-				expect(!window.comment_action()->isEnabled() && !window.review_editor()->body_editor()->isVisible(), "negative control cannot force a left-side new-comment page open");
+				expect(!window.comment_action()->isEnabled() && !window.conversation_panel()->cards()->writing_draft(), "negative control cannot force a left-side new comment open");
+				window.set_conversation_endpoint_placement(true, true);
 				expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, 29U), "select a current-head line for the local comment");
 				wait([&] { return window.comment_action()->isEnabled(); }, "current-head Comment is admitted after the refused left target");
 				const auto beforeComment = access::review_mutation_evidence(*application);

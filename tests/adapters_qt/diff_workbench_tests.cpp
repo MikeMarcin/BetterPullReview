@@ -52,6 +52,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -2752,6 +2753,90 @@ namespace {
 			   "two-column tab stops narrow all three authored indentation depths");
 	}
 
+	/// \brief [[BPR-1212]] v002. A text selection keeps the syntax colours.
+	///
+	/// \details The owner, rejecting right-click-v001: "are we meant to lose
+	/// all syntax highlighting when we select something?" Qt draws a text
+	/// selection in `HighlightedText`, white over the accent. The pane draws it
+	/// as a translucent wash instead, and each glyph keeps its own colour.
+	/// Measured on the rendered pane: the darkest ink of a selected comment
+	/// line, against the same line unselected.
+	auto test_a_selection_keeps_the_syntax_colours() -> void
+	{
+		const auto diff      = computed(classified_left, classified_right, { }, 45U);
+		auto       workbench = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		process_events();
+		auto profile = qt::appearance_profile{ };
+		static_cast<void>(profile.select_mode(core::appearance_mode::light));
+		workbench.adopt_appearance(profile);
+		const auto selected = context(diff, 91U, 91U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		process_events();
+		expect(workbench.adopt_token_spans(core::diff_side::left, std::make_shared<const application::token_span_list>(classified_spans())),
+			   "the left side adopts its classification");
+		process_events();
+		auto* const pane = workbench.left_pane();
+		const auto  row  = [&workbench, pane](const std::uint32_t aLine) {
+			const auto rect = workbench.line_rect(core::diff_side::left, aLine);
+			return QRect{ pane->viewport()->mapFrom(&workbench, rect.topLeft()), rect.size() };
+		};
+		const auto distance = [](const QColor& aLeft, const QColor& aRight) {
+			return std::abs(aLeft.red() - aRight.red()) + std::abs(aLeft.green() - aRight.green()) + std::abs(aLeft.blue() - aRight.blue());
+		};
+		// A row's ground (the commonest colour across its first characters)
+		// and its ink: the pixel there farthest from the ground.
+		const auto sample = [&](const QRect aRow) {
+			pane->viewport()->repaint();
+			const auto image  = pane->viewport()->grab().toImage();
+			const auto scale  = image.devicePixelRatio();
+			const auto at     = [&image, scale](const int aX, const int aY) { return image.pixelColor(static_cast<int>(aX * scale), static_cast<int>(aY * scale)); };
+			auto       counts = std::map<QRgb, int>{ };
+			for (auto y = aRow.top() + 1; y < aRow.bottom(); ++y) {
+				for (auto x = aRow.left() + 2; x < aRow.left() + 160; ++x) {
+					++counts[at(x, y).rgb()];
+				}
+			}
+			const auto ground = QColor{ std::ranges::max_element(counts, { }, &std::map<QRgb, int>::value_type::second)->first };
+			auto       ink    = ground;
+			for (auto y = aRow.top() + 1; y < aRow.bottom(); ++y) {
+				for (auto x = aRow.left() + 2; x < aRow.left() + 160; ++x) {
+					const auto pixel = at(x, y);
+					if (distance(pixel, ground) > distance(ink, ground)) {
+						ink = pixel;
+					}
+				}
+			}
+			return std::pair{ ground, ink };
+		};
+		const auto comment                 = row(1U);
+		const auto [plainGround, plainInk] = sample(comment);
+		expect(distance(plainInk, profile.color(core::appearance_role::syntax_comment)) < 90, "unselected, the comment line is drawn in the comment colour");
+
+		// Lines 1 to 3 selected, as a drag or Shift+Down selects them.
+		auto cursor = QTextCursor{ pane->document() };
+		cursor.setPosition(pane->document()->findBlockByNumber(0).position());
+		cursor.setPosition(pane->document()->findBlockByNumber(2).position() + 10, QTextCursor::KeepAnchor);
+		pane->setTextCursor(cursor);
+		process_events();
+		const auto [washGround, washInk] = sample(comment);
+		const auto highlightedText       = pane->palette().color(QPalette::Active, QPalette::HighlightedText);
+		const auto highlight             = pane->palette().color(QPalette::Active, QPalette::Highlight);
+		expect(distance(washGround, plainGround) > 12 && distance(washGround, highlight) > 60,
+			   "the selection shows as a wash, lighter than the solid accent");
+		expect(distance(washInk, plainInk) < 90 && distance(washInk, plainInk) < distance(washInk, highlightedText),
+			   "selected, the comment line keeps its comment colour, not the highlighted-text colour");
+		expect(pane->textCursor().selectedText().size() > 0 && pane->textCursor() == cursor, "the selection itself is unchanged, for Copy");
+		if (const auto render = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH"); !render.isEmpty()) {
+			expect(workbench.grab().save(render + QStringLiteral("-selection-keeps-syntax.png")), "capture the selection over coloured code");
+		}
+	}
+
 	/// \brief A classified blob must reach the pane's rendered formats.
 	auto test_syntax_spans_colour_the_panes() -> void
 	{
@@ -4960,6 +5045,7 @@ auto main(int argc, char** argv) -> int
 	test_scale_and_high_frequency_evidence();
 	test_line_painting_stays_bounded_by_the_viewport();
 	test_syntax_spans_colour_the_panes();
+	test_a_selection_keeps_the_syntax_colours();
 	test_tabbed_source_correspondence_survives_syntax_and_tab_width();
 	test_comparison_zoom_scales_and_holds_the_reading_line();
 	test_code_zoom_design_captures();

@@ -161,6 +161,21 @@ namespace {
 		return result;
 	}
 
+	/// \brief One text value a query reads directly from the database.
+	[[nodiscard]] auto query_text(const std::filesystem::path& aPath, const std::string& aSql) -> std::string
+	{
+		::sqlite3* database = nullptr;
+		expect(::sqlite3_open_v2(aPath.string().c_str(), &database, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK, "recovery database opens directly");
+		auto statement = static_cast<::sqlite3_stmt*>(nullptr);
+		expect(::sqlite3_prepare_v2(database, aSql.c_str(), -1, &statement, nullptr) == SQLITE_OK && ::sqlite3_step(statement) == SQLITE_ROW,
+			   "the direct query has a row");
+		const auto* const text   = ::sqlite3_column_text(statement, 0);
+		auto              result = text != nullptr ? std::string{ reinterpret_cast<const char*>(text) } : std::string{ };
+		static_cast<void>(::sqlite3_finalize(statement));
+		static_cast<void>(::sqlite3_close_v2(database));
+		return result;
+	}
+
 	[[nodiscard]] auto repeated_hex(
 		const std::string_view aByte,
 		const std::size_t      aCount) -> std::string
@@ -311,6 +326,43 @@ namespace {
 		execute_sql(database_path(directory), "UPDATE logical_publication SET record_digest=zeroblob(32)");
 		expect(!(*store)->load_publication(value.Key), "corruption refuses entire parent including child baselines");
 	}
+	// [[BPR-1212]] v002. A base-side comment's publication keeps its side
+	// across a restart: its record is written as version 2, which carries each
+	// child's side, while a head-side record keeps its version 1 bytes. The
+	// side-less legacy table refuses a base-side anchor.
+	void test_a_base_side_publication_keeps_its_side()
+	{
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "logical journal opens");
+		auto right = publication();
+		expect((*store)->advance_publication(std::nullopt, right).has_value(), "a head-side parent is admitted");
+		// The record's first eight bytes are its version, least significant first.
+		const auto version = [&directory](const std::string& aKey) {
+			return query_text(database_path(directory), "SELECT hex(substr(record,1,8)) FROM logical_publication WHERE publication_key='" + aKey + "'");
+		};
+		expect(version(right.Key) == "0100000000000000", "a head-side record keeps version 1");
+
+		auto left                         = publication();
+		left.Key                          = std::string(64U, 'd');
+		left.LegacyKey                    = std::string(64U, 'e');
+		left.Native->IdempotencyKey       = application::review_publication_child_key(left.Key, core::review_publication_representation::native_line);
+		left.Native->Anchor.Semantic.Side = core::diff_side::left;
+		expect((*store)->advance_publication(std::nullopt, left).has_value(), "a base-side parent is admitted");
+		expect(version(left.Key) == "0200000000000000", "a base-side record is written as version 2");
+		store->reset();
+		store             = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto loaded = (*store)->load_publication(left.Key);
+		expect(loaded.has_value() && loaded->has_value() && **loaded == left && (*loaded)->Native->Anchor.Semantic.Side == core::diff_side::left,
+			   "after a restart the base-side child is still on the left");
+		expect((*store)->load_publication(right.Key).value() == right, "the head-side record reads back unchanged");
+
+		auto legacy                 = record();
+		legacy.IdempotencyKey       = std::string(64U, 'f');
+		legacy.Anchor.Semantic.Side = core::diff_side::left;
+		expect(!(*store)->admit(legacy), "the side-less legacy table refuses a base-side anchor");
+	}
+
 	void test_evidence_admission_and_legacy_conflicts()
 	{
 		using state = core::review_publication_state;
@@ -667,6 +719,7 @@ namespace {
 auto main() -> int
 try {
 	test_logical_publication_transitions_and_restart();
+	test_a_base_side_publication_keeps_its_side();
 	test_evidence_admission_and_legacy_conflicts();
 	test_version_three_keeps_both_journals();
 	test_logical_capacity_and_stale_compare_exchange();

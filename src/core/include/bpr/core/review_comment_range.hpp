@@ -17,10 +17,14 @@
 /// `start_line` and `line` on one side. GitHub refuses a range that is not on
 /// one side or whose two ends are not in one hunk of the pull request's diff,
 /// so those are refused here, from the accepted diff, before any draft carries
-/// the range and before anything is published. A single line keeps today's
-/// rules: a new comment goes on the right side, and a line outside every hunk
-/// is decided at Publish by `plan_review_publication`. The suggestion block a
-/// selection starts is `suggestion_draft.hpp`'s.
+/// the range and before anything is published. A single line on the right
+/// keeps today's rules: a line outside every hunk is decided at Publish by
+/// `plan_review_publication`. A comment on the left (base) side is GitHub's
+/// `side: LEFT`: its lines count the merge base's version of the file, so it
+/// is admitted only with the host's evidence that this comparison's base side
+/// is numbered as that version, and only inside a hunk, because a base line
+/// has no file-comment fallback. The suggestion block a selection starts is
+/// `suggestion_draft.hpp`'s.
 namespace bpr::core {
 	/// \brief Why a selection cannot carry a new comment.
 	enum class comment_range_refusal : std::uint8_t {
@@ -29,7 +33,7 @@ namespace bpr::core {
 		mixed_comparison,
 		/// The two ends are on different sides.
 		mixed_side,
-		/// A new comment cannot go on the left (base) side.
+		/// The left (base) side is not known to be numbered as GitHub's base.
 		base_side,
 		/// An end is past the side's last line, or the side has no text.
 		outside_document,
@@ -67,13 +71,18 @@ namespace bpr::core {
 
 	/// \brief Decides a new comment's anchor from a selection's two ends, in
 	/// either order.
-	/// \details One line is the anchor itself and is refused only on the left
-	/// side or outside the document. Several lines must be on one side, the
-	/// right, and inside one hunk of `github_review_hunks`.
+	/// \details One line on the right is the anchor itself and is refused only
+	/// outside the document. Several lines must be on one side and inside one
+	/// hunk of `github_review_hunks`. Lines on the left need
+	/// `aBaseNumberedAsGitHub`, the host's evidence that the comparison's left
+	/// document is the merge base's version GitHub numbers `LEFT` lines in;
+	/// without it they are `base_side`. A single left line must also be in a
+	/// hunk.
 	[[nodiscard]] auto decide_comment_range(
 		const file_alignment& aAlignment,
 		source_line_ref       aFirst,
-		source_line_ref       aLast) -> comment_range_decision;
+		source_line_ref       aLast,
+		bool                  aBaseNumberedAsGitHub = false) -> comment_range_decision;
 
 } // namespace bpr::core
 

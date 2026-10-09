@@ -1939,8 +1939,19 @@ File threads carry neither. Every GraphQL page repeats the pull request's
 `headRefOid`, and the host rejects a snapshot whose REST and GraphQL head OIDs
 differ. The selected-comparison composition may therefore place a current
 right-side anchor only when its right commit equals that accepted head. It does
-not place a left-side pull-request-diff line against the accepted base tip,
-because the provider contract does not carry GitHub's merge-base identity.
+not place a left-side pull-request-diff line against the accepted base tip by
+itself, because the provider contract does not carry GitHub's merge-base
+identity. [[BPR-1212]] v002: the epoch host derives the unique merge base of
+GitHub's base OID and the accepted head from the retained objects, never
+fetching (`resolve_github_base_numbering`), and compares the file's blob there
+with the comparison's left blob. Only when they are the same, or the merge base
+is the left commit, is the left side current: base-side threads are placed on
+the base pane, a base line takes a new comment, and the mutation host admits
+that root as `side: LEFT` on the head's path and commit, with the base
+document's line count, no file-comment fallback, and a recovery record that
+keeps the side. A sparse review, several or no merge bases, or another blob
+leave the left side unplaced and new base-side comments refused with the
+reason.
 
 The window inherits the application and operating-system palette, style, and
 font. It does not force a palette or style, apply QSS, or install a replacement

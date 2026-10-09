@@ -1095,7 +1095,7 @@ namespace bpr::qt {
 		Members.Revisioned.Reapply->setEnabled(reapply);
 		const auto drafting = revisionReady && Members.ShownDraft
 			&& Members.ShownDraft->State == core::review_draft_state::drafting;
-		const auto supportedTarget = Members.ShownDraft && core::supported_comment_target(Members.ShownDraft->Anchor.Side, Members.ShownDraft->ReplyToThread.has_value());
+		const auto supportedTarget = Members.ShownDraft && core::supported_comment_target(Members.ShownDraft->Anchor.Side);
 		const auto retry           = revisionReady && Members.RetryPublication && Members.ShownDraft && Members.ShownDraft->State == core::review_draft_state::publishing;
 		Members.Publish->setText(retry ? tr("Retry publication") : tr("Publish"));
 		Members.Publish->setEnabled((drafting || retry) && supportedTarget && !Members.Revisioned.Candidate);
@@ -1108,7 +1108,7 @@ namespace bpr::qt {
 		const auto unavailable = tr("No editable draft is selected. Return to an open pull request and select a current-head line.");
 		Members.Publish->setToolTip(retry ? tr("Retry this exact publication identity; already transmitted work is reconciled.") : !drafting ? unavailable
 										: supportedTarget                                                                                    ? tr("Publish this draft comment.")
-																																			 : tr("New comments need a line on the right, current-head side. Your draft text is kept."));
+																																			 : tr("This draft's line cannot take a comment. Your draft text is kept."));
 		Members.Discard->setToolTip(drafting ? tr("Discard this local draft.") : unavailable);
 
 		const auto receipt = Members.ShownReceipt.has_value();

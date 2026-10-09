@@ -406,15 +406,12 @@ namespace {
 
 	void test_comment_target_shape_preserves_left_replies()
 	{
-		expect(core::supported_comment_target(core::diff_side::right, false)
-				   && core::supported_comment_target(core::diff_side::right, true),
-			   "right-side lines admit new comments and replies");
-		expect(!core::supported_comment_target(core::diff_side::left, false)
-				   && core::supported_comment_target(core::diff_side::left, true),
-			   "left-side lines admit existing-thread replies only");
-		expect(!core::supported_comment_target(static_cast<core::diff_side>(255), false)
-				   && !core::supported_comment_target(static_cast<core::diff_side>(255), true),
-			   "an unknown side cannot admit a comment or reply");
+		expect(core::supported_comment_target(core::diff_side::right), "right-side lines admit new comments and replies");
+		// [[BPR-1212]]. GitHub takes a new comment on a base line as `side: LEFT`;
+		// whether this comparison's base is numbered as GitHub's is the host's
+		// evidence, which `decide_comment_range` and the host check.
+		expect(core::supported_comment_target(core::diff_side::left), "left-side lines admit new comments and replies in shape");
+		expect(!core::supported_comment_target(static_cast<core::diff_side>(255)), "an unknown side cannot admit a comment or reply");
 	}
 
 	void test_every_enumerator_names_itself()

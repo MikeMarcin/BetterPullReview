@@ -160,6 +160,16 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_changed_paths(
 			changed_paths_request    aRequest,
 			changed_paths_completion aCompletion) -> bool;
+		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
+		/// the merge base's version of its file, which GitHub numbers `LEFT`
+		/// lines in.
+		/// \details Derives the unique merge base of `BaseTip` and `Head` from
+		/// the retained objects, never fetching, and compares the file's blob
+		/// there with the one at `Left`. Runs on the review's cache actor like
+		/// `resolve_changed_paths`, with the same admission and completion.
+		[[nodiscard]] auto resolve_github_base_numbering(
+			github_base_numbering_request    aRequest,
+			github_base_numbering_completion aCompletion) -> bool;
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;

@@ -1419,6 +1419,19 @@ namespace {
 			&& stack->currentWidget()->objectName() == QStringLiteral("workbenchDiscussPage") && aPage->isVisible();
 	}
 
+	/// \brief [[BPR-1212]] v002. Runs the event loop until a condition holds
+	/// or the time is up.
+	template <typename Condition>
+	void wait_for(Condition aCondition, const int aMilliseconds)
+	{
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (!aCondition() && elapsed.elapsed() < aMilliseconds) {
+			QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+			QThread::msleep(5);
+		}
+	}
+
 	/// \brief [[BPR-1212]]. My draft is open and being written in the drawer.
 	auto drawer_writing(const qt::workbench_window& aWindow) -> bool
 	{
@@ -6176,10 +6189,18 @@ namespace {
 				   && window.comparison_surface()->selection()->PreferredLine.Line == 21U,
 			   "the thread's Reply selects its own thread's line and answers that thread in place, not on the page");
 		back();
-		window.set_conversation_endpoint_placement(true, true);
+		// [[BPR-1212]] v002. A new comment on a left line needs its numbering
+		// to be GitHub's; without that evidence it says so.
+		window.set_conversation_endpoint_placement(false, true);
 		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 12U), "the changed left-side line is selectable");
 		process_events();
-		expect(!comment->isEnabled() && comment->toolTip().contains(QStringLiteral("right, current-head")), "a left-side new comment is unavailable with its exact reason");
+		expect(!comment->isEnabled() && comment->toolTip().contains(QStringLiteral("not known to match")), "a left-side new comment is unavailable with its exact reason");
+		// With the evidence, the line is selected again so the drawer anchors it.
+		window.set_conversation_endpoint_placement(true, true);
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::left, 11U)
+				   && window.comparison_surface()->select_conversation_line(core::diff_side::left, 12U),
+			   "the changed left-side line is selected again with its numbering known");
+		process_events();
 		window.conversation_panel()->adopt({ application::github_conversation_projection{
 											   .Id = "review-thread:left", .Kind = application::github_conversation_kind::review_thread, .AuthorLogin = "left-reviewer", .Path = "src/file.cpp", .Line = 13U, .DiffSide = application::github_conversation_diff_side::left, .AnchorAvailability = application::github_conversation_anchor_availability::current } },
 										   QStringLiteral("left thread"));
@@ -6435,12 +6456,13 @@ namespace {
 		expect(drawer_writing(window) && window.review_editor()->shown_draft()->Anchor.Line == 4U && writingMark(4U),
 			   "clicking the \"+\" starts a comment on line 5 in the drawer");
 		send(cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
-		// The base side takes no new comment; the menu says why.
+		// [[BPR-1212]] v002. A base line outside every hunk takes no new
+		// comment, even where the base is GitHub's; the menu says why.
 		auto* const base     = window.comparison_surface()->left_pane();
 		const auto  baseRect = window.comparison_surface()->line_rect(core::diff_side::left, 3U);
 		auto* const baseMenu = window.code_context_menu(base, base->viewport()->mapFrom(window.comparison_surface(), baseRect.center()));
-		expect(!window.add_comment_action()->isEnabled() && window.add_comment_action()->toolTip().contains(QStringLiteral("right, current-head")),
-			   "on the base side Add comment is unavailable with its reason");
+		expect(!window.add_comment_action()->isEnabled() && window.add_comment_action()->toolTip().contains(QStringLiteral("inside a changed region")),
+			   "on a base line outside every hunk Add comment is unavailable with its reason");
 		delete baseMenu;
 		// [[BPR-1335]]. Line 22's thread opens from the code's context menu,
 		// with no marker pressed; line 4's menu offers no thread to open.
@@ -8428,12 +8450,15 @@ namespace {
 		};
 		expect(!drawer_writing(window) && !composing(window, page), "no draft is being written at first");
 
-		// Flagged 4: a left line takes no new comment, and says so.
+		// Flagged 4, v002: a left line takes a new comment only when its
+		// numbering is known to be GitHub's; until then it says why.
+		window.set_conversation_endpoint_placement(false, true);
 		expect(surface->select_conversation_line(core::diff_side::left, 4U), "a left line is selected");
 		left->setFocus(Qt::OtherFocusReason);
 		key(*left, Qt::Key_Return);
-		expect(commands.empty() && !drawer_writing(window) && message().contains(QStringLiteral("right, current-head side")),
-			   "Return on a left line opens nothing and the status line gives the reason");
+		expect(commands.empty() && !drawer_writing(window) && message().contains(QStringLiteral("not known to match")),
+			   "Return on a left line whose base is not GitHub's opens nothing and the status line gives the reason");
+		window.set_conversation_endpoint_placement(true, true);
 
 		// Lines outside one hunk are refused before any draft takes them.
 		expect(surface->select_conversation_line(core::diff_side::right, 14U), "an unchanged right line far from the change");
@@ -8527,12 +8552,15 @@ namespace {
 		key(*cards, Qt::Key_Return, Qt::ShiftModifier);
 		expect(!drawer_writing(window) && ranges() == 3, "Shift+Return in the notes starts no draft from the code");
 
-		// No draft comes for the line: the status line says why.
+		// No draft comes for the line: the status line says it is opening
+		// one, and why none came once the wait is over ([[BPR-1212]] v002).
 		admitted = false;
 		expect(surface->select_conversation_line(core::diff_side::right, 8U), "a line whose draft never comes");
 		right->setFocus(Qt::OtherFocusReason);
 		key(*right, Qt::Key_Return);
-		expect(!drawer_writing(window) && !message().isEmpty(), "with no draft on the line Return opens nothing and says why");
+		expect(!drawer_writing(window) && message().startsWith(QStringLiteral("Opening a draft on line 9")), "Return on a line with no draft yet says it is opening one");
+		wait_for([&message] { return message().contains(QStringLiteral("No editable draft")); }, 3000);
+		expect(!drawer_writing(window) && message().contains(QStringLiteral("No editable draft")), "when no draft comes the status line says why");
 		admitted = true;
 
 		// With no line selected, the status line says how to select one.
@@ -8542,6 +8570,352 @@ namespace {
 		key(*right, Qt::Key_Return);
 		expect(!drawer_writing(window) && message().contains(QStringLiteral("Select a line first")) && message().contains(QStringLiteral("Up and Down")),
 			   "with no line selected Return opens nothing and the status line says how to select one");
+		window.hide();
+	}
+
+	// [[BPR-1212]] v002. The owner rejected right-click-v001: "I have to
+	// single select a line with left click first and then right click
+	// otherwise the option is greyed out, I cant seem to do a suggest change
+	// on a multi-select. I cant just right click a line and add comment." and
+	// "I can only add comment on the right pane". Driven with real mouse and
+	// context-menu events, against a host that answers a selection with its
+	// draft a turn later, as the composition's store does:
+	// - a right-click on a line nobody clicked selects it and offers Add
+	//   comment, enabled, which opens the draft once it arrives;
+	// - a right-click inside a dragged selection keeps it, and Suggest change
+	//   there starts a block of all its lines;
+	// - a base line takes Add comment once its numbering is known to be
+	//   GitHub's, never Suggest change, and the menu says why in words.
+	void test_right_click_on_any_line_and_on_base_lines()
+	{
+		qt::workbench_window window;
+		window.resize(1'400, 900);
+		window.show();
+		process_events();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 5\n"), std::string{ "line 5" }.size(), "changed `line` 5");
+		const auto  diff     = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto* const editor   = window.review_editor();
+		auto        commands = std::vector<core::revisioned_review_draft_command>{ };
+		editor->set_revisioned_dispatch([&commands](core::revisioned_review_draft_command aCommand) { commands.push_back(std::move(aCommand)); });
+		// The host answers a selection with its line's draft a turn later.
+		auto       kept     = std::map<std::pair<core::diff_side, std::uint32_t>, core::revisioned_review_draft>{ };
+		auto       accepted = std::optional<core::revisioned_review_draft>{ };
+		auto       nextId   = std::uint64_t{ 1U };
+		auto       admitted = true;
+		auto       answers  = 0;
+		const auto present  = [&](const core::semantic_selection& aSelection) {
+			auto [found, fresh] = kept.try_emplace(std::pair{ aSelection.PreferredLine.Side, aSelection.PreferredLine.Line });
+			if (fresh) {
+				found->second.Draft.Id     = core::review_draft_id{ nextId++ };
+				found->second.Draft.Anchor = aSelection.PreferredLine;
+				found->second.Revision     = 1U;
+				found->second.Scope        = core::review_draft_scope_id{ 1U };
+			}
+			accepted = found->second;
+			editor->present(found->second);
+			++answers;
+		};
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id                 = "review-thread:t22",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "tbutler",
+				  .Path               = "src/file.cpp",
+				  .Line               = 22U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t22-1",
+				  .ParentId    = "review-thread:t22",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "tbutler",
+				  .Body        = "Where does 0.01 come from?",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("one conversation"));
+		auto* const surface = publish_fixture(window, diff);
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+		surface->set_selection_sink([&](const std::optional<core::semantic_selection>& aSelection) {
+			if (!admitted || !aSelection) {
+				return;
+			}
+			QTimer::singleShot(0, &window, [&present, &surface, selection = *aSelection] {
+				if (surface->selection() == selection) {
+					present(selection);
+				}
+			});
+		});
+		auto       applied = std::size_t{ 0U };
+		const auto settle  = [&] {
+			process_events();
+			while (applied < commands.size()) {
+				const auto command = commands[applied++];
+				if (!accepted || command.Command.Id != accepted->Draft.Id) {
+					continue;
+				}
+				const auto outcome = core::apply(*accepted, command);
+				expect(outcome.Refusal == core::revisioned_draft_refusal::none, "the core accepts every edit the window sends");
+				accepted                                                                         = outcome.Accepted;
+				kept[{ outcome.Accepted.Draft.Anchor.Side, outcome.Accepted.Draft.Anchor.Line }] = outcome.Accepted;
+				editor->acknowledge(command, outcome.Accepted);
+				process_events();
+			}
+		};
+		const auto point = [&surface](QPlainTextEdit& aPane, const core::diff_side aSide, const std::uint32_t aLine, const bool aEnd = false) {
+			const auto row    = surface->line_rect(aSide, aLine);
+			const auto inPane = aPane.viewport()->mapFrom(surface, row.center());
+			return aEnd ? QPoint{ aPane.viewport()->width() - 4, inPane.y() } : QPoint{ 40, inPane.y() };
+		};
+		const auto mouse = [](QPlainTextEdit& aPane, const QEvent::Type aType, const QPoint aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aHeld) {
+			auto event = QMouseEvent{ aType, QPointF{ aAt }, aPane.viewport()->mapToGlobal(QPointF{ aAt }), aButton, aHeld, Qt::NoModifier };
+			QCoreApplication::sendEvent(aPane.viewport(), &event);
+		};
+		// A right-click as the platform delivers it: the press, the menu
+		// request at the point, the release. The menu the window opens is
+		// returned; the caller closes it.
+		const auto rightClick = [&](QPlainTextEdit& aPane, const QPoint aAt) -> QMenu* {
+			for (auto* const old : aPane.findChildren<QMenu*>(QStringLiteral("codeContextMenu"))) {
+				old->setObjectName(QStringLiteral("closedCodeContextMenu"));
+				old->close();
+			}
+			mouse(aPane, QEvent::MouseButtonPress, aAt, Qt::RightButton, Qt::RightButton);
+			auto request = QContextMenuEvent{ QContextMenuEvent::Mouse, aAt, aPane.viewport()->mapToGlobal(aAt) };
+			QCoreApplication::sendEvent(aPane.viewport(), &request);
+			mouse(aPane, QEvent::MouseButtonRelease, aAt, Qt::RightButton, Qt::NoButton);
+			return aPane.findChild<QMenu*>(QStringLiteral("codeContextMenu"));
+		};
+		const auto item = [](QMenu* aMenu, const QString& aName) -> QAction* {
+			if (aMenu == nullptr) {
+				return nullptr;
+			}
+			const auto actions = aMenu->actions();
+			const auto found   = std::ranges::find_if(actions, [&aName](const QAction* aAction) { return aAction->objectName() == aName; });
+			return found == actions.end() ? nullptr : *found;
+		};
+		const auto caption = [&item](QMenu* aMenu) {
+			const auto* const action = item(aMenu, QStringLiteral("codeContextMenuCaption"));
+			return action != nullptr ? action->text() : QString{ };
+		};
+		const auto reason = [&item](QMenu* aMenu) {
+			const auto* const action = item(aMenu, QStringLiteral("codeContextMenuReason"));
+			return action != nullptr ? action->text() : QString{ };
+		};
+		const auto choose = [](QMenu* aMenu, QAction* aAction) {
+			aAction->trigger();
+			aMenu->close();
+			process_events();
+		};
+		auto* const cards   = window.conversation_panel()->cards();
+		auto* const right   = surface->right_pane();
+		auto* const left    = surface->left_pane();
+		const auto  message = [&window] { return window.statusBar()->currentMessage(); };
+		const auto  escape  = [&cards] {
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QCoreApplication::sendEvent(cards->draft_editor(), &press);
+			process_events();
+		};
+
+		// (b) A right-click on line 21, which nobody clicked: it is selected,
+		// and Add comment is offered at once, before its draft has arrived.
+		expect(!surface->selection().has_value() || surface->selection()->PreferredLine.Line != 20U, "line 21 is not selected at first");
+		auto* menu = rightClick(*right, point(*right, core::diff_side::right, 20U));
+		expect(menu != nullptr && surface->selection() && surface->selection()->PreferredLine == core::source_line_ref{ .Comparison = diff.Alignment.Digest, .Side = core::diff_side::right, .Line = 20U },
+			   "a right-click on a line nobody clicked selects that line");
+		expect(answers == 0 && caption(menu) == QStringLiteral("Line 21") && item(menu, QStringLiteral("addCommentAction")) != nullptr
+				   && item(menu, QStringLiteral("addCommentAction"))->isEnabled() && item(menu, QStringLiteral("suggestChangeAction"))->isEnabled()
+				   && reason(menu).isEmpty(),
+			   "before its draft arrives the menu offers Add comment and Suggest change, enabled, with no reason");
+		choose(menu, item(menu, QStringLiteral("addCommentAction")));
+		wait_for([&window] { return drawer_writing(window); }, 2000);
+		expect(drawer_writing(window) && accepted && accepted->Draft.Anchor.Line == 20U && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 21"),
+			   "Add comment opens the draft in the drawer once it arrives");
+		escape();
+
+		// (e)+(c) A mouse drag across lines 4 to 6, a right-click inside it.
+		mouse(*right, QEvent::MouseButtonPress, point(*right, core::diff_side::right, 3U), Qt::LeftButton, Qt::LeftButton);
+		mouse(*right, QEvent::MouseMove, point(*right, core::diff_side::right, 5U, true), Qt::NoButton, Qt::LeftButton);
+		mouse(*right, QEvent::MouseButtonRelease, point(*right, core::diff_side::right, 5U, true), Qt::LeftButton, Qt::NoButton);
+		process_events();
+		const auto dragged = right->textCursor();
+		menu               = rightClick(*right, point(*right, core::diff_side::right, 4U));
+		expect(right->textCursor() == dragged && dragged.hasSelection() && surface->selection() && surface->selection()->PreferredLine.Line == 3U
+				   && caption(menu) == QStringLiteral("Lines 4–6"),
+			   "a right-click inside a dragged selection keeps it and its selected line, and the menu names its lines");
+		expect(item(menu, QStringLiteral("suggestChangeAction"))->isEnabled() && reason(menu).isEmpty(), "Suggest change is offered on several lines");
+		choose(menu, item(menu, QStringLiteral("suggestChangeAction")));
+		wait_for([&window] { return drawer_writing(window); }, 2000);
+		settle();
+		expect(drawer_writing(window) && accepted && accepted->Draft.Anchor.Line == 5U && accepted->Draft.StartLine == std::optional<std::uint32_t>{ 3U }
+				   && accepted->Draft.Body == "```suggestion\nline 3\nline 4\nchanged `line` 5\n```"
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines 4–6"),
+			   "Suggest change on the selection starts a block of all three lines on the draft that spans them");
+		save_render(window, QStringLiteral("right-click-v002-range-suggestion"));
+		cards->draft_editor()->setPlainText(QString{ });
+		settle();
+		escape();
+
+		// (d) A base line, while its numbering is not known to be GitHub's.
+		menu = rightClick(*left, point(*left, core::diff_side::left, 4U));
+		expect(caption(menu) == QStringLiteral("Base line 5") && !item(menu, QStringLiteral("addCommentAction"))->isEnabled()
+				   && reason(menu) == QStringLiteral("This file's base is not GitHub's")
+				   && item(menu, QStringLiteral("addCommentAction"))->toolTip().contains(QStringLiteral("merge base")),
+			   "without the evidence a base line's menu says in words why it takes no comment");
+		menu->close();
+		process_events();
+		// Once it is, a base line in the hunk takes a comment, never a suggestion.
+		window.set_conversation_endpoint_placement(true, true);
+		menu = rightClick(*left, point(*left, core::diff_side::left, 4U));
+		expect(caption(menu) == QStringLiteral("Base line 5") && item(menu, QStringLiteral("addCommentAction"))->isEnabled()
+				   && !item(menu, QStringLiteral("suggestChangeAction"))->isEnabled() && reason(menu) == QStringLiteral("Suggest change: head side only")
+				   && item(menu, QStringLiteral("suggestChangeAction"))->toolTip().contains(QStringLiteral("head side")),
+			   "with the evidence a base line offers Add comment, and Suggest change is unavailable with its reason shown");
+		menu->popup(left->viewport()->mapToGlobal(point(*left, core::diff_side::left, 4U)));
+		process_events();
+		save_menu_render(*menu, QStringLiteral("right-click-v002-base-menu"));
+		choose(menu, item(menu, QStringLiteral("addCommentAction")));
+		wait_for([&window] { return drawer_writing(window); }, 2000);
+		expect(drawer_writing(window) && accepted && accepted->Draft.Anchor.Side == core::diff_side::left && accepted->Draft.Anchor.Line == 4U
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on base line 5"),
+			   "Add comment on a base line opens its draft on the left side in the drawer");
+		save_render(window, QStringLiteral("right-click-v002-base-draft"));
+		escape();
+		// The window lost activation to the menus offscreen, so its focus
+		// widget is what holds focus once it is active again.
+		expect(window.focusWidget() == left, "leaving a base-side draft returns focus to the base pane");
+		// The keys follow the same rules on a base line.
+		auto shiftReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier };
+		QCoreApplication::sendEvent(left, &shiftReturn);
+		process_events();
+		expect(!drawer_writing(window) && message().contains(QStringLiteral("Suggest change replaces lines on the right")), "Shift+Return on a base line suggests nothing and says why");
+		auto plainReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QCoreApplication::sendEvent(left, &plainReturn);
+		wait_for([&window] { return drawer_writing(window); }, 2000);
+		expect(drawer_writing(window) && accepted->Draft.Anchor.Side == core::diff_side::left, "Return on a base line opens its draft");
+		escape();
+		// A base line outside every hunk: GitHub takes no `LEFT` comment there.
+		menu = rightClick(*left, point(*left, core::diff_side::left, 20U));
+		expect(caption(menu) == QStringLiteral("Base line 21") && !item(menu, QStringLiteral("addCommentAction"))->isEnabled()
+				   && reason(menu) == QStringLiteral("Base lines need a changed region"),
+			   "a base line outside every hunk takes no comment, and the menu says why");
+		menu->close();
+		process_events();
+
+		// A line whose draft never comes: the item still opens, and the
+		// status line says why once the wait is over.
+		admitted = false;
+		menu     = rightClick(*right, point(*right, core::diff_side::right, 24U));
+		expect(item(menu, QStringLiteral("addCommentAction"))->isEnabled(), "a valid line's Add comment is enabled even before any draft");
+		choose(menu, item(menu, QStringLiteral("addCommentAction")));
+		expect(message().startsWith(QStringLiteral("Opening a draft on line 25")), "choosing it says the draft is opening");
+		wait_for([&message] { return message().contains(QStringLiteral("No editable draft")); }, 3000);
+		expect(!drawer_writing(window) && message().contains(QStringLiteral("No editable draft")), "when no draft comes the status line says why");
+		window.hide();
+	}
+
+	// [[BPR-1212]] v002. Two owner notes on accepted candidates:
+	// maximize-to-discuss-v001, "the restore (back to code) should still be in
+	// the top right": in Discuss the restore sits at the top right, where the
+	// drawer draft's Maximize was; publish-draft-v001, "this 'only you see it
+	// unti...' doesnt fit": the draft's privacy note shows its words whole or
+	// only its lock, with the sentence as the lock's tooltip, never cut off.
+	void test_discuss_restore_top_right_and_whole_privacy_note()
+	{
+		qt::workbench_window window;
+		window.resize(1'400, 900);
+		window.show();
+		process_events();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto laterText = text;
+		laterText.replace(laterText.find("line 5\n"), std::string{ "line 5" }.size(), "changed line 5");
+		const auto diff = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		window.conversation_panel()->adopt(
+			{ application::github_conversation_projection{
+				  .Id                 = "review-thread:t22",
+				  .Kind               = application::github_conversation_kind::review_thread,
+				  .AuthorLogin        = "tbutler",
+				  .Path               = "src/file.cpp",
+				  .Line               = 22U,
+				  .DiffSide           = application::github_conversation_diff_side::right,
+				  .AnchorAvailability = application::github_conversation_anchor_availability::current },
+			  application::github_conversation_projection{
+				  .Id          = "review-comment:t22-1",
+				  .ParentId    = "review-thread:t22",
+				  .Kind        = application::github_conversation_kind::review_comment,
+				  .AuthorLogin = "tbutler",
+				  .Body        = "Where does 0.01 come from?",
+				  .Path        = "src/file.cpp" } },
+			QStringLiteral("one conversation"));
+		window.set_review_draft_dispatch([](core::review_draft_command) { });
+		auto* const surface = publish_fixture(window, diff);
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+		surface->set_selection_sink([&window](const std::optional<core::semantic_selection>& aSelection) {
+			if (aSelection) {
+				window.review_editor()->present(core::review_comment_draft{ .Id = core::review_draft_id{ 1U }, .Anchor = aSelection->PreferredLine, .Body = { } });
+			}
+		});
+		expect(surface->select_conversation_line(core::diff_side::right, 9U), "line 10 is selected");
+		surface->right_pane()->setFocus(Qt::OtherFocusReason);
+		auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QCoreApplication::sendEvent(surface->right_pane(), &press);
+		process_events();
+		auto* const cards = window.conversation_panel()->cards();
+		expect(drawer_writing(window), "Return opens the drawer draft");
+
+		// The privacy note: whole words, or the lock alone with the sentence.
+		auto* const privacy = cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftPrivacy"));
+		expect(privacy != nullptr && privacy->accessibleName() == QStringLiteral("Private until you publish")
+				   && privacy->toolTip() == QStringLiteral("Only you see this draft until you publish it.")
+				   && privacy->accessibleDescription() == privacy->toolTip(),
+			   "the draft's privacy note is short, and its tooltip and description carry the sentence");
+		const auto drawn = [privacy](const int aWidth) {
+			privacy->setFixedWidth(aWidth);
+			privacy->repaint();
+			return privacy->property("wordsShown");
+		};
+		const auto words = QFontMetrics{ privacy->font() }.horizontalAdvance(privacy->accessibleName()) + 18;
+		expect(drawn(words).toBool() && !drawn(words - 1).toBool() && !drawn(40).toBool() && drawn(words + 60).toBool(),
+			   "the words are painted only when they fit whole; narrower, the lock shows alone");
+		privacy->setMinimumWidth(0);
+		privacy->setMaximumWidth(QWIDGETSIZE_MAX);
+		process_events();
+		save_render(window, QStringLiteral("publish-text-v002-drawer"));
+
+		// Maximize to Discuss: the restore is at the top right of the page.
+		auto maximize = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier };
+		QCoreApplication::sendEvent(cards->draft_editor(), &maximize);
+		process_events();
+		auto* const page  = window.findChild<QScrollArea*>(QStringLiteral("composeInlineDraftPage"));
+		auto* const back  = window.findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+		auto* const title = window.findChild<QLabel*>(QStringLiteral("composeInlineDraftPageTitle"));
+		expect(composing(window, page) && back != nullptr && back->isVisible() && title != nullptr, "the draft is in Discuss with its restore");
+		const auto inPage = QRect{ back->mapTo(page->widget(), QPoint{ 0, 0 }), back->size() };
+		const auto named  = QRect{ title->mapTo(page->widget(), QPoint{ 0, 0 }), title->size() };
+		expect(page->widget()->width() - inPage.right() <= 32 && inPage.top() <= 24 && inPage.left() > named.left()
+				   && back->text() == QStringLiteral("Back to the code") && back->layoutDirection() == Qt::RightToLeft,
+			   "Back to the code sits at the page's top right, its arrows at the far right where Maximize was, after the title");
+		save_render(window, QStringLiteral("restore-position-v002-discuss"));
+		back->click();
+		process_events();
+		expect(drawer_writing(window) && window.current_modality() == qt::review_modality::review, "the restore brings the draft back to the drawer");
 		window.hide();
 	}
 
@@ -14161,6 +14535,8 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1212]]. Return and Shift+Return in the code, reached directly.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--line-draft"))) {
 		test_return_in_the_code_starts_a_draft_on_the_selection();
+		test_right_click_on_any_line_and_on_base_lines();
+		test_discuss_restore_top_right_and_whole_privacy_note();
 		std::cout << "workbench-line-draft:pass\n";
 		return EXIT_SUCCESS;
 	}

@@ -417,6 +417,53 @@ namespace bpr::application {
 
 	using changed_paths_completion = std::function<void(const changed_paths_observation&)>;
 
+	/// \brief Asks whether a comparison's base side is numbered as GitHub
+	/// numbers a pull request's `LEFT` lines.
+	///
+	/// \details [[BPR-1212]]. GitHub's diff of a pull request runs from the
+	/// merge base of its base and head, so a review comment's `side: LEFT`
+	/// line counts the merge base's version of the file. The comparison's
+	/// left side is the base tip ("Branch base" is not a computed merge base,
+	/// `git-and-epoch-model.md`), which numbers the same only where the file
+	/// is the same at both. `BaseTip` is GitHub's base OID, `Head` the
+	/// accepted head, `Left` the comparison's left commit and `LeftPath` its
+	/// path on that side.
+	struct github_base_numbering_request
+	{
+		workbench_pull_request_authority WorkbenchAuthority;
+		core::git_commit_oid             BaseTip;
+		core::git_commit_oid             Head;
+		core::git_commit_oid             Left;
+		std::filesystem::path            LeftPath;
+
+		auto operator<=>(const github_base_numbering_request&) const = default;
+	};
+
+	enum class github_base_numbering_status : std::uint8_t {
+		/// The left document is the merge base's version of the file.
+		same,
+		/// The merge base holds another version of the file, or none.
+		differs,
+		/// No unique merge base is known from the retained objects.
+		unavailable,
+		/// The retained cache no longer serves the accepted review.
+		stale,
+		cancelled,
+		failure,
+	};
+
+	/// \brief One exact answer to a `github_base_numbering_request`.
+	struct github_base_numbering_observation
+	{
+		github_base_numbering_request       Request;
+		github_base_numbering_status        Status = github_base_numbering_status::failure;
+		std::optional<core::git_commit_oid> MergeBase;
+
+		auto operator<=>(const github_base_numbering_observation&) const = default;
+	};
+
+	using github_base_numbering_completion = std::function<void(const github_base_numbering_observation&)>;
+
 	/// \brief Resolves selected files through the retained epoch cache actor.
 	class workbench_selected_diff_port
 	{
