@@ -245,3 +245,40 @@ At `3947245ca`, the Linux dev build failed:
 and `std::ranges::all_of` without `<algorithm>`, which GCC 15 refuses (MSVC and
 Apple clang reach it through other headers). The include is added; test-only.
 `application_diff_host` passes on Linux and the format check passes.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `3313967c3` (`3947245ca` plus the `<algorithm>` fix above), WSL2 Ubuntu
+26.04, GCC 15.2.0, i9-10900KF.
+
+**[[BPR-1327]]'s large-review selection** passes 26 of 26 in the optimized
+tests-on tree (Release `-O3`, `-j1`, 216.6 s). The load average was 3.0 at the
+start, falling. That covers `core_comparison_preparation`, `application_diff_host`,
+`application_epoch_host`, `application_workbench_host`, `github_provider`,
+`architecture_boundaries`, the round-trip contract, both large-review
+contracts, every `application_large_review_*` row, the unavailable and
+approximate diff public paths and `application_first_tab_comparison`.
+`gh_cli_git_smart_transport` is not registered on Linux.
+
+**`application_large_review_prepared_open` in Debug** (`build/dev`, run at a
+load below 3) passes 10 of 10. [[BPR-1369]]'s wall guard requires the slowest
+prepared open to be at most the median unprepared open plus
+max(15 ms, median/4). Now that prepared opens are timed to shown-and-quiet,
+its margins were:
+
+| Run | Unprepared median | Tolerance | Prepared max | Margin |
+|---|---|---|---|---|
+| 1 | 145.1 | 36.3 | 134.8 | 46.6 |
+| 2 | 130.0 | 32.5 | 139.0 | 23.5 |
+| 3 | 131.6 | 32.9 | 147.7 | 16.8 |
+| 4 | 142.3 | 35.6 | 123.3 | 54.6 |
+| 5 | 141.6 | 35.4 | 131.6 | 45.4 |
+| 6 | 138.8 | 34.7 | 143.6 | 29.9 |
+| 7 | 150.9 | 37.7 | 149.8 | 38.8 |
+| 8 | 143.6 | 35.9 | 127.4 | 52.1 |
+| 9 | 142.7 | 35.7 | 139.4 | 39.0 |
+| 10 | 139.8 | 34.9 | 126.2 | 48.5 |
+
+All times are in ms. The smallest margin is 16.8 ms, against 6.0 ms at first
+paint before this card. A first set of 10 runs was discarded: the dev build had
+stopped at the missing include, so its benchmark binary predated this card.
