@@ -1267,3 +1267,28 @@ answer into `cancelled`.
   `application_first_tab_comparison` pass with no `InputBudgetFailures`. The
   worst pulse is 61.4 ms; `keyboard_line_down`, `keyboard_line_extend` and
   `keyboard_line_reveal` are 14.6, 14.6 and 17.4 ms.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner:
+- **Pass:** `application_line_draft_contract` (the only line-draft
+  application row registered here; `qt_workbench_line_draft` also passes),
+  `application_comment_range_draft_store`, `application_epoch_host`,
+  `application_feedback_draft_store`, `application_label_authoring_contract`,
+  `application_profile_window_layout_public_path`, the review-mutation rows,
+  `application_review_submission_composition_public_path`,
+  `application_thread_words_public_path`, `application_threaded_reply_contract`,
+  every `core_*` row, `application_composition_contract` (873 s) and the
+  round-trip contract.
+- **Fail, every run:** `application_private_review_host` at "private
+  compositions still require current-head right targets"
+  (`tests/sqlite_contract/private_review_host_tests.cpp:469`). v002's
+  `8671fa1f5` allows base-line comments, so `make_composition_target` now
+  accepts a left-side line where this test still expects a refusal. Reported
+  to the coordinator: should private compositions follow, with the test
+  updated, or stay right-side only?
+- **The 100 ms gates owed on an idle machine:** the optimized tests-on tree
+  (Release `-O3`), run `-j1` once idle. `application_large_review_responsiveness`
+  passes with budgets enforced and no input-budget failures: keyboard line
+  down 11.0 ms, extend 10.0 ms, reveal 11.4 ms. `application_first_tab_comparison`
+  and `application_line_draft_contract` also pass there.

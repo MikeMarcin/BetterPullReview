@@ -143,3 +143,15 @@ network-isolated runner, `-j4`:
 - **Not registered on Windows:** `gh_cli_git_smart_transport`. The batch-body
   fix is macOS-only code (`compile_gh_cli_exact_blobs_request` returns nothing
   off Apple), so nothing of it runs here.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner:
+- **Pass:** `application_epoch_host`.
+- **Fails intermittently:** `application_large_review_prepared_open` at "a
+  prepared open was no faster than every unprepared one". It failed 2 of 7
+  runs in Debug, and 1 of 6 in the optimized Release tests-on tree run idle
+  `-j1`. In a failing Debug run, prepared visible times were 88 to 133 ms
+  against unprepared 94 to 131 ms: the assertion compares two overlapping
+  distributions. This card changed preparation's batch blob reads and names
+  this row, so it is reported to the coordinator rather than called a flake.

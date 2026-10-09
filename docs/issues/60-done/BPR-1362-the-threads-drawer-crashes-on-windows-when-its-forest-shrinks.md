@@ -94,3 +94,11 @@ On `e6e3b8f67` with this change, Windows 11, MSVC 19.50,
 - **`application_thread_words_public_path`:** 5 of 5 pass
   (`--repeat until-fail:5`). Before the fix it crashed in 3 of 4 runs alone and
   5 of 5 run directly.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass: `qt_conversation_cards_view`,
+`qt_conversation_finder_scale_{100,125,200}`, `qt_github_conversation_model_property`,
+`qt_github_conversation_panel`, `qt_public_preview_conversation`,
+`qt_workbench_conversation_reveal`, `application_thread_words_public_path` and
+`application_setup_destination_public_path`.

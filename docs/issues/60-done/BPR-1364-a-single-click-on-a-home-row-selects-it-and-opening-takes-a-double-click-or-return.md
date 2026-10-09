@@ -194,3 +194,16 @@ host (pid 83554) was stopped by its process ID and the frozen root
 `/Users/jaeger/.mask/attended-review/bpr1364-home-single-click-v001.qsxvzbe2`
 was removed with `scripts/freeze_attended_build.py remove`. The session's
 state folder keeps the record. The card is Done.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass:
+- `application_attended_recent_replay`, the Home open feedback public path
+  and the personal discovery, multi-window, review restoration and setup
+  destination public paths;
+- `application_review_cycle_desktop_public_path` and
+  `application_review_cycle_publish_public_path`;
+- `application_workbench_composition_contract`, `application_composition_contract`
+  and the round-trip contract;
+- `qt_anchored_tooltips`, the composed GitHub, Home refusal, Home list, open
+  on GitHub and open review from Home scale rows, and `qt_surface_capture_course_scale_100`.

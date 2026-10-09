@@ -286,3 +286,18 @@ network-isolated runner, `-j4`:
   registered. Contained through the sandbox launcher it exits 3 with "private
   desktop root under the canonical storage policy" before any course step,
   as its `dos-volume-name` pin predicted. The pin's comment now says measured.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass:
+- `core_home_open`, `core_github_window_read`, `core_github_policy`,
+  `core_pull_request_refusal` and `core_dependency_boundary`;
+- the Home open, GitHub host and window-read host rows;
+- `application_home_open_feedback_public_path`,
+  `application_refused_first_read_public_path` and the personal discovery,
+  multi-window, review restoration and setup destination public paths;
+- `github_read_delay_fixture` and `qt_anchored_tooltips`;
+- the `qt_composed_github`, `qt_composed_home_refusal`, `qt_home_list`,
+  `qt_workbench_open_on_github`, `qt_workbench_open_review_from_home` and
+  `qt_workbench_window` scale rows;
+- `application_composition_contract` and the round-trip contract.

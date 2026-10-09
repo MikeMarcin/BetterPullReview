@@ -258,3 +258,15 @@ its right edge, as v001 left it; it needs no change.
   the criterion; then finish the card and remove the frozen root with
   `scripts/freeze_attended_build.py remove`. "Count in its own column" means
   building that look as v003. A Reject's note is the next round's change.
+
+## Linux station run (bpr-main-linux, 2026-10-09)
+
+At `fc89f79e3`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass:
+- the `qt_files_tree` and `qt_pull_request_overview` rows, including the
+  125 and 200 folder rows;
+- `qt_overview_read_marks`, `qt_workbench_overview` and the window scales;
+- `qt_composed_github` and the `qt_composed_markdown` rows;
+- `application_accepted_file_in_overview`, `application_active_changed_scaling`,
+  `application_nested_overview_folders_public_path`, `application_offline_inventory`,
+  `application_overview_double_click`, the overview summary rows and the
+  overview feedback and labels public paths.
