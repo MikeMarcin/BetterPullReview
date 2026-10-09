@@ -218,3 +218,43 @@ the owner can compare the two looks.
 - `test_folder_controls_preserve_identity_and_refresh_state`: the folder row's
   first cell holds the arrow and the count's slot; the longest folder path
   fits unelided without a count after it.
+
+**Integration.** `ctest --preset dev -j4` over 29 rows passed:
+`qt_files_tree*`, `qt_pull_request_overview*`, `qt_overview_read_marks`,
+`qt_composed_github_scale_{100,125,200}`, `qt_workbench_overview`,
+`qt_workbench_window_scale_{100,125,200}`,
+`application_nested_overview_folders_public_path`,
+`application_overview_*`, `application_accepted_file_in_overview`,
+`application_offline_inventory`, `application_active_changed_scaling` and
+`architecture_boundaries`. clang-format 22.1.8 check passed on the three
+touched C++ files. clang-tidy on the two touched translation units reports
+only the findings on older lines that v001 listed (`68f00eb15`,
+`10cd1cbb2`, `ba3c970b9`). The documentation gate printed
+`DOCUMENTATION_OK`. The Files drawer keeps its counts in their own column at
+its right edge, as v001 left it; it needs no change.
+
+## Owner look v002 — prepared 2026-10-09
+
+- Landed on main as `d2fd4de09`. Frozen root
+  `/Users/jaeger/bpr1363-folder-counts-v002.xqvwchhl`, made by
+  `scripts/freeze_attended_build.py freeze --name bpr1363-folder-counts-v002
+  --fixture nested-folders-v1 --open-pull-request --commit d2fd4de09`. It
+  opens bpr-fixtures/nested-folders#21 on its Overview. Its
+  `src/adapters/qt/src/pull_request_overview_page.cpp` is byte-identical to
+  `d2fd4de09`'s. `better_pull_review` SHA-256
+  `ea202c2423b9b6b830c9c16c50233d71a23729d8ae43fe9bd92c57762fe65880`. The
+  launcher's own check reached `ATTENDED_PULL_REQUEST_OPENED`.
+- Launch: `python3 /Users/jaeger/bpr1363-folder-counts-v002.xqvwchhl/launch.py`.
+- New short session `649d005d36464a5d6475078836069a17`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1363-folder-counts-v002/state`,
+  repo root the main checkout, host detached. The offline page is
+  `review.html` in the state directory. One choice candidate, ready at
+  event cursor 3: `BPR-1363-count-placement-v002`
+  (`BPR-1363:owner-disclosure`), options "Count before the name" (built,
+  recommended) and "Count in its own column" (rendered only). It attaches
+  both looks at 100%, on the nested-folders pull request and on counts of
+  1, 12 and 120, and the built look at 200%.
+- Next: on hand-back, read `status --after 3`. "Count before the name" closes
+  the criterion; then finish the card and remove the frozen root with
+  `scripts/freeze_attended_build.py remove`. "Count in its own column" means
+  building that look as v003. A Reject's note is the next round's change.
