@@ -62,6 +62,9 @@ namespace bpr::application {
 		/// Bodies the core parsed, and bodies it reused unread.
 		std::uint64_t BodiesParsed = 0U;
 		std::uint64_t BodiesReused = 0U;
+		/// [[BPR-1349]]. Bodies the core hashed: a reused body is proved
+		/// unchanged by its kept bytes, not by its digest.
+		std::uint64_t BodiesHashed = 0U;
 		/// Units of a new population compared with the kept one.
 		std::uint64_t UnitsCompared = 0U;
 		/// Kept tallies taken again by an observation.

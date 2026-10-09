@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -351,6 +352,64 @@ namespace {
 		differs({ "T", "p", "r", "question: Reply.", false, { .Managed = true } }, "another segment refused");
 	}
 
+	// [[BPR-1349]]. A kept annotation is reused when the observed bytes are
+	// exactly its kept bytes, proved by comparing them, never by hashing the
+	// observed body; only a recognized body is hashed.
+	void reuse_by_kept_bytes()
+	{
+		const auto             key = scope(1U);
+		std::vector<post_text> posts{
+			{ "T1", "r1", std::nullopt, "issue: Root one." },
+			{ "T1", "p1", "r1", "question: Why?" },
+			{ "T2", "r2", std::nullopt, "note: Root two." },
+		};
+		auto first = refresh({ }, key, posts);
+		expect(first.Hashed == 3U && first.Recognized.size() == 3U, "the first observation hashes each body it parses, once");
+		auto set = adopted({ }, std::move(first));
+		expect(post(set, "r1").Body && *post(set, "r1").Body == "issue: Root one.", "a post keeps the exact bytes it was read from");
+
+		auto same = refresh(set, key, posts);
+		expect(same.Reused == 3U && same.Hashed == 0U, "an unchanged observation hashes no body");
+		expect(post(same.Next, "r1").Body == post(set, "r1").Body && post(same.Next, "p1").Body == post(set, "p1").Body,
+			   "a reused post shares its kept bytes, not a copy");
+		set = adopted(set, std::move(same));
+
+		// One byte changed, the length kept: parsed again, and only it hashed.
+		posts[0].Body = "issue: Root One.";
+		auto edited   = refresh(set, key, posts);
+		expect(edited.Recognized == names{ "r1" } && edited.Reused == 2U && edited.Hashed == 1U, "one changed byte parses that body again and hashes it alone");
+		set = adopted(set, std::move(edited));
+
+		// The kept bytes decide, not the kept digest. A kept digest that no
+		// longer matches its bytes does not stop a reuse of the same bytes...
+		auto forged = set;
+		for (auto& kept : forged.Posts) {
+			if (kept.Id == "r2") {
+				kept.Annotation->BodyDigest = { };
+			}
+		}
+		const auto byBytes = refresh(forged, key, posts);
+		expect(std::ranges::find(byBytes.Recognized, "r2") == byBytes.Recognized.end() && byBytes.Hashed == 0U, "the same bytes are reused whatever the kept digest says");
+		// ...and a kept digest of the observed body does not reuse other bytes.
+		auto other = set;
+		for (auto& kept : other.Posts) {
+			if (kept.Id == "p1") {
+				kept.Annotation->BodyDigest = recognize_feedback_body("question: Why?", { }).BodyDigest;
+				kept.Body                   = std::make_shared<const std::string>("question: How?");
+			}
+		}
+		const auto byDigest = refresh(other, key, posts);
+		expect(byDigest.Recognized == names{ "p1" } && byDigest.Hashed == 1U, "other kept bytes are parsed again, though the kept digest matches");
+
+		// A deleted post keeps no bytes; brought back, it is parsed again.
+		posts[2].Deleted = true;
+		set              = adopted(set, refresh(set, key, posts));
+		expect(!post(set, "r2").Body && !post(set, "r2").Annotation, "a deleted post keeps no bytes");
+		posts[2].Deleted = false;
+		const auto back  = refresh(set, key, posts);
+		expect(back.Recognized == names{ "r2" } && back.Hashed == 1U, "a post that comes back is parsed again");
+	}
+
 	// The pack's normalized counter units, each built as a real conversation.
 	auto counter_units(const std::filesystem::path& aPack) -> std::size_t
 	{
@@ -423,6 +482,7 @@ auto main(int aArgc, char** aArgv) -> int
 	refresh_cycle();
 	scope_and_staleness();
 	repeated_pages();
+	reuse_by_kept_bytes();
 	const auto units = counter_units(aArgv[1]);
 	std::cout << "pack counter units: " << units << '\n';
 	std::cout << "FEEDBACK_CONVERSATION_OK\n";

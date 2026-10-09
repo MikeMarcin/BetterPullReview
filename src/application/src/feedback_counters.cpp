@@ -70,9 +70,11 @@ namespace bpr::application {
 		}
 
 		// The kept annotations make every unchanged body a reuse, not a parse.
-		const auto replaced      = !Observed || Annotations.Scope != aScope;
-		const auto current       = replaced ? core::feedback_annotation_set{ } : Annotations;
-		auto       refresh       = core::refresh_feedback_annotations(current, aScope, feedback_post_observations(sources));
+		// [[BPR-1349]]. Read in place, not copied: the kept bodies are shared.
+		const auto  replaced     = !Observed || Annotations.Scope != aScope;
+		const auto  none         = core::feedback_annotation_set{ };
+		const auto& current      = replaced ? none : Annotations;
+		auto        refresh      = core::refresh_feedback_annotations(current, aScope, feedback_post_observations(sources));
 		update.AnnotationRefusal = refresh.Refusal;
 		if (refresh.Refusal != core::feedback_refresh_refusal::none) {
 			return update;
@@ -81,6 +83,7 @@ namespace bpr::application {
 		update.Reused   = refresh.Reused;
 		Work.BodiesParsed += update.Reparsed;
 		Work.BodiesReused += update.Reused;
+		Work.BodiesHashed += refresh.Hashed;
 		auto adopted = core::adopt_feedback_refresh(current, std::move(refresh));
 		if (!adopted) {
 			update.AnnotationRefusal = core::feedback_refresh_refusal::invalid_scope;

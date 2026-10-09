@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -23,7 +24,7 @@
 /// reply is never promoted when the root is missing, deleted or ambiguous.
 ///
 /// The annotations are a disposable derived cache keyed by scope, post
-/// identity, body digest, user-body segment and parser revision. Nothing here
+/// identity, exact body bytes, user-body segment and parser revision. Nothing here
 /// writes to a provider or stores classification as an editable authority.
 namespace bpr::core {
 	/// \brief One accepted provider observation of one post.
@@ -51,6 +52,11 @@ namespace bpr::core {
 		feedback_body_segment      Segment;
 		/// Absent for a deleted post.
 		std::optional<feedback_annotation> Annotation;
+		/// [[BPR-1349]]. The exact bytes `Annotation` was read from, absent for
+		/// a deleted post. Immutable and shared by the successive sets that
+		/// reuse it, so a later observation is reused only when its bytes are
+		/// exactly these, and is proved so without hashing it again.
+		std::shared_ptr<const std::string> Body;
 	};
 
 	/// \brief What a conversation's root says about its counting label.
@@ -129,8 +135,8 @@ namespace bpr::core {
 	/// \brief A complete replacement of the derived set, computed against the
 	/// exact set it replaces.
 	/// \details `Recognized` names posts parsed anew because they are new or
-	/// their digest, segment or parser revision changed; every other current
-	/// post reused its annotation. `Removed` names posts no longer observed
+	/// their bytes, segment or parser revision changed; every other current
+	/// post reused its annotation, proved unchanged by its kept bytes. `Removed` names posts no longer observed
 	/// or now deleted. `ChangedConversations` names conversations whose
 	/// root, status or label changed, appeared or vanished; a reply's own
 	/// edit never appears there. After a scope replacement nothing is reused
@@ -149,6 +155,9 @@ namespace bpr::core {
 		std::vector<std::string> ChangedConversations;
 		std::size_t              Reused    = 0U;
 		std::size_t              Collapsed = 0U;
+		/// [[BPR-1349]]. Bodies this refresh hashed: one for each recognized
+		/// body, whose annotation carries its digest, and none for a reuse.
+		std::size_t Hashed = 0U;
 	};
 
 	/// \brief Recompute the set from one complete accepted observation of a

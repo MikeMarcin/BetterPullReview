@@ -1,9 +1,9 @@
 #include "bpr/core/feedback_conversation.hpp"
 
 #include "bpr/core/review_tour_markdown.hpp"
-#include "bpr/core/sha256.hpp"
 
 #include <algorithm>
+#include <memory>
 #include <ranges>
 #include <tuple>
 #include <utility>
@@ -87,14 +87,13 @@ namespace bpr::core {
 			return feedback_root_status::unclassified;
 		}
 
-		auto digest_of(std::string_view aBody) noexcept -> std::array<std::uint8_t, 32>
-		{
-			return sha256({ reinterpret_cast<const std::uint8_t*>(aBody.data()), aBody.size() });
-		}
+		/// [[BPR-1349]]. A kept annotation holds while the observed bytes are
+		/// exactly the kept ones: a comparison, where a digest would hash every
+		/// unchanged body on every observation.
 		auto reusable(const feedback_post& aPrevious, const feedback_post_observation& aObserved) -> bool
 		{
-			return !aPrevious.Deleted && aPrevious.Annotation && aPrevious.Segment == aObserved.Segment
-				&& aPrevious.Annotation->ParserRevision == feedback_parser_revision && aPrevious.Annotation->BodyDigest == digest_of(aObserved.Body);
+			return !aPrevious.Deleted && aPrevious.Annotation && aPrevious.Body && aPrevious.Segment == aObserved.Segment
+				&& aPrevious.Annotation->ParserRevision == feedback_parser_revision && *aPrevious.Body == aObserved.Body;
 		}
 		auto valid_identities(const feedback_post_observation& aPost) noexcept -> bool
 		{
@@ -275,9 +274,12 @@ namespace bpr::core {
 				}
 			} else if (prior && reusable(aCurrent.Posts[*prior], observation)) {
 				post.Annotation = aCurrent.Posts[*prior].Annotation;
+				post.Body       = aCurrent.Posts[*prior].Body;
 				++refresh.Reused;
 			} else {
 				post.Annotation = recognize_feedback_body(observation.Body, observation.Segment);
+				post.Body       = std::make_shared<const std::string>(observation.Body);
+				++refresh.Hashed;
 				refresh.Recognized.push_back(post.Id);
 			}
 			next.Posts.push_back(std::move(post));
