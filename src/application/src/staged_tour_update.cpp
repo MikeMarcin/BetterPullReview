@@ -49,11 +49,16 @@ namespace bpr::application {
 		}
 		staged_review_request result{ .Binding = *aRecord.Plan.Submission.LiveBinding };
 		if (aRecord.Patched < aRecord.Comments.size()) {
-			result.Operation = aRecord.Plan.Compatibility ? staged_review_operation::update_issue_comment : staged_review_operation::update_comment;
+			result.Operation = staged_review_operation::update_issue_comment;
 			result.Comment   = aRecord.Comments[aRecord.Patched].Id;
 			const auto id    = aRecord.Plan.Stops[aRecord.Patched].Id;
 			const auto found = std::ranges::find(aRecord.Plan.Update->Stops, id, &core::tour_stop::Id);
 			result.Body      = bodies->StopBodies[static_cast<std::size_t>(found - aRecord.Plan.Update->Stops.begin())];
+			if (!aRecord.Plan.Compatibility) {
+				// [[BPR-1368]]. Added stops are edited before their review is
+				// submitted, while GitHub's REST edit answers 404.
+				return staged_pending_edit(aRecord, std::move(result.Body));
+			}
 		} else if (!aRecord.Plan.Stops.empty() && !aRecord.Plan.Compatibility && !aRecord.DestinationsPublished) {
 			result.Operation = staged_review_operation::submit_comment;
 			result.Review    = aRecord.Review->Id;

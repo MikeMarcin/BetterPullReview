@@ -1677,7 +1677,8 @@ namespace {
 		using operation = application::staged_review_operation;
 		const std::array rows{
 			std::pair{ operation::list_reviews, "GET" }, std::pair{ operation::read_review, "GET" }, std::pair{ operation::list_comments, "GET" },
-			std::pair{ operation::create_pending, "POST" }, std::pair{ operation::update_comment, "PATCH" }, std::pair{ operation::update_summary, "PUT" }, std::pair{ operation::submit_comment, "POST" }, std::pair{ operation::discard_pending, "DELETE" }, std::pair{ operation::update_description, "PATCH" }, std::pair{ operation::list_issue_comments, "GET" }, std::pair{ operation::create_issue_comment, "POST" }, std::pair{ operation::update_issue_comment, "PATCH" }
+			std::pair{ operation::create_pending, "POST" }, std::pair{ operation::update_comment, "PATCH" }, std::pair{ operation::update_summary, "PUT" }, std::pair{ operation::submit_comment, "POST" }, std::pair{ operation::discard_pending, "DELETE" }, std::pair{ operation::update_description, "PATCH" }, std::pair{ operation::list_issue_comments, "GET" }, std::pair{ operation::create_issue_comment, "POST" }, std::pair{ operation::update_issue_comment, "PATCH" },
+			std::pair{ operation::update_pending_comment, "POST" }
 		};
 		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
 			temporary_layout            layout;
@@ -1693,8 +1694,12 @@ namespace {
 				if (staged == operation::read_review || staged == operation::list_comments || staged == operation::update_summary || staged == operation::submit_comment || staged == operation::discard_pending) {
 					semantic.Review = application::review_database_id{ 18446744073709551615ULL };
 				}
-				if (staged == operation::update_comment || staged == operation::update_issue_comment) {
+				if (staged == operation::update_comment || staged == operation::update_issue_comment || staged == operation::update_pending_comment) {
 					semantic.Comment = 18446744073709551614ULL;
+				}
+				if (staged == operation::update_pending_comment) {
+					semantic.Review      = application::review_database_id{ 18446744073709551615ULL };
+					semantic.CommentNode = "PRRC_kwDOTyvof86tA";
 				}
 				const bool write = std::string_view{ method } != "GET";
 				const bool body  = write && std::string_view{ method } != "DELETE";
@@ -1718,6 +1723,8 @@ namespace {
 				expect(std::holds_alternative<github_mutation_wire_success>(result) && witnesses == (write ? 1U : 0U), "finite staged verb dispatch consumes exact write witness");
 				const auto args = gh_arguments(*process.LastRequest);
 				expect(args[0] == "api" && args[3] == profile->hostname() && args[6] == method && process.LastRequest->StandardInput == compiled->Body, "CLI uses exact verb hostname and untouched stdin");
+				// [[BPR-1368]]. The pending stop edit, and nothing else, goes to the host's GraphQL root.
+				expect((args[1] == "graphql") == (staged == operation::update_pending_comment), "only the pending stop edit uses gh api graphql");
 				expect((std::ranges::find(args, "--input") != args.end()) == body, "only nonempty typed JSON uses --input -");
 				expect(std::ranges::none_of(args, [&](const auto& a) { return a.contains("touch /nope"); }), "shell metacharacters never enter argv or a shell");
 				expect(std::get<github_mutation_wire_success>(result).Response.Body == "{\"id\":18446744073709551615}", "normalization preserves all integer bytes");

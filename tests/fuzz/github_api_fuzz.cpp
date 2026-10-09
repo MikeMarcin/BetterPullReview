@@ -385,21 +385,22 @@ namespace {
 			using operation = application::staged_review_operation;
 			constexpr std::array ops{ operation::list_reviews, operation::read_review, operation::list_comments, operation::update_comment,
 									  operation::update_summary, operation::submit_comment, operation::discard_pending, operation::update_description,
-									  operation::list_issue_comments, operation::create_issue_comment, operation::update_issue_comment };
+									  operation::list_issue_comments, operation::create_issue_comment, operation::update_issue_comment, operation::update_pending_comment };
 			const auto           chosen = ops[(aParameter >> 4U) % ops.size()];
 			const auto           review = chosen == operation::read_review || chosen == operation::list_comments || chosen == operation::update_summary
-				|| chosen == operation::submit_comment || chosen == operation::discard_pending;
-			const auto comment = chosen == operation::update_comment || chosen == operation::update_issue_comment;
+				|| chosen == operation::submit_comment || chosen == operation::discard_pending || chosen == operation::update_pending_comment;
+			const auto comment = chosen == operation::update_comment || chosen == operation::update_issue_comment || chosen == operation::update_pending_comment;
 			const auto reads   = chosen == operation::list_reviews || chosen == operation::read_review || chosen == operation::list_comments
 				|| chosen == operation::list_issue_comments || chosen == operation::discard_pending;
 			const application::staged_review_request staged{
-				.Binding   = { .Target = mutation_target(), .ActingIdentity = mutation_identity() },
-				.Operation = chosen,
-				.Review    = application::review_database_id{ review ? 45U : 0U },
-				.Comment   = comment ? 44U : 0U,
-				.Page      = 1U,
-				.Body      = reads ? std::string{ } : std::string{ "Review summary." },
-				.Lines     = { },
+				.Binding     = { .Target = mutation_target(), .ActingIdentity = mutation_identity() },
+				.Operation   = chosen,
+				.Review      = application::review_database_id{ review ? 45U : 0U },
+				.Comment     = comment ? 44U : 0U,
+				.CommentNode = chosen == operation::update_pending_comment ? std::string{ "PRRC_fuzz_44" } : std::string{ },
+				.Page        = 1U,
+				.Body        = reads ? std::string{ } : std::string{ "Review summary." },
+				.Lines       = { },
 			};
 			fuzz::require(compile_staged_review_request(staged).has_value());
 			static_cast<void>(parse_staged_review_response(response, staged));

@@ -147,7 +147,12 @@ slots. Each journaled write consumes its own one-use child grant. Stop or an
 identity/draft change revokes remaining authority; restart reconciles read-only
 and needs an explicit preview and Resume. Compatibility comments are explicitly
 non-atomic, and an optional description edit is a separately named operation.
-These Tour operations remain unavailable on an unqualified host/transport.
+A stop edited while its review is pending goes by the fixed GraphQL mutation
+`UpdateReviewComment` (`updatePullRequestReviewComment`, by the comment's node
+ID), because GitHub.com answers the REST `PATCH /pulls/comments/{id}` 404 for a
+pending comment ([[BPR-1368]]). It is the only GraphQL write `gh api graphql`
+admits; a submitted stop is still edited through REST. These Tour operations
+remain unavailable on an unqualified host/transport.
 
 BetterPullReview does not extract or copy CLI tokens or change global CLI
 authentication. Opt-in trusts the machine's configured executable, configuration,

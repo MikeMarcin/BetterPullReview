@@ -1239,9 +1239,10 @@ namespace bpr::adapters::sqlite {
 		}
 		void staged_record_codec(detail::tour_codec& aCodec, application::staged_publication_record& aRecord)
 		{
-			std::uint64_t version = 3;
+			// [[BPR-1368]]. Version 4 adds the pending request's comment node ID.
+			std::uint64_t version = 4;
 			aCodec.number(version);
-			if (version != 1 && version != 2 && version != 3) {
+			if (version < 1 || version > 4) {
 				aCodec.Good = false;
 				return;
 			}
@@ -1286,6 +1287,9 @@ namespace bpr::adapters::sqlite {
 				aCodec.number(aRequest.Page);
 				aCodec.text(aRequest.Body);
 				aCodec.list(aRequest.Lines, application::maximum_staged_review_comments, [&](auto& aLine) {aCodec.destination(aLine.Source);aCodec.text(aLine.Body); });
+				if (version >= 4) {
+					aCodec.text(aRequest.CommentNode, 256);
+				}
 			});
 			aCodec.number(aRecord.PossiblyTransmitted);
 			if (version >= 2) {

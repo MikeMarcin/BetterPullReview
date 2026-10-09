@@ -18,7 +18,13 @@ namespace bpr::application {
 		update_description,
 		list_issue_comments,
 		create_issue_comment,
-		update_issue_comment
+		update_issue_comment,
+		/// [[BPR-1368]]. A stop's body edited while its review is pending.
+		/// GitHub's REST `PATCH /pulls/comments/{id}` answers 404 for such a
+		/// comment (MikeMarcin/BPR-Test#45), so this is the fixed GraphQL
+		/// `updatePullRequestReviewComment` mutation, addressed by the
+		/// comment's node ID. A submitted comment keeps `update_comment`.
+		update_pending_comment
 	};
 	inline constexpr std::size_t   maximum_staged_review_comments = 100;
 	inline constexpr std::uint32_t maximum_staged_review_pages    = 10;
@@ -32,11 +38,13 @@ namespace bpr::application {
 	/// Review/Comment identify already observed objects. This record grants no authority.
 	struct staged_review_request
 	{
-		review_submission_live_binding  Binding;
-		staged_review_operation         Operation = staged_review_operation::list_reviews;
-		review_database_id              Review;
-		std::uint64_t                   Comment = 0;
-		std::uint32_t                   Page    = 1;
+		review_submission_live_binding Binding;
+		staged_review_operation        Operation = staged_review_operation::list_reviews;
+		review_database_id             Review;
+		std::uint64_t                  Comment = 0;
+		/// [[BPR-1368]]. The node ID of `Comment`, for `update_pending_comment` only.
+		std::string                     CommentNode;
+		std::uint32_t                   Page = 1;
 		std::string                     Body;
 		std::vector<staged_review_line> Lines;
 		auto                            operator==(const staged_review_request&) const -> bool = default;

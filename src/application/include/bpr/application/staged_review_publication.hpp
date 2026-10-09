@@ -75,6 +75,10 @@ namespace bpr::application {
 	[[nodiscard]] auto valid_staged_transition(const std::optional<staged_publication_record>& aBefore, const staged_publication_record& aAfter) -> bool;
 	[[nodiscard]] auto staged_initial_request(const staged_review_plan& aPlan) -> std::optional<staged_review_request>;
 	[[nodiscard]] auto staged_next_request(const staged_publication_record& aRecord) -> std::optional<staged_review_request>;
+	/// \brief [[BPR-1368]]. The edit of the record's next unpatched comment,
+	/// `aRecord.Comments[aRecord.Patched]`, while its own review is still
+	/// pending: GraphQL, by the comment's node ID, never REST.
+	[[nodiscard]] auto staged_pending_edit(const staged_publication_record& aRecord, std::string aBody) -> staged_review_request;
 	[[nodiscard]] auto staged_final_bodies(const staged_publication_record& aRecord) -> std::optional<std::pair<std::string, std::vector<std::string>>>;
 }
 #endif

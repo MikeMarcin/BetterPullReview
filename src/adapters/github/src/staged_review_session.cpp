@@ -433,7 +433,7 @@ namespace bpr::adapters::github::detail {
 				return state::conflict;
 			}
 			auto expected = aRecord.Comments;
-			if (aRecord.Pending->Operation == operation::update_comment) {
+			if (aRecord.Pending->Operation == operation::update_comment || aRecord.Pending->Operation == operation::update_pending_comment) {
 				if (review != *aRecord.Review) {
 					return state::conflict;
 				}

@@ -520,18 +520,19 @@ namespace {
 	{
 		using operation = review_mutation_operation;
 		switch (aOperation) {
-		case operation::staged_list_reviews:         return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1", "" };
-		case operation::staged_read_review:          return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
-		case operation::staged_list_comments:        return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/comments?per_page=100&page=1", "" };
-		case operation::staged_create_pending:       return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "" };
-		case operation::staged_update_comment:       return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/pulls/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/comments/44", "" };
-		case operation::staged_update_summary:       return request_shape{ http_method::put, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
-		case operation::staged_submit_comment:       return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/events", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/events", "" };
-		case operation::staged_discard_pending:      return request_shape{ http_method::delete_, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
-		case operation::staged_update_description:   return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
-		case operation::staged_list_issue_comments:  return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1", "" };
-		case operation::staged_create_issue_comment: return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/issues/1/comments", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments", "" };
-		case operation::staged_update_issue_comment: return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/issues/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/issues/comments/44", "" };
+		case operation::staged_list_reviews:           return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews?per_page=100&page=1", "" };
+		case operation::staged_read_review:            return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
+		case operation::staged_list_comments:          return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/comments?per_page=100&page=1", "" };
+		case operation::staged_create_pending:         return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews", "" };
+		case operation::staged_update_comment:         return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/pulls/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/comments/44", "" };
+		case operation::staged_update_summary:         return request_shape{ http_method::put, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
+		case operation::staged_submit_comment:         return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/events", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45/events", "" };
+		case operation::staged_discard_pending:        return request_shape{ http_method::delete_, "/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/reviews/45", "" };
+		case operation::staged_update_description:     return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
+		case operation::staged_list_issue_comments:    return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments?per_page=100&page=1", "" };
+		case operation::staged_create_issue_comment:   return request_shape{ http_method::post, "/repos/MikeMarcin/BPR-Test/issues/1/comments", "/api/v3/repos/MikeMarcin/BPR-Test/issues/1/comments", "" };
+		case operation::staged_update_issue_comment:   return request_shape{ http_method::patch, "/repos/MikeMarcin/BPR-Test/issues/comments/44", "/api/v3/repos/MikeMarcin/BPR-Test/issues/comments/44", "" };
+		case operation::staged_update_pending_comment: return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UpdateReviewComment" };
 		case operation::observe_pull_request:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1", "" };
 		case operation::observe_viewer:
@@ -594,10 +595,14 @@ namespace {
 		if (aOperation == op::read_review || aOperation == op::list_comments || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::discard_pending) {
 			result.Review = application::review_database_id{ 45 };
 		}
-		if (aOperation == op::update_comment || aOperation == op::update_issue_comment) {
+		if (aOperation == op::update_comment || aOperation == op::update_issue_comment || aOperation == op::update_pending_comment) {
 			result.Comment = 44;
 		}
-		if (aOperation == op::create_pending || aOperation == op::update_comment || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::update_description || aOperation == op::create_issue_comment || aOperation == op::update_issue_comment) {
+		if (aOperation == op::update_pending_comment) {
+			result.Review      = application::review_database_id{ 45 };
+			result.CommentNode = "PRRC_fixture_44";
+		}
+		if (aOperation == op::create_pending || aOperation == op::update_comment || aOperation == op::update_summary || aOperation == op::submit_comment || aOperation == op::update_description || aOperation == op::create_issue_comment || aOperation == op::update_issue_comment || aOperation == op::update_pending_comment) {
 			result.Body = "Raw **tour** `$(literal)`";
 		}
 		if (aOperation == op::create_pending) {
@@ -656,6 +661,7 @@ namespace {
 			compile_staged_review_request(staged_request(application::staged_review_operation::list_issue_comments, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::create_issue_comment, serverTarget)),
 			compile_staged_review_request(staged_request(application::staged_review_operation::update_issue_comment, serverTarget)),
+			compile_staged_review_request(staged_request(application::staged_review_operation::update_pending_comment, serverTarget)),
 
 		};
 	}
@@ -698,6 +704,7 @@ namespace {
 			row{ operation::staged_list_issue_comments, http_method::get, false, 200, false },
 			row{ operation::staged_create_issue_comment, http_method::post, false, 201, true },
 			row{ operation::staged_update_issue_comment, http_method::patch, false, 200, true },
+			row{ operation::staged_update_pending_comment, http_method::post, true, 200, true },
 
 		};
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
@@ -1478,7 +1485,7 @@ namespace {
 		input                    = staged_request(op::create_pending);
 		input.Lines.front().Body = std::string(maximum_review_mutation_body_bytes, 'x');
 		expect(!compile_staged_review_request(input), "serialized overhead counts toward body bound");
-		for (auto operation : { op::update_comment, op::update_summary, op::submit_comment, op::discard_pending }) {
+		for (auto operation : { op::update_comment, op::update_summary, op::submit_comment, op::discard_pending, op::update_pending_comment }) {
 			auto request    = staged_request(operation);
 			request.Comment = 0;
 			request.Review  = application::review_database_id{ };
@@ -1602,6 +1609,76 @@ namespace {
 		page          = parse_review_comment_collection(response, target());
 		expect(page && page->Comments.size() == 1 && !staged_review_comments(page->Comments, request), "an outdated comment is well formed in the collection but not a tour comment");
 		test_review_comment_collection_pages();
+	}
+
+	// [[BPR-1368]]. A stop edited while its review is pending goes by the
+	// fixed GraphQL mutation, addressed by the comment's node ID: GitHub's
+	// REST edit answers 404 for it (MikeMarcin/BPR-Test#45). Its answer must
+	// name the REST comment and review the tour holds, still pending.
+	[[nodiscard]] auto pending_edit_answer(const std::string_view aNode, const std::string_view aDatabase, const std::string_view aReview, const std::string_view aState, const std::string_view aBody, const std::string_view aPullRequest) -> std::string
+	{
+		return std::string{ R"({"data":{"updatePullRequestReviewComment":{"pullRequestReviewComment":{"id":")" } + std::string{ aNode } + R"(","fullDatabaseId":")" + std::string{ aDatabase }
+		+ R"(","url":"https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r44","body":)" + std::string{ aBody } + R"(,"state":")" + std::string{ aState }
+		+ R"(","viewerDidAuthor":true,"author":{"login":"fixture-reviewer","databaseId":22,"id":"MDQ6VXNlcjIy"},"pullRequestReview":{"id":"PRR_45","fullDatabaseId":")" + std::string{ aReview }
+		+ R"("},"pullRequest":{"id":")" + std::string{ aPullRequest } + R"(","databaseId":4246446933,"number":1,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}}}}}})";
+	}
+	void test_a_pending_stop_is_edited_by_graphql()
+	{
+		using op           = application::staged_review_operation;
+		const auto request = staged_request(op::update_pending_comment);
+		const auto wire    = compile_staged_review_request(request);
+		expect(wire && wire->Operation == review_mutation_operation::staged_update_pending_comment && wire->Method == http_method::post && wire->Path == "/graphql"
+				   && wire->Body == R"({"query":"mutation UpdateReviewComment($comment:ID!,$body:String!){updatePullRequestReviewComment(input:{pullRequestReviewCommentId:$comment,body:$body}){pullRequestReviewComment{id fullDatabaseId url body state viewerDidAuthor author{login ... on User{databaseId id}} pullRequestReview{id fullDatabaseId} pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}","variables":{"comment":"PRRC_fixture_44","body":"Raw **tour** `$(literal)`"}})"
+				   && validate_outbound_review_mutation_request(*wire).has_value(),
+			   "a pending stop edit is the fixed GraphQL mutation, by node ID, with the raw body as a variable");
+		auto ghes             = target();
+		ghes.ServerContract   = application::github_server_contract::ghes_3_18_2022_11_28;
+		ghes.Hostname         = application::github_canonical_hostname{ "ghe.example.com" };
+		const auto enterprise = compile_staged_review_request(staged_request(op::update_pending_comment, ghes));
+		expect(enterprise && enterprise->Path == "/api/graphql", "GHES sends it to its own GraphQL root");
+		auto tampered = *wire;
+		tampered.Body.replace(tampered.Body.find("pullRequestReview{"), 18, "repository{id} pullRequestReview{");
+		expect(!validate_outbound_review_mutation_request(tampered).has_value(), "an altered document is refused at the wire");
+		tampered      = *wire;
+		tampered.Path = "/repos/MikeMarcin/BPR-Test/pulls/comments/44";
+		expect(!validate_outbound_review_mutation_request(tampered).has_value(), "the pending edit never takes the REST path");
+		for (const auto* node : { "", "PRRC \"x", "PRRC\"x" }) {
+			auto bad        = request;
+			bad.CommentNode = node;
+			expect(!compile_staged_review_request(bad), "a missing or unsafe node ID is refused");
+		}
+		auto noReview   = request;
+		noReview.Review = application::review_database_id{ };
+		expect(!compile_staged_review_request(noReview), "the pending edit names the review its answer must match");
+		auto restWithNode        = staged_request(op::update_comment);
+		restWithNode.CommentNode = "PRRC_fixture_44";
+		expect(!compile_staged_review_request(restWithNode), "a node ID rides only the GraphQL edit");
+		auto empty = request;
+		empty.Body.clear();
+		expect(!compile_staged_review_request(empty), "an empty body is refused");
+
+		const auto body     = std::string{ R"("Raw **tour** `$(literal)`")" };
+		auto       response = review_mutation_wire_response{ .Status = 200, .Body = pending_edit_answer("PRRC_fixture_44", "44", "45", "PENDING", body, "PR_kwDOTyvof879G6NV") };
+		const auto observed = parse_staged_review_response(response, request);
+		expect(observed && observed->Comments.size() == 1U && observed->Comments.front().Id == 44U && observed->Comments.front().NodeId == "PRRC_fixture_44" && observed->Comments.front().Review.value() == 45U
+				   && observed->Comments.front().Body == request.Body && !observed->Comments.front().Source && observed->Comments.front().WebUrl == "https://github.com/MikeMarcin/BPR-Test/pull/1#discussion_r44",
+			   "GitHub's answer names the comment, its review and its pull request");
+		for (const auto& wrong : {
+				 pending_edit_answer("PRRC_other", "44", "45", "PENDING", body, "PR_kwDOTyvof879G6NV"),
+				 pending_edit_answer("PRRC_fixture_44", "43", "45", "PENDING", body, "PR_kwDOTyvof879G6NV"),
+				 pending_edit_answer("PRRC_fixture_44", "44", "46", "PENDING", body, "PR_kwDOTyvof879G6NV"),
+				 pending_edit_answer("PRRC_fixture_44", "44", "45", "SUBMITTED", body, "PR_kwDOTyvof879G6NV"),
+				 pending_edit_answer("PRRC_fixture_44", "44", "45", "PENDING", R"("Website text")", "PR_kwDOTyvof879G6NV"),
+				 pending_edit_answer("PRRC_fixture_44", "44", "45", "PENDING", body, "PR_other"),
+			 }) {
+			response.Body = wrong;
+			expect(!parse_staged_review_response(response, request), "another comment, review, state, body or pull request is refused");
+		}
+		response.Body = R"({"data":{"updatePullRequestReviewComment":null},"errors":[{"type":"NOT_FOUND","message":"x"}]})";
+		expect(!parse_staged_review_response(response, request), "a GraphQL error is not an edit");
+		response.Body   = pending_edit_answer("PRRC_fixture_44", "44", "45", "PENDING", body, "PR_kwDOTyvof879G6NV");
+		response.Status = 404;
+		expect(!parse_staged_review_response(response, request), "only 200 is an answer");
 	}
 
 	// [[BPR-1212]]. A comment on several lines sends GitHub's multi-line
@@ -1792,6 +1869,7 @@ auto main() -> int
 		   "semantic fixtures retain explicit null and signed, fractional and exact unsigned numbers");
 	test_staged_batch_contract();
 	test_staged_response_contract();
+	test_a_pending_stop_is_edited_by_graphql();
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_a_range_sends_githubs_multi_line_fields();
 	test_a_base_line_sends_side_left();

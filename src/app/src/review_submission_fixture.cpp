@@ -190,6 +190,26 @@ namespace bpr::app::detail {
 			auto repository() const -> std::string { return std::string{ Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "/repos/" : "/api/v3/repos/" } + Binding.Target.Repository.Owner + "/" + Binding.Target.Repository.Name; }
 			auto api() const -> std::string { return Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "https://api.github.com" : "https://" + std::string{ Binding.Target.Hostname.value() }; }
 			auto pull() const -> std::string { return repository() + "/pulls/" + std::to_string(Binding.Target.Number.value()); }
+			auto graphql() const -> std::string { return Binding.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? "/graphql" : "/api/graphql"; }
+			/// [[BPR-1368]]. A comment of the review while it is pending, which
+			/// GitHub's REST `/pulls/comments/{id}` does not find, to read or edit.
+			auto pending_comment(const std::string& aPath) const -> bool
+			{
+				return State->StagedReview && State->StagedReview->State == application::staged_review_state::pending
+					&& std::ranges::any_of(State->StagedComments, [&](const application::staged_review_comment& aComment) { return aPath == repository() + "/pulls/comments/" + std::to_string(aComment.Id); });
+			}
+			static auto not_found() -> wire::github_mutation_wire_completion
+			{
+				return wire::github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = wire::github_mutation_transmission::indeterminate, .HttpStatus = 404U };
+			}
+			/// [[BPR-1368]]. GitHub's answer to the review comment edit.
+			auto edit_json(const application::staged_review_comment& aComment) const -> std::string
+			{
+				const auto& t       = Binding.Target;
+				const auto  pending = State->StagedReview && State->StagedReview->Id == aComment.Review && State->StagedReview->State == application::staged_review_state::pending;
+				const auto  a       = actor();
+				return "{\"data\":{\"updatePullRequestReviewComment\":{\"pullRequestReviewComment\":{\"id\":" + json_text(aComment.NodeId) + ",\"fullDatabaseId\":\"" + std::to_string(aComment.Id) + "\",\"url\":" + json_text(aComment.WebUrl) + ",\"body\":" + json_text(aComment.Body) + ",\"state\":\"" + (pending ? "PENDING" : "SUBMITTED") + "\",\"viewerDidAuthor\":true,\"author\":{\"login\":" + json_text(a.Login) + ",\"databaseId\":" + std::to_string(a.DatabaseId) + ",\"id\":" + json_text(a.NodeId) + "},\"pullRequestReview\":{\"id\":\"PRR_" + std::to_string(aComment.Review.value()) + "\",\"fullDatabaseId\":\"" + std::to_string(aComment.Review.value()) + "\"},\"pullRequest\":{\"id\":" + json_text(t.PullRequestNodeId) + ",\"databaseId\":" + std::to_string(t.PullRequestDatabaseId) + ",\"number\":" + std::to_string(t.Number.value()) + ",\"repository\":{\"id\":" + json_text(t.RepositoryNodeId) + ",\"databaseId\":" + std::to_string(t.RepositoryDatabaseId) + ",\"nameWithOwner\":" + json_text(t.Repository.Owner + "/" + t.Repository.Name) + "}}}}}}";
+			}
 			auto user_json() const -> std::string
 			{
 				const auto a = actor();
@@ -319,6 +339,9 @@ namespace bpr::app::detail {
 					if (w.Path == issuePath + "?per_page=100&page=1") {
 						return success(comments_json(State->CompatibilityComments));
 					}
+					if (pending_comment(w.Path)) {
+						return not_found();
+					}
 					// [[BPR-1345]] [[BPR-1367]]. The pull request's collection, as
 					// the submission session and the tour read it: every
 					// submitted review's comments, each naming its review, with
@@ -359,8 +382,14 @@ namespace bpr::app::detail {
 				if (w.Path == pull() && State->StagedRejectDescription) {
 					return wire::github_mutation_wire_success{ .Response = { .Status = 403, .Body = "{}" } };
 				}
-				const auto object = QJsonDocument::fromJson(QByteArray::fromStdString(w.Body)).object();
-				const auto body   = object["body"].toString().toStdString();
+				const auto  object = QJsonDocument::fromJson(QByteArray::fromStdString(w.Body)).object();
+				const auto  body   = object["body"].toString().toStdString();
+				std::string answer = "{}";
+				if (pending_comment(w.Path)) {
+					// [[BPR-1368]]. GitHub answers a REST edit of a pending
+					// review's comment 404 (MikeMarcin/BPR-Test#45).
+					return not_found();
+				}
 				if (w.Method == wire::http_method::post && w.Path == pull() + "/reviews" && object.contains("event")) {
 					// [[BPR-1345]]. An ordinary review that carries line comments:
 					// created whole, its comments in it, or refused whole.
@@ -431,6 +460,27 @@ namespace bpr::app::detail {
 				} else if (w.Method == wire::http_method::post && w.Path == issuePath) {
 					const auto id = 701 + State->CompatibilityComments.size();
 					State->CompatibilityComments.push_back({ id, "IC_" + std::to_string(id), root() + "#issuecomment-" + std::to_string(id), actor(), { }, { }, body, false });
+				} else if (w.Method == wire::http_method::post && w.Path == graphql()) {
+					// [[BPR-1368]]. The fixed mutation that edits a review
+					// comment by its node ID, pending or submitted.
+					const auto variables = object["variables"].toObject();
+					const auto node      = variables["comment"].toString().toStdString();
+					if (!object["query"].toString().startsWith(QStringLiteral("mutation UpdateReviewComment(")) || object.size() != 2 || variables.size() != 2) {
+						return wire::github_mutation_wire_error{ };
+					}
+					application::staged_review_comment* edited = nullptr;
+					for (auto* comments : { &State->StagedComments, &State->PreviousComments }) {
+						for (auto& c : *comments) {
+							if (c.NodeId == node) {
+								edited = &c;
+							}
+						}
+					}
+					if (edited == nullptr) {
+						return wire::github_mutation_wire_error{ };
+					}
+					edited->Body = variables["body"].toString().toStdString();
+					answer       = edit_json(*edited);
 				} else if (w.Method == wire::http_method::patch && w.Path == pull()) {
 					State->StagedDescription = body;
 				} else if (w.Method == wire::http_method::patch) {
@@ -470,7 +520,7 @@ namespace bpr::app::detail {
 					State->StagedWait.wait(lock, stop, [&] { return !State->StagedBlocked; });
 					State->StagedBlocked = false;
 				}
-				return success("{}");
+				return success(answer);
 			}
 		};
 		class staged_fixture_provider final : public application::review_submission_port

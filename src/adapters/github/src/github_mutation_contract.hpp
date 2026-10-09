@@ -60,6 +60,9 @@ namespace bpr::adapters::github::detail {
 		staged_list_issue_comments,
 		staged_create_issue_comment,
 		staged_update_issue_comment,
+		/// [[BPR-1368]]. GraphQL: a tour stop edited while its review is
+		/// pending, where the REST edit answers 404.
+		staged_update_pending_comment,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -258,7 +261,8 @@ namespace bpr::adapters::github::detail {
 		TValue,
 		review_mutation_contract_failure>;
 
-	/// \brief Compiles only the finite exact-identity staged review REST catalog.
+	/// \brief Compiles only the finite exact-identity staged review catalog:
+	/// REST, and the one fixed GraphQL pending stop edit ([[BPR-1368]]).
 	[[nodiscard]] auto compile_staged_review_request(const application::staged_review_request& aRequest)
 		-> review_mutation_request_result;
 	/// \brief Validates authority, returned IDs/URLs, raw bodies and exact bounded pagination.

@@ -140,6 +140,21 @@ namespace bpr::adapters::github::detail {
 			"viewerDidAuthor author{login ... on User{databaseId id}}}}}}}"
 		};
 
+		/// [[BPR-1368]]. A tour stop's body edited while its review is
+		/// pending. GitHub's REST edit and read of such a comment
+		/// (`/pulls/comments/{id}`) answer 404; this mutation edits it
+		/// (MikeMarcin/BPR-Test#45). The answer names the comment's database
+		/// identity, its review and its pull request, so the node ID the
+		/// request was addressed by is tied back to the REST identities the
+		/// tour holds. `fullDatabaseId` is a string-encoded `BigInt`.
+		constexpr auto update_review_comment_document = std::string_view{
+			"mutation UpdateReviewComment($comment:ID!,$body:String!){"
+			"updatePullRequestReviewComment(input:{pullRequestReviewCommentId:$comment,body:$body}){"
+			"pullRequestReviewComment{id fullDatabaseId url body state viewerDidAuthor "
+			"author{login ... on User{databaseId id}} pullRequestReview{id fullDatabaseId} "
+			"pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+		};
+
 		[[nodiscard]] auto graphql_token(const std::string_view aValue) noexcept -> bool
 		{
 			return !aValue.empty() && aValue.size() <= 256U
@@ -463,6 +478,29 @@ namespace bpr::adapters::github::detail {
 					"variables", &resolution_query_json::Variables);
 			};
 		};
+		// [[BPR-1368]]. The pending stop edit's envelope, outbound.
+		struct update_comment_variables_json
+		{
+			std::string_view Comment;
+			std::string_view Body;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"comment", &update_comment_variables_json::Comment,
+					"body", &update_comment_variables_json::Body);
+			};
+		};
+		struct update_comment_query_json
+		{
+			std::string_view              Query;
+			update_comment_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"query", &update_comment_query_json::Query,
+					"variables", &update_comment_query_json::Variables);
+			};
+		};
 		struct reply_commit_json
 		{
 			std::string Oid;
@@ -692,6 +730,68 @@ namespace bpr::adapters::github::detail {
 			struct glaze
 			{
 				static constexpr auto value = glz::object("data", &thread_comments_response_json::Data);
+			};
+		};
+		// [[BPR-1368]]. The pending stop edit's answer. The author's
+		// identities exist only on the `User` fragment.
+		struct update_comment_review_json
+		{
+			std::string Id;
+			std::string FullDatabaseId;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &update_comment_review_json::Id,
+					"fullDatabaseId", &update_comment_review_json::FullDatabaseId);
+			};
+		};
+		struct update_comment_node_json
+		{
+			std::string                Id;
+			std::string                FullDatabaseId;
+			std::string                Url;
+			std::string                Body;
+			std::string                State;
+			bool                       ViewerDidAuthor = false;
+			thread_comment_author_json Author;
+			update_comment_review_json PullRequestReview;
+			thread_pull_request_json   PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &update_comment_node_json::Id,
+					"fullDatabaseId", &update_comment_node_json::FullDatabaseId,
+					"url", &update_comment_node_json::Url,
+					"body", &update_comment_node_json::Body,
+					"state", &update_comment_node_json::State,
+					"viewerDidAuthor", &update_comment_node_json::ViewerDidAuthor,
+					"author", &update_comment_node_json::Author,
+					"pullRequestReview", &update_comment_node_json::PullRequestReview,
+					"pullRequest", &update_comment_node_json::PullRequest);
+			};
+		};
+		struct update_comment_payload_json
+		{
+			update_comment_node_json Comment;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequestReviewComment", &update_comment_payload_json::Comment);
+			};
+		};
+		struct update_comment_data_json
+		{
+			update_comment_payload_json Update;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("updatePullRequestReviewComment", &update_comment_data_json::Update);
+			};
+		};
+		struct update_comment_response_json
+		{
+			update_comment_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &update_comment_response_json::Data);
 			};
 		};
 		struct resolution_payload_json
@@ -1774,8 +1874,24 @@ namespace bpr::adapters::github::detail {
 		if (!application::valid(aRequest.Binding) || !valid_server(target.ServerContract) || !utf8_round_trip(aRequest.Body)
 			|| aRequest.Body.size() > maximum_review_mutation_body_bytes || aRequest.Page == 0 || aRequest.Page > application::maximum_staged_review_pages
 			|| (aRequest.Operation != staged_operation::create_pending && !aRequest.Lines.empty())
-			|| (!staged_list(aRequest.Operation) && aRequest.Page != 1)) {
+			|| (!staged_list(aRequest.Operation) && aRequest.Page != 1)
+			|| (aRequest.Operation != staged_operation::update_pending_comment && !aRequest.CommentNode.empty())) {
 			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aRequest.Operation == staged_operation::update_pending_comment) {
+			// [[BPR-1368]]. The one GraphQL operation of the catalog: the fixed
+			// document, addressed by the comment's node ID, with the REST
+			// review and comment identities its answer must name.
+			if (!aRequest.Review.value() || !aRequest.Comment || !graphql_token(aRequest.CommentNode) || aRequest.Body.empty()) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			auto body = glz::write<review_json_options{ }>(update_comment_query_json{ .Query = update_review_comment_document, .Variables = { .Comment = aRequest.CommentNode, .Body = aRequest.Body } });
+			if (!body || body->size() > maximum_review_mutation_body_bytes) {
+				return failed(review_mutation_contract_failure::response_limit);
+			}
+			auto headers = common_headers();
+			headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+			return review_mutation_wire_request{ .Semantic = aRequest, .Server = target.ServerContract, .Operation = review_mutation_operation::staged_update_pending_comment, .Method = http_method::post, .Path = std::string{ graphql_path(target.ServerContract) }, .Headers = std::move(headers), .Body = std::move(*body) };
 		}
 		auto                      headers        = common_headers();
 		auto                      path           = pull_request_path(target, target.ServerContract);
@@ -1946,6 +2062,28 @@ namespace bpr::adapters::github::detail {
 			}
 			return result;
 		}
+		if (aExpected.Operation == staged_operation::update_pending_comment) {
+			// [[BPR-1368]]. The edited comment is the one addressed, in the
+			// review and pull request expected, still pending, mine, with the
+			// body sent.
+			const auto answer = document<update_comment_response_json>(aResponse);
+			if (!answer) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			const auto& comment = answer->Data.Update.Comment;
+			const auto& target  = aExpected.Binding.Target;
+			const auto& who     = aExpected.Binding.ActingIdentity;
+			if (comment.Id != aExpected.CommentNode || comment.FullDatabaseId != std::to_string(aExpected.Comment)
+				|| comment.PullRequestReview.FullDatabaseId != std::to_string(aExpected.Review.value())
+				|| comment.Url != staged_web_root(target) + "#discussion_r" + std::to_string(aExpected.Comment)
+				|| comment.Body != aExpected.Body || comment.State != "PENDING" || !comment.ViewerDidAuthor
+				|| comment.Author.Login != who.Login || comment.Author.DatabaseId != std::optional{ who.DatabaseId } || comment.Author.Id != std::optional{ who.NodeId }
+				|| !binds_designated_pull_request(comment.PullRequest, target)) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			result.Comments.push_back(application::staged_review_comment{ .Id = aExpected.Comment, .NodeId = comment.Id, .WebUrl = comment.Url, .Actor = { who.DatabaseId, who.NodeId, who.Login }, .Review = aExpected.Review, .Body = comment.Body });
+			return result;
+		}
 		const bool comments = aExpected.Operation == staged_operation::list_comments || aExpected.Operation == staged_operation::update_comment;
 		if (comments) {
 			std::optional<std::vector<staged_comment_json>> objects;
@@ -2008,6 +2146,8 @@ namespace bpr::adapters::github::detail {
 			return review_mutation_exchange{ .Method = http_method::patch, .Witnessed = true };
 		case operation::staged_discard_pending:
 			return review_mutation_exchange{ .Method = http_method::delete_, .Witnessed = true };
+		case operation::staged_update_pending_comment:
+			return review_mutation_exchange{ .Method = http_method::post, .Graphql = true, .Witnessed = true };
 		case operation::observe_pull_request:
 		case operation::observe_viewer:
 		case operation::observe_review_comments:

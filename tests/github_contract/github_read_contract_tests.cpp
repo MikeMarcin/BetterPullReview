@@ -1090,6 +1090,7 @@ namespace {
 				 "ReplyToThread",
 				 "ResolveThread",
 				 "UnresolveThread",
+				 "UpdateReviewComment",
 			 }) {
 			const auto result = read_operation_from_name(mutation);
 			expect(

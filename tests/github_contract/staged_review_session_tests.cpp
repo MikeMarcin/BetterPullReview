@@ -3,6 +3,10 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
+#if defined(__APPLE__)
+	#include "gh_cli_transport.hpp"
+	#include "github_cli_process_runner.hpp"
+#endif
 
 #include <QFile>
 #include <QJsonArray>
@@ -16,6 +20,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -166,10 +171,12 @@ namespace {
 		bool        Created = false, Submitted = false, ReadFailure = false, WrongActor = false, WrongHead = false, Extra = false, Duplicate = false, EarlySubmit = false;
 		/// [[BPR-1367]]. The pull request's collection opens with a full page
 		/// of other people's comments; or reports the second stop a line off.
-		bool                                               CollectionNoise = false, WrongLine = false;
-		std::size_t                                        CollectionReads = 0, CollectionPageTwoReads = 0;
-		std::size_t                                        Writes = 0, Creates = 0, Submits = 0;
-		std::string                                        Summary, Description = "Original description.";
+		bool        CollectionNoise = false, WrongLine = false;
+		std::size_t CollectionReads = 0, CollectionPageTwoReads = 0;
+		std::size_t Writes = 0, Creates = 0, Submits = 0;
+		/// [[BPR-1368]]. Pending stop edits by GraphQL, and REST edits GitHub refused.
+		std::size_t                                        GraphqlEdits = 0, RestPendingEdits = 0;
+		std::string                                        Summary, Description               = "Original description.";
 		std::array<std::string, 2>                         Bodies;
 		std::vector<std::string>                           IssueBodies;
 		std::filesystem::path                              Root;
@@ -215,6 +222,22 @@ namespace {
 		auto collection_json() const -> std::string
 		{
 			return Submitted || EarlySubmit ? "[" + comment_json(1, 501, true) + "," + comment_json(0, 501, true) + "]" : "[]";
+		}
+		/// [[BPR-1368]]. A comment of the review while it is pending, which
+		/// GitHub's REST `/pulls/comments/{id}` does not find.
+		auto pending_comment_path(const std::string& aPath) const -> bool
+		{
+			return Created && !Submitted && !EarlySubmit && (aPath == "/repos/MikeMarcin/BPR-Test/pulls/comments/601" || aPath == "/repos/MikeMarcin/BPR-Test/pulls/comments/602");
+		}
+		static auto not_found() -> github_mutation_wire_completion
+		{
+			return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = 404U };
+		}
+		/// [[BPR-1368]]. GitHub's answer to the pending stop edit.
+		auto edit_json(std::size_t aIndex) const -> std::string
+		{
+			const auto id = std::to_string(601 + aIndex);
+			return "{\"data\":{\"updatePullRequestReviewComment\":{\"pullRequestReviewComment\":{\"id\":\"PRRC_" + id + "\",\"fullDatabaseId\":\"" + id + "\",\"url\":" + json_quote(std::string{ Web } + "#discussion_r" + id) + ",\"body\":" + json_quote(Bodies[aIndex]) + ",\"state\":\"PENDING\",\"viewerDidAuthor\":true,\"author\":{\"login\":\"fixture-reviewer\",\"databaseId\":22,\"id\":\"MDQ6VXNlcjIy\"},\"pullRequestReview\":{\"id\":\"PRR_501\",\"fullDatabaseId\":\"501\"},\"pullRequest\":{\"id\":\"PR_kwDOTyvof879G6NV\",\"databaseId\":4246446933,\"number\":1,\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}}}}}";
 		}
 		auto issues_json() const -> std::string
 		{
@@ -315,6 +338,9 @@ namespace {
 				if (Duplicate && wire.Path == std::string{ Pull } + "/reviews/502/comments?per_page=100&page=1") {
 					return ok("[" + comment_json(1, 502) + "," + comment_json(0, 502) + "]");
 				}
+				if (pending_comment_path(wire.Path)) {
+					return not_found();
+				}
 				expect(false, "fixture answers only independently named read endpoints");
 			}
 			const auto index = Writes;
@@ -335,7 +361,8 @@ namespace {
 				ReadFailure = true;
 				return github_mutation_wire_error{ };
 			}
-			const auto json = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
+			const auto  json   = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
+			std::string answer = "{}";
 			if (wire.Method == http_method::post && wire.Path == "/repos/MikeMarcin/BPR-Test/issues/1/comments") {
 				expect(!Created && json.size() == 1, "explicit compatibility never creates a native review");
 				const auto body = json["body"].toString().toStdString();
@@ -363,12 +390,29 @@ namespace {
 				Created = true;
 				++Creates;
 				Summary = json["body"].toString().toStdString();
+			} else if (pending_comment_path(wire.Path)) {
+				// [[BPR-1368]]. GitHub answers a REST edit of a pending
+				// review's comment 404 (MikeMarcin/BPR-Test#45).
+				++RestPendingEdits;
+				return not_found();
 			} else if (wire.Method == http_method::patch && (wire.Path == "/repos/MikeMarcin/BPR-Test/pulls/comments/601" || wire.Path == "/repos/MikeMarcin/BPR-Test/pulls/comments/602")) {
-				expect(Created && (!Submitted || Maintenance) && json.size() == 1, "only owned body is edited under exact pending or maintenance plan");
+				expect(Created && Submitted && Maintenance && json.size() == 1, "only a submitted owned body is edited through REST, under the exact maintenance plan");
 				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
 				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "#discussion_r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation");
 				Bodies[i] = body;
+			} else if (wire.Method == http_method::post && wire.Path == "/graphql") {
+				// [[BPR-1368]]. The pending stop edit: the fixed mutation, by
+				// the comment's node ID, while the review is pending.
+				const auto variables = json["variables"].toObject();
+				const auto node      = variables["comment"].toString();
+				expect(Created && !Submitted && json.size() == 2 && variables.size() == 2 && json["query"].toString().startsWith("mutation UpdateReviewComment($comment:ID!,$body:String!){updatePullRequestReviewComment(") && (node == "PRRC_601" || node == "PRRC_602"), "a pending stop is edited only by the fixed GraphQL mutation, by its node ID");
+				const std::size_t i    = node == "PRRC_601" ? 0 : 1;
+				const auto        body = variables["body"].toString().toStdString();
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "#discussion_r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation");
+				Bodies[i] = body;
+				++GraphqlEdits;
+				answer = edit_json(i);
 			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews/501/events") {
 				expect(Created && !Submitted && json["event"] == "COMMENT" && json.size() == 2, "only exact review receives COMMENT once");
 				expect(Bodies[0].contains("#discussion_r602") && Bodies[1].contains("#discussion_r601"), "all navigation edits precede submit");
@@ -399,7 +443,7 @@ namespace {
 				ReadFailure = true;
 				return github_mutation_wire_error{ };
 			}
-			return ok("{}"); // Session must reconcile server reads, never trust a write response.
+			return ok(answer); // Session must reconcile server reads, never trust a write response.
 		}
 	};
 	struct scratch
@@ -433,6 +477,7 @@ namespace {
 			const auto result = provider->publish_tour(plan(), { }, [](const auto&) { return true; });
 			expect(result.State == publication_state::published && result.Record && result.Record->DescriptionDone, "exact batch and optional description finish");
 			expect(remote.Writes == 5 && remote.Creates == 1 && remote.Submits == 1, "one create, two patches, one submit, one separate description update");
+			expect(remote.GraphqlEdits == 2 && remote.RestPendingEdits == 0, "both pending stops are edited by GraphQL, neither through the REST edit GitHub refuses");
 			expect(provider->publish_tour(plan(), { }, [](const auto&) { return true; }).State == publication_state::published && remote.Writes == 5, "completed receipt never replays effects");
 			provider.reset();
 			provider = session(remote, root.Path);
@@ -629,6 +674,174 @@ namespace {
 			expect(result.State == publication_state::conflict && remote.Writes == 5, "remote body/actor/head drift refuses maintenance before write");
 		}
 	}
+#if defined(__APPLE__)
+	// [[BPR-1368]]. One native two-stop tour published on the owner's
+	// designated live target, MikeMarcin/BPR-Test, by the production session
+	// over the production `gh api` transport: create pending, edit both stops
+	// while pending, submit. Run by hand: `--live-tour DIR` reads the pull
+	// request a probe script made into DIR/state.env and writes what it
+	// published to DIR/result.env. Not registered as a row: it writes to
+	// GitHub. Every answer's `X-RateLimit-Remaining` is read, and no request
+	// leaves once one reports fewer than 500.
+	struct live_state
+	{
+		std::map<std::string, std::string> Values;
+		explicit live_state(const std::filesystem::path& aFolder)
+		{
+			std::ifstream input{ aFolder / "state.env" };
+			for (std::string line; std::getline(input, line);) {
+				const auto equals = line.find('=');
+				if (equals != std::string::npos) {
+					Values.emplace(line.substr(0U, equals), line.substr(equals + 1U));
+				}
+			}
+			expect(Values.contains("number") && Values.contains("head") && Values.contains("gh"), "the live probe's state is read");
+		}
+		[[nodiscard]] auto text(const char* aKey) const -> std::string { return Values.at(aKey); }
+		[[nodiscard]] auto number(const char* aKey) const -> std::uint64_t { return std::stoull(Values.at(aKey)); }
+	};
+	struct live_relay final : github_mutation_wire_transport
+	{
+		github_mutation_wire_transport& Inner;
+		std::ofstream                   Log;
+		std::size_t                     Calls = 0, PendingEdits = 0, ParsedEdits = 0, RestPendingEdits = 0;
+		long                            Lowest    = 5000;
+		bool                            Exhausted = false;
+		live_relay(github_mutation_wire_transport& aInner, const std::filesystem::path& aFolder)
+			: Inner{ aInner }
+			, Log{ aFolder / "requests.log" }
+		{ }
+		auto perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token aStop, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		{
+			if (Exhausted) {
+				return github_mutation_wire_error{ };
+			}
+			const auto& wire = aRequest.Wire;
+			if (wire.Operation == review_mutation_operation::staged_update_comment && wire.Method == http_method::patch) {
+				++RestPendingEdits;
+			}
+			auto result = Inner.perform_review_mutation(aRequest, aStop, std::move(aWitness));
+			++Calls;
+			Log << static_cast<int>(wire.Operation) << ' ' << static_cast<int>(wire.Method) << ' ' << wire.Path;
+			if (const auto* success = std::get_if<github_mutation_wire_success>(&result)) {
+				Log << ' ' << success->Response.Status;
+				for (const auto& header : success->Response.Headers) {
+					auto name = header.Name;
+					std::ranges::transform(name, name.begin(), [](unsigned char aCharacter) { return static_cast<char>(std::tolower(aCharacter)); });
+					if (name == "x-ratelimit-remaining") {
+						Log << " remaining=" << header.Value;
+						Lowest    = std::min(Lowest, std::stol(header.Value));
+						Exhausted = Exhausted || Lowest < 500;
+					}
+				}
+				if (wire.Operation == review_mutation_operation::staged_update_pending_comment) {
+					++PendingEdits;
+					// The production parser holds GitHub's own answer to the
+					// edit to what the contract expects of it.
+					if (parse_staged_review_response(success->Response, std::get<application::staged_review_request>(wire.Semantic))) {
+						++ParsedEdits;
+					} else {
+						Log << " unparsed:" << success->Response.Body;
+					}
+				}
+			} else if (const auto* error = std::get_if<github_mutation_wire_error>(&result)) {
+				Log << " error http=" << error->HttpStatus;
+			} else {
+				Log << " cancelled";
+			}
+			Log << '\n';
+			Log.flush();
+			return result;
+		}
+	};
+	void live_tour(const std::filesystem::path& aFolder)
+	{
+		const live_state state{ aFolder };
+		const auto       profile = adapters::github::validate_github_host_profile({
+			.Profile        = credential_context().Authority.Profile,
+			.Host           = target().Semantic.Host,
+			.Revision       = credential_context().Authority.ProfileRevision,
+			.Server         = application::github_server_contract::github_com_2022_11_28,
+			.Authentication = application::github_authentication_transport::github_cli,
+			.Proxy          = application::github_proxy_mode::system,
+			.Trust          = application::github_trust_mode::system,
+			.Provenance     = adapters::github::github_profile_provenance::builtin,
+			.Hostname       = "github.com",
+			.RestRoot       = "https://api.github.com",
+			.GraphqlRoot    = "https://api.github.com/graphql",
+		});
+		expect(profile.has_value(), "the live gh profile validates");
+		std::filesystem::create_directory(aFolder / "neutral");
+		const auto configuration = validate_gh_cli_configuration({ .Executable = state.text("gh"), .NeutralWorkingDirectory = aFolder / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = state.text("home") }, .Https = { } });
+		expect(configuration.has_value(), "the live gh configuration validates");
+		auto             process = make_github_cli_process_runner();
+		gh_cli_transport transport{ *profile, *configuration, *process };
+		live_relay       relay{ transport, aFolder };
+
+		auto binding                     = target();
+		binding.Number                   = core::pull_request_number{ static_cast<std::uint32_t>(state.number("number")) };
+		binding.Semantic.ExpectedHead    = *core::parse_git_commit_oid(state.text("head"));
+		binding.BaseOid                  = *core::parse_git_commit_oid(state.text("base"));
+		binding.HeadRef                  = state.text("head_ref");
+		binding.BaseRef                  = state.text("base_ref");
+		binding.RepositoryDatabaseId     = state.number("repo_id");
+		binding.BaseRepositoryDatabaseId = state.number("repo_id");
+		binding.RepositoryNodeId         = state.text("repo_node");
+		binding.PullRequestDatabaseId    = state.number("pr_id");
+		binding.PullRequestNodeId        = state.text("pr_node");
+		auto actor                       = identity();
+		actor.DatabaseId                 = state.number("user_id");
+		actor.NodeId                     = state.text("user_node");
+		actor.Login                      = state.text("login");
+		live_review_mutation_configuration live{ .CredentialContext = credential_context(), .Target = binding, .ActingIdentity = actor };
+
+		auto input                       = plan();
+		input.Submission.LiveBinding     = application::review_submission_live_binding{ .Target = binding, .ActingIdentity = actor };
+		input.Submission.Proposal.Target = binding.Semantic;
+		input.Submission.Proposal.Body   = "BPR-1368 live check: a two-stop native tour, both stops edited while pending.";
+		input.Submission.IdempotencyKey  = "bpr-1368-live-tour";
+		input.Description.reset();
+		const auto path           = state.text("path");
+		const auto blob           = "https://github.com/MikeMarcin/BPR-Test/blob/";
+		input.Stops[0].Source     = { .Commit = binding.Semantic.ExpectedHead, .Path = path, .Side = core::diff_side::right, .FirstLine = 8, .LastLine = 10 };
+		input.Stops[0].Title      = "Added lines";
+		input.Stops[0].Narrative  = "Three lines the head adds.";
+		input.Stops[0].SourceLink = blob + state.text("head") + "/" + path + "#L9-L11";
+		input.Stops[1].Source     = { .Commit = binding.BaseOid, .Path = path, .Side = core::diff_side::left, .FirstLine = 4, .LastLine = 4 };
+		input.Stops[1].Title      = "Removed line";
+		input.Stops[1].Narrative  = "The base line the head removes.";
+		input.Stops[1].SourceLink = blob + state.text("base") + "/" + path + "#L5";
+		expect(application::valid(input), "the live tour plan is valid");
+
+		auto opened = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aFolder, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = static_cast<std::int64_t>(state.number("number")) });
+		expect(opened.has_value(), "the live tour journal opens");
+		review_submission_session session{ relay, live, std::make_shared<lease>(), std::move(*opened) };
+		const auto                result = session.publish_tour(input, { }, [](const auto&) { return true; });
+
+		std::ofstream out{ aFolder / "result.env" };
+		out << "state=" << static_cast<int>(result.State) << "\ncalls=" << relay.Calls << "\nlowest=" << relay.Lowest << "\npending_edits=" << relay.PendingEdits << "\nparsed_edits=" << relay.ParsedEdits << "\nrest_pending_edits=" << relay.RestPendingEdits << '\n';
+		if (result.Record && result.Record->Review) {
+			out << "review=" << result.Record->Review->Id.value() << '\n';
+			for (std::size_t i = 0; i < result.Record->Comments.size(); ++i) {
+				out << "comment" << i << '=' << result.Record->Comments[i].Id << '\n';
+			}
+			const auto bodies = application::staged_final_bodies(*result.Record);
+			if (bodies) {
+				out << "summary_sha=" << std::hash<std::string>{ }(bodies->first) << '\n';
+				for (std::size_t i = 0; i < bodies->second.size(); ++i) {
+					std::ofstream body{ aFolder / ("stop" + std::to_string(i) + ".md"), std::ios::binary };
+					body << bodies->second[i];
+				}
+				std::ofstream summary{ aFolder / "summary.md", std::ios::binary };
+				summary << bodies->first;
+			}
+		}
+		out.flush();
+		expect(result.State == publication_state::published, "the live two-stop tour is published");
+		expect(relay.PendingEdits == 2 && relay.ParsedEdits == 2 && relay.RestPendingEdits == 0, "both stops were edited by GraphQL while pending, and GitHub's answers parse");
+		std::cout << "live-tour:pass\n";
+	}
+#endif
 	void checkpoint(const std::filesystem::path& aRoot, const std::string& aPhase)
 	{
 		{
@@ -644,6 +857,14 @@ namespace {
 }
 auto main(int argc, char** argv) -> int
 try {
+	if (argc == 3 && std::string_view{ argv[1] } == "--live-tour") {
+#if defined(__APPLE__)
+		live_tour(argv[2]);
+		return EXIT_SUCCESS;
+#else
+		expect(false, "the live tour runs on macOS");
+#endif
+	}
 	if (argc == 3) {
 		const std::string           phase = argv[1];
 		const std::filesystem::path root  = argv[2];

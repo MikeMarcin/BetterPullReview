@@ -146,6 +146,11 @@ namespace bpr::application {
 		}
 		return result;
 	}
+	auto staged_pending_edit(const staged_publication_record& aRecord, std::string aBody) -> staged_review_request
+	{
+		const auto& comment = aRecord.Comments[aRecord.Patched];
+		return { .Binding = *aRecord.Plan.Submission.LiveBinding, .Operation = staged_review_operation::update_pending_comment, .Review = aRecord.Review->Id, .Comment = comment.Id, .CommentNode = comment.NodeId, .Body = std::move(aBody) };
+	}
 	auto staged_next_request(const staged_publication_record& aRecord) -> std::optional<staged_review_request>
 	{
 		if (aRecord.Plan.Compatibility && aRecord.Comments.size() < aRecord.Plan.Stops.size()) {
@@ -166,7 +171,10 @@ namespace bpr::application {
 			result.Operation = staged_review_operation::create_issue_comment;
 			result.Body      = bodies->first;
 		} else if (aRecord.Patched < aRecord.Comments.size()) {
-			result.Operation = aRecord.Plan.Compatibility ? staged_review_operation::update_issue_comment : staged_review_operation::update_comment;
+			if (!aRecord.Plan.Compatibility) {
+				return staged_pending_edit(aRecord, bodies->second[aRecord.Patched]);
+			}
+			result.Operation = staged_review_operation::update_issue_comment;
 			result.Comment   = aRecord.Comments[aRecord.Patched].Id;
 			result.Body      = bodies->second[aRecord.Patched];
 		} else if (!aRecord.Published) {
@@ -318,6 +326,7 @@ namespace bpr::application {
 				expected.Published = expected.Patched == expected.Comments.size();
 				break;
 			case staged_review_operation::update_comment:
+			case staged_review_operation::update_pending_comment:
 				expected.Comments[expected.Patched].Body = aBefore->Pending->Body;
 				++expected.Patched;
 				break;

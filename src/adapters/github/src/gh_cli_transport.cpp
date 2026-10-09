@@ -1495,7 +1495,7 @@ namespace bpr::adapters::github::detail {
 			}
 		},
 										   aRequest.Wire.Semantic);
-		// Only the finite admitted REST mutation catalog may use this route.
+		// Only the finite admitted mutation catalog may use this route.
 		// [[BPR-0896]]. A reply's reconciliation observes its thread at the
 		// GraphQL root too. This transport never writes a reply, so its own
 		// writes never need it; a reply attempt written through another
@@ -1508,18 +1508,19 @@ namespace bpr::adapters::github::detail {
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments) {
 			return github_mutation_wire_error{ };
 		}
-		const auto prefix = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28
-			? std::string_view{ "/" }
-			: std::string_view{ "/api/v3/" };
-		if (!aRequest.Wire.Path.starts_with(prefix)) {
-			return github_mutation_wire_error{ };
-		}
-		const auto endpoint = aRequest.Wire.Path.substr(prefix.size());
-		if (!safe_relative_endpoint(endpoint)) {
-			return github_mutation_wire_error{ };
-		}
+		const auto githubCom = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28;
+		const auto prefix    = githubCom ? std::string_view{ "/" } : std::string_view{ "/api/v3/" };
+		// [[BPR-1368]]. The one GraphQL write admitted here is a tour stop
+		// edited while its review is pending, sent to `gh api graphql`, which
+		// names the host's own GraphQL root.
+		const auto graphql  = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment;
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
-		if (!exchange || exchange->Graphql) {
+		if (!exchange || exchange->Graphql != graphql
+			|| (graphql ? aRequest.Wire.Path != (githubCom ? "/graphql" : "/api/graphql") : !aRequest.Wire.Path.starts_with(prefix))) {
+			return github_mutation_wire_error{ };
+		}
+		const auto endpoint = graphql ? std::string{ "graphql" } : aRequest.Wire.Path.substr(prefix.size());
+		if (!safe_relative_endpoint(endpoint)) {
 			return github_mutation_wire_error{ };
 		}
 		std::string method;
