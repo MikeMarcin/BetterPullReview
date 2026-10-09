@@ -296,3 +296,7 @@ each present. It fails at "a refresh at the bottom stays at the bottom",
 then was reverted. Linux passes. A macOS re-run of `qt_pull_request_overview_page`
 is owed, and if a later card finds the extra first-present pixel, it can
 tighten the bottom check back to an exact value.
+
+macOS re-run (coordinator, 2026-10-09): at `e89025cfc`,
+`qt_pull_request_overview_page` and the chips scale 125 and 200 rows pass on
+macOS arm64. Every variant prints `value=47->46 maximum=47->46 chip=kept`.

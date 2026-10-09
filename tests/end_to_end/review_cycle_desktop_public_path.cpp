@@ -42,6 +42,7 @@
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextEdit>
 #include <QTextLayout>
 #include <QToolBar>
 #include <QToolButton>
@@ -56,10 +57,12 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 /// \file
 /// \brief The real workbench window with the real local-cycle composition
@@ -534,17 +537,69 @@ try {
 	// Return makes a note where the caret is and Shift+Return suggests a
 	// change there. No window shortcut claims either key, so the window's own
 	// keys never shadow them.
+	// A key bound to one widget ([[BPR-1342]]: Home's row list reads its own
+	// Shift+Return) is not a window shortcut. It is set aside and checked
+	// below: it must never fire from a text field.
+	const auto claimsReturn = [](const QAction& aAction) {
+		return std::ranges::any_of(aAction.shortcuts(), [](const QKeySequence& aKey) {
+			const auto bare = aKey[0].key();
+			return aKey.count() == 1 && (bare == Qt::Key_Return || bare == Qt::Key_Enter) && (aKey[0].keyboardModifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
+		});
+	};
+	auto scopedReturn = std::vector<QAction*>{ };
 	for (auto* const action : window.findChildren<QAction*>()) {
-		for (const auto& key : action->shortcuts()) {
-			const auto bare = key[0].key();
-			expect(key.count() != 1 || (bare != Qt::Key_Return && bare != Qt::Key_Enter) || (key[0].keyboardModifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) != Qt::NoModifier,
-				   "no window shortcut claims Return or Shift+Return");
+		if (!claimsReturn(*action)) {
+			continue;
+		}
+		if (action->shortcutContext() == Qt::WidgetShortcut || action->shortcutContext() == Qt::WidgetWithChildrenShortcut) {
+			scopedReturn.push_back(action);
+			continue;
+		}
+		std::cerr << "action " << action->objectName().toStdString() << " claims Return or Shift+Return for the window\n";
+		expect(false, "no window shortcut claims Return or Shift+Return");
+	}
+	auto scopedFired = 0;
+	for (auto* const action : scopedReturn) {
+		for (auto* const owner : action->associatedObjects()) {
+			const auto* const widget = qobject_cast<const QWidget*>(owner);
+			expect(widget == nullptr
+					   || (qobject_cast<const QLineEdit*>(widget) == nullptr && qobject_cast<const QTextEdit*>(widget) == nullptr && qobject_cast<const QPlainTextEdit*>(widget) == nullptr
+						   && widget != code && !widget->isAncestorOf(code)),
+				   "a widget-scoped Return key belongs to no text field and does not hold the code");
+		}
+		QObject::connect(action, &QAction::triggered, &window, [&scopedFired] { ++scopedFired; });
+	}
+	// A text field of the window, or one of the test's own on the page when
+	// none is shown.
+	auto* field = static_cast<QLineEdit*>(nullptr);
+	for (auto* const candidate : window.findChildren<QLineEdit*>()) {
+		if (candidate->isVisible()) {
+			field = candidate;
+			break;
 		}
 	}
+	auto scratchField = std::unique_ptr<QLineEdit>{ };
+	if (field == nullptr) {
+		scratchField = std::make_unique<QLineEdit>(page);
+		scratchField->show();
+		field = scratchField.get();
+	}
+	expect(!scopedReturn.empty(), "Home's row list keeps its own Shift+Return");
+	field->setFocus();
+	QApplication::processEvents();
+	expect(QApplication::focusWidget() == field, "a text field has focus");
+	tests::window_system_key(*field, Qt::Key_Return, Qt::ShiftModifier, QStringLiteral("\r"));
+	tests::window_system_key(*field, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+	expect(scopedFired == 0, "Return and Shift+Return in a text field fire no widget-scoped Return key");
+	scratchField.reset();
+	code->setFocus();
+	QApplication::processEvents();
+	expect(QApplication::focusWidget() == code, "focus returns to the code");
 	code->select_bytes(36U, 36U);
 	tests::window_system_key(*code, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
 	expect(page->comment_editor()->isVisible() && QApplication::focusWidget() == page->comment_editor() && page->findChild<QLabel*>(QStringLiteral("cycleCommentTarget"))->text() == QStringLiteral("src/parser.cpp · line 3"),
 		   "Return in the reading pane opens a note on the caret's line");
+	expect(scopedFired == 0, "Return in the reading pane fires no widget-scoped Return key");
 	capture(window, QStringLiteral("desktop-cycle-return-note"));
 	// [[BPR-1157]]. The owner's request with native-keyboard v002 (event 806):
 	// Escape, and Control-C on macOS, cancel the open note or suggestion. Qt

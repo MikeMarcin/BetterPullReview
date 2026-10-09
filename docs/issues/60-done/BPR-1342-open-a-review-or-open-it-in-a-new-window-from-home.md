@@ -237,3 +237,29 @@ The card is Done.
 The session's candidate was released (`resume-development --all`, event 6).
 The host was already stopped. The frozen root
 `/Users/jaeger/.mask/attended-review/bpr1342-open-review-v001` was deleted.
+
+## The Review Cycles shortcut walk (bpr-main-linux, 2026-10-09)
+
+`application_review_cycle_desktop_public_path` failed on main at "no window
+shortcut claims Return or Shift+Return". This card's row menu gives
+`homeRecentResumeAction` a `Qt::WidgetShortcut` ⇧Return on Home's list
+(`workbench_window.cpp`). The test walked every `QAction` of the window
+regardless of shortcut context, but a key bound to one widget is not a window
+shortcut. Test-only fix in `tests/end_to_end/review_cycle_desktop_public_path.cpp`:
+- **The walk:** it still refuses any window- or application-scoped Return or
+  Shift+Return. `Qt::WidgetShortcut` and `Qt::WidgetWithChildrenShortcut`
+  actions are set aside.
+- **Set-aside actions (two found, `homeRecentResumeAction` among them):** each
+  must be bound to no text field (line edit, text edit, plain text edit), and
+  not to the code view or a widget holding it.
+- **Keystrokes:** Return and Shift+Return typed in a text field, and Return
+  in the reading pane, must fire none of them.
+
+Controls, each reverted:
+- Binding the action to the code view fails "a widget-scoped Return key
+  belongs to no text field and does not hold the code".
+- Making it window-scoped did not make the keystroke check fail, because a
+  line edit claims Return itself. The structural check is the guard against
+  that regression; the keystroke check is kept as a smoke test.
+
+Linux passes.
