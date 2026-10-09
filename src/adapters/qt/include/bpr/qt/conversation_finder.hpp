@@ -4,11 +4,13 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
 #include <QColor>
 #include <QFont>
+#include <QPointer>
 #include <QRect>
 #include <QString>
 #include <QWidget>
@@ -26,6 +28,7 @@
 class QAbstractButton;
 class QLineEdit;
 class QListView;
+class QMenu;
 class QStackedWidget;
 
 /// \file
@@ -36,7 +39,9 @@ class QStackedWidget;
 /// conversation projection the Comments drawer reads, the ledger's read state
 /// and [[BPR-1087]]'s label lists, and decides nothing about any of them: a
 /// pick is reported, and the window turns it into the file selection and the
-/// thread opening that already exist.
+/// thread opening that already exist. [[BPR-1356]]: a pick names the
+/// destination its gesture asked for, Review or Discuss, and the core
+/// decides where it opens.
 namespace bpr::qt {
 	/// \brief The outline beside a branch row: one cell per level.
 	enum class finder_connector : std::uint8_t {
@@ -162,8 +167,11 @@ namespace bpr::qt {
 		auto operator==(const finder_location&) const -> bool = default;
 	};
 
-	/// \brief A pick: the conversation and the post to open it at.
-	using finder_pick_dispatch = std::function<void(const finder_location&)>;
+	/// \brief A pick: the conversation, the post to open it at, and where the
+	/// gesture asked for it ([[BPR-1356]]): a click, Return and Open in
+	/// Review ask for Review; the row's Discuss button, Shift+Return and Open
+	/// in Discuss ask for Discuss.
+	using finder_pick_dispatch = std::function<void(const finder_location&, core::workbench_thread_destination)>;
 
 	class finder_model;
 	class finder_list;
@@ -221,6 +229,20 @@ namespace bpr::qt {
 		/// \brief A row's rectangle and one bead's, in the list's viewport.
 		[[nodiscard]] auto row_rect(const std::string& aRowKey) const -> QRect;
 		[[nodiscard]] auto bead_rect(const std::string& aRowKey, const std::string& aPost) const -> QRect;
+		/// \brief [[BPR-1356]]. The row's Discuss button, in the list's
+		/// viewport, while it shows: on the row under the pointer and on the
+		/// cursor's row, never on a file's header or my draft. Empty otherwise.
+		[[nodiscard]] auto discuss_button_rect(const std::string& aRowKey) const -> QRect;
+		/// \brief [[BPR-1356]]. The row menu while it is open, or null: Open in
+		/// Review, the default, and Open in Discuss, each showing its key. It
+		/// and its items are made for each opening and go when it closes, as
+		/// the code's menu does, so its keys are never a window's.
+		[[nodiscard]] auto row_menu() const noexcept -> QMenu*;
+		[[nodiscard]] auto open_in_review_action() const noexcept -> QAction*;
+		[[nodiscard]] auto open_in_discuss_action() const noexcept -> QAction*;
+		/// \brief Opens the row menu for one row at a point of the list's
+		/// viewport, the post under the point picked when it is a bead.
+		void popup_row_menu(const std::string& aRowKey, QPoint aPosition);
 		/// \brief How many conversations each label counts among those shown.
 		[[nodiscard]] auto label_counts() const -> std::map<core::feedback_label, std::size_t>;
 		/// \brief The accessible text of one row.
@@ -263,7 +285,9 @@ namespace bpr::qt {
 		void               refresh_bar();
 		void               refresh_colours();
 		void               open_label_menu();
-		void               pick(std::size_t aItem, std::optional<std::size_t> aBead);
+		void               pick(std::size_t aItem, std::optional<std::size_t> aBead, core::workbench_thread_destination aDestination);
+		[[nodiscard]] auto discuss_shown(std::size_t aItem) const -> bool;
+		void               popup_menu(std::size_t aItem, std::optional<std::size_t> aBead, QPoint aGlobal);
 		void               toggle_fold(const QString& aPath);
 		void               move_bead(int aStep);
 		void               show_preview(std::size_t aItem, std::size_t aPost, const QRect& aBead);
@@ -305,6 +329,14 @@ namespace bpr::qt {
 		int                                Bead = -1;
 		std::optional<std::size_t>         HoveredItem;
 		std::optional<std::size_t>         HoveredBead;
+		/// [[BPR-1356]]. The pointer is on the hovered row's Discuss button.
+		bool HoveredDiscuss = false;
+		/// [[BPR-1356]]. The row menu, and the row and post it was opened on.
+		QPointer<QMenu>            RowMenu;
+		QPointer<QAction>          OpenReview;
+		QPointer<QAction>          OpenDiscuss;
+		std::string                MenuRow;
+		std::optional<std::size_t> MenuBead;
 
 		finder_pick_dispatch  PickDispatch;
 		std::function<void()> LeaveDispatch;

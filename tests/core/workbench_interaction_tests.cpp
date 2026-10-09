@@ -1560,6 +1560,43 @@ namespace {
 		static_cast<void>(enter(preset, workbench_modality::threads));
 		expect(preset.ConversationsDrawer == closed, "Conversations does not open the Comments drawer");
 	}
+
+	/// [[BPR-1356]]. A thread found in Threads: Review with Comments open,
+	/// or Discuss with exactly the filters that would hide it cleared; my
+	/// draft, which Discuss does not list, opens in Review and says why.
+	auto test_a_thread_routes_to_review_or_discuss() -> void
+	{
+		const auto review = route_workbench_thread(open_workbench_thread_intent{ });
+		expect(review == workbench_thread_route{ .Modality = workbench_modality::review, .OpenComments = true },
+			   "a click or Return opens the thread in Review with Comments open");
+		const auto hidingAll = workbench_discuss_filters{ .OtherFile = true, .OnlyNew = true, .HideResolved = true, .Listing = true };
+		expect(route_workbench_thread(open_workbench_thread_intent{ .Hiding = hidingAll }).Clear == workbench_discuss_filters{ },
+			   "Review clears none of Discuss's filters");
+
+		const auto discuss = route_workbench_thread(open_workbench_thread_intent{ .Destination = workbench_thread_destination::discuss });
+		expect(discuss == workbench_thread_route{ .Modality = workbench_modality::discuss },
+			   "Discuss with nothing hiding the thread changes no filter and opens no drawer");
+		expect(!discuss.Clear.any(), "and clears nothing");
+		for (const auto& hiding : { workbench_discuss_filters{ .OtherFile = true }, workbench_discuss_filters{ .OnlyNew = true },
+									workbench_discuss_filters{ .HideResolved = true }, workbench_discuss_filters{ .Listing = true },
+									workbench_discuss_filters{ .OnlyNew = true, .HideResolved = true }, hidingAll }) {
+			const auto route = route_workbench_thread(open_workbench_thread_intent{ .Destination = workbench_thread_destination::discuss, .Hiding = hiding });
+			expect(route.Modality == workbench_modality::discuss && route.Clear == hiding && route.Clear.any() && !route.OpenComments
+					   && route.Reason == workbench_thread_route_reason::none,
+				   "Discuss clears exactly the filters that would hide the thread");
+		}
+
+		const auto draft = route_workbench_thread(open_workbench_thread_intent{
+			.Destination = workbench_thread_destination::discuss,
+			.Draft       = true,
+			.Hiding      = workbench_discuss_filters{ .OtherFile = true },
+		});
+		expect(draft.Modality == workbench_modality::review && draft.OpenComments && !draft.Clear.any()
+				   && draft.Reason == workbench_thread_route_reason::draft_opens_in_review,
+			   "my draft asked for in Discuss opens in Review, says why and clears nothing");
+		expect(route_workbench_thread(open_workbench_thread_intent{ .Draft = true }).Reason == workbench_thread_route_reason::none,
+			   "my draft asked for in Review opens there with no reason");
+	}
 } // namespace
 
 int main()
@@ -1582,5 +1619,6 @@ int main()
 	test_review_remembers_its_arrangement();
 	test_drawers_hide_and_show_exactly();
 	test_conversations_changes_no_drawer();
+	test_a_thread_routes_to_review_or_discuss();
 	return EXIT_SUCCESS;
 }

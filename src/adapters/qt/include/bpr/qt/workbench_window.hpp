@@ -473,6 +473,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1293]]. Opens a conversation on a file in Review, named
 		/// by its root or any of its posts; false for one that is not on a file.
 		auto reveal_conversation_in_review(const std::string& aIdentity) -> bool;
+		/// \brief [[BPR-1356]]. Opens a thread picked in Threads where the core
+		/// routes it: the pick's destination, the thread's facts and the
+		/// filters Discuss would hide it with go to
+		/// `core::route_workbench_thread`, and the window performs the route.
+		/// False when the window has no such thread.
+		auto open_thread_from_threads(const std::string& aThread, const std::string& aPost, core::workbench_thread_destination aDestination) -> bool;
 		/// \brief [[BPR-1293]]. Threads, the pull request's finder page.
 		[[nodiscard]] auto finder() const noexcept -> conversation_finder*;
 		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
@@ -1481,6 +1487,9 @@ namespace bpr::qt {
 		void resume_conversation_pick();
 		/// \brief [[BPR-1293]]. Tells the finder where Review is.
 		void present_finder_reading();
+		/// \brief [[BPR-1356]]. Discuss with the route's filters cleared and
+		/// the thread's card open at \p aPost, selected, in view and focused.
+		auto open_conversation_in_discuss(const std::string& aThread, const std::string& aPost, const core::workbench_discuss_filters& aClear) -> bool;
 		// [[BPR-0661]]. The preference rows and what honours them.
 		void build_behaviour_editor(QWidget* aPage, QVBoxLayout* aColumn);
 		void apply_behaviour_controls();
@@ -1845,11 +1854,14 @@ namespace bpr::qt {
 			std::optional<core::file_comparison_digest> Before;
 		};
 		std::optional<conversation_pick> PendingPick;
-		QVBoxLayout*                     ConversationLayout = nullptr;
-		QScrollArea*                     ComposeReviewPage  = nullptr;
-		QScrollArea*                     ComposeInlinePage  = nullptr;
-		QWidget*                         CompositionPage    = nullptr;
-		QPointer<QWidget>                CompositionReturnFocus;
+		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
+		/// cleared, until the reviewer changes one or picks again.
+		bool              ThreadsRevealNotice = false;
+		QVBoxLayout*      ConversationLayout  = nullptr;
+		QScrollArea*      ComposeReviewPage   = nullptr;
+		QScrollArea*      ComposeInlinePage   = nullptr;
+		QWidget*          CompositionPage     = nullptr;
+		QPointer<QWidget> CompositionReturnFocus;
 		/// [[BPR-1212]]. Discuss's composer column, which shows one of the
 		/// two composition pages beside the conversations.
 		QWidget* DiscussComposer = nullptr;

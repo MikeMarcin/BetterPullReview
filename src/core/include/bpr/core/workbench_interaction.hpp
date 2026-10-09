@@ -579,6 +579,88 @@ namespace bpr::core {
 		workbench_interaction_state&        aState,
 		const workbench_interaction_intent& aIntent)
 		-> workbench_interaction_output;
+
+	/// \brief [[BPR-1356]]. Where a thread found in Threads is asked to open.
+	///
+	/// \details A click or Return asks for Review, as [[BPR-1293]] built it.
+	/// The row's Discuss button, Shift+Return and the row menu's Open in
+	/// Discuss ask for Discuss.
+	enum class workbench_thread_destination : std::uint8_t {
+		review,
+		discuss,
+	};
+
+	/// \brief [[BPR-1356]]. Discuss's filters, each set when it would hide
+	/// one thread.
+	///
+	/// \details The host observes Discuss's own state, whether or not Discuss
+	/// shows, against one thread. `OtherFile` is the File scope on a file the
+	/// thread is not on; `OnlyNew` is Only new on a thread with nothing new;
+	/// `HideResolved` is Hide resolved on a resolved thread; `Listing` is an
+	/// Overview count's list ([[BPR-1089]]) that leaves the thread out. As a
+	/// decision the same record names the filters to clear.
+	struct workbench_discuss_filters
+	{
+		bool OtherFile    = false;
+		bool OnlyNew      = false;
+		bool HideResolved = false;
+		bool Listing      = false;
+
+		[[nodiscard]] constexpr auto any() const noexcept -> bool
+		{
+			return OtherFile || OnlyNew || HideResolved || Listing;
+		}
+
+		auto operator<=>(const workbench_discuss_filters&) const = default;
+	};
+
+	/// \brief [[BPR-1356]]. Opens one thread found in Threads.
+	struct open_workbench_thread_intent
+	{
+		workbench_thread_destination Destination = workbench_thread_destination::review;
+		/// My unpublished comment: it is written beside its line, in Review's
+		/// notes, and Discuss does not list it.
+		bool Draft = false;
+		/// Which of Discuss's filters would hide the thread.
+		workbench_discuss_filters Hiding;
+
+		auto operator<=>(const open_workbench_thread_intent&) const = default;
+	};
+
+	/// \brief [[BPR-1356]]. Why a thread opens somewhere other than asked.
+	enum class workbench_thread_route_reason : std::uint8_t {
+		none,
+		/// Discuss was asked for my draft; it opens in Review.
+		draft_opens_in_review,
+	};
+
+	/// \brief [[BPR-1356]]. Where the thread opens and what changes first.
+	///
+	/// \details Review opens the Comments drawer when it is closed, as a
+	/// gutter mark's press does, and opens the thread in place at its line.
+	/// Discuss clears exactly the filters in `Clear`, and no other, so the
+	/// thread's card is in the list it opens in; the host says which it
+	/// cleared.
+	struct workbench_thread_route
+	{
+		workbench_modality            Modality     = workbench_modality::review;
+		bool                          OpenComments = false;
+		workbench_discuss_filters     Clear;
+		workbench_thread_route_reason Reason = workbench_thread_route_reason::none;
+
+		auto operator<=>(const workbench_thread_route&) const = default;
+	};
+
+	/// \brief [[BPR-1356]]. Decides where a thread found in Threads opens.
+	///
+	/// \details The finder reports the gesture's destination and the window
+	/// the facts; the core decides. Review is Review with Comments open.
+	/// Discuss is Discuss with every filter that would hide the thread
+	/// cleared, so asking for a thread always shows it. My draft is not in
+	/// Discuss's list, so asking for it there opens it in Review and says so.
+	[[nodiscard]] auto route_workbench_thread(
+		const open_workbench_thread_intent& aIntent) noexcept
+		-> workbench_thread_route;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_WORKBENCH_INTERACTION_HPP

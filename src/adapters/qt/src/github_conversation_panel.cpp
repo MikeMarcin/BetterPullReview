@@ -373,14 +373,26 @@ namespace bpr::qt {
 		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
-		connect(FilterUnread, &QToolButton::toggled, this, [this](bool) { apply_filters(); });
-		connect(FilterUnresolved, &QToolButton::toggled, this, [this](bool) { apply_filters(); });
+		const auto filtersChanged = [this] {
+			if (Discuss && DiscussFiltersChanged) {
+				DiscussFiltersChanged();
+			}
+		};
+		connect(FilterUnread, &QToolButton::toggled, this, [this, filtersChanged](bool) {
+			apply_filters();
+			filtersChanged();
+		});
+		connect(FilterUnresolved, &QToolButton::toggled, this, [this, filtersChanged](bool) {
+			apply_filters();
+			filtersChanged();
+		});
 		Cards->set_layout_observer([this] { refresh_summary(); });
-		connect(ScopeThisFile, &QToolButton::toggled, this, [this](const bool aChecked) {
+		connect(ScopeThisFile, &QToolButton::toggled, this, [this, filtersChanged](const bool aChecked) {
 			// The file is chosen inside the scope, while File is on.
 			DiscussFileChoice->setVisible(aChecked);
 			if (aChecked) {
 				Cards->set_scope(cards_scope::this_file);
+				filtersChanged();
 			}
 		});
 		connect(ScopeWholePr, &QToolButton::toggled, this, [this](const bool aChecked) {
@@ -495,6 +507,52 @@ namespace bpr::qt {
 	void github_conversation_panel::set_listing_cleared(std::function<void()> aCleared)
 	{
 		ListingCleared = std::move(aCleared);
+	}
+
+	auto github_conversation_panel::discuss_view() const -> discuss_view_state
+	{
+		auto view    = discuss_view_state{ };
+		view.Listing = Listing;
+		if (Discuss) {
+			view.Scope        = Cards->scope();
+			view.File         = DiscussFile;
+			view.OnlyNew      = FilterUnread->isChecked();
+			view.HideResolved = FilterUnresolved->isChecked();
+		} else if (DiscussInitialized) {
+			// What `set_discuss` restores on the way back.
+			view.Scope        = DiscussScope;
+			view.File         = DiscussFile;
+			view.OnlyNew      = DiscussFilters.UnreadOnly;
+			view.HideResolved = DiscussFilters.UnresolvedOnly;
+		}
+		return view;
+	}
+
+	void github_conversation_panel::clear_discuss_filters(const bool aScope, const bool aOnlyNew, const bool aHideResolved, const bool aListing)
+	{
+		if (!Discuss) {
+			return;
+		}
+		// Each change is the window's, not the reviewer's.
+		auto changed = std::exchange(DiscussFiltersChanged, { });
+		if (aScope) {
+			ScopeWholePr->setChecked(true);
+		}
+		if (aOnlyNew) {
+			FilterUnread->setChecked(false);
+		}
+		if (aHideResolved) {
+			FilterUnresolved->setChecked(false);
+		}
+		if (aListing) {
+			clear_listing();
+		}
+		DiscussFiltersChanged = std::move(changed);
+	}
+
+	void github_conversation_panel::set_discuss_filters_changed(std::function<void()> aChanged)
+	{
+		DiscussFiltersChanged = std::move(aChanged);
 	}
 
 	void github_conversation_panel::arrange_filters()

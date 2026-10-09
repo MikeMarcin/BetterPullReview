@@ -128,6 +128,32 @@ below 1300, where the title row also holds the menu control and the caption
 buttons: the whole pull request name, title included, fits at 1280 on every
 platform.
 
+**Open in Discuss from Threads** ([[BPR-1356]], the owner, 2026-10-09: "Do
+it"). A click or Return still opens a thread in Review. Each thread row also
+offers Discuss: a small **Discuss** button shows at the end of its words on
+the row under the pointer and on the cursor's row, never on a file's header
+or on my draft, and takes the words' room so the people never move. Its
+tooltip, anchored right below it, reads "Open in Discuss (⇧↩)". Shift+Return
+(keypad Enter too) opens the cursor's thread, or the post under the cursor,
+in Discuss. A right click on a row, or the menu key or Shift+F10 on the
+cursor's row, opens the row menu: **Open in Review** (the default, drawn
+bold) and **Open in Discuss**, each showing its key (↩, ⇧↩ on macOS). The
+finder reads those keys itself; the menu's shortcuts are bound to the menu
+and never act from the window, and no window command holds them. In the
+search, the menu key and Shift+F10 keep the field's own menu. Discuss opens
+with the thread's card open at the picked post, washed amber as the Review
+pick is, selected, scrolled into view and holding the keyboard; Review's file
+does not change. The core routes the pick (`route_workbench_thread`): the
+window reports the destination asked for, whether the row is my draft, and
+which of Discuss's filters would hide the thread (File scope on another
+file, Only new on a thread with nothing new, Hide resolved on a resolved
+thread, an Overview count's list that leaves it out). Discuss turns off
+exactly those and no other, and its notice says so: "To show this thread,
+Discuss turned off File scope, Only new and Hide resolved." The notice goes
+when the reviewer changes a filter or picks again. My draft is written beside
+its line and Discuss does not list it, so its menu offers Open in Review
+alone, and Shift+Return on it opens Review and says why in the status bar.
+
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s
 label lists, and decides nothing. A conversation's label is its root's, as the
@@ -854,6 +880,8 @@ never invents enabled state.
 | Overview, Review, Discuss ([[BPR-1295]]) | `Ctrl+1`, `Ctrl+2`, `Ctrl+3` (⌘1-⌘3) |
 | Threads ([[BPR-1293]], [[BPR-1341]]) | `Ctrl+4` (⌘4) |
 | Find a thread: go to Threads, or back ([[BPR-1293]], [[BPR-1341]]) | `Ctrl+J` (⌘J) |
+| In Threads, open the cursor's thread in Review, or in Discuss ([[BPR-1356]]) | `Return`; `Shift+Return` (⇧↩) |
+| In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
 | Actual Size: the comparison's code at Code size ([[BPR-1336]]) | `Ctrl+Alt+0` (⌘⌥0) |

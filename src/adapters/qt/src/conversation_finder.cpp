@@ -3,6 +3,8 @@
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_conversation.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
+
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
 
@@ -12,6 +14,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QEvent>
 #include <QFocusEvent>
 #include <QFontDatabase>
@@ -19,6 +22,7 @@
 #include <QHBoxLayout>
 #include <QHideEvent>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -50,24 +54,29 @@
 namespace bpr::qt {
 	namespace {
 		/// The prototype's measures (`docs/design/BPR-1290-inline-drawer-v2`).
-		constexpr int         row_height      = 30;
-		constexpr int         group_gap       = 6;
-		constexpr int         list_left       = 6;
-		constexpr int         list_right      = 8;
-		constexpr int         list_maximum    = 880;
-		constexpr int         line_width      = 46;
-		constexpr int         line_gap        = 10;
-		constexpr int         level_width     = 18;
-		constexpr int         mark_size       = 16;
-		constexpr int         mark_gap        = 9;
-		constexpr int         people_gap      = 14;
-		constexpr int         bead_size       = 16;
-		constexpr int         bead_gap        = 3;
-		constexpr int         state_width     = 30;
-		constexpr int         row_padding     = 12;
-		constexpr int         search_maximum  = 520;
-		constexpr int         chip_height     = 30;
-		constexpr int         preview_width   = 340;
+		constexpr int row_height     = 30;
+		constexpr int group_gap      = 6;
+		constexpr int list_left      = 6;
+		constexpr int list_right     = 8;
+		constexpr int list_maximum   = 880;
+		constexpr int line_width     = 46;
+		constexpr int line_gap       = 10;
+		constexpr int level_width    = 18;
+		constexpr int mark_size      = 16;
+		constexpr int mark_gap       = 9;
+		constexpr int people_gap     = 14;
+		constexpr int bead_size      = 16;
+		constexpr int bead_gap       = 3;
+		constexpr int state_width    = 30;
+		constexpr int row_padding    = 12;
+		constexpr int search_maximum = 520;
+		constexpr int chip_height    = 30;
+		constexpr int preview_width  = 340;
+		/// [[BPR-1356]]. The row's Discuss button: its height, the room either
+		/// side of its word, and the gap that keeps the words off it.
+		constexpr int         discuss_height  = 20;
+		constexpr int         discuss_padding = 9;
+		constexpr int         discuss_gap     = 8;
 		constexpr std::size_t maximum_beads   = 9U;
 		constexpr std::size_t preview_lines   = 4U;
 		constexpr auto        draft_identity  = std::string_view{ "draft:unpublished" };
@@ -461,6 +470,8 @@ namespace bpr::qt {
 		QRect              Fold;
 		std::vector<QRect> Beads;
 		QRect              State;
+		/// [[BPR-1356]]. The Discuss button, while it shows.
+		QRect Discuss;
 	};
 
 	/// \brief The shown subsequence of the finder's items, applied by
@@ -665,6 +676,10 @@ namespace bpr::qt {
 				return;
 			}
 			const auto geometry = Owner.geometry_of(item, visualRect(index));
+			if (geometry.Discuss.contains(point)) {
+				Owner.pick(item, std::nullopt, core::workbench_thread_destination::discuss);
+				return;
+			}
 			if (geometry.Fold.contains(point)) {
 				Owner.Unfolded.insert(Owner.item_key(item));
 				viewport()->update();
@@ -673,25 +688,31 @@ namespace bpr::qt {
 			const auto beads = Owner.beads_of(item);
 			for (std::size_t bead = 0U; bead < geometry.Beads.size() && bead < beads.size(); ++bead) {
 				if (geometry.Beads[bead].adjusted(-1, -1, 1, 1).contains(point)) {
-					Owner.pick(item, bead);
+					Owner.pick(item, bead, core::workbench_thread_destination::review);
 					return;
 				}
 			}
-			Owner.pick(item, std::nullopt);
+			Owner.pick(item, std::nullopt, core::workbench_thread_destination::review);
 		}
 
 		void mouseMoveEvent(QMouseEvent* aEvent) override
 		{
 			QListView::mouseMoveEvent(aEvent);
-			const auto point = aEvent->position().toPoint();
-			const auto index = indexAt(point);
-			auto       item  = std::optional<std::size_t>{ };
-			auto       bead  = std::optional<std::size_t>{ };
+			const auto point   = aEvent->position().toPoint();
+			const auto index   = indexAt(point);
+			auto       item    = std::optional<std::size_t>{ };
+			auto       bead    = std::optional<std::size_t>{ };
+			auto       discuss = false;
 			if (index.isValid() && !(StickyRect.contains(point) && !StickyPath.isEmpty())) {
 				item = Owner.Model->Shown[static_cast<std::size_t>(index.row())];
 				if (!Owner.Items[*item]->Header) {
+					// The button shows on the row under the pointer, so its
+					// place is the hovered row's.
+					const auto hovered  = std::exchange(Owner.HoveredItem, item);
 					const auto rect     = visualRect(index);
 					const auto geometry = Owner.geometry_of(*item, rect);
+					Owner.HoveredItem   = hovered;
+					discuss             = geometry.Discuss.contains(point);
 					for (std::size_t at = 0U; at < geometry.Beads.size(); ++at) {
 						if (geometry.Beads[at].adjusted(-1, -1, 1, 1).contains(point)) {
 							bead             = at;
@@ -707,9 +728,10 @@ namespace bpr::qt {
 			if (!bead.has_value() && Owner.Bead < 0) {
 				Owner.hide_preview();
 			}
-			if (item != Owner.HoveredItem || bead != Owner.HoveredBead) {
-				Owner.HoveredItem = item;
-				Owner.HoveredBead = bead;
+			if (item != Owner.HoveredItem || bead != Owner.HoveredBead || discuss != Owner.HoveredDiscuss) {
+				Owner.HoveredItem    = item;
+				Owner.HoveredBead    = bead;
+				Owner.HoveredDiscuss = discuss;
 				viewport()->update();
 			}
 			viewport()->setCursor(item.has_value() ? Qt::PointingHandCursor : Qt::ArrowCursor);
@@ -720,10 +742,49 @@ namespace bpr::qt {
 			QListView::leaveEvent(aEvent);
 			Owner.HoveredItem.reset();
 			Owner.HoveredBead.reset();
+			Owner.HoveredDiscuss = false;
 			if (Owner.Bead < 0) {
 				Owner.hide_preview();
 			}
 			viewport()->update();
+		}
+
+		/// [[BPR-1356]]. The row menu: a right click opens it on the row
+		/// under the pointer, the menu key on the cursor's row.
+		void contextMenuEvent(QContextMenuEvent* aEvent) override
+		{
+			if (aEvent->reason() != QContextMenuEvent::Mouse) {
+				if (const auto at = Owner.item_index(Owner.Cursor); at.has_value()) {
+					const auto rect = visualRect(model()->index(static_cast<int>(*at), 0));
+					Owner.popup_menu(Owner.Model->Shown[*at], std::nullopt, viewport()->mapToGlobal(QPoint{ rect.left() + 48, rect.bottom() }));
+				}
+				aEvent->accept();
+				return;
+			}
+			// A scroll area hears its viewport's menu event in the viewport's
+			// coordinates.
+			const auto point = aEvent->pos();
+			const auto index = indexAt(point);
+			if (!index.isValid() || (!StickyPath.isEmpty() && StickyRect.contains(point))) {
+				aEvent->ignore();
+				return;
+			}
+			const auto item = Owner.Model->Shown[static_cast<std::size_t>(index.row())];
+			if (Owner.Items[item]->Header) {
+				aEvent->ignore();
+				return;
+			}
+			setCurrentIndex(index);
+			auto       bead     = std::optional<std::size_t>{ };
+			const auto geometry = Owner.geometry_of(item, visualRect(index));
+			for (std::size_t at = 0U; at < geometry.Beads.size(); ++at) {
+				if (geometry.Beads[at].adjusted(-1, -1, 1, 1).contains(point)) {
+					bead = at;
+					break;
+				}
+			}
+			Owner.popup_menu(item, bead, aEvent->globalPos());
+			aEvent->accept();
 		}
 
 		void keyPressEvent(QKeyEvent* aEvent) override
@@ -1085,7 +1146,8 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("threadFinder"));
 		setAccessibleName(QStringLiteral("Threads"));
-		setAccessibleDescription(QStringLiteral("Every thread in the pull request that is on a file, grouped by file. Pick one to read it in Review."));
+		setAccessibleDescription(QStringLiteral("Every thread in the pull request that is on a file, grouped by file. Pick one to read it in Review, "
+												"or press Shift and Return to read it in Discuss."));
 		setAutoFillBackground(true);
 		setBackgroundRole(QPalette::Base);
 		MarkTheme = default_feedback_mark_theme(palette());
@@ -1124,6 +1186,27 @@ namespace bpr::qt {
 		List->viewport()->setAutoFillBackground(true);
 		List->viewport()->setBackgroundRole(QPalette::Base);
 		Pages->addWidget(List);
+		List->setAccessibleDescription(QStringLiteral("Return opens a thread in Review; Shift and Return open it in Discuss; the menu key lists both"));
+		// The button's name, directly below it; a file's header names its path.
+		anchor_tooltips(*List->viewport(), [this](const QPoint aPosition) -> std::optional<anchored_tooltip_target> {
+			const auto index = List->indexAt(aPosition);
+			if (!index.isValid()) {
+				return std::nullopt;
+			}
+			const auto item = Model->Shown[static_cast<std::size_t>(index.row())];
+			const auto rect = List->visualRect(index);
+			if (Items[item]->Header) {
+				return anchored_tooltip_target{ .Anchor = rect, .Text = Items[item]->Path };
+			}
+			const auto button = geometry_of(item, rect).Discuss;
+			if (!button.contains(aPosition)) {
+				return std::nullopt;
+			}
+			return anchored_tooltip_target{
+				.Anchor = button,
+				.Text   = QStringLiteral("Open in Discuss (%1)").arg(QKeySequence{ Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText)),
+			};
+		});
 		const auto makeEmpty = [this](const QString& aName, const QString& aText, const QString& aButton) {
 			auto* const page = new QWidget{ Pages };
 			page->setObjectName(aName);
@@ -1795,7 +1878,7 @@ namespace bpr::qt {
 		menu->popup(LabelChip->mapToGlobal(QPoint{ 0, LabelChip->height() + 6 }));
 	}
 
-	void conversation_finder::pick(const std::size_t aItem, const std::optional<std::size_t> aBead)
+	void conversation_finder::pick(const std::size_t aItem, const std::optional<std::size_t> aBead, const core::workbench_thread_destination aDestination)
 	{
 		if (aItem >= Items.size() || Items[aItem]->Header) {
 			return;
@@ -1813,8 +1896,110 @@ namespace bpr::qt {
 		if (PickDispatch) {
 			// A copy: the dispatch leaves this page, which may rebuild it.
 			const auto location = finder_location{ .Thread = conversation.Id, .Post = conversation.Posts[post].Id, .Path = conversation.Path };
-			PickDispatch(location);
+			PickDispatch(location, aDestination);
 		}
+	}
+
+	auto conversation_finder::discuss_shown(const std::size_t aItem) const -> bool
+	{
+		if (aItem >= Items.size() || Items[aItem]->Header || Conversations[Items[aItem]->Conversation].Draft) {
+			return false;
+		}
+		return HoveredItem == aItem || (!Cursor.empty() && Items[aItem]->Key == Cursor);
+	}
+
+	void conversation_finder::popup_menu(const std::size_t aItem, const std::optional<std::size_t> aBead, const QPoint aGlobal)
+	{
+		if (aItem >= Items.size() || Items[aItem]->Header) {
+			return;
+		}
+		hide_preview();
+		hide_anchored_tooltip();
+		MenuRow  = Items[aItem]->Key;
+		MenuBead = aBead;
+		if (RowMenu != nullptr) {
+			RowMenu->close();
+		}
+		// [[BPR-1356]]. Made for this opening and gone when it closes, as the
+		// code's menu is: the finder reads Return and Shift+Return itself, so
+		// the items only show them, and no window ever holds those keys.
+		auto* const menu = new QMenu{ this };
+		menu->setObjectName(QStringLiteral("threadFinderRowMenu"));
+		menu->setAccessibleName(QStringLiteral("Thread row"));
+		menu->setToolTipsVisible(true);
+		QObject::connect(menu, &QMenu::aboutToHide, menu, &QObject::deleteLater);
+		const auto makeItem = [menu](const QString& aText, const QString& aName, const QKeySequence& aKey, const QString& aTip) {
+			auto* const action = menu->addAction(aText);
+			action->setObjectName(aName);
+			action->setShortcut(aKey);
+			action->setShortcutContext(Qt::WidgetShortcut);
+			action->setShortcutVisibleInContextMenu(true);
+			action->setStatusTip(aTip);
+			return action;
+		};
+		OpenReview  = makeItem(QStringLiteral("Open in Review"), QStringLiteral("threadFinderOpenInReviewAction"), QKeySequence{ Qt::Key_Return },
+							   QStringLiteral("Read this thread beside its code"));
+		OpenDiscuss = makeItem(QStringLiteral("Open in Discuss"), QStringLiteral("threadFinderOpenInDiscussAction"), QKeySequence{ Qt::SHIFT | Qt::Key_Return },
+							   QStringLiteral("Read this thread with the rest of the pull request's conversation"));
+		menu->setDefaultAction(OpenReview);
+		// My draft is written beside its line; Discuss does not list it.
+		if (Conversations[Items[aItem]->Conversation].Draft) {
+			OpenDiscuss->setEnabled(false);
+			OpenDiscuss->setToolTip(QStringLiteral("Your draft is written beside its line, in Review"));
+		}
+		const auto menuPick = [this](const core::workbench_thread_destination aDestination) {
+			const auto row = std::ranges::find(Items, MenuRow, [](const std::unique_ptr<item>& aEntry) { return aEntry->Key; });
+			if (!MenuRow.empty() && row != Items.end()) {
+				pick(static_cast<std::size_t>(row - Items.begin()), MenuBead, aDestination);
+			}
+		};
+		QObject::connect(OpenReview, &QAction::triggered, this, [menuPick] { menuPick(core::workbench_thread_destination::review); });
+		QObject::connect(OpenDiscuss, &QAction::triggered, this, [menuPick] { menuPick(core::workbench_thread_destination::discuss); });
+		RowMenu = menu;
+		menu->popup(aGlobal, OpenReview);
+	}
+
+	void conversation_finder::popup_row_menu(const std::string& aRowKey, const QPoint aPosition)
+	{
+		const auto at = item_index(aRowKey);
+		if (!at.has_value()) {
+			return;
+		}
+		auto       bead     = std::optional<std::size_t>{ };
+		const auto item     = Model->Shown[*at];
+		const auto geometry = geometry_of(item, List->visualRect(Model->index(static_cast<int>(*at))));
+		for (std::size_t index = 0U; index < geometry.Beads.size(); ++index) {
+			if (geometry.Beads[index].adjusted(-1, -1, 1, 1).contains(aPosition)) {
+				bead = index;
+				break;
+			}
+		}
+		List->setCurrentIndex(Model->index(static_cast<int>(*at)));
+		popup_menu(item, bead, List->viewport()->mapToGlobal(aPosition));
+	}
+
+	auto conversation_finder::row_menu() const noexcept -> QMenu*
+	{
+		return RowMenu;
+	}
+
+	auto conversation_finder::open_in_review_action() const noexcept -> QAction*
+	{
+		return OpenReview;
+	}
+
+	auto conversation_finder::open_in_discuss_action() const noexcept -> QAction*
+	{
+		return OpenDiscuss;
+	}
+
+	auto conversation_finder::discuss_button_rect(const std::string& aRowKey) const -> QRect
+	{
+		const auto at = item_index(aRowKey);
+		if (!at.has_value()) {
+			return { };
+		}
+		return geometry_of(Model->Shown[*at], List->visualRect(Model->index(static_cast<int>(*at)))).Discuss;
 	}
 
 	void conversation_finder::toggle_fold(const QString& aPath)
@@ -1956,7 +2141,26 @@ namespace bpr::qt {
 				toggle_fold(Items[item]->Path);
 				return true;
 			}
-			pick(item, Bead >= 0 && !aInSearch ? std::optional<std::size_t>{ static_cast<std::size_t>(Bead) } : std::nullopt);
+			// [[BPR-1356]]. Shift+Return opens the thread in Discuss.
+			const auto destination = aEvent.modifiers().testFlag(Qt::ShiftModifier) ? core::workbench_thread_destination::discuss
+																					: core::workbench_thread_destination::review;
+			pick(item, Bead >= 0 && !aInSearch ? std::optional<std::size_t>{ static_cast<std::size_t>(Bead) } : std::nullopt, destination);
+			return true;
+		}
+		case Qt::Key_Menu:
+		case Qt::Key_F10:  {
+			// [[BPR-1356]]. The menu key and Shift+F10 open the cursor's row
+			// menu from the list; the search keeps its own.
+			if (aInSearch || (aEvent.key() == Qt::Key_F10 && aEvent.modifiers() != Qt::ShiftModifier)) {
+				return false;
+			}
+			if (!at.has_value() || Items[Model->Shown[*at]]->Header) {
+				return true;
+			}
+			const auto item = Model->Shown[*at];
+			const auto rect = List->visualRect(Model->index(static_cast<int>(*at)));
+			popup_menu(item, Bead >= 0 ? std::optional<std::size_t>{ static_cast<std::size_t>(Bead) } : std::nullopt,
+					   List->viewport()->mapToGlobal(QPoint{ rect.left() + list_left + line_width, rect.bottom() }));
 			return true;
 		}
 		default:
@@ -2098,8 +2302,17 @@ namespace bpr::qt {
 			geometry.Fold = QRect{ x, top, pill, bead_size };
 			x -= bead_gap;
 		}
-		const auto wordsLeft = geometry.Mark.right() + 1 + mark_gap;
-		geometry.Words       = QRect{ wordsLeft, box.top(), std::max(0, x + bead_gap - people_gap - wordsLeft), row_height };
+		const auto wordsLeft  = geometry.Mark.right() + 1 + mark_gap;
+		auto       wordsRight = x + bead_gap - people_gap;
+		if (discuss_shown(aItem)) {
+			// [[BPR-1356]]. The button takes the end of the words, so the
+			// people never move when it shows.
+			const auto label     = weighted(sized(font(), 0.82), QFont::DemiBold);
+			const auto pillWidth = QFontMetrics{ label }.horizontalAdvance(QStringLiteral("Discuss")) + 2 * discuss_padding;
+			geometry.Discuss     = QRect{ wordsRight - pillWidth, box.top() + (row_height - discuss_height) / 2, pillWidth, discuss_height };
+			wordsRight           = geometry.Discuss.left() - discuss_gap;
+		}
+		geometry.Words = QRect{ wordsLeft, box.top(), std::max(0, wordsRight - wordsLeft), row_height };
 		return geometry;
 	}
 
@@ -2444,6 +2657,20 @@ namespace bpr::qt {
 			} else if (conversation.Resolved) {
 				paint_conversation_glyph(aPainter, QRectF{ state.right() - 14.0, mid - 7.0, 14.0, 14.0 }, conversation_glyph::resolved, colours.Ok);
 			}
+		}
+		// [[BPR-1356]]. The Discuss button: a quiet pill on the row under the
+		// pointer and on the cursor's row, inked when the pointer is on it.
+		if (!geometry.Discuss.isEmpty()) {
+			const auto onIt  = HoveredItem == aItem && HoveredDiscuss;
+			const auto pill  = QRectF{ geometry.Discuss }.adjusted(0.5, 0.5, -0.5, -0.5);
+			const auto small = weighted(sized(font(), 0.82), QFont::DemiBold);
+			aPainter.setOpacity(1.0);
+			aPainter.setPen(QPen{ onIt ? colours.Signal : colours.Rule2, 1.0 });
+			aPainter.setBrush(onIt ? blend(ground, colours.Signal, colours.Dark ? 0.24 : 0.12) : blend(ground, colours.Panel, 0.65));
+			aPainter.drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+			aPainter.setFont(small);
+			aPainter.setPen(onIt ? colours.Ink : colours.Ink2);
+			aPainter.drawText(geometry.Discuss, Qt::AlignCenter, QStringLiteral("Discuss"));
 		}
 		aPainter.restore();
 	}

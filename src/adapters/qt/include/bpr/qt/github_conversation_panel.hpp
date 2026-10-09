@@ -7,9 +7,11 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
+#include <string>
 
 #include <QPixmap>
 #include <QWidget>
@@ -173,6 +175,24 @@ namespace bpr::qt {
 		[[nodiscard]] auto clear_listing_button() const noexcept -> QToolButton*;
 		/// \brief Told when the reviewer clears the listing.
 		void set_listing_cleared(std::function<void()> aCleared);
+		/// \brief [[BPR-1356]]. Discuss's own scope and filters, as they are
+		/// while Discuss shows and as it will restore them while it does not.
+		struct discuss_view_state
+		{
+			cards_scope                          Scope = cards_scope::whole_pull_request;
+			std::optional<core::file_identity>   File;
+			bool                                 OnlyNew      = false;
+			bool                                 HideResolved = false;
+			std::optional<std::set<std::string>> Listing;
+		};
+		[[nodiscard]] auto discuss_view() const -> discuss_view_state;
+		/// \brief [[BPR-1356]]. While Discuss shows: the whole pull request
+		/// for `aScope`, Only new and Hide resolved off, the listing cleared;
+		/// each only when asked.
+		void clear_discuss_filters(bool aScope, bool aOnlyNew, bool aHideResolved, bool aListing);
+		/// \brief [[BPR-1356]]. Told when the reviewer changes a Discuss scope
+		/// or filter by hand.
+		void set_discuss_filters_changed(std::function<void()> aChanged);
 
 	private:
 		/// \brief Tells the notes which thread the selection authority is on.
@@ -211,6 +231,7 @@ namespace bpr::qt {
 		QToolButton*                         ClearListing   = nullptr;
 		std::optional<std::set<std::string>> Listing;
 		std::function<void()>                ListingCleared;
+		std::function<void()>                DiscussFiltersChanged;
 		void                                 apply_filters();
 		QLabel*                              Notice             = nullptr;
 		bool                                 Discuss            = false;

@@ -11646,6 +11646,255 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1356]]. Threads opens a thread in Discuss as well as in Review,
+	/// through the real core: Shift+Return, the row's Discuss button and the
+	/// row menu's Open in Discuss (right click, the menu key or Shift+F10)
+	/// open Discuss with the thread's card open at the picked post, selected,
+	/// in view and focused, and Review's file unchanged. Discuss's filters
+	/// that would hide the card are turned off, exactly those, and the
+	/// notice says which. A click and Return still open Review.
+	void test_threads_opens_a_thread_in_discuss()
+	{
+		auto  state   = core::workbench_interaction_state{ };
+		auto  intents = std::vector<core::workbench_interaction_intent>{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				intents.push_back(aIntent);
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		const auto other = core::file_identity_of("src/other.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = other, .Path = "src/other.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		const auto node = [](std::string aId, std::optional<std::string> aParent, std::string aAuthor, std::string aBody, std::string aPath, std::optional<std::uint32_t> aLine) {
+			auto made               = application::github_conversation_projection{ };
+			made.Id                 = std::move(aId);
+			made.ParentId           = std::move(aParent);
+			made.Kind               = made.ParentId ? application::github_conversation_kind::review_comment : application::github_conversation_kind::review_thread;
+			made.AuthorLogin        = std::move(aAuthor);
+			made.Body               = std::move(aBody);
+			made.Path               = std::move(aPath);
+			made.Line               = aLine;
+			made.DiffSide           = application::github_conversation_diff_side::right;
+			made.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			return made;
+		};
+		auto pull                   = application::github_pull_request_projection{ };
+		pull.ReviewThreadCount      = 2U;
+		pull.ReviewThreadsAvailable = true;
+		pull.Conversations          = {
+			node("review-thread:late", std::nullopt, { }, { }, "src/file.cpp", 22U),
+			node("review-comment:late-1", "review-thread:late", "tbutler", "issue: the late thread", "src/file.cpp", 22U),
+			node("review-comment:late-2", "review-comment:late-1", "jiayin", "a reply", "src/file.cpp", 22U),
+			node("review-thread:off", std::nullopt, { }, { }, "src/other.cpp", 5U),
+			node("review-comment:off-1", "review-thread:off", "jiayin", "question: on the other file?", "src/other.cpp", 5U),
+			node("review-comment:off-2", "review-comment:off-1", "tbutler", "yes, the second post", "src/other.cpp", 5U),
+			node("review-comment:off-3", "review-comment:off-1", "jiayin", "and a third", "src/other.cpp", 5U),
+		};
+		pull.Conversations[3].Resolved = true;
+		window.publish(application::github_presentation_update{ .PullRequest = pull });
+		auto text = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		auto later = text;
+		later.replace(later.find("line 5"), 6U, "changed line 5");
+		static_cast<void>(publish_fixture(window, computed_comparison(text, later, 0U, file)));
+		window.set_conversation_endpoint_placement(false, true);
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		auto* const finder     = window.finder();
+		auto* const cards      = window.conversation_panel()->cards();
+		auto* const panel      = window.conversation_panel();
+		const auto  lateRow    = std::string{ "row:review-thread:late/review-comment:late-1" };
+		const auto  offRow     = std::string{ "row:review-thread:off/review-comment:off-1" };
+		const auto  selectedId = [&window] { return window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()); };
+		const auto  inView     = [cards] {
+			auto* const card = cards->open_card();
+			return card != nullptr && card->isVisible() && cards->viewport()->rect().intersects(QRect{ card->mapTo(cards->viewport(), QPoint{ 0, 0 }), card->size() });
+		};
+		const auto selectsFile = [&intents] {
+			return std::ranges::any_of(intents, [](const core::workbench_interaction_intent& aIntent) { return std::holds_alternative<core::select_workbench_file_intent>(aIntent); });
+		};
+
+		// Shift+Return on the cursor's row: Discuss, the card open at the
+		// row's first post, selected, in view and focused; Review's file
+		// stays as it was.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(window.current_modality() == qt::review_modality::threads && finder->cursor_key() == lateRow, "Threads starts on the first row");
+		intents.clear();
+		auto shiftReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier };
+		QApplication::sendEvent(finder->search_field(), &shiftReturn);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::discuss, "Shift+Return opens the thread in Discuss");
+		expect(cards->open_thread_id() == "review-thread:late" && cards->picked_post() == "review-comment:late-1" && selectedId() == "review-comment:late-1",
+			   "its card opens at the row's first post, washed, and the selection names that post");
+		expect(inView() && cards->hasFocus(), "the card is in view and the notes have the keyboard");
+		expect(!selectsFile() && state.Navigation->File == file, "Review's file is unchanged");
+		save_render(window, QStringLiteral("threads-open-in-discuss"));
+		// The row's Discuss button: on the row under the pointer and the
+		// cursor's row, never on a file's header, clear of the people, its
+		// name anchored right below it.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(window.current_modality() == qt::review_modality::threads && finder->cursor_key() == lateRow, "Threads starts on the thread just opened");
+		auto* const viewport = finder->list()->viewport();
+		expect(!finder->discuss_button_rect(lateRow).isEmpty() && finder->discuss_button_rect(offRow).isEmpty()
+				   && finder->discuss_button_rect("file:src/file.cpp").isEmpty(),
+			   "the cursor's row shows its Discuss button; another row and a file's header do not");
+		const auto offBox = finder->row_rect(offRow);
+		auto       move   = QMouseEvent{ QEvent::MouseMove, QPointF{ QPoint{ offBox.left() + 90, offBox.center().y() } }, viewport->mapToGlobal(QPointF{ QPoint{ offBox.left() + 90, offBox.center().y() } }), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(viewport, &move);
+		process_events();
+		const auto button = finder->discuss_button_rect(offRow);
+		const auto beads  = finder->shown_beads(offRow);
+		expect(!button.isEmpty() && offBox.contains(button) && std::ranges::all_of(beads, [&](const std::string& aPost) { return finder->bead_rect(offRow, aPost).left() > button.right(); }),
+			   "hovering a row shows its button inside the row, left of the people");
+		qt::hide_anchored_tooltip();
+		QHelpEvent help{ QEvent::ToolTip, button.center(), viewport->mapToGlobal(button.center()) };
+		QApplication::sendEvent(viewport, &help);
+		const auto* const tip   = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+		const auto        frame = QRect{ viewport->mapToGlobal(button.topLeft()), button.size() };
+		expect(tip != nullptr && tip->text() == QStringLiteral("Open in Discuss (%1)").arg(QKeySequence{ Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText))
+				   && (tip->geometry().top() == frame.bottom() + 1 + qt::anchored_tooltip_gap || tip->geometry().bottom() + 1 + qt::anchored_tooltip_gap == frame.top()),
+			   "the button's tooltip names it and its key, anchored next to it");
+		qt::hide_anchored_tooltip();
+		save_render(window, QStringLiteral("threads-discuss-button"));
+		intents.clear();
+		auto press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ button.center() }, viewport->mapToGlobal(QPointF{ button.center() }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(viewport, &press);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::discuss && cards->open_thread_id() == "review-thread:off" && cards->picked_post() == "review-comment:off-1"
+				   && selectedId() == "review-comment:off-1" && inView() && cards->hasFocus() && !selectsFile(),
+			   "the button opens that thread in Discuss, at its first post, in view and focused");
+
+		// Discuss's filters that would hide a thread: File scope on another
+		// file, Only new on a thread with nothing new, Hide resolved on a
+		// resolved one. Exactly those are turned off, and the notice says so.
+		window.present_read_state({ qt::thread_read_state{ .Thread = "review-thread:late", .UnreadPosts = { "review-comment:late-2" } } });
+		panel->scope_this_file_button()->click();
+		auto* const fileChoice = panel->findChild<QComboBox*>(QStringLiteral("conversationFileScope"));
+		fileChoice->setCurrentIndex(fileChoice->findText(QStringLiteral("src/file.cpp")));
+		panel->filter_unread_button()->setChecked(true);
+		panel->filter_unresolved_button()->setChecked(true);
+		process_events();
+		expect(std::ranges::none_of(cards->cards(), [](const qt::thread_card& aCard) { return aCard.Id == "review-thread:off"; }) || cards->open_thread_id() == "review-thread:off",
+			   "the fixture's filters leave the resolved thread on the other file out of Discuss");
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		// The row menu, by a right click on the row.
+		const auto offAgain = finder->row_rect(offRow);
+		auto       menuAt   = QContextMenuEvent{ QContextMenuEvent::Mouse, QPoint{ offAgain.left() + 90, offAgain.center().y() }, viewport->mapToGlobal(QPoint{ offAgain.left() + 90, offAgain.center().y() }) };
+		QApplication::sendEvent(viewport, &menuAt);
+		process_events();
+		auto* menu    = finder->row_menu();
+		auto* review  = finder->open_in_review_action();
+		auto* discuss = finder->open_in_discuss_action();
+		expect(menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("threadFinderRowMenu") && menu->actions() == QList<QAction*>{ review, discuss },
+			   "a right click opens the row menu: Open in Review, then Open in Discuss");
+		expect(review->text() == QStringLiteral("Open in Review") && discuss->text() == QStringLiteral("Open in Discuss") && menu->defaultAction() == review
+				   && review->shortcut() == QKeySequence{ Qt::Key_Return } && discuss->shortcut() == QKeySequence{ Qt::SHIFT | Qt::Key_Return }
+				   && review->isShortcutVisibleInContextMenu() && discuss->isShortcutVisibleInContextMenu()
+				   && review->shortcutContext() == Qt::WidgetShortcut && discuss->shortcutContext() == Qt::WidgetShortcut && discuss->isEnabled(),
+			   "Open in Review is the default, drawn bold; each shows its key and is bound to the menu alone");
+		save_menu_render(*menu, QStringLiteral("threads-row-menu"));
+		// As a press on an item does: the menu closes, then its item acts.
+		menu->hide();
+		discuss->trigger();
+		window.activateWindow();
+		process_events();
+		expect(finder->row_menu() == nullptr, "the menu and its items go once it closes");
+		expect(window.current_modality() == qt::review_modality::discuss && cards->open_thread_id() == "review-thread:off" && inView() && cards->hasFocus(),
+			   "Open in Discuss opens the thread there, in view and focused");
+		expect(panel->scope_whole_pull_request_button()->isChecked() && !panel->filter_unread_button()->isChecked() && !panel->filter_unresolved_button()->isChecked(),
+			   "the whole pull request shows, and Only new and Hide resolved are off");
+		expect(panel->notice_label()->isVisible() && panel->notice_label()->text() == QStringLiteral("To show this thread, Discuss turned off File scope, Only new and Hide resolved."),
+			   "the notice says which filters were turned off");
+		save_render(window, QStringLiteral("threads-discuss-filters-cleared"));
+		// The reviewer takes the filters back; the notice goes.
+		panel->filter_unresolved_button()->setChecked(true);
+		process_events();
+		expect(!panel->notice_label()->isVisible(), "changing a filter by hand clears the notice");
+		// A filter that would not hide the thread stays: Hide resolved and an
+		// unresolved thread, through the menu key on the cursor's row.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
+		QApplication::sendEvent(finder->search_field(), &down);
+		process_events();
+		while (finder->cursor_key() != lateRow) {
+			QApplication::sendEvent(finder->list(), &down);
+			process_events();
+		}
+		auto menuKey = QKeyEvent{ QEvent::KeyPress, Qt::Key_Menu, Qt::NoModifier };
+		QApplication::sendEvent(finder->list(), &menuKey);
+		process_events();
+		menu = finder->row_menu();
+		expect(menu != nullptr && menu->isVisible(), "the menu key opens the cursor's row menu");
+		menu->hide();
+		finder->open_in_discuss_action()->trigger();
+		window.activateWindow();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::discuss && cards->open_thread_id() == "review-thread:late" && panel->filter_unresolved_button()->isChecked()
+				   && !panel->notice_label()->isVisible(),
+			   "Hide resolved stays on for an unresolved thread, and nothing is said");
+		// Shift+F10 opens the same menu; Open in Review is Review's pick.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		QApplication::sendEvent(finder->search_field(), &down);
+		process_events();
+		while (finder->cursor_key() != lateRow) {
+			QApplication::sendEvent(finder->list(), &down);
+			process_events();
+		}
+		auto shiftF10 = QKeyEvent{ QEvent::KeyPress, Qt::Key_F10, Qt::ShiftModifier };
+		QApplication::sendEvent(finder->list(), &shiftF10);
+		process_events();
+		menu = finder->row_menu();
+		expect(menu != nullptr && menu->isVisible(), "Shift+F10 opens it too");
+		menu->hide();
+		finder->open_in_review_action()->trigger();
+		window.activateWindow();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::review && cards->open_thread_id() == "review-thread:late", "Open in Review opens the thread in Review");
+		// A click and Return still open Review.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		auto plainReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(finder->search_field(), &plainReturn);
+		process_events();
+		expect(window.current_modality() == qt::review_modality::review, "Return opens Review, unchanged");
+
+		// Keys bound once: no window command holds Return, Shift+Return, the
+		// menu key or Shift+F10; the menu's actions belong to the menu alone.
+		for (auto* const action : window.findChildren<QAction*>()) {
+			for (const auto& sequence : action->shortcuts()) {
+				const auto taken = sequence == QKeySequence{ Qt::SHIFT | Qt::Key_Return } || sequence == QKeySequence{ Qt::Key_Return } || sequence == QKeySequence{ Qt::Key_Menu }
+					|| sequence == QKeySequence{ Qt::SHIFT | Qt::Key_F10 };
+				expect(!taken || action->shortcutContext() == Qt::WidgetShortcut, "no window-wide command takes the finder's keys");
+			}
+		}
+		expect(finder->row_menu() == nullptr && window.findChildren<QAction*>(QStringLiteral("threadFinderOpenInDiscussAction")).isEmpty(),
+			   "the menu's items exist only while it is open, so no window holds their keys");
+		window.hide();
+	}
+
 	void test_overview_refuses_a_hand_opened_drawer_and_says_so()
 	{
 		// [[BPR-0727]]. Choosing Overview tells the core the modality before
@@ -14019,6 +14268,7 @@ auto main(int argc, char** argv) -> int
 	test_overview_refuses_a_hand_opened_drawer_and_says_so();
 	test_hide_drawers_command_key_icon_and_editor_yield();
 	test_threads_finds_and_picks_into_review();
+	test_threads_opens_a_thread_in_discuss();
 	test_a_large_file_leaves_the_widget_count_bounded();
 	std::cout << "workbench-window-tests:pass\n";
 	return EXIT_SUCCESS;

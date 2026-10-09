@@ -3,11 +3,13 @@
 #include <QAbstractButton>
 #include <QAccessible>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QFile>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPalette>
 #include <QScrollBar>
@@ -361,9 +363,10 @@ namespace {
 
 	struct page
 	{
-		qt::conversation_finder          Finder;
-		std::vector<qt::finder_location> Picks;
-		int                              Leaves = 0;
+		qt::conversation_finder                         Finder;
+		std::vector<qt::finder_location>                Picks;
+		std::vector<core::workbench_thread_destination> Destinations;
+		int                                             Leaves = 0;
 
 		page()
 		{
@@ -371,7 +374,10 @@ namespace {
 			Finder.set_viewer_login(QStringLiteral("fixture-author"));
 			Finder.adopt(forest());
 			Finder.set_read_state(read_state());
-			Finder.set_pick_dispatch([this](const qt::finder_location& aLocation) { Picks.push_back(aLocation); });
+			Finder.set_pick_dispatch([this](const qt::finder_location& aLocation, const core::workbench_thread_destination aDestination) {
+				Picks.push_back(aLocation);
+				Destinations.push_back(aDestination);
+			});
 			Finder.set_leave_dispatch([this] { ++Leaves; });
 			Finder.show();
 			QApplication::processEvents();
@@ -523,6 +529,8 @@ namespace {
 		QApplication::processEvents();
 		press(*finder.list(), QPoint{ finder.row_rect(branchC).left() + 140, finder.row_rect(branchC).center().y() });
 		expect(shown.Picks.back().Post == "review-comment:branching-thread-v1-cc01", "a branch row picks the branch's first post");
+		expect(std::ranges::all_of(shown.Destinations, [](const core::workbench_thread_destination aDestination) { return aDestination == core::workbench_thread_destination::review; }),
+			   "a click and Return ask for Review");
 
 		// Reopening starts on the conversation open in Review.
 		finder.set_reading({ .Thread = "review-thread:t656", .Post = "review-comment:t656-3" });
@@ -532,6 +540,92 @@ namespace {
 			   "a row reads its line, author, label, words, posts and new count");
 		expect(finder.row_text("row:review-thread:t38/review-comment:t38-1").endsWith(QStringLiteral(", resolved")), "and resolved");
 		expect(finder.row_text(branchC).startsWith(QStringLiteral("Branch: reviewer-four")), "a branch row says so");
+	}
+
+	/// \brief [[BPR-1356]]. Discuss from Threads: the row's Discuss button on
+	/// the row under the pointer and the cursor's row, Shift+Return, and the
+	/// row menu with both destinations; my draft is never offered Discuss.
+	void test_discuss_button_shift_return_and_menu()
+	{
+		auto        shown  = page{ };
+		auto&       finder = shown.Finder;
+		const auto  t656   = std::string{ "row:review-thread:t656/review-comment:t656-1" };
+		const auto& first  = finder.cursor_key();
+		expect(!finder.discuss_button_rect(first).isEmpty() && finder.discuss_button_rect(t656).isEmpty(),
+			   "the cursor's row shows the Discuss button and a row that is neither hovered nor the cursor's does not");
+		for (const auto& entry : finder.shown_keys()) {
+			if (entry.starts_with("file:")) {
+				expect(finder.discuss_button_rect(entry).isEmpty(), "a file's header has no Discuss button");
+			}
+		}
+		finder.list()->scrollTo(finder.list()->model()->index(0, 0));
+		const auto box = finder.row_rect(t656);
+		hover(*finder.list(), QPoint{ box.left() + 80, box.center().y() });
+		const auto button = finder.discuss_button_rect(t656);
+		expect(!button.isEmpty() && box.contains(button), "hovering a row shows its button inside the row");
+		for (const auto& bead : finder.shown_beads(t656)) {
+			expect(finder.bead_rect(t656, bead).left() > button.right(), "the button sits left of the people, so they never move");
+		}
+		press(*finder.list(), button.center());
+		expect(shown.Picks.size() == 1U && shown.Picks.back().Thread == "review-thread:t656" && shown.Picks.back().Post == "review-comment:t656-1"
+				   && shown.Destinations.back() == core::workbench_thread_destination::discuss,
+			   "the button asks for Discuss at the row's first post");
+
+		// Shift+Return, from the search and from the list, with a post chosen.
+		auto shiftReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier };
+		finder.enter();
+		QApplication::sendEvent(finder.search_field(), &shiftReturn);
+		expect(shown.Destinations.back() == core::workbench_thread_destination::discuss && shown.Picks.back().Thread == "review-thread:t656",
+			   "Shift+Return in the search asks for Discuss for the cursor's row, kept from the press");
+		key(*finder.search_field(), Qt::Key_Down);
+		key(*finder.list(), Qt::Key_Down);
+		key(*finder.list(), Qt::Key_Right);
+		const auto post = finder.cursor_post();
+		QApplication::sendEvent(finder.list(), &shiftReturn);
+		expect(shown.Destinations.back() == core::workbench_thread_destination::discuss && shown.Picks.back().Post == post,
+			   "Shift+Return in the list asks for Discuss at the post under the cursor");
+
+		// The row menu: a right click on a bead, then each destination.
+		const auto bead = finder.bead_rect(t656, "review-comment:t656-3");
+		finder.popup_row_menu(t656, bead.center());
+		auto* menu = finder.row_menu();
+		expect(menu != nullptr && menu->isVisible() && menu->defaultAction() == finder.open_in_review_action() && finder.open_in_discuss_action()->isEnabled(),
+			   "the row menu opens with Open in Review as its default");
+		menu->hide();
+		finder.open_in_discuss_action()->trigger();
+		expect(shown.Destinations.back() == core::workbench_thread_destination::discuss && shown.Picks.back().Post == "review-comment:t656-3",
+			   "Open in Discuss asks for Discuss at the post the right click was on");
+		auto right = QContextMenuEvent{ QContextMenuEvent::Mouse, QPoint{ box.left() + 80, box.center().y() }, finder.list()->viewport()->mapToGlobal(QPoint{ box.left() + 80, box.center().y() }) };
+		QApplication::sendEvent(finder.list()->viewport(), &right);
+		menu = finder.row_menu();
+		expect(menu != nullptr && menu->isVisible() && finder.cursor_key() == t656, "a right click on a row opens its menu and makes it the cursor's");
+		menu->hide();
+		finder.open_in_review_action()->trigger();
+		expect(shown.Destinations.back() == core::workbench_thread_destination::review && shown.Picks.back().Post == "review-comment:t656-1",
+			   "Open in Review asks for Review at the row's first post");
+		const auto picks   = shown.Picks.size();
+		auto       menuKey = QKeyEvent{ QEvent::KeyPress, Qt::Key_Menu, Qt::NoModifier };
+		finder.list()->setFocus(Qt::OtherFocusReason);
+		QApplication::sendEvent(finder.list(), &menuKey);
+		menu = finder.row_menu();
+		expect(menu != nullptr && menu->isVisible() && shown.Picks.size() == picks, "the menu key opens the cursor's row menu and picks nothing");
+		menu->hide();
+
+		// My draft: written beside its line, so never offered Discuss.
+		finder.set_draft(qt::finder_draft{ .File = core::file_identity_of("src/engine/renderer.cpp"), .Line = 20U, .Body = QStringLiteral("draft words"), .Author = QStringLiteral("fixture-author") });
+		finder.refresh();
+		const auto draft = std::string{ "row:draft:unpublished/draft:unpublished" };
+		const auto keys  = finder.shown_keys();
+		expect(std::ranges::find(keys, draft) != keys.end(), "my draft has its row");
+		finder.list()->scrollTo(finder.list()->model()->index(static_cast<int>(std::ranges::find(keys, draft) - keys.begin()), 0));
+		QApplication::processEvents();
+		const auto draftBox = finder.row_rect(draft);
+		hover(*finder.list(), QPoint{ draftBox.left() + 80, draftBox.center().y() });
+		expect(finder.discuss_button_rect(draft).isEmpty(), "my draft's row has no Discuss button");
+		finder.popup_row_menu(draft, QPoint{ draftBox.left() + 80, draftBox.center().y() });
+		menu = finder.row_menu();
+		expect(menu != nullptr && menu->isVisible() && !finder.open_in_discuss_action()->isEnabled() && finder.open_in_review_action()->isEnabled(), "and its menu offers Review alone");
+		menu->hide();
 	}
 
 	/// \brief The page as drawn: light and dark, the high-contrast palettes,
@@ -587,6 +681,14 @@ namespace {
 						   std::string{ "a bead sits inside its row, clear of the words: " } + entry.Name);
 				}
 			}
+			// [[BPR-1356]]. The cursor's row shows its Discuss button, inside the
+			// row and clear of the people, at every width.
+			const auto cursor = finder.cursor_key();
+			const auto button = finder.discuss_button_rect(cursor);
+			expect(!button.isEmpty() && finder.row_rect(cursor).contains(button), std::string{ "the Discuss button sits inside its row: " } + entry.Name);
+			for (const auto& bead : finder.shown_beads(cursor)) {
+				expect(finder.bead_rect(cursor, bead).left() > button.right(), std::string{ "and left of the people: " } + entry.Name);
+			}
 			const auto image = finder.grab().toImage();
 			expect(!image.isNull(), "the page renders");
 			// The open conversation's row is washed amber, unlike the page.
@@ -638,6 +740,7 @@ int main(int aArgc, char** aArgv)
 	test_search_and_filters();
 	test_folding();
 	test_keys_and_pick();
+	test_discuss_button_shift_return_and_menu();
 	test_renders();
 	test_nothing_on_a_file();
 	std::cout << "conversation-finder-tests:pass\n";

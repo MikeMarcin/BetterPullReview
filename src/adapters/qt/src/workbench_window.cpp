@@ -2367,10 +2367,18 @@ namespace bpr::qt {
 		// centre's floor while Review shows its drawers.
 		ThreadsPage->setMinimumSize(1, 1);
 		CentreStack->addWidget(ThreadsPage);
-		Finder->set_pick_dispatch([this](const finder_location& aLocation) {
-			static_cast<void>(open_conversation_in_review(aLocation.Thread, aLocation.Post));
+		Finder->set_pick_dispatch([this](const finder_location& aLocation, const core::workbench_thread_destination aDestination) {
+			static_cast<void>(open_thread_from_threads(aLocation.Thread, aLocation.Post, aDestination));
 		});
 		Finder->set_leave_dispatch([this] { leave_threads(); });
+		// [[BPR-1356]]. The notice that says which filters a pick cleared
+		// goes once the reviewer changes one.
+		ConversationPanel->set_discuss_filters_changed([this] {
+			if (ThreadsRevealNotice) {
+				ThreadsRevealNotice = false;
+				ConversationPanel->present_notice(QString{ });
+			}
+		});
 		const auto makeCompositionPage = [this](QWidget* aEditor, const QString& aName, const QString& aBack, QWidget* aExcerpt) {
 			// [[BPR-1212]]. A composition page is a column of Discuss, beside
 			// the conversations, not a page of its own.
@@ -11749,7 +11757,8 @@ namespace bpr::qt {
 		if (const auto file = file_for_path(location->Path); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
-		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{ });
+		if (route.OpenComments && Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{
 				.Drawer = core::workbench_drawer::conversations,
 				.State  = core::workbench_drawer_state::expanded,
@@ -11759,6 +11768,86 @@ namespace bpr::qt {
 			TrayTabs->setCurrentIndex(tray_comments_tab);
 		}
 		resume_conversation_pick();
+		return true;
+	}
+
+	auto workbench_window::open_thread_from_threads(const std::string& aThread, const std::string& aPost, const core::workbench_thread_destination aDestination) -> bool
+	{
+		if (Finder == nullptr || ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return false;
+		}
+		const auto& conversations = Finder->conversations();
+		const auto  found         = std::ranges::find(conversations, aThread, &finder_conversation::Id);
+		if (found == conversations.end()) {
+			return false;
+		}
+		if (ThreadsRevealNotice) {
+			ThreadsRevealNotice = false;
+			ConversationPanel->present_notice(QString{ });
+		}
+		// [[BPR-1356]]. The window observes; the core decides. Each fact is
+		// one of Discuss's own filters against this thread, as the notes
+		// apply them.
+		const auto view  = ConversationPanel->discuss_view();
+		const auto route = core::route_workbench_thread(core::open_workbench_thread_intent{
+			.Destination = aDestination,
+			.Draft       = found->Draft,
+			.Hiding      = core::workbench_discuss_filters{
+				.OtherFile    = view.Scope == cards_scope::this_file && view.File.has_value() && *view.File != core::file_identity_of(found->Path.toStdString()),
+				.OnlyNew      = view.OnlyNew && found->Unread == 0U,
+				.HideResolved = view.HideResolved && found->Resolved,
+				.Listing      = view.Listing.has_value() && !view.Listing->contains(aThread),
+			},
+		});
+		if (route.Modality == core::workbench_modality::discuss) {
+			return open_conversation_in_discuss(aThread, aPost, route.Clear);
+		}
+		const auto opened = open_conversation_in_review(aThread, aPost);
+		if (opened && route.Reason == core::workbench_thread_route_reason::draft_opens_in_review) {
+			statusBar()->showMessage(tr("Your draft is written beside its line, so it opens in Review."));
+		}
+		return opened;
+	}
+
+	auto workbench_window::open_conversation_in_discuss(const std::string& aThread, const std::string& aPost, const core::workbench_discuss_filters& aClear) -> bool
+	{
+		choose_home(false);
+		choose_modality(review_modality::discuss);
+		ConversationPanel->clear_discuss_filters(aClear.OtherFile, aClear.OnlyNew, aClear.HideResolved, aClear.Listing);
+		auto* const cards = ConversationPanel->cards();
+		if (std::ranges::none_of(cards->cards(), [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
+			return false;
+		}
+		// As a Review pick: the thread opens in place with its post washed
+		// amber and brought into view, and the selection names the post.
+		cards->open_thread_at(aThread, aPost);
+		if (const auto post = ConversationPanel->model()->index_for_id(aPost.empty() ? aThread : aPost); post.isValid()) {
+			ConversationPanel->choose(post);
+		}
+		cards->setFocus(Qt::OtherFocusReason);
+		if (aClear.any()) {
+			auto cleared = QStringList{ };
+			if (aClear.OtherFile) {
+				cleared.push_back(tr("File scope"));
+			}
+			if (aClear.OnlyNew) {
+				cleared.push_back(tr("Only new"));
+			}
+			if (aClear.HideResolved) {
+				cleared.push_back(tr("Hide resolved"));
+			}
+			if (aClear.Listing) {
+				cleared.push_back(tr("the Overview's list"));
+			}
+			const auto last  = cleared.takeLast();
+			const auto names = cleared.isEmpty() ? last : tr("%1 and %2").arg(cleared.join(QStringLiteral(", ")), last);
+			const auto text  = tr("To show this thread, Discuss turned off %1.").arg(names);
+			ConversationPanel->present_notice(text);
+			ThreadsRevealNotice = true;
+			QAccessibleAnnouncementEvent event{ ConversationPanel, text };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
 		return true;
 	}
 

@@ -841,4 +841,22 @@ namespace bpr::core {
 			[&aState](const auto& aValue) { return apply(aState, aValue); },
 			aIntent);
 	}
+
+	auto route_workbench_thread(const open_workbench_thread_intent& aIntent) noexcept
+		-> workbench_thread_route
+	{
+		if (aIntent.Destination == workbench_thread_destination::review || aIntent.Draft) {
+			return workbench_thread_route{
+				.Modality     = workbench_modality::review,
+				.OpenComments = true,
+				.Reason       = aIntent.Destination == workbench_thread_destination::discuss
+					? workbench_thread_route_reason::draft_opens_in_review
+					: workbench_thread_route_reason::none,
+			};
+		}
+		return workbench_thread_route{
+			.Modality = workbench_modality::discuss,
+			.Clear    = aIntent.Hiding,
+		};
+	}
 } // namespace bpr::core
