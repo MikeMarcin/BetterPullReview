@@ -1323,3 +1323,12 @@ line-draft, composition and round-trip rows but not
 `qt_diff_workbench_scale_{100,125,200}`, which macOS and Windows recorded for
 v002. Everything else is answered: AC1 and AC2 by the slices, AC4 to AC6 by
 the owner's v001 and v002 Accepts, the 100 ms gates on Windows and Linux.
+
+## AC3 on Linux: the rendered scales (bpr-main-linux, 2026-10-09)
+
+At `fa9934adc` (contains `7c202845d`), WSL2 Ubuntu 26.04, GCC 15.2.0,
+`build/dev` (Debug), offscreen, network-isolated:
+`qt_workbench_window_scale_{100,125,200}` and `qt_diff_workbench_scale_{100,125,200}`
+pass, 6 of 6. That answers AC3's rendered narrow, wide and larger-font states
+on Linux, the one item the status above left open. The card finishes on the
+coordinator's direction.
