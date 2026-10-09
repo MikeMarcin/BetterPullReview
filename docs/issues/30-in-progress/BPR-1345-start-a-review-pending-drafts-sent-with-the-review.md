@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1345"
 title: "Start a review: pending drafts that the review submission sends as review comments"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
