@@ -856,7 +856,7 @@ anchor for the bracket, the "Lines a–b" words and the suggestion's lines
 Done on 2026-10-08 the other way round, slice 1 rebased onto this slice: see
 "Slice 1 integrated onto slice 2" above.
 
-### Owner look, session v001 (pending)
+### Owner look, session v001 (handed back; verdicts below)
 
 One new short session, not the long default one. Five questions, each Accept
 or Reject with the change in the note; none is self-certified.
@@ -884,3 +884,280 @@ or Reject with the change in the note; none is self-certified.
 Next: read the session's decisions. Accepts on the four built candidates
 answer AC5 and AC6 for slice 2; a Reject comes back as a v002 candidate. An
 Accept on `start-a-review-v001` starts its own build milestone.
+
+## Owner look v001: verdicts (session aae8f3fc, handed back 2026-10-09)
+
+Session `aae8f3fcd307cfca3bfb8ae0b28f1b83`, handed back at event 21
+(2026-10-09T02:15:09Z) with nothing pending; its host is stopped. The
+candidates ran on the frozen build of `80bea4636` (revision
+`frozen-80bea4636-v001`: slice 2 only, without slice 1's ranges).
+
+| Candidate | Event | Decision | Verdict |
+|---|---|---|---|
+| `draft-in-drawer-v001` | 16 | `d08bdb82-8f57-44b6-9269-b2b2f08e62d0` | Accept, no note |
+| `maximize-to-discuss-v001` | 17 | `6021e631-e8e9-429f-ae7d-f86c45ea5fcc` | Accept, with a note |
+| `publish-draft-v001` | 18 | `051a8af2-ce5c-46c4-ba7c-b677391dbbc8` | Accept, with a note and a screenshot |
+| `right-click-v001` | 19 | `038cffa0-f481-4a04-9de5-f943dfbf4d13` | **Reject**, with a note and a screenshot |
+| `start-a-review-v001` | 20 | `dc7e0a01-68f0-42b2-8d34-ede92665e96c` | Accept, no note |
+
+The notes, verbatim:
+
+- `maximize-to-discuss-v001`:
+  > the restore (back to code) should still be in the top right
+- `publish-draft-v001` (the screenshot shows the drawer draft's foot, its
+  note cut off after "until yo…"):
+  > just noticed this "only you see it unti..." doesnt fit.
+- `right-click-v001` (the screenshot shows lines 585 to 598 selected, drawn
+  white on solid blue):
+  > are we meant to lose all syntax highlighting when we select something?
+  >
+  > it's awkward I can only add comment on the right pane, I have to single select a line with left click first and then right click otherwise the option is greyed out, I cant seem to do a suggest change on a multi-select. I cant just right click a line and add comment. It's just unintuitive.
+
+The fingerprints are in the session file,
+`/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1212-compose-v001/session.json`.
+
+What follows from them (coordinator, 2026-10-08):
+
+- `draft-in-drawer-v001` answers AC5's drawer half for one line.
+- `maximize-to-discuss-v001` is accepted with a change: in Discuss the
+  restore takes the top-right place Maximize had in the drawer.
+- `publish-draft-v001` is accepted with a change: the privacy note must not
+  be cut off (shorter, or a tooltip on an icon).
+- `right-click-v001` comes back as `right-click-v002`, fixing all of it:
+  (a) a selection keeps the syntax colours, with a translucent selection that
+  does not replace the foreground; (b) a right-click on any line, with no left
+  click first, selects it and offers Add comment, never greyed out on a valid
+  line; (c) Suggest change works on several lines; (d) base (left) lines take
+  Add comment, published as GitHub's `side: LEFT`, and Suggest change only the
+  head side, with the reason in the menu when it is not available; (e) a
+  right-click inside the selection keeps it.
+- `start-a-review-v001` starts its own build milestone, [[BPR-1345]] (Ready,
+  filed on `main` at `95369f486`), built after this slice.
+
+## v002: right-click, base lines, the restore and the privacy note (bpr-main-mac, 2026-10-08)
+
+Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on
+`bpr-main-mac` (macOS, Apple clang, Qt 6.11.2, Debug and an optimized
+tests-on tree, offscreen). Drawn with `frontend-design` (loaded first). Built
+on `origin/main`, rebased onto `b864e319d`; slice 1 and slice 2 are both in.
+
+### What changed
+
+- **(a) A selection keeps the syntax colours.** Qt draws a text selection in
+  the palette's HighlightedText, which replaced every selected glyph's colour
+  (the owner's screenshot: white on solid blue). The code panes now paint
+  their own text (`source_pane::paint_text`, public and protected
+  `QPlainTextEdit` members only) and draw the selection as a translucent wash
+  of the accent (the selected lines' wash alpha) with no foreground, laid
+  among the extra selections after the bands and the selected lines' wash and
+  before the intraline emphasis. Each glyph is drawn in its own colour over
+  it. The selection itself, and Copy, are unchanged.
+- **(b) A right-click on any line offers Add comment.** v001 greyed the item
+  out whenever the line's draft had not arrived yet, and a right-click on a
+  new line selects it and asks the host for that draft at the same moment, so
+  the item was greyed exactly when the owner right-clicked a line nobody had
+  clicked. The menu now judges only whether the line can take a comment; a
+  draft on its way is no reason. Choosing the item waits for it: the status
+  line says "Opening a draft on line N…", the draft opens in the drawer when
+  it arrives, and if none comes within 1.5 s the status line says why.
+- **(c) Suggest change on several lines** (slice 1's ranges, now in the
+  reviewed build): a drag, Shift-click or Shift+arrows, then Suggest change,
+  starts one suggestion block of all the lines on the draft that spans them.
+- **(d) Base lines take comments.** GitHub takes a new comment on a base line
+  as `side: LEFT` (BPR-1335 checked it live on `MikeMarcin/BPR-Test` #42), but
+  counts those lines in the merge base's version of the file, while BPR's
+  base pane shows the base branch's tip. A line read off the base pane names
+  other text on GitHub whenever the file changed on the base branch after the
+  pull request branched, so base lines are admitted only with evidence:
+  - The epoch host derives the unique merge base of GitHub's base OID and the
+    accepted head from the retained objects, never fetching, and compares the
+    file's blob there with the comparison's left blob
+    (`resolve_github_base_numbering`, on the review's cache actor). Same, or
+    the merge base is the left commit: the base side is numbered as GitHub's.
+    Another blob, no file there, several or no merge bases, or a sparse review
+    without the history: it is not, and base lines say why.
+  - That one answer sets the window's left endpoint (existing base-side
+    threads are now placed on the base pane), the composition's draft on a
+    base line, the core's decision (`decide_comment_range(..., true)`: a base
+    line must be in a hunk, since it has no file-comment fallback, and a
+    range on the base side keeps both ends there), and the mutation host's
+    admission (`BaseNumberedAsGitHub` on the source material; the root is bound
+    on the head's path and commit with the base document's line count).
+  - The GitHub adapter writes `side: LEFT` and `start_side: LEFT`, validates a
+    base line against the source without a permalink, and never falls back to
+    a file comment (its body counts as needing a line subject). The answer is
+    the comment's receipt only on the left.
+  - The recovery store keeps the side: a publication record is version 1 while
+    every child is on the right (bytes unchanged) and version 2, with each
+    child's side, once one is on the left. The side-less legacy table refuses a
+    base-side anchor.
+  - Suggest change stays on the head side: on a base line it is unavailable in
+    the menu with its reason, and Shift+Return says why.
+  - The menu says "Base line N"; the drawer draft "Base line N" and "Your
+    draft on base line N"; leaving it returns focus to the base pane.
+  - The gutter's "+" stays on the head pane (BPR-1335).
+- **(e) A right-click inside the selection keeps it**, with its selected line.
+- **The reason in words.** An unavailable item is explained in a row under the
+  items ("This file's base is not GitHub's", "Base lines need a changed
+  region", "Suggest change: head side only", "Lines must be in one changed
+  region"), with the full sentence as its tooltip.
+- **The restore at the top right** (maximize-to-discuss-v001's note). In
+  Discuss, Back to the code moves from the top left to the top right, its
+  arrows at the far right where the drawer draft's Maximize sits; the draft's
+  lines title moves to the left. Esc and Command+Shift+Return are unchanged.
+- **The privacy note never cut off** (publish-draft-v001's note). The drawer
+  draft's foot says "Private until you publish" beside its lock, shown whole
+  or not at all: where the drawer is too narrow, the lock alone, with "Only
+  you see this draft until you publish it." as its tooltip and accessible
+  description.
+
+Boundaries: core decides the comment range and target shape; the epoch host
+answers the base numbering on the cache actor; the composition carries the
+answer to the window, the source material and the draft; Qt presents. No new
+GitHub read; the only GitHub write is the existing Publish.
+
+### Overlap with BPR-1335
+
+BPR-1335 v002 (`b864e319d`) answered the owner's "why can't I add a comment
+from the left pane" with the same diagnosis, proposed this follow-up for the
+owner to accept (`BPR-1335:base-side`), and kept a local WIP branch,
+`bpr-1335-base-side-wip` (not pushed). This slice builds that follow-up
+because the coordinator asked for it on the right-click Reject; the evidence
+is wider than the proposed ancestor check (the file's blob at the merge base,
+so a base branch that moved on in other files still qualifies). The WIP
+branch was not read or reused. Not done here: a fixture whose base moved on
+in the same file (the `differs` answer is covered by the epoch host's own
+test), and a live round on BPR-Test.
+
+### Verification (macOS, Debug, offscreen)
+
+New and changed rows, all passing on the candidate (`61dae6211`, rebased on
+`b864e319d`):
+
+- `core_review_comment_range`: a base line or range is `base_side` without the
+  evidence; with it, one base line in a hunk anchors on the left, a base range
+  keeps its first line, a base line outside every hunk is `outside_hunk`, two
+  hunks are `crosses_hunk`, past the base document `outside_document`, and the
+  evidence changes nothing on the right; a new base-side draft takes a range.
+  `core_review_round_trip` and `core_review_composition` (a base line is a
+  root draft target; no third side is) follow the shape rule.
+- `application_epoch_host`: `resolve_github_base_numbering` answers `same`
+  for the same blob at the merge base and for a merge base that is the left
+  commit (no lookup), `differs` for another blob and for no file there,
+  `unavailable` for several, none or missing merge bases, and refuses another
+  head, another snapshot, a missing path and a closing host before admission.
+- `application_review_mutation_application_host`: a base-line root is
+  unsupported without `BaseNumberedAsGitHub` and before any effect; with it a
+  base range reaches the provider on the left, on the head's path, with its
+  first line and the base document's line count; a base line past the base
+  document is refused.
+- `github_mutation_contract`: base lines 9 to 13 send `side: LEFT` and
+  `start_side: LEFT` in sorted key order on the head's path and commit, the
+  key differs from the head-side one's, a base line has no file-comment form,
+  and GitHub's answer is the receipt only on the left.
+- `sqlite_review_mutation_recovery_storage`: a head-side publication record
+  keeps version 1, a base-side one is version 2 and reads back on the left
+  after a restart, and the side-less legacy table refuses a base-side anchor.
+- `qt_diff_workbench_scale_100/125/200`: a selection over a comment line is a
+  wash lighter than the solid accent, the selected line's darkest ink stays
+  the comment colour and not HighlightedText, and the selection is unchanged.
+- `qt_workbench_line_draft` (real right-button press, context-menu request
+  and release; the host answers a selection a turn later): a right-click on
+  line 21, which nobody clicked, selects it and offers Add comment and Suggest
+  change enabled before its draft arrives; Add comment opens the draft in the
+  drawer once it does; a mouse drag over lines 4 to 6 and a right-click inside
+  keep the selection and its selected line, and Suggest change starts the
+  three-line block on the draft spanning them; a base line without the
+  evidence is refused in the menu with "This file's base is not GitHub's";
+  with it, "Base line 5" offers Add comment, Suggest change is unavailable
+  with "Suggest change: head side only", and Add comment opens "Your draft on
+  base line 5"; leaving it returns focus to the base pane; Shift+Return on a
+  base line says why, Return opens it; a base line outside every hunk says
+  "Base lines need a changed region"; a line whose draft never comes says it
+  is opening one and then why none came. Discuss's Back to the code sits at
+  the page's top right, its arrows at the far right, after the title, and
+  brings the draft back; the privacy note's tooltip and description carry the
+  sentence, and its words are painted only when they fit whole.
+- Migrated: `qt_workbench_conversation_reveal` (a base line outside every
+  hunk), `qt_workbench_window_scale_100/125/200` (the left line's reason,
+  then its thread's Reply with the evidence), `qt_review_draft_editor` (a
+  base-line root offers Publish; a line on no side keeps its text and says
+  why), `application_review_submission_composition_public_path` and its 125
+  and 200 scales (the left deletion takes its draft once the base numbering is
+  GitHub's; without it, refused with the reason, and forcing Comment opens
+  nothing).
+- `application_line_draft_contract` (`--line-draft-course`, the composed
+  public path): after the head-side phases, the epoch host answers the
+  fixture's base numbering (`left-current=1 numbered=1`), Return on base line
+  3 opens "Your draft on base line 3", and its Publish sends `side: LEFT`,
+  `line` 3 and no range to the fixture server.
+  `LINE_DRAFT_EVIDENCE:111111`, `BASE_LINE_DRAFT_EVIDENCE:111`.
+- Also pass: every `core_*`, `sqlite_*` and `github_*` row (137 with the Qt
+  rows below), `qt_conversation_cards_view`, `qt_composed_github_scale_100`,
+  `application_label_authoring_contract`, `application_threaded_reply_contract`,
+  `application_comment_range_draft_store`, `application_review_round_trip_composition_contract`
+  (resealed), `github_recorded_fixture_contract`, `architecture_boundaries`,
+  `architecture_boundary_contract` and `test_network_isolation_manifest`.
+- `coding-format-check` (clang-format 22.1.8, BPR-1352's gate) and
+  `DOCUMENTATION_OK` pass. clang-tidy 23 on the changed translation units
+  reports nothing on changed lines; its findings there (identifier naming in
+  lambda parameters, optional conversions) are on lines this slice does not
+  touch.
+
+**Failing-before controls** (each mutation applied, the row built and run,
+the file restored byte for byte):
+
+| Mutation | Row | Failure |
+|---|---|---|
+| Qt's own text paint | `qt_diff_workbench_scale_100` | "the selection shows as a wash, lighter than the solid accent" |
+| The wash keeps a HighlightedText foreground | `qt_diff_workbench_scale_100` | "selected, the comment line keeps its comment colour, not the highlighted-text colour" |
+| The menu requires the draft (v001) | `qt_workbench_line_draft` | "before its draft arrives the menu offers Add comment and Suggest change, enabled, with no reason" |
+| No wait for an arriving draft | `qt_workbench_line_draft` | "when no draft comes the status line says why" |
+| A right-click always reselects | `qt_workbench_line_draft` | "a right-click inside a dragged selection keeps it and its selected line, …" |
+| The range dropped from the waiting comment | `qt_workbench_line_draft` | "Shift+Return gives the draft on line 6 the first line 4 in one edit, …" |
+| Base evidence ignored in the window's decision | `qt_workbench_line_draft` | "with the evidence a base line offers Add comment, and Suggest change is unavailable with its reason shown" |
+| Suggest change allowed on base lines | `qt_workbench_line_draft` | the same |
+| The base comment target refused (v001 rule) | `qt_workbench_line_draft` | the same |
+| No reason row | `qt_workbench_line_draft` | "without the evidence a base line's menu says in words why it takes no comment" |
+| Focus always to the head pane | `qt_workbench_line_draft` | "leaving a base-side draft returns focus to the base pane" |
+| Restore at the left (v001 order) | `qt_workbench_line_draft` | "Back to the code sits at the page's top right, …" |
+| Privacy note as in v001 | `qt_workbench_line_draft` | "the draft's privacy note is short, and its tooltip and description carry the sentence" |
+| Core ignores the evidence | `core_review_comment_range` | "one left line is refused without evidence that the base is numbered as GitHub's" |
+| Core lets one base line off the hunks | `core_review_comment_range` | "one left line outside every hunk is refused: a base line has no file-comment fallback" |
+| Host admits a base root without evidence | `application_review_mutation_application_host` | "left, absent, arbitrary-path, and stale bindings perform no provider work" |
+| Host counts a base line in the head document | `application_review_mutation_application_host` | "it reaches the provider on the left, on the head's path, with its first line and the base document's line count" |
+| Wire compiler refuses a base range (slice 1 rule) | `github_mutation_contract` | "base lines 9 to 13 send side LEFT and start_side LEFT on the head's path and commit" |
+| Record codec always version 1 | `sqlite_review_mutation_recovery_storage` | "a base-side record is written as version 2" |
+| Legacy table admits a base-side anchor | `sqlite_review_mutation_recovery_storage` | "the side-less legacy table refuses a base-side anchor" |
+| App gives a base line no draft (v001 rule) | `application_line_draft_contract` | phase 31 `base-line=2 draft=-` until the budget (`BASE_LINE_DRAFT_EVIDENCE:000`) |
+| Evidence never reaches the source material | `application_line_draft_contract` | phase 30 `left-current=1 numbered=0` until the budget |
+| Adapter validates a base line by permalink | `application_line_draft_contract` | phase 32 "Publication was refused because the pull request changed." |
+| Host refuses every base-line root | `application_line_draft_contract` | phase 32 "Publication is unavailable for this target. Your draft text is kept." |
+| The merge base is never the left document | `application_line_draft_contract` | phase 30 `left-current=0 numbered=0` |
+
+**Pin.** `main`'s pins matched at `b864e319d`. Resealed over the BPR-1094
+seal: `full_application` `13ec6586…`, `production_app_manifest`
+`dd956d6e…`; `production_mutation_branch` unchanged (`e067befe…`). The dated
+"BPR-1212 v002 reseal" comment follows BPR-1094's.
+
+**Observed, not this slice's:** the machine ran at a load average near 290
+from other stations' builds while these rows ran. Under it,
+`application_line_draft_contract` failed 4 of about 20 runs and passed alone
+on rerun: twice stalled before the course's first file opened, with the
+fixture's recording refusing an unexpected `search_pull_requests` read (the
+queue's), once after every phase passed, on a `list_review_threads` refresh
+that overlapped the base-line publication's (fixed: each publication now
+waits for the previous refresh to settle), and once at the budget.
+`application_epoch_host`'s BPR-1327 timing row failed once and passed three
+times.
+
+**Limits.**
+- macOS only; Linux and Windows runs of these rows are owed by the stations.
+- Base-side comments need the retained history: a sparse review (selected
+  objects only) cannot derive the merge base, so its base lines stay refused
+  with the reason.
+- No fixture has a base branch that moved on in the commented file; the
+  epoch host's test covers `differs` with its fake cache, and the composed
+  course covers `same`. No live round on BPR-Test from this slice.
+- The gutter's "+" stays on the head pane, and the one-pane view's code has
+  no right-click menu, as before.
