@@ -2,6 +2,7 @@
 #include "../support/review_tour_fixture.hpp"
 #include "diff_publication_fixture.hpp"
 
+#include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -13518,6 +13519,46 @@ namespace {
 				   && !corner->isVisible()
 				   && window.findChildren<QWidget*>(QStringLiteral("workbenchDif")).size() == 1,
 			   "Compose offers the exact proposal with the same single Dif beside visible acceptance");
+		{
+			// [[BPR-1347]]. Dif takes no room of his own at the top of Discuss
+			// (owner, BPR-1091 v002: "there's way too much deadspace around
+			// him"): the composition starts as close under the review bar
+			// with him as without him, and close.
+			auto* const back     = window.findChild<QPushButton*>(QStringLiteral("composeInlineDraftPageBack"));
+			auto* const reject   = window.findChild<QToolButton*>(QStringLiteral("reviewRejectRevisionButton"));
+			const auto  belowBar = [&] {
+				const auto bar = window.review_bar()->mapTo(&window, QPoint{ 0, window.review_bar()->height() }).y();
+				return back->mapTo(&window, QPoint{ 0, 0 }).y() - bar;
+			};
+			expect(back != nullptr && back->isVisible() && reject != nullptr && window.review_bar()->isVisible(), "the composition's Back and the workshop's decision are on screen");
+			const auto withDif = belowBar();
+			save_render(window, QStringLiteral("dif-workshop-top"));
+			window.adopt_dif(core::resolve_dif({ .Visibility = core::dif_visibility::hidden, .Motion = core::motion_mode::reduced }, core::motion_observation::full));
+			process_events();
+			const auto withoutDif = belowBar();
+			std::cout << "review bar to Back: " << withDif << " with Dif, " << withoutDif << " without\n";
+			expect(!window.dif_workshop_slot()->isVisible() && accept->isVisible() && reject->isVisible(), "hidden in Settings, Dif leaves the decision visible");
+			expect(withDif == withoutDif, "Dif adds no height above the composition");
+			expect(withDif <= 56, "the composition starts right under the review bar");
+			auto* const title = window.findChild<QLabel*>(QStringLiteral("workbenchWorkshopTitle"));
+			expect(title != nullptr && title->isVisible() && title->mapTo(&window, QPoint{ 0, 0 }).x() < 24, "hidden in Settings, Dif leaves no gap at the row's start");
+			window.adopt_dif(core::resolve_dif({ .Visibility = core::dif_visibility::shown, .Motion = core::motion_mode::reduced }, core::motion_observation::full));
+			process_events();
+			expect(window.dif_workshop_slot()->isVisible() && dif->parentWidget() == window.dif_workshop_slot() && dif->size() == QSize{ 28, 28 }
+					   && window.dif_workshop_slot()->mapTo(&window, QPoint{ 0, 0 }).x() < title->mapTo(&window, QPoint{ 0, 0 }).x()
+					   && window.dif_workshop_slot()->accessibleName() == QStringLiteral("Decorative Dif workshop illustration"),
+				   "shown again, Dif opens the workshop's row at the corner's size and keeps his name");
+			const auto original = window.palette();
+			for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				profile.apply_to(window);
+				process_events();
+				save_render(window, mode == core::appearance_mode::dark ? QStringLiteral("dif-workshop-top-dark") : QStringLiteral("dif-workshop-top-light"));
+			}
+			window.setPalette(original);
+			process_events();
+		}
 		accept->setFocus();
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		expect(!window.dif_workshop_slot()->isVisible(), "Escape also returns from the fixed workshop header");

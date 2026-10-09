@@ -1323,7 +1323,11 @@ compare_glance cue, dispatches no agent or review action, and never opens a
 collapsed drawer. Under [[BPR-1209]], the single Dif rests at 28 logical pixels in the
 status bar's leading corner on every ordinary surface, stepping aside for a
 transient message. The first-launch Home and [[BPR-0966]]'s exact offered
-Compose workshop remain prime spots. No Dif slot belongs to the private tab. Each tab scrolls on its own, so switching tabs keeps each one's scroll
+Compose workshop remain prime spots. In the workshop Dif opens the header's
+row at the corner's 28 pixels, before "Comment workshop" and its Accept and
+Reject, and the row is as tall with him as without him, so the composition
+starts right under the review bar ([[BPR-1347]]; the 64-pixel slot left "way
+too much deadspace around him"). No Dif slot belongs to the private tab. Each tab scrolls on its own, so switching tabs keeps each one's scroll
 position and the selected conversation. The tabs are one focus stop and the
 arrow keys move between them. RFC-BPR-0039's Tour joins them when it exists.
 

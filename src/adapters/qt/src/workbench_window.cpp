@@ -366,6 +366,15 @@ namespace bpr::qt {
 		/// slots unchanged while reducing the corner illustration by thirty percent.
 		constexpr auto dif_corner_size = 28;
 
+		/// \brief [[BPR-1347]]. Dif's size at the start of the comment
+		/// workshop's row, in logical pixels.
+		///
+		/// \details The owner found the 64-pixel slot left "way too much
+		/// deadspace around him" over Discuss (BPR-1091 v002). He now opens the
+		/// workshop's row at the corner's size, and the row is that tall with
+		/// or without him.
+		constexpr auto dif_workshop_size = dif_corner_size;
+
 		// The toolbar's first entries are the file actions and the rest are the
 		// change actions, in the core's own command order.
 		constexpr std::size_t file_navigation_entries = 2U;
@@ -2422,7 +2431,25 @@ namespace bpr::qt {
 		workshopEscape->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(workshopEscape, &QShortcut::activated, this, [this] { close_review_composition(); });
 		auto* workshopHeader = new QHBoxLayout{ WorkshopHeader };
-		workshopHeader->addWidget(new QLabel{ tr("Comment workshop"), WorkshopHeader });
+		// [[BPR-1347]]. One compact row: Dif first, beside what he
+		// illustrates, then the workshop's name and its decision. The strut
+		// keeps the row's height when Dif is hidden, and nothing is left where
+		// he was.
+		auto margins = workshopHeader->contentsMargins();
+		margins.setTop(4);
+		margins.setBottom(4);
+		workshopHeader->setContentsMargins(margins);
+		workshopHeader->addStrut(dif_workshop_size);
+		DifWorkshopSlot = new QWidget{ WorkshopHeader };
+		DifWorkshopSlot->setObjectName(QStringLiteral("workbenchDifWorkshopSlot"));
+		DifWorkshopSlot->setAccessibleName(tr("Decorative Dif workshop illustration"));
+		DifWorkshopSlot->setFixedSize(dif_workshop_size, dif_workshop_size);
+		auto* workshopIllustration = new QHBoxLayout{ DifWorkshopSlot };
+		workshopIllustration->setContentsMargins(0, 0, 0, 0);
+		workshopHeader->addWidget(DifWorkshopSlot);
+		auto* const workshopTitle = new QLabel{ tr("Comment workshop"), WorkshopHeader };
+		workshopTitle->setObjectName(QStringLiteral("workbenchWorkshopTitle"));
+		workshopHeader->addWidget(workshopTitle);
 		for (auto* action : { ReviewEditor->accept_revision_action(), ReviewEditor->reject_revision_action() }) {
 			auto* button = new QToolButton{ WorkshopHeader };
 			button->setObjectName(action->objectName() + QStringLiteral("Button"));
@@ -2433,13 +2460,6 @@ namespace bpr::qt {
 			connect(action, &QAction::changed, this, [this] { update_dif_presentation(); });
 		}
 		workshopHeader->addStretch();
-		DifWorkshopSlot = new QWidget{ WorkshopHeader };
-		DifWorkshopSlot->setObjectName(QStringLiteral("workbenchDifWorkshopSlot"));
-		DifWorkshopSlot->setAccessibleName(tr("Decorative Dif workshop illustration"));
-		DifWorkshopSlot->setFixedSize(64, 64);
-		auto* workshopIllustration = new QHBoxLayout{ DifWorkshopSlot };
-		workshopIllustration->setContentsMargins(0, 0, 0, 0);
-		workshopHeader->addWidget(DifWorkshopSlot);
 		WorkshopHeader->hide();
 		centre->insertWidget(centre->indexOf(CentreStack), WorkshopHeader);
 		// [[BPR-1129]]. The kept-draft mark follows what the workflow presents.
@@ -9189,7 +9209,7 @@ namespace bpr::qt {
 				DifWorkshopSlot->layout()->addWidget(Dif);
 				DifWorkshopSlot->layout()->setAlignment(Dif, Qt::AlignCenter);
 			}
-			Dif->setFixedSize(64, 64);
+			Dif->setFixedSize(dif_workshop_size, dif_workshop_size);
 			Dif->show();
 		} else {
 			Dif->hide();
