@@ -1195,8 +1195,9 @@ namespace bpr::qt {
 	{
 		FileNodes.clear();
 		FileOrder.clear();
-		FolderCount  = 0U;
-		auto pending = std::vector<node*>{ &Root };
+		FolderCount        = 0U;
+		LargestFolderCount = 0U;
+		auto pending       = std::vector<node*>{ &Root };
 		while (!pending.empty()) {
 			auto* parent = pending.back();
 			pending.pop_back();
@@ -1205,6 +1206,7 @@ namespace bpr::qt {
 					FileNodes.insert(child->Path, child.get());
 				} else if (!child->Remainder) {
 					++FolderCount;
+					LargestFolderCount = std::max(LargestFolderCount, child->FileCount);
 					pending.push_back(child.get());
 				}
 			}
@@ -1623,6 +1625,11 @@ namespace bpr::qt {
 		return FileOrder.size();
 	}
 
+	auto overview_file_model::largest_folder_file_count() const noexcept -> std::size_t
+	{
+		return LargestFolderCount;
+	}
+
 	auto overview_file_model::index_for_path(const QString& aPath) const -> QModelIndex
 	{
 		const auto* file = FileNodes.value(aPath, nullptr);
@@ -1638,11 +1645,15 @@ namespace bpr::qt {
 	}
 
 	namespace {
-		/// [[BPR-1363]]. A folder path's file count follows it, muted, after
-		/// this much space: "src/engine  2".
-		[[nodiscard]] auto folder_count_gap(const QFont& aFont) -> int
+		/// [[BPR-1363]] v002. A folder's file count, in the row's regular
+		/// weight with tabular figures, so equal digit counts are equally wide
+		/// and right-aligned counts line up digit for digit.
+		[[nodiscard]] auto folder_count_font(const QFont& aFont) -> QFont
 		{
-			return QFontMetrics{ aFont }.horizontalAdvance(QStringLiteral("  "));
+			auto font = aFont;
+			font.setWeight(QFont::Normal);
+			font.setFeature(QFont::Tag{ "tnum" }, 1U);
+			return font;
 		}
 
 		[[nodiscard]] auto folder_count_text(const QModelIndex& aIndex) -> QString
@@ -1650,10 +1661,19 @@ namespace bpr::qt {
 			return QString::number(aIndex.data(overview_file_model::file_count_role).toULongLong());
 		}
 
-		[[nodiscard]] auto item_text_margin(const QStyleOptionViewItem& aOption) -> int
+		/// The width of the count slot: the largest count's digits, as zeros.
+		[[nodiscard]] auto folder_count_width(const QFont& aFont, const QModelIndex& aIndex) -> int
 		{
-			const auto* const style = aOption.widget != nullptr ? aOption.widget->style() : QApplication::style();
-			return style->pixelMetric(QStyle::PM_FocusFrameHMargin, &aOption, aOption.widget) + 1;
+			const auto* const model   = dynamic_cast<const overview_file_model*>(aIndex.model());
+			const auto        largest = model != nullptr ? model->largest_folder_file_count() : aIndex.data(overview_file_model::file_count_role).toULongLong();
+			const auto        digits  = QString::number(largest).size();
+			return QFontMetrics{ folder_count_font(aFont) }.horizontalAdvance(QString(digits, QLatin1Char('0')));
+		}
+
+		/// The space between the count and the name that follows it.
+		[[nodiscard]] auto folder_count_gap(const QFont& aFont) -> int
+		{
+			return QFontMetrics{ aFont }.horizontalAdvance(QLatin1Char(' '));
 		}
 	} // namespace
 
@@ -1663,8 +1683,10 @@ namespace bpr::qt {
 		const auto folder = aIndex.data(overview_file_model::folder_role).toBool();
 		auto       option = aOption;
 		if (folder && aIndex.column() == overview_file_model::operation_column) {
-			// [[BPR-1363]]. A folder row's first cell holds its disclosure mark alone.
-			return QSize{ disclosure_width(aOption), std::max(QStyledItemDelegate::sizeHint(option, aIndex).height(), 22) };
+			// [[BPR-1363]] v002. A folder row's first cell holds its disclosure
+			// mark, then its count's slot and the space before the name.
+			const auto width = disclosure_width(aOption) + folder_count_width(aOption.font, aIndex) + folder_count_gap(aOption.font);
+			return QSize{ width, std::max(QStyledItemDelegate::sizeHint(option, aIndex).height(), 22) };
 		}
 		const auto folderPath = folder && aIndex.column() == overview_file_model::file_column;
 		if (folderPath) {
@@ -1673,9 +1695,6 @@ namespace bpr::qt {
 		}
 		auto hint = QStyledItemDelegate::sizeHint(option, aIndex);
 		hint.setHeight(std::max(hint.height(), 22));
-		if (folderPath) {
-			hint.setWidth(hint.width() + folder_count_gap(aOption.font) + QFontMetrics{ aOption.font }.horizontalAdvance(folder_count_text(aIndex)));
-		}
 		return hint;
 	}
 
@@ -1690,12 +1709,19 @@ namespace bpr::qt {
 		return QRect{ aOption.rect.left(), aOption.rect.top(), disclosure_width(aOption), aOption.rect.height() };
 	}
 
+	auto overview_row_delegate::count_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> QRect
+	{
+		return QRect{ aOption.rect.left() + disclosure_width(aOption), aOption.rect.top(), folder_count_width(aOption.font, aIndex), aOption.rect.height() };
+	}
+
 	void overview_row_delegate::paint_disclosure(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 	{
 		// [[BPR-1213]]. The rows stay flat, so the view has no indentation to
 		// draw its branch in; the folder row draws the native disclosure mark
 		// itself. [[BPR-1363]]: in its first cell, so the mark is the leftmost
-		// thing on the row (owner, 2026-10-09).
+		// thing on the row (owner, 2026-10-09). v002: the file count follows
+		// it, right-aligned in a slot every folder row shares, so the counts
+		// read as one column (owner, session d827fdb7).
 		auto option = aOption;
 		initStyleOption(&option, aIndex);
 		const auto* const style = option.widget != nullptr ? option.widget->style() : QApplication::style();
@@ -1710,12 +1736,20 @@ namespace bpr::qt {
 		branch.state = (option.state & (QStyle::State_Enabled | QStyle::State_Active | QStyle::State_Selected | QStyle::State_MouseOver))
 			| QStyle::State_Children | QStyle::State_Item | (expanded ? QStyle::State_Open : QStyle::State_None);
 		style->drawPrimitive(QStyle::PE_IndicatorBranch, &branch, aPainter, option.widget);
+
+		const auto group = option.state & QStyle::State_Active ? QPalette::Active : QPalette::Inactive;
+		aPainter->save();
+		aPainter->setClipRect(option.rect);
+		aPainter->setFont(folder_count_font(option.font));
+		aPainter->setPen(option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText));
+		aPainter->drawText(count_rect(option, aIndex), Qt::AlignRight | Qt::AlignVCenter, folder_count_text(aIndex));
+		aPainter->restore();
 	}
 
 	void overview_row_delegate::paint_folder(QPainter* const aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 	{
-		// The folder's whole path, where every file name starts, then its
-		// file count in the regular weight ([[BPR-1363]]).
+		// The folder's whole path, where every file name starts; its file
+		// count is in the row's first cell ([[BPR-1363]] v002).
 		auto option = aOption;
 		initStyleOption(&option, aIndex);
 		const auto* const style = option.widget != nullptr ? option.widget->style() : QApplication::style();
@@ -1723,29 +1757,14 @@ namespace bpr::qt {
 		option.text.clear();
 		style->drawControl(QStyle::CE_ItemViewItem, &option, aPainter, option.widget);
 
-		const auto group = option.state & QStyle::State_Active ? QPalette::Active : QPalette::Inactive;
-		const auto ink   = option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText);
-		const auto count = folder_count_text(aIndex);
-		const auto gap   = folder_count_gap(option.font);
-		const auto room  = gap + QFontMetrics{ option.font }.horizontalAdvance(count);
-
-		auto label = option;
-		label.text = text;
-		label.rect.setRight(option.rect.right() - room);
+		const auto group      = option.state & QStyle::State_Active ? QPalette::Active : QPalette::Inactive;
+		auto       label      = option;
+		label.text            = text;
 		label.backgroundBrush = Qt::NoBrush;
 		label.state &= ~(QStyle::State_HasFocus | QStyle::State_Selected);
 		label.font.setWeight(QFont::DemiBold);
-		label.palette.setColor(QPalette::Text, ink);
+		label.palette.setColor(QPalette::Text, option.state & QStyle::State_Selected ? option.palette.color(group, QPalette::HighlightedText) : option.palette.color(group, QPalette::PlaceholderText));
 		style->drawControl(QStyle::CE_ItemViewItem, &label, aPainter, label.widget);
-
-		const auto margin = item_text_margin(option);
-		const auto shown  = std::min(QFontMetrics{ label.font }.horizontalAdvance(text), std::max(0, label.rect.width() - (2 * margin)));
-		aPainter->save();
-		aPainter->setClipRect(option.rect);
-		aPainter->setFont(option.font);
-		aPainter->setPen(ink);
-		aPainter->drawText(QRect{ option.rect.left() + margin + shown + gap, option.rect.top(), room, option.rect.height() }, Qt::AlignLeft | Qt::AlignVCenter, count);
-		aPainter->restore();
 	}
 
 	void overview_row_delegate::paint(

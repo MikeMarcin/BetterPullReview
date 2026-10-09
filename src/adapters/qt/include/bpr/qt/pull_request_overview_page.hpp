@@ -165,8 +165,8 @@ namespace bpr::qt {
 			unresolved_role,
 			/// [[BPR-1089]]. True on the "Not on a file" row.
 			remainder_role,
-			/// [[BPR-1363]]. On a folder row, the files it holds; its path
-			/// shows the count after it.
+			/// [[BPR-1363]]. On a folder row, the files it holds; the row
+			/// shows the count right after its disclosure mark.
 			file_count_role,
 		};
 
@@ -187,6 +187,9 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto folder_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto file_count() const noexcept -> std::size_t;
+		/// \brief [[BPR-1363]] v002. The most files any folder row holds, which
+		/// sizes the slot every folder's count is drawn in.
+		[[nodiscard]] auto largest_folder_file_count() const noexcept -> std::size_t;
 		/// \brief The index of a file row, by path.
 		[[nodiscard]] auto index_for_path(const QString& aPath) const -> QModelIndex;
 		[[nodiscard]] auto row_at(const QModelIndex& aIndex) const
@@ -232,7 +235,8 @@ namespace bpr::qt {
 		node                  Root;
 		QHash<QString, node*> FileNodes;
 		std::vector<node*>    FileOrder;
-		std::size_t           FolderCount = 0U;
+		std::size_t           FolderCount        = 0U;
+		std::size_t           LargestFolderCount = 0U;
 		/// [[BPR-1089]]. The counts, and each file's and folder's place in them.
 		std::optional<application::overview_feedback_projection> Feedback;
 		QHash<QString, std::size_t>                              FileFeedback;
@@ -254,6 +258,13 @@ namespace bpr::qt {
 		/// disclosure mark, in view coordinates: at the row's left edge
 		/// ([[BPR-1363]]).
 		[[nodiscard]] static auto disclosure_rect(const QStyleOptionViewItem& aOption) -> QRect;
+
+		/// \brief [[BPR-1363]] v002. Where a folder row's first cell
+		/// (`aOption.rect`) draws its file count, right-aligned in tabular
+		/// figures: a slot right after the disclosure mark, as wide as the
+		/// largest count of the pull request, so every folder's count shares
+		/// one column.
+		[[nodiscard]] static auto count_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) -> QRect;
 
 		/// \brief [[BPR-1089]]. The chip to ring while the view has focus.
 		void set_chip_focus(std::optional<overview_chip_focus> aFocus);

@@ -159,3 +159,62 @@ this card (`68f00eb15`, `10cd1cbb2`, `ba3c970b9`); none are in the new code.
   criterion; a Reject's note is the next round's change. When both are
   accepted, finish the card and remove the frozen root with
   `scripts/freeze_attended_build.py remove`.
+
+## Owner look v001 — returned 2026-10-09
+
+Session `d827fdb7041e884f47af97defe1d59bd`, handed back at cursor 9.
+
+- `BPR-1363-columns-v001` (`BPR-1363:owner-columns`): **Accept**, no note.
+  Opening or closing a folder moves no column, and a dragged width stays.
+  This criterion is met on `90527564b`.
+- `BPR-1363-disclosure-v001` (`BPR-1363:owner-disclosure`): **Reject**. The
+  note, verbatim: "Yes, but I would prefer if the number had a consistent
+  column alignment, either put it as a column out to the right or move it to
+  the left of the folder name."
+
+The session was released with `resume-development --all` (cursor 10), its
+host (PID 27175) stopped by PID, and the frozen root
+`/Users/jaeger/bpr1363-folder-rows-v001.x9hgdb3c` removed with
+`scripts/freeze_attended_build.py remove`.
+
+## v002 — the count in one column (bpr-main-mac, 2026-10-09)
+
+**Design.** Loaded `frontend-design:frontend-design` first. The owner asked
+for one thing: a count that lines up. The arrow still leads the row. Right
+after it, in the row's first cell, every folder's file count sits in one
+slot. The slot is as wide as the largest count in the pull request, written
+as zeros (`"000"` for 120), in the regular weight with tabular figures
+(`tnum`), right-aligned, in the muted ink the folder path uses (highlighted
+ink when selected), and a space separates it from the name. Since the slot
+lives in the first column, the File header still sits over the names, and
+folder and file names both start at the File column's edge. The slot
+depends on the contents only (`overview_file_model::largest_folder_file_count`,
+recomputed with the tree), so `steady_columns` still measures it once per
+contents change, never on expand, collapse or scroll. The folder's
+accessible text is unchanged ("Folder src/engine, 2 files"). The count no
+longer follows the path, and the File column no longer reserves room for it.
+
+**Alternative rendered, not built.** "Count in its own column": the arrow
+alone in the first cell and the count right-aligned at the File column's
+right edge. It was rendered from a temporary patch (never committed), so
+the owner can compare the two looks.
+
+**Tests.**
+- `test_folder_counts_share_one_column` (new; runs in
+  `qt_pull_request_overview_page` and the `--folder-rows` rows at 125% and
+  200%) presents folders of 1, 7, 12 and 120 files at path depths 1 to 4
+  (`a`, `h/i/j`, `b/c/d/e`, `f/g`). On every folder row it grabs the
+  viewport and checks four things. The arrow is the leftmost ink. The slot
+  (`overview_row_delegate::count_rect`) starts right after the arrow and is
+  as wide as three digits. The count's ink lies between the arrow and the
+  name. All four slots share one x and width. Across the rows, the counts'
+  right ink edges agree within 2 px, and a longer count reaches further
+  left, not further right. Opening the 120-file folder moves no column, and
+  a file's name starts where its folder's name starts. A mutation check
+  that left-aligned the count failed on "the counts are right-aligned".
+- `test_folder_disclosure_is_the_leftmost_mark` now asserts that the count
+  is drawn between the arrow's ink and the path's ink, in the slot right
+  after the arrow, on all twelve nested-folders rows.
+- `test_folder_controls_preserve_identity_and_refresh_state`: the folder row's
+  first cell holds the arrow and the count's slot; the longest folder path
+  fits unelided without a count after it.

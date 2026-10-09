@@ -434,12 +434,11 @@ namespace {
 		auto measured = QStyleOptionViewItem{ };
 		measured.initFrom(view);
 		const auto deepFolder = QModelIndex{ deep.parent() }.siblingAtColumn(qt::overview_file_model::file_column);
-		expect(view->visualRect(deepFolder).width()
-				   >= QFontMetrics{ bold }.horizontalAdvance(deepFolder.data().toString()) + QFontMetrics{ view->font() }.horizontalAdvance(QStringLiteral("  1")),
-			   "the longest folder path fits its cell with its file count after it, unelided");
+		expect(view->visualRect(deepFolder).width() >= QFontMetrics{ bold }.horizontalAdvance(deepFolder.data().toString()),
+			   "the longest folder path fits its cell unelided; its file count is in the row's first cell");
 		expect(view->visualRect(QModelIndex{ deep.parent() }.siblingAtColumn(qt::overview_file_model::operation_column)).width()
-				   >= qt::overview_row_delegate::disclosure_rect(measured).width(),
-			   "the folder row's first cell holds its disclosure mark");
+				   >= qt::overview_row_delegate::disclosure_rect(measured).width() + qt::overview_row_delegate::count_rect(measured, deep.parent()).width(),
+			   "the folder row's first cell holds its disclosure mark and its count's slot");
 		auto* accessible = QAccessible::queryAccessibleInterface(view);
 		auto* table      = accessible == nullptr ? nullptr : accessible->tableInterface();
 		expect(table != nullptr, "native Overview tree exposes an accessible table");
@@ -1203,8 +1202,9 @@ namespace {
 	/// \brief [[BPR-1363]]. The owner, 2026-10-09: "The disclosure arrow not
 	/// being the leftmost thing on the overview page for the folder rows is
 	/// really bothering me." On every folder row the disclosure mark is the
-	/// leftmost thing painted; the folder's file count follows its path; and
-	/// the path starts where every file name starts.
+	/// leftmost thing painted; v002, the folder's file count sits in its slot
+	/// right after the mark and before the path; and the path starts where
+	/// every file name starts.
 	void test_folder_disclosure_is_the_leftmost_mark()
 	{
 		qt::pull_request_overview_page page;
@@ -1245,14 +1245,12 @@ namespace {
 			expect(path.data().toString() == (folder.data(Qt::AccessibleTextRole).toString().section(QLatin1Char(','), 0, 0).mid(7))
 					   && folder.data(Qt::AccessibleTextRole).toString().endsWith(QStringLiteral(", %1 files").arg(count)),
 				   "the folder's accessible text still names its path and file count");
-			expect(folder.data(Qt::DisplayRole).toString().isEmpty(), "the folder row's first cell shows no count of its own");
-			// After the path's advance and half the space between them.
-			const auto countCell = QRect{ pathCell.left() + 3 + QFontMetrics{ bold }.horizontalAdvance(path.data().toString()) + QFontMetrics{ view->font() }.horizontalAdvance(QLatin1Char(' ')), pathCell.top(),
-										  pathCell.width(), pathCell.height() }
-									   .intersected(pathCell);
-			const auto countInk  = ink_span(image, countCell);
-			expect(countInk && countInk->second - countInk->first <= QFontMetrics{ view->font() }.horizontalAdvance(count) + 2,
-				   "the folder's file count follows its path");
+			expect(folder.data(Qt::DisplayRole).toString().isEmpty(), "the folder row's first cell has no display text; its count is painted");
+			const auto slot     = qt::overview_row_delegate::count_rect(option, folder);
+			const auto countInk = ink_span(image, slot);
+			expect(slot.left() == arrow.right() + 1 && slot.right() < pathCell.left(), "the count's slot follows the disclosure mark and ends before the File column");
+			expect(countInk && inArrow->second <= countInk->first && countInk->second <= pathInk->first,
+				   "the folder's file count is drawn between its disclosure mark and its path");
 		}
 		expect(folders == 12, "every folder row was checked");
 		const auto reference = model->index_for_path(QStringLiteral("docs/api/reference.md"));
@@ -1262,6 +1260,86 @@ namespace {
 			   "a file's name starts where its folder's path starts");
 		if (const auto target = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !target.isEmpty()) {
 			expect(page.grab().save(target, "PNG"), "the folder rows render is saved for inspection");
+		}
+	}
+
+	/// \brief [[BPR-1363]] v002. The owner, session d827fdb7: "I would prefer
+	/// if the number had a consistent column alignment, either put it as a
+	/// column out to the right or move it to the left of the folder name."
+	/// Every folder's count is right-aligned in one slot right after the
+	/// disclosure mark, as wide as the largest count, at every path depth:
+	/// the slots share one x, the counts' right edges line up, and the slot
+	/// changes with the pull request's contents only.
+	void test_folder_counts_share_one_column()
+	{
+		auto       projected = projection();
+		const auto add       = [&](const std::string& aFolder, const std::size_t aFiles) {
+			for (std::size_t file = 0; file < aFiles; ++file) {
+				projected.Files.push_back(row(aFolder + "/file_" + std::to_string(file) + ".cpp", application::overview_file_operation::modified,
+											  application::overview_change_since_review::unchanged, core::file_read_state::unread));
+			}
+		};
+		projected.Files.clear();
+		add("a", 1U);
+		add("b/c/d/e", 12U);
+		add("f/g", 120U);
+		add("h/i/j", 7U);
+		projected.Progress.FilesTotal = projected.Files.size();
+		qt::pull_request_overview_page page;
+		page.resize(1100, 640);
+		page.present(projected);
+		page.show();
+		settle();
+		auto* const view  = page.files_view();
+		auto* const model = page.file_model();
+		page.collapse_folders_button()->click();
+		view->clearSelection();
+		view->setCurrentIndex({ });
+		settle();
+		expect(model->largest_folder_file_count() == 120U, "the largest folder holds 120 files");
+		const auto image  = view->viewport()->grab().toImage();
+		auto       places = std::set<std::pair<int, int>>{ };
+		auto       rights = std::vector<qreal>{ };
+		auto       lefts  = std::map<std::size_t, qreal>{ };
+		const auto digits = QFontMetrics{ view->font() }.horizontalAdvance(QStringLiteral("000"));
+		for (auto row = 0; row < model->rowCount(); ++row) {
+			const auto folder = model->index(row, qt::overview_file_model::operation_column);
+			if (!folder.data(qt::overview_file_model::folder_role).toBool()) {
+				continue;
+			}
+			auto option = QStyleOptionViewItem{ };
+			option.initFrom(view);
+			option.rect       = view->visualRect(folder);
+			const auto arrow  = qt::overview_row_delegate::disclosure_rect(option);
+			const auto slot   = qt::overview_row_delegate::count_rect(option, folder);
+			const auto path   = view->visualRect(folder.siblingAtColumn(qt::overview_file_model::file_column));
+			const auto whole  = ink_span(image, QRect{ 0, option.rect.top(), view->viewport()->width(), option.rect.height() });
+			const auto inSlot = ink_span(image, slot);
+			const auto name   = ink_span(image, path);
+			places.emplace(slot.left(), slot.width());
+			expect(whole && inSlot && name, "a folder row paints its mark, its count and its path");
+			expect(whole->first < arrow.right() && whole->first < inSlot->first, "the disclosure mark is the leftmost thing on the row");
+			expect(slot.left() == arrow.right() + 1 && inSlot->second <= name->first, "the count sits after the mark and before the name");
+			expect(std::abs(slot.width() - digits) <= 1, "the slot is as wide as the largest count's three digits");
+			rights.push_back(inSlot->second);
+			lefts[folder.data(qt::overview_file_model::file_count_role).toULongLong()] = inSlot->first;
+		}
+		expect(rights.size() == 4U && places.size() == 1U, "the four folders' counts share one slot, at one x, at every path depth");
+		const auto [low, high] = std::ranges::minmax(rights);
+		expect(high - low <= 2.0, "the counts are right-aligned: their right edges line up");
+		expect(lefts.at(120U) + 4.0 < lefts.at(12U) && lefts.at(12U) + 4.0 < lefts.at(1U), "a longer count reaches further left, not further right");
+
+		// The slot follows the contents alone: opening a folder moves nothing,
+		// and the File column starts where it did.
+		const auto closed = column_geometry(*view);
+		view->setExpanded(model->index_for_path(QStringLiteral("f/g/file_0.cpp")).parent(), true);
+		settle();
+		expect(column_geometry(*view) == closed, "opening the largest folder moves no column");
+		const auto file = model->index_for_path(QStringLiteral("f/g/file_0.cpp"));
+		expect(view->visualRect(file).left() == view->visualRect(file.parent().siblingAtColumn(qt::overview_file_model::file_column)).left(),
+			   "a file's name starts where its folder's name starts");
+		if (const auto target = qEnvironmentVariable("BPR_QT_COUNTS_RENDER_PATH"); !target.isEmpty()) {
+			expect(page.grab().save(target, "PNG"), "the counts render is saved for inspection");
 		}
 	}
 
@@ -2403,6 +2481,7 @@ auto main(int argc, char** argv) -> int
 	if (argc > 1 && std::string_view{ argv[1] } == "--folder-rows") {
 		test_folder_disclosure_never_moves_a_column();
 		test_folder_disclosure_is_the_leftmost_mark();
+		test_folder_counts_share_one_column();
 		std::cout << "pull-request-overview-folder-rows:pass dpr=" << application.devicePixelRatio() << '\n';
 		return EXIT_SUCCESS;
 	}
@@ -2417,6 +2496,7 @@ auto main(int argc, char** argv) -> int
 	test_column_sizing_measures_visible_files();
 	test_folder_disclosure_never_moves_a_column();
 	test_folder_disclosure_is_the_leftmost_mark();
+	test_folder_counts_share_one_column();
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();
