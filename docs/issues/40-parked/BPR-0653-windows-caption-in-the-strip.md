@@ -1356,3 +1356,10 @@ take it at 100% in a cleared foreground block, while the display is still at
 
 Criteria 2 and 4 stay `pending` until the verdict is recorded here.
 Criterion 3 is unchanged. The card stays parked on human-review.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+Criteria 2 and 4 owe the owner's look at 100% on JaegAW. No agent drives that desktop, so this is a wizard with exact steps. It is served from the Mac, and an offline copy can be opened on JaegAW.
+
+- Wizard `bpr0653-jaegaw-100pct-20261009-v001` (session `08eb6cb8-1e6c-4e8e-96b3-f30a42ba70a4`, 6 steps), state `/Users/jaeger/.mask/wizard/bpr0653-jaegaw-100pct-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Offline page: `/Users/jaeger/.mask/wizard/bpr0653-jaegaw-100pct-20261009-v001-offline.html`; its JSON export imports with `wizard.py import`. Steps: set 100%; run `C:\Users\mikem\bpr0653-100pct-v001\launch.cmd` (the launcher of 2026-10-06, unchanged image `6aa27c8d…`); Accept/Reject on the title row at rest, hovered and pressed (criterion 4; an optional picture is saved into the launcher's `captures` folder); Accept/Reject on snap, drag and double-click (criterion 2); notes (including whether JaegAW's own session `39ba8abc` was already answered); scale back to 150%. That the launcher is still on JaegAW was not checked from the Mac; the steps say what to do if it is missing.
+- **Criterion 3 no longer needs the owner.** Its only red was BPR-1108's twelve findings on four unpinned rows. [[BPR-1237]] (Done) has since pinned all four (`sqlite_release_maintenance_files`, `application_attended_recent_replay`, `application_release_maintenance_public_path`, `application_release_update_public_path`, each `dos-volume-name`), and its criterion `test_network_isolation_manifest passes on Windows` passed. What remains is one Windows station pass of the criterion's selectors at a single main revision. That is station work, not a question.

@@ -127,3 +127,7 @@ What this does not cover, so the card's course still needs:
   maintenance, separately previewed description edits and clean-profile
   reimport, none of which this run exercised;
 - the shipped application's own Preview, Publish, Stop and Resume gestures.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+The owner question above (which second account is the reviewer) is asked in BPR-0144's wizard `bpr-second-account-20261009-v001` (session `c79054f3-14cf-44fe-9645-947ffd5f6d53`, state `/Users/jaeger/.mask/wizard/bpr-second-account-20261009-v001`): it names the account, then asks whether that account may be the website-only reviewer for this card's attended course. The course itself is its own later session; nothing of it ran.

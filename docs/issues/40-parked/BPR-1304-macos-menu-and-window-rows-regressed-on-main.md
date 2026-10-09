@@ -124,3 +124,12 @@ ctest --preset dev -j1 --output-on-failure -R '^(application_profile_empty_deskt
 The empty-desktop course's failing assertion is the same View comparison the
 offscreen rows now pin. The locked-session path of the key course has not
 been observed to pass.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+`BPR-1304:native-courses` and `BPR-1304:native-key-locked` are owner runs in his Aqua session, so they are a wizard, not an implementer run.
+
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k`: `cf476d62b` (main) exported and built there (optimized, tests on) by `scripts/freeze_attended_build.py`, executable SHA-256 `cdaab5033db8463f9544e8cde6d61d1277212723b9b59f0eb981b52daf805db6`. Its own `--check` printed `CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED` on `overview-labels-v1`. Launch: `python3 /Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k/launch.py`. Everything goes to the fixture server; nothing reaches GitHub. The freeze also built the two course executables (`--target test_profile_empty_desktop_native_menu_bar --target test_hide_drawers_native_menu_key`). ctest needs to write its own `Testing/` scratch, so only `src/build/app-release-tests/Testing` was made writable after the freeze. The sources and built products stay read-only. `ctest -N` lists both rows.
+- Wizard `bpr-mac-frozen-20261009-v001` (session `2de8e578-5311-43e6-8fd5-9d168bc0f156`, 12 steps), state `/Users/jaeger/.mask/wizard/bpr-mac-frozen-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps 1 and 2 are this card's: the two courses with the Mac unlocked, then `qt_hide_drawers_native_menu_key` started 20 seconds after the owner locks the screen. Output goes to `/Users/jaeger/.mask/wizard/bpr-mac-frozen-20261009-logs/bpr1304-{unlocked,locked}.log`. The last step is the agent's reading of both logs for `profile-empty-desktop-native-menu-bar:pass` and `hide-drawers-native-menu:pass`.
+
+Both criteria stay pending until the logs are read here.

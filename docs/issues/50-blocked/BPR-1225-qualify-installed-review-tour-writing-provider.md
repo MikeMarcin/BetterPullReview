@@ -30,3 +30,7 @@ These original criteria require the direct evidence described above for this car
 ## Completion evidence
 
 Record exact candidate, environment/host/provider identities, command or observed action, result and relevant human verdict. Unsupported/not-run rows retain their limitations; do not generalize fixture or historical evidence. This card starts with no passing qualification record.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+The missing input (an approved installed provider, model and account, and inference authority) is the second step of wizard `bpr-owner-inputs-20261009-v001` (session `10567d12-3a30-44d5-ab84-ebbd3af1b500`, state `/Users/jaeger/.mask/wizard/bpr-owner-inputs-20261009-v001`). The answer is a named provider, model, account and a yes, or 'not now'. No inference ran.

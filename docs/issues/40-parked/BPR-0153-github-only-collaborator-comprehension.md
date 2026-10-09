@@ -76,3 +76,7 @@ Standing owner CI constraint: do not dispatch Actions, push, or incur paid CI.
 Before any future GitHub mutation, inspect the target's workflow triggers and
 do not execute a test action that would trigger Actions. No mutation or message
 to another person was performed while preparing this checkpoint.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+The owner question (who is the collaborator who has never used BetterPullReview) is the first step of wizard `bpr-owner-inputs-20261009-v001` (session `10567d12-3a30-44d5-ab84-ebbd3af1b500`, state `/Users/jaeger/.mask/wizard/bpr-owner-inputs-20261009-v001`). The answer is a GitHub login or 'not now'. Nothing is published and nobody is contacted until the owner has named them and the defect comment is prepared.

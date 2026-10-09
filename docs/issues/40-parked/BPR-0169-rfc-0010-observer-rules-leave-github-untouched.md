@@ -105,3 +105,7 @@ reads run through `gh api`, with the subscription field a recorded limitation.
 
 **Owner question:** which second GitHub account will open a disposable PR on
 BPR-Test that `MikeMarcin` neither authors nor reviews?
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+The missing input (a pull request on BPR-Test that `MikeMarcin` neither authors nor reviews) is asked for in BPR-0144's wizard `bpr-second-account-20261009-v001` (session `c79054f3-14cf-44fe-9645-947ffd5f6d53`, state `/Users/jaeger/.mask/wizard/bpr-second-account-20261009-v001`). The second account opens pull request A, 'BPR-0169 observer check', with no reviewers or labels, and the owner is told not to open it in BetterPullReview. The wizard's last step is the agent's `gh api` read of A's reviewers, requested reviewers and labels: the record before enrollment. The local repository, author and path enrollment and the after-reads follow in their own session once that record exists.

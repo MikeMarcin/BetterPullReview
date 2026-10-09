@@ -91,3 +91,13 @@ had five red that pass serially.
 
 AC2 is pending. Parked on human review: the owner's look on a build carrying
 `8f3452054`. No attended session was prepared by this slice.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+One new short session, not the long default one: one Accept/Reject question for AC2.
+
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k`: `cf476d62b` (main) exported and built there (optimized, tests on) by `scripts/freeze_attended_build.py`, executable SHA-256 `cdaab5033db8463f9544e8cde6d61d1277212723b9b59f0eb981b52daf805db6`. Its own `--check` printed `CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED` on `overview-labels-v1`. Launch: `python3 /Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k/launch.py`. Everything goes to the fixture server; nothing reaches GitHub. `8f3452054` is an ancestor of `cf476d62b`.
+- Session `925ff9ae9fdc140409dc23c2f529278f`, state `/Users/jaeger/.mask/attended-review/owner-review-20261009-parked-mac-v001/state` (repository root this checkout). Candidate `BPR-1330-seam-cursor-v001`, revision `frozen-cf476d62b-v001`, fingerprint `ffe069a6…`, ready and protected at event cursor 4; the host runs detached.
+- The question: rest and move the pointer on the seam under the Overview's summary, wait for its tooltip, then do the same on the comments drawer seam in Review. Accept if the resize cursor stays the whole time the pointer is on each seam.
+
+AC2 stays pending until the verdict is read here.

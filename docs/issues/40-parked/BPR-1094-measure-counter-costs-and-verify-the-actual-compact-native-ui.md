@@ -300,3 +300,14 @@ tighten the bottom check back to an exact value.
 macOS re-run (coordinator, 2026-10-09): at `e89025cfc`,
 `qt_pull_request_overview_page` and the chips scale 125 and 200 rows pass on
 macOS arm64. Every variant prints `value=47->46 maximum=47->46 chip=kept`.
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+R33's macOS half is a wizard on the same frozen build as BPR-1304's runs and BPR-1330's look.
+
+- Frozen root `/Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k`: `cf476d62b` (main) exported and built there (optimized, tests on) by `scripts/freeze_attended_build.py`, executable SHA-256 `cdaab5033db8463f9544e8cde6d61d1277212723b9b59f0eb981b52daf805db6`. Its own `--check` printed `CHECK_OK (first head): ATTENDED_PULL_REQUEST_OPENED` on `overview-labels-v1`. Launch: `python3 /Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k/launch.py`. Everything goes to the fixture server; nothing reaches GitHub.
+- Wizard `bpr-mac-frozen-20261009-v001` (session `2de8e578-5311-43e6-8fd5-9d168bc0f156`, 12 steps), state `/Users/jaeger/.mask/wizard/bpr-mac-frozen-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps 3 to 11 are this card's: open the Overview of `bpr-fixtures/nested-folders` #21, tick all twelve chips (Settings, Reviews & queue, Comment labels, Overview chips), then one Accept/Reject per look on the Retina display (200%): the four themes with Icons/Letters and Open/All; a narrow window; keyboard (Tab, Left/Right, Enter); larger text; VoiceOver; and 100% on a non-Retina display if one is attached (or 'No such display'). A notes step follows.
+- Larger text on macOS uses the application's own Interface size, because macOS has no system text size that Qt follows. That is a limit of this half, stated in the step.
+- **Not prepared: the Windows half** (125% display scale, Windows text size, Narrator). No Windows build carrying the chips is frozen; the one on JaegAW is BPR-0974's image from `85e522d8`, which predates them. The Windows station has to freeze a build of main first; a JaegAW wizard follows from that.
+
+R33 stays pending until the answers are read here.

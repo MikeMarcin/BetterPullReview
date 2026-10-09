@@ -107,3 +107,10 @@ partial course. No live object was made for it.
 **Owner question:** which second GitHub account should take part on BPR-Test,
 either opening a PR that `MikeMarcin` reviews in BetterPullReview or being
 the account signed into BetterPullReview to review a `MikeMarcin` PR?
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+The owner question above (which second account) is asked in a wizard, with the course that follows from it. The same wizard serves BPR-0169 and BPR-1222.
+
+- Wizard `bpr-second-account-20261009-v001` (session `c79054f3-14cf-44fe-9645-947ffd5f6d53`, 7 steps), state `/Users/jaeger/.mask/wizard/bpr-second-account-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps: name the account (login only); from it, fork BPR-Test and open pull request A ('BPR-0169 observer check') and pull request B ('BPR-0144 review identity') with no reviewers or labels; give their numbers. Then, in BetterPullReview v0.1.5, the signed private prerelease (DMG sha256 `b7c9378cc93c93c6435b1970456596281d346f09d45202fb558a92ae32e2e727`, matching the release's `.sha256` asset; `spctl` accepted it as Notarized Developer ID and `stapler validate` passed), downloaded to `/Users/jaeger/.mask/wizard/bpr-live-github-20261009-files/`, signed in as `MikeMarcin`, submit Comment, Request changes and Approve on B. Then BPR-1222's reviewer question, notes, and the agent's `gh api` read: each review's author against `MikeMarcin`, and no BetterPullReview marker.
+- BPR-Test is public with forking allowed; a fork pull request changes no repository setting or collaborator.

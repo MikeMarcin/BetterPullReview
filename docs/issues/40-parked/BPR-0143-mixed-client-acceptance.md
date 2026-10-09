@@ -148,3 +148,12 @@ client changes from the website to `gh api`. No live object was made for it.
 performs the four approved actions on BPR-Test#1 through `gh api`, one at a
 time, and you press Refresh in BetterPullReview after each and confirm what
 the workbench shows?
+
+## Owner session prepared, 2026-10-09 (main, Mac)
+
+The owner question above becomes a wizard he runs himself. He makes each of the four approved changes from a second client (`gh` in Terminal), then presses Command-R in BetterPullReview and answers Yes or No. No agent waits between actions, and none drives the browser.
+
+- The application is the shipped one: BetterPullReview v0.1.5, the signed private prerelease (DMG sha256 `b7c9378cc93c93c6435b1970456596281d346f09d45202fb558a92ae32e2e727`, matching the release's `.sha256` asset; `spctl` accepted it as Notarized Developer ID and `stapler validate` passed), downloaded to `/Users/jaeger/.mask/wizard/bpr-live-github-20261009-files/`.
+- A read-only `gh api` revalidation as `MikeMarcin` (`X-RateLimit-Remaining` 4970) found the packet unchanged: BPR-Test#1 open, head `17990ba0c2fb50338141f35c0717f0f99639c7ba`; comment 3940608913 and reply 3941498416 with their packet bodies; thread `PRRT_kwDOTyvof86fjN_V` unresolved; no workflows.
+- Wizard `bpr0143-mixed-client-20261009-v001` (session `1d8cfa4b-00c5-4ca7-b8a2-0ffafc4d302d`, 8 steps), state `/Users/jaeger/.mask/wizard/bpr0143-mixed-client-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps: open v0.1.5; a baseline Yes/No; edit, delete, resolve and reopen, each with the exact `gh api` command and a Yes/No on what BetterPullReview shows after Refresh; notes; then the agent's `gh api` read of the final server state.
+- Still outside this session, as the packet says: the live editable-local conflict and the database-loss or uninstall course. Neither is claimed.
