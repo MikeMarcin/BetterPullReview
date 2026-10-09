@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1369"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Re-specify the prepared-open rule: work avoided, not wall time (from BPR-1360)",
+  "created": "2026-10-09T16:35:16.676570+00:00",
+  "base": "ec1087641fb2789027e3a144cfad3874f387b1f5"
+}
