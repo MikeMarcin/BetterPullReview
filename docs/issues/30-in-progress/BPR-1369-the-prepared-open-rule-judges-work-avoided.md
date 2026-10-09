@@ -131,3 +131,19 @@ skips in Debug). Also passing: `application_first_tab_comparison`,
 `application_review_round_trip_composition_contract`. Format check, the
 documentation gate and clang-tidy on changed lines are clean. The optimized
 tree was deleted afterwards.
+
+## Coordinator verification (bpr-main-linux, 2026-10-09)
+
+At `249a17cd7`, in `build/dev` (Debug):
+- `application_large_review_prepared_open` passed 36 of 37 runs. The one
+  failure was the first run, straight after a full build, while the station
+  was still loaded (load average about 3.7). The 32 runs after it, at a load
+  near 1, all passed. Its failure message was not caught. The agent's
+  tightest Debug wall-time margin was 6.0 ms, so a loaded Debug host can
+  reach the wall-time check; the work-avoided checks are the rule's substance.
+- `application_epoch_host`, `application_diff_host`, the round-trip contract,
+  `architecture_boundaries` and `test_network_isolation_manifest` pass.
+
+Done on Linux evidence. macOS and Windows runs of the new rule are owed. The
+Windows station rebases its [[BPR-1344]] change to this course onto
+`7edbe699f`.
