@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1339"
 title: "An accepted file shows as accepted on Overview, and counts as done"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-parked_on: "human-review"
 metadata: {"kind":"bug","found_by":"Owner chat, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1339--BPR-1339--66d5f024f602.json","related_cards":["BPR-1331","BPR-0647","BPR-0656","BPR-0972","BPR-1211"],"acceptance":["BPR-1339:reproduced","BPR-1339:rule","BPR-1339:overview-mark","BPR-1339:counts","BPR-1339:owner-look"]}
+acceptance: [{"criterion":"BPR-1339:reproduced","outcome":"pass","revision":"e431a9087","evidence":{"kind":"command","path":"tests/end_to_end/accepted_file_in_overview_public_path_tests.cpp","detail":"application_accepted_file_in_overview on nested-folders#21 accepts one file by the private progress menu and one by Alt+Shift+4, Down, Return, marks a third read and shows Overview; on 1ed20ce1f it fails at 'Overview says accepted for each accepted file'. Landed as 2573a8acf."}},{"criterion":"BPR-1339:rule","outcome":"pass","revision":"e431a9087","evidence":{"kind":"command","path":"tests/core/review_ledger_tests.cpp","detail":"Owner's rule recorded verbatim on the card and in RFC-BPR-0007 Receipt semantics; core_review_ledger pins core::progress_done (read or accepted); dropping acceptance fails 'an accepted file is done though only seen'."}},{"criterion":"BPR-1339:overview-mark","outcome":"pass","revision":"e431a9087","evidence":{"kind":"command","path":"tests/adapters_qt/pull_request_overview_page_tests.cpp","detail":"application_pull_request_overview and qt_pull_request_overview_page pin the row's mark, the incremental update on accept and revoke, and the read column's text; failing-before controls on apply's read-only comparison and on the undrawn accepted mark fail."}},{"criterion":"BPR-1339:counts","outcome":"pass","revision":"e431a9087","evidence":{"kind":"command","path":"tests/end_to_end/accepted_file_in_overview_public_path_tests.cpp","detail":"Files read, the heading's 'N not read' and Continue review count accepted files as done in the projection and the incremental update (3 of 17, 14 not read after two accepts and one read; one fewer after a revoke)."}},{"criterion":"BPR-1339:owner-look","outcome":"pass","revision":"54dfbd463","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1339-an-accepted-file-shows-as-accepted-on-overview.md","detail":"BPR-1339-overview-accepted-mark-v002 Accepted 2026-10-09T04:12:56Z (session 0d079940affe6da5c393df07d82a22d8, decision e675d148, fingerprint 48f0512f..., frozen build of 54dfbd463, handed back at 13). v001 never opened (launcher FIXTURES_MISSING). The note's double-click bug is filed as BPR-1348. macOS; Linux and Windows not run."}}]
 ---
 
 # BPR-1339: An accepted file shows as accepted on Overview, and counts as done
@@ -144,7 +144,7 @@ Windows and Linux have not run this change; it adds no platform code.
 - `BPR-1339:rule`: pass at `e431a9087`.
 - `BPR-1339:overview-mark`: pass at `e431a9087`.
 - `BPR-1339:counts`: pass at `e431a9087`.
-- `BPR-1339:owner-look`: pending.
+- `BPR-1339:owner-look`: pass, accepted on v002 (below).
 
 ## Owner look, session v001
 
@@ -221,3 +221,30 @@ Pending: `BPR-1339:owner-look` is the owner's, Accept or Reject.
 - Launch: `python3 /Users/jaeger/bpr1339-overview-accepted-v002.g_3uddoq/launch.py`.
 
 Next: read the session's decisions (`status --after 9`).
+
+## Owner verdict, session v002
+
+Accept, 2026-10-09T04:12:56Z, decision `e675d148-d02a-45b9-b234-370b91f65729`
+at session event 12 (candidate `BPR-1339-overview-accepted-mark-v002`,
+fingerprint `48f0512f…`, revision `frozen-54dfbd463-v002`). The note,
+verbatim:
+
+> bug: I double clicked main.cpp and it opened to renderer.cpp in the review.
+
+Two attachments: the first is Overview with the `src/main.cpp` row selected
+while the review bar says "File 5 of 17" and the status bar "Actionable file
+5 of 17. Private progress: unread, accepted." (`src/engine/renderer.cpp`,
+accepted, shows its filled mark in the Read column); the second is Review
+right after, showing `renderer.cpp` with its row current in the Files drawer.
+
+`BPR-1339:owner-look` passes, so every criterion passes and the card is Done
+on macOS. The bug is not this card's mark; it is filed as [[BPR-1348]]
+(double-clicking a file's row on Overview opens the file that was current
+instead).
+
+The session was handed back at event 13, released with
+`resume-development --all`, and the root
+`/Users/jaeger/bpr1339-overview-accepted-v002.g_3uddoq` removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record. Windows and Linux have not run this change; it adds no platform
+code.
