@@ -282,3 +282,93 @@ its margins were:
 All times are in ms. The smallest margin is 16.8 ms, against 6.0 ms at first
 paint before this card. A first set of 10 runs was discarded: the dev build had
 stopped at the missing include, so its benchmark binary predated this card.
+
+## macOS run (2026-10-09)
+
+At `3947245ca`; the later `<algorithm>` fix touches only the diff host's test,
+not these binaries. macOS 26.6.2, Apple M4 Pro (14 cores), Apple clang 21.0.0,
+Qt 6.11.2, tests-on trees from the `dev` preset with `CMAKE_BUILD_TYPE` set.
+Other agents were building on the machine throughout, so the load average is
+recorded for each run.
+
+**[[BPR-1327]]'s large-review selection** (19 rows on macOS: every
+`application_large_review_*` row, the responsiveness benchmark and launch rows
+included, the unavailable and approximate diff public paths,
+`application_first_tab_comparison` and both large-review contracts), Release,
+`-j1`. Run 1 started at load 19.7, so a fourth run was added.
+
+| Run | Load, 1 min (start → end) | Result | Time |
+|---|---|---|---|
+| 1 | 19.7 → 9.3 | 18/19 (launch) | 336.7 s |
+| 2 | 9.6 → 10.4 | 18/19 (cache bytes) | 367.4 s |
+| 3 | 9.9 → 23.3 | 19/19 | 397.5 s |
+| 4 | 14.5 → 8.5 (6.5–14.5 sampled) | 19/19 | 350.4 s |
+
+| | Runs 1–4 | Median / worst |
+|---|---|---|
+| `active_supersession_final_drain` (limit 1250 ms) | 229.0, 222.8, 239.3, 245.4 | 234.2 / 245.4 |
+| `active_supersession_shown` (limit 1250 ms) | 228.9, 222.8, 239.3, 245.4 | 234.1 / 245.4 |
+| History source selections, median / worst (limit 2000 ms) | 238 / 287, 215 / 282, 292 / 448, 230 / 376 | 234 / 448 |
+| Worst pulse of any row (target 100 ms) | 749.2, 65.9, 62.0, 60.5 | 64.0 / 749.2 |
+| Prepared open: unprepared median / prepared max / guard margin | 214.6 / 152.4 / 115.8, 223.0 / 169.6 / 109.2, 213.1 / 173.2 / 93.1, 245.8 / 167.7 / 139.5 | margin 112.5 / 93.1 |
+
+All times are in ms. Each prepared open was answered by preparation (5 of 5)
+with no blob read of its own, in every run.
+
+- **Run 1, `application_large_review_launch`:** "Mac fixture responsiveness
+  budget exceeded" on input gaps of 121.7 (`theme_dark`), 136.8
+  (`conversations_pick_open`) and 125.7 ms (`large_source_revisit_render`),
+  against 100. This is the row and failure [[BPR-1327]] recorded under load. It
+  passed in runs 2 to 4. The same run's 749.2 ms pulse is
+  `cache_entry_selection_13`, an input miss that row reports but does not
+  enforce.
+- **Run 2, `application_large_review_cache_bytes`:** "sampled fixture
+  footprint growth exceeded its platform budget", 190.0 MiB at
+  `cache_byte_selection_20` against [[BPR-1296]]'s 184 MiB. The live heap is
+  not what grew: its peak growth was 158.8 MiB in every run, below the 160.9
+  MiB at BPR-1296's fix. Footprint peak growth over the four selection runs
+  and three runs of the row alone (all passing) was 159.5, 190.0, 179.2,
+  180.2, 177.7, 178.8 and 155.1 MiB, a median of 178.8. That is higher than
+  the 154.0 / 158.6 / 170.3 (min / median / max) recorded after BPR-1296's fix,
+  with headroom of 4 to 29 MiB. No control without this card was run, so the
+  rise is not attributed to it.
+
+**`application_large_review_prepared_open` in Debug** passes 19 of 20.
+[[BPR-1369]]'s wall guard requires the slowest prepared open to be at most the
+median unprepared open plus max(15 ms, median/4), timed to shown-and-quiet.
+Runs 1 to 10 ran at load 11 to 17 while another agent compiled; runs 11 to 20
+started at load 7.9, and run 14 onwards ran at 15 to 25.
+
+| Run | Load at start | Unprepared median | Tolerance | Prepared max | Margin |
+|---|---|---|---|---|---|
+| 1 | 11.3 | 227.6 | 56.9 | 452.4 | −167.9, fails |
+| 2 | 16.5 | 244.5 | 61.1 | 223.2 | 82.4 |
+| 3 | 16.1 | 228.4 | 57.1 | 175.7 | 109.7 |
+| 4 | 15.6 | 241.6 | 60.4 | 199.5 | 102.5 |
+| 5 | 14.3 | 226.0 | 56.5 | 176.0 | 106.5 |
+| 6 | 13.5 | 226.0 | 56.5 | 188.6 | 93.9 |
+| 7 | 12.4 | 232.0 | 58.0 | 178.4 | 111.6 |
+| 8 | 12.3 | 256.6 | 64.2 | 203.7 | 117.1 |
+| 9 | 13.3 | 333.4 | 83.4 | 220.6 | 196.2 |
+| 10 | 15.4 | 230.1 | 57.5 | 190.3 | 97.3 |
+| 11 | 7.9 | 207.0 | 51.8 | 155.6 | 103.2 |
+| 12 | 7.1 | 204.0 | 51.0 | 161.7 | 93.3 |
+| 13 | 6.8 | 227.5 | 56.9 | 167.8 | 116.5 |
+| 14 | 6.4 | 287.9 | 72.0 | 268.9 | 91.0 |
+| 15 | 24.7 | 218.6 | 54.7 | 198.7 | 74.6 |
+| 16 | 22.6 | 225.0 | 56.2 | 160.6 | 120.6 |
+| 17 | 21.2 | 194.9 | 48.7 | 155.0 | 88.6 |
+| 18 | 18.8 | 213.6 | 53.4 | 170.5 | 96.4 |
+| 19 | 16.6 | 223.0 | 55.8 | 172.5 | 106.3 |
+| 20 | 15.5 | 224.0 | 56.0 | 201.1 | 78.9 |
+
+All times are in ms. Over the 20 runs the median margin is 99.9 ms; the
+smallest in a passing run is 74.6 ms, against Linux's 16.8 ms.
+
+Run 1 failed the guard, not the work: every prepared open read 0 + 0 blobs and
+all 5 were prepared hits. Its prepared opens took 286.7, 452.4, 229.2, 223.9
+and 190.8 ms to shown-and-quiet, and the 452.4 ms one had a 70.7 ms pulse
+against about 21 ms elsewhere. That is a single stall while another agent
+compiled. In Debug on this Mac a prepared open is only about a fifth quicker
+to shown-and-quiet than an unprepared one (183.5 against 226.7 ms, medians of
+the runs), so one stall of that size uses the whole tolerance.
