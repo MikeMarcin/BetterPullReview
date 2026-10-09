@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1356"
 title: "Threads opens a thread in Discuss as well as in Review"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
+parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"Owner chat, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1356--BPR-1356--8c7bfcbb3a0c.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052"],"related_cards":["BPR-1293","BPR-1341","BPR-1342","BPR-1328","BPR-1354","BPR-1355"],"implementation_note":"Designed with the frontend-design skill; owner look required"}
@@ -116,3 +117,21 @@ word, and a menu that follows Home's row menu ([[BPR-1342]]).
   row menu, Discuss on the opened thread, and Discuss after three filters
   were turned off with the notice; the finder at four palettes and the
   narrowest width with the cursor row's button.
+
+## Owner look on v001 (pending)
+
+One new short session, one question, Accept or Reject.
+
+- Session `e157660d93be79fc09c9139915076c11`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1356-v001`,
+  repo root the main checkout, candidate `BPR-1356-open-in-discuss-v001`
+  (revision `frozen-160a726c0-v001`, fingerprint `16045f81aeb3…`), criterion
+  `BPR-1356:owner-look`, ready at event cursor 3. The host runs detached; the
+  offline page is `review.html` in the state directory. The three 1.0x
+  renders above are inline.
+- Frozen root `/Users/jaeger/bpr1356-open-in-discuss-v001.or24x9ef`, made by
+  `scripts/freeze_attended_build.py freeze` from `160a726c0` (fixture
+  `inline-drawer-v1`, file `src/ui/conversation_cards_view.cpp`), executable
+  SHA-256 `ce141c46e798…`. Its own `--check` reached `ATTENDED_FILE_SHOWN` on
+  head `89df5e59…`.
+- Launch: `python3 /Users/jaeger/bpr1356-open-in-discuss-v001.or24x9ef/launch.py`.
