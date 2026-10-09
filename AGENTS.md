@@ -52,6 +52,12 @@ network, or process effects.
   printed `STARTUP_FAILED` and closed before any window. Export the commit
   into the root, build there, and have the launcher check the fixture tree
   before starting and report an exit within seconds.
+  Freeze with `scripts/freeze_attended_build.py freeze`: it writes the
+  launcher from one template and runs that launcher's own `--check` (fixture
+  check, then an offscreen launch to the file) before the root is handed
+  over. BPR-1331 and BPR-1339's v001 launchers checked a fixture path no
+  commit had, and the owner got `FIXTURES_MISSING`. Remove a root with its
+  `remove`, which restores write access to the read-only source first.
 - Every attended review opens its own new, short session (a fresh `--state`
   directory). Never add candidates to or restart the long default session
   `cbd48b91…`; the owner asked for short sessions on 2026-10-04.

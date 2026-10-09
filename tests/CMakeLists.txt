@@ -441,6 +441,20 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/bpr0417_deep_conversation_fixture_contract_tests.py"
 )
 
+# [[BPR-1331]]. The frozen attended build's launcher template and the check
+# a freeze runs (`scripts/freeze_attended_build.py`). The launcher starts a
+# POSIX process group, as the macOS attended builds it serves do.
+if(NOT WIN32)
+    bpr_add_network_isolated_test(
+        NAME freeze_attended_build_contract
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/freeze_attended_build_tests.py"
+    )
+    set_tests_properties(freeze_attended_build_contract PROPERTIES
+        PASS_REGULAR_EXPRESSION "FREEZE_ATTENDED_BUILD_OK")
+endif()
+
 bpr_add_network_isolated_test(
     NAME attended_review_verdict_contract
     WINDOWS_UNCONTAINED
