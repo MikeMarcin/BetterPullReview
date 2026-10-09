@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1363"
 title: "Opening a folder in the Files table moves every column; the disclosure mark is not leftmost"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
+parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"defect","found_by":"owner, chat 2026-10-09 (Overview Files tree, nested-folders fixture)","reservation":"docs/issues/_reservations/BPR-1363--BPR-1363--b87c15b2f6df.json","related_cards":["BPR-1213","BPR-1089"]}
@@ -135,3 +136,26 @@ it there.
 clang-format 22.1.8 check passed on the seven touched C++ files. clang-tidy
 on the touched translation units reports only findings on lines older than
 this card (`68f00eb15`, `10cd1cbb2`, `ba3c970b9`); none are in the new code.
+
+## Owner look — prepared 2026-10-09
+
+- Landed on main as `90527564b`. Frozen root
+  `/Users/jaeger/bpr1363-folder-rows-v001.x9hgdb3c`, made by
+  `scripts/freeze_attended_build.py freeze --open-pull-request --fixture
+  nested-folders-v1 --commit 90527564b`. It opens
+  bpr-fixtures/nested-folders#21 on its Overview. `better_pull_review`
+  SHA-256 `f1278a954a0cdbe1c63d70ccd0dee5fb51d2fa095ad000228300e92a931cd141`.
+  The launcher's own check reached `ATTENDED_PULL_REQUEST_OPENED`.
+- Launch: `python3 /Users/jaeger/bpr1363-folder-rows-v001.x9hgdb3c/launch.py`.
+- New short session `d827fdb7041e884f47af97defe1d59bd`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1363-folder-rows-v001/state`,
+  repo root the main checkout, host detached. The offline page is
+  `review.html` in the state directory. Two Accept/Reject candidates, ready
+  at event cursor 6:
+  `BPR-1363-columns-v001` (`BPR-1363:owner-columns`) and
+  `BPR-1363-disclosure-v001` (`BPR-1363:owner-disclosure`). Both attach the
+  offscreen render at 100% and 200%.
+- Next: on hand-back, read `status --after 6`. Each Accept closes its
+  criterion; a Reject's note is the next round's change. When both are
+  accepted, finish the card and remove the frozen root with
+  `scripts/freeze_attended_build.py remove`.
