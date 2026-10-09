@@ -8780,8 +8780,10 @@ namespace {
 		choose(menu, item(menu, QStringLiteral("addCommentAction")));
 		wait_for([&window] { return drawer_writing(window); }, 2000);
 		expect(drawer_writing(window) && accepted && accepted->Draft.Anchor.Side == core::diff_side::left && accepted->Draft.Anchor.Line == 4U
-				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on base line 5"),
-			   "Add comment on a base line opens its draft on the left side in the drawer");
+				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on base line 5")
+				   && cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine")) != nullptr
+				   && cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"))->text() == QStringLiteral("Base line 5"),
+			   "Add comment on a base line opens its draft on the left side in the drawer, headed \"Base line 5\"");
 		save_render(window, QStringLiteral("right-click-v002-base-draft"));
 		escape();
 		// The window lost activation to the menus offscreen, so its focus
