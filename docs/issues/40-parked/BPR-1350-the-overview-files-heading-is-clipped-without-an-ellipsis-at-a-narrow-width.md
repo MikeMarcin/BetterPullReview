@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","found_by":"bpr-main-linux, BPR-1094's rendered checks, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1349--BPR-1351--2371e399c373.json","requested_skill":"frontend-design","owner_look":"required, on the Mac","related_rfcs":["RFC-BPR-0049","RFC-BPR-0050"],"related_cards":["BPR-1094","BPR-1089"]}
 parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1350:ellipsis","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and qt_pull_request_overview_chips_scale_{125,200}: at 1,000/800/600/420 px in four themes and both mark styles, the heading stays on the page and runs under no control in its row, and the narrowest page shortens it; renders show the ellipsis (1,000 px at 125%: '..., 2 not ...' before Open). Before: clipped at '2 not rea'."}},{"criterion":"BPR-1350:tooltip-and-name","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"The accessible name is always the whole sentence; when shortened the tooltip begins with it (anchored by BPR-1354). Controls: the page source before this change fails the accessible-name check at 100/125/200%; dropping the tooltip fails the tooltip check."}},{"criterion":"BPR-1350:owner-look","outcome":"pending","revision":"ed28a2a7d","evidence":{"kind":"observation","detail":"Owner look on the Mac: the frozen build and session are prepared by the coordinator. Offscreen renders only here; frontend-design guidance read from the marketplace copy (plugin not enabled on this station)."}}]
+acceptance: [{"criterion":"BPR-1350:ellipsis","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"qt_pull_request_overview_page and qt_pull_request_overview_chips_scale_{125,200}: at 1,000/800/600/420 px in four themes and both mark styles, the heading stays on the page and runs under no control in its row, and the narrowest page shortens it; renders show the ellipsis (1,000 px at 125%: '..., 2 not ...' before Open). Before: clipped at '2 not rea'."}},{"criterion":"BPR-1350:tooltip-and-name","outcome":"pass","revision":"ed28a2a7d","evidence":{"kind":"command","detail":"The accessible name is always the whole sentence; when shortened the tooltip begins with it (anchored by BPR-1354). Controls: the page source before this change fails the accessible-name check at 100/125/200%; dropping the tooltip fails the tooltip check."}},{"criterion":"BPR-1350:owner-look","outcome":"pending","revision":"frozen-ed28a2a7d-v001","evidence":{"kind":"observation","detail":"Session 4395ac1375d6c5d1e37bb79d863fb2e8, candidate BPR-1350-files-heading-v001, ready at cursor 3; frozen root /Users/jaeger/bpr1350-files-heading-v001.ijmh105y (overview-labels-v1, opens on its Overview)."}}]
 ---
 
 # BPR-1350: The Overview Files heading is clipped without an ellipsis at a narrow width
@@ -116,3 +116,45 @@ catalogue-unavailable heading) also passes. `coding-format-check` (clang-format
 **Owner look: open.** The Mac freezes the build and opens the session. Look
 at the ellipsis at narrow widths, the tooltip beside the heading, and the
 420 px case, where only the ellipsis fits.
+
+## Owner look (pending)
+
+One new short session, one question, Accept or Reject: "the Files heading
+shortens with an ellipsis and shows the whole sentence in its tooltip". The
+owner is asked to narrow the window to about 1,000 px and below, and to rest
+the pointer on the shortened heading.
+
+- Session `4395ac1375d6c5d1e37bb79d863fb2e8`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1350-files-heading-v001`,
+  repo root the main checkout, candidate `BPR-1350-files-heading-v001`
+  (revision `frozen-ed28a2a7d-v001`, fingerprint `fd88439e541d…`), criterion
+  `BPR-1350:owner-look`, ready at event cursor 3. The host runs detached; the
+  offline page is `review.html` in the state directory.
+- Frozen root `/Users/jaeger/bpr1350-files-heading-v001.ijmh105y`, made by
+  `scripts/freeze_attended_build.py freeze --open-pull-request` from
+  `ed28a2a7d` (fixture `overview-labels-v1`, bpr-fixtures/nested-folders#21,
+  opening on its Overview with the "?" count beside the heading), executable
+  SHA-256 `40a28bca6404…`. Its own `--check` reached
+  `ATTENDED_PULL_REQUEST_OPENED`. The freeze script gained
+  `--open-pull-request` for this look, because its launcher always passed
+  `--attended-open-file`, which opens Review, and the application refuses
+  that flag together with `--attended-open-pull-request`.
+  `tests/scripts/freeze_attended_build_tests.py` covers it.
+- Launch: `python3 /Users/jaeger/bpr1350-files-heading-v001.ijmh105y/launch.py`.
+- Attached: offscreen renders from the chips course
+  (`BPR_OVERVIEW_CHIPS_RENDER_ROOT`, `--chips` at 125% and 200%, both
+  passing on macOS) at 1,000 px and 125% (light), 800 px and 125% (light) and
+  800 px and 200% (dark). On macOS the 1,000 px and 125% heading fits whole,
+  "Files: 3 in this pull request, 2 changed since my last review, 2 not read",
+  so it is not shortened there. Linux's wider fonts did shorten it. At
+  800 px it ends "…2 changed …" before Open in both. The fixture's own
+  heading ("Files: 17 in this pull request, 17 not read") is shorter, so in
+  the frozen build it starts to shorten only below about 1,000 px.
+
+## Next
+
+Read session `4395ac13…` from cursor 3. Accept satisfies
+`BPR-1350:owner-look`; then finish the card, release the session and remove
+the frozen root with `freeze_attended_build.py remove`. A Reject names what
+the owner saw (a cut word, the heading under a button, a missing or
+misplaced tooltip).
