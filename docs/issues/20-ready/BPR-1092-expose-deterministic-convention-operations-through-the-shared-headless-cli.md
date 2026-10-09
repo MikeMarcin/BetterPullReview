@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1092"
 title: "Expose deterministic convention operations through the shared headless CLI"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0049", "RFC-BPR-0051"]
 depends_on: ["BPR-1088", "BPR-1089"]
 metadata: {"pack":"betterpullreview-conventional-comments-rfc-pack-v1","pack_alias":"PACK-CC-18","milestone":"hooks-cli","acceptance":["R36","R38","R39","R41"],"milestone_plan":{"id":"betterpullreview-conventional-comments-rfc-pack-v1","path":"docs/rfcs/plans/betterpullreview-conventional-comments-rfc-pack-v1/milestone-plan.json"},"sequence_after":["BPR-1091"],"coordinator_amendment":{"date":"2026-10-08","decision":"BPR-1091's landed workshop wiring satisfies the dependency; its parked owner look does not block this card"}}
