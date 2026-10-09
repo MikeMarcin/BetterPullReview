@@ -1288,8 +1288,10 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 240
         PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_ENTRIES_OK")
     # [[BPR-1327]]. Opening files with preparation off, then on, in one window:
-    # every prepared open must be answered by its prepared comparison and show
-    # sooner than any unprepared open.
+    # every prepared open must be answered by its prepared comparison. [[BPR-1369]]
+    # Judged by work: each unprepared open reads its comparison's blobs and no
+    # prepared open does; wall time only bounds a prepared open by the median
+    # unprepared one plus a tolerance.
     bpr_add_network_isolated_test(
         NAME application_large_review_prepared_open
         WINDOWS_UNCONTAINED

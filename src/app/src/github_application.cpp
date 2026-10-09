@@ -3520,6 +3520,59 @@ namespace bpr::app {
 	};
 
 #if defined(BPR_BUILD_TESTING)
+	/// \brief [[BPR-1369]]. Counts the blobs the diff host reads, by blob.
+	///
+	/// \details Tests-on only: the diff host's blob port forwards every call
+	/// to the epoch host unchanged and counts each side it answers, so a
+	/// course can say which opens read a comparison from Git or the network
+	/// and which did not. A tests-off build hands the epoch host over
+	/// directly.
+	class counting_diff_blob_port final : public application::diff_blob_port
+	{
+	public:
+		explicit counting_diff_blob_port(application::diff_blob_port& aTarget) noexcept
+			: Target{ &aTarget }
+		{
+		}
+
+		[[nodiscard]] auto materialize(const application::diff_blob_request& aRequest, std::stop_token aStop)
+			-> application::diff_blob_observation override
+		{
+			auto observation = Target->materialize(aRequest, std::move(aStop));
+			count(aRequest.Blob);
+			return observation;
+		}
+
+		[[nodiscard]] auto materialize_both(const application::diff_blob_request& aLeft, const application::diff_blob_request& aRight, std::stop_token aStop)
+			-> std::optional<std::pair<application::diff_blob_observation, application::diff_blob_observation>> override
+		{
+			auto observations = Target->materialize_both(aLeft, aRight, std::move(aStop));
+			if (observations.has_value()) {
+				count(aLeft.Blob);
+				count(aRight.Blob);
+			}
+			return observations;
+		}
+
+		[[nodiscard]] auto reads(const core::git_blob_oid& aBlob) const -> std::uint64_t
+		{
+			const std::scoped_lock lock{ Mutex };
+			const auto             found = Reads.find(aBlob);
+			return found == Reads.end() ? 0U : found->second;
+		}
+
+	private:
+		void count(const core::git_blob_oid& aBlob)
+		{
+			const std::scoped_lock lock{ Mutex };
+			++Reads[aBlob];
+		}
+
+		application::diff_blob_port*                Target = nullptr;
+		mutable std::mutex                          Mutex;
+		std::map<core::git_blob_oid, std::uint64_t> Reads;
+	};
+
 	// How many renewals the refresh course means to drive, which is how many
 	// waits the clock below is allowed to skip. Two, because one rotation
 	// succeeds whether or not the rotation keeps the material it stored, and
@@ -7711,11 +7764,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						schedule_tab_presentation();
 					}
 				});
+#if defined(BPR_BUILD_TESTING)
+			DiffBlobReads = std::make_unique<counting_diff_blob_port>(*EpochHost);
+#endif
 			DiffHost = std::make_unique<application::diff_application_host>(
 				core::diff_state{
 					.ApplicationSession = WindowSession,
 				},
+#if defined(BPR_BUILD_TESTING)
+				*DiffBlobReads,
+#else
 				*EpochHost,
+#endif
 				DiffEffects,
 				DecisionLane,
 				*DiffProjections
@@ -17258,6 +17318,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<application::mcp_context_helper_supervisor> McpHelper;
 		std::filesystem::path                                       McpSnapshotRoot;
 #endif
+#if defined(BPR_BUILD_TESTING)
+		/// [[BPR-1369]]. The diff host's blob port; declared before the host,
+		/// so it outlives every read the host makes.
+		std::unique_ptr<counting_diff_blob_port> DiffBlobReads;
+#endif
 		std::size_t CommentWorkshopProposals = 0U;
 		/// The operation the reviewer last asked the workshop for, and the
 		/// turn started to answer it, spent by that turn's outcome and by no
@@ -19099,6 +19164,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.PreparedHits                 = host.prepared_hits(),
 		};
 	}
+	auto detail::github_application_fixture_access::diff_blob_reads(const github_application& aApplication, const core::git_blob_oid& aBlob) -> std::uint64_t
+	{
+		const auto& implementation = *aApplication.Implementation;
+		return implementation.DiffBlobReads == nullptr ? 0U : implementation.DiffBlobReads->reads(aBlob);
+	}
+
 	auto detail::github_application_fixture_access::diff_work_evidence(
 		const github_application& aApplication, core::bpr_window_context aContext) noexcept -> diff_work_fixture_evidence
 	{

@@ -1267,6 +1267,10 @@ namespace bpr::app::detail {
 		/// \brief Samples existing diff-host work counters on the decision lane.
 		[[nodiscard]] static auto diff_work_evidence(const github_application& aApplication) noexcept
 			-> diff_work_fixture_evidence;
+		/// \brief [[BPR-1369]]. How many times the active window's diff host
+		/// has read this blob, from Git or the network, for any comparison
+		/// it computed: the reviewer's or a prepared one.
+		[[nodiscard]] static auto diff_blob_reads(const github_application& aApplication, const core::git_blob_oid& aBlob) -> std::uint64_t;
 		/// \brief [[BPR-1327]]. Turns preparation off or on in the active
 		/// window, so one course can measure opening files both ways.
 		static void set_preparation_enabled(github_application& aApplication, bool aEnabled);

@@ -1008,8 +1008,18 @@ namespace bpr::e2e::large_review {
 	/// \details The same window, review and kind of file both ways. With
 	/// preparation off each open resolves, reads and computes on demand. With
 	/// it on, the course opens a first file, waits until the window around it
-	/// is prepared, and opens the files after it: each must be answered by a
-	/// prepared comparison and appear sooner than any unprepared open did.
+	/// is prepared, and opens the files after it.
+	///
+	/// [[BPR-1369]]. Preparation is judged by the work an open avoids, not by
+	/// a race between wall times: on this local fixture a cold open is about
+	/// as quick as a prepared one. Every unprepared open reads both blobs of
+	/// its comparison through the diff host. Each prepared open is answered by
+	/// its prepared comparison, whose blobs preparation read before the open,
+	/// and reads neither blob itself, from Git or the network. The diff host
+	/// computes a comparison only from blobs it has just read, so no read also
+	/// means no diff computed. Wall time is checked only for what it can
+	/// show: no prepared open appears more than a fixed tolerance later than
+	/// the median unprepared one.
 	void run_prepared_open(app::github_application& aApplication, const fixture_manifest& aManifest,
 						   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
 	{
@@ -1039,10 +1049,34 @@ namespace bpr::e2e::large_review {
 					"prepared-open showed the wrong stored blobs");
 			return aReport.Phases.back().VisibleMs;
 		};
+		// How often the diff host has read each blob of a file's comparison.
+		const auto comparisonReads = [&](const int aFile) {
+			const auto path  = source_path(aFile).toStdString();
+			const auto found = std::ranges::find(aManifest.files, path, &fixture_file::path);
+			if (found == aManifest.files.end()) {
+				throw std::runtime_error{ "prepared-open file is absent from the manifest" };
+			}
+			const auto left  = core::parse_git_blob_oid(found->base.oid);
+			const auto right = core::parse_git_blob_oid(found->head.oid);
+			if (!left || !right) {
+				throw std::runtime_error{ "prepared-open file has no stored blobs" };
+			}
+			return std::pair{ access::diff_blob_reads(aApplication, *left), access::diff_blob_reads(aApplication, *right) };
+		};
+		const auto reportReads = [](const std::string& aPhase, const std::pair<std::uint64_t, std::uint64_t>& aBefore,
+									const std::pair<std::uint64_t, std::uint64_t>& aAfter) {
+			std::cerr << "prepared-open reads: " << aPhase << " before=" << aBefore.first << '+' << aBefore.second
+					  << " during=" << (aAfter.first - aBefore.first) << '+' << (aAfter.second - aBefore.second) << '\n';
+		};
 		enter_review(aApplication, aReport, aBudget);
 		access::set_preparation_enabled(aApplication, false);
 		for (int index = 0; index < 6; ++index) {
-			aReport.Extended.PreparedOpen.UnpreparedVisibleMs.push_back(open(300 + index, "unprepared_open_" + std::to_string(index), false));
+			const auto phase  = "unprepared_open_" + std::to_string(index);
+			const auto before = comparisonReads(300 + index);
+			aReport.Extended.PreparedOpen.UnpreparedVisibleMs.push_back(open(300 + index, phase, false));
+			const auto after = comparisonReads(300 + index);
+			reportReads(phase, before, after);
+			require(after.first > before.first && after.second > before.second, "an unprepared open did not read both blobs of its comparison");
 		}
 		require(access::diff_work_evidence(aApplication).PreparedHits == 0U, "an unprepared open was answered by preparation");
 		access::set_preparation_enabled(aApplication, true);
@@ -1055,17 +1089,33 @@ namespace bpr::e2e::large_review {
 					&& window_prepared.PreparedEntries <= application::prepared_entry_capacity(application::diff_host_limits{ }),
 				"the window after the first file was not prepared within its share");
 		for (int index = 1; index < 6; ++index) {
-			const auto hits = access::diff_work_evidence(aApplication).PreparedHits;
-			aReport.Extended.PreparedOpen.PreparedVisibleMs.push_back(open(400 + index, "prepared_open_" + std::to_string(index), true));
+			const auto phase  = "prepared_open_" + std::to_string(index);
+			const auto hits   = access::diff_work_evidence(aApplication).PreparedHits;
+			const auto before = comparisonReads(400 + index);
+			require(before.first != 0U && before.second != 0U, "preparation did not read a file of the prepared window before it was opened");
+			aReport.Extended.PreparedOpen.PreparedVisibleMs.push_back(open(400 + index, phase, true));
+			const auto after = comparisonReads(400 + index);
+			reportReads(phase, before, after);
+			require(after == before, "a prepared open read its comparison from Git or the network");
 			require(access::diff_work_evidence(aApplication).PreparedHits == hits + 1U,
 					"a file in the prepared window was not answered by its prepared comparison");
 		}
 		aReport.Extended.PreparedOpen.PreparedHits = access::diff_work_evidence(aApplication).PreparedHits;
-		const auto slowestPrepared                 = *std::ranges::max_element(aReport.Extended.PreparedOpen.PreparedVisibleMs);
-		const auto fastestCold                     = *std::ranges::min_element(aReport.Extended.PreparedOpen.UnpreparedVisibleMs);
-		std::cerr << "prepared-open: unprepared_min_ms=" << fastestCold << " prepared_max_ms=" << slowestPrepared
+		// Not slower than a typical cold open beyond a tolerance: 15 ms, three
+		// of the course's 5 ms pulses, or a quarter of the median unprepared
+		// open where that is more, so the margin grows with a slower build or
+		// machine. Preparation of the next window runs beside a prepared open
+		// and may cost it a little; BPR-1369 records the measured margins.
+		auto       cold   = aReport.Extended.PreparedOpen.UnpreparedVisibleMs;
+		const auto middle = cold.size() / 2U;
+		std::ranges::sort(cold);
+		const auto medianCold      = cold.size() % 2U == 0U ? (cold[middle - 1U] + cold[middle]) / 2.0 : cold[middle];
+		const auto toleranceMs     = std::max(15.0, medianCold / 4.0);
+		const auto slowestPrepared = *std::ranges::max_element(aReport.Extended.PreparedOpen.PreparedVisibleMs);
+		std::cerr << "prepared-open: unprepared_min_ms=" << cold.front() << " unprepared_median_ms=" << medianCold
+				  << " prepared_max_ms=" << slowestPrepared << " tolerance_ms=" << toleranceMs
 				  << " prepared_first_ms=" << aReport.Extended.PreparedOpen.PreparedFirstVisibleMs << '\n';
-		require(slowestPrepared < fastestCold, "a prepared open was no faster than every unprepared one");
+		require(slowestPrepared <= medianCold + toleranceMs, "a prepared open was slower than the median unprepared one beyond the tolerance");
 		aReport.ExactFinalSource = true;
 		aReport.WindowWidth      = window.width();
 		aReport.WindowHeight     = window.height();

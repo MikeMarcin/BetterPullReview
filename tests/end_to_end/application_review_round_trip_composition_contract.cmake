@@ -1298,6 +1298,18 @@ endfunction()
 # grant, target and actor binding are unchanged. Testing only: the
 # start-a-review course and its fixture-access evidence. Mutation pin
 # unchanged; no new src/app source.
+# BPR-1369 reseal (bpr-main-linux, 2026-10-09): over the BPR-1345
+# start-a-review reseal above, whose pins match at origin/main f3c65bc6a
+# (checked in a detached worktree); BPR-1360's commits change no src/app
+# source. Testing only: inside BPR_BUILD_TESTING, github_application.cpp hands
+# the diff host a counting_diff_blob_port that forwards materialize and
+# materialize_both to the epoch host unchanged and counts each blob it
+# answers, and fixture access reports the count for one blob
+# (diff_blob_reads); github_application_fixture_access.hpp declares it. A
+# tests-off build hands the epoch host over directly, as before. Evidence
+# counter only: no decision, grant, target, provider, credential, GitHub
+# write, mutation or publication path; mutation pin unchanged; no new src/app
+# source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1316,7 +1328,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"ee58f1a4b93d38ee70802e6f9b912b339a8300f03b01bbec1c9f2da0e7b2cc09"
+		"fa4d19543e715296e4a10b7afc6ca34f06aa1df0323843ade7326a8d3e3bcf0b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1520,7 +1532,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "d0c0681ad7a42ecb22b524aebf32cc71a5a9a28c78b0cf86c6e6691abc36b218"
+        "891665a131ddb28f3c33dad9eeddbbb281de5443c65ce8f31637c7c0e73a5b5a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
