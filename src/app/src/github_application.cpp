@@ -20342,12 +20342,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.Evidence.FileGesture
 				= statistics.FileSelections
 				== probe.WindowStatistics.FileSelections + 1U;
+			// [[BPR-1328]]. The fixture's only file is also its last, so the
+			// delivered commands bound Next file there: the arrow stays enabled
+			// and names the bound, where before BPR-1328 it was disabled.
 			probe.Evidence.ProjectionDelivery
 				= host->selected() == std::optional{ probe.ExpectedFiles.front() }
 				&& statistics.Publications > probe.WindowStatistics.Publications
 				&& statistics.CommandUpdates
 					> probe.WindowStatistics.CommandUpdates
-				&& !window->next_file_action()->isEnabled();
+				&& window->next_file_action()->isEnabled()
+				&& window->next_file_action()->statusTip()
+					== QStringLiteral("Last file in this pull request.");
 			if (!probe.Evidence.IntentDispatch || !probe.Evidence.FileGesture
 				|| !probe.Evidence.ProjectionDelivery) {
 				return fail();

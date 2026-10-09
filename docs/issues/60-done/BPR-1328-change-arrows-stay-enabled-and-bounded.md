@@ -458,3 +458,24 @@ At `2779ac75a` with this follow-up's test change, Windows 11, MSVC 19.50,
   `application_change_arrows_across_files` and `architecture_boundaries`.
 - **Not registered on Windows:** `qt_hide_drawers_native_menu_key`, so it was
   not run.
+
+## Follow-up: `application_workbench_composition_contract` (2026-10-09)
+
+`dda61041d` also broke `application_workbench_composition_contract` on
+macOS: `WORKBENCH_PROJECTION_WIRE_FAILED` and the seven clauses after it
+(selected diff request, exact comparison, change, drawer width, identity
+mismatch, invalidation and failure wires), because the course stops at the
+first false clause. A `git bisect` from `54dfbd463` (pass) to `052702a54`
+(fail), building only `app_better_pull_review` and running that row, named
+`dda61041d` as the first failing commit.
+
+The product is right and the course was stale: the fixture's one file is also
+its last, and `exercise_workbench_composition`'s `ProjectionDelivery` clause
+still required Next file to be disabled there. It now requires Next file
+enabled with the status tip "Last file in this pull request.", which is what
+BPR-1328 delivers. The invalidation clause's "both file arrows disabled"
+stays: an invalidated review is an inactive workbench. The round-trip
+composition pins are resealed over the edit in the same commit. Test-only; no
+product change. On macOS `application_workbench_composition_contract` (both
+the normal run and the cut-selection-wire counterexample) and
+`application_review_round_trip_composition_contract` pass.

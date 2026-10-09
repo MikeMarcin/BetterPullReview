@@ -1232,6 +1232,15 @@ endfunction()
 # amber it already hands over, and the file includes bpr/qt/progress_mark.hpp.
 # No grant, target, provider, credential, GitHub write, mutation or publication
 # path; mutation pin unchanged; no new src/app source. Self-review on BPR-1331.
+# BPR-1328 follow-up reseal (2026-10-09): over the pins as they stood at
+# 052702a54 (the full digest matched there). dda61041d left Next file enabled
+# and bounded on the last file, but exercise_workbench_composition still
+# required it disabled, so application_workbench_composition_contract failed.
+# The probe's ProjectionDelivery clause now requires the arrow enabled with the
+# status tip "Last file in this pull request.". Fixture-probe evidence only: no
+# decision, grant, target, provider, credential, GitHub write, mutation or
+# publication path; mutation pin unchanged; no new src/app source. Recorded on
+# BPR-1328.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1250,7 +1259,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"be455223431255a27a4cc7e5c586f5f3940df5eb3c2a51e1526f586d478f340d"
+		"343835229ef17c2b14ca05600b089354a1019094b3cf45d51fdd75d0625d4b61"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1454,7 +1463,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "3300a257ba01e9bc64eb801f2fde96241964bc53d3d50b650635a937c879d8f7"
+        "2862e42d24d3259390f3d26f0ab51fe7488f26bdbd1f28352a6ffe51496a08e6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
