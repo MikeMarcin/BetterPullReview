@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1328"
 title: "Change arrows stay enabled as a bounded previous and next"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"found_by":"owner chat note, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1328--BPR-1328--8bce629ab070.json","related_cards":["BPR-1083","BPR-1202","BPR-1287"],"acceptance":["BPR-1328:C1","BPR-1328:C2","BPR-1328:C3","BPR-1328:C4","BPR-1328:C5"]}
-parked_on: "human-review"
+acceptance: [{"criterion":"BPR-1328:C1","outcome":"pass","revision":"dda61041d","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1328-change-arrows-stay-enabled-and-bounded.md","detail":"core_workbench_interaction test_navigation_commands_are_bounded_and_always_enabled: one-change comparison in every file position bounds both change commands (at_first_change/at_last_change), still enabled; file bounds; inactive workbench disables all four with no bound; wrap unbounded. Failing-before control (bounded_command disabling every bound) fails. Frozen as f88d25546. macOS; Linux and Windows station runs owed (commands on the card), not gating."}},{"criterion":"BPR-1328:C2","outcome":"pass","revision":"dda61041d","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1328-change-arrows-stay-enabled-and-bounded.md","detail":"application_change_arrows_across_files on nested-folders-v1 through the real composition: 17 files by Next file, 8 in-file steps, 37 presses at a bound leave file, change and comparison unchanged, arrows enabled, status bar names the bound; 12 one-change files between two others. Passes again after the round-trip reseal 1a2a003e5. macOS; Linux and Windows station runs owed (commands on the card), not gating."}},{"criterion":"BPR-1328:C3","outcome":"pass","revision":"f88d25546","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1328-change-arrows-stay-enabled-and-bounded.md","detail":"BPR-1328-arrows-v003 Accepted 2026-10-08, no note (fingerprint d93b38e5..., frozen build of f88d25546 landed as dda61041d, session b8abe3a59fc6912343d5f3bc64fac01c, decision 5c416092, handed back at 11). v002 Rejected (crossing withdrawn). macOS; Linux and Windows station runs owed (commands on the card), not gating."}},{"criterion":"BPR-1328:C4","outcome":"pass","revision":"3a5707d28","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1328-change-arrows-stay-enabled-and-bounded.md","detail":"BPR-1328-keys-v002 Accepted 2026-10-08 (session 57eb8f9479ce4db96d41ea195bccbff5, fingerprint 237f2a67...); qt_workbench_window_scale_{100,125,200} test_change_keys_are_named_and_yield_in_editors with failing-before and mutation controls. macOS; Linux and Windows station runs owed (commands on the card), not gating."}},{"criterion":"BPR-1328:C5","outcome":"pass","revision":"f88d25546","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1328-change-arrows-stay-enabled-and-bounded.md","detail":"BPR-1328-key-tooltips-v003 Accepted 2026-10-08, no note (fingerprint 34d0741a..., session b8abe3a59fc6912343d5f3bc64fac01c, decision d6342f65, handed back at 11); qt_workbench_window_scale_{100,125,200} test_strip_tooltips_sit_directly_below_their_controls anchors all 23 strip controls, mutation control fails. v002 Rejected (tooltip far from button). macOS; Linux and Windows station runs owed (commands on the card), not gating."}}]
 ---
 
 # BPR-1328: Change arrows stay enabled as a bounded previous and next
@@ -196,7 +196,7 @@ Windows and Linux, where Ctrl+Down/Ctrl+Up are not the document keys.
   same change, same comparison), every arrow stays enabled, and the tooltips
   and status bar name each bound.
 - **C3.** Owner look, frozen build, one Accept/Reject: "the arrows stay
-  enabled and do nothing at the ends".
+  enabled and do nothing at the ends". **Accepted** on v003.
 - **C4.** ⌥↓/⌥↑ (Alt+Down/Alt+Up) navigate changes and ⌥⌘↓/⌥⌘↑
   (Ctrl+Alt+Down/Ctrl+Alt+Up) files from the code; ⌘↓/⌘↑ (Ctrl+End/Ctrl+Home
   on Windows and Linux) scroll the code to its bottom and top; an editable
@@ -205,7 +205,7 @@ Windows and Linux, where Ctrl+Down/Ctrl+Up are not the document keys.
 - **C5.** Every file and change arrow's tooltip names its key in native
   notation ("Next change (⌥↓)", "Next file (⌥⌘↓)") and, like every title-row
   and review-bar tooltip, appears directly below its control; tests fail
-  before the change; owner look, one Accept/Reject.
+  before the change; owner look, one Accept/Reject. **Accepted** on v003.
 
 ## Execution record
 
@@ -380,7 +380,7 @@ passes on the changed files; clang-tidy on `anchored_tooltip.cpp`,
 test executable built, and no test registration changed. The documentation
 gate passes.
 
-**Owner look (C3, C5) pending.** Fresh short session
+**Owner look (C3, C5); accepted 2026-10-08, below.** Fresh short session
 `b8abe3a59fc6912343d5f3bc64fac01c` (state
 `/Users/jaeger/.mask/bpr-1328-change-keys-20261008-v003/attended-review`),
 cursor 8, two ready, protected Accept/Reject candidates on one frozen build:
@@ -392,3 +392,32 @@ extraction), its Release build with its own dependency cache (binary
 passes offscreen (17 files, 37 bounds, 8 steps, 12 one-change files between
 two others) and the attended entry reaches ready offscreen and natively once
 (Cocoa) on `docs/api/reference.md`, closed afterwards.
+
+### Owner look v003 answered (2026-10-08)
+
+The owner handed session `b8abe3a59fc6912343d5f3bc64fac01c` back at event 11,
+with no notes:
+
+- `BPR-1328-arrows-v003` (C3, `d93b38e5…`): **Accept** (decision
+  `5c416092`, event 9, 03:34:11Z).
+- `BPR-1328-key-tooltips-v003` (C5, `34d0741a…`): **Accept** (decision
+  `d6342f65`, event 10, 03:34:33Z).
+
+With `BPR-1328-keys-v002` (C4) accepted in session `57eb8f94`, every owner
+look is answered, and C1 and C2 stand on their recorded evidence. The card is
+Done on macOS.
+
+The host was already stopped. The candidates were released with
+`resume-development --all` at event 12, and the frozen root
+`artifacts/bpr-1328/change-keys-frozen-v003/` was deleted. The session's state
+folder keeps the record.
+
+### Owed station runs (not blocking)
+
+Linux and Windows have not run this change (v001, v002 or v003). At a revision
+containing the bounded-arrows commit, a station runs `core_workbench_interaction`,
+`qt_workbench_window_scale_{100,125,200}`, `qt_hide_drawers_native_menu_key`
+and `application_change_arrows_across_files`. There the keys read
+`Alt+Down`/`Alt+Up` and `Ctrl+Alt+Down`/`Ctrl+Alt+Up`, the code pane scrolls on
+`Ctrl+End`/`Ctrl+Home`, and the desktop may take `Ctrl+Alt+Up/Down` (see
+Conflicts).
