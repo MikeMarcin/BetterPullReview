@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1346",
+    "BPR-1347",
+    "BPR-1348"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "owner followups from session 0d079940: label picker spacing, Discuss Dif dead space, Overview double-click opens wrong file",
+  "created": "2026-10-09T04:15:13.501767+00:00",
+  "base": "a5cba14fbd0d645b736714c2cbbee772c5e9fad9"
+}
