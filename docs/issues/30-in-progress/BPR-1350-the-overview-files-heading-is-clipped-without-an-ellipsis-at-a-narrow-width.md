@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1350"
 title: "The Overview Files heading is clipped without an ellipsis at a narrow width"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
