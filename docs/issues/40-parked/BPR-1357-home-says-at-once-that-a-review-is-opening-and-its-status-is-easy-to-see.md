@@ -2,9 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1357"
 title: "Home says at once that a review is opening, and its status is easy to see"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
+parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","found_by":"Owner chat, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1357--BPR-1357--9170a6026153.json","related_cards":["BPR-1200","BPR-1342","BPR-0775","BPR-0771","BPR-0776","BPR-0795"],"related_rfcs":["RFC-BPR-0032","RFC-BPR-0026"]}
@@ -222,3 +223,26 @@ at 45%); busy and notice are neutral. Idle, it is hidden.
   Home at `710e06796` shows nothing on the row, and the course's first
   same-turn assertion has nothing to read (`workbench_window::home_open`
   does not exist there).
+
+## Owner look — prepared 2026-10-09
+
+- Landed on main as `bf04e3918`. Frozen build of `bf04e3918` (source export
+  and tests-on build inside
+  `/Users/jaeger/.mask/attended-review/bpr1357-home-open-v001.7f34thz4`;
+  `better_pull_review` SHA-256 `d6f52871beb478fcb7bef70b44883f06fe102a33f7e904cea43b635dd369cd6e`).
+  Started with
+  `python3 /Users/jaeger/.mask/attended-review/bpr1357-home-open-v001.7f34thz4/launch.py`:
+  the fixture account signs in, opens `#17` once, saves its repository and
+  returns to Home with two rows (`#17` under Needs me, `#4001` under Waiting on
+  others) and `#17` under Recently viewed; then every first read waits 4 s
+  per answer and `#4001` always fails (`--attended-home-look
+  --fixture-read-delay-ms 4000 --fixture-read-fail-number 4001`). The
+  launcher's own offscreen check reached
+  `ATTENDED_HOME_SHOWN:rows=2:delay=4000ms`.
+- New short session `b64c613f41f0b571a3c226ee1fd586c8`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261009-bpr1357-home-open-v001/state`,
+  host detached. Two Accept/Reject candidates, ready at event cursor 6:
+  `BPR-1357-open-feedback-v001` (`BPR-1357:owner-open`) and
+  `BPR-1357-status-visibility-v001` (`BPR-1357:owner-status`).
+- Next: on hand-back, read `status --after 6`. Each Accept closes its
+  criterion; a Reject's note is the next round's change.
