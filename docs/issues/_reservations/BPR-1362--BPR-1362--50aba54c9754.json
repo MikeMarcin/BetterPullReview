@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1362"
+  ],
+  "reserve_for": "retained-by-id-dangling-keys",
+  "purpose": "conversation cards view crash on MSVC: RetainedById keys dangle at clear()",
+  "created": "2026-10-09T09:12:44.423625+00:00",
+  "base": "e6e3b8f6712b354c1f35280d56a01504ee898e4b"
+}
