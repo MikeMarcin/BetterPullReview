@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1343"
 title: "Cross-platform guards: a Qt adapter local that hides a QWidget data member, and a WINDOWS_UNCONTAINED row without a pin"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win", "mac", "linux"]
 metadata: {"found_by":"bpr-main-win, 2026-10-08: two MSVC C4458 build breaks on main (BPR-1090, BPR-1336) and 15 unpinned WINDOWS_UNCONTAINED rows in one day","reservation":"docs/issues/_reservations/BPR-1343--BPR-1343--6902e820d213.json","related_cards":["BPR-1090","BPR-1336","BPR-1324","BPR-1302"],"decision":"coordinator, 2026-10-08: both guards approved"}
+acceptance: [{"criterion":"BPR-1343:shadowing-check","outcome":"pass","revision":"2979e0879","evidence":{"kind":"command","path":"cmake/VerifyArchitectureBoundaries.cmake","detail":"architecture_boundaries refuses a data or d_ptr local, parameter, range-for variable or capture in src/adapters/qt and accepts the tree, model data() overrides, .data()/->data, comments, strings, qualified names, aData and metadata; architecture_boundary_contract (148 tests) pins both directions. Live-tree control: BPR-1336's data local put back is refused with the new message. bpr-main-win, windows-dev."}},{"criterion":"BPR-1343:pin-registration-check","outcome":"pass","revision":"2979e0879","evidence":{"kind":"command","path":"scripts/verify_test_network_isolation.py","detail":"Every WINDOWS_UNCONTAINED row carries bpr_windows_uncontained_registration on every platform; pin_registration_failures refuses an unpinned row on every backend and an unmeasured pin only on Windows; test_network_isolation_structure_contract (69 tests) pins each case. Live control: the first manifest run named BPR-1327's and BPR-1340's unpinned rows with the new message; both were measured contained and pinned, and the manifest passes. tests/AGENTS.md carries the same-commit rule."}},{"criterion":"BPR-1343:windows-green","outcome":"pass","revision":"2979e0879","evidence":{"kind":"command","path":"tests/AGENTS.md","detail":"On Windows: architecture_boundaries, architecture_boundary_contract, test_network_isolation_structure_contract and test_network_isolation_manifest pass, and the two newly pinned rows pass uncontained; the merged tree passes the boundary verifier. macOS and Linux runs are owed to their stations."}}]
 ---
 
 # BPR-1343: Cross-platform guards: a Qt adapter local that hides a QWidget data member, and a WINDOWS_UNCONTAINED row without a pin
