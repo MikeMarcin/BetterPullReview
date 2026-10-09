@@ -302,6 +302,14 @@ namespace bpr::app::detail {
 		// still starts, the address is still presented, and the open action
 		// answers `unavailable` rather than doing nothing.
 		bool SuppressDeviceBrowser = false;
+		// [[BPR-1338]]. An attended look is a person's session, so the window's
+		// own opens (Open on GitHub and body links) reach the real system
+		// opener instead of the recorder every fixture run otherwise binds
+		// ([[BPR-0797]]). Device sign-in keeps the recorder: its fixture
+		// verification address is recorded traffic, not a page to show.
+		// `main` sets it only for `--attended-launch` outside the automated
+		// test boundary; a test that sets it substitutes the platform launch.
+		bool AttendedWindowBrowser = false;
 		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
 		// before this process has a session at all, which is the state a past
 		// grant's orderly shutdown used to leave behind: the access token

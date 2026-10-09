@@ -1485,7 +1485,12 @@ a run-time fact, not a build-time one ([[BPR-0797]]): the marker
 `BPR_AUTOMATED_TEST_BOUNDARY` that `bpr_add_network_isolated_test` injects
 into every registered row, or a selected fixture. `BUILD_TESTING` is on by
 default, so a build-time gate had put the recorder into the application a
-developer runs and let it report a handoff nothing had opened. Composing none
+developer runs and let it report a handoff nothing had opened. One exception
+is a person's again: an attended look (`--attended-launch` outside the marker)
+binds the real opener for the window's own opens, Open on GitHub and body
+links, while its fixture device sign-in keeps the recorder ([[BPR-1338]]: the
+owner pressed Open on GitHub in a frozen attended build and nothing opened,
+because the selected fixture had bound the recorder). Composing none
 at all is the construction cut, and only then does the action answer
 `unavailable` ([[BPR-0516]],
 `application_device_authorization_browser_handoff`,

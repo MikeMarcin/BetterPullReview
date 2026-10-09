@@ -260,3 +260,56 @@ Details after One pane, checkable and disabled, and the row's View indices
 shift by one. The change is noted on BPR-1334's card.
 `qt_profile_management_window` and
 `application_profile_management_public_path` pass.
+
+## Owner verdicts — session `7f79445692d6c7d5ab35bbdeb22df34f`, handed back at 9
+
+Both candidates on the frozen `aebf45eb4` build were rejected, verbatim:
+
+- `BPR-1338-open-in-browser-v001` (event 8): "The button is there and good but
+  doesn't seem to actually open my browser."
+- `BPR-1338-home-open-v001` (event 7): "The button is there and good but it
+  doesn't seem to actually open my browser."
+
+`BPR-1338:owner-look` stays open. The button and the Home row are accepted
+as they look. What failed is the open.
+
+## Why no browser opened — 2026-10-08
+
+The attended launcher started the build with `--github-fixture github-com`.
+In `github_profile_runtime`, `InsideAutomatedTestBoundary` is
+`inside_automated_test_boundary() || aFixture.has_value()` (BPR-0797). So
+every fixture run, an attended look included, composed
+`recording_device_authorization_browser`. That browser stores the address,
+answers "opened" and starts nothing. The window's Open on GitHub and body
+links used the same `ComposedBrowser`. `QDesktopServices::openUrl` was never
+reached. Link admission had accepted the address, and the launcher's
+environment was clean: it removed `BPR_AUTOMATED_TEST_BOUNDARY` itself. The
+v001 copy said the browser would open a GitHub 404. That claim was never
+observed: the earlier evidence read the recorder, never the platform launch.
+A second problem would have shown next: the synthetic
+`octo-org/review-repository#17` really is a 404 on github.com.
+
+The real product was not affected. Without a fixture and outside the marker,
+`ComposedBrowser` is `system_browser_opener`, and the same admitted address
+reaches `QDesktopServices::openUrl`.
+
+**Fix.**
+
+- The window's own opens (the pull-request page from the title row, Home
+  rows and Recently viewed, plus body links) now go through
+  `github_profile_runtime::WindowBrowser`.
+- `WindowBrowser` is `ComposedBrowser`, except in a tests-enabled graph whose
+  fixture options set `AttendedWindowBrowser`. There it is the real
+  `SystemBrowser`.
+- `main` sets that option only for `--attended-launch` outside the automated
+  test boundary. A CTest row that passes `--attended-launch` keeps the
+  recorder.
+- Device sign-in keeps the recorder in every fixture run, as BPR-0797 asks.
+- A tests-only `--attended-open-on-github` (requires
+  `--attended-open-pull-request`) presses the window's action once after the
+  pull request opens. It prints `ATTENDED_OPEN_ON_GITHUB_TRIGGERED`, so one
+  native check needs no hand on the desktop.
+- The attended look moves to the `uiforetw-74` fixture. Its pull request,
+  `google/UIforETW#74`, is real and public, so the browser shows a real page,
+  https://github.com/google/UIforETW/pull/74, answered 200 when checked. The
+  look still reads nothing from GitHub.

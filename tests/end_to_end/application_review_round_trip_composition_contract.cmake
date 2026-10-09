@@ -1181,6 +1181,22 @@ endfunction()
 # and the application counter model decide. No pinned source changed (no
 # github_application.cpp or production-manifest edit), so no digest moves; no
 # grant, target, provider, mutation or publication path; mutation pin unchanged.
+# BPR-1338 attended-browser reseal (2026-10-08): c8ae21f08..this candidate,
+# over the BPR-1092 inventory above (pins match at c8ae21f08); no other
+# intervening pinned-scope commit. The owner pressed Open on GitHub in a
+# frozen attended build and no browser opened: every fixture run bound the
+# recording browser for the window's opens as well as device sign-in.
+# github_application.cpp: the window's own opens (pull-request page, body
+# links) use github_profile_runtime::WindowBrowser, which is ComposedBrowser
+# except in a tests-enabled graph whose fixture options set
+# AttendedWindowBrowser, where it is the existing system_browser_opener.
+# Device sign-in is unchanged. main.cpp, inside BPR_BUILD_TESTING: the option
+# is set only for --attended-launch outside the automated test boundary, and
+# --attended-open-on-github (with --attended-open-pull-request) presses the
+# window's action once and prints one ATTENDED_OPEN_ON_GITHUB_ line. Product
+# binding without a fixture is unchanged; no grant, target, provider,
+# credential, child environment, GitHub write, mutation or publication path;
+# mutation pin unchanged; no new src/app source. Self-review on BPR-1338.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1199,7 +1215,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6d60d1b838c68728257826a6a0b97b23f0d4c5a346fb0a9b8d119f35c9934fb9"
+		"cb188cd0cb140a0be37b57c68d2bd8b2089a90ec92af29c159ec8600b099eb94"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1403,7 +1419,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0477c6c1c1716c6f451b9f2ff4a9120b27311768e2152955dc6e73bf704ae05b"
+        "a5471bbf4523e7360e68f14c7a15e795cf16740d139f2a6a54b79a64ad981ac0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

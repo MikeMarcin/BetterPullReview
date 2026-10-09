@@ -66,6 +66,7 @@
 #include <QSize>
 #include <QSpinBox>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QTimer>
@@ -5236,8 +5237,9 @@ namespace {
 		bpr::app::github_application& aApplication,
 		std::string                   aPath,
 		QString                       aPullRequest,
-		std::optional<std::string>    aLook      = std::nullopt,
-		std::optional<std::string>    aReadState = std::nullopt)
+		std::optional<std::string>    aLook         = std::nullopt,
+		std::optional<std::string>    aReadState    = std::nullopt,
+		const bool                    aOpenOnGithub = false)
 	{
 		enum class step : std::uint8_t {
 			connect,
@@ -5252,7 +5254,7 @@ namespace {
 		auto        state = std::make_shared<reveal_state>(reveal_state{ .Started = automated_clock::now() });
 		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(50);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), look = std::move(aLook), readState = std::move(aReadState), alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, state, path = std::move(aPath), pullRequest = std::move(aPullRequest), look = std::move(aLook), readState = std::move(aReadState), aOpenOnGithub, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -5282,7 +5284,14 @@ namespace {
 				return;
 			case step::reveal:
 				if (path.empty()) {
-					if (!window.showing_home()) {
+					if (!window.showing_home() && (!aOpenOnGithub || window.open_on_github_action()->isEnabled())) {
+						if (aOpenOnGithub) {
+							// [[BPR-1338]]. The window's own action, as the title
+							// row's button triggers it; the status bar says a
+							// refusal, and nothing when the page was handed over.
+							window.open_on_github_action()->trigger();
+							QTextStream{ stdout } << "ATTENDED_OPEN_ON_GITHUB_TRIGGERED:status=" << window.statusBar()->currentMessage() << '\n';
+						}
 						finish(QStringLiteral("ATTENDED_PULL_REQUEST_OPENED"));
 					}
 					return;
@@ -8957,8 +8966,13 @@ auto main(int argc, char** argv) -> int
 		const auto nativeAppearanceProbe            = has_argument(argc, argv, "--native-appearance-probe");
 		const auto nativeAppearanceCutSelectionWire = has_argument(
 			argc, argv, "--native-appearance-cut-selection-wire");
-		const auto attendedLaunch          = has_argument(argc, argv, "--attended-launch");
-		const auto nativeNotificationProbe = has_argument(
+		const auto attendedLaunch = has_argument(argc, argv, "--attended-launch");
+		// [[BPR-1338]]. A person is watching an attended look, so the window's
+		// own opens reach their default browser. Never inside the automated
+		// test boundary: a CTest row that passes `--attended-launch` keeps the
+		// recorder.
+		fixtureOptions.AttendedWindowBrowser = attendedLaunch && !bpr::app::inside_automated_test_boundary();
+		const auto nativeNotificationProbe   = has_argument(
 			argc, argv, "--native-notification-probe");
 		const auto nativeNotificationAttended = has_argument(
 			argc, argv, "--native-notification-attended");
@@ -9148,6 +9162,9 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1287]]. The same, stopping at the pull request's own opening
 		// page, so a person can go to Review with no file chosen.
 		const auto attendedOpenPullRequest = has_argument(argc, argv, "--attended-open-pull-request");
+		// [[BPR-1338]]. Once the pull request is open, press its title row's
+		// Open on GitHub once, so one native check needs no hand on the desktop.
+		const auto attendedOpenOnGithub = has_argument(argc, argv, "--attended-open-on-github");
 		// [[BPR-1289]]. Or opening Settings over Home, for a look at Settings.
 		const auto attendedOpenSettings = has_argument(argc, argv, "--attended-open-settings");
 		// [[BPR-1084]] and [[BPR-1085]]. Or, on conventional-comments-v1 after
@@ -9167,6 +9184,7 @@ auto main(int argc, char** argv) -> int
 		}
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
+			|| (attendedOpenOnGithub && !attendedOpenPullRequest)
 			|| (attendedOpenSettings && (!attendedLaunch || attendedOpenFile.has_value() || attendedOpenPullRequest))
 			|| (attendedPreflightLook.has_value()
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
@@ -9581,7 +9599,7 @@ auto main(int argc, char** argv) -> int
 						QTextStream{ stdout } << (stop ? "ATTENDED_TOUR_STOP_STAGED\n" : "ATTENDED_TOUR_STOP_FAILED\n");
 					}
 					schedule_attended_reveal(*application, std::string{ attendedOpenFile.value_or(std::string_view{ }) }, attendedPullRequest, std::move(look),
-											 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt);
+											 attendedReadState ? std::optional<std::string>{ fixtureName } : std::nullopt, attendedOpenOnGithub);
 				}
 				if (heldOpenForInspection && attendedOpenSettings) {
 					schedule_attended_settings(*application);

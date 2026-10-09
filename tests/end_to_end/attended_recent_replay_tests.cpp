@@ -1,7 +1,11 @@
 #include "../../src/app/src/github_public_path_fixture.hpp"
+#include "../../src/app/src/system_browser_opener.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/home_list.hpp"
+#include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "private_data_root.hpp"
@@ -18,12 +22,16 @@
 #include <QShortcut>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QToolButton>
+#include <QUrl>
 
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <map>
+#include <string>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -277,6 +285,131 @@ namespace {
 		desktop.reset();
 		expect(e2e::remove_course_root(temporary), "the attended store's temporary root is removed");
 	}
+
+	/// [[BPR-1338]]. The platform launch an attended look reaches, substituted:
+	/// every address that got past the opener's own check, in order.
+	auto platform_launches() -> std::vector<std::string>&
+	{
+		static auto launches = std::vector<std::string>{ };
+		return launches;
+	}
+
+	auto record_platform_launch(const QUrl& aAddress) -> bool
+	{
+		platform_launches().push_back(aAddress.toString().toStdString());
+		return true;
+	}
+
+	/// [[BPR-1338]]. The owner pressed Open on GitHub in the frozen attended
+	/// build and no browser opened: every fixture run bound the recorder
+	/// ([[BPR-0797]]), which answers "opened" and starts nothing. An attended
+	/// look binds the real opener for the window's own opens. This drives the
+	/// launcher's composition (uiforetw-74, the fixture account) with the
+	/// platform launch substituted and reads exactly what reached it: the
+	/// title row's button, a Following row and a Recently viewed row each hand
+	/// over https://github.com/google/UIforETW/pull/74 once, and device
+	/// sign-in still reaches only the recorder. Without the attended option
+	/// the same gestures reach the recorder and never the platform.
+	void attended_open_on_github_course(const bool aAttended)
+	{
+		QTemporaryDir temporary;
+		expect(temporary.isValid(), "isolated attended store exists");
+		app::detail::github_public_path_fixture_options options;
+		options.ApplicationDataRoot = e2e::private_data_root(temporary);
+		expect(options.ApplicationDataRoot.has_value(), "attended store is owner-private");
+		options.RegisteredDeviceCourse = true;
+		options.RepeatReadSessions     = true;
+		options.AttendedWindowBrowser  = aAttended;
+		const auto replaced            = app::detail::substitute_browser_launch(&record_platform_launch);
+		platform_launches().clear();
+		app::github_application* owner    = nullptr;
+		bool                     terminal = false;
+		auto                     desktop  = github_application_fixture_access::start_desktop(app::detail::github_public_path_fixture::uiforetw_74, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				owner = *aResult;
+			}
+		});
+		wait_for([&] { return terminal; }, "attended desktop starts");
+		expect(owner != nullptr, "attended desktop admitted");
+		owner->show();
+		wait_for([&] { return owner->windows().size() == 1U; }, "one attended window exists");
+		auto& window = *owner->window(owner->windows().front());
+		window.home_landing()->primary_button()->click();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "synthetic account signs in");
+		expect(platform_launches().empty(), "device sign-in in a fixture run never reaches the platform launch");
+		const auto recorded = [&] { return github_application_fixture_access::browser_opens(*owner); };
+		const auto before   = recorded();
+		window.home_open_bar()->setText(QStringLiteral("https://github.com/google/UIforETW/pull/74"));
+		window.home_open_action()->trigger();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "UIforETW opens through Home");
+		// The launcher's own size; the title row lays the name out on a resize.
+		window.resize(1'300, 820);
+		QApplication::processEvents();
+		wait_for([&] { return !window.showing_home() && window.open_on_github_action()->isEnabled() && window.open_on_github_button()->isVisible(); },
+				 "the open pull request offers Open on GitHub beside its name");
+		if (!window.open_on_github_button()->isVisible()) {
+			std::cerr << "home=" << window.showing_home() << " enabled=" << window.open_on_github_action()->isEnabled() << " width=" << window.width()
+					  << " identity=" << window.identity_label()->isVisible() << '\n';
+		}
+
+		constexpr auto page   = "https://github.com/google/UIforETW/pull/74";
+		auto           opened = 0U;
+		const auto     check  = [&](const char* aGesture) {
+			++opened;
+			const auto& launches = platform_launches();
+			if (aAttended) {
+				if (launches.size() != opened || launches.back() != page) {
+					std::cerr << aGesture << ": launches=" << launches.size() << " last=" << (launches.empty() ? std::string{ } : launches.back())
+							  << " recorded=" << recorded() - before << '\n';
+				}
+				expect(launches.size() == opened && launches.back() == page && recorded() == before,
+					   std::string{ "an attended look hands exactly the pull request's page to the system browser: " } + aGesture);
+			} else {
+				expect(launches.empty() && recorded() == before + opened && github_application_fixture_access::browser_last_address(*owner) == page,
+					   std::string{ "an ordinary fixture run records the page and launches nothing: " } + aGesture);
+			}
+		};
+		window.open_on_github_button()->click();
+		check("the title row's button");
+
+		window.follow_pull_request_action()->trigger();
+		wait_for([&] { return window.follow_pull_request_action()->isChecked(); }, "Follow keeps the pull request");
+		window.home_action()->trigger();
+		auto* const following = window.home_list()->state_view(qt::home_group::following);
+		auto        row       = QModelIndex{ };
+		wait_for([&] {
+			for (auto index = 0; following != nullptr && index < following->model()->rowCount(); ++index) {
+				if (following->model()->index(index, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("google/UIforETW#74")) {
+					row = following->model()->index(index, 0);
+					return window.showing_home();
+				}
+			}
+			return false;
+		},
+				 "Home lists the followed pull request under Following");
+		window.activateWindow();
+		QApplication::processEvents();
+		following->setFocus(Qt::OtherFocusReason);
+		following->setCurrentIndex(row);
+		QApplication::processEvents();
+		window.open_on_github_action()->trigger();
+		check("a Following row");
+
+		auto* const recent = window.home_recent_list();
+		wait_for([&] { return recent->count() >= 1 && recent->item(0)->text().contains(QStringLiteral("google/UIforETW#74")); }, "Recently viewed lists the pull request");
+		recent->setFocus(Qt::OtherFocusReason);
+		recent->setCurrentRow(0);
+		QApplication::processEvents();
+		window.open_on_github_action()->trigger();
+		check("a Recently viewed row");
+
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "attended work drains before teardown");
+		desktop.reset();
+		expect(app::detail::substitute_browser_launch(replaced) == &record_platform_launch, "the platform launch is restored");
+		expect(e2e::remove_course_root(temporary), "the attended store's temporary root is removed");
+	}
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -287,6 +420,8 @@ try {
 	strict_replay_contract(true);
 	recent_resume_course(true);
 	recent_resume_course(false);
+	attended_open_on_github_course(true);
+	attended_open_on_github_course(false);
 	std::cout << "ATTENDED_RECENT_REPLAY_OK\n";
 	return EXIT_SUCCESS;
 } catch (...) {

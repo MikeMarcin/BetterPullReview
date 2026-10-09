@@ -4462,6 +4462,7 @@ namespace bpr::app {
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
 				DeviceWallOffsetSeconds = aFixtureOptions.DeviceWallOffsetSeconds;
 				SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
+				AttendedWindowBrowser   = aFixtureOptions.AttendedWindowBrowser;
 				LabelHelper             = aFixtureOptions.LabelHelper;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
@@ -5282,6 +5283,12 @@ namespace bpr::app {
 #endif
 			ComposedBrowser       = deviceBrowser;
 			ComposedDeviceBrowser = browserIdentity;
+			WindowBrowser         = deviceBrowser;
+#if defined(BPR_BUILD_TESTING)
+			if (AttendedWindowBrowser && browserIdentity != composed_device_browser::none) {
+				WindowBrowser = &SystemBrowser;
+			}
+#endif
 			DeviceBrowserComposed = deviceBrowser != nullptr;
 			// One port, two readers. The recording sink keeps its place at the
 			// front of the fan-out, so every existing device contract still
@@ -5590,6 +5597,8 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool SuppressDeviceBrowser = false;
+		// [[BPR-1338]]. See `github_public_path_fixture_options`.
+		bool AttendedWindowBrowser = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool LabelHelper = false;
@@ -5703,6 +5712,10 @@ namespace bpr::app {
 		bool                                            DeviceCapabilityRegistered = false;
 		bool                                            DeviceBrowserComposed      = false;
 		application::device_authorization_browser_port* ComposedBrowser            = nullptr;
+		// [[BPR-1338]]. The opener the window's own gestures use: Open on
+		// GitHub and body links. `ComposedBrowser` except in an attended
+		// fixture look, where a person is watching for the page.
+		application::device_authorization_browser_port* WindowBrowser = nullptr;
 		system_browser_opener                           SystemBrowser;
 #if defined(BPR_BUILD_TESTING)
 		recording_device_authorization_browser RecordingBrowser;
@@ -5973,7 +5986,7 @@ namespace bpr::app {
 		auto open_pull_request_page(const application::pull_request_page_intent& aIntent) -> core::markdown_link_result
 		{
 			if (const auto* const context = std::get_if<core::markdown_context>(&aIntent)) {
-				return WindowRead->open_pull_request_page(*context, Profile->ComposedBrowser);
+				return WindowRead->open_pull_request_page(*context, Profile->WindowBrowser);
 			}
 			const auto& session = Host->accepted_session();
 			const auto* profile = session && Host->state().Account == session->Viewer.Account ? find_profile(session->Profile) : nullptr;
@@ -5981,7 +5994,7 @@ namespace bpr::app {
 				return core::markdown_link_result::unavailable;
 			}
 			const auto hostname = std::string{ profile->hostname() };
-			const auto browser  = Profile->ComposedBrowser;
+			const auto browser  = Profile->WindowBrowser;
 			auto       address  = std::expected<core::pull_request_page, core::markdown_link_result>{ std::unexpected(core::markdown_link_result::refused) };
 			if (const auto* const ref = std::get_if<core::pull_request_ref>(&aIntent)) {
 				if (session->Mode != core::github_access_mode::authenticated) {
@@ -6704,7 +6717,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			});
 			Window->set_markdown_link_dispatch([this, weak](const core::markdown_link_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
-					? WindowRead->open_markdown_link(aIntent, Profile->ComposedBrowser)
+					? WindowRead->open_markdown_link(aIntent, Profile->WindowBrowser)
 					: core::markdown_link_result::stale;
 			});
 			Window->set_pull_request_page_dispatch([this, weak](const application::pull_request_page_intent& aIntent) {
