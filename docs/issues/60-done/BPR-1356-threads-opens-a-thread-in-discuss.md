@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1356"
 title: "Threads opens a thread in Discuss as well as in Review"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
-parked_on: "human-review"
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"Owner chat, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1356--BPR-1356--8c7bfcbb3a0c.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052"],"related_cards":["BPR-1293","BPR-1341","BPR-1342","BPR-1328","BPR-1354","BPR-1355"],"implementation_note":"Designed with the frontend-design skill; owner look required"}
+acceptance: [{"criterion":"BPR-1356:owner-decision","outcome":"pass","revision":"160a726c0","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"Owner chat 2026-10-09, relayed: 'Do it' to the proposed design, then the row menu (Open in Review bold default, Open in Discuss, keys shown, menu key and Shift+F10); recorded under Owner decision."}},{"criterion":"BPR-1356:core","outcome":"pass","revision":"160a726c0","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"core_workbench_interaction covers route_workbench_thread: Review with Comments, Discuss clearing exactly the hiding filters, my draft routed to Review with draft_opens_in_review. Pass on macOS (f77a95cb3), Linux (b0ef8d7b9) and Windows (7672d5a8b)."}},{"criterion":"BPR-1356:finder","outcome":"pass","revision":"160a726c0","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"qt_conversation_finder_scale_{100,125,200}: Discuss button on hover and cursor rows only (never header or draft, left of the people at every width), Shift+Return, row menu and its bold default, menu key, draft's menu. Pass on macOS, Linux and Windows."}},{"criterion":"BPR-1356:window","outcome":"pass","revision":"160a726c0","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"qt_workbench_window_scale_{100,125,200} through the real core: Shift+Return, the button and Open in Discuss land on the washed, selected, focused card in Discuss with Review's file unchanged; hiding filters cleared and said, others kept; menu by right click, menu key, Shift+F10; no window command holds the keys. Pass on macOS, Linux and Windows."}},{"criterion":"BPR-1356:fails-before","outcome":"pass","revision":"710e06796","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"qt_workbench_window_scale_100 built against the unchanged sources failed 'Shift+Return opens the thread in Discuss'; core_workbench_interaction does not compile without route_workbench_thread."}},{"criterion":"BPR-1356:docs","outcome":"pass","revision":"160a726c0","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"docs/ux/workbench-specification.md describes the Discuss button, Shift+Return and the row menu; verify_documentation.py printed DOCUMENTATION_OK and verify_documentation_tests.py ran 67 tests OK."}},{"criterion":"BPR-1356:owner-look","outcome":"pass","revision":"160a726c0","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-1356-threads-opens-a-thread-in-discuss.md","detail":"Owner Accept, no note, 2026-10-09T13:00:47Z: session e157660d93be79fc09c9139915076c11, candidate BPR-1356-open-in-discuss-v001 (fingerprint 16045f81aeb3..., frozen-160a726c0-v001), decision d05ec0be-9dbe-4495-b49b-cd722240d3f1 at event 4, handed back at 5, released at 6."}}]
 ---
 
 # BPR-1356: Threads opens a thread in Discuss as well as in Review
@@ -118,7 +118,7 @@ word, and a menu that follows Home's row menu ([[BPR-1342]]).
   were turned off with the notice; the finder at four palettes and the
   narrowest width with the cursor row's button.
 
-## Owner look on v001 (pending)
+## Owner look on v001 (accepted, below)
 
 One new short session, one question, Accept or Reject.
 
@@ -135,6 +135,25 @@ One new short session, one question, Accept or Reject.
   SHA-256 `ce141c46e798…`. Its own `--check` reached `ATTENDED_FILE_SHOWN` on
   head `89df5e59…`.
 - Launch: `python3 /Users/jaeger/bpr1356-open-in-discuss-v001.or24x9ef/launch.py`.
+
+## Owner verdict on v001
+
+Accept, 2026-10-09T13:00:47Z, decision `d05ec0be-9dbe-4495-b49b-cd722240d3f1`
+at session event 4, no note (candidate `BPR-1356-open-in-discuss-v001`,
+fingerprint `16045f81aeb3…`, revision `frozen-160a726c0-v001`). The owner
+handed session `e157660d93be79fc09c9139915076c11` back at event 5, read from
+cursor 0.
+
+This satisfies `BPR-1356:owner-look`. The other criteria stand on the
+verification above (`f77a95cb3`, landed as `160a726c0`), and the Linux and
+Windows station runs below pass the core, finder and window rows. The card is
+Done.
+
+The host (pid 72837) was stopped and the candidate released with
+`resume-development --all` at event 6. The frozen root
+`/Users/jaeger/bpr1356-open-in-discuss-v001.or24x9ef` was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record.
 
 ## Linux station run (bpr-main-linux, 2026-10-09)
 
