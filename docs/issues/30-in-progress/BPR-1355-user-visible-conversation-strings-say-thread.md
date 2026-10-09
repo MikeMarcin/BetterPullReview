@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1355"
 title: "User-visible Conversation strings say thread"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
