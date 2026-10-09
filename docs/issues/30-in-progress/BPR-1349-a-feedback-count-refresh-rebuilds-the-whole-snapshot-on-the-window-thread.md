@@ -548,3 +548,11 @@ Ready for the board finish: AC1 to AC3 pass at `15c86f2ed`. Stage 1 is
 `a4c04d31a` and Stage 2 is `15c86f2ed`; the memory cost is recorded under
 Stage 1. Platforms owed: macOS and Windows runs of the changed core,
 application and cost rows.
+
+## Coordinator verification (bpr-main-linux, 2026-10-09)
+
+At `20fb3889e`, in `build/dev`, 9 of 9 pass: `core_feedback_conversation`, the counter
+and cost rows, the overview rows, `qt_pull_request_overview_page`,
+`application_large_review_benchmark`, the round-trip contract and
+`architecture_boundaries`. Done on Linux evidence; macOS and Windows runs are
+owed.
