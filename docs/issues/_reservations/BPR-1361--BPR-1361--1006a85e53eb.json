@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1361"
+  ],
+  "reserve_for": "post-observation-lifetime",
+  "purpose": "refuse a temporary feedback_sources where post observations view it (BPR-1349 follow-up)",
+  "created": "2026-10-09T08:51:06.819212+00:00",
+  "base": "7672d5a8bbe153ae35a4853aefb32d102fcbd07d"
+}
