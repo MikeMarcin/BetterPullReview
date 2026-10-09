@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1344"
 title: "Prepared comparisons never hold up a comparison the reviewer asked for"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
