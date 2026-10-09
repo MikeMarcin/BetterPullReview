@@ -7,9 +7,9 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner request in chat, 2026-10-06, with a screenshot of the VS Code Claude Code extension settings","reservation":"docs/issues/_reservations/BPR-1301--BPR-1301--ddc91c168c32.json","reference":"https://code.claude.com/docs/en/vs-code#use-third-party-providers","owner_questions":["BPR-1301:q-sign-in-switch","BPR-1301:q-windows-scripts","BPR-1301:q-path-search"],"implementation_note":"Use the frontend-design skill for the Settings rows; owner review is required","acceptance":["BPR-1301:wrapper-path","BPR-1301:wrapper-launch","BPR-1301:unset-unchanged","BPR-1301:launch-recheck","BPR-1301:scope","BPR-1301:persist","BPR-1301:sign-in","BPR-1301:path-lookup","BPR-1301:agent-free","BPR-1301:documents","BPR-1301:owner-look"],"owner_answers":{"date":"2026-10-06","BPR-1301:q-sign-in-switch":"Accept (no switch)","BPR-1301:q-windows-scripts":"Accept (.exe only)","2026-10-07":{"BPR-1301:q-path-search":"Yes, search PATH (Recommended)"}}}
+metadata: {"origin":"Owner request in chat, 2026-10-06, with a screenshot of the VS Code Claude Code extension settings","reservation":"docs/issues/_reservations/BPR-1301--BPR-1301--ddc91c168c32.json","reference":"https://code.claude.com/docs/en/vs-code#use-third-party-providers","owner_questions":["BPR-1301:q-sign-in-switch","BPR-1301:q-windows-scripts","BPR-1301:q-path-search"],"implementation_note":"Use the frontend-design skill for the Settings rows; owner review is required","acceptance":["BPR-1301:wrapper-path","BPR-1301:wrapper-launch","BPR-1301:unset-unchanged","BPR-1301:launch-recheck","BPR-1301:scope","BPR-1301:persist","BPR-1301:sign-in","BPR-1301:path-lookup","BPR-1301:agent-free","BPR-1301:documents","BPR-1301:owner-look"],"owner_answers":{"date":"2026-10-06","BPR-1301:q-sign-in-switch":"Accept (no switch)","BPR-1301:q-windows-scripts":"Accept (.exe only)","2026-10-07":{"BPR-1301:q-path-search":"Yes, search PATH (Recommended)"},"2026-10-08":{"BPR-1301-wrapper-row-v002":"Accept","BPR-1301-sign-in-line-v002":"Reject: Cant read this"}}}
 parked_on: "human-review"
-acceptance: [{"criterion":"BPR-1301:wrapper-path","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"core_agent_wrapper and qt_claude_process_wrapper: absolute executable regular file (and through a symlink) accepted; relative, ~, missing, dangling link, directory, non-executable, pipe, NUL/line break, over 1024 bytes and Windows .bat/.cmd (and non-.exe, ADS) refused, each its own reason; application_claude_process_wrapper: a refused path is not saved. Controls: .cmd admitted, X_OK dropped, refused path saved each fail. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:wrapper-launch","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"qt_claude_process_wrapper through the real supervised launcher: a recording copy of the canary as wrapper gets today's argv[1..], whole environment, cwd and stdin bytes for agent panel, tool-free writing, round send and --resume round, nothing prepended, no added name; the shipped bare claude fails to start as the in-test control. Composed: application_review_tour_writing_wrapper and application_review_cycle_send_public_path. Control: no substitution fails 3 rows. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:unset-unchanged","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Amended 2026-10-07 by the owner. application_claude_process_wrapper: with no wrapper the bare request reaches the launcher equal to the built one but for the found absolute executable; an absolute executable and no-locator requests pass through unchanged. v001 rows still pass at ecb7dd771. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:launch-recheck","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"qt_claude_process_wrapper: a saved wrapper made chmod -x, then deleted, ends failed_to_start with 'Claude process wrapper PATH: reason'; the counting port shows no process started, bare claude included. Control: recheck removed fails 2 rows. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:scope","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"application_claude_process_wrapper and qt_claude_process_wrapper: Codex JSONL, App Server and external terminal keep their executable with a wrapper saved; host policy and core profiles untouched (the port sits after policy). macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:persist","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"sqlite_workbench_settings_storage: schema 14 round trip and reopen, 13->14 migration, legacy and window writes keep it; application_workbench_preferences_consumers: owned adoption keeps it; composed writing course: path survives restart. Per-profile by each window's own profile subscription; purge removes workbench-settings.sqlite3. Controls: legacy store drop and adoption drop fail. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:sign-in","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Owner Q1 'Accept (no switch)': no switch built; qt_settings_window asserts the one Sign-in line and no extra check box. Look pending in BPR-1301:owner-look. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:path-lookup","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"core_agent_wrapper (search order, PATH then usual folders, empty/relative/./~ entries and control characters skipped, bound, Windows claude.exe only); qt_claude_process_wrapper on real files and the real launcher (first absolute runnable claude wins past an empty folder and a folder named claude; relative entries never searched though each holds a claude; non-executable passed over; link used as found; usual folder after PATH; found claude gets Claude's exact argv, environment and stdin; removed before launch ends failed_to_start with nothing started); application_claude_process_wrapper (found, not found, wrapper wins without a search, refused wrapper never falls back, re-searched each launch, editor locate latest-only); qt_settings_window x4 (found line texts, read-only, hidden under a saved wrapper, looked up when shown, layout holds); application_review_tour_writing_wrapper composed (not found: nothing starts, Settings says so; claude on the course PATH runs the writing request and Settings names it; then the saved wrapper runs). Seven failing-before controls fail. Agent-free build unaffected. macOS; Linux and Windows station runs owed."}},{"criterion":"BPR-1301:agent-free","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"build/dev-agent-free at ecb7dd771 builds; 10/10 architecture, settings x4, preferences, storage, round-trip, cycle-send, core rows; no locate_claude, wrapped_claude_process or claude_wrapper_editor symbol in the app. macOS; Linux and Windows station runs owed."}},{"criterion":"BPR-1301:documents","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"security-threat-model.md ('Resolve executables explicitly' and the Claude process wrapper section) and ai-agent-boundary.md carry the dated owner amendment; settings.md and the authority inventory updated; DOCUMENTATION_OK at ecb7dd771."}},{"criterion":"BPR-1301:owner-look","outcome":"pending","revision":"ecb7dd771","evidence":{"kind":"observation","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Pending: session ee2391ed3fa000fb68deb48b43014024 (v002 frozen build of ecb7dd771); one Accept or Reject each for BPR-1301-wrapper-row-v002 and BPR-1301-sign-in-line-v002. v001 session 38af6850 was released unanswered."}}]
+acceptance: [{"criterion":"BPR-1301:wrapper-path","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"core_agent_wrapper and qt_claude_process_wrapper: absolute executable regular file (and through a symlink) accepted; relative, ~, missing, dangling link, directory, non-executable, pipe, NUL/line break, over 1024 bytes and Windows .bat/.cmd (and non-.exe, ADS) refused, each its own reason; application_claude_process_wrapper: a refused path is not saved. Controls: .cmd admitted, X_OK dropped, refused path saved each fail. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:wrapper-launch","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"qt_claude_process_wrapper through the real supervised launcher: a recording copy of the canary as wrapper gets today's argv[1..], whole environment, cwd and stdin bytes for agent panel, tool-free writing, round send and --resume round, nothing prepended, no added name; the shipped bare claude fails to start as the in-test control. Composed: application_review_tour_writing_wrapper and application_review_cycle_send_public_path. Control: no substitution fails 3 rows. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:unset-unchanged","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Amended 2026-10-07 by the owner. application_claude_process_wrapper: with no wrapper the bare request reaches the launcher equal to the built one but for the found absolute executable; an absolute executable and no-locator requests pass through unchanged. v001 rows still pass at ecb7dd771. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:launch-recheck","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"qt_claude_process_wrapper: a saved wrapper made chmod -x, then deleted, ends failed_to_start with 'Claude process wrapper PATH: reason'; the counting port shows no process started, bare claude included. Control: recheck removed fails 2 rows. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:scope","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"application_claude_process_wrapper and qt_claude_process_wrapper: Codex JSONL, App Server and external terminal keep their executable with a wrapper saved; host policy and core profiles untouched (the port sits after policy). macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:persist","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"sqlite_workbench_settings_storage: schema 14 round trip and reopen, 13->14 migration, legacy and window writes keep it; application_workbench_preferences_consumers: owned adoption keeps it; composed writing course: path survives restart. Per-profile by each window's own profile subscription; purge removes workbench-settings.sqlite3. Controls: legacy store drop and adoption drop fail. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:sign-in","outcome":"pass","revision":"b07a3f44d","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Owner Q1 'Accept (no switch)': no switch built; qt_settings_window asserts the one Sign-in line and no extra check box. Look pending in BPR-1301:owner-look. macOS; Linux and Windows station runs owed (commands on the card)."}},{"criterion":"BPR-1301:path-lookup","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"core_agent_wrapper (search order, PATH then usual folders, empty/relative/./~ entries and control characters skipped, bound, Windows claude.exe only); qt_claude_process_wrapper on real files and the real launcher (first absolute runnable claude wins past an empty folder and a folder named claude; relative entries never searched though each holds a claude; non-executable passed over; link used as found; usual folder after PATH; found claude gets Claude's exact argv, environment and stdin; removed before launch ends failed_to_start with nothing started); application_claude_process_wrapper (found, not found, wrapper wins without a search, refused wrapper never falls back, re-searched each launch, editor locate latest-only); qt_settings_window x4 (found line texts, read-only, hidden under a saved wrapper, looked up when shown, layout holds); application_review_tour_writing_wrapper composed (not found: nothing starts, Settings says so; claude on the course PATH runs the writing request and Settings names it; then the saved wrapper runs). Seven failing-before controls fail. Agent-free build unaffected. macOS; Linux and Windows station runs owed."}},{"criterion":"BPR-1301:agent-free","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"build/dev-agent-free at ecb7dd771 builds; 10/10 architecture, settings x4, preferences, storage, round-trip, cycle-send, core rows; no locate_claude, wrapped_claude_process or claude_wrapper_editor symbol in the app. macOS; Linux and Windows station runs owed."}},{"criterion":"BPR-1301:documents","outcome":"pass","revision":"ecb7dd771","evidence":{"kind":"command","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"security-threat-model.md ('Resolve executables explicitly' and the Claude process wrapper section) and ai-agent-boundary.md carry the dated owner amendment; settings.md and the authority inventory updated; DOCUMENTATION_OK at ecb7dd771."}},{"criterion":"BPR-1301:owner-look","outcome":"pending","revision":"7b79ecd80","evidence":{"kind":"observation","path":"docs/issues/40-parked/BPR-1301-a-claude-process-wrapper-and-an-option-to-skip-the-login-prompt.md","detail":"Process wrapper row: Accepted 2026-10-08 (BPR-1301-wrapper-row-v002, session ee2391ed, frozen build of ecb7dd771). Sign-in line: v002 Rejected 2026-10-08, 'Cant read this'; v003 (frozen build of 7b79ecd80) pending in session 0cccc3a1e0cdbcfe806df51a2b6f6fd0, one Accept or Reject for BPR-1301-sign-in-line-v003."}}]
 ---
 
 # BPR-1301: A Claude process wrapper and an option to skip the login prompt for agent launches
@@ -483,7 +483,7 @@ From the owner amendment above.
 - macOS GUI `PATH`: an application bundle opened through LaunchServices
   recorded `PATH=/usr/bin:/bin:/usr/sbin:/sbin` (see the amendment).
 
-### Owner look v002 (BPR-1301:owner-look, pending)
+### Owner look v002 (BPR-1301:owner-look; answered 2026-10-08, below)
 
 The v001 session `38af68502d74f85ae4f3508a5a043cb2` was not answered; on the
 owner's word it was released (`resume-development --all`, cursor 7) and its
@@ -527,10 +527,103 @@ ef0bef84…, app manifest b01cca50…; mutation pin unchanged). Merged tree:
 canary, round-trip, composition (application, agent invocation, tour public
 path) and architecture rows; DOCUMENTATION_OK.
 
+### Owner look v002 answered (2026-10-08)
+
+The owner handed session `ee2391ed3fa000fb68deb48b43014024` back at cursor 9
+(host stopped):
+
+- `BPR-1301-wrapper-row-v002` (`e53f4fdbafd0…`): **Accept**. The Process
+  wrapper row, with its found line, is accepted.
+- `BPR-1301-sign-in-line-v002` (`acfffbcee1d3…`): **Reject**, note verbatim
+  "Cant read this", with a screenshot of the native macOS dark window
+  (`/Users/jaeger/bpr-owner-att/BPR-1301-sign-in-line-v002-0.png`, kept out
+  of the repository).
+
+The screenshot shows the explanation paragraph and the Sign-in line cut off
+top and bottom, not only faint: their wrapped lines were drawn into rows too
+short for them. The macOS style keeps a form's fields at their size hint
+(`QFormLayout::FieldsStayAtSizeHint`), so both labels were drawn narrower
+than the width their height was measured at. The offscreen Fusion runs grow
+fields to the row, which is why v002's height check passed. The explanation
+was also set in `QPalette::PlaceholderText`, which reads 2.95:1 against the
+page in BetterPullReview Light, 3.59:1 in Dark and 4.0:1 in High Contrast
+Light, all below AA. In the screenshot (macOS dark) it read about 6:1; macOS
+light would put it near 3.8:1 (estimated).
+
+v002 was released (`resume-development --all`, cursor 10; both verdicts
+kept). Its frozen root `bpr1301-wrapper-look-v002` was deleted; its state
+folder keeps the session record.
+
+## Implementation v003 (2026-10-08, 7b79ecd80)
+
+The owner asked for the sign-in line made readable: AA contrast against the
+panel in light, dark and high contrast, its font size and its placement, in
+the page's normal text role rather than a faint one, and kept short. BPR-1288
+owns the page's full redesign.
+
+- `claude_wrapper_panel`: the Claude form's field column grows to the row under
+  every style (`AllNonFixedFieldsGrow`), so each wrapped line is measured at
+  the width it is drawn at. Every Claude line (status, found, explanation,
+  Sign-in) is set in `QPalette::WindowText` at the page's own size. That is
+  the role the page's other explanations use (the page has no separate
+  secondary text role), at 14.7:1 in Light, 13.8:1 in Dark and 21:1 in both
+  high-contrast themes. Space, not a fainter colour, sets the explanation
+  apart, and an 8 px margin under the wrapper row sets the Sign-in row apart.
+- The Sign-in line is shorter and still says the whole thing: "Claude and
+  your wrapper handle sign-in. BetterPullReview never asks." At the window's
+  default width it is one line.
+- The rest of Agents & context has no other faint explanatory text. The
+  page's opening paragraph, the request scope line and the writing-hooks text
+  are all in the normal role. The only grey text is the disabled "No current
+  draft" check box, a disabled control.
+- `docs/development/settings.md` quotes the new line.
+
+### Evidence v003 (macOS, build/dev at 7b79ecd80)
+
+- `qt_settings_window` gains `test_agents_page_claude_rows_are_readable`. Under
+  a proxy style that keeps form fields at their size hint, as macOS does, no
+  Claude line is cut off at 680, 900 or 1300 px. Every line is at the page's
+  text size, and every line reads 4.5:1 or better against the page in the
+  native palette and in BetterPullReview Light, Dark, High Contrast Light and
+  High Contrast Dark (`qt::contrast_ratio`, WCAG). The existing row's sign-in
+  text check is updated. 4/4 `qt_settings_window` rows pass (scales 100, 125,
+  150 and 200). It also passes with `QT_STYLE_OVERRIDE=macos` offscreen.
+- Failing-before controls, each a one-line mutation rebuilt and run:
+  `PlaceholderText` back on the explanation fails "claudeWrapperHelp reads
+  2.950000:1" in Light; with the growth policy line removed it fails "no
+  Claude line is cut off ... at the reviewed width: claudeWrapperHelp".
+- Offscreen renders in all four themes and the macOS style show every line
+  whole. `coding-format-check` passes. clang-tidy on the two changed files
+  finds nothing new (one older naming warning at
+  `settings_window_tests.cpp:639`). `DOCUMENTATION_OK`.
+
+### Owner look v003 (BPR-1301:owner-look, pending)
+
+Session `0cccc3a1e0cdbcfe806df51a2b6f6fd0` (new and short; not cbd48b91),
+state `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1301-sign-in-v003`
+against the main checkout, host detached (pid 52129, loopback port 49680),
+cursor 3 after preparation. One candidate, one Accept or Reject:
+`BPR-1301-sign-in-line-v003` (fingerprint `e467343c43dc…`). The frozen build
+of 7b79ecd80, its source and build tree live in
+`/Users/jaeger/.mask/attended-review/bpr1301-sign-in-look-v003`;
+`python3 /Users/jaeger/.mask/attended-review/bpr1301-sign-in-look-v003/launch.py`
+checks the build and the fixture tree, opens Settings over Home on a temporary
+github.com fixture profile and reports an exit within 8 seconds. Launched
+natively once (`ATTENDED_SETTINGS_SHOWN`, up 23 s, then closed; nothing
+captured). In that root, `qt_settings_window` x4 and
+`application_review_round_trip_composition_contract` pass (5/5; the pinned
+scope is untouched). Next: `status --after 3` on that state; an Accept
+satisfies :owner-look (the wrapper row was accepted in v002) and the card
+finishes; a Reject returns with its note for a v004.
+
+Published: 7b79ecd80 was rebased onto `origin/main` d8738b93c as d7a30e56d,
+with no conflicts and no upstream change to these files. The frozen root and
+the session keep the 7b79ecd80 identity.
+
 ### Owed station runs (not blocking)
 
-Linux and Windows have not run this change (v001 or v002). At a revision
-holding it (`claude/bpr1301-v002` until it is merged), no remote mutation; add
+Linux and Windows have not run this change (v001, v002 or v003). At a revision
+holding it (`origin/main` from 3627b98af; v003 from 7b79ecd80), no remote mutation; add
 `core_agent_profile` to the expression:
 
 - `bpr-main-linux`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev --output-on-failure -R '^(core_agent_wrapper|application_claude_process_wrapper|qt_claude_process_wrapper|qt_settings_window.*|sqlite_workbench_settings_storage|application_workbench_preferences_consumers|application_review_tour_writing.*|application_review_cycle_send_public_path|qt_agent_launch_canary|application_review_round_trip_composition_contract|architecture_boundaries)$'`
