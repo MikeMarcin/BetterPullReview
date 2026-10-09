@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1343"
 title: "Cross-platform guards: a Qt adapter local that hides a QWidget data member, and a WINDOWS_UNCONTAINED row without a pin"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
