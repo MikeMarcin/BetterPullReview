@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1356"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Threads: open a thread in Discuss from the finder (Discuss button, Shift+Return, row menu)",
+  "created": "2026-10-09T05:15:39.271986+00:00",
+  "base": "b9aff5200f2deb42e7c49f3e70ae6427862359bb"
+}
