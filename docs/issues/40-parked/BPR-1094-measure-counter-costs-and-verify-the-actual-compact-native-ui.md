@@ -257,3 +257,11 @@ rows, the network-isolation rows, the round-trip contract and
 `architecture_boundaries`. Parked for R33's native visible-window look (owner
 or the Mac station). Findings 1 to 3 are recorded above and go to the
 coordinator.
+
+### Correction (2026-10-09, from BPR-1351)
+
+Finding 3 miscounted. The large-review course makes 24 Settings chip changes
+(12 ticks, then 12 unticks), not 23. The "23" came from the test's lower bound
+`>= 2*12-1`. The 24 publications are exactly one per change, and there is no
+double publication. [[BPR-1351]] now asserts one publication per change and
+none after the last.
