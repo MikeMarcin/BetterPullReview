@@ -1868,9 +1868,13 @@ namespace {
 				key(*view, Qt::Key_Tab);
 				expect(page.focused_chip() && view->viewport()->rect().contains(page.focused_chip()->Box.toAlignedRect()), name + ": Tab reaches the last row's chip, in view");
 				const auto position = view->verticalScrollBar()->value();
+				const auto maximum  = view->verticalScrollBar()->maximum();
 				const auto requests = asked.size();
 				page.present_feedback(feedback_for(review, asked.back(), paths));
 				settle();
+				// BPR-1094: macOS fails this check; print what each half read.
+				std::cout << "bpr-1094 refresh " << name << " value=" << position << "->" << view->verticalScrollBar()->value() << " maximum=" << maximum << "->"
+						  << view->verticalScrollBar()->maximum() << " chip=" << (page.focused_chip() ? "kept" : "null") << '\n';
 				expect(view->verticalScrollBar()->value() == position && page.focused_chip(), name + ": a refresh keeps the scroll position and the chip");
 				QWheelEvent wheel{ QPointF{ 40, 40 }, view->viewport()->mapToGlobal(QPointF{ 40, 40 }), QPoint{ }, QPoint{ 0, 360 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 				QApplication::sendEvent(view->viewport(), &wheel);
