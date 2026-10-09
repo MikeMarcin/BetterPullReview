@@ -8178,10 +8178,14 @@ namespace bpr::qt {
 
 	void workbench_window::enter_review_at(const QString& aPath)
 	{
+		// [[BPR-1348]]. Review first, then the file, as a conversation pick
+		// does. Choosing Review schedules its active tab's presentation
+		// ([[BPR-1132]]), so a file chosen before it lost to the tab's file:
+		// a double-click on main.cpp opened renderer.cpp.
+		choose_modality(review_modality::review);
 		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
-		choose_modality(review_modality::review);
 	}
 
 	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool

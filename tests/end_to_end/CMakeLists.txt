@@ -3765,6 +3765,20 @@ set_tests_properties(application_accepted_file_in_overview PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_ACCEPTED_OVERVIEW_RENDER_ROOT=${PROJECT_BINARY_DIR}/accepted-overview-renders"
     TIMEOUT 120 PASS_REGULAR_EXPRESSION "ACCEPTED_OVERVIEW_PUBLIC_PATH_OK")
 
+# [[BPR-1348]]. Double-clicking a file's row on Overview opens that file in
+# Review, not the file that was current, through the real composition.
+bpr_add_executable(test_overview_double_click_public_path overview_double_click_public_path_tests.cpp)
+target_link_libraries(test_overview_double_click_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_overview_double_click_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_overview_double_click_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_overview_double_click_public_path)
+bpr_enable_warnings(test_overview_double_click_public_path)
+bpr_add_network_isolated_test(NAME application_overview_double_click WINDOWS_UNCONTAINED
+    COMMAND test_overview_double_click_public_path)
+set_tests_properties(application_overview_double_click PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "OVERVIEW_DOUBLE_CLICK_PUBLIC_PATH_OK")
+
 # [[BPR-1336]]. The comparison's zoom through the real composition; `--attended`
 # opens the same long file for the owner's look.
 bpr_add_executable(test_diff_zoom_public_path diff_zoom_public_path_tests.cpp)

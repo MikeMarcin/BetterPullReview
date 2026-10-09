@@ -159,6 +159,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # course root", the private storage root refused as above.
     "application_discuss_top_public_path": "dos-volume-name",
     "application_accepted_file_in_overview": "dos-volume-name",
+    # [[BPR-1348]]. The same private composed course root and fixture
+    # composition as application_accepted_file_in_overview, so the same
+    # refusal; pinned by that shape, not yet measured contained on Windows.
+    "application_overview_double_click": "dos-volume-name",
     # Measured on bpr-main-win 2026-10-08 at 47f6d5882, each registered
     # contained for the measurement, every one refused its private storage
     # before any course step: comment_range_draft_store at "FAILED: the private
