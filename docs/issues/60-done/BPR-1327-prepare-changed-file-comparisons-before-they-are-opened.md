@@ -269,3 +269,46 @@ file, in batches of 16, one GraphQL point and four account reads a batch.
 
 Network preparation stays always on, with no setting. Nothing in the code
 changes for the answer.
+
+## Windows station run (bpr-main-win, 2026-10-08): two interaction budgets fail
+
+At `662158348`, in a fresh `windows-app-release` tests-on tree
+(`build/bpr1327-release`, no `warning C` line), with the station otherwise
+idle and `ctest -j1`. The selection is 26 rows here (`gh_cli_git_smart_transport`
+is macOS-only). 23 pass.
+
+**Two fail on every run** (the full run and a repeat):
+
+- `application_large_review_active_work`: `active_supersession_final_drain`
+  2157 ms, then 2769 ms, against its 1250 ms limit. `active_queued_selection_supersession`
+  takes about 3.5 s.
+- `application_large_review_history`: "epoch source selection exceeded its
+  measured platform budget". `epoch_source_selection_30` to `_32` take 2.6 to
+  3.7 s each, against 2000 ms.
+
+**One fails marginally:** `application_large_review_prepared_open` missed the
+`paged_review_and_git_load` input gap once (103.7 ms against 100 ms; that is
+[[BPR-1325]]) and passed on the repeat.
+
+**Bisect.** In the station's worktree (Release, tests on):
+
+| Commit | `active_work` | `history` | Selections | Supersession |
+|---|---|---|---|---|
+| `3c7c56620` (before this card) | pass | pass | | |
+| `6cb1c0795` (this card's first source commit) | pass | pass, 132 s | about 0.5 s | 1.9 s |
+
+A `git bisect run` on `active_work` over `6cb1c0795..662158348` names
+`8b71105f7` ("prepared-open course, request identity, pin reseal") as the first
+bad commit.
+
+**Likely cause, inferred and not yet measured with preparation off.** In
+`8b71105f7`, `workbench_application_host` gives each prepared request its own
+`Request` id. Before, every request in a round reused `local_context()`'s
+single identity. The likely effect is that a preparation round now really
+prepares up to 16 comparisons, and that work shares the diff lane with the
+reviewer's explicit selections. On this station the final drain and the epoch
+source selections then wait behind it.
+
+The card's expectations (`BudgetsEnforced` true, no input or limit misses,
+`PreparedHits` equal to the prepared opens) are not met on Windows until this
+is resolved. The tree is removed.
