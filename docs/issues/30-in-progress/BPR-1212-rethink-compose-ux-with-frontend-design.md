@@ -939,7 +939,8 @@ What follows from them (coordinator, 2026-10-08):
 Engineering owner `rfc-implementer` (`claude-opus-5-5`, effort high) on
 `bpr-main-mac` (macOS, Apple clang, Qt 6.11.2, Debug and an optimized
 tests-on tree, offscreen). Drawn with `frontend-design` (loaded first). Built
-on `origin/main`, rebased onto `b864e319d`; slice 1 and slice 2 are both in.
+on `origin/main`, rebased onto `b864e319d` and then `2f960c927`; slice 1 and
+slice 2 are both in.
 
 ### What changed
 
@@ -1032,8 +1033,8 @@ test), and a live round on BPR-Test.
 
 ### Verification (macOS, Debug, offscreen)
 
-New and changed rows, all passing on the candidate (`61dae6211`, rebased on
-`b864e319d`):
+New and changed rows, all passing on the candidate (`61dae6211` on
+`b864e319d`, and again after the rebase below):
 
 - `core_review_comment_range`: a base line or range is `base_side` without the
   evidence; with it, one base line in a hunk anchors on the left, a base range
@@ -1137,10 +1138,34 @@ the file restored byte for byte):
 | Host refuses every base-line root | `application_line_draft_contract` | phase 32 "Publication is unavailable for this target. Your draft text is kept." |
 | The merge base is never the left document | `application_line_draft_contract` | phase 30 `left-current=0 numbered=0` |
 
-**Pin.** `main`'s pins matched at `b864e319d`. Resealed over the BPR-1094
-seal: `full_application` `13ec6586…`, `production_app_manifest`
-`dd956d6e…`; `production_mutation_branch` unchanged (`e067befe…`). The dated
-"BPR-1212 v002 reseal" comment follows BPR-1094's.
+**Pin.** `main`'s pins matched at `2f960c927` (an exported tree). Resealed,
+after rebasing onto it, over the BPR-1331 v003 seal: `full_application`
+`7d5d75e1…`, `production_app_manifest` `ec2dfc94…`;
+`production_mutation_branch` unchanged (`e067befe…`). The dated "BPR-1212
+v002 reseal" comment follows BPR-1331's.
+
+**Rebased onto `2f960c927`** (BPR-1355's thread words, BPR-1331 v003, and
+others): the branch is `a51d126f6` (product), `b8904fb38` (card),
+`759fe7a0f` (the base draft's header), on top of `2f960c927`; the reviewed
+frozen build is `cb16bfeed`, the same change before this rebase. After it,
+the focused rows above pass again (150 with the Qt rows), with the composed
+line-draft, label-authoring and threaded-reply courses;
+`application_label_authoring_contract` passed on its rerun after one
+load-budget expiry. `test_network_isolation_manifest` fails on `origin/main`
+itself since BPR-1355 (`application_thread_words_public_path` is registered
+uncontained without an entry); not this slice's.
+
+**100 ms gates: not measured.** The optimized tests-on tree
+(`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON
+-DCMAKE_TEST_BUILD_DEPENDS=ON`, Apple clang Release) was built, but the
+machine never went idle: two runs of `application_large_review_responsiveness`
+at load averages of about 310 and 230 failed on different, unrelated phases
+each time (the first on `paged_review_and_git_load`, `review_modality` and
+`drawers_show`; the second on fourteen others, with `keyboard_line_down`
+59.7 ms, `keyboard_line_extend` 10.5 ms and `keyboard_line_reveal` 90.7 ms
+against slice 1's idle 9.6, 8.7 and 13.4). `application_first_tab_comparison`
+passed. The gates are owed on an idle machine before this lands on `main`;
+the branch is pushed for that, not merged.
 
 **Observed, not this slice's:** the machine ran at a load average near 290
 from other stations' builds while these rows ran. Under it,
