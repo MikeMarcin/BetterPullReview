@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1359"
 title: "macOS: the batched blob read sends a JSON array (HTTP 400), and preparation's single-read fallback holds the reviewer's cold read"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
