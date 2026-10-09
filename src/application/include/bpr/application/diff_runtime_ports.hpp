@@ -96,6 +96,9 @@ namespace bpr::application {
 		core::diff_side            Side = core::diff_side::left;
 		core::git_blob_oid         Blob;
 		std::uint64_t              MaximumBytes = 0U;
+		/// [[BPR-1344]]. A prepared comparison asks, not the reviewer: the
+		/// read is preparation's job and waits behind the reviewer's work.
+		bool Prepared = false;
 
 		auto operator<=>(const diff_blob_request&) const = default;
 	};

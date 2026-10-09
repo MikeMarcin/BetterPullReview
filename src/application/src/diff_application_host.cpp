@@ -31,6 +31,8 @@ namespace bpr::application {
 		{
 			core::compute_file_diff_request Request;
 			std::stop_source                Stop;
+			/// [[BPR-1344]]. A prepared comparison, not one the reviewer asked for.
+			bool Prepared = false;
 		};
 
 		struct deferred_diff_request
@@ -513,6 +515,7 @@ namespace bpr::application {
 					},
 					.Options = aRequest.Options,
 				};
+				job->Prepared = true;
 			} catch (...) {
 				return;
 			}
@@ -803,6 +806,7 @@ namespace bpr::application {
 				.Side         = aSide,
 				.Blob         = aSide == core::diff_side::left ? *key.LeftBlob : *key.RightBlob,
 				.MaximumBytes = aMaterializeLimit,
+				.Prepared     = aJob.Prepared,
 			};
 		}
 

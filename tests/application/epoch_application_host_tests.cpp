@@ -5729,6 +5729,82 @@ namespace {
 			   "after invalidation nothing prepared can be read");
 	}
 
+	/// [[BPR-1344]]. Preparation's jobs are counted apart from the reviewer's,
+	/// so a caller can wait for the reviewer's alone.
+	void preparation_jobs_are_counted_apart_from_the_reviewers()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		expect(value.Host->outstanding_jobs() == 0U && value.Host->outstanding_preparation_jobs() == 0U
+				   && value.Host->outstanding_reviewer_jobs() == 0U,
+			   "an established comparison owes no job");
+		auto prepared        = application::epoch_prepared_comparisons{ };
+		auto opened          = application::workbench_selected_diff_observation{ };
+		auto preparationDone = std::atomic_bool{ false };
+		auto openDone        = std::atomic_bool{ false };
+		auto preparation     = std::jthread{ [&] {
+			prepared = value.Host->prepare({ file_request(value, "a.cpp") }, { });
+			preparationDone.store(true);
+		} };
+		value.Effects.wait_for_pending();
+		expect(value.Host->outstanding_preparation_jobs() == 1U && value.Host->outstanding_reviewer_jobs() == 0U
+				   && value.Host->outstanding_jobs() == 1U,
+			   "a queued preparation is preparation's job, not the reviewer's");
+		auto open = std::jthread{ [&] {
+			opened = value.Host->resolve(file_request(value, "b.cpp", core::request_id{ 902U }), { });
+			openDone.store(true);
+		} };
+		while (value.Host->outstanding_reviewer_jobs() == 0U && !openDone.load()) {
+			std::this_thread::yield();
+		}
+		expect(value.Host->outstanding_reviewer_jobs() == 1U && value.Host->outstanding_preparation_jobs() == 1U
+				   && value.Host->outstanding_jobs() == 2U,
+			   "the reviewer's open is counted as theirs beside the preparation");
+		expect(value.Host->active_reviewer_jobs() == 1U, "[[BPR-1344]] and is still to run, so the reviewer is busy");
+		while (!preparationDone.load() || !openDone.load()) {
+			if (value.Effects.pending() != 0U) {
+				value.Effects.run_next();
+			} else {
+				std::this_thread::yield();
+			}
+		}
+		preparation.join();
+		open.join();
+		expect(prepared.Observations.size() == 1U && opened.Status == application::workbench_selected_diff_status::available,
+			   "both the preparation and the open complete");
+		expect(value.Host->outstanding_jobs() == 0U && value.Host->outstanding_preparation_jobs() == 0U
+				   && value.Host->outstanding_reviewer_jobs() == 0U,
+			   "both counts return to zero, the retiring actor jobs included");
+		expect(value.Host->active_reviewer_jobs() == 0U, "[[BPR-1344]] nothing of the reviewer's is left to run");
+	}
+
+	/// [[BPR-1344]]. A prepared comparison's blob read is preparation's job, not
+	/// the reviewer's, while it waits on the actor; the same read unmarked is
+	/// the reviewer's.
+	void a_prepared_blob_read_is_preparations_job()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		const auto prepared = prepare_window(value, { file_request(value, "a.cpp"), file_request(value, "b.cpp") });
+		expect(prepared.Observations.size() == 2U, "two files are prepared");
+		const auto read = [&value](application::diff_blob_request aRequest, const bool aPreparation) {
+			auto result = std::optional<application::diff_blob_observation>{ };
+			auto worker = std::jthread{ [&] { result = value.Host->materialize(aRequest, { }); } };
+			value.Effects.wait_for_pending();
+			expect(value.Host->outstanding_preparation_jobs() == (aPreparation ? 1U : 0U)
+					   && value.Host->outstanding_reviewer_jobs() == (aPreparation ? 0U : 1U),
+				   aPreparation ? "a marked read waits as preparation's job" : "control: an unmarked read waits as the reviewer's");
+			value.Effects.run_next();
+			worker.join();
+			expect(result.has_value() && result->Status == application::diff_blob_status::available, "the read completes");
+			expect(value.Host->outstanding_jobs() == 0U, "and leaves no job behind");
+		};
+		auto marked     = prepared_blob_request(value.Host->state(), prepared.Observations[0], core::diff_side::left);
+		marked.Prepared = true;
+		read(marked, true);
+		read(prepared_blob_request(value.Host->state(), prepared.Observations[1], core::diff_side::left), false);
+	}
+
 	void a_batch_answer_that_is_not_its_blob_is_not_retained()
 	{
 		fixture value;
@@ -8769,6 +8845,39 @@ namespace {
 		expect(calls == 1 && registry.is_quiescent(), "final FIFO drain releases actor despite retained inert consumer handle");
 	}
 
+	/// [[BPR-1344]]. Queued preparation never runs ahead of the reviewer's work,
+	/// whether that work was queued before the drain began or during it.
+	void profile_actor_runs_reviewer_work_before_queued_preparation()
+	{
+		epoch_test_windows                        windows;
+		queued_executor                           effects{ false };
+		shared_state                              state;
+		fake_cache_port                           caches{ state };
+		application::profile_epoch_actor_registry registry{ core::default_bpr_profile_id, windows, caches, effects };
+		const auto                                consumer = registry.attach(windows.launch());
+		expect(consumer.has_value(), "priority test attaches one window");
+		auto acquired = (*consumer)->acquire(profile_actor_key());
+		expect(acquired.has_value(), "priority test acquires cache actor");
+		auto       actor       = std::move(*acquired);
+		auto       order       = std::vector<std::string>{ };
+		const auto preparation = application::profile_epoch_actor_priority::preparation;
+		actor->enqueue([&order, &actor] {
+			order.emplace_back("first preparation");
+			actor->enqueue([&order] { order.emplace_back("reviewer during preparation"); });
+		},
+					   preparation);
+		actor->enqueue([&order] { order.emplace_back("second preparation"); }, preparation);
+		actor->enqueue([&order] { order.emplace_back("reviewer"); });
+		expect(effects.pending() == 1U, "one drain is scheduled for both queues");
+		effects.run_next();
+		expect(order == std::vector<std::string>{ "reviewer", "first preparation", "reviewer during preparation", "second preparation" },
+			   "the reviewer's work runs before any preparation still queued");
+		expect(effects.pending() == 0U, "the drain empties both queues");
+		actor.reset();
+		registry.shutdown();
+		expect(registry.is_quiescent(), "the drained actor releases");
+	}
+
 	void profile_actor_replacement_waits_for_session_destruction()
 	{
 		epoch_test_windows                        windows;
@@ -8985,6 +9094,7 @@ int main(int argc, char** argv)
 	existing_durable_event_binding_is_preserved_without_new_supersession();
 	old_unbound_event_cannot_identify_a_new_return_to_its_head();
 	profile_actor_registry_bounds_authority_and_draining_leases();
+	profile_actor_runs_reviewer_work_before_queued_preparation();
 	profile_actor_replacement_waits_for_session_destruction();
 	profile_windows_share_one_cache_without_sharing_selection_or_lifetime();
 	epoch_preparation_diagnostics_preserve_results();
@@ -9036,6 +9146,8 @@ int main(int argc, char** argv)
 	diff_blob_materialization_reuses_the_epoch_cache_actor();
 	selected_blob_reads_only_the_exact_missing_object();
 	prepared_files_read_their_missing_blobs_in_one_batch();
+	preparation_jobs_are_counted_apart_from_the_reviewers();
+	a_prepared_blob_read_is_preparations_job();
 	a_batch_answer_that_is_not_its_blob_is_not_retained();
 	preparation_without_a_batching_transport_reads_nothing_ahead();
 	a_reviewer_selection_stops_preparations_exact_read();

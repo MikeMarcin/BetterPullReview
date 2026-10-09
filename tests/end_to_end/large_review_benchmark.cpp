@@ -249,21 +249,40 @@ namespace bpr::e2e::large_review {
 		std::uint64_t       PreparedHits           = 0U;
 	};
 
+	/// [[BPR-1344]]. How long preparation's own epoch jobs ran on after a
+	/// phase had settled for the reviewer. Measured and reported, never a
+	/// gate: the reviewer is not waiting for it.
+	struct preparation_tail
+	{
+		std::string Phase;
+		double      Ms            = 0;
+		std::size_t PeakEpochJobs = 0;
+	};
+	struct preparation_tail_measurement
+	{
+		std::vector<preparation_tail> Tails;
+		/// From the active-work course's last key to its final file shown with
+		/// the diff quiet; enforced as active_supersession_shown.
+		double      ActiveShownMs = -1;
+		std::string KnownCost     = "Preparation is always on, and a round starts only while the reviewer has no diff, workbench or epoch work (BPR-1344). The reviewer's own selection is therefore not slowed by preparation; the shown-and-quiet time is enforced under 1250 ms.";
+	};
+
 	struct extended_measurement
 	{
-		bool                      AllocationProfile = false;
-		prepared_open_measurement PreparedOpen;
-		live_heap_observation     Heap;
-		std::uint64_t             SampledPeakHeapGrowthLimitBytes = 0;
-		double                    ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
-		double                    QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
-		double                    ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
-		bool                      ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
-		std::string               MetadataTitle;
-		bool                      ProviderCancelCourse = false, ProviderStopped = false;
-		std::size_t               ProviderHeldInputs = 0;
-		double                    ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
-		bool                      PathologicalCourse = false, ExactGeneratedSource = false;
+		bool                         AllocationProfile = false;
+		prepared_open_measurement    PreparedOpen;
+		preparation_tail_measurement PreparationTail;
+		live_heap_observation        Heap;
+		std::uint64_t                SampledPeakHeapGrowthLimitBytes = 0;
+		double                       ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
+		double                       QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
+		double                       ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
+		bool                         ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
+		std::string                  MetadataTitle;
+		bool                         ProviderCancelCourse = false, ProviderStopped = false;
+		std::size_t                  ProviderHeldInputs = 0;
+		double                       ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
+		bool                         PathologicalCourse = false, ExactGeneratedSource = false;
 		// [[BPR-0967]]. BudgetsEnforced is false where no numeric limit is
 		// justified for this platform and configuration; each limit missed
 		// there is named in UnenforcedLimitMisses. KnownInputMisses names the
@@ -311,6 +330,8 @@ namespace bpr::e2e::large_review {
 		std::size_t   HistoryPeakRows = 0U, HistoryModelResets = 0U;
 		// Historical Debug thresholds are retained without relaxation and
 		// revalidated by the optimized Mac BPR-0967 integration course.
+		// [[BPR-1344]]. A phase completes when the reviewer's epoch jobs reach
+		// zero; preparation's are waited for after it and reported apart.
 		double                       HistoryInputIntervalLimitMs = 100.0;
 		double                       HistoryRefreshLimitMs = 12'000.0, HistorySourceSelectionLimitMs = 2'000.0;
 		std::vector<resource_sample> Resources;
@@ -620,6 +641,33 @@ namespace bpr::e2e::large_review {
 			&& status.ClassificationTerminals == status.ClassificationSubmissions;
 	}
 
+	/// [[BPR-1344]]. Quiet, and none of the reviewer's epoch jobs outstanding.
+	/// Preparation's own may still run: the reviewer is not waiting for them.
+	[[nodiscard]] auto reviewer_settled(app::github_application& aApplication) -> bool
+	{
+		return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochReviewerJobs == 0U;
+	}
+
+	/// [[BPR-1344]]. After a phase settled for the reviewer, waits for
+	/// preparation's epoch jobs too, as its own phase, so the next phase starts
+	/// from the same idle host as before. The tail keeps the 100 ms input target
+	/// every phase has; its length is reported, not enforced.
+	void wait_preparation_tail(app::github_application& aApplication, QElapsedTimer& aBudget,
+							   benchmark_report& aReport, const std::string& aPhase)
+	{
+		const auto name = "preparation_tail_" + aPhase;
+		// A round deferred while the reviewer had work starts once they are
+		// idle: the tail waits for it to start and to finish.
+		const auto drained = [&] {
+			const auto work = access::diff_work_evidence(aApplication);
+			return quiet(aApplication) && work.EpochOutstandingJobs == 0U && !work.PreparationPending
+				&& work.PreparationsInFlight == 0U && work.Preparing == 0U;
+		};
+		require(measure_wait(aApplication, aBudget, aReport, name.c_str(), [] { }, drained), "preparation's epoch jobs did not drain");
+		const auto& phase = aReport.Phases.back();
+		aReport.Extended.PreparationTail.Tails.push_back({ aPhase, phase.ElapsedMs, phase.PeakEpochJobs });
+	}
+
 	void verify_initial_read_identities(app::github_application&                         aApplication,
 										const application::github_pull_request_snapshot& aSnapshot)
 	{
@@ -794,9 +842,9 @@ namespace bpr::e2e::large_review {
 		auto&      controls      = *window.epoch_selectors();
 		auto*      history       = controls.history_model();
 		const auto initialResets = history->statistics().ModelResets;
-		const auto settled       = [&] {
-			return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U;
-		};
+		// [[BPR-1344]]. Every phase settles on the reviewer's epoch jobs; the
+		// preparation tail after it is measured on its own.
+		const auto settled        = [&] { return reviewer_settled(aApplication); };
 		const auto source_matches = [&](int aFile, std::int64_t aEpoch, int aValue) {
 			return selected(surface, source_path(aFile)) && surface.current_result()->Alignment.Key.RightAnchor.Epoch.value() == aEpoch
 				&& surface.left_pane()->document()->firstBlock().text() == QStringLiteral("int fixture_%1 = 0;").arg(aFile, 4, 10, QChar{ '0' })
@@ -809,6 +857,7 @@ namespace bpr::e2e::large_review {
 				require(window.github_refresh_action()->isEnabled(), "public refresh unavailable");
 				const auto refreshPhase = "epoch_refresh_" + std::to_string(ordinal);
 				require(measure_wait(aApplication, aBudget, aReport, refreshPhase.c_str(), [&] { window.github_refresh_action()->trigger(); }, [&] { return controls.right_oid_editor()->text() == expectedHead && settled(); }), "epoch refresh did not adopt the exact stored head");
+				wait_preparation_tail(aApplication, aBudget, aReport, refreshPhase);
 			}
 			aReport.EpochsObserved = index + 1U;
 			aReport.Head           = aManifest.heads[index];
@@ -820,6 +869,7 @@ namespace bpr::e2e::large_review {
 			const auto value          = static_cast<int>(ordinal);
 			const auto selectionPhase = "epoch_source_selection_" + std::to_string(ordinal);
 			require(measure_wait(aApplication, aBudget, aReport, selectionPhase.c_str(), [&] { select_file(window, source_path(file)); }, [&] { return source_matches(file, ordinal, value) && settled(); }), "selected source did not match the new epoch's independent recipe");
+			wait_preparation_tail(aApplication, aBudget, aReport, selectionPhase);
 			if (index == 0U) {
 				const auto& selectedAnchor = surface.current_result()->Alignment.Key.RightAnchor;
 				const auto  initialStored  = access::maintenance_evidence(aApplication, core::review_epoch_id{ selectedAnchor.Authority, selectedAnchor.Incarnation, selectedAnchor.Epoch });
@@ -836,6 +886,7 @@ namespace bpr::e2e::large_review {
 		}
 		require(controls.refresh_action()->isEnabled(), "public history refresh unavailable");
 		require(measure_wait(aApplication, aBudget, aReport, "load_epoch_history", [&] { controls.refresh_action()->trigger(); }, [&] { return history->epoch_count() == 32U && settled(); }), "retained history did not expose all 32 epochs");
+		wait_preparation_tail(aApplication, aBudget, aReport, "load_epoch_history");
 		aReport.HistoryPeakRows    = std::max(aReport.HistoryPeakRows, static_cast<std::size_t>(history->rowCount()));
 		aReport.HistoryModelResets = history->statistics().ModelResets - initialResets;
 		require(aReport.HistoryModelResets == 0U, "bounded epoch refresh reset the history model");
@@ -854,7 +905,9 @@ namespace bpr::e2e::large_review {
 			return source_matches(30, 32, 32) && surface.current_result()->Alignment.Key.LeftAnchor.Epoch.value() == 1 && settled();
 		};
 		require(measure_wait(aApplication, aBudget, aReport, "historical_base_selection", [&] { select_epoch(controls, 1, core::comparison_side::left); }, historicalBaseReady), "historical base selection did not settle");
+		wait_preparation_tail(aApplication, aBudget, aReport, "historical_base_selection");
 		require(measure_wait(aApplication, aBudget, aReport, "historical_first_head", [&] { select_epoch(controls, 1, core::comparison_side::right); }, [&] { return source_matches(30, 1, 1) && settled(); }), "historical first-head source was replaced by current content");
+		wait_preparation_tail(aApplication, aBudget, aReport, "historical_first_head");
 		require(window.grab().save(QString::fromLocal8Bit(aImage) + QStringLiteral(".historical.png")), "historical window render failed");
 		QTimer selections;
 		selections.setInterval(1);
@@ -873,6 +926,7 @@ namespace bpr::e2e::large_review {
 			++aReport.EpochSelections;
 		});
 		require(measure_wait(aApplication, aBudget, aReport, "epoch_selection_supersession", [&] { selections.start(); }, [&] { return next == 33U && source_matches(30, 32U, 32) && settled(); }), "late epoch result replaced final source");
+		wait_preparation_tail(aApplication, aBudget, aReport, "epoch_selection_supersession");
 		require(aReport.EpochSelections == 31U && aReport.EpochSelectionsWithOutstandingWork != 0U,
 				"epoch selection did not exercise supersession during active work");
 		const auto previousUploadReady = [&] {
@@ -881,6 +935,7 @@ namespace bpr::e2e::large_review {
 		};
 		require(controls.previous_upload_action()->isEnabled(), "previous upload action is disabled");
 		require(measure_wait(aApplication, aBudget, aReport, "previous_upload_comparison", [&] { controls.previous_upload_action()->trigger(); }, previousUploadReady), "previous upload did not select the two newest retained heads");
+		wait_preparation_tail(aApplication, aBudget, aReport, "previous_upload_comparison");
 		require(surface.left_pane()->document()->firstBlock().text() == "int fixture_0030 = 1;"
 					&& surface.right_pane()->document()->firstBlock().text() == "int fixture_0030 = 32;",
 				"previous upload lost its exact earlier/later source");
@@ -1040,7 +1095,9 @@ namespace bpr::e2e::large_review {
 			require(measure_wait(
 						aApplication, aBudget, aReport, aPhase.c_str(), [&] { select_file(window, path); },
 						[&] { return selected(surface, path) && settled() && (!aWaitForPreparation || prepared()); },
-						[&] { return selected(surface, path); }),
+						// [[BPR-1344]]. What the reviewer waits for: the file shown
+						// with the diff quiet, not only its first paint.
+						[&] { return selected(surface, path) && quiet(aApplication); }),
 					"prepared-open selection timed out");
 			const auto  found = std::ranges::find(aManifest.files, path.toStdString(), &fixture_file::path);
 			const auto& key   = surface.current_result()->Alignment.Key;
@@ -1484,6 +1541,9 @@ namespace bpr::e2e::large_review {
 		// close-to-quiescence limits; these are not universal I/O bounds.
 		record("active_selection_completion", inputs.ElapsedMs, 10'000.0);
 		record("active_supersession_final_drain", aReport.SupersessionDrainMs, 1'250.0);
+		// [[BPR-1344]]. What the reviewer waits for, under the same budget.
+		require(aReport.Extended.PreparationTail.ActiveShownMs >= 0, "active-work final file was never shown quiet");
+		record("active_supersession_shown", aReport.Extended.PreparationTail.ActiveShownMs, 1'250.0);
 		record("active_close_quiescence", aReport.ActiveCloseDrainMs, PlatformActiveCloseQuiescenceLimitMs);
 		require(budgets_met(aReport), "Mac active-work input or drain budget exceeded");
 	}
@@ -1805,10 +1865,24 @@ namespace bpr::e2e::large_review {
 			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier });
 			QApplication::postEvent(view, new QKeyEvent{ QEvent::KeyRelease, Qt::Key_Down, Qt::NoModifier });
 		});
-		require(measure_wait(aApplication, aBudget, aReport, "active_queued_selection_supersession", [&] { course.start(); selections.start(); }, [&] { return inputFailure || stale || (next == 32 && selected(surface, finalPath) && quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U); }), "active-work supersession timed out");
+		// [[BPR-1344]]. Settles on the reviewer's epoch jobs. The first tick the
+		// final file is shown with the diff quiet is the time the reviewer waits.
+		auto& shownMs = aReport.Extended.PreparationTail.ActiveShownMs;
+		require(measure_wait(aApplication, aBudget, aReport, "active_queued_selection_supersession", [&] { course.start(); selections.start(); }, [&] {
+					if (inputFailure || stale) {
+						return true;
+					}
+					const auto shown = next == 32 && selected(surface, finalPath) && quiet(aApplication);
+					if (shown && shownMs < 0) {
+						shownMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+					}
+					return shown && access::diff_work_evidence(aApplication).EpochReviewerJobs == 0U; }), "active-work supersession timed out");
 		selections.stop();
 		require(inputFailure == nullptr, inputFailure);
 		aReport.SupersessionDrainMs = static_cast<double>(drain.nsecsElapsed()) / 1'000'000.0;
+		wait_preparation_tail(aApplication, aBudget, aReport, "active_queued_selection_supersession");
+		std::cerr << "large-review preparation: active_shown_ms=" << shownMs << " reviewer_drain_ms=" << aReport.SupersessionDrainMs
+				  << " tail_ms=" << aReport.Extended.PreparationTail.Tails.back().Ms << " known_cost=" << aReport.Extended.PreparationTail.KnownCost << std::endl;
 		require(!stale && aReport.ActiveSourceObservations != 0U && surface.current_result()->Alignment.Key == expected,
 				"stale source or authority adopted while final keyboard target was held");
 		for (int line = 0; line < 8; ++line) {

@@ -1208,11 +1208,18 @@ namespace bpr::app::detail {
 	};
 
 	/// \brief Reports existing diff-host work without copying the accepted review.
+	/// \details [[BPR-1344]]. EpochReviewerJobs and EpochPreparationJobs split
+	/// EpochOutstandingJobs, each read under the epoch host's one lock.
+	/// PreparationPending: a preparation round is scheduled, or deferred while
+	/// the reviewer has work, and has not started.
 	struct diff_work_fixture_evidence
 	{
 		std::size_t   OutstandingJobs              = 0U;
 		std::size_t   WorkbenchOutstandingRequests = 0U;
 		std::size_t   EpochOutstandingJobs         = 0U;
+		std::size_t   EpochReviewerJobs            = 0U;
+		std::size_t   EpochPreparationJobs         = 0U;
+		bool          PreparationPending           = false;
 		bool          EpochMaintenancePending      = false;
 		std::size_t   CacheEntries                 = 0U;
 		std::uint64_t CacheBytes                   = 0U;

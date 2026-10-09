@@ -194,6 +194,17 @@ namespace bpr::application {
 		/// lane waits on this after `accept`, with the lane drained.
 		[[nodiscard]] auto is_running_idle() const noexcept -> bool;
 		[[nodiscard]] auto outstanding_jobs() const noexcept -> std::size_t;
+		/// \brief [[BPR-1344]] The part of `outstanding_jobs` that preparation
+		/// admitted: files resolved, and their blobs read, before the reviewer
+		/// opens them.
+		[[nodiscard]] auto outstanding_preparation_jobs() const noexcept -> std::size_t;
+		/// \brief [[BPR-1344]] `outstanding_jobs` less preparation's, read at once.
+		[[nodiscard]] auto outstanding_reviewer_jobs() const noexcept -> std::size_t;
+		/// \brief [[BPR-1344]] The reviewer's epoch jobs still to run or to
+		/// answer. Unlike `outstanding_reviewer_jobs`, finished actor work that
+		/// only awaits its retirement is not counted: its completion has
+		/// already been posted.
+		[[nodiscard]] auto active_reviewer_jobs() const noexcept -> std::size_t;
 		[[nodiscard]] auto queued_actor_work() const noexcept -> std::size_t;
 		[[nodiscard]] auto deferred_ordinary_ingress() const noexcept
 			-> std::size_t;

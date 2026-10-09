@@ -49,6 +49,15 @@ trailing block, manifest blob OIDs, authority, epoch/anchor identities and
 comparison revisions must match. No transient stale final-file publication is
 permitted by the observed document-change path.
 
+Amended 2026-10-08 by [[BPR-1344]]: "full drain" here, and the
+`active_supersession_final_drain` budget, now end when the reviewer's epoch
+jobs reach zero. Preparing files the reviewer has not opened
+([[BPR-1327]]) keeps its own epoch jobs running after that; the course waits for
+them as a separate phase, reports its length without a limit, and checks the
+held source again after it. A second budget, `active_supersession_shown`,
+holds the time from the final key until the final file is shown with the diff
+quiet to the same 1,250 ms.
+
 Next, a cold file request starts real work. A 1 ms observer waits for pending
 diff state plus outstanding work and calls the public window close immediately.
 The normal last-window-close handoff begins shutdown. The close clock includes

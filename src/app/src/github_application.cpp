@@ -188,6 +188,7 @@
 #include <QPushButton>
 #include <QRect>
 #include <QSaveFile>
+#include <QScopeGuard>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSpinBox>
@@ -3475,6 +3476,35 @@ namespace bpr::app {
 #endif
 
 	/// \brief Forwards selected diff terminals and observes accepted availability.
+	/// \brief [[BPR-1344]]. The decision lane of the reviewer's own hosts
+	/// (epoch, diff, workbench): after each task they post, the application
+	/// may start a preparation round it deferred while the reviewer had work.
+	/// The lane is the profile's and outlives a window, so a task run after
+	/// the window is gone finds its callback gone too.
+	class reviewer_decision_lane final : public application::decision_executor
+	{
+	public:
+		reviewer_decision_lane(application::decision_executor& aLane, std::function<void()> aAfter)
+			: Lane{ aLane }
+			, After{ std::make_shared<std::function<void()>>(std::move(aAfter)) }
+		{
+		}
+
+		void post(std::function<void()> aTask) override
+		{
+			Lane.post([task = std::move(aTask), after = std::weak_ptr{ After }] {
+				task();
+				if (const auto live = after.lock()) {
+					(*live)();
+				}
+			});
+		}
+
+	private:
+		application::decision_executor&        Lane;
+		std::shared_ptr<std::function<void()>> After;
+	};
+
 	class composition_diff_projection final
 		: public application::diff_projection_port
 	{
@@ -7261,7 +7291,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				*EpochEntropy,
 				*EpochClock,
 				EpochEffects,
-				DecisionLane,
+				ReviewerDecisions,
 				*this, application::epoch_host_limits{ }, DiagnosticLog);
 
 			PrivateReview = std::make_shared<private_review_workflow>(ReviewMutationEffects, DecisionLane, ReviewLedgerFile, Profile->PrivateRecovery, *Window->private_review(), Window.get(), [this](const application::durable_draft_commit& aCommit, bool aOpen) { adopt_private_drafts(aCommit, aOpen); }, [this](core::agent_profile_id aAgentProfile, application::private_run_intent aIntent, core::agent_setting_facts aRequested, std::string aPrompt) {
@@ -7780,7 +7810,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				*EpochHost,
 #endif
 				DiffEffects,
-				DecisionLane,
+				ReviewerDecisions,
 				*DiffProjections
 #if defined(BPR_BUILD_TESTING)
 				,
@@ -7888,7 +7918,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				*WorkbenchObservations,
 				SessionWorkbenchSettings ? *SessionWorkbenchSettings : *WorkbenchSettings,
 				WorkbenchEffects,
-				DecisionLane,
+				ReviewerDecisions,
 				*this,
 				WindowSession,
 				application::workbench_host_limits{ },
@@ -15313,6 +15343,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					clearSelection = clearSelection || (visible && core::uses_epoch(visible->Key, epoch));
 					DiffHost->invalidate(epoch);
 				}
+				// [[BPR-1344]]. A round may have started once the reviewer was
+				// idle; nothing it prepared from a pruned epoch may be stored.
+				cancel_preparation();
+				DiffHost->prepare({ });
 				if (clearSelection) {
 					clear_diff_selection();
 				}
@@ -15573,6 +15607,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (DiffHost == nullptr) {
 				return;
 			}
+			// [[BPR-1344]]. Preparation in flight for a deleted or invalidated
+			// review stores nothing after it; the next publication asks again.
+			cancel_preparation();
+			DiffHost->prepare({ });
 			const auto& state   = DiffHost->state();
 			const auto* context = state.Pending.has_value()
 				? &*state.Pending
@@ -15601,8 +15639,40 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PreparationScheduled = true;
 			QTimer::singleShot(0, Window.get(), [this] {
 				PreparationScheduled = false;
+				// [[BPR-1344]]. Not while the reviewer waits on their own work:
+				// what is in flight cannot be preempted, so preparation never
+				// starts ahead of it. The reviewer's lane resumes it.
+				if (reviewer_busy()) {
+					PreparationDeferred = true;
+					return;
+				}
 				start_preparation();
 			});
+		}
+
+		/// \brief [[BPR-1344]]. Whether the reviewer has diff, workbench or
+		/// epoch work outstanding (preparation's own epoch jobs excluded), or a
+		/// classification of what is on screen still to arrive.
+		[[nodiscard]] auto reviewer_busy() const -> bool
+		{
+			return (DiffHost != nullptr && DiffHost->outstanding_jobs() != 0U)
+				|| (WorkbenchHost != nullptr && WorkbenchHost->outstanding_requests() != 0U)
+				|| (EpochHost != nullptr && EpochHost->active_reviewer_jobs() != 0U)
+				|| (AppearanceHost != nullptr
+					&& AppearanceHost->classification_terminals() != AppearanceHost->classification_submissions());
+		}
+
+		/// \brief [[BPR-1344]]. After each task of the reviewer's hosts, and after
+		/// a syntax classification is adopted (its blob read is reviewer epoch
+		/// work answered outside those hosts' lanes): a deferred round is
+		/// scheduled again once the reviewer's work is done.
+		void after_reviewer_decision()
+		{
+			if (!PreparationDeferred || Closing || reviewer_busy()) {
+				return;
+			}
+			PreparationDeferred = false;
+			schedule_preparation();
 		}
 
 		void cancel_preparation()
@@ -15611,6 +15681,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PreparationStop = std::stop_source{ };
 			++PreparationGeneration;
 			PreparedWindow.clear();
+			// [[BPR-1344]]. A round deferred for the reviewer is cancelled with
+			// the rest: an invalidated review (a prune, a cache delete) owes no
+			// preparation until its next publication asks for one.
+			PreparationDeferred = false;
 		}
 
 		void start_preparation()
@@ -15877,6 +15951,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (SyntaxBlobs != nullptr) {
 				SyntaxBlobs->release_blob(aSpans.Key.Blob);
 			}
+			// [[BPR-1344]]. The classifier's blob read was reviewer epoch work
+			// answered outside the reviewer's lanes: once this adoption is done,
+			// a deferred preparation round may start.
+			const auto recheck = qScopeGuard([this] { after_reviewer_decision(); });
 			if (Closing || Window == nullptr || DiffHost == nullptr) {
 				return;
 			}
@@ -17199,7 +17277,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::PublicPreviewProjections)&      PublicPreviewProjections      = Profile->PublicPreviewProjections;
 		decltype(github_profile_runtime::PublicPreviewProjectionFanOut)& PublicPreviewProjectionFanOut = Profile->PublicPreviewProjectionFanOut;
 		decltype(github_profile_runtime::DecisionLane)&                  DecisionLane                  = Profile->DecisionLane;
-		std::unique_ptr<qt::workbench_window>                            Window;
+		/// [[BPR-1344]]. The lane this window's epoch, diff and workbench hosts post to.
+		reviewer_decision_lane                ReviewerDecisions{ DecisionLane, [this] { after_reviewer_decision(); } };
+		std::unique_ptr<qt::workbench_window> Window;
 #if defined(_WIN32)
 		// [[BPR-0653]]. Declared after the window so it lets go of the window
 		// first.
@@ -17386,6 +17466,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::stop_source                                          PreparationStop;
 		std::uint64_t                                             PreparationGeneration = 0U;
 		bool                                                      PreparationScheduled  = false;
+		bool                                                      PreparationDeferred   = false;
 		std::atomic_size_t                                        PreparationsInFlight{ 0U };
 #if defined(BPR_BUILD_TESTING)
 		/// [[BPR-1212]]. Answers to turn into `cancelled` before they apply.
@@ -19187,6 +19268,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.OutstandingJobs              = host.outstanding_jobs(),
 			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
 			.EpochOutstandingJobs         = implementation.EpochHost->outstanding_jobs(),
+			.EpochReviewerJobs            = implementation.EpochHost->outstanding_reviewer_jobs(),
+			.EpochPreparationJobs         = implementation.EpochHost->outstanding_preparation_jobs(),
+			.PreparationPending           = implementation.PreparationScheduled || implementation.PreparationDeferred,
 			.EpochMaintenancePending      = implementation.EpochHost->state().PendingMaintenance.has_value(),
 			.CacheEntries                 = host.cache_entries(),
 			.CacheBytes                   = host.cache_bytes(),
@@ -19225,6 +19309,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.OutstandingJobs              = host.outstanding_jobs(),
 			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
 			.EpochOutstandingJobs         = implementation.EpochHost->outstanding_jobs(),
+			.EpochReviewerJobs            = implementation.EpochHost->outstanding_reviewer_jobs(),
+			.EpochPreparationJobs         = implementation.EpochHost->outstanding_preparation_jobs(),
+			.PreparationPending           = implementation.PreparationScheduled || implementation.PreparationDeferred,
 			.EpochMaintenancePending      = implementation.EpochHost->state().PendingMaintenance.has_value(),
 			.CacheEntries                 = host.cache_entries(),
 			.CacheBytes                   = host.cache_bytes(),

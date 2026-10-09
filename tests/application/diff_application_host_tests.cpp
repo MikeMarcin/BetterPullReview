@@ -346,6 +346,8 @@ namespace {
 				   "control: an unprepared open waits for the effect lane");
 			control.Effects.run_next();
 			expect(control.Blobs.Requests.size() == 2U, "control: an unprepared open reads both blobs");
+			expect(std::ranges::none_of(control.Blobs.Requests, &application::diff_blob_request::Prepared),
+				   "[[BPR-1344]] control: the reviewer's own reads are not marked prepared");
 			control.Decisions.run_next();
 		}
 		fixture test;
@@ -364,6 +366,8 @@ namespace {
 				   && test.Blobs.Requests.front().MaximumBytes
 					   == application::prepared_byte_capacity(application::diff_host_limits{ }) / 4U,
 			   "preparation reads no side larger than a quarter of its byte share");
+		expect(std::ranges::all_of(test.Blobs.Requests, &application::diff_blob_request::Prepared),
+			   "[[BPR-1344]] preparation's reads say so, so the epoch host queues them behind the reviewer's");
 		const auto reads = test.Blobs.Requests.size();
 		test.request(comparison_key({ }, 31U));
 		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 1U,

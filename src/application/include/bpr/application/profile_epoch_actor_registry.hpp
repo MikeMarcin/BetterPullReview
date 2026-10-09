@@ -44,14 +44,24 @@ namespace bpr::application {
 		already_attached
 	};
 
-	/// \brief A retained FIFO and its single lifetime-exclusive cache session.
-	/// \details Cache access is permitted only inside enqueue callbacks. Work owns
-	/// its typed failure boundary. The executor must outlive registry quiescence.
+	/// \brief [[BPR-1344]]. Whose work an actor runs: the reviewer's before any
+	/// queued preparation, so preparing files the reviewer may open never
+	/// delays one they did open.
+	enum class profile_epoch_actor_priority : std::uint8_t {
+		reviewer,
+		preparation,
+	};
+
+	/// \brief Retained FIFOs and their single lifetime-exclusive cache session.
+	/// \details One FIFO per priority; preparation's runs only while the
+	/// reviewer's is empty ([[BPR-1344]]). Cache access is permitted only inside
+	/// enqueue callbacks. Work owns its typed failure boundary. The executor
+	/// must outlive registry quiescence.
 	class profile_epoch_actor final : public std::enable_shared_from_this<profile_epoch_actor>
 	{
 	public:
 		~profile_epoch_actor();
-		void               enqueue(std::function<void()> aWork);
+		void               enqueue(std::function<void()> aWork, profile_epoch_actor_priority aPriority = profile_epoch_actor_priority::reviewer);
 		[[nodiscard]] auto cache() noexcept -> std::unique_ptr<git_cache_session>&;
 
 	private:

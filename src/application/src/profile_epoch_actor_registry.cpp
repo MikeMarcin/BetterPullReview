@@ -19,6 +19,7 @@ namespace bpr::application {
 		effect_executor&                   Effects;
 		std::mutex                         Mutex;
 		std::deque<std::function<void()>>  Queue;
+		std::deque<std::function<void()>>  Preparation;
 		bool                               Scheduled = false;
 		std::unique_ptr<git_cache_session> Cache;
 		std::shared_ptr<std::atomic_bool>  Released;
@@ -38,11 +39,12 @@ namespace bpr::application {
 		return Implementation->Cache;
 	}
 
-	void profile_epoch_actor::enqueue(std::function<void()> aWork)
+	void profile_epoch_actor::enqueue(std::function<void()> aWork, const profile_epoch_actor_priority aPriority)
 	{
 		const auto       self = shared_from_this();
 		std::scoped_lock lock{ Implementation->Mutex };
-		Implementation->Queue.push_back(std::move(aWork));
+		auto&            queue = aPriority == profile_epoch_actor_priority::preparation ? Implementation->Preparation : Implementation->Queue;
+		queue.push_back(std::move(aWork));
 		if (Implementation->Scheduled) {
 			return;
 		}
@@ -53,12 +55,15 @@ namespace bpr::application {
 					std::function<void()> work;
 					{
 						std::scoped_lock queueLock{ self->Implementation->Mutex };
-						if (self->Implementation->Queue.empty()) {
+						// [[BPR-1344]]. The reviewer's work first; preparation only
+						// when none of theirs is waiting.
+						auto& next = !self->Implementation->Queue.empty() ? self->Implementation->Queue : self->Implementation->Preparation;
+						if (next.empty()) {
 							self->Implementation->Scheduled = false;
 							return;
 						}
-						work = std::move(self->Implementation->Queue.front());
-						self->Implementation->Queue.pop_front();
+						work = std::move(next.front());
+						next.pop_front();
 					}
 					try {
 						work();
@@ -70,7 +75,7 @@ namespace bpr::application {
 			});
 		} catch (...) {
 			Implementation->Scheduled = false;
-			Implementation->Queue.pop_back();
+			queue.pop_back();
 			throw;
 		}
 	}

@@ -1493,6 +1493,8 @@ namespace bpr::application {
 			std::atomic_bool             DeliveryFailed = false;
 		};
 
+		/// [[BPR-1344]]. Preparation is true for a job preparation admitted, not
+		/// the reviewer; it is set before the job is published and never changes.
 		struct job_control final
 		{
 			std::stop_source                           Stop;
@@ -1502,6 +1504,7 @@ namespace bpr::application {
 			std::optional<std::uint64_t>               OfferToken;
 			bool                                       MandatoryCleanup   = false;
 			bool                                       CancellationIssued = false;
+			bool                                       Preparation        = false;
 			std::function<void(implementation&)>       Completion;
 			std::function<void()>                      DecisionTask;
 		};
@@ -1955,7 +1958,8 @@ namespace bpr::application {
 
 		void enqueue_actor_work(
 			const std::shared_ptr<authority_effect_actor>& aActor,
-			std::function<void()>                          aWork)
+			std::function<void()>                          aWork,
+			const profile_epoch_actor_priority             aPriority = profile_epoch_actor_priority::reviewer)
 		{
 			const auto workState = ActorWork;
 			++workState->Pending;
@@ -1969,7 +1973,8 @@ namespace bpr::application {
 						~work_guard() { --Pending; }
 					} guard{ workState->Pending };
 					work();
-				});
+				},
+										aPriority);
 			} catch (...) {
 				--workState->Queued;
 				--workState->Pending;
@@ -2092,7 +2097,8 @@ namespace bpr::application {
 			const std::optional<core::comparison_generation> aComparisonGeneration,
 			const std::optional<std::uint64_t>               aOfferToken,
 			const bool                                       aUseTerminalReservation = true,
-			const bool                                       aMandatoryCleanup       = false) noexcept
+			const bool                                       aMandatoryCleanup       = false,
+			const bool                                       aPreparation            = false) noexcept
 			-> std::expected<std::shared_ptr<job_control>, core::epoch_failure>
 		{
 			try {
@@ -2159,6 +2165,7 @@ namespace bpr::application {
 				fail_admission_at(
 					detail::testing::epoch_admission_allocation_stage::job_ledger);
 #endif
+				control->Preparation = aPreparation;
 				Jobs.push_back(control);
 				if (usesReservation) {
 					--ReservedTerminalAdmissions;
@@ -2238,10 +2245,15 @@ namespace bpr::application {
 			}
 			Jobs.erase(match);
 			++RetiringActorJobs;
+			if (aControl->Preparation) {
+				++RetiringPreparationJobs;
+			}
 			return true;
 		}
 
-		void release_actor_job_reservation(const bool aReserved) noexcept
+		void release_actor_job_reservation(
+			const bool aReserved,
+			const bool aPreparation = false) noexcept
 		{
 			if (!aReserved) {
 				return;
@@ -2249,6 +2261,9 @@ namespace bpr::application {
 			std::scoped_lock lock{ JobsMutex };
 			if (RetiringActorJobs != 0U) {
 				--RetiringActorJobs;
+			}
+			if (aPreparation && RetiringPreparationJobs != 0U) {
+				--RetiringPreparationJobs;
 			}
 		}
 
@@ -2342,6 +2357,46 @@ namespace bpr::application {
 		{
 			std::scoped_lock lock{ JobsMutex };
 			return Jobs.size() + ReservedTerminalAdmissions + RetiringActorJobs;
+		}
+
+		/// [[BPR-1344]]. The part of `job_count` that preparation admitted.
+		[[nodiscard]] auto preparation_job_count() const noexcept -> std::size_t
+		{
+			std::scoped_lock lock{ JobsMutex };
+			return preparation_job_count_locked();
+		}
+
+		/// [[BPR-1344]]. The rest of `job_count`, read under the same lock so
+		/// that it never counts a job twice or misses one moving between them.
+		[[nodiscard]] auto reviewer_job_count() const noexcept -> std::size_t
+		{
+			std::scoped_lock lock{ JobsMutex };
+			return Jobs.size() + ReservedTerminalAdmissions + RetiringActorJobs
+				- preparation_job_count_locked();
+		}
+
+		/// [[BPR-1344]]. The reviewer's jobs still to run or to answer: neither
+		/// preparation's nor finished actor work holding only its retirement
+		/// reservation, which the effect thread releases after the job's
+		/// completion has already been posted.
+		[[nodiscard]] auto active_reviewer_job_count() const noexcept -> std::size_t
+		{
+			std::scoped_lock lock{ JobsMutex };
+			return active_reviewer_job_count_locked();
+		}
+
+		[[nodiscard]] auto active_reviewer_job_count_locked() const noexcept -> std::size_t
+		{
+			const auto preparing = static_cast<std::size_t>(std::ranges::count_if(
+				Jobs, [](const auto& aJob) { return aJob->Preparation; }));
+			return Jobs.size() - preparing + ReservedTerminalAdmissions;
+		}
+
+		[[nodiscard]] auto preparation_job_count_locked() const noexcept -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(
+					   Jobs, [](const auto& aJob) { return aJob->Preparation; }))
+				+ RetiringPreparationJobs;
 		}
 
 		[[nodiscard]] auto begin_blob_call() noexcept -> bool
@@ -4252,7 +4307,9 @@ namespace bpr::application {
 				std::nullopt,
 				std::nullopt,
 				std::nullopt,
-				false);
+				false,
+				false,
+				aPrepared);
 			if (!admitted.has_value()) {
 				return result;
 			}
@@ -4544,15 +4601,18 @@ namespace bpr::application {
 						{
 							implementation& Host;
 							bool            Reserved;
+							bool            Preparation;
 
 							~actor_exit_reservation()
 							{
-								Host.release_actor_job_reservation(Reserved);
+								Host.release_actor_job_reservation(Reserved, Preparation);
 							}
-						} actorExit{ *this, reserved };
+						} actorExit{ *this, reserved, control->Preparation };
 						waiterLock.unlock();
 						waiter->Completed.notify_all();
-					});
+					},
+					// [[BPR-1344]]. A file prepared for the reviewer waits behind their own work.
+					aPrepared ? profile_epoch_actor_priority::preparation : profile_epoch_actor_priority::reviewer);
 			} catch (...) {
 				finish_job(control);
 				return result;
@@ -4613,7 +4673,7 @@ namespace bpr::application {
 			} catch (...) {
 				return std::nullopt;
 			}
-			auto admitted = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			auto admitted = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false, false, true);
 			if (!admitted.has_value()) {
 				return std::nullopt;
 			}
@@ -4644,15 +4704,18 @@ namespace bpr::application {
 						{
 							implementation& Host;
 							bool            Reserved;
+							bool            Preparation;
 
 							~actor_exit_reservation()
 							{
-								Host.release_actor_job_reservation(Reserved);
+								Host.release_actor_job_reservation(Reserved, Preparation);
 							}
-						} actorExit{ *this, reserved };
+						} actorExit{ *this, reserved, control->Preparation };
 						waiterLock.unlock();
 						waiter->Completed.notify_all();
-					});
+					},
+					// [[BPR-1344]]. Only preparation's blob reads run here.
+					profile_epoch_actor_priority::preparation);
 			} catch (...) {
 				finish_job(control);
 				return std::nullopt;
@@ -5147,7 +5210,10 @@ namespace bpr::application {
 			if (!selectedContext) {
 				return result;
 			}
-			auto waiter = std::shared_ptr<blob_waiter>{ };
+			// [[BPR-1344]]. A prepared comparison's read is preparation's job;
+			// the reviewer's own selected file never is.
+			const auto preparation = aRequest.Prepared && !reviewerBlob;
+			auto       waiter      = std::shared_ptr<blob_waiter>{ };
 			try {
 				waiter = std::make_shared<blob_waiter>();
 			} catch (...) {
@@ -5158,7 +5224,9 @@ namespace bpr::application {
 				std::nullopt,
 				std::nullopt,
 				std::nullopt,
-				false);
+				false,
+				false,
+				preparation);
 			if (!admitted) {
 				return result;
 			}
@@ -5212,15 +5280,17 @@ namespace bpr::application {
 						{
 							implementation& Host;
 							bool            Reserved;
+							bool            Preparation;
 
 							~actor_exit_reservation()
 							{
-								Host.release_actor_job_reservation(Reserved);
+								Host.release_actor_job_reservation(Reserved, Preparation);
 							}
-						} actorExit{ *this, reserved };
+						} actorExit{ *this, reserved, control->Preparation };
 						waiterLock.unlock();
 						waiter->Completed.notify_all();
-					});
+					},
+					preparation ? profile_epoch_actor_priority::preparation : profile_epoch_actor_priority::reviewer);
 			} catch (...) {
 				finish_job(control);
 				return result;
@@ -8967,6 +9037,7 @@ namespace bpr::application {
 		std::vector<std::shared_ptr<job_control>>          Jobs;
 		std::size_t                                        ReservedTerminalAdmissions = 0U;
 		std::size_t                                        RetiringActorJobs          = 0U;
+		std::size_t                                        RetiringPreparationJobs    = 0U;
 		std::size_t                                        InFlightBlobCalls          = 0U;
 		std::deque<deferred_ingress>                       DeferredIngress;
 		// Only the active and pending authority can require retained priority
@@ -9155,6 +9226,21 @@ namespace bpr::application {
 	auto epoch_application_host::outstanding_jobs() const noexcept -> std::size_t
 	{
 		return Implementation->job_count();
+	}
+
+	auto epoch_application_host::outstanding_preparation_jobs() const noexcept -> std::size_t
+	{
+		return Implementation->preparation_job_count();
+	}
+
+	auto epoch_application_host::outstanding_reviewer_jobs() const noexcept -> std::size_t
+	{
+		return Implementation->reviewer_job_count();
+	}
+
+	auto epoch_application_host::active_reviewer_jobs() const noexcept -> std::size_t
+	{
+		return Implementation->active_reviewer_job_count();
 	}
 
 	auto epoch_application_host::queued_actor_work() const noexcept -> std::size_t
