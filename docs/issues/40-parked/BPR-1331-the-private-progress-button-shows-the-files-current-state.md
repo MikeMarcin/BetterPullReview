@@ -228,3 +228,26 @@ push.
 - `application_review_ledger_composition_contract` now also reads the button:
   "accepted" after the seed gestures on `github-com`, "unread" when the
   changed file is reopened on its second head.
+
+## Owner look, session v002
+
+Pending: `BPR-1331:owner-look` is the owner's, Accept or Reject.
+
+- Session `0d079940affe6da5c393df07d82a22d8`, its own fresh state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1331-1339-1091-v002`, ready and protected at event cursor 9, shared by the v002 looks
+  of [[BPR-1331]], [[BPR-1339]] and [[BPR-1091]] (one question each). The
+  host was started detached and answered on loopback.
+- v001's session was released (`resume-development --all`) and its root
+  removed with `scripts/freeze_attended_build.py remove`.
+- Candidate `BPR-1331-review-state-icon-v002` (revision `frozen-54dfbd463-v002`, fingerprint
+  `2f93777b…`), with the v001 2x review bar in the five states.
+- Frozen root `/Users/jaeger/bpr1331-review-state-v002.o_c2hktq`: frozen by `scripts/freeze_attended_build.py` from
+  `54dfbd463` (exported, built with `app-release` and `BUILD_TESTING=ON` in the
+  root, source read-only); executable SHA-256 `a2330d3f6a616198b70d7b7c7227a910907b177a3bf1db652ab4721bcda4ed1c`. The launcher's own
+  `--check` passed at freeze time, offscreen, and once natively with
+  `--check --native` (ready, then closed).
+  `launch.py --next-push` reopens the same review data on the pushed head
+  `cd24836c…`; `--fresh` starts over. Its freeze check opened both heads.
+- Launch: `python3 /Users/jaeger/bpr1331-review-state-v002.o_c2hktq/launch.py`.
+
+Next: read the session's decisions (`status --after 9`).

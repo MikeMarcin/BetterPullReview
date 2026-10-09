@@ -221,3 +221,44 @@ Next: read the session's decisions (`status --after 3`). Accept satisfies
 `:owner-look` and the card finishes; a Reject comes back with its note for a
 v002.
 
+
+### Owner verdict, session v001
+
+Reject, 2026-10-09T03:15:36Z, decision `35b2d6d4-8319-4650-a7d6-6d9aeb084d45`
+at session event 4. The note, verbatim:
+
+> …/aito  main❯ python3 /Users/jaeger/bpr1091-workshop-line-v001.WCZ48Y/launch.py
+> FIXTURES_MISSING: /Users/jaeger/bpr1091-workshop-line-v001.WCZ48Y/src/tests/fixtures/github/pull-requests/conventional-comments-v1
+
+The build never opened, so `BPR-1091:owner-look` stays pending. Same cause as
+[[BPR-1339]] and [[BPR-1331]]'s v001: the launcher checked
+`tests/fixtures/github/pull-requests/conventional-comments-v1`, a path no
+commit has had (the fixture is the committed `contracts/v1` tree; no fixture
+this build serves is generated). The root was complete, and the freeze had run
+the executable, not the launcher. Session released and root removed;
+v002 is frozen with `scripts/freeze_attended_build.py`, whose launcher check
+runs at freeze time.
+
+### Owner look, session v002
+
+Pending: `BPR-1091:owner-look` is the owner's, Accept or Reject.
+
+- Session `0d079940affe6da5c393df07d82a22d8`, its own fresh state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1331-1339-1091-v002`, ready and protected at event cursor 9, shared by the v002 looks
+  of [[BPR-1331]], [[BPR-1339]] and [[BPR-1091]] (one question each). The
+  host was started detached and answered on loopback.
+- v001's session was released (`resume-development --all`) and its root
+  removed with `scripts/freeze_attended_build.py remove`.
+- Candidate `BPR-1091-workshop-candidate-line-v002` (revision `frozen-54dfbd463-v002`, fingerprint
+  `cfec51c6…`), with the v001 light, dark and states renders (same design).
+- Frozen root `/Users/jaeger/bpr1091-workshop-line-v002.7wkb9u0u`: frozen by `scripts/freeze_attended_build.py` from
+  `54dfbd463` (exported, built with `app-release` and `BUILD_TESTING=ON` in the
+  root, source read-only); executable SHA-256 `9dcf02135f1254eee9f63fde06346402c34297249f587d2f82fc45ddb277009e`. The launcher's own
+  `--check` passed at freeze time, offscreen, and once natively with
+  `--check --native` (ready, then closed).
+  It also builds and passes the fixture agent
+  (`test_better_pull_review_agent_finding_canary`) and waits for
+  `ATTENDED_WORKSHOP_SHOWN`.
+- Launch: `python3 /Users/jaeger/bpr1091-workshop-line-v002.7wkb9u0u/launch.py`.
+
+Next: read the session's decisions (`status --after 9`).

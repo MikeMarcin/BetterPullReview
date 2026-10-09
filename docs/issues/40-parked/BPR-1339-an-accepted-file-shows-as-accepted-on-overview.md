@@ -200,3 +200,24 @@ reach the file fails before the root is handed over.
 `freeze_attended_build_contract` renders the template around a stand-in
 executable and shows the v001 path failing its own check. The root `AGENTS.md`
 frozen-build rule names the script.
+
+## Owner look, session v002
+
+Pending: `BPR-1339:owner-look` is the owner's, Accept or Reject.
+
+- Session `0d079940affe6da5c393df07d82a22d8`, its own fresh state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261008-bpr1331-1339-1091-v002`, ready and protected at event cursor 9, shared by the v002 looks
+  of [[BPR-1331]], [[BPR-1339]] and [[BPR-1091]] (one question each). The
+  host was started detached and answered on loopback.
+- v001's session was released (`resume-development --all`) and its root
+  removed with `scripts/freeze_attended_build.py remove`.
+- Candidate `BPR-1339-overview-accepted-mark-v002` (revision `frozen-54dfbd463-v002`, fingerprint
+  `48f0512f…`), with the v001 render of the five marks.
+- Frozen root `/Users/jaeger/bpr1339-overview-accepted-v002.g_3uddoq`: frozen by `scripts/freeze_attended_build.py` from
+  `54dfbd463` (exported, built with `app-release` and `BUILD_TESTING=ON` in the
+  root, source read-only); executable SHA-256 `5180bf5f16dc859f516b12ee37043bfeeba33f5eaf263dfff6d2f79909cf6b4e`. The launcher's own
+  `--check` passed at freeze time, offscreen, and once natively with
+  `--check --native` (ready, then closed).
+- Launch: `python3 /Users/jaeger/bpr1339-overview-accepted-v002.g_3uddoq/launch.py`.
+
+Next: read the session's decisions (`status --after 9`).
