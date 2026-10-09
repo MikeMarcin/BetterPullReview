@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1359"
 title: "macOS: the batched blob read sends a JSON array (HTTP 400), and preparation's single-read fallback holds the reviewer's cold read"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"bug","found_by":"BPR-1344 live probe on MikeMarcin/BPR-Test#43 (branch claude/bpr-1344-live-probe, 9bf77510d and c83e0596b, not merged)","reservation":"docs/issues/_reservations/BPR-1359--BPR-1359--e55491ea630f.json","related_cards":["BPR-1344","BPR-1327"],"acceptance":["BPR-1359:batch-body","BPR-1359:yield","BPR-1359:back-off"]}
+acceptance: [{"criterion":"BPR-1359:batch-body","outcome":"pass","revision":"493adffc5","evidence":{"kind":"command","path":"tests/github_contract/gh_cli_git_smart_transport_tests.cpp","detail":"gh_cli_git_smart_transport: the fake gh parses the batched read's exact stdin with QJsonDocument and requires one object of a string query and an object of variables. Fails on the array body ('the batched read's body is one JSON object ...'), passes on glz::write_json(document). macOS arm64 Debug; no live call."}},{"criterion":"BPR-1359:yield","outcome":"pass","revision":"2bbd5e975","evidence":{"kind":"command","path":"tests/application/epoch_application_host_tests.cpp","detail":"application_epoch_host a_reviewer_selection_stops_preparations_exact_read: a prepared exact read held 20 s on the actor by the fake transport is stopped by a cold reviewer resolve (cancelled, stop observed; reviewer waited 1.5-7 ms in three runs); a prepared read queued ahead of reviewer work is not started; the reviewer's own blob is read. Without the host change the reviewer waits 20000 ms and the course fails."}},{"criterion":"BPR-1359:back-off","outcome":"pass","revision":"2bbd5e975","evidence":{"kind":"command","path":"tests/application/epoch_application_host_tests.cpp","detail":"application_epoch_host a_failed_batch_backs_off_preparations_single_reads: after a refused batch a prepared blob is not read alone; the reviewer's opened file is; a later successful batch lifts the suspension. Fails without the host change at 'after a failed batch, a prepared file's blob is not read on its own'."}}]
 ---
 
 # BPR-1359: the batched blob read sends a JSON array, and preparation's single-read fallback holds the reviewer's cold read
