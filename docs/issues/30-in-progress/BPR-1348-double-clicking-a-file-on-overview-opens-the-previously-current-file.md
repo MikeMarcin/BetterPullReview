@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1348"
 title: "Double-clicking a file on Overview opens the previously current file in Review"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
