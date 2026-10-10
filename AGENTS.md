@@ -80,6 +80,12 @@ network, or process effects.
   wizard, never only as a chat note: a look-and-judge criterion gets a frozen
   build and an Accept/Reject question, a manual procedure (display scaling,
   VoiceOver, another machine or account) gets a wizard (owner, 2026-10-09).
+- Before parking anything on the owner, do every step an agent can do
+  itself: live GitHub courses on BPR-Test through `gh` and an offscreen app,
+  log reading, fixture checks. Only a human judgement, a human-only device or
+  account, or a secret the owner must type reaches them (owner, 2026-10-09,
+  on BPR-0143's mixed-client wizard: "this all seems like stuff you can do
+  without me").
 - Ask one question per candidate criterion. A question riding a criterion about
   something else comes back unanswered (BPR-0744 v008 and v009).
 - Ask a keep-or-change judgment as Accept or Reject, with the change in the
