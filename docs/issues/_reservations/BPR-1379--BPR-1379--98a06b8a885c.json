@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1379"
+  ],
+  "reserve_for": "home-title-direct",
+  "purpose": "Restore Home PR titles before opening reviews",
+  "created": "2026-10-10T20:22:39.691476+00:00",
+  "base": "6804327ec6b2bf7d7366d231b54c6f0f758c6b9d"
+}
