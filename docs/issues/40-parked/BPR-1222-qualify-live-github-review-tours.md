@@ -239,8 +239,12 @@ in a private browser window signed in as `MikeMarcinTest`:
    Declared length, 2 One header, 3 Repeated headers, with the three earlier
    replies still under their stops?
 
-#50 and its branch stay until those verdicts are in; then close #50 and
-delete `bpr-2acct-1222-tour`.
+Cleanup at the owner's wrap-up: #50 was closed by `MikeMarcin` at 01:35:57 UTC
+and `bpr-2acct-1222-tour` deleted. The closed pull request still renders the
+tour, its threads and replies (page 200), so the three questions can be
+answered on it; a reply on a closed pull request's review thread is still a
+normal website reply. No `bpr-2acct` pull request or branch remains open on
+BPR-Test; the fork `MikeMarcinTest/BPR-Test` holds only `main`.
 
 ### What remains on this card
 
