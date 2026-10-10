@@ -1357,6 +1357,13 @@ endfunction()
 # counts and a pending round. Scheduling and testing evidence only; no grant,
 # target, provider, credential, GitHub write, mutation or publication path;
 # mutation pin unchanged; no new src/app source.
+# BPR-1345 reseal (bpr-main-win, 2026-10-09): over BPR-1344's reseal; no other
+# intervening pinned-scope change. github_application.cpp: the fixture
+# helper that reveals a file in Review finds the file's drawer row again
+# after choosing Review, which can re-project the drawer, instead of
+# selecting the stale row it found before. Fixture access only; no grant,
+# target, provider, credential, GitHub write, mutation or publication path;
+# mutation pin unchanged; no new src/app source.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1375,7 +1382,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e76cc14a055055b781b849747bb8884f0e4d8ae4b6802adc28a7b783e4da64f7"
+		"0cec65d0917aaafa420b93cf8e6940fce5a740142295a0fe1f4ea0ce30a7095c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1579,7 +1586,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f486dd86c6e5730e9be1f45bb12303fdf649b7d7f77c929ccaf875aa730ecd39"
+        "21dda81a2698d05e665552aba733a488dbb83de033b826506e01da7dcc45e51e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

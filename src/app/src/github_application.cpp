@@ -26124,7 +26124,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// The reviewer's way in: Review on the strip, then the file's row.
 			window->choose_modality(qt::review_modality::review);
 			QCoreApplication::processEvents();
-			view->setCurrentIndex(row);
+			// [[BPR-1345]]. Choosing Review can re-project the drawer, so the
+			// row is found again: a stale index selects nothing and the reveal
+			// would wait for a diff no one asked for.
+			const auto shown = drawer_row(*window, aPath);
+			if (!shown.isValid()) {
+				return result::pending;
+			}
+			view->setCurrentIndex(shown);
 			reveal.Phase = state_type::phase::awaiting_diff;
 			return result::pending;
 		}

@@ -1031,3 +1031,28 @@ selection was dispatched, but the drawer's current row went back to
 trace on then passed: pending in about 8 s in Debug, and all five courses.
 The trace changes the timing. Whether the product can undo a reviewer's newer
 file selection when a re-projection lands is still being measured.
+
+**The fix.** `reveal_fixture_file` now finds the drawer row again after it
+chooses Review. If the row is gone, it waits for the next tick instead of
+selecting a stale index. The round-trip contract's two digests are resealed
+over BPR-1344's reseal; the mutation pin is unchanged.
+
+The verification ran on Windows Debug (`windows-dev-tour-cli`, rebuilt).
+`application_start_review_contract` passes 3 of 3, at 41.22, 40.78 and
+41.06 s; before the fix it failed 5 of 5. Every other row that reveals a file
+passes too:
+
+- `application_label_authoring_contract` 22.46 s;
+- `application_published_file_switch_contract` 33.22 s;
+- `application_review_progress_push_contract` 23.07 s;
+- `application_line_draft_contract` 23.66 s;
+- the round-trip contract, 12.24 s;
+- `architecture_boundaries` and `test_network_isolation_manifest`.
+
+**What is left.** One instrumented run showed a second shape, with the fix
+already in. The selection was dispatched (the file-selection count went from
+1 to 2), but the drawer's current row went back to `renderer.cpp`, and the
+diff never changed. It did not come back in 31 more instrumented runs: 8 and
+11 with a flushed trace, 12 with a buffered one. It is recorded, not fixed.
+If it is a product race, a re-projection undoing a reviewer's newer file
+selection, it needs its own card and a reproduction.
