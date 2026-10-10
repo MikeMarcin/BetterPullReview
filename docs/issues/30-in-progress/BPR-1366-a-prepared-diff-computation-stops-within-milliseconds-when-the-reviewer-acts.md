@@ -282,3 +282,16 @@ one call (for example 187.94 against 189.71 ms at 40,000 lines and 30%).
     and `application_review_round_trip_composition_contract` (the
     `github_application.cpp` digest is `f69fb520…`, pinned `0ca22569…`).
 - This card changes no `src/app` source, so it reseals nothing.
+
+## Coordinator decisions (2026-10-09)
+
+The coordinator accepted both pending items:
+- **Uninterrupted timing:** the 0.2–2.9% slowdown measured above is accepted.
+  It is systematic, not noise, and attributed to heap layout.
+- **`application_large_review_cache_bytes`:** its intermittent "stale
+  comparison published while superseding file B remained selected" (2 of 22
+  runs here) is the pre-existing failure recorded on [[BPR-1344]] and in
+  [[BPR-1376]]'s parked race, not this card's.
+- **Known limitation:** a paused state is about 16× one side's size, so under
+  the default 8 MiB prepared share only pairs up to about 6K lines keep their
+  pause. Larger ones start again when next prepared.
