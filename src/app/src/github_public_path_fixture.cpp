@@ -1590,6 +1590,9 @@ namespace bpr::app::detail {
 				std::optional<std::string>                       RootBody;
 				/// [[BPR-1085]]. The root post's author, as GitHub's identity and login.
 				std::optional<std::pair<std::string, std::string>> RootAuthor;
+				/// [[BPR-1374]]. Another client deleted the thread's root, so the
+				/// thread is gone from every later read.
+				bool Deleted = false;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			std::vector<QJsonObject>              CreatedReviewThreads;
@@ -2083,10 +2086,19 @@ namespace bpr::app::detail {
 				node.insert(QStringLiteral("comments"), comments);
 				nodes.replace(index, node);
 			}
+			// [[BPR-1374]]. A thread deleted elsewhere is no longer answered.
+			auto deleted = 0;
+			for (auto index = nodes.size() - 1; index >= 0; --index) {
+				const auto overlay = aOverlays.find(nodes.at(index).toObject().value(QStringLiteral("id")).toString().toStdString());
+				if (overlay != aOverlays.end() && overlay->second.Deleted) {
+					nodes.removeAt(index);
+					++deleted;
+				}
+			}
 			for (const auto& created : aCreated) {
 				nodes.append(created);
 			}
-			threads.insert(QStringLiteral("totalCount"), threads.value(QStringLiteral("totalCount")).toInt() + static_cast<int>(aCreated.size()));
+			threads.insert(QStringLiteral("totalCount"), threads.value(QStringLiteral("totalCount")).toInt() + static_cast<int>(aCreated.size()) - deleted);
 			threads.insert(QStringLiteral("nodes"), nodes);
 			pullRequest.insert(QStringLiteral("reviewThreads"), threads);
 			repository.insert(QStringLiteral("pullRequest"), pullRequest);
@@ -4449,6 +4461,12 @@ namespace bpr::app::detail {
 		if (aRootAuthor) {
 			overlay.RootAuthor = std::move(aRootAuthor);
 		}
+	}
+
+	void github_public_path_fixture_components::stage_server_thread_deleted(std::string aThread)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		Implementation->Recording->ThreadOverlays[std::move(aThread)].Deleted = true;
 	}
 
 	void github_public_path_fixture_components::report_review_mutation_target(

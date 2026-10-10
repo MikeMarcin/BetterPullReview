@@ -131,6 +131,7 @@
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/pull_request_overview.hpp"
+#include "bpr/application/reply_thread_observation.hpp"
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
@@ -138,6 +139,7 @@
 #include "bpr/application/shared_draft_application_host.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
+#include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/suggestion_draft.hpp"
@@ -159,6 +161,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -6413,6 +6416,9 @@ namespace bpr::app {
 			}
 			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
 			TabHost->complete(request->Request, aOutcome);
+			if (aOutcome == core::document_tab_view_outcome::ready) {
+				resume_reply();
+			}
 		}
 		/// \brief A reviewer's gesture during a load: the load in force is
 		/// left, and the gesture is what the active tab takes next.
@@ -7101,6 +7107,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				},
 				[this] { discard_review_comments(); });
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
+			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
@@ -10438,8 +10445,141 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (const auto& draft : saved) {
 				drafts.push_back(draft.Draft);
 			}
-			Window->present_saved_drafts(std::move(drafts));
+			// [[BPR-1374]]. Where each unsent reply stands against the
+			// threads the server holds now, as the core decides it.
+			auto replies = core::decide_reply_drafts(drafts, reply_threads());
+			Window->present_saved_drafts(std::move(drafts), std::move(replies));
 			publish_review_comments(saved);
+		}
+
+		/// \brief [[BPR-1374]]. The accepted snapshot's review threads, as the
+		/// core reads them for an unsent reply; incomplete with none.
+		[[nodiscard]] auto reply_threads() const -> core::reply_thread_observation
+		{
+			return WindowRead && WindowRead->accepted_snapshot() ? application::observe_reply_threads(*WindowRead->accepted_snapshot()) : core::reply_thread_observation{ };
+		}
+
+		[[nodiscard]] auto saved_draft_values() const -> std::vector<core::review_comment_draft>
+		{
+			auto drafts = std::vector<core::review_comment_draft>{ };
+			if (SharedDrafts) {
+				for (const auto& saved : SharedDrafts->recovery_snapshot()) {
+					drafts.push_back(saved.Draft);
+				}
+			}
+			return drafts;
+		}
+
+		/// \brief [[BPR-1374]]. The editor's draft is a reply: name its thread
+		/// and its author where the label is.
+		void describe_held_reply()
+		{
+			auto* const editor = Window != nullptr ? Window->review_editor() : nullptr;
+			if (editor == nullptr || !ReviewDraft || !ReviewDraft->ReplyToThread) {
+				return;
+			}
+			auto author = QString{ };
+			if (auto* const model = Window->conversation_model(); model != nullptr) {
+				const auto index = model->index_for_id("review-thread:" + *ReviewDraft->ReplyToThread);
+				if (index.isValid()) {
+					author = index.data(qt::github_conversation_model::author_login_role).toString();
+				}
+			}
+			editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this thread") : QStringLiteral("Replying to %1's thread").arg(author));
+		}
+
+		/// \brief [[BPR-1374]]. A Refresh retires the editor's draft with the
+		/// composition it was written in. The reply it held is held again
+		/// once its line is chosen, as the core decides: unsent, with its
+		/// thread still there. Answers whether it was.
+		auto resume_reply_at(const core::source_line_ref& aLine) -> bool
+		{
+			if (!ResumeReply || !SharedDrafts || PendingReviewMutation) {
+				return false;
+			}
+			const auto drafts = saved_draft_values();
+			const auto again  = core::resume_reply_after_refresh(drafts, *ResumeReply, reply_threads());
+			if (!again) {
+				ResumeReply.reset();
+				return false;
+			}
+			const auto reply = std::ranges::find(drafts, *again, &core::review_comment_draft::Id);
+			if (reply == drafts.end() || reply->Anchor != aLine) {
+				return false;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, *again);
+			if (!read.Accepted) {
+				return false;
+			}
+			ResumeReply.reset();
+			accept_shared_draft(*read.Accepted);
+			describe_held_reply();
+			refresh_agent_private_context_choices();
+			return true;
+		}
+
+		/// \brief [[BPR-1374]]. Once the refreshed comparison is shown again,
+		/// its reply's line is chosen, which holds the reply again. The line
+		/// was the selected one when the reply was written, and a same-head
+		/// Refresh keeps it on screen without choosing it again.
+		void resume_reply()
+		{
+			if (Closing || !ResumeReply || !SharedDrafts || Window == nullptr || PendingReviewMutation || !SelectedDiffPublication) {
+				return;
+			}
+			const auto drafts = saved_draft_values();
+			const auto again  = core::resume_reply_after_refresh(drafts, *ResumeReply, reply_threads());
+			if (!again) {
+				ResumeReply.reset();
+				return;
+			}
+			const auto reply = std::ranges::find(drafts, *again, &core::review_comment_draft::Id);
+			if (reply == drafts.end() || core::comparison_digest(SelectedDiffPublication->Key) != reply->Anchor.Comparison) {
+				return;
+			}
+			auto* const surface   = Window->comparison_surface();
+			const auto  selection = surface->selection();
+			if (selection && selection->PreferredLine == reply->Anchor) {
+				if (SelectedSemanticSelection == selection) {
+					present_review_draft(*selection);
+				} else {
+					observe_review_selection(selection);
+				}
+				return;
+			}
+			static_cast<void>(surface->select_conversation_line(reply->Anchor.Side, reply->Anchor.Line));
+		}
+
+		/// \brief [[BPR-1374]]. A kept reply's note: its words become a new
+		/// comment on its line, or it is discarded. Decided by the core
+		/// against the threads the server holds now; nothing is published.
+		void act_on_unsent_reply(const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction)
+		{
+			if (Closing || !SharedDrafts) {
+				return;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, aDraft);
+			if (!read.Accepted) {
+				return;
+			}
+			const auto command = aAction == qt::workbench_window::unsent_reply_action::keep_as_comment
+				? core::keep_reply_as_comment(*read.Accepted, reply_threads())
+				: core::discard_unsent_reply(*read.Accepted);
+			if (!command) {
+				return;
+			}
+			if (PrivateReview && PrivateDraftsReady) {
+				const auto owner = SharedDrafts;
+				PrivateReview->change_draft(*command, [this, owner](auto aCommit) {
+					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+						present_saved_drafts();
+					}
+				});
+				return;
+			}
+			if (const auto outcome = SharedDrafts->apply(DraftConsumer, *command); !outcome.Failure && outcome.Accepted) {
+				present_saved_drafts();
+			}
 		}
 
 		/// [[BPR-1345]]. The review carries every draft pending in it on this
@@ -10867,6 +11007,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			select_published_conversation();
 			if (aUpdate.PullRequest) {
 				observe_review_preflight();
+				// [[BPR-1374]]. A thread gone or resolved on the server changes
+				// where my unsent reply stands.
+				present_saved_drafts();
 			}
 		}
 
@@ -10934,6 +11077,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Window != nullptr && Window->review_editor() != nullptr) {
 				Window->review_editor()->present(
 					qt::review_draft_editor_clear_reason::composition_retired);
+			}
+			// [[BPR-1374]]. The reply being written is held again once its
+			// line is chosen under the new composition; before, a Refresh
+			// left it saved but shown nowhere.
+			if (ReviewDraft) {
+				ResumeReply = ReviewDraft->ReplyToThread && ReviewDraft->State == core::review_draft_state::drafting ? std::optional{ ReviewDraft->Id } : std::nullopt;
 			}
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
@@ -11260,6 +11409,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
+			// [[BPR-1374]]. A reply already written in this thread and not
+			// sent opens again, as the core picks it, rather than a new one:
+			// after a restart Reply used to start an empty reply beside it.
+			if (!Closing && SharedDrafts && aIdentity.starts_with(prefix) && SelectedSemanticSelection
+				&& draft_on_thread_line(core::review_comment_draft{ .Anchor = SelectedSemanticSelection->PreferredLine }, aIdentity)) {
+				const auto saved = core::reopen_draft_at(saved_draft_values(), SelectedSemanticSelection->PreferredLine, std::string{ aIdentity.substr(prefix.size()) });
+				if (saved && (!ReviewDraft || ReviewDraft->Id != *saved)) {
+					if (const auto read = SharedDrafts->read(DraftConsumer, *saved); read.Accepted) {
+						ResumeReply.reset();
+						accept_shared_draft(*read.Accepted);
+						describe_held_reply();
+						refresh_agent_private_context_choices();
+						return;
+					}
+				}
+			}
 			if (!Closing && !ReviewDraft && PrivateReview && aIdentity.starts_with(prefix) && SelectedSemanticSelection
 				&& draft_on_thread_line(core::review_comment_draft{ .Anchor = SelectedSemanticSelection->PreferredLine }, aIdentity)) {
 				const auto anchor = SelectedSemanticSelection->PreferredLine;
@@ -11385,6 +11550,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				settle(false);
 				return;
 			}
+			if (publish && ReviewDraft->ReplyToThread) {
+				// [[BPR-1374]]. A reply goes only to a thread the server still
+				// holds; the server's truth is read, never written over.
+				const auto decision = core::decide_reply_draft(*ReviewDraft, reply_threads());
+				if (decision.Standing != core::reply_draft_standing::none && !decision.Sendable) {
+					refusePublish(qt::conversation_cards_view::unsent_reply_notice(decision.Standing) + QStringLiteral(" Your reply was not sent; its words are kept."));
+					settle(false);
+					return;
+				}
+			}
 			if (publish && ReviewDraft->InReview && !aRevisionedCommand.ChangePending) {
 				// [[BPR-1345]]. Add single comment on a pending draft posts it
 				// on its own and takes it out of the review, in one revision.
@@ -11448,7 +11623,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			settle(!outcome.Failure && outcome.Accepted.has_value());
 		}
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
-		void                                                         finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
+		/// [[BPR-1374]]. The reply the editor held when a Refresh retired it.
+		std::optional<core::review_draft_id> ResumeReply;
+		void                                 finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
 		{
 			const auto& aCommand = aRevisionedCommand.Command;
 
@@ -11664,6 +11841,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// is known to be GitHub's; the answer presents it again.
 			if (aSelection.PreferredLine.Side == core::diff_side::left && !base_numbered_as_github()) {
 				observe_base_numbering();
+				return;
+			}
+			if (resume_reply_at(aSelection.PreferredLine)) {
 				return;
 			}
 			if (ReviewDraft.has_value()
@@ -11904,7 +12084,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
 				PrivateDraftsReady = true;
 				const auto owner   = SharedDrafts;
-				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){present_saved_drafts();if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}}else{PrivateDraftsReady=false;} });
+				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){present_saved_drafts();if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}resume_reply();}else{PrivateDraftsReady=false;} });
 			}
 		}
 		void adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen)
@@ -17129,6 +17309,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string Diagnostic;
 		};
 		std::optional<published_file_switch_probe_state> PublishedFileSwitchProbe;
+		// [[BPR-1374]]. The unsent-reply course.
+		struct reply_draft_probe_state
+		{
+			enum class phase {
+				awaiting_file,
+				awaiting_reply_open,
+				awaiting_reply_draft,
+				awaiting_reply_saved,
+				awaiting_refreshed,
+				awaiting_restored,
+				awaiting_reopened,
+				awaiting_typed,
+				awaiting_copied,
+				awaiting_discarded,
+				awaiting_kept,
+				passed,
+				failed,
+			};
+			detail::reply_draft_probe_evidence       Evidence;
+			std::optional<core::review_draft_id>     Draft;
+			detail::review_mutation_fixture_evidence Before;
+			std::size_t                              Waited = 0U;
+			phase                                    Phase  = phase::awaiting_file;
+			std::string                              Diagnostic;
+		};
+		std::optional<reply_draft_probe_state> ReplyDraftProbe;
 		// [[BPR-1345]]. The start-a-review course.
 		struct start_review_probe_state
 		{
@@ -27534,6 +27740,408 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			break;
 		}
 		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::exercise_reply_draft(
+		github_application& aApplication, const detail::reply_draft_course aCourse) -> detail::reply_draft_probe_result
+	{
+		using result               = detail::reply_draft_probe_result;
+		using course               = detail::reply_draft_course;
+		using state_type           = github_application::implementation::reply_draft_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ReplyDraftProbe.has_value()) {
+			implementation->ReplyDraftProbe.emplace();
+		}
+		auto& probe = *implementation->ReplyDraftProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		auto* const editor = window->review_editor();
+		if (cards == nullptr || editor == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path     = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto threadId = std::string_view{ "PRRT_cc_1" };
+		const auto     identity = "review-thread:" + std::string{ threadId };
+		const auto     words    = QStringLiteral("question: Is this still needed once the clear runs first? (BPR-1374 unsent reply)");
+		const auto     more     = words + QStringLiteral(" Typed after the Refresh.");
+		const auto     edited   = std::string{ "issue (blocking): draw_scene() runs before the clear. (edited on GitHub)" };
+		const auto     ready    = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value()
+				&& !implementation->PrivateDraftCommandPending && !implementation->PrivateDraftSelectionPending;
+		};
+		const auto sent = [&] {
+			const auto now = implementation->Fixture->review_mutation_evidence();
+			return std::tie(now.Submissions, now.NativePosts, now.FilePosts, now.Replies, now.Resolutions)
+				!= std::tie(probe.Before.Submissions, probe.Before.NativePosts, probe.Before.FilePosts, probe.Before.Replies, probe.Before.Resolutions);
+		};
+		const auto saved = [&]() -> std::optional<core::revisioned_review_draft> {
+			if (!implementation->SharedDrafts || !probe.Draft) {
+				return std::nullopt;
+			}
+			return implementation->SharedDrafts->read(implementation->DraftConsumer, *probe.Draft).Accepted;
+		};
+		const auto cardFor = [&](const std::string& aId) -> const qt::thread_card* {
+			const auto found = std::ranges::find(cards->cards(), aId, &qt::thread_card::Id);
+			return found == cards->cards().end() ? nullptr : &*found;
+		};
+		const auto keptId = [&] { return probe.Draft ? qt::conversation_cards_view::kept_reply_identity(*probe.Draft) : std::string{ }; };
+		const auto button = [&](const char* aName) -> QAbstractButton* {
+			auto* const open = cards->open_card();
+			return open != nullptr ? open->findChild<QAbstractButton*>(QString::fromLatin1(aName)) : nullptr;
+		};
+		// [[BPR-1374]]. With BPR_REPLY_DRAFT_RENDER_DIRECTORY set, the window
+		// as the owner will see it, in light and dark, for the look.
+		const auto renders = qEnvironmentVariable("BPR_REPLY_DRAFT_RENDER_DIRECTORY");
+		const auto render  = [&](const QString& aName) {
+			if (renders.isEmpty() || window->appearance_settings() == nullptr) {
+				return;
+			}
+			QDir{ }.mkpath(renders);
+			for (const auto& [mode, name] : std::array{ std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				window->appearance_settings()->choose_mode(mode);
+				for (auto turn = 0; turn < 6; ++turn) {
+					QCoreApplication::processEvents();
+				}
+				static_cast<void>(window->grab().save(renders + QLatin1Char{ '/' } + aName + QLatin1Char{ '-' } + name + QStringLiteral(".png"), "PNG"));
+			}
+			window->appearance_settings()->choose_mode(core::appearance_mode::light);
+			for (auto turn = 0; turn < 6; ++turn) {
+				QCoreApplication::processEvents();
+			}
+		};
+		const auto openReply = [&]() -> bool {
+			if (window->current_modality() != qt::review_modality::review) {
+				window->choose_modality(qt::review_modality::review);
+				QCoreApplication::processEvents();
+				return false;
+			}
+			if (cards->open_thread_id() != identity) {
+				cards->open_thread(identity);
+				QCoreApplication::processEvents();
+			}
+			auto* const field = button("threadReplyField");
+			if (field == nullptr || !field->isEnabled()) {
+				return false;
+			}
+			field->click();
+			QCoreApplication::processEvents();
+			return true;
+		};
+		const auto held = [&](const QString& aWords) {
+			const auto& draft = implementation->ReviewDraft;
+			return draft && probe.Draft && draft->Id == *probe.Draft && draft->ReplyToThread == std::optional<std::string>{ std::string{ threadId } }
+			&& draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting;
+		};
+		const auto finish = [&] {
+			probe.Evidence.NothingSent = !sent();
+			const auto& evidence       = probe.Evidence;
+			if (!(evidence.Written && evidence.ServerShown && evidence.Kept && evidence.Presented && evidence.Flagged && evidence.Acted && evidence.NothingSent)) {
+				return fail("evidence");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				probe.Before = implementation->Fixture->review_mutation_evidence();
+				probe.Phase  = aCourse == course::restart ? state_type::phase::awaiting_restored : state_type::phase::awaiting_reply_open;
+			}
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_open:
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " open=" + cards->open_thread_id());
+			if (!ready() || !openReply()) {
+				return result::pending;
+			}
+			probe.Phase = state_type::phase::awaiting_reply_draft;
+			return result::pending;
+		case state_type::phase::awaiting_reply_draft: {
+			const auto& draft = implementation->ReviewDraft;
+			note("reply=" + (draft && draft->ReplyToThread ? *draft->ReplyToThread : std::string{ "-" }) + " editor=" + std::to_string(cards->reply_editor() != nullptr ? 1 : 0));
+			if (!draft || draft->ReplyToThread != std::optional<std::string>{ std::string{ threadId } } || cards->reply_editor() == nullptr) {
+				return result::pending;
+			}
+			probe.Draft = draft->Id;
+			cards->reply_editor()->setPlainText(words);
+			probe.Phase = state_type::phase::awaiting_reply_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_saved: {
+			const auto stored = saved();
+			note("held=" + std::to_string(held(words) ? 1 : 0) + " saved=" + std::to_string(stored && stored->Draft.Body == words.toStdString() ? 1 : 0) + " ready=" + std::to_string(ready() ? 1 : 0));
+			if (!held(words) || !stored || stored->Draft.Body != words.toStdString() || !ready()) {
+				return result::pending;
+			}
+			probe.Evidence.Written = !sent();
+			render(QStringLiteral("written"));
+			if (aCourse == course::write) {
+				// Quit with the reply saved; `restart` reads it back.
+				probe.Evidence.ServerShown = probe.Evidence.Kept = probe.Evidence.Presented = probe.Evidence.Flagged = probe.Evidence.Acted = true;
+				return finish();
+			}
+			auto& fixture = *implementation->Fixture;
+			if (aCourse == course::edited) {
+				fixture.stage_server_root(std::string{ threadId }, edited, std::nullopt);
+			} else if (aCourse == course::resolved) {
+				fixture.stage_server_root(std::string{ threadId }, std::nullopt, true);
+			} else if (aCourse == course::deleted || aCourse == course::kept) {
+				fixture.stage_server_thread_deleted(std::string{ threadId });
+			}
+			window->github_refresh_action()->trigger();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_refreshed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_refreshed: {
+			const auto* const thread   = cardFor(identity);
+			const auto* const kept     = cardFor(keptId());
+			const auto&       snapshot = implementation->WindowRead->accepted_snapshot();
+			const auto        onServer = snapshot && std::ranges::any_of(snapshot->ReviewThreads, [&](const application::github_review_thread_record& aThread) { return aThread.Thread.value() == threadId; });
+			const auto        stored   = saved();
+			const auto        gone     = aCourse == course::deleted || aCourse == course::kept;
+			switch (aCourse) {
+			case course::refresh:  probe.Evidence.ServerShown = onServer && thread != nullptr; break;
+			case course::edited:   probe.Evidence.ServerShown = onServer && thread != nullptr && !thread->Posts.empty() && thread->Posts.front().Body.toStdString() == edited; break;
+			case course::resolved: probe.Evidence.ServerShown = onServer && thread != nullptr && thread->Resolved; break;
+			case course::deleted:
+			case course::kept:     probe.Evidence.ServerShown = snapshot && !onServer && thread == nullptr; break;
+			case course::write:
+			case course::restart:  break;
+			}
+			probe.Evidence.Kept = stored && stored->Draft.Body == words.toStdString() && stored->Draft.State == core::review_draft_state::drafting
+				&& stored->Draft.ReplyToThread == std::optional<std::string>{ std::string{ threadId } };
+			if (gone) {
+				probe.Evidence.Presented = kept != nullptr && kept->Draft && kept->Placed && kept->Line == std::optional<std::uint32_t>{ 6U } && !kept->Posts.empty() && kept->Posts.front().Body == words;
+				probe.Evidence.Flagged   = kept != nullptr && kept->UnsentReply == std::optional{ core::reply_draft_standing::thread_deleted }
+					&& kept->Notice == QStringLiteral("The thread this replies to was deleted on GitHub.");
+			} else {
+				probe.Evidence.Presented = held(words) && thread != nullptr && thread->UnsentReply.has_value();
+				probe.Evidence.Flagged   = thread != nullptr
+					&& (aCourse == course::resolved ? thread->UnsentReply == std::optional{ core::reply_draft_standing::thread_resolved } && thread->Notice == QStringLiteral("The thread this replies to was resolved on GitHub.")
+													: thread->UnsentReply == std::optional{ core::reply_draft_standing::answerable } && thread->Notice.isEmpty());
+			}
+			const auto& draft = implementation->ReviewDraft;
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " waited=" + std::to_string(probe.Waited) + " server=" + std::to_string(probe.Evidence.ServerShown ? 1 : 0)
+				 + " kept=" + std::to_string(probe.Evidence.Kept ? 1 : 0) + " presented=" + std::to_string(probe.Evidence.Presented ? 1 : 0) + " flagged=" + std::to_string(probe.Evidence.Flagged ? 1 : 0)
+				 + " editor=" + (draft ? std::to_string(draft->Id.value()) + ":" + (draft->ReplyToThread ? *draft->ReplyToThread : std::string{ "-" }) : std::string{ "none" })
+				 + " thread=" + std::to_string(thread != nullptr ? 1 : 0) + " keptNote=" + std::to_string(kept != nullptr ? 1 : 0) + " saved=" + (stored ? std::string{ core::name(stored->Draft.State) } : std::string{ "none" }));
+			if (!ready() || (!(probe.Evidence.ServerShown && probe.Evidence.Kept && probe.Evidence.Presented && probe.Evidence.Flagged) && ++probe.Waited < 80U)) {
+				return result::pending;
+			}
+			if (!probe.Evidence.ServerShown || !probe.Evidence.Kept || !probe.Evidence.Presented || !probe.Evidence.Flagged) {
+				return fail("after-refresh");
+			}
+			render(QStringLiteral("refreshed-") + (aCourse == course::refresh ? QStringLiteral("refresh") : aCourse == course::edited ? QStringLiteral("edited")
+													   : aCourse == course::resolved                                                  ? QStringLiteral("resolved")
+																																	  : QStringLiteral("deleted")));
+			switch (aCourse) {
+			case course::refresh:
+				probe.Phase = state_type::phase::awaiting_typed;
+				return result::pending;
+			case course::edited:
+				probe.Evidence.Acted = true;
+				return finish();
+			case course::resolved:
+				probe.Evidence.Acted = editor->publish_action()->isEnabled();
+				return finish();
+			case course::deleted:
+			case course::kept:
+				cards->open_thread(keptId());
+				QCoreApplication::processEvents();
+				render(QStringLiteral("kept-open"));
+				probe.Phase = aCourse == course::deleted ? state_type::phase::awaiting_copied : state_type::phase::awaiting_kept;
+				return result::pending;
+			case course::write:
+			case course::restart: break;
+			}
+			return fail("course");
+		}
+		case state_type::phase::awaiting_typed: {
+			// The reply in place is still the same draft: what is typed after
+			// the Refresh is saved into it.
+			if (cards->reply_editor() == nullptr) {
+				note("reopen");
+				static_cast<void>(openReply());
+				return result::pending;
+			}
+			if (cards->reply_editor()->toPlainText() != more) {
+				cards->reply_editor()->setPlainText(more);
+				return result::pending;
+			}
+			const auto stored = saved();
+			note("held=" + std::to_string(held(more) ? 1 : 0) + " saved=" + std::to_string(stored && stored->Draft.Body == more.toStdString() ? 1 : 0));
+			if ((!held(more) || !stored || stored->Draft.Body != more.toStdString() || !ready()) && ++probe.Waited < 160U) {
+				return result::pending;
+			}
+			probe.Evidence.Acted = held(more) && stored && stored->Draft.Body == more.toStdString();
+			return finish();
+		}
+		case state_type::phase::awaiting_copied: {
+			auto* const copy = button("threadCopyReply");
+			note("copy=" + std::to_string(copy != nullptr ? 1 : 0) + " open=" + cards->open_thread_id());
+			if (copy == nullptr) {
+				return ++probe.Waited < 200U ? result::pending : fail("no-copy");
+			}
+			QGuiApplication::clipboard()->clear();
+			copy->click();
+			QCoreApplication::processEvents();
+			if (QGuiApplication::clipboard()->text() != words) {
+				return fail("copy-text clipboard=" + QGuiApplication::clipboard()->text().toStdString());
+			}
+			auto* const discard = button("threadDiscardReply");
+			if (discard == nullptr) {
+				return fail("no-discard");
+			}
+			discard->click();
+			QCoreApplication::processEvents();
+			auto* const question = window->findChild<QDialog*>(QStringLiteral("discardReplyConfirmation"));
+			auto* const yes      = question != nullptr ? question->findChild<QAbstractButton*>(QStringLiteral("discardReplyConfirmationConfirm")) : nullptr;
+			if (yes == nullptr) {
+				return fail("no-question");
+			}
+			// Asked first: nothing is discarded until the question is answered.
+			if (const auto stored = saved(); !stored || stored->Draft.State != core::review_draft_state::drafting) {
+				return fail("discarded-before-asked");
+			}
+			yes->click();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_discarded;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_discarded: {
+			const auto stored = saved();
+			const auto gone   = (!stored || stored->Draft.State == core::review_draft_state::discarded) && cardFor(keptId()) == nullptr;
+			note("saved=" + (stored ? std::string{ core::name(stored->Draft.State) } : std::string{ "none" }) + " note=" + std::to_string(cardFor(keptId()) != nullptr ? 1 : 0));
+			if (!gone && ++probe.Waited < 160U) {
+				return result::pending;
+			}
+			probe.Evidence.Acted = gone;
+			return finish();
+		}
+		case state_type::phase::awaiting_kept: {
+			// Pressed once the window is settled, and again if a press made
+			// while the drafts were still being restored changed nothing.
+			if (ready() && implementation->PrivateDraftsReady && probe.Waited % 40U == 0U) {
+				if (auto* const keep = button("threadKeepReplyAsComment"); keep != nullptr) {
+					keep->click();
+					QCoreApplication::processEvents();
+				}
+			}
+			const auto stored = saved();
+			const auto line   = std::ranges::find_if(cards->cards(), [&](const qt::thread_card& aCard) { return aCard.Draft && !aCard.UnsentReply.has_value() && aCard.Line == std::optional<std::uint32_t>{ 6U }; });
+			const auto kept   = stored && !stored->Draft.ReplyToThread && stored->Draft.Body == words.toStdString() && stored->Draft.State == core::review_draft_state::drafting
+				&& stored->Draft.Anchor.Line == 5U && line != cards->cards().end() && line->Placed && cardFor(keptId()) == nullptr;
+			note("comment=" + std::to_string(stored && !stored->Draft.ReplyToThread ? 1 : 0) + " note=" + std::to_string(line != cards->cards().end() ? 1 : 0));
+			if (!kept && ++probe.Waited < 160U) {
+				return result::pending;
+			}
+			render(QStringLiteral("kept-as-comment"));
+			probe.Evidence.Acted = kept;
+			return finish();
+		}
+		case state_type::phase::awaiting_restored: {
+			// After the restart: the saved reply, found among the restored
+			// drafts, marked on its thread's note.
+			if (!probe.Draft && implementation->SharedDrafts) {
+				for (const auto& draft : implementation->SharedDrafts->recovery_snapshot()) {
+					if (draft.Draft.ReplyToThread == std::optional<std::string>{ std::string{ threadId } } && draft.Draft.Body == words.toStdString()
+						&& draft.Draft.State == core::review_draft_state::drafting) {
+						probe.Draft = draft.Draft.Id;
+					}
+				}
+			}
+			const auto* const thread   = cardFor(identity);
+			probe.Evidence.Written     = true;
+			probe.Evidence.Kept        = probe.Draft.has_value();
+			probe.Evidence.ServerShown = thread != nullptr;
+			probe.Evidence.Flagged     = thread != nullptr && thread->UnsentReply == std::optional{ core::reply_draft_standing::answerable } && thread->Notice.isEmpty();
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " drafts=" + std::to_string(implementation->PrivateDraftsReady ? 1 : 0) + " saved=" + std::to_string(probe.Draft ? 1 : 0)
+				 + " thread=" + std::to_string(thread != nullptr ? 1 : 0) + " marked=" + std::to_string(probe.Evidence.Flagged ? 1 : 0) + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!(probe.Evidence.Kept && probe.Evidence.Flagged) && ++probe.Waited < 120U)) {
+				return result::pending;
+			}
+			if (!probe.Evidence.Kept || !probe.Evidence.Flagged) {
+				return fail("not-restored");
+			}
+			render(QStringLiteral("restarted"));
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reopened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reopened: {
+			// Reply on the thread opens the saved reply, with its words.
+			if (!held(words)) {
+				note("opening editor=" + (implementation->ReviewDraft ? std::to_string(implementation->ReviewDraft->Id.value()) : std::string{ "none" }));
+				if (ready() && probe.Waited++ % 10U == 0U) {
+					static_cast<void>(openReply());
+				}
+				return probe.Waited < 200U ? result::pending : fail("reply-not-reopened");
+			}
+			if (cards->reply_editor() == nullptr) {
+				static_cast<void>(openReply());
+				return ++probe.Waited < 200U ? result::pending : fail("no-reply-editor");
+			}
+			probe.Evidence.Presented = true;
+			probe.Evidence.Acted     = cards->reply_editor()->toPlainText() == words;
+			render(QStringLiteral("restarted-reply"));
+			return finish();
+		}
+		case state_type::phase::passed:
+			return result::passed;
+		case state_type::phase::failed:
+			break;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::reply_draft_evidence(
+		const github_application& aApplication) -> detail::reply_draft_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->ReplyDraftProbe.has_value() ? implementation->ReplyDraftProbe->Evidence : detail::reply_draft_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::reply_draft_diagnostic(
+		const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->ReplyDraftProbe.has_value() ? implementation->ReplyDraftProbe->Diagnostic : std::string{ };
 	}
 
 	auto detail::github_application_fixture_access::exercise_start_review(

@@ -76,8 +76,11 @@ namespace bpr::app::detail {
 		void stage_server_conversation(std::string aThread, bool aAddedAndResolved);
 		/// [[BPR-1085]]. Change one thread's root body, resolution or root author
 		/// on the fake server's next read; an absent field keeps its value.
-		void               stage_server_root(std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
-											 std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
+		void stage_server_root(std::string aThread, std::optional<std::string> aRootBody, std::optional<bool> aResolved,
+							   std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
+		/// [[BPR-1374]]. Another client deletes one thread's root: the thread
+		/// is gone from the fake server's next read and every one after.
+		void               stage_server_thread_deleted(std::string aThread);
 		void               report_review_mutation_target(core::review_mutation_target aTarget);
 		void               set_private_lineage(std::shared_ptr<application::review_publication_lineage_port>);
 		[[nodiscard]] auto review_mutation_provider() noexcept

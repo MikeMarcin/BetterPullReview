@@ -1177,6 +1177,11 @@ namespace {
 		bool                                                 StartReviewPassed = false;
 		bpr::app::detail::start_review_probe_evidence        StartReviewEvidence;
 		std::string                                          StartReviewDiagnostic;
+		// [[BPR-1374]]. `--reply-draft-course refresh|edited|write|restart|deleted|kept|resolved`.
+		std::optional<bpr::app::detail::reply_draft_course> ReplyDraftCourse;
+		bool                                                ReplyDraftPassed = false;
+		bpr::app::detail::reply_draft_probe_evidence        ReplyDraftEvidence;
+		std::string                                         ReplyDraftDiagnostic;
 		// [[BPR-1331]]. `--review-progress-push-probe before|after`.
 		std::optional<bpr::app::detail::review_progress_push_course> ReviewProgressPushProbe;
 		bool                                                         ReviewProgressPushPassed = false;
@@ -3585,7 +3590,9 @@ namespace {
 			// pushed head is fetched once when it arrives, as a reviewer's is.
 			// [[BPR-1345]]. The start-a-review course's restarted run reads the
 			// same head over the same data root, whose objects are already held.
+			// [[BPR-1374]]. So does the unsent-reply course's restart.
 			const auto expectedSmartCalls = aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::finish }
+					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::restart }
 				? 0
 				: aRun.MaintenanceProbe
 						== automated_run::epoch_maintenance_probe::verify_deleted
@@ -4837,6 +4844,13 @@ namespace {
 				   << evidence.Kept << evidence.ShownAfterReturn << '\n';
 			stream << "PUBLISHED_FILE_SWITCH_DIAGNOSTIC:" << QString::fromStdString(aRun.PublishedFileSwitchDiagnostic) << '\n';
 		}
+		if (aRun.ReplyDraftCourse.has_value()) {
+			const auto& evidence = aRun.ReplyDraftEvidence;
+			stream << (aRun.ReplyDraftPassed ? "REPLY_DRAFT_OK\n" : "REPLY_DRAFT_FAILED\n")
+				   << "REPLY_DRAFT_EVIDENCE:" << evidence.Written << evidence.ServerShown << evidence.Kept << evidence.Presented << evidence.Flagged
+				   << evidence.Acted << evidence.NothingSent << '\n';
+			stream << "REPLY_DRAFT_DIAGNOSTIC:" << QString::fromStdString(aRun.ReplyDraftDiagnostic) << '\n';
+		}
 		if (aRun.StartReviewCourse.has_value()) {
 			const auto& evidence = aRun.StartReviewEvidence;
 			stream << (aRun.StartReviewPassed ? "START_REVIEW_OK\n" : "START_REVIEW_FAILED\n");
@@ -4930,6 +4944,7 @@ namespace {
 			&& !aRun.ReviewRoundTripCompositionProbe && !aRun.ThreadedReplyProbe
 			&& !aRun.LabelAuthoringProbe && !aRun.PublishedFileSwitchProbe
 			&& !aRun.StartReviewCourse.has_value()
+			&& !aRun.ReplyDraftCourse.has_value()
 			&& !aRun.ReviewProgressPushProbe.has_value()
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
@@ -5732,6 +5747,27 @@ namespace {
 		aRun.PublishedFileSwitchEvidence = bpr::app::detail::github_application_fixture_access::published_file_switch_evidence(aApplication);
 		aRun.PublishedFileSwitchPassed   = result == bpr::app::detail::published_file_switch_probe_result::passed;
 		if (!aRun.PublishedFileSwitchPassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
+	}
+
+	// [[BPR-1374]]. One tick of the unsent-reply course.
+	void advance_reply_draft_course(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		const auto result = bpr::app::detail::github_application_fixture_access::exercise_reply_draft(
+			aApplication, *aRun.ReplyDraftCourse);
+		aRun.ReplyDraftDiagnostic = bpr::app::detail::github_application_fixture_access::reply_draft_diagnostic(aApplication);
+		if (result == bpr::app::detail::reply_draft_probe_result::pending) {
+			return;
+		}
+		aRun.ReplyDraftEvidence = bpr::app::detail::github_application_fixture_access::reply_draft_evidence(aApplication);
+		aRun.ReplyDraftPassed   = result == bpr::app::detail::reply_draft_probe_result::passed;
+		if (!aRun.ReplyDraftPassed) {
 			fail_automated_run(aApplication, aRun);
 			return;
 		}
@@ -6643,6 +6679,10 @@ namespace {
 				}
 				if (aRun->StartReviewCourse.has_value()) {
 					advance_start_review_course(aApplication, *aRun);
+					break;
+				}
+				if (aRun->ReplyDraftCourse.has_value()) {
+					advance_reply_draft_course(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ReviewProgressPushProbe.has_value()) {
@@ -8736,8 +8776,23 @@ auto main(int argc, char** argv) -> int
 		const auto publishedFileSwitchTiming = argument_value(argc, argv, "--published-file-switch-timing");
 		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || publishedFileSwitchProbe;
 		// [[BPR-1345]]. The start-a-review course reads again after publishing.
-		const auto startReviewCourse         = argument_value(argc, argv, "--start-review-course");
-		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
+		const auto startReviewCourse      = argument_value(argc, argv, "--start-review-course");
+		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
+		// [[BPR-1374]]. The unsent-reply course reads again on its Refresh.
+		const auto replyDraftCourseName = argument_value(argc, argv, "--reply-draft-course");
+		const auto replyDraftCourse     = [&]() -> std::optional<bpr::app::detail::reply_draft_course> {
+			using course = bpr::app::detail::reply_draft_course;
+			for (const auto& [name, value] : std::array{ std::pair{ std::string_view{ "refresh" }, course::refresh }, std::pair{ std::string_view{ "edited" }, course::edited },
+														 std::pair{ std::string_view{ "write" }, course::write }, std::pair{ std::string_view{ "restart" }, course::restart },
+														 std::pair{ std::string_view{ "deleted" }, course::deleted }, std::pair{ std::string_view{ "kept" }, course::kept },
+														 std::pair{ std::string_view{ "resolved" }, course::resolved } }) {
+				if (replyDraftCourseName == std::optional{ name }) {
+					return value;
+				}
+			}
+			return std::nullopt;
+		}();
+		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || replyDraftCourse.has_value();
 		fixtureOptions.SuppressDeviceBrowser = has_argument(
 			argc,
 			argv,
@@ -9811,6 +9866,7 @@ auto main(int argc, char** argv) -> int
 									: startReviewCourse == std::optional<std::string_view>{ "uncertain" }                                                                                                                                                                 ? std::optional{ bpr::app::detail::start_review_course::uncertain }
 									: startReviewCourse == std::optional<std::string_view>{ "again" }                                                                                                                                                                     ? std::optional{ bpr::app::detail::start_review_course::again }
 																																																																		  : std::nullopt,
+								.ReplyDraftCourse                = replyDraftCourse,
 								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
 																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,

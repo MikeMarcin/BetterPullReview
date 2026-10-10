@@ -190,6 +190,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # application_start_review_contract.cmake:43). Uncontained it passes in
     # Release; the Debug stall is BPR-1345's finding, not the container's.
     "application_start_review_contract": "dos-volume-name",
+    # [[BPR-1374]]. The start-review contract's composed application over a
+    # private data root, and the comment-range store test's private review
+    # store; pinned by that shape, not yet measured contained on Windows.
+    "application_reply_draft_contract": "dos-volume-name",
+    "application_reply_draft_survival": "dos-volume-name",
     "application_comment_range_draft_store": "dos-volume-name",
     "application_line_draft_contract": "dos-volume-name",
     "application_diff_zoom_public_path": "dos-volume-name",

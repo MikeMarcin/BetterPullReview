@@ -106,6 +106,30 @@ namespace bpr::qt {
 			return static_cast<int>(std::lround(QFontMetricsF{ aFont }.height() * 1.38));
 		}
 
+		/// [[BPR-1374]]. One line of a note's notice, in the small size.
+		[[nodiscard]] auto notice_line_height(const QFont& aFont) -> int
+		{
+			return static_cast<int>(std::lround(QFontMetricsF{ scaled(aFont, 0.92) }.height() * 1.3));
+		}
+
+		/// [[BPR-1374]]. How many lines a notice wraps to at a width. Notices
+		/// are few, so it is laid out rather than estimated.
+		[[nodiscard]] auto notice_line_count(const QString& aNotice, const QFont& aSmall, const int aWidth) -> int
+		{
+			auto layout = QTextLayout{ aNotice, aSmall };
+			auto option = QTextOption{ };
+			option.setWrapMode(QTextOption::WordWrap);
+			layout.setTextOption(option);
+			layout.beginLayout();
+			auto lines = 0;
+			for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+				line.setLineWidth(std::max(40, aWidth));
+				++lines;
+			}
+			layout.endLayout();
+			return lines;
+		}
+
 		[[nodiscard]] auto has_code_anchor(const thread_card& aCard) -> bool
 		{
 			return !aCard.Path.isEmpty() && !aCard.Outdated && !aCard.AnchorUnavailable
@@ -659,12 +683,39 @@ namespace bpr::qt {
 
 	void conversation_cards_view::set_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
 	{
-		if (SavedDrafts == aDrafts) {
+		set_saved_drafts(std::move(aDrafts), { });
+	}
+
+	void conversation_cards_view::set_saved_drafts(std::vector<core::review_comment_draft> aDrafts, std::vector<core::reply_draft_decision> aReplies)
+	{
+		if (SavedDrafts == aDrafts && UnsentReplies == aReplies) {
 			return;
 		}
 		forget_measurements_if([](const std::string& aId) { return aId.starts_with(draft_card_id) && aId != draft_card_id; });
-		SavedDrafts = std::move(aDrafts);
+		// [[BPR-1374]]. A thread's note changes with the reply marked on it.
+		if (UnsentReplies != aReplies) {
+			forget_measurements_if([](const std::string& aId) { return aId.starts_with("review-thread:"); });
+		}
+		SavedDrafts   = std::move(aDrafts);
+		UnsentReplies = std::move(aReplies);
 		relayout();
+	}
+
+	auto conversation_cards_view::unsent_reply_notice(const core::reply_draft_standing aStanding) -> QString
+	{
+		switch (aStanding) {
+		case core::reply_draft_standing::thread_resolved: return tr("The thread this replies to was resolved on GitHub.");
+		case core::reply_draft_standing::thread_deleted:  return tr("The thread this replies to was deleted on GitHub.");
+		case core::reply_draft_standing::thread_unknown:  return tr("GitHub did not say whether the thread this replies to is still there.");
+		case core::reply_draft_standing::none:
+		case core::reply_draft_standing::answerable:      break;
+		}
+		return { };
+	}
+
+	auto conversation_cards_view::kept_reply_identity(const core::review_draft_id aDraft) -> std::string
+	{
+		return std::string{ draft_card_id } + ":reply:" + std::to_string(aDraft.value());
 	}
 
 	void conversation_cards_view::set_viewer_login(const QString& aLogin)
@@ -950,9 +1001,10 @@ namespace bpr::qt {
 				if (card.Draft && card.FirstLine.has_value() && *card.FirstLine > 0U) {
 					mark.FirstLine = *card.FirstLine - 1U;
 				}
-				mark.Description = card.Writing ? QStringLiteral("%1: your draft, being written").arg(lines)
-					: card.Draft                ? QStringLiteral("%1: your draft").arg(lines)
-												: QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
+				mark.Description = card.Writing                  ? QStringLiteral("%1: your draft, being written").arg(lines)
+					: card.Draft && card.UnsentReply.has_value() ? QStringLiteral("%1: your reply, not sent").arg(lines)
+					: card.Draft                                 ? QStringLiteral("%1: your draft").arg(lines)
+																 : QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
 				if (card.UnreadCount > 0U) {
 					mark.Description += QStringLiteral(", %1 new").arg(card.UnreadCount);
 				}
@@ -1188,12 +1240,12 @@ namespace bpr::qt {
 		const auto  marked = !aCard.Posts.empty() && aCard.Posts.front().Label.has_value();
 		const auto& cached = Measurements.Notes.find(aCard.Id);
 		if (cached != Measurements.Notes.end() && cached->second.Body == body && cached->second.Resolved == aCard.Resolved
-			&& cached->second.Draft == aCard.Draft) {
+			&& cached->second.Draft == aCard.Draft && cached->second.Notice == aCard.Notice) {
 			aCard.Rect.setHeight(cached->second.Height);
 			return;
 		}
 		++MeasurementCount;
-		auto       measure = closed_measure{ .Body = body, .Resolved = aCard.Resolved, .Draft = aCard.Draft };
+		auto       measure = closed_measure{ .Body = body, .Resolved = aCard.Resolved, .Draft = aCard.Draft, .Notice = aCard.Notice };
 		const auto lines   = aCard.Resolved ? 1 : 2;
 		const auto width   = std::max(40, aWidth - text_left - note_right);
 		auto       count   = 0;
@@ -1209,8 +1261,13 @@ namespace bpr::qt {
 				+ QFontMetrics{ font() }.horizontalAdvance(flowing.mid(header));
 			count = advance <= width ? 1 : lines;
 		}
-		measure.Lines   = count;
-		const auto text = name_height(font()) + 1 + count * body_line_height(font());
+		measure.Lines = count;
+		// [[BPR-1374]]. What became of a reply's thread, under the name, in
+		// full: it is the one thing the note must say.
+		if (!aCard.Notice.isEmpty()) {
+			measure.NoticeLines = notice_line_count(aCard.Notice, scaled(font(), 0.92), width);
+		}
+		const auto text = name_height(font()) + 1 + measure.NoticeLines * notice_line_height(font()) + count * body_line_height(font());
 		const auto gut  = marked ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
 		measure.Height  = note_top + std::max(text, gut) + note_bottom;
 		aCard.Rect.setHeight(measure.Height);
@@ -1352,7 +1409,7 @@ namespace bpr::qt {
 		// are never filtered out.
 		if (Filters.UnreadOnly || Filters.UnresolvedOnly) {
 			std::erase_if(Cards, [this](const thread_card& aCard) {
-				return !aCard.Draft && aCard.Id != Open
+				return !aCard.Draft && aCard.Id != Open && !aCard.UnsentReply.has_value()
 					&& ((Filters.UnreadOnly && aCard.UnreadCount == 0U)
 						|| (Filters.UnresolvedOnly && aCard.Resolved));
 			});
@@ -1368,6 +1425,45 @@ namespace bpr::qt {
 					card.Excerpt = ExcerptLocator(card.Path, *card.Side, *card.Line).value_or(QString{ });
 				}
 			}
+		}
+		// [[BPR-1374]]. My unsent replies, as the core decided where each
+		// stands: one whose thread is shown marks that thread's note; one
+		// whose thread is gone or not known is kept as a note of its own at
+		// its line, with what became of the thread.
+		for (const auto& reply : UnsentReplies) {
+			const auto kept = reply.Standing == core::reply_draft_standing::thread_deleted || reply.Standing == core::reply_draft_standing::thread_unknown;
+			if (!kept) {
+				const auto thread = std::ranges::find(Cards, "review-thread:" + reply.Thread, &thread_card::Id);
+				if (thread != Cards.end()) {
+					thread->UnsentReply = reply.Standing;
+					thread->Notice      = unsent_reply_notice(reply.Standing);
+				}
+				continue;
+			}
+			const auto saved = std::ranges::find(SavedDrafts, reply.Draft, &core::review_comment_draft::Id);
+			if (saved == SavedDrafts.end() || Scope != cards_scope::this_file || !CurrentComparison.has_value() || saved->Anchor.Comparison != *CurrentComparison) {
+				continue;
+			}
+			auto card              = thread_card{ };
+			card.Id                = kept_reply_identity(saved->Id);
+			card.Kind              = QStringLiteral("Draft");
+			card.Draft             = true;
+			card.UnsentReply       = reply.Standing;
+			card.Notice            = unsent_reply_notice(reply.Standing);
+			card.KeepableAsComment = reply.KeepableAsComment;
+			card.Side              = saved->Anchor.Side;
+			card.Line              = saved->Anchor.Line + 1U;
+			const auto mark        = feedback_body_mark_of(saved->Body);
+			card.Posts.push_back(card_post{
+				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
+				.Body         = text(saved->Body),
+				.Mine         = true,
+				.Label        = mark.Label,
+				.Emphasis     = mark.Emphasis,
+				.Name         = feedback_post_name(QStringLiteral("Your reply, not sent"), mark),
+				.HeaderLength = mark.Label.has_value() ? header_length_of(saved->Body) : 0,
+			});
+			Cards.push_back(std::move(card));
 		}
 		// My unpublished notes, each at its line while it is on this
 		// comparison: the editor's draft as the editor holds it, and every
@@ -1486,7 +1582,8 @@ namespace bpr::qt {
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
 			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed)) + QString::number(card.UnreadCount)
-			+ card.Excerpt + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing));
+			+ card.Excerpt + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
+			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment));
 		for (const auto& post : card.Posts) {
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QString::number(static_cast<int>(post.Unread));
 		}
@@ -1518,8 +1615,19 @@ namespace bpr::qt {
 		OpenCard                     = new open_thread_card{ card, style, viewport() };
 		OpenCard->setProperty("threadKey", key);
 		const auto id    = card.Id;
-		OpenCard->Action = [this, id](const card_action aAction) {
+		const auto words = card.UnsentReply.has_value() && card.Draft && !card.Posts.empty() ? card.Posts.front().Body : QString{ };
+		OpenCard->Action = [this, id, words](const card_action aAction) {
 			switch (aAction) {
+			case card_action::copy_reply:
+				// [[BPR-1374]]. The kept reply's words, as written; nothing
+				// else changes.
+				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr && !words.isEmpty()) {
+					clipboard->setText(words);
+				}
+				if (ActionDispatch) {
+					ActionDispatch(card_action::copy_reply, id);
+				}
+				return;
 			case card_action::reply:
 				if (ActionDispatch) {
 					ActionDispatch(card_action::reply, id);
@@ -2019,7 +2127,9 @@ namespace bpr::qt {
 			// writing blue, as the start-a-review frames tag it.
 			// In a narrow drawer, "Pending", so the name keeps its room.
 			const auto whole = QStringLiteral("Pending in your review");
-			const auto words = !aCard.Pending                                     ? QStringLiteral("Draft")
+			// [[BPR-1374]]. My kept reply was never sent, and says so.
+			const auto words = aCard.UnsentReply.has_value()                      ? QStringLiteral("Not sent")
+				: !aCard.Pending                                                  ? QStringLiteral("Draft")
 				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
 																				  : QStringLiteral("Pending");
 			const auto ink   = aCard.Pending ? colours.Signal : colours.Faint;
@@ -2032,6 +2142,19 @@ namespace bpr::qt {
 			if (aCard.Resolved) {
 				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - 14), top + (nameH - 14) / 2.0, 14.0, 14.0 }, conversation_glyph::resolved, colours.Ok);
 				right -= 14 + 6;
+			}
+			// [[BPR-1374]]. My reply written in this thread and not sent, in
+			// the writing blue, at full strength on a resolved note too.
+			if (aCard.UnsentReply.has_value()) {
+				const auto words = QStringLiteral("Your reply");
+				const auto w     = smallMetrics.horizontalAdvance(words);
+				aPainter.save();
+				aPainter.setOpacity(1.0);
+				aPainter.setPen(colours.Signal);
+				aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
+				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.Signal);
+				aPainter.restore();
+				right -= w + 16 + 8;
 			}
 			if (aCard.UnreadCount > 0U) {
 				const auto count = QString::number(aCard.UnreadCount);
@@ -2079,9 +2202,22 @@ namespace bpr::qt {
 		}
 		aPainter.setFont(bold);
 		aPainter.setPen(colours.Ink);
-		const auto who = aCard.Draft ? QStringLiteral("Your note") : (root.Mine ? QStringLiteral("you") : root.Author);
+		const auto who = aCard.Draft ? (aCard.UnsentReply.has_value() ? QStringLiteral("Your reply") : QStringLiteral("Your note")) : (root.Mine ? QStringLiteral("you") : root.Author);
 		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter,
 						  QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left)));
+		// [[BPR-1374]]. What became of the thread a reply answers, whole,
+		// under the name and above the words.
+		auto bodyTop = top + nameH + 1;
+		if (measure != nullptr && measure->NoticeLines > 0) {
+			const auto noticeHeight = measure->NoticeLines * notice_line_height(font());
+			aPainter.save();
+			aPainter.setOpacity(1.0);
+			aPainter.setFont(small);
+			aPainter.setPen(colours.Ink2);
+			aPainter.drawText(QRect{ left, bodyTop, std::max(40, rect.width() - text_left - note_right), noticeHeight }, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextWordWrap, aCard.Notice);
+			aPainter.restore();
+			bodyTop += noticeHeight;
+		}
 		if (measure != nullptr && measure->Lines > 0) {
 			const auto display = clamp_lines(display_of(root, font(), CodeFont, colours.Hover), font(), std::max(40, rect.width() - text_left - note_right), measure->Lines);
 			auto       layout  = QTextLayout{ display.Text, font() };
@@ -2100,8 +2236,8 @@ namespace bpr::qt {
 			}
 			layout.endLayout();
 			aPainter.setPen(colours.Ink);
-			aPainter.setClipRect(QRect{ left, top + nameH + 1, rect.width() - text_left - note_right + 2, lines * body_line_height(font()) + 2 }, Qt::IntersectClip);
-			layout.draw(&aPainter, QPointF{ static_cast<qreal>(left), static_cast<qreal>(top + nameH + 1) });
+			aPainter.setClipRect(QRect{ left, bodyTop, rect.width() - text_left - note_right + 2, lines * body_line_height(font()) + 2 }, Qt::IntersectClip);
+			layout.draw(&aPainter, QPointF{ static_cast<qreal>(left), static_cast<qreal>(bodyTop) });
 		}
 		aPainter.restore();
 	}
@@ -2241,6 +2377,20 @@ namespace bpr::qt {
 	void conversation_cards_view::choose(const std::size_t aCard, const bool aOpen)
 	{
 		if (aCard >= Cards.size()) {
+			return;
+		}
+		// [[BPR-1374]]. My kept reply opens in place, like a thread, where its
+		// words and what can be done with them are; it is not the editor's.
+		if (Cards[aCard].Draft && Cards[aCard].UnsentReply.has_value()) {
+			const auto chosen = Cards[aCard].Id;
+			Current           = chosen;
+			if (aOpen && Open != chosen) {
+				Open = chosen;
+				Picked.clear();
+				Replying.clear();
+				relayout();
+			}
+			viewport()->update();
 			return;
 		}
 		if (Cards[aCard].Draft) {

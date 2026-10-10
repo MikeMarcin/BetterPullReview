@@ -1290,8 +1290,58 @@ namespace bpr::qt {
 
 		Foot                = new QWidget{ this };
 		auto* const footRow = new QVBoxLayout{ Foot };
+		// [[BPR-1374]]. What became of the thread my unsent reply answers,
+		// said once, above what can be done about it.
+		auto* notice = static_cast<QLabel*>(nullptr);
+		if (!aCard.Notice.isEmpty()) {
+			notice = new QLabel{ aCard.Notice, Foot };
+			notice->setObjectName(QStringLiteral("threadReplyNotice"));
+			notice->setWordWrap(true);
+			notice->setTextFormat(Qt::PlainText);
+			notice->setAccessibleName(aCard.Notice);
+			auto ink = notice->palette();
+			ink.setColor(QPalette::WindowText, Style.Colours.Ink2);
+			notice->setPalette(ink);
+		}
 		if (aCard.Writing) {
 			build_composer(aCard, *footRow);
+		} else if (aCard.Draft && aCard.UnsentReply.has_value()) {
+			// [[BPR-1374]]. My kept reply: its thread is gone, so it is never
+			// sent there. Its words can become a comment on its line, be
+			// copied, or be discarded; nothing here publishes.
+			footRow->setContentsMargins(text_left, 2, text_right, 10);
+			footRow->setSpacing(8);
+			if (notice != nullptr) {
+				footRow->addWidget(notice);
+			}
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(4);
+			if (aCard.KeepableAsComment) {
+				auto* const keep = new note_button{ note_button::kind::primary, QStringLiteral("Keep as comment"), Foot };
+				keep->setObjectName(QStringLiteral("threadKeepReplyAsComment"));
+				keep->setIcon(conversation_icon(conversation_glyph::edit, palette));
+				keep->setToolTip(aCard.Line ? QStringLiteral("Keep these words as a new comment on line %1. Nothing is published.").arg(*aCard.Line)
+											: QStringLiteral("Keep these words as a new comment on their line. Nothing is published."));
+				keep->set_style(Style);
+				connect(keep, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::keep_reply_as_comment); } });
+				actions->addWidget(keep);
+			}
+			auto* const copy = new QToolButton{ Foot };
+			copy->setObjectName(QStringLiteral("threadCopyReply"));
+			copy->setAutoRaise(true);
+			copy->setText(QStringLiteral("Copy text"));
+			copy->setToolTip(QStringLiteral("Copy the reply as written"));
+			copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+			copy->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::copy));
+			copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			copy->setFocusPolicy(Qt::StrongFocus);
+			connect(copy, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::copy_reply); } });
+			actions->addWidget(copy);
+			actions->addStretch(1);
+			auto* const discard = tool(Foot, QStringLiteral("threadDiscardReply"), QStringLiteral("Discard reply"), conversation_glyph::trash, palette);
+			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::discard_reply); } });
+			actions->addWidget(discard);
+			footRow->addLayout(actions);
 		} else if (aCard.Draft) {
 			footRow->setContentsMargins(text_left, 4, text_right, 10);
 			auto* const actions = new QHBoxLayout{ };
@@ -1325,7 +1375,12 @@ namespace bpr::qt {
 			footRow->addLayout(actions);
 		} else if (aCard.Kind == QStringLiteral("Inline thread")) {
 			footRow->setContentsMargins(gut_left, 8, text_right, 10);
-			ReplyField = new note_button{ note_button::kind::reply_field, QStringLiteral("Reply"), Foot };
+			if (notice != nullptr) {
+				notice->setContentsMargins(text_left - gut_left, 0, 0, 0);
+				footRow->addWidget(notice);
+			}
+			// [[BPR-1374]]. My unsent reply in this thread is opened by Reply.
+			ReplyField = new note_button{ note_button::kind::reply_field, aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"), Foot };
 			ReplyField->setObjectName(QStringLiteral("threadReplyField"));
 			ReplyField->setToolTip(QStringLiteral("Reply  R"));
 			ReplyField->setAccessibleName(QStringLiteral("Reply"));
@@ -1402,6 +1457,9 @@ namespace bpr::qt {
 					HeightChanged();
 				}
 			});
+		}
+		if (notice != nullptr && footRow->indexOf(notice) < 0) {
+			delete notice;
 		}
 		column->addWidget(Foot);
 		refresh_reply_controls();

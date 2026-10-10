@@ -2291,6 +2291,33 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
+# [[BPR-1374]]. An unsent reply survives Refresh and restart; a reply whose
+# thread is resolved or deleted elsewhere is kept and flagged; nothing is sent.
+bpr_add_network_isolated_test(
+    NAME application_reply_draft_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/reply-draft-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_reply_draft_contract.cmake"
+)
+set_tests_properties(
+    application_reply_draft_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REPLY_DRAFT_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_reply_draft_contract
+    TIMEOUT 400
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 7
+    RESERVE_MS 5000
+)
+
 # [[BPR-1345]]. Start a review: pending drafts sent with the review as its
 # line comments, kept across a restart, refused, lost and reconciled; v002
 # adds the owner's discard flow (`again`).

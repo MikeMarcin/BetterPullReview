@@ -768,6 +768,62 @@ namespace bpr::app::detail {
 		auto operator<=>(const published_file_switch_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1374]]. An unsent reply in the composed application over
+	/// `conventional-comments-v1`, on `src/engine/renderer.cpp`'s first
+	/// thread (`PRRT_cc_1`, line 6), written as a reviewer does: the thread's
+	/// Reply, then typing in the reply in place. Then the public Refresh:
+	/// with no change on the server (`refresh`); after another client edits
+	/// the thread's root (`edited`); after another client resolves it
+	/// (`resolved`); after another client deletes its root, then the kept
+	/// reply copied and discarded (`deleted`) or kept as a comment on its
+	/// line (`kept`). `write` writes the reply and quits; `restart`, over the
+	/// same data root, finds it again. Nothing is ever sent to the server.
+	enum class reply_draft_course {
+		refresh,
+		edited,
+		write,
+		restart,
+		deleted,
+		kept,
+		resolved,
+	};
+
+	enum class reply_draft_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct reply_draft_probe_evidence
+	{
+		/// The reply was written in place on `PRRT_cc_1` and saved.
+		bool Written = false;
+		/// After the Refresh (or the restart) the window shows the server's
+		/// truth: the thread as it was, its edited root, its resolution, or
+		/// no thread at all.
+		bool ServerShown = false;
+		/// The reply is still saved, being written, with its words and thread.
+		bool Kept = false;
+		/// It is presented: held again by the editor and marked on its
+		/// thread's note, or after a restart marked there and opened again by
+		/// Reply, or kept as a note of its own at its line when its thread is
+		/// gone.
+		bool Presented = false;
+		/// What became of the thread is said where the reply is shown: that
+		/// it was deleted or resolved on GitHub, and nothing when it was not.
+		bool Flagged = false;
+		/// The course's own step: typing after the Refresh changes the same
+		/// draft (`refresh`); Publish is still offered (`resolved`); Copy text
+		/// copies the words and Discard, once asked, discards it (`deleted`);
+		/// Keep as comment makes it a comment on its line (`kept`); Reply
+		/// shows its words (`restart`).
+		bool Acted = false;
+		/// The fixture server received no post, reply, review or resolution.
+		bool NothingSent = false;
+
+		auto operator<=>(const reply_draft_probe_evidence&) const = default;
+	};
+
 	/// [[BPR-1345]]. Start a review in the composed application over
 	/// `conventional-comments-v1`, on `src/engine/renderer.cpp`. `pending`
 	/// starts a review on one line, adds a range to it, publishes a third
@@ -1598,6 +1654,13 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto published_file_switch_evidence(const github_application& aApplication)
 			-> published_file_switch_probe_evidence;
 		[[nodiscard]] static auto published_file_switch_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1374]]. One tick of the unsent-reply course.
+		[[nodiscard]] static auto exercise_reply_draft(github_application& aApplication, reply_draft_course aCourse)
+			-> reply_draft_probe_result;
+		[[nodiscard]] static auto reply_draft_evidence(const github_application& aApplication)
+			-> reply_draft_probe_evidence;
+		[[nodiscard]] static auto reply_draft_diagnostic(const github_application& aApplication)
 			-> std::string;
 		/// \brief [[BPR-1345]]. One tick of the start-a-review course.
 		[[nodiscard]] static auto exercise_start_review(github_application& aApplication, start_review_course aCourse)

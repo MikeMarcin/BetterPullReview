@@ -1,4 +1,5 @@
 #include "bpr/application/review_composition_application_host.hpp"
+#include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_submission.hpp"
 #include "private_review_operations.hpp"
 #include <algorithm>
@@ -211,6 +212,32 @@ namespace bpr::application {
 	auto review_composition_application_host::restore(std::optional<core::git_commit_oid> aHead, std::optional<core::review_draft_id> aDraft) -> private_run_result<durable_draft_commit>
 	{
 		return attempt([&] { durable_draft_commit result; result.Scope = take(Store.frontier()).Scope; result.Records = take(Store.list_drafts()); std::erase_if(result.Records,[&](const auto& aRecord){return (aHead && aRecord.Binding.Revision.HeadOid != *aHead) || (aDraft && aRecord.Draft.Draft.Id != *aDraft);}); return result; });
+	}
+	auto review_composition_application_host::select_draft(const core::private_review_binding& aBinding, const core::source_line_ref aLine, const core::diff_semantic_index& aIndex, std::optional<std::string> aReplyThread) -> private_run_result<durable_draft_commit>
+	{
+		auto reopened = attempt([&] {
+			auto drafts = std::vector<review_comment_draft>{ };
+			for (const auto& record : take(Store.list_drafts())) {
+				if (record.Binding == aBinding) {
+					drafts.push_back(record.Draft.Draft);
+				}
+			}
+			return reopen_draft_at(drafts, aLine, aReplyThread);
+		});
+		if (!reopened) {
+			return std::unexpected(reopened.error());
+		}
+		if (*reopened) {
+			return restore(aBinding.Revision.HeadOid, **reopened);
+		}
+		if (aReplyThread) {
+			return allocate_reply(aBinding, aLine, aIndex, std::move(*aReplyThread));
+		}
+		const auto target = make_composition_target(aBinding, aLine, aIndex);
+		if (!target) {
+			return std::unexpected(private_run_error{ .Policy = target.error() });
+		}
+		return allocate_draft(*target, aIndex);
 	}
 	auto review_composition_application_host::change_draft(const core::revisioned_review_draft_command& aCommand) -> private_run_result<durable_draft_commit>
 	{

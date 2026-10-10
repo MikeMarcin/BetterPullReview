@@ -1364,6 +1364,25 @@ endfunction()
 # selecting the stale row it found before. Fixture access only; no grant,
 # target, provider, credential, GitHub write, mutation or publication path;
 # mutation pin unchanged; no new src/app source.
+# BPR-1374 reseal (2026-10-09), over the reseals above.
+# github_application.cpp: present_saved_drafts() also hands the window where
+# each unsent reply stands (core::decide_reply_drafts over
+# application::observe_reply_threads of the accepted snapshot), and does so
+# again when the conversations are published. compose_review_mutation()
+# remembers the reply the editor held; resume_reply()/resume_reply_at() hold it
+# again once its line is chosen after the Refresh, as
+# core::resume_reply_after_refresh decides. begin_review_reply() opens a saved
+# unsent reply on its thread (core::reopen_draft_at) before converting the
+# shown draft. A kept reply's Keep as comment and Discard go through the
+# existing private change_draft (core::keep_reply_as_comment,
+# core::discard_unsent_reply). Publish refuses a reply whose thread the
+# accepted snapshot no longer holds. private_review_workflow.cpp's line and
+# reply selection go through review_composition_application_host::select_draft.
+# Tests-on only: the reply-draft course, its fixture-access entry points and
+# the fixture's staged thread deletion; main.cpp parses --reply-draft-course and
+# reports its markers. No grant, target, provider, credential, mutation or
+# publication path is added; mutation pin unchanged; no new src/app source.
+# Reviewed on BPR-1374.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1382,7 +1401,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0cec65d0917aaafa420b93cf8e6940fce5a740142295a0fe1f4ea0ce30a7095c"
+		"0ca2256968d320b35794a8bdeb95a67809df983b559b74b9140523d626e3f4ac"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1586,7 +1605,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "21dda81a2698d05e665552aba733a488dbb83de033b826506e01da7dcc45e51e"
+        "7b094d21d69e7e85e1326c677236b4d07529685a13d3343fb9cddf6a58894d53"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

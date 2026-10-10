@@ -108,9 +108,12 @@
 #include <QWindow>
 
 #include <algorithm>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string_view>
+#include <system_error>
 #include <utility>
 
 namespace bpr::qt {
@@ -2038,6 +2041,13 @@ namespace bpr::qt {
 					return;
 				}
 				switch (aAction) {
+				case card_action::keep_reply_as_comment:
+				case card_action::discard_reply:
+					act_on_kept_reply(aAction, aIdentity);
+					break;
+				case card_action::copy_reply:
+					// [[BPR-1374]]. The notes copied the words themselves.
+					break;
 				case card_action::defect:
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
 					break;
@@ -7012,6 +7022,11 @@ namespace bpr::qt {
 
 	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts)
 	{
+		present_saved_drafts(std::move(aDrafts), { });
+	}
+
+	void workbench_window::present_saved_drafts(std::vector<core::review_comment_draft> aDrafts, std::vector<core::reply_draft_decision> aReplies)
+	{
 		// [[BPR-1345]]. The review in progress is what the saved drafts say:
 		// each pending in it, or held while it is submitted.
 		const auto pending    = static_cast<std::size_t>(std::ranges::count_if(aDrafts, [](const core::review_comment_draft& aDraft) { return core::pending_in_review(aDraft); }));
@@ -7023,7 +7038,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
-		ConversationPanel->cards()->set_saved_drafts(std::move(aDrafts));
+		ConversationPanel->cards()->set_saved_drafts(std::move(aDrafts), std::move(aReplies));
 		apply_thread_marks();
 		if (changed && ConversationPanel->cards()->writing_draft()) {
 			present_inline_draft();
@@ -8549,6 +8564,51 @@ namespace bpr::qt {
 	void workbench_window::set_start_review_dispatch(std::function<bool()> aDispatch)
 	{
 		StartReviewDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_unsent_reply_dispatch(std::function<void(core::review_draft_id, unsent_reply_action)> aDispatch)
+	{
+		UnsentReplyDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::act_on_kept_reply(const card_action aAction, const std::string& aIdentity)
+	{
+		// [[BPR-1374]]. The kept reply the note names, and no other.
+		const auto& cards = ConversationPanel->cards()->cards();
+		const auto  card  = std::ranges::find(cards, aIdentity, &thread_card::Id);
+		if (card == cards.end() || !card->Draft || !card->UnsentReply.has_value() || !UnsentReplyDispatch) {
+			return;
+		}
+		const auto prefix = conversation_cards_view::kept_reply_identity(core::review_draft_id{ 0U });
+		const auto stem   = std::string_view{ prefix }.substr(0U, prefix.size() - 1U);
+		auto       value  = std::uint64_t{ 0U };
+		const auto digits = std::string_view{ aIdentity }.substr(std::min(stem.size(), aIdentity.size()));
+		if (!aIdentity.starts_with(stem) || std::from_chars(digits.data(), digits.data() + digits.size(), value).ec != std::errc{ } || value == 0U) {
+			return;
+		}
+		const auto draft = core::review_draft_id{ value };
+		if (aAction == card_action::keep_reply_as_comment) {
+			UnsentReplyDispatch(draft, unsent_reply_action::keep_as_comment);
+			return;
+		}
+		if (DiscardReplyConfirmation != nullptr) {
+			DiscardReplyConfirmation->close();
+		}
+		auto* const box = new destructive_question{ *this, QStringLiteral("discardReplyConfirmation"), tr("Discard this reply?"),
+													tr("It was never sent, so GitHub does not have these words. This cannot be undone."), tr("Discard reply") };
+		if (!card->Posts.empty() && card->Line.has_value()) {
+			const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+			const auto path    = context.has_value() ? path_of(context->Key.File) : QString{ };
+			box->set_subject(path.section(QLatin1Char{ '/' }, -1), comment_lines(card->Side.value_or(core::diff_side::right), *card->Line - 1U, std::nullopt),
+							 card->Posts.front().Body.toStdString(), aIdentity, label_marks(), ConversationPanel->cards()->code_font());
+		}
+		DiscardReplyConfirmation = box;
+		connect(box, &QDialog::accepted, this, [this, draft] {
+			if (UnsentReplyDispatch) {
+				UnsentReplyDispatch(draft, unsent_reply_action::discard);
+			}
+		});
+		box->open();
 	}
 
 	void workbench_window::enter_overview_at(

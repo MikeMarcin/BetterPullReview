@@ -680,3 +680,16 @@ endif()
 bpr_enable_warnings(test_comment_range_draft_store)
 bpr_add_network_isolated_test(NAME application_comment_range_draft_store WINDOWS_UNCONTAINED COMMAND test_comment_range_draft_store)
 set_tests_properties(application_comment_range_draft_store PROPERTIES PASS_REGULAR_EXPRESSION "COMMENT_RANGE_DRAFT_STORE_OK")
+
+# [[BPR-1374]]. An unsent reply through the durable draft owners: held again
+# after a Refresh, presented after a restart, kept and flagged when its thread
+# is resolved or deleted on the server, kept as a comment or discarded.
+bpr_add_executable(test_reply_draft_survival reply_draft_survival_tests.cpp)
+target_link_libraries(test_reply_draft_survival PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3 BetterPullReview::Application)
+bpr_enable_hardening(test_reply_draft_survival)
+if(WIN32)
+    target_link_libraries(test_reply_draft_survival PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_reply_draft_survival)
+bpr_add_network_isolated_test(NAME application_reply_draft_survival WINDOWS_UNCONTAINED COMMAND test_reply_draft_survival)
+set_tests_properties(application_reply_draft_survival PROPERTIES PASS_REGULAR_EXPRESSION "REPLY_DRAFT_SURVIVAL_OK")

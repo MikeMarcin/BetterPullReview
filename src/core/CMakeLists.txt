@@ -96,6 +96,7 @@ add_library(
         src/review_round_trip.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
+        src/reply_draft_standing.cpp
         src/review_submission.cpp
         src/review_preflight.cpp
         src/sha1.cpp

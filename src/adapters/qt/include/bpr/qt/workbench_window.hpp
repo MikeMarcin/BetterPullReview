@@ -511,6 +511,14 @@ namespace bpr::qt {
 		/// the composition keeps the shown draft pending in the review and
 		/// answers whether it took it. Nothing is published.
 		void set_start_review_dispatch(std::function<bool()> aDispatch);
+		/// \brief [[BPR-1374]]. What a kept reply's note asks of the
+		/// composition: keep its words as a new comment on its line, or, once
+		/// the window has asked, discard it. Nothing is published.
+		enum class unsent_reply_action : std::uint8_t {
+			keep_as_comment,
+			discard,
+		};
+		void set_unsent_reply_dispatch(std::function<void(core::review_draft_id, unsent_reply_action)> aDispatch);
 		/// \brief [[BPR-1345]] v002. Where a confirmed Delete of a pending
 		/// comment on Finish your review goes: the composition deletes that
 		/// draft at the revision the page listed. Nothing is published.
@@ -641,6 +649,10 @@ namespace bpr::qt {
 		/// gutter marker and scroll-bar tick, whichever line is selected; the
 		/// selected line's draft is drawn as the editor holds it.
 		void present_saved_drafts(std::vector<core::review_comment_draft> aDrafts);
+		/// \brief [[BPR-1374]]. As above, with where each unsent reply stands
+		/// against the server's threads, as the core decided: on its thread's
+		/// note, or kept as a note of its own when its thread is gone.
+		void present_saved_drafts(std::vector<core::review_comment_draft> aDrafts, std::vector<core::reply_draft_decision> aReplies);
 		/// \brief [[BPR-0972]]. Adopts one thread's read state; empty means read.
 		///
 		/// \details The cards, the map and the gutter change for that thread
@@ -1812,6 +1824,10 @@ namespace bpr::qt {
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
 		QPointer<destructive_question>                            DeleteDraftConfirmation;
+		/// [[BPR-1374]]. A kept reply's actions, and Discard's question.
+		std::function<void(core::review_draft_id, unsent_reply_action)> UnsentReplyDispatch;
+		QPointer<destructive_question>                                  DiscardReplyConfirmation;
+		void                                                            act_on_kept_reply(card_action aAction, const std::string& aIdentity);
 		/// [[BPR-1133]]. Comment's arrow menu.
 		QMenu* CommentMenu = nullptr;
 		/// [[BPR-1132]]. The document tabs: the strip, where their gestures go,

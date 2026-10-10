@@ -691,22 +691,12 @@ namespace bpr::app {
 		if (!Binding || !Index) {
 			return;
 		}
-		const auto binding = *Binding;
-		const auto index   = Index;
-		post([binding, index, aLine](context& aContext) {
+		post([binding = *Binding, index = Index, aLine](context& aContext) {
+			// [[BPR-1374]]. The host opens the line's latest new comment again,
+			// as core::reopen_draft_at decides, or makes one.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
-			const auto                                       drafts = take(aContext.Store->list_drafts());
-			const auto                                       found  = std::ranges::find_if(drafts, [&](const auto& aRecord) {
-				return aRecord.Binding == binding && aRecord.Draft.Draft.Anchor == aLine
-					&& !aRecord.Draft.Draft.ReplyToThread
-					&& (aRecord.Draft.Draft.State == core::review_draft_state::drafting
-						|| aRecord.Draft.Draft.State == core::review_draft_state::publishing);
-			});
-
-			output.Drafts  = found == drafts.end()
-				? accepted(host.allocate_draft(decide(core::make_composition_target(binding, aLine, *index)), *index))
-				: accepted(host.restore(binding.Revision.HeadOid));
+			output.Drafts  = accepted(host.select_draft(binding, aLine, *index));
 			output.Refresh = false;
 			return output;
 		},
@@ -719,12 +709,12 @@ namespace bpr::app {
 			return;
 		}
 		post([binding = *Binding, index = Index, aLine, thread = std::move(aThread)](context& aContext) {
+			// [[BPR-1374]]. The reply already written in this thread opens
+			// again, whether it was written before a Refresh or a restart.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
-			const auto                                       drafts = take(aContext.Store->list_drafts());
-			const auto                                       found  = std::ranges::find_if(drafts, [&](const auto& aRecord) { return aRecord.Binding == binding && aRecord.Draft.Draft.Anchor == aLine && aRecord.Draft.Draft.ReplyToThread == thread && aRecord.Draft.Draft.State == core::review_draft_state::drafting; });
-			output.Drafts                                           = found == drafts.end() ? accepted(host.allocate_reply(binding, aLine, *index, thread)) : accepted(host.restore(binding.Revision.HeadOid, found->Draft.Draft.Id));
-			output.Refresh                                          = false;
+			output.Drafts  = accepted(host.select_draft(binding, aLine, *index, thread));
+			output.Refresh = false;
 			return output;
 		},
 			 std::move(aCompletion));

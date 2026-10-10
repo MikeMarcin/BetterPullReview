@@ -67,6 +67,13 @@ namespace bpr::application {
 		/// \brief Ordinary replies may use either exact side; they carry no composition acceptance.
 		[[nodiscard]] auto allocate_reply(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::string aThread) -> private_run_result<durable_draft_commit>;
 		[[nodiscard]] auto restore(std::optional<core::git_commit_oid> aHead = { }, std::optional<core::review_draft_id> aDraft = { }) -> private_run_result<durable_draft_commit>;
+		/// \brief [[BPR-1374]]. The draft choosing a line opens: the saved one
+		/// `core::reopen_draft_at` picks under this exact binding, or a new
+		/// one, a reply when `aReplyThread` names a thread.
+		/// \details The commit carries only the draft opened. A saved reply is
+		/// opened again by its thread's Reply, so a reply written before a
+		/// Refresh or a restart is the one shown, not a new empty one.
+		[[nodiscard]] auto select_draft(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::optional<std::string> aReplyThread = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief Uses the existing draft reducer; linked edits atomically retain a reviewer successor.
 		[[nodiscard]] auto change_draft(const core::revisioned_review_draft_command&) -> private_run_result<durable_draft_commit>;
 		/// \brief [[BPR-1345]]. Applies every command through the same draft

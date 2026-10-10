@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
@@ -90,6 +91,13 @@ namespace bpr::qt {
 		/// the window opens the review's summary when a review is in
 		/// progress.
 		finish_review,
+		/// [[BPR-1374]]. My kept reply, whose thread is gone: its words become
+		/// a new comment on its line, still unpublished.
+		keep_reply_as_comment,
+		/// [[BPR-1374]]. My kept reply's words, copied as written.
+		copy_reply,
+		/// [[BPR-1374]]. My kept reply is discarded, once the window has asked.
+		discard_reply,
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands
@@ -193,6 +201,15 @@ namespace bpr::qt {
 		/// [[BPR-1290]]. GitHub stores the thread as a file comment that its
 		/// code link places at a line (RFC-BPR-0022).
 		bool FileLevel = false;
+		/// [[BPR-1374]]. My unsent reply: on a thread's note, the reply I have
+		/// written in it and not sent; on my kept reply's own note, where its
+		/// thread stands. None when there is no unsent reply.
+		std::optional<core::reply_draft_standing> UnsentReply;
+		/// [[BPR-1374]]. What became of the thread an unsent reply answers, in
+		/// a sentence, drawn under the note's name; empty when nothing did.
+		QString Notice;
+		/// [[BPR-1374]]. My kept reply can become a new comment on its line.
+		bool KeepableAsComment = false;
 		/// How many of the posts are unread; the first post unread makes the
 		/// thread new.
 		std::size_t UnreadCount = 0U;
@@ -358,9 +375,21 @@ namespace bpr::qt {
 		/// \details The editor holds only the selected line's draft, so a draft
 		/// on any other line showed nothing until its line was chosen again.
 		void set_saved_drafts(std::vector<core::review_comment_draft> aDrafts);
-		void set_viewer_login(const QString& aLogin);
-		void set_thread_dispatch(card_thread_dispatch aDispatch);
-		void set_action_dispatch(card_action_dispatch aDispatch);
+		/// \brief [[BPR-1374]]. As above, with where each unsent reply stands
+		/// against the server's threads, as the core decided. A reply whose
+		/// thread is on this file marks that thread's note; a reply whose
+		/// thread is gone, or not known, is a note of its own at its line,
+		/// with what became of the thread, until it is kept as a comment or
+		/// discarded. Nothing here decides a standing.
+		void set_saved_drafts(std::vector<core::review_comment_draft> aDrafts, std::vector<core::reply_draft_decision> aReplies);
+		/// \brief [[BPR-1374]]. The sentence a kept or marked reply's note
+		/// shows for a standing; empty for one that needs none.
+		[[nodiscard]] static auto unsent_reply_notice(core::reply_draft_standing aStanding) -> QString;
+		/// \brief [[BPR-1374]]. The identity of a kept reply's note.
+		[[nodiscard]] static auto kept_reply_identity(core::review_draft_id aDraft) -> std::string;
+		void                      set_viewer_login(const QString& aLogin);
+		void                      set_thread_dispatch(card_thread_dispatch aDispatch);
+		void                      set_action_dispatch(card_action_dispatch aDispatch);
 		using defect_badges = std::map<std::string, std::pair<QString, QString>>;
 		void               set_defect_badges(defect_badges aBadges);
 		void               set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
@@ -536,7 +565,10 @@ namespace bpr::qt {
 			QString Body;
 			bool    Resolved = false;
 			bool    Draft    = false;
-			int     Height   = 0;
+			QString Notice;
+			int     Height = 0;
+			/// [[BPR-1374]]. How many lines the notice takes.
+			int NoticeLines = 0;
 			/// How many lines of the body the note shows: one when it fits,
 			/// otherwise two (one when resolved), the last elided.
 			int Lines = 0;
@@ -602,6 +634,7 @@ namespace bpr::qt {
 		std::optional<core::file_identity>                          AnchorFile;
 		std::optional<core::review_comment_draft>                   Draft;
 		std::vector<core::review_comment_draft>                     SavedDrafts;
+		std::vector<core::reply_draft_decision>                     UnsentReplies;
 		std::optional<core::file_comparison_digest>                 CurrentComparison;
 		card_line_locator                                           Locator;
 		card_thread_dispatch                                        ThreadDispatch;
