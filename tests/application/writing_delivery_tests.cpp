@@ -25,10 +25,13 @@ int main()
 	expect(decode(prefix + R"("safe\r\n😀","notes":[]})").has_value(), "bounded UTF8 rewrite decoded");
 	expect(!decode(prefix + R"("claim","notes":[]})", true), "empty field requires evidence");
 	expect(decode(prefix + R"("claim","notes":[{"kind":"recovered","text":"Existing statement","source_refs":["pr-description"]}]})", true).has_value(), "supplied provenance passes");
+	// [[BPR-1225]] A note about the person's own text may cite no source, but it is not evidence.
+	expect(decode(prefix + R"("x","notes":[{"kind":"recovered","text":"Kept the author's wording","source_refs":[]}]})").has_value(), "uncited recovered note passes");
+	expect(decode(prefix + R"("x","notes":[{"kind":"inferred","text":"claim","source_refs":[]}]})").has_value(), "uncited inferred note passes");
+	expect(!decode(prefix + R"("x","notes":[{"kind":"recovered","text":"claim","source_refs":[]}]})", true), "an uncited note is not evidence for an empty field");
 	for (const auto& bad : std::vector<std::string>{
 			 prefix + R"("x","notes":[],"publish":true})", prefix + R"("x","notes":[],"replacement_text":"y"})",
 			 prefix + R"("x","notes":[{"kind":"recovered","text":"claim","source_refs":["made-up"]}]})",
-			 prefix + R"("x","notes":[{"kind":"inferred","text":"claim","source_refs":[]}]})",
 			 prefix + R"("x","notes":[]} trailing)", std::string{ "\xff" }, std::string(32769, 'x') }) {
 		expect(!decode(bad), "malformed/extra/duplicate/forged/oversize rejected");
 	}

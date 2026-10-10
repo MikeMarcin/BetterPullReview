@@ -1654,7 +1654,9 @@ namespace bpr::application {
 		for (const auto& note : notes->Elements) {
 			const auto noteKind = bounded(note, "kind", 16, false), text = bounded(note, "text", 1024, false);
 			const auto references = refs(member(note, "source_refs"));
-			if (!exact(note, { "kind", "text", "source_refs" }) || !noteKind || (*noteKind != "recovered" && *noteKind != "inferred" && *noteKind != "uncertain") || !text || !references || (*noteKind != "uncertain" && references->empty())) {
+			// [[BPR-1225]] The owner, 2026-10-09: a note about the person's own
+			// text may cite no source. Only a cited note counts as evidence.
+			if (!exact(note, { "kind", "text", "source_refs" }) || !noteKind || (*noteKind != "recovered" && *noteKind != "inferred" && *noteKind != "uncertain") || !text || !references) {
 				return std::nullopt;
 			}
 			evidence = evidence || (*noteKind != "uncertain" && !references->empty());
