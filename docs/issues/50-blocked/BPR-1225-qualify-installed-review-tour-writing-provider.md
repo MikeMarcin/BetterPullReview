@@ -73,7 +73,7 @@ Full rows, commands and identities are in the
   unchanged. Two causes: the installed CLI is not signed in outside the
   desktop app (`claude auth status`: `loggedIn: false`), and the writing
   launch's `--bare` never reads a Claude account sign-in anyway
-  ([BPR-1375](../20-ready/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md)).
+  ([BPR-1375](../30-in-progress/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md)).
   The owner's model `claude-sonnet-5-5` was passed by a wrapper; the CLI logged
   it as `unrecognized_model` but no request reached the API to confirm or
   refuse it.
@@ -110,5 +110,5 @@ equivalent, the free version cli api same as codex". Writing runs the
 installed CLIs non-interactively on the owner's own subscription sign-in
 (Claude account for `claude -p`, ChatGPT account for Codex's non-interactive
 mode), never a paid API key. The work is
-[BPR-1375](../20-ready/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md);
+[BPR-1375](../30-in-progress/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md);
 this card's qualification course reruns on its result.

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1375"
 title: "Tool-free tour writing cannot use a signed-in Claude account"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
