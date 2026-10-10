@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0144"
 title: "Confirm review identity on a real account"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-0142","BPR-0610","BPR-0613","BPR-0614","BPR-0615"]
-parked_on: "awaiting-live-github"
 metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0008 closeout dependency"}
+acceptance: [{"criterion":"BPR-0144:three-dispositions-under-the-expected-login","outcome":"pass","revision":"e964b5a83","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-0144-acting-identity-on-a-real-account.md","detail":"MikeMarcin/BPR-Test#49 (author MikeMarcinTest, head 2e1d8b415ce3): staged_review_session --live-review-identity (harness 400e6ddc2) through the production review_submission_session over gh_cli_transport (gh 2.101.0) as the active gh account MikeMarcin submitted Comment 5476790660 COMMENTED, Request changes 5476790941 CHANGES_REQUESTED and an empty Approve 5476791271 APPROVED. Independent gh api reads as MikeMarcin and as MikeMarcinTest list each under user.login MikeMarcin."}},{"criterion":"BPR-0144:author-compared-to-the-active-account","outcome":"pass","revision":"e964b5a83","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-0144-acting-identity-on-a-real-account.md","detail":"Each review's user.login was compared by script to the /user login of the active gh account (MikeMarcin, id 7605339), the account the shipped composition's GitHub CLI sign-in showed on its card; all three equal."}},{"criterion":"BPR-0144:no-betterpullreview-metadata","outcome":"pass","revision":"e964b5a83","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-0144-acting-identity-on-a-real-account.md","detail":"Each review body is byte-identical to the text submitted (empty for Approve): no HTML comment, marker, link or application attribution; GraphQL shows the same three reviews and nothing else."}}]
 ---
 
 # Confirm review identity on a real account
@@ -114,3 +114,79 @@ The owner question above (which second account) is asked in a wizard, with the c
 
 - Wizard `bpr-second-account-20261009-v001` (session `c79054f3-14cf-44fe-9645-947ffd5f6d53`, 7 steps), state `/Users/jaeger/.mask/wizard/bpr-second-account-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps: name the account (login only); from it, fork BPR-Test and open pull request A ('BPR-0169 observer check') and pull request B ('BPR-0144 review identity') with no reviewers or labels; give their numbers. Then, in BetterPullReview v0.1.5, the signed private prerelease (DMG sha256 `b7c9378cc93c93c6435b1970456596281d346f09d45202fb558a92ae32e2e727`, matching the release's `.sha256` asset; `spctl` accepted it as Notarized Developer ID and `stapler validate` passed), downloaded to `/Users/jaeger/.mask/wizard/bpr-live-github-20261009-files/`, signed in as `MikeMarcin`, submit Comment, Request changes and Approve on B. Then BPR-1222's reviewer question, notes, and the agent's `gh api` read: each review's author against `MikeMarcin`, and no BetterPullReview marker.
 - BPR-Test is public with forking allowed; a fork pull request changes no repository setting or collaborator.
+
+## Owner wizard withdrawn, 2026-10-09
+
+The owner added a second GitHub account, `MikeMarcinTest`, so the question
+above no longer needs him. Wizard `bpr-second-account-20261009-v001`
+(session `c79054f3-14cf-44fe-9645-947ffd5f6d53`) was stopped with
+`wizard.py stop` and paused with 0 of 7 steps answered. Nothing from it was
+used; the v0.1.5 DMG under `bpr-live-github-20261009-files/` was not opened.
+
+## What MikeMarcinTest can do on BPR-Test, 2026-10-09
+
+Read through `gh` per command (`GH_TOKEN="$(gh auth token --user
+MikeMarcinTest)"`), never `gh auth switch`; no token printed or logged.
+
+- Account `MikeMarcinTest`, id 340367457, node `U_kgDOFEmYYQ`; token scopes
+  `gist, read:org, repo, workflow`.
+- On `MikeMarcin/BPR-Test` it has `pull` only (admin, maintain, push and
+  triage false); reading its own collaborator permission answers 403 "Must
+  have push access". No collaborator access is needed for these courses and
+  no repository setting or collaborator was changed.
+- Fork: `POST /repos/MikeMarcin/BPR-Test/forks` made `MikeMarcinTest/BPR-Test`
+  (id 1412580318). Branches and files on the fork through the contents API;
+  pull requests from the fork into `MikeMarcin/BPR-Test` open (201).
+- Review: as a reader of a public repository it can review and reply (its
+  replies on #50 posted 201).
+
+## Live course, 2026-10-09 (PDT; GitHub times UTC 2026-10-10)
+
+Pull request `MikeMarcin/BPR-Test#49`, "bpr-2acct: BPR-0144 review identity
+(disposable)", id 4807247668, node `PR_kwDOTyvof88AAAABHojHNA`, opened by
+`MikeMarcinTest` from `MikeMarcinTest:bpr-2acct-0144-identity`, head
+`2e1d8b415ce33ad1284b2f2ca34e82734c07ddc1`, base
+`e2a44aa8fef704de7373463222b1872e796918c6`, no reviews before the course.
+BPR-Test has no workflows (`actions/workflows` total 0).
+
+The acting account is the one `gh` has active, `MikeMarcin` (id 7605339,
+node `MDQ6VXNlcjc2MDUzMzk=`). The shipped composition, run offscreen by
+`live_second_account_course` (tests-on Release tree at `e964b5a83`), signed
+in through Use GitHub CLI after the read-consent question and its account
+card read "MikeMarcin", "GitHub.com, GitHub CLI".
+
+`staged_review_session --live-review-identity` (harness `400e6ddc2`, product
+source `e964b5a83`) submitted the three dispositions through
+`review_submission_session::submit_and_reconcile`, the session the desktop's
+`live_review_submission_provider` forwards to, over the production
+`gh_cli_transport` (gh 2.101.0). Each write followed the session's own
+`GET /user` and pull request reads; 15 calls, 3 writes,
+`X-RateLimit-Remaining` at or above 4113.
+
+| Disposition | Review | Node | State | Submitted (UTC) |
+|---|---|---|---|---|
+| Comment | 5476790660 | `PRR_kwDOTyvof88AAAABRnExhA` | COMMENTED | 01:07:00 |
+| Request changes | 5476790941 | `PRR_kwDOTyvof88AAAABRnEynQ` | CHANGES_REQUESTED | 01:07:04 |
+| Approve (empty body) | 5476791271 | `PRR_kwDOTyvof88AAAABRnEz5w` | APPROVED | 01:07:07 |
+
+Independent reads through `gh api`, REST as `MikeMarcin` and again as
+`MikeMarcinTest`, and GraphQL: exactly these three reviews; each `user.login`
+is `MikeMarcin`, compared to the active account's `/user` login, not merely
+present; `commit_id` the head above; `author_association` OWNER; each body
+byte-identical to the text submitted (empty for Approve), with no HTML
+comment, marker, link or application attribution added. `reviewDecision`
+APPROVED.
+
+What was not driven: the review composer's own Submit. A tests-enabled
+composition leaves the composer read-only without a fixture ("This window is
+read-only. Open a fixture to try review composition, or use a configured
+publishing build for your pull request."), and the tests-off application
+has no offscreen driver. The required evidence is GitHub's attribution of
+the three dispositions, which the production session path above gives.
+
+Cleanup: #49 closed by `MikeMarcinTest` at 01:26:28 UTC and its fork branch
+deleted. GitHub keeps submitted reviews; they stay on the closed pull
+request. The fork `MikeMarcinTest/BPR-Test` remains (the token has no
+`delete_repo` scope); it now holds only `main`.
+
+The card's three required items pass; it closes Done.
