@@ -12,6 +12,7 @@
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
 #include <QTextStream>
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <deque>
@@ -24,6 +25,7 @@
 #include <random>
 #include <semaphore.h>
 #include <span>
+#include <sys/stat.h>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -234,6 +236,106 @@ namespace {
 		return std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 	}
 
+	/// [[BPR-1373]]. The fixture's accounts, when `accounts` exists: one
+	/// `login id` per line. `active-account` names gh's global active account,
+	/// and `keychain-<login>` holds that login's (canary) token, as the keychain
+	/// would. Like gh, a launch with `GH_CONFIG_DIR` uses the login its
+	/// `hosts.yml` names when that login has a keychain entry, and otherwise
+	/// falls back silently to the active account.
+	struct fixture_account
+	{
+		std::string   Login;
+		std::uint64_t Id = 0U;
+	};
+
+	[[nodiscard]] auto fixture_account_named(const std::filesystem::path& aRoot, const std::string& aLogin) -> std::optional<fixture_account>
+	{
+		std::ifstream   input{ aRoot / "accounts" };
+		fixture_account account;
+		while (input >> account.Login >> account.Id) {
+			if (account.Login == aLogin) {
+				return account;
+			}
+		}
+		return std::nullopt;
+	}
+
+	[[nodiscard]] auto pinned_login(const QString& aDirectory) -> std::optional<std::string>
+	{
+		const auto hosts = read_text(std::filesystem::path{ aDirectory.toStdString() } / "hosts.yml");
+		const auto at    = hosts ? hosts->find("\n    user: ") : std::string::npos;
+		if (at == std::string::npos) {
+			return std::nullopt;
+		}
+		const auto begin = at + std::string_view{ "\n    user: " }.size();
+		return hosts->substr(begin, hosts->find('\n', begin) - begin);
+	}
+
+	[[nodiscard]] auto resolved_account(const std::filesystem::path& aRoot) -> std::optional<fixture_account>
+	{
+		auto       login     = read_text(aRoot / "active-account").value_or("");
+		const auto directory = QProcessEnvironment::systemEnvironment().value(QStringLiteral("GH_CONFIG_DIR"));
+		if (!directory.isEmpty()) {
+			if (const auto pinned = pinned_login(directory); pinned && std::filesystem::exists(aRoot / ("keychain-" + *pinned))) {
+				login = *pinned;
+			}
+		}
+		if (!std::filesystem::exists(aRoot / ("keychain-" + login))) {
+			return std::nullopt;
+		}
+		return fixture_account_named(aRoot, login);
+	}
+
+	/// [[BPR-1373]]. What every launch in account mode must hold, checked in
+	/// the child because the sandboxed fake may not write: no token variable,
+	/// no keychain canary in any argument or environment value, and, pinned,
+	/// an owner-only read-only directory holding only the two files.
+	[[nodiscard]] auto account_mode_violation(const std::filesystem::path& aRoot, const QStringList& aArguments) -> int
+	{
+		auto canaries = std::vector<std::string>{ };
+		for (const auto& entry : std::filesystem::directory_iterator{ aRoot }) {
+			if (entry.path().filename().string().starts_with("keychain-")) {
+				canaries.push_back(read_text(entry.path()).value_or(""));
+			}
+		}
+		const auto carries = [&](const QString& aText) {
+			return std::ranges::any_of(canaries, [&](const std::string& aCanary) { return !aCanary.empty() && aText.contains(QString::fromStdString(aCanary)); });
+		};
+		const auto environment = QProcessEnvironment::systemEnvironment();
+		for (const auto& name : environment.keys()) {
+			if (name == "GH_TOKEN" || name == "GITHUB_TOKEN" || name == "GH_ENTERPRISE_TOKEN" || name == "GITHUB_ENTERPRISE_TOKEN"
+				|| carries(environment.value(name))) {
+				return 13;
+			}
+		}
+		if (std::ranges::any_of(aArguments, carries)) {
+			return 13;
+		}
+		const auto directory = environment.value(QStringLiteral("GH_CONFIG_DIR"));
+		if (directory.isEmpty()) {
+			return std::filesystem::exists(aRoot / "require-pin") ? 14 : 0;
+		}
+		const std::filesystem::path path{ directory.toStdString() };
+		struct stat                 status{ };
+		if (::lstat(path.c_str(), &status) != 0 || !S_ISDIR(status.st_mode) || (status.st_mode & 07777U) != 0500U) {
+			return 15;
+		}
+		auto names = std::vector<std::string>{ };
+		for (const auto& entry : std::filesystem::directory_iterator{ path }) {
+			names.push_back(entry.path().filename().string());
+			if (::lstat(entry.path().c_str(), &status) != 0 || !S_ISREG(status.st_mode) || (status.st_mode & 07777U) != 0400U) {
+				return 15;
+			}
+		}
+		std::ranges::sort(names);
+		const auto hosts = read_text(path / "hosts.yml").value_or("");
+		if (names != std::vector<std::string>{ "config.yml", "hosts.yml" } || carries(QString::fromStdString(hosts))
+			|| hosts.find("oauth_token") != std::string::npos) {
+			return 15;
+		}
+		return 0;
+	}
+
 	/// [[BPR-1370]]. A GraphQL blob read answered from the fixture's store:
 	/// `text-<oid>` is a text blob, `binary-<oid>` a binary one, anything else
 	/// missing. The viewer is `graphql-viewer` or the fixture account.
@@ -253,7 +355,11 @@ namespace {
 				repository.insert(alias, QJsonValue::Null);
 			}
 		}
-		const auto  viewer = read_text(aRoot / "graphql-viewer").value_or(R"({"login":"fixture","databaseId":203})");
+		auto viewer = read_text(aRoot / "graphql-viewer").value_or(R"({"login":"fixture","databaseId":203})");
+		if (std::filesystem::exists(aRoot / "accounts")) {
+			const auto account = resolved_account(aRoot);
+			viewer             = account ? R"({"login":")" + account->Login + R"(","databaseId":)" + std::to_string(account->Id) + "}" : "{}";
+		}
 		QJsonObject data{ { "repository", repository }, { "viewer", QJsonDocument::fromJson(QByteArray::fromStdString(viewer)).object() } };
 		return QJsonDocument{ QJsonObject{ { "data", data } } }.toJson(QJsonDocument::Compact);
 	}
@@ -263,6 +369,12 @@ namespace {
 		const auto executable = std::filesystem::path{ aArguments[0].toStdString() };
 		const auto root       = executable.parent_path();
 		count_launch(root);
+		const auto accountMode = std::filesystem::exists(root / "accounts");
+		if (accountMode) {
+			if (const auto violation = account_mode_violation(root, aArguments); violation != 0) {
+				return violation;
+			}
+		}
 		if (aArguments.size() >= 3 && aArguments.back() == "--help") {
 			if (std::filesystem::exists(root / "wait-gh-help")) {
 				std::this_thread::sleep_for(std::chrono::seconds{ 20 });
@@ -362,6 +474,15 @@ namespace {
 			if (std::filesystem::exists(root / "fail-viewer")) {
 				return 1;
 			}
+			if (accountMode) {
+				const auto account = resolved_account(root);
+				if (!account) {
+					return 1;
+				}
+				std::cout << "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\nX-RateLimit-Used: 1\r\nX-RateLimit-Reset: 2000000000\r\nX-RateLimit-Resource: core\r\n\r\n{\"id\":"
+						  << account->Id << ",\"node_id\":\"U_fixture\",\"login\":\"" << account->Login << "\",\"name\":\"Fixture\"}";
+				return 0;
+			}
 			const bool switched = std::filesystem::exists(root / "switch-viewer");
 			std::cout << "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\nX-RateLimit-Used: 1\r\nX-RateLimit-Reset: 2000000000\r\nX-RateLimit-Resource: core\r\n\r\n{\"id\":" << (switched ? 999 : 203) << ",\"node_id\":\"U_fixture\",\"login\":\"fixture\",\"name\":\"Fixture\"}";
 			return 0;
@@ -369,6 +490,14 @@ namespace {
 		if ((aArguments.size() == 19 || aArguments.size() == 21) && aArguments[1] == "repo" && aArguments[2] == "clone") {
 			if (std::filesystem::exists(root / "fail-clone")) {
 				return 1;
+			}
+			// [[BPR-1373]]. The clone, and the credential helper it would
+			// launch, must act as the account the course expects.
+			if (const auto expected = read_text(root / "clone-login"); expected) {
+				const auto account = resolved_account(root);
+				if (!account || account->Login != *expected) {
+					return 12;
+				}
 			}
 			if (aArguments.size() == 21 && (aArguments[19] != "--depth=1" || aArguments[20] != "--filter=blob:none")) {
 				return 6;
@@ -525,6 +654,41 @@ namespace {
 		std::deque<std::function<void()>> Tasks;
 	};
 
+	/// [[BPR-1373]]. Every launch the lease's own runner made: its arguments,
+	/// environment values, standard input and kept output, as one text each.
+	[[nodiscard]] auto recorded_launches() -> std::vector<std::string>&
+	{
+		static std::vector<std::string> launches;
+		return launches;
+	}
+
+	class recording_process final : public github_cli_process_port
+	{
+	public:
+		explicit recording_process(std::unique_ptr<github_cli_process_port> aInner)
+			: Inner{ std::move(aInner) }
+		{ }
+		auto run(const github_cli_process_request& aRequest, std::stop_token aStop) -> github_cli_process_result override
+		{
+			auto text = aRequest.Executable + '\n' + aRequest.StandardInput + '\n';
+			for (const auto& argument : aRequest.Arguments) {
+				text += argument + '\n';
+			}
+			for (const auto& entry : aRequest.Environment) {
+				text += entry.Name + '=' + entry.Value + '\n';
+			}
+			auto result = Inner->run(aRequest, aStop);
+			if (result) {
+				text += result->StandardOutput;
+			}
+			recorded_launches().push_back(std::move(text));
+			return result;
+		}
+
+	private:
+		std::unique_ptr<github_cli_process_port> Inner;
+	};
+
 	/// The composition's CLI read transport (`owned_cli_read_transport`):
 	/// one gh_cli_transport over one process runner for the account's own
 	/// requests, and an exact Git transport per comparison read.
@@ -535,7 +699,7 @@ namespace {
 	public:
 		fixture_cli_transport(const validated_github_host_profile& aProfile, const validated_gh_cli_configuration& aConfiguration,
 							  core::github_session_request_context aSession)
-			: Process{ make_github_cli_process_runner() }
+			: Process{ std::make_unique<recording_process>(make_github_cli_process_runner()) }
 			, Transport{ aProfile, aConfiguration, *Process }
 			, Profile{ aProfile }
 			, Configuration{ aConfiguration }
@@ -606,12 +770,25 @@ namespace {
 	struct cli_account_lease
 	{
 		cli_account_lease(const validated_github_host_profile& aProfile, const validated_gh_cli_configuration& aConfiguration,
-						  const core::github_session_request_context& aSession)
+						  const core::github_session_request_context& aSession, const std::string_view aLogin = "fixture")
 			: Factory{ std::make_shared<fixture_cli_factory>(aConfiguration) }
 		{
 			auto provider = make_github_provider(std::span<const validated_github_host_profile>{ &aProfile, 1U }, Effects, Factory);
 			expect(provider.has_value(), "the provider composes over the fixture CLI");
-			Provider = std::move(*provider);
+			Provider               = std::move(*provider);
+			const auto  completion = sign_in(aProfile, aSession);
+			const auto* success    = completion ? std::get_if<application::github_viewer_success>(&*completion) : nullptr;
+			expect(success != nullptr && success->Viewer.Account == core::github_account_id{ 203U } && success->Viewer.Login == aLogin,
+				   "the CLI sign-in observes the fixture account");
+			Lease = success->AccountTransport;
+			Git   = dynamic_cast<application::git_smart_transport_factory_port*>(Lease.get());
+			expect(Git != nullptr, "the CLI account lease reads Git objects");
+		}
+
+		/// One CLI sign-in through this lease's provider.
+		[[nodiscard]] auto sign_in(const validated_github_host_profile& aProfile, const core::github_session_request_context& aSession)
+			-> std::optional<application::github_viewer_completion>
+		{
 			const application::github_viewer_request request{
 				.Context   = aSession,
 				.Authority = {
@@ -628,12 +805,7 @@ namespace {
 			std::optional<application::github_viewer_completion> completion;
 			Provider->observe_viewer({ .Request = request, .Authentication = std::monostate{ } }, [&](auto aCompletion) { completion = std::move(aCompletion); });
 			Effects.drain();
-			const auto* success = completion ? std::get_if<application::github_viewer_success>(&*completion) : nullptr;
-			expect(success != nullptr && success->Viewer.Account == core::github_account_id{ 203U } && success->Viewer.Login == "fixture",
-				   "the CLI sign-in observes the fixture account");
-			Lease = success->AccountTransport;
-			Git   = dynamic_cast<application::git_smart_transport_factory_port*>(Lease.get());
-			expect(Git != nullptr, "the CLI account lease reads Git objects");
+			return completion;
 		}
 
 		queued_effects                                 Effects;
@@ -717,6 +889,127 @@ namespace {
 		std::filesystem::remove(aRoot / "graphql-from-store");
 		std::filesystem::remove(aRoot / ("text-" + aLeft.toStdString()));
 		std::filesystem::remove(aRoot / ("text-" + aRight.toStdString()));
+	}
+
+	/// [[BPR-1373]]. A pinned CLI profile over a fixture gh holding three
+	/// accounts: each read stays on the pinned account while gh's active
+	/// account switches, the clone is pinned too, and gh's silent fallback to
+	/// the active account is refused rather than read through.
+	void pinned_account_course(const std::filesystem::path& aRoot, const validated_github_host_profile& aUnpinnedProfile,
+							   const validated_gh_cli_configuration& aConfiguration, const core::github_session_request_context& aSession,
+							   const application::git_smart_request_context& aContext, const QByteArray& aBlob)
+	{
+		const auto canaries = std::array<std::string, 3U>{ "gho_bpr1373CanaryOwner000000000000000000", "gho_bpr1373CanaryTester00000000000000000",
+														   "gho_bpr1373CanaryOther000000000000000000" };
+		write(aRoot / "accounts", "owner 301\ntester 203\nother 302\n");
+		write(aRoot / "keychain-owner", canaries[0]);
+		write(aRoot / "keychain-tester", canaries[1]);
+		write(aRoot / "keychain-other", canaries[2]);
+		write(aRoot / "active-account", "owner");
+		write(aRoot / "graphql-from-store", "1");
+		write(aRoot / ("text-" + aBlob.toStdString()), "complete local contents\n");
+		recorded_launches().clear();
+
+		auto candidate            = cloud_candidate();
+		candidate.CliAccountLogin = "tester";
+		const auto profile        = validate_github_host_profile(candidate);
+		const auto pinned         = pin_gh_cli_configuration(aConfiguration, "github.com", "tester");
+		expect(profile && profile->cli_account_login() == "tester" && pinned, "a CLI profile and its configuration pin the tester account");
+		const auto blob = *core::parse_git_blob_oid(aBlob.toStdString());
+		const auto read = [&](application::git_smart_transport& aTransport) {
+			return aTransport->read_exact_blob({ aContext, blob, application::maximum_git_exact_blob_bytes }, { });
+		};
+		const auto leftovers = [&] {
+			auto count = 0U;
+			for (const auto& entry : std::filesystem::directory_iterator{ aConfiguration.neutral_working_directory() }) {
+				count += entry.path().filename().string().starts_with(gh_cli_account_directory_prefix) ? 1U : 0U;
+			}
+			return count;
+		};
+		constexpr application::git_protocol_v2_fetch_limits limits{ .MaximumWireBytes = 1048576, .MaximumPackBytes = 1048576, .MaximumProgressBytes = 1024, .MaximumPackets = 1024 };
+
+		write(aRoot / "require-pin", "1");
+		write(aRoot / "clone-login", "tester");
+		{
+			cli_account_lease lease{ *profile, *pinned, aSession, "tester" };
+			auto              transport = lease.Git->acquire(aContext);
+			expect(transport && read(*transport), "a pinned lease signs in and reads as tester while owner is gh's active account");
+			for (const auto* active : { "other", "tester", "owner" }) {
+				write(aRoot / "active-account", active);
+				expect(read(*transport).has_value() && !(*transport)->revoked(),
+					   "a pinned read stays on its account while gh's active account switches");
+			}
+			recording_pack_sink sink{ core::git_hash_algorithm::sha1 };
+			const auto          fetched = application::acquire_git_protocol_v2_pack(**transport, aContext, { }, sink, limits, { });
+			expect(fetched.has_value() && sink.Finished, "the clone runs pinned: the fixture refuses a clone acting as any other account");
+			write(aRoot / "clone-login", "owner");
+			recording_pack_sink refusedSink{ core::git_hash_algorithm::sha1 };
+			const auto          refusedClone = application::acquire_git_protocol_v2_pack(**transport, aContext, { }, refusedSink, limits, { });
+			const auto*         refusedError = refusedClone ? nullptr : std::get_if<application::git_smart_transport_error>(&refusedClone.error());
+			expect(refusedError && refusedError->Step == application::git_smart_transport_step::clone && refusedSink.Received.empty(),
+				   "the fixture's clone check is live: a clone it does not see as the expected account fails");
+			write(aRoot / "clone-login", "tester");
+		}
+		expect(leftovers() == 0U, "every pinned launch removed its private configuration");
+
+		// Before [[BPR-1373]] every profile was unpinned and followed gh's active
+		// account; the switch refuses that lease.
+		std::filesystem::remove(aRoot / "require-pin");
+		std::filesystem::remove(aRoot / "clone-login");
+		write(aRoot / "active-account", "tester");
+		{
+			cli_account_lease lease{ aUnpinnedProfile, aConfiguration, aSession, "tester" };
+			auto              transport = lease.Git->acquire(aContext);
+			expect(transport && read(*transport), "an unpinned lease reads as gh's active account");
+			write(aRoot / "active-account", "owner");
+			const auto switched = read(*transport);
+			expect(!switched && switched.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(),
+				   "an unpinned lease is refused when gh's active account switches (the behaviour before)");
+		}
+
+		// gh's silent fallback: the pinned login has left the keychain, so gh
+		// answers as the active account. The viewer check refuses it.
+		write(aRoot / "require-pin", "1");
+		{
+			cli_account_lease lease{ *profile, *pinned, aSession, "tester" };
+			auto              transport = lease.Git->acquire(aContext);
+			expect(transport && read(*transport), "a pinned lease reads before its account signs out");
+			std::filesystem::remove(aRoot / "keychain-tester");
+			const auto fallback = read(*transport);
+			expect(!fallback && fallback.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked()
+					   && !lease.Git->acquire(aContext),
+				   "a read gh answers as the active account after a silent fallback is refused, and refuses the lease");
+			const auto  signIn = lease.sign_in(*profile, aSession);
+			const auto* error  = signIn ? std::get_if<application::github_viewer_error>(&*signIn) : nullptr;
+			expect(error && error->Error.Failure == application::github_provider_failure::authentication && error->Error.AccountMismatch,
+				   "signing in again while the account is signed out in gh is refused as a mismatch, never as the active account");
+			write(aRoot / "keychain-tester", canaries[1]);
+			const auto again = lease.sign_in(*profile, aSession);
+			expect(again && std::holds_alternative<application::github_viewer_success>(*again), "signed back in, the pinned profile signs in again");
+			write(aRoot / "accounts", "owner 301\ntester 204\nother 302\n");
+			const auto  renamed      = lease.sign_in(*profile, aSession);
+			const auto* renamedError = renamed ? std::get_if<application::github_viewer_error>(&*renamed) : nullptr;
+			expect(renamedError && renamedError->Error.AccountMismatch,
+				   "a login that now names another account ID is refused: the profile is bound to host, login and account ID");
+			write(aRoot / "accounts", "owner 301\ntester 203\nother 302\n");
+		}
+		expect(leftovers() == 0U, "refused and fallen-back launches removed their private configurations too");
+
+		auto launches = 0U;
+		for (const auto& text : recorded_launches()) {
+			++launches;
+			for (const auto& canary : canaries) {
+				expect(text.find(canary) == std::string::npos, "no keychain token appears in a launch's arguments, environment, input or output");
+			}
+			expect(text.find("GH_TOKEN") == std::string::npos && text.find("GITHUB_TOKEN") == std::string::npos,
+				   "no launch sets a token variable");
+		}
+		expect(launches > 0U, "the lease's launches were recorded");
+		std::cout << "pinned account course: " << launches << " lease launches recorded, none carrying a token\n";
+		for (const auto* name : { "accounts", "keychain-owner", "keychain-tester", "keychain-other", "active-account", "graphql-from-store", "require-pin" }) {
+			std::filesystem::remove(aRoot / name);
+		}
+		std::filesystem::remove(aRoot / ("text-" + aBlob.toStdString()));
 	}
 
 	void contract()
@@ -935,6 +1228,7 @@ namespace {
 		}
 		std::filesystem::remove(root / "wait-blob");
 		cold_open_course(root, *profile, *configuration, session, context, blob, changedBlob);
+		pinned_account_course(root, *profile, *configuration, session, context, blob);
 		{
 			// [[BPR-1327]]. A batch is one GraphQL read; each answer is checked
 			// against its own object ID and a bad one does not spoil the rest.

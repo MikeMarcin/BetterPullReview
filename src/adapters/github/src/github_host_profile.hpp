@@ -31,9 +31,18 @@ namespace bpr::adapters::github {
 		std::string                                  Hostname;
 		std::string                                  RestRoot;
 		std::string                                  GraphqlRoot;
+		/// [[BPR-1373]]. The `gh` account a GitHub CLI profile is pinned to;
+		/// empty for an unpinned CLI profile and for every other transport.
+		std::string CliAccountLogin;
 
 		auto operator==(const github_host_profile_candidate&) const -> bool = default;
 	};
+
+	/// \brief Whether \p aLogin may name a GitHub CLI profile's account. [[BPR-1373]]
+	/// \details One to 64 ASCII letters, digits, `-` or `_`, beginning with a
+	/// letter or digit: GitHub's login alphabet (GHES managed users add `_`).
+	/// Nothing else is ever written into a private `gh` configuration.
+	[[nodiscard]] auto valid_cli_account_login(std::string_view aLogin) noexcept -> bool;
 
 	enum class github_profile_failure : std::uint8_t {
 		invalid_profile_identity,
@@ -48,6 +57,7 @@ namespace bpr::adapters::github {
 		invalid_hostname,
 		invalid_rest_root,
 		invalid_graphql_root,
+		invalid_cli_account,
 	};
 
 	class validated_github_host_profile final
@@ -83,6 +93,8 @@ namespace bpr::adapters::github {
 		[[nodiscard]] auto rest_route_prefix() const noexcept -> std::string_view;
 		[[nodiscard]] auto graphql_route() const noexcept -> std::string_view;
 		[[nodiscard]] auto rest_api_version() const noexcept -> std::string_view;
+		/// \brief [[BPR-1373]]. The pinned `gh` login; empty when unpinned.
+		[[nodiscard]] auto cli_account_login() const noexcept -> std::string_view;
 
 	private:
 		explicit validated_github_host_profile(
@@ -99,6 +111,7 @@ namespace bpr::adapters::github {
 		std::string                                  Hostname;
 		std::string                                  RestRoot;
 		std::string                                  GraphqlRoot;
+		std::string                                  CliAccountLogin;
 
 		friend auto validate_github_host_profile(
 			const github_host_profile_candidate& aCandidate)

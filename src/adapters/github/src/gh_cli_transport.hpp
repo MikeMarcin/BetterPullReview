@@ -112,6 +112,19 @@ namespace bpr::adapters::github::detail {
 		gh_cli_help_topic::auth_git_credential,
 	};
 
+	/// \brief The one `gh` account a pinned configuration's launches use.
+	/// \details [[BPR-1373]]. Carries no credential. Every `gh` launch of a
+	/// pinned configuration runs through `run_gh_cli`, which hands the child a
+	/// private configuration directory naming only this host and login, so
+	/// `gh` resolves that login's keychain token itself.
+	struct gh_cli_account_pin
+	{
+		std::string Hostname;
+		std::string Login;
+
+		auto operator==(const gh_cli_account_pin&) const -> bool = default;
+	};
+
 	class validated_gh_cli_configuration final
 	{
 	public:
@@ -128,6 +141,8 @@ namespace bpr::adapters::github::detail {
 			-> const std::filesystem::path&;
 		[[nodiscard]] auto neutral_working_directory() const noexcept
 			-> const std::filesystem::path&;
+		/// \brief The account every `gh` launch is pinned to; empty when unpinned.
+		[[nodiscard]] auto pin() const noexcept -> const std::optional<gh_cli_account_pin>&;
 
 	private:
 		friend class gh_cli_transport;
@@ -139,7 +154,19 @@ namespace bpr::adapters::github::detail {
 		std::filesystem::path                             Executable;
 		std::filesystem::path                             NeutralWorkingDirectory;
 		std::vector<github_cli_process_environment_entry> Environment;
+		std::optional<gh_cli_account_pin>                 Pin;
 
+		friend auto pin_gh_cli_configuration(
+			const validated_gh_cli_configuration& aConfiguration,
+			std::string_view aHostname, std::string_view aLogin)
+			-> std::optional<validated_gh_cli_configuration>;
+		friend auto run_gh_cli(
+			github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
+			github_cli_process_request aRequest, std::stop_token aStop)
+			-> github_cli_process_result;
+		friend auto compile_gh_cli_auth_inventory_request(
+			const validated_gh_cli_configuration& aConfiguration)
+			-> github_cli_process_request;
 		friend auto validate_gh_cli_configuration(
 			const gh_cli_configuration_candidate& aCandidate)
 			-> std::expected<
@@ -184,6 +211,32 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto validate_gh_cli_configuration(
 		const gh_cli_configuration_candidate& aCandidate)
 		-> gh_cli_configuration_result;
+
+	/// \brief The same configuration, pinned to one account. [[BPR-1373]]
+	/// \details Refuses a hostname that is not canonical or a login outside
+	/// `valid_cli_account_login`, and refuses to re-pin a pinned one.
+	[[nodiscard]] auto pin_gh_cli_configuration(
+		const validated_gh_cli_configuration& aConfiguration,
+		std::string_view aHostname, std::string_view aLogin)
+		-> std::optional<validated_gh_cli_configuration>;
+
+	/// \brief The name of a private configuration directory under the
+	/// configuration's neutral working directory.
+	inline constexpr std::string_view gh_cli_account_directory_prefix = "bpr-gh-account-";
+
+	/// \brief Runs one `gh` launch compiled from \p aConfiguration.
+	/// \details [[BPR-1373]]. Unpinned, it is `aProcess.run`. Pinned, it first
+	/// creates a fresh directory named `gh_cli_account_directory_prefix` and six
+	/// random characters under the neutral working directory, writes
+	/// `config.yml` (`version: "1"`) and a `hosts.yml` naming only the pinned
+	/// host and login, makes both files 0400 and the directory 0500, and adds
+	/// `GH_CONFIG_DIR` to this child's environment alone. It runs the child and
+	/// then removes the directory. A launch whose directory cannot be made is
+	/// refused as `start_failure` without running. No token variable is ever
+	/// set, and an existing `GH_CONFIG_DIR` entry refuses the launch.
+	[[nodiscard]] auto run_gh_cli(
+		github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
+		github_cli_process_request aRequest, std::stop_token aStop) -> github_cli_process_result;
 
 	using gh_cli_invocation_result = std::expected<
 		github_cli_process_request,
@@ -233,6 +286,21 @@ namespace bpr::adapters::github::detail {
 		malformed_response,
 	};
 
+	/// \brief One account in `gh`'s full inventory. [[BPR-1373]]
+	/// \details No token, scopes or credential. `SignedIn` is `gh`'s own
+	/// `state` of `success`; `KeychainHeld` is a `tokenSource` of `keyring`,
+	/// the only kind a private configuration can reach.
+	struct gh_cli_inventory_account
+	{
+		std::string Hostname;
+		std::string Login;
+		bool        Active       = false;
+		bool        SignedIn     = false;
+		bool        KeychainHeld = false;
+
+		auto operator==(const gh_cli_inventory_account&) const -> bool = default;
+	};
+
 	/// \brief Minimum `gh` release, RFC-BPR-0015's account-discovery and API floor.
 	/// \details 2.96 is where the structured `auth status --json hosts` inventory
 	/// that admits a CLI profile was established. No later operation the app runs
@@ -274,6 +342,18 @@ namespace bpr::adapters::github::detail {
 		-> std::expected<
 			std::vector<gh_cli_authenticated_account>,
 			gh_cli_auth_status_failure>;
+
+	/// \brief Compiles `gh auth status --json hosts`, every account. [[BPR-1373]]
+	/// \details Write-denied and token-free like the active inventory. It
+	/// always reads `gh`'s own configuration: it never runs pinned.
+	[[nodiscard]] auto compile_gh_cli_auth_inventory_request(
+		const validated_gh_cli_configuration& aConfiguration)
+		-> github_cli_process_request;
+
+	/// \brief Parses every account of the full inventory, in host then
+	/// listed order. A login listed twice for one host is malformed.
+	[[nodiscard]] auto parse_gh_cli_auth_inventory(std::string_view aOutput)
+		-> std::expected<std::vector<gh_cli_inventory_account>, gh_cli_auth_status_failure>;
 
 	/// \brief Compiles one exact-commit clone into an owned, write-confined store.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(

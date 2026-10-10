@@ -5285,6 +5285,18 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::set_github_cli_check_dispatch(github_cli_discovery_dispatch aDispatch)
+	{
+		GithubCliCheckDispatch = std::move(aDispatch);
+		update_server_cards();
+	}
+
+	void workbench_window::present_cli_accounts(std::map<std::string, std::vector<server_card_cli_account>, std::less<>> aAccounts)
+	{
+		CliAccountsByHost = std::move(aAccounts);
+		update_server_cards();
+	}
+
 	void workbench_window::present_github_cli_discovery(
 		const github_cli_discovery_state aState, const std::size_t aAccounts)
 	{
@@ -5301,19 +5313,19 @@ namespace bpr::qt {
 			GithubCliDiscoveryStatus->hide();
 			break;
 		case github_cli_discovery_state::discovering:
-			GithubCliDiscoveryStatus->setText(QStringLiteral("Checking active GitHub CLI accounts…"));
+			GithubCliDiscoveryStatus->setText(QStringLiteral("Checking GitHub CLI accounts…"));
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::ready:
 			GithubCliDiscoveryStatus->setText(
-				QStringLiteral("Found %1 active GitHub CLI account%2.")
+				QStringLiteral("Found %1 GitHub CLI account%2.")
 					.arg(aAccounts)
 					.arg(aAccounts == 1U ? QString{ } : QStringLiteral("s")));
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::empty:
 			GithubCliDiscoveryStatus->setText(QStringLiteral(
-				"GitHub CLI reported no active authenticated accounts. Run gh auth login, then try again."));
+				"GitHub CLI reported no signed-in accounts. Run gh auth login, then try again."));
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::unsupported_version:
@@ -5332,6 +5344,7 @@ namespace bpr::qt {
 			GithubCliDiscoveryStatus->show();
 			break;
 		}
+		update_server_cards();
 		update_sign_in_surface();
 	}
 
@@ -11319,6 +11332,12 @@ namespace bpr::qt {
 					[this](const application::saved_server& aServer) {
 						confirm_forget_server(aServer);
 					},
+				.CheckCliAccounts =
+					[this] {
+						if (GithubCliCheckDispatch && GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
+							GithubCliCheckDispatch();
+						}
+					},
 			},
 			ServerCardColumn->parentWidget(),
 		};
@@ -11419,6 +11438,25 @@ namespace bpr::qt {
 			if (holdsSignIn && deviceSigning && !signedIn) {
 				shown.State = server_card_state::signing_in;
 			}
+			// [[BPR-1373]]. Every gh account on this host from the last check.
+			// A refused session on an account gh has signed out is said as
+			// that, not as a failure to connect: gh fell back to its active
+			// account and the viewer check refused it.
+			if (const auto listed = CliAccountsByHost.find(card->hostname()); listed != CliAccountsByHost.end()) {
+				shown.CliAccounts = listed->second;
+				if (shown.State == server_card_state::refused && shown.Chosen.has_value()) {
+					const auto chosen = std::ranges::find_if(shown.CliAccounts, [&](const server_card_cli_account& aAccount) {
+						return aAccount.Profile == shown.Chosen && aAccount.State != server_card_cli_account_state::signed_in;
+					});
+					if (chosen != shown.CliAccounts.end()) {
+						shown.State       = server_card_state::signed_out;
+						shown.KeptGrant   = kept_grant::none;
+						shown.LastProblem = QStringLiteral("%1 is signed out in gh, so this profile is signed out too. Sign it in with gh auth login, then check gh again.")
+												.arg(QString::fromStdString(chosen->Login));
+					}
+				}
+			}
+			shown.CliCheckAdmitted = static_cast<bool>(GithubCliCheckDispatch) && GithubCliDiscoveryState != github_cli_discovery_state::discovering;
 			// [[BPR-0774]]. An enterprise server's card remembers exactly the
 			// record the queue keeps for its hostname.
 			shown.RememberAdmitted = card->enterprise() && QueueReady && static_cast<bool>(SavedServerDispatch);

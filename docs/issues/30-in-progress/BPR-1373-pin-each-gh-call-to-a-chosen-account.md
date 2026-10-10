@@ -116,3 +116,82 @@ keychain entry, and its own `gh auth status` reports the missing login as
   checked.
 - Owner look at Accounts & hosts: Accept or Reject.
 - `DOCUMENTATION_OK`; clang-format 22 on touched C++.
+
+## Implementation (2026-10-09)
+
+- Adapter: `gh_cli_account_pin`, `pin_gh_cli_configuration` and `run_gh_cli`
+  (`gh_cli_transport`) make the per-call private directory. The transport's
+  API, probe and mutation launches and the Git transport's blob, version,
+  help and clone launches go through it. A pinned transport no longer
+  observes the user's global `config.yml` and `hosts.yml`.
+  `compile_gh_cli_auth_inventory_request` and `parse_gh_cli_auth_inventory`
+  read the full inventory. `github_host_profile_candidate::CliAccountLogin`
+  holds the login, with `valid_cli_account_login`. At CLI sign-in the
+  provider refuses a viewer whose login is not the profile's, or whose ID
+  differs from the first one bound for that profile in this run, as an
+  account mismatch.
+- Application: discovery reads the full inventory and registers one CLI
+  profile per signed-in, keychain-held host and login. `make_cli` pins the
+  configuration for that profile. A refused pinned session runs the inventory
+  again once. A process-wide registry in the composition root records which
+  BPR profile uses which pinned account, for "Used by".
+- Qt: each server card lists every `gh` account (`server_card_cli_account`),
+  with Use for this profile, Used here and Check gh again. A refused session
+  on an account `gh` has signed out shows as signed out. In the sign-in
+  dialog, the single CLI offer stays ([[BPR-0803]]) unless the host has more
+  than one usable account. `frontend-design:frontend-design` was loaded
+  before this work.
+
+## Verification (macOS arm64, Apple clang, Release tests-on, `build/rel`)
+
+- `gh_cli_transport`: the full inventory (every account, state, token source;
+  a duplicated, doubly active or misfiled account fails). Pins are refused for
+  a bad host or login. The private directory is 0500 with two 0400 files,
+  `hosts.yml` holds exactly the host and login, and the directory is gone
+  after the launch. A launch already carrying `GH_CONFIG_DIR`, or one whose
+  directory cannot be made, is refused and never runs unpinned. After a
+  global `hosts.yml` switch, the unpinned transport refuses and the pinned
+  one reads.
+- `gh_cli_git_smart_transport`, over the real runner, sandbox and a fixture
+  `gh` holding three accounts and keychain canaries:
+  - A pinned lease reads as `tester` while the active account switches among
+    `other`, `tester` and `owner`.
+  - The clone runs pinned: the fixture refuses a clone acting as another
+    account, and that refusal was shown to fire.
+  - An unpinned lease is refused at the switch (the behaviour before).
+  - After `tester` leaves the keychain, the silent fallback is refused on a
+    read (the lease is revoked and refused) and at sign-in (account mismatch).
+  - A login now bound to another ID is refused.
+  - No private directory is left behind.
+  - Of 18 recorded lease launches, none carries a canary or a token variable
+    in its arguments, environment, input or output. The child itself checks
+    every launch for token variables, canaries and directory modes.
+  - The diagnostic log's events are typed and have no text field, so no
+    token can reach them.
+- Mutation check: with `run_gh_cli` made to ignore the pin, the course fails
+  at "the CLI sign-in observes the fixture account".
+- Also passing: `github_provider`, `github_host_profile`,
+  `architecture_boundaries`, `git_protocol_boundary`,
+  `test_network_isolation_manifest`, `application_device_flow_cli_choice`,
+  `application_setup_destination_public_path`, `qt_composed_cli_read_consent`,
+  `qt_composed_home_sign_in`, and `qt_workbench_window_scale_100` and `_200`
+  (the new account-list rows, sentences and choice). clang-format 22.1.8 on
+  every touched C++ file.
+- Already failing on main, not this change: `application_inline_publish_cli_consent`
+  fails at "the new comment is written in the drawer", both here and on
+  origin/main `cc4f834d9` built separately the same way.
+- Live, read only, 2026-10-09: one GraphQL read of `MikeMarcin/BPR-Test`
+  per account. Each ran through the launch shape `run_gh_cli` produces (a
+  private 0500 directory, two 0400 files, the product's environment and
+  write-deny sandbox), replicated in the shell rather than run from the
+  product binary. Viewer `MikeMarcin` (`X-RateLimit-Remaining` 4830) and
+  viewer `MikeMarcinTest` (4994, its own budget). `gh auth status --active`
+  was `MikeMarcin` before and after. No token was printed or handled, and
+  both directories were removed.
+
+## Pending
+
+- Owner look at the Accounts & hosts account list: Accept or Reject. Not
+  frozen in this round: the owner was low on usage and asked for a freeze
+  only if cheap. The freeze script has no Settings opening yet, and the app
+  has no flag to seed a fixture inventory for the look.

@@ -201,6 +201,11 @@ namespace bpr::app::detail {
 		{
 			std::string Hostname;
 			std::string Login;
+			/// [[BPR-1373]]. The full inventory's facts; a fixture account is the
+			/// host's active, signed-in, keychain-held account unless it says not.
+			bool Active       = true;
+			bool SignedIn     = true;
+			bool KeychainHeld = true;
 		};
 
 		std::optional<std::filesystem::path>      ApplicationDataRoot;

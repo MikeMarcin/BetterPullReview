@@ -581,6 +581,11 @@ namespace bpr::qt {
 		void set_saved_server_dispatch(workbench_saved_server_dispatch aDispatch);
 		/// \brief Adopts the explicit `Use GitHub CLI` gesture; absent means hidden.
 		void set_github_cli_discovery_dispatch(github_cli_discovery_dispatch aDispatch);
+		/// \brief [[BPR-1373]]. Where a card's Check gh again goes: the same
+		/// inventory, without opening sign-in or connecting.
+		void set_github_cli_check_dispatch(github_cli_discovery_dispatch aDispatch);
+		/// \brief [[BPR-1373]]. Every gh account by hostname, from the last check.
+		void present_cli_accounts(std::map<std::string, std::vector<server_card_cli_account>, std::less<>> aAccounts);
 		/// \brief Presents the bounded result of an explicitly requested CLI inventory.
 		void               present_github_cli_discovery(github_cli_discovery_state aState, std::size_t aAccounts = 0U);
 		[[nodiscard]] auto use_github_cli_button() const noexcept -> QPushButton*;
@@ -2213,32 +2218,34 @@ namespace bpr::qt {
 		bool                                 ReturnComparisonPending = false;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
-		bool                                      BehaviourPublished    = false;
-		bool                                      FirstFilterApplied    = false;
-		bool                                      ReturnComparisonAsked = false;
-		std::optional<core::file_receipt_command> MarkedReadWhenSeen;
-		QWidget*                                  SavedRepositoriesEditor      = nullptr;
-		QLabel*                                   SavedRepositoriesDestination = nullptr;
-		QListWidget*                              SavedRepositoryList          = nullptr;
-		QWidget*                                  SavedRepositoriesEmpty       = nullptr;
-		QLineEdit*                                SavedRepositoryName          = nullptr;
-		QAction*                                  AddSavedRepository           = nullptr;
-		QAction*                                  RemoveSavedRepository        = nullptr;
-		QPushButton*                              AddSavedRepositoryButton     = nullptr;
-		QPushButton*                              RemoveSavedRepositoryButton  = nullptr;
-		QWidget*                                  EnterpriseServerDraft        = nullptr;
-		QLineEdit*                                EnterpriseServerHostname     = nullptr;
-		QLineEdit*                                EnterpriseServerAccount      = nullptr;
-		QLabel*                                   EnterpriseServerRefusal      = nullptr;
-		QPushButton*                              EnterpriseServerAdd          = nullptr;
-		QPushButton*                              EnterpriseServerCancel       = nullptr;
-		QPushButton*                              AddEnterpriseServerButton    = nullptr;
-		QPushButton*                              UseGithubCliButton           = nullptr;
-		QLabel*                                   GithubCliDiscoveryStatus     = nullptr;
-		github_cli_discovery_dispatch             GithubCliDiscoveryDispatch;
-		github_cli_discovery_state                GithubCliDiscoveryState = github_cli_discovery_state::idle;
-		QPointer<QMessageBox>                     ForgetServerConfirmation;
-		bool                                      EnterpriseDraftOpen = false;
+		bool                                                                     BehaviourPublished    = false;
+		bool                                                                     FirstFilterApplied    = false;
+		bool                                                                     ReturnComparisonAsked = false;
+		std::optional<core::file_receipt_command>                                MarkedReadWhenSeen;
+		QWidget*                                                                 SavedRepositoriesEditor      = nullptr;
+		QLabel*                                                                  SavedRepositoriesDestination = nullptr;
+		QListWidget*                                                             SavedRepositoryList          = nullptr;
+		QWidget*                                                                 SavedRepositoriesEmpty       = nullptr;
+		QLineEdit*                                                               SavedRepositoryName          = nullptr;
+		QAction*                                                                 AddSavedRepository           = nullptr;
+		QAction*                                                                 RemoveSavedRepository        = nullptr;
+		QPushButton*                                                             AddSavedRepositoryButton     = nullptr;
+		QPushButton*                                                             RemoveSavedRepositoryButton  = nullptr;
+		QWidget*                                                                 EnterpriseServerDraft        = nullptr;
+		QLineEdit*                                                               EnterpriseServerHostname     = nullptr;
+		QLineEdit*                                                               EnterpriseServerAccount      = nullptr;
+		QLabel*                                                                  EnterpriseServerRefusal      = nullptr;
+		QPushButton*                                                             EnterpriseServerAdd          = nullptr;
+		QPushButton*                                                             EnterpriseServerCancel       = nullptr;
+		QPushButton*                                                             AddEnterpriseServerButton    = nullptr;
+		QPushButton*                                                             UseGithubCliButton           = nullptr;
+		QLabel*                                                                  GithubCliDiscoveryStatus     = nullptr;
+		github_cli_discovery_dispatch                                            GithubCliDiscoveryDispatch;
+		github_cli_discovery_dispatch                                            GithubCliCheckDispatch;
+		std::map<std::string, std::vector<server_card_cli_account>, std::less<>> CliAccountsByHost;
+		github_cli_discovery_state                                               GithubCliDiscoveryState = github_cli_discovery_state::idle;
+		QPointer<QMessageBox>                                                    ForgetServerConfirmation;
+		bool                                                                     EnterpriseDraftOpen = false;
 		/// [[BPR-0773]]. The hostname a device flow was last asked for; its
 		/// terminal sentence is said only on that host's card.
 		std::optional<std::string>                         DeviceFlowHost;

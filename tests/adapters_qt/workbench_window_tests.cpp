@@ -10981,8 +10981,52 @@ namespace {
 				   && discovered->cli_offer_button()->text().contains(QStringLiteral("reviewer")),
 			   "a discovered GHES identity becomes a selectable CLI-only server card naming the observed login");
 
+		// [[BPR-1373]]. Every gh account on the host is listed once gh has
+		// been checked: who it is, whether gh holds it, and who uses it.
+		window.add_setup_profile({
+			.Profile   = core::host_profile_id{ 92U },
+			.Label     = "GHES 3.18 — GitHub CLI (tester)",
+			.Hostname  = "ghe.example.com",
+			.Product   = application::github_profile_product::github_enterprise_server,
+			.Transport = application::github_profile_transport::github_cli,
+		});
+		auto listed               = std::map<std::string, std::vector<qt::server_card_cli_account>, std::less<>>{ };
+		listed["ghe.example.com"] = {
+			{ .Login = "reviewer", .ActiveInGh = true, .State = qt::server_card_cli_account_state::signed_in, .Profile = core::host_profile_id{ 91U }, .UsedBy = { "Default", "Work" } },
+			{ .Login = "tester", .ActiveInGh = false, .State = qt::server_card_cli_account_state::signed_in, .Profile = core::host_profile_id{ 92U }, .UsedBy = { } },
+			{ .Login = "gone", .ActiveInGh = false, .State = qt::server_card_cli_account_state::signed_out, .Profile = std::nullopt, .UsedBy = { } },
+			{ .Login = "plain", .ActiveInGh = false, .State = qt::server_card_cli_account_state::file_token, .Profile = std::nullopt, .UsedBy = { } },
+		};
+		window.present_cli_accounts(listed);
+		QApplication::processEvents();
+		const auto sentence = [&](const QString& aLogin) {
+			auto* const row   = discovered->cli_account_row(aLogin);
+			auto* const label = row ? row->findChild<QLabel*>(QStringLiteral("serverCardCliAccountSentence")) : nullptr;
+			return label ? label->text() : QString{ };
+		};
+		const auto use = [&](const QString& aLogin) {
+			auto* const row = discovered->cli_account_row(aLogin);
+			return row ? row->findChild<QPushButton*>(QStringLiteral("serverCardCliAccountUse")) : nullptr;
+		};
+		expect(discovered->cli_accounts() != nullptr && discovered->cli_accounts()->isVisibleTo(&window)
+				   && discovered->cli_account_row(QStringLiteral("reviewer")) && discovered->cli_account_row(QStringLiteral("tester"))
+				   && discovered->cli_account_row(QStringLiteral("gone")) && discovered->cli_account_row(QStringLiteral("plain")),
+			   "every gh account on the host is its own row");
+		expect(sentence(QStringLiteral("reviewer")).contains(QStringLiteral("gh's active account")) && sentence(QStringLiteral("reviewer")).contains(QStringLiteral("Used by Default and Work."))
+				   && sentence(QStringLiteral("tester")).contains(QStringLiteral("Signed in with gh")) && sentence(QStringLiteral("tester")).contains(QStringLiteral("No profile uses it yet."))
+				   && sentence(QStringLiteral("gone")).startsWith(QStringLiteral("Signed out in gh."))
+				   && sentence(QStringLiteral("plain")).contains(QStringLiteral("keychain")),
+			   "each row says how gh holds the account and which profiles use it");
+		expect(use(QStringLiteral("tester")) != nullptr && use(QStringLiteral("gone")) == nullptr && use(QStringLiteral("plain")) == nullptr,
+			   "only a signed-in, keychain-held account can be chosen for this profile");
+		expect(discovered->cli_offer_button() == nullptr || !discovered->cli_offer_button()->isVisibleTo(&window),
+			   "on Accounts & hosts the list replaces the single GitHub CLI offer");
+		window.present_cli_accounts({ });
+		QApplication::processEvents();
+		expect(!discovered->cli_accounts()->isVisibleTo(&window), "a host gh lists no account for shows no list");
+
 		window.present_github_cli_discovery(qt::github_cli_discovery_state::empty);
-		expect(status->text().contains(QStringLiteral("no active authenticated accounts")),
+		expect(status->text().contains(QStringLiteral("no signed-in accounts")),
 			   "an empty authenticated inventory is explicit and retryable");
 		window.present_github_cli_discovery(
 			qt::github_cli_discovery_state::unsupported_version);

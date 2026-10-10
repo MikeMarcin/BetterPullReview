@@ -21,6 +21,8 @@
 #include <utility>
 
 #if !defined(_WIN32)
+	#include <fcntl.h>
+	#include <sys/stat.h>
 	#include <unistd.h>
 #endif
 
@@ -31,6 +33,7 @@ namespace bpr::adapters::github::detail::auth_status_json_detail {
 		std::string Host;
 		std::string Login;
 		std::string State;
+		std::string TokenSource;
 	};
 
 	struct document
@@ -57,7 +60,8 @@ namespace glz {
 			"active", &T::Active,
 			"host", &T::Host,
 			"login", &T::Login,
-			"state", &T::State);
+			"state", &T::State,
+			"tokenSource", &T::TokenSource);
 	};
 
 	template <>
@@ -638,6 +642,84 @@ namespace bpr::adapters::github::detail {
 				},
 			};
 		}
+
+		[[nodiscard]] auto valid_inventory_login(const std::string_view aLogin) noexcept -> bool
+		{
+			return !aLogin.empty() && aLogin.size() <= 128U
+				&& std::ranges::all_of(aLogin, [](const unsigned char aByte) {
+					   return aByte >= 0x21U && aByte <= 0x7eU;
+				   });
+		}
+
+#if !defined(_WIN32)
+		/// [[BPR-1373]]. One launch's private `gh` configuration: created
+		/// owner-only, holding exactly the pinned host and login, read-only
+		/// while the child runs, and removed with this object.
+		class private_account_directory final
+		{
+		public:
+			private_account_directory(const std::filesystem::path& aParent, const gh_cli_account_pin& aPin)
+			{
+				auto pattern = path_bytes(aParent / (std::string{ gh_cli_account_directory_prefix } + "XXXXXX"));
+				pattern.push_back('\0');
+				if (::mkdtemp(pattern.data()) == nullptr) {
+					return;
+				}
+				Path             = std::filesystem::path{ pattern.c_str() };
+				const auto hosts = aPin.Hostname + ":\n    users:\n        " + aPin.Login + ":\n    git_protocol: https\n    user: "
+					+ aPin.Login + "\n";
+				if (!write_file("config.yml", "version: \"1\"\n") || !write_file("hosts.yml", hosts)
+					|| ::chmod(Path.c_str(), S_IRUSR | S_IXUSR) != 0) {
+					remove();
+					return;
+				}
+				Valid = true;
+			}
+			private_account_directory(const private_account_directory&)                    = delete;
+			private_account_directory(private_account_directory&&)                         = delete;
+			auto operator=(const private_account_directory&) -> private_account_directory& = delete;
+			auto operator=(private_account_directory&&) -> private_account_directory&      = delete;
+			~private_account_directory() { remove(); }
+
+			[[nodiscard]] auto valid() const noexcept -> bool { return Valid; }
+			[[nodiscard]] auto path() const noexcept -> const std::filesystem::path& { return Path; }
+
+		private:
+			[[nodiscard]] auto write_file(const char* aName, const std::string_view aContent) const -> bool
+			{
+				const auto descriptor = ::open((Path / aName).c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, S_IRUSR);
+				if (descriptor < 0) {
+					return false;
+				}
+				auto remaining = aContent;
+				while (!remaining.empty()) {
+					const auto written = ::write(descriptor, remaining.data(), remaining.size());
+					if (written <= 0) {
+						static_cast<void>(::close(descriptor));
+						return false;
+					}
+					remaining.remove_prefix(static_cast<std::size_t>(written));
+				}
+				return ::close(descriptor) == 0;
+			}
+
+			void remove() noexcept
+			{
+				if (Path.empty()) {
+					return;
+				}
+				static_cast<void>(::chmod(Path.c_str(), S_IRWXU));
+				static_cast<void>(::unlink((Path / "config.yml").c_str()));
+				static_cast<void>(::unlink((Path / "hosts.yml").c_str()));
+				static_cast<void>(::rmdir(Path.c_str()));
+				Path.clear();
+				Valid = false;
+			}
+
+			std::filesystem::path Path;
+			bool                  Valid = false;
+		};
+#endif
 	}
 
 	validated_gh_cli_configuration::validated_gh_cli_configuration(
@@ -660,6 +742,53 @@ namespace bpr::adapters::github::detail {
 		const noexcept -> const std::filesystem::path&
 	{
 		return NeutralWorkingDirectory;
+	}
+
+	auto validated_gh_cli_configuration::pin() const noexcept -> const std::optional<gh_cli_account_pin>&
+	{
+		return Pin;
+	}
+
+	auto pin_gh_cli_configuration(
+		const validated_gh_cli_configuration& aConfiguration,
+		const std::string_view aHostname, const std::string_view aLogin)
+		-> std::optional<validated_gh_cli_configuration>
+	{
+		if (aConfiguration.Pin || !application::valid_github_canonical_hostname(aHostname)
+			|| !valid_cli_account_login(aLogin)) {
+			return std::nullopt;
+		}
+		auto pinned = aConfiguration;
+		pinned.Pin  = gh_cli_account_pin{ .Hostname = std::string{ aHostname }, .Login = std::string{ aLogin } };
+		return std::optional<validated_gh_cli_configuration>{ pinned };
+	}
+
+	auto run_gh_cli(
+		github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
+		github_cli_process_request aRequest, const std::stop_token aStop) -> github_cli_process_result
+	{
+		if (std::ranges::any_of(aRequest.Environment, [](const github_cli_process_environment_entry& aEntry) {
+				return aEntry.Name == "GH_CONFIG_DIR";
+			})) {
+			return std::unexpected{ github_cli_process_failure::invalid_request };
+		}
+		if (!aConfiguration.Pin) {
+			return aProcess.run(aRequest, aStop);
+		}
+#if defined(_WIN32)
+		static_cast<void>(aStop);
+		return std::unexpected{ github_cli_process_failure::start_failure };
+#else
+		const private_account_directory directory{ aConfiguration.NeutralWorkingDirectory, *aConfiguration.Pin };
+		if (!directory.valid()) {
+			return std::unexpected{ github_cli_process_failure::start_failure };
+		}
+		append_environment(aRequest.Environment, "GH_CONFIG_DIR", path_bytes(directory.path()));
+		if (!bounded_environment(aRequest.Environment)) {
+			return std::unexpected{ github_cli_process_failure::invalid_request };
+		}
+		return aProcess.run(aRequest, aStop);
+#endif
 	}
 
 	auto validate_gh_cli_configuration(
@@ -1036,6 +1165,69 @@ namespace bpr::adapters::github::detail {
 		});
 	}
 
+	auto compile_gh_cli_auth_inventory_request(
+		const validated_gh_cli_configuration& aConfiguration)
+		-> github_cli_process_request
+	{
+		return constrain_gh_writes(github_cli_process_request{
+			.Executable              = path_bytes(aConfiguration.Executable),
+			.Arguments               = { "auth", "status", "--json", "hosts" },
+			.Environment             = aConfiguration.Environment,
+			.WorkingDirectory        = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInput           = { },
+			.StandardInputLimit      = 1U,
+			.StandardOutputLimit     = maximum_auth_status_bytes,
+			.StandardErrorLimit      = 8U * 1024U,
+			.Timeout                 = std::chrono::seconds{ 20 },
+			.ReapTimeout             = process_reap_timeout,
+			.PreserveCompletedOutput = true,
+		});
+	}
+
+	auto parse_gh_cli_auth_inventory(const std::string_view aOutput)
+		-> std::expected<std::vector<gh_cli_inventory_account>, gh_cli_auth_status_failure>
+	{
+		if (aOutput.size() > maximum_auth_status_bytes) {
+			return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+		}
+		using namespace auth_status_json_detail;
+		auto parsed = document{ };
+		if (glz::read<options{ }>(parsed, aOutput)) {
+			return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+		}
+		if (parsed.Hosts.size() > maximum_auth_status_hosts) {
+			return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+		}
+		auto result = std::vector<gh_cli_inventory_account>{ };
+		for (const auto& [hostname, accounts] : parsed.Hosts) {
+			if (accounts.size() > maximum_auth_status_accounts - result.size()) {
+				return std::unexpected{ gh_cli_auth_status_failure::response_limit };
+			}
+			if (!application::valid_github_canonical_hostname(hostname)) {
+				return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+			}
+			const auto first  = result.size();
+			auto       active = false;
+			for (const auto& account : accounts) {
+				const auto duplicate = std::ranges::any_of(result.begin() + static_cast<std::ptrdiff_t>(first), result.end(),
+														   [&](const gh_cli_inventory_account& aSeen) { return aSeen.Login == account.Login; });
+				if (account.Host != hostname || !valid_inventory_login(account.Login) || account.State.size() > 32U
+					|| account.TokenSource.size() > 64U || duplicate || (account.Active && active)) {
+					return std::unexpected{ gh_cli_auth_status_failure::malformed_response };
+				}
+				active = active || account.Active;
+				result.push_back(gh_cli_inventory_account{
+					.Hostname     = hostname,
+					.Login        = account.Login,
+					.Active       = account.Active,
+					.SignedIn     = account.State == "success",
+					.KeychainHeld = account.TokenSource == "keyring",
+				});
+			}
+		}
+		return result;
+	}
+
 	auto parse_gh_cli_auth_status(const std::string_view aOutput)
 		-> std::expected<
 			std::vector<gh_cli_authenticated_account>,
@@ -1327,6 +1519,12 @@ namespace bpr::adapters::github::detail {
 	auto gh_cli_transport::observe_configuration_files() const
 		-> std::optional<std::array<configuration_metadata, 3>>
 	{
+		// [[BPR-1373]]. A pinned child reads only its own private pair, which
+		// is written for each launch; the user's files are not its input, and a
+		// gh auth switch that rewrites them does not reach it.
+		if (Configuration.Pin) {
+			return std::array<configuration_metadata, 3>{ };
+		}
 		if (ConfigurationDirectory.empty()) {
 			return std::nullopt;
 		}
@@ -1435,7 +1633,7 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		const auto result = Process.run(*invocation, aStop);
+		const auto result = run_gh_cli(Process, Configuration, *invocation, aStop);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}
@@ -1565,7 +1763,7 @@ namespace bpr::adapters::github::detail {
 			return github_mutation_wire_error{ };
 		}
 		const auto sent   = writes ? transmission::indeterminate : transmission::definitely_not_sent;
-		const auto result = Process.run(constrain_gh_writes(std::move(invocation)), aStop);
+		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_mutation_wire_cancelled{ .Transmission = sent };
 		}
@@ -1620,7 +1818,7 @@ namespace bpr::adapters::github::detail {
 		}
 		invocation.Arguments.emplace_back("--input");
 		invocation.Arguments.emplace_back("-");
-		const auto result = Process.run(constrain_gh_writes(std::move(invocation)), aStop);
+		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_capability_probe_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}

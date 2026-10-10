@@ -299,6 +299,45 @@ namespace bpr::qt {
 			layout->setColumnStretch(1, 1);
 			return { row, layout };
 		}
+		// [[BPR-1373]]. Who uses a gh account, as the end of its sentence.
+		[[nodiscard]] auto used_by_sentence(const std::vector<std::string>& aProfiles) -> QString
+		{
+			if (aProfiles.empty()) {
+				return QStringLiteral("No profile uses it yet.");
+			}
+			auto names = QStringList{ };
+			for (const auto& profile : aProfiles) {
+				names.push_back(text(profile));
+			}
+			const auto last = names.takeLast();
+			return QStringLiteral("Used by %1.").arg(names.isEmpty() ? last : names.join(QStringLiteral(", ")) + QStringLiteral(" and ") + last);
+		}
+
+		// [[BPR-1373]]. What a gh account is to this Mac, in one or two sentences.
+		/// [[BPR-1373]]. How many listed accounts a profile can choose.
+		[[nodiscard]] auto usable_cli_accounts(const std::vector<server_card_cli_account>& aAccounts) -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(aAccounts, [](const server_card_cli_account& aAccount) {
+				return aAccount.State == server_card_cli_account_state::signed_in && aAccount.Profile.has_value();
+			}));
+		}
+
+		[[nodiscard]] auto cli_account_sentence(const server_card_cli_account& aAccount) -> QString
+		{
+			switch (aAccount.State) {
+			case server_card_cli_account_state::signed_in:
+				return (aAccount.ActiveInGh ? QStringLiteral("Signed in with gh on %1, and gh's active account. ")
+											: QStringLiteral("Signed in with gh on %1. "))
+						   .arg(this_machine_text())
+					+ used_by_sentence(aAccount.UsedBy);
+			case server_card_cli_account_state::signed_out:
+				return QStringLiteral("Signed out in gh. Sign it in with gh auth login, then check gh again.");
+			case server_card_cli_account_state::file_token:
+				return QStringLiteral("gh keeps this account's token in a file instead of the keychain, so a profile can't use it. "
+									  "Sign it in again with gh auth login to move it to the keychain.");
+			}
+			return { };
+		}
 	} // namespace
 
 	server_card::server_card(
@@ -374,6 +413,40 @@ namespace bpr::qt {
 		AccountLayout->addWidget(actions, 0, 2, 2, 1, Qt::AlignRight | Qt::AlignTop);
 		AccountLayout->setColumnStretch(1, 1);
 		column->addWidget(Account);
+
+		// [[BPR-1373]]. Every gh account on this host, once gh has been checked:
+		// one row each, the way to give one to this profile, and Check gh again.
+		CliAccounts           = new QWidget{ this };
+		auto* const cliOuter  = new QVBoxLayout{ CliAccounts };
+		auto* const cliBody   = new QWidget{ CliAccounts };
+		auto* const cliColumn = new QVBoxLayout{ cliBody };
+		CliAccounts->setObjectName(QStringLiteral("serverCardCliAccounts"));
+		CliAccounts->setAccessibleName(QStringLiteral("GitHub CLI accounts on %1").arg(this_machine_text()));
+		cliOuter->setContentsMargins(0, 0, 0, 0);
+		cliOuter->setSpacing(0);
+		cliOuter->addWidget(make_hairline(CliAccounts));
+		cliOuter->addWidget(cliBody);
+		cliColumn->setContentsMargins(card_inset, row_inset, card_inset, row_inset);
+		cliColumn->setSpacing(row_inset);
+		cliColumn->addWidget(make_label(cliBody, QStringLiteral("serverCardCliAccountsHeading"), QStringLiteral("GitHub CLI accounts on %1").arg(this_machine_text())));
+		CliAccountList = new QWidget{ cliBody };
+		CliAccountList->setObjectName(QStringLiteral("serverCardCliAccountList"));
+		auto* const listColumn = new QVBoxLayout{ CliAccountList };
+		listColumn->setContentsMargins(0, 0, 0, 0);
+		listColumn->setSpacing(row_inset);
+		cliColumn->addWidget(CliAccountList);
+		CliCheckButton = make_button(cliBody, QStringLiteral("serverCardCliCheck"), QStringLiteral("Check gh again"), QStringLiteral("Check gh's accounts on %1 again").arg(host));
+		CliCheckButton->setFlat(true);
+		CliCheckButton->setAccessibleDescription(QStringLiteral("Asks the installed gh which accounts it holds. Tokens are never requested or shown."));
+		CliCheckButton->setToolTip(CliCheckButton->accessibleDescription());
+		cliColumn->addWidget(CliCheckButton, 0, Qt::AlignLeft);
+		connect(CliCheckButton, &QPushButton::clicked, this, [this] {
+			if (Gestures.CheckCliAccounts) {
+				Gestures.CheckCliAccounts();
+			}
+		});
+		CliAccounts->hide();
+		column->addWidget(CliAccounts);
 
 		// The rows: Access, Rate limit, an enterprise server's Remember and
 		// Forget, and Details, one hairline between each.
@@ -633,6 +706,7 @@ namespace bpr::qt {
 		Rows->setVisible(!aSetup);
 		RowsSeparator->setVisible(!aSetup);
 		apply_account_row();
+		apply_cli_accounts();
 	}
 
 	void server_card::apply(const server_card_presentation& aPresentation)
@@ -647,8 +721,93 @@ namespace bpr::qt {
 		++Statistics.Rebuilds;
 		apply_header();
 		apply_account_row();
+		apply_cli_accounts();
 		apply_rows();
 		update();
+	}
+
+	void server_card::apply_cli_accounts()
+	{
+		const auto& accounts = Presentation.CliAccounts;
+		CliAccounts->setVisible(SetupMode ? usable_cli_accounts(accounts) > 1U : !accounts.empty());
+		CliCheckButton->setVisible(Presentation.CliCheckAdmitted && !SetupMode);
+		// Rebuilt whole: a list of a few rows that changes only when gh is
+		// checked or a profile starts or stops using an account.
+		for (auto* const row : CliAccountList->findChildren<QWidget*>(QStringLiteral("serverCardCliAccount"), Qt::FindDirectChildrenOnly)) {
+			row->hide();
+			row->deleteLater();
+		}
+		auto* const list   = static_cast<QVBoxLayout*>(CliAccountList->layout());
+		const auto  using_ = [this](const server_card_cli_account& aAccount) {
+			return Presentation.State == server_card_state::connected && Presentation.Session.has_value() && aAccount.Profile.has_value()
+				&& Presentation.Session->Profile == *aAccount.Profile;
+		};
+		for (const auto& account : accounts) {
+			const auto  login  = text(account.Login);
+			auto* const row    = new QWidget{ CliAccountList };
+			auto* const layout = new QGridLayout{ row };
+			row->setObjectName(QStringLiteral("serverCardCliAccount"));
+			row->setProperty("login", login);
+			row->setAccessibleName(login);
+			layout->setContentsMargins(0, 0, 0, 0);
+			layout->setHorizontalSpacing(column_gap);
+			layout->setVerticalSpacing(2);
+			auto* const avatar = make_label(row, QStringLiteral("serverCardCliAccountAvatar"), login.left(1).toUpper());
+			avatar->setFixedSize(avatar_side, avatar_side);
+			avatar->setAlignment(Qt::AlignCenter);
+			avatar->setAutoFillBackground(true);
+			avatar->setBackgroundRole(QPalette::Button);
+			avatar->setTextInteractionFlags(Qt::NoTextInteraction);
+			auto* const name     = make_label(row, QStringLiteral("serverCardCliAccountLogin"), login);
+			auto* const sentence = make_quiet_label(row, QStringLiteral("serverCardCliAccountSentence"), cli_account_sentence(account));
+			name->setAccessibleName(QStringLiteral("GitHub CLI account"));
+			sentence->setAccessibleName(QStringLiteral("About %1").arg(login));
+			if (account.State != server_card_cli_account_state::signed_in) {
+				name->setForegroundRole(QPalette::PlaceholderText);
+			}
+			layout->addWidget(avatar, 0, 0, 2, 1, Qt::AlignTop);
+			layout->addWidget(name, 0, 1);
+			layout->addWidget(sentence, 1, 1);
+			layout->setColumnStretch(1, 1);
+			if (using_(account)) {
+				auto* const here = make_label(row, QStringLiteral("serverCardCliAccountUsedHere"), QStringLiteral("Used here"));
+				here->setAccessibleName(QStringLiteral("%1 is this profile's account").arg(login));
+				layout->addWidget(here, 0, 2, Qt::AlignRight | Qt::AlignTop);
+			} else if (account.State == server_card_cli_account_state::signed_in && account.Profile.has_value() && Presentation.ConnectAdmitted) {
+				auto* const use = make_button(row, QStringLiteral("serverCardCliAccountUse"), QStringLiteral("Use for this profile"),
+											  QStringLiteral("Use %1 for this profile").arg(login));
+				use->setFlat(true);
+				use->setAccessibleDescription(QStringLiteral("Connects this profile to %1 on %2 through gh. Asks first.").arg(login, text(hostname())));
+				use->setToolTip(use->accessibleDescription());
+				layout->addWidget(use, 0, 2, Qt::AlignRight | Qt::AlignTop);
+				connect(use, &QPushButton::clicked, this, [this, profile = *account.Profile] {
+					if (Gestures.Connect) {
+						Gestures.Connect(profile);
+					}
+				});
+			}
+			list->addWidget(row);
+		}
+	}
+
+	auto server_card::cli_accounts() const noexcept -> QWidget*
+	{
+		return CliAccounts;
+	}
+
+	auto server_card::cli_account_row(const QString& aLogin) const -> QWidget*
+	{
+		for (auto* const row : CliAccountList->findChildren<QWidget*>(QStringLiteral("serverCardCliAccount"), Qt::FindDirectChildrenOnly)) {
+			if (row->isVisibleTo(CliAccountList) && row->property("login").toString() == aLogin) {
+				return row;
+			}
+		}
+		return nullptr;
+	}
+
+	auto server_card::cli_check_button() const noexcept -> QPushButton*
+	{
+		return CliCheckButton;
 	}
 
 	void server_card::set_public_preview_dispatch(
@@ -773,10 +932,15 @@ namespace bpr::qt {
 			// a discovered account, the offer stands beside a running device
 			// flow's code rather than giving way to it: the reviewer ends one
 			// or the other.
+			// [[BPR-1373]]. On Accounts & hosts, once gh has been checked, its
+			// account list is the way in and the single offer gives way to it.
+			// Signing in keeps the single offer ([[BPR-0803]]) unless the host
+			// has more than one account to choose between.
+			const auto listed  = SetupMode ? usable_cli_accounts(shown.CliAccounts) > 1U : !shown.CliAccounts.empty();
 			const auto offered = (!SetupMode || CliSetupOnly) && !cliPresented && shown.ConnectAdmitted
-				&& (flowRow ? CliSetupOnly : !waiting);
+				&& (flowRow ? CliSetupOnly : !waiting) && !listed;
 			CliOfferButton->setVisible(offered);
-			CliTrustWarning->setVisible(!SetupMode && !flowRow && (offered || cliPresented));
+			CliTrustWarning->setVisible(!SetupMode && !flowRow && (offered || cliPresented || !shown.CliAccounts.empty()));
 		}
 		// The Sign in that began the flow is gone from under the keyboard; its
 		// focus moves to the row's job rather than to whatever is next.

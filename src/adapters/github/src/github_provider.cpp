@@ -14,11 +14,13 @@
 #include <expected>
 #include <functional>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <new>
 #include <optional>
 #include <ranges>
 #include <stop_token>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -235,8 +237,11 @@ namespace bpr::adapters::github::detail {
 			std::shared_ptr<github_profile_catalog>    Profiles;
 			std::mutex                                 Mutex;
 			std::vector<std::shared_ptr<provider_job>> Jobs;
-			std::atomic<std::uint64_t>                 NextSnapshot{ 1U };
-			bool                                       Closing = false;
+			/// [[BPR-1373]]. The account each pinned CLI profile first signed in
+			/// as in this run, by profile and login, under `Mutex`.
+			std::map<std::pair<std::uint64_t, std::string>, core::github_account_id> CliPinnedAccounts;
+			std::atomic<std::uint64_t>                                               NextSnapshot{ 1U };
+			bool                                                                     Closing = false;
 		};
 
 		enum class make_job_failure : std::uint8_t {
@@ -1640,6 +1645,30 @@ namespace bpr::adapters::github::detail {
 							mismatch.AccountMismatch = true;
 							failed(std::move(mismatch));
 							return;
+						}
+						// [[BPR-1373]]. A pinned profile's gh falls back silently to
+						// the active account's token when its login has no keychain
+						// entry, so the answer must name the pinned login, and the
+						// account that login first signed in as in this run.
+						if (request.Authority.Authentication == application::github_authentication_transport::github_cli
+							&& !profile->cli_account_login().empty()) {
+							auto bound = false;
+							{
+								const std::lock_guard lock{ state->Mutex };
+								const auto            key = std::pair{ profile->profile().value(), std::string{ profile->cli_account_login() } };
+								const auto [entry, fresh] = state->CliPinnedAccounts.try_emplace(key, observed->Viewer.Account);
+								bound                     = observed->Viewer.Login == profile->cli_account_login()
+									&& (fresh || entry->second == observed->Viewer.Account);
+								if (fresh && !bound) {
+									state->CliPinnedAccounts.erase(entry);
+								}
+							}
+							if (!bound) {
+								auto mismatch            = provider_error(application::github_provider_failure::authentication);
+								mismatch.AccountMismatch = true;
+								failed(std::move(mismatch));
+								return;
+							}
 						}
 						if (request.Authority.Authentication
 							== application::github_authentication_transport::github_cli) {

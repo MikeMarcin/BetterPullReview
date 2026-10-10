@@ -11,6 +11,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -21,6 +22,10 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if !defined(_WIN32)
+	#include <sys/stat.h>
+#endif
 
 namespace {
 	using namespace bpr;
@@ -1864,6 +1869,159 @@ namespace {
 			"oversized auth inventory is refused before parsing");
 	}
 
+	/// [[BPR-1373]]. The full inventory: every account on every host, with
+	/// whether gh reports it signed in and whether its token is in the keychain.
+	void test_full_inventory_lists_every_account()
+	{
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		expect(configuration.has_value(), "CLI configuration for the full inventory validates");
+		const auto request = compile_gh_cli_auth_inventory_request(*configuration);
+		expect(gh_arguments(request) == std::vector<std::string>{ "auth", "status", "--json", "hosts" },
+			   "the full inventory asks for every account's JSON hosts, without --active or --show-token");
+		expect(request.StandardInput.empty() && request.StandardOutputLimit == 64U * 1024U && request.PreserveCompletedOutput
+				   && std::ranges::none_of(request.Environment, [](const auto& aEntry) { return aEntry.Name == "GH_CONFIG_DIR"; }),
+			   "the full inventory is bounded and always reads gh's own configuration");
+
+		const auto parsed = parse_gh_cli_auth_inventory(
+			R"({"hosts":{"github.com":[{"active":true,"host":"github.com","login":"MikeMarcin","state":"success","tokenSource":"keyring","scopes":"repo"},)"
+			R"({"active":false,"host":"github.com","login":"MikeMarcinTest","state":"success","tokenSource":"keyring"},)"
+			R"({"active":false,"host":"github.com","login":"stale","state":"error","tokenSource":"keyring"},)"
+			R"({"active":false,"host":"github.com","login":"plain","state":"success","tokenSource":"oauth_token"}],)"
+			R"("github.example.com":[{"active":true,"host":"github.example.com","login":"enterprise_user","state":"success","tokenSource":"keyring"}]}})");
+		const auto expected = std::vector<gh_cli_inventory_account>{
+			{ .Hostname = "github.com", .Login = "MikeMarcin", .Active = true, .SignedIn = true, .KeychainHeld = true },
+			{ .Hostname = "github.com", .Login = "MikeMarcinTest", .Active = false, .SignedIn = true, .KeychainHeld = true },
+			{ .Hostname = "github.com", .Login = "stale", .Active = false, .SignedIn = false, .KeychainHeld = true },
+			{ .Hostname = "github.com", .Login = "plain", .Active = false, .SignedIn = true, .KeychainHeld = false },
+			{ .Hostname = "github.example.com", .Login = "enterprise_user", .Active = true, .SignedIn = true, .KeychainHeld = true },
+		};
+		expect(parsed.has_value() && *parsed == expected, "every account crosses, in host then listed order, with its state and token source");
+		for (const auto* hostile : {
+				 R"({"hosts":{"github.com":[{"active":false,"host":"github.com","login":"twice","state":"success"},{"active":false,"host":"github.com","login":"twice","state":"success"}]}})",
+				 R"({"hosts":{"github.com":[{"active":true,"host":"github.com","login":"one","state":"success"},{"active":true,"host":"github.com","login":"two","state":"success"}]}})",
+				 R"({"hosts":{"github.com":[{"active":false,"host":"elsewhere.example","login":"octocat","state":"success"}]}})",
+				 R"({"hosts":{"GitHub.com":[{"active":false,"host":"GitHub.com","login":"octocat","state":"success"}]}})",
+				 R"({"hosts":{"github.com":[{"active":false,"host":"github.com","login":"","state":"success"}]}})",
+			 }) {
+			expect(!parse_gh_cli_auth_inventory(hostile), "a duplicated, doubly active, misfiled or malformed account fails the whole inventory");
+		}
+		expect(parse_gh_cli_auth_inventory(std::string(64U * 1024U + 1U, 'x')).error() == gh_cli_auth_status_failure::response_limit,
+			   "an oversized inventory is refused before parsing");
+	}
+
+	/// [[BPR-1373]]. A pinned launch gets its own private configuration, made
+	/// for that launch alone and gone afterwards; an unpinned one is unchanged.
+	void test_pinned_launch_gets_a_private_configuration()
+	{
+#if !defined(_WIN32)
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		expect(configuration.has_value() && !configuration->pin(), "a validated configuration starts unpinned");
+		for (const auto& [host, login] : std::vector<std::pair<std::string, std::string>>{
+				 { "GitHub.com", "octocat" }, { "github.com", "" }, { "github.com", "-octocat" }, { "github.com", "octo cat" }, { "github.com", "octo:cat" }, { "github.com", "octo\ncat" }, { "github.com", std::string(65U, 'a') } }) {
+			expect(!pin_gh_cli_configuration(*configuration, host, login), "a pin needs a canonical host and a login in GitHub's alphabet");
+		}
+		const auto pinned = pin_gh_cli_configuration(*configuration, "github.com", "MikeMarcinTest");
+		expect(pinned && pinned->pin() == gh_cli_account_pin{ .Hostname = "github.com", .Login = "MikeMarcinTest" }
+				   && !pin_gh_cli_configuration(*pinned, "github.com", "MikeMarcin"),
+			   "a configuration pins once, to one host and login");
+
+		const auto& neutral   = configuration->neutral_working_directory();
+		const auto  leftovers = [&neutral] {
+			auto count = 0U;
+			for (const auto& entry : std::filesystem::directory_iterator{ neutral }) {
+				count += entry.path().filename().string().starts_with(gh_cli_account_directory_prefix) ? 1U : 0U;
+			}
+			return count;
+		};
+		successful_counting_process process;
+		const auto                  request = compile_gh_cli_version_request(*configuration);
+		expect(run_gh_cli(process, *configuration, request, { }).has_value() && process.LastRequest == request,
+			   "an unpinned launch runs exactly the compiled request");
+
+		auto seen     = std::optional<std::filesystem::path>{ };
+		auto modes    = std::array<unsigned, 3U>{ };
+		auto hosts    = std::string{ };
+		auto files    = 0U;
+		process.OnRun = [&] {
+			const auto& environment = process.LastRequest->Environment;
+			for (const auto& entry : environment) {
+				expect(entry.Name != "GH_TOKEN" && entry.Name != "GITHUB_TOKEN" && entry.Name != "GH_ENTERPRISE_TOKEN"
+						   && entry.Name != "GITHUB_ENTERPRISE_TOKEN",
+					   "no token variable is ever set");
+			}
+			const auto found = std::ranges::find_if(environment, [](const auto& aEntry) { return aEntry.Name == "GH_CONFIG_DIR"; });
+			expect(found != environment.end() && std::ranges::count_if(environment, [](const auto& aEntry) { return aEntry.Name == "GH_CONFIG_DIR"; }) == 1,
+				   "a pinned launch names exactly one private configuration directory");
+			seen = std::filesystem::path{ found->Value };
+			struct stat status{ };
+			for (std::size_t index = 0U; const auto& path : { *seen, *seen / "config.yml", *seen / "hosts.yml" }) {
+				expect(::lstat(path.c_str(), &status) == 0, "the private configuration exists while gh runs");
+				modes[index++] = static_cast<unsigned>(status.st_mode & 07777U);
+			}
+			for ([[maybe_unused]] const auto& entry : std::filesystem::directory_iterator{ *seen }) {
+				++files;
+			}
+			std::ifstream input{ *seen / "hosts.yml" };
+			hosts.assign(std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ });
+		};
+		expect(run_gh_cli(process, *pinned, request, { }).has_value(), "a pinned launch runs");
+		expect(seen && seen->parent_path() == neutral && seen->filename().string().starts_with(gh_cli_account_directory_prefix),
+			   "the private configuration is made under the neutral working directory");
+		expect(modes == std::array<unsigned, 3U>{ 0500U, 0400U, 0400U } && files == 2U,
+			   "the directory is owner-only and read-only, and holds exactly its two read-only files");
+		expect(hosts == "github.com:\n    users:\n        MikeMarcinTest:\n    git_protocol: https\n    user: MikeMarcinTest\n",
+			   "hosts.yml names only the pinned host and login, and holds no credential");
+		expect(!std::filesystem::exists(*seen) && leftovers() == 0U, "the private configuration is removed when the launch ends");
+		process.OnRun = { };
+
+		const auto calls    = process.Calls;
+		auto       carrying = request;
+		carrying.Environment.push_back({ .Name = "GH_CONFIG_DIR", .Value = path_bytes(neutral) });
+		expect(run_gh_cli(process, *pinned, carrying, { }).error() == github_cli_process_failure::invalid_request && process.Calls == calls,
+			   "a request that already names a configuration directory is refused unlaunched");
+		std::filesystem::permissions(neutral, std::filesystem::perms::owner_read | std::filesystem::perms::owner_exec);
+		const auto unmade = run_gh_cli(process, *pinned, request, { });
+		std::filesystem::permissions(neutral, std::filesystem::perms::owner_all);
+		expect(unmade.error() == github_cli_process_failure::start_failure && process.Calls == calls,
+			   "a pinned launch whose private configuration cannot be made is refused and never runs unpinned");
+		expect(leftovers() == 0U, "a refused launch leaves nothing behind");
+
+		// A gh auth switch rewrites the user's hosts.yml. The unpinned transport
+		// refuses on that drift; the pinned one never reads that file.
+		const auto cloud     = validate_github_host_profile(cloud_candidate());
+		const auto wire      = wire_request_for(*cloud, read_operation::get_repository);
+		const auto directory = layout.HomeDirectory / ".config" / "gh";
+		std::filesystem::create_directories(directory);
+		{
+			std::ofstream output{ directory / "hosts.yml" };
+			output << "github.com:\n    user: MikeMarcin\n";
+		}
+		gh_cli_transport unpinnedTransport{ *cloud, *configuration, process };
+		gh_cli_transport pinnedTransport{ *cloud, *pinned, process };
+		{
+			std::ofstream output{ directory / "hosts.yml" };
+			output << "github.com:\n    user: MikeMarcinTest-switched\n";
+		}
+		expect(std::get<github_wire_error>(unpinnedTransport.perform(wire, { })).Error.Failure == application::github_provider_failure::cli_unavailable,
+			   "an unpinned transport refuses once gh's own configuration changes (the account may have switched)");
+		auto pinnedConfiguration = std::string{ };
+		process.OnRun            = [&] {
+			for (const auto& entry : process.LastRequest->Environment) {
+				if (entry.Name == "GH_CONFIG_DIR") {
+					pinnedConfiguration = entry.Value;
+				}
+			}
+		};
+		expect(std::holds_alternative<github_wire_success>(pinnedTransport.perform(wire, { })) && pinnedTransport.configuration_unchanged()
+				   && !pinnedConfiguration.empty() && leftovers() == 0U,
+			   "a pinned transport reads through its private configuration across the switch");
+		process.OnRun = { };
+		std::filesystem::remove_all(directory);
+#endif
+	}
+
 }
 
 auto main() -> int
@@ -1878,6 +2036,8 @@ try {
 	test_transport_parses_actual_response_and_fixed_failures();
 	test_capability_probe_uses_closed_query_and_response();
 	test_gh_help_admission_requires_each_invoked_operation();
+	test_full_inventory_lists_every_account();
+	test_pinned_launch_gets_a_private_configuration();
 	test_auth_status_inventory_is_token_free_bounded_and_fail_closed();
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();

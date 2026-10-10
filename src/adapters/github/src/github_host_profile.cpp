@@ -128,7 +128,24 @@ namespace bpr::adapters::github {
 		, Hostname{ aCandidate.Hostname }
 		, RestRoot{ aCandidate.RestRoot }
 		, GraphqlRoot{ aCandidate.GraphqlRoot }
+		, CliAccountLogin{ aCandidate.CliAccountLogin }
 	{
+	}
+
+	auto validated_github_host_profile::cli_account_login() const noexcept -> std::string_view
+	{
+		return CliAccountLogin;
+	}
+
+	auto valid_cli_account_login(const std::string_view aLogin) noexcept -> bool
+	{
+		const auto alphanumeric = [](const unsigned char aByte) {
+			return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9');
+		};
+		return !aLogin.empty() && aLogin.size() <= 64U && alphanumeric(static_cast<unsigned char>(aLogin.front()))
+			&& std::ranges::all_of(aLogin, [&](const unsigned char aByte) {
+				   return alphanumeric(aByte) || aByte == '-' || aByte == '_';
+			   });
 	}
 
 	auto validated_github_host_profile::profile() const noexcept
@@ -312,6 +329,11 @@ namespace bpr::adapters::github {
 		}
 		if (aCandidate.GraphqlRoot != expectedGraphqlRoot) {
 			return std::unexpected{ github_profile_failure::invalid_graphql_root };
+		}
+		if (!aCandidate.CliAccountLogin.empty()
+			&& (aCandidate.Authentication != application::github_authentication_transport::github_cli
+				|| !valid_cli_account_login(aCandidate.CliAccountLogin))) {
+			return std::unexpected{ github_profile_failure::invalid_cli_account };
 		}
 		const validated_github_host_profile profile{ aCandidate };
 		return github_profile_result{ profile };

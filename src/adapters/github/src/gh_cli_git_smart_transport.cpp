@@ -266,7 +266,7 @@ namespace bpr::adapters::github::detail {
 					if (!before) {
 						return std::unexpected{ before.error() };
 					}
-					const auto response = process->run(*invocation, stop.get_token());
+					const auto response = run_gh_cli(*process, Configuration, *invocation, stop.get_token());
 					if (!response) {
 						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
 					}
@@ -372,7 +372,7 @@ namespace bpr::adapters::github::detail {
 					// Constructed before the read so that its configuration
 					// baseline precedes it, as the observation's did.
 					gh_cli_transport identity{ Profile, Configuration, *process };
-					const auto       response = process->run(*invocation, stop.get_token());
+					const auto       response = run_gh_cli(*process, Configuration, *invocation, stop.get_token());
 					if (!response) {
 						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
 					}
@@ -564,7 +564,7 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				aStep                = git_smart_transport_step::cli_version;
-				const auto ghVersion = process->run(compile_gh_cli_version_request(Configuration), aStop);
+				const auto ghVersion = run_gh_cli(*process, Configuration, compile_gh_cli_version_request(Configuration), aStop);
 				if (!ghVersion) {
 					return std::unexpected{ git_smart_transport_error{ process_error(ghVersion.error()) } };
 				}
@@ -576,7 +576,7 @@ namespace bpr::adapters::github::detail {
 				// credentialed gh use; only a completed zero exit returns its text.
 				for (const auto topic : gh_cli_required_help_topics) {
 					aStep            = git_smart_transport_step::cli_capability_probe;
-					const auto probe = process->run(compile_gh_cli_help_request(Configuration, topic), aStop);
+					const auto probe = run_gh_cli(*process, Configuration, compile_gh_cli_help_request(Configuration, topic), aStop);
 					if (!probe) {
 						return std::unexpected{ git_smart_transport_error{ process_error(probe.error()) } };
 					}
@@ -640,7 +640,9 @@ namespace bpr::adapters::github::detail {
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
-					const auto result = cloneProcess->run(*invocation, aStop);
+					// [[BPR-1373]]. Pinned, the clone and the credential helper it
+					// launches read the same private configuration.
+					const auto result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop);
 					if (!result) {
 						return std::unexpected{ git_smart_transport_error{ process_error(result.error()) } };
 					}

@@ -179,7 +179,12 @@ namespace bpr::app {
 				return unavailable();
 			}
 			try {
-				const auto configuration = live_gh_cli_configuration();
+				const auto live = live_gh_cli_configuration();
+				// [[BPR-1373]]. A profile chosen for one gh account runs every gh
+				// call through a private configuration naming only that account.
+				const auto configuration = !live || aProfile.cli_account_login().empty()
+					? live
+					: pin_gh_cli_configuration(*live, aProfile.hostname(), aProfile.cli_account_login());
 				if (!configuration) {
 					return unavailable();
 				}

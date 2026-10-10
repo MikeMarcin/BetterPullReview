@@ -284,6 +284,53 @@ namespace bpr::app {
 	}
 
 	namespace {
+		/// [[BPR-1373]]. Which BPR profile in this run uses which pinned gh
+		/// account: one entry per profile runtime with an accepted session on a
+		/// pinned GitHub CLI profile. Composition state, read for Accounts &
+		/// hosts' "Used by"; it holds no credential.
+		struct cli_account_use
+		{
+			std::string Profile;
+			std::string Hostname;
+			std::string Login;
+		};
+
+		class cli_account_usage final
+		{
+		public:
+			void set(const void* const aRuntime, std::optional<cli_account_use> aUse)
+			{
+				const std::lock_guard lock{ Mutex };
+				if (aUse) {
+					Uses.insert_or_assign(aRuntime, std::move(*aUse));
+				} else {
+					Uses.erase(aRuntime);
+				}
+			}
+			[[nodiscard]] auto users(const std::string_view aHostname, const std::string_view aLogin) const -> std::vector<std::string>
+			{
+				const std::lock_guard lock{ Mutex };
+				auto                  result = std::vector<std::string>{ };
+				for (const auto& [runtime, use] : Uses) {
+					if (use.Hostname == aHostname && use.Login == aLogin && std::ranges::find(result, use.Profile) == result.end()) {
+						result.push_back(use.Profile);
+					}
+				}
+				std::ranges::sort(result);
+				return result;
+			}
+
+		private:
+			mutable std::mutex                     Mutex;
+			std::map<const void*, cli_account_use> Uses;
+		};
+
+		[[nodiscard]] auto cli_account_users() -> cli_account_usage&
+		{
+			static cli_account_usage usage;
+			return usage;
+		}
+
 		// [[BPR-0877]]. The profile refusal a startup actually saw, as its enum
 		// value, or -1 when none did. A value rather than a string because it is
 		// written on a startup lane and read by whoever reports the refusal.
@@ -4248,6 +4295,7 @@ namespace bpr::app {
 		void begin_shutdown()
 		{
 			Closing = true;
+			cli_account_users().set(this, std::nullopt);
 #if defined(BPR_LOCAL_AUTOMATION)
 			// A forwarded cycle command stops waiting and cancels its store work.
 			CycleOwnerStop.request_stop();
@@ -5705,6 +5753,25 @@ namespace bpr::app {
 		std::optional<std::vector<detail::github_public_path_fixture_options::github_cli_discovery_account>>
 			GithubCliDiscoveryAccounts;
 #endif
+		/// [[BPR-1373]]. gh's full inventory from the last check, and whether
+		/// gh has been checked in this run.
+		std::vector<adapters::github::detail::gh_cli_inventory_account> GithubCliInventory;
+		bool                                                            GithubCliInventoryChecked = false;
+		/// [[BPR-1373]]. Records this profile's pinned gh account, if its
+		/// accepted session is on one, for every profile's "Used by".
+		void record_cli_account_use()
+		{
+			auto use = std::optional<cli_account_use>{ };
+			if (!Closing && Host != nullptr && Host->access_mode() == core::github_access_mode::authenticated) {
+				if (const auto& session = Host->accepted_session(); session.has_value()) {
+					const auto profile = std::ranges::find_if(Profiles, [&](const auto& aProfile) { return aProfile.profile() == session->Profile; });
+					if (profile != Profiles.end() && !profile->cli_account_login().empty()) {
+						use = cli_account_use{ .Profile = Admission.Label, .Hostname = std::string{ profile->hostname() }, .Login = std::string{ profile->cli_account_login() } };
+					}
+				}
+			}
+			cli_account_users().set(this, std::move(use));
+		}
 #if defined(BPR_BUILD_TESTING)
 		// [[BPR-0797]]. Whether this run is standing inside the automated test
 		// boundary. A tests-disabled graph has no member, because it has no
@@ -5902,6 +5969,7 @@ namespace bpr::app {
 			&& (aUpdate.Transition->Status->Status == core::github_status::session_failed || aUpdate.Transition->Status->Status == core::github_status::session_cancelled)) {
 			ReviewRestoration->complete_startup(RestorationStartup->Request, std::unexpected(core::window_review_failure::unavailable));
 		}
+		record_cli_account_use();
 		for_each_window([&](const window_observer& aObserver) { if (aObserver.Github){ aObserver.Github(aUpdate);
 } });
 		adopt_discovery();
@@ -6882,7 +6950,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (HomeOpen) {
 						HomeOpen->reconcile(WindowRead->state());
 					}
-					observe_setup_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
+					observe_setup_session(aUpdate);
+					observe_cli_session(aUpdate); }, .Device = [this, weak](const application::device_authorization_presentation& aPresentation) {
 					if (weak.expired() || Closing){ return;
 }
 					observe_device_stage(aPresentation);
@@ -7287,6 +7356,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Profile->cli_read_offered_here()) {
 				Window->set_github_cli_discovery_dispatch(
 					[this] { discover_github_cli_accounts(); });
+				Window->set_github_cli_check_dispatch(
+					[this] { discover_github_cli_accounts(false); });
+				present_github_cli_accounts();
 			}
 
 			EpochHost = std::make_unique<application::epoch_application_host>(
@@ -13270,19 +13342,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// [[BPR-1373]]. The GitHub CLI profile pinned to one gh account on one
+		/// host, registered the first time gh reports that account signed in
+		/// with a keychain token. Returns null if it cannot be registered.
 		[[nodiscard]] auto register_discovered_cli_account(
-			const adapters::github::detail::gh_cli_authenticated_account& aAccount)
-			-> bool
+			const adapters::github::detail::gh_cli_inventory_account& aAccount)
+			-> const validated_github_host_profile*
 		{
 			const auto existing = std::ranges::find_if(
 				Profiles,
 				[&](const validated_github_host_profile& aProfile) {
 					return aProfile.hostname() == aAccount.Hostname
-						&& aProfile.authentication_transport()
-						== application::github_authentication_transport::github_cli;
+						&& aProfile.authentication_transport() == application::github_authentication_transport::github_cli
+						&& aProfile.cli_account_login() == aAccount.Login;
 				});
 			if (existing != Profiles.end()) {
-				return true;
+				return &*existing;
+			}
+			if (!adapters::github::valid_cli_account_login(aAccount.Login)) {
+				return nullptr;
 			}
 
 			auto nextProfile = std::uint64_t{ 1U };
@@ -13291,7 +13369,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (const auto& profile : Profiles) {
 				if (profile.profile().value() == std::numeric_limits<std::uint64_t>::max()
 					|| profile.host().value() == std::numeric_limits<std::uint64_t>::max()) {
-					return false;
+					return nullptr;
 				}
 				nextProfile = std::max(nextProfile, profile.profile().value() + 1U);
 				nextHost    = std::max(nextHost, profile.host().value() + 1U);
@@ -13301,38 +13379,110 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 
 			const auto githubCom = aAccount.Hostname == "github.com";
-			const auto candidate = validate_github_host_profile(
-				native_profile_candidate(
-					core::host_profile_id{ nextProfile },
-					host.value_or(core::git_host_id{ nextHost }),
-					application::github_profile_revision{ 1U },
-					githubCom
-						? application::github_server_contract::github_com_2022_11_28
-						: application::github_server_contract::ghes_3_18_2022_11_28,
-					application::github_authentication_transport::github_cli,
-					aAccount.Hostname,
-					github_profile_provenance::explicit_user));
-			if (!candidate || !ProfileCatalog
-				|| !ProfileCatalog->register_profile(*candidate)) {
-				return false;
+			auto       candidate = native_profile_candidate(
+				core::host_profile_id{ nextProfile },
+				host.value_or(core::git_host_id{ nextHost }),
+				application::github_profile_revision{ 1U },
+				githubCom
+					? application::github_server_contract::github_com_2022_11_28
+					: application::github_server_contract::ghes_3_18_2022_11_28,
+				application::github_authentication_transport::github_cli,
+				aAccount.Hostname,
+				github_profile_provenance::explicit_user);
+			candidate.CliAccountLogin = aAccount.Login;
+			const auto validated      = validate_github_host_profile(candidate);
+			if (!validated || !ProfileCatalog
+				|| !ProfileCatalog->register_profile(*validated)) {
+				return nullptr;
 			}
 
-			Profiles.push_back(*candidate);
+			Profiles.push_back(*validated);
 			auto option = profile_option(
-				*candidate,
+				*validated,
 				(githubCom ? std::string{ "GitHub.com" }
 						   : std::string{ "GHES 3.18" })
-					+ " — GitHub CLI (" + aAccount.Login + ", active in gh)");
+					+ " — GitHub CLI (" + aAccount.Login + (aAccount.Active ? ", active in gh)" : ")"));
 			ProfileOptions.push_back(option);
 			Profile->for_each_window([&](const github_profile_runtime::window_observer& aObserver) {
 				if (aObserver.SetupProfile) {
 					aObserver.SetupProfile(option);
 				}
 			});
-			return true;
+			return &Profiles.back();
 		}
 
-		void discover_github_cli_accounts()
+		/// [[BPR-1373]]. gh's accounts by hostname, as Accounts & hosts lists
+		/// them: each with the profile pinned to it and who in this run uses it.
+		void present_github_cli_accounts()
+		{
+			if (Window == nullptr || !Profile->GithubCliInventoryChecked) {
+				return;
+			}
+			auto listed = std::map<std::string, std::vector<qt::server_card_cli_account>, std::less<>>{ };
+			for (const auto& account : Profile->GithubCliInventory) {
+				const auto pinned = std::ranges::find_if(Profiles, [&](const validated_github_host_profile& aProfile) {
+					return aProfile.hostname() == account.Hostname
+						&& aProfile.authentication_transport() == application::github_authentication_transport::github_cli
+						&& aProfile.cli_account_login() == account.Login;
+				});
+				const auto state  = !account.SignedIn ? qt::server_card_cli_account_state::signed_out
+					: !account.KeychainHeld           ? qt::server_card_cli_account_state::file_token
+													  : qt::server_card_cli_account_state::signed_in;
+				listed[account.Hostname].push_back(qt::server_card_cli_account{
+					.Login      = account.Login,
+					.ActiveInGh = account.Active,
+					.State      = state,
+					.Profile    = pinned != Profiles.end() ? std::optional{ pinned->profile() } : std::nullopt,
+					.UsedBy     = cli_account_users().users(account.Hostname, account.Login),
+				});
+			}
+			// A pinned profile whose account gh no longer lists is signed out
+			// in gh; it stays listed so its card can say so.
+			for (const auto& profile : Profiles) {
+				if (profile.cli_account_login().empty()) {
+					continue;
+				}
+				auto& host = listed[std::string{ profile.hostname() }];
+				if (std::ranges::none_of(host, [&](const qt::server_card_cli_account& aAccount) { return aAccount.Login == profile.cli_account_login(); })) {
+					host.push_back(qt::server_card_cli_account{
+						.Login   = std::string{ profile.cli_account_login() },
+						.State   = qt::server_card_cli_account_state::signed_out,
+						.Profile = profile.profile(),
+						.UsedBy  = cli_account_users().users(profile.hostname(), profile.cli_account_login()),
+					});
+				}
+			}
+			Window->present_cli_accounts(std::move(listed));
+		}
+
+		/// [[BPR-1373]]. A refused session on a pinned profile: gh may have
+		/// signed its account out and fallen back to the active one. Checked
+		/// once per refusal, so the card can say which.
+		void observe_cli_session(const application::github_presentation_update& aUpdate)
+		{
+			if (!aUpdate.Transition || !aUpdate.Transition->Status) {
+				return;
+			}
+			present_github_cli_accounts();
+			const auto status = aUpdate.Transition->Status->Status;
+			if (status == core::github_status::session_ready) {
+				GithubCliRecheckedFor.reset();
+				return;
+			}
+			const auto  failed  = Host ? Host->state().ActiveProfile : std::nullopt;
+			const auto* profile = failed ? find_profile(*failed) : nullptr;
+			if (status == core::github_status::session_failed && profile != nullptr && !profile->cli_account_login().empty()
+				&& GithubCliRecheckedFor != failed && Profile->cli_read_offered_here()) {
+				GithubCliRecheckedFor = failed;
+				discover_github_cli_accounts(false);
+			}
+		}
+
+		/// \brief Asks gh for its accounts. [[BPR-1373]]: the full inventory.
+		/// \details From Use GitHub CLI, one signed-in account for the host
+		/// asked about connects at once; Check gh again (\p aConnectSingle
+		/// false) only lists.
+		void discover_github_cli_accounts(const bool aConnectSingle = true)
 		{
 #if defined(__APPLE__)
 			if (Closing || GithubCliDiscoveryPending || Window == nullptr
@@ -13348,20 +13498,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto        weak            = std::weak_ptr<const int>{ WindowLifetime };
 			auto* const lane            = &DecisionLane;
 			auto        fixtureAccounts = std::optional<std::vector<
-				adapters::github::detail::gh_cli_authenticated_account>>{ };
+				adapters::github::detail::gh_cli_inventory_account>>{ };
 	#if defined(BPR_BUILD_TESTING)
 			if (Profile->GithubCliDiscoveryAccounts.has_value()) {
 				fixtureAccounts.emplace();
 				fixtureAccounts->reserve(Profile->GithubCliDiscoveryAccounts->size());
 				for (const auto& account : *Profile->GithubCliDiscoveryAccounts) {
-					fixtureAccounts->push_back({ account.Hostname, account.Login });
+					fixtureAccounts->push_back({ .Hostname = account.Hostname, .Login = account.Login, .Active = account.Active, .SignedIn = account.SignedIn, .KeychainHeld = account.KeychainHeld });
 				}
 			}
 	#endif
 			try {
-				ProviderEffects.post([this, weak, lane, discoveryGeneration, requestedHost, fixtureResult = std::move(fixtureAccounts)] {
+				ProviderEffects.post([this, weak, lane, discoveryGeneration, requestedHost, aConnectSingle, fixtureResult = std::move(fixtureAccounts)] {
 					auto accounts = std::optional<std::vector<
-						adapters::github::detail::gh_cli_authenticated_account>>{ };
+						adapters::github::detail::gh_cli_inventory_account>>{ };
 					auto failure  = qt::github_cli_discovery_state::process_failed;
 					try {
 						if (fixtureResult.has_value()) {
@@ -13378,12 +13528,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 										? qt::github_cli_discovery_state::unsupported_version
 										: qt::github_cli_discovery_state::process_failed;
 								} else {
+									// gh exits 1 when any account fails its check; the
+									// JSON still says which, so it is read either way.
 									const auto status = process->run(
-										adapters::github::detail::compile_gh_cli_auth_status_request(
+										adapters::github::detail::compile_gh_cli_auth_inventory_request(
 											*configuration),
 										std::stop_token{ });
-									if (status && status->ExitCode == 0) {
-										auto parsed = adapters::github::detail::parse_gh_cli_auth_status(
+									if (status && (status->ExitCode == 0 || status->ExitCode == 1)) {
+										auto parsed = adapters::github::detail::parse_gh_cli_auth_inventory(
 											status->StandardOutput);
 										if (parsed) {
 											accounts = std::move(*parsed);
@@ -13397,7 +13549,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					} catch (...) { }
 
 					try {
-						lane->post([this, weak, discoveryGeneration, requestedHost, discovered = std::move(accounts), failure]() mutable {
+						lane->post([this, weak, discoveryGeneration, requestedHost, aConnectSingle, discovered = std::move(accounts), failure]() mutable {
 							if (weak.expired() || Closing || Window == nullptr || GithubCliDiscoveryGeneration != discoveryGeneration) {
 								return;
 							}
@@ -13406,32 +13558,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 								Window->present_github_cli_discovery(failure);
 								return;
 							}
+							auto choices = std::vector<core::host_profile_id>{ };
 							for (const auto& account : *discovered) {
-								if (!register_discovered_cli_account(account)) {
+								if (!account.SignedIn || !account.KeychainHeld) {
+									continue;
+								}
+								const auto* const registered = register_discovered_cli_account(account);
+								if (registered == nullptr) {
 									Window->present_github_cli_discovery(
 										qt::github_cli_discovery_state::malformed_response);
 									return;
 								}
-							}
-							auto choices = std::vector<core::host_profile_id>{ };
-							for (const auto& account : *discovered) {
-								if (!requestedHost.empty() && account.Hostname != requestedHost) {
-									continue;
-								}
-								const auto found = std::ranges::find_if(Profiles, [&](const auto& aProfile) {
-									return aProfile.hostname() == account.Hostname && aProfile.authentication_transport() == application::github_authentication_transport::github_cli;
-								});
-								if (found != Profiles.end()) {
-									choices.push_back(found->profile());
+								if (requestedHost.empty() || account.Hostname == requestedHost) {
+									choices.push_back(registered->profile());
 								}
 							}
+							Profile->GithubCliInventory        = std::move(*discovered);
+							Profile->GithubCliInventoryChecked = true;
+							present_github_cli_accounts();
 							Window->present_cli_account_choices(choices);
 							Window->present_github_cli_discovery(
 								choices.empty()
 									? qt::github_cli_discovery_state::empty
 									: qt::github_cli_discovery_state::ready,
 								choices.size());
-							if (choices.size() == 1U && GithubCliDiscoveryGeneration == discoveryGeneration) {
+							if (aConnectSingle && choices.size() == 1U && GithubCliDiscoveryGeneration == discoveryGeneration) {
 								Window->connect_github_profile(choices.front());
 							}
 						});
@@ -13442,6 +13593,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Window->present_github_cli_discovery(
 					qt::github_cli_discovery_state::process_failed);
 			}
+#else
+			static_cast<void>(aConnectSingle);
 #endif
 		}
 
@@ -16891,9 +17044,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		bool                                                     SetupConfigurationSubmitted  = false;
 		bool                                                     GithubCliDiscoveryPending    = false;
 		std::uint64_t                                            GithubCliDiscoveryGeneration = 0U;
-		core::setup_owner_id                                     SetupOwner{ 1U };
-		std::optional<core::setup_request_id>                    SetupDeviceRequest;
-		std::optional<core::github_identity_generation>          SetupAcceptedGeneration;
+		/// [[BPR-1373]]. The pinned profile whose refusal last re-checked gh.
+		std::optional<core::host_profile_id>            GithubCliRecheckedFor;
+		core::setup_owner_id                            SetupOwner{ 1U };
+		std::optional<core::setup_request_id>           SetupDeviceRequest;
+		std::optional<core::github_identity_generation> SetupAcceptedGeneration;
 
 		struct published_conversation_selection
 		{
@@ -18709,6 +18864,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return;
 		}
 		Profile->Closing = true;
+		cli_account_users().set(Profile.get(), std::nullopt);
 		if (Profile->ReviewRestoration && !Profile->RestorationOrderly) {
 			Profile->ReviewRestoration->shutdown();
 		}

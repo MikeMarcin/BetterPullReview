@@ -61,6 +61,32 @@ namespace bpr::qt {
 		another_account,
 	};
 
+	/// \brief How `gh` holds one of its accounts. [[BPR-1373]]
+	enum class server_card_cli_account_state : std::uint8_t {
+		/// Signed in, its token in the keychain: a profile can use it.
+		signed_in,
+		/// Not in `gh`'s inventory, or `gh` reports it not signed in.
+		signed_out,
+		/// Signed in, but `gh` keeps its token in a file rather than the
+		/// keychain, which a per-call private configuration cannot reach.
+		file_token,
+	};
+
+	/// \brief One `gh` account on this host, as its card lists it. [[BPR-1373]]
+	struct server_card_cli_account
+	{
+		std::string                   Login;
+		bool                          ActiveInGh = false;
+		server_card_cli_account_state State      = server_card_cli_account_state::signed_in;
+		/// The GitHub CLI profile pinned to this account; choosing it connects
+		/// that profile. Absent for an account no profile can use.
+		std::optional<core::host_profile_id> Profile;
+		/// The BPR profiles in this run that use it.
+		std::vector<std::string> UsedBy;
+
+		auto operator==(const server_card_cli_account&) const -> bool = default;
+	};
+
 	/// \brief The window's decision about one host, as its card presents it.
 	///
 	/// \details Everything here is decided outside the card, from the session
@@ -103,6 +129,11 @@ namespace bpr::qt {
 		application::github_rate_limits_projection RateLimits;
 		application::public_preview_presentation   PublicPreview;
 		std::uint64_t                              PublicPreviewNow = 0;
+		/// [[BPR-1373]]. Every `gh` account on this host from the last check,
+		/// in `gh`'s order; empty until `gh` has been checked.
+		std::vector<server_card_cli_account> CliAccounts;
+		/// Whether Check gh again can be asked for now.
+		bool CliCheckAdmitted = false;
 
 		auto operator==(const server_card_presentation&) const -> bool = default;
 	};
@@ -123,6 +154,8 @@ namespace bpr::qt {
 		std::function<void()> Remember;
 		/// Forget exactly this kept record. The window confirms first.
 		std::function<void(application::saved_server)> Forget;
+		/// [[BPR-1373]]. Ask `gh` for its accounts again.
+		std::function<void()> CheckCliAccounts;
 	};
 
 	/// \brief Records directly observable server-card activity.
@@ -236,6 +269,11 @@ namespace bpr::qt {
 		/// \brief "Forget server", shown while the queue keeps a record for it.
 		[[nodiscard]] auto forget_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto forget_glyph() const noexcept -> info_glyph*;
+		/// \brief [[BPR-1373]]. The `gh` account list; null until `gh` has been checked.
+		[[nodiscard]] auto cli_accounts() const noexcept -> QWidget*;
+		/// \brief The row listing \p aLogin; null when not listed.
+		[[nodiscard]] auto cli_account_row(const QString& aLogin) const -> QWidget*;
+		[[nodiscard]] auto cli_check_button() const noexcept -> QPushButton*;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -248,6 +286,7 @@ namespace bpr::qt {
 		void apply_header();
 		void apply_account_row();
 		void apply_rows();
+		void apply_cli_accounts();
 		void refresh_native_appearance();
 
 		std::vector<application::github_profile_option> Options;
@@ -298,6 +337,9 @@ namespace bpr::qt {
 		QLabel*                     LastProblemName      = nullptr;
 		QLabel*                     LastProblemLabel     = nullptr;
 		QPushButton*                CopyDetailsButton    = nullptr;
+		QWidget*                    CliAccounts          = nullptr;
+		QWidget*                    CliAccountList       = nullptr;
+		QPushButton*                CliCheckButton       = nullptr;
 	};
 } // namespace bpr::qt
 
