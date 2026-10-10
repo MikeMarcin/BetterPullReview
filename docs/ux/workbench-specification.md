@@ -375,8 +375,9 @@ clarification on [[BPR-1213]] replaced with these flat rows.
 
 Home is the window's other page, shown whenever no pull request is open and
 reachable at any time through Home in the strip (`Ctrl+0`, which macOS
-presents as ⌘0). It is the window ground edge to edge rather than a narrow
-column, and RFC-BPR-0032 gives it one job per row.
+presents as ⌘0). The Home button's tooltip includes that shortcut in the
+platform's native notation. It is the window ground edge to edge rather than
+a narrow column, and RFC-BPR-0032 gives it one job per row.
 
 - **The strip.** Home at the left; at the right, before a divider, the
   account and settings buttons. While Home is shown and an account can fill

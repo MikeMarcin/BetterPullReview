@@ -1466,7 +1466,8 @@ namespace bpr::qt {
 		HomeAction->setShortcutContext(Qt::WindowShortcut);
 		HomeAction->setIconText(QStringLiteral("Home"));
 		HomeAction->setToolTip(QStringLiteral(
-			"Show Home: sign-in or the review queue, and the way back to the review."));
+								   "Show Home (%1): sign-in or the review queue, and the way back to the review.")
+								   .arg(HomeAction->shortcut().toString(QKeySequence::NativeText)));
 		HomeAction->setStatusTip(HomeAction->toolTip());
 		addAction(HomeAction);
 		connect(HomeAction, &QAction::triggered, this, [this](const bool aChecked) {

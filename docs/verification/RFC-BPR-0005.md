@@ -245,3 +245,12 @@ reproduced and repaired before the flip; the revalidated
 `native-visual-acceptance-v005` at executable `462896aa…`, the terminal
 attended gate. BPR-0100 and BPR-0101 closed in the flip commit, their
 procedures consumed by this replay.
+
+## Home shortcut tooltip — 2026-10-10
+
+BPR-1380 adds the Home action's existing shortcut to its tooltip using
+`QKeySequence::NativeText`, matching the adjacent toolbar actions. The
+workbench specification records that presentation requirement. The same text
+also reaches the status tip and the button's accessible description. This
+wording change has no impact on core policy, host effects, shortcut bindings,
+authority, persistence or lifecycle; focused runtime evidence is on the card.
