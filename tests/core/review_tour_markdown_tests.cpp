@@ -80,7 +80,7 @@ namespace {
 		expect(tour_stop_link(comment) == files, "a review comment links to its Files changed anchor");
 		expect(tour_link_identity(files) == comment && tour_link_identity(comment) == comment, "either form names the comment GitHub returned");
 		for (const auto* other : { "https://github.com/o/r/pull/7#pullrequestreview-9", "https://github.com/o/r/pull/7#issuecomment-8", "https://github.com/o/r/pull/7", "https://github.com/o/r/pull/7#discussion_r", "https://github.com/o/r/pull/7#discussion_r01", "https://github.com/o/r/pull/7#discussion_r1x",
-								   "https://github.com/o/r/issues/7#discussion_r1", "http://github.com/o/r/pull/7#discussion_r1", "https://github.com/o/r/pull/x#discussion_r1" }) {
+								   "https://github.com/o/r/issues/7#discussion_r1", "https://github.com/o/r/pull/x#discussion_r1" }) {
 			expect(tour_stop_link(other) == other, "anything but a review comment's URL is kept");
 		}
 		for (const auto* other : { "https://github.com/o/r/pull/7/files#r", "https://github.com/o/r/pull/7/files#r0", "https://github.com/o/r/pull/7/files#diff-abc", "https://github.com/o/r/blob/x/files#r1", "https://github.com/o/r/pull/7/files#r1x" }) {

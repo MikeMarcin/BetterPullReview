@@ -122,7 +122,10 @@ namespace bpr::application {
 		std::vector<core::tour_markdown_link> entries;
 		entries.reserve(aRecord.Comments.size());
 		for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
-			entries.push_back({ aRecord.Plan.Stops[i].Title, core::tour_stop_link(aRecord.Comments[i].WebUrl) });
+			// [[BPR-1222]]. Only an admitted HTTPS comment URL is rewritten to
+			// its Files changed anchor; the core reads the path alone.
+			const auto& web = aRecord.Comments[i].WebUrl;
+			entries.push_back({ aRecord.Plan.Stops[i].Title, web.starts_with("https://") ? core::tour_stop_link(web) : web });
 		}
 		const auto index = core::render_tour_index(entries);
 		if (!index) {

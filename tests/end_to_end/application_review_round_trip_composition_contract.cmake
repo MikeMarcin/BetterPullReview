@@ -1383,6 +1383,16 @@ endfunction()
 # reports its markers. No grant, target, provider, credential, mutation or
 # publication path is added; mutation pin unchanged; no new src/app source.
 # Reviewed on BPR-1374.
+# BPR-1222 reseal (2026-10-09, bpr-main-linux, at the coordinator's request):
+# over the BPR-1374 reseal above. Two pinned-scope commits landed without one:
+# BPR-1373's 170c706c0 (each gh call pinned to a chosen account; composition
+# records which profile uses which pinned gh account for Accounts & hosts'
+# "Used by", plus tour_cli.cpp, tour_remote.cpp, github_cli_runtime.cpp and
+# review_submission_workflow.{hpp,cpp}) and BPR-1222's 9cab2ad75 (live tour
+# publication on; stop links open the Files changed tab). Both pinned values
+# are resealed here; the production mutation-branch pin did not move, so
+# neither changed a mutation path. Resealed as the drift fix for the
+# pre-release build; BPR-1373's account pinning was reviewed on its own card.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1401,7 +1411,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0ca2256968d320b35794a8bdeb95a67809df983b559b74b9140523d626e3f4ac"
+		"f69fb5201333110ffb2b2b0079357410717339e19ab1a11f7021be409c76e260"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1605,7 +1615,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7b094d21d69e7e85e1326c677236b4d07529685a13d3343fb9cddf6a58894d53"
+        "f9049ba7be2e81b519403ccfb7b05b208d52838055e7b8b963360234d87645b6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

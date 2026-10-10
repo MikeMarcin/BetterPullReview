@@ -331,3 +331,41 @@ over gh) and BPR-1378 (a Stop reported as `conflict`) remain open.
 
 The card stays Parked on `human-review`: AC40-07's navigation needs the owner
 to re-check the Files changed links on a newly published tour.
+
+## Linux station run and main repair (bpr-main-linux, 2026-10-09)
+
+**Main was red after `9cab2ad75`.** It had two gate failures:
+- `architecture_boundaries` refused `src/core/src/review_tour_markdown.cpp`,
+  because the core may hold no `https://` literal.
+- `application_review_round_trip_composition_contract` reported that
+  `github_application.cpp`'s digest had drifted. BPR-1373's `170c706c0` had
+  also landed without a reseal.
+
+The fix, on the coordinator's direction:
+- **Core:** `pull_request_page` reads only the `…/pull/N` path. The host admits
+  the URL's scheme and host before it reaches the codec, as
+  `render_tour_index`'s contract already said.
+- **Application:** `staged_review_publication.cpp`, which builds the index
+  from the comment URLs GitHub returned, rewrites a link to its Files changed
+  anchor only when it starts with `https://`. `review_tour_update.cpp`'s
+  rewrite works on admitted remotes.
+- **Core test:** the `http://` case of `files_changed_links` left the core
+  list, since scheme admission is the host's.
+- **Pins:** resealed in the same commit, over both drifted commits. The
+  mutation pin did not move. No allowlist entry was added.
+
+**Tour publication switched on (Linux, first run anywhere).** In
+`build/dev-tour-cli` (`BPR_BUILD_TOUR_CLI=ON`, Debug, offscreen,
+network-isolated), at the fix:
+- all 7 `tour_cli_*` rows pass;
+- all 9 `application_review_tour_publication_*` rows pass (native, compat,
+  stop, description, conflict, unsupported, maintenance, reconciliation,
+  manual);
+- `architecture_boundaries`, the five `core_review_tour*` rows, the round-trip
+  contract and `test_network_isolation_manifest` pass.
+
+`tour_cli_loopback_provider`'s publish step reaches "Type publish to authorize
+exactly this finite plan". Enter cancels it (exit 130), the fake GitHub
+records no write, and the output says "no writes were authorized"
+(`tour-cli-loopback:publish:pass:1.8s`). It also passed at `515720107`,
+before the fix.
