@@ -1363,3 +1363,40 @@ Criteria 2 and 4 owe the owner's look at 100% on JaegAW. No agent drives that de
 
 - Wizard `bpr0653-jaegaw-100pct-20261009-v001` (session `08eb6cb8-1e6c-4e8e-96b3-f30a42ba70a4`, 6 steps), state `/Users/jaeger/.mask/wizard/bpr0653-jaegaw-100pct-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Offline page: `/Users/jaeger/.mask/wizard/bpr0653-jaegaw-100pct-20261009-v001-offline.html`; its JSON export imports with `wizard.py import`. Steps: set 100%; run `C:\Users\mikem\bpr0653-100pct-v001\launch.cmd` (the launcher of 2026-10-06, unchanged image `6aa27c8d…`); Accept/Reject on the title row at rest, hovered and pressed (criterion 4; an optional picture is saved into the launcher's `captures` folder); Accept/Reject on snap, drag and double-click (criterion 2); notes (including whether JaegAW's own session `39ba8abc` was already answered); scale back to 150%. That the launcher is still on JaegAW was not checked from the Mac; the steps say what to do if it is missing.
 - **Criterion 3 no longer needs the owner.** Its only red was BPR-1108's twelve findings on four unpinned rows. [[BPR-1237]] (Done) has since pinned all four (`sqlite_release_maintenance_files`, `application_attended_recent_replay`, `application_release_maintenance_public_path`, `application_release_update_public_path`, each `dos-volume-name`), and its criterion `test_network_isolation_manifest passes on Windows` passed. What remains is one Windows station pass of the criterion's selectors at a single main revision. That is station work, not a question.
+
+## Criterion 3 at one main revision, again (bpr-main-win, 2026-10-09)
+
+Run at main `b406b2e3b`, on Windows 11 Home 10.0.26200 with MSVC 14.51 and
+Qt 6.11.2 at 150%, in `windows-dev-tour-cli` Debug. The tree was rebuilt at
+that revision (exit 0) and the rows ran serially.
+
+19 of the criterion's 20 rows ran:
+
+- `qt_workbench_title_row_scale_{100,125,200}`: 46.3, 34.8, 37.8 s;
+- `qt_workbench_focus_order_scale_{100,125,200}`: 5.4, 7.2, 9.3 s;
+- `qt_workbench_window_scale_{100,125,200}`: 170.6, 179.6, 190.7 s;
+- `qt_workbench_strip_menu` 14.9 s;
+- `qt_home_list_scale_100` 23.9 s;
+- `qt_review_queue` 0.04 s;
+- `application_diff_workbench_public_path` 21.8 s;
+- `application_review_round_trip_composition_contract` 10.3 s;
+- `test_network_isolation_structure_contract` 10.7 s;
+- `architecture_boundaries` 39.8 s;
+- `core_dependency_boundary` 1.4 s;
+- **`test_network_isolation_manifest` 22.4 s, green.** [[BPR-1237]] pinned
+  [[BPR-1108]]'s four rows, so its earlier twelve findings are gone.
+
+`qt_composed_github_scale_100` timed out at 120 s in that pass. The pass
+overlapped two Release builds. Run again serially on a quiet machine, it
+passes in 58.1 s. It passed in 89.6 s earlier the same day.
+
+The 20th row, `application_windows_title_row`, was **not run**. It opens a
+real window on the windows platform, and the station stays off the owner's
+desktop until the owner clears it. It passed at `38cc26d7` and at
+`2a5580d6`, as recorded above.
+
+This card adds no uncontained registration.
+
+So criterion 3 is met at `b406b2e3b` for every row except
+`application_windows_title_row`, which is owed only because the desktop
+is held.

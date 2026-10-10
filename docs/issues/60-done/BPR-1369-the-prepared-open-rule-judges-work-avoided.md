@@ -171,3 +171,37 @@ Also passing in `build/dev`, `-j1`: every `application_large_review_*` row
 `application_epoch_host`, `application_diff_host` and
 `gh_cli_git_smart_transport`. Both trees were deleted afterwards. A Windows
 run of the new rule is still owed.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+Run on Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2. The `windows-dev-tour-cli` Debug tree was built at `3947245ca`, and the rows ran with `-j4` at `6cf49d91a`, whose later changes are cards and the pin list only. The quiet re-runs were serial: Debug at `b406b2e3b`, and Release in a Ninja tests-on tree at `f2af6cea3` (BPR-1344 over BPR-1369's rule).
+
+The new rule passes 5 of 5 in Debug and 5 of 5 in Release, run serially and
+alternating between the trees. In every run the read counts are exact:
+
+- each of the six unprepared opens reads `before=0+0`, then `during=1+1`;
+- each of the five prepared opens reads `before=1+1`, then `during=0+0`.
+
+The margin is the median unprepared open plus the tolerance, minus the
+slowest prepared open:
+
+| tree | median unprepared (ms) | slowest prepared (ms) | tolerance (ms) | margin (ms) |
+|---|---|---|---|---|
+| Debug | 780.1 / 766.4 / 736.1 / 915.3 / 929.7 | 690.6 / 671.7 / 631.1 / 747.4 / 750.8 | 195.0 / 191.6 / 184.0 / 228.8 / 232.4 | 284.6 / 286.3 / 289.0 / 396.8 / 411.3 |
+| Release | 622.9 / 611.9 / 698.1 / 780.3 / 781.6 | 436.9 / 442.5 / 490.8 / 593.0 / 549.1 | 155.7 / 153.0 / 174.5 / 195.1 / 195.4 | 341.7 / 322.4 / 381.9 / 382.4 / 427.9 |
+
+The run in step with item 5's rows (`-j4`) also passed, in 28.80 s.
+
+On Windows a prepared open is about 85% of an unprepared one in Debug and
+about 70% in Release. The old rule required the slowest prepared open to be
+faster than the fastest unprepared one, and it would have passed every run
+here too.
+
+Also passing:
+
+- `application_first_tab_comparison`;
+- `application_epoch_host` and `application_diff_host`;
+- the round-trip contract;
+- `architecture_boundaries` and `test_network_isolation_manifest`.
+
+`gh_cli_git_smart_transport` is registered on macOS only.

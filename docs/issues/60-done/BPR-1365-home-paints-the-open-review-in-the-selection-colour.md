@@ -219,3 +219,17 @@ state folder keeps the record. The card is Done.
 At `9b1603193`, WSL2 Ubuntu 26.04, GCC 15.2.0, `build/dev` (Debug), offscreen, network-isolated runner, all pass: `qt_home_list_scale_{100,125,200}`,
 `qt_composed_github_scale_{100,125,200}` and
 `application_home_open_feedback_public_path`.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+Run on Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2. The `windows-dev-tour-cli` Debug tree was built at `3947245ca`, and the rows ran with `-j4` at `6cf49d91a`, whose later changes are cards and the pin list only. The quiet re-runs were serial: Debug at `b406b2e3b`, and Release in a Ninja tests-on tree at `f2af6cea3` (BPR-1344 over BPR-1369's rule).
+
+These pass:
+
+- `application_home_open_feedback_public_path` 64.71 s;
+- `qt_home_list_scale_100`, `_125` and `_200`: 24.75, 25.34 and 26.60 s;
+- `qt_composed_github_scale_100`, `_125` and `_200`: 89.55, 91.13 and 97.42 s.
+
+`qt_workbench_home_discovery_scale_100` fails, as it does on main before this
+card. It stops at "the empty Needs me lane is not shown while nothing is
+saved; Review Cycles stays", and [[BPR-1372]] now holds it.

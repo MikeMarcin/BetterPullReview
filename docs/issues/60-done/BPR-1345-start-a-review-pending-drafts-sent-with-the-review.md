@@ -996,3 +996,38 @@ without `/utf-8`, so a narrow literal is encoded in the ANSI code page and
 spells the UTF-8 bytes, `"\xC3\xA9"`, which is the repository's convention
 elsewhere (`review_cycle_round_tests.cpp`). The row then passes in Debug in
 2.71 s. Only the test changed; the store is unchanged.
+
+**The other Windows rows (`-j4`, Debug).** These pass:
+
+- `core_review_pending` 0.09 s;
+- `application_comment_range_draft_store` 0.56 s;
+- `live_review_submission_provider` 0.81 s;
+- `sqlite_review_submission_recovery_storage`, after the literal fix above.
+
+`application_start_review_contract` fails in Debug as recorded above.
+
+**The Debug stall, found so far.** It is in the fixture helper
+`reveal_fixture_file`. In the awaiting-files phase the helper does three
+things in order:
+
+1. It resolves the file's drawer row.
+2. It chooses Review and runs `processEvents()`.
+3. It calls `setCurrentIndex` with the row from step 1.
+
+After phase 11's native publication, choosing Review re-projects the drawer.
+In Debug that re-projection can land inside step 2. The row is then stale,
+the selection goes nowhere, and no `select_workbench_file_intent` is
+dispatched. The instrumented build caught this directly: `current_after` was
+empty, the file-selection count was unchanged, and the reveal stayed in
+`awaiting_diff` for good.
+
+Re-resolving the row after step 2 fixed that case. In the instrumented runs
+that re-resolution sees the row missing on the first tick (`stale=1`) and
+present on the next.
+
+One run with that fix still stalled, in a different way. The `renderer.h`
+selection was dispatched, but the drawer's current row went back to
+`renderer.cpp`, and the selected diff never changed. Eight runs with the
+trace on then passed: pending in about 8 s in Debug, and all five courses.
+The trace changes the timing. Whether the product can undo a reviewer's newer
+file selection when a re-projection lands is still being measured.

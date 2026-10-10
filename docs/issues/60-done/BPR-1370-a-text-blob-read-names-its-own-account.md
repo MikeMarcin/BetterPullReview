@@ -178,3 +178,16 @@ The run stayed far above the 1500 margin.
 Not exercised live: no file in the course is binary, so the REST fallback was
 covered only by the fixtures.
 
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+Run on Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2. The `windows-dev-tour-cli` Debug tree was built at `3947245ca`, and the rows ran with `-j4` at `6cf49d91a`, whose later changes are cards and the pin list only. The quiet re-runs were serial: Debug at `b406b2e3b`, and Release in a Ninja tests-on tree at `f2af6cea3` (BPR-1344 over BPR-1369's rule). Windows runs only the rows registered there.
+`gh_cli_git_smart_transport` is registered only on macOS, so it is not one.
+
+- **`gh_cli_transport`** passes, 1.12 s.
+- **`github_provider`** timed out at its 30 s limit twice: once under the
+  `-j4` run, and once serially while a Release build was running beside it.
+  Quiet and serial, it passes three times in Debug, at 25.76, 25.66 and
+  26.08 s. That is about 4 s inside its 30 s `TIMEOUT`; [[BPR-1114]] recorded
+  23.57 s. In Release it takes 2.45-2.60 s. The narrow Debug margin is
+  recorded here and not changed.

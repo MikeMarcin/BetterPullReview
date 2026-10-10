@@ -304,3 +304,18 @@ row pass (`cache_bytes` skips in Debug by design).
 `application_large_review_prepared_open` under [[BPR-1369]]'s rule passes 10
 of 10 in Release tests-on and 10 of 10 in Debug. BPR-1369 records the
 margins. Both trees were deleted afterwards.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+Run on Windows 11 Home 10.0.26200, MSVC 14.51, Qt 6.11.2. The `windows-dev-tour-cli` Debug tree was built at `3947245ca`, and the rows ran with `-j4` at `6cf49d91a`, whose later changes are cards and the pin list only. The quiet re-runs were serial: Debug at `b406b2e3b`, and Release in a Ninja tests-on tree at `f2af6cea3` (BPR-1344 over BPR-1369's rule). All of this card's Windows rows pass:
+
+- `application_epoch_host` 1.81 s and `application_diff_host` 0.08 s;
+- `application_review_round_trip_composition_contract` 12.67 s;
+- `application_first_tab_comparison` 30.62 s;
+- `application_large_review_responsiveness` 82.45 s;
+- `application_large_review_prepared_open` 28.80 s;
+- `gh_cli_transport` 1.12 s;
+- `architecture_boundaries` 50.81 s and `test_network_isolation_manifest` 27.28 s.
+
+`gh_cli_git_smart_transport` is registered on macOS only (`if(APPLE)`), so
+Windows owes nothing for it.
