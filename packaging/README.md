@@ -52,6 +52,16 @@ claim. Clean-machine installation and release trust remain RFC-BPR-0014 work.
 Regeneration and asset
 ownership are documented in [`icons/README.md`](icons/README.md).
 
+## Release asset ordering
+
+Build assets retain their `BetterPullReview-<version>-<target>` names.
+Corresponding-source archives use
+`Source-BetterPullReview-<version>-<target>-corresponding-source.zip`, with a
+matching `.sha256` file, so filename ordering puts builds before source.
+The package producer and publisher must agree with the exact name and URL in
+installed source offers and notices. Existing releases retain their original
+asset names and URLs for recipients of those builds.
+
 ## Dif asset notice boundary
 
 RFC-BPR-0030's accepted ten-clip production provenance records

@@ -466,7 +466,7 @@ Plugins = PlugIns
 EOF
 verify_dependency_policy "${STAGED_APP}"
 log "Preparing exact third-party notices and corresponding source"
-SOURCE_ASSET="${APP_NAME}-${REQUESTED_VERSION}-macos-universal-corresponding-source.zip"
+SOURCE_ASSET="Source-${APP_NAME}-${REQUESTED_VERSION}-macos-universal-corresponding-source.zip"
 SOURCE_PATH="${OUTPUT_DIR}/${SOURCE_ASSET}"
 python3 "${ROOT_DIR}/packaging/package_runtime.py" notices --build "${BUILD_DIR}" --root "${STAGED_APP}" --source-archive "${SOURCE_PATH}"
 

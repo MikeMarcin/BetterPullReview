@@ -89,7 +89,7 @@ DMG_SHA="${DMG}.sha256"
 ZIP_SHA="${ZIP}.sha256"
 SBOM="${DIST_DIR}/${ASSET_BASE}.spdx.json"
 SBOM_SHA="${SBOM}.sha256"
-SOURCE="${DIST_DIR}/${ASSET_BASE}-corresponding-source.zip"
+SOURCE="${DIST_DIR}/Source-${ASSET_BASE}-corresponding-source.zip"
 SOURCE_SHA="${SOURCE}.sha256"
 
 for artifact in "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}"; do

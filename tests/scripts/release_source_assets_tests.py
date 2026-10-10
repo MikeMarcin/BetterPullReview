@@ -72,6 +72,18 @@ class SourceAssetTests(unittest.TestCase):
                 self.verify()
             self.material[name] = original
 
+    def test_builds_and_checksums_sort_before_corresponding_source(self):
+        for system, target, extensions in (("Darwin", "macos-universal", (".dmg", ".zip")),
+                                           ("Windows", "windows-x64", (".msi",)),
+                                           ("Linux", "linux-x64", (".deb", ".rpm"))):
+            with self.subTest(platform=system):
+                base = f"BetterPullReview-1.2.3-{target}"
+                source = runtime.source_asset_name({**self.info, "platform": system})
+                builds = [base + suffix for extension in extensions for suffix in (extension, extension + ".sha256")]
+                sources = [source, source + ".sha256"]
+                self.assertEqual(sorted(builds + sources), sorted(builds) + sources)
+                self.assertTrue(runtime.source_asset_url({**self.info, "platform": system}).endswith("/" + source))
+
     def test_missing_corrupt_renamed_or_embedded_source_is_refused(self):
         saved = self.asset.read_bytes()
         self.asset.unlink()

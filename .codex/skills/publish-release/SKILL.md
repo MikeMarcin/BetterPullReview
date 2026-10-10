@@ -31,6 +31,10 @@ gate, builds a tests-disabled universal app, deploys the restricted Qt runtime,
 signs with Developer ID and hardened runtime, submits and staples the app and
 DMG, performs Gatekeeper checks, and writes DMG/ZIP/SPDX/checksum artifacts and a
 separate version-bound corresponding-source ZIP under `build/releases/X.Y.Z/`.
+The source archive uses `Source-BetterPullReview-X.Y.Z-macos-universal-corresponding-source.zip`
+so GitHub's filename ordering places the builds before source and its checksum.
+Keep this name bound to the installed notices and source offers; never rename
+an already published source asset whose URL is embedded in distributed builds.
 
 Do not use `--skip-tests`, `--skip-notarize`, or `--allow-dirty` for a published
 release unless the user explicitly accepts the resulting limitation. A missing

@@ -149,7 +149,7 @@ def source_asset_name(info: dict) -> str:
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.-]+)?", info["version"]):
         raise ValueError("invalid source asset version")
     target = {"Darwin": "macos-universal", "Windows": "windows-x64", "Linux": "linux-x64"}[info["platform"]]
-    return f"BetterPullReview-{info['version']}-{target}-corresponding-source.zip"
+    return f"Source-BetterPullReview-{info['version']}-{target}-corresponding-source.zip"
 
 
 def source_asset_url(info: dict) -> str:
