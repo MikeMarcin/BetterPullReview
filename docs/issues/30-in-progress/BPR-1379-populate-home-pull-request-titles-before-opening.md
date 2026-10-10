@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1379"
 title: "Populate Home pull request titles before opening a review"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026","RFC-BPR-0010"]
 depends_on: []
 priority: "P1"
