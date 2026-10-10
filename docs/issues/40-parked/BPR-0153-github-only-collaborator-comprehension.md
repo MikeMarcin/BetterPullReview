@@ -6,7 +6,7 @@ status: "Parked"
 rfcs: []
 depends_on: ["BPR-0149","BPR-0142"]
 parked_on: "human-review"
-metadata: {"original_parked_on":"awaiting-owner-verdict","origin_rfc":"RFC-BPR-0009","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0009 closeout dependency"}
+metadata: {"original_parked_on":"awaiting-owner-verdict","origin_rfc":"RFC-BPR-0009","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0009 closeout dependency","owner_answers":{"2026-10-09":{"bpr0153-reader":"not now","source":"wizard bpr-owner-inputs-20261009-v001, session 10567d12-3a30-44d5-ab84-ebbd3af1b500, revision 1"}}}
 ---
 
 # Confirm a GitHub-only collaborator understands a published defect
@@ -80,3 +80,17 @@ to another person was performed while preparing this checkpoint.
 ## Owner session prepared, 2026-10-09 (main, Mac)
 
 The owner question (who is the collaborator who has never used BetterPullReview) is the first step of wizard `bpr-owner-inputs-20261009-v001` (session `10567d12-3a30-44d5-ab84-ebbd3af1b500`, state `/Users/jaeger/.mask/wizard/bpr-owner-inputs-20261009-v001`). The answer is a GitHub login or 'not now'. Nothing is published and nobody is contacted until the owner has named them and the defect comment is prepared.
+
+## Owner answer, 2026-10-09: not now
+
+The owner answered the wizard's first step (`bpr0153-reader`, session
+`10567d12-3a30-44d5-ab84-ebbd3af1b500`, event revision 1, actor human) with,
+verbatim:
+
+> not now
+
+The card is owner-deferred and stays Parked on `human-review` with its
+dependencies and pending evidence unchanged. No collaborator is named, so no
+defect comment was prepared or published and nobody was contacted. Do not
+ask again in an attended queue; prepare the packet only when the owner names
+a reader.

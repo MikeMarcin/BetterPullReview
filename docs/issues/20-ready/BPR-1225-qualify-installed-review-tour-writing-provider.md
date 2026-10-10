@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1225"
 title: "Qualify the installed review-tour writing provider"
-status: "Blocked"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-1013"]
-blocked_by: "installed-provider-model-evidence"
-metadata: {"standalone_follow_up":true,"owner_amendment":"r2-20260927-close-implemented-scope","originating_pack":"bpr-review-tour-v1","originating_rfcs":["RFC-BPR-0039","RFC-BPR-0040","RFC-BPR-0041","RFC-BPR-0042","RFC-BPR-0043"],"original_criteria":["AC43-10"],"source_card":"BPR-1013","excluded_from_terminal_scope":true}
+metadata: {"standalone_follow_up":true,"owner_amendment":"r2-20260927-close-implemented-scope","originating_pack":"bpr-review-tour-v1","originating_rfcs":["RFC-BPR-0039","RFC-BPR-0040","RFC-BPR-0041","RFC-BPR-0042","RFC-BPR-0043"],"original_criteria":["AC43-10"],"source_card":"BPR-1013","excluded_from_terminal_scope":true,"owner_answers":{"2026-10-09":{"bpr1225-provider":"Claude code, sonnet-5-5, my account, yes\nCodex cli, gpt-6.1-sol , my account, yes","source":"wizard bpr-owner-inputs-20261009-v001, session 10567d12-3a30-44d5-ab84-ebbd3af1b500, revision 2"}}}
 ---
 
 # BPR-1225: Qualify the installed review-tour writing provider
@@ -34,3 +33,26 @@ Record exact candidate, environment/host/provider identities, command or observe
 ## Owner session prepared, 2026-10-09 (main, Mac)
 
 The missing input (an approved installed provider, model and account, and inference authority) is the second step of wizard `bpr-owner-inputs-20261009-v001` (session `10567d12-3a30-44d5-ab84-ebbd3af1b500`, state `/Users/jaeger/.mask/wizard/bpr-owner-inputs-20261009-v001`). The answer is a named provider, model, account and a yes, or 'not now'. No inference ran.
+
+## Owner answer, 2026-10-09: two providers
+
+The owner answered the wizard's second step (`bpr1225-provider`, session
+`10567d12-3a30-44d5-ab84-ebbd3af1b500`, event revision 2, actor human) with,
+verbatim (two lines):
+
+```text
+Claude code, sonnet-5-5, my account, yes
+Codex cli, gpt-6.1-sol , my account, yes
+```
+
+Read as two approved installed providers, each with explicit inference
+authority on the owner's own account:
+
+| Provider | Model as the owner wrote it | Model id used | Account | Inference authority |
+|---|---|---|---|---|
+| Claude Code (installed `claude`) | `sonnet-5-5` | `claude-sonnet-5-5` | owner's own | yes |
+| Codex CLI (installed `codex`) | `gpt-6.1-sol ` (trailing space as written) | `gpt-6.1-sol` | owner's own | yes |
+
+This supplies the missing input; the blocker `installed-provider-model-evidence`
+is lifted and the card is unblocked for the qualification run. The wizard
+host was stopped after recording.
