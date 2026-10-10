@@ -1058,3 +1058,33 @@ If it is a product race, a re-projection undoing a reviewer's newer file
 selection, it needs its own card and a reproduction.
 
 **The one-off shape (coordinator, 2026-10-09).** Seen once, not reproduced in 31 runs; reopen if it recurs. [[BPR-1376]] (parked) holds the suspected cause read from the code, and an unfinished stress course on a branch.
+
+## Follow-up: BPR-1329's drawer-publication test (macOS, 2026-10-09)
+
+`application_inline_publish_cli_consent` ([[BPR-1329]]) had been failing on
+main since this card's slices. A bisect over its own target found two breaks,
+both in that test and not in the product:
+
+- `9c8740906` (Start a review) renamed the drawer's Publish to Add single
+  comment. The cancelled course still asked for a button reading "Publish",
+  so it failed at "the draft stays, and Publish is still offered". The draft
+  stayed and said the confirmation was cancelled, as it should.
+- `1cb430214` (v002, one-row actions) folds Add single comment into the split
+  arrow's menu where the drawer is too narrow for both pills. In the test's
+  1440 x 900 window the drawer is 320 px, and the two pills need 150 + 108 px
+  beside the lock and Delete, so the pill is hidden. The test required it to
+  be visible and failed at "the new comment is written in the drawer". This is
+  the layout the specification and the owner's v002 Accept describe.
+
+**The fix.** The test sends Add single comment the way a person does: through
+its pill where the pill is shown, and otherwise through the split arrow's menu
+item, which is hidden before it acts. Retry after a lost result goes the same
+way. The expected label is now "Add single comment". No product source changed
+and no pin moved.
+
+**Verification.** On macOS Debug at `886a089f2` plus the fix, and again after
+rebasing onto `515720107`,
+`application_inline_publish_cli_consent` passes all three courses (published,
+lost-then-retried, cancelled), all sent through the split arrow.
+`application_line_draft_contract`, `application_start_review_contract` and
+`application_reply_draft_contract` also pass.

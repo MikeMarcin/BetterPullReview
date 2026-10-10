@@ -9,7 +9,9 @@
 // line, which sits on the inline composition page the drawer does not show.
 // So from the drawer a publication was invisible whatever became of it. Since
 // [[BPR-1212]] a new comment is written in the drawer, and opening its note
-// writes it there again.
+// writes it there again. Since [[BPR-1345]] that Publish is Add single
+// comment; in the drawer's default width it is the split arrow's menu item
+// beside Start a review, and the courses send it from there.
 //
 // Two compositions over the recorded GitHub.com fixture and its synthetic
 // `gh auth status` account, each signed in through Use GitHub CLI:
@@ -21,7 +23,7 @@
 //   it is closed and opened; Retry asks the confirmation again and the
 //   drawer then shows the one posted thread;
 // - the confirmation answered Cancel: nothing is sent, and the draft says so
-//   and still offers Publish.
+//   and still offers Add single comment.
 //
 // No live GitHub, gh process or credential.
 #include "../../src/app/src/github_application_fixture_access.hpp"
@@ -40,7 +42,9 @@
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
@@ -109,6 +113,43 @@ namespace {
 	{
 		auto* const open = aCards.open_card();
 		return open == nullptr ? nullptr : open->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+	}
+	auto draft_more(const qt::conversation_cards_view& aCards) -> QAbstractButton*
+	{
+		auto* const open = aCards.open_card();
+		return open == nullptr ? nullptr : open->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraftMore"));
+	}
+	/// [[BPR-1345]] v002. Add single comment is offered as its own pill where
+	/// the drawer has room for it beside the main action, and otherwise as the
+	/// split arrow's menu item.
+	auto single_offered(const qt::conversation_cards_view& aCards) -> bool
+	{
+		auto* const publish = draft_publish(aCards);
+		auto* const more    = draft_more(aCards);
+		return publish != nullptr && (publish->isVisible() || (more != nullptr && more->isVisible()));
+	}
+	/// Sends Add single comment as a person does: its pill, or the split
+	/// arrow's menu item, which closes its menu before it acts.
+	void send_single(const qt::conversation_cards_view& aCards)
+	{
+		auto* const publish = draft_publish(aCards);
+		expect(publish != nullptr, "the open draft has Add single comment");
+		if (publish->isVisible()) {
+			publish->click();
+			return;
+		}
+		auto* const more = draft_more(aCards);
+		expect(more != nullptr && more->isVisible(), "the split arrow carries Add single comment");
+		more->click();
+		QApplication::processEvents();
+		const QPointer menu = aCards.findChild<QMenu*>(QStringLiteral("threadReviewDraftMenu"));
+		auto* const    item = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadReviewDraftSingle")) : nullptr;
+		expect(item != nullptr && item->isEnabled() && item->text() == publish->text(), "the split arrow's menu offers the draft's single comment");
+		menu->hide();
+		item->trigger();
+		if (menu != nullptr) {
+			menu->close();
+		}
 	}
 
 	enum class course : std::uint8_t {
@@ -188,22 +229,22 @@ namespace {
 		},
 				 "a new inline draft holds its text");
 		auto* const cards = window.conversation_panel()->cards();
-		wait_for([&] { return cards->writing_draft() && draft_publish(*cards) != nullptr && draft_publish(*cards)->isVisible(); },
-				 "the new comment is written in the drawer");
+		wait_for([&] { return cards->writing_draft() && single_offered(*cards); }, "the new comment is written in the drawer");
 		auto* publish = draft_publish(*cards);
-		expect(publish != nullptr && publish->isVisible() && publish->isEnabled(), "the open draft offers Publish");
+		expect(publish != nullptr && single_offered(*cards) && publish->isEnabled(), "the open draft offers Add single comment");
 		const auto before = github_application_fixture_access::review_mutation_evidence(*application);
 		const auto text   = QString::fromStdString(body);
 		if (aCourse == course::cancelled) {
-			publish->click();
+			send_single(*cards);
 			const auto said = wait_until([&] { return draft_status(*cards).contains(QStringLiteral("cancelled")); }, 5000);
 			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << std::endl;
 			expect(said, "the draft says the publication was not sent because the confirmation was cancelled");
 			const auto after = github_application_fixture_access::review_mutation_evidence(*application);
 			expect(publishAsks == 1U && after.Submissions == before.Submissions && after.StoredComments == 0U, "a cancelled confirmation sends nothing");
 			publish = draft_publish(*cards);
-			expect(draft_card(*cards) != nullptr && publish != nullptr && publish->isEnabled() && publish->text() == QStringLiteral("Publish"),
-				   "the draft stays, and Publish is still offered");
+			expect(draft_card(*cards) != nullptr && publish != nullptr && single_offered(*cards) && publish->isEnabled()
+					   && publish->text() == QStringLiteral("Add single comment"),
+				   "the draft stays, and Add single comment is still offered");
 			std::cout << "BPR_1329:" << name << ":pass\n";
 			consent.stop();
 			application->begin_shutdown();
@@ -213,7 +254,7 @@ namespace {
 		// The publication's answer is held on its way to the window, so what
 		// the card says while it is in flight can be seen.
 		github_application_fixture_access::hold_review_mutation_terminals(*application, true);
-		publish->click();
+		send_single(*cards);
 		const auto publishing   = wait_until([&] {
 			return github_application_fixture_access::held_review_mutation_terminals(*application) != 0U
 				&& draft_status(*cards).contains(QStringLiteral("Publishing"));
@@ -248,9 +289,9 @@ namespace {
 			std::cout << "BPR_1329:" << name << ":reopened publish=" << (publish != nullptr ? publish->text().toStdString() : std::string{ "none" })
 					  << " enabled=" << (publish != nullptr && publish->isEnabled()) << " editor_publish=" << window.review_editor()->publish_action()->text().toStdString()
 					  << " editor_enabled=" << window.review_editor()->publish_action()->isEnabled() << std::endl;
-			expect(publish != nullptr && publish->isVisible() && publish->isEnabled() && publish->text() == QStringLiteral("Retry"),
+			expect(publish != nullptr && single_offered(*cards) && publish->isEnabled() && publish->text() == QStringLiteral("Retry"),
 				   "the draft offers Retry for the same publication");
-			publish->click();
+			send_single(*cards);
 		}
 
 		const auto shown = wait_until([&] { return posted_card(*cards, text) != nullptr && draft_card(*cards) == nullptr; });
