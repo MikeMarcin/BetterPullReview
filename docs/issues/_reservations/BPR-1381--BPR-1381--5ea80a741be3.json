@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1381"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home keeps its layout still: the way back beside the bar, status docked at the foot",
+  "created": "2026-10-10T20:40:02.347538+00:00",
+  "base": "57763d78dac86cc90140510bfb58a970c55ad3fd"
+}
