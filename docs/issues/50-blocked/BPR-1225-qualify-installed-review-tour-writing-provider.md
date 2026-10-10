@@ -73,7 +73,7 @@ Full rows, commands and identities are in the
   unchanged. Two causes: the installed CLI is not signed in outside the
   desktop app (`claude auth status`: `loggedIn: false`), and the writing
   launch's `--bare` never reads a Claude account sign-in anyway
-  ([BPR-1375](../10-backlog/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md)).
+  ([BPR-1375](../20-ready/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md)).
   The owner's model `claude-sonnet-5-5` was passed by a wrapper; the CLI logged
   it as `unrecognized_model` but no request reached the API to confirm or
   refuse it.
@@ -101,3 +101,14 @@ Blocked on owner input:
 
 Then rerun `QT_QPA_PLATFORM=offscreen build/dev/tests/end_to_end/review_tour_composition_public_path --installed-writing /opt/homebrew/bin WRAPPER-OR-DASH`
 and put the outputs before the owner as one Accept/Reject item per provider.
+
+## Chosen design, 2026-10-09: the CLIs on the owner's own sign-in
+
+The owner decided how tool-free writing authenticates (chat, 2026-10-09,
+relayed by the coordinator), verbatim: "no claude should use -p or the
+equivalent, the free version cli api same as codex". Writing runs the
+installed CLIs non-interactively on the owner's own subscription sign-in
+(Claude account for `claude -p`, ChatGPT account for Codex's non-interactive
+mode), never a paid API key. The work is
+[BPR-1375](../20-ready/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md);
+this card's qualification course reruns on its result.

@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1375"
 title: "Tool-free tour writing cannot use a signed-in Claude account"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"BPR-1225 installed-provider qualification, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1375--BPR-1375--187a76842652.json","found_at":"dab108c97","owner_question_needed":true}
+metadata: {"origin":"BPR-1225 installed-provider qualification, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1375--BPR-1375--187a76842652.json","found_at":"dab108c97","owner_question_needed":false,"owner_decision":{"2026-10-09":"no claude should use -p or the equivalent, the free version cli api same as codex"}}
 ---
 
 # BPR-1375: Tool-free tour writing cannot use a signed-in Claude account
@@ -62,6 +62,38 @@ How should tool-free writing authenticate? Candidates, not yet chosen:
    through a process wrapper (BPR-1301), which can add `apiKeyHelper` to
    `--settings` itself.
 3. Something else the owner names.
+
+## Owner decision, 2026-10-09: the CLI on the person's own sign-in
+
+The owner answered in chat on 2026-10-09, relayed by the coordinator, verbatim:
+
+```text
+no claude should use -p or the equivalent, the free version cli api same as codex
+```
+
+Read as: tour writing runs the installed CLIs non-interactively on the
+owner's own subscription sign-in (the Claude account for `claude -p`, the
+ChatGPT account for `codex exec` or its non-interactive equivalent), not a
+paid API key. This chooses a variant of candidate 1 above: drop `--bare`,
+keep every other restriction, and neutralise what `--bare` used to skip
+another way. Candidate 2 (an API key through a wrapper) is not chosen.
+
+Scope given with the decision:
+
+1. Claude: `claude -p` without `--bare`, no tools, `--disallowedTools "*"`,
+   an empty strict MCP configuration, `--setting-sources ""`,
+   `--disable-slash-commands`, `--no-session-persistence`, hooks off; check
+   what `--bare` suppressed and close each another way (for example an empty
+   working folder); prove it with the init frame and no files written in the
+   working folder. A Claude model setting passed as `--model` (the owner
+   chose `claude-sonnet-5-5`).
+2. Codex: a tool-free non-interactive protocol on the ChatGPT account, or, if
+   Codex cannot enforce "no tools", not shipped, with exactly what is missing
+   reported, and the models the installed Codex lists for the account.
+3. A signed-out CLI says it is not signed in, and the draft stays unchanged.
+4. Launch-argument tests for both protocols, the two restricted-writing
+   courses still passing, the decoder handling the not-signed-in frame, and
+   the threat model and `ai-agent-boundary.md` updated.
 
 ## Acceptance
 
