@@ -6,7 +6,7 @@ status: "Parked"
 rfcs: []
 depends_on: ["BPR-0142"]
 parked_on: "human-review"
-metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0008 closeout dependency"}
+metadata: {"origin_rfc":"RFC-BPR-0008","mandate_revision":"r4","disposition":"owner-deferred standalone follow-up; not an RFC-0008 closeout dependency","related_cards":["BPR-1374"]}
 ---
 
 # Mixed-client acceptance against a designated repository
@@ -157,3 +157,115 @@ The owner question above becomes a wizard he runs himself. He makes each of the 
 - A read-only `gh api` revalidation as `MikeMarcin` (`X-RateLimit-Remaining` 4970) found the packet unchanged: BPR-Test#1 open, head `17990ba0c2fb50338141f35c0717f0f99639c7ba`; comment 3940608913 and reply 3941498416 with their packet bodies; thread `PRRT_kwDOTyvof86fjN_V` unresolved; no workflows.
 - Wizard `bpr0143-mixed-client-20261009-v001` (session `1d8cfa4b-00c5-4ca7-b8a2-0ffafc4d302d`, 8 steps), state `/Users/jaeger/.mask/wizard/bpr0143-mixed-client-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps: open v0.1.5; a baseline Yes/No; edit, delete, resolve and reopen, each with the exact `gh api` command and a Yes/No on what BetterPullReview shows after Refresh; notes; then the agent's `gh api` read of the final server state.
 - Still outside this session, as the packet says: the live editable-local conflict and the database-loss or uninstall course. Neither is claimed.
+
+## Owner wizard withdrawn, 2026-10-09
+
+The owner said in chat on 2026-10-09 that this course is agent work: "this
+all seems like stuff you can do without me". Wizard
+`bpr0143-mixed-client-20261009-v001` (session
+`1d8cfa4b-00c5-4ca7-b8a2-0ffafc4d302d`) is withdrawn. `wizard.py stop`
+stopped its loopback host, and `pause` closed the session at 1 of 8 steps.
+None of its gh steps ran. The v0.1.5 DMG downloaded for it was not used.
+
+## Agent-run mixed-client course, 2026-10-09 (main `ec16c550b`, Mac)
+
+The agent ran the course itself. Two `gh` accounts acted as the second
+client: `MikeMarcinTest` (id 340367457, pull-only on BPR-Test), the
+owner's test account added on 2026-10-09, and `MikeMarcin` (id 7605339).
+Each command was pinned with
+`GH_TOKEN="$(gh auth token --user …)"`, so no token was printed and nobody
+ran `gh auth switch`. The application ran offscreen and signed in through
+its ordinary **Use GitHub CLI** path as `MikeMarcin` (account 7605339).
+Nothing drove or captured the desktop.
+
+Before the course, BPR-Test had no workflows (`actions/workflows`
+`total_count` 0), no `.github` directory and no hooks. A new pull request
+was used, and BPR-Test#1 was not touched. The packet's approved texts
+(reply `BetterPullReview web reply return verification.`, edited to
+`BetterPullReview web reply edit verification.`) were reused on it.
+Nothing else was posted, apart from the thread's root.
+
+**Target.** The course created branch `bpr-0143/mixed-client-20261009`
+from main `e2a44aa8`, through the API with no git push. It added one commit,
+`f3996e06c184ab9d21ee926eb73aa1344d824b23`, which adds
+`bpr-0143-mixed-client.txt`. On that branch it opened BPR-Test#47
+(`PR_kwDOTyvof88AAAABHohqFg`, author `MikeMarcin`). At the end, #47 was
+closed unmerged (`closed_at` 2026-10-10T00:54:42Z) and the branch deleted.
+At closing, #47 had 0 review threads, 0 reviews, 0 review comments and 0
+issue comments, and its file was `UNVIEWED`.
+
+**Observation.** A local, unmerged, unpushed probe on branch
+`claude/bpr-0143-live-probe` (`36a093af2`, one source over `ec16c550b`'s
+product) was built two ways:
+
+- **A**: Release, tests on. It writes the accepted snapshot, which holds
+  GitHub node and database IDs, author, body, `updatedAt`, resolution,
+  permissions and per-file viewed state.
+- **B**: Release, tests off. This is the shipped composition, with the
+  live review-mutation provider and local drafts. In a tests-on build both
+  are composed only over a fixture.
+
+Each opened `MikeMarcin/BPR-Test#47` from Home. After every external action
+the course pressed the public **Refresh** (`github_refresh_action`). It then
+recorded each conversation-model row: identity, parent, author,
+resolved/deleted, `DisplayRole`, `AccessibleTextRole` and
+`AccessibleDescriptionRole`. It also recorded the thread cards, the
+files-drawer rows, the review editor's draft and status, and the in-place
+reply editor's text. Each Refresh completed in 12-25 s. Rate limits, from
+`X-RateLimit-Remaining` response headers: MikeMarcin core 4997 to 4375 and
+GraphQL 4983 to 4801; MikeMarcinTest core 4991 to 4986. Neither came near
+the 1,500 margin.
+
+| Case | Server action and identity (second client) | What the application shows after Refresh | Result |
+|---|---|---|---|
+| External create | `MikeMarcinTest` POST line comment, RIGHT line 1: id **4235562728**, node `PRRC_kwDOTyvof878dY7o`, body `BetterPullReview mixed-client verification.`, updated 00:14:27Z | A: thread `PRRT_kwDOTyvof86q-93Y` with comment `PRRC_kwDOTyvof878dY7o`, `database_id=4235562728`, author `MikeMarcinTest`. Row `review-comment:PRRC_kwDOTyvof878dY7o` reads "Review comment by @MikeMarcinTest \| BetterPullReview mixed-client verification." in display and accessible text | pass |
+| External reply | `MikeMarcinTest` reply: id **4235564393**, node `PRRC_kwDOTyvof878dZVp`, `in_reply_to` 4235562728, body `BetterPullReview web reply return verification.` | A: second comment, `database_id=4235564393`, `reply_to=PRRC_kwDOTyvof878dY7o`, nested under its parent | pass |
+| External edit | `MikeMarcinTest` PATCH 4235564393 to `BetterPullReview web reply edit verification.`, updated 00:43:00Z | A and B: the same identity `PRRC_kwDOTyvof878dZVp` shows the new text. The thread still has 2 comments, with no duplicate. A: `updated_at=2026-10-10T00:43:00Z` | pass |
+| External delete | `MikeMarcinTest` DELETE 4235564393 (204; GET then 404) | A and B: the reply row is gone. The thread has 1 comment and the card 1 post. Its now-empty review `PRR_kwDOTyvof88AAAABRm1WEA` also left GitHub | pass |
+| External resolve | `MikeMarcinTest` `resolveReviewThread` was refused (FORBIDDEN, no permission). `MikeMarcin` (gh) resolved; `resolvedBy` MikeMarcin | A and B: "Resolved review thread — bpr-0143-mixed-client.txt:1 (head/right side)". Resolved is true; A shows viewer_resolve denied and unresolve allowed | pass |
+| External reopen | `MikeMarcinTest` `unresolveReviewThread` was refused (FORBIDDEN). `MikeMarcin` (gh) reopened | A and B: "Open review thread — …". Resolved is false; resolve allowed and unresolve denied | pass |
+| Local assumption never overwrites | B held an unsent reply draft on the thread (`ReplyToThread=PRRT_kwDOTyvof86q-93Y`, body `Local unsent reply draft held while another client edits.`) while `MikeMarcinTest` edited the reply | B showed the server's edited text. GitHub afterwards held only the two `MikeMarcinTest` comments and their two reviews, with the edited body. `MikeMarcin` had published nothing and had no pending review. No automatic action wrote anything | pass |
+| Viewed / unviewed | `MikeMarcin` (gh) `markFileAsViewed`, then `unmarkFileAsViewed` (viewed state is per viewer, so the test account cannot set it) | A: the accepted snapshot went `unviewed` to `viewed` to `unviewed`. No surface presents it: the files-drawer row's display, accessible text and tooltip are only the path | read: pass; presented: no |
+| Capability degradation | none | B, the shipped composition under the gh profile: the review editor says "Publication is available; native thread resolution and viewed-state recording are unavailable." The thread menu's **Resolve** is disabled with tooltip "Resolution is not available for this thread.", and `resolution_offered=0` | pass |
+| Editable-local conflict | B held a reply draft (`…held while another client deletes the thread root.`) and `MikeMarcinTest` deleted the root 4235562728 (204) | A and B: the thread and its card left, so the server's truth was taken, and nothing was published. The draft also left without a word: no card, no notice, and `editor_draft: none` | server truth: pass; local words: fail, see [[BPR-1374]] |
+| Database loss | All 11 `state/v1/*.sqlite3` were deleted from A's closed profile root, then A was reopened on the same root | A rebuilt the databases. Thread, comment identities, database ids, author, body, `updatedAt`, resolution, permissions, capabilities and viewed state are line-for-line those before the loss. The review row matches GitHub's one remaining review | pass |
+| Uninstall | A's whole profile root, including `data` and `data-agent-workspaces-v1`, was removed. A was opened on a new, empty root. Nothing was written outside the root (`~/Library` Preferences, Application Support and Caches were checked) | Identical to the database-loss reopen | pass |
+
+**Local drafts and Refresh.** In the shipped composition (B), every
+Refresh detached the review editor's reply draft (`editor_draft: none`).
+This happened with no external change too (`07-refresh-no-change`). The
+in-place reply field kept showing the typed text until the thread itself
+left. After a quit and restart on the same root, no reply draft came back,
+whether or not a Refresh came first. Selecting the file, line 1 or line 2
+showed none, and no draft card appeared. The server's truth always won and
+nothing was ever published. But the rule BPR-0138 states, that a held edit
+is reported as conflicted rather than discarded quietly, is not what the
+shipped application does with an unsent reply. [[BPR-1374]] owns this.
+The shipped composition does not edit published comments. Its
+reconciliation is called with no local edits, so the "unpublished edit to a
+published comment" shape that BPR-0138 tests by fixture has no live
+counterpart to exercise.
+
+## Remaining, and why the card stays Parked
+
+1. **[[BPR-1374]]** (agent work). An unsent reply draft must survive a
+   Refresh and a restart. When its thread leaves the server, the draft must
+   be reported as conflicted rather than dropped. Then re-run the
+   editable-local and draft rows above through the same probe.
+2. **In-app resolve and reopen round trip** (needs the owner). The shipped
+   composition refuses thread resolution under the GitHub CLI profile ("Thread
+   resolution is unavailable through the GitHub CLI profile."). Only the
+   native GitHub.com sign-in offers it, and that sign-in is a device-code
+   flow the owner completes in his browser. Once a disposable profile is
+   signed in that way, the agent can press Resolve and Reopen in the app and
+   read GitHub's `isResolved` and `resolvedBy` back through `gh`.
+3. **Not a second-identity gap.** `MikeMarcinTest` has pull access only, so
+   GitHub refuses it `resolveReviewThread` and `unresolveReviewThread`. Those
+   two actions ran as `MikeMarcin` through `gh`, a second client of the same
+   account. Granting the test account write access would change BPR-Test's
+   collaborators, which no agent may do. This needs the owner only if a
+   resolve by a different identity is wanted.
+
+GitHub's viewed state reaches the accepted snapshot in both directions, but
+no surface shows it. Whether the workbench should present it is a product
+question, not part of this card's evidence.

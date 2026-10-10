@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1374"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "BPR-0143 finding: a live Refresh drops the shipped app's unsent reply draft",
+  "created": "2026-10-10T00:55:04.063118+00:00",
+  "base": "ff16f6de73869b3823f5d6b00d3ac745ad213b64"
+}
