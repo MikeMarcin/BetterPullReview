@@ -2072,19 +2072,19 @@ namespace {
 		if (target == nullptr) {
 			return;
 		}
-		const auto deliver = [&](const QEvent::Type aType, const QPoint& aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
+		const auto send_mouse_event = [&](const QEvent::Type aType, const QPoint& aAt, const Qt::MouseButton aButton, const Qt::MouseButtons aButtons) {
 			const auto local = QPointF{ aWidget.mapTo(top, aAt) };
 			auto       event = QMouseEvent{ aType, local, local, QPointF{ aWidget.mapToGlobal(aAt) }, aButton, aButtons, Qt::NoModifier };
 			QCoreApplication::sendEvent(target, &event);
 		};
-		deliver(QEvent::MouseMove, aFrom, Qt::NoButton, Qt::NoButton);
-		deliver(QEvent::MouseButtonPress, aFrom, Qt::LeftButton, Qt::LeftButton);
+		send_mouse_event(QEvent::MouseMove, aFrom, Qt::NoButton, Qt::NoButton);
+		send_mouse_event(QEvent::MouseButtonPress, aFrom, Qt::LeftButton, Qt::LeftButton);
 		constexpr auto steps = 4;
 		for (auto step = 1; step <= steps; ++step) {
 			const auto at = aFrom + ((aTo - aFrom) * step) / steps;
-			deliver(QEvent::MouseMove, at, Qt::NoButton, Qt::LeftButton);
+			send_mouse_event(QEvent::MouseMove, at, Qt::NoButton, Qt::LeftButton);
 		}
-		deliver(QEvent::MouseButtonRelease, aTo, Qt::LeftButton, Qt::NoButton);
+		send_mouse_event(QEvent::MouseButtonRelease, aTo, Qt::LeftButton, Qt::NoButton);
 	}
 
 	[[nodiscard]] auto capture_diff_interaction_evidence(
