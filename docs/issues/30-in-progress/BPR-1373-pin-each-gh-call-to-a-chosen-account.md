@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1373"
 title: "Pin each gh call to a chosen account, and list every gh account on Accounts & hosts"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
