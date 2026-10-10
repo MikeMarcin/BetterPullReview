@@ -13669,6 +13669,15 @@ namespace {
 				   && firstAdd->isVisible() && firstAdd->isEnabled() && firstAdd->isDefault() && window.focus_order().contains(firstAdd)
 				   && !firstAdd->accessibleName().isEmpty() && !firstAdd->accessibleDescription().isEmpty(),
 			   "with nothing saved Home shows only the first-repository button instead of the row");
+		// [[BPR-1372]]. That projection still holds a row needing me, and a row
+		// enrolled without a saved repository shows in its lane as usual. Only
+		// an empty queue loses the Needs me lane.
+		expect(window.home_list()->onboarding() && window.home_list()->state_panel(qt::home_group::needs_you)->isVisible(),
+			   "with nothing saved a row that needs me still shows in its lane");
+		auto nothingSaved  = discovery_projection({ .Host = "github.com", .Account = "octo-reviewer", .State = state::unavailable, .Problem = problem::no_saved_repository });
+		nothingSaved.Items = { };
+		window.publish(nothingSaved);
+		process_events();
 		expect(window.home_list()->onboarding() && !window.home_list()->state_panel(qt::home_group::needs_you)->isVisible()
 				   && !window.home_list()->empty_sentence()->isVisible() && window.findChild<QWidget*>(QStringLiteral("homeReviewCycles"))->isVisible(),
 			   "the empty Needs me lane is not shown while nothing is saved; Review Cycles stays");
