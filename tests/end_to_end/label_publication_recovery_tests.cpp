@@ -17,6 +17,10 @@
 //   while a label edit waits for its owner sends nothing and says so; once the
 //   edit is accepted a new Publish sends exactly the relabelled body, once.
 //
+// Since [[BPR-1345]] the drawer's Publish is Add single comment, and in the
+// drawer's default width it is the split arrow's menu item; the courses send it
+// from wherever it is offered.
+//
 // No live GitHub, credential or model.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
@@ -29,6 +33,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "drawer_single_comment.hpp"
 #include "private_data_root.hpp"
 
 #include <QAbstractButton>
@@ -55,6 +60,9 @@ namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
 	using bpr::tests::expect;
+	using e2e::draft_publish;
+	using e2e::send_single;
+	using e2e::single_offered;
 
 	auto wait_until(const std::function<bool()>& aCondition, const qint64 aTimeoutMs = 20000) -> bool
 	{
@@ -100,11 +108,6 @@ namespace {
 		}
 		auto* const label = open->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
 		return label != nullptr && label->isVisibleTo(open) ? label->text() : QString{ };
-	}
-	auto draft_publish(const qt::conversation_cards_view& aCards) -> QAbstractButton*
-	{
-		auto* const open = aCards.open_card();
-		return open == nullptr ? nullptr : open->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
 	}
 	/// The draft the editor holds as accepted by its owner, which is the
 	/// durable record once private review has answered.
@@ -167,7 +170,7 @@ namespace {
 		auto* const editor = window.review_editor();
 		wait_for([&] { return accepted_body(*editor) == aBody; }, "the draft's owner accepted the text");
 		auto* const cards = window.conversation_panel()->cards();
-		wait_for([&] { return cards->writing_draft() && draft_publish(*cards) != nullptr && draft_publish(*cards)->isVisible(); }, "the new comment is written in the drawer");
+		wait_for([&] { return cards->writing_draft() && single_offered(*cards); }, "the new comment is written in the drawer");
 	}
 
 	/// The label chip's own gesture: one header edit of the text on screen.
@@ -207,8 +210,9 @@ namespace {
 			   "writing and labelling the comment asked GitHub for nothing");
 
 		auto* publish = draft_publish(*cards);
-		wait_for([&] { publish = draft_publish(*cards); return publish != nullptr && publish->isEnabled(); }, "the drawer offers Publish for the labelled draft");
-		publish->click();
+		wait_for([&] { publish = draft_publish(*cards); return publish != nullptr && single_offered(*cards) && publish->isEnabled(); },
+				 "the drawer offers Add single comment for the labelled draft");
+		send_single(*cards);
 		wait_for([&] { return github_application_fixture_access::review_mutation_evidence(application).LostResult; }, "the fixture stores the comment and loses its answer");
 		wait_for([&] { return draft_card(*cards) != nullptr && draft_status(*cards).contains(QStringLiteral("retry is safe")); },
 				 "the draft stays and says the result is unknown and a retry is safe");
@@ -235,8 +239,8 @@ namespace {
 
 		// Retry reconciles the one stored comment instead of writing again.
 		publish = draft_publish(*cards);
-		expect(publish != nullptr && publish->isEnabled() && publish->text() == QStringLiteral("Retry"), "the draft offers Retry for the same publication");
-		publish->click();
+		expect(publish != nullptr && single_offered(*cards) && publish->isEnabled() && publish->text() == QStringLiteral("Retry"), "the draft offers Retry for the same publication");
+		send_single(*cards);
 		const auto text  = QString::fromStdString(issue);
 		const auto shown = wait_until([&] { return posted_count(*cards, text) == 1U && draft_card(*cards) == nullptr; });
 		const auto after = github_application_fixture_access::review_mutation_evidence(application);
@@ -270,20 +274,23 @@ namespace {
 		auto* editor      = window.review_editor();
 		auto* cards       = window.conversation_panel()->cards();
 		expect(editor->publish_action()->isEnabled(), "the accepted issue draft can be published");
-		expect(draft_publish(*cards) != nullptr, "the drawer offers its Publish too");
+		expect(single_offered(*cards), "the drawer offers its Add single comment too");
 
 		// The chip's relabel leaves this widget at once; its owner answers later.
 		expect(choose_label(*editor, core::feedback_label::question), "the chip relabels the draft question");
 		const auto pending = accepted_body(*editor) == issue;
 		const auto offered = editor->publish_action()->isEnabled();
 		editor->publish_action()->trigger();
+		// The editor's refusal is read before the drawer's gesture: sending
+		// from the split arrow's menu lets events run, and the relabel's
+		// acceptance then clears the editor's status.
+		const auto  said   = wait_until([&] { return editor->mutation_status_text().startsWith(QStringLiteral("Not published")) || github_application_fixture_access::review_mutation_evidence(application).Submissions != 0U; });
+		const auto  told   = editor->mutation_status_text();
 		auto* const drawer = draft_publish(*cards);
 		if (drawer != nullptr && drawer->isEnabled()) {
-			drawer->click();
+			send_single(*cards);
 		}
-		const auto said         = wait_until([&] { return editor->mutation_status_text().startsWith(QStringLiteral("Not published")) || github_application_fixture_access::review_mutation_evidence(application).Submissions != 0U; });
 		const auto whilePending = github_application_fixture_access::review_mutation_evidence(application);
-		const auto told         = editor->mutation_status_text();
 		std::cout << "BPR_1093:relabel-before-publish:pending=" << pending << " offered=" << offered << " submissions=" << whilePending.Submissions
 				  << " drawer=" << (drawer != nullptr) << " sent=\"" << whilePending.LastBody << "\" status=\"" << told.toStdString() << "\" card=\"" << draft_status(*cards).toStdString() << "\"" << std::endl;
 		expect(pending, "both Publish gestures came while the relabel was not accepted yet");

@@ -34,6 +34,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "drawer_single_comment.hpp"
 #include "private_data_root.hpp"
 
 #include <QAbstractButton>
@@ -42,9 +43,7 @@
 #include <QElapsedTimer>
 #include <QLabel>
 #include <QLineEdit>
-#include <QMenu>
 #include <QMessageBox>
-#include <QPointer>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
@@ -62,6 +61,9 @@ namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
 	using bpr::tests::expect;
+	using e2e::draft_publish;
+	using e2e::send_single;
+	using e2e::single_offered;
 
 	auto wait_until(const std::function<bool()>& aCondition, const qint64 aTimeoutMs = 20000) -> bool
 	{
@@ -108,48 +110,6 @@ namespace {
 		}
 		auto* const label = open->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
 		return label != nullptr && label->isVisibleTo(open) ? label->text() : QString{ };
-	}
-	auto draft_publish(const qt::conversation_cards_view& aCards) -> QAbstractButton*
-	{
-		auto* const open = aCards.open_card();
-		return open == nullptr ? nullptr : open->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
-	}
-	auto draft_more(const qt::conversation_cards_view& aCards) -> QAbstractButton*
-	{
-		auto* const open = aCards.open_card();
-		return open == nullptr ? nullptr : open->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraftMore"));
-	}
-	/// [[BPR-1345]] v002. Add single comment is offered as its own pill where
-	/// the drawer has room for it beside the main action, and otherwise as the
-	/// split arrow's menu item.
-	auto single_offered(const qt::conversation_cards_view& aCards) -> bool
-	{
-		auto* const publish = draft_publish(aCards);
-		auto* const more    = draft_more(aCards);
-		return publish != nullptr && (publish->isVisible() || (more != nullptr && more->isVisible()));
-	}
-	/// Sends Add single comment as a person does: its pill, or the split
-	/// arrow's menu item, which closes its menu before it acts.
-	void send_single(const qt::conversation_cards_view& aCards)
-	{
-		auto* const publish = draft_publish(aCards);
-		expect(publish != nullptr, "the open draft has Add single comment");
-		if (publish->isVisible()) {
-			publish->click();
-			return;
-		}
-		auto* const more = draft_more(aCards);
-		expect(more != nullptr && more->isVisible(), "the split arrow carries Add single comment");
-		more->click();
-		QApplication::processEvents();
-		const QPointer menu = aCards.findChild<QMenu*>(QStringLiteral("threadReviewDraftMenu"));
-		auto* const    item = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadReviewDraftSingle")) : nullptr;
-		expect(item != nullptr && item->isEnabled() && item->text() == publish->text(), "the split arrow's menu offers the draft's single comment");
-		menu->hide();
-		item->trigger();
-		if (menu != nullptr) {
-			menu->close();
-		}
 	}
 
 	enum class course : std::uint8_t {

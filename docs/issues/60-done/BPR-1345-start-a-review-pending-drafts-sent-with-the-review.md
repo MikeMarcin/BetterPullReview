@@ -1088,3 +1088,29 @@ rebasing onto `515720107`,
 lost-then-retried, cancelled), all sent through the split arrow.
 `application_line_draft_contract`, `application_start_review_contract` and
 `application_reply_draft_contract` also pass.
+
+## Follow-up: BPR-1093's label-publication test (macOS, 2026-10-09)
+
+`application_label_publication_recovery` ([[BPR-1093]]) had the same stale
+lookup: it waited for a visible Publish pill and failed at "the new comment is
+written in the drawer". Its courses now use the same helpers as BPR-1329's,
+which moved into `tests/end_to_end/drawer_single_comment.hpp` so both tests
+share one: `single_offered` accepts the pill or the split arrow, and
+`send_single` sends through whichever is shown. The lost-relabel course sends
+the first publication and its Retry that way.
+
+The relabel-before-publish course used to click the hidden pill directly. It
+now goes through the split arrow's menu, which lets events run, and the
+relabel's acceptance clears the editor's "Not published" status before the
+course read it. The course now reads the editor's refusal right after the
+editor's gesture and before the drawer's. Both refusals still say "still being
+saved", and nothing is sent until the relabel is accepted.
+
+No other `tests/end_to_end` course looks up the drawer's Publish: the
+`tourPublish` lookups belong to the tour surface, which this card did not
+change. Test-only; no product source changed.
+
+**Verification.** On macOS Debug at `ac1c7cfd6` plus this change,
+`application_label_publication_recovery` (both courses) and
+`application_inline_publish_cli_consent` (all three courses) pass, three
+repeats each.
