@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1372"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "qt_workbench_home_discovery_scale_* failing on main: bisect culprit and fix",
+  "created": "2026-10-10T00:17:08.586716+00:00",
+  "base": "2b2ceac4a67eac694c5f1596da18bf92bc2463d6"
+}
