@@ -2,18 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1225"
 title: "Qualify the installed review-tour writing provider"
-status: "Blocked"
+status: "Parked"
 rfcs: []
 depends_on: ["BPR-1013"]
 metadata: {"standalone_follow_up":true,"owner_amendment":"r2-20260927-close-implemented-scope","originating_pack":"bpr-review-tour-v1","originating_rfcs":["RFC-BPR-0039","RFC-BPR-0040","RFC-BPR-0041","RFC-BPR-0042","RFC-BPR-0043"],"original_criteria":["AC43-10"],"source_card":"BPR-1013","excluded_from_terminal_scope":true,"owner_answers":{"2026-10-09":{"bpr1225-provider":"Claude code, sonnet-5-5, my account, yes\nCodex cli, gpt-6.1-sol , my account, yes","source":"wizard bpr-owner-inputs-20261009-v001, session 10567d12-3a30-44d5-ab84-ebbd3af1b500, revision 2"}}}
-blocked_by: "installed-provider-result-contract"
+parked_on: "human-review"
 ---
 
 # BPR-1225: Qualify the installed review-tour writing provider
 
 ## Owner amendment and retained obligation
 
-Standalone follow-up under the owner's 2026-09-27 instruction: “Just close and land it on main anyways, can file the GHE stuff as blocked follow-ups.” The [r2 mandate](../../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) accepts only the verified implementation. This card remains Blocked; no external qualification is passed by that scope change.
+Standalone follow-up under the owner's 2026-09-27 instruction: “Just close and land it on main anyways, can file the GHE stuff as blocked follow-ups.” The [r2 mandate](../../verification/RFC-BPR-0039-0043.owner-closeout-r2.md) accepts only the verified implementation. This card stays open; no external qualification is passed by that scope change.
 
 ## Required course and blocker
 
@@ -133,3 +133,32 @@ No product output exists, so no attended quality session was opened; AC43-10
 stays open. Blocked again, now on the result contract: either the model's
 notes meet it or the owner changes what a note on the person's own text may
 cite. Codex is blocked on a Codex mode with no tools.
+
+## Owner decision, 2026-10-09: a note may cite no source
+
+Asked "may Claude's notes cite no source?", the owner answered (chat,
+2026-10-09, relayed by the coordinator), verbatim: "Sure". A writing note
+about the person's own text may now carry an empty `source_refs`. Only a
+cited note counts as evidence for an empty field; every other check is
+unchanged. The change is `07f8814f2` (`decode_writing_result` in
+`src/application/src/agent_launch.cpp`); `writing_delivery` failed on an
+uncited `recovered` note before the change and passes after it.
+
+## Rerun at `07f8814f2`, 2026-10-09: Claude's writing is accepted
+
+The installed-writing course ran once with Claude Code 2.1.296,
+`claude-sonnet-5-5`, on the owner's Claude sign-in. Rows are in the
+[ledger](../../verification/RFC-BPR-0039-0043.md#bpr-1225-rerun-at-07f8814f2--2026-10-09).
+The product accepted the Problem and Solution whole-field rewrites
+(`Finished: success`, text updated, Undo restores it, nothing published).
+The selection, injection, empty-stop, Settings Test and outline requests
+ended `Finished: protocol_failure` with text and draft unchanged. That
+status comes from the agent stream, not from the result contract, and its
+cause has not been diagnosed.
+
+Parked on human review: attended session `277c896b9d7199e5866fa8b4f1f8227c`
+(state `/Users/jaeger/.mask/bpr-1225-claude-writing-20261009-v001`, checkout
+`/Users/jaeger/bpr-wt/bpr-1375`), one Accept/Reject item
+`BPR-1225-claude-writing-quality` on the quality of Claude's two rewrites.
+AC43-10 stays open until the owner decides. The undiagnosed
+`protocol_failure` rows and Codex (no tool-free mode) remain open either way.
