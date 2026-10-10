@@ -162,3 +162,13 @@ Parked on human review: attended session `277c896b9d7199e5866fa8b4f1f8227c`
 `BPR-1225-claude-writing-quality` on the quality of Claude's two rewrites.
 AC43-10 stays open until the owner decides. The undiagnosed
 `protocol_failure` rows and Codex (no tool-free mode) remain open either way.
+
+## Owner verdict — Claude writing quality, 2026-10-09
+
+Session `277c896b9d7199e5866fa8b4f1f8227c`, candidate
+`BPR-1225-claude-writing-quality`: **Accept**, no note (decision `ca72b1be-f453-45a4-ad4b-ea5905799e71`,
+handed back at event 5). Claude Code with `claude-sonnet-5-5` on the owner's
+sign-in passes the quality look for whole-field Problem and Solution rewrites.
+Still open on this card: the five requests that ended `protocol_failure`
+(selection, injection, empty stop, Settings Test, outline; cause unknown) and
+Codex, which has no tool-free mode.
