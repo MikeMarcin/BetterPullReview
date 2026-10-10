@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1374"
 title: "An unsent reply draft survives Refresh and restart, and a vanished thread reports it rather than dropping it"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
