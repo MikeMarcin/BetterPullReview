@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1225"
 title: "Qualify the installed review-tour writing provider"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1013"]
 metadata: {"standalone_follow_up":true,"owner_amendment":"r2-20260927-close-implemented-scope","originating_pack":"bpr-review-tour-v1","originating_rfcs":["RFC-BPR-0039","RFC-BPR-0040","RFC-BPR-0041","RFC-BPR-0042","RFC-BPR-0043"],"original_criteria":["AC43-10"],"source_card":"BPR-1013","excluded_from_terminal_scope":true,"owner_answers":{"2026-10-09":{"bpr1225-provider":"Claude code, sonnet-5-5, my account, yes\nCodex cli, gpt-6.1-sol , my account, yes","source":"wizard bpr-owner-inputs-20261009-v001, session 10567d12-3a30-44d5-ab84-ebbd3af1b500, revision 2"}}}
