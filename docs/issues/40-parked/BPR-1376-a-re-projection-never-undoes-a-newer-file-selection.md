@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1376"
 title: "A drawer re-projection never undoes the reviewer's newer file selection"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
+parked_on: "human-review"
 platforms: ["mac", "windows", "linux"]
 metadata: {"found_by":"BPR-1345's Windows Debug diagnosis, bpr-main-win, 2026-10-09","filed_by":"bpr-main-win, at the coordinator's request","reservation":"docs/issues/_reservations/BPR-1376--BPR-1376--71cfe6a1a402.json","related_cards":["BPR-1345","BPR-1344"]}
 acceptance: []
@@ -70,3 +71,35 @@ in the drawer's current row and in the diff shown.
 
 No live GitHub, no model call, no new uncontained registration unless it is
 measured and pinned.
+
+## Parked (bpr-main-win, 2026-10-09)
+
+The coordinator stopped the hunt for a pre-release test build. Seen once and
+not reproduced in 31 runs; reopen if it recurs.
+
+**Suspected cause (read from the code; not reproduced).** Three steps:
+
+1. A file click reaches the host synchronously:
+   `dispatch_workbench_intent` calls `WorkbenchHost->apply` with the select
+   intent. The active document tab learns the new file only later, from the
+   posted `observe_tab_changes`.
+2. Suppose a same-head refresh's `accept` is already queued when the
+   reviewer clicks. Then it runs first. `WorkbenchHost->observe` supersedes
+   the new file's diff and clears the selection, and `RefreshKeptTabView` is
+   set.
+3. The posted task then finds no selection, so the tab keeps the old file.
+   When the observation lands, `represent_refreshed_tab` ([[BPR-1303]])
+   reloads the tab's old file and selects it. The drawer jumps back.
+
+The narrowest fix seam is `dispatch_workbench_intent`. Once the host has
+taken a file gesture, record it in the active tab synchronously and clear
+`RefreshKeptTabView`.
+
+**The stress course, unfinished.** Branch `bpr-1376-reselect-stress-wip`
+(not main) has a seeded course through the published-file-switch probe:
+`--published-file-switch-timing reselect`, with `BPR_RESELECT_STRESS_SEEDS`
+and `BPR_RESELECT_STRESS_FIRST_SEED`. A tests-only hook at the start of
+`accept()` clicks while the handoff is being delivered. Its first Windows
+Debug run was inconclusive: the course's own settle condition never held on
+seed 0. Its quiet test (refresh enabled, no tab work,
+`RefreshKeptTabView` clear) needs checking before it can judge anything.

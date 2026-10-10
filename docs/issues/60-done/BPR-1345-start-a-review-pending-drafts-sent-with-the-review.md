@@ -1056,3 +1056,5 @@ diff never changed. It did not come back in 31 more instrumented runs: 8 and
 11 with a flushed trace, 12 with a buffered one. It is recorded, not fixed.
 If it is a product race, a re-projection undoing a reviewer's newer file
 selection, it needs its own card and a reproduction.
+
+**The one-off shape (coordinator, 2026-10-09).** Seen once, not reproduced in 31 runs; reopen if it recurs. [[BPR-1376]] (parked) holds the suspected cause read from the code, and an unfinished stress course on a branch.
