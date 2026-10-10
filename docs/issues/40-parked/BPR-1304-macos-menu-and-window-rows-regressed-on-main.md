@@ -133,3 +133,14 @@ been observed to pass.
 - Wizard `bpr-mac-frozen-20261009-v001` (session `2de8e578-5311-43e6-8fd5-9d168bc0f156`, 12 steps), state `/Users/jaeger/.mask/wizard/bpr-mac-frozen-20261009-v001`, source root this checkout; its loopback host runs detached. The page's URL carries a token and is handed to the owner directly, not committed. Steps 1 and 2 are this card's: the two courses with the Mac unlocked, then `qt_hide_drawers_native_menu_key` started 20 seconds after the owner locks the screen. Output goes to `/Users/jaeger/.mask/wizard/bpr-mac-frozen-20261009-logs/bpr1304-{unlocked,locked}.log`. The last step is the agent's reading of both logs for `profile-empty-desktop-native-menu-bar:pass` and `hide-drawers-native-menu:pass`.
 
 Both criteria stay pending until the logs are read here.
+
+## Owner run, 2026-10-09 (wizard bpr-mac-frozen-20261009-v001)
+
+- Unlocked: `application_profile_empty_desktop_native_menu_bar` and
+  `qt_hide_drawers_native_menu_key` both passed on the frozen build of
+  `cf476d62b` (7.20 s and 1.23 s; log
+  `/Users/jaeger/.mask/wizard/bpr-mac-frozen-20261009-logs/bpr1304-unlocked.log`).
+- Locked-screen run (`native-key-locked`): the owner declined it in chat,
+  verbatim: "No I'm too busy for that and don't care to do it". It is not
+  run and not claimed; the wizard was replaced by
+  `bpr-mac-frozen-20261009-v002` without that step.
