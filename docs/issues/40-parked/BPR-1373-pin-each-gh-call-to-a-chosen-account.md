@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1373"
 title: "Pin each gh call to a chosen account, and list every gh account on Accounts & hosts"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"owner_request":{"date":"2026-10-09","channel":"chat","quotes":["pin each gh call to a chosen account, and let the Accounts tab recognise every gh-authenticated account"]},"owner_decision":{"date":"2026-10-09","channel":"chat, relayed by the coordinator","quote":"Go with B","amendment":"docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md#owner-per-account-configuration-amendment--2026-10-09"},"reservation":"docs/issues/_reservations/BPR-1373--BPR-1373--6ccd2111f21d.json","related_cards":["BPR-1370","BPR-0909","BPR-0913","BPR-0914","BPR-0915"],"related_rfcs":["RFC-BPR-0015","RFC-BPR-0024","RFC-BPR-0032"],"filed_by":"rfc-implementer, at the coordinator's request"}
+parked_on: "human-review"
 ---
 
 # BPR-1373: Pin each gh call to a chosen account
