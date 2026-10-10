@@ -735,11 +735,14 @@ namespace bpr::app::detail {
 	/// the comment's file: published, once its thread shows (`settled`);
 	/// published, with the application's own refresh answering only once the
 	/// other file shows, as a slow server's does (`late`); or kept as my
-	/// unpublished draft (`draft`).
+	/// unpublished draft (`draft`). [[BPR-1376]]. `reselect` is the reselect
+	/// stress course instead: the reviewer chooses files while same-head
+	/// refreshes land, in seeded orders, and the newest choice must win.
 	enum class published_file_switch_timing {
 		settled,
 		late,
 		draft,
+		reselect,
 	};
 
 	enum class published_file_switch_probe_result {
@@ -1594,6 +1597,10 @@ namespace bpr::app::detail {
 		/// scroll-bar tick. \p aTiming says whether it is published and when
 		/// the other file is opened.
 		[[nodiscard]] static auto exercise_published_file_switch(github_application& aApplication, published_file_switch_timing aTiming)
+			-> published_file_switch_probe_result;
+		/// [[BPR-1376]]. One tick of the reselect stress course; its tally and
+		/// any lost choice are in `published_file_switch_diagnostic`.
+		[[nodiscard]] static auto exercise_reselect_stress(github_application& aApplication)
 			-> published_file_switch_probe_result;
 		[[nodiscard]] static auto published_file_switch_evidence(const github_application& aApplication)
 			-> published_file_switch_probe_evidence;

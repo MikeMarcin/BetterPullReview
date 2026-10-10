@@ -229,6 +229,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <set>
 #include <span>
 #include <stdexcept>
@@ -12865,6 +12866,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
+#if defined(BPR_BUILD_TESTING)
+			if (auto hook = std::exchange(BeforeAcceptForTest, nullptr)) {
+				hook();
+			}
+#endif
 			if (!Closing && EpochHost != nullptr) {
 				const auto destination = core::window_review_destination{ aHandoff.Mode, std::string{ aHandoff.Hostname.value() }, aHandoff.Locator, aHandoff.Number, aHandoff.Account };
 				const auto opened      = ReadingDestination != destination;
@@ -17116,6 +17122,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string Diagnostic;
 		};
 		std::optional<published_file_switch_probe_state> PublishedFileSwitchProbe;
+		// [[BPR-1376]]. The reselect stress course: the reviewer's file
+		// choice racing a same-head refresh, in seeded orders.
+		struct reselect_stress_state
+		{
+			enum class phase {
+				awaiting_file,
+				settling,
+				acting,
+				passed,
+				failed,
+			};
+			std::uint32_t              FirstSeed = 0U;
+			std::uint32_t              Seeds     = 0U;
+			std::uint32_t              Done      = 0U;
+			std::uint32_t              Lost      = 0U;
+			std::uint32_t              Clicks    = 0U;
+			std::uint32_t              InAccept  = 0U;
+			std::uint32_t              Refreshes = 0U;
+			std::vector<std::uint32_t> Actions;
+			std::size_t                Step = 0U;
+			std::optional<std::string> Expected;
+			std::size_t                Quiet  = 0U;
+			std::size_t                Waited = 0U;
+			std::string                Losses;
+			phase                      Phase = phase::awaiting_file;
+		};
+		std::optional<reselect_stress_state> ReselectStress;
+		/// \brief [[BPR-1376]]. Runs once at the start of the next accepted
+		/// handoff, before it reaches the workbench: a reviewer's gesture
+		/// made while that handoff's delivery was already queued.
+		std::function<void()> BeforeAcceptForTest;
 		// [[BPR-1345]]. The start-a-review course.
 		struct start_review_probe_state
 		{
@@ -27255,6 +27292,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		using result               = detail::published_file_switch_probe_result;
 		using state_type           = github_application::implementation::published_file_switch_probe_state;
 		using timing               = detail::published_file_switch_timing;
+		if (aTiming == timing::reselect) {
+			return exercise_reselect_stress(aApplication);
+		}
 		auto* const implementation = aApplication.Implementation.get();
 		if (implementation == nullptr) {
 			return result::failed;
@@ -28563,6 +28603,197 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return implementation != nullptr && implementation->ReviewProgressPushProbe.has_value() ? implementation->ReviewProgressPushProbe->Diagnostic : std::string{ };
 	}
 
+	auto detail::github_application_fixture_access::exercise_reselect_stress(github_application& aApplication) -> detail::published_file_switch_probe_result
+	{
+		using result               = detail::published_file_switch_probe_result;
+		using state_type           = github_application::implementation::reselect_stress_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ReselectStress.has_value()) {
+			auto&      made  = implementation->ReselectStress.emplace();
+			const auto first = qEnvironmentVariableIntValue("BPR_RESELECT_STRESS_FIRST_SEED");
+			const auto seeds = qEnvironmentVariableIntValue("BPR_RESELECT_STRESS_SEEDS");
+			made.FirstSeed   = first > 0 ? static_cast<std::uint32_t>(first) : 0U;
+			made.Seeds       = seeds > 0 ? static_cast<std::uint32_t>(seeds) : 40U;
+		}
+		auto& stress = *implementation->ReselectStress;
+		if (stress.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (stress.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->TabHost == nullptr || implementation->EpochHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const view   = window->files_drawer() != nullptr ? window->files_drawer()->contents_view() : nullptr;
+		if (view == nullptr || view->model() == nullptr || window->files_drawer()->contents() == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&stress](const std::string_view aWhy) {
+			stress.Losses += " | failed=" + std::string{ aWhy };
+			stress.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto quiet = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->TabAdvanceQueued && !implementation->TabLoad.has_value()
+				&& !implementation->RefreshKeptTabView && !implementation->EpochHost->state().PendingComparison && !implementation->BeforeAcceptForTest
+				&& view->model()->rowCount() > 0;
+		};
+		const auto paths = [&] {
+			auto found = std::vector<std::string>{ };
+			for (auto row = 0; row < view->model()->rowCount(); ++row) {
+				found.push_back(view->model()->index(row, 0).data(Qt::DisplayRole).toString().toStdString());
+			}
+			return found;
+		};
+		// A click on the file's row in the drawer, as the reviewer makes it.
+		// Read through the implementation each time: a click made from the
+		// accept hook runs after this tick has returned.
+		const auto click = [](github_application::implementation& aImplementation, const std::string& aPath) -> bool {
+			auto* const shown = &*aImplementation.Window;
+			auto* const list  = shown->files_drawer() != nullptr ? shown->files_drawer()->contents_view() : nullptr;
+			const auto  row   = list != nullptr ? drawer_row(*shown, aPath) : QModelIndex{ };
+			if (!row.isValid() || !aImplementation.ReselectStress.has_value()) {
+				return false;
+			}
+			list->setCurrentIndex(row);
+			aImplementation.ReselectStress->Expected = aPath;
+			++aImplementation.ReselectStress->Clicks;
+			return true;
+		};
+		const auto tally = [&stress] {
+			return "RESELECT_STRESS first=" + std::to_string(stress.FirstSeed) + " seeds=" + std::to_string(stress.Seeds) + " done=" + std::to_string(stress.Done)
+				+ " lost=" + std::to_string(stress.Lost) + " clicks=" + std::to_string(stress.Clicks) + " in_accept=" + std::to_string(stress.InAccept)
+				+ " refreshes=" + std::to_string(stress.Refreshes);
+		};
+		const auto actions = [&stress] {
+			auto text = std::string{ };
+			for (const auto action : stress.Actions) {
+				text += (text.empty() ? "" : ",") + std::to_string(action >> 16U) + ":" + std::to_string(action & 0xFFFFU);
+			}
+			return text;
+		};
+		// The seed's actions: 0 click, 1 click while a refresh's handoff is
+		// already queued, 2 refresh, 3 pump the event loop. Raw engine output,
+		// so every platform plays the same orders.
+		const auto plan = [&stress] {
+			const auto seed   = stress.FirstSeed + stress.Done;
+			auto       engine = std::mt19937{ seed };
+			const auto count  = 2U + static_cast<std::uint32_t>(engine() % 5U);
+			stress.Actions.clear();
+			auto clicks = false;
+			for (auto step = 0U; step < count; ++step) {
+				const auto kind = static_cast<std::uint32_t>(engine() % 4U);
+				clicks          = clicks || kind <= 1U;
+				stress.Actions.push_back((kind << 16U) | static_cast<std::uint32_t>(engine() % 0xFFFFU));
+			}
+			if (!clicks) {
+				stress.Actions.push_back(static_cast<std::uint32_t>(engine() % 0xFFFFU));
+			}
+			stress.Step = 0U;
+			stress.Expected.reset();
+			stress.Phase = state_type::phase::acting;
+		};
+		switch (stress.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, "src/engine/renderer.cpp");
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("first-file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				stress.Phase  = state_type::phase::settling;
+				stress.Quiet  = 0U;
+				stress.Waited = 0U;
+			}
+			return result::pending;
+		}
+		case state_type::phase::settling: {
+			stress.Quiet = quiet() ? stress.Quiet + 1U : 0U;
+			if (stress.Quiet < 5U) {
+				if (++stress.Waited > 3000U) {
+					return fail("never-quiet seed=" + std::to_string(stress.FirstSeed + stress.Done) + " actions=" + actions());
+				}
+				return result::pending;
+			}
+			if (stress.Expected.has_value()) {
+				const auto& expected = *stress.Expected;
+				const auto  row      = drawer_row(*window, expected);
+				const auto  file     = row.isValid() ? window->files_drawer()->contents()->file_at(row) : std::nullopt;
+				const auto  current  = view->currentIndex().data(Qt::DisplayRole).toString().toStdString();
+				const auto& last     = implementation->LastSelectedDiff;
+				const auto  diff     = last.has_value() ? last->Request.File.PresentationPath : std::string{ "-" };
+				const auto& tabs     = implementation->TabHost->state();
+				const auto* active   = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+				const auto  tabFile  = active != nullptr ? active->View.File : std::nullopt;
+				const auto  kept     = current == expected && file.has_value() && implementation->WorkbenchHost->selected() == file && diff == expected
+					&& tabFile == std::optional{ core::file_identity_of(expected) };
+				if (!kept) {
+					++stress.Lost;
+					if (stress.Lost <= 8U) {
+						stress.Losses += " | lost seed=" + std::to_string(stress.FirstSeed + stress.Done) + " expected=" + expected + " current=" + current
+							+ " diff=" + diff + " selected=" + std::to_string(implementation->WorkbenchHost->selected() == file ? 1 : 0)
+							+ " tab=" + std::to_string(tabFile == std::optional{ core::file_identity_of(expected) } ? 1 : 0) + " actions=" + actions();
+					}
+				}
+				++stress.Done;
+			}
+			if (stress.Done >= stress.Seeds) {
+				stress.Losses = tally() + stress.Losses;
+				stress.Phase  = stress.Lost == 0U ? state_type::phase::passed : state_type::phase::failed;
+				return stress.Lost == 0U ? result::passed : result::failed;
+			}
+			plan();
+			return result::pending;
+		}
+		case state_type::phase::acting: {
+			if (stress.Step >= stress.Actions.size()) {
+				stress.Phase  = state_type::phase::settling;
+				stress.Quiet  = 0U;
+				stress.Waited = 0U;
+				return result::pending;
+			}
+			const auto action = stress.Actions[stress.Step++];
+			const auto kind   = action >> 16U;
+			const auto files  = paths();
+			if (files.empty()) {
+				return result::pending;
+			}
+			const auto path    = files[(action & 0xFFFFU) % files.size()];
+			auto*      refresh = window->github_refresh_action();
+			if (kind == 1U && refresh->isEnabled() && !implementation->BeforeAcceptForTest) {
+				implementation->BeforeAcceptForTest = [implementation, path, click] {
+					if (click(*implementation, path) && implementation->ReselectStress.has_value()) {
+						++implementation->ReselectStress->InAccept;
+					}
+				};
+				refresh->trigger();
+				++stress.Refreshes;
+			} else if (kind <= 1U) {
+				static_cast<void>(click(*implementation, path));
+			} else if (kind == 2U && refresh->isEnabled()) {
+				refresh->trigger();
+				++stress.Refreshes;
+			} else {
+				for (auto pass = 0U; pass < (action & 0x3U); ++pass) {
+					QCoreApplication::processEvents();
+				}
+			}
+			return result::pending;
+		}
+		case state_type::phase::passed:
+			return result::passed;
+		case state_type::phase::failed:
+			return result::failed;
+		}
+		return result::pending;
+	}
+
 	auto detail::github_application_fixture_access::published_file_switch_evidence(
 		const github_application& aApplication) -> detail::published_file_switch_probe_evidence
 	{
@@ -28577,6 +28808,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		const github_application& aApplication) -> std::string
 	{
 		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation != nullptr && implementation->ReselectStress.has_value()) {
+			return implementation->ReselectStress->Losses;
+		}
 		if (implementation == nullptr || !implementation->PublishedFileSwitchProbe.has_value()) {
 			return { };
 		}

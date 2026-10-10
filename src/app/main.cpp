@@ -1166,7 +1166,7 @@ namespace {
 		std::string                                      LabelAuthoringDiagnostic;
 		std::optional<std::string>                       LabelAuthoringEvidenceDirectory;
 		// [[BPR-1326]]. `--published-file-switch-probe`, and
-		// `--published-file-switch-timing settled|late|draft`.
+		// `--published-file-switch-timing settled|late|draft|reselect` ([[BPR-1376]]).
 		bool                                                   PublishedFileSwitchProbe  = false;
 		bpr::app::detail::published_file_switch_timing         PublishedFileSwitchTiming = bpr::app::detail::published_file_switch_timing::settled;
 		bool                                                   PublishedFileSwitchPassed = false;
@@ -9459,7 +9459,7 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		if ((publishedFileSwitchProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value() || labelAuthoringProbe))
-			|| (publishedFileSwitchTiming.has_value() && (!publishedFileSwitchProbe || (*publishedFileSwitchTiming != "settled" && *publishedFileSwitchTiming != "late" && *publishedFileSwitchTiming != "draft")))) {
+			|| (publishedFileSwitchTiming.has_value() && (!publishedFileSwitchProbe || (*publishedFileSwitchTiming != "settled" && *publishedFileSwitchTiming != "late" && *publishedFileSwitchTiming != "draft" && *publishedFileSwitchTiming != "reselect")))) {
 			QTextStream{ stdout } << "PUBLISHED_FILE_SWITCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
@@ -9804,7 +9804,7 @@ auto main(int argc, char** argv) -> int
 								.LabelAuthoringProbe             = labelAuthoringProbe,
 								.LabelAuthoringEvidenceDirectory = labelAuthoringEvidence.has_value() ? std::optional<std::string>{ std::string{ *labelAuthoringEvidence } } : std::nullopt,
 								.PublishedFileSwitchProbe        = publishedFileSwitchProbe,
-								.PublishedFileSwitchTiming       = publishedFileSwitchTiming == std::optional<std::string_view>{ "late" } ? bpr::app::detail::published_file_switch_timing::late : publishedFileSwitchTiming == std::optional<std::string_view>{ "draft" } ? bpr::app::detail::published_file_switch_timing::draft
+								.PublishedFileSwitchTiming       = publishedFileSwitchTiming == std::optional<std::string_view>{ "late" } ? bpr::app::detail::published_file_switch_timing::late : publishedFileSwitchTiming == std::optional<std::string_view>{ "draft" } ? bpr::app::detail::published_file_switch_timing::draft : publishedFileSwitchTiming == std::optional<std::string_view>{ "reselect" } ? bpr::app::detail::published_file_switch_timing::reselect
 																																																																		   : bpr::app::detail::published_file_switch_timing::settled,
 								.StartReviewCourse               = startReviewCourse == std::optional<std::string_view>{ "pending" } ? std::optional{ bpr::app::detail::start_review_course::pending } : startReviewCourse == std::optional<std::string_view>{ "finish" } ? std::optional{ bpr::app::detail::start_review_course::finish }
 									: startReviewCourse == std::optional<std::string_view>{ "refused" }                                                                                                                                                                   ? std::optional{ bpr::app::detail::start_review_course::refused }
