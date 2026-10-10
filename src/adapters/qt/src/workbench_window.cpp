@@ -30,6 +30,7 @@
 #include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
@@ -55,10 +56,12 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFont>
+#include <QFontMetrics>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QIcon>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
@@ -86,6 +89,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QShowEvent>
 #include <QSignalBlocker>
 #include <QSizePolicy>
 #include <QSpinBox>
@@ -301,6 +305,75 @@ namespace bpr::qt {
 
 		private:
 			QPointer<QWidget> Field;
+		};
+
+		/// \brief [[BPR-1381]]. The bar's own word that what it was given is
+		/// opening: the rows' turning mark and "Opening…" where the shortcut
+		/// stood, in the field's quiet ink.
+		///
+		/// \details What was asked is answered where it was asked, as a row
+		/// answers on its row; the status band at Home's foot says the rest.
+		class home_bar_activity final : public QWidget
+		{
+		public:
+			explicit home_bar_activity(QWidget* const aParent)
+				: QWidget{ aParent }
+			{
+				setObjectName(QStringLiteral("homeOpenActivity"));
+				setAccessibleName(QStringLiteral("Opening"));
+				setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+				Turn = new QTimer{ this };
+				Turn->setInterval(80);
+				connect(Turn, &QTimer::timeout, this, [this] {
+					Frame = (Frame + 1) % home_open_frames;
+					update();
+				});
+				hide();
+			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				return { metrics.height() + gap + metrics.horizontalAdvance(text()), metrics.height() };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto       painter = QPainter{ this };
+				const auto extent  = QFontMetrics{ font() }.height();
+				const auto ink     = palette().color(QPalette::Active, QPalette::PlaceholderText);
+				auto       faint   = ink;
+				faint.setAlphaF(0.25F);
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				draw_home_open_mark(painter, QRect{ 0, (height() - extent) / 2, extent, extent }, Frame, ink, faint);
+				painter.setPen(ink);
+				painter.drawText(QRect{ extent + gap, 0, width() - extent - gap, height() }, Qt::AlignVCenter | Qt::AlignLeft, text());
+			}
+
+			void showEvent(QShowEvent* const aEvent) override
+			{
+				QWidget::showEvent(aEvent);
+				Turn->start();
+			}
+
+			void hideEvent(QHideEvent* const aEvent) override
+			{
+				QWidget::hideEvent(aEvent);
+				Turn->stop();
+			}
+
+		private:
+			static constexpr int gap = 6;
+
+			[[nodiscard]] static auto text() -> QString
+			{
+				return QStringLiteral("Opening…");
+			}
+
+			QTimer* Turn  = nullptr;
+			int     Frame = 0;
 		};
 
 		/// \brief [[BPR-1200]]. A read's first two answered pages are its
@@ -990,6 +1063,10 @@ namespace bpr::qt {
 		// [[BPR-1357]]. What was just done is said in Home's band too, for as
 		// long as the status bar says it.
 		connect(statusBar(), &QStatusBar::messageChanged, this, [this](const QString&) { update_home_status(); });
+		// [[BPR-1381]]. The band is docked just above the status bar, so while
+		// it says the status bar's message the status bar does not draw it a
+		// second time beneath (see eventFilter).
+		statusBar()->installEventFilter(this);
 		// [[BPR-0775]] mandate r2. Dif rests in the window's bottom-left corner
 		// while Home is not the first-launch card. This slot reserves the start
 		// of the status line for him; the sprite is laid over it (see
@@ -2807,11 +2884,14 @@ namespace bpr::qt {
 			openShortcut->setObjectName(QStringLiteral("homeOpenShortcut"));
 			openShortcut->setForegroundRole(QPalette::PlaceholderText);
 			openShortcut->setAccessibleName(QStringLiteral("Shortcut to the Open bar"));
+			HomeOpenShortcut     = openShortcut;
+			HomeOpenActivity     = new home_bar_activity{ openFrame };
 			auto* const frameRow = new QHBoxLayout{ openFrame };
 			frameRow->setContentsMargins(12, 8, 12, 8);
 			frameRow->setSpacing(8);
 			frameRow->addWidget(HomeOpenLabel);
 			frameRow->addWidget(HomeOpenBar, 1);
+			frameRow->addWidget(HomeOpenActivity);
 			frameRow->addWidget(openShortcut);
 			// [[BPR-0779]]. RFC-BPR-0032 puts the bar "alone in the first row",
 			// and the accepted board H1 of `design/home-v2.html` puts first
@@ -2823,10 +2903,18 @@ namespace bpr::qt {
 			// bordered, so its height is the box: it keeps the height it asks
 			// for in every session state.
 			openFrame->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+			// [[BPR-1381]]. Over an open review the way back stands at the
+			// bar's right (see place_home_landing). The owner, 2026-10-10: the
+			// row it had above the bar "causes all the layout of the page to
+			// shift and that section goes away when you open a new pr which
+			// shifts the screen under your cursor". Beside the bar it changes
+			// the bar's width only, and nothing below the bar moves.
 			auto* const openRow = new QHBoxLayout{ };
 			openRow->setContentsMargins(24, 16, 24, 0);
+			openRow->setSpacing(12);
 			openRow->addWidget(openFrame, 1);
 			homeColumn->addLayout(openRow);
+			HomeOpenRow = openRow;
 			// A refusal belongs beside what was refused. Silence on Return was
 			// indistinguishable from a product that does nothing.
 			HomeOpenNotice = new QLabel{ HomePage };
@@ -2844,10 +2932,13 @@ namespace bpr::qt {
 			HomeOpenDetails->setAutoDefault(false);
 			HomeOpenDetails->setFocusPolicy(Qt::StrongFocus);
 			HomeOpenDetails->hide();
-			// [[BPR-1357]]. Both now speak in Home's status band, directly under
-			// the bar, at body size behind a mark that says their tone. The band
-			// also carries Home's general status, which was a line at the
-			// window's bottom edge, and Cancel or Retry for what the bar opened.
+			// [[BPR-1357]]. Both now speak in Home's status band, at body size
+			// behind a mark that says their tone. The band also carries Home's
+			// general status, and Cancel or Retry for what the bar opened.
+			// [[BPR-1381]]. It is docked at Home's foot, under the list, rather
+			// than under the bar: shown and hidden there it moves nothing
+			// above it, where a band under the bar pushed the list down under
+			// the pointer. What the bar is opening is also said in the bar.
 			HomeStatus     = new qt::home_status_line{ HomePage };
 			HomeStatusText = new QLabel{ HomeStatus };
 			HomeStatusText->setObjectName(QStringLiteral("homeStatusText"));
@@ -2874,9 +2965,8 @@ namespace bpr::qt {
 			HomeStatus->adopt_button(*HomeOpenRetry);
 			HomeStatus->adopt_button(*HomeOpenDetails);
 			auto* const noticeRow = new QHBoxLayout{ };
-			noticeRow->setContentsMargins(24, 8, 24, 0);
+			noticeRow->setContentsMargins(24, 0, 24, 0);
 			noticeRow->addWidget(HomeStatus, 1);
-			homeColumn->addLayout(noticeRow);
 			connect(HomeOpenDetails, &QPushButton::clicked, this, [this] {
 				if (auto* const clipboard = QApplication::clipboard(); clipboard != nullptr) {
 					clipboard->setText(HomeRefusalDetails);
@@ -3077,6 +3167,7 @@ namespace bpr::qt {
 			// directly under the bar rather than wherever the spare height
 			// spread the rows. The list's stretch still takes it when shown.
 			homeColumn->addStretch(0);
+			homeColumn->addLayout(noticeRow);
 			if (HomeList != nullptr) {
 				HomeList->adopt_recent(*recentList);
 				HomeList->set_recent_action_dispatch([this](const int aRow) { dispatch_recent_review(aRow, true); });
@@ -3536,6 +3627,7 @@ namespace bpr::qt {
 		CentralStack->addWidget(HomePage);
 		CentralStack->addWidget(ReviewSurface);
 		setCentralWidget(CentralStack);
+		connect(CentralStack, &QStackedWidget::currentChanged, statusBar(), [this] { statusBar()->update(); });
 
 		// [[BPR-0646]]. Refresh sits in the strip's right region, before the
 		// comments toggle, as the design places it. Same action as the
@@ -9781,16 +9873,26 @@ namespace bpr::qt {
 		}
 		const auto state = HomeLanding->state();
 		HomeLanding->setVisible(state != landing_state::choose_pull_request);
-		// Over a review the row comes first, above the bar; signed out the
-		// card follows the bar and what is said under it.
-		const auto wanted = [this, state] {
-			return state == landing_state::back_to_review ? 0 : HomeColumn->indexOf(HomeSetupRow) + 1;
-		};
-		if (HomeColumn->indexOf(HomeLanding) == wanted()) {
+		// [[BPR-1381]]. Over a review the way back stands at the bar's right,
+		// in the bar's own row; signed out the card follows the bar and what
+		// is said under it.
+		if (state == landing_state::back_to_review && HomeOpenRow != nullptr) {
+			if (HomeOpenRow->indexOf(HomeLanding) >= 0) {
+				return;
+			}
+			HomeColumn->removeWidget(HomeLanding);
+			HomeOpenRow->addWidget(HomeLanding, 0, Qt::AlignVCenter);
 			return;
 		}
+		const auto wanted = HomeColumn->indexOf(HomeSetupRow) + 1;
+		if (HomeColumn->indexOf(HomeLanding) == wanted) {
+			return;
+		}
+		if (HomeOpenRow != nullptr) {
+			HomeOpenRow->removeWidget(HomeLanding);
+		}
 		HomeColumn->removeWidget(HomeLanding);
-		HomeColumn->insertWidget(wanted(), HomeLanding);
+		HomeColumn->insertWidget(HomeColumn->indexOf(HomeSetupRow) + 1, HomeLanding);
 	}
 
 	void workbench_window::focus_home_bar()
@@ -12106,6 +12208,9 @@ namespace bpr::qt {
 			return true;
 		}
 #endif
+		if (aEvent != nullptr && aEvent->type() == QEvent::Paint && aWatched == statusBar() && home_status_echoes_bar()) {
+			return true;
+		}
 		if (aWatched == DifCornerSlot && aEvent != nullptr
 			&& (aEvent->type() == QEvent::Show || aEvent->type() == QEvent::Hide
 				|| aEvent->type() == QEvent::Move || aEvent->type() == QEvent::Resize)) {
@@ -12631,6 +12736,10 @@ namespace bpr::qt {
 			// that says the opening.
 			const auto sayingOpening = said && notice == loading && bandOpening;
 			HomeOpenCancel->setVisible(sayingOpening && HomeOpen->Cancellable);
+			if (HomeOpenActivity != nullptr && HomeOpenShortcut != nullptr) {
+				HomeOpenActivity->setVisible(sayingOpening);
+				HomeOpenShortcut->setVisible(!sayingOpening);
+			}
 			HomeOpenRetry->setVisible(refused && failed && !HomeOpenOnRow && HomeOpen->Retryable);
 		}
 		if (HomeStatus != nullptr && said) {
@@ -12646,6 +12755,13 @@ namespace bpr::qt {
 			HomeRefusal->setVisible(carded);
 		}
 		update_home_status();
+	}
+
+	auto workbench_window::home_status_echoes_bar() const -> bool
+	{
+		const auto message = statusBar()->currentMessage();
+		return showing_home() && !message.isEmpty() && HomeStatus != nullptr && HomeStatus->isVisible()
+			&& HomeStatusText != nullptr && HomeStatusText->isVisible() && HomeStatusText->text() == message;
 	}
 
 	auto workbench_window::home_status_line() const noexcept -> qt::home_status_line*
@@ -12830,6 +12946,7 @@ namespace bpr::qt {
 			HomeStatus->set_tone(tone);
 		}
 		HomeStatusText->setVisible(shown);
+		statusBar()->update();
 		const auto announcement = shown && showing_home() ? text : QString{ };
 		if (!announcement.isEmpty() && announcement != LastHomeStatusAnnouncement && HomeStatus != nullptr) {
 			LastHomeStatusAnnouncement = announcement;

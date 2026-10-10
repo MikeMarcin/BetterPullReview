@@ -33,6 +33,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMouseEvent>
+#include <QPoint>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTemporaryDir>
@@ -316,6 +317,14 @@ try {
 		QApplication::processEvents();
 		expect(window->showing_home(), "each appearance starts on Home");
 
+		// [[BPR-1381]]. Where Home's list begins: nothing Home says or offers
+		// may move it under the pointer.
+		const auto listTop = [&] { return window->home_list()->mapTo(window->home_page(), QPoint{ }).y(); };
+		const auto barTop  = [&] { return window->home_open_frame()->mapTo(window->home_page(), QPoint{ }).y(); };
+		QApplication::processEvents();
+		const auto quietList = listTop();
+		const auto quietBar  = barTop();
+
 		// ---- a single click only selects ([[BPR-1364]]) -------------------
 		const auto row          = row_of(*window, served_name);
 		const auto delayedFirst = delay->Delayed.load();
@@ -338,6 +347,8 @@ try {
 		expect(window->home_list()->open_view() == row.View, "the double-clicked row's own list carries it");
 		expect(window->showing_home() && window->home_status_line()->isHidden(), "the row says it, so the band adds nothing");
 		wait_for([&] { return delay->Delayed.load() > delayedFirst; }, "the read reaches the slow transport");
+		QApplication::processEvents();
+		expect(listTop() == quietList && barTop() == quietBar, "a row opening moves neither the bar nor the list");
 		renders(QStringLiteral("row-opening"));
 
 		// A second double-click is the same request.
@@ -390,6 +401,11 @@ try {
 		expect(!window->home_status_line()->isHidden() && window->home_status_line()->tone() == qt::home_status_tone::busy
 				   && window->home_open_notice()->text() == QStringLiteral("Opening octo-org/review-repository#18…"),
 			   "with no row for it, Home's status band says the bar's opening at once");
+		QApplication::processEvents();
+		auto* const activity = window->home_open_frame()->findChild<QWidget*>(QStringLiteral("homeOpenActivity"));
+		expect(activity != nullptr && activity->isVisible(), "the bar says in the bar that what it was given is opening");
+		expect(listTop() == quietList && barTop() == quietBar, "the band docked at Home's foot moves neither the bar nor the list");
+		expect(window->home_status_line()->mapTo(window->home_page(), QPoint{ }).y() > listTop(), "the band stands under the list");
 		wait_for([&] { return phase(*window) == core::home_open_phase::waiting; }, "the bar's opening waits", { }, 3000);
 		QApplication::processEvents();
 		expect(window->home_open_cancel_button()->isVisible() && window->home_open_notice()->text().startsWith(QStringLiteral("Opening octo-org/review-repository#18: ")),
@@ -399,6 +415,7 @@ try {
 		wait_for([&] { return !window->home_open().has_value(); }, "the band's Cancel stops the bar's opening");
 		QApplication::processEvents();
 		expect(window->home_status_line()->isHidden(), "a cancelled opening leaves the band quiet");
+		expect(activity->isHidden(), "and the bar quiet");
 
 		// ---- Home's general status, in the band ----------------------------
 		window->statusBar()->showMessage(QStringLiteral("Added octo-org/review-repository."), 0);
@@ -406,12 +423,15 @@ try {
 		expect(!window->home_status_line()->isHidden() && window->home_status_text()->text() == QStringLiteral("Added octo-org/review-repository.")
 				   && window->home_status_line()->tone() == qt::home_status_tone::notice,
 			   "what was just done is said in the band under the bar");
+		expect(listTop() == quietList && barTop() == quietBar, "a notice moves neither the bar nor the list");
+		expect(window->home_status_echoes_bar(), "the status bar beneath leaves the band's sentence to the band");
 		renders(QStringLiteral("status-notice"));
 		window->set_agent_workspaces_unavailable(true);
 		QApplication::processEvents();
 		expect(window->home_status_line()->tone() == qt::home_status_tone::problem && window->home_status_text()->text().startsWith(QStringLiteral("Disposable agent workspaces are unavailable")),
 			   "a problem the window has is said in the band, with the failure mark");
 		expect(std::ranges::find(announcements, window->home_status_text()->text()) != announcements.end(), "the band's status is announced politely");
+		expect(!window->home_status_echoes_bar(), "a problem in the band is not the status bar's message");
 		renders(QStringLiteral("status-problem"));
 		window->set_agent_workspaces_unavailable(false);
 		window->statusBar()->clearMessage();
@@ -433,6 +453,9 @@ try {
 		expect(!window->home_open().has_value(), "a loaded read leaves nothing for Home to say");
 		window->home_action()->trigger();
 		QApplication::processEvents();
+		expect(window->home_landing()->state() == qt::landing_state::back_to_review && window->home_landing()->isVisible()
+				   && listTop() == quietList && barTop() == quietBar,
+			   "Home over the open review offers the way back and keeps the bar and the list where they were");
 		reviewing_course(QStringLiteral("reviewing"));
 	}
 	// [[BPR-1365]]. The high-contrast themes, over the same open review.

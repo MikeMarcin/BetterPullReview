@@ -1079,6 +1079,10 @@ namespace bpr::qt {
 		/// window has, a connection under way, or what was just done. Hidden
 		/// while Home is quiet; the session line stays in the status bar.
 		[[nodiscard]] auto home_status_text() const noexcept -> QLabel*;
+		/// \brief [[BPR-1381]]. Whether Home's band, docked above the status bar,
+		/// is saying the status bar's own message, which the status bar then
+		/// does not draw a second time.
+		[[nodiscard]] auto home_status_echoes_bar() const -> bool;
 		/// \brief [[BPR-1357]]. Cancel and Retry for an opening the band says.
 		[[nodiscard]] auto home_open_cancel_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto home_open_retry_button() const noexcept -> QPushButton*;
@@ -2132,22 +2136,26 @@ namespace bpr::qt {
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
 		// The open pull request as the queue names it: owner/name, number and
 		// title, and whether it was read signed out.
-		std::string                                      OpenQueueRepository;
-		std::int64_t                                     OpenQueueNumber = 0;
-		std::string                                      OpenQueueTitle;
-		bool                                             OpenQueuePublicPreview = false;
-		QLabel*                                          SettingsQueueStatus    = nullptr;
-		QLineEdit*                                       HomeOpenBar            = nullptr;
-		QLabel*                                          HomeOpenLabel          = nullptr;
-		QWidget*                                         HomeOpenFrame          = nullptr;
-		QAction*                                         HomeFocusBarAction     = nullptr;
-		QAction*                                         HomeOpenAction         = nullptr;
-		QLabel*                                          HomeOpenNotice         = nullptr;
-		QPushButton*                                     HomeOpenDetails        = nullptr;
-		qt::home_status_line*                            HomeStatus             = nullptr;
-		QLabel*                                          HomeStatusText         = nullptr;
-		QPushButton*                                     HomeOpenCancel         = nullptr;
-		QPushButton*                                     HomeOpenRetry          = nullptr;
+		std::string  OpenQueueRepository;
+		std::int64_t OpenQueueNumber = 0;
+		std::string  OpenQueueTitle;
+		bool         OpenQueuePublicPreview = false;
+		QLabel*      SettingsQueueStatus    = nullptr;
+		QLineEdit*   HomeOpenBar            = nullptr;
+		QLabel*      HomeOpenLabel          = nullptr;
+		QWidget*     HomeOpenFrame          = nullptr;
+		/// [[BPR-1381]]. The bar's row, where the way back to a review stands.
+		QHBoxLayout*                                     HomeOpenRow        = nullptr;
+		QLabel*                                          HomeOpenShortcut   = nullptr;
+		QWidget*                                         HomeOpenActivity   = nullptr;
+		QAction*                                         HomeFocusBarAction = nullptr;
+		QAction*                                         HomeOpenAction     = nullptr;
+		QLabel*                                          HomeOpenNotice     = nullptr;
+		QPushButton*                                     HomeOpenDetails    = nullptr;
+		qt::home_status_line*                            HomeStatus         = nullptr;
+		QLabel*                                          HomeStatusText     = nullptr;
+		QPushButton*                                     HomeOpenCancel     = nullptr;
+		QPushButton*                                     HomeOpenRetry      = nullptr;
 		std::optional<application::home_open_projection> HomeOpen;
 		application::home_open_dispatch                  HomeOpenDispatch;
 		/// Whether a shown Home row carries the opening, so the band does not.

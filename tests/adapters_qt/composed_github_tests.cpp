@@ -6197,17 +6197,23 @@ namespace {
 		auto* const reviewFocus = window.focusWidget();
 		window.home_action()->trigger();
 		QApplication::processEvents();
-		// [[BPR-0775]]. One shaded return row above the bar, the bar focused on
-		// arrival, and the session line in the status bar.
+		// [[BPR-0775]]. The way back, the bar focused on arrival, and the
+		// session line in the status bar. [[BPR-1381]]: the way back stands at
+		// the bar's right, so showing or leaving it moves nothing under the bar.
 		expect(reviewFocus != nullptr && reviewFocus == reviewControl,
 			   std::string{ "a review control had focus before Home; focus is on " }
 				   + (reviewFocus == nullptr ? std::string{ "nothing" } : reviewFocus->objectName().toStdString())
 				   + (reviewControl->isEnabled() ? " (control enabled)" : " (control disabled)")
 				   + (reviewControl->isVisible() ? " (control visible)" : " (control hidden)"));
-		expect(landing->mapTo(window.home_page(), QPoint{ }).y()
-				   < window.home_open_frame()->mapTo(window.home_page(), QPoint{ }).y(),
-			   "over a review the return row is above the bar");
+		{
+			const auto frame = QRect{ window.home_open_frame()->mapTo(window.home_page(), QPoint{ }), window.home_open_frame()->size() };
+			const auto back  = QRect{ landing->mapTo(window.home_page(), QPoint{ }), landing->size() };
+			expect(back.left() > frame.right() && back.center().y() >= frame.top() && back.center().y() <= frame.bottom(),
+				   "over a review the way back stands at the bar's right, on the bar's line");
+		}
 		expect(!landing->secondary_button()->isVisible() && !landing->body_label()->isVisible()
+				   && !landing->title_label()->isVisible()
+				   && landing->primary_button()->accessibleDescription().startsWith(QStringLiteral("Reviewing "))
 				   && landing->shortcut_label()->isVisible()
 				   && landing->shortcut_label()->text() == window.home_action()->shortcut().toString(QKeySequence::NativeText),
 			   "the return row is one button with its shortcut and no second button or body");

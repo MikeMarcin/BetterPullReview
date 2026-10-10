@@ -9,7 +9,6 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPen>
-#include <QPointF>
 #include <QPushButton>
 #include <QRectF>
 #include <QResizeEvent>
@@ -155,8 +154,10 @@ namespace bpr::qt {
 			Body->clear();
 			Primary->setText(QStringLiteral("Back to the review"));
 			Primary->setAccessibleName(QStringLiteral("Back to the review"));
-			Primary->setAccessibleDescription(QStringLiteral(
-				"Returns to the open pull request at the same file and change."));
+			// The way back stands beside the bar, so what it returns to is said
+			// on the button rather than on a row of its own.
+			Primary->setAccessibleDescription(
+				QStringLiteral("%1. Returns to it at the same file and change.").arg(reviewing));
 			// The row has no second button; its name must not linger on the
 			// hidden one (review of BPR-0775, finding 5).
 			Secondary->setText(QString{ });
@@ -215,6 +216,11 @@ namespace bpr::qt {
 			titleFont.setWeight(QFont::DemiBold);
 		}
 		Title->setFont(titleFont);
+		// The way back is the bar's neighbour, its button and shortcut only: a
+		// row of its own above the bar came and went with the review, and moved
+		// the bar and the list under the pointer when it did.
+		Title->setVisible(!row);
+		setSizePolicy(row ? QSizePolicy::Maximum : QSizePolicy::Expanding, QSizePolicy::Fixed);
 		Body->setVisible(card);
 		Primary->setVisible(card || row);
 		Secondary->setVisible(card && GithubCliAvailable);
@@ -223,6 +229,8 @@ namespace bpr::qt {
 		if (card) {
 			Content->setContentsMargins(
 				page_inset + card_inset, row_inset + card_inset, page_inset + card_inset, row_inset + card_inset);
+		} else if (row) {
+			Content->setContentsMargins(0, 0, 0, 0);
 		} else {
 			Content->setContentsMargins(page_inset, row_inset, page_inset, row_inset);
 		}
@@ -366,13 +374,7 @@ namespace bpr::qt {
 		static_cast<void>(aEvent);
 		auto       painter = QPainter{ this };
 		const auto mid     = palette().color(QPalette::Active, QPalette::Mid);
-		if (State == landing_state::back_to_review) {
-			// One shaded row above the bar, closed by the page's hairline.
-			painter.fillRect(rect(), palette().color(QPalette::Active, QPalette::AlternateBase));
-			painter.setPen(QPen{ mid, 1.0 });
-			painter.drawLine(QPointF{ 0.0, height() - 0.5 }, QPointF{ static_cast<qreal>(width()), height() - 0.5 });
-			return;
-		}
+		// Only the card is drawn; beside the bar the way back is its button.
 		if (State != landing_state::sign_in) {
 			return;
 		}

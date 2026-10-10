@@ -27,7 +27,7 @@ namespace bpr::qt {
 		problem,
 	};
 
-	/// \brief [[BPR-1357]]. Home's status band, directly under the Open bar.
+	/// \brief [[BPR-1357]]. Home's status band, docked at Home's foot ([[BPR-1381]]).
 	///
 	/// \details The owner, 2026-10-09: "I think the general status text on the
 	/// home page is still a bit lacking, it's kind of hard to see." Home's status
@@ -37,6 +37,13 @@ namespace bpr::qt {
 	/// tone. Only a problem is tinted, in the theme's failure ink: on Home colour
 	/// means state. Every colour is the palette's or that ink, so it follows
 	/// light, dark and high contrast.
+	///
+	/// [[BPR-1381]]. The owner, 2026-10-10, of the band under the bar: it "needs
+	/// at least a background plate", and "I'm not sure that is the best place".
+	/// Under the bar it came and went above the list and moved the list under
+	/// the pointer, and in Base inside a Mid rule it was drawn as the bar is. It
+	/// is now docked at Home's foot, where it moves nothing above it, on a plate
+	/// of the window's ink; the bar says its own opening in the bar.
 	///
 	/// It holds labels and buttons it does not own the meaning of: it shows
 	/// whenever one of its labels is not hidden, and draws the tone it is told.
@@ -74,7 +81,10 @@ namespace bpr::qt {
 		static constexpr qreal radius           = 6.0;
 		static constexpr qreal fill_strength    = 0.10;
 		static constexpr qreal edge_strength    = 0.45;
-		static constexpr int   turn_interval    = 80;
+		/// [[BPR-1381]]. A neutral band's plate and rule: the window's ink over its ground.
+		static constexpr qreal plate_strength      = 0.07;
+		static constexpr qreal plate_edge_strength = 0.20;
+		static constexpr int   turn_interval       = 80;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

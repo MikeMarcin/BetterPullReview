@@ -592,10 +592,15 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   changes nothing. Each change is announced once, politely.
 - **Home's status band** ([[BPR-1357]], the owner, 2026-10-09: "I think the
   general status text on the home page is still a bit lacking, it's kind of
-  hard to see."). Directly under the Open bar, at body size in full ink,
-  behind a mark that says its tone: busy (the turning mark on a neutral band),
-  problem (the ringed exclamation on a tint of the failure ink) or notice (no
-  mark, a neutral band). Only a problem is coloured, because on Home colour
+  hard to see."). Docked at Home's foot, under the list ([[BPR-1381]], the
+  owner, 2026-10-10: it "needs at least a background plate", and "I'm not
+  sure that is the best place"), at body size in full ink on a plate of the
+  window's own ink over its ground, behind a mark that says its tone: busy
+  (the turning mark on the neutral plate), problem (the ringed exclamation on
+  a tint of the failure ink) or notice (no mark, the neutral plate). Shown
+  or hidden there it moves nothing above it; under the bar it pushed the
+  list down under the pointer. What the bar is opening is also said in the
+  bar, where its shortcut stood: the turning mark and "Opening…". Only a problem is coloured, because on Home colour
   means state and blue is Waiting on others. It says, in this order: a setup stage's
   notice, a review restoration's, a load's refusal ([[BPR-0771]]); what the
   bar asked to open, with Cancel after the wait and Retry on a failure; a
@@ -623,10 +628,14 @@ one — the two ways in RFC-BPR-0018 requires, without opening Settings; and
 the status bar line "Not signed in. Public pull requests open read-only."
 No list, no panels, no filters.
 
-Home over an open review keeps the way back: one row above the bar naming
-what is being reviewed and how far through it, with **Back to the review**
-(⌘0) as the filled button at its right. Home beneath it is unchanged, and
-whatever had focus in the review has it again when the review returns.
+Home over an open review keeps the way back: **Back to the review** (⌘0),
+the filled button at the bar's right on the bar's own line, its description
+naming what is being reviewed and how far through it. Home beneath it is
+unchanged, and whatever had focus in the review has it again when the review
+returns. [[BPR-1381]]: it was a row of its own above the bar, and it came
+and went with the review, so the bar and the list moved under the pointer
+when a new pull request was opened (the owner, 2026-10-10). Beside the bar
+only the bar's width changes.
 
 ## GitHub host and pull-request presentation
 

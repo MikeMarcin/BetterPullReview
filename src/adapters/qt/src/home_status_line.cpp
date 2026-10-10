@@ -114,14 +114,19 @@ namespace bpr::qt {
 
 	auto home_status_line::fill() const -> QColor
 	{
+		// [[BPR-1381]]. A plate of the window's own ink over its ground, not
+		// Base: in Base and Mid the band was drawn as the bar is, and read as a
+		// second, empty field rather than as something said.
 		const auto ground = palette().color(QPalette::Window);
-		return Tone == home_status_tone::problem ? mix_colour(tone_colour(), ground, fill_strength) : palette().color(QPalette::Base);
+		return Tone == home_status_tone::problem ? mix_colour(tone_colour(), ground, fill_strength)
+												 : mix_colour(palette().color(QPalette::WindowText), ground, plate_strength);
 	}
 
 	auto home_status_line::edge() const -> QColor
 	{
 		const auto ground = palette().color(QPalette::Window);
-		return Tone == home_status_tone::problem ? mix_colour(tone_colour(), ground, edge_strength) : palette().color(QPalette::Mid);
+		return Tone == home_status_tone::problem ? mix_colour(tone_colour(), ground, edge_strength)
+												 : mix_colour(palette().color(QPalette::WindowText), ground, plate_edge_strength);
 	}
 
 	auto home_status_line::sizeHint() const -> QSize

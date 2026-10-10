@@ -23,18 +23,19 @@ namespace bpr::qt {
 		sign_in,
 		/// An account and nothing open: the bar leads Home, so there is no card.
 		choose_pull_request,
-		/// A review is open behind Home: one row whose button goes back to it.
+		/// A review is open behind Home: one button beside the bar goes back to it.
 		back_to_review,
 	};
 
-	/// \brief Home's first-launch card, or its one row back to an open review.
+	/// \brief Home's first-launch card, or its one button back to an open review.
 	///
 	/// \details [[BPR-0646]], [[BPR-0775]]. RFC-BPR-0032 accepted Home as the
 	/// bar first. Signed out, the landing is the card "Sign in to GitHub" with
 	/// Sign in filled, Use GitHub CLI and Add enterprise server bordered, the
 	/// three explicit ways in without opening Settings. Over an open review it
-	/// is one shaded row naming the review, with Back to the review and its
-	/// shortcut at the right. Signed in with nothing open it shows nothing and
+	/// is Back to the review and its shortcut, which the window stands at the
+	/// bar's right ([[BPR-1381]]); the button's description names the review.
+	/// Signed in with nothing open it shows nothing and
 	/// the window hides it. The surface is presentation only: each button
 	/// reports a gesture through its callback and the window decides where it
 	/// leads.
@@ -50,7 +51,7 @@ namespace bpr::qt {
 		void               set_review_position(const QString& aPosition);
 		[[nodiscard]] auto state() const noexcept -> landing_state;
 
-		/// \brief Sign in on the first-launch card, Back to the review on the row.
+		/// \brief Sign in on the first-launch card, Back to the review beside the bar.
 		[[nodiscard]] auto primary_button() const noexcept -> QPushButton*;
 		/// \brief Use GitHub CLI on the first-launch card; hidden otherwise.
 		[[nodiscard]] auto secondary_button() const noexcept -> QPushButton*;
