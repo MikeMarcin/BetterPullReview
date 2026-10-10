@@ -116,6 +116,15 @@ network, or process effects.
   create branches, pull requests, reviews, comments and threads there, and
   resolve or close what they made. Do not delete the repository, change its
   settings or collaborators, or touch any other repository.
+- `gh` on this Mac holds two github.com accounts: `MikeMarcin` (active, the
+  owner) and `MikeMarcinTest`, a test account the owner added on 2026-10-09
+  for second-identity courses on BPR-Test. Never run `gh auth switch`: the
+  active account is global, other agents and the app's account lease use it,
+  and BPR-1370 refuses a read whose account changed. Act as the test account
+  per command instead:
+  `GH_TOKEN="$(gh auth token --user MikeMarcinTest)" gh …`, never printing or
+  logging the token. For the app, give the course its own sign-in rather than
+  switching the shared one.
 - Live GitHub calls spend the owner's own `gh` rate limit (5,000 an hour,
   shared with everything else on that account). Before and during a live run,
   check the `X-RateLimit-Remaining` response header, not `gh api rate_limit`,
