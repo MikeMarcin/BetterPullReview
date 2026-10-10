@@ -8,6 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "win"]
 metadata: {"owner_request":{"date":"2026-10-09","channel":"chat","quotes":["it seems like diff loop as an async task could have interruption points, no?","And then it could be resumed later?"]},"reservation":"docs/issues/_reservations/BPR-1366--BPR-1366--799f7f909a93.json","related_cards":["BPR-1344","BPR-1359","BPR-1327","BPR-0719"],"sequence_after":"BPR-1344","filed_by":"rfc-implementer, at the coordinator's request"}
+acceptance: [{"criterion":"Prompt stop: core and host tests honour a stop within a stated step bound, with a wall-clock figure; both fail before the change","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","path":"tests/core/diff_compute_tests.cpp","detail":"core_diff_compute test_bpr1366_a_stop_is_honoured_within_the_bound: seeded stops in all six phases of a 40,000-line pair (optimized; 6,000 in Debug) pause at the first poll at or after the request, within CheckInterval 65,536 + LargestPollDelay (67,522 on this pair) steps; observed +2,609 to +104,857 steps. Optimized: 191 ms uninterrupted, 3,285 polls, longest 3.08 ms between polls. Host (application_diff_host test_bpr1366_a_preparation_stops_within_milliseconds_of_the_reviewer): a stop a third of the way into a 177 ms prepared computation returned in 1.16 ms (optimized; Debug 1.4-2.0 ms of 740 ms). Controls: polls disabled, the core test fails at 'a stop requested mid-computation pauses it'; the host test against the base host (cfd807f1b) fails, the stopped preparation returning after 155 ms."}},{"criterion":"Identical results, interrupted once and recomputed","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","path":"tests/core/diff_compute_tests.cpp","detail":"test_bpr1366_interrupted_once_then_recomputed: five seeded cases (moves, CRLF and Unicode, whitespace and line-ending normalization, pairing off, budgets tight enough to degrade) stopped at a seeded step in every phase; the recomputation equals the uninterrupted computed_file_diff, AlignmentApproximate and work counters included. A state is refused (Resumed false, result still equal) for another comparison, other bytes, file, limits, options, and a material comparison."}},{"criterion":"Identical results, resumed one or many times, in every phase and inside restart units","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","path":"tests/core/diff_compute_tests.cpp","detail":"test_bpr1366_resumed_results_are_identical: per case, one pause in each phase, many pauses at seeded intervals, and repeated 257-step pauses inside one restart unit, polling every step: 156 pauses (optimized; 161 Debug), every result equal including work counters, AlignmentApproximate, Steps, LargestRestartUnit and PhaseStarts. Pauses land in every phase and inside the restart units of primary, refine, moves, assemble and validate. A material comparison resumes equally."}},{"criterion":"Repeated interruption every K steps completes within a stated overhead","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","path":"tests/core/diff_compute_tests.cpp","detail":"test_bpr1366_repeated_interruption_completes, 20,000-line pair (optimized): K = largest restart unit + 1 = 18,348,721 (15.6% of the run), 7 pauses, uninterrupted 117,965,000 steps, interrupted 128,651,401 (+9.06%); K = 2 x unit: 3 pauses, +0.013%. Debug 5,000 lines: K = 10.0%, 10 pauses, +4.8%. Asserted: every slice passes a resume point, and the overhead is at most one restart unit per pause. The largest restart unit is a whole-file ordered index (the card's restart unit), 10-20% of a large run."}},{"criterion":"No slowdown when nothing stops it: before/after timings, several sizes, medians and spread","outcome":"pending","revision":"63816aedc","evidence":{"kind":"command","path":"tests/core/diff_compute_benchmark.cpp","detail":"Same benchmark source (one-call entry point), same flags, base core cfd807f1b vs candidate, three interleaved rounds of 9 repetitions on an idle station: median differences +0.2% to +2.9% (2K/30 +1.9%, 2K/300 +1.8%, 10K/30 +1.0%, 10K/300 +0.2%, 40K/30 +2.9%, 40K/300 +0.4%, 100K/30 +0.7%, 100K/300 +2.1%); the base's own round-to-round median spread is up to 2.2%. The candidate is never faster in median, so a residual of about 1-2% remains. The stoppable entry point with a predicate costs nothing over the one call. Table on the card."}},{"criterion":"Reviewer diffs are never cancelled by preparation","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","path":"tests/application/diff_application_host_tests.cpp","detail":"test_bpr1366_reviewer_diffs_are_never_stopped_by_preparation: preparation paused, resumed and paused again around two large reviewer diffs, with the window changed while each computes on a worker thread; both reviewer diffs publish whole results equal to a direct computation, no failure published; the twice-paused preparation then finishes without reading again and equals the uninterrupted result."}},{"criterion":"Bounded paused state: entry and byte bounds; supersession, eviction and completion discard it","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","path":"tests/application/diff_application_host_tests.cpp","detail":"test_bpr1366_paused_states_stay_bounded_and_are_discarded: a state over the prepared byte share is not kept and the next window starts again (reads repeated); one that fits is kept within entry and byte bounds and finishes first; an empty window, another window, the authority, the epoch and shutdown discard it; the reviewer's comparison needing the cache's room discards it; continued completion and reviewer adoption discard it (adoption reads nothing again)."}},{"criterion":"No regression from BPR-1344: history and active rows, application_diff_host, application_epoch_host, diff_compute and BPR-1327's selection pass","outcome":"pending","revision":"63816aedc","evidence":{"kind":"command","detail":"Optimized tests-on tree, -j1, load below 2: BPR-1327's selection plus core_diff_compute and its benchmark row, 27 of 28; application_large_review_active_work and _history pass. application_large_review_cache_bytes failed with 'stale comparison published while superseding file B remained selected', the message BPR-1344 records as intermittent on its controls and the selection race BPR-1376 has parked; rerun alone it failed 1 of 4, then passed 17 in a row (20 of 22 overall, both failures in the first minutes after the build). Not run against the base on this station. build/dev (Debug), -j1, before the rebase: all 25 dev rows pass (cache_bytes skips in Debug)."}},{"criterion":"coding-format-check and coding-tidy pass on the touched files; core-only builds with no thread or clock dependency","outcome":"pass","revision":"63816aedc","evidence":{"kind":"command","detail":"/usr/bin/clang-format 22.1.8: coding-format-check passes. tidy.py --warnings-as-errors on the seven touched translation units: clean. cmake --preset core-only, build and ctest --preset core-only: 261 of 261, including type_read_binding_contract, architecture_boundaries and architecture_boundary_contract (before the rebase). The core reads no clock or thread; stops come only from the caller's predicate."}}]
 ---
 
 # BPR-1366: A prepared diff computation stops within milliseconds when the reviewer acts
@@ -178,3 +179,106 @@ change and the numbers go on the card.
   compute that follows them.
 - Not in scope: making reviewer diffs themselves pausable, or changing the
   alignment the engine produces.
+
+## Built and verified (bpr-main-linux, 2026-10-09)
+
+Commit `63816aedc`, on `main` after BPR-1344. WSL2, GCC 15.2.0, i9-10900KF. No
+live GitHub call and no model call; offscreen only.
+
+### Design
+
+- **Core API.** `compute_file_diff` and `compute_material_diff` gain an
+  overload taking a `diff_compute_control` (a `diff_compute_stop*` predicate,
+  polled with the step count, and a `CheckInterval`) and a
+  `paused_diff_compute` to resume from. It returns a slice: the finished
+  outcome, or a paused state, plus `diff_compute_statistics` (steps, work
+  steps across slices, largest restart unit, largest poll delay, phase, phase
+  start steps). `build_diff_semantic_index` gains a stoppable overload
+  (`diff_semantic_index_build`). The one-call entry points and the result
+  types are unchanged.
+- **No threads or clocks in the core.** The private `diff_step_meter`
+  (`src/core/src/diff_step_meter.hpp`) counts steps with the existing
+  budget accounting: matrix cells, primary-index probe values, move-detection
+  work, bytes scanned or normalized (16 steps a byte), validation records
+  (256 steps). It polls every **N = 64 Ki steps**. A stop throws a private
+  exception that only the slice driver and the index build catch, so it can
+  never be mistaken for a work limit.
+- **State and keying.** The paused state holds copies of both sides and the
+  progress at the last resume point. It is refused unless the comparison key
+  (blob identities, options digest, algorithm revision), the options, the
+  limits and both sides' bytes match.
+- **Stop bound.** A stop is honoured within N plus the largest single
+  increment (the poll delay, reported). On the 40,000-line pair that is
+  65,536 + 67,522 steps. The longest wall time between polls is up to
+  3.5 ms for pairs up to 2 MiB a side (preparation's read limit) and 8.9 ms at
+  5 MiB a side (one ordered-index teardown, which only a reviewer diff reaches).
+
+### Phases
+
+As the card's table. No phase moved from "resumes" to "restarts".
+Validation resumes at its stage (alignment, each document, moves, intraline,
+equal content by line, pairs), so only one alignment validation is a restart
+unit. The host's semantic index build restarts; a prepared computation that
+finished keeps its result while the index is rebuilt. Pairing's small tables
+(at most 64 Ki cells) are counted in bulk by their caller, because the
+pairing loop fills a very large number of them.
+
+### Host
+
+A preparation job polls its own stop token. A stop marks the job superseded
+(new window, invalidation, cancellation, shutdown) or is a yield to the
+reviewer. A yielded job pauses: it keeps its bytes, its engine state or its
+finished result, and continues before new preparation. A reviewer request for
+it adopts it. A reviewer job polls only its own cancellation. Paused states
+are at most the prepared entry capacity, and their bytes count with
+prepared comparisons inside the prepared byte share and the cache.
+Supersession, the reviewer's need for room, and completion discard them;
+one that does not fit is not kept.
+
+Measured paused-state sizes are about 16 times one side: 4.7 MB for a
+6,000-line pair (270 KB a side) and 22 MB for a 30,000-line pair. Under the
+default 8 MiB share, pairs up to about 6,000 lines keep their pause; larger
+ones start again when next prepared.
+
+### Timing (before `cfd807f1b`, after this change)
+
+Same benchmark source on the one-call entry point, built the same way, three
+interleaved rounds of 9 repetitions on an idle station. Each figure is the
+median of the three round medians, in ms.
+
+| Pair | Before | After | Difference |
+|---|---|---|---|
+| 2,000 lines, 3% edited | 12.87 | 13.11 | +1.9% |
+| 2,000 lines, 30% edited | 20.38 | 20.75 | +1.8% |
+| 10,000 lines, 3% | 31.12 | 31.43 | +1.0% |
+| 10,000 lines, 30% | 62.94 | 63.07 | +0.2% |
+| 40,000 lines, 3% | 136.01 | 139.89 | +2.9% |
+| 40,000 lines, 30% | 187.12 | 187.84 | +0.4% |
+| 100,000 lines, 3% | 151.64 | 152.67 | +0.7% |
+| 100,000 lines, 30% | 153.61 | 156.90 | +2.1% |
+
+The base's own round-to-round medians vary by up to 2.2%, and the
+interquartile spread within a run is 1-2%. The candidate is never faster in
+median, so a residual of about 1-2% remains. Per-step timing puts it in the
+large primary table. In isolation the new fill of that table is 2-3% faster
+than the old one, so the residual looks like heap layout. In the
+optimized tree, the stoppable entry point with a predicate matches the
+one call (for example 187.94 against 189.71 ms at 40,000 lines and 30%).
+
+### Rows
+
+- Optimized tests-on tree: the results are in the acceptance records. The tree
+  was deleted afterwards.
+- On the merged tree (`build/dev`, Debug), after the rebase onto
+  `9cab2ad75`:
+  - pass: `core_diff_compute`, the benchmark row, `core_diff_model`,
+    `core_diff_semantics`, `core_comparison_preparation`,
+    `application_diff_host`, `application_epoch_host`,
+    `application_workbench_host`, `application_first_tab_comparison`,
+    `application_large_review_prepared_open`, `large_review_fixture_contract`
+    and `test_network_isolation_manifest`;
+  - fail on `origin/main` itself, so not this card's: `architecture_boundaries`
+    (BPR-1222's `src/core/src/review_tour_markdown.cpp` matches `https?://`)
+    and `application_review_round_trip_composition_contract` (the
+    `github_application.cpp` digest is `f69fb520…`, pinned `0ca22569…`).
+- This card changes no `src/app` source, so it reseals nothing.
