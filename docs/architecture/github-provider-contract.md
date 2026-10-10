@@ -99,7 +99,8 @@ observed `/user` identity, pre/post-request account checks and a read-only lease
 It invokes the configured `gh` directly with bounded arguments, input, output
 and time; account discovery and API use require `gh` 2.96 or later
 (including later majors)
-because the account inventory uses `gh auth status --active --json hosts`.
+because the account inventory uses `gh auth status --json hosts`
+(every account on each host; `--active` only for the default choice).
 Older versions are refused before account status runs and the UI requires an
 upgrade. BetterPullReview never passes `--show-token`.
 This is a version check, not proof of an official executable's provenance.
@@ -283,6 +284,20 @@ with an established request identity. The selected source resolves
 blank-host token, and the macOS keyring implementation launches
 `/usr/bin/security`. None of those mechanisms binds the child to
 BetterPullReview's correlated credential generation.
+
+Per-account pinning ([[BPR-1373]], RFC-BPR-0015's 2026-10-09 owner amendment)
+selects an account with neither command. A CLI profile chosen for one login
+runs each `gh` call with `GH_CONFIG_DIR` naming a private directory that the
+app writes for that call alone and removes afterwards: owner-only, read-only,
+holding `config.yml` and a `hosts.yml` that names only that host and login.
+`gh` reads that login's keychain token itself, so no token passes through
+BetterPullReview, and no `GH_TOKEN`-family variable is ever set. When the
+login has no keychain entry, `gh` falls back silently to the blank-host
+(active) token. The [[BPR-1370]] viewer check, held to the profile's host,
+login and first-observed account ID, is therefore the proof: any other viewer
+refuses the read and the lease, and the profile shows the account signed out
+in `gh`. This binds the account by observation, not by credential generation.
+The window between `gh`'s keychain read and its request remains.
 
 Milestone-one CLI reads expose all eight typed reasons:
 `milestone_one_product_scope_deferred`,

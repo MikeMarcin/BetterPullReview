@@ -344,3 +344,45 @@ Existing CLI opt-in, process confinement, bounded stores, exact objects,
 credentials, account identity, cancellation and stale-result requirements
 remain. New installed-tool and real affected-PR evidence belongs to BPR-1320
 and BPR-1322; old accepted cards and immutable plans are unchanged.
+
+## Owner per-account configuration amendment — 2026-10-09
+
+The owner asked (chat, 2026-10-09) to "pin each gh call to a chosen account,
+and let the Accounts tab recognise every gh-authenticated account", then chose
+the design that keeps the token rule intact: "Go with B" ([[BPR-1373]]).
+
+- **Inventory.** Account discovery may run `gh auth status --json hosts`
+  without `--active`, under the same write-denied boundary, and admit every
+  account per host as host, login, whether it is active, whether `gh` reports
+  it signed in, and whether its token is in the keychain. `--show-token` is
+  still never passed. It runs only on an explicit CLI gesture or after a
+  pinned session is refused, never merely because a surface opened.
+- **Per-call private configuration.** A CLI profile chosen for one account
+  runs every `gh` invocation, including the bounded clone and the
+  `gh auth git-credential` helper it launches, with `GH_CONFIG_DIR` naming a
+  private directory created for that call alone. The app writes it before the
+  launch: owner-only and read-only, holding `config.yml` (`version: "1"`) and a
+  `hosts.yml` naming only that host and login. It removes the directory when
+  the call ends. `gh` then resolves that account's keychain token itself. The
+  directory holds no credential, and the global active account is neither read
+  for the call nor changed.
+- **The token rule stands.** BetterPullReview never extracts, prints, passes,
+  logs or persists a GitHub CLI token, and never runs `gh auth switch` or
+  `gh auth token`. Only the child's `GH_CONFIG_DIR` is added. No `GH_TOKEN`,
+  `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN` is ever
+  set.
+- **Proof.** `gh` falls back silently to the host's unkeyed (active) token
+  when the named login has no keychain entry, and its own status then reports
+  that login as signed in. A pinned profile is bound to its host, login and
+  the numeric account ID first observed for it. Every read is held to that
+  account by [[BPR-1370]]'s viewer check. A sign-in or read answered by any
+  other account is refused, the lease is refused for good, and the profile
+  shows its account signed out in `gh`. It never falls back to the active
+  account.
+- **What changes.** A pinned call no longer reads the user's ambient
+  `config.yml` or `hosts.yml`, so their `http_unix_socket` and other settings
+  do not apply to it. An account whose token `gh` stores in its configuration
+  file instead of the keychain cannot be pinned this way and is shown as such.
+  A profile without a chosen account keeps the active-account behaviour above,
+  with its checks. The redirect, CA, executable, keychain-helper and process
+  risks recorded above are unchanged.

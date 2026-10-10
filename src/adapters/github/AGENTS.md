@@ -36,8 +36,16 @@ the functional core or Qt presentation adapter.
 - Construct the CLI child environment from nothing. Admit only typed
   platform credential-session and selected HTTPS proxy/trust facts plus the
   fixed noninteractive settings. Never read or pass token, host/repository,
-  config-directory, debug, pager/editor/browser, TTY/color override, update,
-  spinner, prompt, or arbitrary parent variables.
+  debug, pager/editor/browser, TTY/color override, update, spinner, prompt, or
+  arbitrary parent variables. The one configuration-directory variable is a
+  pinned profile's per-call `GH_CONFIG_DIR` ([[BPR-1373]]): `run_gh_cli` in
+  `src/gh_cli_transport.cpp` creates that directory for one launch, owner-only
+  and read-only, holding `config.yml` and a `hosts.yml` naming only the pinned
+  host and login. It removes the directory when the launch ends and refuses the
+  launch if any step fails. Every `gh` launch of a pinned configuration goes
+  through `run_gh_cli`; local Git never does. No `GH_TOKEN`,
+  `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN` is set,
+  and `gh auth token` and `gh auth switch` are never run.
 - Compile only closed `gh api` argument shapes from revalidated canonical
   requests; a bounded local `gh --version` probe may precede opt-in use and
   carries no credential or request body, as do the closed local
@@ -93,8 +101,12 @@ the functional core or Qt presentation adapter.
   persisted `http_unix_socket` for `gh api`, and routed an authenticated
   request through an AF_UNIX sentinel. `gh api` has no per-invocation
   `--user`; `gh auth token --user` exposes the token and
-  `gh auth switch --user` mutates persisted active-account state. A fake child
-  or native HTTPS evidence must never enable CLI mode.
+  `gh auth switch --user` mutates persisted active-account state. Neither is
+  used: a pinned profile selects its account through the per-call private
+  configuration above. `gh` falls back silently to the active token when the
+  pinned login has no keychain entry, so the [[BPR-1370]] viewer check, held to
+  the profile's login and first-observed account, is what refuses that. A fake
+  child or native HTTPS evidence must never enable CLI mode.
 - Keep native HTTPS execution in `src/native_https_transport.cpp`; it is the
   only GitHub source permitted to use `QNetworkAccessManager`.
 - Keep native HTTPS on its dedicated worker with manager-local ordered system

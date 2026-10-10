@@ -1621,7 +1621,8 @@ observed `/user` identity, pre/post-request account checks and a read-only lease
 It invokes the configured `gh` directly with bounded arguments, input, output
 and time; account discovery and API use require `gh` 2.96 or later
 (including later majors)
-because the account inventory uses `gh auth status --active --json hosts`.
+because the account inventory uses `gh auth status --json hosts`
+(every account on each host; `--active` only for the default choice).
 Older versions are refused before account status runs and the UI requires an
 upgrade. BetterPullReview never passes `--show-token`.
 This is a version check, not proof of an official executable's provenance.
