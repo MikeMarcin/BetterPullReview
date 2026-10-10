@@ -189,3 +189,11 @@ made: it was not cheap, with 8 GiB free.
   this change.
 - **Platforms.** Windows and Linux did not run these rows. The two new rows
   are registered Windows-uncontained by shape, not measured.
+
+## Owner look — 2026-10-09
+
+The owner accepted the deleted-thread presentation (the dashed "Your reply ·
+Not sent" note with Keep as comment, Copy text and Discard) from the renders in
+`docs/verification/reviews/bpr-1374-reply-flag-v001/`, verbatim in chat:
+"Accepted". AC1–AC3 and the owner look pass; AC4 (the live BPR-0143 re-run on
+BPR-Test) is still owed, so the card stays parked until it runs.
