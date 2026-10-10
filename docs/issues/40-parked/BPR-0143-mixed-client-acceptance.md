@@ -269,3 +269,13 @@ counterpart to exercise.
 GitHub's viewed state reaches the accepted snapshot in both directions, but
 no surface shows it. Whether the workbench should present it is a product
 question, not part of this card's evidence.
+
+## BPR-1374 landed in code, 2026-10-09
+
+[[BPR-1374]] fixes the unsent-reply rows above in the product. An unsent
+reply is held again after Refresh and presented after a restart. When its
+thread is deleted elsewhere, it is kept as a flagged note instead of being
+dropped. Its fixture courses fail with the old rule and pass with the fix.
+The live re-run of this card's two draft rows through the probe was not
+done; the coordinator deferred it. Item 1 of "Remaining" is now only that
+re-run.
