@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1377",
+    "BPR-1378"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "bpr-2acct live course findings: tour CLI pinned source over gh sparse trees; Stop reported as conflict",
+  "created": "2026-10-10T01:26:09.582518+00:00",
+  "base": "7b4ed644e81142bad9e399eb290b773ed707decb"
+}
