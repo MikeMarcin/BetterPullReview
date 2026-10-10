@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1373"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Pin each gh call to a chosen account; Accounts tab lists every gh account",
+  "created": "2026-10-10T00:43:44.964566+00:00",
+  "base": "32ce62d91ef11b06655d5812793106158f378c07"
+}
