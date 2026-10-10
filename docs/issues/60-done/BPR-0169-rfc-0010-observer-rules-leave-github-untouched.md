@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0169"
 title: "Confirm observer enrollment leaves GitHub's reviewer state untouched"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-0142"]
-parked_on: "awaiting-live-github"
 metadata: {"origin_rfc":"RFC-BPR-0010","mandate_revision":"r4","deferral":"Standalone live server non-mutation observation; not an RFC-0010 terminal gate."}
+acceptance: [{"criterion":"BPR-0169:before-state-recorded","outcome":"pass","revision":"e964b5a83","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md","detail":"MikeMarcin/BPR-Test#48 (author MikeMarcinTest, no reviewers, labels or assignees), read through gh api at 2026-10-10T00:16Z before BetterPullReview opened it or any rule existed: reviews [], requested reviewers none, labels [], GraphQL viewerSubscription UNSUBSCRIBED for MikeMarcin and SUBSCRIBED for MikeMarcinTest, assignees [], events [], notifications [], updated_at 00:16:25Z."}},{"criterion":"BPR-0169:enrolled-by-repository-author-path-in-turn","outcome":"pass","revision":"e964b5a83","evidence":{"kind":"observation","path":"docs/issues/60-done/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md","detail":"live_second_account_course --course observer (harness 400e6ddc2, shipped composition tests-on Release, offscreen, GitHub CLI sign-in as MikeMarcin) opened #48 and through the queue controls added then removed repository MikeMarcin/BPR-Test, author MikeMarcinTest and path bpr-2acct/observer/; each enrolled #48 with exactly that rule, role none, and its removal emptied the queue."}},{"criterion":"BPR-0169:fields-compared-through-a-second-client","outcome":"pass","revision":"e964b5a83","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md","detail":"The same gh api reads ran after each of the six adds and removes and a script compared every field with the before-state: all six identical, including both accounts' subscription state and the pull request's updated_at."}}]
 ---
 
 # Confirm observer enrollment leaves GitHub's reviewer state untouched
@@ -109,3 +109,56 @@ BPR-Test that `MikeMarcin` neither authors nor reviews?
 ## Owner session prepared, 2026-10-09 (main, Mac)
 
 The missing input (a pull request on BPR-Test that `MikeMarcin` neither authors nor reviews) is asked for in BPR-0144's wizard `bpr-second-account-20261009-v001` (session `c79054f3-14cf-44fe-9645-947ffd5f6d53`, state `/Users/jaeger/.mask/wizard/bpr-second-account-20261009-v001`). The second account opens pull request A, 'BPR-0169 observer check', with no reviewers or labels, and the owner is told not to open it in BetterPullReview. The wizard's last step is the agent's `gh api` read of A's reviewers, requested reviewers and labels: the record before enrollment. The local repository, author and path enrollment and the after-reads follow in their own session once that record exists.
+
+## Owner wizard withdrawn, 2026-10-09
+
+The owner added a second GitHub account, `MikeMarcinTest`, so the wizard
+`bpr-second-account-20261009-v001` (session
+`c79054f3-14cf-44fe-9645-947ffd5f6d53`) was stopped (`wizard.py stop`) and
+paused with 0 of 7 steps answered. What the account can do on BPR-Test is
+recorded on [BPR-0144](BPR-0144-acting-identity-on-a-real-account.md#what-mikemarcintest-can-do-on-bpr-test-2026-10-09):
+read, fork and open a pull request from its fork, with `pull` access only.
+
+## Live course, 2026-10-09 (PDT; GitHub times UTC 2026-10-10)
+
+Pull request A, `MikeMarcin/BPR-Test#48`, "bpr-2acct: BPR-0169 observer
+check (disposable)", id 4807247502, node `PR_kwDOTyvof88AAAABHojGjg`, opened
+by `MikeMarcinTest` from its fork branch `bpr-2acct-0169-observer` (head
+`b7f0047ec1fd78ea16a5d2c20dffd98e653f09eb`, one file
+`bpr-2acct/observer/observed.txt`) with no reviewers, labels or assignees.
+`MikeMarcin` is neither its author nor a reviewer.
+
+**Before-state**, read right after A was opened and before BetterPullReview
+opened it or any observer rule existed (00:16 UTC), through `gh api` as
+`MikeMarcin`: reviews `[]`; requested reviewers `{users: [], teams: []}`;
+labels `[]`; assignees `[]`; issue events `[]`; notifications for #48 `[]`;
+issue `updated_at` 2026-10-10T00:16:25Z; GraphQL `viewerSubscription`
+UNSUBSCRIBED (`viewerCanSubscribe` true) for `MikeMarcin`, and SUBSCRIBED for
+`MikeMarcinTest` through its own token.
+
+**Enrollment**: `live_second_account_course --course observer` (harness
+`400e6ddc2`; the shipped composition built tests-on Release at `e964b5a83`,
+offscreen) signed in through Use GitHub CLI as `MikeMarcin`, opened
+`MikeMarcin/BPR-Test#48` from Home, and through the queue's own controls
+added, then removed, in turn: repository `MikeMarcin/BPR-Test`, author
+`MikeMarcinTest`, path `bpr-2acct/observer/`. After each add the queue held
+one row, `github.com/MikeMarcin/BPR-Test#48` under account `MikeMarcin`,
+matched by exactly that rule, role none, not authored, not requested. After
+each remove the row was gone.
+
+**After-reads**: the same `gh api` reads (the second client; BetterPullReview
+took no part) ran at all six points, after each add and after each remove,
+and were compared field by field with the before-state by script. All six
+are identical in every field above, including both accounts' subscription
+state and `updated_at`.
+
+The subscription limitation recorded on 2026-09-30 no longer applies: REST
+cannot read another user's subscription, but each account's own
+`viewerSubscription` is readable through GraphQL with its own token.
+
+Cleanup: #48 closed by `MikeMarcinTest` at 01:26:27 UTC and its fork branch
+deleted. The private profile root the course used was in the session's
+scratch directory and is removed with it.
+
+Every required item passes; the card closes Done. BPR-0168 (Backlog) lists
+this card among its dependencies; this one no longer holds it.

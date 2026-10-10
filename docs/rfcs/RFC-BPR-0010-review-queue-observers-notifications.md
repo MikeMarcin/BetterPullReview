@@ -78,7 +78,7 @@ pack source and distinguish the implemented scope from unfinished observations.
 
 The original requirement to compare GitHub's reviewer, requested-reviewer,
 subscription and label state through an independent client remains unobserved
-on standalone [BPR-0169](../issues/40-parked/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md).
+on standalone [BPR-0169](../issues/60-done/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md).
 The local enrollment path remains incapable of provider mutation; its fixtures
 do not establish that live server comparison. BPR-0169's identity, dependency,
 missing safe target and read-only permission limits are preserved.

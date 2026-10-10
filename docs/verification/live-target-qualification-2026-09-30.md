@@ -21,7 +21,7 @@ on that repository only. GHES remains undesignated.
 | [BPR-1222](../issues/50-blocked/BPR-1222-qualify-live-github-review-tours.md) | Stays Blocked. Missing: a second (reviewer) GitHub account and an attended course | with this record |
 | [BPR-0143](../issues/40-parked/BPR-0143-mixed-client-acceptance.md) | Stays Parked. Authority and a second client are now available; missing: an attended session observing the shipped workbench after each Refresh | with this record |
 | [BPR-0144](../issues/60-done/BPR-0144-acting-identity-on-a-real-account.md) | Stays Parked. Missing: a second GitHub account, since GitHub refuses Approve and Request Changes from the author | with this record |
-| [BPR-0169](../issues/40-parked/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md) | Stays Parked. Missing: a PR on BPR-Test authored by another account with `MikeMarcin` neither author nor reviewer | with this record |
+| [BPR-0169](../issues/60-done/BPR-0169-rfc-0010-observer-rules-leave-github-untouched.md) | Stays Parked. Missing: a PR on BPR-Test authored by another account with `MikeMarcin` neither author nor reviewer | with this record |
 
 ## Live objects on MikeMarcin/BPR-Test
 
