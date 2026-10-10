@@ -4,6 +4,8 @@
 #include "bpr/core/epoch_transition.hpp"
 #include "bpr/core/sha256.hpp"
 
+#include "diff_step_meter.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -590,10 +592,14 @@ namespace bpr::core {
 		}
 
 		/// The alignment rules, shared by pull-request and material comparisons.
-		template <typename TAlignment>
-		auto validate_alignment_records(const TAlignment& aAlignment)
+		///
+		/// [[BPR-1366]] aMeter counts each record checked; the engine's meter
+		/// may stop the check there, and a stopped check starts again.
+		template <typename TAlignment, typename TMeter>
+		auto validate_alignment_records(const TAlignment& aAlignment, TMeter& aMeter)
 			-> alignment_validation_result
 		{
+			constexpr auto recordSteps    = detail::validation_record_steps;
 			constexpr auto maximumRecords = static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
 			if (aAlignment.Segments.size() > maximumRecords
 				|| aAlignment.Pairs.size() > maximumRecords
@@ -662,6 +668,7 @@ namespace bpr::core {
 			auto expectedLeft   = std::uint32_t{ 0U };
 			auto expectedRight  = std::uint32_t{ 0U };
 			for (std::size_t index = 0U; index < aAlignment.Segments.size(); ++index) {
+				aMeter.tick(recordSteps);
 				const auto& segment = aAlignment.Segments[index];
 				const auto  ordinal = static_cast<std::uint32_t>(index);
 				if (!valid(segment.Left, aAlignment.LeftLineCount)
@@ -727,9 +734,10 @@ namespace bpr::core {
 			auto groupIndexes  = std::map<change_group_id, std::size_t>{ };
 			auto priorGroupEnd = std::uint32_t{ 0U };
 			for (std::size_t index = 0U; index < aAlignment.Groups.size(); ++index) {
-				const auto& group        = aAlignment.Groups[index];
-				const auto  ordinal      = static_cast<std::uint32_t>(index);
-				const auto  segmentCount = static_cast<std::uint32_t>(aAlignment.Segments.size());
+				const auto& group = aAlignment.Groups[index];
+				aMeter.tick(recordSteps + (group.Members.End > group.Members.Begin ? group.Members.End - group.Members.Begin : 0U));
+				const auto ordinal      = static_cast<std::uint32_t>(index);
+				const auto segmentCount = static_cast<std::uint32_t>(aAlignment.Segments.size());
 				if (group.Members.Begin > group.Members.End
 					|| group.Members.End > segmentCount) {
 					return failure(
@@ -828,6 +836,7 @@ namespace bpr::core {
 			}
 
 			for (std::size_t index = 0U; index < aAlignment.Segments.size(); ++index) {
+				aMeter.tick(recordSteps / 4U);
 				const auto& segment = aAlignment.Segments[index];
 				if (segment.Kind == alignment_kind::equal) {
 					continue;
@@ -852,6 +861,7 @@ namespace bpr::core {
 			auto priorLeft        = std::uint32_t{ 0U };
 			auto priorRight       = std::uint32_t{ 0U };
 			for (std::size_t index = 0U; index < aAlignment.Pairs.size(); ++index) {
+				aMeter.tick(recordSteps);
 				const auto& pair    = aAlignment.Pairs[index];
 				const auto  ordinal = static_cast<std::uint32_t>(index);
 				if (!valid_line_pair_kind(pair.Kind)) {
@@ -909,6 +919,7 @@ namespace bpr::core {
 			auto movedDestinations = std::set<std::size_t>{ };
 			auto priorMovePair     = std::optional<std::pair<std::size_t, std::size_t>>{ };
 			for (std::size_t index = 0U; index < aAlignment.Moves.size(); ++index) {
+				aMeter.tick(recordSteps);
 				const auto& move        = aAlignment.Moves[index];
 				const auto  ordinal     = static_cast<std::uint32_t>(index);
 				const auto  source      = segmentIndexes.find(move.SourceDeletion);
@@ -971,6 +982,7 @@ namespace bpr::core {
 			// Same-kind boundaries are canonical only when secondary semantic
 			// metadata needs the two stable segment identities to remain distinct.
 			for (std::size_t index = 1U; index < aAlignment.Segments.size(); ++index) {
+				aMeter.tick(recordSteps / 16U);
 				const auto& prior   = aAlignment.Segments[index - 1U];
 				const auto& current = aAlignment.Segments[index];
 				if (prior.Kind != current.Kind) {
@@ -1011,13 +1023,27 @@ namespace bpr::core {
 	auto validate_alignment(const file_alignment& aAlignment)
 		-> alignment_validation_result
 	{
-		return validate_alignment_records(aAlignment);
+		auto meter = detail::unmetered{ };
+		return validate_alignment_records(aAlignment, meter);
+	}
+
+	auto detail::validate_alignment(const file_alignment& aAlignment, diff_step_meter& aMeter)
+		-> alignment_validation_result
+	{
+		return validate_alignment_records(aAlignment, aMeter);
 	}
 
 	auto validate_alignment(const material_alignment& aAlignment)
 		-> alignment_validation_result
 	{
-		return validate_alignment_records(aAlignment);
+		auto meter = detail::unmetered{ };
+		return validate_alignment_records(aAlignment, meter);
+	}
+
+	auto detail::validate_alignment(const material_alignment& aAlignment, diff_step_meter& aMeter)
+		-> alignment_validation_result
+	{
+		return validate_alignment_records(aAlignment, aMeter);
 	}
 
 } // namespace bpr::core

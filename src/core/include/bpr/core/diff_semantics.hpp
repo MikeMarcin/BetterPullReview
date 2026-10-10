@@ -25,6 +25,8 @@ namespace bpr::core {
 		auto operator<=>(const diff_semantic_index_statistics&) const = default;
 	};
 
+	struct diff_semantic_index_build;
+
 	/// \brief Binds indexed semantic queries to one fully validated immutable result.
 	///
 	/// The index shares ownership of the immutable result for its full lifetime.
@@ -60,7 +62,13 @@ namespace bpr::core {
 		friend auto build_diff_semantic_index(
 			std::shared_ptr<const computed_file_diff>)
 			-> std::optional<diff_semantic_index>;
+		friend auto build_diff_semantic_index(
+			std::shared_ptr<const computed_file_diff>, const diff_compute_control&)
+			-> diff_semantic_index_build;
 		diff_semantic_index() = default;
+		/// Builds the lookup tables of a result that has passed validation.
+		[[nodiscard]] static auto from_validated(std::shared_ptr<const computed_file_diff> aDiff)
+			-> diff_semantic_index;
 
 		std::shared_ptr<const computed_file_diff>                   Diff;
 		std::vector<std::pair<alignment_segment_id, std::uint32_t>> SegmentsById;
@@ -74,6 +82,21 @@ namespace bpr::core {
 	[[nodiscard]] auto build_diff_semantic_index(
 		std::shared_ptr<const computed_file_diff> aDiff)
 		-> std::optional<diff_semantic_index>;
+
+	/// \brief The outcome of a semantic index build that may be stopped.
+	struct diff_semantic_index_build
+	{
+		/// The index; absent when the result is invalid or the build stopped.
+		std::optional<diff_semantic_index> Index;
+		/// The caller's stop ended the build. A stopped build is started again.
+		bool Stopped = false;
+	};
+
+	/// \brief `build_diff_semantic_index`, polling `aControl`'s stop through
+	/// its validation. [[BPR-1366]]
+	[[nodiscard]] auto build_diff_semantic_index(
+		std::shared_ptr<const computed_file_diff> aDiff, const diff_compute_control& aControl)
+		-> diff_semantic_index_build;
 
 	/// \brief Describes the source span ref record.
 	struct source_span_ref

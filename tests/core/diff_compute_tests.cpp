@@ -1,15 +1,20 @@
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/diff_semantics.hpp"
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -885,6 +890,589 @@ namespace {
 			}
 		}
 	}
+
+	// [[BPR-1366]] ---------------------------------------------------------
+	// A computation that a caller's predicate may stop, pausing with a state
+	// that resumes it.
+
+	constexpr auto phase_count = static_cast<std::size_t>(diff_compute_phase::finished);
+
+	/// An unoptimized build runs the engine several times slower; the large
+	/// pairs are large in an optimized build and smaller in a debug one.
+#ifdef NDEBUG
+	constexpr auto optimized_build = true;
+#else
+	constexpr auto optimized_build = false;
+#endif
+
+	[[nodiscard]] constexpr auto phase_name(const diff_compute_phase aPhase) -> std::string_view
+	{
+		switch (aPhase) {
+		case diff_compute_phase::prepare:
+			return "prepare";
+		case diff_compute_phase::primary:
+			return "primary";
+		case diff_compute_phase::refine:
+			return "refine";
+		case diff_compute_phase::moves:
+			return "moves";
+		case diff_compute_phase::assemble:
+			return "assemble";
+		case diff_compute_phase::validate:
+			return "validate";
+		case diff_compute_phase::finished:
+			return "finished";
+		}
+		return "unknown";
+	}
+
+	/// A deterministic xorshift sequence for seeded inputs and stop points.
+	struct seeded_sequence
+	{
+		std::uint64_t State = 1U;
+
+		[[nodiscard]] auto next() -> std::uint64_t
+		{
+			State ^= State << 13U;
+			State ^= State >> 7U;
+			State ^= State << 17U;
+			return State;
+		}
+
+		[[nodiscard]] auto below(const std::uint64_t aBound) -> std::uint64_t
+		{
+			return aBound == 0U ? 0U : next() % aBound;
+		}
+	};
+
+	/// \brief The shape of one synthetic file pair.
+	struct synthetic_shape
+	{
+		std::uint64_t Lines = 0U;
+		std::uint64_t Seed  = 1U;
+		/// Per mille of lines edited in place, deleted, inserted, or starting a
+		/// moved block of twenty lines.
+		std::uint32_t Edited   = 30U;
+		std::uint32_t Deleted  = 10U;
+		std::uint32_t Inserted = 10U;
+		std::uint32_t Moved    = 2U;
+		bool          Crlf     = false;
+		bool          Unicode  = false;
+	};
+
+	[[nodiscard]] auto synthetic_line(seeded_sequence& aSequence, const std::uint64_t aOrdinal, const bool aUnicode)
+		-> std::string
+	{
+		switch (aSequence.below(12U)) {
+		case 0U:
+			return "";
+		case 1U:
+			return "    }";
+		default:
+			break;
+		}
+		auto line = std::string{ "    auto value_" } + std::to_string(aOrdinal) + " = compute(" + std::to_string(aSequence.below(100'000U)) + ", item" + std::to_string(aSequence.below(1'000U)) + ") + token" + std::to_string(aSequence.below(50'000U)) + ";";
+		if (aUnicode && aSequence.below(4U) == 0U) {
+			line += " // \xC3\xA9t\xC3\xA9 \xE2\x82\xAC";
+		}
+		return line;
+	}
+
+	/// \brief A seeded pair of related files: the right side edits, deletes,
+	/// inserts and moves lines of the left.
+	[[nodiscard]] auto synthetic_pair(const synthetic_shape& aShape)
+		-> std::pair<std::vector<std::uint8_t>, std::vector<std::uint8_t>>
+	{
+		auto sequence = seeded_sequence{ .State = aShape.Seed * 0x9E37'79B9'7F4A'7C15ULL + 1U };
+		auto left     = std::vector<std::string>{ };
+		for (std::uint64_t line = 0U; line < aShape.Lines; ++line) {
+			left.push_back(synthetic_line(sequence, line, aShape.Unicode));
+		}
+		auto right = std::vector<std::string>{ };
+		auto moved = std::vector<std::string>{ };
+		for (std::uint64_t line = 0U; line < aShape.Lines; ++line) {
+			const auto roll = sequence.below(1'000U);
+			if (roll < aShape.Moved && line + 30U < aShape.Lines) {
+				moved.insert(moved.end(), left.begin() + static_cast<std::ptrdiff_t>(line), left.begin() + static_cast<std::ptrdiff_t>(line + 20U));
+				line += 19U;
+				continue;
+			}
+			if (roll < aShape.Moved + aShape.Deleted) {
+				continue;
+			}
+			if (roll < aShape.Moved + aShape.Deleted + aShape.Inserted) {
+				right.push_back(synthetic_line(sequence, aShape.Lines + line, aShape.Unicode));
+			}
+			if (roll >= 1'000U - aShape.Edited) {
+				auto edited = left[line];
+				if (edited.empty()) {
+					edited = "  // note";
+				} else {
+					edited.insert(edited.size() / 2U, "x_" + std::to_string(sequence.below(9U)));
+				}
+				right.push_back(edited);
+			} else {
+				right.push_back(left[line]);
+			}
+			if (!moved.empty() && sequence.below(1'000U) < 5U) {
+				right.insert(right.end(), moved.begin(), moved.end());
+				moved.clear();
+			}
+		}
+		right.insert(right.end(), moved.begin(), moved.end());
+		const auto join = [&aShape](const std::vector<std::string>& aLines) {
+			auto text = std::string{ };
+			for (const auto& line : aLines) {
+				text += line;
+				text += aShape.Crlf ? "\r\n" : "\n";
+			}
+			return copy_bytes(text);
+		};
+		return { join(left), join(right) };
+	}
+
+	/// \brief One comparison of a synthetic pair, owning its bytes.
+	struct synthetic_case
+	{
+		std::vector<std::uint8_t> Left;
+		std::vector<std::uint8_t> Right;
+		diff_options              Options;
+		diff_compute_limits       Limits;
+		std::uint8_t              FileSeed = 31U;
+
+		[[nodiscard]] auto input() const -> diff_compute_input
+		{
+			return diff_compute_input{
+				.Key        = comparison_key(Options, true, true, FileSeed),
+				.Options    = Options,
+				.LeftBytes  = std::span<const std::uint8_t>{ Left },
+				.RightBytes = std::span<const std::uint8_t>{ Right },
+				.Limits     = Limits,
+			};
+		}
+
+		[[nodiscard]] auto material_input() const -> material_diff_input
+		{
+			return material_diff_input{
+				.Key = material_comparison_key{
+					.Comparison   = opaque<file_comparison_digest>(FileSeed),
+					.LeftPresent  = true,
+					.RightPresent = true,
+					.Options      = *options_digest(Options),
+					.Algorithm    = supported_diff_algorithm_revision,
+				},
+				.Options    = Options,
+				.LeftBytes  = std::span<const std::uint8_t>{ Left },
+				.RightBytes = std::span<const std::uint8_t>{ Right },
+				.Limits     = Limits,
+			};
+		}
+	};
+
+	[[nodiscard]] auto make_case(const synthetic_shape& aShape, const diff_options& aOptions = { },
+								 const diff_compute_limits& aLimits = { }) -> synthetic_case
+	{
+		auto [left, right] = synthetic_pair(aShape);
+		auto result        = synthetic_case{ };
+		result.Left        = std::move(left);
+		result.Right       = std::move(right);
+		result.Options     = aOptions;
+		result.Limits      = aLimits;
+		return result;
+	}
+
+	[[nodiscard]] auto moves_options() -> diff_options
+	{
+		auto options  = diff_options{ };
+		options.Moves = move_detection_policy::deterministic_exact;
+		return options;
+	}
+
+	/// \brief Stops once the computation reaches a step, and records the step
+	/// of the poll that saw it.
+	class stop_at_step final : public diff_compute_stop
+	{
+	public:
+		explicit stop_at_step(const std::uint64_t aAt) noexcept
+			: At{ aAt }
+		{
+		}
+
+		[[nodiscard]] auto stop_requested(const std::uint64_t aSteps) -> bool override
+		{
+			if (aSteps < At) {
+				return false;
+			}
+			StoppedAt = aSteps;
+			return true;
+		}
+
+		std::uint64_t                At = 0U;
+		std::optional<std::uint64_t> StoppedAt;
+	};
+
+	/// \brief Never stops; records the wall time between polls.
+	class poll_timer final : public diff_compute_stop
+	{
+	public:
+		[[nodiscard]] auto stop_requested(const std::uint64_t /*aSteps*/) -> bool override
+		{
+			const auto now = std::chrono::steady_clock::now();
+			Longest        = std::max(Longest, std::chrono::duration<double, std::milli>(now - Last).count());
+			Last           = now;
+			++Polls;
+			return false;
+		}
+
+		std::chrono::steady_clock::time_point Last    = std::chrono::steady_clock::now();
+		double                                Longest = 0.0;
+		std::uint64_t                         Polls   = 0U;
+	};
+
+	/// \brief Every pause of a resumed run.
+	struct pause_record
+	{
+		std::uint64_t      Requested = 0U;
+		std::uint64_t      StoppedAt = 0U;
+		std::uint64_t      Kept      = 0U;
+		diff_compute_phase Phase     = diff_compute_phase::prepare;
+	};
+
+	struct resumed_run
+	{
+		diff_compute_outcome      Outcome;
+		diff_compute_statistics   Statistics;
+		std::vector<pause_record> Pauses;
+	};
+
+	/// \brief Runs a comparison to the end, pausing where aSchedule says and
+	/// resuming each pause from its state. aSchedule receives the steps kept
+	/// so far and the pauses taken, and answers the step to stop at.
+	template <typename Schedule>
+	[[nodiscard]] auto run_resumed(const synthetic_case& aCase, const std::uint64_t aCheckInterval, Schedule aSchedule)
+		-> resumed_run
+	{
+		auto run    = resumed_run{ };
+		auto paused = paused_diff_compute{ };
+		auto kept   = std::uint64_t{ 0U };
+		for (;;) {
+			const auto at    = aSchedule(kept, run.Pauses.size());
+			auto       stop  = stop_at_step{ at.value_or(std::numeric_limits<std::uint64_t>::max()) };
+			auto       slice = compute_file_diff(aCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = aCheckInterval }, std::move(paused));
+			expect(run.Pauses.empty() || slice.Statistics.Resumed, "[[BPR-1366]] every pause resumes from its state");
+			if (slice.Outcome.has_value()) {
+				expect(!stop.StoppedAt.has_value() && slice.Paused.empty(), "[[BPR-1366]] a finished slice holds no state");
+				run.Outcome    = std::move(*slice.Outcome);
+				run.Statistics = slice.Statistics;
+				return run;
+			}
+			expect(stop.StoppedAt.has_value() && !slice.Paused.empty(), "[[BPR-1366]] a slice pauses only when its predicate asks");
+			expect(slice.Statistics.Steps <= *stop.StoppedAt && slice.Statistics.Steps >= kept,
+				   "[[BPR-1366]] a pause keeps the steps up to its last resume point, never fewer than before");
+			expect(slice.Paused.statistics().Steps == slice.Statistics.Steps && slice.Paused.retained_bytes() >= aCase.Left.size() + aCase.Right.size(),
+				   "[[BPR-1366]] the paused state reports its steps and holds both sides");
+			run.Pauses.push_back(pause_record{
+				.Requested = *at,
+				.StoppedAt = *stop.StoppedAt,
+				.Kept      = slice.Statistics.Steps,
+				.Phase     = slice.Statistics.Phase,
+			});
+			kept   = slice.Statistics.Steps;
+			paused = std::move(slice.Paused);
+			expect(run.Pauses.size() < 100'000U, "[[BPR-1366]] a resumed run ends");
+		}
+	}
+
+	[[nodiscard]] auto uninterrupted(const synthetic_case& aCase) -> file_diff_compute_slice
+	{
+		auto slice = compute_file_diff(aCase.input(), diff_compute_control{ });
+		expect(slice.Outcome.has_value() && slice.Paused.empty() && slice.Statistics.Phase == diff_compute_phase::finished,
+			   "[[BPR-1366]] nothing stops a computation without a predicate");
+		expect(slice.Outcome->Result == compute_file_diff(aCase.input()).Result && slice.Outcome->Reason == compute_file_diff(aCase.input()).Reason,
+			   "[[BPR-1366]] the stoppable entry point computes what the one call computes");
+		expect(slice.Statistics.Slices == 1U && !slice.Statistics.Resumed && slice.Statistics.WorkSteps == slice.Statistics.Steps,
+			   "[[BPR-1366]] one uninterrupted slice does each step once");
+		return slice;
+	}
+
+	/// The steps where aPhase begins and ends in a run of aStatistics.
+	[[nodiscard]] auto phase_window(const diff_compute_statistics& aStatistics, const diff_compute_phase aPhase)
+		-> std::pair<std::uint64_t, std::uint64_t>
+	{
+		const auto index = static_cast<std::size_t>(aPhase);
+		const auto begin = aStatistics.PhaseStarts[index];
+		const auto end   = index + 1U < phase_count ? aStatistics.PhaseStarts[index + 1U] : aStatistics.Steps;
+		return { begin, end };
+	}
+
+	/// The comparisons the property tests run: seeded shapes, options and
+	/// limits, including limits that make the alignment approximate.
+	[[nodiscard]] auto property_cases() -> std::vector<synthetic_case>
+	{
+		auto cases = std::vector<synthetic_case>{ };
+		cases.push_back(make_case({ .Lines = 500U, .Seed = 3U, .Edited = 200U, .Moved = 4U }, moves_options()));
+		cases.push_back(make_case({ .Lines = 400U, .Seed = 5U, .Edited = 300U, .Deleted = 20U, .Inserted = 20U, .Moved = 6U, .Crlf = true, .Unicode = true }, moves_options()));
+		auto ignoring        = moves_options();
+		ignoring.Whitespace  = whitespace_policy::ignore_all;
+		ignoring.LineEndings = line_ending_policy::normalize;
+		cases.push_back(make_case({ .Lines = 400U, .Seed = 7U, .Edited = 120U, .Moved = 6U, .Unicode = true }, ignoring));
+		// [[BPR-0719]] Budgets small enough that regions, pairs and intraline
+		// passes degrade: the paused state must carry what was consumed.
+		auto tight                     = diff_compute_limits{ };
+		tight.MaximumMatrixCells       = 400'000U;
+		tight.MaximumPrimaryIndexWork  = 600'000U;
+		tight.MaximumMoveDetectionWork = 40'000U;
+		cases.push_back(make_case({ .Lines = 700U, .Seed = 11U, .Edited = 250U, .Moved = 5U }, moves_options(), tight));
+		auto unpaired                        = diff_options{ };
+		unpaired.Pairing                     = pairing_policy::disabled;
+		unpaired.SimilarityThresholdPermille = 0U;
+		cases.push_back(make_case({ .Lines = 400U, .Seed = 13U, .Edited = 60U }, unpaired));
+		return cases;
+	}
+
+	auto test_bpr1366_an_uninterrupted_slice_is_the_one_call() -> void
+	{
+		for (const auto& testCase : property_cases()) {
+			const auto slice  = uninterrupted(testCase);
+			auto       never  = stop_at_step{ std::numeric_limits<std::uint64_t>::max() };
+			const auto polled = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &never, .CheckInterval = 1U });
+			expect(polled.Outcome.has_value() && polled.Outcome->Result == slice.Outcome->Result && polled.Statistics.Steps == slice.Statistics.Steps
+					   && polled.Statistics.PhaseStarts == slice.Statistics.PhaseStarts,
+				   "[[BPR-1366]] a predicate that never fires changes nothing, however often it is polled");
+		}
+		// The checks that need no text finish without a state.
+		auto binary        = make_case({ .Lines = 50U, .Seed = 2U });
+		binary.Right[10U]  = 0U;
+		const auto refused = compute_file_diff(binary.input(), diff_compute_control{ });
+		expect(refused.Outcome.has_value() && refused.Outcome->Reason == diff_reason_code::binary_file && refused.Paused.empty(),
+			   "[[BPR-1366]] a binary file finishes in one slice");
+	}
+
+	auto test_bpr1366_a_stop_is_honoured_within_the_bound() -> void
+	{
+		// A large pair: hundreds of milliseconds uninterrupted in an optimized
+		// build. Each pause below must come at the first poll at or after its
+		// request: within the check interval plus the poll delay, which one
+		// indivisible increment of work bounds.
+		const auto large = make_case({ .Lines = optimized_build ? 40'000U : 6'000U, .Seed = 17U, .Edited = 300U, .Deleted = 15U, .Inserted = 15U, .Moved = 3U }, moves_options());
+		auto       timer = poll_timer{ };
+		const auto start = std::chrono::steady_clock::now();
+		const auto timed = compute_file_diff(large.input(), diff_compute_control{ .Stop = &timer });
+		const auto wall  = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+		const auto full  = uninterrupted(large);
+		const auto total = full.Statistics.Steps;
+		const auto bound = default_diff_compute_check_interval + timed.Statistics.LargestPollDelay;
+		expect(timed.Outcome.has_value() && timed.Outcome->Result == full.Outcome->Result && timed.Statistics.Steps == total,
+			   "[[BPR-1366]] polling the predicate changes nothing");
+		expect(timed.Statistics.LargestPollDelay <= 2U * default_diff_compute_check_interval,
+			   "[[BPR-1366]] no increment of work on this pair is larger than two check intervals");
+		std::cout << "BPR-1366 prompt stop: " << total << " steps, " << wall << " ms uninterrupted (" << timer.Polls
+				  << " polls, longest " << timer.Longest << " ms between polls); bound " << default_diff_compute_check_interval
+				  << " + " << timed.Statistics.LargestPollDelay << " steps\n";
+		auto sequence = seeded_sequence{ .State = 1366U };
+		auto landed   = std::array<bool, phase_count>{ };
+		for (std::size_t phase = 0U; phase < phase_count; ++phase) {
+			const auto [begin, end] = phase_window(full.Statistics, static_cast<diff_compute_phase>(phase));
+			expect(end > begin, "[[BPR-1366]] every phase of the large pair does work");
+			for (std::size_t sample = 0U; sample < 2U; ++sample) {
+				const auto request = begin + sequence.below(end - begin);
+				auto       stop    = stop_at_step{ request };
+				const auto slice   = compute_file_diff(large.input(), diff_compute_control{ .Stop = &stop });
+				expect(!slice.Outcome.has_value() && stop.StoppedAt.has_value(), "[[BPR-1366]] a stop requested mid-computation pauses it");
+				expect(*stop.StoppedAt >= request && *stop.StoppedAt - request <= bound,
+					   "[[BPR-1366]] a stop is honoured within the check interval plus the poll delay");
+				expect(*stop.StoppedAt < total, "[[BPR-1366]] the pause comes before the computation would have finished");
+				landed[static_cast<std::size_t>(slice.Statistics.Phase)] = true;
+				std::cout << "BPR-1366 stop in " << phase_name(static_cast<diff_compute_phase>(phase)) << ": requested at "
+						  << request << ", paused at " << *stop.StoppedAt << " (+" << (*stop.StoppedAt - request) << " steps) in "
+						  << phase_name(slice.Statistics.Phase) << '\n';
+			}
+		}
+		expect(std::ranges::all_of(landed, [](const bool aLanded) { return aLanded; }), "[[BPR-1366]] the stops land in every phase");
+	}
+
+	auto test_bpr1366_interrupted_once_then_recomputed() -> void
+	{
+		auto sequence = seeded_sequence{ .State = 2024U };
+		auto cases    = property_cases();
+		for (std::size_t index = 0U; index < cases.size(); ++index) {
+			const auto& testCase = cases[index];
+			const auto  full     = uninterrupted(testCase);
+			for (std::size_t phase = 0U; phase < phase_count; ++phase) {
+				const auto [begin, end] = phase_window(full.Statistics, static_cast<diff_compute_phase>(phase));
+				if (end <= begin) {
+					continue;
+				}
+				auto stop  = stop_at_step{ begin + sequence.below(end - begin) };
+				auto slice = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = 1U });
+				expect(!slice.Outcome.has_value(), "[[BPR-1366]] the seeded stop pauses the computation");
+				// Recomputed from scratch, the pause leaves no trace.
+				const auto again = compute_file_diff(testCase.input());
+				expect(again.Reason == full.Outcome->Reason && again.Result == full.Outcome->Result,
+					   "[[BPR-1366]] a computation recomputed after a stop equals the uninterrupted one, counters and approximation included");
+				// A state from another comparison, bytes, options or limits is
+				// refused: the computation starts again and still equals its own
+				// uninterrupted result.
+				const auto& other      = cases[(index + 1U) % cases.size()];
+				auto        otherSlice = compute_file_diff(other.input(), diff_compute_control{ }, std::move(slice.Paused));
+				expect(!otherSlice.Statistics.Resumed && otherSlice.Outcome.has_value() && otherSlice.Outcome->Result == compute_file_diff(other.input()).Result,
+					   "[[BPR-1366]] another comparison's state is refused");
+			}
+		}
+		const auto& base     = cases.front();
+		const auto  refusals = std::array<std::string_view, 5U>{ "bytes", "file", "limits", "options", "material" };
+		for (const auto refusal : refusals) {
+			auto stop    = stop_at_step{ 5'000U };
+			auto slice   = compute_file_diff(base.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = 1U });
+			auto changed = base;
+			if (refusal == "bytes") {
+				changed.Right[changed.Right.size() / 2U] = static_cast<std::uint8_t>('#');
+			} else if (refusal == "file") {
+				changed.FileSeed = 77U;
+			} else if (refusal == "limits") {
+				changed.Limits.MaximumMatrixCells -= 1U;
+			} else if (refusal == "options") {
+				changed.Options.SimilarityThresholdPermille = 700U;
+			}
+			expect(!slice.Outcome.has_value(), "[[BPR-1366]] the refusal case pauses first");
+			if (refusal == "material") {
+				const auto material = compute_material_diff(base.material_input(), diff_compute_control{ }, std::move(slice.Paused));
+				expect(!material.Statistics.Resumed && material.Outcome.has_value() && material.Outcome->Result == compute_material_diff(base.material_input()).Result,
+					   "[[BPR-1366]] a file comparison's state does not resume a material comparison");
+				continue;
+			}
+			const auto resumed = compute_file_diff(changed.input(), diff_compute_control{ }, std::move(slice.Paused));
+			expect(!resumed.Statistics.Resumed && resumed.Outcome.has_value() && resumed.Outcome->Result == compute_file_diff(changed.input()).Result,
+				   "[[BPR-1366]] a state is refused when its key, bytes, options or limits differ");
+		}
+	}
+
+	auto test_bpr1366_resumed_results_are_identical() -> void
+	{
+		auto       sequence    = seeded_sequence{ .State = 77U };
+		auto       landed      = std::array<bool, phase_count>{ };
+		auto       insideUnits = std::array<bool, phase_count>{ };
+		auto       totalPauses = std::size_t{ 0U };
+		const auto record      = [&](const resumed_run& aRun) {
+			for (const auto& pause : aRun.Pauses) {
+				landed[static_cast<std::size_t>(pause.Phase)] = true;
+				if (pause.StoppedAt > pause.Kept) {
+					insideUnits[static_cast<std::size_t>(pause.Phase)] = true;
+				}
+			}
+			totalPauses += aRun.Pauses.size();
+		};
+		for (const auto& testCase : property_cases()) {
+			const auto  full      = uninterrupted(testCase);
+			const auto& expected  = full.Outcome->Result;
+			const auto  total     = full.Statistics.Steps;
+			const auto  largest   = full.Statistics.LargestRestartUnit;
+			const auto  identical = [&](const resumed_run& aRun, const std::string_view aMessage) {
+				expect(aRun.Outcome.Reason == full.Outcome->Reason && aRun.Outcome.Result == expected, aMessage);
+				expect(aRun.Statistics.Steps == total && aRun.Statistics.LargestRestartUnit == largest && aRun.Statistics.PhaseStarts == full.Statistics.PhaseStarts,
+					   "[[BPR-1366]] a resumed run counts the steps an uninterrupted one counts");
+				expect(aRun.Statistics.WorkSteps >= total && aRun.Statistics.Slices == aRun.Pauses.size() + 1U,
+					   "[[BPR-1366]] the work of every slice is counted");
+				record(aRun);
+			};
+			// One pause, at a seeded step in each phase.
+			for (std::size_t phase = 0U; phase < phase_count; ++phase) {
+				const auto [begin, end] = phase_window(full.Statistics, static_cast<diff_compute_phase>(phase));
+				if (end <= begin) {
+					continue;
+				}
+				const auto request = begin + sequence.below(end - begin);
+				identical(run_resumed(testCase, 1U, [request](std::uint64_t, const std::size_t aPauses) {
+							  return aPauses == 0U ? std::optional{ request } : std::nullopt;
+						  }),
+						  "[[BPR-1366]] a computation resumed once equals the uninterrupted one, counters and approximation included");
+			}
+			// Many pauses at seeded intervals, each slice long enough to pass a
+			// resume point, polling at every step so pauses land inside restart
+			// units.
+			auto seed = seeded_sequence{ .State = sequence.next() | 1U };
+			identical(run_resumed(testCase, 1U, [&seed, largest](const std::uint64_t aKept, std::size_t) {
+						  return std::optional{ aKept + largest + 1U + seed.below(largest + 1U) };
+					  }),
+					  "[[BPR-1366]] a computation resumed many times equals the uninterrupted one");
+			// Pauses every few hundred steps until a seeded point, then one
+			// long slice: a pause may land inside the same restart unit again.
+			const auto shortUntil = sequence.below(total);
+			identical(run_resumed(testCase, 1U, [shortUntil, largest](const std::uint64_t aKept, const std::size_t aPauses) {
+						  const auto shortSlice = aKept < shortUntil && aPauses % 2U == 0U;
+						  return std::optional{ aKept + (shortSlice ? 257U : largest + 1U) };
+					  }),
+					  "[[BPR-1366]] repeated short pauses inside one restart unit still resume exactly");
+		}
+		// A material comparison resumes by the same rules.
+		const auto base     = property_cases().front();
+		const auto expected = compute_material_diff(base.material_input(), diff_compute_control{ });
+		auto       paused   = paused_diff_compute{ };
+		auto       slices   = std::size_t{ 0U };
+		expect(expected.Outcome.has_value(), "[[BPR-1366]] the material comparison computes");
+		for (;;) {
+			auto stop  = stop_at_step{ paused.statistics().Steps + expected.Statistics.LargestRestartUnit + 1U };
+			auto slice = compute_material_diff(base.material_input(), diff_compute_control{ .Stop = &stop }, std::move(paused));
+			++slices;
+			if (slice.Outcome.has_value()) {
+				expect(slice.Outcome->Result == expected.Outcome->Result && slice.Outcome->Result == compute_material_diff(base.material_input()).Result && slices > 2U,
+					   "[[BPR-1366]] a resumed material comparison equals the uninterrupted one");
+				break;
+			}
+			paused = std::move(slice.Paused);
+		}
+		for (std::size_t phase = 0U; phase < phase_count; ++phase) {
+			expect(landed[phase], "[[BPR-1366]] resumed pauses land in every phase");
+		}
+		for (const auto phase : { diff_compute_phase::primary, diff_compute_phase::refine, diff_compute_phase::moves, diff_compute_phase::assemble, diff_compute_phase::validate }) {
+			expect(insideUnits[static_cast<std::size_t>(phase)], "[[BPR-1366]] resumed pauses land inside the restart units of every phase that has them");
+		}
+		std::cout << "BPR-1366 resumed property runs: " << totalPauses << " pauses, every result identical\n";
+	}
+
+	auto test_bpr1366_repeated_interruption_completes() -> void
+	{
+		const auto large   = make_case({ .Lines = optimized_build ? 20'000U : 5'000U, .Seed = 23U, .Edited = 300U, .Deleted = 15U, .Inserted = 15U, .Moved = 3U }, moves_options());
+		const auto full    = uninterrupted(large);
+		const auto total   = full.Statistics.Steps;
+		const auto largest = full.Statistics.LargestRestartUnit;
+		expect(largest < total / 4U, "[[BPR-1366]] the largest restart unit is a small part of the run");
+		for (const auto slice : { largest + 1U, 2U * largest }) {
+			auto       previous = std::uint64_t{ 0U };
+			auto       advanced = true;
+			const auto run      = run_resumed(large, 1U, [slice, &previous, &advanced](const std::uint64_t aKept, const std::size_t aPauses) {
+				advanced = advanced && (aPauses == 0U || aKept > previous);
+				previous = aKept;
+				return std::optional{ aKept + slice };
+			});
+			expect(run.Outcome.Result == full.Outcome->Result, "[[BPR-1366]] a computation interrupted every K steps completes with the same result");
+			expect(advanced, "[[BPR-1366]] a slice of at least the largest restart unit passes a resume point");
+			const auto overhead = run.Statistics.WorkSteps - total;
+			expect(overhead <= run.Pauses.size() * largest, "[[BPR-1366]] each interruption costs at most one restart unit");
+			std::cout << "BPR-1366 repeated interruption: K=" << slice << " (" << (100.0 * static_cast<double>(slice) / static_cast<double>(total))
+					  << "% of the run), " << run.Pauses.size() << " pauses, uninterrupted " << total << " steps, interrupted "
+					  << run.Statistics.WorkSteps << " steps (+" << (100.0 * static_cast<double>(overhead) / static_cast<double>(total))
+					  << "%), largest restart unit " << largest << '\n';
+		}
+	}
+
+	auto test_bpr1366_the_semantic_index_build_stops() -> void
+	{
+		const auto testCase = property_cases().front();
+		const auto result   = std::make_shared<const computed_file_diff>(*compute_file_diff(testCase.input()).Result);
+		auto       stop     = stop_at_step{ 1U };
+		const auto stopped  = build_diff_semantic_index(result, diff_compute_control{ .Stop = &stop, .CheckInterval = 1U });
+		expect(stopped.Stopped && !stopped.Index.has_value() && stop.StoppedAt.has_value(), "[[BPR-1366]] the index build polls the stop through its validation");
+		auto       never = stop_at_step{ std::numeric_limits<std::uint64_t>::max() };
+		const auto built = build_diff_semantic_index(result, diff_compute_control{ .Stop = &never, .CheckInterval = 1U });
+		const auto plain = build_diff_semantic_index(result);
+		expect(!built.Stopped && built.Index.has_value() && plain.has_value() && built.Index->matches_result(*result) && built.Index->statistics() == plain->statistics(),
+			   "[[BPR-1366]] an index build nothing stops equals the plain build");
+		auto invalid = *result;
+		invalid.Intraline.push_back(intraline_edit{ });
+		const auto refused = build_diff_semantic_index(std::make_shared<const computed_file_diff>(std::move(invalid)), diff_compute_control{ });
+		expect(!refused.Stopped && !refused.Index.has_value(), "[[BPR-1366]] an invalid result still builds no index");
+	}
 } // namespace
 
 int main()
@@ -899,6 +1487,12 @@ int main()
 	test_large_files_degrade_instead_of_refusing();
 	test_computed_result_validator();
 	test_generated_replay_validation();
+	test_bpr1366_an_uninterrupted_slice_is_the_one_call();
+	test_bpr1366_a_stop_is_honoured_within_the_bound();
+	test_bpr1366_interrupted_once_then_recomputed();
+	test_bpr1366_resumed_results_are_identical();
+	test_bpr1366_repeated_interruption_completes();
+	test_bpr1366_the_semantic_index_build_stops();
 	std::cout << "BPR-0073 deterministic diff computation tests passed\n";
 	return EXIT_SUCCESS;
 }

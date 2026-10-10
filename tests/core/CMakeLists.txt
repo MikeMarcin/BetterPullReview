@@ -97,6 +97,27 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_diff_compute_core_tests
 )
 
+# [[BPR-1366]] Uninterrupted diff timings over large synthetic pairs. The row
+# runs the smallest size as a check; run the executable with no arguments in an
+# optimized tree for the timing table.
+bpr_add_executable(
+    bench_better_pull_review_diff_compute
+    diff_compute_benchmark.cpp
+)
+
+target_link_libraries(
+    bench_better_pull_review_diff_compute
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(bench_better_pull_review_diff_compute)
+bpr_enable_warnings(bench_better_pull_review_diff_compute)
+
+bpr_add_network_isolated_test(
+    NAME core_diff_compute_benchmark
+    COMMAND bench_better_pull_review_diff_compute 3 2000
+)
+
 bpr_add_executable(
     test_better_pull_review_diff_semantics_core_tests
     diff_semantics_tests.cpp

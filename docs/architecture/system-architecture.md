@@ -819,6 +819,17 @@ three steps, each inside an existing bound:
   it; a request for any other stops it. Opening a prepared file is a cache hit:
   one decision turn, no Git, no network and no computation. It is presented
   as the reviewer's first look at the file, not as a cached revisit.
+- **Pausing.** [[BPR-1366]] A prepared computation that the reviewer's request
+  stops returns within the engine's check interval (64 Ki steps) instead of
+  running to its end, and keeps its progress: both sides' bytes and the
+  engine's paused state, or the finished computation awaiting its semantic
+  index. A paused comparison continues before any new preparation, and a
+  request for it continues it as the reviewer's own work, which preparation
+  never stops. Paused states count with prepared comparisons inside the
+  prepared share; one that does not fit, a superseded one (new window,
+  invalidation, cancellation, shutdown) and one the reviewer's room needs are
+  discarded, so the comparison is computed again from the start if it is still
+  wanted. A reviewer job polls only its own cancellation.
 
 A new window cancels the previous preparation; invalidation of the pull
 request or account cancels it and discards its queue and cache entries; window

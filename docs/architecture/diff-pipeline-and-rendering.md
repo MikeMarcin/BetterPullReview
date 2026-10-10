@@ -184,6 +184,25 @@ describes the preparation window and its cancellation.
 
 Cancellation may stop computation or merely suppress publication. Stale rejection remains mandatory even when cooperative cancellation is requested.
 
+[[BPR-1366]] The engine stops cooperatively. `compute_file_diff` and
+`compute_material_diff` have a stoppable overload that takes a
+`diff_compute_control` (a caller's `diff_compute_stop` predicate and a check
+interval) and an optional `paused_diff_compute`. The engine reads no clock or
+thread primitive: it counts steps (matrix cells, primary-index probe values,
+move-detection work, bytes scanned or normalized, weighted validation records)
+and polls the predicate every 64 Ki of them, so a stop is honoured within the
+interval plus the largest single increment. A stopped slice returns an opaque
+state keyed by the comparison key, options, limits and both sides' bytes; it
+resumes at the last resume point (a chunk or line while preparing the sides, a
+region of the primary work list, a refined segment, an assembled record, a
+validation stage or equal line) and redoes at most the restart unit it was in
+(one region's table or ordered index, one segment's tables, move detection,
+one pair's intraline table, one alignment validation). The budgets and the
+approximate flag travel in the state, so the result and its work counters equal
+an uninterrupted run's. A state from any other comparison is refused and the
+computation starts again. `build_diff_semantic_index` has a stoppable overload
+too; it restarts when stopped.
+
 ### 3.3 Selected application and Git cache composition
 
 The live GitHub composition constructs one `diff_application_host` with the

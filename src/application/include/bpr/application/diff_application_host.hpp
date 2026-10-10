@@ -45,6 +45,10 @@ namespace bpr::application {
 		/// than computing it twice; a request for another stops it. An empty
 		/// list stops preparation. Invalidation, cancellation of the
 		/// authority and shutdown discard it.
+		///
+		/// [[BPR-1366]] A preparation stopped for the reviewer pauses within
+		/// the engine's check interval and keeps its progress; it continues
+		/// before any new preparation, and a request for it continues it.
 		void prepare(std::vector<prepared_diff_request> aRequests);
 		void cancel();
 		void invalidate(const core::pull_request_authority& aAuthority);
@@ -61,8 +65,13 @@ namespace bpr::application {
 		/// the reviewer has not opened.
 		[[nodiscard]] auto prepared_entries() const noexcept -> std::size_t;
 		[[nodiscard]] auto prepared_bytes() const noexcept -> std::uint64_t;
-		/// Prepared comparisons queued or being computed.
+		/// Prepared comparisons queued, paused or being computed.
 		[[nodiscard]] auto preparing() const noexcept -> std::size_t;
+		/// [[BPR-1366]] Prepared comparisons stopped mid-computation and kept
+		/// to continue, and the bytes they hold (counted inside the prepared
+		/// share).
+		[[nodiscard]] auto paused_entries() const noexcept -> std::size_t;
+		[[nodiscard]] auto paused_bytes() const noexcept -> std::uint64_t;
 		/// Requests answered by a prepared comparison, from the cache or by
 		/// waiting for the one being prepared.
 		[[nodiscard]] auto prepared_hits() const noexcept -> std::uint64_t;

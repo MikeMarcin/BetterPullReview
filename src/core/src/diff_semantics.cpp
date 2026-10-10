@@ -1,5 +1,7 @@
 #include "bpr/core/diff_semantics.hpp"
 
+#include "diff_step_meter.hpp"
+
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
@@ -218,6 +220,33 @@ namespace bpr::core {
 		if (!aDiff || !validate_computed_file_diff(*aDiff).valid()) {
 			return std::nullopt;
 		}
+		return diff_semantic_index::from_validated(std::move(aDiff));
+	}
+
+	auto build_diff_semantic_index(
+		std::shared_ptr<const computed_file_diff> aDiff, const diff_compute_control& aControl)
+		-> diff_semantic_index_build
+	{
+		if (!aDiff) {
+			return { };
+		}
+		// [[BPR-1366]] The validation is linear in the result; a stop starts
+		// it again.
+		auto meter  = detail::diff_step_meter{ aControl.Stop, aControl.CheckInterval, 0U };
+		auto cursor = detail::validation_cursor{ };
+		try {
+			if (!detail::validate_computed_file_diff(*aDiff, cursor, meter).valid()) {
+				return { };
+			}
+		} catch (const detail::diff_compute_paused&) {
+			return { .Index = std::nullopt, .Stopped = true };
+		}
+		return { .Index = diff_semantic_index::from_validated(std::move(aDiff)), .Stopped = false };
+	}
+
+	auto diff_semantic_index::from_validated(std::shared_ptr<const computed_file_diff> aDiff)
+		-> diff_semantic_index
+	{
 		const auto& diff   = *aDiff;
 		auto        result = diff_semantic_index{ };
 		result.Diff        = std::move(aDiff);
