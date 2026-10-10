@@ -317,3 +317,63 @@ Steps 2 and 15 to 17 belong to this card. The rest is [[BPR-1094]]'s R33.
   card.
 - **Not checked:** the script hasn't run on Windows. The Mac has no
   PowerShell, so a prepare or script failure comes back through step 15.
+
+## Windows station run (bpr-main-win, 2026-10-09)
+
+Run on Windows 11 Home 10.0.26200 with MSVC 14.51 (cl from VS 18,
+`Hostx64/x64`) and Qt 6.11.2, at `58f09ba68` (build) and `f992c0cf9`
+(calls). The commands are the card's, with these differences:
+
+- no `--autostash`;
+- every `bpr` call bounded;
+- device codes are redacted.
+
+No device code was requested from a working binary, and none was entered.
+
+| Command | Result |
+|---|---|
+| `cmake --preset tour-cli`, `cmake --build --preset tour-cli` | exit 0 |
+| `cmake --install build/tour-cli --component TourCLI` | exit 0; `bin\bpr.exe` and `bin\better_pull_review_agent_supervisor.exe`, no Qt |
+| `tour capabilities`, `capabilities --json`, `open --offline`, `connect --transport gh --json`, `connect --transport native`, `open` | each exits `-1073741515` (`0xC0000135`, a DLL not found) within 123 ms, printing nothing. The TourCLI install deploys no Qt on Windows, as the card expected; nothing is created under the data root |
+| `windows-dev-tour-cli` Debug build, then the twelve-row selection | build exit 0, no warning; **12 of 12 pass** (`tour_cli_composition` 38.2 s, `cycle_cli_public_path` 27.7 s, `architecture_boundaries` 39.8 s, `test_network_isolation_manifest` 22.0 s, the rest under 9 s) |
+
+The same calls were then made with the owner's prepared `bpr.exe` (below),
+which has Qt beside it:
+
+- **`tour capabilities --json`** exits 0. Its `platform` block reads:
+  `os` windows, `native_vault` Credential Manager, `gh_transport`
+  unavailable, `package` "development install; no release package",
+  `qualification` "not yet qualified".
+- **`tour open … --offline --json`** on a fresh data root exits 2,
+  `target_ambiguous`. It creates `state\v1\profile-registry.sqlite3` and
+  `review-tours.sqlite3`.
+- **The online `tour open`** on that never-signed-in root returns at once
+  with exit 5, `authentication_required`, in 54 ms. That is not a BPR-1302
+  regression.
+
+The native connect was not run with this binary, because it would ask GitHub
+for a code.
+
+### The owner's Windows sign-in script, checked on the station
+
+`tests/scripts/windows_tour_owner_signin.ps1` was run from a frozen root:
+
+- **The root.** `C:\Users\mikem\bpr1068-signin-v001` holds a `git archive` of
+  `f992c0cf9` (which carries `ec16c550b`'s script unchanged) and `commit.txt`.
+- **`prepare` passes end to end, unchanged.** It ran in Windows PowerShell
+  5.1, entering the x64 developer shell through `vswhere`, using the
+  station's dependency cache. It configured, built and installed `tour-cli`,
+  windeployqt added `Qt6Core`, `Qt6Network`, `networkinformation\` and
+  `tls\`, the `capabilities` check passed, and it printed
+  `PREPARED ca27a028974e…b243`.
+- **`signin` up to the device flow.** A probe loads the script's own
+  Credential Manager code and its Default-profile prefixes. It runs only the
+  name listing (target names and types, never a secret) and the clash check:
+  - 0 `org.betterpullreview.github-native-*` targets exist for this user;
+  - so 0 are Default-profile targets.
+
+  So on JaegAW `signin` would **not** print SIGNIN_STOPPED. It would go on to
+  the device flow. The script's two prefixes are exactly the product's
+  production base and refresh prefixes (`windows_credential_manager.cpp`).
+
+`signin` itself was not started. Its connect is the owner's step.
