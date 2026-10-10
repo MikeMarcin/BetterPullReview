@@ -78,7 +78,11 @@ namespace bpr::adapters::sqlite::detail {
 	/// profile row, and each window's Line details height, in the per-window
 	/// table. A migrated row shows Line details at its default height and keeps
 	/// every other field it had.
-	inline constexpr std::int64_t workbench_settings_schema_version = 17;
+	///
+	/// Eighteen since [[BPR-1375]]: the profile's Claude model, in the
+	/// profile row. A migrated row reads none, Claude's own default, and keeps
+	/// every other field it had.
+	inline constexpr std::int64_t workbench_settings_schema_version = 18;
 
 	/// \brief Owns the durable workbench layout database.
 	///

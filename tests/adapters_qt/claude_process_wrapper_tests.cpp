@@ -289,7 +289,17 @@ namespace {
 			std::ranges::sort(envWas);
 			expect(env == envWas, "the wrapper's environment is Claude's, name for name and value for value");
 			expect(std::ranges::none_of(env, [](const std::string& aEntry) { return aEntry.starts_with("BPR_WRAPPER_PARENT_ONLY="); }), "no parent name outside the allowlist crosses");
-			expect(event_values(now, "cwd") == event_values(was, "cwd"), "the wrapper runs in Claude's working directory");
+			if (kind == entry::writing) {
+				// [[BPR-1375]]. Each tool-free writing run gets an empty folder
+				// of its own, so the two runs share where they start, not which.
+				const auto fresh = [&](const std::vector<std::string>& aCwd) {
+					return aCwd.size() == 1U && std::filesystem::path{ aCwd.front() }.filename().string().starts_with("bpr-writing-")
+						&& std::filesystem::path{ aCwd.front() } != std::filesystem::path{ shipped.WorkingDirectory } && !std::filesystem::exists(aCwd.front());
+				};
+				expect(fresh(event_values(now, "cwd")) && fresh(event_values(was, "cwd")), "a writing run, wrapped or not, starts in a fresh writing folder removed afterwards");
+			} else {
+				expect(event_values(now, "cwd") == event_values(was, "cwd"), "the wrapper runs in Claude's working directory");
+			}
 			expect(event_values(now, "stdin-hex") == event_values(was, "stdin-hex") && !event_values(now, "stdin-hex").front().empty(), "the wrapper reads Claude's exact input");
 		}
 	}

@@ -5,12 +5,14 @@
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <expected>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -1201,7 +1203,7 @@ namespace {
 			}
 			expect(!application::build_agent_launch(selectedProfile, supplement, reader(), bad), "snapshot/source/settings mismatch refuses before launch");
 		}
-		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::claude_stream_json, core::agent_protocol::external_terminal }) {
+		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
 			auto       unsupported            = profile(protocol);
 			const auto requested              = application::build_agent_launch(unsupported, built_supplement(), reader(), { .Requested = { "model", "high" } });
 			unsupported.DefaultSettings.Model = "default";
@@ -1212,6 +1214,86 @@ namespace {
 		}
 		selectedProfile.DefaultSettings.Model = std::string(257, 'x');
 		expect(!application::build_agent_launch(selectedProfile, built_supplement(), reader()), "oversized configured setting refused");
+	}
+
+	/// [[BPR-1375]]. Claude takes a model as `--model` and nothing else:
+	/// an effort, or a name that could read as an option, refuses.
+	void test_claude_takes_only_a_model_as_one_argument()
+	{
+		const auto claude   = profile(core::agent_protocol::claude_stream_json);
+		const auto launched = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } } });
+		expect(launched && launched->Arguments == std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5" }
+				   && launched->Metadata.Requested.Model == "claude-sonnet-5-5",
+			   "a requested Claude model is one argument after --model and is recorded as requested");
+		auto configured                  = claude;
+		configured.DefaultSettings.Model = "sonnet";
+		const auto fromProfile           = application::build_agent_launch(configured, built_supplement(), reader());
+		expect(fromProfile && std::ranges::find(fromProfile->Arguments, "sonnet") - std::ranges::find(fromProfile->Arguments, "--model") == 1,
+			   "a configured Claude model is passed the same way");
+		const auto withEffort = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", "high" } });
+		expect(!withEffort && withEffort.error() == application::agent_launch_failure::unsupported_runtime_settings, "Claude takes no effort setting");
+		for (const auto* hostile : { "--dangerously-skip-permissions", "-x", "claude sonnet", "model\nnext", "\"quoted\"", "" }) {
+			const auto refused = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { std::string{ hostile }, { } } });
+			expect(!refused, "a model name that is not one plain argument refuses before launch");
+		}
+		expect(core::valid_claude_model("claude-sonnet-5-5") && core::valid_claude_model("claude-opus-5-5[1m]") && !core::valid_claude_model(std::string(129, 'a'))
+				   && core::storable_claude_model("") && !core::valid_claude_model(""),
+			   "the model rule admits real names and refuses empty or oversized ones");
+	}
+
+	/// [[BPR-1375]]. Tool-free writing runs `claude -p` on the person's own
+	/// sign-in: the exact restriction set, no `--bare`, in that order.
+	void test_claude_writing_argv_reads_the_account_sign_in()
+	{
+		const auto writing  = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", { } }, .WritingOnly = true });
+		const auto expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5-5",
+														"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "",
+														"--disable-slash-commands", "--no-session-persistence", "--settings",
+														R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})" };
+		expect(writing && writing->WritingOnly && writing->Arguments == expected, "writing argv is the exact restricted print-mode set");
+		expect(writing && std::ranges::find(writing->Arguments, "--bare") == writing->Arguments.end(), "writing never passes --bare, which would ignore the account sign-in");
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .WritingOnly = true }), "no other protocol has a tool-free writing launch");
+		}
+		const auto profiles = core::built_in_agent_profiles();
+		const auto builtIn  = std::ranges::find(profiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
+		expect(std::ranges::find(builtIn->AllowedEnvironment, "USER") != builtIn->AllowedEnvironment.end(), "the shipped Claude profile passes USER, which its keychain sign-in is filed under");
+	}
+
+	/// [[BPR-1375]]. What Claude 2.1.296 writes around a turn, and what a
+	/// signed-out Claude answers.
+	void test_claude_decoder_reads_sign_in_and_benign_frames()
+	{
+		const auto decode = [](const bool aWriting, const std::string& aFrames) {
+			auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, aWriting };
+			auto pushed  = decoder.push(aFrames);
+			if (!pushed) {
+				return std::expected<std::size_t, application::agent_protocol_failure>{ std::unexpect, pushed.error() };
+			}
+			auto finished = decoder.finish();
+			if (!finished) {
+				return std::expected<std::size_t, application::agent_protocol_failure>{ std::unexpect, finished.error() };
+			}
+			return std::expected<std::size_t, application::agent_protocol_failure>{ decoder.assistant_items().size() };
+		};
+		const std::string init = R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[]})"
+								 "\n";
+		const std::string turn = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"ok"}]}})"
+								 "\n"
+								 R"({"type":"rate_limit_event","session_id":"s","rate_limit_info":{}})"
+								 "\n"
+								 R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"ok"})"
+								 "\n";
+		const auto        ok   = decode(true, std::string{ R"({"type":"system","subtype":"ui_invalidate","session_id":"s"})" } + "\n" + init + turn);
+		expect(ok && *ok == 1U, "a ui_invalidate before init and a rate_limit_event after the turn are read past");
+		const auto signedOut = decode(true, init + R"({"type":"assistant","session_id":"s","error":"authentication_failed","message":{"id":"x","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"Not logged in · Please run /login"}]}})" + "\n" + R"({"type":"result","subtype":"success","session_id":"s","is_error":true,"result":"Not logged in · Please run /login"})" + "\n");
+		expect(!signedOut && signedOut.error() == application::agent_protocol_failure::not_signed_in, "a signed-out Claude is not_signed_in, not a malformed frame");
+		const auto plugin = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
+		const auto memory = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);
+		const auto tools  = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[]})" } + "\n" + turn);
+		expect(!plugin && !memory && !tools, "a writing init frame with a plugin, an auto-memory folder or a tool refuses");
+		const auto review = decode(false, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
+		expect(review && *review == 1U, "an ordinary review run keeps its tools and plugins");
 	}
 
 	void test_run_correlation_keeps_stale_facts_without_misattribution()
@@ -1275,6 +1357,9 @@ auto main() -> int
 	test_runtime_metadata_is_field_bound_and_never_inferred();
 	test_metadata_refuses_malformed_and_excess_facts();
 	test_requested_configured_and_admitted_run_snapshot();
+	test_claude_takes_only_a_model_as_one_argument();
+	test_claude_writing_argv_reads_the_account_sign_in();
+	test_claude_decoder_reads_sign_in_and_benign_frames();
 	test_full_encoded_input_budget_and_private_raw_budget();
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();
 	test_the_workshop_operation_crosses_only_under_its_entry_point();

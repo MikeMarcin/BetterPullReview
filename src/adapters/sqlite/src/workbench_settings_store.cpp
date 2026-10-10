@@ -76,6 +76,7 @@ namespace bpr::adapters::sqlite {
 					auto settings          = application::combined_layout(application::window_layout(aSettings), preferences->Behaviour);
 					settings.WritingHooks  = preferences->WritingHooks;
 					settings.ClaudeWrapper = preferences->ClaudeWrapper;
+					settings.ClaudeModel   = preferences->ClaudeModel;
 					return Database.store(settings, aStop);
 				}();
 				if (!stored) {
@@ -94,7 +95,7 @@ namespace bpr::adapters::sqlite {
 				if (!loaded) {
 					return std::unexpected(application::workbench_settings_error{ translate(loaded.error()) });
 				}
-				return application::workbench_profile_preferences{ loaded->Behaviour, application::window_layout(*loaded), loaded->WritingHooks, loaded->ClaudeWrapper };
+				return application::workbench_profile_preferences{ loaded->Behaviour, application::window_layout(*loaded), loaded->WritingHooks, loaded->ClaudeWrapper, loaded->ClaudeModel };
 			}
 			[[nodiscard]] auto store_preferences(const application::workbench_profile_preferences& aPreferences, std::stop_token aStop) -> application::workbench_settings_result<void> override
 			{
@@ -102,6 +103,7 @@ namespace bpr::adapters::sqlite {
 				auto                   settings = application::combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour);
 				settings.WritingHooks           = aPreferences.WritingHooks;
 				settings.ClaudeWrapper          = aPreferences.ClaudeWrapper;
+				settings.ClaudeModel            = aPreferences.ClaudeModel;
 				auto stored                     = Database.store(settings, aStop);
 				if (!stored) {
 					return std::unexpected(application::workbench_settings_error{ translate(stored.error()) });

@@ -119,7 +119,7 @@ namespace {
 			application::workbench_window_layout window;
 			window.UpdatesLine = core::workbench_updates_line::open;
 			expect(db->store_window(core::bpr_window_id{ 1 }, window, { }).has_value(), "version10 window seed");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop; ALTER TABLE workbench_preferences DROP COLUMN writing_outline; ALTER TABLE workbench_preferences DROP COLUMN writing_solution; ALTER TABLE workbench_preferences DROP COLUMN writing_problem; ALTER TABLE workbench_preferences DROP COLUMN writing_revision; UPDATE workbench_meta SET schema_format=10; PRAGMA user_version=10", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version10 source");
 		}
 		{
 			auto db = workbench_settings_database::open(path, { });
@@ -154,7 +154,7 @@ namespace {
 			expect(loaded.has_value() && loaded->Behaviour == chosen.Behaviour, "letters survive a reopen");
 			expect(loaded->WritingHooks == chosen.WritingHooks, "with the writing hooks");
 			expect(*loaded == chosen, "and every other field");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; UPDATE workbench_meta SET schema_format=11; PRAGMA user_version=11", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; UPDATE workbench_meta SET schema_format=11; PRAGMA user_version=11", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "canonical version11 source");
 		}
 		{
@@ -1253,7 +1253,7 @@ namespace {
 		// [[BPR-0721]]. Version four predates the drawer-controls column, and
 		// DROP COLUMN rewrites the stored definition back to the text a
 		// version-four build wrote.
-		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
+		expect(sqlite3_exec(raw, "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;ALTER TABLE workbench_preferences RENAME TO workbench_layout; ALTER TABLE workbench_layout DROP COLUMN drawer_controls; ALTER TABLE workbench_layout DROP COLUMN one_pane; DROP TABLE window_layout; UPDATE workbench_meta SET schema_format=4; PRAGMA user_version=4", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical legacy singleton fixture is isolated");
 		sqlite3_close(raw);
 	}
 	auto logical_snapshot(const std::filesystem::path& aPath, const bool aLegacy) -> std::vector<std::string>
@@ -1486,7 +1486,7 @@ namespace {
 								"ALTER TABLE window_layout DROP COLUMN geometry_width;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_y;"
 								"ALTER TABLE window_layout DROP COLUMN geometry_x;"
-								"ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
+								"ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=8; PRAGMA user_version=8",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-eight window fixture");
@@ -1545,7 +1545,7 @@ namespace {
 			// The exact version-nine definition, as a version-nine build wrote it.
 			expect(sqlite3_exec(database->handle(),
 								"ALTER TABLE window_layout DROP COLUMN updates_line;"
-								"ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
+								"ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; ALTER TABLE workbench_preferences DROP COLUMN feedback_marks; ALTER TABLE workbench_preferences DROP COLUMN writing_stop;ALTER TABLE workbench_preferences DROP COLUMN writing_outline;ALTER TABLE workbench_preferences DROP COLUMN writing_solution;ALTER TABLE workbench_preferences DROP COLUMN writing_problem;ALTER TABLE workbench_preferences DROP COLUMN writing_revision;UPDATE workbench_meta SET schema_format=9; PRAGMA user_version=9",
 								nullptr, nullptr, nullptr)
 					   == SQLITE_OK,
 				   "canonical version-nine window fixture");
@@ -1673,7 +1673,7 @@ namespace {
 			auto db = workbench_settings_database::open(path, { });
 			expect(db.has_value() && db->store(chosen, { }).has_value(), "a full profile row stores");
 			expect(db->store_window(core::bpr_window_id{ 4 }, window, { }).has_value(), "and a window row beside it");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; UPDATE workbench_meta SET schema_format=12; PRAGMA user_version=12", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; UPDATE workbench_meta SET schema_format=12; PRAGMA user_version=12", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "canonical version12 source");
 		}
 		auto db = workbench_settings_database::open(path, { });
@@ -1707,7 +1707,7 @@ namespace {
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db.has_value() && db->store(chosen, { }).has_value() && db->store_window(core::bpr_window_id{ 4 }, window, { }).has_value(), "a full profile row and a window row store");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; UPDATE workbench_meta SET schema_format=12; PRAGMA user_version=12", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; ALTER TABLE workbench_preferences DROP COLUMN label_columns; ALTER TABLE workbench_preferences DROP COLUMN overview_counts; ALTER TABLE workbench_preferences DROP COLUMN label_helper; UPDATE workbench_meta SET schema_format=12; PRAGMA user_version=12", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "canonical version12 source");
 		}
 		const auto before = logical_snapshot(path, false);
@@ -1914,12 +1914,12 @@ namespace {
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db && db->store(chosen, { }) && db->store_window(core::bpr_window_id{ 1 }, window, { }), "a full profile row and a window store");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; UPDATE workbench_meta SET schema_format=15; PRAGMA user_version=15", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version15 source");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; UPDATE workbench_meta SET schema_format=15; PRAGMA user_version=15", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version15 source");
 		}
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db.has_value(), "version15 migration opens");
-			expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version && workbench_settings_schema_version == 17, "and stamps version seventeen");
+			expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version && workbench_settings_schema_version == 18, "and stamps version eighteen");
 			const auto loaded = db->load({ });
 			expect(loaded && *loaded == chosen, "the four tour overrides, their revision and every other field are kept exactly");
 			expect(loaded && loaded->WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)].empty(), "the migrated feedback hook follows the shipped default");
@@ -1976,7 +1976,7 @@ namespace {
 			expect(db->store_window(core::bpr_window_id{ 1 }, first, { }) && !db->load_window(core::bpr_window_id{ 1 }, { })->SummaryFraction, "Reset clears only its window preference");
 			first.SummaryFraction = 10000U;
 			expect(!db->store_window(core::bpr_window_id{ 1 }, first, { }), "invalid share is refused without writing");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; UPDATE workbench_meta SET schema_format=14; PRAGMA user_version=14", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version14 source created");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; UPDATE workbench_meta SET schema_format=14; PRAGMA user_version=14", nullptr, nullptr, nullptr) == SQLITE_OK, "canonical version14 source created");
 		}
 		{
 			auto db = workbench_settings_database::open(path, { });
@@ -2017,17 +2017,60 @@ namespace {
 			first.LineDetailsHeight.reset();
 			expect(db->store_window(core::bpr_window_id{ 1 }, first, { }) && !db->load_window(core::bpr_window_id{ 1 }, { })->LineDetailsHeight,
 				   "Reset clears only its window's height");
-			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; UPDATE workbench_meta SET schema_format=16; PRAGMA user_version=16", nullptr, nullptr, nullptr) == SQLITE_OK,
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; UPDATE workbench_meta SET schema_format=16; PRAGMA user_version=16", nullptr, nullptr, nullptr) == SQLITE_OK,
 				   "canonical version16 source");
 		}
 		auto db = workbench_settings_database::open(path, { });
-		expect(db.has_value() && integer_pragma(path, "PRAGMA user_version") == 17, "version16 migrates and stamps seventeen");
+		expect(db.has_value() && integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version, "version16 migrates and stamps the current version");
 		auto expected                  = profile;
 		expected.Behaviour.LineDetails = application::review_line_details::shown;
 		expect(*db->load({ }) == expected, "a migrated profile shows Line details and keeps every other field");
 		const auto migrated = db->load_window(core::bpr_window_id{ 2 }, { });
 		expect(migrated && !migrated->LineDetailsHeight && migrated->SummaryFraction == second.SummaryFraction,
 			   "a migrated window has the default height and keeps its summary fraction");
+	}
+
+	/// \brief [[BPR-1375]]. The profile's Claude model is stored as typed,
+	/// survives a reopen, refuses what `--model` could not take as one
+	/// argument, and a version-seventeen profile gains none without losing
+	/// anything else.
+	void test_claude_model_persists_and_migrates_from_seventeen()
+	{
+		{
+			const auto scratch = scratch_directory{ };
+			const auto path    = scratch.file("model.sqlite3");
+			auto       chosen  = settled_profile();
+			chosen.ClaudeModel = "claude-sonnet-5-5";
+			{
+				auto db = workbench_settings_database::open(path, { });
+				expect(db.has_value() && db->store(chosen, { }).has_value(), "a profile row with a model stores");
+			}
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && db->load({ }).has_value() && *db->load({ }) == chosen, "the model survives a restart exactly as typed");
+			for (const auto* refused : { "--dangerously-skip-permissions", "claude sonnet", "model\n" }) {
+				chosen.ClaudeModel = refused;
+				expect(!db->store(chosen, { }).has_value(), "a model that is not one plain argument is refused before it is written");
+			}
+			chosen.ClaudeModel = std::string(core::maximum_claude_model_bytes, 'a');
+			expect(db->store(chosen, { }).has_value() && db->load({ })->ClaudeModel == chosen.ClaudeModel, "the longest admitted model stores");
+			expect(sqlite3_exec(db->handle(), "UPDATE workbench_preferences SET claude_model='-x'", nullptr, nullptr, nullptr) == SQLITE_OK && !db->load({ }).has_value(),
+				   "a stored model the rule refuses is not read back");
+		}
+		{
+			const auto scratch = scratch_directory{ };
+			const auto path    = scratch.file("model-v17.sqlite3");
+			const auto chosen  = settled_profile();
+			{
+				auto db = workbench_settings_database::open(path, { });
+				expect(db.has_value() && db->store(chosen, { }).has_value(), "a full profile row stores");
+				expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; UPDATE workbench_meta SET schema_format=17; PRAGMA user_version=17", nullptr, nullptr, nullptr) == SQLITE_OK,
+					   "canonical version17 source");
+			}
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value() && integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version, "version17 migrates and stamps the current version");
+			const auto loaded = db->load({ });
+			expect(loaded.has_value() && loaded->ClaudeModel.empty() && *loaded == chosen, "a migrated profile names no model and keeps every other field");
+		}
 	}
 
 	/// \brief [[BPR-1301]]. The profile's Claude process wrapper is stored
@@ -2062,7 +2105,7 @@ namespace {
 			{
 				auto db = workbench_settings_database::open(path, { });
 				expect(db.has_value() && db->store(chosen, { }).has_value(), "a full profile row stores");
-				expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; UPDATE workbench_meta SET schema_format=13; PRAGMA user_version=13", nullptr, nullptr, nullptr) == SQLITE_OK,
+				expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN claude_model; ALTER TABLE workbench_preferences DROP COLUMN line_details; ALTER TABLE window_layout DROP COLUMN line_details_height; ALTER TABLE workbench_preferences DROP COLUMN writing_feedback; ALTER TABLE window_layout DROP COLUMN summary_fraction; ALTER TABLE workbench_preferences DROP COLUMN claude_wrapper; UPDATE workbench_meta SET schema_format=13; PRAGMA user_version=13", nullptr, nullptr, nullptr) == SQLITE_OK,
 					   "canonical version13 source");
 			}
 			auto db = workbench_settings_database::open(path, { });
@@ -2156,6 +2199,7 @@ try {
 	test_summary_fraction_window_reopen_and_v14_migration();
 	test_line_details_persists_and_migrates_from_sixteen();
 	test_claude_wrapper_persists_and_migrates_from_thirteen();
+	test_claude_model_persists_and_migrates_from_seventeen();
 	test_feedback_hook_override_migrates_from_fifteen_and_survives();
 	test_claude_wrapper_storage_outside_its_bounds_fails_closed();
 	test_native_geometry_is_window_local_and_migrates_from_eight();

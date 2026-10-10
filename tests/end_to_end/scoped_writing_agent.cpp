@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <iostream>
 #include <iterator>
 #include <string>
@@ -41,20 +42,50 @@ namespace {
 }
 int main(int argc, char** argv)
 {
-	const std::vector<std::string> expected = { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "", "--bare", "--disable-slash-commands", "--no-session-persistence", "--settings", "{\"disableAllHooks\":true}" };
+	// [[BPR-1375]]. Print mode on the person's own sign-in: no `--bare`, and
+	// what it skipped held off by settings. An optional `--model NAME` follows
+	// `--verbose` when the profile names a model.
+	const std::vector<std::string> restrictions = { "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--settings",
+													R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})" };
+	std::vector<std::string>       expected     = { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
 	std::vector<std::string>       actual;
 	for (int i = 1; i < argc; ++i) {
 		actual.emplace_back(argv[i]);
 	}
+	std::string model;
+	if (actual.size() > 7U && actual[6] == "--model") {
+		model = actual[7];
+		expected.insert(expected.end(), { "--model", model });
+	}
+	expected.insert(expected.end(), restrictions.begin(), restrictions.end());
 	if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
 		return 3;
+	}
+	// [[BPR-1375]]. The request starts in an empty folder of its own, never
+	// the review workspace.
+	std::error_code folderError;
+	const auto      folder = std::filesystem::current_path(folderError);
+	if (folderError || folder.filename().string().rfind("bpr-writing-", 0) != 0 || std::filesystem::directory_iterator{ folder, folderError } != std::filesystem::directory_iterator{ } || folderError) {
+		return 6;
 	}
 	std::string input{ std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ } };
 	if (input.size() > 100000 || input.find("PRIVATE_UNUSED_CANARY") != std::string::npos || input.find("note.count\\t0") == std::string::npos || input.find("draft.count\\t0") == std::string::npos) {
 		return 4;
 	}
-	std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"fixture\",\"tools\":[],\"mcp_servers\":[]}\n"
-			  << std::flush;
+	// Claude 2.1.296 can write a `ui_invalidate` system frame before init.
+	std::cout << "{\"type\":\"system\",\"subtype\":\"ui_invalidate\",\"session_id\":\"fixture\"}\n";
+	if (input.find("PLUGIN_CANARY") != std::string::npos) {
+		std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"fixture\",\"tools\":[],\"mcp_servers\":[],\"plugins\":[{\"name\":\"late-builtin\"}]}\n";
+	} else {
+		std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"fixture\",\"tools\":[],\"mcp_servers\":[],\"plugins\":[],\"model\":\"" << (model.empty() ? "default" : model) << "\"}\n";
+	}
+	std::cout << std::flush;
+	if (input.find("SIGNED_OUT_CANARY") != std::string::npos) {
+		std::cout << R"({"type":"assistant","message":{"id":"signed-out","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"Not logged in · Please run /login"}]},"session_id":"fixture","error":"authentication_failed","is_api_error_message":true})" << '\n'
+				  << R"({"type":"result","subtype":"success","is_error":true,"session_id":"fixture","result":"Not logged in · Please run /login"})" << '\n'
+				  << std::flush;
+		return 1;
+	}
 	if (input.find("WAIT_CANARY") != std::string::npos) {
 		std::this_thread::sleep_for(std::chrono::milliseconds{ 700 });
 	}
@@ -87,10 +118,14 @@ int main(int argc, char** argv)
 	if (input.find("For this outline operation") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"outline","stops":[{"title":"Generated decision","anchor_ref":"selected-source","related_refs":[],"reason":"PRIVATE_OUTLINE_REASON","author_question":"What should the reader check?"},{"title":"Unresolved intent","anchor_ref":"pr-description","related_refs":[],"reason":"Explain the stated purpose","author_question":"Where is the supporting code?"}]})";
 	}
+	if (!model.empty()) {
+		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":"Model )" + model + R"(.","notes":[]})";
+	}
 	if (input.find("OVERSIZE_CANARY") != std::string::npos) {
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";
 	}
 	const auto encoded = escape(result);
 	std::cout << "{\"type\":\"assistant\",\"session_id\":\"fixture\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"" << encoded << "\"}]}}\n";
+	std::cout << "{\"type\":\"rate_limit_event\",\"session_id\":\"fixture\",\"rate_limit_info\":{}}\n";
 	std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"fixture\",\"is_error\":false,\"result\":\"" << encoded << "\"}\n";
 }

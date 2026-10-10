@@ -5656,6 +5656,20 @@ foreach(runtime_file IN LISTS runtime_files)
     endif()
 
     get_filename_component(normalized_runtime_file "${runtime_file}" ABSOLUTE)
+    # [[BPR-1375]]. Tool-free writing turns Claude Code's built-in reporting
+    # plugin off by name; that exact setting is hardening, as GH_TELEMETRY=0 is.
+    if(normalized_runtime_file STREQUAL "${BPR_ROOT}/src/application/include/bpr/application/agent_launch.hpp")
+        string(
+            REPLACE
+            "\"cc-plugin-telemetry@builtin\":false"
+            ""
+            contents_without_hardening
+            "${contents}"
+        )
+        if(NOT contents_without_hardening MATCHES "${telemetry_pattern}")
+            continue()
+        endif()
+    endif()
     if(normalized_runtime_file STREQUAL github_cli_transport)
         string(
             REPLACE

@@ -157,12 +157,16 @@ namespace bpr::core {
 				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP" },
 			},
 			{
-				.Id                 = claude_stream_json_profile_id,
-				.DisplayName        = "Approved Claude stream JSON",
-				.Executable         = "claude",
-				.Protocol           = agent_protocol::claude_stream_json,
-				.Workspace          = agent_workspace_policy::disposable_review_workspace,
-				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP" },
+				.Id          = claude_stream_json_profile_id,
+				.DisplayName = "Approved Claude stream JSON",
+				.Executable  = "claude",
+				.Protocol    = agent_protocol::claude_stream_json,
+				.Workspace   = agent_workspace_policy::disposable_review_workspace,
+				// [[BPR-1375]]. `USER` is a login name, not a secret. On macOS
+				// Claude finds its account sign-in in the login keychain under
+				// it; without it every request answers "Not logged in"
+				// (Claude Code 2.1.296, owner signed in, 2026-10-09).
+				.AllowedEnvironment = { "HOME", "PATH", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "USER" },
 			},
 			{
 				.Id                 = external_terminal_profile_id,

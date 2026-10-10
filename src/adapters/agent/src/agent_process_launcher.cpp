@@ -2,6 +2,9 @@
 
 #include "agent_protocol_loop.hpp"
 
+#include <QDir>
+#include <QTemporaryDir>
+
 #if defined(Q_OS_WIN)
 	#include "windows_agent_process.hpp"
 #else
@@ -21,6 +24,7 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -298,13 +302,29 @@ namespace bpr::adapters::agent {
 	}
 
 	auto agent_process_launcher::run(
-		const application::agent_launch_request& aRequest,
+		const application::agent_launch_request& aGiven,
 		const int                                aTimeoutMilliseconds,
 		const application::agent_output_sink&    aSink,
 		const std::stop_token                    aStop)
 		-> application::agent_run_result
 	{
-		auto result = application::agent_run_result{ .Session = aRequest.Session, .Run = aRequest.Run };
+		// [[BPR-1375]]. A tool-free writing request runs in an empty folder of
+		// its own, made here and removed when the run ends, rather than in the
+		// review workspace: nothing in the reviewed repository (a CLAUDE.md, a
+		// `.claude` or `.mcp.json`, a Git configuration) is where the agent
+		// starts, and nothing the agent leaves behind outlives the request.
+		auto writingFolder  = std::optional<QTemporaryDir>{ };
+		auto writingRequest = std::optional<application::agent_launch_request>{ };
+		if (aGiven.WritingOnly) {
+			writingFolder.emplace(QDir{ QDir::tempPath() }.filePath(QStringLiteral("bpr-writing-XXXXXX")));
+			if (!writingFolder->isValid()) {
+				return { .Session = aGiven.Session, .Outcome = application::agent_run_outcome::failed_to_start, .StandardError = "tool-free writing folder could not be created", .Run = aGiven.Run };
+			}
+			writingRequest                   = aGiven;
+			writingRequest->WorkingDirectory = writingFolder->path().toStdString();
+		}
+		const auto& aRequest = writingRequest ? *writingRequest : aGiven;
+		auto        result   = application::agent_run_result{ .Session = aRequest.Session, .Run = aRequest.Run };
 		if (const auto admitted = application::admit_agent_input(aRequest); !admitted) {
 			result.Outcome         = application::agent_run_outcome::protocol_failure;
 			result.ProtocolFailure = admitted.error() == application::agent_launch_failure::input_too_large ? application::agent_protocol_failure::input_too_large : application::agent_protocol_failure::invalid_runtime_metadata;

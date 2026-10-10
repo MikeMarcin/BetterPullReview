@@ -199,6 +199,36 @@ namespace bpr::application {
 		input_too_large,
 	};
 
+	/// \brief [[BPR-1375]]. The settings a tool-free writing launch gives
+	/// Claude, as one `--settings` argument.
+	///
+	/// \details No hook runs, auto-memory neither loads nor writes, and the
+	/// three plugins Claude Code 2.1.296 builds in stay off (one of them
+	/// otherwise starts a shell in the working directory). Turning that
+	/// plugin off is the one use of its name the architecture boundary
+	/// admits here.
+	/// A plugin added by a later Claude is refused by the init frame instead.
+	inline constexpr std::string_view claude_writing_settings
+		= R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
+
+	/// \brief [[BPR-1375]]. What every tool-free writing launch appends to
+	/// Claude's print-mode arguments.
+	///
+	/// \details Owner, 2026-10-09: writing runs the installed `claude -p` on
+	/// the person's own sign-in. So there is no `--bare`, which reads only
+	/// `ANTHROPIC_API_KEY` or an `apiKeyHelper` and never the Claude account
+	/// sign-in. What `--bare` also skipped is held off another way: no tools,
+	/// every tool denied, an empty strict MCP configuration (which also
+	/// keeps the claude.ai connectors out), no settings file of any source,
+	/// so no project or user `CLAUDE.md`, `.claude` settings or `.mcp.json`,
+	/// no skills or slash commands, no session saved, and
+	/// `claude_writing_settings`. The process also starts in an empty
+	/// folder of its own rather than the review workspace.
+	inline constexpr std::array<std::string_view, 13> claude_writing_restrictions = {
+		"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "--setting-sources", "",
+		"--disable-slash-commands", "--no-session-persistence", "--settings", claude_writing_settings
+	};
+
 	/// \brief Builds one protocol-specific process request.
 	[[nodiscard]] auto build_agent_launch(
 		const core::agent_profile&            aProfile,
@@ -296,17 +326,22 @@ namespace bpr::application {
 		unsupported_finding_transport,
 		invalid_runtime_metadata,
 		input_too_large,
+		/// [[BPR-1375]]. The agent answered that it is not signed in (Claude's
+		/// assistant frame with `error: "authentication_failed"`), before
+		/// any model was asked. Told apart from a malformed or failed turn
+		/// so the person is told to sign in rather than that it broke.
+		not_signed_in,
 	};
 
 	/// \brief The number of declared protocol failures.
 	///
 	/// \details Exists so a sweep over the causes can be exhaustive rather than
 	/// a sample: a new failure that nothing distinguishes fails the count.
-	inline constexpr std::size_t agent_protocol_failure_count = 14U;
+	inline constexpr std::size_t agent_protocol_failure_count = 15U;
 
 	static_assert(
 		static_cast<std::size_t>(
-			agent_protocol_failure::input_too_large)
+			agent_protocol_failure::not_signed_in)
 				+ 1U
 			== agent_protocol_failure_count,
 		"agent_protocol_failure_count must cover every declared failure");

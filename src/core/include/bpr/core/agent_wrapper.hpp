@@ -65,6 +65,24 @@ namespace bpr::core {
 	/// control characters. A stored path is checked again before each launch.
 	[[nodiscard]] auto storable_agent_wrapper(std::string_view aPath) noexcept -> bool;
 
+	/// \brief [[BPR-1375]]. The longest Claude model name stored or launched.
+	inline constexpr std::size_t maximum_claude_model_bytes = 128U;
+
+	/// \brief [[BPR-1375]]. Whether text names a model the way Claude's
+	/// `--model` takes one.
+	///
+	/// \details ASCII letters and digits, and `.`, `_`, `-`, `:`, `@`, `/`,
+	/// `[` and `]`, at most `maximum_claude_model_bytes`, starting with a
+	/// letter or digit. So a name is never empty, never read as an option,
+	/// and never carries a space, quote or control character: it is passed as
+	/// one argument after `--model`, which is all Claude does with it. Whether
+	/// the account may use that model is Claude's answer, not this one.
+	[[nodiscard]] auto valid_claude_model(std::string_view aModel) noexcept -> bool;
+
+	/// \brief [[BPR-1375]]. Whether the text may be stored: empty, for
+	/// Claude's own default, or a valid model name.
+	[[nodiscard]] auto storable_claude_model(std::string_view aModel) noexcept -> bool;
+
 	/// \brief One line saying why, without the path.
 	[[nodiscard]] auto describe(agent_wrapper_refusal aRefusal) noexcept -> std::string_view;
 

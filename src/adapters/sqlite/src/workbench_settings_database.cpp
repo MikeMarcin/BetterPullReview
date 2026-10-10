@@ -45,8 +45,9 @@ namespace bpr::adapters::sqlite::detail {
 		/// schema step. Three admissible tables bound the whole enumerated
 		/// schema at three times this.
 		/// [[BPR-1334]] Version seventeen's Line details preference makes the
-		/// profile row twenty-seven columns.
-		constexpr std::size_t MaximumTableColumns = 27U;
+		/// profile row twenty-seven columns, and [[BPR-1375]] version
+		/// eighteen's Claude model twenty-eight.
+		constexpr std::size_t MaximumTableColumns = 28U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -151,7 +152,13 @@ namespace bpr::adapters::sqlite::detail {
 				  // [[BPR-1334]]. Schema version 17: whether Line details shows
 				  // under the comparison. Zero is shown, the default, so a
 				  // migrated row shows it.
-				  "line_details INTEGER NOT NULL DEFAULT 0 CHECK(line_details BETWEEN 0 AND 1)) STRICT";
+				  "line_details INTEGER NOT NULL DEFAULT 0 CHECK(line_details BETWEEN 0 AND 1),"
+				  // [[BPR-1375]]. Schema version 18: the profile's Claude
+				  // model, empty for Claude's own default, so a migrated row
+				  // runs Claude as it did. The bound is
+				  // `core::maximum_claude_model_bytes`, written out for the
+				  // same reason as the wrapper's.
+				  "claude_model TEXT NOT NULL DEFAULT '' CHECK(length(CAST(claude_model AS BLOB)) <= 128)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -166,6 +173,7 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		static_assert(core::writing_hook_count == core::review_preparation_hook_count + 1U, "a new hook needs its own column");
 		static_assert(core::maximum_agent_wrapper_bytes == 1024U);
+		static_assert(core::maximum_claude_model_bytes == 128U);
 		static_assert(static_cast<std::int64_t>(application::review_label_helper::on) == 1);
 		static_assert(static_cast<std::int64_t>(application::review_overview_counts::all) == 1);
 
@@ -290,6 +298,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 13                       ? ",claude_wrapper"
 				: aVersion <= 15                       ? ",writing_feedback"
 				: aVersion <= 16                       ? ",line_details"
+				: aVersion <= 17                       ? ",claude_model"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -320,7 +329,7 @@ namespace bpr::adapters::sqlite::detail {
 				+ (aVersion >= 6 ? ",drawer_controls" : "") + (aVersion >= 7 ? ",one_pane" : "")
 				+ (aVersion >= 11 ? ",writing_revision,writing_problem,writing_solution,writing_outline,writing_stop" : "")
 				+ (aVersion >= 12 ? ",feedback_marks" : "") + (aVersion >= 13 ? ",label_helper,overview_counts,label_columns" : "")
-				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "");
+				+ (aVersion >= 14 ? ",claude_wrapper" : "") + (aVersion >= 16 ? ",writing_feedback" : "") + (aVersion >= 17 ? ",line_details" : "") + (aVersion >= 18 ? ",claude_model" : "");
 			std::vector<std::string> statements;
 			if (aVersion >= 5) {
 				statements.emplace_back("ALTER TABLE workbench_preferences RENAME TO workbench_layout");
@@ -471,6 +480,17 @@ namespace bpr::adapters::sqlite::detail {
 					// [[BPR-1301]]. The Claude process wrapper: bounded text with
 					// no control character, which is all a store can judge;
 					// whether it names a program is asked at every launch.
+					// [[BPR-1375]]. The Claude model: empty or a name Claude's
+					// `--model` takes as one argument.
+					if (columnName == "claude_model") {
+						const auto  size = sqlite3_column_bytes(rows->Value, column);
+						const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(rows->Value, column));
+						if (sqlite3_column_type(rows->Value, column) != SQLITE_TEXT || size < 0 || (size > 0 && !text)
+							|| !core::storable_claude_model({ text == nullptr ? "" : text, static_cast<std::size_t>(size) })) {
+							return false;
+						}
+						continue;
+					}
 					if (columnName == "claude_wrapper") {
 						const auto  size = sqlite3_column_bytes(rows->Value, column);
 						const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(rows->Value, column));
@@ -669,11 +689,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to sixteen specifically,
-			// written out rather than derived from the constant, so a version
-			// this build has no step for is refused rather than handed to the
-			// wrong one.
-			if (*current < 0 || *current > 16) {
+			// migration named here carries versions one to seventeen
+			// specifically, written out rather than derived from the constant,
+			// so a version this build has no step for is refused rather than
+			// handed to the wrong one.
+			if (*current < 0 || *current > 17) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1005,7 +1025,7 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(failure::cancelled);
 		}
 		if (!application::valid(application::window_layout(aSettings)) || !application::valid(aSettings.Behaviour) || !core::valid(aSettings.WritingHooks)
-			|| !core::storable_agent_wrapper(aSettings.ClaudeWrapper)) {
+			|| !core::storable_agent_wrapper(aSettings.ClaudeWrapper) || !core::storable_claude_model(aSettings.ClaudeModel)) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		if (auto begin = execute(Handle, "BEGIN IMMEDIATE", aStop); !begin) {
@@ -1021,8 +1041,8 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26) "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1039,7 +1059,8 @@ namespace bpr::adapters::sqlite::detail {
 			"drawer_controls = excluded.drawer_controls,"
 			"one_pane = excluded.one_pane, writing_revision = excluded.writing_revision, writing_problem = excluded.writing_problem, writing_solution = excluded.writing_solution, writing_outline = excluded.writing_outline, writing_stop = excluded.writing_stop, feedback_marks = excluded.feedback_marks,"
 			"label_helper = excluded.label_helper, overview_counts = excluded.overview_counts, label_columns = excluded.label_columns,"
-			"claude_wrapper = excluded.claude_wrapper, writing_feedback = excluded.writing_feedback, line_details = excluded.line_details");
+			"claude_wrapper = excluded.claude_wrapper, writing_feedback = excluded.writing_feedback, line_details = excluded.line_details,"
+			"claude_model = excluded.claude_model");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1058,6 +1079,7 @@ namespace bpr::adapters::sqlite::detail {
 		const auto labelColumns = core::feedback_label_columns_text(aSettings.Behaviour.LabelColumns);
 		if (sqlite3_bind_text(statement->Value, 23, labelColumns.data(), static_cast<int>(labelColumns.size()), SQLITE_TRANSIENT) != SQLITE_OK
 			|| sqlite3_bind_text(statement->Value, 24, aSettings.ClaudeWrapper.data(), static_cast<int>(aSettings.ClaudeWrapper.size()), SQLITE_TRANSIENT) != SQLITE_OK
+			|| sqlite3_bind_text(statement->Value, 27, aSettings.ClaudeModel.data(), static_cast<int>(aSettings.ClaudeModel.size()), SQLITE_TRANSIENT) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 21, static_cast<std::int64_t>(aSettings.Behaviour.LabelHelper)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 22, static_cast<std::int64_t>(aSettings.Behaviour.OverviewCounts)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 20, static_cast<std::int64_t>(aSettings.Behaviour.FeedbackMarks)) != SQLITE_OK
@@ -1357,7 +1379,7 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1473,6 +1495,16 @@ namespace bpr::adapters::sqlite::detail {
 		if (!core::storable_agent_wrapper(wrapper)) {
 			return std::unexpected(failure::integrity_failure);
 		}
+		// [[BPR-1375]]. The Claude model, read as stored and admitted again.
+		const auto  modelBytes = sqlite3_column_bytes(statement->Value, 26);
+		const auto* modelText  = reinterpret_cast<const char*>(sqlite3_column_text(statement->Value, 26));
+		if (sqlite3_column_type(statement->Value, 26) != SQLITE_TEXT || modelText == nullptr || modelBytes < 0) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto model = std::string{ modelText, static_cast<std::size_t>(modelBytes) };
+		if (!core::storable_claude_model(model)) {
+			return std::unexpected(failure::integrity_failure);
+		}
 		return application::workbench_layout_settings{
 			.Files         = *files,
 			.Conversations = *conversations,
@@ -1500,6 +1532,7 @@ namespace bpr::adapters::sqlite::detail {
 			},
 			.WritingHooks  = std::move(hooks),
 			.ClaudeWrapper = std::move(wrapper),
+			.ClaudeModel   = std::move(model),
 		};
 	}
 

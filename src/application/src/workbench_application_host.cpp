@@ -905,7 +905,7 @@ namespace bpr::application {
 				defaults.UpdatesLine = core::workbench_updates_line::folded;
 				defaults.SummaryFraction.reset();
 				defaults.LineDetailsHeight.reset();
-				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults, Layout.WritingHooks, Layout.ClaudeWrapper };
+				PendingPreferences        = workbench_profile_preferences{ Layout.Behaviour, defaults, Layout.WritingHooks, Layout.ClaudeWrapper, Layout.ClaudeModel };
 				PendingPreferenceDefaults = true;
 				if (!Preferences->apply_defaults(PendingPreferences->NewWindowDefaults)) {
 					PendingPreferences.reset();
@@ -1761,7 +1761,7 @@ namespace bpr::application {
 				defaults.UpdatesLine = core::workbench_updates_line::folded;
 				defaults.SummaryFraction.reset();
 				defaults.LineDetailsHeight.reset();
-				Preferences->adopt_loaded({ aResult->Behaviour, defaults, aResult->WritingHooks, aResult->ClaudeWrapper });
+				Preferences->adopt_loaded({ aResult->Behaviour, defaults, aResult->WritingHooks, aResult->ClaudeWrapper, aResult->ClaudeModel });
 			}
 			Layout = *aResult;
 			if (profile_defaults_scoped()) {

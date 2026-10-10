@@ -128,6 +128,41 @@ namespace bpr::qt {
 		label->setBuddy(Path);
 		form->addRow(label, wrapper);
 
+		// [[BPR-1375]], owner 2026-10-09. The model Claude is asked for, as
+		// one `--model` argument; empty leaves the choice to Claude.
+		auto* const model      = new QWidget{ this };
+		auto* const modelStack = new QVBoxLayout{ model };
+		modelStack->setContentsMargins(0, 0, 0, 8);
+		auto* const modelLine = new QHBoxLayout{ };
+		Model                 = new QLineEdit{ model };
+		Model->setObjectName(QStringLiteral("claudeModel"));
+		Model->setAccessibleName(tr("Claude model"));
+		Model->setAccessibleDescription(tr("Model name passed to claude with --model for this profile"));
+		Model->setPlaceholderText(tr("Claude's default"));
+		Model->setClearButtonEnabled(true);
+		Model->setMaxLength(static_cast<int>(core::maximum_claude_model_bytes));
+		modelLine->addWidget(Model, 1);
+		ModelSave = new QPushButton{ tr("Save"), model };
+		ModelSave->setObjectName(QStringLiteral("claudeModelSave"));
+		ModelSave->setAccessibleName(tr("Save Claude model"));
+		modelLine->addWidget(ModelSave);
+		modelStack->addLayout(modelLine);
+		ModelStatus = note({ }, model);
+		ModelStatus->setObjectName(QStringLiteral("claudeModelStatus"));
+		ModelStatus->setAccessibleName(tr("Claude model status"));
+		ModelStatus->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		ModelStatus->hide();
+		modelStack->addWidget(ModelStatus);
+		auto* const modelHelp = note(tr("Passed to claude as --model for tour writing and Ask agent requests in this profile, for example "
+										"claude-sonnet-5-5. Leave it empty to use Claude's own default."),
+									 model);
+		modelHelp->setObjectName(QStringLiteral("claudeModelHelp"));
+		modelStack->addSpacing(4);
+		modelStack->addWidget(modelHelp);
+		auto* const modelLabel = new QLabel{ tr("Model"), this };
+		modelLabel->setBuddy(Model);
+		form->addRow(modelLabel, model);
+
 		// [[BPR-1301]], owner 2026-10-06 ("Accept (no switch)"). BetterPullReview
 		// has no sign-in of its own for an agent, so there is nothing to switch.
 		auto* const signIn = note(tr("Claude and your wrapper handle sign-in. BetterPullReview never asks."), this);
@@ -135,6 +170,8 @@ namespace bpr::qt {
 		form->addRow(tr("Sign-in"), signIn);
 		column->addLayout(form);
 
+		connect(ModelSave, &QPushButton::clicked, this, [this] { save_model(); });
+		connect(Model, &QLineEdit::returnPressed, this, [this] { save_model(); });
 		connect(SaveButton, &QPushButton::clicked, this, [this] { save(Path->text()); });
 		connect(Path, &QLineEdit::returnPressed, this, [this] { save(Path->text()); });
 		connect(Choose, &QPushButton::clicked, this, [this] {
@@ -166,6 +203,44 @@ namespace bpr::qt {
 		Found->setVisible(aSaved.empty() && !Found->text().isEmpty());
 		relayout(Found);
 		locate();
+	}
+
+	void claude_wrapper_panel::set_model_dispatch(std::function<bool(std::string)> aSave)
+	{
+		SaveModel = std::move(aSave);
+	}
+
+	void claude_wrapper_panel::present_model(const std::string_view aSaved)
+	{
+		const auto changed = !ModelPresented || SavedModel != aSaved;
+		ModelPresented     = true;
+		SavedModel         = std::string{ aSaved };
+		if (!changed) {
+			return;
+		}
+		Model->setText(text(aSaved));
+		show_model_status(aSaved.empty() ? tr("Using Claude's default model.") : tr("Saved for this profile."));
+	}
+
+	void claude_wrapper_panel::save_model()
+	{
+		const auto typed = utf8(Model->text().trimmed());
+		if (!core::storable_claude_model(typed)) {
+			show_model_status(tr("Not saved. Use the model's name as claude --model takes it: letters, digits and . _ - : @ / [ ], starting with a letter or digit."));
+			return;
+		}
+		if (!SaveModel || !SaveModel(typed)) {
+			show_model_status(tr("Not saved. This profile's settings are not available yet."));
+			return;
+		}
+		show_model_status(typed == SavedModel ? (typed.empty() ? tr("Using Claude's default model.") : tr("Saved for this profile.")) : tr("Saving…"));
+	}
+
+	void claude_wrapper_panel::show_model_status(const QString& aText)
+	{
+		ModelStatus->setText(aText);
+		ModelStatus->setVisible(!aText.isEmpty());
+		relayout(ModelStatus);
 	}
 
 	void claude_wrapper_panel::show_found(const std::optional<core::claude_search_candidate>& aFound)

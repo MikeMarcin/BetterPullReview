@@ -37,6 +37,13 @@ namespace bpr::qt {
 		void set_dispatch(std::function<void(std::string)> aSave, std::function<void()> aLocate = { });
 		/// The profile's saved wrapper, empty for none.
 		void present(std::string_view aSaved);
+		/// [[BPR-1375]]. `aSave` hands a model name, already admitted by
+		/// `core::storable_claude_model`, to the host and answers whether the
+		/// write was taken.
+		void set_model_dispatch(std::function<bool(std::string)> aSave);
+		/// [[BPR-1375]]. The profile's saved Claude model, empty for Claude's
+		/// own default.
+		void present_model(std::string_view aSaved);
 		void show_answer(const application::claude_wrapper_answer& aAnswer);
 		void show_found(const std::optional<core::claude_search_candidate>& aFound);
 
@@ -47,6 +54,8 @@ namespace bpr::qt {
 		void save(const QString& aText);
 		void show_status(const QString& aText);
 		void locate();
+		void save_model();
+		void show_model_status(const QString& aText);
 
 		std::function<void(std::string)> Save;
 		std::function<void()>            Locate;
@@ -57,6 +66,12 @@ namespace bpr::qt {
 		QPushButton*                     SaveButton = nullptr;
 		QLabel*                          Status     = nullptr;
 		QLabel*                          Found      = nullptr;
+		std::function<bool(std::string)> SaveModel;
+		std::string                      SavedModel;
+		bool                             ModelPresented = false;
+		QLineEdit*                       Model          = nullptr;
+		QPushButton*                     ModelSave      = nullptr;
+		QLabel*                          ModelStatus    = nullptr;
 	};
 }
 

@@ -218,7 +218,14 @@ wrapper always wins ([[BPR-1301]], owner 2026-10-07). **Choose…** picks the fi
 path is checked before it is saved and again before every launch, and a
 refused path is not saved: the row says why in one line (not absolute, starts
 with `~`, nothing there, a folder, not executable, and on Windows not an `.exe`
-or a `.bat`/`.cmd`, which only `cmd.exe` runs). The **Sign-in** line reads
+or a `.bat`/`.cmd`, which only `cmd.exe` runs). **Model** ([[BPR-1375]],
+owner 2026-10-09) is the Claude model saved for the profile, for example
+`claude-sonnet-5-5`, passed to `claude` as `--model` for tour writing and Ask
+agent requests; empty uses Claude's own default. **Save** or Return saves it.
+A name `--model` could not take as one plain argument (a space, a quote, a
+leading `-`, anything but letters, digits and `. _ - : @ / [ ]`, or more than
+128 bytes) is not saved, and the row says so. Review Cycle Send to Agent does
+not use it yet. The **Sign-in** line reads
 "Claude and your wrapper handle sign-in. BetterPullReview never asks." Every
 line under Claude is set in the page's own text colour and size, at 4.5:1 or
 better against the page in each theme, and wraps without being cut off.

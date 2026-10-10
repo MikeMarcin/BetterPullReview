@@ -700,6 +700,7 @@ namespace {
 				 failure::causal_violation,
 				 failure::invalid_runtime_metadata,
 				 failure::input_too_large,
+				 failure::not_signed_in,
 			 }) {
 			values.push_back(static_cast<std::uint8_t>(existing));
 		}

@@ -7883,10 +7883,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// profile has just published, and so does the row.
 					ClaudeWrapperSource->set(aPreferences.ClaudeWrapper);
 					Window->claude_wrapper()->present(aPreferences.ClaudeWrapper);
+					// [[BPR-1375]]. The next Claude request names this model.
+					ClaudeModel = aPreferences.ClaudeModel;
+					Window->claude_wrapper()->present_model(aPreferences.ClaudeModel);
 #endif
 				}
 			});
 #if defined(BPR_AGENT_INTEGRATIONS)
+			Window->claude_wrapper()->set_model_dispatch([this](std::string aModel) { return !Closing && Profile->WorkbenchPreferences->apply_claude_model(std::move(aModel)); });
 			ClaudeWrapperEditor = std::make_unique<application::claude_wrapper_editor>(*Profile->WorkbenchPreferences, WorkbenchEffects, DecisionLane, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
 			Window->claude_wrapper()->set_dispatch(
 				[this](std::string aPath) {
@@ -10118,6 +10122,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				message = apply_writing_result(operation, *result);
 			} else if (aResult.Outcome == application::agent_run_outcome::success) {
 				message = "Assistance returned an invalid, unsupported or stale result. Your text is unchanged.";
+			} else if (aResult.ProtocolFailure == application::agent_protocol_failure::not_signed_in) {
+				// [[BPR-1375]]. Writing runs only Claude, on its own sign-in.
+				message = "Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged.";
 			}
 			WritingState.cancel();
 			if (operation.Test) {
@@ -14426,6 +14433,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return false;
 			}
 			auto privateRun = aWritingOnly ? std::optional<application::private_run_intent>{ } : ExplicitPrivateRun;
+			// [[BPR-1375]], owner 2026-10-09. A Claude request names the
+			// profile's saved model unless the request already names one.
+			auto requested = PrivateRequested;
+			if (aProfile == core::claude_stream_json_profile_id && !requested.Model && !ClaudeModel.empty()) {
+				requested.Model = ClaudeModel;
+			}
 			if (!aWritingOnly && !privateRun && PrivateReview) {
 				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());
 			}
@@ -14439,7 +14452,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.FrozenFiles            = std::move(aFrozen),
 				.ContinuedSession       = aContinuedSession,
 				.WritingOnly            = aWritingOnly,
-				.RequestedSettings      = PrivateRequested,
+				.RequestedSettings      = std::move(requested),
 				.PrivateRun             = std::move(privateRun),
 			});
 			return true;
@@ -17398,8 +17411,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::shared_ptr<application::claude_process_wrapper_source> ClaudeWrapperSource = std::make_shared<application::claude_process_wrapper_source>();
 		std::unique_ptr<application::wrapped_claude_process>        ClaudeProcess;
 		std::unique_ptr<application::claude_wrapper_editor>         ClaudeWrapperEditor;
-		std::unique_ptr<composition_agent_invocation_projection>    AgentProjections;
-		std::unique_ptr<application::agent_invocation_host>         AgentHost;
+		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
+		std::string                                              ClaudeModel;
+		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
+		std::unique_ptr<application::agent_invocation_host>      AgentHost;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;

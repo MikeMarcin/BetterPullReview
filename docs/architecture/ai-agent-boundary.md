@@ -73,7 +73,14 @@ launcher starts as it is; with no wrapper saved the launch searches for it
 - **No environment widening.** Provider configuration lives in
   `~/.claude/settings.json`, reached through the allowlisted `HOME`, or is set
   by the wrapper itself; a wrapper that wants `AWS_PROFILE` or a gateway URL
-  sets it inside its own script.
+  sets it inside its own script. The one name added since is `USER`, on the
+  shipped Claude profile only ([[BPR-1375]]): a login name, not a secret. On
+  macOS Claude Code files its account sign-in in the login keychain under it,
+  and without it every request answered "Not logged in" although the person
+  was signed in (Claude Code 2.1.296, 2026-10-09: `claude auth status` reads
+  `loggedIn: false` with `HOME`, `PATH`, `LANG` and `TMPDIR` alone and `true`
+  once `USER` is added). BetterPullReview never reads the keychain or the
+  sign-in itself.
 - **No wrapper: `claude` on `PATH`.** Owner amendment, 2026-10-07, verbatim:
   "Yes, search PATH (Recommended)". With no wrapper saved, a Claude request
   that names the bare `claude` runs the first `claude` (`claude.exe` on
@@ -104,7 +111,21 @@ launcher starts as it is; with no wrapper saved the launch searches for it
 - **Sign-in is Claude's.** BetterPullReview has no agent sign-in prompt or
   check, so it offers no "don't prompt to sign in" switch (owner, 2026-10-06,
   "Accept (no switch)"); the page says in one line that sign-in is left to
-  Claude and the wrapper.
+  Claude and the wrapper. Tool-free writing uses the same sign-in as every
+  other Claude request: the person's own Claude account, read by Claude
+  ([[BPR-1375]], owner 2026-10-09, verbatim: "no claude should use -p or the
+  equivalent, the free version cli api same as codex"). When Claude answers
+  that it is not signed in (`error: "authentication_failed"`), the request ends
+  as `not_signed_in` and the tour editor says "Claude isn't signed in. Run
+  claude auth login in a terminal, then try again. Your text is unchanged."
+- **Model.** [[BPR-1375]], owner 2026-10-09. The row's **Model** is one name
+  saved for the profile and passed as `--model NAME` after Claude's print-mode
+  arguments, for tour writing and Ask agent requests whose request names no
+  model of its own. Only letters, digits and `. _ - : @ / [ ]`, starting with
+  a letter or digit and at most 128 bytes, are admitted, at the row, in the
+  store and again by the launch builder, so it is always exactly one argument
+  and never an option. Whether the account may use the model is Claude's
+  answer.
 - **Trust.** The wrapper is code the reviewer chose, at the same trust as
   choosing which `claude` to run, and BetterPullReview does not verify that it
   runs Claude. Under an explicit GHES host the "approved corporate harness" is
@@ -1170,7 +1191,7 @@ none of these four transports has a typed content-self-report field.
 |---|---|---|---|
 | Codex App Server | `thread/start.params.model`; `turn/start.params.model` and `.effort` | `thread/start.result.model`, `.reasoningEffort`, `.thread.id`; `turn/start.result.turn.id` | Tool version, remote session/run, content-self-report |
 | Codex JSONL exec | Explicit settings refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
-| Claude stream JSON | Explicit settings refuse as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model` | Effort, remote thread/turn/run, content-self-report |
+| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort refuses as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model` | Effort, remote thread/turn/run, content-self-report |
 | External terminal | Explicit settings refuse as `unsupported_runtime_settings` | None | All runtime facts |
 
 These are field-specific observations, not provider-execution attestation.
@@ -1270,6 +1291,74 @@ session persistence and rejects protocol frames that violate that mode. Other
 unqualified protocols refuse writing assistance. This application contract and
 its deterministic process canaries do not attest an installed vendor binary or
 model's semantic quality.
+
+### Tool-free writing on the person's own sign-in (BPR-1375)
+
+Owner decision, 2026-10-09, verbatim: "no claude should use -p or the
+equivalent, the free version cli api same as codex". Writing runs the installed
+CLI non-interactively on the person's own subscription sign-in, never a paid
+API key. For Claude that is:
+
+```text
+claude -p --input-format stream-json --output-format stream-json --verbose
+  [--model NAME]
+  --tools "" --disallowedTools "*" --strict-mcp-config --mcp-config '{"mcpServers":{}}'
+  --setting-sources "" --disable-slash-commands --no-session-persistence
+  --settings '{"disableAllHooks":true,"autoMemoryEnabled":false,
+              "enabledPlugins":{"cc-plugin-agents-md@builtin":false,
+                                "cc-plugin-telemetry@builtin":false,
+                                "cc-plugin-plugin-authoring@builtin":false}}'
+```
+
+(`application::claude_writing_restrictions`. The line breaks are for
+reading; the settings JSON is one argument.) There is no `--bare`:
+its own help says it reads only `ANTHROPIC_API_KEY` or an `apiKeyHelper` and
+never OAuth or the keychain, so with it a person signed in to their Claude
+account could never write a tour. What `--bare` also skipped is held off
+another way, each checked against Claude Code 2.1.296 on 2026-10-09 with a
+loopback stand-in for the Messages API and a debug log, in a folder holding a
+planted `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json` (a hook) and
+`.mcp.json` (a server):
+
+| `--bare` skipped | Held off by | Observed |
+|---|---|---|
+| `CLAUDE.md` auto-discovery | `--setting-sources ""`, and the empty folder below | Neither planted file reached the system prompt or messages |
+| Hooks | `disableAllHooks`, no settings source | The planted hook did not run |
+| Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no settings source names a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder |
+| Auto-memory | `autoMemoryEnabled: false` | No memory section in the prompt; no `memory_paths` in the init frame |
+| MCP servers, claude.ai connectors | `--strict-mcp-config` with an empty configuration | `mcp_servers: []`, signed in with a Claude account too |
+| LSP | No plugin, no settings source | Zero LSP servers |
+| Background prefetches | Not held off | Claude still fetches its own bootstrap from Anthropic, on the same sign-in |
+| Keychain reads | Wanted: this is the sign-in | `apiKeySource: "none"`, the account answers |
+
+The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
+the temporary folder), made by the agent adapter and removed when the request
+ends, never the review workspace, so nothing from the reviewed repository is
+where Claude starts and nothing left there outlives the request. The decoder
+refuses, before any text is read, an init frame that reports a tool, an MCP
+server, a plugin or an auto-memory folder, so a plugin a later Claude builds
+in stops the request rather than riding along. It reads past `system` frames
+other than init and `rate_limit_event`, which 2.1.296 writes around a turn. The
+child environment is the profile allowlist, `USER` included (above). Claude
+writes its own state under `HOME` as it does for any run (`~/.claude.json`, an
+empty `~/.claude/sessions`), and in print mode it opens a same-user socket
+under `/tmp/cc-socks/` for its own messaging; neither is in the working folder
+and neither is BetterPullReview's.
+
+**Codex is not offered.** Codex CLI 0.162.1 (and 0.155.1 before it) cannot
+be made tool-free for any model a ChatGPT account lists: every listed model
+is `code_mode_only` with multi-agent tools. With `--ignore-user-config`, a
+read-only sandbox, an empty `mcp_servers`, web search disabled and every
+feature flag that names a tool turned off (`shell_tool`, `unified_exec`,
+`multi_agent`, `multi_agent_v2`, `apps`, `plugins`, `view_image`,
+`image_generation`, `browser_use`, `computer_use`, `goals`, `hooks`,
+`tool_suggest`, `skill_search` and more), the request Codex sends still
+declares `exec` (JavaScript that calls nested `apply_patch` and MCP resource
+reads), `wait`, `request_user_input`, `request_user_input_async` and the six
+`collaboration` tools (`spawn_agent` among them), observed on a loopback
+stand-in for the Responses API on 2026-10-09. Neither `codex exec` nor the App
+Server's `thread/start` takes a tool list. Codex writing stays refused before
+any process starts until Codex can run with no tools.
 
 Only bounded admitted context accompanies the request; credentials, general
 private notes, unrelated drafts and linked-ticket retrieval are excluded. Current

@@ -764,6 +764,9 @@ namespace bpr::application {
 		/// [[BPR-1334]]. This window's preferred Line details height in
 		/// logical pixels; empty is the default height.
 		std::optional<std::uint32_t> LineDetailsHeight = { };
+		/// [[BPR-1375]]. The profile's Claude model, carried here only
+		/// because this record is what the store writes.
+		std::string ClaudeModel = { };
 
 		auto operator<=>(const workbench_layout_settings&) const = default;
 	};
@@ -795,7 +798,11 @@ namespace bpr::application {
 		/// [[BPR-1301]]. One absolute path run in place of `claude` for every
 		/// Claude launch in this profile; empty runs `claude` as before. An
 		/// agent-free build carries it unread, so its saves keep it.
-		std::string ClaudeWrapper                                           = { };
+		std::string ClaudeWrapper = { };
+		/// [[BPR-1375]], owner 2026-10-09. The model every Claude request in
+		/// this profile names with `--model`; empty leaves the choice to
+		/// Claude. Stored only as `core::storable_claude_model` admits it.
+		std::string ClaudeModel                                             = { };
 		auto        operator<=>(const workbench_profile_preferences&) const = default;
 	};
 	[[nodiscard]] inline auto window_layout(const workbench_layout_settings& aSettings) -> workbench_window_layout
@@ -829,7 +836,7 @@ namespace bpr::application {
 	}
 	[[nodiscard]] inline auto valid(const workbench_profile_preferences& aPreferences) noexcept -> bool
 	{
-		return core::valid(aPreferences.WritingHooks) && core::storable_agent_wrapper(aPreferences.ClaudeWrapper) && valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
+		return core::valid(aPreferences.WritingHooks) && core::storable_agent_wrapper(aPreferences.ClaudeWrapper) && core::storable_claude_model(aPreferences.ClaudeModel) && valid(aPreferences.Behaviour) && valid(aPreferences.NewWindowDefaults)
 			&& aPreferences.NewWindowDefaults.Geometry == workbench_window_geometry{ }
 		&& aPreferences.NewWindowDefaults.UpdatesLine == core::workbench_updates_line::folded
 			&& !aPreferences.NewWindowDefaults.SummaryFraction && !aPreferences.NewWindowDefaults.LineDetailsHeight;
@@ -876,7 +883,7 @@ namespace bpr::application {
 			auto defaults     = window_layout(*loaded);
 			defaults.Home     = { };
 			defaults.Geometry = { };
-			return workbench_profile_preferences{ loaded->Behaviour, defaults, loaded->WritingHooks, loaded->ClaudeWrapper };
+			return workbench_profile_preferences{ loaded->Behaviour, defaults, loaded->WritingHooks, loaded->ClaudeWrapper, loaded->ClaudeModel };
 		}
 		[[nodiscard]] virtual auto store_preferences(const workbench_profile_preferences& aPreferences,
 													 std::stop_token                      aStop) -> workbench_settings_result<void>
@@ -886,6 +893,7 @@ namespace bpr::application {
 			auto settings          = combined_layout(aPreferences.NewWindowDefaults, aPreferences.Behaviour);
 			settings.WritingHooks  = aPreferences.WritingHooks;
 			settings.ClaudeWrapper = aPreferences.ClaudeWrapper;
+			settings.ClaudeModel   = aPreferences.ClaudeModel;
 			return store(settings, aStop);
 		}
 		/// Retains only explicitly authoritative stable window IDs; empty removes all layout rows.

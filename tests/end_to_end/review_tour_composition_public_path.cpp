@@ -434,7 +434,7 @@ auto main(int argc, char** argv) -> int
 
 		// [[BPR-1225]] Installed-provider qualification, run by hand and never
 		// registered with CTest: it spends real inference and needs the network.
-		// argv: --installed-writing PATH-DIRECTORY (WRAPPER | -). The claude found
+		// argv: --installed-writing PATH-DIRECTORY (WRAPPER | -) [MODEL [once]]. The claude found
 		// on that PATH, or the wrapper saved through the real Settings row, runs
 		// the shipped writing requests on this synthetic PR. Prose is not judged
 		// here: each step prints what the product received and kept, and only
@@ -508,10 +508,17 @@ auto main(int argc, char** argv) -> int
 				rows->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"))->click();
 				wait([&] { return rows->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"))->text() == QStringLiteral("Saved for this profile."); }, "the wrapper is saved for the profile");
 			}
+			// [[BPR-1375]]. argv[4], when given, is the Claude model saved
+			// through the real Settings row and passed as `--model`.
+			if (argc > 4) {
+				rows->findChild<QLineEdit*>(QStringLiteral("claudeModel"))->setText(QString::fromLocal8Bit(argv[4]));
+				rows->findChild<QPushButton*>(QStringLiteral("claudeModelSave"))->click();
+				wait([&] { return rows->findChild<QLabel*>(QStringLiteral("claudeModelStatus"))->text() == QStringLiteral("Saved for this profile."); }, "the model is saved for the profile");
+			}
 			window.settings()->present(qt::settings_page::agents_and_context);
 			// The found line is looked up when shown; a saved wrapper hides it.
 			static_cast<void>(e2e::wait_until_plain([&] { return !found->isVisibleTo(rows) || !found->text().isEmpty(); }, std::chrono::milliseconds{ 5'000 }));
-			report("settings", { { QStringLiteral("found_line"), found->isVisibleTo(rows) ? found->text() : QString{ } }, { QStringLiteral("wrapper"), rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"))->text() } });
+			report("settings", { { QStringLiteral("found_line"), found->isVisibleTo(rows) ? found->text() : QString{ } }, { QStringLiteral("wrapper"), rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"))->text() }, { QStringLiteral("model"), rows->findChild<QLineEdit*>(QStringLiteral("claudeModel"))->text() } });
 			window.settings()->hide();
 			window.activateWindow();
 			wait([&] { return window.isActiveWindow(); }, "the workbench is active again after Settings");
@@ -538,6 +545,13 @@ auto main(int argc, char** argv) -> int
 			infer(problemMagic);
 			report("problem-whole", { { QStringLiteral("before"), text(captured.Raw) }, { QStringLiteral("after"), text(problem->raw()) } });
 			history(problem, captured, "problem-whole-history");
+			// [[BPR-1375]]. argv[5] "once" stops after this one writing request,
+			// for a minimal live run.
+			if (argc > 5 && std::string_view{ argv[5] } == "once") {
+				shutdown(*application);
+				std::cout << "review-tour-installed-writing:done\n";
+				return EXIT_SUCCESS;
+			}
 
 			// 3. Selection: one sentence; everything outside it must survive byte for byte.
 			set(problem, "Reviewers lose their reading position when the diff reloads.\n\nthe position resets to top and you have to scroll back which is annoying and slow on big PRs.\n\nThis matters most when the author pushes during a review.");
@@ -732,11 +746,30 @@ auto main(int argc, char** argv) -> int
 				std::cerr << "writing status: " << status->text().toStdString() << " agent: " << panel->status_text().toStdString() << '\n';
 			}
 			expect(prose->raw() == expected, "the same writing request runs the saved wrapper with Claude's exact tool-free arguments");
+			// [[BPR-1375]]. The profile's Claude model, saved through its row,
+			// is passed as `--model`; a name that could read as an option is
+			// refused before it is stored.
+			auto* model       = rows->findChild<QLineEdit*>(QStringLiteral("claudeModel"));
+			auto* modelSave   = rows->findChild<QPushButton*>(QStringLiteral("claudeModelSave"));
+			auto* modelStatus = rows->findChild<QLabel*>(QStringLiteral("claudeModelStatus"));
+			model->setText(QStringLiteral("--dangerously-skip-permissions"));
+			modelSave->click();
+			expect(modelStatus->text().startsWith(QStringLiteral("Not saved. Use the model's name")), "a model name that reads as an option is refused");
+			model->setText(QStringLiteral("claude-sonnet-5-5"));
+			modelSave->click();
+			wait([&] { return modelStatus->text() == QStringLiteral("Saved for this profile."); }, "the model is saved for the profile");
+			select();
+			const auto viaModel = *prose->capture();
+			run();
+			expect(prose->raw() == viaModel.Raw.substr(0, viaModel.Selection.Begin) + "Model claude-sonnet-5-5." + viaModel.Raw.substr(viaModel.Selection.End),
+				   "the writing request names the saved model with --model");
 			shutdown(*application);
 			application.reset();
 			application    = make();
 			auto* reopened = application->window().claude_wrapper()->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
 			wait([&] { return reopened->text() == QString::fromLocal8Bit(argv[2]); }, "the wrapper survives a restart");
+			auto* reopenedModel = application->window().claude_wrapper()->findChild<QLineEdit*>(QStringLiteral("claudeModel"));
+			wait([&] { return reopenedModel->text() == QStringLiteral("claude-sonnet-5-5"); }, "the model survives a restart");
 			shutdown(*application);
 			std::cout << "review-tour-writing-wrapper:pass\n";
 			return EXIT_SUCCESS;
@@ -786,12 +819,21 @@ auto main(int argc, char** argv) -> int
 			const auto invalidSteps = prose->document()->availableUndoSteps();
 			run();
 			expect(prose->raw() == injection && prose->document()->availableUndoSteps() == invalidSteps && status->text().contains("invalid"), "extra publish field rejected without text/history mutation");
-			for (const auto* adversary : { "PROCESS_EXIT_CANARY", "TOOL_USE_CANARY", "UTF8_CANARY", "OVERSIZE_CANARY" }) {
+			for (const auto* adversary : { "PROCESS_EXIT_CANARY", "TOOL_USE_CANARY", "UTF8_CANARY", "OVERSIZE_CANARY", "PLUGIN_CANARY" }) {
 				set(adversary);
 				const auto history     = prose->document()->availableUndoSteps();
 				const auto beforeCalls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
 				run();
 				expect(prose->raw() == adversary && prose->document()->availableUndoSteps() == history && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == beforeCalls + 1, "failed restricted child never edits, retries or fabricates history");
+			}
+			// [[BPR-1375]]. A signed-out Claude is named as such; nothing changes.
+			{
+				set("SIGNED_OUT_CANARY");
+				const auto history = prose->document()->availableUndoSteps();
+				run();
+				expect(prose->raw() == "SIGNED_OUT_CANARY" && prose->document()->availableUndoSteps() == history
+						   && status->text() == QStringLiteral("Claude isn't signed in. Run claude auth login in a terminal, then try again. Your text is unchanged."),
+					   "a signed-out Claude says so and leaves the draft unchanged");
 			}
 			set("INSUFFICIENT_CANARY");
 			run();

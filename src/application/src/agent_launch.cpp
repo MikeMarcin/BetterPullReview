@@ -1,6 +1,7 @@
 #include "bpr/application/agent_launch.hpp"
 
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/review_cycle_send.hpp"
 
 #include <algorithm>
@@ -913,18 +914,35 @@ namespace bpr::application {
 			if (type == nullptr || session == nullptr || session->empty()) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
-			if (*type == "system" && aPhase == 0U) {
-				const auto* subtype = string_member(aRoot, "subtype");
-				const auto* tools   = member(aRoot, "tools");
-				const auto* servers = member(aRoot, "mcp_servers");
-				if (aWritingOnly && (!tools || tools->Kind != json_kind::array_value || !tools->Elements.empty() || !servers || servers->Kind != json_kind::array_value || !servers->Elements.empty())) {
-					return std::unexpected(agent_protocol_failure::malformed_frame);
-				}
-				if (subtype == nullptr || *subtype != "init") {
+			const auto* subtype = string_member(aRoot, "subtype");
+			if (*type == "system" && aPhase == 0U && subtype != nullptr && *subtype == "init") {
+				const auto empty = [&aRoot](const std::string_view aName) {
+					const auto* value = member(aRoot, aName);
+					return value != nullptr && value->Kind == json_kind::array_value && value->Elements.empty();
+				};
+				// [[BPR-1375]]. A writing launch reads Claude's own account of
+				// what it loaded before anything is asked: no tool, no MCP
+				// server, no plugin and no auto-memory folder. A plugin a later
+				// Claude builds in, or memory turned back on, refuses the run
+				// here rather than riding along.
+				const auto* plugins = member(aRoot, "plugins");
+				const auto* memory  = member(aRoot, "memory_paths");
+				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers") || (plugins != nullptr && !empty("plugins")) || (memory != nullptr && memory->Kind != json_kind::null_value))) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				aSession = *session;
 				aPhase   = 1U;
+				return no_protocol_events();
+			}
+			// [[BPR-1375]]. Claude 2.1.296 also writes system frames other than
+			// init (a `ui_invalidate` can come first) and a `rate_limit_event`
+			// after a turn. Neither carries output or a payload; they are read
+			// past, under the session once it is known.
+			if (*type == "system" && (subtype == nullptr || *subtype != "init") && (aPhase == 0U || *session == aSession)
+				&& !member(aRoot, agent_finding_payload_member)) {
+				return no_protocol_events();
+			}
+			if (*type == "rate_limit_event" && aPhase == 1U && *session == aSession && !member(aRoot, agent_finding_payload_member)) {
 				return no_protocol_events();
 			}
 			if (aPhase != 1U || *session != aSession) {
@@ -932,6 +950,11 @@ namespace bpr::application {
 			}
 			if (aWritingOnly && (member(aRoot, agent_finding_payload_member) || *type == "user")) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			// [[BPR-1375]]. A signed-out Claude answers with a synthetic
+			// assistant frame naming `authentication_failed`; no model ran.
+			if (const auto* error = string_member(aRoot, "error"); *type == "assistant" && error != nullptr && *error == "authentication_failed") {
+				return std::unexpected(agent_protocol_failure::not_signed_in);
 			}
 			if (*type == "assistant" || *type == "user") {
 				const auto* message = object_member(aRoot, "message");
@@ -976,7 +999,6 @@ namespace bpr::application {
 				return events;
 			}
 			if (*type == "result") {
-				const auto* subtype = string_member(aRoot, "subtype");
 				const auto* isError = member(aRoot, "is_error");
 				if (
 					subtype == nullptr || isError == nullptr
@@ -2159,6 +2181,28 @@ namespace bpr::application {
 			return { aMetadata.Requested.Model ? aMetadata.Requested.Model : aMetadata.Configured.Model,
 					 aMetadata.Requested.Effort ? aMetadata.Requested.Effort : aMetadata.Configured.Effort };
 		}
+		/// [[BPR-1375]]. Codex App Server takes a model and an effort in its
+		/// own requests; Claude takes a model as `--model`, owner 2026-10-09,
+		/// and only a name `core::valid_claude_model` admits, so it is one
+		/// argument that can never read as an option. Every other protocol
+		/// takes neither.
+		[[nodiscard]] auto supported_settings(const core::agent_protocol aProtocol, const core::agent_setting_facts& aSettings) -> bool
+		{
+			if (aProtocol == core::agent_protocol::codex_app_server) {
+				return true;
+			}
+			if (aProtocol == core::agent_protocol::claude_stream_json) {
+				return !aSettings.Effort && (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
+			}
+			return !aSettings.Model && !aSettings.Effort;
+		}
+		void append_claude_model(std::vector<std::string>& aArguments, const core::agent_setting_facts& aSettings)
+		{
+			if (aSettings.Model) {
+				aArguments.emplace_back("--model");
+				aArguments.push_back(*aSettings.Model);
+			}
+		}
 		[[nodiscard]] auto settings_json(const core::agent_runtime_metadata& aMetadata) -> std::string
 		{
 			const auto settings = effective_settings(aMetadata);
@@ -2229,7 +2273,7 @@ namespace bpr::application {
 			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
 		}
 		const auto settings = effective_settings(metadata);
-		if (aProfile.Protocol != core::agent_protocol::codex_app_server && (settings.Model || settings.Effort)) {
+		if (!supported_settings(aProfile.Protocol, settings)) {
 			return std::unexpected(agent_launch_failure::unsupported_runtime_settings);
 		}
 		if (!valid_launch_snapshot(aOptions, aProfile, aSupplement, metadata)) {
@@ -2262,13 +2306,13 @@ namespace bpr::application {
 			arguments.emplace_back("--output-format");
 			arguments.emplace_back("stream-json");
 			arguments.emplace_back("--verbose");
+			append_claude_model(arguments, settings);
 			break;
 		case core::agent_protocol::external_terminal:
 			break;
 		}
 		if (aOptions.WritingOnly) {
-			const std::vector<std::string> restrictions = { "--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "", "--bare", "--disable-slash-commands", "--no-session-persistence", "--settings", "{\"disableAllHooks\":true}" };
-			arguments.insert(arguments.end(), restrictions.begin(), restrictions.end());
+			arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
 		}
 		auto payload = encode_agent_supplement(aSupplement);
 		encode_private_into(payload, aOptions);
@@ -2310,7 +2354,7 @@ namespace bpr::application {
 			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
 		}
 		const auto settings = effective_settings(metadata);
-		if (aProfile.Protocol != core::agent_protocol::codex_app_server && (settings.Model || settings.Effort)) {
+		if (!supported_settings(aProfile.Protocol, settings)) {
 			return std::unexpected(agent_launch_failure::unsupported_runtime_settings);
 		}
 		if (aDocument.size() + input_overhead(aProfile.Protocol, metadata) > maximum_agent_input_bytes) {
@@ -2330,6 +2374,7 @@ namespace bpr::application {
 			break;
 		case core::agent_protocol::claude_stream_json:
 			arguments = { "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
+			append_claude_model(arguments, settings);
 			if (aContinue) {
 				arguments.emplace_back("--resume");
 				arguments.push_back(*aContinue);
@@ -2457,8 +2502,7 @@ namespace bpr::application {
 			|| aRequest.Metadata.ContentSelfReported != core::agent_setting_facts{ }) {
 			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
 		}
-		const auto settings = effective_settings(aRequest.Metadata);
-		if (aRequest.Protocol != core::agent_protocol::codex_app_server && (settings.Model || settings.Effort)) {
+		if (!supported_settings(aRequest.Protocol, effective_settings(aRequest.Metadata))) {
 			return std::unexpected(agent_launch_failure::unsupported_runtime_settings);
 		}
 		if (aRequest.AdmittedRun && (!core::valid_run_provenance(*aRequest.AdmittedRun) || aRequest.Run != aRequest.AdmittedRun->Run || aRequest.Session != aRequest.AdmittedRun->Session || aRequest.Protocol != aRequest.AdmittedRun->Protocol || aRequest.Metadata != aRequest.AdmittedRun->Metadata || aRequest.AdmittedRun->Outcome != core::private_run_outcome::admitted)) {

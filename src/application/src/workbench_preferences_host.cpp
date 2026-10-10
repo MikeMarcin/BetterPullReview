@@ -231,6 +231,20 @@ namespace bpr::application {
 		}
 		return host.submit(candidate);
 	}
+	auto workbench_preferences_host::apply_claude_model(std::string aModel) -> bool
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.Accepted || !core::storable_claude_model(aModel)) {
+			return false;
+		}
+		auto candidate        = host.QueuedCandidate.value_or(host.PendingCandidate.value_or(*host.Accepted));
+		candidate.ClaudeModel = std::move(aModel);
+		if (host.Pending) {
+			host.QueuedCandidate = std::move(candidate);
+			return true;
+		}
+		return host.submit(candidate);
+	}
 	void workbench_preferences_host::cancel() { Implementation->cancel(); }
 	void workbench_preferences_host::shutdown()
 	{

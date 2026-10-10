@@ -1607,6 +1607,47 @@ agent hosts, the MCP supervisor and the round sender. A build without local
 automation binds no owner command endpoint and ships no `bpr`. Neither removes
 or rewrites a stored cycle, and the reviewer's Copy, Save and manual loop remain.
 
+## Tool-free writing authentication (BPR-1375)
+
+Owner decision, 2026-10-09: tour writing runs the installed `claude -p` on the
+person's own Claude account sign-in, never a paid API key
+([AI agent boundary](ai-agent-boundary.md#tool-free-writing-on-the-persons-own-sign-in-bpr-1375)).
+
+- **Authority.** The sign-in is Claude's: Claude reads its own OAuth token
+  from the macOS login keychain (or its credentials file elsewhere).
+  BetterPullReview never reads, stores, passes or logs it, and still passes
+  no credential-bearing environment name. The one added name, `USER`, is the
+  login name the keychain item is filed under; without it a signed-in person
+  read as signed out. It is not secret, and the credential-word filter on
+  allowlisted names is unchanged.
+- **What `--bare` used to shut, shut another way.** Dropping `--bare` lets
+  Claude read the account sign-in, and also lets it load what `--bare`
+  skipped. Each is closed explicitly and checked on Claude Code 2.1.296: no
+  settings source (no project or user `CLAUDE.md`, `.claude` settings or
+  `.mcp.json`), hooks off, auto-memory off, the three built-in plugins off
+  (the telemetry plugin otherwise starts `sh` in the working folder), an empty
+  strict MCP configuration (also closing claude.ai connectors), no tools, no
+  slash commands, no session saved. The request starts in a fresh empty
+  folder the agent adapter makes and removes, not the review workspace.
+- **Fail closed on drift.** The init frame is Claude's own account of what it
+  loaded. A writing request whose init reports any tool, MCP server, plugin or
+  auto-memory folder is refused before any output is read, so a plugin a later
+  Claude builds in, which the settings above do not name, stops the request.
+- **Residual.** Managed (policy) settings still apply, as Claude's help says
+  for every mode. Claude's own bootstrap fetches to Anthropic run on the same
+  sign-in. Claude writes its state under `HOME` (`~/.claude.json`,
+  `~/.claude/sessions`), and in print mode opens a same-user, token-guarded
+  socket under `/tmp/cc-socks/` for its own messaging; a process running as
+  the same user could already act as that user. A wrapper can still drop any
+  restriction.
+- **Signed out.** Claude's synthetic `authentication_failed` answer ends the
+  request as `not_signed_in`; the tour editor says Claude is not signed in and
+  the text and its history are unchanged. No sign-in is attempted.
+- **Codex.** Not offered for writing: Codex CLI 0.162.1 always declares tools
+  (a JavaScript `exec` with nested `apply_patch`, `request_user_input`,
+  sub-agent tools) for every model a ChatGPT account lists, whatever its
+  flags, so a request is refused before any process starts.
+
 ## Claude process wrapper (BPR-1301)
 
 A profile may name one program to run in place of `claude`
@@ -1620,16 +1661,18 @@ what a Claude launch can be, never what it receives:
   reviewer's wrapper runs; host policy still decides by profile, before any
   wrapper is read.
 - **Tool-free writing.** Its restrictions (`--tools ""`, `--disallowedTools
-  "*"`, an empty MCP configuration, `--bare` and the rest) are Claude flags
-  passed to the wrapper unchanged. A wrapper can drop them, so a writing run
-  is only as tool-free as the wrapper keeps it. The decoder still refuses a
-  run whose init frame reports tools or MCP servers, or that answers with
-  anything but text.
+  "*"`, an empty MCP configuration, no settings source, hooks, auto-memory and
+  the built-in plugins off; [[BPR-1375]]) are Claude flags passed to the
+  wrapper unchanged. A wrapper can drop them, so a writing run is only as
+  tool-free as the wrapper keeps it. The decoder still refuses a run whose
+  init frame reports tools, MCP servers, plugins or an auto-memory folder, or
+  that answers with anything but text.
 - **Unchanged environment and handles.** The wrapper gets exactly Claude's
   arguments, working directory, stdin and allowlisted environment, through the
   same supervisor, process group, Job Object and three-handle list. No name is
   added for it; provider settings come from `~/.claude/settings.json` through
-  `HOME` or from the wrapper itself.
+  `HOME` or from the wrapper itself. The Claude profile's allowlist gained
+  `USER` for every Claude launch ([[BPR-1375]]; see below).
 - **No wrapper: the `claude` on `PATH`.** Owner amendment, 2026-10-07 ("Yes,
   search PATH (Recommended)"); see "Resolve executables explicitly" and
   [AI agent boundary](ai-agent-boundary.md#claude-process-wrapper). The search

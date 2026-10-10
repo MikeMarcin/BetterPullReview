@@ -83,6 +83,18 @@ namespace bpr::core {
 		return aPath.size() <= maximum_agent_wrapper_bytes && std::ranges::none_of(aPath, control);
 	}
 
+	auto valid_claude_model(const std::string_view aModel) noexcept -> bool
+	{
+		const auto alphanumeric = [](const char aByte) { return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9'); };
+		return !aModel.empty() && aModel.size() <= maximum_claude_model_bytes && alphanumeric(aModel.front())
+			&& std::ranges::all_of(aModel, [&](const char aByte) { return alphanumeric(aByte) || std::string_view{ "._-:@/[]" }.find(aByte) != std::string_view::npos; });
+	}
+
+	auto storable_claude_model(const std::string_view aModel) noexcept -> bool
+	{
+		return aModel.empty() || valid_claude_model(aModel);
+	}
+
 	auto describe(const agent_wrapper_refusal aRefusal) noexcept -> std::string_view
 	{
 		switch (aRefusal) {

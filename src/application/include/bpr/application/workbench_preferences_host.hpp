@@ -31,6 +31,9 @@ namespace bpr::application {
 		/// and runs is asked before this, on the effect lane, and again at
 		/// every launch.
 		[[nodiscard]] auto apply_claude_wrapper(std::string aPath) -> bool;
+		/// [[BPR-1375]]. Saves the profile's Claude model; empty clears it.
+		/// Refuses text `core::storable_claude_model` does not admit.
+		[[nodiscard]] auto apply_claude_model(std::string aModel) -> bool;
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto accepted() const noexcept -> const std::optional<workbench_profile_preferences>&;
