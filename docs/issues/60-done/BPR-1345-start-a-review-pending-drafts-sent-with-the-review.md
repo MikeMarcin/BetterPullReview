@@ -987,3 +987,12 @@ The reveal waits on one of three things:
 
 Which one is still being measured. Linux passes the row in Debug, and macOS
 passed it at closeout.
+
+**`sqlite_review_submission_recovery_storage` on Windows.** It failed at "a
+review with line comments is admitted exactly", in 0.05 s and again serially.
+The test writes the second comment's body as `"nit: é …"`. MSVC builds
+without `/utf-8`, so a narrow literal is encoded in the ANSI code page and
+`é` becomes the single byte `0xE9`, which is not UTF-8. The literal now
+spells the UTF-8 bytes, `"\xC3\xA9"`, which is the repository's convention
+elsewhere (`review_cycle_round_tests.cpp`). The row then passes in Debug in
+2.71 s. Only the test changed; the store is unchanged.

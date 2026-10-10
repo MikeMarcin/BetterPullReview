@@ -279,7 +279,7 @@ namespace {
 		second.Side             = core::diff_side::left;
 		second.Line             = 12U;
 		second.StartLine        = 9U;
-		second.Body             = "nit: \u00E9 \r\n kept byte for byte";
+		second.Body             = "nit: \xC3\xA9 \r\n kept byte for byte";
 		input.Proposal.Comments = { first, second };
 		const auto summaryOnly  = request();
 		expect(application::review_submission_request_fingerprint(input) != application::review_submission_request_fingerprint(summaryOnly),
