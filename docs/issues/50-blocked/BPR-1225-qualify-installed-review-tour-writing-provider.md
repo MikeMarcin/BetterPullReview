@@ -6,7 +6,7 @@ status: "Blocked"
 rfcs: []
 depends_on: ["BPR-1013"]
 metadata: {"standalone_follow_up":true,"owner_amendment":"r2-20260927-close-implemented-scope","originating_pack":"bpr-review-tour-v1","originating_rfcs":["RFC-BPR-0039","RFC-BPR-0040","RFC-BPR-0041","RFC-BPR-0042","RFC-BPR-0043"],"original_criteria":["AC43-10"],"source_card":"BPR-1013","excluded_from_terminal_scope":true,"owner_answers":{"2026-10-09":{"bpr1225-provider":"Claude code, sonnet-5-5, my account, yes\nCodex cli, gpt-6.1-sol , my account, yes","source":"wizard bpr-owner-inputs-20261009-v001, session 10567d12-3a30-44d5-ab84-ebbd3af1b500, revision 2"}}}
-blocked_by: "installed-provider-authentication"
+blocked_by: "installed-provider-result-contract"
 ---
 
 # BPR-1225: Qualify the installed review-tour writing provider
@@ -73,7 +73,7 @@ Full rows, commands and identities are in the
   unchanged. Two causes: the installed CLI is not signed in outside the
   desktop app (`claude auth status`: `loggedIn: false`), and the writing
   launch's `--bare` never reads a Claude account sign-in anyway
-  ([BPR-1375](../30-in-progress/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md)).
+  ([BPR-1375](../60-done/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md)).
   The owner's model `claude-sonnet-5-5` was passed by a wrapper; the CLI logged
   it as `unrecognized_model` but no request reached the API to confirm or
   refuse it.
@@ -110,5 +110,26 @@ equivalent, the free version cli api same as codex". Writing runs the
 installed CLIs non-interactively on the owner's own subscription sign-in
 (Claude account for `claude -p`, ChatGPT account for Codex's non-interactive
 mode), never a paid API key. The work is
-[BPR-1375](../30-in-progress/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md);
+[BPR-1375](../60-done/BPR-1375-tool-free-writing-cannot-use-a-signed-in-claude-account.md);
 this card's qualification course reruns on its result.
+
+## Rerun after BPR-1375, 2026-10-09: Claude answers, the result is refused
+
+Minimal run at the owner's request, one writing request per provider; rows
+in the [ledger](../../verification/RFC-BPR-0039-0043.md#bpr-1225-rerun-after-bpr-1375--2026-10-09).
+
+- **Claude Code 2.1.296, `claude-sonnet-5-5`, owner's Claude account.** The
+  shipped path ran one Problem request: signed in, init frame with no tools,
+  MCP servers, plugins or memory, in a fresh empty folder; `Finished:
+  success`. The product refused the answer ("invalid, unsupported or stale
+  result"), text and history unchanged. The captured answer was a good
+  rewrite whose one `recovered` note cited no supplied source
+  (`source_refs: []`), which the result contract does not allow.
+- **Codex.** Not run through the product: Codex has no tool-free writing mode
+  BetterPullReview can enforce (BPR-1375). `gpt-6.1-sol` now answers on the
+  ChatGPT account (Codex CLI 0.162.1).
+
+No product output exists, so no attended quality session was opened; AC43-10
+stays open. Blocked again, now on the result contract: either the model's
+notes meet it or the owner changes what a note on the person's own text may
+cite. Codex is blocked on a Codex mode with no tools.

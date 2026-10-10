@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1375"
 title: "Tool-free tour writing cannot use a signed-in Claude account"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -107,3 +107,58 @@ Scope given with the decision:
   (`application_review_tour_writing`, `application_review_tour_writing_wrapper`)
   still pass, and the threat model and `ai-agent-boundary.md` describe the
   chosen authentication.
+
+## Completion evidence, 2026-10-09 (Mac, branch `bpr-1375`)
+
+Code: commit `d9d5acd39` ("tool-free writing runs claude -p on the person's
+own sign-in").
+
+- **BPR-1375:auth — met.** Claude Code 2.1.296, signed in with the owner's
+  Claude account. `QT_QPA_PLATFORM=offscreen build/dev/tests/end_to_end/review_tour_composition_public_path --installed-writing /opt/homebrew/bin - claude-sonnet-5-5 once`
+  ran one Problem writing request through the shipped path, no wrapper:
+  agent status `Finished: success`. Captured once through a pass-through
+  wrapper, the init frame reported `tools: []`, `mcp_servers: []`,
+  `plugins: []`, no `memory_paths`, `apiKeySource: "none"`,
+  `model: "claude-sonnet-5-5"` and a fresh `bpr-writing-*` working folder,
+  and the folder was empty and gone afterwards. Root cause found on the way:
+  Claude files its macOS keychain sign-in under `USER`, which the profile
+  allowlist lacked (`claude auth status` read `loggedIn: false` without it,
+  `true` with it); the shipped Claude profile now passes `USER`.
+- **BPR-1375:message — met.** Signed-out 2.1.296 answers with an assistant
+  frame carrying `error: "authentication_failed"` (observed, no inference).
+  The decoder maps it to `not_signed_in`; `application_review_tour_writing`
+  checks the editor says "Claude isn't signed in. Run claude auth login in a
+  terminal, then try again. Your text is unchanged." with text and history
+  unchanged; `application_agent_launch` covers the decoder.
+- **BPR-1375:boundary — met.** `application_review_tour_writing` and
+  `application_review_tour_writing_wrapper` pass (the wrapper course also
+  saves and restarts the Model setting and refuses an option-like model);
+  `application_agent_launch`, `application_agent_protocol_loop`,
+  `application_agent_finding_protocol`, `sqlite_workbench_settings_storage`,
+  `qt_settings_window`, `qt_claude_process_wrapper`, `qt_agent_launch_canary`,
+  `qt_agent_launch_panel`, `application_agent_invocation_host`,
+  `application_writing_delivery`, `core_agent_profile`, `core_agent_wrapper`
+  and `architecture_boundaries` pass. The threat model ("Tool-free writing
+  authentication (BPR-1375)") and `ai-agent-boundary.md` ("Tool-free writing
+  on the person's own sign-in") describe the design, what `--bare` skipped
+  and how each is closed, and the residual risks.
+
+What `--bare` skipped was checked on 2.1.296 against a loopback stand-in for
+the Messages API and a debug log, with a planted `CLAUDE.md`, `AGENTS.md`,
+`.claude/settings.json` hook and `.mcp.json` server in the working folder:
+none loaded or ran. Without `enabledPlugins` off, the built-in reporting
+plugin started `sh` in the working folder; with it, no process.
+
+Codex: not shipped. Codex CLI 0.162.1 (and 0.155.1) declares `exec` (with
+nested `apply_patch` and MCP resource reads), `wait`, `request_user_input`,
+`request_user_input_async` and six `collaboration` tools for every model the
+ChatGPT account lists, whatever flags are set; neither `codex exec` nor App
+Server `thread/start` takes a tool list. Models the installed Codex lists for
+the account (`codex debug models`, 0.162.1): `gpt-6.1-sol` (GPT-6.1-Sol, its
+built-in default), `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`, `gpt-5.6-sol`,
+`gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-daybreak-blue-latest` (Daybreak Blue).
+`gpt-6.1-sol` answered on the ChatGPT account on 0.162.1.
+
+Not covered: Review Cycle Send to Agent does not use the Model setting yet;
+Windows and Linux were not run (USER is harmless there; Claude keeps its
+sign-in in a file).
