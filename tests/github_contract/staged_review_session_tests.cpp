@@ -707,6 +707,11 @@ namespace {
 		std::size_t                     Calls = 0, PendingEdits = 0, ParsedEdits = 0, RestPendingEdits = 0;
 		long                            Lowest    = 5000;
 		bool                            Exhausted = false;
+		/// [[BPR-1222]]. The two-account course's own floor, Stop gesture and
+		/// write counts. A write is any request that is not a GET.
+		long              Floor  = 500;
+		std::size_t       Writes = 0, Posts = 0, Patches = 0, StopAfterWrites = 0;
+		std::stop_source* Stop = nullptr;
 		live_relay(github_mutation_wire_transport& aInner, const std::filesystem::path& aFolder)
 			: Inner{ aInner }
 			, Log{ aFolder / "requests.log" }
@@ -722,6 +727,14 @@ namespace {
 			}
 			auto result = Inner.perform_review_mutation(aRequest, aStop, std::move(aWitness));
 			++Calls;
+			if (wire.Method != http_method::get) {
+				++Writes;
+				Posts += wire.Method == http_method::post ? 1U : 0U;
+				Patches += wire.Method == http_method::patch ? 1U : 0U;
+				if (Stop != nullptr && StopAfterWrites != 0U && Writes == StopAfterWrites) {
+					Stop->request_stop();
+				}
+			}
 			Log << static_cast<int>(wire.Operation) << ' ' << static_cast<int>(wire.Method) << ' ' << wire.Path;
 			if (const auto* success = std::get_if<github_mutation_wire_success>(&result)) {
 				Log << ' ' << success->Response.Status;
@@ -731,7 +744,7 @@ namespace {
 					if (name == "x-ratelimit-remaining") {
 						Log << " remaining=" << header.Value;
 						Lowest    = std::min(Lowest, std::stol(header.Value));
-						Exhausted = Exhausted || Lowest < 500;
+						Exhausted = Exhausted || Lowest < Floor;
 					}
 				}
 				if (wire.Operation == review_mutation_operation::staged_update_pending_comment) {
@@ -841,6 +854,268 @@ namespace {
 		expect(relay.PendingEdits == 2 && relay.ParsedEdits == 2 && relay.RestPendingEdits == 0, "both stops were edited by GraphQL while pending, and GitHub's answers parse");
 		std::cout << "live-tour:pass\n";
 	}
+	// [[BPR-1222]]. The two-account tour course on the owner's designated
+	// target: MikeMarcin authors and publishes a three-stop tour with the
+	// production session over the production `gh api` transport, the test
+	// account MikeMarcinTest reads and replies between phases (outside this
+	// program), then a reorder update is stopped after its first write in one
+	// process and resumed in the next. Run by hand, one phase per process:
+	// `--live-tour-course DIR publish-pending|publish|update|resume|observe`. DIR/state.env
+	// names the pull request and DIR/description.md holds its exact body. Not
+	// registered as a row: it writes to GitHub, and no request leaves once an
+	// answer reports fewer than 1500 remaining.
+	auto live_binding(const live_state& aState) -> application::review_mutation_target_binding
+	{
+		auto binding                     = target();
+		binding.Number                   = core::pull_request_number{ static_cast<std::uint32_t>(aState.number("number")) };
+		binding.Semantic.ExpectedHead    = *core::parse_git_commit_oid(aState.text("head"));
+		binding.BaseOid                  = *core::parse_git_commit_oid(aState.text("base"));
+		binding.HeadRef                  = aState.text("head_ref");
+		binding.BaseRef                  = aState.text("base_ref");
+		binding.RepositoryDatabaseId     = aState.number("repo_id");
+		binding.BaseRepositoryDatabaseId = aState.number("repo_id");
+		binding.RepositoryNodeId         = aState.text("repo_node");
+		binding.PullRequestDatabaseId    = aState.number("pr_id");
+		binding.PullRequestNodeId        = aState.text("pr_node");
+		return binding;
+	}
+	auto live_actor(const live_state& aState) -> application::review_mutation_acting_identity
+	{
+		auto actor       = identity();
+		actor.DatabaseId = aState.number("user_id");
+		actor.NodeId     = aState.text("user_node");
+		actor.Login      = aState.text("login");
+		return actor;
+	}
+	struct live_gh final
+	{
+		std::unique_ptr<github_cli_process_port> Process;
+		std::optional<gh_cli_transport>          Transport;
+		explicit live_gh(const live_state& aState, const std::filesystem::path& aFolder)
+		{
+			const auto profile = adapters::github::validate_github_host_profile({
+				.Profile        = credential_context().Authority.Profile,
+				.Host           = target().Semantic.Host,
+				.Revision       = credential_context().Authority.ProfileRevision,
+				.Server         = application::github_server_contract::github_com_2022_11_28,
+				.Authentication = application::github_authentication_transport::github_cli,
+				.Proxy          = application::github_proxy_mode::system,
+				.Trust          = application::github_trust_mode::system,
+				.Provenance     = adapters::github::github_profile_provenance::builtin,
+				.Hostname       = "github.com",
+				.RestRoot       = "https://api.github.com",
+				.GraphqlRoot    = "https://api.github.com/graphql",
+			});
+			expect(profile.has_value(), "the live gh profile validates");
+			std::filesystem::create_directories(aFolder / "neutral");
+			const auto configuration = validate_gh_cli_configuration({ .Executable = aState.text("gh"), .NeutralWorkingDirectory = aFolder / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = aState.text("home") }, .Https = { } });
+			expect(configuration.has_value(), "the live gh configuration validates");
+			Process = make_github_cli_process_runner();
+			Transport.emplace(*profile, *configuration, *Process);
+		}
+	};
+	// [[BPR-0144]]. Comment, Request changes and an empty Approve on a pull
+	// request another account authored, each through the production session
+	// the desktop's whole-review provider forwards to, over the production
+	// `gh api` transport as the account `gh` has active. Run by hand:
+	// `--live-review-identity DIR`; DIR/state.env names the pull request and
+	// the acting (reviewing) account. Writes DIR/identity.env. Not a row.
+	void live_review_identity(const std::filesystem::path& aFolder)
+	{
+		const live_state state{ aFolder };
+		live_gh          gh{ state, aFolder };
+		live_relay       relay{ *gh.Transport, aFolder };
+		relay.Floor                                      = 1500;
+		const auto                               binding = live_binding(state);
+		const auto                               actor   = live_actor(state);
+		const live_review_mutation_configuration live{ .CredentialContext = credential_context(), .Target = binding, .ActingIdentity = actor };
+		auto                                     opened = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aFolder, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = static_cast<std::int64_t>(state.number("number")) });
+		expect(opened.has_value(), "the identity journal opens");
+		review_submission_session                                                           session{ relay, live, std::make_shared<lease>(), std::move(*opened) };
+		const std::array<std::tuple<core::review_disposition, const char*, const char*>, 3> course{ {
+			{ core::review_disposition::comment, "COMMENT", "BPR-0144 live check: Comment by the signed-in account." },
+			{ core::review_disposition::request_changes, "REQUEST_CHANGES", "BPR-0144 live check: Request changes by the signed-in account." },
+			{ core::review_disposition::approve, "APPROVE", "" },
+		} };
+		std::ofstream                                                                       out{ aFolder / "identity.env" };
+		std::uint64_t                                                                       ordinal = 0;
+		for (const auto& [disposition, name, body] : course) {
+			++ordinal;
+			const application::review_submission_request request{ .Proposal = { .Draft = core::review_submission_draft_id{ 100U + ordinal }, .Attempt = core::review_submission_attempt_id{ ordinal }, .Target = binding.Semantic, .ActingAccount = actor.Account, .Body = body, .Disposition = disposition }, .IdempotencyKey = std::string{ "bpr-2acct-0144-" } + name, .LiveBinding = application::review_submission_live_binding{ .Target = binding, .ActingIdentity = actor } };
+			expect(application::valid(request), "the identity request is valid");
+			const auto result = session.submit_and_reconcile(request);
+			out << name << ".publication=" << static_cast<int>(result.Publication) << '\n'
+				<< name << ".failure=" << static_cast<int>(result.Failure) << '\n';
+			if (result.Receipt) {
+				out << name << ".review=" << result.Receipt->ReviewDatabaseId.value() << '\n'
+					<< name << ".node=" << result.Receipt->ReviewNodeId << '\n'
+					<< name << ".disposition=" << static_cast<int>(result.Receipt->Disposition) << '\n';
+			}
+			out.flush();
+			expect(result.Publication == application::review_submission_publication::published && result.Receipt && result.Receipt->Disposition == disposition, "the review is published with its exact disposition");
+		}
+		out << "calls=" << relay.Calls << "\nwrites=" << relay.Writes << "\nlowest=" << relay.Lowest << '\n';
+		std::cout << "live-review-identity:pass\n";
+	}
+	constexpr auto course_key        = "bpr-2acct-1222-tour";
+	constexpr auto course_update_key = "bpr-2acct-1222-update";
+	auto           course_plan(const live_state& aState, const application::review_mutation_target_binding& aBinding, const application::review_mutation_acting_identity& aActor) -> application::staged_review_plan
+	{
+		auto input                       = plan();
+		input.Submission.LiveBinding     = application::review_submission_live_binding{ .Target = aBinding, .ActingIdentity = aActor };
+		input.Submission.Proposal.Target = aBinding.Semantic;
+		input.Submission.Proposal.Body   = "BPR-1222 two-account course: a three-stop tour for the website-only reviewer MikeMarcinTest.";
+		input.Submission.IdempotencyKey  = course_key;
+		const auto path                  = aState.text("path");
+		const auto head                  = aState.text("head");
+		const auto blob                  = "https://github.com/MikeMarcin/BPR-Test/blob/" + head + "/" + path;
+		const auto stop                  = [&](std::uint64_t aId, std::uint32_t aFirst, std::uint32_t aLast, std::string aTitle, std::string aNarrative) {
+			return application::staged_tour_stop{ core::tour_stop_id{ aId }, { .Commit = aBinding.Semantic.ExpectedHead, .Path = path, .Side = core::diff_side::right, .FirstLine = aFirst - 1U, .LastLine = aLast - 1U }, std::move(aTitle), std::move(aNarrative), blob + "#L" + std::to_string(aFirst) + "-L" + std::to_string(aLast) };
+		};
+		input.Stops = {
+			stop(1, 4, 9, "One header", "A header line without a colon is refused rather than guessed."),
+			stop(2, 12, 20, "Repeated headers", "Repeated headers are kept as lists, so a conflict can be seen."),
+			stop(3, 23, 31, "Declared length", "One declared length, and never a negative one."),
+		};
+		std::ifstream     description{ std::filesystem::path{ aState.text("folder") } / "description.md", std::ios::binary };
+		const std::string baseline{ std::istreambuf_iterator<char>{ description }, std::istreambuf_iterator<char>{ } };
+		expect(!baseline.empty(), "the pull request's exact description is read");
+		input.Description = application::staged_description_edit{ baseline, baseline, true };
+		expect(application::valid(input), "the course plan is valid");
+		return input;
+	}
+	auto course_update(const application::staged_review_plan& aPlan, const application::staged_publication_record& aPublished) -> application::staged_review_plan
+	{
+		const auto&       binding = aPlan.Submission.LiveBinding->Target;
+		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = aPlan.Owner, .Base = binding.BaseOid, .Head = binding.Semantic.ExpectedHead, .Problem = "Header parsing accepted conflicting and negative lengths.", .Solution = "Keep repeated headers as lists and refuse a conflict or a negative length.", .Revision = aPlan.Generation, .LastStopId = 3 };
+		for (const auto& stop : aPlan.Stops) {
+			draft.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Body = stop.Narrative, .Destination = stop.Source });
+		}
+		auto published = application::published_tour(aPublished, draft);
+		expect(published.has_value(), "the published tour maps onto the course draft");
+		draft = *published;
+		// The reorder: the last stop moves to the front.
+		std::rotate(draft.Stops.begin(), draft.Stops.end() - 1, draft.Stops.end());
+		++draft.Revision;
+		auto result                        = aPlan;
+		result.Submission.IdempotencyKey   = course_update_key;
+		result.Submission.Proposal.Attempt = core::review_submission_attempt_id{ 8 };
+		result.Generation                  = draft.Revision;
+		result.Stops.clear();
+		result.Description.reset();
+		result.Update = draft;
+		expect(application::valid(result), "the reorder update keeps the exact root and stop identities");
+		return result;
+	}
+	void write_course_record(const std::filesystem::path& aFile, const std::string& aPhase, const application::staged_publication_result& aResult, const live_relay& aRelay)
+	{
+		std::ofstream out{ aFile };
+		out << "phase=" << aPhase << "\nstate=" << static_cast<int>(aResult.State) << "\ncalls=" << aRelay.Calls << "\nwrites=" << aRelay.Writes << "\nposts=" << aRelay.Posts << "\npatches=" << aRelay.Patches << "\nlowest=" << aRelay.Lowest << '\n';
+		if (aResult.Record) {
+			const auto& record = *aResult.Record;
+			out << "published=" << record.Published << "\npatched=" << record.Patched << "\nupdated=" << record.Updated << "\ndescription_done=" << record.DescriptionDone << '\n';
+			if (record.Review) {
+				out << "review=" << record.Review->Id.value() << '\n';
+			}
+			if (record.Index) {
+				out << "index=" << record.Index->Id << ' ' << record.Index->WebUrl << '\n';
+			}
+			for (std::size_t i = 0; i < record.Comments.size(); ++i) {
+				out << "comment" << i << '=' << record.Comments[i].Id << ' ' << record.Comments[i].WebUrl << '\n';
+			}
+		}
+		out.flush();
+		expect(out.good(), "the course record is written");
+	}
+	void live_tour_course(const std::filesystem::path& aFolder, const std::string& aPhase)
+	{
+		auto state             = live_state{ aFolder };
+		state.Values["folder"] = aFolder.string();
+		live_gh gh{ state, aFolder };
+		std::filesystem::create_directories(aFolder / aPhase);
+		live_relay relay{ *gh.Transport, aFolder / aPhase };
+		relay.Floor                                      = 1500;
+		const auto                               binding = live_binding(state);
+		const auto                               actor   = live_actor(state);
+		const live_review_mutation_configuration live{ .CredentialContext = credential_context(), .Target = binding, .ActingIdentity = actor };
+		const auto                               initial   = course_plan(state, binding, actor);
+		const auto                               openStore = [&] {
+			auto opened = adapters::sqlite::make_review_submission_recovery_store({ .StorageRoot = aFolder, .Host = "github.com", .Account = "21", .Repository = "MikeMarcin/BPR-Test", .PullRequest = static_cast<std::int64_t>(state.number("number")) });
+			expect(opened.has_value(), "the course journal opens");
+			return std::move(*opened);
+		};
+		const auto authorize = [](const auto&) { return true; };
+		if (aPhase == "publish-pending") {
+			// Stop once the pending review holds every stop's final body, before
+			// Submit, so the reviewer account can look while it is pending.
+			review_submission_session session{ relay, live, std::make_shared<lease>(), openStore() };
+			std::stop_source          stop;
+			relay.Stop            = &stop;
+			relay.StopAfterWrites = 1U + initial.Stops.size();
+			const auto result     = session.publish_tour(initial, stop.get_token(), authorize);
+			write_course_record(aFolder / "publish-pending.env", aPhase, result, relay);
+			expect(result.State != publication_state::published && relay.Writes == relay.StopAfterWrites && result.Record && result.Record->Review && !result.Record->Published, "Stop leaves the review pending with every stop edited");
+			std::cout << "live-tour-course:publish-pending:pass\n";
+			return;
+		}
+		if (aPhase == "publish") {
+			review_submission_session session{ relay, live, std::make_shared<lease>(), openStore() };
+			const auto                result = session.publish_tour(initial, { }, authorize);
+			write_course_record(aFolder / "publish.env", aPhase, result, relay);
+			if (const auto bodies = result.Record ? application::staged_final_bodies(*result.Record) : std::nullopt) {
+				std::ofstream{ aFolder / "publish-summary.md", std::ios::binary } << bodies->first;
+				for (std::size_t i = 0; i < bodies->second.size(); ++i) {
+					std::ofstream{ aFolder / ("publish-stop" + std::to_string(i) + ".md"), std::ios::binary } << bodies->second[i];
+				}
+			}
+			expect(result.State == publication_state::published, "the three-stop tour is published");
+			std::cout << "live-tour-course:publish:pass\n";
+			return;
+		}
+		if (aPhase == "update") {
+			review_submission_session session{ relay, live, std::make_shared<lease>(), openStore() };
+			const auto                observed = session.reconcile_tour(initial);
+			expect(observed.State == publication_state::published && observed.Record && relay.Writes == 0U, "the published tour is read back without a write");
+			const auto       update = course_update(initial, *observed.Record);
+			std::stop_source stop;
+			relay.Stop            = &stop;
+			relay.StopAfterWrites = 1U;
+			const auto result     = session.publish_tour(update, stop.get_token(), authorize);
+			write_course_record(aFolder / "update.env", aPhase, result, relay);
+			expect(result.State != publication_state::published && relay.Writes == 1U, "Stop after the first update write leaves the rest unsent");
+			std::cout << "live-tour-course:update-stopped:pass\n";
+			return;
+		}
+		if (aPhase == "resume" || aPhase == "observe") {
+			auto saved = std::optional<application::staged_review_plan>{ };
+			{
+				auto store  = openStore();
+				auto record = store->load_staged(course_update_key);
+				expect(record.has_value() && record->has_value(), "the stopped update's plan is in the journal");
+				saved = (**record).Plan;
+			}
+			review_submission_session session{ relay, live, std::make_shared<lease>(), openStore() };
+			const auto                read = session.reconcile_tour(*saved);
+			write_course_record(aFolder / (aPhase + "-read.env"), aPhase, read, relay);
+			expect(relay.Writes == 0U, "restart reconciles by reads alone");
+			if (aPhase == "observe") {
+				std::cout << "live-tour-course:observe:pass\n";
+				return;
+			}
+			const auto result = session.publish_tour(*saved, { }, authorize);
+			write_course_record(aFolder / "resume.env", aPhase, result, relay);
+			if (const auto bodies = result.Record ? application::staged_final_bodies(*result.Record) : std::nullopt) {
+				std::ofstream{ aFolder / "resume-summary.md", std::ios::binary } << bodies->first;
+				for (std::size_t i = 0; i < bodies->second.size(); ++i) {
+					std::ofstream{ aFolder / ("resume-stop" + std::to_string(i) + ".md"), std::ios::binary } << bodies->second[i];
+				}
+			}
+			expect(result.State == publication_state::published && relay.Posts == 0U, "Resume finishes the update with edits only: no review is created or submitted");
+			std::cout << "live-tour-course:resume:pass\n";
+			return;
+		}
+		expect(false, "the phase is publish-pending, publish, update, resume or observe");
+	}
 #endif
 	void checkpoint(const std::filesystem::path& aRoot, const std::string& aPhase)
 	{
@@ -857,6 +1132,22 @@ namespace {
 }
 auto main(int argc, char** argv) -> int
 try {
+	if (argc == 3 && std::string_view{ argv[1] } == "--live-review-identity") {
+#if defined(__APPLE__)
+		live_review_identity(argv[2]);
+		return EXIT_SUCCESS;
+#else
+		expect(false, "the live identity course runs on macOS");
+#endif
+	}
+	if (argc == 4 && std::string_view{ argv[1] } == "--live-tour-course") {
+#if defined(__APPLE__)
+		live_tour_course(argv[2], argv[3]);
+		return EXIT_SUCCESS;
+#else
+		expect(false, "the live tour course runs on macOS");
+#endif
+	}
 	if (argc == 3 && std::string_view{ argv[1] } == "--live-tour") {
 #if defined(__APPLE__)
 		live_tour(argv[2]);

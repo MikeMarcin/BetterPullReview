@@ -1,0 +1,302 @@
+// [[BPR-0169]], [[BPR-1222]]. The shipped composition, offscreen, on the
+// owner's designated live target, reading pull requests a second GitHub
+// account (MikeMarcinTest) authored or reviews.
+//
+// Run by hand on macOS, never as a registered row: it signs in through the
+// GitHub CLI account `gh` has active and reads live GitHub. It asks for no
+// write, and a tests-enabled composition could not make one: its review
+// composer is read-only without a fixture. Between steps the course writes
+// `at-STEP` into its root and waits for `go-STEP`, so an independent client
+// can read GitHub's own state at exactly that point.
+//
+//   --course observer --root DIR --pull N --author LOGIN --path PREFIX
+//       Opens MikeMarcin/BPR-Test#N, then adds and removes a repository, an
+//       author and a path observer rule in turn through the queue controls.
+//   --course reader --root DIR --pull N
+//       Opens MikeMarcin/BPR-Test#N and stays a while, asking for nothing.
+#include "bpr/app/github_application.hpp"
+#include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/review_submission_editor.hpp"
+#include "bpr/qt/server_card.hpp"
+#include "bpr/qt/workbench_window.hpp"
+
+#include "bpr/core/review_queue.hpp"
+#include <QAction>
+#include <QApplication>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QStatusBar>
+#include <QThread>
+#include <QTimer>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+namespace {
+	using namespace bpr;
+
+	[[noreturn]] void fail(const std::string& aMessage)
+	{
+		throw std::runtime_error{ aMessage };
+	}
+
+	void say(const std::string& aLine)
+	{
+		std::cout << aLine << '\n'
+				  << std::flush;
+	}
+
+	auto wait_for(const std::function<bool()>& aDone, const std::string& aWhat, std::chrono::seconds aBudget = std::chrono::seconds{ 180 }) -> bool
+	{
+		const auto deadline = std::chrono::steady_clock::now() + aBudget;
+		while (std::chrono::steady_clock::now() < deadline) {
+			QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+			if (aDone()) {
+				return true;
+			}
+			QThread::msleep(20);
+		}
+		say("timeout:" + aWhat);
+		return false;
+	}
+
+	void require(const std::function<bool()>& aDone, const std::string& aWhat, std::chrono::seconds aBudget = std::chrono::seconds{ 180 })
+	{
+		if (!wait_for(aDone, aWhat, aBudget)) {
+			fail("timed out waiting for " + aWhat);
+		}
+	}
+
+	/// Writes `at-STEP` with its facts and waits, events still running, until
+	/// the operator's second client has read GitHub and created `go-STEP`.
+	void checkpoint(const std::filesystem::path& aRoot, const std::string& aStep, const std::string& aFacts)
+	{
+		{
+			std::ofstream out{ aRoot / ("at-" + aStep) };
+			out << aFacts << '\n';
+		}
+		say("checkpoint:" + aStep + " " + aFacts);
+		require([&] { return std::filesystem::exists(aRoot / ("go-" + aStep)); }, "go-" + aStep, std::chrono::seconds{ 1800 });
+	}
+
+	auto text(const QString& aText) -> std::string { return aText.toStdString(); }
+
+	struct options
+	{
+		std::string           Course;
+		std::filesystem::path Root;
+		int                   Pull = 0;
+		std::string           Author;
+		std::string           Path;
+	};
+
+	auto parse(const QStringList& aArguments) -> options
+	{
+		options result;
+		for (qsizetype i = 1; i + 1 < aArguments.size(); i += 2) {
+			const auto& key   = aArguments[i];
+			const auto  value = aArguments[i + 1].toStdString();
+			if (key == "--course") {
+				result.Course = value;
+			} else if (key == "--root") {
+				result.Root = value;
+			} else if (key == "--pull") {
+				result.Pull = std::stoi(value);
+			} else if (key == "--author") {
+				result.Author = value;
+			} else if (key == "--path") {
+				result.Path = value;
+			} else {
+				fail("unknown argument " + key.toStdString());
+			}
+		}
+		if ((result.Course != "observer" && result.Course != "reader") || result.Root.empty() || result.Pull <= 0
+			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))) {
+			fail("usage: --course observer|reader --root DIR --pull N [--author LOGIN --path PREFIX]");
+		}
+		return result;
+	}
+
+	/// Signs in the way a person does from Home: Use GitHub CLI, then the
+	/// github.com card's GitHub CLI offer. Returns the login the card shows.
+	auto sign_in(qt::workbench_window& aWindow) -> std::string
+	{
+		auto* const use = aWindow.use_github_cli_button();
+		if (use == nullptr) {
+			fail("no Use GitHub CLI control");
+		}
+		use->click();
+		require([&] {
+			return aWindow.github_status_text() == "GitHub account connected."
+				|| std::ranges::any_of(aWindow.server_cards(), [](qt::server_card* aCard) {
+					   return aCard->hostname() == "github.com" && aCard->cli_option() != nullptr && aCard->cli_offer_button() != nullptr && aCard->cli_offer_button()->isVisible();
+				   });
+		},
+				"GitHub CLI discovery");
+		say("cli-discovery:" + text(aWindow.github_cli_discovery_status()->text()));
+		if (aWindow.github_status_text() != "GitHub account connected.") {
+			auto offered = 0;
+			for (auto* card : aWindow.server_cards()) {
+				if (card->hostname() == "github.com" && card->cli_option() != nullptr && card->cli_offer_button() != nullptr && card->cli_offer_button()->isVisible()) {
+					++offered;
+					if (offered == 1) {
+						say("cli-offer:" + text(card->cli_offer_button()->text()));
+						card->cli_offer_button()->click();
+					}
+				}
+			}
+			say("cli-offers:" + std::to_string(offered));
+		}
+		require([&] { return aWindow.github_status_text() == "GitHub account connected."; }, "GitHub account connected");
+		std::string login;
+		for (auto* card : aWindow.server_cards()) {
+			if (card->hostname() == "github.com" && card->signed_in()) {
+				login = text(card->login_label()->text());
+				say("signed-in-card:" + login + " kind=" + text(card->kind_label()->text()));
+			}
+		}
+		return login;
+	}
+
+	void open_pull(qt::workbench_window& aWindow, int aPull)
+	{
+		aWindow.home_open_bar()->setText(QStringLiteral("MikeMarcin/BPR-Test#%1").arg(aPull));
+		say("open-enabled:" + std::string{ aWindow.home_open_action()->isEnabled() ? "yes" : "no" });
+		aWindow.home_open_action()->trigger();
+	}
+
+	void dump(qt::workbench_window& aWindow)
+	{
+		say("dump:status=" + aWindow.github_status_text());
+		say("dump:statusbar=" + text(aWindow.statusBar()->currentMessage()));
+		auto* const editor = aWindow.review_submission_editor_view();
+		say("dump:editor-status=" + text(editor->status_label()->text()) + " draft=" + (editor->shown_draft() ? "yes" : "no"));
+		say("dump:home=" + text(aWindow.home_open_bar()->text()));
+	}
+
+	/// Opens the pull request and its published tour as a reader would, and
+	/// leaves them open for a while; nothing here asks for a write.
+	void reader_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		aWindow.choose_modality(qt::review_modality::review);
+		wait_for([] { return false; }, "a reader's dwell (expected)", std::chrono::seconds{ 20 });
+		dump(aWindow);
+		checkpoint(aOptions.Root, "read", "{\"status\":\"" + aWindow.github_status_text() + "\"}");
+	}
+
+	void observer_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.add_queue_rule_action() != nullptr && aWindow.queue_rule_kind_selector() != nullptr; }, "queue controls exist");
+		const std::vector<core::observer_rule> rules{
+			{ .Kind = core::observer_rule_kind::repository, .Pattern = "MikeMarcin/BPR-Test" },
+			{ .Kind = core::observer_rule_kind::author, .Pattern = aOptions.Author },
+			{ .Kind = core::observer_rule_kind::path, .Pattern = aOptions.Path },
+		};
+		const auto enrolled = [&](const core::observer_rule& aRule) -> std::optional<core::queue_item> {
+			auto* const landing = aWindow.queue_landing();
+			for (int row = 0; row < landing->rowCount(); ++row) {
+				const auto item = landing->item_at(landing->index(row));
+				if (item && item->Ref.Number == aOptions.Pull && item->Membership.MatchedRule && item->Membership.Rule == aRule) {
+					return item;
+				}
+			}
+			return std::nullopt;
+		};
+		for (const auto& rule : rules) {
+			const auto kind     = std::string{ core::name(rule.Kind) };
+			auto*      selector = aWindow.queue_rule_kind_selector();
+			selector->setCurrentIndex(selector->findData(static_cast<int>(rule.Kind)));
+			aWindow.queue_rule_pattern_editor()->setText(QString::fromStdString(rule.Pattern));
+			require([&] { return aWindow.add_queue_rule_action()->isEnabled(); }, kind + " rule can be added");
+			aWindow.add_queue_rule_action()->trigger();
+			require([&] { return enrolled(rule).has_value(); }, "#" + std::to_string(aOptions.Pull) + " enrolled by the " + kind + " rule");
+			const auto item  = *enrolled(rule);
+			const auto facts = "{\"rule\":\"" + kind + "\",\"pattern\":\"" + rule.Pattern + "\",\"ref\":\"" + item.Ref.Host + "/" + item.Ref.Repository + "#" + std::to_string(item.Ref.Number)
+				+ "\",\"account\":\"" + item.Ref.Account + "\",\"role\":\"" + std::string{ core::name(item.Membership.Role) } + "\",\"authored\":" + (item.Membership.Authored ? "true" : "false")
+				+ ",\"requested\":" + (item.Membership.Requested ? "true" : "false") + ",\"rows\":" + std::to_string(aWindow.queue_landing()->rowCount()) + "}";
+			checkpoint(aOptions.Root, "enrolled-" + kind, facts);
+			aWindow.remove_queue_rule_action()->trigger();
+			require([&] { return !enrolled(rule).has_value() && !aWindow.remove_queue_rule_action()->isEnabled(); }, kind + " rule removed");
+			checkpoint(aOptions.Root, "removed-" + kind, "{\"rule\":\"" + kind + "\",\"rows\":" + std::to_string(aWindow.queue_landing()->rowCount()) + "}");
+		}
+	}
+}
+
+auto main(int argc, char** argv) -> int
+try {
+	QApplication qtApplication{ argc, argv };
+	QApplication::setQuitOnLastWindowClosed(false);
+	const auto chosen = parse(QCoreApplication::arguments());
+	std::filesystem::create_directories(chosen.Root / "data");
+	std::filesystem::permissions(chosen.Root / "data", std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+
+	// A question the application asks is a person's gesture. The one this
+	// course meets is the GitHub CLI read consent; the course answers Yes and
+	// logs the question word for word, so what was agreed to is on record.
+	QTimer answer;
+	answer.setInterval(100);
+	QObject::connect(&answer, &QTimer::timeout, [] {
+		auto* const box = qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+		if (box == nullptr || !box->isVisible()) {
+			return;
+		}
+		say("question:title=" + text(box->windowTitle()) + "\nquestion:text=" + text(box->text()) + "\nquestion:informative=" + text(box->informativeText()));
+		auto* const yes = box->button(QMessageBox::Yes);
+		if (yes == nullptr) {
+			say("question:no-yes-button; left open");
+			return;
+		}
+		say("question:answer=" + text(yes->text()));
+		yes->click();
+	});
+	answer.start();
+
+	app::github_application* owner    = nullptr;
+	auto                     terminal = false;
+	auto                     desktop  = app::profile_desktop::start(app::github_application_config{ .ApplicationDataRoot = chosen.Root / "data" }, [&](app::profile_desktop_startup_result aResult) {
+		terminal = true;
+		if (aResult) {
+			owner = *aResult;
+		} else {
+			say("startup-failure:" + std::to_string(static_cast<int>(aResult.error())));
+		}
+	});
+	require([&] { return terminal; }, "the profile owner starts", std::chrono::seconds{ 120 });
+	if (owner == nullptr) {
+		fail("the shipped composition did not start");
+	}
+	owner->show();
+	require([&] { return !owner->windows().empty(); }, "the first window", std::chrono::seconds{ 60 });
+	auto* const window = owner->window(owner->windows().front());
+	const auto  login  = sign_in(*window);
+	say("login:" + login);
+	if (chosen.Course == "observer") {
+		observer_course(chosen, *window);
+	} else {
+		reader_course(chosen, *window);
+	}
+	owner->begin_shutdown();
+	wait_for([&] { return owner->status().ShutdownComplete; }, "shutdown", std::chrono::seconds{ 60 });
+	say("live-second-account-course:" + chosen.Course + ":pass");
+	return EXIT_SUCCESS;
+} catch (const std::exception& error) {
+	std::cout << "live-second-account-course:fail " << error.what() << '\n'
+			  << std::flush;
+	return EXIT_FAILURE;
+}

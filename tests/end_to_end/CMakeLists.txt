@@ -4108,3 +4108,14 @@ set_tests_properties(application_review_cycle_send_public_path PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     PASS_REGULAR_EXPRESSION "review-cycle-send-public-path:pass"
     TIMEOUT 120)
+
+# [[BPR-0169]], [[BPR-1222]]. The shipped composition, offscreen, reading the
+# owner's designated live target with a second GitHub account in the course.
+# Run by hand on macOS (see the source's header); never a registered row: it
+# signs in through the active `gh` account and reads live GitHub.
+if(APPLE)
+    bpr_add_executable(test_live_second_account_course live_second_account_course.cpp)
+    target_link_libraries(test_live_second_account_course PRIVATE BetterPullReview::Composition)
+    bpr_enable_hardening(test_live_second_account_course)
+    bpr_enable_warnings(test_live_second_account_course)
+endif()
