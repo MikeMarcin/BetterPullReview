@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1222"
 title: "Qualify live GitHub.com review tours"
-status: "Blocked"
+status: "Parked"
 rfcs: []
 depends_on: ["BPR-1013"]
-blocked_by: "safe-github-tour-target"
 metadata: {"standalone_follow_up":true,"owner_amendment":"r2-20260927-close-implemented-scope","originating_pack":"bpr-review-tour-v1","originating_rfcs":["RFC-BPR-0039","RFC-BPR-0040","RFC-BPR-0041","RFC-BPR-0042","RFC-BPR-0043"],"original_criteria":["AC40-07","AC41-04","AC41-06","AC42-08"],"source_card":"BPR-1013","excluded_from_terminal_scope":true}
+parked_on: "human-review"
 ---
 
 # BPR-1222: Qualify live GitHub.com review tours
@@ -131,3 +131,128 @@ What this does not cover, so the card's course still needs:
 ## Owner session prepared, 2026-10-09 (main, Mac)
 
 The owner question above (which second account is the reviewer) is asked in BPR-0144's wizard `bpr-second-account-20261009-v001` (session `c79054f3-14cf-44fe-9645-947ffd5f6d53`, state `/Users/jaeger/.mask/wizard/bpr-second-account-20261009-v001`): it names the account, then asks whether that account may be the website-only reviewer for this card's attended course. The course itself is its own later session; nothing of it ran.
+
+## Owner wizard withdrawn, 2026-10-09
+
+The owner added `MikeMarcinTest` as the second account, so the wizard
+`bpr-second-account-20261009-v001` (session
+`c79054f3-14cf-44fe-9645-947ffd5f6d53`) was stopped (`wizard.py stop`) and
+paused with 0 of 7 steps answered. The account's capabilities on BPR-Test
+(read, fork, pull request from the fork, review and reply; `pull` access
+only) are on [BPR-0144](../60-done/BPR-0144-acting-identity-on-a-real-account.md#what-mikemarcintest-can-do-on-bpr-test-2026-10-09).
+
+## Two-account reviewer course, 2026-10-09 (PDT; GitHub times UTC 2026-10-10)
+
+The second-account rows, run by the agent: `MikeMarcin` authors, BetterPullReview
+code publishes and maintains, `MikeMarcinTest` is the reviewer reading and
+replying through `gh api` with its own token. This is row evidence; the card
+does not pass from it.
+
+**Target.** Draft `MikeMarcin/BPR-Test#50`, "bpr-2acct: BPR-1222 two-account
+tour course (disposable)", id 4807255200, node `PR_kwDOTyvof88AAAABHojkoA`,
+branch `bpr-2acct-1222-tour`, head `07aec64c3d7f5f14a94f7cc715c899f30f9e35dd`,
+base `e2a44aa8fef704de7373463222b1872e796918c6`; the description ends in an
+unrelated template paragraph. No workflows on BPR-Test.
+
+**Candidate.** Product source `e964b5a83`. Publication and maintenance ran
+through `staged_review_session --live-tour-course DIR PHASE` (harness
+`400e6ddc2`): the production `review_submission_session` over the production
+`gh_cli_transport`, gh 2.101.0, macOS, account `MikeMarcin`, one phase per
+process, stopping if `X-RateLimit-Remaining` fell below 1500 (lowest seen
+3960). Not the application's own gestures; see the gate below.
+
+| Phase | Writes | Result |
+|---|---|---|
+| publish-pending: create pending review with three RIGHT line ranges (4–9, 12–20, 23–31 of `bpr-2acct/tour/parser.py`), edit all three by GraphQL, Stop | 1 POST + 3 GraphQL | review 5476795875 PENDING; comments 4235770230, 4235770244, 4235770251 |
+| publish (new process): reconcile, submit COMMENT, separately authorised description edit appending the index link | 1 POST + 1 PATCH | COMMENTED; description ends `[Review tour](…#pullrequestreview-5476795875)`, template paragraph intact, still draft |
+| update: reorder (last stop first), Stop after the first write | 1 PATCH | stop "Declared length" renumbered 1 |
+| observe (new process): read-only reconcile | 0 | `ready`, one stop updated |
+| resume (new process): reconcile, then finish | 2 PATCH + 1 PUT, no POST | published; same three comment IDs; root body last |
+
+**Pending versus submitted visibility.** While review 5476795875 was
+PENDING, `MikeMarcinTest` saw no review and no review comment on #50, and
+`GET /pulls/comments/4235770230` answered 404; `MikeMarcin` saw his own
+PENDING review; the anonymous rendered page carried no `discussion_r` anchor
+for it. After Submit, `MikeMarcinTest` saw the COMMENTED review and the three
+comments at RIGHT 4–9, 12–20, 23–31.
+
+**Links (AC40-07, the checkable half).** Every link in the description, the
+overview ("## Review tour — Start here") and each stop's Previous, Tour
+overview and Next names a comment or review GitHub returned, and each
+`#discussion_r…`/`#pullrequestreview-…` anchor is present in the anonymous
+rendered conversation page; each pinned source permalink answers 200. The
+same held in the partial state after the stopped update (two stops then
+numbered 1, every link still resolving) and after the resumed update.
+
+**Replies through updates (AC42-08, the checkable half).** `MikeMarcinTest`
+replied to "Repeated headers" after publication (comment 4235775425), to "One
+header" while the update was stopped (4235777903), and to "Declared length"
+after it completed (4235780305). After the update every reply is in its
+original thread, each thread holds two comments, unresolved, not outdated;
+the tour comment IDs are the originals; reviews are the author's COMMENTED
+root and the reviewer's three COMMENTED reply reviews; `reviewDecision`
+stays null.
+
+**BetterPullReview readers write nothing.** The shipped composition offscreen
+(`live_second_account_course --course reader`, tests-on Release at
+`e964b5a83`) opened #50 to "Pull request ready." and stayed 20 s; a GraphQL
+read of the pull request, reviews and threads with their `updatedAt` was
+identical before, during and after.
+
+**Clean-profile reimport.** A fresh `bpr tour` data root (tests-off
+`tour-cli` build at `e964b5a83`, gh transport) `open`ed #50 complete: root
+review 5476795875 owned by `MikeMarcin`, stops 4235770251, 4235770230,
+4235770244 in the published order, each stop's narrative found in its
+server body, `prior_private_context` and `published_change_history` unknown,
+no conflict. `preview` answered `publication_readiness: needs_qualification`,
+`remote_writes: false`, and the server's comments, description and reviews
+were unchanged by it. The imported narratives keep a leading and trailing
+blank line from the rendered body; nothing was re-published from them.
+
+**The application's own Preview, Publish, Stop and Resume** cannot write
+live from either surface: production tour publication is unqualified by
+construction (`tour_remote.cpp` builds its publication context with
+`Qualified = false`; `live_review_submission_provider::publish_tour` returns
+unavailable), and a tests-enabled composition keeps its composers read-only
+without a fixture. `bpr tour preview` ran (above). Lifting the gate per row
+is the owner's decision on this evidence.
+
+**Found.** [BPR-1377](../20-ready/BPR-1377-tour-cli-pinned-source-reads-fail-over-gh-sparse-trees.md):
+`bpr tour add` cannot read pinned source over gh's sparse trees, so a live
+tour cannot be authored from the terminal over gh.
+[BPR-1378](../20-ready/BPR-1378-a-stopped-tour-publication-reports-conflict.md):
+a Stop between writes is reported as `conflict` in-process.
+
+### Attended session for the website half
+
+Session `0f7659f0e0e24a7e592e6f6266e04b7e`, state
+`/Users/jaeger/.mask/attended-review-sessions/bpr-1222-website-reviewer-20261009-v001`,
+root the main checkout; its loopback page URL carries a token and is handed
+to the owner directly. One Accept/Reject question per criterion, all on #50
+in a private browser window signed in as `MikeMarcinTest`:
+
+1. `BPR-1222-AC40-07-navigation`: from the description's "Review tour", do
+   Start here, Next, Previous and Tour overview each land where they say?
+2. `BPR-1222-AC40-07-reply`: does a reply typed in the website's own Reply
+   box post under its stop normally?
+3. `BPR-1222-AC42-08-after-update`: after the reorder, do the stops read 1
+   Declared length, 2 One header, 3 Repeated headers, with the three earlier
+   replies still under their stops?
+
+#50 and its branch stay until those verdicts are in; then close #50 and
+delete `bpr-2acct-1222-tour`.
+
+### What remains on this card
+
+- The three website verdicts above (human-review).
+- Every operation row through native HTTPS (AC41-04): needs a native device
+  sign-in by the owner.
+- Rows not exercised here: off-hunk batches, pending file-subject staging and
+  standalone file/PR fallbacks (AC41-06), pending root edits,
+  ambiguous-result reconciliation, B/L/R website-conflict choices (step 4),
+  retarget and membership removal (step 7), head advance (step 8).
+- The application's own gestures for publication, after the owner decides
+  which rows to qualify; BPR-1377 for the terminal route over gh.
+
+The card moves from Blocked on `safe-github-tour-target` (target and both
+accounts are now supplied) to Parked on `human-review`.
