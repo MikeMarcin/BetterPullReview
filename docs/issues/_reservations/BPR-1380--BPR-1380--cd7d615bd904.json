@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1380"
+  ],
+  "reserve_for": "home-tooltip-shortcut",
+  "purpose": "Show the Home shortcut in its tooltip",
+  "created": "2026-10-10T20:24:27.712706+00:00",
+  "base": "6804327ec6b2bf7d7366d231b54c6f0f758c6b9d"
+}
