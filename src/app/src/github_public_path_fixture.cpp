@@ -773,7 +773,7 @@ namespace bpr::app::detail {
 			if (aState.StagedReview && aState.StagedReview->State == application::staged_review_state::commented) {
 				comments.insert(comments.end(), aState.StagedComments.begin(), aState.StagedComments.end());
 			}
-			const auto text = [](std::string_view value) { return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size())); };
+			const auto text = [](std::string_view aValue) { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); };
 			if (aOperation == read_operation::get_pull_request) {
 				auto pull = document.object();
 				if (aState.StagedDescription) {
@@ -1624,6 +1624,53 @@ namespace bpr::app::detail {
 				std::ranges::transform(aText, aText.begin(), [](const unsigned char aCharacter) { return static_cast<char>(std::tolower(aCharacter)); });
 				return aText;
 			};
+			if (aRequest.Operation == read_operation::get_pull_request || aRequest.Operation == read_operation::list_reviews) {
+				const auto found = std::ranges::find(fixture.OpenPullRequests, semantic.PullRequestNumber, &github_personal_discovery_fixture::pull_request::Number);
+				if (!ours || found == fixture.OpenPullRequests.end()) {
+					response.Status = 404;
+					response.Body   = R"({"message":"Not Found"})";
+					return response;
+				}
+				const auto head = QString{ 40, QLatin1Char('a') };
+				if (aRequest.Operation == read_operation::list_reviews) {
+					auto reviews = QJsonArray{ };
+					if (found->ReviewedByViewer && found->ReviewedByViewer->load()) {
+						reviews.append(QJsonObject{
+							{ QStringLiteral("id"), 71001 },
+							{ QStringLiteral("node_id"), QStringLiteral("R_home_review") },
+							{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QStringLiteral("octo-reviewer") }, { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") } } },
+							{ QStringLiteral("state"), QStringLiteral("APPROVED") },
+							{ QStringLiteral("commit_id"), head },
+							{ QStringLiteral("body"), QStringLiteral("Approved") },
+						});
+					}
+					response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
+					return response;
+				}
+				auto users = QJsonArray{ };
+				for (const auto& login : found->RequestedUsers) {
+					users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
+				}
+				auto teams = QJsonArray{ };
+				for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+					teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) } });
+				}
+				const auto number = QString::number(found->Number);
+				response.Body     = QJsonDocument{ QJsonObject{
+													   { QStringLiteral("number"), static_cast<qint64>(found->Number) },
+													   { QStringLiteral("title"), QStringLiteral("Discovered pull request ") + number },
+													   { QStringLiteral("state"), QStringLiteral("open") },
+													   { QStringLiteral("url"), QString::fromStdString(std::string{ aState.Profile.rest_root() }) + QStringLiteral("/repos/%1/%2/pulls/%3").arg(QString::fromStdString(semantic.Owner), QString::fromStdString(semantic.Repository), number) },
+													   { QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QString::fromStdString(found->Author) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(found->Author) } } },
+													   { QStringLiteral("head"), QJsonObject{ { QStringLiteral("sha"), head } } },
+													   { QStringLiteral("base"), QJsonObject{ { QStringLiteral("repo"), QJsonObject{ { QStringLiteral("id"), static_cast<qint64>(aState.Descriptor.RepositoryId.value()) }, { QStringLiteral("full_name"), QString::fromStdString(semantic.Owner + "/" + semantic.Repository) } } } } },
+													   { QStringLiteral("requested_reviewers"), users },
+													   { QStringLiteral("requested_teams"), teams },
+												   } }
+										.toJson(QJsonDocument::Compact)
+										.toStdString();
+				return response;
+			}
 			if (aRequest.Operation == read_operation::list_requested_reviewers) {
 				const auto found = std::ranges::find(fixture.OpenPullRequests, semantic.PullRequestNumber, &github_personal_discovery_fixture::pull_request::Number);
 				auto       users = QJsonArray{ };
@@ -2216,8 +2263,12 @@ namespace bpr::app::detail {
 				if (Role == fixture_transport_role::account) {
 					State->AccountReadOperations.emplace_back(adapters::github::detail::operation_name(aRequest.Wire.Operation));
 				}
+				const auto retainedMetadata = (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews)
+					&& State->PersonalDiscovery && std::ranges::any_of(State->PersonalDiscovery->OpenPullRequests, [&aRequest](const github_personal_discovery_fixture::pull_request& aPullRequest) {
+												  return aPullRequest.Number == aRequest.Wire.Semantic.PullRequestNumber;
+											  });
 				if (State->PersonalDiscovery.has_value()
-					&& (aRequest.Wire.Operation == read_operation::search_personal_pull_requests || aRequest.Wire.Operation == read_operation::list_requested_reviewers)) {
+					&& (aRequest.Wire.Operation == read_operation::search_personal_pull_requests || aRequest.Wire.Operation == read_operation::list_requested_reviewers || retainedMetadata)) {
 					// The exact canonical request production validation admits,
 					// under the repository it names, or nothing is answered.
 					if (Role != fixture_transport_role::account || !adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
@@ -2227,7 +2278,7 @@ namespace bpr::app::detail {
 					if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
 						++State->DiscoverySearches;
 						State->DiscoverySearchTerms.push_back(aRequest.Wire.Semantic.SearchTerms);
-					} else {
+					} else if (aRequest.Wire.Operation == read_operation::list_requested_reviewers) {
 						++State->DiscoveryDetailReads;
 					}
 					auto discovered = personal_discovery_response(*State, aRequest.Wire);
@@ -2279,6 +2330,16 @@ namespace bpr::app::detail {
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				if (State->PersonalDiscovery && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+					// [[BPR-1379]]. The older snapshot recording omitted fields a
+					// real PR response also supplies to the lightweight Home read.
+					const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body));
+					auto       object   = document.object();
+					object.insert(QStringLiteral("url"), QString::fromStdString(std::string{ State->Profile.rest_root() }) + QStringLiteral("/repos/%1/%2/pulls/%3").arg(QString::fromStdString(aRequest.Wire.Semantic.Owner), QString::fromStdString(aRequest.Wire.Semantic.Repository)).arg(aRequest.Wire.Semantic.PullRequestNumber));
+					object.insert(QStringLiteral("requested_reviewers"), QJsonArray{ });
+					object.insert(QStringLiteral("requested_teams"), QJsonArray{ });
+					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				if (State->ReviewTourCourse) {
 					overlay_review_tour(response->Body, aRequest.Wire.Operation, State->Descriptor);
 				}

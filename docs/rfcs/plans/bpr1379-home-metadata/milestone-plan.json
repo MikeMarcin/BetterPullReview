@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1379-home-metadata",
+  "scope": {
+    "issues": [
+      "BPR-1379"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "home-metadata",
+      "outcome": "Home reads retained PR titles and submitted-review state before opening a review and on explicit Refresh.",
+      "work": [
+        {
+          "issue": "BPR-1379"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A composed Home restoration course shows titles and approved-review placement before opening a PR.",
+        "Focused provider and host regressions prove explicit Refresh, bounds and stale-result rejection."
+      ],
+      "boundary": "A corrected Home metadata path with regression evidence and architecture documentation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

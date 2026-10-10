@@ -1523,6 +1523,46 @@ namespace bpr::application {
 			persist_records(changed, std::move(prior));
 		}
 
+		void apply(queue_metadata_answer aAnswer)
+		{
+			if (Closing || !Restored || aAnswer.Session != Scheduler.session()
+				|| aAnswer.Ref.Host != aAnswer.Session.Host || aAnswer.Ref.Account != aAnswer.Session.Account) {
+				return;
+			}
+			const auto existing = Enrollments.record_for(aAnswer.Ref);
+			if (!existing || !existing->present()) {
+				return;
+			}
+			auto prior = Enrollments;
+			if (aAnswer.Closed) {
+				Enrollments.depart(aAnswer.Ref, enrollment_departure::closed);
+				persist_record(aAnswer.Ref, std::move(prior));
+				return;
+			}
+			const auto position = ActivityIndex.find(aAnswer.Ref);
+			if (position == ActivityIndex.end()) {
+				ActivityIndex.emplace(aAnswer.Ref, Activity.size());
+				Activity.push_back({ .Ref = aAnswer.Ref, .Observation = aAnswer.Activity, .Facts = std::move(aAnswer.Facts) });
+			} else {
+				auto& report                              = Activity[position->second];
+				report.Facts.Title                        = std::move(aAnswer.Facts.Title);
+				report.Facts.Author                       = std::move(aAnswer.Facts.Author);
+				report.Observation.ReviewedByMe           = aAnswer.Activity.ReviewedByMe;
+				report.Observation.HeadMovedSinceMyReview = aAnswer.Activity.HeadMovedSinceMyReview;
+				report.Observation.ReviewersAwaited       = aAnswer.Activity.ReviewersAwaited;
+				report.Observation.Known                  = aAnswer.Activity.Known;
+			}
+			// Read the submitted review before discovery can withdraw the old
+			// request: it keeps a discovered PR in Following when that request goes.
+			if (aAnswer.Activity.ReviewedByMe && !existing->Membership.Reviewed
+				&& (existing->Membership.discovered() || existing->Membership.Role == core::github_role::requested_reviewer)) {
+				Enrollments.enroll(aAnswer.Ref, { .Reviewed = true });
+				persist_record(aAnswer.Ref, std::move(prior));
+				return;
+			}
+			publish();
+		}
+
 		void apply(queue_follow_intent aIntent)
 		{
 			++Statistics.FollowIntents;
@@ -1800,6 +1840,11 @@ namespace bpr::application {
 	void review_queue_application_host::apply(queue_follow_intent aIntent)
 	{
 		Implementation->apply(std::move(aIntent));
+	}
+
+	void review_queue_application_host::apply(queue_metadata_answer aAnswer)
+	{
+		Implementation->apply(std::move(aAnswer));
 	}
 
 	void review_queue_application_host::present_discovery(queue_discovery_status aStatus)

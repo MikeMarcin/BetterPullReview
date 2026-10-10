@@ -3494,6 +3494,7 @@ namespace {
 			.CapabilityEvidence = base.CapabilityEvidence,
 			.AccountTransport   = base.AccountTransport,
 			.Reason             = aReason,
+			.Number             = aReason == application::personal_discovery_reason::retained ? std::optional{ core::pull_request_number{ 17U } } : std::nullopt,
 		};
 	}
 
@@ -3552,6 +3553,8 @@ namespace {
 		std::vector<github_wire_request>                         Requests;
 		std::function<wire_response(const github_wire_request&)> Search;
 		std::function<wire_response(std::uint32_t)>              Reviewers;
+		std::function<wire_response(const github_wire_request&)> Metadata;
+		std::function<wire_response(const github_wire_request&)> Reviews;
 
 		auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
 		{
@@ -3562,6 +3565,12 @@ namespace {
 			if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
 				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent), "the search is scoped to the repository");
 				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Search(aRequest) };
+			}
+			if (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews) {
+				expect(std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
+					   "retained metadata stays scoped to the exact enrolled PR");
+				return github_wire_success{ .Correlation = aRequest.Correlation,
+											.Response    = aRequest.Wire.Operation == read_operation::get_pull_request ? Metadata(aRequest) : Reviews(aRequest) };
 			}
 			expect(aRequest.Wire.Operation == read_operation::list_requested_reviewers
 					   && std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
@@ -3770,6 +3779,110 @@ namespace {
 		}
 	}
 
+	[[nodiscard]] auto retained_metadata(const std::string_view aRoot = "https://api.github.com") -> fixture_object
+	{
+		return {
+			{ "number", 17 },
+			{ "title", "Fix the queue before opening" },
+			{ "state", "open" },
+			{ "url", std::string{ aRoot } + "/repos/octo-org/review-repository/pulls/17" },
+			{ "user", rest_actor("U_author", "author") },
+			{ "head", fixture_object{ { "sha", std::string{ head_oid } } } },
+			{ "base", fixture_object{ { "repo", fixture_object{ { "id", 101U }, { "full_name", "octo-org/review-repository" } } } } },
+			{ "requested_reviewers", fixture_array{ rest_actor("U_other", "other") } },
+			{ "requested_teams", fixture_array{ fixture_object{ { "slug", "team" } } } },
+		};
+	}
+
+	[[nodiscard]] auto retained_review(const std::uint64_t aId, const std::string_view aState = "APPROVED") -> fixture_object
+	{
+		return {
+			{ "id", aId },
+			{ "node_id", "R_" + std::to_string(aId) },
+			{ "user", rest_actor("U_viewer", "octo-reviewer") },
+			{ "state", std::string{ aState } },
+			{ "commit_id", std::string{ head_oid } },
+			{ "body", "Review prose does not enter Home." },
+		};
+	}
+
+	void test_retained_home_metadata_read()
+	{
+		using reason = application::personal_discovery_reason;
+		for (const auto enterprise : { false, true }) {
+			auto       transport = discovery_fixture_transport{ enterprise };
+			const auto root      = enterprise ? "https://ghe.example.invalid/api/v3" : "https://api.github.com";
+			transport.Metadata   = [root](const auto&) { return success_response(fixture_json(retained_metadata(root))); };
+			transport.Reviews    = [root](const github_wire_request& aRequest) {
+				if (aRequest.Wire.Semantic.Page == 1U) {
+					auto reviews = fixture_array{ };
+					for (std::uint64_t id = 1U; id <= 100U; ++id) {
+						reviews.push_back(retained_review(id, "PENDING"));
+					}
+					return success_response(fixture_json(reviews), "<" + std::string{ root } + "/repos/octo-org/review-repository/pulls/17/reviews?page=2&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
+				}
+				return success_response(fixture_json(fixture_array{ retained_review(101U) }));
+			};
+			const auto server             = enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28;
+			auto       request            = discovery_request(reason::retained, server);
+			request.AuthenticationSession = core::application_session_id{ 7U };
+			const auto result             = perform_personal_discovery_read(transport, enterprise ? enterprise_profile() : profile(), request, { });
+			expect(result && result->Rows.size() == 1U && result->Rows.front().Title == "Fix the queue before opening"
+					   && result->Rows.front().HeadOid == application::commit_oid{ std::string{ head_oid } }
+					   && result->Rows.front().ReviewersAwaited == 2U && result->Rows.front().Reviews.size() == 101U
+					   && result->Rows.front().Reviews.back().State == application::github_review_state::approved,
+				   "retained Home read carries title, current head and complete ordered review evidence");
+			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
+					   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
+				   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");
+		}
+		for (const auto violation : { 0, 1, 2, 3 }) {
+			auto transport     = discovery_fixture_transport{ };
+			transport.Metadata = [violation](const auto&) {
+				auto metadata = retained_metadata();
+				if (violation == 0) {
+					metadata["number"] = 18;
+				}
+				if (violation == 1) {
+					metadata["url"] = "https://api.github.com/repos/other/repository/pulls/17";
+				}
+				if (violation == 2) {
+					metadata["head"] = fixture_object{ { "sha", "invalid" } };
+				}
+				return success_response(fixture_json(metadata));
+			};
+			transport.Reviews = [](const auto&) { return success_response(fixture_json(fixture_array{ retained_review(1U), retained_review(1U) })); };
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+			expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response,
+				   "wrong PR, repository, head or duplicate review fails the metadata answer atomically");
+		}
+		{
+			auto transport     = discovery_fixture_transport{ };
+			transport.Metadata = [](const auto&) { return success_response(fixture_json(retained_metadata())); };
+			transport.Reviews  = [](const github_wire_request& aRequest) {
+				auto reviews = fixture_array{ };
+				for (std::uint64_t index = 0U; index < 100U; ++index) {
+					reviews.push_back(retained_review((aRequest.Wire.Semantic.Page - 1U) * 100U + index + 1U));
+				}
+				return success_response(fixture_json(reviews), "<https://api.github.com/repos/octo-org/review-repository/pulls/17/reviews?page=" + std::to_string(aRequest.Wire.Semantic.Page + 1U) + "&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+			expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::response_limit
+					   && transport.Requests.size() == 5U,
+				   "a retained read stops after four review pages and never publishes truncated review state");
+		}
+		{
+			auto transport = discovery_fixture_transport{ };
+			auto stop      = std::stop_source{ };
+			stop.request_stop();
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), stop.get_token());
+			expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && transport.Requests.empty(), "cancelled retained read sends nothing");
+			auto request   = discovery_request(reason::requested);
+			request.Number = core::pull_request_number{ 17U };
+			expect(!perform_personal_discovery_read(transport, profile(), request, { }) && transport.Requests.empty(), "a search cannot carry a retained PR number");
+		}
+	}
+
 	void test_raw_tour_import()
 	{
 		const std::string prefix    = "https://github.com/octo-org/review-repository/pull/17";
@@ -3856,5 +3969,6 @@ auto main() -> int
 	test_anonymous_review_comments_rate_limit_is_typed();
 	test_anonymous_review_comments_oversized_body_is_refused();
 	test_personal_discovery_read();
+	test_retained_home_metadata_read();
 	return EXIT_SUCCESS;
 }

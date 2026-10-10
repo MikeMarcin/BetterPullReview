@@ -3846,8 +3846,11 @@ namespace bpr::adapters::github::detail {
 				.Facts       = evidence.Facts,
 				.SchemaFacts = evidence.SchemaFacts,
 			};
-			const auto reason = aRequest.Reason == application::personal_discovery_reason::authored
-				|| aRequest.Reason == application::personal_discovery_reason::requested;
+			const auto reason = aRequest.Reason == application::personal_discovery_reason::retained
+				? aRequest.Number && aRequest.Number->value() != 0U && aRequest.Number->value() <= core::maximum_pull_request_number
+				: (aRequest.Reason == application::personal_discovery_reason::authored
+				   || aRequest.Reason == application::personal_discovery_reason::requested)
+					&& !aRequest.Number;
 			return reason && limits_valid(aLimits) && application::detail::valid_context(context)
 				&& (!aRequest.AuthenticationSession || aRequest.AuthenticationSession->value() != 0U)
 				&& application::valid(authority) && aRequest.AccountTransport != nullptr
@@ -3971,6 +3974,111 @@ namespace bpr::adapters::github::detail {
 				.Mode                = core::github_access_mode::authenticated,
 			};
 		}
+
+		/// [[BPR-1379]]. Retained rows need the current title, head and complete
+		/// submitted-review evidence, without opening the snapshot read path.
+		[[nodiscard]] auto read_retained_metadata(github_wire_transport_port&          aTransport,
+												  const validated_github_host_profile& aProfile, const application::personal_discovery_request& aRequest,
+												  const server_contract aServer, const std::stop_token aStop, const github_paged_read_limits& aLimits,
+												  application::github_rate_limit_state& aRates) -> github_personal_discovery_read_result
+		{
+			auto limits                       = aLimits;
+			limits.MaximumTotalPages          = std::min<std::size_t>(limits.MaximumTotalPages, 5U);
+			limits.Records.MaximumReviews     = std::min(limits.Records.MaximumReviews, application::maximum_personal_discovery_reviews);
+			const auto                context = requested_reviewers_parent(aRequest.Context, *aRequest.Number);
+			production_read_execution execution{ aTransport, aProfile, context, limits, aStop, aRates, aRequest.AuthenticationSession, nullptr };
+			const auto                page = execution.fetch(semantic_request_for(aServer, context, read_operation::get_pull_request));
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			if (!singleton_complete(*page) || !json_is_object(page->Document)
+				|| !has_required_keys(json_object(page->Document), { "base", "head", "number", "requested_reviewers", "requested_teams", "state", "title", "url", "user" })) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			const auto object   = json_object(page->Document);
+			const auto number   = uint32(json_member(object, "number"));
+			const auto title    = json_member(object, "title");
+			const auto head     = json_member(object, "head");
+			const auto users    = json_member(object, "requested_reviewers");
+			const auto teams    = json_member(object, "requested_teams");
+			const auto author   = optional_rest_actor(json_member(object, "user"));
+			const auto expected = std::string{ aProfile.rest_root() } + "/repos/" + context.Repository.Owner + "/"
+				+ context.Repository.Name + "/pulls/" + std::to_string(context.Number.value());
+			if (!number || *number != context.Number.value() || !json_is_string(title)
+				|| !bounded_text(text(title), limits.Records.MaximumTitleBytes, true)
+				|| !one_of(json_member(object, "state"), { "open", "closed" })
+				|| !json_is_string(json_member(object, "url"))
+				|| !application::detail::ascii_equal_fold(text(json_member(object, "url")), expected)
+				|| !json_is_object(head) || !hexadecimal_oid(json_member(json_object(head), "sha"))
+				|| !author.Valid || !json_is_array(users) || !json_is_array(teams)) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			if (json_array(users).size() + json_array(teams).size() > limits.MaximumPageRecords) {
+				return execution.terminal_failure(application::github_provider_failure::response_limit);
+			}
+			const auto base = json_member(object, "base");
+			if (!json_is_object(base)) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			const auto repository = json_member(json_object(base), "repo");
+			if (!json_is_object(repository) || !exact_integer(json_member(json_object(repository), "id"), true)
+				|| !nonempty_string(json_member(json_object(repository), "full_name"))
+				|| !application::detail::ascii_equal_fold(text(json_member(json_object(repository), "full_name")), context.Repository.Owner + "/" + context.Repository.Name)
+				|| !execution.bind_repository(core::repository_id{ integer(json_member(json_object(repository), "id")) })) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			auto budget = application::detail::github_text_budget{ limits.Records };
+			if (application::detail::validate_author(author.Actor, budget, limits.Records) != application::github_read_validation_error::none) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			for (const auto& user : json_array(users)) {
+				const auto reviewer = optional_rest_actor(user);
+				if (!reviewer.Valid || !reviewer.Actor
+					|| application::detail::validate_author(reviewer.Actor, budget, limits.Records) != application::github_read_validation_error::none) {
+					return execution.terminal_failure(application::github_provider_failure::malformed_response);
+				}
+			}
+			if (!std::ranges::all_of(json_array(teams), [](const page_json_value& aValue) { return json_is_object(aValue); })) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			auto row = application::personal_discovery_row{
+				.Number           = context.Number,
+				.Title            = text(title),
+				.Author           = author.Actor ? author.Actor->Login : std::string{ },
+				.Detailed         = true,
+				.ReviewersAwaited = static_cast<std::uint32_t>(json_array(users).size() + json_array(teams).size()),
+				.HeadOid          = application::commit_oid{ text(json_member(json_object(head), "sha")) },
+				.Closed           = text(json_member(object, "state")) == "closed",
+			};
+			if (row.Closed) {
+				return github_personal_discovery_read{ .Rows = { std::move(row) }, .RateLimits = aRates };
+			}
+			auto       seen    = std::unordered_set<std::uint64_t>{ };
+			const auto reviews = read_rest_array_collection(execution, aProfile,
+															semantic_request_for(aServer, context, read_operation::list_reviews), row.Reviews,
+															limits.Records.MaximumReviews, limits.MaximumPageRecords,
+															[&budget, &seen, &limits](const page_json_value& aValue)
+																-> std::expected<application::personal_discovery_review, github_paged_read_failure> {
+																const auto review = parse_review(aValue);
+																if (!review) {
+																	return std::unexpected{ review.error() };
+																}
+																if (!seen.insert(review->DatabaseId).second
+																	|| application::detail::validate_review(*review, budget, limits.Records) != application::github_read_validation_error::none) {
+																	return failed(application::github_provider_failure::malformed_response);
+																}
+																return application::personal_discovery_review{
+																	.DatabaseId = review->DatabaseId,
+																	.Author     = review->Author ? std::optional{ review->Author->Actor } : std::nullopt,
+																	.State      = review->State,
+																	.Commit     = review->Commit,
+																};
+															});
+			if (!reviews) {
+				return std::unexpected{ execution.enrich(reviews.error()) };
+			}
+			return github_personal_discovery_read{ .Rows = { std::move(row) }, .RateLimits = aRates };
+		}
 	} // namespace
 
 	auto perform_personal_discovery_read(
@@ -3988,6 +4096,9 @@ namespace bpr::adapters::github::detail {
 			}
 			if (aStop.stop_requested()) {
 				return cancelled();
+			}
+			if (aRequest.Reason == application::personal_discovery_reason::retained) {
+				return read_retained_metadata(aTransport, aProfile, aRequest, *server, aStop, aLimits, rates);
 			}
 			const auto requested     = aRequest.Reason == application::personal_discovery_reason::requested;
 			auto       limits        = aLimits;

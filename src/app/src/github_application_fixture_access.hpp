@@ -127,6 +127,9 @@ namespace bpr::app::detail {
 			std::string              Author;
 			std::vector<std::string> RequestedUsers;
 			std::size_t              RequestedTeams = 0U;
+			/// [[BPR-1379]]. Changing this server fact lets Home Refresh observe
+			/// a submitted review without opening that PR in the course.
+			std::shared_ptr<std::atomic<bool>> ReviewedByViewer;
 		};
 		std::vector<pull_request> OpenPullRequests;
 	};

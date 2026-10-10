@@ -76,8 +76,9 @@ namespace bpr::application {
 	///
 	/// \details Every window of the profile sees what it finds through the
 	/// profile's queue host, so there is one scheduler however many windows
-	/// are open. It searches the saved repositories of the adopted account
-	/// session's server and account only, both reasons for each, at most
+	/// are open. Each cycle first refreshes bounded metadata and submitted
+	/// reviews for retained PRs, then searches the saved repositories of the
+	/// adopted account's server and account, both reasons for each, at most
 	/// `maximum_personal_discovery_in_flight` reads at a time, and tags every
 	/// read with its session generation and refresh: a completion from an
 	/// earlier session or refresh is refused. It runs when a session is
@@ -120,7 +121,9 @@ namespace bpr::application {
 		/// did not search, unless a refresh is running (it catches up when that
 		/// one ends) or a rate limit holds discovery off. A forgotten repository
 		/// is only no longer searched. The composition calls it after each queue
-		/// projection; an unchanged set reads nothing.
+		/// projection. Newly restored rows with missing titles also trigger a
+		/// bounded read; rows already considered, including failures and overflow,
+		/// do not restart the cycle until activation or explicit Refresh.
 		void reconcile();
 		void shutdown();
 

@@ -1576,7 +1576,7 @@ namespace {
 				.Capabilities       = core::capability_revision{ 44U },
 				.IdentityGeneration = core::github_identity_generation{ aGeneration },
 			},
-			.Viewer = { .Account = account, .Login = std::string{ aAccount } },
+			.Viewer = { .Account = account, .Node = application::github_actor_id{ "U_" + std::string{ aAccount } }, .Login = std::string{ aAccount } },
 		};
 	}
 
@@ -1592,12 +1592,16 @@ namespace {
 									   { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
 									   { .Host = "github.com", .Account = "someone-else", .Repository = "octo/other" },
 									   { .Host = "ghe.example", .Account = "reviewer", .Repository = "octo/app" },
-								   })
+								   },
+								   std::vector<application::enrollment_record> aRetained = { }, const bool aRestore = true)
 		{
 			Windows.Live                  = { queue_window(1U), queue_window(2U) };
 			Store.State.SavedRepositories = std::move(aSaved);
-			Queue.restore();
-			run_one(Effects, Decisions);
+			Store.State.Enrollments       = std::move(aRetained);
+			if (aRestore) {
+				Queue.restore();
+				run_one(Effects, Decisions);
+			}
 			expect(Queue.attach(queue_window(1U), First).has_value() && Queue.attach(queue_window(2U), Second).has_value(), "two windows attach");
 		}
 		/// Runs every posted decision and every posted store effect.
@@ -1633,6 +1637,175 @@ namespace {
 		manual_clock                               Clock;
 		application::personal_discovery_host       Discovery{ Provider, Decisions, Queue, Clock };
 	};
+
+	[[nodiscard]] auto metadata_row(const std::uint32_t aNumber, const bool aReviewed = false, const bool aMoved = false)
+		-> application::personal_discovery_row
+	{
+		auto result    = row(aNumber);
+		result.HeadOid = application::commit_oid{ std::string(40U, aMoved ? 'b' : 'a') };
+		if (aReviewed) {
+			result.Reviews.push_back({ .DatabaseId = 1U, .Author = application::github_actor_id{ "U_reviewer" }, .State = application::github_review_state::approved, .Commit = application::commit_oid{ std::string(40U, 'a') } });
+		}
+		return result;
+	}
+
+	void answer_retained(discovery_fixture& aFixture)
+	{
+		while (aFixture.Provider.Answered < aFixture.Provider.Requests.size()
+			   && aFixture.Provider.next().Reason == application::personal_discovery_reason::retained) {
+			aFixture.Provider.answer(aFixture.Provider.rows({ metadata_row(aFixture.Provider.next().Number->value()) }));
+			aFixture.settle();
+		}
+	}
+
+	void test_retained_titles_and_reviews_before_open_and_on_refresh()
+	{
+		auto other    = ref(18);
+		other.Account = "someone-else";
+		auto fixture  = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } }, { .Ref = other, .Membership = { .Followed = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		expect(fixture.Provider.Requests.size() == 1U && fixture.Provider.next().Reason == application::personal_discovery_reason::retained
+				   && fixture.Provider.next().Number == core::pull_request_number{ 17U },
+			   "restored rows read exact metadata even with no saved repository; another account is excluded");
+		expect(fixture.item(17)->Facts.Title.empty() && fixture.item(17)->Bucket == core::attention_bucket::initial_review_requested, "restored queue initially has no title or review facts");
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true) }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Title == "Pull request 17" && fixture.item(17)->Bucket == core::attention_bucket::quiet
+				   && fixture.record(17)->Membership.Reviewed && fixture.Refresh.Requests.empty(),
+			   "Home fills title and moves an already submitted review to Following without opening a PR");
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true, true) }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review, "explicit Refresh notices a head changed since the submitted review");
+		fixture.Discovery.refresh();
+		auto changed  = metadata_row(17U, true);
+		changed.Title = "Renamed after review";
+		changed.Reviews.push_back({ .DatabaseId = 2U, .Author = application::github_actor_id{ "U_reviewer" }, .State = application::github_review_state::pending, .Commit = application::commit_oid{ std::string(40U, 'b') } });
+		fixture.Provider.answer(fixture.Provider.rows({ changed }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::quiet && fixture.item(17)->Facts.Title == changed.Title, "Refresh updates an existing title and ignores a later pending review");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_retained_review_survives_request_withdrawal()
+	{
+		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U) }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ row(17U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		fixture.Discovery.refresh();
+		expect(fixture.Provider.next().Reason == application::personal_discovery_reason::retained, "Refresh reads submitted-review facts before withdrawing old discovery membership");
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true) }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Bucket == core::attention_bucket::quiet
+				   && fixture.record(17)->Membership.Reviewed && !fixture.record(17)->Membership.Requested,
+			   "a review submitted during this session keeps the PR in Following after GitHub drops its request");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_retained_metadata_preserves_local_attention_and_rejects_late_results()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Followed = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = discovery_session().Queue, .Ref = ref(17), .Facts = { .Title = "Previously read", .UnseenComments = 3U }, .Activity = { .UnseenComments = 3U, .DefectsAwaitingVerification = 2U } });
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true) }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.UnseenComments == 3U && fixture.item(17)->Bucket == core::attention_bucket::new_comments_or_author_replies, "metadata refresh preserves local unread attention");
+		fixture.Discovery.refresh();
+		auto late = fixture.Provider.rows({ metadata_row(17U) });
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = ref(17), .Follow = false });
+		fixture.settle();
+		fixture.Provider.answer(std::move(late));
+		fixture.settle();
+		expect(!fixture.item(17) && fixture.Discovery.statistics().StaleCompletions == 1U, "late metadata cannot revive an unfollowed PR");
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = discovery_session().Queue, .Ref = ref(17), .Facts = { .Title = "Late title" } });
+		expect(!fixture.item(17), "queue metadata cannot enroll or revive a PR");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_retained_metadata_budget_and_restore_after_session()
+	{
+		auto records = std::vector<application::enrollment_record>{ };
+		for (std::int64_t number = 1; number <= 31; ++number) {
+			records.push_back({ .Ref = ref(number), .Membership = { .Followed = true } });
+		}
+		auto fixture = discovery_fixture{ { }, records, false };
+		fixture.Discovery.adopt(discovery_session());
+		expect(fixture.Provider.Requests.empty(), "session adopted before queue restoration has no metadata target yet");
+		fixture.Queue.restore();
+		fixture.settle();
+		fixture.Discovery.reconcile();
+		answer_retained(fixture);
+		expect(fixture.Provider.Requests.size() == application::maximum_personal_discovery_retained
+				   && fixture.Discovery.statistics().MaximumInFlight <= application::maximum_personal_discovery_in_flight,
+			   "restoration triggers at most thirty retained reads and two in flight");
+		const auto submitted = fixture.Provider.Requests.size();
+		fixture.Discovery.reconcile();
+		expect(fixture.Provider.Requests.size() == submitted, "unread rows beyond the budget cause no projection-driven retry loop");
+		fixture.Discovery.refresh();
+		expect(fixture.Provider.next().Number == core::pull_request_number{ 31U }, "a later explicit refresh gives the remaining missing title priority");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_retained_failure_and_foreign_envelopes_preserve_accepted_state()
+	{
+		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::permission));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Facts.Title.empty() && fixture.Discovery.status().State == application::queue_discovery_state::stale,
+			   "metadata failure preserves the old request when a search cannot distinguish approval from withdrawal");
+		const auto before = fixture.Provider.Requests.size();
+		fixture.Discovery.reconcile();
+		expect(fixture.Provider.Requests.size() == before, "failed missing-title read does not restart from its projection");
+		fixture.Discovery.refresh();
+		auto foreign                = std::get<application::personal_discovery_success>(fixture.Provider.rows({ metadata_row(17U, true) }));
+		foreign.Request.Viewer.Node = application::github_actor_id{ "U_foreign" };
+		fixture.Provider.answer(std::move(foreign));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Title.empty() && !fixture.record(17)->Membership.Reviewed, "completion with a different authority cannot supply title or review state");
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		fixture.Discovery.refresh();
+		auto late = fixture.Provider.rows({ metadata_row(17U, true) });
+		fixture.Discovery.adopt(discovery_session("reviewer", 5U));
+		fixture.Provider.answer(std::move(late));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Title.empty() && !fixture.record(17)->Membership.Reviewed, "retained metadata from an earlier generation is refused");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_closed_metadata_cannot_be_revived_by_the_same_search_cycle()
+	{
+		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		auto closed   = metadata_row(17U);
+		closed.Closed = true;
+		fixture.Provider.answer(fixture.Provider.rows({ closed }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ row(17U) }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(!fixture.item(17) && fixture.record(17)->Departed == application::enrollment_departure::closed,
+			   "a search index that still lists the request cannot revive the PR this cycle observed closed");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
 
 	void test_one_scheduler_discovers_the_saved_repositories_of_its_account()
 	{
@@ -1697,6 +1870,7 @@ namespace {
 		// A partial answer finds less, and removes nothing.
 		fixture.Clock.Now += 400;
 		fixture.Discovery.refresh();
+		answer_retained(fixture);
 		fixture.Provider.answer(fixture.Provider.rows({ }, application::personal_discovery_completeness::incomplete_results));
 		fixture.Provider.answer(fixture.Provider.rows({ }, application::personal_discovery_completeness::result_limit));
 		fixture.settle();
@@ -1707,6 +1881,7 @@ namespace {
 		// A complete answer that no longer finds them withdraws their reason.
 		fixture.Clock.Now += 400;
 		fixture.Discovery.refresh();
+		answer_retained(fixture);
 		fixture.Provider.answer(fixture.Provider.rows({ row(7U) }));
 		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U) }));
 		fixture.settle();
@@ -1735,6 +1910,7 @@ namespace {
 		expect(fixture.item(5).has_value(), "a first refresh leaves a cached row");
 		fixture.Clock.Now += 400;
 		fixture.Discovery.refresh();
+		answer_retained(fixture);
 		const auto cycleStart = fixture.Provider.Requests.size() - 2U;
 		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::rate_limit, 120U));
 		fixture.settle();
@@ -1747,13 +1923,16 @@ namespace {
 		fixture.settle();
 		expect(fixture.item(5).has_value(), "the cached row survives the failure");
 		fixture.Discovery.refresh();
+		answer_retained(fixture);
 		fixture.Discovery.activate();
 		expect(fixture.Provider.Requests.size() == cycleStart + 2U && fixture.Discovery.statistics().RefusedRefreshes == 1U
 				   && fixture.Discovery.status().RetryAfterSeconds == std::optional<std::uint32_t>{ 120U },
 			   "a refresh inside the backoff is refused and says so; activation waits too");
+		const auto beforeRetry = fixture.Provider.Requests.size();
 		fixture.Clock.Now += 121;
 		fixture.Discovery.refresh();
-		expect(fixture.Provider.Requests.size() == cycleStart + 4U, "after the retry-after a refresh runs again");
+		answer_retained(fixture);
+		expect(fixture.Provider.Requests.size() == beforeRetry + 3U, "after the retry-after a refresh runs again");
 		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::rate_limit, std::nullopt, true));
 		fixture.settle();
 		expect(fixture.Discovery.status().Problem == application::queue_discovery_problem::secondary_rate_limited
@@ -1767,6 +1946,7 @@ namespace {
 			 }) {
 			fixture.Clock.Now += 1'000;
 			fixture.Discovery.refresh();
+			answer_retained(fixture);
 			fixture.Provider.answer(fixture.Provider.failure(failure));
 			fixture.settle();
 			expect(fixture.Discovery.status().State == application::queue_discovery_state::stale && fixture.Discovery.status().Problem == problem && fixture.item(5),
@@ -1776,6 +1956,7 @@ namespace {
 		}
 		fixture.Clock.Now += 1'000;
 		fixture.Discovery.refresh();
+		answer_retained(fixture);
 		const auto permission = fixture.Provider.Requests.size();
 		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::permission));
 		fixture.Provider.answer(fixture.Provider.rows({ }));
@@ -1851,6 +2032,7 @@ namespace {
 		fixture.Store.FailEnrollmentStore = true;
 		fixture.Clock.Now += 400;
 		fixture.Discovery.refresh();
+		answer_retained(fixture);
 		fixture.Provider.answer(fixture.Provider.rows({ row(5U), row(6U) }));
 		fixture.settle();
 		const auto& published = fixture.First->Published.back();
@@ -1914,6 +2096,7 @@ namespace {
 		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U) }));
 		fixture.settle();
 		expect(fixture.Provider.Requests.size() == 4U && fixture.Discovery.statistics().Refreshes == 2U, "the refresh that ends catches up with the saved list");
+		answer_retained(fixture);
 		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
 		fixture.Provider.answer(fixture.Provider.rows({ row(6U, true, 1U) }));
 		fixture.settle();
@@ -2171,6 +2354,12 @@ auto main() -> int
 	test_a_rule_added_during_a_refresh_still_enrolls();
 	test_saved_repositories_are_durable_before_projection();
 	test_saved_servers_are_durable_before_projection();
+	test_retained_titles_and_reviews_before_open_and_on_refresh();
+	test_retained_review_survives_request_withdrawal();
+	test_retained_metadata_preserves_local_attention_and_rejects_late_results();
+	test_retained_metadata_budget_and_restore_after_session();
+	test_retained_failure_and_foreign_envelopes_preserve_accepted_state();
+	test_closed_metadata_cannot_be_revived_by_the_same_search_cycle();
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();

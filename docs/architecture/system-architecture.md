@@ -587,6 +587,17 @@ Qt event or QAction
 ```
 
 No widget may call GitHub, Git, SQLite, or an agent directly. No provider completion may mutate a widget or core state directly.
+Home's profile-owned personal discovery scheduler refreshes retained PR metadata
+before running the saved-repository searches ([[BPR-1379]]). It reads at most 30
+enrolled PRs per cycle, prioritizing missing titles, with two reads in flight.
+Each retained read obtains the title, author, current head, requested reviewers
+and at most four pages of submitted review summaries (400 reviews); it reads no
+diff, changed files, commit history or conversations. Complete review evidence
+updates the existing core attention projection, and a submitted viewer review
+retains discovery membership before the old request is withdrawn. Existing
+unseen-comment and defect observations remain intact. Exact accepted account,
+session, request and enrollment checks reject late or foreign metadata; failed
+or limited reads preserve prior facts and do not trigger a projection retry loop.
 For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
 a broad changed-domain bit cannot substitute for acceptance.
 

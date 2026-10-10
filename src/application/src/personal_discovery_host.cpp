@@ -1,8 +1,10 @@
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/core/git_objects.hpp"
 
 #include <algorithm>
 #include <deque>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -163,6 +165,7 @@ namespace bpr::application {
 			Session = std::move(aSession);
 			LastSuccess.reset();
 			BackoffUntil.reset();
+			MetadataConsidered.clear();
 			if (!Session) {
 				Status = queue_discovery_status{ .State = queue_discovery_state::unavailable, .Problem = queue_discovery_problem::no_account };
 				publish();
@@ -223,10 +226,10 @@ namespace bpr::application {
 				return;
 			}
 			auto repositories = partition();
-			if (repositories == Searched) {
+			if (repositories == Searched && !unread_retained()) {
 				return;
 			}
-			if (unsearched(repositories)) {
+			if (unsearched(repositories) || unread_retained()) {
 				start_cycle();
 				return;
 			}
@@ -256,15 +259,79 @@ namespace bpr::application {
 			return repositories;
 		}
 
+		[[nodiscard]] auto queue_ref(const std::string& aRepository, const core::pull_request_number aNumber) const -> core::pull_request_ref
+		{
+			return { .Host = Session->Queue.Host, .Account = Session->Queue.Account, .Repository = aRepository, .Number = static_cast<std::int64_t>(aNumber.value()) };
+		}
+
+		[[nodiscard]] auto still_enrolled(const job& aJob) const -> bool
+		{
+			const auto ref = queue_ref(aJob.Repository, *aJob.Request.Number);
+			return std::ranges::any_of(Queue.enrollments(), [&ref](const enrollment_record& aRecord) {
+				return aRecord.Ref == ref && aRecord.present();
+			});
+		}
+
+		[[nodiscard]] auto unread_retained() const -> bool
+		{
+			return std::ranges::any_of(Queue.queue(), [this](const core::queue_item& aItem) {
+				return aItem.Ref.Host == Session->Queue.Host && aItem.Ref.Account == Session->Queue.Account
+					&& aItem.Facts.Title.empty() && !MetadataConsidered.contains(aItem.Ref);
+			});
+		}
+
+		void enqueue(const std::string& aRepository, const personal_discovery_reason aReason,
+					 const std::optional<core::pull_request_number> aNumber = std::nullopt)
+		{
+			auto context       = Session->Context;
+			context.Request    = core::request_id{ NextRequest++ };
+			context.Repository = *locator_of(aRepository);
+			Queued.push_back(job{
+				.Request = {
+					.Context               = std::move(context),
+					.ProfileAuthority      = Session->ProfileAuthority,
+					.Viewer                = Session->Viewer,
+					.CapabilityEvidence    = Session->CapabilityEvidence,
+					.AccountTransport      = Session->AccountTransport,
+					.Reason                = aReason,
+					.AuthenticationSession = Session->AuthenticationSession,
+					.Number                = aNumber,
+				},
+				.Repository = aRepository,
+				.Generation = Generation,
+				.Cycle      = Cycle,
+			});
+		}
+
+		void enqueue_searches()
+		{
+			Searching = true;
+			for (const auto& repository : Searched) {
+				for (const auto reason : { personal_discovery_reason::requested, personal_discovery_reason::authored }) {
+					enqueue(repository, reason);
+				}
+			}
+		}
+
 		void start_cycle()
 		{
 			const auto repositories = partition();
-			Searched                = repositories;
-			Status.Host             = Session->Queue.Host;
-			Status.Account          = Session->Queue.Account;
-			Status.LastSuccess      = LastSuccess;
+			auto       items        = Queue.queue();
+			std::erase_if(items, [this](const core::queue_item& aItem) {
+				return aItem.Ref.Host != Session->Queue.Host || aItem.Ref.Account != Session->Queue.Account
+					|| !locator_of(aItem.Ref.Repository) || aItem.Ref.Number <= 0 || aItem.Ref.Number > core::maximum_pull_request_number;
+			});
+			// Fill missing titles first; later explicit refreshes can reach rows
+			// beyond the per-cycle limit. Within each group keep the queue order.
+			std::stable_sort(items.begin(), items.end(), [](const core::queue_item& aLeft, const core::queue_item& aRight) {
+				return aLeft.Facts.Title.empty() && !aRight.Facts.Title.empty();
+			});
+			Searched           = repositories;
+			Status.Host        = Session->Queue.Host;
+			Status.Account     = Session->Queue.Account;
+			Status.LastSuccess = LastSuccess;
 			Status.RetryAfterSeconds.reset();
-			if (repositories.empty()) {
+			if (repositories.empty() && items.empty()) {
 				Status.State        = queue_discovery_state::unavailable;
 				Status.Problem      = queue_discovery_problem::no_saved_repository;
 				Status.Repositories = 0U;
@@ -273,29 +340,20 @@ namespace bpr::application {
 			}
 			++Cycle;
 			++Statistics.Refreshes;
-			CycleRunning = true;
-			CycleFailed  = false;
-			CycleStopped = false;
+			CycleRunning   = true;
+			CycleFailed    = false;
+			CycleStopped   = false;
+			MetadataFailed = false;
+			Searching      = false;
+			ClosedThisCycle.clear();
 			CycleProblem = queue_discovery_problem::none;
-			for (const auto& repository : repositories) {
-				for (const auto reason : { personal_discovery_reason::requested, personal_discovery_reason::authored }) {
-					auto context       = Session->Context;
-					context.Request    = core::request_id{ NextRequest++ };
-					context.Repository = *locator_of(repository);
-					Queued.push_back(job{
-						.Request = {
-							.Context               = std::move(context),
-							.ProfileAuthority      = Session->ProfileAuthority,
-							.Viewer                = Session->Viewer,
-							.CapabilityEvidence    = Session->CapabilityEvidence,
-							.AccountTransport      = Session->AccountTransport,
-							.Reason                = reason,
-							.AuthenticationSession = Session->AuthenticationSession,
-						},
-						.Repository = repository,
-						.Generation = Generation,
-						.Cycle      = Cycle,
-					});
+			for (std::size_t index = 0U; index < items.size(); ++index) {
+				MetadataConsidered.insert(items[index].Ref);
+				if (index < maximum_personal_discovery_retained) {
+					enqueue(items[index].Ref.Repository, personal_discovery_reason::retained,
+							core::pull_request_number{ static_cast<std::uint32_t>(items[index].Ref.Number) });
+				} else {
+					CycleProblem = queue_discovery_problem::detail_limit;
 				}
 			}
 			Status.State        = queue_discovery_state::refreshing;
@@ -310,6 +368,9 @@ namespace bpr::application {
 			while (!Closing && Active.size() < maximum_personal_discovery_in_flight && !Queued.empty()) {
 				auto next = std::move(Queued.front());
 				Queued.pop_front();
+				if (next.Request.Reason == personal_discovery_reason::retained && !still_enrolled(next)) {
+					continue;
+				}
 				Active.push_back(next);
 				++Statistics.Submitted;
 				Statistics.MaximumInFlight = std::max<std::uint64_t>(Statistics.MaximumInFlight, Active.size());
@@ -333,7 +394,12 @@ namespace bpr::application {
 			// A refresh stopped by a session-wide failure is decided at once:
 			// what it cancelled only has its terminal still to come.
 			if (CycleRunning && Queued.empty() && (CycleStopped || std::ranges::none_of(Active, [this](const job& aJob) { return current(aJob); }))) {
-				finish_cycle();
+				if (!CycleStopped && !Searching) {
+					enqueue_searches();
+					pump();
+				} else {
+					finish_cycle();
+				}
 			}
 		}
 
@@ -344,7 +410,8 @@ namespace bpr::application {
 
 		void fail(const queue_discovery_problem aProblem, const bool aStop)
 		{
-			CycleFailed = true;
+			CycleFailed    = true;
+			MetadataFailed = MetadataFailed || !Searching;
 			if (CycleProblem == queue_discovery_problem::none || aStop) {
 				CycleProblem = aProblem;
 			}
@@ -374,8 +441,8 @@ namespace bpr::application {
 			}
 			// A repository forgotten while its read was in flight publishes
 			// nothing: the reviewer has said it is not theirs to watch.
-			const auto saved = partition();
-			if (!current(finished) || std::ranges::find(saved, finished.Repository) == saved.end()) {
+			const auto saved = Session ? partition() : std::vector<std::string>{ };
+			if (!current(finished) || !Session || (finished.Request.Reason == personal_discovery_reason::retained ? !still_enrolled(finished) : std::ranges::find(saved, finished.Repository) == saved.end())) {
 				++Statistics.StaleCompletions;
 				pump();
 				return;
@@ -383,17 +450,29 @@ namespace bpr::application {
 			std::visit(
 				[this, &finished](auto& aResult) {
 					using result_type = std::remove_cvref_t<decltype(aResult)>;
+					if (aResult.Request != finished.Request) {
+						++Statistics.StaleCompletions;
+						fail(queue_discovery_problem::failed, false);
+						return;
+					}
 					if constexpr (std::is_same_v<result_type, personal_discovery_success>) {
 						++Statistics.Answered;
+						if (finished.Request.Reason == personal_discovery_reason::retained) {
+							apply_metadata(finished, aResult);
+							return;
+						}
 						auto answer = queue_discovery_answer{
 							.Session      = Session->Queue,
 							.Repository   = finished.Repository,
 							.Requested    = finished.Request.Reason == personal_discovery_reason::requested,
-							.Complete     = aResult.Completeness == personal_discovery_completeness::complete,
+							.Complete     = aResult.Completeness == personal_discovery_completeness::complete && !MetadataFailed,
 							.PullRequests = { },
 						};
 						answer.PullRequests.reserve(aResult.Rows.size());
 						for (auto& row : aResult.Rows) {
+							if (ClosedThisCycle.contains(queue_ref(finished.Repository, row.Number))) {
+								continue;
+							}
 							answer.PullRequests.push_back({
 								.Number           = static_cast<std::int64_t>(row.Number.value()),
 								.Title            = std::move(row.Title),
@@ -423,6 +502,42 @@ namespace bpr::application {
 			pump();
 		}
 
+		void apply_metadata(const job& aJob, const personal_discovery_success& aResult)
+		{
+			if (aResult.Completeness != personal_discovery_completeness::complete || aResult.Rows.size() != 1U
+				|| aResult.Rows.front().Number != aJob.Request.Number || !aResult.Rows.front().Detailed
+				|| !aResult.Rows.front().HeadOid || aResult.Rows.front().Reviews.size() > maximum_personal_discovery_reviews) {
+				fail(queue_discovery_problem::failed, false);
+				return;
+			}
+			const auto& row  = aResult.Rows.front();
+			const auto  head = core::parse_git_commit_oid(row.HeadOid->value());
+			if (!head) {
+				fail(queue_discovery_problem::failed, false);
+				return;
+			}
+			const auto ref = queue_ref(aJob.Repository, row.Number);
+			if (row.Closed) {
+				ClosedThisCycle.insert(ref);
+			}
+			auto reviewedHead = std::optional<core::git_commit_oid>{ };
+			for (const auto& review : row.Reviews) {
+				const auto commit = review.Commit ? core::parse_git_commit_oid(review.Commit->value()) : std::nullopt;
+				if (review.DatabaseId != 0U && review.Author && !Session->Viewer.Node.value().empty()
+					&& *review.Author == Session->Viewer.Node && review.State != github_review_state::pending
+					&& review.State != github_review_state::uninitialized && commit && commit->algorithm() == head->algorithm()) {
+					reviewedHead = commit;
+				}
+			}
+			Queue.apply(queue_metadata_answer{
+				.Session  = Session->Queue,
+				.Ref      = ref,
+				.Facts    = { .Title = row.Title, .Author = row.Author },
+				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true },
+				.Closed   = row.Closed,
+			});
+		}
+
 		void finish_cycle()
 		{
 			CycleRunning   = false;
@@ -441,6 +556,10 @@ namespace bpr::application {
 				}
 			}
 			Status.LastSuccess = LastSuccess;
+			if (!CycleFailed && Searched.empty() && CycleProblem == queue_discovery_problem::none) {
+				Status.State   = queue_discovery_state::unavailable;
+				Status.Problem = queue_discovery_problem::no_saved_repository;
+			}
 			publish();
 			// A repository saved while this refresh ran is searched now.
 			if (!backing_off(now) && unsearched(partition())) {
@@ -464,19 +583,23 @@ namespace bpr::application {
 		std::optional<personal_discovery_session> Session;
 		std::deque<job>                           Queued;
 		std::vector<std::string>                  Searched;
+		std::set<core::pull_request_ref>          MetadataConsidered;
+		std::set<core::pull_request_ref>          ClosedThisCycle;
 		std::vector<job>                          Active;
 		std::optional<std::int64_t>               LastSuccess;
 		std::optional<std::int64_t>               BackoffUntil;
 		queue_discovery_status                    Status;
 		personal_discovery_statistics             Statistics;
-		queue_discovery_problem                   CycleProblem = queue_discovery_problem::none;
-		std::uint64_t                             Generation   = 0U;
-		std::uint64_t                             Cycle        = 0U;
-		std::uint64_t                             NextRequest  = 1U;
-		bool                                      CycleRunning = false;
-		bool                                      CycleFailed  = false;
-		bool                                      CycleStopped = false;
-		bool                                      Closing      = false;
+		queue_discovery_problem                   CycleProblem   = queue_discovery_problem::none;
+		std::uint64_t                             Generation     = 0U;
+		std::uint64_t                             Cycle          = 0U;
+		std::uint64_t                             NextRequest    = 1U;
+		bool                                      CycleRunning   = false;
+		bool                                      CycleFailed    = false;
+		bool                                      CycleStopped   = false;
+		bool                                      Searching      = false;
+		bool                                      MetadataFailed = false;
+		bool                                      Closing        = false;
 	};
 
 	personal_discovery_host::personal_discovery_host(personal_discovery_port&             aProvider,

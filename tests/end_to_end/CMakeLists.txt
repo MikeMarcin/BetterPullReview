@@ -3471,6 +3471,16 @@ set_tests_properties(application_personal_discovery_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "personal-discovery-public-path:pass")
 
+# [[BPR-1379]]. The same composed Home restoration and Refresh course under
+# a fixture-qualified CLI account lease, with no native sign-in or live API.
+# The CLI sign-in path is composed only on macOS.
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_personal_discovery_cli_public_path COMMAND test_personal_discovery_public_path --gh-cli)
+    set_tests_properties(application_personal_discovery_cli_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+        PASS_REGULAR_EXPRESSION "personal-discovery-cli-public-path:pass")
+endif()
+
 # [[BPR-1357]]. Opening a review from Home on a slow network: the clicked row
 # says it in the same turn, the step and Cancel after the core's wait, a failure
 # and Retry on its row, and the Home bar's opening in Home's status band.

@@ -143,6 +143,20 @@ namespace bpr::application {
 		auto operator<=>(const queue_discovery_answer&) const = default;
 	};
 
+	/// \brief [[BPR-1379]]. Bounded server metadata for an already enrolled row.
+	/// Only title, author, submitted-review/head facts and awaited reviewers are refreshed;
+	/// local unseen/defect facts remain intact. This cannot enroll a new pull request.
+	struct queue_metadata_answer
+	{
+		queue_session_id                 Session;
+		core::pull_request_ref           Ref;
+		core::queue_item_facts           Facts;
+		core::queue_activity_observation Activity;
+		bool                             Closed = false;
+
+		auto operator<=>(const queue_metadata_answer&) const = default;
+	};
+
 	/// \brief Retains enrollments and projects the queue from them.
 	///
 	/// \details Holds no provider, no clock, and no database. The durable store
@@ -702,6 +716,8 @@ namespace bpr::application {
 		/// refused. Changed records are stored together; a refused write
 		/// restores the records as they were and is reported.
 		void apply(queue_discovery_answer aAnswer);
+		/// \brief Refreshes exact retained-row metadata without loading a review.
+		void apply(queue_metadata_answer aAnswer);
 		/// \brief [[BPR-0989]]. The reviewer's local follow; changes nothing on GitHub.
 		void apply(queue_follow_intent aIntent);
 		/// \brief [[BPR-0989]]. Publishes the discovery status with the queue.

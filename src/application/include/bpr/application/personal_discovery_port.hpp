@@ -19,6 +19,8 @@ namespace bpr::application {
 		authored,
 		/// Open pull requests that ask the viewer, by name, for a review.
 		requested,
+		/// Metadata and submitted reviews of one already enrolled pull request.
+		retained,
 	};
 
 	/// \brief The largest page one discovery search reads: a longer answer is
@@ -26,12 +28,16 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_personal_discovery_rows = 100U;
 	/// \brief The requested-reviewers reads one discovery answer may issue.
 	inline constexpr std::size_t maximum_personal_discovery_details = 30U;
+	/// \brief Retained pull requests refreshed per cycle, with at most four review pages each.
+	inline constexpr std::size_t maximum_personal_discovery_retained = 30U;
+	inline constexpr std::size_t maximum_personal_discovery_reviews  = 400U;
 
-	/// \brief One bounded personal discovery read of one saved repository.
+	/// \brief One bounded personal search or retained pull request metadata read.
 	///
 	/// \details The exact accepted authority a pull request read carries, the
 	/// viewer whose login is searched for, and the repository context that
-	/// scopes every request. No pull request, snapshot or diff is named.
+	/// scopes every request. A retained read names one already enrolled pull
+	/// request; no snapshot or diff is requested.
 	struct personal_discovery_request
 	{
 		core::repository_request_context            Context;
@@ -41,8 +47,21 @@ namespace bpr::application {
 		github_account_transport                    AccountTransport;
 		personal_discovery_reason                   Reason = personal_discovery_reason::authored;
 		std::optional<core::application_session_id> AuthenticationSession;
+		/// Present only for a retained read; never a discovery search qualifier.
+		std::optional<core::pull_request_number> Number;
 
 		auto operator<=>(const personal_discovery_request&) const = default;
+	};
+
+	/// \brief Submitted-review evidence without a review's prose or conversation.
+	struct personal_discovery_review
+	{
+		std::uint64_t                  DatabaseId = 0U;
+		std::optional<github_actor_id> Author;
+		github_review_state            State = github_review_state::uninitialized;
+		std::optional<commit_oid>      Commit;
+
+		auto operator<=>(const personal_discovery_review&) const = default;
 	};
 
 	/// \brief One pull request a discovery read found, with what it established.
@@ -58,6 +77,10 @@ namespace bpr::application {
 		std::string               Author;
 		bool                      Detailed         = false;
 		std::uint32_t             ReviewersAwaited = 0U;
+		/// Retained reads carry only the head and submitted-review evidence needed by Home.
+		std::optional<commit_oid>              HeadOid;
+		std::vector<personal_discovery_review> Reviews;
+		bool                                   Closed = false;
 
 		auto operator<=>(const personal_discovery_row&) const = default;
 	};

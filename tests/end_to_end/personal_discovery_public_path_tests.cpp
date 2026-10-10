@@ -31,12 +31,14 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QPointer>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 
 #include <sqlite3.h>
@@ -130,16 +132,20 @@ namespace {
 		return std::ranges::find(aRows, QString::fromUtf8(aIdentity)) != aRows.end();
 	}
 
-	/// The account reads that arrived after `aFrom`, by operation.
-	[[nodiscard]] auto reads_since(const app::detail::github_public_path_fixture_evidence& aEvidence, const std::size_t aFrom) -> std::vector<std::string>
+	/// The account reads after `aFrom`; CLI lease checks can be counted separately.
+	[[nodiscard]] auto reads_since(const app::detail::github_public_path_fixture_evidence& aEvidence, const std::size_t aFrom, const bool aCliLease = false) -> std::vector<std::string>
 	{
-		return { aEvidence.AccountReadOperations.begin() + static_cast<std::ptrdiff_t>(aFrom), aEvidence.AccountReadOperations.end() };
+		auto reads = std::vector<std::string>{ aEvidence.AccountReadOperations.begin() + static_cast<std::ptrdiff_t>(aFrom), aEvidence.AccountReadOperations.end() };
+		if (aCliLease) {
+			std::erase(reads, "GetViewerIdentity");
+		}
+		return reads;
 	}
 
 	[[nodiscard]] auto only_discovery(const std::vector<std::string>& aOperations) -> bool
 	{
 		return std::ranges::all_of(aOperations, [](const std::string& aOperation) {
-			return aOperation == "SearchPersonalPullRequests" || aOperation == "ListRequestedReviewers";
+			return aOperation == "SearchPersonalPullRequests" || aOperation == "ListRequestedReviewers" || aOperation == "GetPullRequest" || aOperation == "ListReviews";
 		});
 	}
 
@@ -157,6 +163,7 @@ auto main(int aArgc, char** aArgv) -> int
 try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
+	const auto    cliCourse       = QApplication::arguments().contains(QStringLiteral("--gh-cli"));
 	const auto    attended        = QApplication::arguments().contains(QStringLiteral("--attended"));
 	const auto    renderArgument  = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
 	const auto    renderDirectory = renderArgument >= 0 ? QApplication::arguments().value(renderArgument + 1) : QString{ };
@@ -175,10 +182,16 @@ try {
 	// refuse the activation and never reach those steps.
 	options.PublicPreviewEnabledCourse = true;
 	options.PersonalDiscovery          = repository_with_unrelated_pull_requests();
-	options.SharedDeviceVault          = app::detail::make_shared_github_fixture_vault();
-	options.Offline                    = std::make_shared<app::detail::github_offline_fixture>();
-	options.RateLimit                  = std::make_shared<app::detail::github_rate_limit_fixture>();
-	const auto unrelated               = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
+	const auto approved                = std::make_shared<std::atomic<bool>>(false);
+	const auto approvalRow             = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4003U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
+	approvalRow->ReviewedByViewer      = approved;
+	if (cliCourse) {
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+	}
+	options.SharedDeviceVault = app::detail::make_shared_github_fixture_vault();
+	options.Offline           = std::make_shared<app::detail::github_offline_fixture>();
+	options.RateLimit         = std::make_shared<app::detail::github_rate_limit_fixture>();
+	const auto unrelated      = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
 	expect(unrelated >= 2'000U, "the saved repository holds at least 2,000 unrelated open pull requests");
 
 	app::github_application* owner    = nullptr;
@@ -237,7 +250,22 @@ try {
 
 	// Signed in from Home, with nothing saved: nothing is searched, and Home
 	// says what would change that.
-	windowA->home_landing()->primary_button()->click();
+	const auto connect = [&] {
+		if (!cliCourse) {
+			windowA->home_landing()->primary_button()->click();
+			return;
+		}
+		QTimer consent;
+		QObject::connect(&consent, &QTimer::timeout, [] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		consent.start(1);
+		windowA->home_landing()->secondary_button()->click();
+		wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home accepts the selected CLI account");
+	};
+	connect();
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && !owner->status().PublicPreviewSignedOut; }, "Home sign-in reaches an account session");
 	// RFC-BPR-0062, owner verdicts of 2026-10-07 and 2026-10-08: one button,
 	// not the ordinary row, and no Needs me lane that could hold nothing.
@@ -394,9 +422,21 @@ try {
 			 "Return saves; the durable save closes the card into the list and confirms on the page");
 	windowA->settings()->hide();
 	wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "a saved repository is searched with no pull request opened", diagnose);
+	if (reads_since(evidence(), signedIn, cliCourse) != std::vector<std::string>{ "SearchPersonalPullRequests", "SearchPersonalPullRequests" }) {
+		diagnose();
+		std::cerr << "first repository reads:";
+		for (const auto& read : reads_since(evidence(), signedIn)) {
+			std::cerr << ' ' << read;
+		}
+		std::cerr << '\n';
+	}
 	expect(evidence().DiscoverySearches == 2U && evidence().DiscoveryDetailReads == 0U
-			   && reads_since(evidence(), signedIn) == std::vector<std::string>{ "SearchPersonalPullRequests", "SearchPersonalPullRequests" },
+			   && reads_since(evidence(), signedIn, cliCourse) == std::vector<std::string>{ "SearchPersonalPullRequests", "SearchPersonalPullRequests" },
 		   "with no pull request opened, saving a repository reads exactly its two personal searches");
+	if (cliCourse) {
+		expect(std::ranges::count(reads_since(evidence(), signedIn), "GetViewerIdentity") == 4,
+			   "the CLI lease checks the accepted viewer before and after each search");
+	}
 	expect(windowA->home_discovery_status()->text().endsWith(QStringLiteral(" in 1 saved repository.")), "Home says it searched the one saved repository");
 	expect(!windowA->home_repository_onboarding()->isVisible() && windowA->findChild<QToolButton*>(QStringLiteral("homeAddRepositoryButton"))->isVisible(),
 		   "the first save retires the call to action; the ordinary Add repository row remains");
@@ -425,7 +465,7 @@ try {
 	wait_for([&] { return discovery().Statistics.Refreshes == 2U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "saving the repository runs one discovery refresh", diagnose);
 	const auto served = evidence();
-	const auto reads  = reads_since(served, before);
+	const auto reads  = reads_since(served, before, cliCourse);
 	if (served.DiscoverySearches != 6U || reads.size() != 8U) {
 		std::cerr << "searches=" << served.DiscoverySearches << " details=" << served.DiscoveryDetailReads << " reads:";
 		for (const auto& read : reads) {
@@ -637,13 +677,17 @@ try {
 	// both windows see.
 	expect(windowB->queue_refresh_action()->isVisible() && windowB->queue_refresh_action()->isEnabled(), "the second window's glyph can refresh");
 	const auto beforeRefresh = evidence().AccountReadOperations.size();
+	approved->store(true);
 	windowB->queue_refresh_action()->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
-	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads == 8U && reads_since(evidence(), beforeRefresh).size() == 8U
-			   && only_discovery(reads_since(evidence(), beforeRefresh)),
-		   "the refresh is the same bounded personal reads, and nothing else");
+	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads == 8U && reads_since(evidence(), beforeRefresh, cliCourse).size() == 16U
+			   && only_discovery(reads_since(evidence(), beforeRefresh, cliCourse)),
+		   "Refresh reads retained PR metadata and review summaries before the bounded personal searches");
 	expect(queue_numbers(*windowA).contains(4003) && queue_numbers(*windowB).contains(4003) && queue_numbers(*windowB).contains(17), "both windows keep the list");
+	expect(queue_item(*windowA, 4003)->Bucket == core::attention_bucket::quiet && queue_item(*windowB, 4003)->Bucket == core::attention_bucket::quiet
+			   && contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"),
+		   "Home Refresh moves an approved unopened PR to Following in both windows");
 
 	// A second SQLite connection holds the real fixture store's write lock.
 	// A failed durable add leaves the input and collection intact; it cannot say saved.
@@ -686,6 +730,8 @@ try {
 	// course's root goes with it before the pass line: the row passes on that
 	// line alone, so a root that stays must fail it. On Windows the stores close
 	// only once the desktop's runtimes are deleted from the event loop.
+	const auto followedTitle = queue_item(*windowA, 17)->Facts.Title;
+	expect(!followedTitle.empty(), "followed PR has an accepted title before restarting");
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
 	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
@@ -706,10 +752,25 @@ try {
 	// account and host and offers no removal; signing in lists that account's.
 	expect(windowA->saved_repository_list()->item(0)->text().contains(QStringLiteral("(@octo-reviewer on github.com)")) && !windowA->remove_saved_repository_action()->isEnabled(),
 		   "signed out, kept records name their account and host and cannot be removed");
-	windowA->home_landing()->primary_button()->click();
+	const auto beforeReconnect = evidence().AccountReadOperations.size();
+	connect();
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && savedCount() == 4
 					   && !windowA->saved_repository_list()->item(0)->text().contains(QLatin1Char('@')); },
 			 "signing in again lists the account's own records", diagnose);
+	if (cliCourse) {
+		const auto transport = evidence();
+		expect(transport.AccountTransportSelected && transport.VaultStoreAttempts == 0U && transport.VaultRetrieveAttempts == 0U,
+			   "restored Home metadata uses the CLI account lease without a native credential");
+	}
+
+	wait_for([&] { const auto item = queue_item(*windowA, 4003); const auto followed = queue_item(*windowA, 17); return discovery().Quiescent && item && followed && followed->Facts.Title == followedTitle && item->Facts.Title == "Discovered pull request 4003" && item->Bucket == core::attention_bucket::quiet; },
+			 "restarted Home fills retained titles and approval state before opening a review", diagnose);
+	expect(contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"), "restored approved PR is Following before it is opened");
+	expect(std::ranges::none_of(reads_since(evidence(), beforeReconnect), [](const std::string& aOperation) {
+			   return aOperation == "GetRepository" || aOperation == "ListPullRequestFiles" || aOperation == "ListPullRequestCommits"
+				   || aOperation == "ListReviewThreads" || aOperation == "ListIssueComments";
+		   }),
+		   "restored Home metadata never opens the snapshot, diff, history or conversation path");
 	// Settings › Repositories removes through the existing saved-repository
 	// intent and store; the last removal brings back the first-run call to action.
 	windowA->settings_action()->trigger();
@@ -737,7 +798,7 @@ try {
 	wait_for([&] { return owner->status().ShutdownComplete; }, "restarted profile drains");
 	desktop.reset();
 	expect(e2e::remove_course_root(temporary), "the course's temporary root is removed");
-	std::cout << "personal-discovery-public-path:pass\n";
+	std::cout << (cliCourse ? "personal-discovery-cli-public-path:pass\n" : "personal-discovery-public-path:pass\n");
 	return EXIT_SUCCESS;
 } catch (...) {
 	return bpr::tests::failing_exit();
