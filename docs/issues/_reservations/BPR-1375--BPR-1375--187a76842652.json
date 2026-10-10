@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1375"
+  ],
+  "reserve_for": "bpr1225-bare-oauth",
+  "purpose": "",
+  "created": "2026-10-10T00:58:50.601457+00:00",
+  "base": "dab108c97617f9ea6f795a24cbe329020b67408b"
+}
