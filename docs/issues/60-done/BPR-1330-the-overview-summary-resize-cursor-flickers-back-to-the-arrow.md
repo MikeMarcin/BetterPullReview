@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1330"
 title: "The Overview summary resize cursor flickers back to the arrow"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
-parked_on: "human-review"
 metadata: {"found_by":"owner chat report, 2026-10-08","reservation":"docs/issues/_reservations/BPR-1330--BPR-1330--538b1caef455.json","related_cards":["BPR-0739","BPR-0746","BPR-1312","BPR-1313"],"acceptance":["BPR-1330:hold","BPR-1330:owner-look"]}
-acceptance: [{"criterion":"AC1 A Qt test pins that the summary seam and the files and conversations drawer seams show their resize cursor on arrival, again after each move over the seam and after the seam's tooltip opens once the window has been given the arrow, and stop asserting it once the pointer has left; with the hold removed it fails","outcome":"pass","revision":"8f3452054","evidence":{"kind":"command","detail":"At 8f3452054 (rebased onto 6bfde1e6d and rebuilt), serially: ctest --preset dev -R '^(architecture_boundaries|application_overview_summary_.*|qt_composed_github_scale_100|qt_pull_request_overview_page|qt_workbench_window_scale_(100|125|200))$' is 9 of 9. Control: with hold_resize_cursor's install replaced by return, qt_pull_request_overview_page fails 'summary seam, after a move over the seam: handle underMouse 1, window cursor 0, seam cursor 11' and qt_workbench_window_scale_100 fails 'conversations seam, after a move over the seam: handle underMouse 1, window cursor 0, seam cursor 12'. A -j4 run of the same nine had five red that pass serially; tests/AGENTS.md asks for serial Qt fixtures. clang-format-diff is clean on the diff; tidy.py --warnings-as-errors reports nothing in resize_handle_cursor.cpp, and only existing lines (1167-1170, 1217-1218) in pull_request_overview_page_tests.cpp."}},{"criterion":"AC2 The owner rests and moves the pointer on the Overview summary seam and the conversations drawer seam in the macOS app and the resize cursor stays","outcome":"pending","revision":"8f3452054","evidence":{"kind":"observation","detail":"Not yet observed. The offscreen check cannot see AppKit; the owner looks at a macOS build carrying 8f3452054."}}]
+acceptance: [{"criterion":"AC1 A Qt test pins that the summary seam and the files and conversations drawer seams show their resize cursor on arrival, again after each move over the seam and after the seam's tooltip opens once the window has been given the arrow, and stop asserting it once the pointer has left; with the hold removed it fails","outcome":"pass","revision":"8f3452054","evidence":{"kind":"command","detail":"At 8f3452054 (rebased onto 6bfde1e6d and rebuilt), serially: ctest --preset dev -R '^(architecture_boundaries|application_overview_summary_.*|qt_composed_github_scale_100|qt_pull_request_overview_page|qt_workbench_window_scale_(100|125|200))$' is 9 of 9. Control: with hold_resize_cursor's install replaced by return, qt_pull_request_overview_page fails 'summary seam, after a move over the seam: handle underMouse 1, window cursor 0, seam cursor 11' and qt_workbench_window_scale_100 fails 'conversations seam, after a move over the seam: handle underMouse 1, window cursor 0, seam cursor 12'. A -j4 run of the same nine had five red that pass serially; tests/AGENTS.md asks for serial Qt fixtures. clang-format-diff is clean on the diff; tidy.py --warnings-as-errors reports nothing in resize_handle_cursor.cpp, and only existing lines (1167-1170, 1217-1218) in pull_request_overview_page_tests.cpp."}},{"criterion":"AC2 The owner rests and moves the pointer on the Overview summary seam and the conversations drawer seam in the macOS app and the resize cursor stays","outcome":"pass","revision":"8f3452054","evidence":{"kind":"observation","detail":"Owner Accept, no note, 2026-10-09T23:50:46Z: session 925ff9ae9fdc140409dc23c2f529278f, candidate BPR-1330-seam-cursor-v001 (frozen cf476d62b, which carries 8f3452054; fingerprint ffe069a6a0e6...), decision d4030177-041d-46ce-9c29-d992adcc9aad at event 5, handed back at 6, released at 7."}}]
 ---
 
 # The Overview summary resize cursor flickers back to the arrow
@@ -89,8 +88,8 @@ hold's install replaced by `return`, is red on both seams at the first move
 (window cursor 0 where 11 and 12 are required). A `-j4` run of the same nine
 had five red that pass serially.
 
-AC2 is pending. Parked on human review: the owner's look on a build carrying
-`8f3452054`. No attended session was prepared by this slice.
+AC2 passes: the owner accepted the look on a frozen build of `cf476d62b`,
+which carries `8f3452054` (verdict below).
 
 ## Owner session prepared, 2026-10-09 (main, Mac)
 
@@ -100,4 +99,23 @@ One new short session, not the long default one: one Accept/Reject question for 
 - Session `925ff9ae9fdc140409dc23c2f529278f`, state `/Users/jaeger/.mask/attended-review/owner-review-20261009-parked-mac-v001/state` (repository root this checkout). Candidate `BPR-1330-seam-cursor-v001`, revision `frozen-cf476d62b-v001`, fingerprint `ffe069a6…`, ready and protected at event cursor 4; the host runs detached.
 - The question: rest and move the pointer on the seam under the Overview's summary, wait for its tooltip, then do the same on the comments drawer seam in Review. Accept if the resize cursor stays the whole time the pointer is on each seam.
 
-AC2 stays pending until the verdict is read here.
+
+## Owner verdict and closeout — 2026-10-09
+
+Session `925ff9ae9fdc140409dc23c2f529278f` (state
+`/Users/jaeger/.mask/attended-review/owner-review-20261009-parked-mac-v001/state`),
+handed back at event 6. Candidate `BPR-1330-seam-cursor-v001` (revision
+`frozen-cf476d62b-v001`, fingerprint `ffe069a6a0e6…`): **Accept**, no note,
+2026-10-09T23:50:46Z, decision `d4030177-041d-46ce-9c29-d992adcc9aad` at
+event 5. This satisfies AC2 (`BPR-1330:owner-look`); AC1 (`BPR-1330:hold`)
+already passed at `8f3452054`.
+
+The verdict was missed when it came in and is recorded here late. The
+session's host (pid 97314) was stopped with the session's own `stop` and is
+gone, and the candidate was released with `resume-development --all` at
+event 7. The frozen root
+`/Users/jaeger/.mask/attended-review/bpr-owner-20261009-mac._suhca5k`, which
+the stopped Mac wizards `bpr-mac-frozen-20261009-v001` and `-v002` had also
+used, had no process running from it and was removed with
+`scripts/freeze_attended_build.py remove`. The session's state folder keeps
+the record. The card is Done.
