@@ -246,8 +246,9 @@ namespace bpr::app {
 					}
 					return std::unique_ptr<application::review_submission_port>{ std::move(*provider) };
 				};
-				// Tour operations still require the parent's exact host/transport qualification.
-				return tour_publication_context{ std::move(binding), std::move(factory), Session, false, [configuration](std::string_view aKey) -> tour_cli_result<std::optional<application::staged_review_plan>> {
+				// [[BPR-1222]]. Publication is on by the owner's 2026-10-09 amendment;
+				// `publish` still asks for the typed confirmation of each exact plan.
+				return tour_publication_context{ std::move(binding), std::move(factory), Session, true, [configuration](std::string_view aKey) -> tour_cli_result<std::optional<application::staged_review_plan>> {
 													auto store = adapters::sqlite::make_review_submission_recovery_store(configuration);
 													if (!store) {
 														return std::unexpected(tour_cli_error{ "recovery_unavailable", "The private publication journal is unavailable.", 7 });

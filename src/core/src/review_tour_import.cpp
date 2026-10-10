@@ -29,8 +29,9 @@ namespace bpr::core {
 			std::unordered_set<std::string> seen;
 			for (const auto& entry : aList.Entries) {
 				tour_stop  stop{ .Id = tour_stop_id{ ++aDraft.LastStopId }, .Title = entry.Label };
-				const auto object  = std::ranges::find_if(aObjects, [&](const auto& aObject) { return aObject.ValidDestination && aObject.Binding.WebUrl == entry.Destination; });
-				const auto matches = std::ranges::count_if(aObjects, [&](const auto& aObject) { return aObject.ValidDestination && aObject.Binding.WebUrl == entry.Destination; });
+				const auto named   = [identity = tour_link_identity(entry.Destination)](const auto& aObject) { return aObject.ValidDestination && aObject.Binding.WebUrl == identity; };
+				const auto object  = std::ranges::find_if(aObjects, named);
+				const auto matches = std::ranges::count_if(aObjects, named);
 				if (object == aObjects.end() || matches != 1 || !object->Available || object->Binding.Entity == aDraft.Remote->Entity) {
 					stop.Body       = "Unresolved tour entry: " + entry.Destination;
 					aDraft.ReadOnly = true;

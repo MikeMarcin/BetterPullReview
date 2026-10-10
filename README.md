@@ -83,8 +83,10 @@ an ordered route of source-bound explanations. Add stops from selected code,
 reorder them with `Alt+Shift+Up/Down`, and use Previous, Next or Return to tour
 while exploring files. Drafts save locally and survive reopening; editing and
 preview require no AI and publish nothing. Import, publication and recovery are
-implemented through production-port fixtures; production Tour writes remain
-unavailable until exact host/transport qualification. See
+implemented through production-port fixtures, and live publication is on by the
+owner's 2026-10-09 amendment on
+[BPR-1222](docs/issues/40-parked/BPR-1222-qualify-live-github-review-tours.md),
+each publish confirmed on its exact plan. See
 [private review-tour authoring](docs/architecture/review-tours.md).
 
 Ordinary review threads can now be
@@ -291,8 +293,8 @@ criteria with those accepted successor requirements and placement decisions.
 Use **Prepare review tour** in Overview or the Pull Request menu to write a
 Problem, Solution and ordered source explanations without AI. The
 [operator guide](docs/development/review-tours.md) covers native editing, optional
-writing hooks, cold import and partial maintenance. Production Tour writes remain
-unavailable until exact server/transport qualification; the
+writing hooks, cold import and partial maintenance. Production Tour writes are
+on by the owner's 2026-10-09 amendment, with untried operations listed as untried; the
 [execution ledger](docs/verification/RFC-BPR-0039-0043.md) distinguishes tested
 composition from unobserved native, website and installed-model qualification.
 RFC-BPR-0039–0043 are Auto-Verified under the owner's

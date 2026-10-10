@@ -5,6 +5,16 @@
 
 namespace bpr::core {
 	namespace {
+		auto decimal(std::string_view aText) -> bool
+		{
+			return !aText.empty() && aText.size() <= 20U && aText.front() != '0' && std::ranges::all_of(aText, [](unsigned char aByte) { return aByte >= '0' && aByte <= '9'; });
+		}
+		/// `https://host/owner/repository/pull/N`: the page both tabs hang from.
+		auto pull_request_page(std::string_view aPrefix) -> bool
+		{
+			const auto pull = aPrefix.rfind("/pull/");
+			return aPrefix.starts_with("https://") && pull != std::string_view::npos && decimal(aPrefix.substr(pull + 6U));
+		}
 		struct markdown_line
 		{
 			std::size_t      Begin;
@@ -360,6 +370,26 @@ namespace bpr::core {
 			result += static_cast<char>(byte);
 		}
 		return result;
+	}
+
+	auto tour_stop_link(std::string_view aWebUrl) -> std::string
+	{
+		constexpr auto conversation = std::string_view{ "#discussion_r" };
+		const auto     at           = aWebUrl.find(conversation);
+		if (at == std::string_view::npos || !pull_request_page(aWebUrl.substr(0, at)) || !decimal(aWebUrl.substr(at + conversation.size()))) {
+			return std::string{ aWebUrl };
+		}
+		return std::string{ aWebUrl.substr(0, at) } + "/files#r" + std::string{ aWebUrl.substr(at + conversation.size()) };
+	}
+
+	auto tour_link_identity(std::string_view aLink) -> std::string
+	{
+		constexpr auto files = std::string_view{ "/files#r" };
+		const auto     at    = aLink.find(files);
+		if (at == std::string_view::npos || !pull_request_page(aLink.substr(0, at)) || !decimal(aLink.substr(at + files.size()))) {
+			return std::string{ aLink };
+		}
+		return std::string{ aLink.substr(0, at) } + "#discussion_r" + std::string{ aLink.substr(at + files.size()) };
 	}
 
 	auto render_tour_index(std::span<const tour_markdown_link> aEntries, std::string_view aNewline) -> std::optional<std::string>

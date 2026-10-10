@@ -185,11 +185,14 @@ before resuming. A server pending review without a matching local attempt is a
 candidate only: it grants no adoption, edit, deletion or submit authority. Private
 unsent text/history and lost approval cannot be reconstructed from it.
 
-Production Tour operations retain the parent's unqualified host/transport gate.
-The native and admitted gh provider compositions exist, but fixture acceptance
-does not enable live Tour writes. Unsupported vaults, platforms and authority
-remain typed refusals. Live host, native package and actual human/agent
-qualification remain later acceptance work. The current exact-plan preview is
+Live Tour publication is on by the owner's 2026-10-09 amendment on
+[BPR-1222](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md)
+for both the native and the admitted gh transport: `publish` prints the exact
+plan and writes nothing until you type `publish`. `capabilities` reports
+`remote_writes: true`. The local `preview` reports `publication_readiness`
+`incomplete` or `complete`; `preview --refresh` plans the exact destinations.
+Unsupported vaults, platforms and authority remain typed refusals. Operations
+the BPR-Test course did not try stay listed as untried on that card. The current exact-plan preview is
 bounded to 400,000 UTF-8 bytes; larger plans refuse before prompting.
 
 ## Platform status

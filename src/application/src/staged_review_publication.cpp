@@ -120,8 +120,9 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		std::vector<core::tour_markdown_link> entries;
+		entries.reserve(aRecord.Comments.size());
 		for (std::size_t i = 0; i < aRecord.Comments.size(); ++i) {
-			entries.push_back({ aRecord.Plan.Stops[i].Title, aRecord.Comments[i].WebUrl });
+			entries.push_back({ aRecord.Plan.Stops[i].Title, core::tour_stop_link(aRecord.Comments[i].WebUrl) });
 		}
 		const auto index = core::render_tour_index(entries);
 		if (!index) {

@@ -384,7 +384,7 @@ namespace {
 					const auto item = comments[i].toObject();
 					expect(!item.contains("subject_type") && !item.contains("pull_request_review_id"), "batch avoids undocumented fields");
 					Bodies[static_cast<std::size_t>(i)] = item["body"].toString().toStdString();
-					expect(!Bodies[static_cast<std::size_t>(i)].contains("discussion_r"), "unwired initial body has source links only");
+					expect(!Bodies[static_cast<std::size_t>(i)].contains("discussion_r") && !Bodies[static_cast<std::size_t>(i)].contains("files#r"), "unwired initial body has source links only");
 				}
 				expect(comments[0].toObject()["line"] == 5 && comments[0].toObject()["start_line"] == 4 && comments[1].toObject()["line"] == 8 && comments[1].toObject()["side"] == "LEFT", "batch uses real inclusive one-based source ranges");
 				Created = true;
@@ -399,7 +399,7 @@ namespace {
 				expect(Created && Submitted && Maintenance && json.size() == 1, "only a submitted owned body is edited through REST, under the exact maintenance plan");
 				const std::size_t i    = wire.Path.ends_with("601") ? 0 : 1;
 				const auto        body = json["body"].toString().toStdString();
-				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "#discussion_r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation");
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "/files#r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation to the Files changed tab");
 				Bodies[i] = body;
 			} else if (wire.Method == http_method::post && wire.Path == "/graphql") {
 				// [[BPR-1368]]. The pending stop edit: the fixed mutation, by
@@ -409,15 +409,15 @@ namespace {
 				expect(Created && !Submitted && json.size() == 2 && variables.size() == 2 && json["query"].toString().startsWith("mutation UpdateReviewComment($comment:ID!,$body:String!){updatePullRequestReviewComment(") && (node == "PRRC_601" || node == "PRRC_602"), "a pending stop is edited only by the fixed GraphQL mutation, by its node ID");
 				const std::size_t i    = node == "PRRC_601" ? 0 : 1;
 				const auto        body = variables["body"].toString().toStdString();
-				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "#discussion_r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation");
+				expect(body.contains(std::string{ Web } + "#pullrequestreview-501") && body.contains(std::string{ Web } + "/files#r" + (i ? "601" : "602")), "actual returned review/comment URLs wire navigation to the Files changed tab");
 				Bodies[i] = body;
 				++GraphqlEdits;
 				answer = edit_json(i);
 			} else if (wire.Method == http_method::post && wire.Path == std::string{ Pull } + "/reviews/501/events") {
 				expect(Created && !Submitted && json["event"] == "COMMENT" && json.size() == 2, "only exact review receives COMMENT once");
-				expect(Bodies[0].contains("#discussion_r602") && Bodies[1].contains("#discussion_r601"), "all navigation edits precede submit");
+				expect(Bodies[0].contains("/files#r602") && Bodies[1].contains("/files#r601"), "all navigation edits precede submit");
 				Summary = json["body"].toString().toStdString();
-				expect(Summary.contains("#discussion_r601") && Summary.contains("#discussion_r602") && !Summary.contains("incomplete"), "final index replaces incomplete warning");
+				expect(Summary.contains("/files#r601") && Summary.contains("/files#r602") && !Summary.contains("#discussion_r") && !Summary.contains("incomplete"), "final index replaces incomplete warning");
 				Submitted = true;
 				++Submits;
 			} else if (wire.Method == http_method::put && wire.Path == std::string{ Pull } + "/reviews/501") {

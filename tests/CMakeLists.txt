@@ -41,7 +41,7 @@ if(BPR_BUILD_TOUR_CLI)
     # disposable authority, reached through the adapter's BUILD_TESTING-only
     # seam. Linux signs in through the device flow into a private Secret
     # Service and then opens, reads pinned source, refreshes, publishes (to the
-    # unqualified gate, no writes) and recovers; every platform refuses a
+    # typed confirmation, cancelled, no writes) and recovers; every platform refuses a
     # never-signed-in open at once. Each step is bounded, so a hang fails in
     # seconds at its own path.
     set(bpr_tour_loopback_openssl "")

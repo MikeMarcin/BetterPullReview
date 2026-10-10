@@ -60,6 +60,17 @@ namespace bpr::core {
 	/// \brief Preview insertion into an unstructured description at an explicitly chosen byte boundary.
 	[[nodiscard]] auto insert_tour_brief(std::string_view aRaw, std::size_t aAt, std::string_view aProblem, std::string_view aSolution, std::string_view aNewline = "\n") -> std::optional<std::string>;
 	[[nodiscard]] auto tour_markdown_label(std::string_view aLabel) -> std::string;
+	/// \brief [[BPR-1222]]. Where a tour's index and Previous/Next take a
+	/// reader: a review comment's Files changed anchor. GitHub returns a review
+	/// comment as `…/pull/N#discussion_rID` (the Conversation tab); the Files
+	/// changed page carries the same comment as `id="rID"`, so the link is
+	/// `…/pull/N/files#rID`. Any other destination (a review, a conversation
+	/// comment) is returned unchanged.
+	[[nodiscard]] auto tour_stop_link(std::string_view aWebUrl) -> std::string;
+	/// \brief The comment URL GitHub returned for a route link written in
+	/// either form, so a tour published before [[BPR-1222]] still matches its
+	/// comments. Anything else is returned unchanged.
+	[[nodiscard]] auto tour_link_identity(std::string_view aLink) -> std::string;
 	/// \brief Destinations are already admitted by the host; the codec additionally refuses Markdown injection.
 	[[nodiscard]] auto render_tour_index(std::span<const tour_markdown_link> aEntries, std::string_view aNewline = "\n") -> std::optional<std::string>;
 	[[nodiscard]] auto render_tour_stop(std::string_view aTitle, std::size_t aOrdinal, std::string_view aNarrative,

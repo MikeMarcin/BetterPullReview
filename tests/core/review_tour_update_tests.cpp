@@ -215,7 +215,7 @@ int main()
 	expect(!plan_tour_update(draft, { }), "new destination must exist before index update");
 	const tour_created_destination created{ inserted.Id, tour_remote_binding{ .Kind = tour_remote_kind::line_comment, .DatabaseId = 40, .Entity = "new", .Actor = "author", .WebUrl = "https://github.com/o/r/pull/7#discussion_r40", .Review = "10", .Own = true }, *render_tour_stop(inserted.Title, 1, inserted.Body, std::vector<tour_markdown_link>{ { "Tour overview", draft.Remote->WebUrl } }) };
 	plan = plan_tour_update(draft, std::vector{ created });
-	expect(plan && plan->Index.contains("discussion_r40") && plan->Edits.back().Remote == *draft.Remote, "second batch joins original index last using returned URL");
+	expect(plan && plan->Index.contains("pull/7/files#r40") && plan->Edits.back().Remote == *draft.Remote, "second batch joins original index last using returned URL");
 	draft                       = published();
 	draft.Stops[0].Mapped       = draft.Stops[0].Original;
 	draft.Stops[0].Mapped->Path = "moved.cpp";

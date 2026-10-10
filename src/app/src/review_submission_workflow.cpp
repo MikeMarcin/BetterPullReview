@@ -692,7 +692,7 @@ namespace bpr::app {
 		Status    = "Publication authority changed. Refresh and prepare a new preview.";
 		present();
 	}
-	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aFixtureQualified)
+	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aQualified)
 	{
 		if (Closing) {
 			return;
@@ -707,16 +707,11 @@ namespace bpr::app {
 		Binding     = std::move(aBinding);
 		Authority   = aAuthority;
 		Description = std::move(aDescription);
-#if defined(BPR_BUILD_TESTING)
-		FixtureQualified = aFixtureQualified;
-#else
-		static_cast<void>(aFixtureQualified);
-		FixtureQualified = false;
-#endif
-		Generation = core::request_generation{ Generation.value() + 1 };
-		Host       = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this);
-		Context    = Host->discover_tours();
-		Status     = "Checking saved publication state. No writes are scheduled.";
+		Qualified   = aQualified;
+		Generation  = core::request_generation{ Generation.value() + 1 };
+		Host        = std::make_unique<application::review_submission_application_host>(std::move(aFactory), *Binding, Authority.ApplicationSession, Generation, Effects, Decisions, *this);
+		Context     = Host->discover_tours();
+		Status      = "Checking saved publication state. No writes are scheduled.";
 		present();
 	}
 	void review_tour_publication_workflow::observe(const application::tour_presentation& aDraft)
@@ -758,7 +753,7 @@ namespace bpr::app {
 			present();
 			return;
 		}
-		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication() }, FixtureQualified);
+		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication() }, Qualified);
 		Plan                = prepared.Plan;
 		Previewed           = Plan.has_value();
 		if (Plan) {

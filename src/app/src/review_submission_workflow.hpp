@@ -124,7 +124,7 @@ namespace bpr::app {
 		using grant_factory = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::staged_review_plan&)>;
 		using receipt_sink  = std::function<void(const application::staged_publication_record&)>;
 		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::write_confirmation = { }, receipt_sink = { });
-		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aFixtureQualified = false);
+		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aQualified = false);
 		void               observe(const application::tour_presentation&);
 		void               dispatch(qt::tour_editor_action);
 		void               invalidate();
@@ -152,7 +152,7 @@ namespace bpr::app {
 		application::staged_publication_state                                         State = application::staged_publication_state::unavailable;
 		std::string                                                                   Description, Status = "Saved locally. Prepare a publication preview.";
 		receipt_sink                                                                  ReceiptSink;
-		bool                                                                          FixtureQualified = false, Closing = false, Previewed = false, Ready = false;
+		bool                                                                          Qualified = false, Closing = false, Previewed = false, Ready = false;
 	};
 }
 #endif

@@ -404,8 +404,10 @@ class Course:
             output += "\n" + stderr.decode("utf-8", "replace")
         return Step(name, child.returncode, output, time.monotonic() - started, timed_out, self.since(mark))
 
-    def terminal(self, name: str, arguments: list[str], seed: bool = False) -> Step:
-        """One `bpr` process on a pseudo-terminal, as a person would run it."""
+    def terminal(self, name: str, arguments: list[str], seed: bool = False, answer: str | None = None) -> Step:
+        """One `bpr` process on a pseudo-terminal, as a person would run it.
+
+        `answer` is typed once, after the publish confirmation prompt appears."""
         import pty
         mark = self.mark()
         started = time.monotonic()
@@ -434,6 +436,9 @@ class Course:
                     if not part:
                         break
                     output.extend(part)
+                    if answer is not None and PROMPT.encode() in output:
+                        os.write(master, answer.encode())
+                        answer = None
             child.wait(timeout=INTERRUPT_SECONDS)
         finally:
             os.close(master)
@@ -474,7 +479,7 @@ def never_signed_in(course: Course, root: Path) -> None:
 
 READ = "GET /repos/octo-org/review-repository/pulls/17"
 SOURCE_TEXT = "int review_line_1 = 21;\nint review_line_2 = 22;\n"
-UNQUALIFIED = "operation qualification is still required"
+PROMPT = "Type publish to authorize exactly this finite plan"
 
 
 def native_paths(course: Course, root: Path, server: FakeGitHub) -> None:
@@ -542,14 +547,15 @@ def native_paths(course: Course, root: Path, server: FakeGitHub) -> None:
 
     refreshed = course.run("refresh", ["preview", "--refresh", *select_draft, "--json"])
     status = refreshed.json().get("data", {}).get("publication_status", "") if refreshed.code == 0 else ""
-    course.check(refreshed, 0, READ in refreshed.requests and UNQUALIFIED in status, f"status={status!r}")
+    course.check(refreshed, 0, READ in refreshed.requests and status.startswith("Preview ready"), f"status={status!r}")
 
-    # Live Tour publication keeps the parent's unqualified host/transport gate: a
-    # complete draft is read, its plan refused at that gate, and nothing written.
-    published = course.terminal("publish", ["publish", *select_draft])
+    # BPR-1222: live Tour publication is on (owner amendment 2026-10-09). A
+    # complete draft reaches the typed confirmation of its exact plan; Enter
+    # cancels it, and nothing is written.
+    published = course.terminal("publish", ["publish", *select_draft], answer="\n")
     writes = [entry for entry in published.requests if entry.startswith("write:")]
-    course.check(published, 5, READ in published.requests and UNQUALIFIED in published.output and not writes
-                 and "Type publish" not in published.output, f"writes={writes}")
+    course.check(published, 130, READ in published.requests and PROMPT in published.output and not writes
+                 and "no writes were authorized" in published.output, f"writes={writes}")
 
     recovered = course.run("recover", ["recover", *select_draft, "--json"])
     state = recovered.json().get("data", {}).get("publication_state") if recovered.code == 0 else None

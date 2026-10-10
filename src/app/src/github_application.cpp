@@ -10475,7 +10475,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				};
 				TourPublication->adopt(binding, workbench_authority(aHandoff), std::move(tourFactory), WindowRead->accepted_snapshot()->PullRequest.Body, static_cast<bool>(Fixture) && ReviewSubmissionServer->StagedQualified);
 #else
-				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body);
+				// [[BPR-1222]]. Live publication is on (owner amendment 2026-10-09);
+				// Publish still asks the write confirmation and spends a one-use grant.
+				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true);
 #endif
 			}
 			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory));

@@ -62,7 +62,7 @@ namespace bpr::core {
 					}
 					continue;
 				}
-				if (!aTour.Stops[i].Remote || needs_tour_destination(aTour.Stops[i]) || aTour.Stops[i].Remote->WebUrl != before->Entries[i].Destination) {
+				if (!aTour.Stops[i].Remote || needs_tour_destination(aTour.Stops[i]) || aTour.Stops[i].Remote->WebUrl != tour_link_identity(before->Entries[i].Destination)) {
 					return false;
 				}
 			}
@@ -93,7 +93,10 @@ namespace bpr::core {
 			const auto                  generated = map_tour_markdown(*rendered);
 			std::vector<tour_text_edit> edits;
 			const auto                  original = std::ranges::find(map.Lists, *list, &tour_markdown_list::Source);
-			if (original->Entries != std::vector<tour_markdown_link>(aEntries.begin(), aEntries.end())) {
+			// [[BPR-1222]]. A route written with Conversation links is unchanged
+			// while it names the same comments in the same order.
+			const auto same = [](const tour_markdown_link& aLeft, const tour_markdown_link& aRight) { return aLeft.Label == aRight.Label && tour_link_identity(aLeft.Destination) == tour_link_identity(aRight.Destination); };
+			if (!std::ranges::equal(original->Entries, aEntries, same)) {
 				append_edit(edits, raw, *list, span_text(*rendered, generated.Lists.front().Source));
 			}
 			for (const auto& name : { std::string{ "Problem" }, std::string{ "Solution" } }) {
@@ -165,10 +168,11 @@ namespace bpr::core {
 				return { };
 			}
 			const auto& remote = created == aCreated.end() ? *stop.Remote : created->Remote;
-			if (!remote.Own || remote.Entity.empty() || std::ranges::any_of(entries, [&](const auto& e) { return e.Destination == remote.WebUrl; })) {
+			const auto  link   = tour_stop_link(remote.WebUrl);
+			if (!remote.Own || remote.Entity.empty() || std::ranges::any_of(entries, [&](const auto& aEntry) { return aEntry.Destination == link; })) {
 				return { };
 			}
-			entries.push_back({ stop.Title, remote.WebUrl });
+			entries.push_back({ stop.Title, link });
 		}
 		tour_update_bodies result;
 		for (std::size_t i = 0; i < aTour.Stops.size(); ++i) {

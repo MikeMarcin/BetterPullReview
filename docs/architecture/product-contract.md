@@ -260,8 +260,10 @@ tour without AI. The [operator workflow](../development/review-tours.md) describ
 editing, exact source/fallback subjects, cold import, website conflicts and
 partial recovery. Explicit description updates are a narrow **body-only**
 extension; the original title, draft status and other PR-management state have
-no tour mutation operation. Production Tour writes remain unavailable until the
-exact connected operations are qualified.
+no tour mutation operation. Production Tour publication is on by the
+[owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links);
+each publish still needs its typed or dialog confirmation of the exact plan, and
+operations the BPR-Test course did not try stay listed as untried there.
 
 An explicit tour writing action may replace one captured local editor span as
 one native undo transaction. It grants no publication authority. Outline entries

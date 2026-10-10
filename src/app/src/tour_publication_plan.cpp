@@ -24,7 +24,7 @@ namespace bpr::app {
 		const auto readiness = draft.Remote ? core::assess_tour_update(draft, decisions, compatibility, aQualified ? core::tour_operation_support::supported : core::tour_operation_support::unknown) : core::assess_tour_publication(draft, decisions, compatibility);
 		if (readiness != core::tour_publication_readiness::single_review && readiness != core::tour_publication_readiness::compatibility_comments) {
 			result.Status = readiness == core::tour_publication_readiness::incomplete ? "Complete Problem, Solution and every stop with an exact available source before publishing." : readiness == core::tour_publication_readiness::compatibility_choice ? "This route needs visible compatibility comments. Keep one review by relocating destinations, or explicitly choose compatibility comments."
-																																																															: "Publication is unavailable for these destinations on this host and transport. Keep preparing locally; operation qualification is still required.";
+																																																															: "Publication is unavailable for these destinations. Move each stop to a line GitHub can comment on, or keep preparing locally.";
 			return result;
 		}
 		// Filled member by member: GCC 15 at -O3 reads the nested designated

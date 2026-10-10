@@ -70,10 +70,28 @@ namespace {
 		expect(!map_tour_stop(quoted).Footer, "footer in code is not managed");
 		expect(!render_tour_index(std::array{ tour_markdown_link{ "bad", "https://example.com/)\n<script>" } }), "destination injection refused");
 	}
+	/// [[BPR-1222]]. The owner asked for stops on the Files changed tab. GitHub's
+	/// `/pull/50/files` page carries each review comment as `id="r4235770230"`
+	/// (read 2026-10-09 on MikeMarcin/BPR-Test#50).
+	void files_changed_links()
+	{
+		const std::string comment = "https://github.com/o/r/pull/7#discussion_r4235770230";
+		const std::string files   = "https://github.com/o/r/pull/7/files#r4235770230";
+		expect(tour_stop_link(comment) == files, "a review comment links to its Files changed anchor");
+		expect(tour_link_identity(files) == comment && tour_link_identity(comment) == comment, "either form names the comment GitHub returned");
+		for (const auto* other : { "https://github.com/o/r/pull/7#pullrequestreview-9", "https://github.com/o/r/pull/7#issuecomment-8", "https://github.com/o/r/pull/7", "https://github.com/o/r/pull/7#discussion_r", "https://github.com/o/r/pull/7#discussion_r01", "https://github.com/o/r/pull/7#discussion_r1x",
+								   "https://github.com/o/r/issues/7#discussion_r1", "http://github.com/o/r/pull/7#discussion_r1", "https://github.com/o/r/pull/x#discussion_r1" }) {
+			expect(tour_stop_link(other) == other, "anything but a review comment's URL is kept");
+		}
+		for (const auto* other : { "https://github.com/o/r/pull/7/files#r", "https://github.com/o/r/pull/7/files#r0", "https://github.com/o/r/pull/7/files#diff-abc", "https://github.com/o/r/blob/x/files#r1", "https://github.com/o/r/pull/7/files#r1x" }) {
+			expect(tour_link_identity(other) == other, "anything but a Files changed comment anchor is kept");
+		}
+	}
 }
 int main()
 {
 	golden();
 	generated();
+	files_changed_links();
 	std::cout << "TOUR_MARKDOWN_OK\n";
 }

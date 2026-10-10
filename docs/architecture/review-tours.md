@@ -203,8 +203,8 @@ transmission consumes an exact child journal revision. SQLite recovery v5 stores
 one finite pending step and confirmed returned identities in the existing
 private recovery database. Unknown writes are reconciled by complete reads and
 are never blindly repeated. Stop/restart retains receipts and requires explicit
-Resume for further writes. Live pending mutation endpoints stay unavailable
-until their separate qualification is recorded.
+Resume for further writes. Live pending mutation endpoints are on by the
+[owner amendment of 2026-10-09](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md#owner-amendment-2026-10-09-publication-on-and-files-changed-links).
 
 ## Published maintenance
 
@@ -230,8 +230,10 @@ relevant review memberships. Website replies are preserved. A changed baseline
 stops the plan and retains its desired text. These endpoints provide no evidenced
 conditional body write: preflight and reconciliation cannot eliminate a concurrent
 website edit between them. No operation is qualified merely by these fixture
-results; production Tour writes remain unavailable until the exact operation's
-live qualification.
+results. Production Tour writes are on by the owner's 2026-10-09 amendment and
+are qualified by the pre-release itself; the operations the BPR-Test course did
+not try stay listed as untried on
+[BPR-1222](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md).
 
 Refreshing a bound tour compares its previous raw bodies, current draft and
 complete website observation. Equal versions adopt website truth without writes;

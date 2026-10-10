@@ -260,3 +260,74 @@ BPR-Test; the fork `MikeMarcinTest/BPR-Test` holds only `main`.
 
 The card moves from Blocked on `safe-github-tour-target` (target and both
 accounts are now supplied) to Parked on `human-review`.
+
+## Website verdicts, 2026-10-09 (session `0f7659f0e0e24a7e592e6f6266e04b7e`, hand-back 13)
+
+The owner answered all three questions in a private window signed in as
+`MikeMarcinTest` on `MikeMarcin/BPR-Test#50` (review 5476795875 after the
+reorder; harness `400e6ddc2` on `e964b5a83`). Verbatim:
+
+| Candidate | Verdict | Note |
+|---|---|---|
+| `BPR-1222-AC40-07-navigation` | Reject | "It works, but I really wish those tour stop links went to the comments on the files changed tab rather than the conversations tab." |
+| `BPR-1222-AC40-07-reply` | Accept | "Replaied with "Some short text"" |
+| `BPR-1222-AC42-08-after-update` | Accept | (none) |
+
+So AC40-07's reply half and AC42-08's after-update half pass on that
+candidate. AC40-07's navigation works but is rejected as to where it lands;
+the amendment below answers it, and the owner re-checks it later on a fresh
+tour. The live course was not re-run for it. The session was stopped
+(`stop`; hosts 30139 and, after a restart, 85880) and its three candidates
+released (`resume-development --all`, event 14).
+
+## Owner amendment 2026-10-09: publication on and Files changed links
+
+**Files changed links.** From the navigation note above. A tour's index
+(`## Review tour — Start here`) and each stop's Previous and Next now link to
+the comment on the Files changed tab, `https://github.com/<o>/<r>/pull/<n>/files#r<comment database id>`,
+not the Conversation tab's `…/pull/<n>#discussion_r<id>`. Tour overview and the
+description's Review tour link still name the review (`#pullrequestreview-<id>`)
+on the Conversation tab, and compatibility stops (conversation comments,
+`#issuecomment-<id>`) are unchanged. The anchor form was read, not guessed: one
+anonymous fetch of `https://github.com/MikeMarcin/BPR-Test/pull/50/files`
+(200, no redirect) carried each stop as `<div id="r4235770230" …>` with its
+own permalink `href="#r4235770230"`, and likewise `r4235770244`,
+`r4235770251`; one `gh api -i` read of comment 4235770230 beforehand showed
+`X-RateLimit-Remaining: 4989`. `core::tour_stop_link` builds the link from the
+`html_url` GitHub returns; `core::tour_link_identity` maps either form back to
+that `html_url`, so import, reconciliation and the update planner match a tour
+published before this change as well as after it, and an unchanged stop of an
+older tour keeps its bytes. Pasting a `/files#r<id>` link into BetterPullReview
+opens that review comment.
+
+**Publication on.** The owner, 2026-10-09, verbatim: "yeah switch it on, let's
+test it out for real". Live tour publication is enabled for the application and
+for `bpr tour`, on both transports:
+
+- `live_review_submission_provider::publish_tour` runs the production
+  `review_submission_session` instead of returning unavailable;
+- `tour_remote.cpp` builds the CLI's publication context qualified;
+- the application's Tour Publish, Stop and Resume run against the live provider
+  (`review_tour_publication_workflow::adopt` takes the qualification as passed;
+  tests-on builds keep fixture-only qualification);
+- `bpr tour capabilities` reports `remote_writes: true` and the gate as the
+  typed `publish`; the local `preview` reports `complete` instead of
+  `needs_qualification`.
+
+Every per-write confirmation and refusal stays: the application's write
+confirmation and one-use parent grant, each write's child authority, the CLI's
+typed `publish` of the exact plan, `authority_changed`, `preview_changed`,
+`remote_incomplete`, and the conflict, outcome-unknown and pending-review
+refusals.
+
+This is not a qualification pass. The pre-release itself qualifies it. The
+rows observed on BPR-Test#46 and #50 above stay row evidence, and these stay
+untried: every row through native HTTPS, off-hunk batches, pending file-subject
+staging and standalone file/PR fallbacks (AC41-06), pending root edits,
+ambiguous-result reconciliation, B/L/R website-conflict choices, retarget and
+membership removal, head advance, GHES (BPR-1223), and the application's own
+Publish, Stop and Resume gestures against GitHub. BPR-1377 (terminal authoring
+over gh) and BPR-1378 (a Stop reported as `conflict`) remain open.
+
+The card stays Parked on `human-review`: AC40-07's navigation needs the owner
+to re-check the Files changed links on a newly published tour.

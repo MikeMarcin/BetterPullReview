@@ -103,7 +103,7 @@ namespace bpr::core {
 			for (const auto& list : map.Lists) {
 				if ((aBaseline.SourceSpan && list.Source == tour_text_span{ aBaseline.SourceSpan->first, aBaseline.SourceSpan->second }) || (!aBaseline.SourceSpan && map.Lists.size() == 1)) {
 					for (const auto& entry : list.Entries) {
-						result.push_back(entry.Destination);
+						result.push_back(tour_link_identity(entry.Destination));
 					}
 					return result;
 				}

@@ -141,11 +141,13 @@ int main()
 		expect(left.Kind == kind::file && left.Side == core::diff_side::left && left.Line == 3U, "a left-side line fragment on the canonical page");
 		expect(location(base + "#discussion_r123456").Kind == kind::review_comment && location(base + "#discussion_r123456").Identity == 123456U,
 			   "a review comment fragment");
+		expect(location(base + "/files#r123456").Kind == kind::review_comment && location(base + "/files#r123456").Identity == 123456U,
+			   "a Files changed review comment fragment, as a tour links its stops");
 		expect(location(base + "#pullrequestreview-4001").Kind == kind::review && location(base + "#pullrequestreview-4001").Identity == 4001U,
 			   "a review fragment");
 		expect(location(base + "#issuecomment-99").Kind == kind::issue_comment && location(base + "#issuecomment-99").Identity == 99U,
 			   "a discussion comment fragment");
-		for (const auto* fragment : { "#diff-abcd", "#diff-", "#discussion_r", "#discussion_r0", "#discussion_r12x", "#pullrequestreview-", "#issuecomment-018", "#top", "#diff-deadbeef" }) {
+		for (const auto* fragment : { "#diff-abcd", "#diff-", "#discussion_r", "#discussion_r0", "#discussion_r12x", "#pullrequestreview-", "#issuecomment-018", "#top", "#diff-deadbeef", "#r", "#r0", "#r12x", "#readme" }) {
 			expect(location(base + fragment).Kind == kind::unrecognized, "an unread fragment is unrecognized, not a refusal");
 		}
 		for (const auto* suffix : { "R0", "R", "X4", "R10000001", "R4x" }) {

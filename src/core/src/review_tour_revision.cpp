@@ -22,7 +22,7 @@ namespace bpr::core {
 					std::vector<std::string> result;
 					result.reserve(list.Entries.size());
 					for (const auto& entry : list.Entries) {
-						result.push_back(entry.Destination);
+						result.push_back(tour_link_identity(entry.Destination));
 					}
 					return result;
 				}

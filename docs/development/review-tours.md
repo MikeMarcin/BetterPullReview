@@ -5,10 +5,16 @@ ordered set of source comments. Start with **Prepare review tour** in Overview
 or the Pull Request menu (`Alt+T`). It opens the Tour page beside Comments and
 Notes. Preparation, preview, navigation and local saving work without AI.
 
-The local authoring and fixture publication paths are implemented. Production
-Tour writes currently remain unavailable because their exact GitHub.com/GHES
-operations have not been qualified. Existing ordinary review commands retain
-their own support. The [qualification course](../verification/RFC-BPR-0039-0043.manual-course.md)
+The local authoring and fixture publication paths are implemented, and live
+publication is on by the owner's 2026-10-09 amendment on
+[BPR-1222](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md):
+Publish asks to confirm the exact plan before any write. Operations the
+BPR-Test course did not try (off-hunk and file-subject batches, standalone
+fallbacks, pending root edits, ambiguous-result reconciliation, GHES) are untried
+rather than qualified. The index and each stop's Previous and Next link to the
+comment on the Files changed tab (`…/pull/N/files#rID`); the Tour overview link
+stays on the Conversation tab. Existing ordinary review commands retain their
+own support. The [qualification course](../verification/RFC-BPR-0039-0043.manual-course.md)
 and [evidence ledger](../verification/RFC-BPR-0039-0043.md) record the outstanding
 server, other-platform and installed-provider/model checks. The seven prepared
 Mac native judgments are accepted on their recorded candidates. Do not interpret

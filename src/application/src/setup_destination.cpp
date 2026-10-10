@@ -103,6 +103,9 @@ namespace bpr::application {
 				identity(core::pull_request_location_kind::review, aFragment.substr(18U));
 			} else if (aFragment.starts_with("issuecomment-")) {
 				identity(core::pull_request_location_kind::issue_comment, aFragment.substr(13U));
+			} else if (aFragment.starts_with('r')) {
+				// [[BPR-1222]]. Files changed names a review comment `#rID`; a tour links its stops that way.
+				identity(core::pull_request_location_kind::review_comment, aFragment.substr(1U));
 			}
 			return result;
 		}
