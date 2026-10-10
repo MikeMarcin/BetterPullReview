@@ -345,3 +345,39 @@ touched, and opens bpr-fixtures/nested-folders #21 on its Overview. Within
 30 s it reports `OPENED`, `EXITED` with the code, or `NOT_READY`, and keeps
 `launch.log` beside it. The station has not run it natively, so nothing was
 shown on the desktop.
+
+## R33 Windows half: owner wizard prepared (main, Mac, 2026-10-09)
+
+Wizard `bpr-jaegaw-windows-20261009-v001` (session
+`5ce00a47-40a3-4a06-a683-958beb074838`, 17 steps). Its state is
+`/Users/jaeger/.mask/wizard/bpr-jaegaw-windows-20261009-v001`, and its loopback
+host runs detached on this Mac. The offline copy is
+`/Users/jaeger/.mask/wizard/bpr-jaegaw-windows-20261009-v001-offline.html`.
+The page's URL carries a token and goes to the owner directly, not into
+this card. Steps 1 and 3 to 14 belong to this card; steps 2 and 15 to 17
+belong to [[BPR-1068]].
+
+It runs the freeze above,
+`C:\Users\mikem\bpr1094-r33-overview-v001\launch.cmd`. The steps mirror the
+macOS half (`bpr-mac-frozen-20261009-v001`) and reuse its questions:
+
+1. Launch at the usual scale. The owner reports what it printed and the
+   scale. Anything but `OPENED` gets `launch.log` pasted, and the session
+   stops there.
+2. Tick all twelve Overview chips.
+3. At **125%**, set live in Settings, System, Display, Scale with the
+   window open: one Accept/Reject for the four themes with Icons/Letters
+   and Open/All, and one for the keyboard.
+4. At **200%**: one for the four themes, and one for a narrow window.
+5. With the scale back at its usual value (150%):
+   - one for **Narrator** (Ctrl+Windows+Enter);
+   - one for **the native Windows style**: chips beside the scroll bars,
+     Settings controls and title row, with hover and press.
+6. One for **larger text**: Accessibility, Text size 150%, then a fresh
+   launch with the chips ticked again. This step has a third answer, "The
+   text stayed the same size", for the case where Qt doesn't follow the
+   setting. The owner sets Text size back to 100% afterwards.
+7. A notes step. It also asks whether anything looked wrong only right after
+   a live scale change. If so, the owner relaunches before answering.
+
+R33 stays pending until the answers are read here.

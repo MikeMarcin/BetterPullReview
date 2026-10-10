@@ -268,3 +268,52 @@ Keychain; `open` of MikeMarcin/BPR-Test#1 in a new process exit 0 after
 13.83 s (bound 120 s), complete, not stale, nothing written. Cleanup: default
 Keychain restored, the login Keychain's four BetterPullReview items
 unchanged, session folder (temporary Keychain, profile, grant) removed.
+
+## Owner sign-in step, Windows (prepared 2026-10-09)
+
+The Windows station stopped its native `connect` at the device code, because
+only the owner may enter it. That run is not recorded on this card. The
+owner's step is in the JaegAW wizard `bpr-jaegaw-windows-20261009-v001`
+(session `5ce00a47-40a3-4a06-a683-958beb074838`). Its state is
+`/Users/jaeger/.mask/wizard/bpr-jaegaw-windows-20261009-v001`, its host is
+served from the Mac, and its offline copy is
+`/Users/jaeger/.mask/wizard/bpr-jaegaw-windows-20261009-v001-offline.html`.
+Steps 2 and 15 to 17 belong to this card. The rest is [[BPR-1094]]'s R33.
+
+- **Script:** `tests/scripts/windows_tour_owner_signin.ps1` (`ec16c550b`),
+  run from a frozen root. The owner never runs it from a checkout.
+- **Prepare (step 2):** a single PowerShell line. It runs `git fetch` in the
+  station's checkout `C:\code\git\BetterPullReview`, which touches no working
+  file, then `git archive` of `ec16c550b` into
+  `C:\Users\mikem\bpr1068-signin-v001\src`. Then the script's `prepare`:
+  1. enters the x64 MSVC environment;
+  2. builds the `tour-cli` preset (tests off, Release), using the station's
+     dependency cache;
+  3. installs `TourCLI` into `...\install`;
+  4. runs windeployqt there, because the Windows TourCLI install carries no
+     Qt. This is a test arrangement for this run, not a package;
+  5. records bpr.exe's SHA-256 and checks that `tour capabilities` starts.
+     It prints `PREPARED <sha256>`.
+- **Sign-in (step 16):** `signin` checks the digest, then:
+  1. Uses a fresh `--data-root` under `%TEMP%` and runs `capabilities
+     --json`.
+  2. Lists the target names of BetterPullReview's generic credentials, never
+     a secret.
+  3. If a production Default-profile target already exists (`...v2/`
+     credential or `...v1/` refresh, as a signed-in desktop's would be), it
+     prints `SIGNIN_STOPPED` before any request. A fresh root's Default
+     profile would write the same targets, the same collision the macOS step
+     avoided with a temporary Keychain.
+  4. Otherwise it runs native `connect` unpiped in the owner's console. The
+     owner enters the code at `https://github.com/login/device`.
+  5. Runs a 120 s bounded `open` of `MikeMarcin/BPR-Test#1` in a following
+     process.
+  6. On every exit, deletes exactly the targets added since step 2, checks
+     that the set left matches the set it found, and removes the data root.
+- **Result:** `C:\Users\mikem\bpr1068-signin-v001\result.txt` holds exit codes,
+  durations, counts and whitelisted `open` fields (status, complete,
+  remote_stale, account, repository, number, revision). The owner pastes it
+  into step 17. The code and tokens never reach the file, the wizard or this
+  card.
+- **Not checked:** the script hasn't run on Windows. The Mac has no
+  PowerShell, so a prepare or script failure comes back through step 15.
