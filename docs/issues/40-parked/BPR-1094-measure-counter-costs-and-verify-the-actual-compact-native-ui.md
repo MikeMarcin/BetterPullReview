@@ -381,3 +381,12 @@ macOS half (`bpr-mac-frozen-20261009-v001`) and reuse its questions:
    a live scale change. If so, the owner relaunches before answering.
 
 R33 stays pending until the answers are read here.
+
+## Owner decision, R33 macOS half — 2026-10-09
+
+The owner approved the macOS half of R33 in chat instead of stepping through
+wizard `bpr-mac-frozen-20261009-v002` (Overview chips at 200% on the Retina
+display: themes and marks, narrow window, keyboard, larger text, VoiceOver),
+verbatim: "It's fine approved". The wizard is stopped. R33's Windows half
+(125% and 200%, larger text, Narrator, native style) remains owed through
+wizard `bpr-jaegaw-windows-20261009-v001`.
