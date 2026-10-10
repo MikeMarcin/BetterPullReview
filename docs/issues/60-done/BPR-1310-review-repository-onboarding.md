@@ -183,3 +183,18 @@ Session `6226f23752342fb0ad75662926641f35` was handed back at
 `873bd4b0b` with frozen binary `86678047…2569` on native macOS, and no source
 or test file has changed since. Its clean-export 18/18 evidence stands.
 VoiceOver and Windows/Linux native behaviour are not claimed.
+
+## Post-closeout: the Home discovery rows (BPR-1372, 2026-10-09)
+
+The main-line commit `52e2883dc` added the assertion "the empty Needs me lane
+is not shown while nothing is saved; Review Cycles stays" to
+`test_home_discovery_glyph_status_and_pull_request_menu`. That assertion
+failed at every scale from the start, so
+`qt_workbench_home_discovery_scale_{100,125,200}` have failed on main since
+then. The `qt_workbench_window x3` rows in C1's evidence do not reach that
+course, which runs only under `--home-discovery`. The product was right: the
+published projection still held a review request for the session's account,
+and the specification keeps such a row in its lane. [[BPR-1372]] bisected it
+to this commit. Its fix, `25fb7d2d9`, publishes an empty queue before
+asserting that the lane is hidden, and also checks that the row still shows.
+No product source changed, and C1 and C2 stand.
