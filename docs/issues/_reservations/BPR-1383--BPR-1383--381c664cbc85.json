@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1383"
+  ],
+  "reserve_for": "discuss-inline-review",
+  "purpose": "Owner requested navigation from Discuss comments to their inline view in Review",
+  "created": "2026-10-11T05:27:21.204625+00:00",
+  "base": "2221b1717f15398ba06041788ea6426239d86099"
+}

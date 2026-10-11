@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1383-discuss-inline-review",
+  "scope": {
+    "issues": [
+      "BPR-1383"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "discuss-inline-review",
+      "outcome": "Discuss opens the exact comment thread inline in Review, with its file and Comments drawer visible.",
+      "work": [
+        {
+          "issue": "BPR-1383"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The real composed Discuss gesture opens the correct file and inline thread with Comments visible, including from a closed drawer.",
+        "Focused regressions cover asynchronous different-file and immediate same-file navigation, disabled anchors and the destination wording; documentation and format checks pass."
+      ],
+      "boundary": "Only the owner-requested Discuss-to-inline-Review route and its tests/documentation; existing RFC-wide pending acceptance remains separate."
+    }
+  ],
+  "unplanned_work": []
+}
