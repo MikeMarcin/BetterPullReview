@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1382"
 title: "Preserve syntax highlighting through file navigation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P1"
