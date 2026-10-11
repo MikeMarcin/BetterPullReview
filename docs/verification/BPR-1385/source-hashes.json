@@ -1,0 +1,11 @@
+{
+  "revision": "dc534e7142f9d804be7105d1d562397e20018491",
+  "files": {
+    "src/adapters/qt/src/epoch_comparison_control.cpp": "07e313b6ad8bc359fdbe9c5c4f8d4dd50040dd8f87015afcc172b65bc82750e9",
+    "src/adapters/qt/src/workbench_strip.cpp": "ee287b6b33ec2bbe614c5741414450f8b1b9b85d85cd05a2b0dbf6e44edea457",
+    "src/adapters/qt/src/workbench_window.cpp": "eec5999423b972050a0e34b8c79de8c11eda538583d2c87bf4073064c36cf8ec",
+    "tests/adapters_qt/workbench_window_tests.cpp": "d837ea46d383e7c7c011744afd1c5668f2da6b531157885ce1e18efdb8dd89c3",
+    "tests/end_to_end/setup_destination_public_path_tests.cpp": "f1504645f415f9ecf6c051260b82f2f754324b226776eaa41d39957ca4465dcf",
+    "docs/ux/workbench-specification.md": "296c8278e758540f055d197a44daa7f29982a4aae10af22af30e03eb7e8bf2e9"
+  }
+}

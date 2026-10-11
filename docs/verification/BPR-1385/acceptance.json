@@ -1,0 +1,46 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "dc534e7142f9d804be7105d1d562397e20018491",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Unchanged comparison/counter/arrow rectangles across readiness, recovery and all named comparisons at fixed widths; full tooltip/accessibility and menu/focus checks pass at scales 1.0, 1.25 and 2.0.",
+        "reference": "docs/verification/BPR-1385/README.md"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "dc534e7142f9d804be7105d1d562397e20018491",
+      "evidence": {
+        "kind": "observation",
+        "detail": "File ordinals 0/1/8/9/10/11/99/100/101, loading and computed diffs with 1/11/101 navigated change groups preserve exact geometry; warning arrival and clearance also preserve geometry.",
+        "reference": "docs/verification/BPR-1385/README.md"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "dc534e7142f9d804be7105d1d562397e20018491",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Resize sweeps, date/word/number yield order, enlarged-font floor, restoration, full workbench and composed GitHub tests pass. Architecture boundaries passed; changes remain in Qt.",
+        "reference": "docs/verification/BPR-1385/README.md"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "dc534e7142f9d804be7105d1d562397e20018491",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Fail-before geometry regression at 068db28fd; final 9/9 focused and integration tests pass, including real composed Git/cache failure/recovery and full-window renders. clang-format 22.1.8, documentation gate, 67 documentation tests and diff whitespace check pass.",
+        "reference": "docs/verification/BPR-1385/README.md"
+      }
+    }
+  ]
+}

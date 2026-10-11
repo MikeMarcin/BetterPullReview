@@ -1,0 +1,91 @@
+{
+  "run_id": "bpr1385-direct",
+  "segment_id": "initial",
+  "mandate_revision": "owner-2026-10-10",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "direct",
+    "topology_id": "direct",
+    "recipe_revision": "1",
+    "recipe_fingerprint": "sha256:838abf11a8cb4483b359d884f911d7d31d49f5354867eafdb28394a61520a010",
+    "routing": {},
+    "requirement_profile": "direct",
+    "owners": {
+      "engineering": "primary",
+      "bookkeeping": "primary",
+      "product_edits": "primary"
+    },
+    "delegation": "none",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/direct.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr1385-review-bar-stability",
+    "plan_path": "docs/rfcs/plans/bpr1385-review-bar-stability/milestone-plan.json",
+    "milestone_id": "stable-review-bar",
+    "definition_fingerprint": "sha256:cd2426c641520070f5feba649ba7e639431f4a25f99a827389edcdd7bc5fda69",
+    "obligations": [
+      {
+        "id": "BPR-1385:*",
+        "source": "BPR-1385",
+        "selector": null,
+        "source_fingerprint": "sha256:5af428555b54c64576079842f6de8fa8e02e4706f67323c1992fe35c47506dcb"
+      }
+    ],
+    "obligation_fingerprint": "sha256:66e1cb796db21ed60e6a40e818f6fa7b9bd0b05d2e3b61414af83ccd6b16c26a",
+    "exit_criteria": [
+      {
+        "id": "stable-review-bar:exit:1",
+        "text": "BPR-1385 AC1\u2013AC4 pass with fail-before/pass-after geometry evidence and a rendered composed application path."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "stable-review-bar",
+  "disposition": "milestone-complete",
+  "candidate_revision": "dc534e7142f9d804be7105d1d562397e20018491",
+  "handoff_ref": "docs/verification/BPR-1385/README.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/BPR-1385/README.md",
+    "docs/verification/BPR-1385/source-hashes.json",
+    "docs/verification/BPR-1385/acceptance.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1385:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-1385/README.md",
+        "docs/verification/BPR-1385/source-hashes.json",
+        "docs/verification/BPR-1385/acceptance.json"
+      ]
+    },
+    {
+      "id": "stable-review-bar:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-1385/README.md",
+        "docs/verification/BPR-1385/source-hashes.json",
+        "docs/verification/BPR-1385/acceptance.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "BPR-1385 is implemented, directly verified and ready to finish. Report the completed owner-requested stability correction; broader RFC and installed-build qualification are not asserted."
+  },
+  "ownership": "quiescent"
+}

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1385"
 title: "Stabilize the review bar during normal navigation"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0005", "RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"corrective","origin":"Owner report and toolbar screenshot, 2026-10-10","reservation":"docs/issues/_reservations/BPR-1385--BPR-1385--e781f12baaa1.json","related_cards":["BPR-1129","BPR-1130","BPR-1255"],"milestone_plan":{"id":"bpr1385-review-bar-stability","path":"docs/rfcs/plans/bpr1385-review-bar-stability/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"dc534e7142f9d804be7105d1d562397e20018491","evidence":{"kind":"observation","detail":"Unchanged comparison/counter/arrow rectangles across readiness, recovery and all named comparisons at fixed widths; full tooltip/accessibility and menu/focus checks pass at scales 1.0, 1.25 and 2.0.","reference":"docs/verification/BPR-1385/README.md"}},{"criterion":"AC2","outcome":"pass","revision":"dc534e7142f9d804be7105d1d562397e20018491","evidence":{"kind":"observation","detail":"File ordinals 0/1/8/9/10/11/99/100/101, loading and computed diffs with 1/11/101 navigated change groups preserve exact geometry; warning arrival and clearance also preserve geometry.","reference":"docs/verification/BPR-1385/README.md"}},{"criterion":"AC3","outcome":"pass","revision":"dc534e7142f9d804be7105d1d562397e20018491","evidence":{"kind":"observation","detail":"Resize sweeps, date/word/number yield order, enlarged-font floor, restoration, full workbench and composed GitHub tests pass. Architecture boundaries passed; changes remain in Qt.","reference":"docs/verification/BPR-1385/README.md"}},{"criterion":"AC4","outcome":"pass","revision":"dc534e7142f9d804be7105d1d562397e20018491","evidence":{"kind":"observation","detail":"Fail-before geometry regression at 068db28fd; final 9/9 focused and integration tests pass, including real composed Git/cache failure/recovery and full-window renders. clang-format 22.1.8, documentation gate, 67 documentation tests and diff whitespace check pass.","reference":"docs/verification/BPR-1385/README.md"}}]
 ---
 
 # Stabilize the review bar during normal navigation
@@ -40,4 +41,9 @@ is introduced. Existing RFC-wide native and human obligations remain unchanged.
 
 ## Evidence
 
-Pending implementation and direct geometry checks.
+Implemented at `dc534e7142f9d804be7105d1d562397e20018491`. All four criteria
+pass; the [verification record](../../verification/BPR-1385/README.md) binds
+the regression, geometry courses, rendered application path, source hashes and
+limitations. Nine focused/integration tests passed on the final source, plus
+the architecture boundary check; exact clang-format 22, the documentation gate
+and its 67-test suite passed. No human criterion remains on this corrective card.
