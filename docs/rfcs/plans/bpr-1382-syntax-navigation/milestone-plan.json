@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1382-syntax-navigation",
+  "scope": {
+    "issues": [
+      "BPR-1382"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "syntax-navigation",
+      "outcome": "Navigation retains exact syntax highlighting after asynchronous work and cached revisits.",
+      "work": [
+        {
+          "issue": "BPR-1382"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A deterministic regression fails before the fix and passes afterward.",
+        "The composed fixture application retains syntax on both panes through Next and Previous file navigation.",
+        "Focused checks and documentation validation pass; evidence and limits are recorded."
+      ],
+      "boundary": "A verified correction committed in the current main checkout."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

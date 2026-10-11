@@ -1393,6 +1393,14 @@ endfunction()
 # are resealed here; the production mutation-branch pin did not move, so
 # neither changed a mutation path. Resealed as the drift fix for the
 # pre-release build; BPR-1373's account pinning was reviewed on its own card.
+# BPR-1382 reseal (2026-10-10), over 611abc31c: the only intervening
+# manifest member change is 636c885c2's tests-on main.cpp mouse-event helper
+# rename (deliver -> send_mouse_event), with identical arguments and calls.
+# This slice changes syntax adoption in github_application.cpp to the surface's
+# exact loading/display context. The Next/Previous regression checks cached
+# large documents and both panes' rendered formats and fails with the old
+# context restored. Self-review recorded on BPR-1382; no provider, credential,
+# mutation or source-inventory change. Production mutation pin unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1411,7 +1419,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"f69fb5201333110ffb2b2b0079357410717339e19ab1a11f7021be409c76e260"
+		"bb5c510ed85e4a4cd2c90e6889fc830252e4031e164b9384801b790876d1a2c3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1615,7 +1623,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f9049ba7be2e81b519403ccfb7b05b208d52838055e7b8b963360234d87645b6"
+        "52dfcf7d3b392e18125fce5e86530a3184d0f678ebdb825f1f8bda86fc4f9be7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -45,6 +45,7 @@
 #include <QSysInfo>
 #include <QTemporaryDir>
 #include <QTextBlock>
+#include <QTextLayout>
 #include <QThread>
 #include <QTimer>
 #include <QWheelEvent>
@@ -1058,6 +1059,61 @@ namespace bpr::e2e::large_review {
 		std::cerr << '\n';
 	}
 
+	/// \brief [[BPR-1382]]. Cached spans survive small and staged large-file navigation.
+	void verify_navigation_syntax(app::github_application& aApplication, const fixture_manifest& aManifest,
+								  benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+	{
+		auto&      window  = aApplication.window();
+		auto&      surface = *window.comparison_surface();
+		const auto settled = [&] { return reviewer_settled(aApplication); };
+		require(measure_wait(aApplication, aBudget, aReport, "syntax_first_file", [&] { select_file(window, source_path(0)); }, [&] { return selected(surface, source_path(0)) && settled(); }), "syntax first-file selection timed out");
+		auto largeSpans        = std::array<application::shared_token_spans, 2U>{ };
+		auto cachedSubmissions = std::size_t{ 0U };
+		for (int step = 0; step < 7; ++step) {
+			const auto  backwards = step % 2 == 0;
+			auto* const action    = backwards ? window.previous_file_action() : window.next_file_action();
+			const auto  path      = backwards ? QStringLiteral("large/comparison.cpp") : source_path(0);
+			require(action && action->isEnabled(), "file navigation action is available");
+			require(measure_wait(aApplication, aBudget, aReport, "syntax_navigation", [&] { action->trigger(); }, [&] { return selected(surface, path) && settled(); }), "syntax navigation timed out");
+			const auto  found = std::ranges::find(aManifest.files, path.toStdString(), &fixture_file::path);
+			const auto& key   = surface.current_result()->Alignment.Key;
+			require(found != aManifest.files.end() && key.LeftBlob == core::parse_git_blob_oid(found->base.oid)
+						&& key.RightBlob == core::parse_git_blob_oid(found->head.oid),
+					"syntax navigation shows the exact selected blobs");
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				const auto& spans = surface.token_spans(side);
+				if (!spans || spans->empty()) {
+					static_cast<void>(window.grab().save(QString::fromLocal8Bit(aImage)));
+				}
+				require(spans && !spans->empty(), "file navigation left a source pane without syntax highlighting");
+				const auto* pane  = side == core::diff_side::left ? surface.left_pane() : surface.right_pane();
+				const auto  block = pane->document()->firstBlock();
+				require(block.isValid() && block.layout(), "source has a rendered first line");
+				const auto formats = block.layout()->formats();
+				require(!formats.empty() && std::ranges::any_of(formats, [&](const auto& aFormat) {
+					return aFormat.format.foreground() != formats.front().format.foreground();
+				}),
+						"rendered C++ line retains distinct syntax colours");
+				if (backwards) {
+					auto& cached = largeSpans[side == core::diff_side::left ? 0U : 1U];
+					if (step == 0) {
+						cached = spans;
+					} else {
+						require(spans == cached, "large-file revisit reuses its exact cached classification");
+					}
+				}
+			}
+			if (step == 0) {
+				cachedSubmissions = aApplication.status().ClassificationSubmissions;
+			} else {
+				require(aApplication.status().ClassificationSubmissions == cachedSubmissions,
+						"cached navigation does not reparse either file");
+			}
+		}
+		require(surface.statistics().StagedPublications >= 4U, "large-file navigation exercises deferred document adoption");
+		std::cout << "SYNTAX_NAVIGATION_OK:7:cached-both-sides:rendered-colours\n";
+	}
+
 	/// \brief [[BPR-1327]]. Opening files with preparation off, then on.
 	///
 	/// \details The same window, review and kind of file both ways. With
@@ -1078,9 +1134,15 @@ namespace bpr::e2e::large_review {
 	void run_prepared_open(app::github_application& aApplication, const fixture_manifest& aManifest,
 						   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
 	{
-		auto&      window  = aApplication.window();
-		auto&      surface = *window.comparison_surface();
-		const auto settled = [&] { return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U; };
+		auto&      window      = aApplication.window();
+		auto&      surface     = *window.comparison_surface();
+		const auto settled     = [&] { return quiet(aApplication) && access::diff_work_evidence(aApplication).EpochOutstandingJobs == 0U; };
+		const auto checkSyntax = [&] {
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				const auto& spans = surface.token_spans(side);
+				require(spans && !spans->empty(), "file navigation left a source pane without syntax highlighting");
+			}
+		};
 		// Prepared means the round this open started has returned and the diff
 		// host has computed what it handed over.
 		auto       rounds   = std::size_t{ 0U };
@@ -1104,6 +1166,7 @@ namespace bpr::e2e::large_review {
 			require(found != aManifest.files.end() && key.LeftBlob == core::parse_git_blob_oid(found->base.oid)
 						&& key.RightBlob == core::parse_git_blob_oid(found->head.oid),
 					"prepared-open showed the wrong stored blobs");
+			checkSyntax();
 			return aReport.Phases.back().VisibleMs;
 		};
 		// How often the diff host has read each blob of a file's comparison.
@@ -1173,6 +1236,7 @@ namespace bpr::e2e::large_review {
 				  << " prepared_max_ms=" << slowestPrepared << " tolerance_ms=" << toleranceMs
 				  << " prepared_first_ms=" << aReport.Extended.PreparedOpen.PreparedFirstVisibleMs << '\n';
 		require(slowestPrepared <= medianCold + toleranceMs, "a prepared open was slower than the median unprepared one beyond the tolerance");
+		verify_navigation_syntax(aApplication, aManifest, aReport, aBudget, aImage);
 		aReport.ExactFinalSource = true;
 		aReport.WindowWidth      = window.width();
 		aReport.WindowHeight     = window.height();

@@ -1002,6 +1002,13 @@ rather than behavioural. A persisted record the core rejects is refused whole
 rather than clamped, because a clamped value would tell a settings surface its
 rejected input was accepted.
 
+Syntax delivery binds to the comparison surface's exact loading or displayed
+context, rather than the diff host's previous accepted result. Cached spans may
+arrive before the replacement diff and stay attached through the bounded Qt
+turns that install a large document. Leaving that context clears them, and a
+publication for neither current blob is discarded. [[BPR-1382]] exercises both
+panes through Next/Previous navigation, including cached large-file revisits.
+
 The syntax adapter implements the host's classification port through
 KSyntaxHighlighting's low-level interface. It classifies a complete blob in one
 lexical pass and projects a hunk from that pass; highlighting a range on its own

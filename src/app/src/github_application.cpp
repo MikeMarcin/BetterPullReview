@@ -16303,15 +16303,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// answered outside the reviewer's lanes: once this adoption is done,
 			// a deferred preparation round may start.
 			const auto recheck = qScopeGuard([this] { after_reviewer_decision(); });
-			if (Closing || Window == nullptr || DiffHost == nullptr) {
+			if (Closing || Window == nullptr) {
 				return;
 			}
-			const auto& state   = DiffHost->state();
-			const auto* context = state.Current.has_value()
-				? &*state.Current
-				: state.Pending.has_value() ? &*state.Pending
-											: nullptr;
-			if (context == nullptr) {
+			// [[BPR-1382]]. The host retains the previous accepted diff while
+			// its replacement loads. Cached spans arrive synchronously, before
+			// the replacement diff does, and belong to the surface's loading
+			// context. Keep them there through staged large-document adoption;
+			// that later Qt turn has no second host publication to restore them.
+			auto* const surface = Window->comparison_surface();
+			const auto& context = surface->current_context();
+			if (!context) {
 				++DroppedClassifications;
 				return;
 			}
@@ -16324,8 +16326,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++DroppedClassifications;
 				return;
 			}
-			if (Window->comparison_surface()->adopt_token_spans(
-					*side, aSpans.Spans)) {
+			if (surface->adopt_token_spans(*side, aSpans.Spans)) {
 				++AdoptedClassifications;
 			} else {
 				++DroppedClassifications;

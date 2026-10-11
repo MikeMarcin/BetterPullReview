@@ -392,6 +392,20 @@ mutation, a credential, or a network service at runtime. The one build-time
 network need is the first CPM fetch of the pinned sources, after which the
 cache serves offline configures.
 
+## Navigation regression, 2026-10-10
+
+[[BPR-1382]] reproduces uncoloured cached large-file revisits through the real
+Next/Previous actions. The diff host retains the previous accepted result while
+the new comparison loads; matching an immediate syntax-cache hit against that
+old result discarded the spans. Small files recovered at diff publication, but
+large documents installed over later Qt turns missed that fallback. Delivery
+now matches the surface's exact current context and retains the spans through
+document installation. The prepared-open application course checks seven
+transitions, both panes' rendered syntax colours, exact selected blob IDs and
+reuse of the same cached span objects without new classifications. This is
+offscreen fixture evidence; it does not claim an observation of the owner's
+running installation or change existing palette/native acceptance.
+
 ## Closeout
 
 RFC-BPR-0006 is **`Auto-Verified` as of 2026-09-01**. The ordered chain
