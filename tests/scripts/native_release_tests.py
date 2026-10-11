@@ -316,4 +316,4 @@ else:
 
 
 if __name__ == "__main__":
-    unittest.main(testRunner=SkipReportingTestRunner())
+    unittest.main(testRunner=SkipReportingTestRunner)
