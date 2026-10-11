@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1386",
+    "BPR-1387"
+  ],
+  "reserve_for": "direct-test-suite-optimization",
+  "purpose": "Owner-requested release test timing optimization and repair of eight observed failures",
+  "created": "2026-10-11T06:40:01.800265+00:00",
+  "base": "b67d720dd72323e126d9b1db0073fde2bfb257a4"
+}

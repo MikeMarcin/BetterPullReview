@@ -1,0 +1,31 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1386-release-test-suite",
+  "scope": {
+    "issues": [
+      "BPR-1386",
+      "BPR-1387"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "faster-green-release-gate",
+      "outcome": "Explain and reduce release-suite elapsed time while repairing the eight observed failures and preserving meaningful coverage.",
+      "work": [
+        {
+          "issue": "BPR-1386"
+        },
+        {
+          "issue": "BPR-1387"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1386 AC1\u2013AC4 and BPR-1387 AC1\u2013AC4 pass with a measured complete macOS run and explicit coverage and failure dispositions."
+      ],
+      "boundary": "Owner-authorized direct corrective work. Preserve isolation, performance contracts and native release qualification; no publication or signing."
+    }
+  ],
+  "unplanned_work": []
+}
