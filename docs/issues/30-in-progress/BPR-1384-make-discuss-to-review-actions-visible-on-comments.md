@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1384"
 title: "Make Discuss to Review actions visible on comments"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1383"]
 priority: "P2"
