@@ -1,0 +1,27 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1385-review-bar-stability",
+  "scope": {
+    "issues": [
+      "BPR-1385"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "stable-review-bar",
+      "outcome": "At a fixed window size, ordinary review status and navigation changes keep the comparison and arrow hit targets stationary.",
+      "work": [
+        {
+          "issue": "BPR-1385"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1385 AC1\u2013AC4 pass with fail-before/pass-after geometry evidence and a rendered composed application path."
+      ],
+      "boundary": "Correct the reported review bar geometry; retain responsive resizing, native appearance and existing RFC acceptance obligations."
+    }
+  ],
+  "unplanned_work": []
+}

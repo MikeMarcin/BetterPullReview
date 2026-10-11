@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0005", "RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"corrective","origin":"Owner report and toolbar screenshot, 2026-10-10","reservation":"docs/issues/_reservations/BPR-1385--BPR-1385--e781f12baaa1.json","related_cards":["BPR-1129","BPR-1130","BPR-1255"]}
+metadata: {"kind":"corrective","origin":"Owner report and toolbar screenshot, 2026-10-10","reservation":"docs/issues/_reservations/BPR-1385--BPR-1385--e781f12baaa1.json","related_cards":["BPR-1129","BPR-1130","BPR-1255"],"milestone_plan":{"id":"bpr1385-review-bar-stability","path":"docs/rfcs/plans/bpr1385-review-bar-stability/milestone-plan.json"}}
 ---
 
 # Stabilize the review bar during normal navigation
