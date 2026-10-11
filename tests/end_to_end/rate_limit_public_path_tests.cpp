@@ -38,14 +38,17 @@ namespace {
 	{
 		QElapsedTimer elapsed;
 		elapsed.start();
-		while (!aCondition() && elapsed.elapsed() < 30000) {
+		while (elapsed.elapsed() < 30000) {
+			if (aCondition()) {
+				return;
+			}
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
-		if (!aCondition() && aDiagnostic) {
+		if (aDiagnostic) {
 			aDiagnostic();
 		}
-		expect(aCondition(), aMessage);
+		expect(false, aMessage);
 	}
 
 	void settle(const int aMilliseconds)
@@ -228,7 +231,13 @@ try {
 		wait_for([&] { return window->session_panel()->status() == core::github_status::pull_request_ready; }, "explicit retry recovers", [&] {
             const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
             std::cerr << "status=" << window->session_panel()->status_text() << " diagnostic=" << window->session_panel()->diagnostic_text() << " recording_failure=" << evidence.RecordingFailure << " last_operation=" << evidence.LastReadOperation << '\n'; });
-		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && !surface->geometry_pending() && readingQuiet(); }, "recovered comparison settles");
+		wait_for([&] { return owner->status().EpochStatus == core::epoch_status::ready && !surface->geometry_pending() && readingQuiet(); }, "recovered comparison settles", [&] {
+            const auto evidence = app::detail::github_application_fixture_access::evidence(*owner);
+            const auto work = app::detail::github_application_fixture_access::diff_work_evidence(*owner);
+            std::cerr << "recovery: recording=" << evidence.RecordingFailure << " operation=" << evidence.LastReadOperation
+                      << " epoch=" << static_cast<int>(owner->status().EpochStatus) << " navigation=" << work.NavigationReady
+                      << " tab=" << work.TabPresentationPending << " geometry=" << surface->geometry_pending()
+                      << " jobs=" << work.EpochOutstandingJobs << ':' << work.WorkbenchOutstandingRequests << ':' << work.OutstandingJobs << '\n'; });
 		expect(exactReading(), "successful same-head recovery preserves exact comparison, line selection and scroll");
 		expect(!window->status_text().contains(QStringLiteral("not ready")), "settled recovery status agrees with the available comparison");
 		const auto wireInterval = (limited->LastRequestNanoseconds.load() - firstResponseAt) / 1000;

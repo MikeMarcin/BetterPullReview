@@ -11067,17 +11067,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		void publish_review_conversations(application::github_presentation_update aUpdate)
+		void publish_review_conversations(const application::github_presentation_update& aUpdate)
 		{
+			auto placed = std::optional<application::github_presentation_update>{ };
 			if (aUpdate.PullRequest && WindowRead && WindowRead->accepted_snapshot()) {
 				// [[BPR-1338]]. The placement re-projects the conversations; the
 				// window publication the read host stamped on its projection
 				// stays, or body links and Open on GitHub would name none.
-				PublishedMarkdownContext             = aUpdate.PullRequest->MarkdownContext;
-				aUpdate.PullRequest                  = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
-				aUpdate.PullRequest->MarkdownContext = PublishedMarkdownContext;
+				PublishedMarkdownContext = aUpdate.PullRequest->MarkdownContext;
+				if (auto source = conversation_source()) {
+					placed                               = aUpdate;
+					placed->PullRequest                  = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), std::move(source));
+					placed->PullRequest->MarkdownContext = PublishedMarkdownContext;
+				} else {
+					// [[BPR-1387]]. With no selected source, placement returns the
+					// host's original projection. Reuse it without copying and
+					// rebuilding every conversation on the UI thread at PR open.
+					ReviewCommentPlacement.clear();
+				}
 			}
-			Window->publish(aUpdate);
+			Window->publish(placed ? *placed : aUpdate);
 			select_published_conversation();
 			if (aUpdate.PullRequest) {
 				observe_review_preflight();
@@ -15749,6 +15758,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void clear_diff_selection()
 		{
+			const auto hadComparison = SelectedDiffPublication.has_value();
 			RetryableReviewDraft.reset();
 			if (ReviewMutationHost != nullptr
 				&& PendingReviewMutation.has_value()) {
@@ -15762,7 +15772,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			SelectedDiffRequest.reset();
 			SelectedDiffPublication.reset();
 			ReviewSourceMaterial.reset();
-			refresh_review_conversations();
+			// [[BPR-1387]]. Clearing a displayed source removes its permalink
+			// placement. Initial PR setup has no source and already published
+			// the host's conversations, so it owes no second full publication.
+			if (hadComparison) {
+				refresh_review_conversations();
+			}
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
 			}

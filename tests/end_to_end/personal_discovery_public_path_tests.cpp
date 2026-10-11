@@ -587,6 +587,18 @@ try {
 			expect(sibling->current_modality() == qt::review_modality::overview, "it arrives on Overview, as a row opened here does");
 			expect(windowA->showing_home() && windowA->identity_label()->text() == shown && windowA->session_panel()->status() == status,
 				   "the first window keeps its own view of the same pull request");
+			// [[BPR-1387]]. The visible snapshot can precede its Git/epoch
+			// reads. Finish those reads before closing this course's window,
+			// so their CLI identity checks cannot spill into the next course's
+			// assertion that opening an empty Home window reads no account.
+			wait_for([&] {
+				const auto state = owner->status(other);
+				const auto work  = app::detail::github_application_fixture_access::diff_work_evidence(*owner, other);
+				return state && state->EpochStatus == core::epoch_status::ready
+					&& work.EpochOutstandingJobs == 0U && work.WorkbenchOutstandingRequests == 0U
+					&& work.OutstandingJobs == 0U && !work.Pending;
+			},
+					 "the opened pull request's reads settle before the Home-only window course");
 			sibling->close();
 			wait_for([&] { return owner->windows().size() == 1U && owner->windows().front() == first; }, "the second view closes and the first window stays");
 		};
@@ -668,6 +680,18 @@ try {
 	expect(windowB->queue_refresh_action()->isVisible() && windowB->queue_refresh_action()->isEnabled(), "the second window's strip can refresh the queue");
 	expect(!windowB->home_repository_onboarding()->isVisible() && windowB->saved_repository_list()->count() == 2, "the sibling lists the same saved records and shows no first-run call to action");
 	const auto afterWindow = evidence();
+	if (afterWindow.AccountReadOperations.size() != beforeWindow.AccountReadOperations.size()
+		|| afterWindow.VaultStoreAttempts != beforeWindow.VaultStoreAttempts
+		|| afterWindow.VaultRetrieveAttempts != beforeWindow.VaultRetrieveAttempts
+		|| afterWindow.VaultDeleteAttempts != beforeWindow.VaultDeleteAttempts) {
+		std::cerr << "new-window account reads=" << beforeWindow.AccountReadOperations.size() << ':' << afterWindow.AccountReadOperations.size()
+				  << " vault store=" << beforeWindow.VaultStoreAttempts << ':' << afterWindow.VaultStoreAttempts
+				  << " retrieve=" << beforeWindow.VaultRetrieveAttempts << ':' << afterWindow.VaultRetrieveAttempts
+				  << " delete=" << beforeWindow.VaultDeleteAttempts << ':' << afterWindow.VaultDeleteAttempts << '\n';
+		for (const auto& operation : reads_since(afterWindow, beforeWindow.AccountReadOperations.size())) {
+			std::cerr << "new-window read=" << operation << '\n';
+		}
+	}
 	expect(afterWindow.AccountReadOperations.size() == beforeWindow.AccountReadOperations.size() && afterWindow.VaultStoreAttempts == beforeWindow.VaultStoreAttempts
 			   && afterWindow.VaultRetrieveAttempts == beforeWindow.VaultRetrieveAttempts && afterWindow.VaultDeleteAttempts == beforeWindow.VaultDeleteAttempts,
 		   "presenting the session in the second window reads no account and touches no vault");

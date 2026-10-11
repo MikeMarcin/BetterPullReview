@@ -2255,7 +2255,11 @@ namespace bpr::e2e::large_review {
 				metadataClock.start();
 				metadataObserver.start();
 			}
-			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && access::evidence(*application).SmartFetchCount == 1 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
+			// [[BPR-1387]]. Poll only the application while measuring its event
+			// loop. Fixture evidence takes the fake server's mutex, so polling
+			// it here can block the UI on the worker serving the recording.
+			// verify_snapshot below still requires exactly one smart fetch.
+			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
 			metadataObserver.stop();
 			if (report.ResponsivenessCourse) {
 				require(report.Extended.ProvisionalMetadataObserved && report.Extended.AcceptedMetadataObserved

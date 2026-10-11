@@ -1401,6 +1401,15 @@ endfunction()
 # large documents and both panes' rendered formats and fails with the old
 # context restored. Self-review recorded on BPR-1382; no provider, credential,
 # mutation or source-inventory change. Production mutation pin unchanged.
+# BPR-1387 reseal (2026-10-11), over c19d159e4: github_application.cpp is
+# the only changed production-manifest member. Engineering self-review covers
+# reusing the already mapped conversation projection when no source is selected,
+# clearing the placement cache in that case, and avoiding a second publication
+# when initial setup clears no displayed comparison. A real comparison still
+# clears and reprojects; selected-source placement keeps its Markdown identity.
+# No request, credential, mutation, grant or source-inventory change. The
+# production mutation-branch pin is unchanged. Focused public-path and unchanged
+# performance-budget evidence is recorded on BPR-1387 and its verification note.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1419,7 +1428,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"bb5c510ed85e4a4cd2c90e6889fc830252e4031e164b9384801b790876d1a2c3"
+		"6e2e4daff370efccad58d77c494d42085112d16c88435877f6f3a016a090c9cd"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1623,7 +1632,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "52dfcf7d3b392e18125fce5e86530a3184d0f678ebdb825f1f8bda86fc4f9be7"
+        "0e36ce813e67b61d6b22d4584333f333b7fd3764375e86e01716c432ff134e05"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

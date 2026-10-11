@@ -1598,15 +1598,16 @@ namespace bpr::app::detail {
 			std::vector<QJsonObject>              CreatedReviewThreads;
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
-			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
-			std::shared_ptr<github_rate_limit_fixture>       RateLimit;
-			std::shared_ptr<github_offline_fixture>          Offline;
-			std::shared_ptr<github_read_delay_fixture>       ReadDelay;
-			std::size_t                                      DiscoverySearches    = 0U;
-			std::size_t                                      DiscoveryDetailReads = 0U;
-			std::vector<std::string>                         DiscoverySearchTerms;
-			std::vector<std::string>                         AccountReadOperations;
-			mutable std::mutex                               Mutex;
+			std::optional<github_personal_discovery_fixture>                  PersonalDiscovery;
+			std::shared_ptr<github_rate_limit_fixture>                        RateLimit;
+			std::shared_ptr<github_offline_fixture>                           Offline;
+			std::shared_ptr<github_read_delay_fixture>                        ReadDelay;
+			std::size_t                                                       DiscoverySearches    = 0U;
+			std::size_t                                                       DiscoveryDetailReads = 0U;
+			std::vector<std::string>                                          DiscoverySearchTerms;
+			std::vector<std::string>                                          AccountReadOperations;
+			std::vector<adapters::github::detail::github_wire_parent_context> SnapshotReads;
+			mutable std::mutex                                                Mutex;
 		};
 
 		/// [[BPR-0990]]. One answer of the fixture server to a personal
@@ -2263,12 +2264,27 @@ namespace bpr::app::detail {
 				if (Role == fixture_transport_role::account) {
 					State->AccountReadOperations.emplace_back(adapters::github::detail::operation_name(aRequest.Wire.Operation));
 				}
-				const auto retainedMetadata = (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews)
-					&& State->PersonalDiscovery && std::ranges::any_of(State->PersonalDiscovery->OpenPullRequests, [&aRequest](const github_personal_discovery_fixture::pull_request& aPullRequest) {
-												  return aPullRequest.Number == aRequest.Wire.Semantic.PullRequestNumber;
-											  });
+				// [[BPR-1387]]. Snapshot reads start with get_repository; Home's
+				// bounded metadata reads start at get_pull_request. Both carry
+				// PR parent contexts, so keep the exact snapshot request identity
+				// to avoid feeding a partial body to an open or advancing its
+				// ordered recording for an unrelated Home refresh.
+				const auto retainedMetadata = Role == fixture_transport_role::account
+					&& (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews)
+					&& std::ranges::find(State->SnapshotReads, aRequest.Correlation.Parent) == State->SnapshotReads.end();
+				if (retainedMetadata && !State->PersonalDiscovery) {
+					if (!adapters::github::detail::validate_github_wire_request(State->Profile, aRequest)) {
+						State->RecordingFailure = -5;
+						return github_wire_error{ .Correlation = aRequest.Correlation,
+												  .Error       = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					return github_wire_error{ .Correlation = aRequest.Correlation,
+											  .Error       = provider_error(application::github_provider_failure::unavailable) };
+				}
+				const auto syntheticMetadata = retainedMetadata && State->PersonalDiscovery
+					&& std::ranges::any_of(State->PersonalDiscovery->OpenPullRequests, [&](const auto& aPullRequest) { return aPullRequest.Number == aRequest.Wire.Semantic.PullRequestNumber; });
 				if (State->PersonalDiscovery.has_value()
-					&& (aRequest.Wire.Operation == read_operation::search_personal_pull_requests || aRequest.Wire.Operation == read_operation::list_requested_reviewers || retainedMetadata)) {
+					&& (aRequest.Wire.Operation == read_operation::search_personal_pull_requests || aRequest.Wire.Operation == read_operation::list_requested_reviewers || syntheticMetadata)) {
 					// The exact canonical request production validation admits,
 					// under the repository it names, or nothing is answered.
 					if (Role != fixture_transport_role::account || !adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
@@ -2328,6 +2344,10 @@ namespace bpr::app::detail {
 				if (Role == fixture_transport_role::account) {
 					++State->AccountReadCalls;
 					State->LastReadOperation = static_cast<int>(aRequest.Wire.Operation);
+					if (aRequest.Wire.Operation == read_operation::get_repository
+						&& std::ranges::find(State->SnapshotReads, aRequest.Correlation.Parent) == State->SnapshotReads.end()) {
+						State->SnapshotReads.push_back(aRequest.Correlation.Parent);
+					}
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
 				if (State->PersonalDiscovery && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
