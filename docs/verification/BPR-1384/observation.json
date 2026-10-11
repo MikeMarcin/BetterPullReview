@@ -1,0 +1,100 @@
+{
+  "run_id": "bpr1384-20261010",
+  "segment_id": "discuss-comment-affordance",
+  "mandate_revision": "owner-20261010-discuss-inline-discoverability",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "bpr1384-discuss-comment-affordance",
+    "plan_path": "docs/rfcs/plans/bpr1384-discuss-comment-affordance/milestone-plan.json",
+    "milestone_id": "discuss-comment-affordance",
+    "definition_fingerprint": "sha256:af4f1f170b4fa53b56195798f28c10785de12d4efbdcca44efaf8b5ae4ca7a8a",
+    "obligations": [
+      {
+        "id": "BPR-1384:*",
+        "source": "BPR-1384",
+        "selector": null,
+        "source_fingerprint": "sha256:36c2405c81b0df97df4c96801298b782edc4f4f36f24c685d1fd46ff6e359b71"
+      }
+    ],
+    "obligation_fingerprint": "sha256:5ef22ff93ee1994cc7f4fc0a933e9dd46d27abab36f911995ce6547ea7cc770a",
+    "exit_criteria": [
+      {
+        "id": "discuss-comment-affordance:exit:1",
+        "text": "The composed reply-body context gesture opens that exact post in Review; a visible button names its destination in Discuss."
+      },
+      {
+        "id": "discuss-comment-affordance:exit:2",
+        "text": "Focused checks cover first post and reply, rendered and source menus, unavailable/general comments, keyboard access and unchanged Review menus; formatting and documentation pass."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "discuss-comment-affordance",
+  "disposition": "milestone-complete",
+  "candidate_revision": "068db28fd76b02a0a5ba9dd095f2a1c8370b13ba",
+  "handoff_ref": "docs/verification/BPR-1384/README.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/BPR-1384/README.md",
+    "docs/verification/BPR-1384/source-hashes.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1384:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-1384/README.md",
+        "docs/verification/BPR-1384/source-hashes.json"
+      ]
+    },
+    {
+      "id": "discuss-comment-affordance:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-1384/README.md",
+        "docs/verification/BPR-1384/source-hashes.json"
+      ]
+    },
+    {
+      "id": "discuss-comment-affordance:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/BPR-1384/README.md",
+        "docs/verification/BPR-1384/source-hashes.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "The owner-requested Discuss route and the amended visible button/comment-body menu scope are implemented and verified in BPR-1383 and BPR-1384. Finish BPR-1384 and report the completed request; broader RFC closeout is not asserted."
+  },
+  "ownership": "quiescent"
+}

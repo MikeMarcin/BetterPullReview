@@ -1,0 +1,16 @@
+{
+  "candidate_revision": "5c1e264ccc56f1e70c88269f0255f28574a981eb",
+  "source_sha256": {
+    "src/adapters/qt/include/bpr/qt/markdown_body_view.hpp": "7050e4d00264396d5e06dc3d4d1ca73d5b2117b698ac1ea5464e680886d4ab51",
+    "src/adapters/qt/src/markdown_body_view.cpp": "04662b5cc1f8744d8925cf84d1077d6e28b2e61c48f301611ca8cb328a0c75fd",
+    "src/adapters/qt/src/conversation_open_card.hpp": "a06a0b79032338304e6a8f0c3e749b1dfdb72c26c811078ec9fd66ccf97ce8bd",
+    "src/adapters/qt/src/conversation_open_card.cpp": "497b372c74c45eaee25361b95539fd3a99112ee4756b02316c9611f184b7cc8a",
+    "src/adapters/qt/src/conversation_cards_view.cpp": "d1318e86146ae3a2578937c5f7feeb121916d7ef2277e941e6a3813443cc602b",
+    "tests/adapters_qt/conversation_cards_view_tests.cpp": "cb73d273fa0823a69d29a017825523002de6d14d999e822daea1cec24b1ba3df",
+    "tests/end_to_end/diff_zoom_public_path_tests.cpp": "fe62336d30c717df95e5bd0d35edf4953ab9a215c3b3c2bc72fe9bf94c0812d9",
+    "src/adapters/qt/src/workbench_window.cpp": "c6b8d25b1e993bf3e4ee6a1bebc0662ffe0d35d34eeea970fb6679019737c5aa",
+    "tests/adapters_qt/workbench_window_tests.cpp": "86215c531c1cf3345ff3efc53488fc35e4a59a7cdaac54c1620231cce47bcf52",
+    "src/app/src/github_application.cpp": "bb5c510ed85e4a4cd2c90e6889fc830252e4031e164b9384801b790876d1a2c3"
+  },
+  "observed_repository_revision": "068db28fd76b02a0a5ba9dd095f2a1c8370b13ba"
+}
