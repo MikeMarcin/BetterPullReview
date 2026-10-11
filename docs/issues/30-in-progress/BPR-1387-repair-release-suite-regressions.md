@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1387"
 title: "Repair the failures exposed by the macOS release suite"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
