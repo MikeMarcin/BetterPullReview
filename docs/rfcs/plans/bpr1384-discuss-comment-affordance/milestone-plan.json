@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1384-discuss-comment-affordance",
+  "scope": {
+    "issues": [
+      "BPR-1384"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "discuss-comment-affordance",
+      "outcome": "Discuss names Open in Review visibly and offers it directly on the comment or reply being read, preserving the exact post.",
+      "work": [
+        {
+          "issue": "BPR-1384"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The composed reply-body context gesture opens that exact post in Review; a visible button names its destination in Discuss.",
+        "Focused checks cover first post and reply, rendered and source menus, unavailable/general comments, keyboard access and unchanged Review menus; formatting and documentation pass."
+      ],
+      "boundary": "Owner amendment about the missing visible button and comment-body menu; preserve BPR-1383 acceptance and broader RFC obligations."
+    }
+  ],
+  "unplanned_work": []
+}
