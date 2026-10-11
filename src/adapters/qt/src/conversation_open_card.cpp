@@ -737,6 +737,7 @@ namespace bpr::qt {
 		Reader = new markdown_body_view{ this };
 		Reader->setObjectName(QStringLiteral("threadPostReader"));
 		Reader->set_in_place(true);
+		Reader->set_context_controls(aStyle.Feed);
 		Reader->set_code_font(aStyle.CodeFont, 4.0 * QFontMetricsF{ aStyle.CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }));
 		Reader->set_body(aPost.Body.toStdString(), aPost.Id);
 		auto* const rendered = Reader->rendered_view();
@@ -1137,14 +1138,23 @@ namespace bpr::qt {
 			where->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 			auto mono = semibold(Style.CodeFont);
 			mono.setPointSizeF(font().pointSizeF() > 0.0 ? font().pointSizeF() * 0.92 : mono.pointSizeF());
-			where->setFont(mono);
-			where->setText(Style.Feed && !aCard.Path.isEmpty() ? QStringLiteral("%1:%2").arg(aCard.Path.section(QLatin1Char{ '/' }, -1)).arg(*aCard.Line)
-															   : QString::number(*aCard.Line));
+			if (!Style.Feed) {
+				where->setFont(mono);
+			}
+			where->setText(Style.Feed ? QStringLiteral("Open in Review") : QString::number(*aCard.Line));
 			where->setToolTip(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show line %1 in the code").arg(*aCard.Line));
 			where->setAccessibleName(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show line %1").arg(*aCard.Line));
 			where->setCursor(Qt::ArrowCursor);
 			connect(where, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::show_line); } });
 			row->addWidget(where);
+			if (Style.Feed && !aCard.Path.isEmpty()) {
+				auto* const location = new QLabel{ QStringLiteral("%1:%2").arg(aCard.Path.section(QLatin1Char{ '/' }, -1)).arg(*aCard.Line), header };
+				location->setObjectName(QStringLiteral("threadReviewLocation"));
+				location->setTextFormat(Qt::PlainText);
+				location->setFont(mono);
+				location->setToolTip(QStringLiteral("%1:%2").arg(aCard.Path).arg(*aCard.Line));
+				row->addWidget(location);
+			}
 			if (aCard.Writing) {
 				// [[BPR-1212]]. The lines being written on, in the writing blue.
 				Where    = where;
@@ -1273,6 +1283,23 @@ namespace bpr::qt {
 				}
 			}
 			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
+			if (Style.Feed && !aCard.Draft) {
+				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
+					aMenu.addSeparator();
+					aMenu.setToolTipsVisible(true);
+					auto* const open = aMenu.addAction(QStringLiteral("Open in Review"));
+					open->setObjectName(QStringLiteral("postOpenInReview"));
+					open->setEnabled(Style.HasCodeAnchor && static_cast<bool>(OpenInReviewRequested));
+					open->setToolTip(Style.HasCodeAnchor ? QStringLiteral("Open this comment inline in Review") : QStringLiteral("This comment has no current code anchor."));
+					connect(open, &QAction::triggered, this, [this, id] {
+						// The navigation can replace this card; keep the callback alive.
+						const auto dispatch = OpenInReviewRequested;
+						if (dispatch) {
+							dispatch(id);
+						}
+					});
+				});
+			}
 			view->reader()->set_link_dispatch([this, id = post.Id](const std::string& aDestination) {
 				if (Link) {
 					Link(id, QString::fromStdString(aDestination));

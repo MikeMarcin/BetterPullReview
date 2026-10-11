@@ -179,15 +179,22 @@ Previous or Next defect for a thread the drawer does not hold. A
 `#pullrequestreview-` link, an older-pair tab's Show them and the review page's
 preflight rows land where they did.
 
-**Open in Review from Discuss** ([[BPR-1383]], owner request, 2026-10-10).
-An open thread's file-and-line button has the tooltip and accessible name
-"Open in Review at path:line"; the same action appears as **Open in Review**
-in its context menu. It enters Review on the thread's file, opens the Comments
+**Open in Review from Discuss** ([[BPR-1383]], [[BPR-1384]], owner request,
+2026-10-10). An open thread has an explicit **Open in Review** button, with
+its filename:line beside it and the full path in the tooltip and accessible
+name. The same action is in the collapsed or open thread's context menu.
+It enters Review on the thread's file, opens the Comments
 drawer and selects its Comments tab. The exact thread opens at its first post
 beside the source line once that file's comparison is ready, using the same
 pending pick as Threads. This also works when the Comments drawer was closed,
 Notes was selected, or a different file was shown. The menu keeps unavailable
 anchors and PR-wide comments disabled with their existing explanation.
+Right-clicking an individual comment or reply body, or opening its keyboard
+context menu, also offers **Open in Review** in rendered and source view.
+That gesture selects the exact post that was clicked, including a reply,
+rather than the first post. Its disabled action explains a missing current
+code anchor; draft bodies do not offer it. Review's own body menu stays the
+native reader menu.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position

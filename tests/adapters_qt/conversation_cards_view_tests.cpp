@@ -1,6 +1,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
 #include "bpr/core/diff_model.hpp"
@@ -409,6 +410,85 @@ namespace {
 		QApplication::processEvents();
 		expect(!view.feed() && view.cards().size() == 3U && view.cards()[0].Excerpt.isEmpty(),
 			   "beside the code the notes carry no excerpt");
+		view.hide();
+	}
+
+	void test_discuss_post_menus_open_the_exact_comment_in_review()
+	{
+		qt::conversation_cards_view view;
+		view.resize(700, 700);
+		view.set_feed(true);
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		view.adopt({ thread("inline", "src/a.cpp", 9U), reply("first", "inline", "reviewer", "First comment"), reply("answer", "inline", "author", "A reply") });
+		view.show();
+		QApplication::processEvents();
+		const auto point            = view.note_rect("inline").center();
+		auto       collapsedContext = QContextMenuEvent{ QContextMenuEvent::Mouse, point, view.viewport()->mapToGlobal(point) };
+		QApplication::sendEvent(view.viewport(), &collapsedContext);
+		QApplication::processEvents();
+		auto* const collapsedMenu = view.findChild<QMenu*>(QStringLiteral("threadContextMenu"));
+		expect(collapsedMenu != nullptr, "a right-click on the collapsed Discuss note opens its thread menu");
+		const auto collapsedActions = collapsedMenu->actions();
+		expect(std::ranges::any_of(collapsedActions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review") && aAction->isEnabled(); }),
+			   "the collapsed note offers the Review destination before opening the thread");
+		delete collapsedMenu;
+		view.open_thread("inline");
+		QApplication::processEvents();
+		auto* const inReview = button(view, "threadShowLine");
+		expect(inReview && inReview->isVisible() && inReview->text() == QStringLiteral("Open in Review") && inReview->focusPolicy() == Qt::StrongFocus,
+			   "Discuss has an explicitly named, visible and keyboard accessible Open in Review button");
+		auto* const location = view.open_card()->findChild<QLabel*>(QStringLiteral("threadReviewLocation"));
+		expect(location && location->text() == QStringLiteral("a.cpp:9") && location->toolTip() == QStringLiteral("src/a.cpp:9"),
+			   "the file and line stay visible beside the action");
+		const auto readersOf = [](QWidget* aCard) {
+			auto readers = std::vector<qt::markdown_body_view*>{ };
+			for (auto* const widget : aCard->findChildren<QWidget*>()) {
+				if (auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget)) {
+					readers.push_back(reader);
+				}
+			}
+			return readers;
+		};
+		const auto menuFor = [](qt::markdown_body_view& aReader, const bool aSource) {
+			aReader.show_source(aSource);
+			QApplication::processEvents();
+			auto* const viewport = aSource ? aReader.source_view()->viewport() : aReader.rendered_view()->viewport();
+			auto        context  = QContextMenuEvent{ aSource ? QContextMenuEvent::Keyboard : QContextMenuEvent::Mouse, QPoint{ 5, 5 }, viewport->mapToGlobal(QPoint{ 5, 5 }) };
+			QApplication::sendEvent(viewport, &context);
+			QApplication::processEvents();
+			return aReader.findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+		};
+		for (auto* const reader : readersOf(view.open_card())) {
+			for (const auto source : { false, true }) {
+				auto* const menu = menuFor(*reader, source);
+				expect(menu != nullptr, "the comment reader owns the actual body context menu");
+				auto* const open = menu->findChild<QAction*>(QStringLiteral("postOpenInReview"));
+				expect(open && open->isEnabled() && open->text() == QStringLiteral("Open in Review"), "first posts and replies offer Open in Review in rendered and source menus");
+				menu->hide();
+				open->trigger();
+				expect(actions.back() == std::pair{ qt::card_action::open_in_code, reader->original_body() == "First comment" ? std::string{ "first" } : std::string{ "answer" } },
+					   "the gesture dispatches the exact first post or reply, never only its thread");
+				delete menu;
+			}
+		}
+		view.set_feed(false);
+		QApplication::processEvents();
+		expect(readersOf(view.open_card()).front()->rendered_view()->contextMenuPolicy() == Qt::DefaultContextMenu,
+			   "Review keeps its ordinary native reader menu");
+		view.set_feed(true);
+		auto unavailable               = thread("unavailable", "src/a.cpp", 9U);
+		unavailable.AnchorAvailability = application::github_conversation_anchor_availability::missing_current_line;
+		auto general                   = conversation{ .Id = "general", .Kind = application::github_conversation_kind::issue_comment, .Body = "A PR-wide comment" };
+		view.adopt({ unavailable, reply("unavailable-first", "unavailable", "reviewer", "A missing anchor"), general });
+		for (const auto& id : { std::string{ "unavailable" }, std::string{ "general" } }) {
+			view.open_thread(id);
+			QApplication::processEvents();
+			auto* const menu = menuFor(*readersOf(view.open_card()).front(), false);
+			auto* const open = menu->findChild<QAction*>(QStringLiteral("postOpenInReview"));
+			expect(open && !open->isEnabled() && !open->toolTip().isEmpty(), "unavailable anchors and PR-wide comments explain their disabled body action");
+			delete menu;
+		}
 		view.hide();
 	}
 
@@ -1622,6 +1702,7 @@ auto main(int argc, char** argv) -> int
 	test_read_state_marks_unread_posts_and_offers_mark_read();
 	test_new_boundary_is_never_the_first_thing_in_a_thread();
 	test_discuss_lists_threads_that_open_in_place();
+	test_discuss_post_menus_open_the_exact_comment_in_review();
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
 	test_start_a_review_in_the_composer();
 	test_chips_wheel_and_overflow();

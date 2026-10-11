@@ -1608,6 +1608,7 @@ namespace bpr::qt {
 			.Viewer            = Viewer,
 			.ResolutionOffered = ResolutionOffered,
 			.Feed              = Feed,
+			.HasCodeAnchor     = has_code_anchor(card),
 			.Picked            = Picked,
 		};
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
@@ -1693,7 +1694,13 @@ namespace bpr::qt {
 			close_thread();
 			setFocus(Qt::OtherFocusReason);
 		};
-		OpenCard->MoreRequested = [this, id](const QPoint aGlobal) { show_thread_menu(id, aGlobal); };
+		OpenCard->MoreRequested         = [this, id](const QPoint aGlobal) { show_thread_menu(id, aGlobal); };
+		OpenCard->OpenInReviewRequested = [this](const std::string& aPost) {
+			const auto dispatch = ActionDispatch;
+			if (dispatch) {
+				dispatch(card_action::open_in_code, aPost);
+			}
+		};
 		OpenCard->present_reply(Reply);
 		if (card.Writing) {
 			OpenCard->present_draft(Composer);

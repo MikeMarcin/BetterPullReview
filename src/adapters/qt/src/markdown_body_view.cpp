@@ -635,6 +635,11 @@ namespace bpr::qt {
 		Source->setContextMenuPolicy(aContextControls ? Qt::CustomContextMenu : Qt::DefaultContextMenu);
 	}
 
+	void markdown_body_view::set_context_menu_builder(std::function<void(QMenu&)> aBuilder)
+	{
+		ContextMenuBuilder = std::move(aBuilder);
+	}
+
 	void markdown_body_view::refresh_controls()
 	{
 		refresh_control_row();
@@ -684,6 +689,9 @@ namespace bpr::qt {
 				setFocus(Qt::OtherFocusReason);
 			}
 		});
+		if (ContextMenuBuilder) {
+			ContextMenuBuilder(*menu);
+		}
 		auto* viewport = aSource ? Source->viewport() : Rendered->viewport();
 		menu->popup(viewport->mapToGlobal(aPosition));
 	}

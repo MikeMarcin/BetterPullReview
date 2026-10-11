@@ -78,6 +78,7 @@ namespace bpr::qt {
 		QString             Viewer;
 		bool                ResolutionOffered = false;
 		bool                Feed              = false;
+		bool                HasCodeAnchor     = false;
 		/// [[BPR-1293]]. The post a pick in Threads named: washed amber.
 		std::string Picked;
 	};
@@ -235,6 +236,8 @@ namespace bpr::qt {
 		std::function<void()>               CloseRequested;
 		/// \brief The thread's actions, as a menu at a global point.
 		std::function<void(QPoint)> MoreRequested;
+		/// \brief [[BPR-1384]]. The exact comment or reply named by its body menu.
+		std::function<void(const std::string&)> OpenInReviewRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

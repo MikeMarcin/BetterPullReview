@@ -10,6 +10,7 @@
 #include <string>
 
 class QLabel;
+class QMenu;
 class QPlainTextEdit;
 class QPushButton;
 class QStackedWidget;
@@ -45,6 +46,8 @@ namespace bpr::qt {
 		/// \brief Moves source switching into the native reader context menu and hides action rows.
 		/// \details Keeps scrolling and both documents; selection copy supplies Markdown text only.
 		void set_context_controls(bool aContextControls);
+		/// \brief Lets the owning surface append semantic gestures to either reader menu.
+		void set_context_menu_builder(std::function<void(QMenu&)> aBuilder);
 		/// \brief Copies original bytes, without reconstructing rendered text.
 		void copy_source() const;
 		/// \brief [[BPR-1083]]. Shows a recognized Conventional Comments prefix's
@@ -100,6 +103,7 @@ namespace bpr::qt {
 		std::string                             Body;
 		std::string                             Identity;
 		std::function<void(const std::string&)> LinkDispatch;
+		std::function<void(QMenu&)>             ContextMenuBuilder;
 		markdown_text_view*                     Rendered    = nullptr;
 		QPlainTextEdit*                         Source      = nullptr;
 		QStackedWidget*                         Pages       = nullptr;

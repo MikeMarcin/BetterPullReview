@@ -12,6 +12,7 @@
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -20,15 +21,18 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QListView>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTemporaryDir>
+#include <QTextEdit>
 #include <QThread>
 #include <QToolButton>
 #include <QWheelEvent>
@@ -41,6 +45,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -140,25 +145,52 @@ int main(int aArgc, char** aArgv)
 	const auto  target = std::ranges::find_if(notes->cards(), [](const qt::thread_card& aCard) {
 		return aCard.Path.endsWith(QStringLiteral("conversation_cards_view.cpp")) && aCard.Line && aCard.Side && !aCard.Outdated && !aCard.AnchorUnavailable;
 	});
-	expect(target != notes->cards().end() && !target->Posts.empty(), "Discuss offers a current inline thread");
+	expect(target != notes->cards().end() && target->Posts.size() > 1U, "Discuss offers a current inline thread with a reply");
 	const auto thread = *target;
 	notes->open_thread(thread.Id);
 	QApplication::processEvents();
 	auto* const lineButton = notes->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
 	expect(lineButton != nullptr && lineButton->isEnabled(), "the Discuss thread offers its line button");
-	lineButton->click();
+	const auto artifactRoot = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT");
+	if (!artifactRoot.isEmpty()) {
+		expect(QDir{ }.mkpath(artifactRoot) && window.grab().save(artifactRoot + QStringLiteral("/discuss-review-button.png")), "the visible Discuss controls are saved");
+	}
+	// [[BPR-1384]]. Right-click the comment itself, where the reader
+	// owns the event; its menu was separate from the thread's menu.
+	auto readers = std::vector<qt::markdown_body_view*>{ };
+	for (auto* const widget : notes->open_card()->findChildren<QWidget*>()) {
+		if (auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget)) {
+			readers.push_back(reader);
+		}
+	}
+	const auto reply = std::ranges::find_if(readers, [&](const qt::markdown_body_view* aReader) { return aReader->original_body() == thread.Posts[1U].Body.toStdString(); });
+	expect(reply != readers.end(), "the reply has its real Markdown reader");
+	auto* const replyBody = (*reply)->rendered_view();
+	auto        context   = QContextMenuEvent{ QContextMenuEvent::Mouse, QPoint{ 5, 5 }, replyBody->viewport()->mapToGlobal(QPoint{ 5, 5 }) };
+	QApplication::sendEvent(replyBody->viewport(), &context);
+	QApplication::processEvents();
+	auto* const replyMenu = (*reply)->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+	expect(replyMenu != nullptr, "right-clicking the reply opens the reader's context menu");
+	const auto menuActions = replyMenu->actions();
+	const auto inReview    = std::ranges::find_if(menuActions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
+	if (!artifactRoot.isEmpty()) {
+		expect(replyMenu->grab().save(artifactRoot + QStringLiteral("/discuss-reply-context-menu.png")), "the reply's actual context menu is saved");
+	}
+	expect(inReview != menuActions.end() && (*inReview)->isEnabled(), "the reply's own context menu offers Open in Review");
+	expect(lineButton->text() == QStringLiteral("Open in Review") && lineButton->isVisible(), "the Discuss button explicitly names Open in Review");
+	replyMenu->hide();
+	(*inReview)->trigger();
 	QApplication::processEvents();
 	expect(window.current_modality() == qt::review_modality::review && window.conversations_drawer()->isVisible() && window.tray_tabs()->currentIndex() == 0,
 		   "Discuss Open in Review opens the Comments drawer and its Comments tab");
 	wait_for([&] {
 		return surface->current_context() && surface->current_context()->Key.File == core::file_identity_of(thread.Path.toStdString())
 			&& surface->current_result() && !surface->geometry_pending() && notes->open_thread_id() == thread.Id
-			&& notes->picked_post() == thread.Posts.front().Id && surface->conversation_anchor();
+			&& notes->picked_post() == thread.Posts[1U].Id && surface->conversation_anchor();
 	},
-			 "Discuss opens the exact inline thread after its comparison is ready");
+			 "Discuss opens the exact inline reply after its comparison is ready");
 	expect(surface->conversation_anchor()->Side == *thread.Side && surface->conversation_anchor()->Line + 1U == *thread.Line,
 		   "the inline conversation is on the thread's exact source line");
-	const auto artifactRoot = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT");
 	if (!artifactRoot.isEmpty()) {
 		expect(QDir{ }.mkpath(artifactRoot) && window.grab().save(artifactRoot + QStringLiteral("/discuss-open-in-review.png")), "the full composed inline Review render is saved");
 	}
