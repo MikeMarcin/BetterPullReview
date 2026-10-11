@@ -1,104 +1,120 @@
 ---
 name: publish-release
-description: Build, sign, notarize, verify, and publish a BetterPullReview macOS release to its private GitHub repository. Use for BetterPullReview release preparation or publication; do not use for ordinary development builds.
+description: Prepare, package, sign, verify, and publish BetterPullReview releases for macOS, Windows, and Linux through the repository's native release tools and private GitHub repository. Use for release preparation or publication, not ordinary development builds.
 ---
 
 # Publish a BetterPullReview release
 
-Produce release artifacts from committed source before creating any tag or
-GitHub release. The repository and every release must remain private.
+Build the requested platform set from one committed source revision and SemVer.
+Prepare and verify every selected artifact before creating a tag or GitHub
+release. The repository and releases remain private. Use local or target-native
+tools; GitHub Actions has no role in this repository's release workflow.
 
-## Prepare
+## Select and prepare
 
-1. Inspect `git status`, the current branch, recent tags, `CMakeLists.txt`, and
-   the intended release notes. Do not discard unrelated changes.
-2. Choose the SemVer with the user when it is not already explicit. Update the
-   CMake project version and user-facing release notes, then commit that exact
-   release source.
-3. Confirm `gh repo view MikeMarcin/BetterPullReview --json visibility` reports
-   `PRIVATE`. Stop if it does not.
+1. Inspect the working tree, branch, recent tags, `CMakeLists.txt`, release notes
+   and available native hosts. Preserve unrelated changes. Choose the SemVer,
+   platform set and variants with the user when they are not explicit. An
+   explicitly macOS-only release does not acquire Windows/Linux requirements.
+2. Read only the selected guides:
+   - [macOS](references/macos.md): universal Developer ID app, notarization,
+     DMG and ZIP through `tools/release.sh`.
+   - [Windows](references/windows.md): native x64 MSI and manual Azure Artifact
+     Signing for application/helpers and installer.
+   - [Linux](references/linux.md): Ubuntu 24.04 DEB, RHEL 10 RPM, per-user
+     archives and approved OpenPGP signing.
+3. Read `docs/development/release-packages.md` and
+   `docs/security/release-policy.md`. Check the current
+   `docs/verification/RFC-BPR-0038.md` ledger and applicable native cards;
+   historical approvals do not qualify changed artifacts or another platform.
+4. Update the CMake version and user-facing notes, then commit the exact release
+   source. Record its full commit and use that commit on every producer. Run the
+   relevant normal native test gate before the tests-disabled distribution build;
+   the macOS script runs its own normal gate. Record failures and configured
+   skips. Do not publish dirty-source or skipped-test candidates without the
+   user's explicit acceptance of the limitation.
+5. Confirm `gh repo view MikeMarcin/BetterPullReview --json visibility` reports
+   `PRIVATE`. A missing native host, identity, signing key, credential or required
+   decision is a prerequisite, not permission to substitute an unsigned build or
+   different OS baseline. Complete agent-owned work before handing human-only
+   setup to the available `wizard` skill.
 
-## Package and verify
+Full packages are the default. For requested `agent-free` or
+`agent-free-automation-off`, use matching native presets and artifact suffixes.
+Variants retain the same installation identity. Keep producer outputs separate;
+do not combine different variants or Linux baselines under colliding asset names.
 
-Run:
+## Verify the complete set
 
-```sh
-tools/release.sh --version X.Y.Z
-```
+Record platform/baseline, architecture, variant, commit, version, artifact names,
+final digests and native trust results. Preparation does not authorize signing
+or publication of that version.
 
-This is the authoritative local macOS package path. It runs the normal test
-gate, builds a tests-disabled universal app, deploys the restricted Qt runtime,
-signs with Developer ID and hardened runtime, submits and staples the app and
-DMG, performs Gatekeeper checks, and writes DMG/ZIP/SPDX/checksum artifacts and a
-separate version-bound corresponding-source ZIP under `build/releases/X.Y.Z/`.
-The source archive uses `Source-BetterPullReview-X.Y.Z-macos-universal-corresponding-source.zip`
-so GitHub's filename ordering places the builds before source and its checksum.
-Keep this name bound to the installed notices and source offers; never rename
-an already published source asset whose URL is embedded in distributed builds.
+- Audit the actual packaged runtime with `scripts/verify_release_package.py`
+  using its matching native build, expanded runtime, SPDX, separate source ZIP
+  and exact producer commit. Inspect `--help` for current arguments. Preserve
+  Windows linker maps and byte-identical producer images for the PE audit.
+- Bind corresponding source to installed notices, `SOURCE-OFFERS.txt`,
+  provenance and SPDX. macOS uses
+  `Source-BetterPullReview-VERSION-macos-universal-corresponding-source.zip`;
+  CPack uses its emitted names. Never rename an asset already named in installed
+  source references.
+- Verify native signatures/timestamps, then SHA-256 of final delivered bytes.
+  Signing an executable, MSI or RPM changes bytes. Keep installed inventories,
+  sidecars and final artifact provenance consistent with those bytes.
+- Preserve M8/M9 native, vault, crash/privacy and vulnerability gaps in claims and
+  release notes. Check current findings and exact owner/security dispositions;
+  do not manufacture approval or report failed gates as passed. Offline audits
+  do not close qualification. Profile purge is not uninstall and excludes shared
+  updater/registry state.
 
-Do not use `--skip-tests`, `--skip-notarize`, or `--allow-dirty` for a published
-release unless the user explicitly accepts the resulting limitation. A missing
-`BetterPullReview-notary` Keychain profile is a setup stop, not a reason to skip
-notarization. Do not add entitlements unless application behavior changes to
-require one; the current App ID has no optional capabilities.
+Every binary recipient must retain equivalent access to the exact source asset
+at no additional charge. Supply it through the original distribution channel
+for corporate/offline redistribution or lost repository access. Retain source,
+digest and tag immutably while matching binaries remain available and through
+applicable retention periods. Retention is indefinite until the distribution
+owner documents that all obligations have ended. Legal terms, practical
+build/relink material, recipient access and retention remain release readiness
+obligations; offline checks do not approve them.
 
-Create the missing profile once, using the secure password prompt rather than
-putting an app-specific password on the command line:
+Assets contain intended binary/source archives, notices, SPDX, checksums and
+approved public verification material. Exclude credentials, unrelated private
+data, private keys, build logs and transient test evidence. Corresponding source
+is the deliberate exception to excluding private repository content; distribute
+it only through the approved private channel.
 
-```sh
-xcrun notarytool store-credentials BetterPullReview-notary \
-  --apple-id YOUR_APPLE_ID \
-  --team-id YTQKP2V2A8
-```
+## Publish once
 
-For a profile stored in a specific existing file Keychain, pass
-`--notary-profile NAME --notary-keychain /absolute/path/to/login.keychain-db`
-to `tools/release.sh`. `APPLE_NOTARY_KEYCHAIN` supplies the optional default.
-Both app and DMG submissions use that Keychain; omitting it keeps the ordinary
-Keychain lookup. Verify access with `xcrun notarytool history --keychain-profile
-NAME --keychain /absolute/path/to/login.keychain-db` before the release build.
+`tools/publish-release.sh` currently accepts **only the standard macOS eight-asset
+set** from `build/releases/VERSION/`, on clean `main`. It has no Windows, Linux,
+variant or arbitrary asset-directory option. Do not pass imagined flags or use it
+to announce a cross-platform release while uploading only macOS artifacts.
 
-Review the package output and release notes. Then run the non-mutating remote
-preflight:
+For that supported set, review notes/artifacts and preflight:
 
 ```sh
 tools/publish-release.sh --version X.Y.Z --notes-file /absolute/path/to/notes.md --dry-run
 ```
 
-## Publish
+For a Windows/Linux or variant set, publication needs a reviewed extension to the
+existing publisher, not a parallel unguarded `gh` upload sequence. If authorized
+to implement it, preserve clean source/version checks, exact artifact/source
+binding, checksums, private-repo guards immediately before remote mutations,
+and atomic `main`/annotated-tag push. Test changed logic with stubbed Git/`gh`
+before use. Otherwise report prepared outputs and this concrete prerequisite.
+The guides do not imply that missing signing/finalization tooling exists.
 
-Creating the annotated tag, pushing it, or creating the GitHub release is an
-external mutation. Do it only when the user has asked to publish this prepared
-version. Run the same command without `--dry-run`:
+Create/push the tag and release only when the user requests publication of the
+prepared version and platform set. For the supported macOS set, run the same
+command without `--dry-run`. Add `--prerelease` to both commands when requested;
+it preserves stable Latest. Use one tag/release for a coordinated platform set.
+Inspect existing tag/release state read-only before retrying; do not retag,
+overwrite immutable source or retry an uncertain mutation. On partial failure,
+report which tag, push, release and assets actually exist.
 
-```sh
-tools/publish-release.sh --version X.Y.Z --notes-file /absolute/path/to/notes.md
-```
-
-The script rechecks that `MikeMarcin/BetterPullReview` is `PRIVATE` immediately
-before pushing and immediately before release creation. GitHub release access
-inherits repository access; there is no separate public/private switch for an
-individual release. Stop on any partial failure and report the tag, push, and
-release state without automatically retrying a potentially completed mutation.
-
-For a requested prerelease, add `--prerelease` to both preflight and publication.
-This sets GitHub's prerelease flag and leaves the stable Latest release in place.
-
-Verify the returned release URL, tag, all eight uploaded assets (DMG, app ZIP,
-SPDX, corresponding-source ZIP, and one SHA-256 file for each), and repository
-visibility. The source ZIP must be the exact versioned asset referenced by
-SOURCE-OFFERS.txt and notices inside the app; the publication script verifies
-that binding offline before any remote operation.
-
-Every binary recipient must retain equivalent access to that source asset at
-no additional charge. For corporate/offline redistribution or a recipient
-who loses repository access, provide the exact asset through the original
-distribution channel. Retain the asset immutably while the binaries remain
-available and throughout every applicable source-offer/license retention
-period. Retention is indefinite until the distribution owner documents that
-all obligations have ended; do not replace the asset or rebind its tag.
-Legal approval of terms, practical build/relink material, recipient access and
-retention remains part of release readiness, not a result of the offline check.
-
-Never include credentials, private repository content, build logs, or transient
-test evidence in the release.
+Verify URL, peeled tag commit, draft/prerelease/Latest state, exact selected
+assets and private visibility. Download uploaded products and compare SHA-256
+with final producer bytes; verify source binding and native trust again on the
+downloads. The standard macOS route needs all eight assets. Other routes need
+their declared package/archive/source/SPDX/checksum/provenance/signature set,
+not a fixed count borrowed from macOS.
