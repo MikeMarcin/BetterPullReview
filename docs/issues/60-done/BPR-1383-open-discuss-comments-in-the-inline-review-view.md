@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1383"
 title: "Open Discuss comments in the inline Review view"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"Owner chat, 2026-10-10","reservation":"docs/issues/_reservations/BPR-1383--BPR-1383--381c664cbc85.json","related_rfcs":["RFC-BPR-0028","RFC-BPR-0052"],"related_cards":["BPR-0649","BPR-1293","BPR-1356"],"milestone_plan":{"id":"bpr1383-discuss-inline-review","path":"docs/rfcs/plans/bpr1383-discuss-inline-review/milestone-plan.json"}}
+acceptance: [{"criterion":"BPR-1383:AC1","outcome":"pass","revision":"5484b3fb514cb0f05565e2647aac6b2ca9e725ac","evidence":{"kind":"command","path":"docs/verification/BPR-1383/README.md","detail":"Discuss line button enters Review on the correct file with Comments open and its tab selected, even from collapsed and Notes; composed public path and workbench pass."}},{"criterion":"BPR-1383:AC2","outcome":"pass","revision":"5484b3fb514cb0f05565e2647aac6b2ca9e725ac","evidence":{"kind":"command","path":"docs/verification/BPR-1383/README.md","detail":"Exact thread and first post remain pending across a different-file comparison load, then open at its exact source line; full composition and workbench verify no substituted thread."}},{"criterion":"BPR-1383:AC3","outcome":"pass","revision":"5484b3fb514cb0f05565e2647aac6b2ca9e725ac","evidence":{"kind":"command","path":"docs/verification/BPR-1383/README.md","detail":"Same-file menu pick opens immediately; tooltip/accessibility name destination; PR-wide and missing-current-line anchors retain disabled menu reasons; focused Qt tests pass."}},{"criterion":"BPR-1383:AC4","outcome":"pass","revision":"5484b3fb514cb0f05565e2647aac6b2ca9e725ac","evidence":{"kind":"command","path":"docs/verification/BPR-1383/README.md","detail":"Public composed application course failed before and passes after; 9/9 integration tests including 100/125/200% workbench pass, offscreen render inspected, clang-format 22.1.8 and documentation gate pass, documentation test suite 67/67."}}]
 ---
 
 # Open Discuss comments in the inline Review view

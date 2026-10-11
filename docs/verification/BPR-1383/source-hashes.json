@@ -1,0 +1,12 @@
+{
+  "candidate_revision": "5484b3fb514cb0f05565e2647aac6b2ca9e725ac",
+  "source_sha256": {
+    "src/adapters/qt/src/workbench_window.cpp": "c6b8d25b1e993bf3e4ee6a1bebc0662ffe0d35d34eeea970fb6679019737c5aa",
+    "src/adapters/qt/src/conversation_cards_view.cpp": "d4c678640eea5babc423f97c55e4f2a1d76cd545aaa4a296464f1f6f369d1a9c",
+    "src/adapters/qt/src/conversation_open_card.cpp": "74f5c1781ffad629cab2e1e7d7a45b7ef35c35a6f6a653c7dc36860a86d16e5d",
+    "tests/adapters_qt/conversation_cards_view_tests.cpp": "eff5ed7172c957965ba9c941905a1d8d77b3d3f88378f303b6f477a20af646ec",
+    "tests/adapters_qt/workbench_window_tests.cpp": "86215c531c1cf3345ff3efc53488fc35e4a59a7cdaac54c1620231cce47bcf52",
+    "tests/end_to_end/diff_zoom_public_path_tests.cpp": "89503904a471af3808a02dbe733c949db950d2dd7a2a6dbc938942e4dce74104",
+    "src/app/src/github_application.cpp": "bb5c510ed85e4a4cd2c90e6889fc830252e4031e164b9384801b790876d1a2c3"
+  }
+}
