@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1386"
 title: "Shorten and explain the release test gate"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
