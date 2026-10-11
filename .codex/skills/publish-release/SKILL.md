@@ -85,27 +85,32 @@ it only through the approved private channel.
 
 ## Publish once
 
-`tools/publish-release.sh` currently accepts **only the standard macOS eight-asset
-set** from `build/releases/VERSION/`, on clean `main`. It has no Windows, Linux,
-variant or arbitrary asset-directory option. Do not pass imagined flags or use it
-to announce a cross-platform release while uploading only macOS artifacts.
+`tools/publish-release.sh` runs on clean `main`. With no manifest it selects the
+standard macOS eight-asset set under `build/releases/VERSION/`. Repeat
+`--manifest /absolute/path/to/INSTALLER.release.json` to select signed Windows
+and Linux outputs; add `--macos` to include the standard macOS set too.
+It verifies final products, complete runtime archive/SPDX, source binding,
+producer commit, variant/baseline names and signature receipts before remote
+operations, deduplicating only identical native assets and refusing collisions.
+Native signatures, installer extraction and qualification must already have
+passed on the producers; this offline preflight is not release trust approval.
 
-For that supported set, review notes/artifacts and preflight:
+Review notes/artifacts and preflight the selected set:
 
 ```sh
-tools/publish-release.sh --version X.Y.Z --notes-file /absolute/path/to/notes.md --dry-run
+tools/publish-release.sh --version X.Y.Z --notes-file /absolute/notes.md \
+  --macos --manifest /absolute/windows/INSTALLER.msi.release.json \
+  --manifest /absolute/ubuntu/INSTALLER.deb.release.json \
+  --manifest /absolute/rhel/INSTALLER.rpm.release.json --dry-run
 ```
 
-For a Windows/Linux or variant set, publication needs a reviewed extension to the
-existing publisher, not a parallel unguarded `gh` upload sequence. If authorized
-to implement it, preserve clean source/version checks, exact artifact/source
-binding, checksums, private-repo guards immediately before remote mutations,
-and atomic `main`/annotated-tag push. Test changed logic with stubbed Git/`gh`
-before use. Otherwise report prepared outputs and this concrete prerequisite.
-The guides do not imply that missing signing/finalization tooling exists.
+Omit unrequested platforms. The publisher preserves private-repository guards,
+exact version/commit checks, checksum/source binding and atomic
+`main`/annotated-tag push. macOS variants still require a separate publisher
+extension; do not treat native manifests as arbitrary asset upload lists.
 
 Create/push the tag and release only when the user requests publication of the
-prepared version and platform set. For the supported macOS set, run the same
+prepared version and platform set. Run the same
 command without `--dry-run`. Add `--prerelease` to both commands when requested;
 it preserves stable Latest. Use one tag/release for a coordinated platform set.
 Inspect existing tag/release state read-only before retrying; do not retag,

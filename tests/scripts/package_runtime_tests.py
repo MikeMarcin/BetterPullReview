@@ -193,7 +193,7 @@ class PackageRuntimeTests(unittest.TestCase):
     def test_installed_audit_needs_source(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
-            with self.assertRaises(FileNotFoundError):
+            with patch.object(runtime, "run", return_value="a" * 40), self.assertRaises(FileNotFoundError):
                 runtime.audit(root, {"platform": "Linux"}, root, root / "sbom.json")
 
     def test_notices_keep_sources_outside_every_platform_runtime(self):

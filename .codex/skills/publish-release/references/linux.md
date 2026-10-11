@@ -20,7 +20,7 @@ On RHEL use `--generator RPM` and separate
 `build/releases/X.Y.Z/rhel-10-x64` output. The driver requires new directories,
 builds selected app/helpers, runs CPack and emits installer, SPDX, separate source
 ZIP, checksum, provenance and `*-user.tar.gz` from the audited runtime.
-It neither signs nor publishes.
+Without signing options it remains unsigned and emits no release manifest. It never publishes.
 
 DEB/RPM are managed system installs; per-user archives require system dependencies
 already installed. Do not introduce global Qt/library paths or bundle undeclared
@@ -36,49 +36,45 @@ the Azure setup establishes no Linux key. Do not silently generate/import/trust
 a release key. Keep private keys/passphrases out of source, arguments, logs and
 assets; use the owner's secure signing mechanism.
 
-For direct private GitHub distribution, detach-sign final DEB and per-user
-archives, plus source/SPDX/final checksum metadata selected in the manifest:
+Use the integrated signing path on the matching producer:
 
 ```sh
-gpg --local-user APPROVED_FULL_FINGERPRINT --armor --detach-sign \
-  --output /absolute/artifact.deb.asc /absolute/artifact.deb
-gpg --verify /absolute/artifact.deb.asc /absolute/artifact.deb
+python3 packaging/package.py --build build/linux-package \
+  --generator DEB --output build/releases/X.Y.Z/ubuntu-24.04-x64 \
+  --gpg-key APPROVED_FULL_FINGERPRINT
+# On RHEL 10, use --generator RPM and a separate output directory.
 ```
 
-Require success and the approved signing fingerprint; an arbitrary key's
-"Good signature" is insufficient. Deliver public verification material/fingerprint
-through the approved channel. Detached signatures do not make `dpkg` enforce
-publisher trust: recipients verify before installation. A signed corporate APT
-repository is a separately selected route, not created by this skill.
+The driver detach-signs final installers, per-user archives, SPDX, source ZIP,
+checksums and provenance. It verifies the approved primary/signing fingerprint
+for every detached signature. RPM is also signed with `rpmsign` before final
+hashing and checked with `rpmkeys` against only that approved public key in a
+disposable verification database; the host's trust database is unchanged.
+Obtain the approved public verification key/fingerprint through the intended
+channel. No private key or passphrase is placed on a command line by the driver;
+use the owner's secure GPG agent/pinentry setup.
 
-For RPM, use `rpmsign --addsign /absolute/artifact.rpm` with explicitly approved
-key configuration. Require `rpmkeys --checksig /absolute/artifact.rpm` against
-that key; stop on NOKEY, absent/bad signatures, wrong signer or digest failure.
-Sign RPM before final checksums/provenance or detached signatures.
+A successful signed run emits `*.deb.release.json` or `*.rpm.release.json`.
+Names include `linux-ubuntu-24.04-x64` or `linux-rhel-10-x64`, including installed
+source URLs, so both baselines coexist. Reconfigure older distribution builds;
+do not rename already-produced source assets. Identical source assets across
+variants can be deduplicated only when names and bytes match.
 
-RPM signing changes package bytes. Finalize affected checksum entries/provenance
-through reviewed existing tooling while retaining source/SPDX/archive hashes,
-producer identity and signing evidence. `package.py` has no signed RPM finalizer;
-do not advertise a pre-sign package hash or flip a boolean as proof. Detached
-DEB/archive signatures preserve original digests, but the final manifest must
-also enumerate/hash signatures and distinguish unsigned producer evidence from
-final release trust.
+Before publication and after download, run `gpg --verify SIGNATURE ARTIFACT` for
+every declared signature and match the approved full fingerprint. Also run
+`rpmkeys --checksig --verbose PACKAGE` against the approved key for RPM; stop on
+NOKEY, wrong signer or bad signature/digest. Detached DEB signatures do not make
+`dpkg` enforce publisher trust: recipients verify before installation. A signed
+APT repository remains a separately selected route.
 
-## Coordinate assets and publication
-
-The set contains each selected installer, per-user archive, SPDX, separate source
-ZIP, final checksum/provenance and signatures. Prepare both baselines for a
-requested complete Linux set. Native names use `linux-x64` without a distro
-identifier: archives, SPDX or source names may collide. Compare names/bytes before
-upload. Never overwrite one baseline or rename source assets after references
-were embedded. Distinct assets need baseline-qualified naming in the existing
-producer before rebuilding; deduplicate only byte-identical assets whose
-installed bindings remain correct.
-
-Return to shared publication: the current macOS publisher cannot upload this
-set. Keep Ubuntu/RHEL installation/authentication/Secret Service vault,
-purge/residuals/removal qualification explicit. Signatures do not complete
-RFC-BPR-0038's native/security criteria.
+Audit actual expanded installer/archive runtimes with the native package/security
+tools. The manifest preflight checks the archive's complete SPDX inventory and
+source binding, final hashes and signing receipts; offline receipts are not
+independent native trust or proof that installer extraction matches the archive.
+Keep Ubuntu/RHEL installation/authentication/Secret Service vault, purge/residuals
+and removal qualification explicit. Containers can prove command behavior but
+not clean desktop qualification. Return to shared publication with both manifests
+when a complete Linux set is requested.
 
 Primary references: [GnuPG commands](https://gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html)
 and [RPM signing](https://rpm.org/docs/4.20.x/man/rpmsign.8).

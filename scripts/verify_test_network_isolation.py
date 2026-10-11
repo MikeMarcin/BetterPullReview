@@ -490,6 +490,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # the package build directory raises [WinError 5].
     "package_runtime_contract": "dos-volume-name",
     "release_source_assets_contract": "dos-volume-name",
+    # Measured on JaegAW 2026-10-10 with the native-release snapshot:
+    # AppContainer reaches the test, then package.py's build.resolve(strict=True)
+    # raises [WinError 5] on its own build-WIX/DEB/RPM scratch roots. All eleven
+    # cases pass uncontained except the declared Bash-only publisher skip.
+    "native_release_contract": "dos-volume-name",
     "modified_endpoint_fixture_contract": "dos-volume-name",
     # [[BPR-1108]]. The owner reverted BPR-1020's pins for
     # sqlite_release_maintenance_files, application_attended_recent_replay,

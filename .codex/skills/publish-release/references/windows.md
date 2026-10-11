@@ -69,60 +69,39 @@ cmake --preset windows-app-release
 cmake --build --preset windows-app-release
 ```
 
-Read `build/windows-app-release/_bpr/package-inputs.json`. Its `app` and
-`helpers` enumerate the first-party images shipped by the selected variant.
-Sign these producer images **before CPack stages the runtime and generates
-installed SPDX**. Retain matching linker maps and signed producer bytes for the
-PE audit. Preserve upstream Qt/CRT signatures and byte evidence; do not resign
-vendor files as this publisher.
-
-For each approved first-party image, and later the finished MSI, use actual
-absolute paths with this timestamped invocation:
-
-```powershell
-& 'C:\absolute\x64\signtool.exe' sign /v /fd SHA256 /td SHA256 `
-  /tr 'http://timestamp.acs.microsoft.com' `
-  /dlib 'C:\absolute\x64\Azure.CodeSigning.Dlib.dll' `
-  /dmdf 'C:\absolute\metadata.json' 'C:\absolute\artifact.exe'
-if ($LASTEXITCODE -ne 0) { throw 'Signing failed' }
-```
-
-Timestamping preserves verification after Azure's short-lived certificate
-expires. Require each image's `signtool verify /pa /all /v` to pass with the
-expected publisher, chain and timestamp.
-
-Then package into a new output directory:
+Use the integrated signing path with approved absolute paths:
 
 ```powershell
 python packaging/package.py --build build/windows-app-release `
-  --generator WIX --output build/releases/X.Y.Z/windows-x64
+  --generator WIX --output build/releases/X.Y.Z/windows-x64 `
+  --signtool 'C:\absolute\x64\signtool.exe' `
+  --azure-dlib 'C:\absolute\x64\Azure.CodeSigning.Dlib.dll' `
+  --azure-metadata 'C:\absolute\metadata.json' --publisher 'Michael Marcin'
 ```
 
-The driver builds again before CPack. Require signed producer digests unchanged
-through that build/staging step and valid signatures in installed images. If
-a rebuild replaces an image, stop and correct ordering in the existing packaging
-path. Do not distribute it unsigned or sign only an already-inventoried copy.
-`package.py` has no signing hook and records `signed: false`; this manual order
-requires exact-byte checks.
+The driver builds first, signs the `app` and `helpers` recorded in
+`_bpr/package-inputs.json`, then lets CPack stage the signed bytes and generate
+SPDX. It requires byte-identical staged images and verifies their Authenticode
+publisher, chain and timestamp. It preserves upstream Qt/CRT bytes and signatures.
+The finished MSI is signed last; final hashes/provenance are written afterward.
+Retain signed producer images and matching linker maps for the PE audit.
 
-Sign/verify the finished per-user MSI. Extract that final MSI in an isolated root
-and audit its actual runtime with `scripts/verify_release_package.py` using
-matching build/SPDX/source/producer commit (`--windows-redist-root` supplies
-original CRT inputs). MSI signing must leave delivered runtime unchanged.
-Check every first-party payload signature, not just the installer wrapper.
+Outputs include MSI, runtime ZIP for inventory auditing, SPDX, separate source
+ZIP, checksums, provenance and `*.msi.release.json`. Unsigned preparation remains
+available by omitting all four signing options; it emits no release manifest.
+The runtime ZIP is evidence, not a qualified portable Windows installation.
 
-Finalize MSI checksum/provenance after the outer signature. The driver's
-`.msi.sha256` covers several products and `.msi.provenance.json` records a
-pre-sign MSI hash. Both need final-byte finalization through reviewed existing
-tooling: preserve source/SPDX hashes and producer commit, record signing evidence,
-and validate every final product digest. Merely flipping `signed` is insufficient.
-Until that finalizer exists and is verified, these are signed candidates, not
-publication-ready outputs. Do not claim `package.py` implements it today.
+Extract the final MSI in an isolated root and audit its actual runtime using
+`scripts/verify_release_package.py` with the matching build/SPDX/source/commit
+and `--windows-redist-root`. Check installed first-party signatures using
+`signtool verify /pa /all /v` and `Get-AuthenticodeSignature`; require publisher
+`Michael Marcin` and a timestamp. MSI/runtime ZIP equivalence and native Windows
+10/11 clean-account install/launch/auth/repair/upgrade/removal remain qualification
+gates. The offline manifest verifier checks byte bindings and producer receipts;
+it cannot independently establish Windows trust from a Mac.
 
-Upload readiness includes final MSI, SPDX, emitted source ZIP, final checksums
-and truthful provenance. Return to shared publication; the current macOS
-publisher cannot upload this set. Signature validity does not complete native
-Windows 10/11 clean-account install/launch/auth/repair/upgrade/removal criteria.
+Return to shared publication with the emitted manifest. Never hand-edit hashes
+or flip `signed` to convert an unsigned candidate into a trusted release.
 
 Primary references: [Microsoft signing integration](https://learn.microsoft.com/en-us/azure/artifact-signing/how-to-signing-integrations)
 and [role assignment](https://learn.microsoft.com/en-us/azure/artifact-signing/tutorial-assign-roles).

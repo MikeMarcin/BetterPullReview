@@ -87,8 +87,28 @@ python3 packaging/package.py --build build/linux-package \
 The native driver builds the application and both helpers, runs CPack, requires
 one native installer/inventory, and emits checksums, an SPDX sidecar, a separate
 version-bound source ZIP and source revision provenance. Linux also emits
-`*-user.tar.gz` from the same audited runtime. None of these Windows/Linux outputs is signed or published by this
-driver. Installer signing and independent trust are later explicit gates.
+`*-user.tar.gz` from the same audited runtime; Windows emits `*-runtime.zip`
+for inventory auditing, not a qualified portable install. Unsigned preparation
+is the default. Optional Windows `--signtool`, `--azure-dlib`, `--azure-metadata`
+and `--publisher` must be supplied together: the driver signs first-party
+producer images after building and before CPack inventory generation, verifies
+staged bytes, then signs the MSI before final hashing. Linux `--gpg-key` takes an
+approved full fingerprint; RPM is signed/verified first, then final products and
+metadata receive verified detached signatures. Neither route provisions keys,
+discovers credentials or publishes. See the platform guides in
+`.codex/skills/publish-release/references/` for commands and human prerequisites.
+
+Signed production emits `*.release.json` binding installer, runtime archive,
+SPDX, separate source ZIP, final checksums/provenance and signature receipts.
+Linux names and installed source URLs include `linux-ubuntu-24.04-x64` or
+`linux-rhel-10-x64`; reconfigure older distribution builds before production.
+`tools/publish-release.sh --manifest PATH` accepts these manifests repeatedly;
+`--macos` includes the existing standard macOS set. Native manifest preflight
+verifies the complete archive inventory and byte/source bindings before remote
+mutations, but does not independently verify native trust or equate installer
+payloads with the archive. Extract and audit final installers and verify native
+signatures separately. Clean desktop qualification, owner/legal approval,
+recipient access/retention and the recorded security gaps remain release gates.
 
 ## Installation and removal boundaries
 
@@ -122,8 +142,8 @@ unconditionally. Each shipped Windows image (application and both helpers) has
 a `VERSIONINFO` resource naming the vendor, product, description, version and
 original file name, and a Release image names its program database by file name
 only (`/DEBUG /PDBALTPATH:%_PDB%`). The database stays in the build tree and is
-not installed. None of this is a signature: the images remain unsigned until
-Authenticode signing, which the owner has deferred.
+not installed. These resources are not signatures. Unsigned preparation still produces unsigned
+images; the optional signing path requires the approved Azure identity and client.
 
 The Windows MSI remembers its selected per-user directory in its own HKCU
 installer value so repair/uninstall resolve the same directory, including a
@@ -260,8 +280,9 @@ package is declared `OFL-1.1`.
 The installed `ThirdParty` directory (macOS: `Contents/Resources/ThirdParty`)
 contains `THIRD-PARTY-NOTICES.txt`, `SOURCE-OFFERS.txt`, source provenance and
 selected Qt producer provenance. Corresponding source is a separate asset:
-`BetterPullReview-VERSION-PLATFORM-corresponding-source.zip`, where PLATFORM is
-`macos-universal`, `windows-x64` or `linux-x64`. It is not embedded in the app,
+`Source-BetterPullReview-VERSION-PLATFORM-corresponding-source.zip`, where PLATFORM is
+`macos-universal`, `windows-x64`, `linux-ubuntu-24.04-x64` or
+`linux-rhel-10-x64` (older Linux candidates used `linux-x64`). It is not embedded in the app,
 installer or per-user archive. Both installed notices and source offers point
 to its exact `releases/download/vVERSION/ASSET` location and SHA-256; the
 installed provenance also binds the producer commit and upstream input hashes.
@@ -331,7 +352,7 @@ Independent trust checks for a *signed* candidate use these native interfaces:
 |---|---|
 | macOS | `codesign --verify --deep --strict --verbose=2 /absolute/BetterPullReview.app`; inspect `codesign -d --verbose=4` for bundle `com.gamecoretech.betterpullreview`, expected team `YTQKP2V2A8` and hardened runtime. `xcrun stapler validate /absolute/BetterPullReview.app` and `spctl --assess --type execute --verbose=4 /absolute/BetterPullReview.app` must pass. Validate the DMG staple and assess it with `spctl --assess --type open --context context:primary-signature --verbose=4 /absolute/candidate.dmg`. |
 | Windows | `signtool verify /pa /all /v C:\absolute\candidate.msi`, plus each signed delivered executable/DLL as applicable. Compare the signer/chain and timestamp with the approved publisher, not merely a zero exit. The current MSI is unsigned. |
-| Linux | `rpmkeys --checksig /absolute/candidate.rpm` requires the independently provisioned approved signing key. For a DEB/archive delivered with a detached signature, `gpg --verify /absolute/candidate.deb.asc /absolute/candidate.deb` requires the approved key fingerprint. Corporate repository distribution instead validates its signed repository metadata and package digest under that repository's policy. The native driver does not yet produce these signatures; a missing signing route/artifact remains a release blocker. |
+| Linux | `rpmkeys --checksig /absolute/candidate.rpm` requires the independently provisioned approved signing key. For a DEB/archive delivered with a detached signature, `gpg --verify /absolute/candidate.deb.asc /absolute/candidate.deb` requires the approved key fingerprint. Corporate repository distribution instead validates its signed repository metadata and package digest under that repository's policy. The driver optionally produces verified signatures using `--gpg-key`; missing approved key/trust or final native qualification remains a release blocker. |
 
 Do not disable OS trust checks, clear quarantine or enroll an unknown certificate
 to make a candidate pass. Record source/artifact/signature identities and results

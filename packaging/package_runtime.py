@@ -16,6 +16,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 from typing import BinaryIO
@@ -149,6 +150,10 @@ def source_asset_name(info: dict) -> str:
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[.-][0-9A-Za-z.-]+)?", info["version"]):
         raise ValueError("invalid source asset version")
     target = {"Darwin": "macos-universal", "Windows": "windows-x64", "Linux": "linux-x64"}[info["platform"]]
+    if info["platform"] == "Linux" and info.get("target"):
+        target = info["target"]
+        if target not in {"linux-ubuntu-24.04-x64", "linux-rhel-10-x64"}:
+            raise ValueError("invalid Linux release target")
     return f"Source-BetterPullReview-{info['version']}-{target}-corresponding-source.zip"
 
 
@@ -343,6 +348,10 @@ def linux_baseline() -> dict:
     return {"distribution": identity, "glibcFloor": "2.39", "cpuFloor": "x86-64-v3" if identity[0] == "rhel" else "x86-64"}
 
 
+def linux_target() -> str:
+    return "linux-ubuntu-24.04-x64" if linux_baseline()["distribution"][0] == "ubuntu" else "linux-rhel-10-x64"
+
+
 def qt_library(name: str) -> bool:
     match = re.fullmatch(r"(?:lib)?Qt6([A-Za-z0-9]+)(?:\.dll|\.so(?:\.[0-9.]+)?)", name, re.I)
     return bool(match and match[1] in QT_LIBRARIES)
@@ -513,6 +522,9 @@ def audit(build: Path, info: dict, root: Path, output: Path, source_archive: Pat
 
 
 def main() -> None:
+    if sys.argv[1:] == ["baseline"]:
+        print(linux_target())
+        return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("deploy", "notices", "audit"))
     parser.add_argument("--build", type=Path, required=True)

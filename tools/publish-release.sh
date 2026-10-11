@@ -7,12 +7,18 @@ DRY_RUN=0
 PRERELEASE=0
 NOTES_FILE=""
 VERSION=""
+MANIFEST_ARGS=()
+ASSETS=()
+INCLUDE_MACOS=0
 
 usage() {
     cat <<EOF
-Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--prerelease] [--dry-run]
+Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--manifest PATH ...] [--macos] [--prerelease] [--dry-run]
 
-Publish already verified macOS artifacts to the private GitHub repository.
+Publish already verified native artifacts to the private GitHub repository.
+Without --manifest, use the standard macOS eight-asset set. --macos adds that
+set to explicitly selected Windows/Linux manifests. Offline checks bind bytes
+and producer receipts; native trust and release approval remain separate gates.
 The command refuses to push a tag or create a release unless GitHub reports
 ${EXPECTED_REPOSITORY} as PRIVATE immediately before each remote mutation.
 --prerelease marks the GitHub release as a prerelease and keeps it out of Latest.
@@ -22,6 +28,16 @@ EOF
 fail() {
     printf 'error: %s\n' "$*" >&2
     exit 1
+}
+
+verify_checksums() {
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 -c "$1"
+    elif command -v sha256sum >/dev/null 2>&1; then
+        sha256sum -c "$1"
+    else
+        fail "Required checksum tool not found: shasum or sha256sum"
+    fi
 }
 
 private_repository_guard() {
@@ -53,6 +69,17 @@ while [[ $# -gt 0 ]]; do
             PRERELEASE=1
             shift
             ;;
+        --manifest)
+            [[ $# -ge 2 ]] || fail "--manifest requires a value"
+            manifest="$2"
+            [[ "${manifest}" == /* ]] || manifest="${ROOT_DIR}/${manifest}"
+            MANIFEST_ARGS+=(--manifest "${manifest}")
+            shift 2
+            ;;
+        --macos)
+            INCLUDE_MACOS=1
+            shift
+            ;;
         -h|--help)
             usage
             exit 0
@@ -81,6 +108,7 @@ PROJECT_VERSION="$(sed -n '/^project(/,/^)/p' "${ROOT_DIR}/CMakeLists.txt" |
 [[ "${PROJECT_VERSION}" == "${VERSION}" ]] || fail "CMake project version is ${PROJECT_VERSION}, not ${VERSION}"
 
 TAG="v${VERSION}"
+if [[ ${#MANIFEST_ARGS[@]} -eq 0 || "${INCLUDE_MACOS}" == "1" ]]; then
 ASSET_BASE="BetterPullReview-${VERSION}-macos-universal"
 DIST_DIR="${ROOT_DIR}/build/releases/${VERSION}"
 DMG="${DIST_DIR}/${ASSET_BASE}.dmg"
@@ -97,13 +125,32 @@ for artifact in "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SH
 done
 (
     cd "${DIST_DIR}"
-    shasum -a 256 -c "$(basename "${DMG_SHA}")"
-    shasum -a 256 -c "$(basename "${ZIP_SHA}")"
-    shasum -a 256 -c "$(basename "${SBOM_SHA}")"
-    shasum -a 256 -c "$(basename "${SOURCE_SHA}")"
+    verify_checksums "$(basename "${DMG_SHA}")"
+    verify_checksums "$(basename "${ZIP_SHA}")"
+    verify_checksums "$(basename "${SBOM_SHA}")"
+    verify_checksums "$(basename "${SOURCE_SHA}")"
 )
 python3 "${ROOT_DIR}/packaging/verify_release_sources.py" --app-zip "${ZIP}" --sbom "${SBOM}" \
     --source-archive "${SOURCE}" --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+ASSETS+=("${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}")
+fi
+if [[ ${#MANIFEST_ARGS[@]} -gt 0 ]]; then
+    asset_list="$(mktemp)"
+    trap 'exit_status=$?; rm -f "${asset_list}"; exit "${exit_status}"' EXIT
+    python3 "${ROOT_DIR}/packaging/verify_native_release.py" "${MANIFEST_ARGS[@]}" \
+        --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)" --asset-list "${asset_list}"
+    while IFS= read -r -d '' artifact; do
+        # The Python gate has already rejected conflicting native basenames.
+        # macOS ships Bash 3.2: expanding an empty array under nounset fails.
+        if [[ ${#ASSETS[@]} -gt 0 ]]; then
+            for existing in "${ASSETS[@]}"; do
+                [[ "$(basename "${artifact}")" != "$(basename "${existing}")" ]] || fail "Asset name collides with macOS set"
+            done
+        fi
+        ASSETS+=("${artifact}")
+    done < "${asset_list}"
+    [[ ${#ASSETS[@]} -gt 0 ]] || fail "No verified release assets"
+fi
 
 private_repository_guard
 git -C "${ROOT_DIR}" rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null && \
@@ -128,7 +175,7 @@ if [[ "${PRERELEASE}" == "1" ]]; then
     set -- --prerelease --latest=false
 fi
 gh release create "${TAG}" \
-    "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}" \
+    "${ASSETS[@]}" \
     --repo "${EXPECTED_REPOSITORY}" \
     --title "BetterPullReview ${TAG}" \
     --notes-file "${NOTES_FILE}" \
