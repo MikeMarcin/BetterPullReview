@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1382"
 title: "Preserve syntax highlighting through file navigation"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0006"]
 depends_on: []
 priority: "P1"
 metadata: {"milestone_plan":{"id":"bpr-1382-syntax-navigation","path":"docs/rfcs/plans/bpr-1382-syntax-navigation/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c783b232eff9054ebb4445b400e3eead6c69b919","evidence":{"kind":"observation","detail":"The offscreen composed large-review-v1 course reproduces both plain panes on the first Next/Previous return to large/comparison.cpp after all work settles. The previous Current diff rejects synchronous cached spans; deferred document adoption misses the publication fallback."}},{"criterion":"AC2","outcome":"pass","revision":"c783b232eff9054ebb4445b400e3eead6c69b919","evidence":{"kind":"observation","detail":"Delivery matches the existing exact surface context. Seven transitions check manifest blob identity, both panes rendered colours, identical cached span objects and no new classification submissions; four large publications exercise staging. Focused host, syntax, Qt, architecture and composition checks pass."}},{"criterion":"AC3","outcome":"pass","revision":"c783b232eff9054ebb4445b400e3eead6c69b919","evidence":{"kind":"command","detail":"application_large_review_prepared_open fails in 13.00 seconds when only the old host-context choice is restored; after restoring and rebuilding the fix, the same course passes in 14.22 seconds. Inspected offscreen failure and success renders confirm plain versus coloured source on both sides."}},{"criterion":"AC4","outcome":"pass","revision":"c783b232eff9054ebb4445b400e3eead6c69b919","evidence":{"kind":"command","detail":"Eight focused dev tests, the round-trip composition contract and the targeted inventory mutation test pass. Both C++ files pass clang-format 22.1.8; git diff --check and DOCUMENTATION_OK pass; documentation verifier has 67 passing tests. The card records the canceled optional full Release-build check and limits of offscreen fixture evidence. Developer application rebuilt; owner installation untouched."}}]
 ---
 
 # BPR-1382: Preserve syntax highlighting through file navigation
