@@ -1,0 +1,62 @@
+{
+  "schema": "bpr.task-continuation.v1",
+  "task": "/root/discuss_inline",
+  "mandate_revision": "owner-20261010-discuss-inline-discoverability",
+  "status": "complete",
+  "cards": [
+    "BPR-1383",
+    "BPR-1384"
+  ],
+  "candidate_revisions": {
+    "navigation": "5484b3fb514cb0f05565e2647aac6b2ca9e725ac",
+    "discoverability": "5c1e264ccc56f1e70c88269f0255f28574a981eb"
+  },
+  "tracker_commits": {
+    "BPR_1383": "9170b72d2a098ae3534ce85a9fb7917df67ce8d0",
+    "BPR_1384": "ea720d8ff56d551df467bd2478a6ff0288e9ae81"
+  },
+  "own_changed_paths": [
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/qt/src/conversation_cards_view.cpp",
+    "src/adapters/qt/src/conversation_open_card.cpp",
+    "src/adapters/qt/src/conversation_open_card.hpp",
+    "src/adapters/qt/src/markdown_body_view.cpp",
+    "src/adapters/qt/include/bpr/qt/markdown_body_view.hpp",
+    "tests/adapters_qt/conversation_cards_view_tests.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/end_to_end/diff_zoom_public_path_tests.cpp",
+    "docs/ux/workbench-specification.md"
+  ],
+  "verification_refs": [
+    "docs/verification/BPR-1383/README.md",
+    "docs/verification/BPR-1384/README.md",
+    "docs/verification/BPR-1384/source-hashes.json"
+  ],
+  "logical_checkpoint": "docs/verification/BPR-1384/checkpoint.json",
+  "observation": "docs/verification/BPR-1384/observation.json",
+  "required_pending": [],
+  "review_session": null,
+  "protected_candidates": [],
+  "own_command_state": "quiescent",
+  "own_code_writer_state": "released",
+  "own_builds_removed": [
+    "build/bpr1383-discuss-inline",
+    "build/bpr1384-discuss-comment-affordance"
+  ],
+  "unrelated_writer_observed": {
+    "issue": "BPR-1385",
+    "paths": [
+      "src/adapters/qt/src/epoch_comparison_control.cpp",
+      "src/adapters/qt/src/workbench_strip.cpp",
+      "src/adapters/qt/src/workbench_window.cpp",
+      "tests/adapters_qt/workbench_window_tests.cpp",
+      "docs/verification/BPR-1385/checkpoint.json"
+    ],
+    "disposition": "Preserved; not included in this acceptance or commits. Do not stop its processes or overwrite its changes."
+  },
+  "preserved_untracked": [
+    "docs/proposals/"
+  ],
+  "final_documentation_gate": "DOCUMENTATION_OK after BPR-1384 Done transition",
+  "next_action": "Report the completed owner request and discoverability amendment. Any further work must preserve the unrelated BPR-1385 writer and use the pinned accepted candidates for this evidence."
+}
