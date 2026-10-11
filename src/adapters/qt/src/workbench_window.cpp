@@ -122,6 +122,21 @@
 
 namespace bpr::qt {
 	namespace {
+		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
+		{
+			auto result = aMetrics.horizontalAdvance(aName);
+			if (!aShown) {
+				return result;
+			}
+			for (auto digit = '0'; digit <= '9'; ++digit) {
+				const auto number = QString(aCompact ? 3 : 4, QLatin1Char{ digit });
+				const auto sample = aCompact ? QStringLiteral("%1 %2/%2").arg(aName, number)
+											 : QStringLiteral("%1 %2 of %2").arg(aName, number);
+				result            = std::max(result, aMetrics.horizontalAdvance(sample));
+			}
+			return result;
+		}
+
 		/// \brief [[BPR-1331]]. The mark the private progress button shows: the
 		/// core's decision for the selected file's receipt, or none while no
 		/// file's progress is known.
@@ -10031,6 +10046,19 @@ namespace bpr::qt {
 		if (FilePositionLabel == nullptr || ChangePositionLabel == nullptr) {
 			return;
 		}
+		// [[BPR-1385]]. Native glyph widths and digit boundaries must not move
+		// the arrow hit targets. Both positions reserve four digits per number
+		// (three in compact mode), even without a selection. Larger positions elide with
+		// their complete words retained in the tooltip and accessible description.
+		const auto present = [this](QLabel& aLabel, const QString& aName, const QString& aText, const QString& aWords) {
+			const auto metrics   = aLabel.fontMetrics();
+			const auto textWidth = review_position_text_width(metrics, aName, ReviewBarPositionsShown, ReviewBarCompact);
+			const auto margins   = aLabel.contentsMargins();
+			aLabel.setFixedWidth(textWidth + margins.left() + margins.right());
+			aLabel.setText(metrics.elidedText(ReviewBarPositionsShown ? aText : aName, Qt::ElideRight, textWidth));
+			aLabel.setToolTip(aWords);
+			aLabel.setAccessibleDescription(aWords);
+		};
 		// [[BPR-1202]]. The group names remain visible even with no selection.
 		// Narrow bars shorten the position, keeping its label before the arrows.
 		auto fileText  = QStringLiteral("File");
@@ -10045,8 +10073,7 @@ namespace bpr::qt {
 				? QStringLiteral("File %1/%2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: fileWords;
 		}
-		FilePositionLabel->setText(ReviewBarPositionsShown ? fileText : QStringLiteral("File"));
-		FilePositionLabel->setToolTip(fileWords);
+		present(*FilePositionLabel, QStringLiteral("File"), fileText, fileWords);
 
 		// Derived from the comparison the surface holds, exactly as the host
 		// derives the change cursor it observes for the core: the group the
@@ -10077,8 +10104,7 @@ namespace bpr::qt {
 					: changeWords;
 			}
 		}
-		ChangePositionLabel->setText(ReviewBarPositionsShown ? changeText : QStringLiteral("Changes"));
-		ChangePositionLabel->setToolTip(changeWords);
+		present(*ChangePositionLabel, QStringLiteral("Changes"), changeText, changeWords);
 		update_idle_direction();
 	}
 

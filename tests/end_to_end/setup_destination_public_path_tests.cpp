@@ -57,6 +57,7 @@
 #include <QTextEdit>
 #include <QThread>
 #include <QTimer>
+#include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -1212,10 +1213,21 @@ namespace {
 			expect(!window.status_text().contains(QStringLiteral("Comparison unavailable")), "recovery clears the previous selected-file failure");
 		};
 		selectIntact();
+		const auto barGeometry = [&window] {
+			QApplication::processEvents();
+			auto result = std::vector<QRect>{ window.epoch_selectors()->comparing_button()->geometry() };
+			for (auto* action : { window.previous_file_action(), window.next_file_action(), window.previous_change_action(), window.next_change_action() }) {
+				result.push_back(window.review_bar()->widgetForAction(action)->geometry());
+			}
+			return result;
+		};
+		const auto stableBar = barGeometry();
+		capture(window, QStringLiteral("stable-review-bar-source-ready.png"));
 		const auto failures = window.statistics().Failures;
 		tree->setCurrentIndex(tree->tree_model()->index_for_file(missing));
 		wait_for([&] { return window.statistics().Failures > failures || (surface->current_result() && surface->current_context()->Key.File == missing); }, "missing endpoint reaches terminal instead of indefinite loading");
 		capture(window, QStringLiteral("modified-missing-endpoint.png"));
+		expect(barGeometry() == stableBar, "the composed file failure preserves the comparison and navigation hit targets");
 		expect(window.statistics().Failures == failures + 1 && surface->current_result() == nullptr
 				   && !surface->current_context() && surface->left_pane()->toPlainText().isEmpty()
 				   && surface->right_pane()->toPlainText().isEmpty(),
@@ -1252,6 +1264,8 @@ namespace {
 		capture(window, QStringLiteral("modified-missing-endpoint.png"));
 		selectIntact();
 		expect(status->isHidden() && tabStatus->isHidden(), "normal recovery removes the explanation and routine tab status");
+		expect(barGeometry() == stableBar, "the composed Git/cache recovery restores source without moving the review bar controls");
+		capture(window, QStringLiteral("stable-review-bar-source-recovered.png"));
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "missing endpoint course quiescence");
 	}

@@ -5699,6 +5699,105 @@ namespace {
 		}));
 	}
 
+	[[nodiscard]] auto separated_changes(const std::size_t aCount) -> core::computed_file_diff
+	{
+		auto left  = std::string{ };
+		auto right = std::string{ };
+		for (std::size_t line = 0; line < aCount * 12; ++line) {
+			const auto common = std::string{ "line " } + std::to_string(line) + '\n';
+			left += common;
+			right += line % 12 == 0 ? std::string{ "changed " } + common : common;
+		}
+		return computed_comparison(left, right);
+	}
+
+	/// \brief [[BPR-1385]]. Text changes must not move the controls under the pointer.
+	void test_review_bar_geometry_is_stable_while_working()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		publish_positioned_review_bar(window);
+		process_events();
+		const auto geometry = [&window] {
+			auto result = std::vector<QRect>{ window.epoch_selectors()->comparing_button()->geometry(),
+											  window.file_position_label()->geometry(), window.change_position_label()->geometry() };
+			for (auto* action : navigation_actions(window)) {
+				result.push_back(window.review_bar()->widgetForAction(action)->geometry());
+			}
+			return result;
+		};
+		for (const auto available : { 1'280, 900 }) {
+			window.resize(available, 820);
+			process_events();
+			const auto stable = geometry();
+			for (const auto& wording : { QStringLiteral("Loading files…"),
+										 QStringLiteral("File comparisons unavailable. Review history could not be loaded. Refresh to try again."),
+										 QStringLiteral("Pull request loaded. Preparing file comparisons… Resolving exact anchors."), QString{ } }) {
+				window.epoch_selectors()->set_readiness(wording, false);
+				process_events();
+				expect(geometry() == stable, "readiness and recovery preserve the comparison slot and every navigation rectangle");
+				expect(wording.isEmpty() || (window.epoch_selectors()->comparing_button()->accessibleDescription() == wording && window.epoch_selectors()->comparing_button()->toolTip().contains(wording)),
+					   "elided readiness preserves its full tooltip and accessible description");
+				if (wording.startsWith(QStringLiteral("File comparisons"))) {
+					save_render(window, QStringLiteral("stable-review-bar-error-%1").arg(available));
+				}
+			}
+			for (const auto ordinal : { 0U, 1U, 8U, 9U, 10U, 11U, 99U, 100U, 101U }) {
+				auto selected      = application::workbench_projection{ };
+				selected.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																		  .Ordinal = ordinal, .ActionableCount = 101U, .PreviousAvailable = true, .NextAvailable = true } };
+				window.publish(selected);
+				process_events();
+				expect(geometry() == stable, "unselected files, glyph changes and digit boundaries preserve the arrow hit targets");
+			}
+			for (const auto alias : { core::named_comparison::whole_pr, core::named_comparison::previous_upload_to_latest,
+									  core::named_comparison::my_last_reviewed_to_latest }) {
+				auto update                              = resolved_pair_update(core::comparison_pair{
+					.Left  = epoch_anchor(epoch_row(1), core::comparison_anchor_kind::epoch_base),
+					.Right = epoch_anchor(epoch_row(3), core::comparison_anchor_kind::epoch_head) });
+				update.Transition->Selection->Selection  = core::named_selection(alias);
+				update.Transition->Comparison->Selection = core::named_selection(alias);
+				window.publish(update);
+				process_events();
+				expect(geometry() == stable, "every named comparison occupies the same slot");
+			}
+			for (const auto count : { 1U, 11U, 101U }) {
+				const auto diff = separated_changes(count);
+				expect(diff.Alignment.Groups.size() == count, "the fixture has the requested separated changes");
+				auto* surface = window.comparison_surface();
+				surface->set_loading(request_context(diff));
+				window.publish(every_primary_command_offered());
+				process_events();
+				expect(geometry() == stable, "loading a different file keeps change navigation in place");
+				surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(diff),
+																	  .Result  = std::make_shared<const core::computed_file_diff>(diff) }));
+				for (auto step = 0U; step < count; ++step) {
+					static_cast<void>(surface->navigate_change(core::change_navigation_direction::next, core::change_navigation_policy::stop));
+					window.publish(every_primary_command_offered());
+					process_events();
+					expect(geometry() == stable, "change selection, differing totals and digit boundaries keep every arrow stationary");
+				}
+				expect(window.change_position_label()->toolTip() == QStringLiteral("Changes %1 of %1").arg(count),
+					   "the change counter actually reaches the last group");
+			}
+			save_render(window, QStringLiteral("stable-review-bar-ready-%1").arg(available));
+			auto* comparing = window.epoch_selectors()->comparing_button();
+			comparing->menu()->popup(comparing->mapToGlobal(QPoint{ 0, comparing->height() }));
+			process_events();
+			expect(comparing->menu()->isVisible() && comparing->focusPolicy() == Qt::StrongFocus && geometry() == stable,
+				   "the stable comparison button keeps its menu and keyboard focus");
+			comparing->menu()->hide();
+			window.updates_disclosure_button()->set_history_marked(true);
+			process_events();
+			expect(geometry() == stable, "the history warning mark does not move the comparison or arrows");
+			window.updates_disclosure_button()->set_history_marked(false);
+			process_events();
+			expect(geometry() == stable, "clearing the history warning leaves the same geometry");
+		}
+		window.hide();
+	}
+
 	[[nodiscard]] auto review_bar_folded(qt::workbench_window& aWindow) -> bool
 	{
 		auto* const extension = aWindow.review_bar()->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
@@ -14711,6 +14810,7 @@ auto main(int argc, char** argv) -> int
 		test_compact_icon_row_preserves_exact_order_and_edges();
 		test_open_on_github_beside_the_title();
 		test_strip_identity_stays_at_every_width();
+		test_review_bar_geometry_is_stable_while_working();
 		test_the_review_bar_yields_dates_then_words();
 		test_the_floor_follows_the_review_bar();
 		test_restored_geometry_accepts_the_raised_floor();
@@ -14802,6 +14902,7 @@ auto main(int argc, char** argv) -> int
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
 	test_strip_identity_stays_at_every_width();
+	test_review_bar_geometry_is_stable_while_working();
 	test_the_review_bar_yields_dates_then_words();
 	test_the_floor_follows_the_review_bar();
 	test_restored_geometry_accepts_the_raised_floor();

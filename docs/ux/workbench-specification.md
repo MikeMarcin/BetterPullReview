@@ -860,6 +860,15 @@ It returns to the platform's floor at the default font, and it is measured
 again on a font, style, theme or scale change. A restored geometry narrower
 than the floor opens at the floor.
 
+At an unchanged window width and appearance, readiness, comparison names, file
+positions and change positions keep the review bar's hit targets stationary
+([[BPR-1385]]). The comparison summary and both counters occupy reserved slots;
+the Updates disclosure reserves its warning mark's space even when no mark is
+shown. The slots follow the native font and the bar's width mode. Longer summaries
+and positions elide within their slot and retain the complete words in their
+tooltip and accessible description. Actual resizing still yields dates, then
+position words and finally numbers in the existing order.
+
 A local Review Cycle's review bar (RFC-BPR-0061) keeps the same rule at the
 default font ([[BPR-1182]]). One button names the view shown and opens the view
 chooser, as the comparison does in the pull request's slot. Show newer is the

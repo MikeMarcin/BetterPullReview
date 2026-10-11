@@ -13,11 +13,13 @@
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStyle>
+#include <QStyleOptionToolButton>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -31,6 +33,25 @@
 
 namespace bpr::qt {
 	namespace {
+		// The review bar reserves one slot for every comparison/readiness state.
+		// Its width follows the font and the bar's date mode, never the current
+		// sentence. Reserve the widest localized month for both date positions.
+		[[nodiscard]] auto comparison_text_width(const QFontMetrics& aMetrics, const bool aDatesShown) -> int
+		{
+			const auto name = QStringLiteral("Comparing since my last review");
+			// Even without dates the slot keeps the ordinary loading stage and
+			// its received-page count visible at the window's width floor.
+			auto result = std::max(aMetrics.horizontalAdvance(name),
+								   aMetrics.horizontalAdvance(QStringLiteral("Loading changed files… 9999 pages…")));
+			if (aDatesShown) {
+				for (auto month = 1; month <= 12; ++month) {
+					const auto date = QLocale{ }.monthName(month, QLocale::ShortFormat) + QStringLiteral(" 88");
+					result          = std::max(result, aMetrics.horizontalAdvance(QStringLiteral("%1, %2 → %2").arg(name, date)));
+				}
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto oid_text(const core::git_commit_oid& aOid) -> QString
 		{
 			const auto canonical = core::canonical_hex(aOid);
@@ -735,12 +756,25 @@ namespace bpr::qt {
 		}
 		if (ComparingButton != nullptr) {
 			const auto foldedReadiness = !TrackOpen && !Readiness.isEmpty();
-			const auto displayed       = foldedReadiness ? ComparingButton->fontMetrics().elidedText(comparing, Qt::ElideRight, 270) : comparing;
+			auto       textWidth       = foldedReadiness ? 270 : QWIDGETSIZE_MAX;
+			if (ComparingReleased) {
+				textWidth   = comparison_text_width(ComparingButton->fontMetrics(), ComparingDatesShown);
+				auto option = QStyleOptionToolButton{ };
+				option.initFrom(ComparingButton);
+				option.features        = QStyleOptionToolButton::HasMenu;
+				option.toolButtonStyle = Qt::ToolButtonTextOnly;
+				const auto hint        = ComparingButton->style()->sizeFromContents(QStyle::CT_ToolButton, &option,
+																					QSize{ textWidth, ComparingButton->fontMetrics().height() }, ComparingButton);
+				const auto indicator   = ComparingButton->style()->pixelMetric(QStyle::PM_MenuButtonIndicator, &option, ComparingButton);
+				ComparingButton->setFixedWidth(hint.width() + indicator);
+			} else {
+				ComparingButton->setMaximumWidth(foldedReadiness ? 320 : QWIDGETSIZE_MAX);
+			}
+			const auto displayed = ComparingButton->fontMetrics().elidedText(comparing, Qt::ElideRight, textWidth);
 			if (ComparingButton->text() != displayed) {
 				ComparingButton->setText(displayed);
 			}
 			ComparingButton->setAccessibleDescription(comparing);
-			ComparingButton->setMaximumWidth(foldedReadiness ? 320 : QWIDGETSIZE_MAX);
 		}
 		// [[BPR-1130]]. The comparison's tooltip says what the line row used to
 		// say beside it: whether the pair can be read, and the history
@@ -810,10 +844,8 @@ namespace bpr::qt {
 
 	void epoch_comparison_control::set_comparing_dates_shown(const bool aShown)
 	{
-		if (ComparingDatesShown != aShown) {
-			ComparingDatesShown = aShown;
-			update_comparing_text();
-		}
+		ComparingDatesShown = aShown;
+		update_comparing_text();
 	}
 
 	auto epoch_comparison_control::left_selector() const noexcept -> QComboBox*

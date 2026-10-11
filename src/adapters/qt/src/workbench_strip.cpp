@@ -992,11 +992,10 @@ namespace bpr::qt {
 
 	auto updates_disclosure::sizeHint() const -> QSize
 	{
-		auto width = disclosure_inset + disclosure_triangle + disclosure_gap
-			+ fontMetrics().horizontalAdvance(text()) + disclosure_inset;
-		if (Marked) {
-			width += disclosure_mark_gap + epoch_line::history_mark_size;
-		}
+		// A warning arriving or clearing must not move the adjacent comparison.
+		const auto width = disclosure_inset + disclosure_triangle + disclosure_gap
+			+ fontMetrics().horizontalAdvance(text()) + disclosure_inset
+			+ disclosure_mark_gap + epoch_line::history_mark_size;
 		return QSize{ width, std::max(disclosure_height, fontMetrics().height() + 6) };
 	}
 
