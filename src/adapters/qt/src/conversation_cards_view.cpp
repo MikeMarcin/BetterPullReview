@@ -467,7 +467,7 @@ namespace bpr::qt {
 		add(card_action::mark_read, QStringLiteral("Mark read"), card.UnreadCount > 0U, tr("This thread has no unread posts."));
 		add(card.Resolved ? card_action::unresolve : card_action::resolve, card.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
 			ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Resolution is not available for this thread."));
-		add(Feed ? card_action::open_in_code : card_action::show_line, Feed ? QStringLiteral("Open in code") : QStringLiteral("Show line"),
+		add(Feed ? card_action::open_in_code : card_action::show_line, Feed ? QStringLiteral("Open in Review") : QStringLiteral("Show line"),
 			has_code_anchor(card), tr("This thread's code anchor is unavailable."));
 		if (!card.Posts.empty()) {
 			auto* copy = menu->addAction(QStringLiteral("Copy first post"));

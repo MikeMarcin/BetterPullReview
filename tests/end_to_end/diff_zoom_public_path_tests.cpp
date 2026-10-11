@@ -9,7 +9,9 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -25,10 +27,13 @@
 #include <QListView>
 #include <QPlainTextEdit>
 #include <QSpinBox>
+#include <QTabBar>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QToolButton>
 #include <QWheelEvent>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <functional>
@@ -92,7 +97,7 @@ int main(int aArgc, char** aArgv)
 	window.home_open_action()->trigger();
 	wait_for([&] { return window.showing_overview() && window.overview_page()->projection().has_value(); }, "the pull request opens on Overview");
 	auto step  = app::detail::course_modality_step{ };
-	step.Needs = app::detail::course_surfaces{ .Comparison = true, .FilesDrawer = true };
+	step.Needs = app::detail::course_surfaces{ .Comparison = true, .FilesDrawer = true, .ConversationsDrawer = true };
 	wait_for([&] { return access::enter_course_modality(*application, step) != app::detail::course_modality_result::pending; }, "the course enters Review");
 	expect(step.Result == app::detail::course_modality_result::entered, "Review shows the comparison and the Files drawer");
 
@@ -124,6 +129,40 @@ int main(int aArgc, char** aArgv)
 	}
 
 	// The reader's line: the change the file opened on, wherever the reveal put it.
+	// [[BPR-1383]]. A Discuss comment opens inline in Review through the
+	// selected Git/cache comparison, with Comments closed and Notes selected.
+	window.conversations_drawer_toggle_action()->trigger();
+	wait_for([&] { return window.conversations_drawer()->state() == core::workbench_drawer_state::collapsed; }, "Comments closes before the Discuss pick");
+	window.tray_tabs()->setCurrentIndex(1);
+	window.choose_modality(qt::review_modality::discuss);
+	QApplication::processEvents();
+	auto* const notes  = window.conversation_panel()->cards();
+	const auto  target = std::ranges::find_if(notes->cards(), [](const qt::thread_card& aCard) {
+		return aCard.Path.endsWith(QStringLiteral("conversation_cards_view.cpp")) && aCard.Line && aCard.Side && !aCard.Outdated && !aCard.AnchorUnavailable;
+	});
+	expect(target != notes->cards().end() && !target->Posts.empty(), "Discuss offers a current inline thread");
+	const auto thread = *target;
+	notes->open_thread(thread.Id);
+	QApplication::processEvents();
+	auto* const lineButton = notes->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+	expect(lineButton != nullptr && lineButton->isEnabled(), "the Discuss thread offers its line button");
+	lineButton->click();
+	QApplication::processEvents();
+	expect(window.current_modality() == qt::review_modality::review && window.conversations_drawer()->isVisible() && window.tray_tabs()->currentIndex() == 0,
+		   "Discuss Open in Review opens the Comments drawer and its Comments tab");
+	wait_for([&] {
+		return surface->current_context() && surface->current_context()->Key.File == core::file_identity_of(thread.Path.toStdString())
+			&& surface->current_result() && !surface->geometry_pending() && notes->open_thread_id() == thread.Id
+			&& notes->picked_post() == thread.Posts.front().Id && surface->conversation_anchor();
+	},
+			 "Discuss opens the exact inline thread after its comparison is ready");
+	expect(surface->conversation_anchor()->Side == *thread.Side && surface->conversation_anchor()->Line + 1U == *thread.Line,
+		   "the inline conversation is on the thread's exact source line");
+	const auto artifactRoot = qEnvironmentVariable("BPR_SETUP_ARTIFACT_ROOT");
+	if (!artifactRoot.isEmpty()) {
+		expect(QDir{ }.mkpath(artifactRoot) && window.grab().save(artifactRoot + QStringLiteral("/discuss-open-in-review.png")), "the full composed inline Review render is saved");
+	}
+
 	auto* const right    = surface->right_pane();
 	const auto  selected = surface->selection();
 	expect(selected.has_value(), "the first change is selected");

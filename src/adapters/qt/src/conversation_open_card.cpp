@@ -1140,8 +1140,8 @@ namespace bpr::qt {
 			where->setFont(mono);
 			where->setText(Style.Feed && !aCard.Path.isEmpty() ? QStringLiteral("%1:%2").arg(aCard.Path.section(QLatin1Char{ '/' }, -1)).arg(*aCard.Line)
 															   : QString::number(*aCard.Line));
-			where->setToolTip(Style.Feed ? QStringLiteral("Open line %1 in the code").arg(*aCard.Line) : QStringLiteral("Show line %1 in the code").arg(*aCard.Line));
-			where->setAccessibleName(QStringLiteral("Show line %1").arg(*aCard.Line));
+			where->setToolTip(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show line %1 in the code").arg(*aCard.Line));
+			where->setAccessibleName(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show line %1").arg(*aCard.Line));
 			where->setCursor(Qt::ArrowCursor);
 			connect(where, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::show_line); } });
 			row->addWidget(where);

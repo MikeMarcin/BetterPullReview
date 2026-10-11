@@ -18,7 +18,7 @@ Owner, 2026-10-10: "we should be able to go from a comment in discuss to the inl
 
 ## Problem and scope
 
-Discuss's existing Open in code gesture changes modality and line selection, but does not open a collapsed Comments drawer or retain the thread across an asynchronous file load. Reuse the same exact thread route as Threads → Review. The line button and thread menu name the destination Open in Review; the button stays keyboard accessible. General comments and unavailable anchors keep their existing unavailability.
+Discuss's existing Open in code gesture changes modality and line selection, but does not open a collapsed Comments drawer or retain the thread across an asynchronous file load. Reuse the same exact thread route as Threads → Review. The line button's tooltip and accessible name and the thread menu name the destination Open in Review; the button stays keyboard accessible. General comments and unavailable anchors keep their existing unavailability.
 
 ## Acceptance
 

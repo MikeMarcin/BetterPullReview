@@ -2221,20 +2221,11 @@ namespace bpr::qt {
 						ReviewEditor->discard_action()->trigger();
 					}
 					break;
-				case card_action::open_in_code: {
-					// [[BPR-0649]]. Back to the code at the thread's line: the
-					// file the thread names is selected through the same
-					// intent the files drawer sends, Review is entered in the
-					// arrangement it last had ([[BPR-1295]]), and the thread
-					// made current so the line is revealed.
-					const auto index = ConversationPanel->model()->index_for_id(aIdentity);
-					if (index.isValid()) {
-						ConversationPanel->choose(index);
-						enter_review_at(index.data(github_conversation_model::path_role).toString());
-						synchronize_selected_conversation(index);
-					}
+				case card_action::open_in_code:
+					// [[BPR-1383]]. The same exact pick as Threads: open
+					// Comments and retain the thread until its file loads.
+					static_cast<void>(reveal_conversation_in_review(aIdentity));
 					break;
-				}
 				}
 			});
 		ConversationPanel->cards()->set_excerpt_locator(

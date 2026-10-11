@@ -8238,38 +8238,38 @@ namespace {
 		auto replies = std::vector<std::string>{ };
 		window.set_review_reply_dispatch(
 			[&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
-		window.conversation_panel()->adopt(
-			{ application::github_conversation_projection{
-				  .Id       = "review-thread:late",
-				  .Kind     = application::github_conversation_kind::review_thread,
-				  .Path     = "src/file.cpp",
-				  .Line     = 22U,
-				  .DiffSide = application::github_conversation_diff_side::right,
-				  .AnchorAvailability
-				  = application::github_conversation_anchor_availability::current },
-			  application::github_conversation_projection{
-				  .Id          = "review-comment:late-1",
-				  .ParentId    = "review-thread:late",
-				  .Kind        = application::github_conversation_kind::review_comment,
-				  .AuthorLogin = "someone",
-				  .Body        = "a post",
-				  .Path        = "src/file.cpp" },
-			  application::github_conversation_projection{
-				  .Id       = "review-thread:off-file",
-				  .Kind     = application::github_conversation_kind::review_thread,
-				  .Path     = "src/other.cpp",
-				  .Line     = 22U,
-				  .DiffSide = application::github_conversation_diff_side::right,
-				  .AnchorAvailability
-				  = application::github_conversation_anchor_availability::current },
-			  application::github_conversation_projection{
-				  .Id          = "review-comment:off-file-1",
-				  .ParentId    = "review-thread:off-file",
-				  .Kind        = application::github_conversation_kind::review_comment,
-				  .AuthorLogin = "another-reviewer",
-				  .Body        = "an off-file post",
-				  .Path        = "src/other.cpp" } },
-			QStringLiteral("two conversations"));
+		auto pull          = application::github_pull_request_projection{ };
+		pull.Conversations = { application::github_conversation_projection{
+								   .Id       = "review-thread:late",
+								   .Kind     = application::github_conversation_kind::review_thread,
+								   .Path     = "src/file.cpp",
+								   .Line     = 22U,
+								   .DiffSide = application::github_conversation_diff_side::right,
+								   .AnchorAvailability
+								   = application::github_conversation_anchor_availability::current },
+							   application::github_conversation_projection{
+								   .Id          = "review-comment:late-1",
+								   .ParentId    = "review-thread:late",
+								   .Kind        = application::github_conversation_kind::review_comment,
+								   .AuthorLogin = "someone",
+								   .Body        = "a post",
+								   .Path        = "src/file.cpp" },
+							   application::github_conversation_projection{
+								   .Id       = "review-thread:off-file",
+								   .Kind     = application::github_conversation_kind::review_thread,
+								   .Path     = "src/other.cpp",
+								   .Line     = 22U,
+								   .DiffSide = application::github_conversation_diff_side::right,
+								   .AnchorAvailability
+								   = application::github_conversation_anchor_availability::current },
+							   application::github_conversation_projection{
+								   .Id          = "review-comment:off-file-1",
+								   .ParentId    = "review-thread:off-file",
+								   .Kind        = application::github_conversation_kind::review_comment,
+								   .AuthorLogin = "another-reviewer",
+								   .Body        = "an off-file post",
+								   .Path        = "src/other.cpp" } };
+		window.publish(application::github_presentation_update{ .PullRequest = pull });
 		static_cast<void>(publish_fixture(window, diff));
 		process_events();
 		expect(window.conversations_drawer()->width() == 375 && !window.conversation_panel()->discuss(),
@@ -8347,7 +8347,8 @@ namespace {
 		expect(window.current_modality() == qt::review_modality::review
 				   && !window.conversation_panel()->discuss()
 				   && window.conversation_model()->id_for_index(window.conversation_view()->currentIndex())
-					   == "review-thread:late"
+					   == "review-comment:late-1"
+				   && window.conversation_panel()->cards()->open_thread_id() == "review-thread:late"
 				   && window.comparison_surface()->conversation_anchor().has_value()
 				   && window.comparison_surface()->conversation_anchor()->Side
 					   == core::diff_side::right
@@ -12184,6 +12185,42 @@ namespace {
 			   "a post named by identity opens in place in Review");
 		expect(!window.reveal_conversation_in_review("issue-comment:c1") && !window.reveal_conversation_in_review("review:r9"),
 			   "a pull request comment or a review is not opened in Review");
+		// [[BPR-1383]]. Discuss uses this same exact pending pick. Comments
+		// was closed, Notes selected, and the other file is still displayed.
+		window.conversations_drawer_toggle_action()->trigger();
+		window.tray_tabs()->setCurrentIndex(1);
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		cards->open_thread("review-thread:late");
+		process_events();
+		auto* const lineButton = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+		expect(lineButton != nullptr && lineButton->isEnabled() && lineButton->focusPolicy() == Qt::StrongFocus,
+			   "Discuss's line button is offered to pointer and keyboard");
+		lineButton->click();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::review && comments->isVisible() && window.tray_tabs()->currentIndex() == 0,
+			   "Discuss opens the inline Comments view even when Comments was closed and Notes selected");
+		expect(cards->open_thread_id() != "review-thread:late", "the Discuss pick waits for its own file comparison");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		window.publish(moved);
+		static_cast<void>(publish_fixture(window, computed_comparison(text, later, 2U, file)));
+		window.set_conversation_endpoint_placement(false, true);
+		process_events();
+		expect(cards->open_thread_id() == "review-thread:late" && cards->picked_post() == "review-comment:late-1"
+				   && window.comparison_surface()->conversation_anchor() && window.comparison_surface()->conversation_anchor()->Line == 21U,
+			   "the Discuss pick opens its exact thread and first post at the source line after the file loads");
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		auto* const threadMenu  = cards->thread_menu("review-thread:late");
+		const auto  menuActions = threadMenu->actions();
+		const auto  inReview    = std::ranges::find_if(menuActions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
+		expect(inReview != menuActions.end() && (*inReview)->isEnabled(), "the Discuss menu names Open in Review");
+		(*inReview)->trigger();
+		process_events();
+		expect(window.current_modality() == qt::review_modality::review && cards->open_thread_id() == "review-thread:late" && cards->picked_post() == "review-comment:late-1",
+			   "the same-file menu pick opens the exact inline thread immediately");
+		delete threadMenu;
 		window.hide();
 	}
 
@@ -14729,6 +14766,7 @@ auto main(int argc, char** argv) -> int
 		test_a_reply_waits_for_its_threads_own_comparison();
 		test_defect_queue_navigation_and_semantic_dispatch();
 		test_thread_defect_menus_badges_and_navigation();
+		test_threads_finds_and_picks_into_review();
 		std::cout << "workbench-conversation-reveal:pass\n";
 		return EXIT_SUCCESS;
 	}

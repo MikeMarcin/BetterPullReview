@@ -375,6 +375,9 @@ namespace {
 		expect(view.open_thread_id() == "t-open" && view.open_card()->findChild<QLabel*>(QStringLiteral("threadExcerpt")) != nullptr,
 			   "a press opens the thread in place with its code excerpt above its posts");
 		expect(button(view, "threadResolve") == nullptr, "Resolve is not offered before the provider and server both resolve threads");
+		expect(button(view, "threadShowLine")->toolTip() == QStringLiteral("Open in Review at src/z.cpp:9")
+				   && button(view, "threadShowLine")->accessibleName() == QStringLiteral("Open in Review at src/z.cpp:9"),
+			   "Discuss's line button names Review and the exact file and line");
 		button(view, "threadShowLine")->click();
 		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::open_in_code, "t-open" } },
 			   "in Discuss the line button opens the thread in the code");
@@ -1286,6 +1289,22 @@ namespace {
 		QApplication::processEvents();
 		expect(view.open_card()->findChild<QToolButton*>(QStringLiteral("threadDefectBadge")) == nullptr,
 			   "a withdrawn badge leaves no stale action");
+		view.set_feed(true);
+		auto unavailable               = thread("unavailable", "src/a.cpp", 10U);
+		unavailable.AnchorAvailability = application::github_conversation_anchor_availability::missing_current_line;
+		auto general                   = application::github_conversation_projection{ };
+		general.Id                     = "general";
+		general.Kind                   = application::github_conversation_kind::issue_comment;
+		general.Body                   = "A PR-wide comment";
+		view.adopt({ unavailable, reply("unavailable-post", "unavailable", "reviewer", "No current line"), general });
+		for (const auto& identity : { std::string{ "unavailable" }, std::string{ "general" } }) {
+			auto* const unavailableMenu = view.thread_menu(identity);
+			const auto  menuActions     = unavailableMenu->actions();
+			const auto  openInReview    = std::ranges::find_if(menuActions, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
+			expect(openInReview != menuActions.end() && !(*openInReview)->isEnabled() && !(*openInReview)->toolTip().isEmpty(),
+				   "a PR-wide comment or unavailable anchor keeps Open in Review disabled with a reason");
+			delete unavailableMenu;
+		}
 	}
 
 	// [[BPR-1029]]. A dispatch that relays the notes out still names the

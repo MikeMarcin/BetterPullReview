@@ -74,7 +74,7 @@ modality rather than by position, and Threads on `Ctrl+4` (⌘4) since
 [[BPR-1293]]. The owner, 2026-10-06, verbatim: "can we swap discuss to 3 and
 conversations to 4". The strip reads in its keys' order: Overview, Review,
 Discuss, Threads. Read is merged into Review: every path that entered
-Read (an Overview file row, Continue review, Open in code, Resume, a link to a
+Read (an Overview file row, Continue review, Open in Review, Resume, a link to a
 file, a tour) enters Review. Review remembers the drawer arrangement it last
 had in the window, hidden drawers included, and applies its preset (Files and
 Comments open, Repositories as they were) only on the window's first entry and
@@ -176,8 +176,18 @@ file's group. Three entries land the same way a pick does: a
 `#discussion_r<id>` link the read identified, the reveal of an inline comment
 just published (Review stays, the thread open at the published post), and
 Previous or Next defect for a thread the drawer does not hold. A
-`#pullrequestreview-` link, an older-pair tab's Show them, a Discuss card's Open
-in code and the review page's preflight rows land where they did.
+`#pullrequestreview-` link, an older-pair tab's Show them and the review page's
+preflight rows land where they did.
+
+**Open in Review from Discuss** ([[BPR-1383]], owner request, 2026-10-10).
+An open thread's file-and-line button has the tooltip and accessible name
+"Open in Review at path:line"; the same action appears as **Open in Review**
+in its context menu. It enters Review on the thread's file, opens the Comments
+drawer and selects its Comments tab. The exact thread opens at its first post
+beside the source line once that file's comparison is ready, using the same
+pending pick as Threads. This also works when the Comments drawer was closed,
+Notes was selected, or a different file was shown. The menu keeps unavailable
+anchors and PR-wide comments disabled with their existing explanation.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
