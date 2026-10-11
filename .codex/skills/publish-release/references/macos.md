@@ -12,6 +12,15 @@ Developer ID and hardened runtime, submits/staples app and DMG, runs Gatekeeper,
 and writes DMG/ZIP/SPDX/checksums and separate source under
 `build/releases/X.Y.Z/`.
 
+The normal test gate runs `scripts/run_test_suite.py --preset dev`: the full
+configured graph, with four jobs for independent tests and serial Qt and
+end-to-end courses. Its new directory under `build/test-results/dev/` retains
+the log, JUnit results, selected manifest and timing report. Failures still
+stop the release. The tests-disabled composition check reuses its build tree
+but reconfigures, rebuilds and checks it each time. See
+`docs/development/build-and-test.md` for focused development checks and timing
+interpretation. Do not run another build or suite alongside performance rows.
+
 Expected bundle: `com.gamecoretech.betterpullreview`; team: `YTQKP2V2A8`;
 identity: `Developer ID Application: Michael Marcin (YTQKP2V2A8)`.
 Inspect actual signatures. Bundle IDs are not legal publisher names.

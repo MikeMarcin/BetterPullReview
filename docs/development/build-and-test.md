@@ -169,7 +169,7 @@ local and remains available in offline mode.
 ```sh
 cmake --preset dev
 cmake --build --preset dev
-ctest --preset dev --output-on-failure
+python3 scripts/run_test_suite.py --preset dev
 ```
 
 `core-only` excludes the Qt target graph and proves that the core and
@@ -184,6 +184,41 @@ ctest --preset core-only --output-on-failure
 Both presets use out-of-source directories under ignored `build/`.
 Both also have schema-12 workflow presets, for example
 `cmake --workflow --preset core-only`.
+
+### Complete-suite timing and focused work
+
+The macOS release procedure uses `scripts/run_test_suite.py --preset dev`.
+It runs every row selected by that preset with four CTest jobs, preserving
+network isolation, resource locks and fixture dependencies. Interactive Qt and
+end-to-end courses run alone, including the responsiveness benchmarks. Use
+`--jobs 1` for a sequential diagnostic run. Avoid other builds or test runs on
+the machine when measuring responsiveness; CTest cannot serialize unrelated
+processes. The runner refuses a second complete-suite runner in this checkout
+while the first holds `build/.test-suite.lock`. Direct `ctest` invocations do
+not participate in that lock; do not overlap them with a complete gate.
+
+Each invocation saves `manifest.json`, `ctest.log`, `junit.xml` and
+`timings.json` in a new directory under `build/test-results/dev/`. The report
+distinguishes elapsed wall time from summed test durations, lists the slowest
+rows, and names failures and skips. A failed CTest run, missing result or
+duplicate result fails the runner and stops release preparation. A skip remains
+a skip, not passing evidence for that criterion. Summarize an older console log
+without running tests with
+`python3 scripts/run_test_suite.py --report-log /absolute/path/to/ctest.log`.
+
+The composition contract still configures, builds and inspects a separate
+tests-disabled Release application on every invocation. Its build tree lives
+under `build/dev/tests/end_to_end/composition-contract-build/release`, so
+unchanged compiler outputs survive between runs. A cold checkout still pays
+for that first build; no prior verdict or unverified executable is reused.
+Standalone execution without `--release-build-dir` remains disposable.
+
+For ordinary issue work, build the affected targets and use
+`ctest --preset dev --output-on-failure -R '^(affected_test_name)$'` with the
+relevant contract and public-path checks. Run the complete suite at the
+integration or release boundary, rather than after every small edit. Reuse
+unchanged passing evidence. The [release-suite investigation](../verification/BPR-1386-release-test-suite.md)
+records the measured costs and coverage decisions.
 
 Distribution uses `macos-release`, `windows-app-release` or `linux-package`,
 each with Release, tests disabled and distribution runtime restrictions. The

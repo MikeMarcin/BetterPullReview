@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -96,6 +97,7 @@ def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--qt-root", default="")
     parser.add_argument("--qt-dir", default="")
     parser.add_argument("--cpm-source-cache", default="")
+    parser.add_argument("--release-build-dir", type=Path)
     return parser.parse_known_args()
 
 
@@ -1281,7 +1283,13 @@ class CompositionContractTests(unittest.TestCase):
             strip_cxx_comments(public_header + '\nconstexpr auto Name = "BPR_BUILD_TESTING";\n'),
         )
 
-        with contained_temporary_directory() as temporary_directory:
+        # CTest owns a persistent build below its binary tree. Reconfigure and
+        # rebuild it every time: only compiler outputs are reused, never a test
+        # verdict or an unchecked prebuilt executable. Standalone callers keep
+        # the disposable default.
+        root = (nullcontext(ARGUMENTS.release_build_dir)
+                if ARGUMENTS.release_build_dir else contained_temporary_directory())
+        with root as temporary_directory:
             build_directory = Path(temporary_directory) / "release"
             command = [
                 ARGUMENTS.cmake,
@@ -1295,6 +1303,7 @@ class CompositionContractTests(unittest.TestCase):
                 "-DBUILD_TESTING=OFF",
                 "-DCMAKE_BUILD_TYPE=Release",
                 "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+                f"-DCMAKE_CXX_COMPILER={ARGUMENTS.cxx}",
             ]
             if ARGUMENTS.qt_root:
                 command.append(f"-DQt6_ROOT={ARGUMENTS.qt_root}")

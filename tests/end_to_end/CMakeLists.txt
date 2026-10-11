@@ -1049,6 +1049,8 @@ set(bpr_application_composition_contract_command
     "${CMAKE_COMMAND}"
     --cxx
     "${CMAKE_CXX_COMPILER}"
+    --release-build-dir
+    "${CMAKE_CURRENT_BINARY_DIR}/composition-contract-build"
 )
 if(bpr_test_qt_root)
     list(

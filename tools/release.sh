@@ -418,7 +418,7 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
     log "Building and testing the development graph"
     cmake --preset dev
     cmake --build --preset dev
-    ctest --preset dev --output-on-failure
+    python3 scripts/run_test_suite.py --preset dev
 else
     log "Skipping tests"
 fi

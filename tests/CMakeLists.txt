@@ -1378,3 +1378,27 @@ set_tests_properties(
 )
 
 add_subdirectory(logging)
+
+bpr_add_network_isolated_test(NAME test_suite_runner_contract
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_suite_runner_tests.py")
+
+# [[BPR-1386]]. CTest can overlap independent contracts, but interactive Qt
+# courses and complete application courses need an uncontended event loop.
+# Apply this after registration so explicit environments and existing locks are
+# visible. Existing RUN_SERIAL rows and resource/fixture dependencies survive.
+function(bpr_schedule_test_directory directory)
+    get_property(rows DIRECTORY "${directory}" PROPERTY TESTS)
+    foreach(row IN LISTS rows)
+        get_property(environment TEST "${row}" DIRECTORY "${directory}" PROPERTY ENVIRONMENT)
+        if(directory MATCHES "/tests/(adapters_qt|end_to_end)(/|$)"
+           OR environment MATCHES "QT_QPA_PLATFORM=")
+            set_tests_properties("${row}" DIRECTORY "${directory}" PROPERTIES RUN_SERIAL TRUE)
+            set_property(TEST "${row}" DIRECTORY "${directory}" APPEND PROPERTY LABELS bpr_serial_gui)
+        endif()
+    endforeach()
+    get_property(children DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+    foreach(child IN LISTS children)
+        bpr_schedule_test_directory("${child}")
+    endforeach()
+endfunction()
+bpr_schedule_test_directory("${CMAKE_CURRENT_SOURCE_DIR}")
