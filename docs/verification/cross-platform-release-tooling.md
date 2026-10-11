@@ -59,7 +59,12 @@ Source access/retention, legal disposition, vault, crash/privacy and vulnerabili
 gaps retain their existing release-readiness scope. Offline receipts cannot
 independently establish native trust or installer/archive payload equivalence.
 
-Main integration awaits the existing Mac station ownership transfer. A separate
-worktree contains the changes; the old station stop confirmation remains in the
-one-step release tooling wizard. No active Windows/Linux station checkout was
-modified or stopped.
+Integrated into `main` on 2026-10-10 from `codex/cross-platform-release` at
+`591c98873`. The owner explicitly authorized overriding the local station
+stop-proof requirement after the existing proxy could not inspect the old
+Desktop endpoint's background commands. The transfer records that waiver,
+the observed idle chat and free supervisor lease, and the unverified command
+state; it does not claim runtime shutdown. Local ownership is generation 2,
+and the old endpoint remains fenced. The obsolete confirmation wizard was
+paused and its host stopped without recording a shutdown confirmation.
+No active Windows/Linux station checkout was modified or stopped.
