@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1385"
 title: "Stabilize the review bar during normal navigation"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0005", "RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
