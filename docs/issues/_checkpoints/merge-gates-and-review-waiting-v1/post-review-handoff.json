@@ -1,0 +1,103 @@
+{
+  "schema": "bpr.milestone-handoff.v1",
+  "mandate_revision": "merge-gates-r1",
+  "run_id": "merge-gates-and-review-waiting",
+  "segment_id": "post-review-corrections",
+  "owner": "/root/review_corrections",
+  "milestone": "post-review-corrections",
+  "result": "corrections verified; coordinator independent confirmation pending",
+  "rfc_base_sha": "9857d596769468c0585c475467175e3998a33530",
+  "reviewed_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
+  "product_revision": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
+  "commits": [
+    "d9ee703b8",
+    "2539b8c24",
+    "eae174cb95"
+  ],
+  "changed_product_paths": [
+    "docs/architecture/review-queue.md",
+    "docs/architecture/system-architecture.md",
+    "src/adapters/github/src/github_paged_read.cpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/include/bpr/application/github_read_model.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/application/src/review_queue_enrollment.cpp",
+    "src/application/src/review_queue_facts.cpp",
+    "tests/adapters_qt/review_landing_model_tests.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/application/review_queue_enrollment_tests.cpp",
+    "tests/github_contract/github_paged_read_tests.cpp",
+    "tests/sqlite_contract/queue_enrollment_storage_tests.cpp"
+  ],
+  "card": "BPR-1399",
+  "review_record": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json",
+  "review_consumption": "Supplied exact-candidate independent report received and faithfully persisted. All three blockers have evidence-backed engineering dispositions and verified corrections; coordinator-owned narrow independent correction confirmation has not been received.",
+  "verification": [
+    {
+      "command": "ctest --preset dev --output-on-failure -j 1 -R '^(github_paged_read|application_github_window_read_host|application_review_queue_enrollment|sqlite_queue_enrollment_storage|qt_review_landing_model)$'",
+      "phase": "before repair",
+      "result": "five direct suites failed on supplied counterexamples",
+      "log": "/tmp/bpr-merge-gates-run/post-review-regressions-before.log"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -j 1 -R '^(github_paged_read|application_github_window_read_host|application_review_queue_enrollment|sqlite_queue_enrollment_storage|qt_review_landing_model|core_dependency_boundary|architecture_boundaries|application_overview_summary_1|application_personal_discovery_public_path|application_personal_discovery_cli_public_path)$'",
+      "phase": "first fixed pass",
+      "result": "8/10 passed; provider invalid byte-limit probe and old strict Overview replay failed, both corrected and rechecked",
+      "log": "/tmp/bpr-merge-gates-run/post-review-fixed-tests.log"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -j 1 -R '^(application_overview_summary_1|application_personal_discovery_public_path|application_personal_discovery_cli_public_path)$'",
+      "result": "3/3 pass",
+      "log": "/tmp/bpr-merge-gates-run/post-review-composed-tests.log"
+    },
+    {
+      "command": "ctest --preset dev --output-on-failure -j 1 -R '^(github_paged_read|github_read_contract|gh_cli_transport|application_github_public_path_uiforetw_74|application_anonymous_public_preview_public_path)$'",
+      "result": "5/5 pass",
+      "log": "/tmp/bpr-merge-gates-run/post-review-final-protocol-tests.log"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py [eleven explicit changed C++ files]",
+      "result": "clang-format22 pass",
+      "log": "/tmp/bpr-merge-gates-run/post-review-format-final.log"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths src/application/src/review_queue_facts.cpp src/application/src/github_window_read_host.cpp",
+      "result": "pass",
+      "log": "/tmp/bpr-merge-gates-run/post-review-tidy.log"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK",
+      "log": "/tmp/bpr-merge-gates-run/post-review-doc-final.log"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "67 tests pass",
+      "log": "/tmp/bpr-merge-gates-run/post-review-doc-regressions.log"
+    }
+  ],
+  "evidence_reuse": "The first fixed pass supplies unchanged host/codec/storage/Home and boundary source evidence. Final source changes after that pass only repaired test configuration/observer order and strict fixture snapshot order; final provider and composed/paged/anonymous rechecks cover those inputs. Product commit binds those exact verified bytes. Existing scale/layout and schema8\u21929 evidence retains its stated scope.",
+  "documentation": "Final documentation gate DOCUMENTATION_OK;67 documentation regression tests pass. Current RFC review state, ledgers, historical closeout follow-up notes and semantic contracts reconciled; BPR-1399 finish follows with explicit paths.",
+  "pending_pack_obligations": [
+    "Coordinator consumes narrow independent confirmation from /root/critical_review on the fixed product candidate and records final pack acceptance."
+  ],
+  "pending_human_obligations": [],
+  "review_handoff": {
+    "attended_session": null,
+    "url": null,
+    "event_cursor": null,
+    "protected_candidates": [],
+    "fixed_product_candidate": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
+    "next_action": "Narrow independent fixed-counterexample verification; no second whole-candidate review loop required."
+  },
+  "ownership": "Exclusive assigned main checkout source/tracker writer /root/review_corrections; no delegated agents, worktrees, attended candidate or remote mutation.",
+  "command_state": "quiescent: every task-owned build/test/documentation/format/tidy command reaped; no server, child writer, worktree or protected candidate remains",
+  "external_state": "Preserved preexisting .gitignore/.mask.json/.mask.lock.json and untracked docs/rfcs/drafts plus accepted external Home Draft work.",
+  "limitations": [
+    "Fixture/native and CLI compiler coverage is not live private-organization, installed-account or native GHES parity.",
+    "Separate-process SQLite regression executed on macOS/POSIX; no new native Windows result.",
+    "Current-head check observations do not establish test-merge evaluation.",
+    "No visual layout change, human criterion, owner desktop/browser inspection, collaboration write or merge authority."
+  ],
+  "next_action": "Coordinator binds final HEAD after continuation commit, obtains narrow reviewer confirmation, consumes it and closes the authorized pack if no blocking discrepancy remains."
+}

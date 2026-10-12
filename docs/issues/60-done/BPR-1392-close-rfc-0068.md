@@ -42,3 +42,15 @@ RFC base: `9857d596769468c0585c475467175e3998a33530`.
 `inspect-checks` is integrated and verified; AC01–AC05 and all three authored exits pass. The criterion ledger records actual public/provider/render evidence, initial failures and corrections, bounded host/transport qualifications and reused unchanged evidence. The user’s final independent critical review remains a pack obligation for the coordinator; no human acceptance is required by this milestone.
 
 Durable continuation: [handoff](../_checkpoints/merge-gates-and-review-waiting-v1/milestone-1-handoff.json). All task-owned commands are quiescent; no server or worktree is handed off. Next is `see-review-blockers` (RFC-BPR-0069, BPR-1393–1395), with the final independent critical review still pending for the whole pack.
+
+## Post-review follow-up
+
+The final independent report reproduced a criterion counterexample on
+`15365e9df15ff51b366f9735c887dccdd80cae9e`.
+[BPR-1399](BPR-1399-correct-merge-gates-critical-review.md)
+corrects the three supplied pack findings at
+`eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b`, with direct failing/passing
+regressions in [the review/disposition record](../_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json)
+and the RFC ledgers. This historical Done slice and its earlier evidence remain
+intact. Coordinator-owned narrow independent confirmation and final pack
+acceptance remain pending.

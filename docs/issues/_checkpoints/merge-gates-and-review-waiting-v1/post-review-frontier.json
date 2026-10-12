@@ -6,14 +6,40 @@
   "rfc_base_sha": "9857d596769468c0585c475467175e3998a33530",
   "reviewed_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
   "card": "BPR-1399",
-  "product_state": "three reproduced independent blocking findings; corrections in progress",
-  "commands": "quiescent before engineering",
+  "product_state": "three supplied blockers corrected and directly verified",
+  "commands": "quiescent: every task-owned build/test/documentation/format/tidy command reaped; no server, child writer, worktree or protected candidate remains",
   "plan": [
     "Move mandatory search before optional checks/statuses under the unchanged bounded execution.",
     "Track complete REST actor fallback independently from GraphQL/code-owner availability; replace prior stale requests on a fresh fallback including empty.",
     "Derive restart check freshness from complete checks or retained failures in codec and host restoration."
   ],
-  "pending": ["C01", "C02", "C03", "focused verification and integrated public pass", "independent review consumption and exact fixed-candidate handoff"],
-  "next_action": "Add counterexample regressions and demonstrate failure on the reviewed candidate before repairs.",
-  "unrelated_state": [".gitignore", ".mask.json", ".mask.lock.json", "docs/rfcs/drafts/", "external Home Draft chip work"]
+  "pending": [
+    "BPR-1399 finish",
+    "coordinator-owned narrow independent confirmation and final pack acceptance"
+  ],
+  "next_action": "Coordinator binds final HEAD after continuation commit, obtains narrow reviewer confirmation, consumes it and closes the authorized pack if no blocking discrepancy remains.",
+  "unrelated_state": [
+    ".gitignore",
+    ".mask.json",
+    ".mask.lock.json",
+    "docs/rfcs/drafts/",
+    "external Home Draft chip work"
+  ],
+  "product_revision": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
+  "changed_paths": [
+    "docs/architecture/review-queue.md",
+    "docs/architecture/system-architecture.md",
+    "src/adapters/github/src/github_paged_read.cpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/include/bpr/application/github_read_model.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/application/src/review_queue_enrollment.cpp",
+    "src/application/src/review_queue_facts.cpp",
+    "tests/adapters_qt/review_landing_model_tests.cpp",
+    "tests/application/github_window_read_host_tests.cpp",
+    "tests/application/review_queue_enrollment_tests.cpp",
+    "tests/github_contract/github_paged_read_tests.cpp",
+    "tests/sqlite_contract/queue_enrollment_storage_tests.cpp"
+  ],
+  "handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"
 }

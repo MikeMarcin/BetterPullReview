@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1399"
 title: "Correct merge-gates pack critical-review counterexamples"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0068", "RFC-BPR-0069", "RFC-BPR-0070"]
 depends_on: ["BPR-1392", "BPR-1395", "BPR-1398"]
 priority: "P1"
 metadata: {"mandate_revision":"merge-gates-r1","draft_pack":"merge-gates-and-review-waiting-v1","rfc_base_sha":"9857d596769468c0585c475467175e3998a33530","reviewed_candidate":"15365e9df15ff51b366f9735c887dccdd80cae9e","owner":"/root/review_corrections"}
+acceptance: [{"criterion":"C01","outcome":"pass","revision":"eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b","evidence":{"kind":"observation","detail":"Page/byte counterexamples repaired; final provider, native/CLI compiler and paged/anonymous public replay5/5 pass; composed Overview/Home3/3.","refs":["docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json","docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"]}},{"criterion":"C02","outcome":"pass","revision":"eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b","evidence":{"kind":"observation","detail":"Fresh and complete-empty REST fallback replace prior code-owner requests without inventing origin; direct provider/window/Home mapping pass.","refs":["docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json","docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"]}},{"criterion":"C03","outcome":"pass","revision":"eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b","evidence":{"kind":"observation","detail":"FailedChecks-only codec/host and separate-process SQLite restart retain last-known freshness; existing Home reason includes Last known without other known fields.","refs":["docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json","docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"]}}]
 ---
 
 # Correct merge-gates pack critical-review counterexamples

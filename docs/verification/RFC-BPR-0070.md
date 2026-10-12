@@ -77,3 +77,31 @@ mandate requires the coordinator to dispatch and consume an independent critical
 review of the final whole pack. That separate pack obligation remains pending;
 this ledger supplies no independent or human acceptance. No required human
 criterion was authored, so there is no attended candidate or review server.
+
+## Independent critical-review correction
+
+The independent reviewer reproduced F3 on
+`15365e9df15ff51b366f9735c887dccdd80cae9e`: a stored partial `Branch Freshness`
+failure lost its last-known flag when checks were incomplete and requests and
+assessment were unobserved. That invalidated the earlier AC04 restart claim for
+this case; complete-check/known-request round trips masked it. The supplied
+[review and engineering dispositions](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json)
+retain that failed observation and the positive schema 8→9 probe.
+
+Correction `eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b` derives restored check
+freshness from complete checks or retained failures in both codec and host.
+Direct codec/host restoration, a separate-process SQLite public-port store/load,
+and Home's existing Last known reason all failed before repair and now pass.
+No complete check set, request or assessment is invented, and no schema change
+is needed. The separate-process course was executed on macOS/POSIX; no new
+native Windows restart claim follows. The REST fallback correction also reaches
+Home with current ordinary reviewer names/counts, including complete zero.
+
+The four focused host/storage/Home suites pass, the Overview/native-CLI Home
+integration passes 3/3, and final provider/contracts/compiler/paged-anonymous
+public paths pass 5/5. Boundary checks and focused host/codec tidy pass. Exact
+commands, failures and reusable evidence are retained under
+`/tmp/bpr-merge-gates-run/post-review-*`. [BPR-1399](../issues/60-done/BPR-1399-correct-merge-gates-critical-review.md)
+owns this follow-up. All supplied blockers have verified engineering dispositions;
+coordinator-owned narrow independent confirmation and final pack consumption
+remain pending. No human criterion, review server or desktop capture is introduced.

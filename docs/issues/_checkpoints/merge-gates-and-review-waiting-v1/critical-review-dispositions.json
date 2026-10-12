@@ -1,0 +1,77 @@
+{
+  "schema": "bpr.critical-review-dispositions.v1",
+  "mandate_revision": "merge-gates-r1",
+  "pack": "merge-gates-and-review-waiting-v1",
+  "baseline": "9857d596769468c0585c475467175e3998a33530",
+  "reviewed_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
+  "fixed_product_candidate": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
+  "reviewer": {
+    "identity": "/root/critical_review",
+    "role": "rfc-reviewer-critical",
+    "model": "gpt-6-astra",
+    "effort": "xhigh",
+    "scope": "read-only exact whole-pack candidate against immutable baseline",
+    "report_provenance": "Coordinator relayed the reviewer's final report to /root/review_corrections. The read-only reviewer wrote no durable report; this engineering-owned record preserves its findings and separates repair dispositions."
+  },
+  "findings": [
+    {
+      "id": "F1",
+      "title": "Optional status pagination can discard readable PR content — RFC0068 AC04.",
+      "severity": "blocking",
+      "criterion": "RFC-BPR-0068 AC04",
+      "reviewed_locations": ["src/adapters/github/src/github_paged_read.cpp:5125", "src/adapters/github/src/github_paged_read.cpp:5150"],
+      "reviewer_counterexample": "Main execution spends optional status pages before mandatory search. With existing paged_fixture_transport and MaximumTotalPages = 12, empty statuses succeeds; two valid 100-record status pages with progressing canonical continuations produce response_limit before search and reject the readable PR. With production defaults, 17 valid bounded responses padded within 4 MiB/page leave 1 byte in the 64 MiB aggregate; subsequent search similarly rejects the PR. Existing record-limit/hostile-link tests leave mandatory-read capacity.",
+      "disposition": "corrected and directly verified by engineering",
+      "repair": "Complete mandatory search before optional check-run/status reads, under unchanged shared page/byte ceilings. Optional exhaustion cannot revoke already completed mandatory observations. Strict public fixture replay follows the same order while preserving exact requests/responses and separate post-snapshot timeline order.",
+      "fixed_locations": ["src/adapters/github/src/github_paged_read.cpp:5107", "src/app/src/github_public_path_fixture.cpp:903"],
+      "regressions": ["tests/github_contract/github_paged_read_tests.cpp:4005"],
+      "evidence": ["post-review-regressions-before.log: provider fails on valid 12-page counterexample", "post-review-final-protocol-tests.log: github_paged_read passes both 12-page progressing-status and bounded 128 KiB byte-padding probes; current statuses remain explicitly unavailable when pagination is incomplete", "post-review-composed-tests.log: composed Overview and native/CLI Home 3/3", "post-review-final-protocol-tests.log: paged and anonymous public replay pass"],
+      "qualification": "The production 64 MiB counterexample was independently reproduced by the reviewer. Engineering added a smaller valid 128 KiB aggregate/page probe of the same boundary; no production bound or authority was relaxed."
+    },
+    {
+      "id": "F2",
+      "title": "Fresh fallback reviewers are replaced by an obsolete roster — RFC0069 AC01/AC05.",
+      "severity": "blocking",
+      "criterion": "RFC-BPR-0069 AC01/AC05",
+      "reviewed_locations": ["src/adapters/github/src/github_paged_read.cpp:3677", "src/application/src/github_window_read_host.cpp:664"],
+      "reviewer_counterexample": "Successful REST fallback actors coexist with unavailable richer GraphQL observation. The window host consequently overwrites them with the previous roster. Same authority/head/base old-owners followed by unavailable GraphQL plus fresh REST new-reviewer retains only stale old-owners. Existing test_merge_observation_freshness had no successful current fallback on its unavailable refresh.",
+      "disposition": "corrected and directly verified by engineering",
+      "repair": "Carry complete REST actor observation independently of richer code-owner availability. Current fallback actors, including a complete empty fallback, replace prior requests in window and Home. If validation discards actors, it also revokes the observation marker; unavailable fallback can still retain prior facts as stale.",
+      "fixed_locations": ["src/application/include/bpr/application/github_read_model.hpp:742", "src/adapters/github/src/github_paged_read.cpp:3678", "src/application/src/github_window_read_host.cpp:664", "src/application/src/review_queue_facts.cpp:19"],
+      "regressions": ["tests/application/github_window_read_host_tests.cpp:1054", "tests/github_contract/github_paged_read_tests.cpp:4183"],
+      "evidence": ["post-review-regressions-before.log: window counterexample fails before repair", "post-review-fixed-tests.log: application_github_window_read_host passes fresh and complete-empty fallback transitions", "post-review-final-protocol-tests.log: provider fallback, ordinary reviewer mapping and complete-zero Home facts pass"],
+      "qualification": "REST proves returned actor identity, not code-owner origin. Existing visible richer-field availability stays qualified. Exact authority/head/base retention and authentication/account-loss refusal remain in the passing provider/host courses."
+    },
+    {
+      "id": "F3",
+      "title": "Persisted partial check failures lose their stale designation — RFC0070 AC04.",
+      "severity": "blocking",
+      "criterion": "RFC-BPR-0070 AC04",
+      "reviewed_locations": ["src/application/src/review_queue_facts.cpp:214", "src/application/src/review_queue_enrollment.cpp:1351", "src/adapters/qt/src/review_landing_model.cpp:183"],
+      "reviewer_counterexample": "Across separate processes through the SQLite public port, store FailedChecks Branch Freshness, ChecksKnown false, ChecksStale true with requests and assessment unobserved. Reload retains the failure but all stale flags are false; Home consequently omits Last known. Complete-check/known-request round trips masked this case.",
+      "disposition": "corrected and directly verified by engineering",
+      "repair": "Codec decoding and host restoration derive ChecksStale from ChecksKnown or nonempty retained FailedChecks. Persisted partial failure remains last known even when no other field was observed; no schema or observation-completeness claim is added.",
+      "fixed_locations": ["src/application/src/review_queue_facts.cpp:214", "src/application/src/review_queue_enrollment.cpp:1351"],
+      "regressions": ["tests/application/review_queue_enrollment_tests.cpp:2231", "tests/sqlite_contract/queue_enrollment_storage_tests.cpp:1133", "tests/adapters_qt/review_landing_model_tests.cpp:711"],
+      "evidence": ["post-review-regressions-before.log: codec, separate-process SQLite and Home reason all fail before repair", "post-review-fixed-tests.log: codec/host restoration, separate-process public SQLite store/reload and Home Last known reason pass"],
+      "qualification": "Separate-process SQLite regression is executed on macOS/POSIX. Portable codec/host tests run without Qt, and the Home reason reuses its existing renderer. No Windows native restart result is claimed."
+    }
+  ],
+  "reviewer_other_observations": {
+    "nonblocking_findings": [],
+    "existing_green_tests": "Existing provider/window tests passed 2/2 despite all three probes.",
+    "positive_probe": "Schema 8→9 preserved Draft, numeric account and Follow enrollment while waiting facts remained unknown.",
+    "sources_checked": ["https://docs.github.com/en/graphql/reference/pulls#reviewrequest", "https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch"],
+    "qualification": "No live GitHub/GHES or installed-account course; unchanged scale/layout evidence reused. Probe binaries compiled from stdin against exact-candidate libraries were removed; all reviewer subprocesses quiescent and source/tracker/unrelated state untouched."
+  },
+  "engineering_failures_and_dispositions": [
+    "Initial build used an incorrect SQLite target name; corrected to test_better_pull_review_queue_enrollment_tests.",
+    "First repaired provider pass reached byte probe with 128 KiB aggregate but default 4 MiB/page, which is invalid configuration; tightened the probe's page ceiling to 128 KiB. Production limits were unchanged.",
+    "Moving search before optional results changed the observer's last operation and refusal response count. Historical actor-conflict and response-observer expectations now reflect that order; exact conflicts, provenance, authority and refusal checks remain intact.",
+    "Composed Overview initially failed because strict recorded replay expected checks before search. The snapshot loader now orders optional result collections after mandatory reads, including paged and anonymous snapshots; the independent timeline remains last. Overview and both public replay courses then passed."
+  ],
+  "evidence_root": "/tmp/bpr-merge-gates-run",
+  "consumption_state": "All three supplied blocking findings have engineering-owned evidence-backed dispositions and passing direct corrections. Coordinator-owned narrow independent confirmation of the fixed candidate has not yet been received; whole-pack acceptance remains pending that consumption.",
+  "pending": ["Coordinator consumes the same reviewer's narrow fixed-counterexample verification and records final whole-pack acceptance."],
+  "no_human_criterion": true
+}

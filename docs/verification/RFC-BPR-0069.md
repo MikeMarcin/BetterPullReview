@@ -71,3 +71,28 @@ Home observation/persistence/classification remains with `keep-home-waiting`.
 The user-required independent critical review of the final whole pack remains
 pending for the coordinator after that milestone. There is no unsupplied human
 acceptance criterion for this milestone and no attended candidate or review server.
+
+## Independent critical-review correction
+
+The independent reviewer reproduced F2 on
+`15365e9df15ff51b366f9735c887dccdd80cae9e`: same-authority/head/base refresh with
+unavailable GraphQL and a successful current REST fallback replaced `new-reviewer`
+with the obsolete code-owner roster. This invalidated the earlier AC01/AC05
+retention claim for that transition. The [faithful review/disposition record](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json)
+separates the supplied independent report from engineering verification.
+
+Correction `eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b` carries complete REST actor
+observation independently of unavailable richer code-owner facts. Current actors
+replace prior requests; a complete empty fallback clears them. Discarding invalid
+actors also clears their observation marker. The direct window transition failed
+before repair and now passes; the provider regression additionally verifies both
+fresh and empty fallback mapping into Home without inventing code-owner origin.
+Existing exact identity, authentication/account-loss, pagination and unavailable
+retention checks still pass. The composed Overview and native/CLI Home pass 3/3;
+the final provider/contract/compiler/public replay pass 5/5. Host/codec focused
+clang-tidy passes with warnings as errors, and canonical clang-format 22 passes.
+
+[BPR-1399](../issues/60-done/BPR-1399-correct-merge-gates-critical-review.md)
+owns this follow-up; historical Done acceptance remains intact. The coordinator
+still owns narrow independent correction confirmation and final pack acceptance.
+There is no new visual layout, live provider or human acceptance claim.

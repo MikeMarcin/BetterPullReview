@@ -51,3 +51,15 @@ partial status in `551bce4e0d66bcc2b5743eba63a779da9088007e`, are integrated on 
 gate and focused acceptance/public paths pass. The explicit final pack obligation
 above remains pending and belongs to the coordinator's separate critical review;
 Done for this component does not mark the whole pack complete.
+
+## Post-review follow-up
+
+The final independent report reproduced a criterion counterexample on
+`15365e9df15ff51b366f9735c887dccdd80cae9e`.
+[BPR-1399](BPR-1399-correct-merge-gates-critical-review.md)
+corrects the three supplied pack findings at
+`eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b`, with direct failing/passing
+regressions in [the review/disposition record](../_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json)
+and the RFC ledgers. This historical Done slice and its earlier evidence remain
+intact. Coordinator-owned narrow independent confirmation and final pack
+acceptance remain pending.

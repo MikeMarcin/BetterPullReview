@@ -85,3 +85,29 @@ RFC0028 native acceptance remains independent. Existing Home draft acceptance
 landed externally as `1cc5c3e71` / `72db6901c` and is preserved.
 
 Closeout also runs a direct negative regression on the new commit-status collection: a tightened raw-record cap and a hostile continuation each retain known check runs/PR content with status availability unavailable. The self-review uses named initialized check records in the extended parsers and new host fixture, preserving values while following the repository’s GCC portability rule.
+
+## Independent critical-review correction
+
+The independent `rfc-reviewer-critical` (`gpt-6-astra`, `xhigh`) reviewed
+`15365e9df15ff51b366f9735c887dccdd80cae9e` against the immutable RFC base and
+reproduced F1: optional status paging could exhaust mandatory search capacity,
+rejecting otherwise readable PR content under AC04. The earlier limit/hostile-link
+evidence did not cover this case. The supplied report and dispositions are retained
+in [the pack review record](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json).
+
+[BPR-1399](../issues/60-done/BPR-1399-correct-merge-gates-critical-review.md)
+corrects AC04 at `eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b`: mandatory search
+finishes before optional result collections spend the remaining unchanged budget.
+`github_paged_read` passes valid 12-page status continuations and a valid 128 KiB
+aggregate/page byte-padding probe. Incomplete status history remains unavailable;
+known checks, PR files and search survive. This regression failed before repair.
+The reviewer independently also reproduced the production 64 MiB limit.
+
+The composed Overview/native-CLI Home pass is 3/3; final provider, read-contract,
+CLI compiler, paged and anonymous public replay pass 5/5. Strict replay now follows
+the production order without changing recorded response bytes. Old observer
+assertions were updated for that order while retaining identity/conflict/refusal
+checks. The initial byte probe's invalid page/aggregate combination was corrected;
+production bounds were unchanged. Relevant unchanged scale/layout evidence is
+reused. The narrow independent correction confirmation remains with the coordinator;
+this correction does not claim whole-pack acceptance or new native qualification.

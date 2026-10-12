@@ -11,7 +11,7 @@ metadata: {"mandate_revision":"merge-gates-r1","rfc_base_sha":"9857d596769468c05
 
 ## Adoption
 
-Adopted on 2026-10-11 under mandate `merge-gates-r1`. RFC_BASE_SHA: `9857d596769468c0585c475467175e3998a33530`. The [live import](assets/merge-gates-and-review-waiting-v1.LIVE_IMPORT.md) retains the authored pack and mapping. Independent critical review of the final pack is required by the implementation mandate and remains pending.
+Adopted on 2026-10-11 under mandate `merge-gates-r1`. RFC_BASE_SHA: `9857d596769468c0585c475467175e3998a33530`. The [live import](assets/merge-gates-and-review-waiting-v1.LIVE_IMPORT.md) retains the authored pack and mapping. Independent critical review of the final pack is required by the implementation mandate. Its report on `15365e9df15ff51b366f9735c887dccdd80cae9e` reproduced three blockers, corrected under BPR-1399 at `eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b`; [the durable review record](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json) preserves findings and verification. Coordinator-owned narrow independent confirmation remains pending before final pack acceptance.
 
 ## Problem and grounded current behavior
 
@@ -173,3 +173,12 @@ The final public composition joins all three pack outcomes. The user-required
 independent critical review of the final pack remains pending for the coordinator;
 this component status does not supply that separate acceptance. No human criterion
 or attended session is claimed.
+
+## Post-review correction
+
+BPR-1399 records the exact independent counterexample, verified repair and reused
+evidence in this RFC's criterion ledger. The full independent report has been
+received; engineering has disposed of its three supplied blockers. Narrow
+independent correction confirmation and final whole-pack acceptance remain with
+the coordinator. Historical component acceptance does not substitute for that
+remaining consumption.
