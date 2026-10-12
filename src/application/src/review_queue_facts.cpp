@@ -146,8 +146,9 @@ namespace bpr::application {
 				okay = false;
 				return { };
 			}
-			const auto parsed = std::from_chars(aBytes.data(), aBytes.data() + colon, size);
-			if (parsed.ec != std::errc{ } || parsed.ptr != aBytes.data() + colon || size > aBytes.size() - colon - 1) {
+			const auto digits = aBytes.substr(0, colon);
+			const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), size);
+			if (parsed.ec != std::errc{ } || parsed.ptr != digits.data() + digits.size() || size > aBytes.size() - colon - 1) {
 				okay = false;
 				return { };
 			}
