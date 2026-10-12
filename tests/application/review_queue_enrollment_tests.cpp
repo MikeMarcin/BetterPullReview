@@ -2200,7 +2200,7 @@ namespace {
 		expect(fixture.item(17)->Bucket == core::attention_bucket::authored_awaiting_reviewer_action, "complete last-request removal cannot settle a separate unmet requirement");
 		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Authored follow" }, .Activity = { .Known = true, .Waiting = waiting, .FactRevision = newer } });
 		fixture.settle();
-		expect(fixture.item(17)->Facts.Waiting.Requests == 0, "older completion cannot restore requests removed by a newer dispatch");
+		expect(fixture.item(17)->Facts.Waiting.Requests == std::uint32_t{ 0 }, "older completion cannot restore requests removed by a newer dispatch");
 		empty.RequiredReview = false;
 		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Authored follow" }, .Activity = { .Known = true, .Waiting = empty, .FactRevision = fixture.Queue.begin_observation() } });
 		fixture.settle();
