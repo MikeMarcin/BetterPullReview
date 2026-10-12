@@ -32,7 +32,7 @@ Windows licensing-v002 decision; earlier records below remain historical.
 
 The owner selected Ubuntu 26.04 x86_64 for the next release, replacing Ubuntu
 24.04 and removing RHEL/RPM from the selected release set. Linux is an optional
-convenience distribution. [BPR-1386](../30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+convenience distribution. [BPR-1386](../60-done/BPR-1386-prepare-ubuntu-2604-release-route.md)
 prepares DEB/per-user mechanics with a glibc 2.43 ceiling under
 `release-next-20261011-ubuntu2604-r2`. WSL2 is a valid ordinary binary producer;
 WSL/WSLg observations remain narrower than clean Ubuntu desktop/install/vault

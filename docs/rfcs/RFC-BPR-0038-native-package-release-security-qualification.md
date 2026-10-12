@@ -53,7 +53,7 @@ selected release set: "I dont care about redhat and i dont care about 24.04,
 you can update all the scripts/configs you need to." The later instruction asks
 for reusable readiness for a future release, probably from the Mac host to the
 signing PC's remote stations, with no actual release now. Version remains
-unchanged. [BPR-1386](../issues/30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+unchanged. [BPR-1386](../issues/60-done/BPR-1386-prepare-ubuntu-2604-release-route.md)
 owns this preparation under `release-next-20261011-ubuntu2604-r2`, separately
 from BPR-0961 qualification. Optional RPM mechanics remain outside the selected
 set. Historical M8/M9 plans, baseline choices, scans and review packets retain

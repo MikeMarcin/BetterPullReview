@@ -6,7 +6,7 @@ The owner selects Ubuntu 26.04 x86_64 DEB and per-user archive for the next
 release, removing Ubuntu 24.04 and RHEL from the selected set. WSL2 is admitted
 for ordinary binary production. The later instruction requests reusable future
 readiness, probably with a Mac publisher and the signing PC's Windows/Ubuntu
-producers, with no actual release now. [BPR-1386](../issues/30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+producers, with no actual release now. [BPR-1386](../issues/60-done/BPR-1386-prepare-ubuntu-2604-release-route.md)
 owns bounded preparation under `release-next-20261011-ubuntu2604-r2`.
 This is an owner baseline/scope amendment, not evidence that any package,
 clean desktop/vault, trust or security course passed. Current Ubuntu ABI ceiling
@@ -17,6 +17,22 @@ stay Blocked; RFC0038 remains Proposed. Windows signing profile/role, Linux
 approved key, exact-candidate native/licensing/trust/security/crash obligations
 and eventual publication authority remain pending. No version, signing, build
 or publication is selected by this preparation.
+
+Preparation evidence from BPR-1386, producer-scripts candidate
+`6b06c981419e15215fa9ffcd97de7585c611ea13`: the actual Ubuntu 26.04 WSL2
+baseline CLI succeeds, and 42/42 focused runtime/native-manifest/source-binding
+contracts pass in an isolated exact-commit snapshot with no skips. A tiny
+native CMake configure includes the production install definition and verifies
+DEB default and the new target; it builds no application. Windows checked cases
+pass with eight explicit native/POSIX/Bash skips, all exercised successfully in
+WSL. Documentation gate and 67 documentation tests pass. Initial bare WSL PATH
+lacked CMake; the configured login shell resolves CMake 4.4.2, GCC 15.2 and
+glibc 2.43, and the same candidate passes. Temporary source/test roots are
+removed. The ignored run checkpoint retains actual commands and the failure.
+These are script/fixture and configure observations, not produced release
+binaries, WSLg rendering, clean desktop/vault/installer qualification, a new
+vulnerability scan, signing or publication approval. BPR-1386's Done status
+accepts only the bounded preparation slice; all wider release gaps above remain.
 
 ## Scope and immutable evidence
 

@@ -8,6 +8,12 @@ or installer qualification. The Ubuntu closure enforces a glibc 2.43 ceiling; re
 actual GLIBCXX/system dependency constraints and private Qt/XCB runtime.
 Configure success does not qualify a compiler/libstdc++ baseline.
 
+Use the producer's configured native shell/tool PATH when dispatching from
+Windows or the Mac host. A bare `wsl --exec` may omit user-installed CMake/Ninja
+even when the station's login shell finds them; resolve tools through that
+configured environment and pass absolute source/build/output paths. The
+2026-10-11 focused course used `wsl --exec bash -lc` and required no installation.
+
 Require the package guide's native C++23 toolchain, Python 3.10+, Qt producer
 SPDX, `patchelf`, `readelf`, `ldd`, libsecret/libxcb development files and
 native packaging tools. Run the normal native test gate, then:

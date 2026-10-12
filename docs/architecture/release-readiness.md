@@ -222,7 +222,7 @@ GLIBCXX requirements recorded. WSL2 may produce ordinary binaries. Clean Ubuntu
 desktop/authentication/Secret Service/installation/purge evidence remains open.
 Ubuntu 24.04 and RHEL are outside the selected set; optional RHEL RPM mechanics
 retain their own older constraints without becoming required release work.
-[BPR-1386](../issues/30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+[BPR-1386](../issues/60-done/BPR-1386-prepare-ubuntu-2604-release-route.md)
 owns bounded preparation. This owner amendment is separate from observations;
 the historical M6 rationale and unchanged M8/M9 plan below remain preserved.
 
