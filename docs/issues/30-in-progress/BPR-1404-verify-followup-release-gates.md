@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1404"
 title: "Repair timing and finish Windows and Ubuntu follow-up release gates"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"

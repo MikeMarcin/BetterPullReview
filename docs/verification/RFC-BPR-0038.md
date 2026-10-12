@@ -5,7 +5,7 @@
 The owner narrows v0.1.9 to the current macOS build and explicitly accepts
 its timing misses for this release: "timing misses be damned". Windows and
 Ubuntu 26.04 packages and remaining repairs move to an unversioned follow-up
-patch on [BPR-1404](../issues/20-ready/BPR-1404-verify-followup-release-gates.md).
+patch on [BPR-1404](../issues/30-in-progress/BPR-1404-verify-followup-release-gates.md).
 [BPR-1403's gate ledger](BPR-1403-v019-release-gates.md) preserves the original
 failed normal gate, exact fixture repairs, focused checks, configured Debug
 cache-bytes skip and failed 100 ms PR-load observations. This owner release
