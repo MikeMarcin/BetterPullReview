@@ -139,10 +139,12 @@ Qt design language; it proposes no new palette, web surface or visual theme.
   appearances. Accepted updates preserve usable Overview navigation and the
   user's selection/disclosure state.
 
-## Proposed implementation
+## Execution record
 
 [Normalize observations](../issues/60-done/BPR-1390-check-observations.md),
 [compose Overview](../issues/60-done/BPR-1391-check-details-overview.md), and
-[reconcile closeout](../issues/30-in-progress/BPR-1392-close-rfc-0068.md) implement this
+[reconcile closeout](../issues/60-done/BPR-1392-close-rfc-0068.md) implement this
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json). See the
 [decision record](assets/merge-gates-and-review-waiting-v1/DECISIONS.md#checks-and-confirmation) for draft readiness.
+
+The integrated `inspect-checks` milestone satisfies AC01–AC05 on the scoped fixture/public paths; [the verification ledger](../verification/RFC-BPR-0068.md) records source revisions, observations, failures/corrections and actual limits. Requirement classification and test-merge selection remain explicitly unobserved pending the next milestone. Independent critical review of the final pack remains a coordinator obligation; no live private-organization or installed native qualification is claimed.

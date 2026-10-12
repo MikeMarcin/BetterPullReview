@@ -52,8 +52,7 @@ and [commit statuses](https://docs.github.com/en/rest/commits/statuses#list-comm
 
 ## Criterion ledger
 
-Candidate: `e126f2c445a43437d23510e3a8e1a2563e5c8a6c`. Product files are committed; later commits update
-only tracker/evidence state. Source inputs for the passing evidence are unchanged.
+Feature candidate: `e126f2c445a43437d23510e3a8e1a2563e5c8a6c`. Final parser/host regression candidate: `ad350a7fc8478509f2aa39d096d5a35e2b5eaae1`. The final 3/3 recheck covers the portable initialization and status-limit regressions; the GUI inputs for the three passing scale courses are unchanged. Later commits update tracker/evidence state only.
 
 | Criterion | Direct evidence | Result |
 |---|---|---|
@@ -84,3 +83,5 @@ limits. The following milestones still own their Home/queue prose amendments.
 The adopted plan, immutable packet and criteria retain their scope. Historical
 RFC0028 native acceptance remains independent. Existing Home draft acceptance
 landed externally as `1cc5c3e71` / `72db6901c` and is preserved.
+
+Closeout also runs a direct negative regression on the new commit-status collection: a tightened raw-record cap and a hostile continuation each retain known check runs/PR content with status availability unavailable. The self-review uses named initialized check records in the extended parsers and new host fixture, preserving values while following the repository’s GCC portability rule.
