@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1406"
 title: "Name the author on every Home row that is not mine"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1406--BPR-1406--feceff319165.json","origin":"owner request 2026-10-12"}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"220278d49","evidence":{"kind":"observation","detail":"qt_review_landing_model pins Opened by <login> leading every bucket, the continued sentence, a check name keeping its case, and no author when unknown.","path":"docs/issues/60-done/BPR-1406-name-the-author-on-home-rows.md"}},{"criterion":"AC2","outcome":"pass","revision":"220278d49","evidence":{"kind":"observation","detail":"qt_review_landing_model pins authored rows without my name and the lower-case continuation.","path":"docs/issues/60-done/BPR-1406-name-the-author-on-home-rows.md"}},{"criterion":"AC3","outcome":"pass","revision":"220278d49","evidence":{"kind":"observation","detail":"Accessible description equals the drawn sentence; 52/52 overview|landing|home|personal_discovery|composed_github|workbench_window|review_queue pass; format, tidy and documentation gates pass.","path":"docs/issues/60-done/BPR-1406-name-the-author-on-home-rows.md"}}]
 ---
 
 # Name the author on every Home row that is not mine
