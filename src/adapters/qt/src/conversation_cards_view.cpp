@@ -7,6 +7,7 @@
 
 #include "bpr/core/feedback_conversation.hpp"
 
+#include "conversation_file_identities.hpp"
 #include "conversation_glyphs.hpp"
 #include "conversation_open_card.hpp"
 
@@ -563,7 +564,7 @@ namespace bpr::qt {
 	void conversation_cards_view::index_retained()
 	{
 		UnreadThreads.reset();
-		RetainedFiles.clear();
+		RetainedFiles = detail::conversation_file_identities(Retained);
 		RetainedById.clear();
 		RetainedRoot.clear();
 		RetainedDepth.clear();
@@ -574,10 +575,8 @@ namespace bpr::qt {
 		RetainedMarks.reserve(Retained.size());
 		RetainedHeaders.reserve(Retained.size());
 		RetainedLeads.reserve(Retained.size());
-		RetainedFiles.reserve(Retained.size());
 		RetainedById.reserve(Retained.size());
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
-			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
 			// [[BPR-1083]]. Marks follow the accepted body; an unchanged forest
 			// is not read again by a relayout.
 			const auto& body = Retained[index].ReviewerProse.has_value() ? *Retained[index].ReviewerProse : Retained[index].Body;

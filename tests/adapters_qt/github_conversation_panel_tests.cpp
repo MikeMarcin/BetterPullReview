@@ -591,6 +591,35 @@ namespace {
 		}
 	}
 
+	/// \brief Repeated paths share exact identity without retaining an old list's mapping.
+	void test_repeated_paths_preserve_exact_file_scope_on_refresh()
+	{
+		auto conversations = std::vector{
+			root("first", "src/file.cpp"), reply("first-post", "first"),
+			root("second", "src/file.cpp"), reply("second-post", "second"),
+			root("distinct", "Src/file.cpp"), reply("distinct-post", "distinct"),
+			root("pathless", "")
+		};
+		qt::github_conversation_panel panel;
+		panel.adopt(conversations, QStringLiteral("available"));
+		panel.set_anchor_file(core::file_identity_of("src/file.cpp"));
+		auto selected = shown(panel);
+		expect(selected.size() == 4U && contains(selected, "first-post") && contains(selected, "second-post")
+				   && !contains(selected, "distinct") && !contains(selected, "pathless") && panel.cards()->thread_count() == 2U,
+			   "same paths share file scope while case-distinct and empty paths remain separate");
+		conversations[0].Path = "src/replaced.cpp";
+		panel.adopt(conversations, QStringLiteral("refreshed"));
+		selected = shown(panel);
+		expect(selected.size() == 2U && contains(selected, "second-post") && !contains(selected, "first")
+				   && panel.cards()->thread_count() == 1U,
+			   "a new list does not reuse the old path mapping");
+		panel.set_anchor_file(core::file_identity_of("src/replaced.cpp"));
+		selected = shown(panel);
+		expect(selected.size() == 2U && contains(selected, "first-post") && !contains(selected, "second")
+				   && panel.cards()->thread_count() == 1U,
+			   "the replacement path scopes both the model and cards exactly");
+	}
+
 	void test_compatibility_anchor_refresh()
 	{
 		qt::github_conversation_panel panel;
@@ -877,6 +906,7 @@ auto main(int argc, char** argv) -> int
 	test_choosing_a_file_visits_only_its_conversations();
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationPanelTests"));
+	test_repeated_paths_preserve_exact_file_scope_on_refresh();
 	test_compatibility_anchor_refresh();
 	test_discuss_lists_the_notes_with_its_controls();
 	test_anchoring_keeps_one_file();

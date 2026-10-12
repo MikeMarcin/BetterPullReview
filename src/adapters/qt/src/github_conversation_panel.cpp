@@ -3,6 +3,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 
+#include "conversation_file_identities.hpp"
 #include "conversation_glyphs.hpp"
 #include "discuss_header.hpp"
 #include "github_presentation_text.hpp"
@@ -648,17 +649,15 @@ namespace bpr::qt {
 		PlacedStale = true;
 		EarlierRetained.clear();
 		CurrentThreadCounts.clear();
-		RetainedFiles.clear();
+		RetainedFiles = detail::conversation_file_identities(Retained);
 		RetainedRoot.clear();
 		RetainedByRootFile.clear();
-		RetainedFiles.reserve(Retained.size());
 		auto byId = std::unordered_map<std::string_view, std::size_t>{ };
 		byId.reserve(Retained.size());
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
 			if (Retained[index].SemanticAnchor) {
 				SemanticAnchors.insert(*Retained[index].SemanticAnchor);
 			}
-			RetainedFiles.push_back(core::file_identity_of(Retained[index].Path));
 			byId.emplace(Retained[index].Id, index);
 		}
 		// Membership is decided at the root, as `anchored_to` decides it: a
