@@ -1,6 +1,6 @@
 {
   "approved": true,
-  "decision": "human-pending",
+  "decision": "done",
   "records": [
     {
       "criterion": "AC01",
@@ -31,11 +31,11 @@
     },
     {
       "criterion": "AC04",
-      "outcome": "pending",
-      "revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+      "outcome": "pass",
+      "revision": "f170654e651cb57e262d6c4e4696378c5464c365",
       "evidence": {
         "kind": "observation",
-        "detail": "Automated pass: four appearances and 100/125/150/200% shared rows, wrapping, selection, Reviewing/account chips, opening states and accessible wording; composed full-window captures. Pending: owner verdict in short attended session df622dfed34516817f93fa5ac168bf03. Product source equals frozen candidate f170654e651cb57e262d6c4e4696378c5464c365. Evidence: docs/verification/RFC-BPR-0067.md and docs/issues/_checkpoints/BPR-1389/."
+        "detail": "Pass: automated appearance/scale, wrapping, keyboard, selection, Reviewing/account chips, opening states and accessible checks at b781fdf93; human ACCEPT of exact frozen bpr1389-home-draft-v001, session df622dfed34516817f93fa5ac168bf03, fingerprint 3dc0d110224cab33969d5ad212d02853480beaa07aa8d4659150cf88b7c76c88, decision 809ee3e4-ba73-49a3-941a-e0052c0c63cc at event 4; handed back with no pending at event 5. Product revision f170654e651cb57e262d6c4e4696378c5464c365; binary SHA-256 41f42b50631aa12a58ab3c974427f0a7c27a013670ca349901d6a9d978fed1d8. See docs/issues/_checkpoints/BPR-1389/human-acceptance.json and docs/verification/RFC-BPR-0067.md."
       }
     }
   ]

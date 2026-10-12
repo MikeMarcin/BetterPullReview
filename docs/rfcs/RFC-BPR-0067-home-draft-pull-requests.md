@@ -123,6 +123,16 @@ not an owner acceptance of a rendered candidate.
   selection, Reviewing, account chips and opening states. Keyboard and
   accessible row output preserve the defined status and existing actions.
 
-## Implementation and pending acceptance
+## Accepted implementation
 
-Engineering is implemented at product candidate `f170654e651cb57e262d6c4e4696378c5464c365`. The [verification ledger](../verification/RFC-BPR-0067.md) records AC01–AC03 and automated AC04 evidence. [[BPR-1389]] retains pending AC04 owner visual acceptance in a fresh frozen attended session. Proposed status remains until all acceptance is supplied; historical native/human obligations are unchanged.
+Product candidate `f170654e651cb57e262d6c4e4696378c5464c365` carries the accepted
+Home draft metadata and row treatment. Test refinement
+`b781fdf93c49e8f49ff51f13cff7f42fd1c1a321` changes no product source. The
+[verification ledger](../verification/RFC-BPR-0067.md) records passing AC01–AC03,
+automated AC04 checks and the owner’s Accept of exact frozen candidate
+`bpr1389-home-draft-v001` in session `df622dfed34516817f93fa5ac168bf03`,
+decision `809ee3e4-ba73-49a3-941a-e0052c0c63cc` at event 4. Hand-back at event 5
+left no pending decision or requested change. [[BPR-1389]] owns guarded terminal
+bookkeeping. Explicit RFC dependencies are accepted; historical native/human
+obligations retain their existing scope. RFC status is reconciled after the
+accepted card is finished through the workflow guard.

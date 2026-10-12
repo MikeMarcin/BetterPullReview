@@ -1,0 +1,49 @@
+{
+  "schema": "bpr.home-draft-attendance.v1",
+  "mandate_revision": "home-draft-r1",
+  "milestone": "home-draft-v1/draft-home",
+  "criterion": "AC04",
+  "session": "df622dfed34516817f93fa5ac168bf03",
+  "consumed_cursor": 5,
+  "candidate": "bpr1389-home-draft-v001",
+  "fingerprint": "3dc0d110224cab33969d5ad212d02853480beaa07aa8d4659150cf88b7c76c88",
+  "product_revision": "f170654e651cb57e262d6c4e4696378c5464c365",
+  "verification_revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+  "executable_sha256": "41f42b50631aa12a58ab3c974427f0a7c27a013670ca349901d6a9d978fed1d8",
+  "decision": {
+    "candidate": "bpr1389-home-draft-v001",
+    "fingerprint": "3dc0d110224cab33969d5ad212d02853480beaa07aa8d4659150cf88b7c76c88",
+    "decision_id": "809ee3e4-ba73-49a3-941a-e0052c0c63cc",
+    "outcome": "accept",
+    "note": "",
+    "saved_at": "2026-10-12T04:44:28.385297+00:00",
+    "actor": "human"
+  },
+  "events": [
+    {
+      "sequence": 4,
+      "time": "2026-10-12T04:44:28.385320+00:00",
+      "kind": "decision",
+      "candidate": "bpr1389-home-draft-v001",
+      "decision": {
+        "candidate": "bpr1389-home-draft-v001",
+        "fingerprint": "3dc0d110224cab33969d5ad212d02853480beaa07aa8d4659150cf88b7c76c88",
+        "decision_id": "809ee3e4-ba73-49a3-941a-e0052c0c63cc",
+        "outcome": "accept",
+        "note": "",
+        "saved_at": "2026-10-12T04:44:28.385297+00:00",
+        "actor": "human"
+      }
+    },
+    {
+      "sequence": 5,
+      "time": "2026-10-12T04:44:30.643748+00:00",
+      "kind": "handed-back",
+      "decided": [
+        "bpr1389-home-draft-v001"
+      ],
+      "pending": []
+    }
+  ],
+  "pending": []
+}
