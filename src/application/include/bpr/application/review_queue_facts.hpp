@@ -7,6 +7,8 @@ namespace bpr::application {
 	[[nodiscard]] auto queue_waiting_for(const github_pull_request_snapshot& aSnapshot) -> core::queue_waiting_facts;
 	/// \brief Merges only observed fields, preserving last-known facts on unavailable reads.
 	void merge_queue_waiting(core::queue_waiting_facts& aRetained, const core::queue_waiting_facts& aRead);
+	/// \brief [[BPR-1407]]. Keeps each retained change fact the read did not report.
+	void merge_queue_change(core::queue_change_facts& aRetained, const core::queue_change_facts& aRead);
 	/// \brief Versioned bounded private-store representation; malformed input is refused.
 	[[nodiscard]] auto encode_queue_facts(const core::queue_item_facts& aFacts) -> std::optional<std::string>;
 	[[nodiscard]] auto decode_queue_facts(std::string_view aBytes) -> std::optional<core::queue_item_facts>;

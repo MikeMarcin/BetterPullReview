@@ -89,6 +89,17 @@ namespace bpr::qt {
 	/// projected status; it never claims how long ago, which needs a clock.
 	[[nodiscard]] auto home_discovery_sentence(const application::queue_discovery_status& aStatus) -> QString;
 
+	/// \brief [[BPR-1407]]. A row's lines added and removed, "+1,204 −318";
+	/// empty unless both are known.
+	[[nodiscard]] auto home_size_text(const core::queue_change_facts& aChange) -> QString;
+	/// \brief [[BPR-1407]]. "6 days old, 14 comments": whole days elapsed since
+	/// it was opened, measured to `aNow`, and its comment count. Either half is
+	/// left out when unknown, the age also without a clock.
+	[[nodiscard]] auto home_history_text(const core::queue_change_facts& aChange, std::optional<std::int64_t> aNow) -> QString;
+	/// \brief [[BPR-1407]]. The same facts in words for assistive technology:
+	/// "Opened 6 days ago; 1,204 lines added and 318 removed; 14 comments."
+	[[nodiscard]] auto home_change_sentence(const core::queue_change_facts& aChange, std::optional<std::int64_t> aNow) -> QString;
+
 	/// \brief [[BPR-0783]]. One account the decided queue's rows name.
 	///
 	/// \details Derived from the rows themselves rather than from a session: the
@@ -163,6 +174,13 @@ namespace bpr::qt {
 		/// accessible description; only the rows it leaves and reaches change.
 		void               set_reviewing(std::optional<core::pull_request_ref> aRef);
 		[[nodiscard]] auto reviewing() const noexcept -> const std::optional<core::pull_request_ref>&;
+		/// \brief [[BPR-1407]]. The time a row's age is measured to, in seconds
+		/// since the epoch, as the host's clock read it; none draws no age.
+		///
+		/// \details The model reads no clock. Only rows whose age reads
+		/// differently are said to change.
+		void               set_now(std::optional<std::int64_t> aSeconds);
+		[[nodiscard]] auto now() const noexcept -> std::optional<std::int64_t>;
 
 		void clear();
 
@@ -188,6 +206,7 @@ namespace bpr::qt {
 		std::map<core::pull_request_ref, std::size_t> Positions;
 		std::vector<home_account>                     Accounts;
 		std::optional<core::pull_request_ref>         Reviewing;
+		std::optional<std::int64_t>                   Now;
 	};
 
 	/// \brief Filters and explicitly reorders the decided landing queue.

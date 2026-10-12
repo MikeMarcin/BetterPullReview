@@ -139,6 +139,24 @@ namespace bpr::core {
 	/// recomputed it from the same observation might agree today and disagree
 	/// after either side is edited, and the reviewer would have no way to tell
 	/// which was right.
+	/// \brief [[BPR-1407]]. How old and how large a pull request is, and how
+	/// much has been said on it.
+	///
+	/// \details What the provider reported on its last read. An absent value
+	/// was not read, which is not the same as zero. None of it ranks an item;
+	/// the age is measured by the presentation against a clock it is given.
+	struct queue_change_facts
+	{
+		/// When the pull request was opened, in seconds since the epoch (UTC).
+		std::optional<std::int64_t>  OpenedAt;
+		std::optional<std::uint64_t> Additions;
+		std::optional<std::uint64_t> Deletions;
+		/// Conversation comments and inline review comments together.
+		std::optional<std::uint64_t> Comments;
+
+		auto operator<=>(const queue_change_facts&) const = default;
+	};
+
 	/// \brief What the host read about a pull request, carried on its item.
 	///
 	/// \details [[BPR-0659]]. The title and author come from the observation
@@ -154,6 +172,7 @@ namespace bpr::core {
 		std::optional<bool> Draft = std::nullopt;
 		queue_waiting_facts Waiting;
 		std::optional<bool> Authored;
+		queue_change_facts  Change;
 
 		auto operator<=>(const queue_item_facts&) const = default;
 	};

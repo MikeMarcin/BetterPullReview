@@ -575,6 +575,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
 		/// activation go: the profile's discovery, never a provider.
 		void set_queue_discovery_dispatch(workbench_queue_discovery_dispatch aDispatch);
+		/// \brief [[BPR-1407]]. The host's clock, read when the queue is
+		/// projected, that a Home row's age is measured to. The window reads no
+		/// clock of its own; without one no age is drawn.
+		void set_home_clock(std::function<std::optional<std::int64_t>()> aClock);
 		/// \brief [[BPR-0660]], [[BPR-0774]]. Receives the enterprise servers the
 		/// reviewer keeps: Add enterprise server, a card's Remember switch and
 		/// its confirmed Forget server.
@@ -2134,6 +2138,7 @@ namespace bpr::qt {
 		QAction*                                           SavePullRequestRepository = nullptr;
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
+		std::function<std::optional<std::int64_t>()>       HomeClock;
 		// The open pull request as the queue names it: owner/name, number and
 		// title, and whether it was read signed out.
 		std::string  OpenQueueRepository;

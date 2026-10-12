@@ -4906,6 +4906,10 @@ namespace bpr::qt {
 			.Status = aProjection.Status, .Rules = aProjection.Rules, .Preferences = aProjection.Preferences, .Session = aProjection.Session, .Online = aProjection.Online, .BackoffSeconds = aProjection.BackoffSeconds, .SavedRepositories = aProjection.SavedRepositories, .SavedServers = aProjection.SavedServers, .Failure = aProjection.Failure, .Discovery = aProjection.Discovery, .Addition = aProjection.Addition
 		};
 		QueueRules = aProjection.Rules;
+		// [[BPR-1407]]. Ages are measured to the host's clock as the queue arrives.
+		if (HomeClock) {
+			QueueLanding->set_now(HomeClock());
+		}
 		if (aProjection.UpdatedItem) {
 			QueueLanding->apply_item(*aProjection.UpdatedItem);
 		} else {
@@ -11729,6 +11733,12 @@ namespace bpr::qt {
 	{
 		QueueDiscoveryDispatch = std::move(aDispatch);
 		update_discovery_controls();
+	}
+
+	void workbench_window::set_home_clock(std::function<std::optional<std::int64_t>()> aClock)
+	{
+		HomeClock = std::move(aClock);
+		QueueLanding->set_now(HomeClock ? HomeClock() : std::nullopt);
 	}
 
 	auto workbench_window::open_queue_ref() const -> std::optional<core::pull_request_ref>

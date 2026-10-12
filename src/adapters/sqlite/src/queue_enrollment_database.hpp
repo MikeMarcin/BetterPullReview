@@ -27,7 +27,10 @@ namespace bpr::adapters::sqlite::detail {
 	/// Six since [[BPR-0681]]: notification enablement and pause.
 	/// Seven since [[BPR-0989]]: discovery reasons, follow and review on each
 	/// enrollment, the `undiscovered` departure and the `detail_unknown` bucket.
-	inline constexpr std::int64_t queue_enrollment_schema_version = 9;
+	/// Ten since [[BPR-1407]]: the Home facts text gains each row's age, size
+	/// and comment count. The tables are version nine's; the version says an
+	/// earlier build cannot read the newer facts and must refuse the file.
+	inline constexpr std::int64_t queue_enrollment_schema_version = 10;
 
 	/// \brief Owns the durable queue enrollment database.
 	///

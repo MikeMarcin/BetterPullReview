@@ -3857,6 +3857,49 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1407]]. Age, size and comment count come from the pull request
+	/// read Home already makes. Absent is unknown; a retained read refuses a
+	/// malformed one, and a discovered row's optional summary leaves it unknown.
+	void test_home_change_facts_are_read_with_the_pull_request()
+	{
+		using reason = application::personal_discovery_reason;
+		for (const auto mode : { 0, 1, 2, 3, 4 }) {
+			auto transport      = discovery_fixture_transport{ };
+			transport.Reviewers = [](const std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+			transport.Reviews   = [](const auto&) { return success_response(fixture_json(fixture_array{ })); };
+			transport.Search    = [](const auto&) { return discovery_search({ discovery_item(17U, "octo-reviewer") }, 1U); };
+			transport.Metadata  = [mode](const auto&) {
+				auto metadata = retained_metadata();
+				if (mode != 0) {
+					metadata.insert_or_assign("created_at", mode == 3 ? "last Tuesday" : "2026-10-06T11:15:00Z");
+					metadata.insert_or_assign("additions", 236);
+					metadata.insert_or_assign("deletions", mode == 4 ? -41 : 41);
+					metadata.insert_or_assign("comments", 1);
+				}
+				if (mode == 1 || mode == 3 || mode == 4) {
+					metadata.insert_or_assign("review_comments", 2);
+				}
+				return success_response(fixture_json(metadata));
+			};
+			for (const auto why : { reason::authored, reason::retained }) {
+				const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(why), { });
+				const auto change = result && result->Rows.size() == 1U ? std::optional{ result->Rows.front().Change } : std::nullopt;
+				if (mode == 0) {
+					expect(change == core::queue_change_facts{ }, "a pull request without the fields leaves every change fact unknown");
+				} else if (mode == 1) {
+					expect(change == core::queue_change_facts{ .OpenedAt = 1'791'285'300, .Additions = 236U, .Deletions = 41U, .Comments = 3U }, "opening, lines and conversation plus inline comments are read");
+				} else if (mode == 2) {
+					expect(change && change->Additions == 236U && !change->Comments, "a total needs both comment counts");
+				} else if (why == reason::retained) {
+					expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response, "a retained read refuses a malformed change fact");
+				} else {
+					expect(change == core::queue_change_facts{ }, "a discovered row's optional summary leaves a malformed change unknown");
+				}
+			}
+			expect(transport.count(read_operation::get_pull_request) == 2U, "no request is added for the change facts");
+		}
+	}
+
 	void test_retained_home_metadata_read()
 	{
 		using reason = application::personal_discovery_reason;
@@ -4275,6 +4318,7 @@ auto main() -> int
 	test_anonymous_review_comments_oversized_body_is_refused();
 	test_personal_discovery_read();
 	test_home_draft_metadata_is_an_optional_wire_fact();
+	test_home_change_facts_are_read_with_the_pull_request();
 	test_retained_home_metadata_read();
 	return EXIT_SUCCESS;
 }

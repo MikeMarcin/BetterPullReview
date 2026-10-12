@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
 #include <utility>
 
 namespace bpr::qt {
@@ -186,6 +187,8 @@ namespace bpr::qt {
 				Time                = aIndex.data(home_row_role::time).toString();
 				Progress            = aIndex.data(home_row_role::progress).toString();
 				Chip                = aIndex.data(home_row_role::account_chip).toString();
+				Size                = aIndex.data(home_row_role::size).toString();
+				History             = aIndex.data(home_row_role::history).toString();
 				// [[BPR-1365]]. The review this window has open says so in a word.
 				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
@@ -223,15 +226,27 @@ namespace bpr::qt {
 				ChipWidth             = chipExtent.width();
 				ChipHeight            = chipExtent.height();
 				TagWidth              = Tag.isEmpty() ? 0 : sideMetrics.horizontalAdvance(Tag) + (tag_pad_x * 2);
-				TagHeight             = Tag.isEmpty() ? 0 : SideLineHeight + (tag_pad_y * 2);
+				// [[BPR-1407]]. Tabular figures, so the counts right-aligned in
+				// this column line up from row to row.
+				FactsFont = SideFont;
+				FactsFont.setFeature(QFont::Tag{ "tnum" }, 1U);
+				const auto factsMetrics = QFontMetrics{ FactsFont };
+				FactsWidth              = std::max(factsMetrics.horizontalAdvance(Size), factsMetrics.horizontalAdvance(History));
+				FactsLineHeight         = Size.isEmpty() && History.isEmpty() ? 0 : factsMetrics.height();
+				FactsAscent             = factsMetrics.ascent();
+				TagHeight               = Tag.isEmpty() ? 0 : SideLineHeight + (tag_pad_y * 2);
 
-				Width                = row_width(aOption);
-				TextLeft             = home_row_delegate::inset + (aMarks ? home_row_delegate::mark_width : 0);
-				const auto right     = Width - home_row_delegate::inset;
-				SideLeft             = right - SideWidth;
-				ChipLeft             = SideLeft - (SideWidth > 0 && ChipWidth > 0 ? home_row_delegate::column_gap : 0) - ChipWidth;
-				TagLeft              = ChipLeft - ((SideWidth > 0 || ChipWidth > 0) && TagWidth > 0 ? home_row_delegate::column_gap : 0) - TagWidth;
-				const auto textRight = SideWidth > 0 || ChipWidth > 0 || TagWidth > 0 ? TagLeft - home_row_delegate::column_gap : right;
+				Width            = row_width(aOption);
+				TextLeft         = home_row_delegate::inset + (aMarks ? home_row_delegate::mark_width : 0);
+				const auto right = Width - home_row_delegate::inset;
+				SideLeft         = right - SideWidth;
+				// [[BPR-1407]]. The facts sit beside the side column, which keeps
+				// the hover action's place, so the action never covers a figure
+				// and the column's right edge is the same on every row.
+				FactsLeft            = SideLeft - (SideWidth > 0 && FactsWidth > 0 ? home_row_delegate::column_gap : 0) - FactsWidth;
+				ChipLeft             = FactsLeft - ((SideWidth > 0 || FactsWidth > 0) && ChipWidth > 0 ? home_row_delegate::column_gap : 0) - ChipWidth;
+				TagLeft              = ChipLeft - ((SideWidth > 0 || FactsWidth > 0 || ChipWidth > 0) && TagWidth > 0 ? home_row_delegate::column_gap : 0) - TagWidth;
+				const auto textRight = SideWidth > 0 || FactsWidth > 0 || ChipWidth > 0 || TagWidth > 0 ? TagLeft - home_row_delegate::column_gap : right;
 				TextWidth            = std::max(1, textRight - TextLeft);
 				DraftWidth           = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.horizontalAdvance(Draft) + tag_pad_x * 2;
 				DraftHeight          = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.height() + tag_pad_y * 2;
@@ -261,8 +276,10 @@ namespace bpr::qt {
 				SecondIndent           = Opening ? MarkExtent + open_mark_gap : 0;
 				SecondHeight           = Second.isEmpty() ? 0 : lay_out(SecondLayout, Second, secondFont, std::max(1, TextWidth - SecondIndent), secondFormats);
 
-				const auto content = (home_row_delegate::vertical_padding * 2) + FirstHeight
-					+ (SecondHeight > 0 ? home_row_delegate::line_gap + SecondHeight : 0);
+				// A row whose second line is empty still makes room for its history.
+				const auto secondExtent = std::max(SecondHeight, History.isEmpty() ? 0 : FactsLineHeight);
+				const auto content      = (home_row_delegate::vertical_padding * 2) + FirstHeight
+					+ (secondExtent > 0 ? home_row_delegate::line_gap + secondExtent : 0);
 				const auto sideLines = (Time.isEmpty() ? 0 : 1) + (Progress.isEmpty() ? 0 : 1);
 				const auto side      = (home_row_delegate::vertical_padding * 2)
 					+ std::max({ sideLines * SideLineHeight, actionExtent.height(), ChipHeight, TagHeight });
@@ -270,6 +287,12 @@ namespace bpr::qt {
 				TotalHeight = RowHeight + (has_hairline(aIndex) ? home_row_delegate::hairline : 0);
 				ContentTop  = ((RowHeight - content) / 2) + home_row_delegate::vertical_padding;
 				SecondTop   = ContentTop + FirstHeight + home_row_delegate::line_gap;
+				// Each fact shares a baseline with the line it is about.
+				const auto baseline = [this](const QTextLayout& aLayout, const int aTop) {
+					return aLayout.lineCount() > 0 ? aTop + static_cast<int>(std::lround(aLayout.lineAt(0).ascent())) - FactsAscent : aTop;
+				};
+				SizeTop    = baseline(FirstLayout, ContentTop);
+				HistoryTop = baseline(SecondLayout, SecondTop);
 			}
 
 			row_layout(const row_layout&)                    = delete;
@@ -326,6 +349,15 @@ namespace bpr::qt {
 			QString     Time;
 			QString     Progress;
 			QString     Chip;
+			QString     Size;
+			QString     History;
+			QFont       FactsFont;
+			int         FactsWidth      = 0;
+			int         FactsLineHeight = 0;
+			int         FactsAscent     = 0;
+			int         FactsLeft       = 0;
+			int         SizeTop         = 0;
+			int         HistoryTop      = 0;
 			QString     Tag;
 			QString     Draft;
 			int         DraftWidth  = 0;
@@ -646,6 +678,15 @@ namespace bpr::qt {
 							   Qt::AlignRight | Qt::AlignVCenter, *text);
 			sideTop += layout.SideLineHeight;
 		}
+		// [[BPR-1407]]. Each fact in its line's ink: the size beside the title,
+		// the age and conversation beside the quiet reason. No state colour.
+		aPainter->setFont(layout.FactsFont);
+		for (const auto& [text, top, pen] : { std::tuple{ &layout.Size, layout.SizeTop, ink }, std::tuple{ &layout.History, layout.HistoryTop, quiet } }) {
+			if (!text->isEmpty()) {
+				aPainter->setPen(pen);
+				aPainter->drawText(QRect{ layout.FactsLeft, top, layout.FactsWidth, layout.FactsLineHeight }, Qt::AlignRight | Qt::AlignTop, *text);
+			}
+		}
 		if (!layout.Chip.isEmpty()) {
 			// [[BPR-0783]]. Centred on the row beside the time, in neutral ink:
 			// an account is not a state, so the chip carries no state colour.
@@ -725,6 +766,20 @@ namespace bpr::qt {
 		initStyleOption(&option, aIndex);
 		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
 		return layout.Draft.isEmpty() ? QRect{ } : QRect{ option.rect.left() + layout.TextLeft, option.rect.top() + layout.ContentTop, layout.DraftWidth, layout.DraftHeight };
+	}
+
+	auto home_row_delegate::facts_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect
+	{
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
+		auto             result = QRect{ };
+		for (const auto& [text, top] : { std::pair{ &layout.Size, layout.SizeTop }, std::pair{ &layout.History, layout.HistoryTop } }) {
+			if (!text->isEmpty()) {
+				result |= QRect{ layout.FactsLeft, top, layout.FactsWidth, layout.FactsLineHeight };
+			}
+		}
+		return result.translated(option.rect.topLeft());
 	}
 
 	auto home_row_delegate::reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const

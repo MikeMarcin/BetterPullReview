@@ -1,6 +1,7 @@
 #include "bpr/application/review_queue_facts.hpp"
 #include <algorithm>
 #include <charconv>
+#include <limits>
 namespace bpr::application {
 	namespace {
 		constexpr std::size_t MaximumNames = 8, MaximumNameBytes = 512, MaximumFactsBytes = 32768;
@@ -95,10 +96,22 @@ namespace bpr::application {
 			aRetained.Base = aRead.Base;
 		}
 	}
+	void merge_queue_change(core::queue_change_facts& aRetained, const core::queue_change_facts& aRead)
+	{
+		for (const auto field : { &core::queue_change_facts::Additions, &core::queue_change_facts::Deletions, &core::queue_change_facts::Comments }) {
+			if (aRead.*field) {
+				aRetained.*field = aRead.*field;
+			}
+		}
+		if (aRead.OpenedAt) {
+			aRetained.OpenedAt = aRead.OpenedAt;
+		}
+	}
 	// Length framing keeps remote names literal, including delimiters and newlines.
+	// [[BPR-1407]]. Version 2 appends the change facts; version 1 still reads.
 	auto encode_queue_facts(const core::queue_item_facts& aFacts) -> std::optional<std::string>
 	{
-		auto       output   = std::string{ "1;" };
+		auto       output   = std::string{ "2;" };
 		const auto text     = [&output](std::string_view aText) { output += std::to_string(aText.size()) + ":"; output.append(aText); };
 		const auto number   = [&text](std::uint64_t aNumber) { text(std::to_string(aNumber)); };
 		const auto optional = [&number](const auto& aValue) { number(aValue ? static_cast<std::uint64_t>(*aValue) + 1 : 0); };
@@ -127,6 +140,17 @@ namespace bpr::application {
 				text(name);
 			}
 		}
+		const auto& change = aFacts.Change;
+		if (change.OpenedAt && *change.OpenedAt < 0) {
+			return std::nullopt;
+		}
+		for (const auto value : { change.OpenedAt.transform([](std::int64_t aValue) { return static_cast<std::uint64_t>(aValue); }), change.Additions, change.Deletions, change.Comments }) {
+			if (value) {
+				number(*value);
+			} else {
+				text({ });
+			}
+		}
 		return output.size() <= MaximumFactsBytes ? std::optional{ std::move(output) } : std::nullopt;
 	}
 	auto decode_queue_facts(std::string_view aBytes) -> std::optional<core::queue_item_facts>
@@ -134,9 +158,10 @@ namespace bpr::application {
 		if (aBytes.empty()) {
 			return core::queue_item_facts{ };
 		}
-		if (aBytes.size() > MaximumFactsBytes || !aBytes.starts_with("1;")) {
+		if (aBytes.size() > MaximumFactsBytes || (!aBytes.starts_with("1;") && !aBytes.starts_with("2;"))) {
 			return std::nullopt;
 		}
+		const auto version = aBytes.front();
 		aBytes.remove_prefix(2);
 		auto       okay = true;
 		const auto text = [&]() -> std::string {
@@ -208,6 +233,23 @@ namespace bpr::application {
 				}
 				names->push_back(std::move(name));
 			}
+		}
+		if (version == '2') {
+			const auto optional = [&]() -> std::optional<std::uint64_t> {
+				if (aBytes.starts_with("0:")) {
+					aBytes.remove_prefix(2);
+					return std::nullopt;
+				}
+				return number();
+			};
+			const auto opened = optional();
+			if (opened && *opened > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+				okay = false;
+			}
+			facts.Change.OpenedAt  = opened.transform([](std::uint64_t aValue) { return static_cast<std::int64_t>(aValue); });
+			facts.Change.Additions = optional();
+			facts.Change.Deletions = optional();
+			facts.Change.Comments  = optional();
 		}
 		waiting.RequestsStale   = waiting.Requests.has_value();
 		waiting.AssessmentStale = waiting.RequiredReview.has_value() || waiting.MergeBlocked.has_value();

@@ -128,6 +128,8 @@ namespace bpr::application {
 		std::uint32_t             ReviewersAwaited = 0U;
 		std::optional<bool>       Draft            = std::nullopt;
 		core::queue_waiting_facts Waiting;
+		/// [[BPR-1407]]. Unknown where the pull request itself was not read.
+		core::queue_change_facts Change;
 
 		auto operator<=>(const queue_discovered_pull_request&) const = default;
 	};

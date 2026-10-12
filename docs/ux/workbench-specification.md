@@ -567,7 +567,14 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   it appears. [[BPR-1406]]: on a queue row for someone else's pull request
   the second line leads with its author, "Opened by octocat; the code moved
   since my last review", in every section; my own rows never name me, and
-  Recently viewed stores no author. Colour means state and nothing else: the reason word, and
+  Recently viewed stores no author. [[BPR-1407]]: a queue row's right holds
+  a column of facts, each on the line it is about: "+1,204 −318" beside the
+  first line in its ink, "6 days old, 14 comments" beside the second in its
+  quiet ink. Tabular figures line the column up from row to row; the hover
+  action keeps its own place to the column's right. Age is whole days to the
+  clock the host supplies; comments count the conversation and inline
+  comments together; an unread fact draws nothing. The counts carry no
+  green or red. Colour means state and nothing else: the reason word, and
   either a 3-point mark at the row's left or the rail of the panel holding
   it. Row text wraps rather than eliding, and the style paints its own
   selection, hover and focus.

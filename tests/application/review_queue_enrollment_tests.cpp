@@ -1707,6 +1707,52 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	// [[BPR-1407]]. A row's age, size and comment count come with the read
+	// that reported them, outlive one that did not, and survive the store.
+	void test_change_facts_merge_and_persist()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Followed = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		auto read   = metadata_row(17U, true);
+		read.Change = { .OpenedAt = 1'760'000'000, .Additions = 1204U, .Deletions = 318U, .Comments = 14U };
+		fixture.Provider.answer(fixture.Provider.rows({ read }));
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Facts.Change == read.Change, "a retained read carries age, size and comments onto the row");
+		const auto session = discovery_session().Queue;
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Read without change" }, .Activity = { .Known = true, .FactRevision = fixture.Queue.begin_observation() } });
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Change == read.Change, "a read that did not report them keeps the last known");
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Read with a comment", .Change = { .Comments = 15U } }, .Activity = { .Known = true, .FactRevision = fixture.Queue.begin_observation() } });
+		fixture.settle();
+		const auto change = fixture.item(17)->Facts.Change;
+		expect(change.Comments == 15U && change.Additions == 1204U && change.OpenedAt == read.Change.OpenedAt, "a read replaces only what it reported");
+		const auto durable = fixture.record(17);
+		expect(durable && durable->LastFacts.Change == change, "the private record keeps them");
+		const auto encoded = application::encode_queue_facts(durable->LastFacts);
+		const auto decoded = encoded ? application::decode_queue_facts(*encoded) : std::nullopt;
+		expect(decoded && decoded->Change == change, "the store's codec carries them across a restart");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_change_facts_codec_reads_version_one()
+	{
+		auto       facts   = core::queue_item_facts{ .Title = "Old", .Author = "octocat" };
+		const auto encoded = application::encode_queue_facts(facts).value_or(std::string{ });
+		const auto unknown = std::string{ "0:0:0:0:" };
+		expect(encoded.starts_with("2;") && encoded.ends_with(unknown), "unknown change facts are four empty fields of version 2");
+		const auto body    = encoded.substr(2U, encoded.size() - 2U - unknown.size());
+		const auto version = application::decode_queue_facts("1;" + body);
+		expect(version && version->Title == "Old" && version->Author == "octocat" && version->Change == core::queue_change_facts{ }, "a version 1 record still reads, with its change unknown");
+		expect(!application::decode_queue_facts("1;" + body + unknown), "version 1 never carries change facts");
+		expect(!application::decode_queue_facts("2;" + body), "version 2 without its change fields is refused");
+		facts.Change    = { .OpenedAt = 0, .Additions = 0U, .Deletions = 0U, .Comments = 0U };
+		const auto zero = application::decode_queue_facts(application::encode_queue_facts(facts).value_or(std::string{ }));
+		expect(zero && zero->Change == facts.Change, "zero is a known value, never read back as unknown");
+		facts.Change.OpenedAt = -1;
+		expect(!application::encode_queue_facts(facts), "an opening before the epoch is refused");
+	}
+
 	void test_retained_review_survives_request_withdrawal()
 	{
 		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
@@ -2536,6 +2582,8 @@ auto main() -> int
 	test_saved_servers_are_durable_before_projection();
 	test_retained_titles_and_reviews_before_open_and_on_refresh();
 	test_retained_summary_limit_keeps_complete_metadata();
+	test_change_facts_merge_and_persist();
+	test_change_facts_codec_reads_version_one();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();
 	test_draft_metadata_retains_only_accepted_exact_account_facts();

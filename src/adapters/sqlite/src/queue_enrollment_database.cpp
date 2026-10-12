@@ -514,6 +514,10 @@ namespace bpr::adapters::sqlite::detail {
 			if (*version == 8) {
 				return validate_exact_version(aDatabase, 8, SchemaVersion8Tables);
 			}
+			if (*version == 9) {
+				return validate_exact_version(aDatabase, 9, SchemaVersion9Tables);
+			}
+			// [[BPR-1407]]. Version ten keeps version nine's tables.
 			if (*version == queue_enrollment_schema_version) {
 				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion9Tables);
 			}

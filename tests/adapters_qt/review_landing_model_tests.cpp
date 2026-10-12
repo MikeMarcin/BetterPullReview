@@ -6,6 +6,7 @@
 
 #include <QAbstractItemModel>
 #include <QCoreApplication>
+#include <QLocale>
 #include <QPersistentModelIndex>
 #include <QString>
 
@@ -14,6 +15,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -766,6 +768,62 @@ namespace {
 		expect(reason.contains(QStringLiteral("Branch Freshness failed; last known.")), "Home qualifies a restarted partial failure even when no other field is known");
 	}
 
+	// [[BPR-1407]]. Age, size and comments: drawn short, said in full, and
+	// nothing for what was not read.
+	void test_change_facts_text()
+	{
+		constexpr auto day    = std::int64_t{ 86'400 };
+		constexpr auto now    = std::int64_t{ 1'760'000'000 };
+		const auto     locale = QLocale{ };
+		auto           change = core::queue_change_facts{ .OpenedAt = now - (6 * day) - 5, .Additions = 1204U, .Deletions = 318U, .Comments = 14U };
+		expect(qt::home_size_text(change) == QStringLiteral("+%1 \u2212%2").arg(locale.toString(1204), locale.toString(318)), "size is added then removed, with a true minus");
+		expect(qt::home_history_text(change, now) == QStringLiteral("6 days old, 14 comments"), "history is whole days, then the count");
+		expect(qt::home_change_sentence(change, now) == QStringLiteral("Opened 6 days ago; %1 lines added and %2 removed; 14 comments.").arg(locale.toString(1204), locale.toString(318)),
+			   "the sentence says every fact in words");
+		expect(qt::home_history_text(change, std::nullopt) == QStringLiteral("14 comments"), "without a clock there is no age");
+		change.OpenedAt = now - day;
+		change.Comments = 1U;
+		expect(qt::home_history_text(change, now) == QStringLiteral("1 day old, 1 comment"), "one day and one comment are singular");
+		change.OpenedAt = now - day + 1;
+		change.Comments = 0U;
+		expect(qt::home_history_text(change, now) == QStringLiteral("Under a day old, no comments"), "less than a day and no comments are said as such");
+		change.OpenedAt = now + 600;
+		expect(qt::home_history_text(change, now).startsWith(QStringLiteral("Under a day old")), "a clock behind GitHub's never says a negative age");
+		change.OpenedAt.reset();
+		expect(qt::home_history_text(change, now) == QStringLiteral("No comments"), "a leading clause is capitalised");
+		change.Deletions.reset();
+		expect(qt::home_size_text(change).isEmpty(), "a size needs both counts");
+		expect(qt::home_size_text({ }).isEmpty() && qt::home_history_text({ }, now).isEmpty() && qt::home_change_sentence({ }, now).isEmpty(), "nothing read draws and says nothing");
+	}
+
+	void test_change_facts_rows_and_their_clock()
+	{
+		constexpr auto day  = std::int64_t{ 86'400 };
+		constexpr auto now  = std::int64_t{ 1'760'000'000 };
+		auto           aged = item(41, core::attention_bucket::initial_review_requested);
+		aged.Facts.Author   = "octocat";
+		aged.Facts.Change   = { .OpenedAt = now - (2 * day) - 60, .Additions = 5U, .Deletions = 1U, .Comments = 2U };
+		auto unread         = item(42, core::attention_bucket::changed_since_my_review);
+		unread.Facts.Change = { .Additions = 9U, .Deletions = 0U };
+		auto model          = qt::review_landing_model{ };
+		model.apply(std::vector{ aged, unread });
+		const auto first       = model.index(0, 0);
+		const auto description = [&first] { return first.data(Qt::AccessibleDescriptionRole).toString(); };
+		expect(model.data(first, qt::home_row_role::history).toString() == QStringLiteral("2 comments") && !description().contains(QStringLiteral("Opened 2")), "without a clock a row has no age");
+		auto changed = std::vector<int>{ };
+		QObject::connect(&model, &QAbstractItemModel::dataChanged, &model, [&changed](const QModelIndex& aTop, const QModelIndex&, const QList<int>&) { changed.push_back(aTop.row()); });
+		model.set_now(now);
+		expect(changed == std::vector{ 0 }, "a clock changes only the rows whose age it gives");
+		expect(model.data(first, qt::home_row_role::history).toString() == QStringLiteral("2 days old, 2 comments") && model.data(first, qt::home_row_role::size).toString() == QStringLiteral("+5 \u22121"), "the row answers its size and history");
+		expect(description() == qt::home_why_sentence(aged) + QStringLiteral(" Requested. Opened 2 days ago; 5 lines added and 1 removed; 2 comments."), "the accessible description says the drawn facts after the reason");
+		changed.clear();
+		model.set_now(now + 3600);
+		expect(changed.empty(), "an hour that changes no day changes no row");
+		model.set_now(now + day);
+		expect(changed == std::vector{ 0 } && model.data(first, qt::home_row_role::history).toString().startsWith(QStringLiteral("3 days old")), "the next day ages the row");
+		expect(model.data(model.index(1, 0), qt::home_row_role::history).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::size).toString() == QStringLiteral("+9 \u22120"), "zero removed is a known count");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -787,6 +845,8 @@ auto main(int argc, char** argv) -> int
 	test_home_rows_say_why_in_projected_facts();
 	test_waiting_blockers_and_quiet_filters();
 	test_restored_partial_check_reason_is_last_known();
+	test_change_facts_text();
+	test_change_facts_rows_and_their_clock();
 
 	std::cout << "review-landing-model-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -13,6 +13,7 @@
 #include <ranges>
 #include <set>
 #include <tuple>
+#include <utility>
 
 namespace bpr::qt {
 	namespace {
@@ -390,6 +391,78 @@ namespace bpr::qt {
 		return sentence;
 	}
 
+	namespace {
+		/// [[BPR-1407]]. Whole days from opening to `aNow`; none without both.
+		[[nodiscard]] auto days_open(const core::queue_change_facts& aChange, const std::optional<std::int64_t> aNow) -> std::optional<std::int64_t>
+		{
+			constexpr auto day = std::int64_t{ 24 * 60 * 60 };
+			if (!aChange.OpenedAt || !aNow) {
+				return std::nullopt;
+			}
+			// A clock behind GitHub's says nothing older than today.
+			return std::max(std::int64_t{ 0 }, (*aNow - *aChange.OpenedAt) / day);
+		}
+
+		[[nodiscard]] auto grouped(const std::uint64_t aCount) -> QString
+		{
+			return QLocale{ }.toString(static_cast<qulonglong>(aCount));
+		}
+
+		[[nodiscard]] auto comments(const std::uint64_t aCount) -> QString
+		{
+			return aCount == 0U ? QStringLiteral("no comments") : aCount == 1U ? QStringLiteral("1 comment")
+																			   : QStringLiteral("%1 comments").arg(grouped(aCount));
+		}
+
+		/// Capitalises a clause that begins its sentence.
+		[[nodiscard]] auto leading(QString aClause) -> QString
+		{
+			if (!aClause.isEmpty()) {
+				aClause[0] = aClause[0].toUpper();
+			}
+			return aClause;
+		}
+	} // namespace
+
+	auto home_size_text(const core::queue_change_facts& aChange) -> QString
+	{
+		if (!aChange.Additions || !aChange.Deletions) {
+			return { };
+		}
+		// A true minus, so the sign is as wide as the plus and reads as one.
+		return QStringLiteral("+%1 \u2212%2").arg(grouped(*aChange.Additions), grouped(*aChange.Deletions));
+	}
+
+	auto home_history_text(const core::queue_change_facts& aChange, const std::optional<std::int64_t> aNow) -> QString
+	{
+		auto clauses = QStringList{ };
+		if (const auto days = days_open(aChange, aNow); days) {
+			clauses.push_back(*days == 0 ? QStringLiteral("Under a day old") : *days == 1 ? QStringLiteral("1 day old")
+																						  : QStringLiteral("%1 days old").arg(grouped(static_cast<std::uint64_t>(*days))));
+		}
+		if (aChange.Comments) {
+			clauses.push_back(comments(*aChange.Comments));
+		}
+		return leading(clauses.join(QStringLiteral(", ")));
+	}
+
+	auto home_change_sentence(const core::queue_change_facts& aChange, const std::optional<std::int64_t> aNow) -> QString
+	{
+		auto clauses = QStringList{ };
+		if (const auto days = days_open(aChange, aNow); days) {
+			clauses.push_back(*days == 0 ? QStringLiteral("opened less than a day ago") : *days == 1 ? QStringLiteral("opened 1 day ago")
+																									 : QStringLiteral("opened %1 days ago").arg(grouped(static_cast<std::uint64_t>(*days))));
+		}
+		if (aChange.Additions && aChange.Deletions) {
+			clauses.push_back(QStringLiteral("%1 %2 added and %3 removed")
+								  .arg(grouped(*aChange.Additions), *aChange.Additions == 1U ? QStringLiteral("line") : QStringLiteral("lines"), grouped(*aChange.Deletions)));
+		}
+		if (aChange.Comments) {
+			clauses.push_back(comments(*aChange.Comments));
+		}
+		return clauses.isEmpty() ? QString{ } : leading(clauses.join(QStringLiteral("; "))) + QLatin1Char{ '.' };
+	}
+
 	review_landing_model::review_landing_model(QObject* const aParent)
 		: QAbstractListModel{ aParent }
 	{
@@ -422,7 +495,11 @@ namespace bpr::qt {
 			return item->Facts.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(label) : label;
 		}
 		case Qt::AccessibleDescriptionRole: {
-			const auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket));
+			auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket));
+			// [[BPR-1407]]. The facts drawn at the row's right, in words.
+			if (const auto change = home_change_sentence(item->Facts.Change, Now); !change.isEmpty()) {
+				why += QStringLiteral(". %1").arg(change);
+			}
 			// [[BPR-1365]]. The open review is said in words, as it is drawn.
 			return Reviewing == item->Ref ? QStringLiteral("%1; %2").arg(home_reviewing_description(), why) : why;
 		}
@@ -478,6 +555,10 @@ namespace bpr::qt {
 			return item->Facts.Draft.value_or(false);
 		case home_row_role::reviewing:
 			return Reviewing == item->Ref;
+		case home_row_role::size:
+			return home_size_text(item->Facts.Change);
+		case home_row_role::history:
+			return home_history_text(item->Facts.Change, Now);
 		case home_row_role::time:
 		case home_row_role::progress:
 		case home_row_role::row_action:
@@ -616,6 +697,27 @@ namespace bpr::qt {
 	auto review_landing_model::reviewing() const noexcept -> const std::optional<core::pull_request_ref>&
 	{
 		return Reviewing;
+	}
+
+	void review_landing_model::set_now(const std::optional<std::int64_t> aSeconds)
+	{
+		if (Now == aSeconds) {
+			return;
+		}
+		const auto prior = std::exchange(Now, aSeconds);
+		const auto roles = QList<int>{ home_row_role::history, Qt::AccessibleDescriptionRole };
+		for (std::size_t row = 0U; row < Items.size(); ++row) {
+			const auto& change = Items[row].Facts.Change;
+			if (days_open(change, prior) != days_open(change, Now)) {
+				const auto changed = index(static_cast<int>(row), 0);
+				emit       dataChanged(changed, changed, roles);
+			}
+		}
+	}
+
+	auto review_landing_model::now() const noexcept -> std::optional<std::int64_t>
+	{
+		return Now;
 	}
 
 	void review_landing_model::apply_item(const core::queue_item& aItem)

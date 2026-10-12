@@ -49,9 +49,13 @@ The frontend-design skill was loaded for this work.
 - AC1: Discovered and retained rows take the creation time, lines added and
   removed, and the conversation plus inline comment count from the pull
   request read Home already makes; no request is added. An absent field is
-  unknown; a present malformed one is refused like the read's other fields.
-  The facts survive opening the pull request and a restart: the private
-  store's facts encoding gains them and still reads the previous version.
+  unknown. A retained read refuses a malformed one like its other fields; a
+  discovered row's summary is optional, so there it stays unknown. A read
+  that does not report a fact keeps the last known one, so the facts survive
+  opening the pull request and a restart. The private store's facts encoding
+  gains them (version 2, still reading version 1) and the queue store moves
+  to schema 10 with version nine's tables, so an earlier build refuses the
+  file as newer instead of failing on its facts.
 - AC2: A queue row shows "+N −M" beside its first line and "<age>, <count>"
   beside its second, right-aligned in the quiet ink with tabular figures.
   Age is whole elapsed days ("Under a day old", "1 day old", "6 days old")

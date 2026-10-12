@@ -483,6 +483,7 @@ namespace bpr::application {
 								.ReviewersAwaited = row.ReviewersAwaited,
 								.Draft            = row.Draft,
 								.Waiting          = row.Waiting,
+								.Change           = row.Change,
 							});
 						}
 						if (aResult.Completeness != personal_discovery_completeness::complete && CycleProblem == queue_discovery_problem::none) {
@@ -539,7 +540,7 @@ namespace bpr::application {
 			Queue.apply(queue_metadata_answer{
 				.Session  = Session->Queue,
 				.Ref      = ref,
-				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft },
+				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft, .Change = row.Change },
 				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true, .Waiting = row.Waiting, .FactRevision = aJob.Request.FactRevision },
 				.Closed   = row.Closed,
 				.Authored = row.AuthorIdentity ? std::optional<bool>{ *row.AuthorIdentity == Session->Viewer.Node } : std::nullopt,

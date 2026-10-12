@@ -1701,6 +1701,23 @@ namespace bpr::app::detail {
 												   } }
 										.toJson(QJsonDocument::Compact)
 										.toStdString();
+				{
+					// [[BPR-1407]]. Each row's age, size and conversation, so Home
+					// has a large, a small and a middling pull request to show.
+					auto       document = QJsonDocument::fromJson(QByteArray::fromStdString(response.Body)).object();
+					const auto large = found->Number == 4001U, small = found->Number == 4002U;
+					document.insert(QStringLiteral("created_at"), large ? QStringLiteral("2026-09-21T16:04:00Z") : small ? QStringLiteral("2026-10-12T08:30:00Z")
+																														 : QStringLiteral("2026-10-06T11:15:00Z"));
+					document.insert(QStringLiteral("additions"), large ? 1204 : small ? 18
+																					  : 236);
+					document.insert(QStringLiteral("deletions"), large ? 318 : small ? 3
+																					 : 41);
+					document.insert(QStringLiteral("comments"), large ? 9 : small ? 0
+																				  : 1);
+					document.insert(QStringLiteral("review_comments"), large ? 5 : small ? 0
+																						 : 2);
+					response.Body = QJsonDocument{ document }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				if (found->WaitingDetails) {
 					auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response.Body)).object();
 					document.insert("node_id", "PR_fixture_17");

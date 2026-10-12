@@ -1461,6 +1461,13 @@ namespace bpr::application {
 				}
 			}
 			const auto found = ActivityIndex.find(aRef);
+			// [[BPR-1407]]. An open does not read the pull request's age, size
+			// or comment count; they stay what discovery last read.
+			if (found != ActivityIndex.end()) {
+				facts.Change = Activity[found->second].Facts.Change;
+			} else if (const auto retained = Enrollments.record_for(aRef); retained && retained->FactsAccount == Scheduler.session().ViewerAccount) {
+				facts.Change = retained->LastFacts.Change;
+			}
 			if (found == ActivityIndex.end()) {
 				ActivityIndex.emplace(aRef, Activity.size());
 				Activity.push_back(queue_activity_report{
@@ -1605,13 +1612,14 @@ namespace bpr::application {
 					Activity.push_back(queue_activity_report{
 						.Ref         = ref,
 						.Observation = { .ReviewersAwaited = found.ReviewersAwaited, .Known = known, .Waiting = found.Waiting, .FactRevision = aAnswer.FactRevision },
-						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U, .Draft = found.Draft, .Waiting = found.Waiting },
+						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U, .Draft = found.Draft, .Waiting = found.Waiting, .Change = found.Change },
 					});
 					continue;
 				}
 				auto* existing         = &Activity[position->second];
 				existing->Facts.Title  = found.Title;
 				existing->Facts.Author = found.Author;
+				merge_queue_change(existing->Facts.Change, found.Change);
 				if (found.Draft) {
 					existing->Facts.Draft = found.Draft;
 				}
@@ -1689,6 +1697,7 @@ namespace bpr::application {
 				}
 				report.Facts.Title  = std::move(aAnswer.Facts.Title);
 				report.Facts.Author = std::move(aAnswer.Facts.Author);
+				merge_queue_change(report.Facts.Change, aAnswer.Facts.Change);
 				if (aAnswer.Facts.Draft) {
 					report.Facts.Draft = aAnswer.Facts.Draft;
 				}

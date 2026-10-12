@@ -1179,6 +1179,27 @@ namespace {
 		expect(opened_ok(migrated) && migrated->load_all() == std::vector{ record }, "version-seven upgrade retains enrollment without inventing draft or account observations");
 	}
 
+	// [[BPR-1407]]. Version ten keeps version nine's tables; a nine file's
+	// facts, written in the first encoding, read without change facts, and the
+	// change facts then round-trip.
+	void test_version_nine_facts_upgrade_and_change_facts_round_trip()
+	{
+		const scratch_directory directory;
+		const auto              path   = directory.file("queue.db");
+		auto                    record = application::enrollment_record{ .Ref = ref(17), .Membership = { .Followed = true }, .FactsAccount = core::github_account_id{ 1001U } };
+		record.LastFacts.Title         = "Version nine title";
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store) && store->store(record).has_value(), "the version-nine fixture starts with a titled enrollment");
+		}
+		execute_raw_sql(path, "UPDATE enrollment SET home_facts = '1;' || substr(home_facts, 3, length(home_facts) - 10); UPDATE enrollment_meta SET schema_format = 9 WHERE singleton = 1; PRAGMA user_version = 9;");
+		auto migrated = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated) && migrated->load_all() == std::vector{ record }, "a version-nine file's first-encoding facts survive the upgrade with nothing invented");
+		expect(scalar_integer(migrated->handle(), "PRAGMA user_version") == 10, "the file is stamped version ten");
+		record.LastFacts.Change = { .OpenedAt = 1'791'285'300, .Additions = 236U, .Deletions = 0U, .Comments = 3U };
+		expect(migrated->store(record).has_value() && migrated->load_all() == std::vector{ record }, "age, size and comment count round-trip, a zero kept as zero");
+	}
+
 } // namespace
 
 auto main() -> int
@@ -1191,6 +1212,7 @@ try {
 	test_optional_draft_round_trip_and_upgrade();
 	test_enrollment_survives_a_separate_process();
 #endif
+	test_version_nine_facts_upgrade_and_change_facts_round_trip();
 	test_a_newer_database_fails_closed();
 	test_a_foreign_version_one_database_is_not_migrated();
 	test_a_legal_version_one_database_migrates_to_current();

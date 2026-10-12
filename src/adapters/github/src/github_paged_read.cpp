@@ -4506,6 +4506,40 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		/// [[BPR-1407]]. A pull request's age, size and comment count. A field
+		/// GitHub leaves out is unknown; one it sends in another shape is refused.
+		[[nodiscard]] auto parse_change_facts(const page_json_object& aObject) -> std::optional<core::queue_change_facts>
+		{
+			auto result = core::queue_change_facts{ };
+			if (aObject.contains("created_at")) {
+				const auto created = json_member(aObject, "created_at");
+				const auto opened  = json_is_string(created) ? parse_timeline_timestamp(text(created)) : std::nullopt;
+				if (!opened) {
+					return std::nullopt;
+				}
+				result.OpenedAt = *opened / 1000;
+			}
+			const auto count = [&aObject](const std::string_view aKey, std::optional<std::uint64_t>& aValue) {
+				if (!aObject.contains(aKey)) {
+					return true;
+				}
+				const auto value = uint32(json_member(aObject, aKey));
+				aValue           = value;
+				return value.has_value();
+			};
+			auto conversation = std::optional<std::uint64_t>{ };
+			auto review       = std::optional<std::uint64_t>{ };
+			if (!count("additions", result.Additions) || !count("deletions", result.Deletions)
+				|| !count("comments", conversation) || !count("review_comments", review)) {
+				return std::nullopt;
+			}
+			// A total needs both; either alone would undercount.
+			if (conversation && review) {
+				result.Comments = *conversation + *review;
+			}
+			return result;
+		}
+
 		[[nodiscard]] auto read_home_summary(production_read_execution& aExecution, const validated_github_host_profile& aProfile, const application::personal_discovery_request& aRequest, server_contract aServer, const core::pull_request_request_context& aContext, const parsed_page& aPage, const github_paged_read_limits& aLimits, bool* aLimited = nullptr) -> std::expected<core::queue_waiting_facts, github_paged_read_failure>
 		{
 			if (!json_is_object(aPage.Document)) {
@@ -4676,6 +4710,11 @@ namespace bpr::adapters::github::detail {
 				.Draft            = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
+			const auto change  = parse_change_facts(object);
+			if (!change) {
+				return execution.terminal_failure(application::github_provider_failure::malformed_response);
+			}
+			row.Change = *change;
 			if (row.Closed) {
 				return github_personal_discovery_read{ .Rows = { std::move(row) }, .RateLimits = aRates };
 			}
@@ -4857,6 +4896,9 @@ namespace bpr::adapters::github::detail {
 					production_read_execution summaryExecution{ aTransport, aProfile, context, summaryLimits, aStop, rates, aRequest.AuthenticationSession, nullptr, &homeBudget };
 					const auto                metadata = summaryExecution.fetch(semantic_request_for(*server, context, read_operation::get_pull_request));
 					if (metadata && json_is_object(metadata->Document)) {
+						// The summary is optional, so a malformed change fact
+						// leaves the row's change unknown rather than failing it.
+						row.Change         = parse_change_facts(json_object(metadata->Document)).value_or(core::queue_change_facts{ });
 						auto       limited = false;
 						const auto summary = read_home_summary(summaryExecution, aProfile, aRequest, *server, context, *metadata, summaryLimits, &limited);
 						if (limited && result.Completeness == application::personal_discovery_completeness::complete) {

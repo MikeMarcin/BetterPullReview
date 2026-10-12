@@ -54,6 +54,12 @@ namespace bpr::qt {
 			reviewing,
 			/// True only for last accepted GitHub draft status.
 			draft,
+			/// [[BPR-1407]]. Lines added and removed ("+1,204 −318"), drawn
+			/// at the right beside the first line; empty where unknown.
+			size,
+			/// [[BPR-1407]]. Age and comment count ("6 days old, 14
+			/// comments"), drawn beside the second line; empty where unknown.
+			history,
 		};
 	} // namespace home_row_role
 
@@ -228,6 +234,9 @@ namespace bpr::qt {
 			-> QRect;
 		/// \brief Complete leading Draft chip, or empty for a row without that status.
 		[[nodiscard]] auto draft_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;
+		/// \brief [[BPR-1407]]. Where the size and history are painted, in the
+		/// option's coordinates; empty for a row without either.
+		[[nodiscard]] auto facts_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;
 		/// \brief Where the reason word is painted, in the option's coordinates.
 		[[nodiscard]] auto reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QRect;

@@ -88,6 +88,8 @@ namespace bpr::application {
 		core::queue_waiting_facts              Waiting;
 		/// Required title/reviews are complete; only the added summary hit a bound.
 		bool WaitingLimited = false;
+		/// [[BPR-1407]]. Age, size and comment count from the pull request read.
+		core::queue_change_facts Change;
 
 		auto operator<=>(const personal_discovery_row&) const = default;
 	};

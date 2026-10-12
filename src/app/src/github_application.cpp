@@ -7359,6 +7359,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+			// [[BPR-1407]]. Home's row ages are measured to discovery's clock.
+			Window->set_home_clock([this]() -> std::optional<std::int64_t> {
+				return DiscoveryClock != nullptr ? std::optional{ DiscoveryClock->now_seconds() } : std::nullopt;
+			});
 			Window->set_queue_discovery_dispatch(
 				[this](const application::queue_discovery_intent aIntent) {
 					if (Closing || Discovery == nullptr) {
@@ -17915,6 +17919,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
 		decltype(github_profile_runtime::QueueHost)&                    QueueHost                = Profile->QueueHost;
 		decltype(github_profile_runtime::Discovery)&                    Discovery                = Profile->Discovery;
+		decltype(github_profile_runtime::DiscoveryClock)&               DiscoveryClock           = Profile->DiscoveryClock;
 		decltype(github_profile_runtime::QueueActivityBaseline)&        QueueActivityBaseline    = Profile->QueueActivityBaseline;
 		decltype(github_profile_runtime::QueueActivity)&                QueueActivity            = Profile->QueueActivity;
 		decltype(github_profile_runtime::ActiveQueueNotifications)&     ActiveQueueNotifications = Profile->ActiveQueueNotifications;

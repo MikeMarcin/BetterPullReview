@@ -13,6 +13,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QPalette>
 #include <QPixmap>
@@ -1420,6 +1421,43 @@ namespace {
 		view->setStyle(nullptr);
 	}
 
+	/// [[BPR-1407]]. A row's size and history share one right-aligned column
+	/// that the hover action, the Reviewing tag and the reason never overlap.
+	void test_change_facts_keep_their_own_column()
+	{
+		constexpr auto now = std::int64_t{ 1'760'000'000 };
+		home_fixture   home;
+		auto           queue  = one_account_queue();
+		queue[0].Facts.Title  = "A title long enough that the row's own text has to wrap before it could reach the column of facts";
+		queue[0].Facts.Change = { .OpenedAt = now - (6 * 86'400), .Additions = 1204U, .Deletions = 318U, .Comments = 14U };
+		queue[1].Facts.Change = { .Additions = 18U, .Deletions = 3U };
+		home.Source.apply(queue);
+		home.Source.set_now(now);
+		home.Source.set_reviewing(queue[0].Ref);
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		settle(200);
+
+		auto* const view     = home.List.state_view(qt::home_group::needs_you);
+		auto* const delegate = home.List.row_delegate();
+		const auto  first    = view->model()->index(0, 0);
+		const auto  second   = view->model()->index(1, 0);
+		const auto  locale   = QLocale{ };
+		expect(first.data(qt::home_row_role::size).toString() == QStringLiteral("+%1 \u2212%2").arg(locale.toString(1204), locale.toString(318))
+				   && first.data(qt::home_row_role::history).toString() == QStringLiteral("6 days old, 14 comments"),
+			   "the first row says its size, age and comments");
+		const auto facts = delegate->facts_rect(option_for(*view, first), first);
+		expect(!facts.isEmpty() && view->visualRect(first).contains(facts), "the facts are drawn inside their row");
+		expect(!facts.intersects(qt::home_row_delegate::action_rect(option_for(*view, first), first)), "the hover action keeps its own place and never covers a figure");
+		expect(!facts.intersects(delegate->reviewing_rect(option_for(*view, first), first)) && !facts.intersects(delegate->reason_rect(option_for(*view, first), first)),
+			   "neither the Reviewing tag nor the reason word reaches the facts");
+		const auto sizeOnly = delegate->facts_rect(option_for(*view, second), second);
+		expect(!sizeOnly.isEmpty() && sizeOnly.right() == facts.right(), "rows share the column's right edge, so their figures line up");
+		expect(second.data(qt::home_row_role::history).toString().isEmpty(), "a row without an age or a count has no history");
+		auto* const mine = home.List.state_view(qt::home_group::my_pull_requests);
+		expect(delegate->facts_rect(option_for(*mine, mine->model()->index(0, 0)), mine->model()->index(0, 0)).isEmpty(), "a row whose change was not read draws nothing");
+	}
+
 	/// [[BPR-1365]]. The review this window has open is drawn quietly and never
 	/// with the selection's fill, in every theme, in the queue and in Recently
 	/// viewed; and the queue shows its selection only while it has Home's
@@ -1698,6 +1736,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1364]]. A single click selects; a double-click or Return opens.
 	test_a_single_click_selects_and_a_double_click_opens();
 	// [[BPR-1365]]. The open review is quiet; Home shows one selection.
+	test_change_facts_keep_their_own_column();
 	test_the_open_review_is_quiet_and_never_the_selection(renderPath);
 
 	std::cout << "home-list-tests:pass\n";
