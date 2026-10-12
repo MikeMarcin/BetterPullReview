@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1405"
+  ],
+  "reserve_for": "home-overview-ux",
+  "purpose": "Calm Home and Overview waiting and merge-requirement text",
+  "created": "2026-10-12T18:06:42.106335+00:00",
+  "base": "f01b79c5a1568a4f25353f34cf61dcdd6627201e"
+}
