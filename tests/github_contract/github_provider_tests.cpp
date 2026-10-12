@@ -1750,6 +1750,11 @@ namespace {
 			provider_fixture fixture{ application::github_authentication_transport::native_https, log };
 			const auto       request       = pull_request_for(fixture, account_lease(fixture));
 			fixture.Transport->ReadHandler = [login](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				if (aWire.Wire.Operation == read_operation::list_commit_statuses) {
+					auto response = viewer_response();
+					response.Body = "[]";
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
 				const auto filename = [&]() -> std::string_view {
 					switch (aWire.Wire.Operation) {
 					case read_operation::get_repository:            return "repository";

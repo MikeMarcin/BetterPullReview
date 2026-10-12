@@ -14,9 +14,10 @@ from pathlib import Path
 import secrets
 import subprocess
 import sys
-import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
 sys.path.insert(0, str(ROOT / "packaging"))
 import release_gpg_vault as vault
 
@@ -90,7 +91,7 @@ def main() -> None:
     store = None
     report = {}
     try:
-        with tempfile.TemporaryDirectory(prefix="bpr-vault-native-course-") as temporary:
+        with ContainedTemporaryDirectory(prefix="bpr-vault-native-course-") as temporary:
             root = Path(temporary)
             scripts = {}
             for name, source in (("setup", SETUP), ("sign", SIGN), ("cleanup", CLEANUP)):
