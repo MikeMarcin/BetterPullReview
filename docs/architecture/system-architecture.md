@@ -1768,6 +1768,14 @@ other readable observations. Native HTTPS and the closed CLI compiler select the
 same GraphQL/REST surfaces. No team membership or local CODEOWNERS evaluator is
 introduced.
 
+Mandatory snapshot content and search finish before check runs and commit statuses
+spend the remaining shared page/byte budget. Exhaustion qualifies only those
+optional results; it cannot revoke a completed mandatory observation. A complete
+REST fallback carries actor-roster observation separately from the richer
+connection's availability, including an observed empty roster. The window and
+Home replace prior requests with those current actors while retaining the actual
+code-owner availability qualification.
+
 The application validates bounded nested requirements and field provenance,
 retains same-authority/head/base observations as explicitly stale on failure,
 and projects indexed context/app matches, waiting identities and truthful

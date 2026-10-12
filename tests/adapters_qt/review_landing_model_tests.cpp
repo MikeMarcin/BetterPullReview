@@ -1,5 +1,7 @@
 #include "bpr/qt/review_landing_model.hpp"
 
+#include "bpr/application/review_queue_facts.hpp"
+
 #include "bpr/qt/home_row_delegate.hpp"
 
 #include <QAbstractItemModel>
@@ -706,6 +708,20 @@ namespace {
 		expect(qt::home_state_summary(qt::home_group::waiting_on_others, std::array{ waiting }).contains(QStringLiteral("1 blocked")), "collapsed summary carries the blocker count");
 	}
 
+	void test_restored_partial_check_reason_is_last_known()
+	{
+		auto row                       = item(33, core::attention_bucket::detail_unknown, { .Followed = true });
+		row.Facts.Waiting.FailedChecks = { "Branch Freshness" };
+		row.Facts.Waiting.ChecksStale  = true;
+		const auto encoded             = application::encode_queue_facts(row.Facts);
+		expect(encoded.has_value(), "partial check Home metadata encodes");
+		const auto decoded = application::decode_queue_facts(*encoded);
+		expect(decoded.has_value(), "partial check Home metadata decodes");
+		row.Facts         = *decoded;
+		const auto reason = qt::home_why_sentence(row);
+		expect(reason.contains(QStringLiteral("Branch Freshness failed")) && reason.contains(QStringLiteral("Last known; refresh for current details")), "Home qualifies a restarted partial failure even when no other field is known");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -726,6 +742,7 @@ auto main(int argc, char** argv) -> int
 	test_switching_directly_between_alternate_sorts_reorders();
 	test_home_rows_say_why_in_projected_facts();
 	test_waiting_blockers_and_quiet_filters();
+	test_restored_partial_check_reason_is_last_known();
 
 	std::cout << "review-landing-model-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -3674,7 +3674,8 @@ namespace bpr::adapters::github::detail {
 					records.push_back(std::move(result));
 				}
 			}
-			aSnapshot.ReviewRequests = std::move(records);
+			aSnapshot.ReviewRequests              = std::move(records);
+			aSnapshot.ReviewRequestActorsObserved = true;
 			// REST establishes actor identities, never code-owner origin. Keep the
 			// richer connection's actual availability beside this usable roster.
 			return { };
@@ -3879,7 +3880,8 @@ namespace bpr::adapters::github::detail {
 			records.ReviewRequests     = aSnapshot.ReviewRequests;
 			if (!validCollection(records)) {
 				aSnapshot.ReviewRequests.clear();
-				aSnapshot.ReviewRequestsAvailability = observation::incomplete;
+				aSnapshot.ReviewRequestsAvailability  = observation::incomplete;
+				aSnapshot.ReviewRequestActorsObserved = false;
 			}
 			records.ReviewRequests.clear();
 			records.BranchPolicy.Rules = aSnapshot.BranchPolicy.Rules;
@@ -5102,6 +5104,20 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(comments.error()) };
 			}
 
+			// Finish mandatory content before optional results can spend the
+			// remaining page/byte budget. Exhaustion then qualifies only details.
+			auto searchSemantic = semantic_request_for(
+				*server, aRequest.Context, read_operation::search_pull_requests);
+			searchSemantic.SearchTerms = "is:open";
+			const auto search          = read_search_results(execution,
+															 aProfile,
+															 std::move(searchSemantic),
+															 result.Repository,
+															 result.SearchResults,
+															 aLimits);
+			if (!search.has_value()) {
+				return std::unexpected{ execution.enrich(search.error()) };
+			}
 			auto checksSemantic = semantic_request_for(
 				*server, aRequest.Context, read_operation::list_checks);
 			checksSemantic.HeadOid = std::string{ result.PullRequest.HeadOid.value() };
@@ -5138,18 +5154,6 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ statusRead.error() };
 			}
 
-			auto searchSemantic = semantic_request_for(
-				*server, aRequest.Context, read_operation::search_pull_requests);
-			searchSemantic.SearchTerms = "is:open";
-			const auto search          = read_search_results(execution,
-															 aProfile,
-															 std::move(searchSemantic),
-															 result.Repository,
-															 result.SearchResults,
-															 aLimits);
-			if (!search.has_value()) {
-				return std::unexpected{ execution.enrich(search.error()) };
-			}
 			if (aReadAuthority != github_provider_read_authority::anonymous_public) {
 				// Optional explanation has a separate small aggregate budget. It
 				// cannot exhaust essential PR reads or change their diagnostic origin.
@@ -5194,8 +5198,9 @@ namespace bpr::adapters::github::detail {
 				validation                                 = application::validate(result, aRequest.Context, aLimits.Records);
 				if (!validation.valid()) {
 					result.ReviewRequests.clear();
-					result.ReviewRequestsAvailability = observation::incomplete;
-					validation                        = application::validate(result, aRequest.Context, aLimits.Records);
+					result.ReviewRequestsAvailability  = observation::incomplete;
+					result.ReviewRequestActorsObserved = false;
+					validation                         = application::validate(result, aRequest.Context, aLimits.Records);
 				}
 			}
 			if (!validation.valid() && !result.Checks.empty()) {

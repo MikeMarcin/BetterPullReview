@@ -471,6 +471,11 @@ unknown Home facts. Accepted provider facts remain available in memory if their
 optional metadata write fails, with the storage failure still explicit. Restored
 facts are last known and admitted only under the same accepted numeric account;
 legacy authored membership needs a new bound observation.
+That freshness includes a retained failed check from a partial collection even
+when the complete check set, requests and review assessment were never observed.
+The codec and host restoration cannot turn that partial failure into a current
+result. A complete REST request fallback replaces prior names/counts independently
+of unavailable GraphQL code-owner origin, including a known empty fallback.
 Qt derives its native wrapped row reason, accessible description and collapsed
 blocker counts from the projection. Quiet filters retain known blockers, and My
 role includes authored discovery. Existing notification categories, local

@@ -661,9 +661,10 @@ namespace bpr::application {
 		{
 			if (AcceptedSnapshot && AcceptedSnapshot->Profile == aSnapshot.Profile && AcceptedSnapshot->Host == aSnapshot.Host && AcceptedSnapshot->Account == aSnapshot.Account && AcceptedSnapshot->Mode == aSnapshot.Mode && AcceptedSnapshot->Repository.Repository == aSnapshot.Repository.Repository && AcceptedSnapshot->PullRequest.PullRequest == aSnapshot.PullRequest.PullRequest && AcceptedSnapshot->PullRequest.HeadOid == aSnapshot.PullRequest.HeadOid && AcceptedSnapshot->PullRequest.BaseOid == aSnapshot.PullRequest.BaseOid && AcceptedSnapshot->PullRequest.BaseRef == aSnapshot.PullRequest.BaseRef) {
 				const auto& previous = *AcceptedSnapshot;
-				if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available && (previous.ReviewRequestsAvailability == github_observation_availability::available || previous.ReviewRequestsStale)) {
-					aSnapshot.ReviewRequests      = previous.ReviewRequests;
-					aSnapshot.ReviewRequestsStale = true;
+				if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available && !aSnapshot.ReviewRequestActorsObserved && (previous.ReviewRequestsAvailability == github_observation_availability::available || previous.ReviewRequestActorsObserved || previous.ReviewRequestsStale)) {
+					aSnapshot.ReviewRequests              = previous.ReviewRequests;
+					aSnapshot.ReviewRequestsStale         = true;
+					aSnapshot.ReviewRequestActorsObserved = previous.ReviewRequestActorsObserved;
 				}
 				if (aSnapshot.Merge.Availability != github_observation_availability::available && (previous.Merge.Availability == github_observation_availability::available || previous.Merge.Stale)) {
 					const auto availability      = aSnapshot.Merge.Availability;

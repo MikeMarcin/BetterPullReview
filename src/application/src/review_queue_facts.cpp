@@ -16,7 +16,7 @@ namespace bpr::application {
 		auto result = core::queue_waiting_facts{ };
 		result.Head = aSnapshot.PullRequest.HeadOid.value();
 		result.Base = aSnapshot.PullRequest.BaseOid.value();
-		if (aSnapshot.ReviewRequestsAvailability == github_observation_availability::available || aSnapshot.ReviewRequestsStale) {
+		if (aSnapshot.ReviewRequestsAvailability == github_observation_availability::available || aSnapshot.ReviewRequestActorsObserved || aSnapshot.ReviewRequestsStale) {
 			result.Requests      = static_cast<std::uint32_t>(aSnapshot.ReviewRequests.size());
 			result.RequestsStale = aSnapshot.ReviewRequestsStale;
 			result.NamesKnown    = true;
@@ -211,7 +211,7 @@ namespace bpr::application {
 		}
 		waiting.RequestsStale   = waiting.Requests.has_value();
 		waiting.AssessmentStale = waiting.RequiredReview.has_value() || waiting.MergeBlocked.has_value();
-		waiting.ChecksStale     = waiting.ChecksKnown;
+		waiting.ChecksStale     = waiting.ChecksKnown || !waiting.FailedChecks.empty();
 		return okay && aBytes.empty() ? std::optional{ std::move(facts) } : std::nullopt;
 	}
 }

@@ -737,8 +737,11 @@ namespace bpr::application {
 		github_observation_availability           ReviewRequestsAvailability = github_observation_availability::unobserved;
 		std::vector<github_review_request_record> ReviewRequests;
 		bool                                      ReviewRequestsStale = false;
-		github_merge_observation                  Merge;
-		github_branch_policy_observation          BranchPolicy;
+		// A complete REST fallback observes actors, including an empty roster,
+		// independently of the richer connection's code-owner availability.
+		bool                             ReviewRequestActorsObserved = false;
+		github_merge_observation         Merge;
+		github_branch_policy_observation BranchPolicy;
 
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
 	};

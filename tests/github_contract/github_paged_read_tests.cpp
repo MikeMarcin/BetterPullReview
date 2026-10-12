@@ -1,5 +1,6 @@
 #include "../../src/application/src/github_projection_mapping.hpp"
 #include "../support/review_tour_fixture.hpp"
+#include "bpr/application/review_queue_facts.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "fixture_json.hpp"
 #include "github_anonymous_read_admission.hpp"
@@ -3191,7 +3192,7 @@ namespace {
 				recording_response_observer observer;
 				const auto                  result = perform_paged_github_read(transport, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28),
 																			   core::provider_snapshot_id{ 55U + restart }, { }, { }, github_provider_read_authority::authenticated, &observer);
-				expect(!result && observer.LastOperation == read_operation::search_pull_requests && observer.ActorConflict
+				expect(!result && observer.LastOperation == read_operation::list_commit_statuses && observer.ActorConflict
 						   && observer.ActorConflict->First == origin::viewer && observer.ActorConflict->Conflicting == origin::review
 						   && observer.ActorConflict->AsciiCaseOnly == (std::string_view{ login } == "OCTO-REVIEWER"),
 					   "GHES case-only and different conflicts stay refusing with actual review provenance across recreated reads");
@@ -3282,7 +3283,7 @@ namespace {
 			recording_response_observer observer;
 			const auto                  result = read_bot_actor(refused.Observation, 80U, &observer);
 			expect(!result && provider_failure_of(result) == application::github_provider_failure::malformed_response
-					   && observer.LastOperation == read_operation::search_pull_requests
+					   && observer.LastOperation == read_operation::list_commit_statuses
 					   && observer.RelationshipDetail == application::github_read_validation_error::relationship_actor_login
 					   && observer.ActorConflict && observer.ActorConflict->First == origin::review
 					   && observer.ActorConflict->Conflicting == origin::thread_comment
@@ -3321,14 +3322,14 @@ namespace {
 					   && observer.Overview->Context == provider_request().Context
 					   && !observer.Overview->PullRequest.Title.empty(),
 				   "validated useful metadata arrives after two responses, before any catalogue or ancillary page");
-			expect(observer.Count + (status == 200 ? 5U : 0U) == transport.Requests.size() && observer.Count == 12U, "every page produces exactly one observation");
+			expect(observer.Count + (status == 200 ? 5U : 0U) == transport.Requests.size() && observer.Count == (status == 200 ? 12U : 10U), "every page produces exactly one observation; failed mandatory search precedes optional results");
 			for (std::size_t index = 0U; index < observer.Count; ++index) {
 				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;
 				expect(observer.Responses[index] == std::pair{ transport.Requests[index].Correlation.Operation, expectedStatus },
 					   "response callback preserves request order and HTTP status, including repeated pages");
 			}
-			expect(observer.Responses[observer.Count - 1U].first == read_operation::search_pull_requests,
-				   "final operation remains observable before status, metadata, and byte validation");
+			expect(observer.Responses[observer.Count - 1U].first == (status == 200 ? read_operation::list_commit_statuses : read_operation::search_pull_requests),
+				   "last attempted operation remains observable before status, metadata, and byte validation");
 			if (!result) {
 				const auto expectedFailure = status == 503 ? application::github_provider_failure::unavailable
 					: status == 0                          ? application::github_provider_failure::malformed_response
@@ -3375,11 +3376,11 @@ namespace {
 		recording_response_observer relationshipObserver;
 		const auto                  relationship = perform_paged_github_read(relationshipTransport, profile(), provider_request(), core::provider_snapshot_id{ 55U },
 																			 { }, { }, github_provider_read_authority::authenticated, &relationshipObserver);
-		expect(!relationship && relationshipObserver.LastOperation == read_operation::search_pull_requests
+		expect(!relationship && relationshipObserver.LastOperation == read_operation::list_commit_statuses
 				   && relationshipObserver.ValidationError == application::github_read_validation_error::invalid_relationship
 				   && relationshipObserver.RelationshipDetail == application::github_read_validation_error::relationship_actor_login
 				   && provider_failure_of(relationship) == application::github_provider_failure::malformed_response,
-			   "final search page does not obscure an earlier review actor relationship failure");
+			   "optional result pages do not obscure an earlier review actor relationship failure");
 		auto timeline                    = timeline_fixture_transport{ };
 		timeline.Responses               = { success_response(timeline_full_page(1U), timeline_next(2U), page_completeness::has_next_page), success_response("[]") };
 		timeline.Responses.back().Status = 503;
@@ -4001,6 +4002,42 @@ namespace {
 }
 
 namespace {
+	void test_optional_checks_cannot_spend_mandatory_read_budget()
+	{
+		for (const auto bytes : { false, true }) {
+			auto transport                       = paged_fixture_transport{ fixture_scenario::success };
+			auto limits                          = github_paged_read_limits{ };
+			limits.MaximumTotalPages             = bytes ? 256U : 12U;
+			limits.MaximumAggregateResponseBytes = bytes ? 128U * 1024U : limits.MaximumAggregateResponseBytes;
+			limits.MaximumPageBytes              = std::min(limits.MaximumPageBytes, limits.MaximumAggregateResponseBytes);
+			auto servedBytes                     = std::size_t{ 0 };
+			transport.RewriteResponse            = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation == read_operation::list_commit_statuses) {
+					if (bytes) {
+						aResponse.Body = "[]";
+						expect(servedBytes + aResponse.Body.size() + 1 < limits.MaximumAggregateResponseBytes, "byte probe has room for a valid status page");
+						aResponse.Body.resize(limits.MaximumAggregateResponseBytes - servedBytes - 1, ' ');
+					} else {
+						auto statuses = fixture_array{ };
+						for (unsigned index = 0; index < 100; ++index) {
+							const auto identity = std::to_string((aRequest.Wire.Semantic.Page - 1U) * 100U + index);
+							statuses.push_back(fixture_object{ { "node_id", "status-" + identity }, { "context", "context-" + identity }, { "state", "success" }, { "description", nullptr }, { "target_url", nullptr } });
+						}
+						aResponse.Body = fixture_json(statuses);
+						aResponse.Headers.push_back({ "Link", "<https://api.github.com/repos/octo-org/review-repository/commits/" + std::string{ head_oid } + "/statuses?per_page=100&page=" + std::to_string(aRequest.Wire.Semantic.Page + 1U) + ">; rel=\"next\"" });
+						aResponse.Completeness = page_completeness::has_next_page;
+					}
+				}
+				servedBytes += aResponse.Body.size();
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { }, limits);
+			expect(result && !result->Files.empty() && result->SearchAvailability == application::github_search_availability::available, "optional status page/byte exhaustion cannot erase mandatory readable PR and search facts");
+			if (!bytes) {
+				expect(result->StatusesAvailability == application::github_collection_availability::unavailable && result->Checks.size() == 1, "unfinished bounded status history stays unavailable while known check runs survive");
+			}
+		}
+	}
+
 	void test_current_check_details()
 	{
 		for (const auto limitedStatuses : { false, true }) {
@@ -4143,6 +4180,29 @@ namespace {
 		}
 	}
 
+	void test_review_request_actor_fallback()
+	{
+		for (const auto empty : { false, true }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			transport.RewriteResponse = [empty](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation == read_operation::list_review_requests) {
+					aResponse.Status = 403;
+					aResponse.Body   = "{}";
+				} else if (aRequest.Wire.Operation == read_operation::list_requested_reviewers) {
+					auto users = fixture_array{ };
+					if (!empty) {
+						users.push_back(rest_actor("U_new", "new-reviewer"));
+					}
+					aResponse.Body = fixture_json(fixture_object{ { "users", users }, { "teams", fixture_array{ } } });
+				}
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+			expect(result && result->ReviewRequestActorsObserved && !result->ReviewRequestsStale && result->ReviewRequestsAvailability == application::github_observation_availability::permission && result->ReviewRequests.size() == (empty ? 0U : 1U), "complete REST fallback observes current actors, including zero, without claiming code-owner origin availability");
+			const auto waiting = application::queue_waiting_for(*result);
+			expect(waiting.Requests == (empty ? 0U : 1U) && !waiting.RequestsStale && waiting.NamesKnown && waiting.CodeOwners.empty() && waiting.Reviewers.size() == (empty ? 0U : 1U), "current fallback actors reach Home as ordinary reviewers and complete zero clears waiting requests");
+		}
+	}
+
 	void test_optional_explanations_preserve_account_authority()
 	{
 		for (const auto operation : { read_operation::get_merge_assessment, read_operation::list_review_requests, read_operation::list_branch_rules, read_operation::get_branch_protection, read_operation::list_checks, read_operation::list_commit_statuses }) {
@@ -4178,8 +4238,10 @@ auto main() -> int
 {
 	test_optional_explanations_preserve_account_authority();
 	test_review_request_pagination();
+	test_review_request_actor_fallback();
 	test_review_requirements();
 	test_current_check_details();
+	test_optional_checks_cannot_spend_mandatory_read_budget();
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();
 	test_ghes_bot_actor_representation();

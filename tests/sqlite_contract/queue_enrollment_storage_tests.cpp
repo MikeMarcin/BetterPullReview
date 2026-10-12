@@ -1129,6 +1129,39 @@ namespace {
 		expect(loaded && loaded->Enrollments.size() == 1 && loaded->Enrollments.front().FactsAccount == record.FactsAccount && loaded->Enrollments.front().LastFacts.Waiting.CodeOwners == record.LastFacts.Waiting.CodeOwners && loaded->Enrollments.front().LastFacts.Waiting.RequestsStale, "restart preserves names and exact account as last-known");
 	}
 
+#if !defined(_WIN32)
+	void test_partial_failed_check_survives_separate_process()
+	{
+		auto scratch = scratch_directory{ };
+		expect(scratch.make_private(), "partial failure store root is private");
+		const auto child = ::fork();
+		expect(child >= 0, "partial failure writer process starts");
+		if (child == 0) {
+			bpr::tests::end_forked_child([&] {
+				auto port = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = scratch.path() });
+				expect(port->load({ }).has_value(), "child public store opens");
+				auto record                           = application::enrollment_record{ };
+				record.Ref                            = ref(17);
+				record.Membership.Followed            = true;
+				record.FactsAccount                   = core::github_account_id{ 1234 };
+				record.LastFacts.Waiting.FailedChecks = { "Branch Freshness" };
+				record.LastFacts.Waiting.ChecksStale  = true;
+				expect(port->store_enrollment(record, { }).has_value(), "child commits a partial check failure through the public store port");
+				port.reset();
+				std::_Exit(EXIT_SUCCESS);
+			});
+		}
+		auto status = 0;
+		expect(::waitpid(child, &status, 0) == child && WIFEXITED(status) != 0 && WEXITSTATUS(status) == EXIT_SUCCESS, "partial failure writer finishes and is reaped");
+		auto       port   = adapters::sqlite::make_queue_enrollment_store({ .StorageRoot = scratch.path() });
+		const auto loaded = port->load({ });
+		expect(loaded && loaded->Enrollments.size() == 1, "fresh process loads the public-port durable record");
+		const auto& record  = loaded->Enrollments.front();
+		const auto& waiting = record.LastFacts.Waiting;
+		expect(record.FactsAccount == core::github_account_id{ 1234 } && waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" } && !waiting.ChecksKnown && waiting.ChecksStale && !waiting.Requests && !waiting.RequiredReview && !waiting.MergeBlocked && !waiting.RequestsStale && !waiting.AssessmentStale, "SQLite restart retains partial failure and only its last-known flag without other observed facts");
+	}
+#endif
+
 	void test_optional_draft_round_trip_and_upgrade()
 	{
 		const scratch_directory directory;
@@ -1154,6 +1187,7 @@ try {
 	test_collection_limits_on_load_and_write();
 #if !defined(_WIN32)
 	test_waiting_metadata_round_trip();
+	test_partial_failed_check_survives_separate_process();
 	test_optional_draft_round_trip_and_upgrade();
 	test_enrollment_survives_a_separate_process();
 #endif

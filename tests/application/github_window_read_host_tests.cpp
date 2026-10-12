@@ -1046,6 +1046,28 @@ namespace {
 			lane.drain();
 			expect(host.accepted_snapshot()->Merge.Stale && host.accepted_snapshot()->Merge.Assessment == application::github_merge_assessment::blocked && host.accepted_snapshot()->ReviewRequestsStale && host.accepted_snapshot()->ReviewRequests.size() == 1, "repeated optional failure retains exact same-head block and roster as explicitly stale");
 		}
+		for (const auto empty : { false, true }) {
+			host.dispatch(core::refresh_pull_request_intent{ });
+			call                                 = provider.Calls.back();
+			auto fallback                        = snapshot(call.Request);
+			fallback.ReviewRequestsAvailability  = application::github_observation_availability::permission;
+			fallback.ReviewRequestActorsObserved = true;
+			if (!empty) {
+				auto actor    = application::github_review_request_record{ };
+				actor.Request = "rest:fresh-user";
+				actor.Actor   = "fresh-user";
+				actor.Login   = "new-reviewer";
+				actor.Kind    = application::github_requested_actor_kind::user;
+				fallback.ReviewRequests.push_back(actor);
+			}
+			call.Complete(application::github_pull_request_success{ call.Request, fallback });
+			lane.drain();
+			const auto& current = *host.accepted_snapshot();
+			expect(!current.ReviewRequestsStale && current.ReviewRequestsAvailability == application::github_observation_availability::permission && current.ReviewRequests.size() == (empty ? 0U : 1U), "fresh complete REST fallback, including empty, replaces old code-owner requests while richer availability stays qualified");
+			if (!empty) {
+				expect(current.ReviewRequests.front().Login == "new-reviewer" && !current.ReviewRequests.front().AsCodeOwner, "current fallback actor never inherits a stale actor or code-owner origin");
+			}
+		}
 		host.dispatch(core::refresh_pull_request_intent{ });
 		call                               = provider.Calls.back();
 		auto removed                       = snapshot(call.Request);

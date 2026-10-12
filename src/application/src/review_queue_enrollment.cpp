@@ -1348,7 +1348,7 @@ namespace bpr::application {
 				auto& waiting           = facts.Waiting;
 				waiting.RequestsStale   = waiting.Requests.has_value();
 				waiting.AssessmentStale = waiting.RequiredReview.has_value() || waiting.MergeBlocked.has_value();
-				waiting.ChecksStale     = waiting.ChecksKnown;
+				waiting.ChecksStale     = waiting.ChecksKnown || !waiting.FailedChecks.empty();
 				const auto known        = waiting.Requests.has_value() || waiting.RequiredReview.has_value();
 				ActivityIndex.emplace(record.Ref, Activity.size());
 				Activity.push_back({ .Ref = record.Ref, .Observation = { .ReviewersAwaited = waiting.Requests.value_or(0), .Known = known, .Waiting = waiting }, .Facts = std::move(facts) });

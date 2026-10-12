@@ -899,13 +899,23 @@ namespace bpr::app::detail {
 			aBody = document.toJson(QJsonDocument::Compact).toStdString();
 		}
 
+		/// \brief Replays essential snapshot reads before optional result collections.
+		void order_snapshot_reads(std::vector<recorded_exchange>& aExchanges)
+		{
+			std::stable_partition(aExchanges.begin(), aExchanges.end(), [](const auto& aExchange) {
+				return aExchange.Request.Operation != read_operation::list_checks && aExchange.Request.Operation != read_operation::list_commit_statuses;
+			});
+		}
+
 		[[nodiscard]] auto load_recording(
 			const fixture_descriptor& aDescriptor,
 			const std::string_view    aHead)
 			-> std::vector<recorded_exchange>
 		{
 			if (aDescriptor.Paged) {
-				return large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory, aHead);
+				auto exchanges = large_review_fixture::load(std::filesystem::path{ BPR_GITHUB_PULL_REQUEST_FIXTURE_ROOT } / aDescriptor.ContractDirectory, aHead);
+				order_snapshot_reads(exchanges);
+				return exchanges;
 			}
 			const auto recordingDirectory = aDescriptor.RecordingDirectory.empty()
 				? aDescriptor.ContractDirectory
@@ -1015,6 +1025,7 @@ namespace bpr::app::detail {
 						},
 					});
 			}
+			order_snapshot_reads(exchanges);
 			return exchanges;
 		}
 
@@ -1189,6 +1200,7 @@ namespace bpr::app::detail {
 				};
 			}
 			// The independent REST read follows the completed baseline snapshot.
+			order_snapshot_reads(exchanges);
 			// A→B→A exercises repeated-head identity through the composed path.
 			auto       timeline = recorded(read_operation::list_reviews);
 			const auto pulls    = timeline.Request.Path.find("/pulls/");

@@ -2228,6 +2228,29 @@ namespace {
 		fixture.settle();
 	}
 
+	void test_partial_failed_check_restart_is_last_known()
+	{
+		auto record                           = application::enrollment_record{ };
+		record.Ref                            = ref(17);
+		record.Membership.Followed            = true;
+		record.LastFacts.Waiting.Head         = std::string(40, 'a');
+		record.LastFacts.Waiting.FailedChecks = { "Branch Freshness" };
+		record.LastFacts.Waiting.ChecksStale  = true;
+		record.FactsAccount                   = discovery_session().Queue.ViewerAccount;
+		const auto encoded                    = application::encode_queue_facts(record.LastFacts);
+		expect(encoded.has_value(), "partial failure fits the bounded metadata codec");
+		const auto decoded = application::decode_queue_facts(*encoded);
+		expect(decoded && !decoded->Waiting.ChecksKnown && decoded->Waiting.ChecksStale && !decoded->Waiting.RequestsStale && !decoded->Waiting.AssessmentStale && decoded->Waiting.FailedChecks == record.LastFacts.Waiting.FailedChecks, "codec retains partial failed check as last known without manufacturing other known facts");
+		record.LastFacts = *decoded;
+		auto fixture     = discovery_fixture{ { }, { record } };
+		fixture.Queue.adopt(discovery_session().Queue);
+		const auto item = fixture.item(17);
+		expect(item && !item->Facts.Waiting.ChecksKnown && item->Facts.Waiting.ChecksStale && item->Facts.Waiting.FailedChecks == record.LastFacts.Waiting.FailedChecks, "host restoration does not erase partial-failure freshness from decoded metadata");
+		fixture.Queue.shutdown();
+		fixture.Discovery.shutdown();
+		fixture.settle();
+	}
+
 	// [[BPR-0990]]. Saving a repository is searched without waiting for the
 	// freshness window, a repository saved during a refresh is searched when it
 	// ends, and forgetting one withdraws only what was found there.
@@ -2529,6 +2552,7 @@ auto main() -> int
 	test_observer_authorship_does_not_change_enrollment();
 	test_failed_metadata_storage_preserves_accepted_observations();
 	test_home_waiting_observations_survive_local_activity_and_restart();
+	test_partial_failed_check_restart_is_last_known();
 	test_discovery_follows_the_saved_repositories();
 	test_discovery_freshness_and_forgotten_repositories();
 
