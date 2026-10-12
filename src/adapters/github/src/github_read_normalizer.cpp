@@ -876,6 +876,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
+			case read_operation::list_review_requests:
+			case read_operation::get_merge_assessment:
 			case read_operation::list_requested_reviewers:
 				request.PullRequestNumber = aContext.PullRequestRequest.Number.value();
 				break;
@@ -884,6 +886,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
 				break;
 			}
@@ -988,6 +992,10 @@ namespace bpr::adapters::github::detail {
 				}
 				bool decoded = false;
 				switch (response.Operation) {
+				case read_operation::get_merge_assessment:
+				case read_operation::list_review_requests:
+				case read_operation::list_branch_rules:
+				case read_operation::get_branch_protection:
 				case read_operation::list_pull_request_timeline:
 				case read_operation::search_personal_pull_requests:
 				case read_operation::list_requested_reviewers:      return failed(contract_failure_code::unexpected_operation);

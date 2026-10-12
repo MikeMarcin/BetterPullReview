@@ -1498,6 +1498,10 @@ namespace {
 					return search_response(aRequest);
 				case read_operation::list_review_comments:
 					return review_comments_response(aRequest);
+				case read_operation::list_review_requests:
+				case read_operation::get_merge_assessment:
+				case read_operation::list_branch_rules:
+				case read_operation::get_branch_protection:
 				case read_operation::list_pull_request_timeline:
 				case read_operation::get_viewer_identity:
 				case read_operation::search_personal_pull_requests:
@@ -1506,7 +1510,7 @@ namespace {
 				}
 				return success_response(fixture_json(fixture_object{ }));
 			}();
-			const auto resource = aRequest.Wire.Operation == read_operation::list_review_threads
+			const auto resource = graphql_read(aRequest.Wire.Operation)
 				? "graphql"
 				: (aRequest.Wire.Operation
 						   == read_operation::search_pull_requests
@@ -2071,7 +2075,7 @@ namespace {
 				   && result->RateLimits.Search->Remaining == 4999U
 				   && result->RateLimits.Graphql.has_value()
 				   && result->RateLimits.Graphql->Remaining == 4999U
-				   && transport.Requests.size() == 12U
+				   && transport.Requests.size() == 17U
 				   && std::ranges::none_of(
 					   transport.Requests,
 					   [](const github_wire_request& aRequest) {
@@ -3317,7 +3321,7 @@ namespace {
 					   && observer.Overview->Context == provider_request().Context
 					   && !observer.Overview->PullRequest.Title.empty(),
 				   "validated useful metadata arrives after two responses, before any catalogue or ancillary page");
-			expect(observer.Count == transport.Requests.size() && observer.Count == 12U, "every page produces exactly one observation");
+			expect(observer.Count + (status == 200 ? 5U : 0U) == transport.Requests.size() && observer.Count == 12U, "every page produces exactly one observation");
 			for (std::size_t index = 0U; index < observer.Count; ++index) {
 				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;
 				expect(observer.Responses[index] == std::pair{ transport.Requests[index].Correlation.Operation, expectedStatus },
@@ -4022,10 +4026,101 @@ namespace {
 			expect(result && result->Checks.size() == 1 && result->StatusesAvailability == application::github_collection_availability::unavailable, "optional status refusal retains readable known check runs and explicit partial availability");
 		}
 	}
+	void test_review_requirements()
+	{
+		using availability = application::github_observation_availability;
+		for (const auto enterprise : { false, true }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success, enterprise ? "ghe.example.invalid" : "api.github.com" };
+			transport.RewriteResponse = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+				auto pull = fixture_object{ { "id", "PR_17" }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" } };
+				if (aRequest.Wire.Operation == read_operation::get_merge_assessment) {
+					pull.insert_or_assign("mergeStateStatus", "BLOCKED");
+					pull.insert_or_assign("reviewDecision", "REVIEW_REQUIRED");
+					pull.insert_or_assign("autoMergeRequest", nullptr);
+				} else if (aRequest.Wire.Operation == read_operation::list_review_requests) {
+					auto nodes = fixture_array{ };
+					for (int index = 0; index < 3; ++index) {
+						nodes.push_back(fixture_object{ { "id", "RR_" + std::to_string(index) }, { "asCodeOwner", true }, { "requestedReviewer", fixture_object{ { "__typename", "Team" }, { "id", "TEAM_" + std::to_string(index) }, { "name", "Owner team " + std::to_string(index) }, { "slug", "team-" + std::to_string(index) }, { "organization", fixture_object{ { "login", "octo-org" } } } } } });
+					}
+					nodes.push_back(fixture_object{ { "id", "RR_user" }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_requested" }, { "login", "first-time-reviewer" } } } });
+					nodes.push_back(fixture_object{ { "id", "RR_hidden" }, { "asCodeOwner", true }, { "requestedReviewer", nullptr } });
+					pull.insert_or_assign("reviewRequests", connection(5U, nodes, false, std::optional<std::string_view>{ "END" }));
+				} else if (aRequest.Wire.Operation == read_operation::list_branch_rules) {
+					expect(aRequest.Wire.Path.ends_with("/rules/branches/main"), "server selects active applicable target rules; no repository ruleset enumeration");
+					aResponse.Body = R"([{"type":"pull_request","ruleset_source_type":"Organization","ruleset_source":"octo-org","ruleset_id":42,"parameters":{"required_approving_review_count":2,"require_code_owner_review":true,"require_last_push_approval":true,"dismiss_stale_reviews_on_push":true,"required_review_thread_resolution":true}},{"type":"required_status_checks","ruleset_source_type":"Repository","ruleset_source":"octo-org/review-repository","ruleset_id":43,"parameters":{"strict_required_status_checks_policy":true,"required_status_checks":[{"context":"Branch Freshness","integration_id":null},{"context":"Missing CI","integration_id":17}]}}])";
+					return;
+				} else if (aRequest.Wire.Operation == read_operation::get_branch_protection) {
+					aResponse.Body = R"({"url":"https://api.github.com/repos/octo-org/review-repository/branches/main/protection","required_pull_request_reviews":{"required_approving_review_count":1,"require_code_owner_reviews":false,"dismiss_stale_reviews":false,"require_last_push_approval":false},"required_status_checks":{"strict":false,"checks":[{"context":"native-ci","app_id":null}]},"required_conversation_resolution":{"enabled":true}})";
+					return;
+				} else {
+					return;
+				}
+				aResponse.Body = fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "pullRequest", pull } } } } } });
+			};
+			const auto result = perform_paged_github_read(transport, enterprise ? enterprise_profile() : profile(), provider_request(enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28), core::provider_snapshot_id{ 55 }, { }, { }, github_provider_read_authority::authenticated, nullptr);
+			expect(result && result->ReviewRequestsAvailability == availability::available && result->ReviewRequests.size() == 5, "all requested users, three named code-owner teams and hidden identity survive public provider facade on both hosts");
+			expect(result->ReviewRequests.front().Organization == "octo-org" && *result->ReviewRequests.front().AsCodeOwner && result->ReviewRequests.back().Kind == application::github_requested_actor_kind::unavailable, "teams stay qualified and hidden actor remains an explicit record");
+			expect(result->Merge.Assessment == application::github_merge_assessment::blocked && result->Merge.Review == application::github_review_decision::required && result->Merge.AutoMerge == false, "aggregate assessment and observed absent auto-merge are distinct");
+			expect(result->BranchPolicy.Rules.size() == 2 && result->BranchPolicy.Protection.size() == 3 && result->BranchPolicy.Rules.front().ApprovalMinimum == 2 && result->BranchPolicy.Rules.back().Checks.back().AppId == 17, "inherited active requirements, configured minimum, classic protection and app-qualified missing check survive separately");
+			const auto goodRewrite = transport.RewriteResponse;
+			for (const auto defect : { 0, 1, 2, 3, 4 }) {
+				transport.RewriteResponse = [&, defect](const github_wire_request& aRequest, wire_response& aResponse) {
+					goodRewrite(aRequest, aResponse);
+					if (aRequest.Wire.Operation == read_operation::list_review_requests) {
+						if (defect == 0) {
+							replace_raw(aResponse.Body, "\"totalCount\":5", "\"totalCount\":6");
+						}
+						if (defect == 1) {
+							replace_raw(aResponse.Body, std::string{ head_oid }, std::string{ base_oid });
+						}
+						if (defect == 2) {
+							aResponse.Status = 403;
+							aResponse.Body   = "{}";
+						}
+						if (defect == 3) {
+							replace_raw(aResponse.Body, "\"baseRefName\":\"main\"", "\"baseRefName\":\"foreign\"");
+						}
+						if (defect == 4) {
+							aResponse.Body = R"({"errors":[{"type":"undefinedField","message":"unsupported field"}]})";
+						}
+					}
+				};
+				const auto refused = perform_paged_github_read(transport, enterprise ? enterprise_profile() : profile(), provider_request(enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28), core::provider_snapshot_id{ 56 }, { });
+				expect(refused && refused->ReviewRequests.empty() && refused->ReviewRequestsAvailability != availability::available && refused->Merge.Assessment == application::github_merge_assessment::blocked && !refused->Files.empty(), "partial, moved, denied and unsupported rosters never erase a known merge block or readable PR");
+			}
+		}
+	}
+	void test_review_request_pagination()
+	{
+		for (const auto repeats : { false, true }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			transport.RewriteResponse = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation != read_operation::list_review_requests) {
+					return;
+				}
+				const auto next  = aRequest.Wire.Semantic.Page == 1U || repeats;
+				auto       nodes = fixture_array{ };
+				for (unsigned index = 0; index < (next ? 100U : 1U); ++index) {
+					const auto id = std::to_string(index + (aRequest.Wire.Semantic.Page - 1U) * 100U);
+					nodes.push_back(fixture_object{ { "id", "request-" + id }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "actor-" + id }, { "login", "user-" + id } } } });
+				}
+				if (aRequest.Wire.Semantic.Page == 2U) {
+					expect(aRequest.Wire.Semantic.ReviewCursor == "NEXT", "exact continuation reaches compiled read");
+				}
+				const auto pull = fixture_object{ { "id", "PR_17" }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" }, { "reviewRequests", connection(repeats ? 300U : 101U, nodes, next, std::optional<std::string_view>{ next ? "NEXT" : "END" }) } };
+				aResponse.Body  = fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "pullRequest", pull } } } } } });
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+			expect(result && (repeats ? result->ReviewRequests.empty() && result->ReviewRequestsAvailability == application::github_observation_availability::incomplete : result->ReviewRequests.size() == 101 && result->ReviewRequestsAvailability == application::github_observation_availability::available), "bounded connection exhausts all requests; repeated cursor discards partial roster");
+		}
+	}
+
 }
 
 auto main() -> int
 {
+	test_review_request_pagination();
+	test_review_requirements();
 	test_current_check_details();
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();

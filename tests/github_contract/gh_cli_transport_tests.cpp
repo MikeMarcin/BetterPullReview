@@ -340,13 +340,20 @@ namespace {
 		case read_operation::list_issue_comments:
 		case read_operation::list_pull_request_timeline:
 		case read_operation::list_review_comments:
+		case read_operation::get_merge_assessment:
+		case read_operation::list_review_requests:
 		case read_operation::list_requested_reviewers:
 			request.PullRequestNumber = 17U;
 			break;
 		case read_operation::get_viewer_identity:
 		case read_operation::get_repository:
 		case read_operation::list_checks:
+		case read_operation::list_commit_statuses:
 		case read_operation::search_pull_requests:
+			break;
+		case read_operation::list_branch_rules:
+		case read_operation::get_branch_protection:
+			request.BranchRef = "main";
 			break;
 		case read_operation::search_personal_pull_requests:
 			request.SearchTerms = "author:octo-reviewer";
@@ -446,7 +453,7 @@ namespace {
 		const github_wire_request& aRequest,
 		const server_contract      aServer) -> std::string
 	{
-		if (aRequest.Wire.Operation == read_operation::list_review_threads) {
+		if (graphql_read(aRequest.Wire.Operation)) {
 			return "graphql";
 		}
 		const auto  path = std::string_view{ aRequest.Wire.Path };
@@ -639,6 +646,7 @@ namespace {
 		constexpr auto discovery  = std::array{ read_operation::search_personal_pull_requests, read_operation::list_requested_reviewers };
 		auto           operations = std::vector<read_operation>{ read_operation_catalog.begin(), read_operation_catalog.end() };
 		operations.insert(operations.end(), discovery.begin(), discovery.end());
+		operations.insert(operations.end(), { read_operation::get_merge_assessment, read_operation::list_review_requests, read_operation::list_branch_rules, read_operation::get_branch_protection });
 		for (const auto* profile : { &*cloud, &*enterprise }) {
 			for (const auto operation : operations) {
 				const auto request    = wire_request_for(*profile, operation);

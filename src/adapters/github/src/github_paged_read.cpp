@@ -914,7 +914,7 @@ namespace bpr::adapters::github::detail {
 		expected_rate_limit_resource(const read_operation aOperation) noexcept
 			-> application::github_rate_limit_resource
 		{
-			if (aOperation == read_operation::list_review_threads) {
+			if (graphql_read(aOperation)) {
 				return application::github_rate_limit_resource::graphql;
 			}
 			if (aOperation == read_operation::search_pull_requests
@@ -1208,7 +1208,7 @@ namespace bpr::adapters::github::detail {
 						return metadataFailed(application::github_provider_failure::malformed_response);
 					}
 					auto document = std::move(*parsed);
-					if (aSemantic.Operation == read_operation::list_review_threads
+					if (graphql_read(aSemantic.Operation)
 						&& json_is_object(document) && json_object(document).contains("errors")) {
 						const auto structuredRateLimit = graphql_error_rate_limited(
 							json_member(json_object(document), "errors"));
@@ -1234,8 +1234,11 @@ namespace bpr::adapters::github::detail {
 										   : std::nullopt),
 								secondary);
 						}
-						return metadataFailed(
-							application::github_provider_failure::malformed_response);
+						const auto errors = json_member(json_object(document), "errors");
+						if (json_is_array(errors) && std::ranges::any_of(json_array(errors), [](const auto& aError) { return text(json_member(json_object(aError), "type")) == "undefinedField"; })) {
+							return metadataFailed(application::github_provider_failure::unsupported_capability);
+						}
+						return metadataFailed(application::github_provider_failure::malformed_response);
 					}
 					if (metadata->RetryAfterSeconds.has_value()) {
 						return metadataFailed(
@@ -1344,6 +1347,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_threads:
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
+			case read_operation::list_review_requests:
+			case read_operation::get_merge_assessment:
 			case read_operation::list_requested_reviewers:
 				result.PullRequestNumber = aContext.Number.value();
 				break;
@@ -1352,6 +1357,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
 				break;
 			}
@@ -1491,7 +1498,11 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_pull_request:
 			case read_operation::list_review_threads:
 			case read_operation::search_pull_requests:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
+			case read_operation::list_review_requests:
+			case read_operation::get_merge_assessment:
 			case read_operation::list_requested_reviewers:
 				return std::nullopt;
 			}
@@ -2883,6 +2894,9 @@ namespace bpr::adapters::github::detail {
 			}
 			if (const auto app = json_member(object, "app"); json_is_object(app)) {
 				result.Producer = optionalText(json_member(json_object(app), "slug"));
+				if (exact_integer(json_member(json_object(app), "id"), true)) {
+					result.AppId = integer(json_member(json_object(app), "id"));
+				}
 			}
 			return result;
 		}
@@ -3430,6 +3444,420 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 			aSnapshot.ReviewThreadsAvailability = application::github_collection_availability::available;
+			return { };
+		}
+
+		using observation = application::github_observation_availability;
+
+		[[nodiscard]] auto observation_failure(const github_paged_read_failure& aFailure) -> observation
+		{
+			const auto* failure = std::get_if<application::github_provider_error>(&aFailure);
+			if (!failure) {
+				return observation::failed;
+			}
+			switch (failure->Failure) {
+			case application::github_provider_failure::permission:
+			case application::github_provider_failure::authentication:         return observation::permission;
+			case application::github_provider_failure::api_version:
+			case application::github_provider_failure::unsupported_capability: return observation::unsupported;
+			case application::github_provider_failure::response_limit:
+			case application::github_provider_failure::malformed_response:     return observation::incomplete;
+			default:                                                           return observation::failed;
+			}
+		}
+
+		[[nodiscard]] auto merge_pull_object(const parsed_page& aPage, const application::github_pull_request_snapshot& aSnapshot)
+			-> std::expected<page_json_object, github_paged_read_failure>
+		{
+			auto data = page_json_object{ }, repository = page_json_object{ }, pull = page_json_object{ };
+			if (const auto identity = graphql_repository_and_pull_request(aPage, aSnapshot.Repository, aSnapshot.PullRequest, &data, &repository, &pull); !identity) {
+				return std::unexpected{ identity.error() };
+			}
+			if (text(json_member(pull, "baseRefOid")) != aSnapshot.PullRequest.BaseOid.value() || text(json_member(pull, "baseRefName")) != aSnapshot.PullRequest.BaseRef) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			return pull;
+		}
+
+		[[nodiscard]] auto read_merge_assessment(production_read_execution& aExecution, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot)
+			-> std::expected<void, github_paged_read_failure>
+		{
+			const auto page = aExecution.fetch(semantic_request_for(aServer, aContext, read_operation::get_merge_assessment));
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			const auto pull = merge_pull_object(*page, aSnapshot);
+			if (!pull) {
+				return std::unexpected{ pull.error() };
+			}
+			const auto state = json_member(*pull, "mergeStateStatus"), review = json_member(*pull, "reviewDecision"), automatic = json_member(*pull, "autoMergeRequest");
+			if (!one_of(state, { "UNKNOWN", "BEHIND", "BLOCKED", "CLEAN", "DIRTY", "DRAFT", "HAS_HOOKS", "UNSTABLE" }) || (!json_is_null(review) && !one_of(review, { "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED" })) || (!json_is_null(automatic) && (!json_is_object(automatic) || !has_exact_keys(json_object(automatic), { "enabledAt" })))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto value             = text(state);
+			using assessment             = application::github_merge_assessment;
+			aSnapshot.Merge.Assessment   = value == "BEHIND" ? assessment::behind : value == "BLOCKED" ? assessment::blocked
+				: value == "CLEAN"                                                                     ? assessment::clean
+				: value == "DIRTY"                                                                     ? assessment::conflicts
+				: value == "DRAFT"                                                                     ? assessment::draft
+				: value == "HAS_HOOKS"                                                                 ? assessment::hooks
+				: value == "UNSTABLE"                                                                  ? assessment::unstable
+																									   : assessment::unknown;
+			using decision               = application::github_review_decision;
+			aSnapshot.Merge.Review       = text(review) == "APPROVED" ? decision::approved : text(review) == "CHANGES_REQUESTED" ? decision::changes_requested
+				: text(review) == "REVIEW_REQUIRED"                                                                              ? decision::required
+																																 : decision::unknown;
+			aSnapshot.Merge.AutoMerge    = !json_is_null(automatic);
+			aSnapshot.Merge.Availability = observation::available;
+			return { };
+		}
+
+		[[nodiscard]] auto parse_pending_request(const page_json_value& aValue) -> std::expected<application::github_review_request_record, github_paged_read_failure>
+		{
+			if (!json_is_object(aValue)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto object = json_object(aValue);
+			if (!has_exact_keys(object, { "id", "asCodeOwner", "requestedReviewer" }) || !nonempty_string(json_member(object, "id")) || !json_is_bool(json_member(object, "asCodeOwner"))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto result        = application::github_review_request_record{ };
+			result.Request     = text(json_member(object, "id"));
+			result.AsCodeOwner = json_bool(json_member(object, "asCodeOwner"));
+			const auto actor   = json_member(object, "requestedReviewer");
+			if (json_is_null(actor)) {
+				return result;
+			}
+			if (!json_is_object(actor) || !nonempty_string(json_member(json_object(actor), "__typename"))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto fields = json_object(actor);
+			const auto kind   = text(json_member(fields, "__typename"));
+			if (kind != "Team" && kind != "User") {
+				return result;
+			}
+			if (!nonempty_string(json_member(fields, "id"))) {
+				return result;
+			}
+			result.Actor = text(json_member(fields, "id"));
+			result.Login = text(json_member(fields, kind == "Team" ? "slug" : "login"));
+			if (result.Login.empty()) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			if (kind == "Team") {
+				const auto org = json_member(fields, "organization");
+				if (!json_is_object(org) || !nonempty_string(json_member(json_object(org), "login"))) {
+					result.Actor.clear();
+					result.Login.clear();
+					return result;
+				}
+				result.Kind         = application::github_requested_actor_kind::team;
+				result.Organization = text(json_member(json_object(org), "login"));
+				result.Name         = text(json_member(fields, "name"));
+			} else {
+				result.Kind = application::github_requested_actor_kind::user;
+			}
+			return result;
+		}
+
+		[[nodiscard]] auto read_pending_requests(production_read_execution& aExecution, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot, const github_paged_read_limits& aLimits)
+			-> std::expected<void, github_paged_read_failure>
+		{
+			auto                         output  = std::vector<application::github_review_request_record>{ };
+			auto                         cursors = std::unordered_set<std::string>{ }, requests = std::unordered_set<std::string>{ }, actors = std::unordered_set<std::string>{ };
+			auto                         semantic = semantic_request_for(aServer, aContext, read_operation::list_review_requests);
+			std::optional<std::uint64_t> expected;
+			while (true) {
+				const auto page = aExecution.fetch(semantic);
+				if (!page) {
+					return std::unexpected{ page.error() };
+				}
+				const auto pull = merge_pull_object(*page, aSnapshot);
+				if (!pull) {
+					return std::unexpected{ pull.error() };
+				}
+				const auto connection = parse_graphql_connection(json_member(*pull, "reviewRequests"), aLimits);
+				if (!connection) {
+					return std::unexpected{ connection.error() };
+				}
+				if ((expected && *expected != connection->TotalCount) || connection->TotalCount > 1000U) {
+					return failed(application::github_provider_failure::response_limit);
+				}
+				expected = connection->TotalCount;
+				for (const auto& node : connection->Nodes) {
+					const auto record = parse_pending_request(node);
+					if (!record) {
+						return std::unexpected{ record.error() };
+					}
+					if (!requests.insert(record->Request).second || (!record->Actor.empty() && !actors.insert(record->Actor).second)) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					output.push_back(*record);
+				}
+				if (!connection->NextCursor) {
+					if (output.size() != *expected) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					aSnapshot.ReviewRequests             = std::move(output);
+					aSnapshot.ReviewRequestsAvailability = observation::available;
+					return { };
+				}
+				if (semantic.Page == 10U || !cursors.insert(*connection->NextCursor).second || output.size() >= *expected) {
+					return failed(application::github_provider_failure::response_limit);
+				}
+				semantic.ReviewCursor = *connection->NextCursor;
+				++semantic.Page;
+			}
+		}
+
+		[[nodiscard]] auto read_rest_pending_requests(production_read_execution& aExecution, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot) -> std::expected<void, github_paged_read_failure>
+		{
+			const auto page = aExecution.fetch(semantic_request_for(aServer, aContext, read_operation::list_requested_reviewers));
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			if (!singleton_complete(*page) || !json_is_object(page->Document)) {
+				return failed(application::github_provider_failure::response_limit);
+			}
+			const auto object = json_object(page->Document);
+			if (!json_is_array(json_member(object, "users")) || !json_is_array(json_member(object, "teams"))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto records = std::vector<application::github_review_request_record>{ };
+			auto seen    = std::unordered_set<std::string>{ };
+			for (const auto& key : { "users", "teams" }) {
+				for (const auto& actor : json_array(json_member(object, key))) {
+					if (!json_is_object(actor)) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					const auto fields = json_object(actor);
+					auto       result = application::github_review_request_record{ };
+					result.Actor      = text(json_member(fields, "node_id"));
+					result.Login      = text(json_member(fields, std::string_view{ key } == "users" ? "login" : "slug"));
+					if (result.Actor.empty() || result.Login.empty() || !seen.insert(result.Actor).second) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					result.Request = "rest:" + result.Actor;
+					result.Kind    = std::string_view{ key } == "users" ? application::github_requested_actor_kind::user : application::github_requested_actor_kind::team;
+					if (result.Kind == application::github_requested_actor_kind::team) {
+						result.Organization = aSnapshot.Repository.Owner;
+						result.Name         = text(json_member(fields, "name"));
+					}
+					records.push_back(std::move(result));
+				}
+			}
+			aSnapshot.ReviewRequests = std::move(records);
+			// REST establishes actor identities, never code-owner origin. Keep the
+			// richer connection's actual availability beside this usable roster.
+			return { };
+		}
+
+		[[nodiscard]] auto parse_required_checks(const page_json_value& aValue, const std::string_view aAppKey) -> std::expected<std::vector<application::github_required_check>, github_paged_read_failure>
+		{
+			if (!json_is_array(aValue)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto checks = std::vector<application::github_required_check>{ };
+			for (const auto& value : json_array(aValue)) {
+				if (!json_is_object(value) || !nonempty_string(json_member(json_object(value), "context"))) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				auto check     = application::github_required_check{ };
+				check.Context  = text(json_member(json_object(value), "context"));
+				const auto app = json_member(json_object(value), aAppKey);
+				if (!json_is_null(app) && !json_is_undefined(app)) {
+					// Classic -1 permits any app, as does a null integration.
+					std::int64_t appNumber = 0;
+					if (glz::read<page_json_options{ }>(appNumber, app.Json) || appNumber != -1) {
+						if (!exact_integer(app, true)) {
+							return failed(application::github_provider_failure::malformed_response);
+						}
+						check.AppId = integer(app);
+					}
+				}
+				checks.push_back(std::move(check));
+			}
+			return checks;
+		}
+
+		[[nodiscard]] auto parse_branch_rule(const page_json_value& aValue) -> std::expected<application::github_branch_requirement, github_paged_read_failure>
+		{
+			if (!json_is_object(aValue)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto object = json_object(aValue);
+			if (!nonempty_string(json_member(object, "type")) || !one_of(json_member(object, "ruleset_source_type"), { "Repository", "Organization", "Enterprise" }) || !nonempty_string(json_member(object, "ruleset_source")) || !exact_integer(json_member(object, "ruleset_id"), true)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto result       = application::github_branch_requirement{ };
+			result.Type       = text(json_member(object, "type"));
+			result.Source     = text(json_member(object, "ruleset_source"));
+			result.SourceKind = text(json_member(object, "ruleset_source_type"));
+			result.RulesetId  = integer(json_member(object, "ruleset_id"));
+			const auto params = json_object(json_member(object, "parameters"));
+			if (result.Type == "pull_request") {
+				const auto minimum = json_member(params, "required_approving_review_count");
+				if (!exact_integer(minimum) || integer(minimum) > 100U || !json_is_bool(json_member(params, "require_code_owner_review")) || !json_is_bool(json_member(params, "require_last_push_approval")) || !json_is_bool(json_member(params, "dismiss_stale_reviews_on_push"))) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				result.ApprovalMinimum     = static_cast<std::uint32_t>(integer(minimum));
+				result.CodeOwners          = json_bool(json_member(params, "require_code_owner_review"));
+				result.LastPushApproval    = json_bool(json_member(params, "require_last_push_approval"));
+				result.DismissStaleReviews = json_bool(json_member(params, "dismiss_stale_reviews_on_push"));
+				if (json_is_bool(json_member(params, "required_review_thread_resolution")) && json_bool(json_member(params, "required_review_thread_resolution"))) {
+					result.Type = "pull_request_and_conversation_resolution";
+				}
+				const auto teams = json_member(params, "required_reviewers");
+				if (!json_is_undefined(teams)) {
+					if (!json_is_array(teams)) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					for (const auto& team : json_array(teams)) {
+						const auto fields = json_object(team), reviewer = json_object(json_member(fields, "reviewer"));
+						const auto count = json_member(fields, "minimum_approvals");
+						if (text(json_member(reviewer, "type")) != "Team" || !exact_integer(json_member(reviewer, "id"), true) || !exact_integer(count) || integer(count) > 100U) {
+							return failed(application::github_provider_failure::malformed_response);
+						}
+						result.RequiredTeams.emplace_back(integer(json_member(reviewer, "id")), static_cast<std::uint32_t>(integer(count)));
+					}
+				}
+			} else if (result.Type == "required_status_checks") {
+				const auto checks = parse_required_checks(json_member(params, "required_status_checks"), "integration_id");
+				if (!checks) {
+					return std::unexpected{ checks.error() };
+				}
+				if (!json_is_bool(json_member(params, "strict_required_status_checks_policy"))) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				result.Checks       = *checks;
+				result.StrictChecks = json_bool(json_member(params, "strict_required_status_checks_policy"));
+			}
+			return result;
+		}
+
+		[[nodiscard]] auto read_classic_protection(production_read_execution& aExecution, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot) -> std::expected<void, github_paged_read_failure>
+		{
+			auto semantic      = semantic_request_for(aServer, aContext, read_operation::get_branch_protection);
+			semantic.BranchRef = aSnapshot.PullRequest.BaseRef;
+			const auto page    = aExecution.fetch(semantic);
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			if (!singleton_complete(*page) || !json_is_object(page->Document)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto fields = json_object(page->Document);
+			if (!nonempty_string(json_member(fields, "url"))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto       records = std::vector<application::github_branch_requirement>{ };
+			const auto reviews = json_member(fields, "required_pull_request_reviews");
+			if (!json_is_null(reviews) && !json_is_undefined(reviews)) {
+				const auto params  = json_object(reviews);
+				const auto minimum = json_member(params, "required_approving_review_count");
+				if (!json_is_object(reviews) || !exact_integer(minimum) || integer(minimum) > 100U || !json_is_bool(json_member(params, "require_code_owner_reviews")) || !json_is_bool(json_member(params, "dismiss_stale_reviews"))) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				auto rule                = application::github_branch_requirement{ };
+				rule.Type                = "pull_request";
+				rule.ApprovalMinimum     = static_cast<std::uint32_t>(integer(minimum));
+				rule.CodeOwners          = json_bool(json_member(params, "require_code_owner_reviews"));
+				rule.DismissStaleReviews = json_bool(json_member(params, "dismiss_stale_reviews"));
+				rule.LastPushApproval    = json_bool(json_member(params, "require_last_push_approval"));
+				records.push_back(std::move(rule));
+			}
+			const auto status = json_member(fields, "required_status_checks");
+			if (!json_is_null(status) && !json_is_undefined(status)) {
+				const auto params = json_object(status);
+				const auto checks = parse_required_checks(json_member(params, "checks"), "app_id");
+				if (!checks || !json_is_bool(json_member(params, "strict"))) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				auto rule         = application::github_branch_requirement{ };
+				rule.Type         = "required_status_checks";
+				rule.Checks       = *checks;
+				rule.StrictChecks = json_bool(json_member(params, "strict"));
+				records.push_back(std::move(rule));
+			}
+			for (const auto& type : { "required_conversation_resolution", "required_signatures", "required_linear_history" }) {
+				const auto value = json_member(fields, type);
+				if (json_is_object(value) && json_bool(json_member(json_object(value), "enabled"))) {
+					auto rule = application::github_branch_requirement{ };
+					rule.Type = type;
+					records.push_back(std::move(rule));
+				}
+			}
+			for (auto& record : records) {
+				record.Source     = aSnapshot.PullRequest.BaseRef;
+				record.SourceKind = "Classic branch protection";
+			}
+			aSnapshot.BranchPolicy.Protection             = std::move(records);
+			aSnapshot.BranchPolicy.ProtectionAvailability = observation::available;
+			return { };
+		}
+
+		[[nodiscard]] auto read_merge_requirements(production_read_execution& aExecution, const validated_github_host_profile& aProfile, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot, const github_paged_read_limits& aLimits) -> std::expected<void, github_paged_read_failure>
+		{
+			const auto assessment = read_merge_assessment(aExecution, aServer, aContext, aSnapshot);
+			if (!assessment) {
+				if (std::holds_alternative<github_paged_read_cancelled>(assessment.error())) {
+					return std::unexpected{ assessment.error() };
+				}
+				aSnapshot.Merge.Availability = observation_failure(assessment.error());
+			}
+			const auto requests = read_pending_requests(aExecution, aServer, aContext, aSnapshot, aLimits);
+			if (!requests) {
+				if (std::holds_alternative<github_paged_read_cancelled>(requests.error())) {
+					return std::unexpected{ requests.error() };
+				}
+				aSnapshot.ReviewRequestsAvailability = observation_failure(requests.error());
+				const auto fallback                  = read_rest_pending_requests(aExecution, aServer, aContext, aSnapshot);
+				if (!fallback && std::holds_alternative<github_paged_read_cancelled>(fallback.error())) {
+					return std::unexpected{ fallback.error() };
+				}
+			}
+			auto semantic      = semantic_request_for(aServer, aContext, read_operation::list_branch_rules);
+			semantic.BranchRef = aSnapshot.PullRequest.BaseRef;
+			auto       rules   = std::vector<application::github_branch_requirement>{ };
+			const auto read    = read_rest_array_collection(aExecution, aProfile, semantic, rules, 1000U, aLimits.MaximumPageRecords, parse_branch_rule);
+			if (read) {
+				aSnapshot.BranchPolicy.Rules             = std::move(rules);
+				aSnapshot.BranchPolicy.RulesAvailability = observation::available;
+			} else {
+				if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
+					return std::unexpected{ read.error() };
+				}
+				aSnapshot.BranchPolicy.RulesAvailability = observation_failure(read.error());
+			}
+			const auto protection = read_classic_protection(aExecution, aServer, aContext, aSnapshot);
+			if (!protection) {
+				if (std::holds_alternative<github_paged_read_cancelled>(protection.error())) {
+					return std::unexpected{ protection.error() };
+				}
+				aSnapshot.BranchPolicy.ProtectionAvailability = observation_failure(protection.error());
+			}
+			const auto validCollection = [&](const application::github_pull_request_snapshot& aRecords) {
+				auto budget = application::detail::github_text_budget{ aLimits.Records };
+				return application::detail::validate_merge_observations(aRecords, budget, aLimits.Records) == application::github_read_validation_error::none;
+			};
+			auto records           = application::github_pull_request_snapshot{ };
+			records.ReviewRequests = aSnapshot.ReviewRequests;
+			if (!validCollection(records)) {
+				aSnapshot.ReviewRequests.clear();
+				aSnapshot.ReviewRequestsAvailability = observation::incomplete;
+			}
+			records.ReviewRequests.clear();
+			records.BranchPolicy.Rules = aSnapshot.BranchPolicy.Rules;
+			if (!validCollection(records)) {
+				aSnapshot.BranchPolicy.Rules.clear();
+				aSnapshot.BranchPolicy.RulesAvailability = observation::incomplete;
+			}
+			records.BranchPolicy.Rules.clear();
+			records.BranchPolicy.Protection = aSnapshot.BranchPolicy.Protection;
+			if (!validCollection(records)) {
+				aSnapshot.BranchPolicy.Protection.clear();
+				aSnapshot.BranchPolicy.ProtectionAvailability = observation::incomplete;
+			}
 			return { };
 		}
 
@@ -4542,6 +4970,22 @@ namespace bpr::adapters::github::detail {
 			if (!search.has_value()) {
 				return std::unexpected{ execution.enrich(search.error()) };
 			}
+			if (aReadAuthority != github_provider_read_authority::anonymous_public) {
+				// Optional explanation has a separate small aggregate budget. It
+				// cannot exhaust essential PR reads or change their diagnostic origin.
+				auto requirementLimits                          = aLimits;
+				requirementLimits.MaximumTotalPages             = std::min(requirementLimits.MaximumTotalPages, std::size_t{ 32 });
+				requirementLimits.MaximumAggregateResponseBytes = std::min(requirementLimits.MaximumAggregateResponseBytes, std::size_t{ 8U * 1024U * 1024U });
+				production_read_execution requirementExecution{ aTransport, aProfile, aRequest.Context, requirementLimits, aStop, observedRateLimits, aRequest.AuthenticationSession, nullptr };
+				if (!requirementExecution.bind_repository(result.Repository.Repository)) {
+					return execution.terminal_failure(application::github_provider_failure::malformed_response);
+				}
+				const auto requirements = read_merge_requirements(requirementExecution, aProfile, *server, aRequest.Context, result, requirementLimits);
+				if (!requirements) {
+					return std::unexpected{ requirements.error() };
+				}
+			}
+
 			// Received rows participate in ordinary validation even when their
 			// search will be refused. No staged snapshot is published here.
 			result.SearchAvailability = application::github_search_availability::available;
@@ -4560,6 +5004,20 @@ namespace bpr::adapters::github::detail {
 				: core::github_access_mode::authenticated;
 			result.RateLimits = execution.rate_limits();
 			auto validation   = application::validate(result, aRequest.Context, aLimits.Records);
+			if (!validation.valid() && (validation.Error == application::github_read_validation_error::total_text_too_large || validation.Error == application::github_read_validation_error::collection_too_large)) {
+				// Prefer accessible requests when optional policy details exhaust
+				// the combined snapshot bound. Essential PR content stays usable.
+				result.BranchPolicy.Rules.clear();
+				result.BranchPolicy.Protection.clear();
+				result.BranchPolicy.RulesAvailability      = observation::incomplete;
+				result.BranchPolicy.ProtectionAvailability = observation::incomplete;
+				validation                                 = application::validate(result, aRequest.Context, aLimits.Records);
+				if (!validation.valid()) {
+					result.ReviewRequests.clear();
+					result.ReviewRequestsAvailability = observation::incomplete;
+					validation                        = application::validate(result, aRequest.Context, aLimits.Records);
+				}
+			}
 			if (!validation.valid() && !result.Checks.empty()) {
 				// Optional result detail cannot spend away otherwise readable PR facts.
 				result.Checks.clear();

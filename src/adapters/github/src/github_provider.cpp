@@ -57,6 +57,10 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::list_review_comments;
 			case read_operation::list_pull_request_timeline:
 				return application::diagnostic_paged_operation::list_pull_request_timeline;
+			case read_operation::get_merge_assessment:
+			case read_operation::list_review_requests:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 			case read_operation::search_personal_pull_requests:
 			case read_operation::list_requested_reviewers:
 				// [[BPR-0988]]. Discovery is not part of a pull request read.

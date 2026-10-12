@@ -599,7 +599,7 @@ namespace bpr::adapters::github::detail {
 			const wire_request&                  aWire) -> std::optional<std::string>
 		{
 			std::string endpoint;
-			if (aWire.Operation == read_operation::list_review_threads) {
+			if (graphql_read(aWire.Operation)) {
 				endpoint = "graphql";
 			} else if (
 				aProfile.server_contract()
@@ -1649,7 +1649,7 @@ namespace bpr::adapters::github::detail {
 		}
 		// A nonzero 2xx may carry incomplete data; never infer success from JSON.
 		if (result->ExitCode != 0 && response->Status < 300) {
-			if (aRequest.Correlation.Operation == read_operation::list_review_threads) {
+			if (graphql_read(aRequest.Correlation.Operation)) {
 				return github_wire_error{ .Correlation = aRequest.Correlation, .Error = completed_graphql_failure(*response) };
 			}
 			return wire_error(aRequest, application::github_provider_failure::unavailable);

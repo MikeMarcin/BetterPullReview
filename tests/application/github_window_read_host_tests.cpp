@@ -1013,10 +1013,72 @@ namespace {
 		now.MonotonicMilliseconds += 8000;
 		expect(!bounded.refusal(profile, viewer, true), "bounded registry recovers after overflow minimum");
 	}
+	void test_merge_observation_freshness()
+	{
+		reads                                provider;
+		application::manual_executor         lane;
+		application::github_window_read_host host{ { core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 2 }, provider, lane, [](const auto&) { } };
+		expect(host.adopt(session()), "optional merge course adopts exact account");
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+		auto call                           = provider.Calls.back();
+		auto accepted                       = snapshot(call.Request);
+		accepted.Merge.Availability         = application::github_observation_availability::available;
+		accepted.Merge.Assessment           = application::github_merge_assessment::blocked;
+		accepted.Merge.Review               = application::github_review_decision::required;
+		accepted.ReviewRequestsAvailability = application::github_observation_availability::available;
+		auto request                        = application::github_review_request_record{ };
+		request.Request                     = "request";
+		request.Actor                       = "team";
+		request.Login                       = "owners";
+		request.Organization                = "owner";
+		request.AsCodeOwner                 = true;
+		request.Kind                        = application::github_requested_actor_kind::team;
+		accepted.ReviewRequests.push_back(request);
+		call.Complete(application::github_pull_request_success{ call.Request, accepted });
+		lane.drain();
+		for (int repetition = 0; repetition < 2; ++repetition) {
+			host.dispatch(core::refresh_pull_request_intent{ });
+			call                                   = provider.Calls.back();
+			auto unavailable                       = snapshot(call.Request);
+			unavailable.Merge.Availability         = application::github_observation_availability::permission;
+			unavailable.ReviewRequestsAvailability = application::github_observation_availability::incomplete;
+			call.Complete(application::github_pull_request_success{ call.Request, unavailable });
+			lane.drain();
+			expect(host.accepted_snapshot()->Merge.Stale && host.accepted_snapshot()->Merge.Assessment == application::github_merge_assessment::blocked && host.accepted_snapshot()->ReviewRequestsStale && host.accepted_snapshot()->ReviewRequests.size() == 1, "repeated optional failure retains exact same-head block and roster as explicitly stale");
+		}
+		host.dispatch(core::refresh_pull_request_intent{ });
+		call                               = provider.Calls.back();
+		auto removed                       = snapshot(call.Request);
+		removed.ReviewRequestsAvailability = application::github_observation_availability::available;
+		removed.Merge.Availability         = application::github_observation_availability::available;
+		removed.Merge.Review               = application::github_review_decision::approved;
+		call.Complete(application::github_pull_request_success{ call.Request, removed });
+		lane.drain();
+		expect(host.accepted_snapshot()->ReviewRequests.empty() && !host.accepted_snapshot()->ReviewRequestsStale && !host.accepted_snapshot()->Merge.Stale, "accepted removal and approval replace retained stale requests");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		const auto late = provider.Calls.back();
+		host.cancel();
+		lane.drain();
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 2 } });
+		late.Complete(application::github_pull_request_success{ late.Request, accepted });
+		lane.drain();
+		expect(!host.accepted_snapshot() || host.accepted_snapshot()->PullRequest.Number.value() != 2, "late merge facts cannot cross replacement identity");
+		call                          = provider.Calls.back();
+		auto different                = snapshot(call.Request);
+		different.PullRequest.HeadOid = application::commit_oid{ std::string(40, '3') };
+		call.Complete(application::github_pull_request_success{ call.Request, different });
+		lane.drain();
+		expect(host.accepted_snapshot()->PullRequest.Number.value() == 2 && host.accepted_snapshot()->ReviewRequests.empty() && !host.accepted_snapshot()->Merge.Stale, "replacement head never borrows stale requirements");
+		host.shutdown();
+		lane.drain();
+		expect(host.is_quiescent(), "optional merge lifecycle quiesces");
+	}
+
 }
 
 int main()
 {
+	test_merge_observation_freshness();
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
 	test_pull_request_page_admission();

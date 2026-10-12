@@ -347,18 +347,89 @@ namespace bpr::application {
 	/// \brief One current result on a known commit; requiredness is observed separately.
 	struct github_check_record
 	{
-		github_check_id         Check;
-		std::string             Name;
-		github_check_status     Status     = github_check_status::uninitialized;
-		github_check_conclusion Conclusion = github_check_conclusion::uninitialized;
-		github_check_source     Source     = github_check_source::check_run;
-		std::string             Producer;
-		std::string             Description;
-		std::string             DetailsUrl;
-		commit_oid              EvaluatedOid;
-		bool                    StatusError = false;
+		github_check_id              Check;
+		std::string                  Name;
+		github_check_status          Status     = github_check_status::uninitialized;
+		github_check_conclusion      Conclusion = github_check_conclusion::uninitialized;
+		github_check_source          Source     = github_check_source::check_run;
+		std::string                  Producer;
+		std::string                  Description;
+		std::string                  DetailsUrl;
+		commit_oid                   EvaluatedOid;
+		bool                         StatusError = false;
+		std::optional<std::uint64_t> AppId;
 
 		auto operator<=>(const github_check_record&) const = default;
+	};
+
+	/// \brief Availability of one independently bounded optional observation.
+	enum class github_observation_availability : std::uint8_t { unobserved,
+																available,
+																permission,
+																unsupported,
+																incomplete,
+																failed };
+	enum class github_requested_actor_kind : std::uint8_t { unavailable,
+															user,
+															team };
+	/// \brief One outstanding request; code-owner origin is independent of actor identity.
+	struct github_review_request_record
+	{
+		std::string                 Request, Actor, Login, Organization, Name;
+		github_requested_actor_kind Kind = github_requested_actor_kind::unavailable;
+		std::optional<bool>         AsCodeOwner;
+		auto                        operator<=>(const github_review_request_record&) const = default;
+	};
+	enum class github_merge_assessment : std::uint8_t { unknown,
+														behind,
+														blocked,
+														clean,
+														conflicts,
+														draft,
+														hooks,
+														unstable };
+	enum class github_review_decision : std::uint8_t { unknown,
+													   required,
+													   approved,
+													   changes_requested };
+	/// \brief Server assessment bound to the accepted PR/head/base; grants no merge authority.
+	struct github_merge_observation
+	{
+		github_observation_availability Availability = github_observation_availability::unobserved;
+		github_merge_assessment         Assessment   = github_merge_assessment::unknown;
+		github_review_decision          Review       = github_review_decision::unknown;
+		std::optional<bool>             AutoMerge;
+		bool                            Stale                                              = false;
+		auto                            operator<=>(const github_merge_observation&) const = default;
+	};
+	/// \brief A check context required by an applicable branch policy, optionally tied to an app.
+	struct github_required_check
+	{
+		std::string                  Context;
+		std::optional<std::uint64_t> AppId;
+		auto                         operator<=>(const github_required_check&) const = default;
+	};
+	/// \brief An applicable server-selected rule. No local CODEOWNERS or rule evaluation.
+	struct github_branch_requirement
+	{
+		std::string                        Type, Source, SourceKind;
+		std::uint64_t                      RulesetId = 0;
+		std::optional<std::uint32_t>       ApprovalMinimum;
+		bool                               CodeOwners = false, StrictChecks = false, LastPushApproval = false, DismissStaleReviews = false;
+		std::vector<github_required_check> Checks;
+		// Separate team-review rules retain the server's numeric identity and
+		// minimum. Their file-pattern applicability is not evaluated locally.
+		std::vector<std::pair<std::uint64_t, std::uint32_t>> RequiredTeams;
+		auto                                                 operator<=>(const github_branch_requirement&) const = default;
+	};
+	/// \brief Policy details for the accepted target; availability remains separate per source.
+	struct github_branch_policy_observation
+	{
+		github_observation_availability        RulesAvailability      = github_observation_availability::unobserved;
+		github_observation_availability        ProtectionAvailability = github_observation_availability::unobserved;
+		std::vector<github_branch_requirement> Rules, Protection;
+		bool                                   RulesStale = false, ProtectionStale = false;
+		auto                                   operator<=>(const github_branch_policy_observation&) const = default;
 	};
 
 	/// \brief Distinguishes complete repository search from a refused result set.
@@ -662,6 +733,12 @@ namespace bpr::application {
 		core::github_access_mode             Mode{ };
 		github_timeline_availability         TimelineAvailability = github_timeline_availability::unavailable;
 		std::vector<github_force_push_event> ForcePushEvents;
+
+		github_observation_availability           ReviewRequestsAvailability = github_observation_availability::unobserved;
+		std::vector<github_review_request_record> ReviewRequests;
+		bool                                      ReviewRequestsStale = false;
+		github_merge_observation                  Merge;
+		github_branch_policy_observation          BranchPolicy;
 
 		auto operator<=>(const github_pull_request_snapshot&) const = default;
 	};
@@ -1646,6 +1723,57 @@ namespace bpr::application {
 			return github_read_validation_error::none;
 		}
 
+		[[nodiscard]] inline auto validate_merge_observations(const github_pull_request_snapshot& aSnapshot, github_text_budget& aBudget, const github_read_limits& aLimits) -> github_read_validation_error
+		{
+			const auto available = [](github_observation_availability aValue) { return aValue >= github_observation_availability::unobserved && aValue <= github_observation_availability::failed; };
+			if (!available(aSnapshot.ReviewRequestsAvailability) || !available(aSnapshot.Merge.Availability) || !available(aSnapshot.BranchPolicy.RulesAvailability) || !available(aSnapshot.BranchPolicy.ProtectionAvailability) || aSnapshot.Merge.Assessment > github_merge_assessment::unstable || aSnapshot.Merge.Review > github_review_decision::changes_requested) {
+				return github_read_validation_error::invalid_enum;
+			}
+			if (aSnapshot.ReviewRequests.size() > 1000U || aSnapshot.BranchPolicy.Rules.size() > 1000U || aSnapshot.BranchPolicy.Protection.size() > 1000U) {
+				return github_read_validation_error::collection_too_large;
+			}
+			auto identities = std::unordered_set<std::string_view>{ }, actors = std::unordered_set<std::string_view>{ };
+			for (const auto& request : aSnapshot.ReviewRequests) {
+				if (request.Kind > github_requested_actor_kind::team || !identities.insert(request.Request).second || (!request.Actor.empty() && !actors.insert(request.Actor).second)) {
+					return github_read_validation_error::duplicate_identity;
+				}
+				for (const auto& value : { std::string_view{ request.Request }, std::string_view{ request.Actor }, std::string_view{ request.Login }, std::string_view{ request.Organization }, std::string_view{ request.Name } }) {
+					if (const auto error = aBudget.consume(value, aLimits.MaximumDisplayNameBytes); error != github_read_validation_error::none) {
+						return error;
+					}
+				}
+				if (request.Request.empty() || (request.Kind != github_requested_actor_kind::unavailable && (request.Actor.empty() || request.Login.empty())) || (request.Kind == github_requested_actor_kind::team && request.Organization.empty())) {
+					return github_read_validation_error::missing_identity;
+				}
+			}
+			for (const auto* rules : { &aSnapshot.BranchPolicy.Rules, &aSnapshot.BranchPolicy.Protection }) {
+				for (const auto& rule : *rules) {
+					for (const auto& value : { std::string_view{ rule.Type }, std::string_view{ rule.Source }, std::string_view{ rule.SourceKind } }) {
+						if (const auto error = aBudget.consume(value, aLimits.MaximumDisplayNameBytes, true); error != github_read_validation_error::none) {
+							return error;
+						}
+					}
+					if ((rule.ApprovalMinimum && *rule.ApprovalMinimum > 100U) || rule.Checks.size() > 100U || rule.RequiredTeams.size() > 100U) {
+						return github_read_validation_error::collection_too_large;
+					}
+					for (const auto& check : rule.Checks) {
+						if (check.AppId && !*check.AppId) {
+							return github_read_validation_error::missing_identity;
+						}
+						if (const auto error = aBudget.consume(check.Context, aLimits.MaximumCheckNameBytes, true); error != github_read_validation_error::none) {
+							return error;
+						}
+					}
+					for (const auto& [identity, minimum] : rule.RequiredTeams) {
+						if (!identity || minimum > 100U) {
+							return github_read_validation_error::invalid_relationship;
+						}
+					}
+				}
+			}
+			return github_read_validation_error::none;
+		}
+
 		[[nodiscard]] inline auto validate_unique_identities(
 			const github_pull_request_snapshot&         aSnapshot,
 			std::optional<github_actor_login_conflict>& aConflict)
@@ -2123,7 +2251,10 @@ namespace bpr::application {
 			return true;
 		};
 		if (
-			!addRecords(aSnapshot.Commits.size())
+			!addRecords(aSnapshot.ReviewRequests.size())
+			|| !addRecords(aSnapshot.BranchPolicy.Rules.size())
+			|| !addRecords(aSnapshot.BranchPolicy.Protection.size())
+			|| !addRecords(aSnapshot.Commits.size())
 			|| !addRecords(aSnapshot.Reviews.size())
 			|| !addRecords(aSnapshot.ReviewThreads.size())
 			|| !addRecords(aSnapshot.ReviewCommentGroups.size())
@@ -2157,6 +2288,9 @@ namespace bpr::application {
 				budget,
 				aLimits);
 			error != github_read_validation_error::none) {
+			return detail::validation(error);
+		}
+		if (const auto error = detail::validate_merge_observations(aSnapshot, budget, aLimits); error != github_read_validation_error::none) {
 			return detail::validation(error);
 		}
 		for (const auto& record : aSnapshot.Files) {

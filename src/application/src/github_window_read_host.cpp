@@ -659,6 +659,27 @@ namespace bpr::application {
 
 		void install_snapshot(github_pull_request_snapshot aSnapshot)
 		{
+			if (AcceptedSnapshot && AcceptedSnapshot->Profile == aSnapshot.Profile && AcceptedSnapshot->Host == aSnapshot.Host && AcceptedSnapshot->Account == aSnapshot.Account && AcceptedSnapshot->Mode == aSnapshot.Mode && AcceptedSnapshot->Repository.Repository == aSnapshot.Repository.Repository && AcceptedSnapshot->PullRequest.PullRequest == aSnapshot.PullRequest.PullRequest && AcceptedSnapshot->PullRequest.HeadOid == aSnapshot.PullRequest.HeadOid && AcceptedSnapshot->PullRequest.BaseOid == aSnapshot.PullRequest.BaseOid && AcceptedSnapshot->PullRequest.BaseRef == aSnapshot.PullRequest.BaseRef) {
+				const auto& previous = *AcceptedSnapshot;
+				if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available && (previous.ReviewRequestsAvailability == github_observation_availability::available || previous.ReviewRequestsStale)) {
+					aSnapshot.ReviewRequests      = previous.ReviewRequests;
+					aSnapshot.ReviewRequestsStale = true;
+				}
+				if (aSnapshot.Merge.Availability != github_observation_availability::available && (previous.Merge.Availability == github_observation_availability::available || previous.Merge.Stale)) {
+					const auto availability      = aSnapshot.Merge.Availability;
+					aSnapshot.Merge              = previous.Merge;
+					aSnapshot.Merge.Availability = availability;
+					aSnapshot.Merge.Stale        = true;
+				}
+				if (aSnapshot.BranchPolicy.RulesAvailability != github_observation_availability::available && (previous.BranchPolicy.RulesAvailability == github_observation_availability::available || previous.BranchPolicy.RulesStale)) {
+					aSnapshot.BranchPolicy.Rules      = previous.BranchPolicy.Rules;
+					aSnapshot.BranchPolicy.RulesStale = true;
+				}
+				if (aSnapshot.BranchPolicy.ProtectionAvailability != github_observation_availability::available && (previous.BranchPolicy.ProtectionAvailability == github_observation_availability::available || previous.BranchPolicy.ProtectionStale)) {
+					aSnapshot.BranchPolicy.Protection      = previous.BranchPolicy.Protection;
+					aSnapshot.BranchPolicy.ProtectionStale = true;
+				}
+			}
 			AcceptedSnapshot = std::move(aSnapshot);
 			if (MarkdownRevision != std::numeric_limits<std::uint64_t>::max()) {
 				++MarkdownRevision;

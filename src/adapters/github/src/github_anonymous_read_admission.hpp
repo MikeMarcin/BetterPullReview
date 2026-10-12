@@ -73,6 +73,10 @@ namespace bpr::adapters::github::detail {
 		// [[BPR-0988]]. Discovery names a viewer; a signed-out read has none.
 		case read_operation::search_personal_pull_requests:
 		case read_operation::list_requested_reviewers:
+		case read_operation::list_review_requests:
+		case read_operation::get_merge_assessment:
+		case read_operation::list_branch_rules:
+		case read_operation::get_branch_protection:
 			return false;
 		}
 		return false;
@@ -104,7 +108,7 @@ namespace bpr::adapters::github::detail {
 				anonymous_read_refusal::identity_requires_credential
 			};
 		}
-		if (aOperation == read_operation::list_review_threads) {
+		if (graphql_read(aOperation)) {
 			return std::unexpected{
 				anonymous_read_refusal::graphql_surface_unavailable
 			};

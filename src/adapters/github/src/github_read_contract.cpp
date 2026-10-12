@@ -752,6 +752,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
 			case read_operation::list_requested_reviewers:
+			case read_operation::list_review_requests:
+			case read_operation::get_merge_assessment:
 				return true;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
@@ -759,6 +761,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
 			case read_operation::search_personal_pull_requests:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 				return false;
 			}
 			return false;
@@ -785,7 +789,12 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::get_pull_request:
+			case read_operation::get_merge_assessment:
+			case read_operation::get_branch_protection:
 				return 1U;
+			case read_operation::list_review_requests:
+			case read_operation::list_branch_rules:
+				return 10U;
 			case read_operation::list_review_threads:
 				return 1'024U;
 			// [[BPR-0988]]. Discovery reads one bounded page: a longer answer is
@@ -1852,6 +1861,10 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_comments:
 				return validate_review_comments_fixture(aDocument);
 			case read_operation::search_personal_pull_requests:
+			case read_operation::list_review_requests:
+			case read_operation::get_merge_assessment:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 			case read_operation::list_requested_reviewers:
 				return false; // Discovery normalization belongs to its bounded production reader.
 			}
@@ -1893,6 +1906,10 @@ namespace bpr::adapters::github::detail {
 			return "SearchPersonalPullRequests";
 		case read_operation::list_requested_reviewers:
 			return "ListRequestedReviewers";
+		case read_operation::list_review_requests:  return "ListReviewRequests";
+		case read_operation::get_merge_assessment:  return "GetMergeAssessment";
+		case read_operation::list_branch_rules:     return "ListBranchRules";
+		case read_operation::get_branch_protection: return "GetBranchProtection";
 		}
 		return { };
 	}
@@ -1976,15 +1993,22 @@ namespace bpr::adapters::github::detail {
 			return failure(contract_failure_code::invalid_search_terms);
 		}
 
-		const auto graphql = aRequest.Operation == read_operation::list_review_threads;
+		const auto graphql = graphql_read(aRequest.Operation);
 		if (
 			(!graphql && aRequest.GraphqlPage.has_value())
 			|| (aRequest.GraphqlPage.has_value()
 				&& !valid_graphql_page(
 					*aRequest.GraphqlPage,
 					aRequest.Page))
-			|| (graphql && !aRequest.GraphqlPage.has_value()
+			|| (aRequest.Operation == read_operation::list_review_threads && !aRequest.GraphqlPage.has_value()
 				&& aRequest.Page != 1U)) {
+			return failure(contract_failure_code::unexpected_body);
+		}
+		const auto branch = aRequest.Operation == read_operation::list_branch_rules || aRequest.Operation == read_operation::get_branch_protection;
+		if ((branch && (aRequest.BranchRef.empty() || aRequest.BranchRef.size() > 256U || std::ranges::any_of(aRequest.BranchRef, [](unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; }))) || (!branch && !aRequest.BranchRef.empty())) {
+			return failure(contract_failure_code::invalid_repository);
+		}
+		if ((aRequest.Operation != read_operation::list_review_requests && !aRequest.ReviewCursor.empty()) || (aRequest.Operation == read_operation::list_review_requests && ((aRequest.Page == 1U) != aRequest.ReviewCursor.empty() || (!aRequest.ReviewCursor.empty() && !bounded_graphql_token(aRequest.ReviewCursor, 1024U)))) || (aRequest.Operation != read_operation::list_review_threads && aRequest.GraphqlPage)) {
 			return failure(contract_failure_code::unexpected_body);
 		}
 		const auto prefix = path_prefix(aRequest.Server, graphql);
@@ -2043,6 +2067,40 @@ namespace bpr::adapters::github::detail {
 			result.Body = std::move(*body);
 			break;
 		}
+		case read_operation::get_merge_assessment:
+		case read_operation::list_review_requests: {
+			const auto assessment = aRequest.Operation == read_operation::get_merge_assessment;
+			auto       query      = std::string{ "query " } + (assessment ? "GetMergeAssessment" : "ListReviewRequests") + "($owner:String!,$name:String!,$number:Int!";
+			if (!aRequest.ReviewCursor.empty()) {
+				query += ",$after:String!";
+			}
+			query += "){repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid baseRefOid baseRefName ";
+			query += assessment ? "mergeStateStatus reviewDecision autoMergeRequest{enabledAt}" : "reviewRequests(first:100";
+			if (!assessment) {
+				if (!aRequest.ReviewCursor.empty()) {
+					query += ",after:$after";
+				}
+				query += "){totalCount nodes{id asCodeOwner requestedReviewer{__typename ... on User{id login} ... on Team{id name slug organization{login}}}} pageInfo{hasNextPage endCursor}}";
+			}
+			query += "}}}";
+			auto page        = github_graphql_page_request{ };
+			page.Kind        = github_graphql_page_kind::threads;
+			page.AfterCursor = aRequest.ReviewCursor;
+			auto body        = read_query_body(aRequest, query, aRequest.ReviewCursor.empty() ? nullptr : &page);
+			if (!body) {
+				return std::unexpected{ body.error() };
+			}
+			result.Path = std::string{ *prefix } + "/graphql";
+			result.Body = std::move(*body);
+			break;
+		}
+		case read_operation::list_branch_rules:
+			result.Path  = repository_path(*prefix, aRequest) + "/rules/branches/" + percent_encode(aRequest.BranchRef);
+			result.Query = "page=" + std::to_string(aRequest.Page) + "&per_page=100";
+			break;
+		case read_operation::get_branch_protection:
+			result.Path = repository_path(*prefix, aRequest) + "/branches/" + percent_encode(aRequest.BranchRef) + "/protection";
+			break;
 		case read_operation::list_issue_comments:
 			result.Path = repository_path(*prefix, aRequest) + "/issues/"
 				+ std::to_string(aRequest.PullRequestNumber) + "/comments";
@@ -2116,14 +2174,14 @@ namespace bpr::adapters::github::detail {
 			return failure(contract_failure_code::unsafe_header);
 		}
 
-		const auto graphql = aRequest.Operation == read_operation::list_review_threads;
+		const auto graphql = graphql_read(aRequest.Operation);
 		if (graphql) {
 			if (aRequest.Method != http_method::post) {
 				return failure(contract_failure_code::unexpected_method);
 			}
 			if (const auto validation = validate_graphql_body(
 					aRequest.Body,
-					aRequest.Semantic.GraphqlPage.has_value());
+					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty());
 				!validation.has_value()) {
 				return validation;
 			}

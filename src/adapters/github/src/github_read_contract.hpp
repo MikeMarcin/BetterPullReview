@@ -38,6 +38,10 @@ namespace bpr::adapters::github::detail {
 		search_personal_pull_requests,
 		/// [[BPR-0988]]. The users and teams a pull request still awaits.
 		list_requested_reviewers,
+		list_review_requests,
+		get_merge_assessment,
+		list_branch_rules,
+		get_branch_protection,
 	};
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
@@ -71,7 +75,7 @@ namespace bpr::adapters::github::detail {
 	/// are not part of a pull request snapshot. Route, admission, and name
 	/// lookups work from this array so a compiled operation cannot be unknown
 	/// to them.
-	inline constexpr std::array<read_operation, 15> all_read_operations{
+	inline constexpr std::array<read_operation, 19> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -87,6 +91,10 @@ namespace bpr::adapters::github::detail {
 		read_operation::search_personal_pull_requests,
 		read_operation::list_requested_reviewers,
 		read_operation::list_commit_statuses,
+		read_operation::list_review_requests,
+		read_operation::get_merge_assessment,
+		read_operation::list_branch_rules,
+		read_operation::get_branch_protection,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -107,6 +115,12 @@ namespace bpr::adapters::github::detail {
 		read_operation::list_checks,
 		read_operation::search_pull_requests,
 	};
+
+	/// \brief The closed set of authenticated compiled GraphQL read operations.
+	[[nodiscard]] constexpr auto graphql_read(const read_operation aOperation) noexcept -> bool
+	{
+		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment;
+	}
 
 	enum class http_method : std::uint8_t {
 		get,
@@ -162,6 +176,7 @@ namespace bpr::adapters::github::detail {
 		std::uint32_t                              PullRequestNumber = 0;
 		std::string                                HeadOid;
 		std::string                                SearchTerms;
+		std::string                                BranchRef, ReviewCursor;
 		std::uint32_t                              Page = 1;
 		std::optional<github_graphql_page_request> GraphqlPage;
 

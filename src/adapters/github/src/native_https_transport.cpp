@@ -465,14 +465,14 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto native_request_from(const github_wire_request& aRequest)
 			-> native_request
 		{
-			const auto resource = aRequest.Wire.Operation == read_operation::list_review_threads
+			const auto resource = graphql_read(aRequest.Wire.Operation)
 				? application::github_rate_limit_resource::graphql
 				: (aRequest.Wire.Operation == read_operation::search_pull_requests
 						   || aRequest.Wire.Operation == read_operation::search_personal_pull_requests
 					   ? application::github_rate_limit_resource::search
 					   : application::github_rate_limit_resource::core);
 			return {
-				.Surface           = aRequest.Wire.Operation == read_operation::list_review_threads
+				.Surface           = graphql_read(aRequest.Wire.Operation)
 					? native_request_surface::graphql_read
 					: native_request_surface::rest_read,
 				.RateLimitResource = resource,
