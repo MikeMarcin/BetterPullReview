@@ -951,6 +951,11 @@ auto main(int argc, char** argv) -> int
 
 	// The acceptance gesture, on the shipped editor. This is the one gesture
 	// that emits a local draft command, and it emits exactly one.
+	// The positive course holds the real persistence lane so the acceptance
+	// cannot look synchronous just because this station writes quickly.
+	const auto releaseAcceptance = course == "positive"
+		? app::detail::github_application_fixture_access::hold_private_review_effects(*application)
+		: std::function<void()>{ };
 	if (
 		afterConversion.WorkshopProposals == 1U
 		&& editor->accept_revision_action() != nullptr
@@ -974,14 +979,31 @@ auto main(int argc, char** argv) -> int
 		}
 		QApplication::processEvents();
 	}
+	if (releaseAcceptance) {
+		const auto pending = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+		releaseAcceptance();
+		if (pending.LocalDraftBody != reviewer_original) {
+			return fail(*application, "accepted-before-private-completion");
+		}
+	}
 	// [[BPR-1245]]. Dif acknowledges when the draft is accepted, which with
 	// private review is on the private review's answer ([[BPR-0587]]), so the
-	// course waits for it rather than reading the frame at once.
+	// Dif course waits for it rather than reading the frame at once.
 	auto       acknowledged   = wait_terms{ };
-	const auto difAcknowledge = dif != nullptr
+	const auto difAcknowledge = course == "dif-context" && dif != nullptr
 		&& wait_until_reporting(acknowledged, [dif](wait_terms& aTerms) {
 									return aTerms.require("acknowledge", dif->current_frame().Clip == qt::dif_index(qt::dif_clip_id::acknowledge));
 								});
+	// Draft acceptance is asynchronous even when no sprite is present. Judge
+	// the durable draft's answer, not an optional visual acknowledgement.
+	if (course == "positive" || course == "full-agent" || course == "dif-context") {
+		auto accepted = wait_terms{ };
+		if (!wait_until_reporting(accepted, [&application](wait_terms& aTerms) {
+				return aTerms.require("accepted-draft-text", app::detail::github_application_fixture_access::agent_finding_evidence(*application).LocalDraftBody == agent_suggested);
+			})) {
+			return fail(*application, "accepted-draft", accepted.render());
+		}
+	}
 	const auto acceptedMatchesDraft = draftBeforeConversion.has_value()
 		&& editor->shown_draft().has_value()
 		&& editor->shown_draft()->Id == draftBeforeConversion->Id;

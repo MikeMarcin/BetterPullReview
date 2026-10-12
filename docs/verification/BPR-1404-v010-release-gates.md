@@ -313,6 +313,19 @@ core open-line delta before its existing full-width timeline and native-frame
 geometry checks. No product behavior, geometry assertion or wait bound changes.
 Actual repaired native Windows completion remains required.
 
+The Windows agent-finding positive course read the original draft after offering
+and accepting its revision. Its common path relied on the optional Dif sprite's
+acknowledgement to delay that read; other variants already waited for accepted
+text explicitly. A copied-test counterexample held the real private store lane
+for two seconds and omitted the optional visual wait: the old course failed
+the exact `draft-body-is-suggestion` term in 4.957 seconds, while a checked
+accepted-text wait passed in 4.841 seconds. Producer source hashes were
+unchanged and copied scratch was removed. The actual course now checks accepted
+draft text independently of Dif, reserves the visual acknowledgement wait for
+the Dif course, and holds the private lane in the positive course to verify
+the old body remains until persistence completes. All existing terms and run
+bounds remain. Exact-source focused and native completion remain required.
+
 The subsequent interactive-token Windows normal gate at diagnostic source
 `8cf67d793` exposed a separate nested Release-build path failure: MSVC C1083
 on the generated KSyntaxHighlighting indexer and Qt resource objects. The
