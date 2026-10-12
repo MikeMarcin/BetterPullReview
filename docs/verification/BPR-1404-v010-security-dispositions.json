@@ -1,0 +1,230 @@
+{
+  "schema": "bpr.release-security-dispositions.v1",
+  "mandate_revision": "release-v010-20261012-fix-and-publish-r4",
+  "candidate_source": "f5e79380c5129cbd1067957dcc4b8e23d325f462",
+  "status": "source-backed proposals; no independent approval",
+  "scope": "Known release dependency findings; final artifact scans and exact native inventories remain pending",
+  "inventory_input": {
+    "source_release": "v0.1.9",
+    "spdx_sha256": "c7df978a9e1198a01f96946dfaf7e1a68db844c1a6a6bc134c396a820d5a89f3",
+    "scanner": "Grype 0.120.1",
+    "database_schema": "6.1.10",
+    "database_built": "2026-10-12T06:45:22Z",
+    "database_checksum": "f1d61e7be5caa87b18ab7519f71982399f4d43d8f407edd24717903acef3d83d",
+    "exit_status": 2,
+    "matches": 32,
+    "severity_counts": {
+      "Critical": 2,
+      "High": 8,
+      "Medium": 19,
+      "Low": 3
+    }
+  },
+  "groups": {
+    "pcre2": {
+      "packages": [
+        "BundledPcre2",
+        "BundledPcre2_Attribution_pcre2-sljit"
+      ],
+      "version": "10.47",
+      "fixed_release": "https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.49",
+      "qt_source": [
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/3rdparty/pcre2/CMakeLists.txt",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/text/qregularexpression.cpp"
+      ],
+      "facts": "Qt builds 16-bit PCRE2, omits pcre2_convert.c and disables JIT for the Apple arm64 slice. Windows x64 and macOS x86_64 still require JIT/call-path review. Stripped public symbol absence does not establish code absence. Exact Qt source compiles all three JIT modes, assigns a growable 32 KiB to 512 KiB stack after the default stack limit, and creates fresh match data per invocation.",
+      "decisions": [
+        {
+          "id": "CVE-2026-89157",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-q8g2-wprr-34m9",
+          "basis": "Upstream describes 32-bit size_t automatic allocation in pattern conversion. Qt excludes that translation unit and both delivered architectures use 64-bit size_t.",
+          "proposed": "not-affected; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89158",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-fmgr-6ggq-9859",
+          "basis": "Upstream requires the 32-bit-code-unit compile API on a 32-bit process. Qt selects 16-bit PCRE2 in 64-bit artifacts.",
+          "proposed": "not-affected; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89156",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-2p8c-ff85-vh9x",
+          "basis": "Affected JIT-mode mismatch requires invalid UTF and a match mode absent from compilation. Qt optimizePattern requests COMPLETE, PARTIAL_SOFT and PARTIAL_HARD together, the documented workaround. Upstream does not establish 16-bit immunity by itself.",
+          "proposed": "workaround present in source; independent binary/call-path decision pending"
+        },
+        {
+          "id": "CVE-2026-89160",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-9qww-pwc4-77qq",
+          "basis": "Upstream requires PCRE2_MATCH_INVALID_UTF with backwards lookbehind. Qt's complete PatternOptions/MatchOptions conversion does not set that flag; a disabled translation-string occurrence is not an executable option.",
+          "proposed": "call-path non-applicability; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89161",
+          "source": "https://github.com/PCRE2Project/pcre2/pull/937",
+          "basis": "Qt calls pcre2_match_16 with newly created per-invocation match data, not direct pcre2_jit_match or COPY_MATCHED_SUBJECT reuse. The upstream fix concerns copied-subject ownership in the direct JIT API.",
+          "proposed": "call-path non-applicability; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-89162",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-q7rw-r7qq-2hx6",
+          "basis": "Serialize encoding is compiled into the source library but is not called by Qt's QRegularExpression implementation. Do not equate lack of a public symbol with lack of compiled code.",
+          "proposed": "unused affected API in traced consumer; independent decision pending"
+        },
+        {
+          "id": "CVE-2026-103111 / GHSA-r9hj-j2rw-4q3m",
+          "severity": "High",
+          "source": "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-r9hj-j2rw-4q3m",
+          "basis": "All code-unit widths through 10.48 are affected with JIT, a growable stack and attacker-controlled regex. First-party QRegularExpression constructors use committed fixed patterns; KSyntaxHighlighting 6.28.1 loads packaged definitions only, and DynamicRegExpr substitutes source captures through QRegularExpression::escape in rule.cpp replaceCaptures(..., true). This supports a trusted-pattern applicability proposal; exact native dependency identities and independent acceptance remain required.",
+          "proposed": "source-backed trusted-pattern non-applicability proposal; independent decision pending"
+        }
+      ],
+      "available_remediation": "PCRE2 10.49 fixes the September 28 growable-JIT-stack flaw as well as earlier flaws. Version 10.48 is incomplete remediation. The official Qt 6.11 archive currently offers 6.11.2 only. A rebuilt qualified Qt producer with pinned 10.49 or backports is the alternative to independent applicability acceptance.",
+      "next_release_reference": "https://wiki.qt.io/Qt_6.11_Release",
+      "coverage_gap": "Upstream GHSA-3r4p-g7gg-ppmf / CVE-2026-86145 DFA-recursion heap-limit advisory is not in these raw reports. Qt compiles DFA code but its traced QRegularExpression path uses pcre2_match_16. Feed silence does not close coverage."
+    },
+    "windows_zlib": {
+      "id": "CVE-2026-85091",
+      "version": "1.3.2",
+      "source": "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148",
+      "release_status": "https://zlib.net/",
+      "basis": "The latest published zlib 1.3.2 lacks the September 17 gz_vacate pointer-reset fix. Qt includes gzwrite.c in its static source target. The advisory's path follows failed nonblocking gzwrite with gzprintf/gzvprintf; Qt's non-third-party C++ consumers contain no calls to these APIs.",
+      "binary_evidence": "Native dumpbin on every extracted DLL found no z_gzwrite/z_gzprintf/z_gzvprintf/z_gzclose import or export. Qt6Core.dll SHA256 22c113a5644b875b2c85482723cd5d2e6a3a4029169778fcc78adde08ef3b6aa has a Valid The QT Company Oy signature and exports ordinary z_crc32/z_inflate APIs. This supports a reachability review, not proof of stripped internal-code absence.",
+      "proposed": "Retain High blocker pending independent source/call-path adjudication or a newly qualified fixed producer. No released zlib replacement containing the fix was found."
+    },
+    "sqlite": {
+      "ids": [
+        "BIT-sqlite-2024-0232",
+        "BIT-sqlite-2025-29088",
+        "BIT-sqlite-2025-6965"
+      ],
+      "source": "https://www.sqlite.org/cves.html",
+      "basis": "SQLite upstream lists fixes in 3.43.2, 3.49.1 and 3.50.2 respectively; exact pinned 3.53.4 is newer. Raw Bitnami matches use unbounded/unknown version constraints despite these fixed versions.",
+      "proposed": "Version-range false matches supported by upstream and pinned source identity; independent named security-owner acceptance remains required for the High match. Keep all raw matches."
+    },
+    "tika": {
+      "ids": [
+        "CVE-2018-1335",
+        "CVE-2016-6809",
+        "CVE-2018-11761",
+        "CVE-2018-11796",
+        "CVE-2018-11762",
+        "CVE-2021-28657",
+        "CVE-2022-30126",
+        "CVE-2018-1339",
+        "CVE-2022-25169",
+        "CVE-2018-1338",
+        "CVE-2022-30973",
+        "CVE-2022-33879"
+      ],
+      "sources": [
+        "https://tika.apache.org/security.html",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/mimetypes/3rdparty/qt_attribution.json",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/mimetypes/mimetypes_resources.cmake"
+      ],
+      "basis": "Qt includes the attributed tika-mimetypes.xml data resource, not Java Tika parsers/server/JARs. Its PURL even identifies that XML subpath. The wildcard Tika CPE is matched against old Java application version ranges using a git commit as version. Apache advisories describe those executable handlers, not this MIME table; exact package inventories contain no Java runtime or Tika server.",
+      "proposed": "Component-identity mismatch; independent Critical/High applicability approval pending. Retain original upstream attribution, license, PURL and CPE rather than editing metadata to quiet the scanner."
+    },
+    "macos_system_zlib": {
+      "ids": [
+        "CVE-2022-37434",
+        "CVE-2026-27171"
+      ],
+      "source": "https://support.apple.com/en-us/102853",
+      "basis": "Both QtCore Mach-O slices link Apple's /usr/lib/libz.1.dylib, recording 1.2.12. The macOS26.6.2 host's zlibVersion also reports 1.2.12; do not claim it is 1.3.2. Apple lists CVE-2022-37434 as addressed in Ventura13, the declared minimum. SDK/ABI version is not an OS patch inventory.",
+      "proposed": "CVE-2022-37434 has vendor-fixed minimum-OS evidence; independent exact-OS acceptance remains pending. CVE-2026-27171 is reproduced on the current host and requires separate unused-API applicability acceptance. No blanket macOS waiver.",
+      "crc_combine_analysis": {
+        "id": "CVE-2026-27171",
+        "sources": [
+          "https://github.com/madler/zlib/issues/904",
+          "https://github.com/madler/zlib/commit/ba829a458576d1ff0f26fc7230c6de816d1f6a77"
+        ],
+        "native_observation": "macOS 26.6.2 arm64 /usr/lib/libz.1.dylib reports 1.2.12. Positive crc32_combine input matches the independently calculated CRC; crc32_combine and crc32_combine_gen with length -1 each exceed a one-second child timeout. Each owned child was terminated and reaped. The 64-suffixed APIs are not exported on this host. This is actual vulnerable API behavior, not vendor-patch evidence.",
+        "call_path_analysis": "A streamed scan of all 8,572 C/C++ source/header files in the exact retained QtBase-6.11.2.tar.xz corresponding-source archive found zero non-third-party calls to crc32_combine*, gzwrite, gzprintf or gzvprintf. Third-party matches remain in bundled zlib/Freetype declarations and implementation. First-party src and the pinned LibArchive sources contain no crc32_combine calls. This supports unused affected API review, not absence of vulnerable system-library bytes or qualification of every supported OS.",
+        "proposed_disposition": "Affected system API exists; unused affected API in the traced application/Qt/LibArchive consumer. Independent exact-artifact applicability acceptance remains pending.",
+        "local_evidence": [
+          "build/v0.1.10-qt-zlib-callpaths.log",
+          "build/v0.1.10-system-zlib-canary.json"
+        ]
+      }
+    },
+    "dbus": {
+      "ids": [
+        "CVE-2022-42010",
+        "CVE-2022-42011",
+        "CVE-2022-42012"
+      ],
+      "sources": [
+        "https://www.openwall.com/lists/oss-security/2022/10/06/1",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/dbus/qt_attribution.json",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/dbus/qdbus_symbols.cpp"
+      ],
+      "basis": "The matched 1.13.12 item is libdbus header declarations/constants, not the vulnerable message-validation implementation or daemon. QtDBus can dynamically load external libdbus, so header-only attribution does not certify the OS library on every runtime.",
+      "proposed": "Attribution versus external-runtime distinction documented; lower-severity and complete native-load scope still pending.",
+      "actual_ubuntu_runtime": "libdbus-1-3:amd64 1.16.2-2ubuntu4, coordinator native dpkg observation on 2026-10-12; final runtime bindings remain required."
+    },
+    "qt_current_patch_coverage": {
+      "ids": [
+        "CVE-2026-82292",
+        "CVE-2026-16762"
+      ],
+      "sources": [
+        "https://download.qt.io/archive/qt/6.11/CVE-2026-82292-qtbase-6.11.diff",
+        "https://download.qt.io/archive/qt/6.11/CVE-2026-16762-qtbase-6.11-0001.diff",
+        "https://download.qt.io/archive/qt/6.11/CVE-2026-16762-qtbase-6.11-0002.diff"
+      ],
+      "basis": "Exact Qt commit ef55f427f2c8b410d34f8a7681020a3000cf6866 files were fetched with recorded hashes. qxmlstream.cpp already contains both CVE-2026-16762 patch changes: duplicate tracker and compact two-view AttributeName. This is already-fixed source evidence. qdomhelpers.cpp lacks CVE-2026-82292 null checks, but no first-party QDom/Qt6::Xml dependency is selected and the v0.1.9 Mac SPDX contains no QtXml runtime. Final native selected-module inventories and independent disposition remain required.",
+      "proposed": "off-feed applicability coverage proposals; not blanket absence-of-vulnerabilities claim",
+      "source_hashes": [
+        {
+          "source": "https://raw.githubusercontent.com/qt/qtbase/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/text/qregularexpression.cpp",
+          "sha256": "f6984bfee1585018e35fac3970e39c69751f5661df8c6239667de9ec7e0e8f73",
+          "path": ".mask/sessions/release-v0.1.10/upstream-source/qregularexpression.cpp"
+        },
+        {
+          "source": "https://raw.githubusercontent.com/qt/qtbase/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/xml/dom/qdomhelpers.cpp",
+          "sha256": "39759e32ad6d65dbc85864f18fa3bef693db90570fc0137918d103e1252fcf4c",
+          "path": ".mask/sessions/release-v0.1.10/upstream-source/qdomhelpers.cpp"
+        },
+        {
+          "source": "https://raw.githubusercontent.com/qt/qtbase/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/corelib/serialization/qxmlstream.cpp",
+          "sha256": "d6f995f8eeefad6d3fe6dce6d93bf0899d7d4701e9e5cb2250926ed2a524a404",
+          "path": ".mask/sessions/release-v0.1.10/upstream-source/qxmlstream.cpp"
+        }
+      ]
+    }
+  },
+  "independent_acceptance": {
+    "security_owner": null,
+    "decisions": [],
+    "expiry": null,
+    "recheck_condition": null,
+    "note": "Critical/High findings block until fixed or independently accepted for the exact delivered versions/bytes. Source analysis is not self-approval."
+  },
+  "pending": [
+    "Final Windows and Ubuntu artifact scans",
+    "Exact current artifact applicability analysis and independent security-owner decision",
+    "Qualified Qt/PCRE2 remediation if applicability is rejected",
+    "Fresh final macOS/Windows/Ubuntu SPDX scans and corresponding-source binding",
+    "Off-feed Qt/PCRE2 applicability coverage and exact loaded-module checks"
+  ],
+  "proposed_review_terms": {
+    "status": "proposal only; not approved",
+    "proposed_expiry": "2026-11-11T23:59:59Z",
+    "proposed_recheck_conditions": [
+      "Before any release with changed application source, Qt or other dependency bytes, selected modules, architecture, or minimum supported OS.",
+      "Before publication if the final corresponding-source asset, executable, SPDX or native runtime identities differ from those reviewed.",
+      "Immediately upon a new relevant advisory, available vendor fix, new affected call path, or changed trust boundary; refresh the vulnerability database within 72 hours of each release scan."
+    ],
+    "required_bindings": [
+      "Final candidate commit",
+      "Per-platform binary SHA-256",
+      "Per-platform corresponding-source SHA-256",
+      "Per-platform SPDX SHA-256",
+      "Qt/dependency identities and native runtime/OS inventory",
+      "Named independent security owner and individual disposition per advisory"
+    ],
+    "approval_owner": null,
+    "approved_at": null,
+    "note": "A proposed expiry is not acceptance. Critical/High findings remain blockers until the required independent owner approves exact applicability evidence or a qualified remediation replaces the affected bytes."
+  }
+}

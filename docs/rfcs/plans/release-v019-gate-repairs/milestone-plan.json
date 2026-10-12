@@ -27,7 +27,7 @@
     },
     {
       "id": "followup-gates",
-      "outcome": "Repair Mac timing and remaining native release gates, including Windows and Ubuntu26.04, for a separately selected follow-up patch.",
+      "outcome": "Repair Mac timing and remaining native release gates, including Windows and Ubuntu26.04, for the selected full-platform 0.1.10 prerelease.",
       "work": [
         {
           "issue": "BPR-1404"
@@ -38,10 +38,10 @@
       ],
       "exit_criteria": [
         "Every failure in the collected macOS gate is dispositioned, and repaired plus materially affected public-path checks pass on the exact candidate.",
-        "Normal Windows and Ubuntu 26.04 native gates are accounted for before packaging handoff; remaining qualification gaps stay explicit.",
+        "Normal Windows and Ubuntu 26.04 native gates pass with configured skips and final-source affected reruns explicitly recorded before packaging handoff; broader qualification gaps stay explicit.",
         "Boundary, format and documentation checks pass; source repairs and evidence bookkeeping are committed, and task commands are quiescent."
       ],
-      "boundary": "Deferred by direct owner r3 amendment; no version bump or mutation of frozen v019 source. Preserve native/package/trust qualification."
+      "boundary": "release-v010-20261012-fix-and-publish-r4: fix known release issues and publish 0.1.10 prerelease on macOS, Windows and Ubuntu26.04. Version bump is authorized; frozen published v019 source stays immutable. Preserve native/package/trust qualification and independent security acceptance."
     }
   ],
   "unplanned_work": []

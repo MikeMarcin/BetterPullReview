@@ -1,5 +1,31 @@
 # RFC-BPR-0038 qualification ledger
 
+## Follow-up release gates, 2026-10-12
+
+The direct owner mandate `release-v010-20261012-fix-and-publish-r4` says
+"fix all the issues and go publish 0.1.10 prerelease afterwards" and selects
+full macOS, Windows and Ubuntu 26.04. A fresh RFC implementer owns
+[BPR-1404](../issues/30-in-progress/BPR-1404-verify-followup-release-gates.md),
+with published v0.1.9 candidate
+`6cc7a99e8754ffe482a90dc012d5afe98b3a9da8` immutable. The version bump and
+publication are authorized after the known release issues are repaired and
+verified; v0.1.9's timing exception does not apply to v0.1.10.
+
+The repaired source `f01b79c5a1568a4f25353f34cf61dcdd6627201e` passes
+all 14 affected uninstrumented Mac courses, including load gaps 91.358042 ms
+and 91.199833 ms against the unchanged 100 ms requirement. Windows subsequently
+built natively; its SSH logon-context failures and local-token focused passes
+remain separate from the required full gate. Ubuntu's complete baseline is
+661 pass, 11 fail and one configured skip. The known font/scrollbar and accepted
+appearance-contract repairs await final native checks; deleted-reply discard
+remains under diagnosis. [The exact gate ledger](BPR-1404-v010-release-gates.md)
+records the generator repair, local ENOSPC failure and current security proposals.
+
+The coordinator serializes Windows and WSL courses on their shared physical
+host and owns packaging, signing and publication. Every wider RFC0038 gap
+below remains explicit, including independent security-owner decisions;
+publication authority does not supply missing acceptance evidence.
+
 ## v0.1.9 Mac release amendment, 2026-10-12
 
 The owner narrows v0.1.9 to the current macOS build and explicitly accepts
