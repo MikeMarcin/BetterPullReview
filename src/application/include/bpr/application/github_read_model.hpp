@@ -340,13 +340,23 @@ namespace bpr::application {
 		auto operator<=>(const github_issue_comment_record&) const = default;
 	};
 
-	/// \brief Describes the github check record record.
+	/// \brief The provider collection that supplied a check result.
+	enum class github_check_source : std::uint8_t { check_run,
+													commit_status };
+
+	/// \brief One current result on a known commit; requiredness is observed separately.
 	struct github_check_record
 	{
 		github_check_id         Check;
 		std::string             Name;
 		github_check_status     Status     = github_check_status::uninitialized;
 		github_check_conclusion Conclusion = github_check_conclusion::uninitialized;
+		github_check_source     Source     = github_check_source::check_run;
+		std::string             Producer;
+		std::string             Description;
+		std::string             DetailsUrl;
+		commit_oid              EvaluatedOid;
+		bool                    StatusError = false;
 
 		auto operator<=>(const github_check_record&) const = default;
 	};
@@ -639,6 +649,8 @@ namespace bpr::application {
 		std::vector<github_review_comment_group_record> ReviewCommentGroups;
 		std::vector<github_issue_comment_record>        IssueComments;
 		std::vector<github_check_record>                Checks;
+		github_collection_availability                  ChecksAvailability   = github_collection_availability::available;
+		github_collection_availability                  StatusesAvailability = github_collection_availability::unavailable;
 		std::vector<github_search_result_record>        SearchResults;
 		github_search_availability                      SearchAvailability = github_search_availability::unavailable;
 		github_capability_evidence                      CapabilityEvidence;
@@ -1548,6 +1560,15 @@ namespace bpr::application {
 				error != github_read_validation_error::none) {
 				return error;
 			}
+			if ((aRecord.Source != github_check_source::check_run && aRecord.Source != github_check_source::commit_status)
+				|| (!aRecord.EvaluatedOid.value().empty() && !hexadecimal_oid(aRecord.EvaluatedOid.value()))) {
+				return github_read_validation_error::invalid_enum;
+			}
+			for (const auto& value : { std::string_view{ aRecord.Producer }, std::string_view{ aRecord.Description }, std::string_view{ aRecord.DetailsUrl } }) {
+				if (const auto error = aBudget.consume(value, aLimits.MaximumBodyBytes); error != github_read_validation_error::none) {
+					return error;
+				}
+			}
 			return aBudget.consume(
 				aRecord.Name,
 				aLimits.MaximumCheckNameBytes,
@@ -2175,6 +2196,9 @@ namespace bpr::application {
 			}
 		}
 		for (const auto& record : aSnapshot.Checks) {
+			if (!record.EvaluatedOid.value().empty() && record.EvaluatedOid != aSnapshot.PullRequest.HeadOid) {
+				return detail::validation(github_read_validation_error::identity_mismatch);
+			}
 			if (const auto error = detail::validate_check(record, budget, aLimits);
 				error != github_read_validation_error::none) {
 				return detail::validation(error);

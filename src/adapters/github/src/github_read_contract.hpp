@@ -29,6 +29,7 @@ namespace bpr::adapters::github::detail {
 		list_review_threads,
 		list_issue_comments,
 		list_checks,
+		list_commit_statuses,
 		search_pull_requests,
 		list_review_comments,
 		list_pull_request_timeline,
@@ -70,7 +71,7 @@ namespace bpr::adapters::github::detail {
 	/// are not part of a pull request snapshot. Route, admission, and name
 	/// lookups work from this array so a compiled operation cannot be unknown
 	/// to them.
-	inline constexpr std::array<read_operation, 14> all_read_operations{
+	inline constexpr std::array<read_operation, 15> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -85,6 +86,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::list_pull_request_timeline,
 		read_operation::search_personal_pull_requests,
 		read_operation::list_requested_reviewers,
+		read_operation::list_commit_statuses,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.

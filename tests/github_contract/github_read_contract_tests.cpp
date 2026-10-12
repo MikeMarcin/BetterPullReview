@@ -621,6 +621,7 @@ namespace {
 			break;
 		case read_operation::get_viewer_identity:
 		case read_operation::get_repository:
+		case read_operation::list_commit_statuses:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
 			break;
@@ -628,7 +629,7 @@ namespace {
 			request.SearchTerms = "author:octo-reviewer";
 			break;
 		}
-		if (aOperation == read_operation::list_checks) {
+		if (aOperation == read_operation::list_checks || aOperation == read_operation::list_commit_statuses) {
 			request.HeadOid = std::string{ head_oid };
 		}
 		if (aOperation == read_operation::search_pull_requests) {
@@ -1017,14 +1018,14 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 14U
+			all_read_operations.size() == 15U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
 				&& std::ranges::find(all_read_operations,
 									 read_operation::list_review_comments)
 					!= all_read_operations.end(),
-			"the compiled set holds fourteen reads and the recording holds ten");
+			"the compiled set holds fifteen reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(

@@ -881,12 +881,13 @@ namespace bpr::adapters::github::detail {
 				break;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
 			case read_operation::search_personal_pull_requests:
 				break;
 			}
-			if (aOperation == read_operation::list_checks) {
+			if (aOperation == read_operation::list_checks || aOperation == read_operation::list_commit_statuses) {
 				request.HeadOid = aHeadOid;
 			}
 			if (aOperation == read_operation::list_review_threads) {
@@ -999,6 +1000,7 @@ namespace bpr::adapters::github::detail {
 				case read_operation::list_review_threads:           decoded = decode_record(documents.Graphql, response.Response); break;
 				case read_operation::list_review_comments:          decoded = decode_record(documents.ReviewComments, response.Response); break;
 				case read_operation::list_issue_comments:           decoded = decode_record(documents.IssueComments, response.Response); break;
+				case read_operation::list_commit_statuses:          return failed(contract_failure_code::unexpected_operation);
 				case read_operation::list_checks:                   decoded = decode_record(documents.Checks, response.Response); break;
 				case read_operation::search_pull_requests:          decoded = decode_record(documents.Search, response.Response); break;
 				}

@@ -1349,6 +1349,7 @@ namespace bpr::adapters::github::detail {
 				break;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
 			case read_operation::search_personal_pull_requests:
@@ -1482,6 +1483,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 				break;
 			case read_operation::get_viewer_identity:
@@ -2861,12 +2863,70 @@ namespace bpr::adapters::github::detail {
 				|| (completed != !json_is_null(json_member(object, "conclusion")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			return application::github_check_record{
+			auto result = application::github_check_record{
 				.Check      = application::github_check_id{ text(json_member(object, "node_id")) },
 				.Name       = text(json_member(object, "name")),
 				.Status     = check_status(json_text(json_member(object, "status"))),
 				.Conclusion = check_conclusion(json_member(object, "conclusion")),
 			};
+			result.EvaluatedOid     = application::commit_oid{ std::string{ aHeadOid } };
+			const auto optionalText = [](const page_json_value& aField) { return json_is_string(aField) ? text(aField) : std::string{ }; };
+			result.DetailsUrl       = optionalText(json_member(object, "details_url"));
+			if (result.DetailsUrl.empty()) {
+				result.DetailsUrl = optionalText(json_member(object, "html_url"));
+			}
+			if (const auto output = json_member(object, "output"); json_is_object(output)) {
+				result.Description = optionalText(json_member(json_object(output), "title"));
+				const auto summary = optionalText(json_member(json_object(output), "summary"));
+				if (!summary.empty()) {
+					result.Description += (result.Description.empty() ? "" : "\n") + summary;
+				}
+			}
+			if (const auto app = json_member(object, "app"); json_is_object(app)) {
+				result.Producer = optionalText(json_member(json_object(app), "slug"));
+			}
+			return result;
+		}
+
+		[[nodiscard]] auto parse_commit_status(const page_json_value& aValue, const std::string_view aHeadOid)
+			-> std::expected<application::github_check_record, github_paged_read_failure>
+		{
+			if (!json_is_object(aValue)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			const auto object = json_object(aValue);
+			if (!nonempty_string(json_member(object, "node_id")) || !nonempty_string(json_member(object, "context"))
+				|| !one_of(json_member(object, "state"), { "pending", "success", "failure", "error" })) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto result            = application::github_check_record{ };
+			result.Check           = application::github_check_id{ "status:" + text(json_member(object, "node_id")) };
+			result.Name            = text(json_member(object, "context"));
+			const auto state       = text(json_member(object, "state"));
+			result.Status          = state == "pending" ? application::github_check_status::pending : application::github_check_status::completed;
+			result.Conclusion      = state == "pending" ? application::github_check_conclusion::none : state == "success" ? application::github_check_conclusion::success
+																														  : application::github_check_conclusion::failure;
+			result.Source          = application::github_check_source::commit_status;
+			result.StatusError     = state == "error";
+			result.EvaluatedOid    = application::commit_oid{ std::string{ aHeadOid } };
+			const auto description = json_member(object, "description");
+			const auto target      = json_member(object, "target_url");
+			if ((!json_is_null(description) && !json_is_string(description)) || (!json_is_null(target) && !json_is_string(target))) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			if (json_is_string(description)) {
+				result.Description = text(description);
+			}
+			if (json_is_string(target)) {
+				result.DetailsUrl = text(target);
+			}
+			if (const auto creator = json_member(object, "creator"); json_is_object(creator)) {
+				const auto login = json_member(json_object(creator), "login");
+				if (json_is_string(login)) {
+					result.Producer = text(login);
+				}
+			}
+			return result;
 		}
 
 		[[nodiscard]] auto
@@ -3422,6 +3482,10 @@ namespace bpr::adapters::github::detail {
 					auto check = parse_check(value, aHeadOid);
 					if (!check.has_value()) {
 						return std::unexpected{ check.error() };
+					}
+					auto budget = application::detail::github_text_budget{ aLimits.Records };
+					if (application::detail::validate_check(*check, budget, aLimits.Records) != application::github_read_validation_error::none) {
+						return failed(application::github_provider_failure::response_limit);
 					}
 					aOutput.push_back(std::move(*check));
 				}
@@ -4441,7 +4505,30 @@ namespace bpr::adapters::github::detail {
 												result.Checks,
 												aLimits);
 				!checks.has_value()) {
-				return std::unexpected{ execution.enrich(checks.error()) };
+				if (std::holds_alternative<github_paged_read_cancelled>(checks.error())) {
+					return std::unexpected{ checks.error() };
+				}
+				result.Checks.clear();
+				result.ChecksAvailability = application::github_collection_availability::unavailable;
+			}
+
+			auto statusesSemantic    = semantic_request_for(*server, aRequest.Context, read_operation::list_commit_statuses);
+			statusesSemantic.HeadOid = std::string{ result.PullRequest.HeadOid.value() };
+			auto       statuses      = std::vector<application::github_check_record>{ };
+			const auto statusRead    = read_rest_array_collection(execution, aProfile, std::move(statusesSemantic), statuses,
+																  aLimits.Records.MaximumChecks, aLimits.MaximumPageRecords, [&](const page_json_value& aValue) { return parse_commit_status(aValue, result.PullRequest.HeadOid.value()); });
+			if (statusRead) {
+				// The statuses endpoint is newest first. One context has one current
+				// value; old attempts never enter current totals, including across pages.
+				auto contexts = std::unordered_set<std::string>{ };
+				for (auto& status : statuses) {
+					if (contexts.insert(status.Name).second) {
+						result.Checks.push_back(std::move(status));
+					}
+				}
+				result.StatusesAvailability = application::github_collection_availability::available;
+			} else if (std::holds_alternative<github_paged_read_cancelled>(statusRead.error())) {
+				return std::unexpected{ statusRead.error() };
 			}
 
 			auto searchSemantic = semantic_request_for(
@@ -4468,12 +4555,19 @@ namespace bpr::adapters::github::detail {
 			// this field rather than against the request, so a signed-out read
 			// that forgot to say so would be judged by the authenticated rule
 			// and refused for holding no account.
-			result.Mode           = aReadAuthority
+			result.Mode       = aReadAuthority
 					== github_provider_read_authority::anonymous_public
 				? core::github_access_mode::public_preview
 				: core::github_access_mode::authenticated;
-			result.RateLimits     = execution.rate_limits();
-			const auto validation = application::validate(result, aRequest.Context, aLimits.Records);
+			result.RateLimits = execution.rate_limits();
+			auto validation   = application::validate(result, aRequest.Context, aLimits.Records);
+			if (!validation.valid() && !result.Checks.empty()) {
+				// Optional result detail cannot spend away otherwise readable PR facts.
+				result.Checks.clear();
+				result.ChecksAvailability   = application::github_collection_availability::unavailable;
+				result.StatusesAvailability = application::github_collection_availability::unavailable;
+				validation                  = application::validate(result, aRequest.Context, aLimits.Records);
+			}
 			if (!validation.valid()) {
 				if (aObserver != nullptr) {
 					aObserver->validation_failed(validation);

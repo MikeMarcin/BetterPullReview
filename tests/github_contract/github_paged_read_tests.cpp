@@ -1491,6 +1491,7 @@ namespace {
 							== github_graphql_page_kind::initial
 						? graphql_initial_response()
 						: graphql_comments_response();
+				case read_operation::list_commit_statuses: return success_response("[]");
 				case read_operation::list_checks:
 					return checks_response();
 				case read_operation::search_pull_requests:
@@ -2070,7 +2071,7 @@ namespace {
 				   && result->RateLimits.Search->Remaining == 4999U
 				   && result->RateLimits.Graphql.has_value()
 				   && result->RateLimits.Graphql->Remaining == 4999U
-				   && transport.Requests.size() == 11U
+				   && transport.Requests.size() == 12U
 				   && std::ranges::none_of(
 					   transport.Requests,
 					   [](const github_wire_request& aRequest) {
@@ -2679,10 +2680,6 @@ namespace {
 			fixture_scenario::review_wrong_required,
 			fixture_scenario::issue_comment_missing_required,
 			fixture_scenario::issue_comment_wrong_required,
-			fixture_scenario::check_missing_required,
-			fixture_scenario::check_wrong_required,
-			fixture_scenario::check_envelope_missing_required,
-			fixture_scenario::check_envelope_wrong_required,
 			fixture_scenario::search_missing_required,
 			fixture_scenario::search_wrong_required,
 			fixture_scenario::search_wrong_authority,
@@ -3320,7 +3317,7 @@ namespace {
 					   && observer.Overview->Context == provider_request().Context
 					   && !observer.Overview->PullRequest.Title.empty(),
 				   "validated useful metadata arrives after two responses, before any catalogue or ancillary page");
-			expect(observer.Count == transport.Requests.size() && observer.Count == 11U, "every page produces exactly one observation");
+			expect(observer.Count == transport.Requests.size() && observer.Count == 12U, "every page produces exactly one observation");
 			for (std::size_t index = 0U; index < observer.Count; ++index) {
 				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;
 				expect(observer.Responses[index] == std::pair{ transport.Requests[index].Correlation.Operation, expectedStatus },
@@ -3359,7 +3356,7 @@ namespace {
 		recording_response_observer invalidObserver;
 		const auto                  invalid = perform_paged_github_read(invalidTransport, profile(), provider_request(), core::provider_snapshot_id{ 55U },
 																		{ }, { }, github_provider_read_authority::authenticated, &invalidObserver);
-		expect(!invalid && invalidObserver.Count == 11U
+		expect(!invalid && invalidObserver.Count == 12U
 				   && invalidObserver.ValidationError == application::github_read_validation_error::duplicate_identity
 				   && provider_failure_of(invalid) == application::github_provider_failure::malformed_response,
 			   "real final snapshot validation preserves duplicate identity detail and mapped refusal");
@@ -3971,8 +3968,46 @@ namespace {
 	}
 }
 
+namespace {
+	void test_current_check_details()
+	{
+		for (const auto enterprise : { false, true }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success, enterprise ? "ghe.example.invalid" : "api.github.com" };
+			transport.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation == read_operation::list_checks) {
+					replace_raw(aResponse.Body, "\"name\":\"native-build\"", "\"name\":\"Branch Freshness\",\"app\":{\"slug\":\"freshness-app\"},\"output\":{\"title\":\"Branch behind base\",\"summary\":\"Update the branch before merging.\"}");
+					replace_raw(aResponse.Body, "\"conclusion\":\"success\"", "\"conclusion\":\"failure\"");
+				} else if (aRequest.Wire.Operation == read_operation::list_commit_statuses) {
+					aResponse.Body = R"([{"node_id":"current","context":"Branch Freshness","state":"success","description":"Current attempt succeeded","target_url":"https://ci.example.invalid/result","creator":{"login":"status-service"}},{"node_id":"old","context":"Branch Freshness","state":"failure","description":"Old failed attempt","target_url":null}])";
+				}
+			};
+			const auto result = perform_paged_github_read(transport, enterprise ? enterprise_profile() : profile(), provider_request(enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28), core::provider_snapshot_id{ 55 }, { });
+			expect(result && result->Checks.size() == 2 && result->StatusesAvailability == application::github_collection_availability::available, "native contracts retain one latest status and the distinct same-name check run");
+			expect(result->Checks[0].Producer == "freshness-app" && result->Checks[0].Description == "Branch behind base\nUpdate the branch before merging." && result->Checks[0].DetailsUrl == "https://checks.example.invalid/6001", "bounded check explanation and destination survive the provider");
+			expect(result->Checks[1].Source == application::github_check_source::commit_status && result->Checks[1].Conclusion == application::github_check_conclusion::success && result->Checks[1].EvaluatedOid.value() == head_oid, "old failed attempts and different result sources never contaminate current outcomes");
+			for (const auto& request : transport.Requests) {
+				if (request.Wire.Operation == read_operation::list_commit_statuses) {
+					expect(request.Wire.Semantic.HeadOid == head_oid && request.Wire.Path.ends_with("/commits/" + std::string{ head_oid } + "/statuses"), "status read binds exact accepted head in closed REST route");
+				}
+			}
+		}
+		for (const auto scenario : { fixture_scenario::check_missing_required, fixture_scenario::check_wrong_required, fixture_scenario::check_envelope_missing_required, fixture_scenario::check_envelope_wrong_required }) {
+			auto       transport = paged_fixture_transport{ scenario };
+			const auto result    = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+			expect(result && result->Checks.empty() && result->ChecksAvailability == application::github_collection_availability::unavailable && !result->Files.empty(), "wrong-head or malformed optional check collection is unavailable without hiding readable PR content");
+		}
+		for (const auto bad : { "not-json", "[{\"node_id\":\"s\",\"context\":\"c\",\"state\":\"fake\"}]" }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			transport.RewriteResponse = [bad](const github_wire_request& aRequest, wire_response& aResponse) {if(aRequest.Wire.Operation==read_operation::list_commit_statuses){aResponse.Body=bad;} };
+			const auto result         = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+			expect(result && result->Checks.size() == 1 && result->StatusesAvailability == application::github_collection_availability::unavailable, "optional status refusal retains readable known check runs and explicit partial availability");
+		}
+	}
+}
+
 auto main() -> int
 {
+	test_current_check_details();
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();
 	test_ghes_bot_actor_representation();

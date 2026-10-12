@@ -48,6 +48,7 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::list_review_threads;
 			case read_operation::list_issue_comments:
 				return application::diagnostic_paged_operation::list_issue_comments;
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 				return application::diagnostic_paged_operation::list_checks;
 			case read_operation::search_pull_requests:
@@ -186,6 +187,7 @@ namespace bpr::adapters::github::detail {
 				case read_operation::list_review_threads:
 				case read_operation::list_review_comments:       current = phase::review_threads; break;
 				case read_operation::list_issue_comments:        current = phase::comments; break;
+				case read_operation::list_commit_statuses:
 				case read_operation::list_checks:                current = phase::checks; break;
 				case read_operation::search_pull_requests:       current = phase::related_pull_requests; break;
 				case read_operation::list_pull_request_timeline: current = phase::update_history; break;

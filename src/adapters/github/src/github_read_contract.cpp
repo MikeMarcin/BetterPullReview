@@ -755,6 +755,7 @@ namespace bpr::adapters::github::detail {
 				return true;
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 			case read_operation::search_pull_requests:
 			case read_operation::search_personal_pull_requests:
@@ -776,6 +777,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_reviews:
 			case read_operation::list_issue_comments:
 			case read_operation::list_review_comments:
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 				return 100U;
 			case read_operation::search_pull_requests:
@@ -1841,6 +1843,8 @@ namespace bpr::adapters::github::detail {
 				return validate_review_threads_fixture(aDocument);
 			case read_operation::list_issue_comments:
 				return validate_issue_comments_fixture(aDocument);
+			case read_operation::list_commit_statuses:
+				return false; // Optional production-only collection.
 			case read_operation::list_checks:
 				return validate_checks_fixture(aDocument);
 			case read_operation::search_pull_requests:
@@ -1877,6 +1881,8 @@ namespace bpr::adapters::github::detail {
 			return "ListReviewThreads";
 		case read_operation::list_issue_comments:
 			return "ListIssueComments";
+		case read_operation::list_commit_statuses:
+			return "ListCommitStatuses";
 		case read_operation::list_checks:
 			return "ListChecks";
 		case read_operation::search_pull_requests:
@@ -1952,7 +1958,7 @@ namespace bpr::adapters::github::detail {
 		if (aRequest.Page == 0U || aRequest.Page > maximumOperationPage) {
 			return failure(contract_failure_code::invalid_page);
 		}
-		const auto headOidRequired = aRequest.Operation == read_operation::list_checks;
+		const auto headOidRequired = (aRequest.Operation == read_operation::list_checks || aRequest.Operation == read_operation::list_commit_statuses);
 		if (
 			(headOidRequired && !hexadecimal_oid(aRequest.HeadOid))
 			|| (!headOidRequired && !aRequest.HeadOid.empty())) {
@@ -2047,6 +2053,10 @@ namespace bpr::adapters::github::detail {
 			result.Path  = pull_request_path(*prefix, aRequest) + "/comments";
 			result.Query = "page=" + std::to_string(aRequest.Page)
 				+ "&per_page=100";
+			break;
+		case read_operation::list_commit_statuses:
+			result.Path  = repository_path(*prefix, aRequest) + "/commits/" + aRequest.HeadOid + "/statuses";
+			result.Query = "page=" + std::to_string(aRequest.Page) + "&per_page=100";
 			break;
 		case read_operation::list_checks:
 			result.Path = repository_path(*prefix, aRequest) + "/commits/"

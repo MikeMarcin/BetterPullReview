@@ -64,6 +64,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_reviews:
 		case read_operation::list_issue_comments:
 		case read_operation::list_review_comments:
+		case read_operation::list_commit_statuses:
 		case read_operation::list_checks:
 		case read_operation::search_pull_requests:
 			return true;
