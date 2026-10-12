@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1396"
 title: "Preserve and classify authored Home waiting facts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0070"]
 depends_on: ["BPR-1395"]
 priority: "P1"
