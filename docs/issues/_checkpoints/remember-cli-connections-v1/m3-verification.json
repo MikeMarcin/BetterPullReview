@@ -113,6 +113,12 @@
       "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; issue_board.py validate --rfc RFC-BPR-0071; git diff --check",
       "outcome": "pass",
       "detail": "Before board finish: DOCUMENTATION_OK; 67 tests in 1.990s OK; scoped board valid, 1402 cards, no errors; whitespace clean. Final closure gates repeat after moving the card."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py; issue_board.py validate --rfc RFC-BPR-0071; issue_board.py queue --rfc RFC-BPR-0071; milestone_checkpoint.py check; git diff --check",
+      "outcome": "pass",
+      "revision": "c464a1f57446b4f345e499b602642a2080fc85fd",
+      "detail": "After board finish: DOCUMENTATION_OK; 67 tests in 2.040s OK; scoped board valid with no errors; all three cards Done, next=null and no pending cards; renewed-binding check report-closeout, engineering_acceptance=not-evaluated (agent owns acceptance); whitespace clean. The final checkpoint commit only records this evidence and does not change production/test source or requirements."
     }
   ],
   "corrected_failures": [
@@ -165,5 +171,6 @@
     "required_acceptance": "Agent-verifiable macOS fixture scope; no explicit owner/native/independent criterion remains."
   },
   "runtime_source_revision": "c27eb1356f40a33cff872be9f0dc253d0b5a00bb",
-  "checkpoint_reconciliation": "Full-source card/RFC fingerprints changed only through authorized acceptance/status documentation. Original assignment is preserved in m3-dispatch-binding.json; final binding is renewed after board closeout. Plan, criteria and exits are unchanged."
+  "checkpoint_reconciliation": "Full-source card/RFC fingerprints changed only through authorized acceptance/status documentation. Original assignment is preserved in m3-dispatch-binding.json; final binding is renewed after board closeout. Plan, criteria and exits are unchanged.",
+  "closeout_revision": "c464a1f57446b4f345e499b602642a2080fc85fd"
 }

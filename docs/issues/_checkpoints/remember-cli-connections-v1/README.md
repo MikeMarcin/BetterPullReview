@@ -11,16 +11,20 @@ the accompanying proposed CLI amendment are fully implemented and qualified.
 - Runtime/qualification source: `c27eb1356f40a33cff872be9f0dc253d0b5a00bb`.
 - Final test-style follow-up: `62bd6a5a0aefbca78a8678a6884ccd6b7575e885`;
   production bytes remain unchanged.
+- Acceptance/board closeout: `c464a1f57446b4f345e499b602642a2080fc85fd`;
+  BPR-1410 is Done and RFC-BPR-0071 is Auto-Verified.
 - [Acceptance map](../../../verification/RFC-BPR-0071.md),
   [M3 acceptance](m3-acceptance.json), [verification](m3-verification.json),
   [exact runtime-source evidence](m3-focused-evidence.json),
   [final candidate recheck](m3-final-candidate-evidence.json),
-  [inherited tidy mapping](m3-inherited-tidy.json), [binding](m3-binding.json),
+  [inherited tidy mapping](m3-inherited-tidy.json),
+  [original dispatch binding](m3-dispatch-binding.json),
+  [renewed closeout binding](m3-binding.json),
   [observation](m3-observation.json) and [continuation check](m3-check.json).
 
 ## Qualification and repairs
 
-The combined runtime-source pass is 15/15 in 156.84s. Fresh OS processes prove
+The combined runtime-source pass is 15/15 in 156.84s; the final two-course recheck is 2/2 in 38.08s. Fresh OS processes prove
 explicit inactive-account selection and first trust, empty-inventory restore,
 last-window closure, account replacement, two-server stable identities, exact
 private PR navigation, sibling connection sharing, retained-choice failure and
@@ -51,7 +55,10 @@ qualification keep their original scope.
 ## Ownership and command state
 
 All task-owned commands completed; no server or background task remains.
-The observation/check record the final state. Task builds are isolated in `build/remember-cli-m3`
+The observation/check record the final state. The saved observation/check are bound to the acceptance
+commit above; this final checkpoint adds evidence only. A later current-HEAD
+mechanical check can refresh its observation candidate without renewing source
+acceptance. Task builds are isolated in `build/remember-cli-m3`
 and `build/remember-cli-core-m3`. No shared Ninja tree was mutated. External
 release ctest PID 97841 was left untouched. Original dirty `.gitignore`,
 `.mask.json`, `.mask.lock.json` and untracked `docs/rfcs/drafts/` remain
