@@ -52,7 +52,7 @@ namespace bpr::qt {
 			"BetterPullReview will read as the account gh is signed in to, and that account can change "
 			"outside this app. You trust %1's gh executable, configuration and certificates as they "
 			"are set up. Connecting for reads does not authorize publishing; each review or comment asks "
-			"separately.");
+			"separately. After a successful connection, this choice will be reused on later launches until you sign out or replace it.");
 		question->setInformativeText(informative.arg(detail::this_machine_text()));
 		question->setDetailedText(github_cli_read_consent_details());
 		question->button(QMessageBox::Yes)->setText(QObject::tr("Connect"));

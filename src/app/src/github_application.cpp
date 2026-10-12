@@ -1,9 +1,11 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
+#include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/logging/quill_log.hpp"
@@ -3934,6 +3936,7 @@ namespace bpr::app {
 		worker_executor AgentEffects;
 		worker_executor McpEffects;
 #endif
+		worker_executor ConnectionEffects;
 		worker_executor WorkbenchEffects;
 		worker_executor AppearanceEffects;
 		worker_executor QueueEffects;
@@ -4162,14 +4165,93 @@ namespace bpr::app {
 		std::optional<core::window_review_startup_request>                       RestorationStartup;
 		std::map<core::bpr_window_context, QString, detail::window_context_less> RestorationNotices;
 		std::optional<QString>                                                   RestorationGlobalNotice;
-		void                                                                     remember_startup(std::optional<core::request_id> aRequest = std::nullopt)
+		std::unique_ptr<application::remembered_connection_store_port>           ConnectionStore;
+		std::unique_ptr<application::remembered_connection_host>                 Connections;
+		std::optional<core::github_identity_generation>                          RememberedGeneration;
+		std::set<core::host_profile_id>                                          CliConsent;
+		void                                                                     connection_notice(application::connection_metadata_observation aObservation)
 		{
-			if (!RememberDeviceSignIn || RememberedStartupStarted || Closing) {
+			const auto message      = aObservation.Saved ? QString{ } : aObservation.Action == application::connection_metadata_action::remember ? QStringLiteral("This connection is session-only because it could not be saved. Connect again on your next launch.")
+																																				 : QStringLiteral("The connection change could not be saved. Automatic sign-in may return on your next launch; retry the change.");
+			RestorationGlobalNotice = message.isEmpty() ? std::nullopt : std::optional{ message };
+			for_each_window([&](const window_observer& aObserver) { if (aObserver.RestoreNotice) { aObserver.RestoreNotice(message); } });
+		}
+		[[nodiscard]] auto selected_connection(std::optional<std::string_view> aHostname = std::nullopt) const -> std::optional<core::remembered_connection>
+		{
+			return Connections && Connections->available() ? core::select_remembered_connection(Connections->state(), aHostname) : std::nullopt;
+		}
+		[[nodiscard]] auto suppress_device(std::string_view aHostname) const -> bool
+		{
+			if (!Connections || !Connections->available()) {
+				return true;
+			}
+			const auto& rows = Connections->state().Connections;
+			const auto  row  = std::ranges::find(rows, aHostname, &core::remembered_connection::Hostname);
+			// Once metadata has recorded a decision, an absent row means no
+			// remembered authority. Forget must not revive a legacy device grant.
+			return row == rows.end() ? Connections->state().Revision > 1U : !row->ReuseEnabled || row->Transport == core::remembered_connection_transport::github_cli;
+		}
+		void observe_connection()
+		{
+			if (Closing || !Connections || !Host || !Host->accepted_session()) {
+				return;
+			}
+			const auto& session = *Host->accepted_session();
+			if (session.Mode != core::github_access_mode::authenticated || RememberedGeneration == Host->accepted_identity_generation()) {
+				return;
+			}
+			RememberedGeneration = Host->accepted_identity_generation();
+			const auto profile   = std::ranges::find(Profiles, session.Profile, &validated_github_host_profile::profile);
+			if (profile == Profiles.end()) {
+				return;
+			}
+			const auto cli = profile->authentication_transport() == application::github_authentication_transport::github_cli;
+			if (cli && (!CliConsent.contains(session.Profile) || profile->cli_account_login().empty())) {
+				return;
+			}
+			if (!cli && !Host->accepted_device_connection()) {
+				static_cast<void>(Connections->disable(std::string{ profile->hostname() }));
+				return;
+			}
+			if (!cli && !RememberDeviceSignIn) {
+				return;
+			}
+			core::remembered_connection row;
+			row.Profile         = session.Profile;
+			row.ProfileRevision = profile->revision().value();
+			row.Host            = session.Host;
+			row.Hostname        = profile->hostname();
+			row.Login           = session.Viewer.Login;
+			row.Account         = session.Viewer.Account;
+			row.Server          = profile->product_kind() == application::github_product_kind::github_com ? core::remembered_connection_server::github_com : core::remembered_connection_server::ghes_3_18;
+			row.Transport       = cli ? core::remembered_connection_transport::github_cli : core::remembered_connection_transport::native_device;
+			static_cast<void>(Connections->remember(std::move(row)));
+		}
+		auto restore_cli(const core::remembered_connection& aRow) -> bool
+		{
+			if (aRow.Transport != core::remembered_connection_transport::github_cli) {
+				return false;
+			}
+			CliConsent.insert(aRow.Profile);
+			Host->dispatch(core::activate_host_profile_intent{ .Profile = aRow.Profile });
+			return true;
+		}
+		void remember_startup(std::optional<core::request_id> aRequest = std::nullopt)
+		{
+			if (RememberedStartupStarted || Closing) {
 				return;
 			}
 			RememberedStartupStarted = true;
-			const auto& profile      = Profiles.front();
-			auto        current      = std::function<bool()>{ };
+			if (const auto row = selected_connection(); row && restore_cli(*row)) {
+				return;
+			}
+			const auto selected = selected_connection();
+			const auto native   = selected ? std::ranges::find(Profiles, selected->Profile, &validated_github_host_profile::profile) : Profiles.begin();
+			if (!RememberDeviceSignIn || native == Profiles.end() || suppress_device(native->hostname())) {
+				return;
+			}
+			const auto& profile = *native;
+			auto        current = std::function<bool()>{ };
 			if (aRequest) {
 				current = [weak = weak_from_this(), request = *aRequest] {
 					const auto self = weak.lock();
@@ -4189,8 +4271,12 @@ namespace bpr::app {
 				remember_startup(aRequest.Request);
 				return;
 			}
-			RestorationStartup = aRequest;
-			const auto found   = std::ranges::find_if(Profiles, [&](const auto& aProfile) { return aProfile.hostname() == aRequest.Authority->Hostname; });
+			RestorationStartup  = aRequest;
+			const auto selected = selected_connection(aRequest.Authority->Hostname);
+			if (aRequest.Authority->Mode == core::github_access_mode::authenticated && selected && restore_cli(*selected)) {
+				return;
+			}
+			const auto found = std::ranges::find_if(Profiles, [&](const auto& aProfile) { return aProfile.hostname() == aRequest.Authority->Hostname && aProfile.authentication_transport() == application::github_authentication_transport::native_https; });
 			if (found == Profiles.end()) {
 				ReviewRestoration->complete_startup(aRequest.Request, std::unexpected(core::window_review_failure::missing_server));
 				return;
@@ -4201,7 +4287,7 @@ namespace bpr::app {
 				observe_restoration_session();
 				return;
 			}
-			if (!RememberDeviceSignIn) {
+			if (!RememberDeviceSignIn || suppress_device(aRequest.Authority->Hostname)) {
 				ReviewRestoration->complete_startup(aRequest.Request, std::unexpected(core::window_review_failure::unavailable));
 				return;
 			}
@@ -4324,6 +4410,9 @@ namespace bpr::app {
 			if (DeviceHost) {
 				DeviceHost->shutdown();
 			}
+			if (Connections) {
+				Connections->shutdown();
+			}
 			if (Host) {
 				Host->shutdown();
 			}
@@ -4351,13 +4440,13 @@ namespace bpr::app {
 			if ((Diagnostics && !Diagnostics->quiescent()) || (Maintenance && !Maintenance->quiescent())) {
 				return;
 			}
-			if (ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
+			if ((Connections && !Connections->quiescent()) || ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
 				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent()) || (Discovery && !Discovery->is_quiescent())
 				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
 				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)) {
 				return;
 			}
-			if (!ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
+			if (!ConnectionEffects.idle() || !ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
 				|| !EpochEffects.idle() || !DiffEffects.idle() || !PrepareEffects.idle()
 				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
 				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
@@ -4425,6 +4514,7 @@ namespace bpr::app {
 			AgentEffects.close_and_drain();
 			McpEffects.close_and_drain();
 #endif
+			ConnectionEffects.close_and_drain();
 			WorkbenchEffects.close_and_drain();
 			AppearanceEffects.close_and_drain();
 			QueueEffects.close_and_drain();
@@ -4446,7 +4536,7 @@ namespace bpr::app {
 
 		explicit github_profile_runtime(
 			github_application_config aConfig, application::profile_startup_admission aAdmission, std::filesystem::path aRegistryRoot,
-			std::optional<application::durable_queue_state> aSavedQueue, std::shared_ptr<void> aScratch, bool aDesktop,
+			std::optional<application::durable_queue_state> aSavedQueue, std::unique_ptr<application::remembered_connection_store_port> aConnectionStore, application::remembered_connection_store_result<core::remembered_connection_state> aConnections, std::shared_ptr<void> aScratch, bool aDesktop,
 			std::shared_ptr<application::profile_runtime_lease> aRuntimeLease
 #if defined(BPR_BUILD_TESTING)
 			,
@@ -4712,8 +4802,13 @@ namespace bpr::app {
 				};
 			}
 			ApplicationDataRoot = applicationDataRoot;
-			InstalledGit        = gitExecutable;
-			DiagnosticLog       = aConfig.DiagnosticLog;
+			ConnectionStore     = std::move(aConnectionStore);
+			Connections         = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
+			if (!Connections->available()) {
+				RestorationGlobalNotice = QStringLiteral("Saved connections could not be read. Sign in explicitly to continue; the saved data has been preserved.");
+			}
+			InstalledGit  = gitExecutable;
+			DiagnosticLog = aConfig.DiagnosticLog;
 			if (!DiagnosticLog) {
 				try {
 					const auto loaded  = adapters::sqlite::load_diagnostic_preferences(applicationDataRoot);
@@ -4764,6 +4859,32 @@ namespace bpr::app {
 				}
 			}
 
+			if (Connections->state().LastProfileId != 0U || Connections->state().LastHostId != 0U) {
+				const auto originals = Profiles;
+				Profiles.clear();
+				ProfileOptions.clear();
+				auto        nextProfile = Connections->state().LastProfileId;
+				auto        nextHost    = Connections->state().LastHostId;
+				const auto& rows        = Connections->state().Connections;
+				for (const auto& original : originals) {
+					const auto row          = std::ranges::find(rows, original.hostname(), &core::remembered_connection::Hostname);
+					const auto native       = original.authentication_transport() == application::github_authentication_transport::native_https && row != rows.end() && row->Profile.value() != 0U && row->Transport == core::remembered_connection_transport::native_device;
+					const auto profileId    = native ? row->Profile : core::host_profile_id{ Connections->state().LastProfileId == 0U ? original.profile().value() : ++nextProfile };
+					const auto existingHost = std::ranges::find(Profiles, original.hostname(), &validated_github_host_profile::hostname);
+					const auto hostId       = existingHost != Profiles.end() ? existingHost->host() : row != rows.end() && row->Host.value() != 0U ? row->Host
+																																				   : core::git_host_id{ Connections->state().LastHostId == 0U ? original.host().value() : ++nextHost };
+					append_profile(Profiles, ProfileOptions, native_profile_candidate(profileId, hostId, native ? application::github_profile_revision{ row->ProfileRevision } : original.revision(), original.server_contract(), original.authentication_transport(), std::string{ original.hostname() }, original.provenance()), std::string{ original.hostname() } + (original.authentication_transport() == application::github_authentication_transport::github_cli ? " — GitHub CLI" : " — Native HTTPS"));
+				}
+				for (const auto& row : rows) {
+					if (row.Profile.value() == 0U || row.Transport != core::remembered_connection_transport::github_cli) {
+						continue;
+					}
+					auto candidate            = native_profile_candidate(row.Profile, row.Host, application::github_profile_revision{ row.ProfileRevision }, row.Server == core::remembered_connection_server::github_com ? application::github_server_contract::github_com_2022_11_28 : application::github_server_contract::ghes_3_18_2022_11_28, application::github_authentication_transport::github_cli, row.Hostname, github_profile_provenance::explicit_user);
+					candidate.CliAccountLogin = row.Login;
+					candidate.CliAccount      = row.Account;
+					append_profile(Profiles, ProfileOptions, candidate, row.Hostname + " — GitHub CLI (" + row.Login + ")");
+				}
+			}
 			ProfileCatalog = std::make_shared<adapters::github::detail::github_profile_catalog>();
 			for (const auto& profile : Profiles) {
 				if (!ProfileCatalog->register_profile(profile)) {
@@ -5948,6 +6069,7 @@ namespace bpr::app {
 	void github_profile_runtime::publish(const application::github_presentation_update& aUpdate)
 	{
 		reconcile_release_access();
+		observe_connection();
 		if (aUpdate.Transition && aUpdate.Transition->Identity && aUpdate.Transition->Identity->Generation != QueueIdentityGeneration) {
 			QueueIdentityGeneration = aUpdate.Transition->Identity->Generation;
 			if (QueueHost) {
@@ -7378,6 +7500,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_saved_server_dispatch(
 				[this](application::saved_server_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {
+						if (aIntent.Action == application::saved_server_action::remove && Profile->Connections) {
+							static_cast<void>(Profile->Connections->forget(aIntent.Server.Hostname));
+							if (DeviceHost->state().Profile) {
+								const auto* pending = find_profile(*DeviceHost->state().Profile);
+								if (pending && pending->hostname() == aIntent.Server.Hostname) {
+									retire_setup_effects();
+									DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+								}
+							}
+							if (Host->state().ActiveProfile) {
+								const auto* active = find_profile(*Host->state().ActiveProfile);
+								if (active && active->hostname() == aIntent.Server.Hostname) {
+									DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+									Host->dispatch(core::deactivate_github_identity_intent{ });
+								}
+							}
+						}
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
@@ -8641,7 +8780,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (SetupDestination) {
 					SetupDestination->cancel();
 				}
-				DeviceHost->dispatch(*begin);
+				DeviceHost->dispatch(core::begin_device_authorization_intent{ .Profile = native_sign_in_profile(begin->Profile) });
 				return;
 			}
 			if (const auto* const cancel
@@ -13346,6 +13485,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return found == Profiles.end() ? nullptr : &*found;
 		}
 
+		[[nodiscard]] auto native_sign_in_profile(core::host_profile_id aProfile) -> core::host_profile_id
+		{
+			const auto* old = find_profile(aProfile);
+			if (!old || old->authentication_transport() != application::github_authentication_transport::native_https || aProfile.value() > Profile->Connections->state().LastProfileId) {
+				return aProfile;
+			}
+			auto profileHigh = Profile->Connections->state().LastProfileId;
+			auto hostHigh    = Profile->Connections->state().LastHostId;
+			for (const auto& candidate : Profiles) {
+				profileHigh = std::max(profileHigh, candidate.profile().value());
+				hostHigh    = std::max(hostHigh, candidate.host().value());
+			}
+			if (profileHigh == std::numeric_limits<std::uint64_t>::max() || hostHigh == std::numeric_limits<std::uint64_t>::max()) {
+				return { };
+			}
+			const auto& rows      = Profile->Connections->state().Connections;
+			const auto  row       = std::ranges::find(rows, old->hostname(), &core::remembered_connection::Hostname);
+			const auto  host      = row != rows.end() && row->Host.value() != 0U ? row->Host : old->host().value() > Profile->Connections->state().LastHostId ? old->host()
+																																							  : core::git_host_id{ ++hostHigh };
+			const auto  candidate = validate_github_host_profile(native_profile_candidate(core::host_profile_id{ ++profileHigh }, host, application::github_profile_revision{ 1U }, old->server_contract(), old->authentication_transport(), std::string{ old->hostname() }, old->provenance()));
+			if (!candidate || !ProfileCatalog->register_profile(*candidate)) {
+				return { };
+			}
+			Profiles.push_back(*candidate);
+			auto option = profile_option(*candidate, std::string{ candidate->hostname() } + " — Native HTTPS");
+			ProfileOptions.push_back(option);
+			Profile->for_each_window([&](const auto& aObserver) { if (aObserver.SetupProfile) { aObserver.SetupProfile(option); } });
+			return candidate->profile();
+		}
 		[[nodiscard]] auto owner() const -> core::setup_owner_id override { return SetupOwner; }
 		[[nodiscard]] auto profiles() const -> std::vector<application::setup_profile_observation> override
 		{
@@ -13362,8 +13530,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 								   .Authenticated    = authenticated,
 								   .PreviewAvailable = PublicPreviewComposed && profile.authentication_transport() == application::github_authentication_transport::native_https && profile.server_contract() == application::github_server_contract::github_com_2022_11_28 });
 			}
+			std::stable_partition(result.begin(), result.end(), [this](const auto& aRow) { const auto chosen = Profile->selected_connection(aRow.Hostname); return chosen && chosen->Profile == aRow.Profile; });
 			return result;
 		}
+
 		[[nodiscard]] auto shorthand_hostname() const -> std::string override
 		{
 			const auto  selected = Host && Host->state().ActiveProfile ? Host->state().ActiveProfile : Window->session_panel()->selected_profile();
@@ -13400,7 +13570,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[&](const validated_github_host_profile& aProfile) {
 					return aProfile.hostname() == aAccount.Hostname
 						&& aProfile.authentication_transport() == application::github_authentication_transport::github_cli
-						&& aProfile.cli_account_login() == aAccount.Login;
+						&& aProfile.cli_account_login() == aAccount.Login && aProfile.cli_account().value() == 0U
+						&& aProfile.profile().value() > Profile->Connections->state().LastProfileId;
 				});
 			if (existing != Profiles.end()) {
 				return &*existing;
@@ -13409,8 +13580,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return nullptr;
 			}
 
-			auto nextProfile = std::uint64_t{ 1U };
-			auto nextHost    = std::uint64_t{ 1U };
+			auto nextProfile = Profile->Connections->state().LastProfileId + 1U;
+			auto nextHost    = Profile->Connections->state().LastHostId + 1U;
 			auto host        = std::optional<core::git_host_id>{ };
 			for (const auto& profile : Profiles) {
 				if (profile.profile().value() == std::numeric_limits<std::uint64_t>::max()
@@ -13419,7 +13590,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				nextProfile = std::max(nextProfile, profile.profile().value() + 1U);
 				nextHost    = std::max(nextHost, profile.host().value() + 1U);
-				if (profile.hostname() == aAccount.Hostname) {
+				if (profile.hostname() == aAccount.Hostname && (profile.host().value() > Profile->Connections->state().LastHostId || std::ranges::any_of(Profile->Connections->state().Connections, [&](const auto& aRow) { return aRow.Hostname == aAccount.Hostname && aRow.Host.value() != 0U; }))) {
 					host = profile.host();
 				}
 			}
@@ -13466,19 +13637,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto listed = std::map<std::string, std::vector<qt::server_card_cli_account>, std::less<>>{ };
 			for (const auto& account : Profile->GithubCliInventory) {
-				const auto pinned = std::ranges::find_if(Profiles, [&](const validated_github_host_profile& aProfile) {
-					return aProfile.hostname() == account.Hostname
-						&& aProfile.authentication_transport() == application::github_authentication_transport::github_cli
-						&& aProfile.cli_account_login() == account.Login;
-				});
-				const auto state  = !account.SignedIn ? qt::server_card_cli_account_state::signed_out
-					: !account.KeychainHeld           ? qt::server_card_cli_account_state::file_token
-													  : qt::server_card_cli_account_state::signed_in;
+				const validated_github_host_profile* pinned = nullptr;
+				for (const auto& candidate : Profiles) {
+					if (candidate.hostname() == account.Hostname && candidate.authentication_transport() == application::github_authentication_transport::github_cli && candidate.cli_account_login() == account.Login) {
+						pinned = &candidate;
+					}
+				}
+				const auto state = !account.SignedIn ? qt::server_card_cli_account_state::signed_out
+					: !account.KeychainHeld          ? qt::server_card_cli_account_state::file_token
+													 : qt::server_card_cli_account_state::signed_in;
 				listed[account.Hostname].push_back(qt::server_card_cli_account{
 					.Login      = account.Login,
 					.ActiveInGh = account.Active,
 					.State      = state,
-					.Profile    = pinned != Profiles.end() ? std::optional{ pinned->profile() } : std::nullopt,
+					.Profile    = pinned ? std::optional{ pinned->profile() } : std::nullopt,
 					.UsedBy     = cli_account_users().users(account.Hostname, account.Login),
 				});
 			}
@@ -13665,8 +13837,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					})) {
 					continue;
 				}
-				auto nextProfile = std::uint64_t{ 1U };
-				auto nextHost    = std::uint64_t{ 1U };
+				auto nextProfile = Profile->Connections->state().LastProfileId + 1U;
+				auto nextHost    = Profile->Connections->state().LastHostId + 1U;
 				auto host        = std::optional<core::git_host_id>{ };
 				for (const auto& profile : Profiles) {
 					nextProfile = std::max(nextProfile, profile.profile().value() + 1U);
@@ -13745,8 +13917,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SetupDestination->committed(aExpected.Request);
 				return SetupDestination->pending() && SetupDestination->pending()->Request == aExpected.Request && SetupOwner == aExpected.Owner; }, aProvenance, std::move(aLifetime), aSettled);
 		}
-		void authenticate(const core::pending_setup_destination& aPending) override
+		void authenticate(const core::pending_setup_destination& aOriginal) override
 		{
+			auto aPending = aOriginal;
+			if (aPending.Profile) {
+				const auto selected = native_sign_in_profile(*aPending.Profile);
+				if (selected != *aPending.Profile) {
+					if (!SetupDestination->begin_authentication(aPending.Request, selected)) {
+						return;
+					}
+					aPending = *SetupDestination->pending();
+				}
+			}
 			if (!aPending.Profile || !Host || !DeviceHost) {
 				return;
 			}
@@ -14096,7 +14278,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						// A run inside the boundary composes no factory that
 						// can serve a CLI read, so it never reaches here.
 #if defined(__APPLE__)
-							if (Profile->cli_read_offered_here()) {
+							const auto remembered = Profile->selected_connection(profile->hostname());
+							if (Profile->cli_read_offered_here() && !Profile->CliConsent.contains(aValue.Profile) && (!remembered || remembered->Profile != aValue.Profile)) {
 								// [[BPR-0933]]. A short decision; the full
 								// residual-risk list is behind Show Details.
 								const auto consent = qt::ask_github_cli_read_consent(
@@ -14110,6 +14293,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							if (Closing || GithubCliDiscoveryGeneration != discoveryGeneration || (setupActivation && SetupDestination->pending() != expectedSetup)) {
 								return;
 							}
+							Profile->CliConsent.insert(aValue.Profile);
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
 							if (setupActivation) {
@@ -14146,10 +14330,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
 							Host->enroll_profile(
-								aValue.Profile, std::move(*credential));
+								native_sign_in_profile(aValue.Profile), std::move(*credential));
 						}
 					} else {
 						if constexpr (std::is_same_v<intent_type, core::deactivate_github_identity_intent>) {
+							if (Host->state().ActiveProfile) {
+								const auto* active = find_profile(*Host->state().ActiveProfile);
+								if (active && Profile->Connections) {
+									static_cast<void>(Profile->Connections->disable(std::string{ active->hostname() }));
+								}
+								DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
+							}
 							if (DiagnosticLog) {
 								DiagnosticLog->discard_context();
 							}
@@ -18212,6 +18403,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else {
 				SavedQueue.reset();
 			}
+			ConnectionStore  = adapters::sqlite::make_remembered_connection_store(*root, Config.Profile);
+			SavedConnections = ConnectionStore->load(aStop);
 			return *root;
 		}
 		bool OwnerOnly = false;
@@ -18242,9 +18435,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// so each names itself before it runs and the catch reports which.
 			auto step = std::string_view{ "profile-runtime-construction" };
 			try {
-				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(Scratch), OwnerOnly, std::move(RuntimeLease)
+				auto profile = std::make_shared<github_profile_runtime>(std::move(Config), *aTerminal.Result, RegistryRoot, std::move(SavedQueue), std::move(ConnectionStore), std::move(SavedConnections), std::move(Scratch), OwnerOnly, std::move(RuntimeLease)
 #if defined(BPR_BUILD_TESTING)
-																																													  ,
+																																																											   ,
 																		Fixture, std::move(Options)
 #endif
 				);
@@ -18298,11 +18491,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_LOCAL_AUTOMATION)
 		std::shared_ptr<cycle_owner_service> CycleOwnerService;
 #endif
-		std::optional<github_application_startup_failure> Handoff;
-		github_application_startup_completion             Completion;
-		std::filesystem::path                             RegistryRoot;
-		std::shared_ptr<void>                             Scratch;
-		std::optional<application::durable_queue_state>   SavedQueue;
+		std::optional<github_application_startup_failure>                                  Handoff;
+		github_application_startup_completion                                              Completion;
+		std::filesystem::path                                                              RegistryRoot;
+		std::shared_ptr<void>                                                              Scratch;
+		std::optional<application::durable_queue_state>                                    SavedQueue;
+		std::unique_ptr<application::remembered_connection_store_port>                     ConnectionStore;
+		application::remembered_connection_store_result<core::remembered_connection_state> SavedConnections = std::unexpected(application::remembered_connection_store_failure::unavailable);
 #if defined(BPR_BUILD_TESTING)
 		std::optional<detail::github_public_path_fixture> Fixture;
 		detail::github_public_path_fixture_options        Options;

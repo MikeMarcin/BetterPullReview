@@ -1663,7 +1663,8 @@ namespace bpr::adapters::github::detail {
 								const std::lock_guard lock{ state->Mutex };
 								const auto            key = std::pair{ profile->profile().value(), std::string{ profile->cli_account_login() } };
 								const auto [entry, fresh] = state->CliPinnedAccounts.try_emplace(key, observed->Viewer.Account);
-								bound                     = observed->Viewer.Login == profile->cli_account_login()
+								bound                     = (profile->cli_account().value() == 0U || profile->cli_account() == observed->Viewer.Account)
+									&& observed->Viewer.Login == profile->cli_account_login()
 									&& (fresh || entry->second == observed->Viewer.Account);
 								if (fresh && !bound) {
 									state->CliPinnedAccounts.erase(entry);

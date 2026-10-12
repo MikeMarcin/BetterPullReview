@@ -34,6 +34,8 @@ namespace bpr::adapters::github {
 		/// [[BPR-1373]]. The `gh` account a GitHub CLI profile is pinned to;
 		/// empty for an unpinned CLI profile and for every other transport.
 		std::string CliAccountLogin;
+		/// Persisted authenticated binding; zero until first explicit successful selection.
+		core::github_account_id CliAccount;
 
 		auto operator==(const github_host_profile_candidate&) const -> bool = default;
 	};
@@ -95,6 +97,7 @@ namespace bpr::adapters::github {
 		[[nodiscard]] auto rest_api_version() const noexcept -> std::string_view;
 		/// \brief [[BPR-1373]]. The pinned `gh` login; empty when unpinned.
 		[[nodiscard]] auto cli_account_login() const noexcept -> std::string_view;
+		[[nodiscard]] auto cli_account() const noexcept -> core::github_account_id;
 
 	private:
 		explicit validated_github_host_profile(
@@ -112,6 +115,7 @@ namespace bpr::adapters::github {
 		std::string                                  RestRoot;
 		std::string                                  GraphqlRoot;
 		std::string                                  CliAccountLogin;
+		core::github_account_id                      CliAccount;
 
 		friend auto validate_github_host_profile(
 			const github_host_profile_candidate& aCandidate)

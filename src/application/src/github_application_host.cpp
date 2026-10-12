@@ -4832,6 +4832,12 @@ namespace bpr::application {
 		return Implementation->CredentialAuthority;
 	}
 
+	auto github_application_host::accepted_device_connection() const noexcept -> bool
+	{
+		return Implementation->AcceptedSession && Implementation->CredentialAuthority
+			&& Implementation->CredentialBindings.provenance(Implementation->AcceptedSession->Profile) == github_credential_provenance::device_grant;
+	}
+
 	auto github_application_host::accepted_credential_renewable() const noexcept
 		-> bool
 	{

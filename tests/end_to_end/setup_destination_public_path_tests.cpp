@@ -2082,8 +2082,6 @@ namespace {
 		recoveredWindow.show();
 		QApplication::processEvents();
 		verify_composed_code_metrics(*application, 4U);
-		recoveredWindow.home_landing()->secondary_button()->click();
-		cancel_setup(recoveredWindow);
 		auto   recoveredConfirmations = 0U;
 		QTimer recoveredConsent;
 		QObject::connect(&recoveredConsent, &QTimer::timeout, [&] {
@@ -2094,7 +2092,6 @@ namespace {
 			}
 		});
 		recoveredConsent.start(1);
-		recoveredWindow.home_landing()->secondary_button()->click();
 		wait_for(
 			[&] {
 				return recoveredWindow.session_panel()->status()
@@ -2110,8 +2107,8 @@ namespace {
 			"CLI source/update recovery PR opens");
 		recoveredConsent.stop();
 		expect(
-			recoveredConfirmations == 1U,
-			"CLI source/update recovery profile asks for one confirmation");
+			recoveredConfirmations == 0U,
+			"CLI source/update recovery reuses read consent without a confirmation");
 		wait_for(
 			[&] {
 				return application->status().EpochStatus == core::epoch_status::ready
@@ -2155,8 +2152,6 @@ namespace {
 		auto& updatedWindow = application->window();
 		updatedWindow.show();
 		QApplication::processEvents();
-		updatedWindow.home_landing()->secondary_button()->click();
-		cancel_setup(updatedWindow);
 		auto   updatedConfirmations = 0U;
 		QTimer updatedConsent;
 		QObject::connect(&updatedConsent, &QTimer::timeout, [&] {
@@ -2167,7 +2162,6 @@ namespace {
 			}
 		});
 		updatedConsent.start(1);
-		updatedWindow.home_landing()->secondary_button()->click();
 		wait_for(
 			[&] {
 				return updatedWindow.session_panel()->status()
@@ -2183,8 +2177,8 @@ namespace {
 			"CLI source/update retained-history PR opens");
 		updatedConsent.stop();
 		expect(
-			updatedConfirmations == 1U,
-			"CLI source/update retained-history profile asks for one confirmation");
+			updatedConfirmations == 0U,
+			"CLI source/update retained-history reuses read consent without a confirmation");
 		wait_for(
 			[&] {
 				return application->status().EpochStatus == core::epoch_status::ready

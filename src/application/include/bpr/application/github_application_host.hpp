@@ -325,6 +325,8 @@ namespace bpr::application {
 		/// material it retrieved on the vault's own callback and carries only
 		/// the answer onto the decision lane.
 		[[nodiscard]] auto accepted_credential_renewable() const noexcept -> bool;
+		/// \brief True only for an accepted enrolled or restored device grant.
+		[[nodiscard]] auto accepted_device_connection() const noexcept -> bool;
 		/// \brief Returns the identity generation the accepted session runs under.
 		///
 		/// \details Zero when no session has been accepted, and nonzero for

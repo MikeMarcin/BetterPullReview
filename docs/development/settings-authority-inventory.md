@@ -156,9 +156,10 @@ from vault material and current session facts. `remembered_connection_state`
 keeps one canonical server choice, observed account binding, stable identity,
 selected order and reuse-disable facts; `remembered_connection_store_port`
 commits a complete snapshot under `state/v1/remembered-connections.sqlite3`.
-The metadata/policy capability is implemented by BPR-1408. Shared runtime
-startup and Settings intent wiring remain BPR-1409, so this addition supplies
-no composed restart acceptance yet.
+BPR-1408 supplies the metadata/policy capability. BPR-1409 wires shared
+runtime startup, successful-session observation, Sign out and Forget, with
+a dedicated serialized writer and orderly shutdown drain. BPR-1410 retains
+full fresh-process qualification.
 
 Successful explicit CLI/read-trust selection may persist; successful native
 device selection replaces it, while manual tokens remain session-only. Sign

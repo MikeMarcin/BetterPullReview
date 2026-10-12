@@ -1,0 +1,152 @@
+#include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/remembered_connection_store.hpp"
+#include "bpr/qt/github_session_panel.hpp"
+#include "bpr/qt/server_card.hpp"
+#include "bpr/qt/workbench_landing.hpp"
+#include "bpr/qt/workbench_window.hpp"
+#include "private_data_root.hpp"
+#include <QAbstractButton>
+#include <QAction>
+#include <QApplication>
+#include <QDialog>
+#include <QElapsedTimer>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QTemporaryDir>
+#include <QThread>
+#include <QTimer>
+#include <iostream>
+namespace {
+	using namespace bpr;
+	using app::detail::github_application_fixture_access;
+	using tests::expect;
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (!aCondition() && elapsed.elapsed() < 20000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		expect(aCondition(), aMessage);
+	}
+	auto start(app::detail::github_public_path_fixture_options aOptions) -> std::unique_ptr<app::github_application>
+	{
+		std::unique_ptr<app::github_application> result;
+		bool                                     terminal = false;
+		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, std::move(aOptions), [&](auto aResult) { terminal=true; if (aResult) { result=std::move(*aResult); } });
+		wait_for([&] { return terminal && startup->is_quiescent(); }, "startup terminates");
+		expect(result != nullptr, "application starts");
+		return result;
+	}
+	void stop(std::unique_ptr<app::github_application>& aApplication)
+	{
+		aApplication->begin_shutdown();
+		wait_for([&] { return aApplication->status().ShutdownComplete; }, "orderly Quit drains metadata and all hosts");
+		aApplication.reset();
+	}
+	void run()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.PublicPreviewEnabledCourse = true;
+		options.IndependentWindowReads     = true;
+		expect(options.ApplicationDataRoot.has_value(), "private root");
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+		unsigned prompts                   = 0;
+		QTimer   consent;
+		QObject::connect(&consent, &QTimer::timeout, [&] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				const tests::exit_on_failure inTheEventLoop;
+				expect(prompt->informativeText().contains(QStringLiteral("reused on later launches until you sign out or replace it")), "read consent explains durable reuse");
+				const auto capture = qEnvironmentVariable("BPR_REMEMBERED_CONNECTION_CONSENT_CAPTURE");
+				if (!capture.isEmpty()) {
+					expect(prompt->grab().save(capture, "PNG"), "offscreen consent capture is written");
+				}
+				++prompts;
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		consent.start(1);
+		auto  application = start(options);
+		auto& window      = application->window();
+		window.show();
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		expect(window.home_landing()->secondary_button()->text() == QStringLiteral("Use GitHub CLI"), "Home offers the explicit CLI action");
+		window.home_landing()->secondary_button()->click();
+		expect(window.sign_in_dialog() && window.sign_in_dialog()->isVisible(), "CLI discovery opens the public sign-in surface");
+		window.sign_in_dialog()->reject();
+		window.home_landing()->secondary_button()->click();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection accepts authenticated viewer");
+		expect(prompts == 1, "first CLI selection asks read trust once");
+		const auto profile = window.session_panel()->active_profile();
+		auto       store   = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
+		wait_for([&] { auto saved=store->load({}); return saved && core::select_remembered_connection(*saved).has_value(); }, "successful selection persists before layout or Quit");
+		auto       saved = store->load({ });
+		const auto row   = *core::select_remembered_connection(*saved);
+		expect(row.Profile == profile && row.Login == "octo-reviewer" && row.Account.value() != 0, "saved selection binds accepted stable profile and numeric account");
+		stop(application);
+		// Empty discovery inventory proves restoration does not need it.
+		options.GithubCliDiscoveryAccounts->clear();
+		application = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "reopen revalidates exact remembered CLI connection");
+		expect(application->window().session_panel()->active_profile() == profile && prompts == 1, "reopen preserves identity without another selector or trust prompt");
+		stop(application);
+		options.ViewerNamesAnotherAccount = true;
+		application                       = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "changed authenticated viewer refuses the remembered authority");
+		stop(application);
+		saved               = store->load({ });
+		const auto retained = core::select_remembered_connection(*saved);
+		expect(retained && retained->Profile == row.Profile && retained->Account == row.Account, "validation refusal preserves the exact durable choice");
+		options.ViewerNamesAnotherAccount = false;
+		application                       = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "later launch retries the retained exact authority successfully");
+		expect(application->window().session_panel()->active_profile() == profile && prompts == 1, "retry keeps stable identity and read consent");
+		stop(application);
+		// Keep the login unchanged while changing only the persisted numeric binding.
+		// Removing the provider's durable numeric check must make this course fail.
+		saved              = store->load({ });
+		auto mismatched    = row;
+		mismatched.Profile = core::host_profile_id{ saved->LastProfileId + 1U };
+		mismatched.Account = core::github_account_id{ row.Account.value() + 1U };
+		auto changed       = core::remember_connection(*saved, saved->Revision, mismatched);
+		expect(changed && store->save(*changed, saved->Revision, { }).has_value(), "fixture writes an exact same-login mismatched numeric binding");
+		application = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "numeric account mismatch refuses restored session");
+		expect(!application->window().session_panel()->active_profile().has_value() || application->window().session_panel()->status() != core::github_status::session_ready, "mismatch exposes no accepted session");
+		stop(application);
+		saved            = store->load({ });
+		auto repaired    = row;
+		repaired.Profile = core::host_profile_id{ saved->LastProfileId + 1U };
+		changed          = core::remember_connection(*saved, saved->Revision, repaired);
+		expect(changed && store->save(*changed, saved->Revision, { }).has_value(), "fixture restores the authenticated account binding for retry");
+		application = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "a corrected numeric binding accepts the matching authenticated viewer");
+		application->window().open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		const auto cards = application->window().server_cards();
+		auto*      card  = *std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "github.com"; });
+		expect(card->sign_out_button()->isEnabled(), "restored CLI session offers the public Sign out action");
+		card->sign_out_button()->click();
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::no_profile; }, "Sign out retires the shared accepted identity");
+		wait_for([&] { auto disabled=store->load({}); return disabled && !core::select_remembered_connection(*disabled); }, "Sign out saves disabled reuse before Quit");
+		stop(application);
+		application = start(options);
+		expect(application->window().session_panel()->status() == core::github_status::no_profile && prompts == 1, "restart after Sign out stays signed out without discovery or trust");
+		stop(application);
+		consent.stop();
+	}
+}
+int main(int aArgc, char** aArgv)
+try {
+	QApplication qt{ aArgc, aArgv };
+	run();
+	std::cout << "remembered-connection-public-path-tests:pass\n";
+} catch (const std::exception& aError) {
+	std::cerr << aError.what() << '\n';
+	return 1;
+}
