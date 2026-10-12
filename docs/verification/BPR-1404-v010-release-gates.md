@@ -377,8 +377,9 @@ The owner rejected BPR-1407's initial Home look and amended its presentation.
 Selected commit `5081076e48efdd0f7f6be1eae4f11d54ce4913b4` supplies coloured
 line counts separated by a slash, a short age, a comment icon/count, and a
 reviewer count on authored rows. Its owning card retains the required revised
-look and shorter-row acceptance; the original rejected look is not approval
-for this revision.
+look and shorter-row acceptance: the owner accepted both at `5081076e4` in
+session `0a56c5a5ab179ef3e4e984f1500473f9`, decisions `fe02b0ee` and `8b19d8df`.
+The original rejected look is not approval for this revision.
 
 Scoped composition review from `004a9c8ef` through `5081076e4` finds only one
 additional `src/app` change: `github_public_path_fixture.cpp` introduces
@@ -398,7 +399,8 @@ application, landing model, Home list and discovery course successfully.
 Eight normal focused rows pass serially in 94.47 seconds: landing model,
 Home at 1.0/1.25/2.0, personal discovery and authored waiting through both
 native and CLI paths. The owner look is still independent. Final affected
-native Windows/Ubuntu and the authoritative Mac normal gate remain pending.
+native Windows/Ubuntu and the authoritative Mac normal gate remain pending;
+the separately recorded revised owner look passes.
 
 ## Vulnerability and wider qualification frontier
 

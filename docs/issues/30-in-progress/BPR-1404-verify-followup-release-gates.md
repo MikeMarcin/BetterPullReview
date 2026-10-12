@@ -118,8 +118,9 @@ The ledger preserves every actual failed result and pending native acceptance.
 
 Inherited BPR-1407 Home facts are selected, with their recorded 76/76 local
 checks. The owner rejected the first look in attended session
-`7cf6171a73b084a2ae161dcd95702e61`; revised acceptance remains in its owning
-card's workflow. Final native selectors include its provider,
+`7cf6171a73b084a2ae161dcd95702e61`; its owning card records acceptance of
+the revised look and reviewer count in session `0a56c5a5ab179ef3e4e984f1500473f9`.
+Final native selectors include its provider,
 discovery and queue storage changes. The Windows normal course's empty
 writing-folder deletion and pending-label ordering failures have scoped
 repairs using the existing owner-private descriptor and a bounded fixture-only
@@ -138,7 +139,7 @@ native obligations are in the ledger.
 
 The selected UI also includes BPR-1407's owner amendments at `5081076e4`:
 coloured line totals, short age, comment icon/count and reviewer counts. Revised
-AC4/AC5 remain in its owning card's workflow. Scoped review finds only a
+AC4/AC5 have recorded owner acceptance at `5081076e4`. Scoped review finds only a
 tests-only discovered-title helper in the additional composition delta. All
 three production pins stay byte-identical; hostile-source/manifest controls
 pass. No UI acceptance or final native gate pass is inferred from this review.
