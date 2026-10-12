@@ -141,7 +141,7 @@ Qt design language; it proposes no new palette, web surface or visual theme.
 
 ## Proposed implementation
 
-[Normalize observations](../issues/20-ready/BPR-1390-check-observations.md),
+[Normalize observations](../issues/30-in-progress/BPR-1390-check-observations.md),
 [compose Overview](../issues/10-backlog/BPR-1391-check-details-overview.md), and
 [reconcile closeout](../issues/10-backlog/BPR-1392-close-rfc-0068.md) implement this
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json). See the

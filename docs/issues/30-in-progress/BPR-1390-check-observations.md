@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1390"
 title: "Normalize inspectable current check observations"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0068"]
 depends_on: []
 priority: "P1"
