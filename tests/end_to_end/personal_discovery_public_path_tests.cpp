@@ -828,7 +828,12 @@ try {
 
 	wait_for([&] { const auto item = queue_item(*windowA, 4003); const auto followed = queue_item(*windowA, 17); return discovery().Quiescent && item && followed && followed->Facts.Title == followedTitle && item->Facts.Title == "Discovered pull request 4003" && item->Bucket == core::attention_bucket::quiet; },
 			 "restarted Home fills retained titles and approval state before opening a review", diagnose);
-	expect(queue_item(*windowA, 17)->Facts.Draft == true && windowA->home_recent_list()->item(0)->data(qt::home_row_role::draft).toBool(), "restart preserves accepted draft in queue and Recent");
+	auto retainedRecentDraft = false;
+	for (auto index = 0; index < windowA->home_recent_list()->count(); ++index) {
+		const auto* recent  = windowA->home_recent_list()->item(index);
+		retainedRecentDraft = retainedRecentDraft || (recent->data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#17") && recent->data(qt::home_row_role::draft).toBool());
+	}
+	expect(queue_item(*windowA, 17)->Facts.Draft == true && retainedRecentDraft, "restart preserves the exact PR draft in queue and Recent independently of recency order");
 	expect(contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"), "restored approved PR is Following before it is opened");
 	expect(std::ranges::none_of(reads_since(evidence(), beforeReconnect), [](const std::string& aOperation) {
 			   return aOperation == "GetRepository" || aOperation == "ListPullRequestFiles" || aOperation == "ListPullRequestCommits"

@@ -1446,6 +1446,7 @@ namespace {
 			queue[0].Facts.Draft = true;
 			queue[0].Facts.Title = "A complete draft title with enough literal text to wrap across the narrow Home row without elision";
 			queue[1].Facts.Draft = false;
+			queue[1].Ref.Account = "second-account";
 			home.Source.apply(queue);
 			home.Source.set_reviewing(queue[0].Ref);
 			home.List.set_queue_status(true, true);
@@ -1476,6 +1477,13 @@ namespace {
 			expect(first.data(qt::home_row_role::draft).toBool() && first.data(Qt::AccessibleTextRole).toString().startsWith(QStringLiteral("Draft pull request; octo-org/app#101")), "draft status precedes literal identity in accessible text" + where);
 			const auto chip = delegate->draft_rect(option_for(*view, first), first);
 			expect(view->visualRect(first).contains(chip) && chip.width() >= QFontMetrics{ view->font() }.horizontalAdvance(QStringLiteral("Draft")) + 12 && !chip.intersects(tag), "the complete leading chip and Reviewing tag are distinct and inside the row" + where);
+			expect(!first.data(qt::home_row_role::account_chip).toString().isEmpty(), "draft shares its row with the existing account chip" + where);
+			for (const auto phase : { qt::home_row_open_phase::opening, qt::home_row_open_phase::waiting, qt::home_row_open_phase::failed }) {
+				delegate->set_open({ first.data(qt::home_row_role::identity).toString(), phase, QStringLiteral("Opening this pull request"), QStringLiteral("Cancel") });
+				expect(delegate->draft_rect(option_for(*view, first), first).size() == chip.size(), "opening and failure keep the complete leading status" + where);
+			}
+			delegate->set_open({ });
+
 			const auto recentIndex = recent->model()->index(0, 0);
 			expect(!delegate->draft_rect(option_for(*recent, recentIndex), recentIndex).isEmpty(), "recent-only status uses the same leading chip geometry" + where);
 			expect(delegate->draft_rect(option_for(*waiting, waiting->model()->index(0, 0)), waiting->model()->index(0, 0)).isEmpty(), "unknown rows do not invent a Draft chip" + where);

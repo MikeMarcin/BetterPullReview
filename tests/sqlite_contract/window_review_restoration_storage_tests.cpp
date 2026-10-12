@@ -376,9 +376,10 @@ namespace {
 									 refusal{ "UPDATE recent_reviews SET position=x'' WHERE ordinal=0", window_review_store_failure::corrupt },
 									 refusal{ "UPDATE recent_reviews SET owner='../bad' WHERE ordinal=1", window_review_store_failure::corrupt },
 									 refusal{ "PRAGMA ignore_check_constraints=ON; UPDATE recent_reviews SET mode=9 WHERE ordinal=1", window_review_store_failure::corrupt },
-									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL,'0' FROM ids", window_review_store_failure::corrupt },
+									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL,'0',NULL FROM ids", window_review_store_failure::corrupt },
+									 refusal{ "PRAGMA ignore_check_constraints=ON; UPDATE recent_reviews SET draft=3 WHERE ordinal=0", window_review_store_failure::corrupt },
 									 refusal{ "DROP TABLE recent_reviews", window_review_store_failure::schema_mismatch },
-									 refusal{ "PRAGMA user_version=6", window_review_store_failure::schema_mismatch },
+									 refusal{ "PRAGMA user_version=7", window_review_store_failure::schema_mismatch },
 									 // A future stamp over a shape this build could otherwise migrate.
 									 refusal{ "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
 									 // [[BPR-1131]]. A version 3 stamp over the version 4 shape.

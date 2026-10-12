@@ -3809,8 +3809,10 @@ namespace {
 	void test_home_draft_metadata_is_an_optional_wire_fact()
 	{
 		for (const auto mode : { 0, 1, 2, 3 }) {
-			auto transport   = discovery_fixture_transport{ };
-			transport.Search = [mode](const auto&) {
+			auto transport      = discovery_fixture_transport{ };
+			transport.Reviewers = [](const std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+			transport.Reviews   = [](const auto&) { return success_response(fixture_json(fixture_array{ })); };
+			transport.Search    = [mode](const auto&) {
 				auto       item = discovery_item(17U, "octo-reviewer");
 				const auto at   = item.find("\"draft\":false,");
 				expect(at != std::string::npos, "draft fixture field exists");
