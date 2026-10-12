@@ -376,25 +376,25 @@ namespace {
 		window.follow_pull_request_action()->trigger();
 		wait_for([&] { return window.follow_pull_request_action()->isChecked(); }, "Follow keeps the pull request");
 		window.home_action()->trigger();
-		auto* const following = window.home_list()->state_view(qt::home_group::following);
-		auto        row       = QModelIndex{ };
+		auto* const authored = window.home_list()->state_view(qt::home_group::my_pull_requests);
+		auto        row      = QModelIndex{ };
 		wait_for([&] {
-			for (auto index = 0; following != nullptr && index < following->model()->rowCount(); ++index) {
-				if (following->model()->index(index, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("google/UIforETW#74")) {
-					row = following->model()->index(index, 0);
+			for (auto index = 0; authored != nullptr && index < authored->model()->rowCount(); ++index) {
+				if (authored->model()->index(index, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("google/UIforETW#74")) {
+					row = authored->model()->index(index, 0);
 					return window.showing_home();
 				}
 			}
 			return false;
 		},
-				 "Home lists the followed pull request under Following");
+				 "Home lists the viewer-authored pull request under My pull requests");
 		window.activateWindow();
 		QApplication::processEvents();
-		following->setFocus(Qt::OtherFocusReason);
-		following->setCurrentIndex(row);
+		authored->setFocus(Qt::OtherFocusReason);
+		authored->setCurrentIndex(row);
 		QApplication::processEvents();
 		window.open_on_github_action()->trigger();
-		check("a Following row");
+		check("an authored row");
 
 		auto* const recent = window.home_recent_list();
 		wait_for([&] { return recent->count() >= 1 && recent->item(0)->text().contains(QStringLiteral("google/UIforETW#74")); }, "Recently viewed lists the pull request");
