@@ -12,7 +12,8 @@
   "commits": [
     "d9ee703b8",
     "2539b8c24",
-    "eae174cb95"
+    "eae174cb95",
+    "4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0"
   ],
   "changed_product_paths": [
     "docs/architecture/review-queue.md",
@@ -74,10 +75,19 @@
       "command": "python3 tests/scripts/verify_documentation_tests.py",
       "result": "67 tests pass",
       "log": "/tmp/bpr-merge-gates-run/post-review-doc-regressions.log"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root . (post-finish)",
+      "result": "DOCUMENTATION_OK",
+      "log": "/tmp/bpr-merge-gates-run/post-review-doc-post-finish.log"
+    },
+    {
+      "command": "python3 /Users/jaeger/.agents/skills/implement-rfc/scripts/issue_board.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview validate --include BPR-1399 --json",
+      "result": "valid:true; no errors"
     }
   ],
   "evidence_reuse": "The first fixed pass supplies unchanged host/codec/storage/Home and boundary source evidence. Final source changes after that pass only repaired test configuration/observer order and strict fixture snapshot order; final provider and composed/paged/anonymous rechecks cover those inputs. Product commit binds those exact verified bytes. Existing scale/layout and schema8\u21929 evidence retains its stated scope.",
-  "documentation": "Final documentation gate DOCUMENTATION_OK;67 documentation regression tests pass. Current RFC review state, ledgers, historical closeout follow-up notes and semantic contracts reconciled; BPR-1399 finish follows with explicit paths.",
+  "documentation": "BPR-1399 finished in 4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0. Post-finish DOCUMENTATION_OK and scoped board validation pass; 67 documentation regressions pass. RFC review state, ledgers, historical closeout follow-up notes and semantic contracts are reconciled.",
   "pending_pack_obligations": [
     "Coordinator consumes narrow independent confirmation from /root/critical_review on the fixed product candidate and records final pack acceptance."
   ],
@@ -99,5 +109,8 @@
     "Current-head check observations do not establish test-merge evaluation.",
     "No visual layout change, human criterion, owner desktop/browser inspection, collaboration write or merge authority."
   ],
-  "next_action": "Coordinator binds final HEAD after continuation commit, obtains narrow reviewer confirmation, consumes it and closes the authorized pack if no blocking discrepancy remains."
+  "next_action": "Coordinator binds final HEAD after continuation commit, obtains narrow reviewer confirmation, consumes it and closes the authorized pack if no blocking discrepancy remains.",
+  "integration_revision": "4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0",
+  "card_state": "BPR-1399 Done with C01/C02/C03 passing records at exact fixed product revision",
+  "bind_final_head_after_handoff": true
 }
