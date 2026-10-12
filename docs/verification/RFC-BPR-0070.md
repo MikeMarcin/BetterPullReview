@@ -1,5 +1,10 @@
 # RFC-BPR-0070 verification
 
+Current pack state: accepted under `merge-gates-r1`; independent correction
+confirmation on `fea984d3148bbdab37ee8606b0cbc3121d6635a4` is consumed.
+[Final pack closeout](../issues/_checkpoints/merge-gates-and-review-waiting-v1/pack-closeout.json)
+preserves the original failures and qualified milestone evidence below.
+
 Mandate `merge-gates-r1`; milestone `keep-home-waiting`; immutable RFC base
 `9857d596769468c0585c475467175e3998a33530`. Facts/persistence candidate
 `393dfe602354b189a6e883c92dc66bdc6a66579f`; native product candidate
@@ -105,3 +110,30 @@ commands, failures and reusable evidence are retained under
 owns this follow-up. All supplied blockers have verified engineering dispositions;
 coordinator-owned narrow independent confirmation and final pack consumption
 remain pending. No human criterion, review server or desktop capture is introduced.
+
+## Final independent review consumption
+
+The coordinator supplied and consumed the same independent critical reviewer’s
+narrow confirmation on `fea984d3148bbdab37ee8606b0cbc3121d6635a4`.
+C01 passed independent 12-page and production 64 MiB probes with readable PR files,
+search and known checks retained; unfinished status history stayed unavailable.
+C02 passed nonempty/empty complete REST fallback and subsequent unavailable
+refresh, retaining current actors and then their exact stale fallback without
+inherited code-owner origin. C03 passed a separate-process SQLite restart with
+only a partial Branch Freshness failure, account 1234, incomplete checks and
+last-known freshness; no request or assessment was invented.
+
+The independent focused provider/window/queue/SQLite/Home run passed 5/5 in
+33.05 seconds; Home Last known and `git diff --check` passed. No blocking or
+nonblocking finding remains in those corrected counterexamples. All reviewer
+commands and the SQLite child are quiescent, probes were removed, and no source
+edits or remote mutations occurred. This is narrow repair confirmation after the
+original whole-candidate review, with unchanged earlier evidence reused.
+
+[The durable review record](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json)
+preserves provenance, original failures, engineering corrections, independent
+confirmation and coordinator consumption. All earlier pending final-review notes
+in this ledger are historical and superseded by this closeout. The authorized
+pack is accepted; existing live organization/GHES, installed-account, test-merge
+and native-platform qualification limits remain explicit. No broad tests were
+rerun for this bookkeeping-only closeout.

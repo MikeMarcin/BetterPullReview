@@ -1,0 +1,164 @@
+{
+  "schema": "bpr.pack-closeout.v1",
+  "pack": "merge-gates-and-review-waiting-v1",
+  "mandate_revision": "merge-gates-r1",
+  "baseline": "9857d596769468c0585c475467175e3998a33530",
+  "result": "accepted",
+  "engineering_product_revision": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
+  "independently_verified_candidate": "fea984d3148bbdab37ee8606b0cbc3121d6635a4",
+  "original_whole_review_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
+  "plan": "docs/rfcs/plans/merge-gates-and-review-waiting-v1/milestone-plan.json",
+  "milestones": [
+    {
+      "id": "inspect-checks",
+      "rfc": "RFC-BPR-0068",
+      "result": "accepted",
+      "criteria": [
+        {
+          "criterion": "AC01",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0068.md"
+        },
+        {
+          "criterion": "AC02",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0068.md"
+        },
+        {
+          "criterion": "AC03",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0068.md"
+        },
+        {
+          "criterion": "AC04",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0068.md"
+        },
+        {
+          "criterion": "AC05",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0068.md"
+        }
+      ],
+      "authored_exit_criteria": "all three accepted; prior handoff preserved and corrected critical findings independently verified",
+      "historical_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/milestone-1-handoff.json",
+      "correction_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"
+    },
+    {
+      "id": "see-review-blockers",
+      "rfc": "RFC-BPR-0069",
+      "result": "accepted",
+      "criteria": [
+        {
+          "criterion": "AC01",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0069.md"
+        },
+        {
+          "criterion": "AC02",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0069.md"
+        },
+        {
+          "criterion": "AC03",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0069.md"
+        },
+        {
+          "criterion": "AC04",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0069.md"
+        },
+        {
+          "criterion": "AC05",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0069.md"
+        },
+        {
+          "criterion": "AC06",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0069.md"
+        }
+      ],
+      "authored_exit_criteria": "all three accepted; prior handoff preserved and corrected critical findings independently verified",
+      "historical_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/milestone-2-handoff.json",
+      "correction_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"
+    },
+    {
+      "id": "keep-home-waiting",
+      "rfc": "RFC-BPR-0070",
+      "result": "accepted",
+      "criteria": [
+        {
+          "criterion": "AC01",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0070.md"
+        },
+        {
+          "criterion": "AC02",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0070.md"
+        },
+        {
+          "criterion": "AC03",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0070.md"
+        },
+        {
+          "criterion": "AC04",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0070.md"
+        },
+        {
+          "criterion": "AC05",
+          "outcome": "pass",
+          "evidence": "docs/verification/RFC-BPR-0070.md"
+        }
+      ],
+      "authored_exit_criteria": "all three accepted; prior handoff preserved and corrected critical findings independently verified",
+      "historical_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/milestone-3-handoff.json",
+      "correction_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json"
+    }
+  ],
+  "cards": [
+    "BPR-1390",
+    "BPR-1391",
+    "BPR-1392",
+    "BPR-1393",
+    "BPR-1394",
+    "BPR-1395",
+    "BPR-1396",
+    "BPR-1397",
+    "BPR-1398",
+    "BPR-1399"
+  ],
+  "review_record": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json",
+  "coordinator_review_consumed": true,
+  "pending_obligations": [],
+  "pending_human_decisions": [],
+  "command_state": "quiescent; no server, subprocess, child writer, task worktree or protected candidate",
+  "qualification_limits": [
+    "Fixture/native and CLI compiler coverage is not live private-organization, installed-account or native GHES parity.",
+    "Separate-process SQLite regression executed on macOS/POSIX; no new native Windows result.",
+    "Current-head check observations do not establish test-merge evaluation.",
+    "No visual layout change, human criterion, owner desktop/browser inspection, collaboration write or merge authority."
+  ],
+  "bookkeeping_only_closeout": true,
+  "bind_final_head_after_closeout": true,
+  "bookkeeping_verification": [
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "DOCUMENTATION_OK",
+      "log": "/tmp/bpr-merge-gates-run/final-pack-closeout-doc.log"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    },
+    {
+      "command": "issue_board.py validate --include BPR-1390 … --include BPR-1399 --json",
+      "result": "valid:true; no errors"
+    }
+  ],
+  "product_source_edits_after_independent_confirmation": false
+}

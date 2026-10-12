@@ -5,7 +5,7 @@
   "segment_id": "post-review-corrections",
   "owner": "/root/review_corrections",
   "milestone": "post-review-corrections",
-  "result": "corrections verified; coordinator independent confirmation pending",
+  "result": "accepted: all corrections and final independent review consumption complete",
   "rfc_base_sha": "9857d596769468c0585c475467175e3998a33530",
   "reviewed_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
   "product_revision": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
@@ -32,7 +32,7 @@
   ],
   "card": "BPR-1399",
   "review_record": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json",
-  "review_consumption": "Supplied exact-candidate independent report received and faithfully persisted. All three blockers have evidence-backed engineering dispositions and verified corrections; coordinator-owned narrow independent correction confirmation has not been received.",
+  "review_consumption": "Original whole-candidate critical report and all three material findings consumed. Their repairs are independently confirmed at exact candidate fea984d3148bbdab37ee8606b0cbc3121d6635a4; coordinator consumption supplied. No remaining pack acceptance obligation.",
   "verification": [
     {
       "command": "ctest --preset dev --output-on-failure -j 1 -R '^(github_paged_read|application_github_window_read_host|application_review_queue_enrollment|sqlite_queue_enrollment_storage|qt_review_landing_model)$'",
@@ -86,11 +86,9 @@
       "result": "valid:true; no errors"
     }
   ],
-  "evidence_reuse": "The first fixed pass supplies unchanged host/codec/storage/Home and boundary source evidence. Final source changes after that pass only repaired test configuration/observer order and strict fixture snapshot order; final provider and composed/paged/anonymous rechecks cover those inputs. Product commit binds those exact verified bytes. Existing scale/layout and schema8\u21929 evidence retains its stated scope.",
+  "evidence_reuse": "The first fixed pass supplies unchanged host/codec/storage/Home and boundary source evidence. Final source changes after that pass only repaired test configuration/observer order and strict fixture snapshot order; final provider and composed/paged/anonymous rechecks cover those inputs. Product commit binds those exact verified bytes. Existing scale/layout and schema8→9 evidence retains its stated scope.",
   "documentation": "BPR-1399 finished in 4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0. Post-finish DOCUMENTATION_OK and scoped board validation pass; 67 documentation regressions pass. RFC review state, ledgers, historical closeout follow-up notes and semantic contracts are reconciled.",
-  "pending_pack_obligations": [
-    "Coordinator consumes narrow independent confirmation from /root/critical_review on the fixed product candidate and records final pack acceptance."
-  ],
+  "pending_pack_obligations": [],
   "pending_human_obligations": [],
   "review_handoff": {
     "attended_session": null,
@@ -98,7 +96,7 @@
     "event_cursor": null,
     "protected_candidates": [],
     "fixed_product_candidate": "eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b",
-    "next_action": "Narrow independent fixed-counterexample verification; no second whole-candidate review loop required."
+    "next_action": "No further review or engineering required for this authorized pack."
   },
   "ownership": "Exclusive assigned main checkout source/tracker writer /root/review_corrections; no delegated agents, worktrees, attended candidate or remote mutation.",
   "command_state": "quiescent: every task-owned build/test/documentation/format/tidy command reaped; no server, child writer, worktree or protected candidate remains",
@@ -109,8 +107,37 @@
     "Current-head check observations do not establish test-merge evaluation.",
     "No visual layout change, human criterion, owner desktop/browser inspection, collaboration write or merge authority."
   ],
-  "next_action": "Coordinator binds final HEAD after continuation commit, obtains narrow reviewer confirmation, consumes it and closes the authorized pack if no blocking discrepancy remains.",
+  "next_action": "Pack complete under merge-gates-r1; preserve existing qualification limits and unrelated obligations.",
   "integration_revision": "4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0",
   "card_state": "BPR-1399 Done with C01/C02/C03 passing records at exact fixed product revision",
-  "bind_final_head_after_handoff": true
+  "bind_final_head_after_handoff": true,
+  "independently_verified_candidate": "fea984d3148bbdab37ee8606b0cbc3121d6635a4",
+  "independent_confirmation": {
+    "candidate": "fea984d3148bbdab37ee8606b0cbc3121d6635a4",
+    "reviewer_identity": "/root/critical_review",
+    "role": "rfc-reviewer-critical",
+    "model": "gpt-6-astra",
+    "effort": "xhigh",
+    "scope": "Narrow independent verification of the three corrected counterexamples, following the original whole-candidate review; not a second whole-candidate review.",
+    "provenance": "Trusted coordinator message supplies exact-candidate independent results and explicitly consumes the confirmation; final bookkeeping authorized with no engineering remaining.",
+    "outcome": "C01/C02/C03 resolved; no blocking or nonblocking findings remain in these corrected counterexamples",
+    "probes": {
+      "C01": "Independent 12-page and production 64 MiB probes accept the snapshot with 101 files, available search and known check; 17 status pages remain unfinished and status availability is unavailable.",
+      "C02": "Independent provider and host probes: nonempty/empty complete REST fallback reaches Home without inherited code-owner origin; subsequent unavailable observation retains the exact fallback as stale.",
+      "C03": "Independent separate-process SQLite store/reload recreates Branch Freshness under numeric account 1234 with ChecksKnown false and ChecksStale true, without invented requests or assessment."
+    },
+    "focused_test_result": "5/5 pass, 33.05 s; Home Last known reason covered; git diff --check passes",
+    "command_state": "All reviewer commands and SQLite child quiescent; probe artifacts removed; no source/tracker edits or remote mutations",
+    "qualification": "Prior GHES/private-organization, installed-account, test-merge and Windows native limits unchanged",
+    "coordinator_consumed": true,
+    "reported_focused_suites": [
+      "github_paged_read",
+      "application_github_window_read_host",
+      "application_review_queue_enrollment",
+      "sqlite_queue_enrollment_storage",
+      "qt_review_landing_model"
+    ],
+    "invocation_note": "CTest results supplied by the coordinator; exact invocation flags were not supplied."
+  },
+  "pack_closeout": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/pack-closeout.json"
 }

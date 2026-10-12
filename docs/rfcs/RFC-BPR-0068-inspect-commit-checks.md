@@ -11,7 +11,7 @@ metadata: {"mandate_revision":"merge-gates-r1","rfc_base_sha":"9857d596769468c05
 
 ## Adoption
 
-Adopted on 2026-10-11 under mandate `merge-gates-r1`. RFC_BASE_SHA: `9857d596769468c0585c475467175e3998a33530`. The [live import](assets/merge-gates-and-review-waiting-v1.LIVE_IMPORT.md) retains the authored pack and mapping. Independent critical review of the final pack is required by the implementation mandate. Its report on `15365e9df15ff51b366f9735c887dccdd80cae9e` reproduced three blockers, corrected under BPR-1399 at `eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b`; [the durable review record](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json) preserves findings and verification. Coordinator-owned narrow independent confirmation remains pending before final pack acceptance.
+Adopted on 2026-10-11 under mandate `merge-gates-r1`. RFC_BASE_SHA: `9857d596769468c0585c475467175e3998a33530`. The [live import](assets/merge-gates-and-review-waiting-v1.LIVE_IMPORT.md) retains the authored pack and mapping. Independent critical review of the final pack is required by the implementation mandate. Its report on `15365e9df15ff51b366f9735c887dccdd80cae9e` reproduced three blockers, corrected under BPR-1399 at `eae174cb95e7b66c97739b0a8dd1e6c5ac71af2b`; [the durable review record](../issues/_checkpoints/merge-gates-and-review-waiting-v1/critical-review-dispositions.json) preserves findings and verification. The same independent reviewer confirmed all three corrections on `fea984d3148bbdab37ee8606b0cbc3121d6635a4`, and the coordinator consumed that result. The authorized pack is accepted with its existing qualification limits.
 
 ## Problem and grounded current behavior
 
@@ -147,13 +147,17 @@ Qt design language; it proposes no new palette, web surface or visual theme.
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json). See the
 [decision record](assets/merge-gates-and-review-waiting-v1/DECISIONS.md#checks-and-confirmation) for draft readiness.
 
-The integrated `inspect-checks` milestone satisfies AC01–AC05 on the scoped fixture/public paths; [the verification ledger](../verification/RFC-BPR-0068.md) records source revisions, observations, failures/corrections and actual limits. Requirement classification and test-merge selection remain explicitly unobserved pending the next milestone. Independent critical review of the final pack remains a coordinator obligation; no live private-organization or installed native qualification is claimed.
+The integrated `inspect-checks` milestone satisfies AC01–AC05 on the scoped fixture/public paths; [the verification ledger](../verification/RFC-BPR-0068.md) records source revisions, observations, failures/corrections and actual limits. The first milestone’s unknown requirement classification was supplemented by RFC-BPR-0069; test-merge selection remains explicitly unobserved. The final independent review and corrected-counterexample confirmation have been consumed; no live private-organization or installed native qualification is claimed.
 
 ## Post-review correction
 
 BPR-1399 records the exact independent counterexample, verified repair and reused
-evidence in this RFC's criterion ledger. The full independent report has been
-received; engineering has disposed of its three supplied blockers. Narrow
-independent correction confirmation and final whole-pack acceptance remain with
-the coordinator. Historical component acceptance does not substitute for that
-remaining consumption.
+evidence in this RFC's criterion ledger. The original full-candidate report and
+all three blocking findings are preserved. The same independent reviewer
+confirmed C01/C02/C03 on `fea984d3148bbdab37ee8606b0cbc3121d6635a4`,
+with no remaining findings in the corrected counterexamples. The coordinator
+consumed the supplied confirmation, completing the authorized pack's independent
+review obligation. [Final pack closeout](../issues/_checkpoints/merge-gates-and-review-waiting-v1/pack-closeout.json)
+binds the accepted milestones, prior evidence, corrections and unchanged limits.
+No new live-provider, installed-account, test-merge or native-platform
+qualification is inferred.

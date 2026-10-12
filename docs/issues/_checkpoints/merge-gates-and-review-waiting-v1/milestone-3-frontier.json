@@ -4,13 +4,20 @@
   "milestone": "keep-home-waiting",
   "mandate_revision": "merge-gates-r1",
   "rfc_base_sha": "9857d596769468c0585c475467175e3998a33530",
-  "product_state": "accepted component; independent whole-pack review pending",
+  "product_state": "accepted component; successor critical-review corrections and final pack consumption complete",
   "product_revision": "551bce4e0d66bcc2b5743eba63a779da9088007e",
   "integration_revision": "113c28ff682136cfb8a19011b0c9385f425cda1f",
   "commands": "quiescent; every owned command reaped",
-  "pending": [
-    "independent critical review by coordinator"
-  ],
+  "pending": [],
   "handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/milestone-3-handoff.json",
-  "next_action": "Coordinator binds final HEAD after this handoff-only commit and launches the authorized independent critical reviewer. Return demonstrated criterion failures or critical changed-surface regressions for scoped correction; do not manufacture a human criterion."
+  "next_action": "Pack complete under merge-gates-r1; preserve existing qualification limits and unrelated obligations.",
+  "historical_pending_state": {
+    "product_state": "accepted component; independent whole-pack review pending",
+    "pending": [
+      "independent critical review by coordinator"
+    ],
+    "next_action": "Coordinator binds final HEAD after this handoff-only commit and launches the authorized independent critical reviewer. Return demonstrated criterion failures or critical changed-surface regressions for scoped correction; do not manufacture a human criterion."
+  },
+  "successor_handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json",
+  "pack_closeout": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/pack-closeout.json"
 }

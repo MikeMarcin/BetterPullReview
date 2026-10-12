@@ -6,17 +6,15 @@
   "rfc_base_sha": "9857d596769468c0585c475467175e3998a33530",
   "reviewed_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
   "card": "BPR-1399",
-  "product_state": "all three supplied blockers corrected and verified; BPR-1399 Done; coordinator narrow independent confirmation pending",
+  "product_state": "pack accepted; all three blockers independently resolved and review consumed by coordinator",
   "commands": "quiescent: every task-owned build/test/documentation/format/tidy command reaped; no server, child writer, worktree or protected candidate remains",
   "plan": [
     "Move mandatory search before optional checks/statuses under the unchanged bounded execution.",
     "Track complete REST actor fallback independently from GraphQL/code-owner availability; replace prior stale requests on a fresh fallback including empty.",
     "Derive restart check freshness from complete checks or retained failures in codec and host restoration."
   ],
-  "pending": [
-    "Coordinator consumes narrow independent confirmation from /root/critical_review on the fixed product candidate and records final pack acceptance."
-  ],
-  "next_action": "Coordinator binds final HEAD after continuation commit, obtains narrow reviewer confirmation, consumes it and closes the authorized pack if no blocking discrepancy remains.",
+  "pending": [],
+  "next_action": "Pack complete under merge-gates-r1; preserve existing qualification limits and unrelated obligations.",
   "unrelated_state": [
     ".gitignore",
     ".mask.json",
@@ -41,5 +39,7 @@
     "tests/sqlite_contract/queue_enrollment_storage_tests.cpp"
   ],
   "handoff": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/post-review-handoff.json",
-  "integration_revision": "4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0"
+  "integration_revision": "4322ce20a0bd67b3dd08d6b6fb989da16cf3e8b0",
+  "independently_verified_candidate": "fea984d3148bbdab37ee8606b0cbc3121d6635a4",
+  "pack_closeout": "docs/issues/_checkpoints/merge-gates-and-review-waiting-v1/pack-closeout.json"
 }
