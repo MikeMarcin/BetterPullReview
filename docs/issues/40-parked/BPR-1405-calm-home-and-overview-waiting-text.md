@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1405"
 title: "Calm the waiting and merge-requirement text on Home and Overview"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0069", "RFC-BPR-0070"]
 depends_on: []
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1405--BPR-1405--0e43de1c0fb9.json","origin":"owner request 2026-10-12"}
+parked_on: "human-review"
 ---
 
 # Calm the waiting and merge-requirement text on Home and Overview
