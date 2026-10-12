@@ -200,6 +200,8 @@ namespace {
 		case read_operation::list_issue_comments:
 		case read_operation::list_pull_request_timeline:
 		case read_operation::list_review_comments:
+		case read_operation::list_review_requests:
+		case read_operation::get_merge_assessment:
 			semantic.PullRequestNumber = context.Number.value();
 			break;
 		case read_operation::list_review_threads:
@@ -211,6 +213,7 @@ namespace {
 				.ThreadId    = { },
 			};
 			break;
+		case read_operation::list_commit_statuses:
 		case read_operation::list_checks:
 			semantic.HeadOid = "1111111111111111111111111111111111111111";
 			break;
@@ -222,6 +225,10 @@ namespace {
 			break;
 		case read_operation::list_requested_reviewers:
 			semantic.PullRequestNumber = context.Number.value();
+			break;
+		case read_operation::list_branch_rules:
+		case read_operation::get_branch_protection:
+			semantic.BranchRef = "main";
 			break;
 		case read_operation::get_repository:
 			break;
@@ -318,15 +325,9 @@ namespace {
 				++refused;
 			}
 		}
-		// Ten REST reads in, viewer identity and the GraphQL-routed operation
-		// out. Counting both sides keeps a future operation from joining the
-		// catalogue without a verdict recorded here. The ninth is the REST
-		// inline review-comment read, which is why the table is walked over
-		// every compiled operation rather than over the recorded manifest
-		// catalogue: an operation outside that recording still has to have a
-		// verdict here.
-		expect(admitted == 10U && refused == 4U
-				   && all_read_operations.size() == 14U
+		// Every compiled operation has an explicit anonymous admission verdict.
+		expect(admitted == 11U && refused == 8U
+				   && all_read_operations.size() == 19U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

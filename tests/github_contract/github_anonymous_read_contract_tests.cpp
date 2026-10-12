@@ -365,22 +365,26 @@ namespace {
 					   "viewer identity and personal discovery are refused as identity operations");
 				continue;
 			}
-			if (operation == read_operation::list_review_threads) {
+			if (operation == read_operation::list_review_threads
+				|| operation == read_operation::list_review_requests
+				|| operation == read_operation::get_merge_assessment
+				|| operation == read_operation::list_branch_rules
+				|| operation == read_operation::get_branch_protection) {
 				expect(!onGithub.has_value()
 						   && onGithub.error()
 							   == anonymous_read_refusal::graphql_surface_unavailable,
-					   "the GraphQL operation is refused as a GraphQL operation");
+					   "unsupported anonymous surfaces are explicitly refused");
 				continue;
 			}
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 10U && all_read_operations.size() == 14U,
-			   "ten of fourteen operations admit anonymous REST reads");
-		expect(anonymous_read_operations.size() + 1U == eligible
+		expect(eligible == 11U && all_read_operations.size() == 19U,
+			   "eleven of nineteen operations admit anonymous REST reads");
+		expect(anonymous_read_operations.size() + 2U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
-			   "the baseline snapshot operations plus the independent timeline are eligible");
+			   "the baseline snapshot plus independent timeline and status reads are eligible");
 
 		// The two refusals must be distinguishable outward, not merely inward.
 		expect(provider_failure_for(
@@ -422,6 +426,7 @@ namespace {
 			case read_operation::list_review_comments:
 				semantic.PullRequestNumber = 17U;
 				break;
+			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
 				semantic.HeadOid = "1111111111111111111111111111111111111111";
 				break;
@@ -434,6 +439,10 @@ namespace {
 			case read_operation::list_requested_reviewers:
 				semantic.PullRequestNumber = 17U;
 				break;
+			case read_operation::list_review_requests:
+			case read_operation::get_merge_assessment:
+			case read_operation::list_branch_rules:
+			case read_operation::get_branch_protection:
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::list_review_threads:
