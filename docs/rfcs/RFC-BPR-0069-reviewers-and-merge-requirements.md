@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0069"
 title: "Show pending reviewers, code-owner teams and merge requirements"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0068"]
 metadata: {"mandate_revision":"merge-gates-r1","rfc_base_sha":"9857d596769468c0585c475467175e3998a33530","milestone_plan":{"id":"merge-gates-and-review-waiting-v1","path":"docs/rfcs/plans/merge-gates-and-review-waiting-v1/milestone-plan.json"}}
@@ -180,7 +180,14 @@ supported blocker and its waiting reviewers works inside BPR.
 
 [Normalize requests and requirements](../issues/60-done/BPR-1393-review-requirement-observations.md),
 [compose Overview](../issues/60-done/BPR-1394-reviewers-and-merge-overview.md), and
-[reconcile closeout](../issues/30-in-progress/BPR-1395-close-rfc-0069.md) implement
+[reconcile closeout](../issues/60-done/BPR-1395-close-rfc-0069.md) implement
 this scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json). See
 [the decision record](assets/merge-gates-and-review-waiting-v1/DECISIONS.md#checks-and-confirmation) for the actual
 owner clarification and validation limits.
+
+## Verification
+
+AC01–AC06 are Auto-Verified for the integrated read-only candidate and bounded
+host/transport qualification in [the criterion ledger](../verification/RFC-BPR-0069.md).
+The final whole-pack independent critical review remains pending after the Home
+milestone; no independent or human review is claimed here.

@@ -32,7 +32,8 @@ and core dependency boundaries pass. The final authentication correction passes 
 the final unavailable-result correction passes application/public-path checks.
 Unchanged scale/layout evidence is reused.
 All touched C++ is formatted with the repository's clang-format 22 script.
-Documentation gate and its regression suite are run at closeout.
+The documentation gate returns `DOCUMENTATION_OK`; all 67 documentation
+regression tests pass.
 
 Runtime logs and offscreen pixels are retained under `/tmp/bpr-merge-gates-run`
 and `build/dev/overview-renders`; none are committed. Context: macOS arm64,
