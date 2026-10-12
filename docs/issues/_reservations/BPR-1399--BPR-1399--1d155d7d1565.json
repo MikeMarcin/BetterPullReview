@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1399"
+  ],
+  "reserve_for": "merge-gates-post-review",
+  "purpose": "",
+  "created": "2026-10-12T08:40:22.478512+00:00",
+  "base": "15365e9df15ff51b366f9735c887dccdd80cae9e"
+}

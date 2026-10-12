@@ -1,0 +1,19 @@
+{
+  "schema": "bpr.milestone-frontier.v1",
+  "owner": "/root/review_corrections",
+  "milestone": "post-review-corrections",
+  "mandate_revision": "merge-gates-r1",
+  "rfc_base_sha": "9857d596769468c0585c475467175e3998a33530",
+  "reviewed_candidate": "15365e9df15ff51b366f9735c887dccdd80cae9e",
+  "card": "BPR-1399",
+  "product_state": "three reproduced independent blocking findings; corrections in progress",
+  "commands": "quiescent before engineering",
+  "plan": [
+    "Move mandatory search before optional checks/statuses under the unchanged bounded execution.",
+    "Track complete REST actor fallback independently from GraphQL/code-owner availability; replace prior stale requests on a fresh fallback including empty.",
+    "Derive restart check freshness from complete checks or retained failures in codec and host restoration."
+  ],
+  "pending": ["C01", "C02", "C03", "focused verification and integrated public pass", "independent review consumption and exact fixed-candidate handoff"],
+  "next_action": "Add counterexample regressions and demonstrate failure on the reviewed candidate before repairs.",
+  "unrelated_state": [".gitignore", ".mask.json", ".mask.lock.json", "docs/rfcs/drafts/", "external Home Draft chip work"]
+}
