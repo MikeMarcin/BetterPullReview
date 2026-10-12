@@ -1,0 +1,37 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "home-authored-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-DRAFT-0005"
+    ],
+    "issues": [
+      "BPR-1388"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "authored-home",
+      "outcome": "Home separates my actionable, quiet and unknown pull requests from Needs me while keeping waiting-only rows in Waiting on others, with preserved activity, view persistence and exact navigation.",
+      "work": [
+        {
+          "rfc": "RFC-DRAFT-0005"
+        },
+        {
+          "issue": "BPR-1388"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01\u2013AC02: deterministic exact-row ownership and section placement preserve attention, notifications and repository counts.",
+        "AC03: the rendered Home behaves correctly in every Group and State headers setting, filtering, collapse and keyboard navigation.",
+        "AC04: upgrade and a two-window process restart retain independent collapse and unchanged view choices.",
+        "AC05: accepted composed refresh and ordinary Open retain exact identity and destination without extra provider work.",
+        "Focused public-path, core-only, architecture, format and documentation gates pass; live contracts and closeout record the actual candidate and any pending evidence."
+      ],
+      "boundary": "One complete Home behavior milestone, with all five RFC acceptance criteria and truthful final upkeep."
+    }
+  ],
+  "unplanned_work": []
+}

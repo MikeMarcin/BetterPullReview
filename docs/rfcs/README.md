@@ -515,3 +515,9 @@ RFC-BPR-0050 is not closed by this amendment and stays open on [[BPR-1100]].
 RFC-BPR-0052 and 0037 are expected to close in order after RFC-BPR-0028, whose
 closeout [[BPR-1021]] waits on [[BPR-0653]]'s Windows title row at 100% display
 scale, which the owner looks at in person on JaegAW.
+
+## Authored Home separation
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0066](RFC-BPR-0066-home-authored-pull-requests.md) | Separate authored pull requests on Home | Proposed | RFC-BPR-0010, RFC-BPR-0026 |

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1388"
+  ],
+  "reserve_for": "home-authored-main",
+  "purpose": "RFC-DRAFT-0005 adoption and full Home-authored milestone",
+  "created": "2026-10-12T01:27:05.579721+00:00",
+  "base": "b87b7e4ae8f62696c3af88abe3c943eaef65c6f5"
+}
