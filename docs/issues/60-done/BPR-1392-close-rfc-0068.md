@@ -40,3 +40,5 @@ RFC base: `9857d596769468c0585c475467175e3998a33530`.
 ## Execution record
 
 `inspect-checks` is integrated and verified; AC01–AC05 and all three authored exits pass. The criterion ledger records actual public/provider/render evidence, initial failures and corrections, bounded host/transport qualifications and reused unchanged evidence. The user’s final independent critical review remains a pack obligation for the coordinator; no human acceptance is required by this milestone.
+
+Durable continuation: [handoff](../_checkpoints/merge-gates-and-review-waiting-v1/milestone-1-handoff.json). All task-owned commands are quiescent; no server or worktree is handed off. Next is `see-review-blockers` (RFC-BPR-0069, BPR-1393–1395), with the final independent critical review still pending for the whole pack.
