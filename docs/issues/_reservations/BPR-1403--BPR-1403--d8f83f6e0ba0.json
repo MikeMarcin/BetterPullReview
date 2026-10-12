@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1403"
+  ],
+  "reserve_for": "release-v019-gates",
+  "purpose": "",
+  "created": "2026-10-12T16:03:52.549975+00:00",
+  "base": "c9a4164756bcd8ce3601115c0912845cb3ef5bcd"
+}

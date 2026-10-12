@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v019-gate-repairs",
+  "scope": {
+    "issues": [
+      "BPR-1403"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "repair-and-verify",
+      "outcome": "Repair v0.1.9 release gate regressions without weakening assertions, then provide one verified source candidate for native producers.",
+      "work": [
+        {
+          "issue": "BPR-1403"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Every failure in the collected macOS gate is dispositioned, and repaired plus materially affected public-path checks pass on the exact candidate.",
+        "Normal Windows and Ubuntu 26.04 native gates are accounted for before packaging handoff; remaining qualification gaps stay explicit.",
+        "Boundary, format and documentation checks pass; source repairs and evidence bookkeeping are committed, and task commands are quiescent."
+      ],
+      "boundary": "release-v019-20261012-rfc-implementer-r2: prerelease patch full packages macOS/Windows/Ubuntu26.04. Repairs only within RFC0038; no signing, notarization, push, publication, live GitHub mutation, or wider qualification closeout."
+    }
+  ],
+  "unplanned_work": []
+}
