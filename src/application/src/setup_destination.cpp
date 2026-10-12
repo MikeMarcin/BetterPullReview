@@ -339,6 +339,14 @@ namespace bpr::application {
 			}
 			return;
 		}
+		if (Pending->Stage == core::setup_destination_stage::authenticating) {
+			const auto validating = *Pending;
+			present("Connecting to " + validating.Destination.Hostname);
+			if (Pending == validating && Port.owner() == validating.Owner) {
+				Port.authenticate(validating);
+			}
+			return;
+		}
 		present("Sign in to continue to " + Pending->Destination.Hostname);
 	}
 	void setup_destination_host::continue_setup(const core::setup_request_id aRequest)

@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
+#include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/server_card.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -12,23 +13,28 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QElapsedTimer>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
+#include <atomic>
 #include <iostream>
 namespace {
 	using namespace bpr;
 	using app::detail::github_application_fixture_access;
 	using tests::expect;
-	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnose = { })
 	{
 		QElapsedTimer elapsed;
 		elapsed.start();
 		while (!aCondition() && elapsed.elapsed() < 20000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
+		}
+		if (!aCondition() && aDiagnose) {
+			aDiagnose();
 		}
 		expect(aCondition(), aMessage);
 	}
@@ -184,6 +190,111 @@ namespace {
 		expect(application->window().session_panel()->status() == core::github_status::no_profile, "Forget leaves the next launch signed out");
 		stop(application);
 	}
+	void native_replacement_and_legacy()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.PublicPreviewEnabledCourse = true;
+		options.IndependentWindowReads     = true;
+		options.RepeatReadSessions         = true;
+		options.RegisteredDeviceCourse     = true;
+		options.DeviceRefreshCourse        = true;
+		options.PersistDeviceBindings      = true;
+		options.SharedDeviceVault          = app::detail::make_shared_github_fixture_vault();
+		options.Offline                    = std::make_shared<app::detail::github_offline_fixture>();
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+		options.DeviceAuthorizationPending = std::make_shared<std::atomic_bool>(false);
+		auto store                         = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
+		auto application                   = start(options);
+		auto show_card                     = [&]() -> qt::server_card& {
+			application->window().show();
+			application->window().open_settings(qt::settings_page::accounts_and_hosts);
+			QApplication::processEvents();
+			const auto cards = application->window().server_cards();
+			return **std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "github.com"; });
+		};
+		show_card().sign_in_button()->click();
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "initial device grant is accepted");
+		wait_for([&] { return github_application_fixture_access::device_binding_durable(*application); }, "older native grant is durably resumable before replacement");
+		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "initial device choice is durable");
+		const auto native = *core::select_remembered_connection(*store->load({ }));
+		// Begin another native attempt, then explicitly choose CLI beside it.
+		options.DeviceAuthorizationPending->store(true);
+		show_card().sign_in_button()->click();
+		wait_for([&] { return application->window().device_authorization()->signing_in(); }, "replacement device flow waits");
+		unsigned asks = 0;
+		QTimer   consent;
+		QObject::connect(&consent, &QTimer::timeout, [&] { if (auto* prompt=qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) { ++asks; prompt->button(QMessageBox::Yes)->click(); } });
+		consent.start(1);
+		application->window().use_github_cli_button()->click();
+		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::github_cli; }, "explicit CLI replacement is durable", [&] { const auto evidence=github_application_fixture_access::evidence(*application); std::cerr << "native-cli:status=" << application->window().session_panel()->status_text() << ":diagnostic=" << application->window().session_panel()->diagnostic_text() << ":asks=" << asks << ":factories=" << evidence.AccountFactoryCalls << ":wire=" << evidence.RecordingFailure << '\n'; });
+		const auto cli = *core::select_remembered_connection(*store->load({ }));
+		expect(asks == 1 && cli.Profile != native.Profile && cli.Host == native.Host, "CLI replacement has a distinct stable connection on the same server");
+		options.DeviceAuthorizationPending->store(false);
+		const auto priorVaultAttempts = github_application_fixture_access::evidence(*application).VaultRetrieveAttempts;
+		stop(application);
+		options.GithubCliDiscoveryAccounts->clear();
+		application = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "CLI restores while the older device grant remains");
+		expect(application->window().session_panel()->active_profile() == cli.Profile && github_application_fixture_access::evidence(*application).VaultRetrieveAttempts == priorVaultAttempts, "older device material cannot replace the saved CLI connection");
+		options.DeviceAuthorizationPending->store(true);
+		show_card().sign_in_button()->click();
+		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native attempt is pending beside the restored CLI authority");
+		const auto storesBeforeSignOut = github_application_fixture_access::evidence(*application).VaultStores;
+		const auto cardsBeforeSignOut  = application->window().server_cards();
+		(*std::ranges::find_if(cardsBeforeSignOut, [](const auto* aCard) { return aCard->hostname() == "github.com"; }))->sign_out_button()->click();
+		wait_for([&] { return !core::select_remembered_connection(*store->load({ })); }, "CLI Sign out disables reuse beside the older device grant");
+		options.DeviceAuthorizationPending->store(false);
+		QElapsedTimer late;
+		late.start();
+		while (late.elapsed() < 7000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		expect(application->window().session_panel()->status() == core::github_status::no_profile && !core::select_remembered_connection(*store->load({ })) && github_application_fixture_access::evidence(*application).VaultStores == storesBeforeSignOut, "late device authorization cannot undo Sign out or persist a replacement");
+		stop(application);
+		application = start(options);
+		expect(application->window().session_panel()->status() == core::github_status::no_profile && github_application_fixture_access::evidence(*application).VaultRetrieveAttempts == priorVaultAttempts, "CLI Sign out cannot resurrect the prior device grant on restart");
+		options.GithubCliDiscoveryAccounts->push_back({ .Hostname = "github.com", .Login = "octo-reviewer" });
+		stop(application);
+		application = start(options);
+		application->window().show();
+		application->window().home_action()->trigger();
+		application->window().home_landing()->secondary_button()->click();
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection reconnects after disabled reuse");
+		wait_for([&] { auto saved=store->load({}); return saved && core::select_remembered_connection(*saved).has_value(); }, "explicit retry has durable metadata");
+		const auto retriedCli = *core::select_remembered_connection(*store->load({ }));
+		options.DeviceAuthorizationPending->store(true);
+		show_card().sign_in_button()->click();
+		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native replacement offers its code", [&] { std::cerr << "native-begin:status=" << application->window().session_panel()->status_text() << ":stage=" << static_cast<int>(application->status().DeviceAuthorizationStage) << ":enabled=" << show_card().sign_in_button()->isEnabled() << ":submissions=" << github_application_fixture_access::evidence(*application).DeviceTransportSubmissions << '\n'; });
+		application->window().sign_in_dialog()->reject();
+		wait_for([&] { return !application->window().device_authorization()->signing_in(); }, "native replacement cancels");
+		expect(*core::select_remembered_connection(*store->load({ })) == retriedCli, "cancelled replacement preserves the complete durable CLI choice");
+		options.DeviceAuthorizationPending->store(false);
+		options.Offline->Offline.store(true);
+		show_card().sign_in_button()->click();
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "offline native replacement fails validation visibly");
+		expect(*core::select_remembered_connection(*store->load({ })) == retriedCli, "unsuccessful native replacement preserves durable CLI authority");
+		options.Offline->Offline.store(false);
+		show_card().sign_in_button()->click();
+		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "successful native sign-in atomically replaces CLI");
+		const auto replacement = *core::select_remembered_connection(*store->load({ }));
+		expect(replacement.Profile != cli.Profile && replacement.Profile.value() > cli.Profile.value(), "successful native replacement receives fresh identity");
+		wait_for([&] { return github_application_fixture_access::device_binding_durable(*application); }, "native replacement retains established device-grant durability", [&] { const auto evidence=github_application_fixture_access::evidence(*application); std::cerr << "native-durable:status=" << application->window().session_panel()->status_text() << ":reason=" << application->window().session_panel()->diagnostic_text() << ":refresh=" << static_cast<int>(application->status().DeviceAuthorizationRefreshState) << ":stores=" << evidence.VaultStores << ":attempts=" << evidence.VaultStoreAttempts << '\n'; });
+		stop(application);
+		application = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "native replacement is the next launch's choice", [&] { const auto evidence=github_application_fixture_access::evidence(*application); std::cerr << "native-restore:status=" << application->window().session_panel()->status_text() << ":reason=" << application->window().session_panel()->diagnostic_text() << ":vault=" << evidence.VaultRetrieveAttempts << ":wire=" << evidence.RecordingFailure << '\n'; });
+		expect(application->window().session_panel()->active_profile() == replacement.Profile && asks == 2, "restart retains native identity without CLI trust");
+		show_card().sign_out_button()->click();
+		wait_for([&] { return !core::select_remembered_connection(*store->load({ })); }, "native sign-out durably disables reuse");
+		const auto signedOutVaultAttempts = github_application_fixture_access::evidence(*application).VaultRetrieveAttempts;
+		stop(application);
+		application = start(options);
+		expect(application->window().session_panel()->status() == core::github_status::no_profile && github_application_fixture_access::evidence(*application).VaultRetrieveAttempts == signedOutVaultAttempts, "disabled reuse does not resurrect any older device binding");
+		stop(application);
+		consent.stop();
+	}
 
 }
 int main(int aArgc, char** aArgv)
@@ -191,6 +302,7 @@ try {
 	QApplication qt{ aArgc, aArgv };
 	run();
 	forget_server();
+	native_replacement_and_legacy();
 	std::cout << "remembered-connection-public-path-tests:pass\n";
 } catch (const std::exception& aError) {
 	std::cerr << aError.what() << '\n';

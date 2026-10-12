@@ -71,6 +71,12 @@ int main()
 	disconnected[1].Authenticated = false;
 	resolved                      = resolve_setup_destination(pending, owner, disconnected);
 	expect(resolved && resolved->Profile == host_profile_id{ 3U } && resolved->Stage == setup_destination_stage::sign_in, "disconnected CLI profile does not grant authentication");
+	disconnected[1].RevalidationAllowed = true;
+	resolved                            = resolve_setup_destination(pending, owner, disconnected);
+	expect(resolved && resolved->Profile == host_profile_id{ 4U } && resolved->Stage == setup_destination_stage::authenticating, "remembered choice validates exact account ahead of inactive native profile");
+	pending.Destination.Hostname = "other.example";
+	resolved                     = resolve_setup_destination(pending, owner, disconnected);
+	expect(resolved && resolved->Profile == host_profile_id{ 5U } && resolved->Stage == setup_destination_stage::sign_in, "remembered consent cannot validate another server");
 
 	pending.Destination.Hostname = "github.com";
 	pending.Destination.Kind     = setup_destination_kind::repository;

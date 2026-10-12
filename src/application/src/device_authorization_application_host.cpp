@@ -1792,6 +1792,17 @@ namespace bpr::application {
 		Implementation->shutdown();
 	}
 
+	auto device_authorization_application_host::replace_profile(const core::host_profile_id aExpected, const core::host_profile_id aReplacement) noexcept -> bool
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.Capability.Registered || host.Capability.Profile != aExpected || aReplacement.value() == 0U
+			|| host.State.Stage == core::device_authorization_stage::requested || host.State.Stage == core::device_authorization_stage::awaiting_authorization || host.State.Stage == core::device_authorization_stage::cancelling) {
+			return false;
+		}
+		host.Capability.Profile = aReplacement;
+		return true;
+	}
+
 	auto device_authorization_application_host::state() const noexcept
 		-> const core::device_authorization_state&
 	{

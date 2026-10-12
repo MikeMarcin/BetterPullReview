@@ -5501,6 +5501,7 @@ namespace bpr::app {
 			}
 #endif
 			DeviceCapabilityRegistered = deviceCapability.Registered;
+			DeviceCapabilityProfile    = deviceCapability.Profile;
 			// The browser handoff. Both graphs bind the real opener; a
 			// tests-enabled graph binds the recording one instead when this
 			// run is inside the automated test boundary, and none at all
@@ -5736,7 +5737,7 @@ namespace bpr::app {
 				|| Profiles.empty() || !aUpdate.Session.has_value()) {
 				return;
 			}
-			if (aUpdate.Session->Profile != Profiles.front().profile()) {
+			if (aUpdate.Session->Profile != DeviceCapabilityProfile) {
 				return;
 			}
 			const auto authority = Host->accepted_credential_authority();
@@ -5991,8 +5992,9 @@ namespace bpr::app {
 		std::unique_ptr<adapters::github::detail::github_device_authorization_transport>
 														DeviceWireTransport;
 		bool                                            DeviceCapabilityRegistered = false;
-		bool                                            DeviceBrowserComposed      = false;
-		application::device_authorization_browser_port* ComposedBrowser            = nullptr;
+		core::host_profile_id                           DeviceCapabilityProfile;
+		bool                                            DeviceBrowserComposed = false;
+		application::device_authorization_browser_port* ComposedBrowser       = nullptr;
 		// [[BPR-1338]]. The opener the window's own gestures use: Open on
 		// GitHub and body links. `ComposedBrowser` except in an attended
 		// fixture look, where a person is watching for the page.
@@ -6070,7 +6072,11 @@ namespace bpr::app {
 	void github_profile_runtime::publish(const application::github_presentation_update& aUpdate)
 	{
 		reconcile_release_access();
-		observe_connection();
+		// Invalidation is presented before the host retires its previous
+		// accepted model. Remember only when an accepted session is delivered.
+		if (aUpdate.Session) {
+			observe_connection();
+		}
 		if (aUpdate.Transition && aUpdate.Transition->Identity && aUpdate.Transition->Identity->Generation != QueueIdentityGeneration) {
 			QueueIdentityGeneration = aUpdate.Transition->Identity->Generation;
 			if (QueueHost) {
@@ -13509,6 +13515,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!candidate || !ProfileCatalog->register_profile(*candidate)) {
 				return { };
 			}
+			const auto* registered = find_profile(Profile->DeviceCapabilityProfile);
+			if (Profile->DeviceCapabilityRegistered && registered && DeviceHost
+				&& registered->hostname() == candidate->hostname() && registered->server_contract() == candidate->server_contract()
+				&& candidate->authentication_transport() == application::github_authentication_transport::native_https
+				&& DeviceHost->replace_profile(Profile->DeviceCapabilityProfile, candidate->profile())) {
+				Profile->DeviceCapabilityProfile = candidate->profile();
+			}
 			Profiles.push_back(*candidate);
 			auto option = profile_option(*candidate, std::string{ candidate->hostname() } + " — Native HTTPS");
 			ProfileOptions.push_back(option);
@@ -13523,13 +13536,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (const auto& profile : Profiles) {
 				const auto authenticated = session && session->Mode == core::github_access_mode::authenticated
 					&& session->Profile == profile.profile() && session->Host == profile.host();
+				const auto remembered = Profile->selected_connection(profile.hostname());
 				// [[BPR-0732]]. Preview is the composition's anonymous authority
 				// on the GitHub.com contract; the host refuses GHES by policy,
 				// so a GHES profile with no account keeps the sign-in stop.
-				result.push_back({ .Profile          = profile.profile(),
-								   .Hostname         = std::string{ profile.hostname() },
-								   .Authenticated    = authenticated,
-								   .PreviewAvailable = PublicPreviewComposed && profile.authentication_transport() == application::github_authentication_transport::native_https && profile.server_contract() == application::github_server_contract::github_com_2022_11_28 });
+				result.push_back({ .Profile             = profile.profile(),
+								   .Hostname            = std::string{ profile.hostname() },
+								   .Authenticated       = authenticated,
+								   .PreviewAvailable    = PublicPreviewComposed && profile.authentication_transport() == application::github_authentication_transport::native_https && profile.server_contract() == application::github_server_contract::github_com_2022_11_28,
+								   .RevalidationAllowed = remembered && remembered->Profile == profile.profile() && profile.authentication_transport() == application::github_authentication_transport::github_cli });
 			}
 			std::stable_partition(result.begin(), result.end(), [this](const auto& aRow) { const auto chosen = Profile->selected_connection(aRow.Hostname); return chosen && chosen->Profile == aRow.Profile; });
 			return result;

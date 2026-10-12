@@ -145,9 +145,9 @@ namespace {
 		});
 		wait_for([&] { return terminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
 		expect(application != nullptr, "application startup succeeds");
-		auto& window = application->window();
-		window.resize(1440, 900);
-		window.show();
+		auto& firstWindow = application->window();
+		firstWindow.resize(1440, 900);
+		firstWindow.show();
 		QApplication::processEvents();
 
 		// Every confirmation is answered Yes, as the owner did, except the
@@ -171,10 +171,32 @@ namespace {
 		});
 		consent.start(1);
 
-		window.home_action()->trigger();
+		firstWindow.home_action()->trigger();
 		QApplication::processEvents();
-		window.home_landing()->secondary_button()->click();
-		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "Use GitHub CLI connects the discovered account");
+		firstWindow.home_landing()->secondary_button()->click();
+		wait_for([&] { return firstWindow.session_panel()->status() == core::github_status::session_ready; }, "Use GitHub CLI connects the discovered account");
+		// BPR-1410: publication after restored read consent still needs its
+		// ordinary exact-operation confirmation, including cancellation.
+		expect(readOptIns == 1U, "first explicit selection accepts read trust once");
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; }, "first lifetime drains its remembered selection");
+		application.reset();
+		startup.reset();
+		options.GithubCliDiscoveryAccounts->clear();
+		terminal = false;
+		startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				application = std::move(*aResult);
+			}
+		});
+		wait_for([&] { return terminal && startup->is_quiescent(); }, "publication lifetime restarts");
+		expect(application != nullptr, "publication lifetime starts");
+		auto& window = application->window();
+		window.resize(1440, 900);
+		window.show();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "publication lifetime restores exact saved read authority without inventory");
+		expect(readOptIns == 1U, "restored read authority asks no second read confirmation");
 		window.home_open_bar()->setText(QStringLiteral("https://github.com/octo-org/review-repository/pull/17"));
 		window.home_open_action()->trigger();
 		wait_for([&] { return window.session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens through the GitHub CLI session");

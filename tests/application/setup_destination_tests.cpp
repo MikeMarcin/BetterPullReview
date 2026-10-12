@@ -304,5 +304,20 @@ int main()
 	expect(!host.pending() && !port.Projection.RepositoryPrepared && port.Opened.size() == openedBeforeRepository + 1U,
 		   "repository setup refuses PR-shaped input");
 
+	// Remembered consent admits a new validation effect, never a read by itself.
+	port.Profiles          = { { core::host_profile_id{ 1U }, "github.com", false, true }, { core::host_profile_id{ 4U }, "github.com", false, false, true } };
+	const auto validations = port.Authentications.size();
+	const auto reads       = port.Opened.size();
+	host.submit("https://github.com/o/r/pull/51");
+	const auto validationRequest = host.pending()->Request;
+	expect(host.pending()->Stage == core::setup_destination_stage::authenticating && port.Authentications.size() == validations + 1U && port.Authentications.back().Profile == core::host_profile_id{ 4U } && port.Opened.size() == reads, "saved exact selection validates automatically without granting a read or anonymous fallback");
+	host.cancel();
+	host.authenticated(validationRequest, core::host_profile_id{ 4U }, "github.com");
+	expect(port.Opened.size() == reads, "late remembered validation cannot open a cancelled destination");
+	port.OnPresent = [&] { if (host.pending()) { host.cancel(); } };
+	host.submit("https://github.com/o/r/pull/52");
+	expect(!host.pending() && port.Authentications.size() == validations + 1U, "reentrant cancellation prevents remembered validation submission");
+	port.OnPresent = { };
+
 	return EXIT_SUCCESS;
 }

@@ -1395,6 +1395,28 @@ namespace {
 
 	// -- capability --------------------------------------------------------
 
+	void test_registered_connection_replacement_between_flows()
+	{
+		harness world;
+		expect(!world.Host.replace_profile(foreign_profile(), foreign_profile()) && !world.Host.replace_profile(profile(), { }), "stale and empty replacement identities are refused");
+		expect(world.Host.replace_profile(profile(), foreign_profile()), "composition can bind a fresh connection ID to its registered server between flows");
+		world.begin();
+		world.Lane.drain();
+		expect(world.Transport.CodeRequests.empty(), "the retired connection identity cannot launch the device wire");
+		world.begin_for(foreign_profile());
+		world.Lane.drain();
+		expect(world.Transport.CodeRequests.size() == 1U && !world.Host.replace_profile(foreign_profile(), profile()), "active flow pins the replacement capability identity");
+		world.Transport.answer_code(world.acquired());
+		world.Lane.drain();
+		world.Host.dispatch(core::cancel_device_authorization_intent{ });
+		world.Lane.drain();
+		expect(world.Host.replace_profile(foreign_profile(), profile()), "settled cancellation allows the next validated replacement");
+		world.Host.shutdown();
+		expect(!world.Host.replace_profile(profile(), foreign_profile()), "shutdown closes profile replacement ingress");
+		harness unregistered{ { }, true, application::default_device_verification_authority, false };
+		expect(!unregistered.Host.replace_profile(profile(), foreign_profile()), "replacement cannot manufacture a registered capability");
+	}
+
 	void test_an_unregistered_build_refuses_before_it_builds_a_request()
 	{
 		harness world{ { }, true, application::default_device_verification_authority, false };
@@ -1792,6 +1814,7 @@ auto main() -> int
 	test_a_throwing_projection_cannot_veto_the_transition();
 	test_a_terminal_flow_can_start_a_fresh_one();
 
+	test_registered_connection_replacement_between_flows();
 	test_an_unregistered_build_refuses_before_it_builds_a_request();
 	test_an_unregistered_build_opens_no_browser_either();
 	test_an_unregistered_build_can_be_asked_again_and_still_refuses();

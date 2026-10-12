@@ -14,6 +14,11 @@ namespace bpr::core {
 			return aProfile.Hostname == aPending.Destination.Hostname && aProfile.Authenticated;
 		});
 		if (found == aProfiles.end()) {
+			found = std::ranges::find_if(aProfiles, [&aPending](const auto& aProfile) {
+				return aProfile.Hostname == aPending.Destination.Hostname && aProfile.RevalidationAllowed;
+			});
+		}
+		if (found == aProfiles.end()) {
 			found = std::ranges::find(aProfiles, aPending.Destination.Hostname, &setup_profile_observation::Hostname);
 		}
 		aPending.Profile.reset();
@@ -21,6 +26,7 @@ namespace bpr::core {
 		if (found != aProfiles.end()) {
 			aPending.Profile = found->Profile;
 			aPending.Stage   = found->Authenticated                                                            ? setup_destination_stage::ready
+				: found->RevalidationAllowed                                                                   ? setup_destination_stage::authenticating
 				: found->PreviewAvailable && aPending.Destination.Kind == setup_destination_kind::pull_request ? setup_destination_stage::public_preview
 																											   : setup_destination_stage::sign_in;
 		}

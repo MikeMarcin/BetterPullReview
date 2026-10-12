@@ -64,11 +64,16 @@ namespace bpr::core {
 		/// [[BPR-0732]]. The host can read this profile's public pull requests
 		/// with no account (GitHub.com with an anonymous authority composed).
 		bool PreviewAvailable = false;
+		/// A successful remembered CLI selection permits targeted validation;
+		/// it does not establish an authenticated session or reading authority.
+		bool RevalidationAllowed = false;
 	};
 
 	/// \brief Selects only a configured authority with the exact requested hostname.
 	///
-	/// \details An authenticated profile is `ready`. [[BPR-0732]]. A profile
+	/// \details An authenticated profile is `ready`; an exact remembered
+	/// choice is `authenticating` until its current account is validated.
+	/// [[BPR-0732]]. A profile
 	/// with no account that can read public pull requests is
 	/// `public_preview`: the core decides that a pasted public link opens
 	/// signed out rather than stopping at sign-in, because the owner's

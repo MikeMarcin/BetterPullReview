@@ -485,6 +485,9 @@ namespace bpr::application {
 		// authorize.
 		void open_verification_address();
 		void shutdown();
+		/// Composition may replace the connection ID of the same registered
+		/// native server between flows. It must validate that server first.
+		[[nodiscard]] auto replace_profile(core::host_profile_id aExpected, core::host_profile_id aReplacement) noexcept -> bool;
 
 		[[nodiscard]] auto state() const noexcept
 			-> const core::device_authorization_state&;

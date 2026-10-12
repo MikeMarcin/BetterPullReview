@@ -2736,8 +2736,11 @@ namespace bpr::app::detail {
 				if (!State->CliEnabled || aProfile.hostname() != State->Profile.hostname()
 					|| aProfile.host() != State->Profile.host() || aProfile.server_contract() != State->Profile.server_contract()
 					|| aProfile.authentication_transport() != application::github_authentication_transport::github_cli
-					|| aContext.Profile != aProfile.profile() || State->AccountFactoryCalls != 0U) {
+					|| aContext.Profile != aProfile.profile() || (!State->RepeatSessions && State->AccountFactoryCalls != 0U)) {
 					return std::unexpected{ provider_error(application::github_provider_failure::unavailable) };
+				}
+				if (State->RepeatSessions && State->AccountFactoryCalls != 0U) {
+					State->Recording.rewind();
 				}
 				State->Profile               = aProfile;
 				State->AuthenticationSession = aContext.ApplicationSession;
@@ -2753,7 +2756,8 @@ namespace bpr::app::detail {
 			{
 				const std::scoped_lock lock{ State->Mutex };
 				++State->BootstrapFactoryAttempts;
-				if (!same_profile(aProfile, State->Profile)
+				if ((!same_profile(aProfile, State->Profile)
+					 && (!State->RepeatSessions || aProfile.hostname() != State->Profile.hostname() || aProfile.host() != State->Profile.host() || aProfile.server_contract() != State->Profile.server_contract()))
 					|| aContext.Profile != aProfile.profile()
 					|| !application::valid(aCredential)
 					|| (!State->RepeatSessions
@@ -2761,6 +2765,9 @@ namespace bpr::app::detail {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
 				}
+				// BPR-1410: a successful replacement has a new connection ID on
+				// this same recorded server; RepeatSessions serves that authority.
+				State->Profile = aProfile;
 				// [[BPR-0536]]. A repeat session is a repeat of the recorded
 				// script, not a continuation of it: the renewal course's
 				// rotation re-enrolls the rotated access token, the product
@@ -2787,7 +2794,8 @@ namespace bpr::app::detail {
 			{
 				const std::scoped_lock lock{ State->Mutex };
 				++State->AccountFactoryAttempts;
-				if (!same_profile(aProfile, State->Profile)
+				if ((!same_profile(aProfile, State->Profile)
+					 && (!State->RepeatSessions || aProfile.hostname() != State->Profile.hostname() || aProfile.host() != State->Profile.host() || aProfile.server_contract() != State->Profile.server_contract()))
 					|| !application::valid(aCredential.Credential)
 					|| aCredential.Context.Authority.Profile != aProfile.profile()
 					|| aCredential.Context.Authority.ProfileRevision
@@ -2802,6 +2810,7 @@ namespace bpr::app::detail {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::unavailable) };
 				}
+				State->Profile = aProfile;
 				// [[BPR-0536]]. The bootstrap rewind's counterpart. The
 				// account script opens with the same viewer read the session
 				// makes on the account transport, so a second establishment
