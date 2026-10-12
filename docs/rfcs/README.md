@@ -527,3 +527,11 @@ scale, which the owner looks at in person on JaegAW.
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
 | [RFC-BPR-0067](RFC-BPR-0067-home-draft-pull-requests.md) | Make draft pull requests obvious on Home | Proposed | RFC-BPR-0010, RFC-BPR-0026, RFC-BPR-0066 |
+
+## Merge gates and review waiting
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0069](RFC-BPR-0069-reviewers-and-merge-requirements.md) | Show pending reviewers, code-owner teams and merge requirements | Proposed | RFC-BPR-0068 |
+| [RFC-BPR-0068](RFC-BPR-0068-inspect-commit-checks.md) | Inspect commit checks and their failures in Overview | Proposed | — |
+| [RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) | Keep authored pull requests waiting on others visible on Home | Proposed | RFC-BPR-0069, RFC-BPR-0066 |

@@ -1,0 +1,19 @@
+{
+  "mapping": {
+    "DRAFT-0001": "BPR-1390",
+    "DRAFT-0002": "BPR-1391",
+    "DRAFT-0003": "BPR-1392",
+    "DRAFT-0004": "BPR-1393",
+    "DRAFT-0005": "BPR-1394",
+    "DRAFT-0006": "BPR-1395",
+    "DRAFT-0007": "BPR-1396",
+    "DRAFT-0008": "BPR-1397",
+    "DRAFT-0009": "BPR-1398",
+    "RFC-DRAFT-0007": "RFC-BPR-0068",
+    "RFC-DRAFT-0008": "RFC-BPR-0069",
+    "RFC-DRAFT-0009": "RFC-BPR-0070"
+  },
+  "plan_path": "docs/rfcs/plans/merge-gates-and-review-waiting-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "a3c1643b5da539453a2077e662cdf15ed1e53ec9121592e6252d4ccd48435527"
+}

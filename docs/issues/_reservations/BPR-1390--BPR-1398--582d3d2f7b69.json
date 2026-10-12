@@ -1,0 +1,18 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1390",
+    "BPR-1391",
+    "BPR-1392",
+    "BPR-1393",
+    "BPR-1394",
+    "BPR-1395",
+    "BPR-1396",
+    "BPR-1397",
+    "BPR-1398"
+  ],
+  "reserve_for": "merge-gates-and-review-waiting-v1",
+  "purpose": "Import merge gates and review waiting pack",
+  "created": "2026-10-12T04:48:03.395925+00:00",
+  "base": "9857d596769468c0585c475467175e3998a33530"
+}
