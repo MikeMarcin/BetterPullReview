@@ -158,7 +158,7 @@ Recently viewed and public-preview access retain their established contracts.
 
 ## Proposed implementation
 
-[Preserve and classify waiting facts](../issues/30-in-progress/BPR-1396-home-waiting-facts.md),
+[Preserve and classify waiting facts](../issues/60-done/BPR-1396-home-waiting-facts.md),
 [compose Home explanations](../issues/10-backlog/BPR-1397-home-waiting-presentation.md), and
 [reconcile closeout](../issues/10-backlog/BPR-1398-close-rfc-0070.md) implement this
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json).
