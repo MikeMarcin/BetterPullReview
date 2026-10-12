@@ -749,7 +749,7 @@ namespace bpr::e2e::large_review {
 				  << " reads=" << evidence.AccountReadCount << " smart=" << evidence.SmartAcquireCount << ':'
 				  << evidence.SmartDiscoveryCount << ':' << evidence.SmartLsRefsCount << ':' << evidence.SmartFetchCount << '\n';
 		require(evidence.RecordingConsumed && evidence.CapabilityProbeConsumed && evidence.BootstrapTransportSelected && evidence.AccountTransportSelected
-					&& evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 29U * std::max(std::size_t{ 1U }, aReport.EpochsObserved)) && evidence.SmartAcquireCount == 1
+					&& evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 30U * std::max(std::size_t{ 1U }, aReport.EpochsObserved)) && evidence.SmartAcquireCount == 1
 					&& evidence.SmartDiscoveryCount == 1 && evidence.SmartLsRefsCount == 1 && evidence.SmartFetchCount == 1,
 				"selected provider/Git path or replay exhaustion");
 		aReport.AccountRequests = evidence.AccountReadCount;
@@ -1301,7 +1301,7 @@ namespace bpr::e2e::large_review {
 			aReport.EpochsObserved = index + 1U;
 			aReport.Head           = aManifest.heads[index];
 			const auto evidence    = access::evidence(aApplication);
-			require(evidence.RecordingConsumed && evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 29U * (index + 1U)),
+			require(evidence.RecordingConsumed && evidence.RecordingFailure == -1 && evidence.AccountReadCount == static_cast<int>(1U + 30U * (index + 1U)),
 					"byte-pressure refresh did not exhaust exact recorded snapshot");
 		}
 		require(measure_wait(aApplication, aBudget, aReport, "byte_load_history", [&] { controls.refresh_action()->trigger(); }, [&] { return controls.history_model()->epoch_count() == aManifest.heads.size() && settled(); }), "byte-pressure retained history unavailable");
