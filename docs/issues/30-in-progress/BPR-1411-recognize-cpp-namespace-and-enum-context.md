@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1411"
 title: "Recognize C++ namespace and enum context"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0072"]
 depends_on: []
 priority: "P1"
