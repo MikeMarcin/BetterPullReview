@@ -81,7 +81,7 @@ def verify(manifest: Path, version: str, revision: str) -> list[Path]:
     if (platform, generator) not in {("Windows", "WIX"), ("Linux", "DEB"), ("Linux", "RPM")}:
         raise ValueError("invalid native release platform/generator")
     info = {"platform": platform, "version": version, "families": runtime.families(record), "target": record["target"]}
-    if platform == "Linux" and info["target"] != ("linux-ubuntu-24.04-x64" if generator == "DEB" else "linux-rhel-10-x64"):
+    if platform == "Linux" and info["target"] != runtime.LINUX_TARGETS[generator]:
         raise ValueError("Linux baseline and generator mismatch")
     products = record["products"]
     paths = {}

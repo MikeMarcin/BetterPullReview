@@ -24,6 +24,7 @@ import urllib.request
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
+LINUX_TARGETS = {"DEB": "linux-ubuntu-26.04-x64", "RPM": "linux-rhel-10-x64"}
 QT_LIBRARIES = {"Core", "Gui", "Widgets", "Network", "DBus", "OpenGL", "XcbQpa"}
 PLUGINS = {
     "Darwin": ["platforms/libqcocoa.dylib", "styles/libqmacstyle.dylib",
@@ -152,7 +153,7 @@ def source_asset_name(info: dict) -> str:
     target = {"Darwin": "macos-universal", "Windows": "windows-x64", "Linux": "linux-x64"}[info["platform"]]
     if info["platform"] == "Linux" and info.get("target"):
         target = info["target"]
-        if target not in {"linux-ubuntu-24.04-x64", "linux-rhel-10-x64"}:
+        if target not in LINUX_TARGETS.values():
             raise ValueError("invalid Linux release target")
     return f"Source-BetterPullReview-{info['version']}-{target}-corresponding-source.zip"
 
@@ -341,15 +342,18 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
 def linux_baseline() -> dict:
     release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
     identity = (release.get("ID", "").strip('"'), release.get("VERSION_ID", "").strip('"'))
-    if identity not in {("ubuntu", "24.04"), ("rhel", "10.0"), ("rhel", "10")}:
-        raise ValueError(f"not a supported package-build baseline: {identity}; use Ubuntu 24.04 or RHEL 10")
+    # Ubuntu is the selected next-release route. Keep the existing optional RPM
+    # producer separate; its older ABI ceiling does not constrain Ubuntu.
+    if identity not in {("ubuntu", "26.04"), ("rhel", "10.0"), ("rhel", "10")}:
+        raise ValueError(f"not a supported package-build baseline: {identity}; use Ubuntu 26.04 (optional RPM: RHEL 10)")
     if platform.machine() != "x86_64":
         raise ValueError("Linux packages require x86_64")
-    return {"distribution": identity, "glibcFloor": "2.39", "cpuFloor": "x86-64-v3" if identity[0] == "rhel" else "x86-64"}
+    return {"distribution": identity, "glibcFloor": "2.43" if identity[0] == "ubuntu" else "2.39",
+            "cpuFloor": "x86-64-v3" if identity[0] == "rhel" else "x86-64"}
 
 
 def linux_target() -> str:
-    return "linux-ubuntu-24.04-x64" if linux_baseline()["distribution"][0] == "ubuntu" else "linux-rhel-10-x64"
+    return LINUX_TARGETS["DEB" if linux_baseline()["distribution"][0] == "ubuntu" else "RPM"]
 
 
 def qt_library(name: str) -> bool:
@@ -448,8 +452,9 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
             relative = os.path.relpath(root, binary.parent)
             run("patchelf", "--set-rpath", "$ORIGIN" if relative == "." else "$ORIGIN/" + relative, binary)
             versions = run("readelf", "--version-info", binary)
-            if any(tuple(map(int, value.split("."))) > (2, 39) for value in re.findall(r"\bGLIBC_([0-9.]+)", versions)):
-                raise ValueError(f"ELF exceeds the glibc 2.39 floor: {binary}")
+            ceiling = tuple(map(int, baseline["glibcFloor"].split(".")))
+            if any(tuple(map(int, value.split("."))) > ceiling for value in re.findall(r"\bGLIBC_([0-9.]+)", versions)):
+                raise ValueError(f"ELF exceeds the glibc {baseline['glibcFloor']} ceiling: {binary}")
         baseline["requiredGLIBCXX"] = sorted({value for binary in processed for value in re.findall(r"\bGLIBCXX_([0-9.]+)", run("readelf", "--version-info", binary))}, key=lambda value: tuple(map(int, value.split("."))))
     (root / "qt.conf").write_text("[Paths]\nPlugins=plugins\n", encoding="utf-8")
     closure = {"schema": "bpr.runtime-closure.v1", "baseline": baseline, "families": families(info),

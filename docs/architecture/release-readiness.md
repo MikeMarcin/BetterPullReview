@@ -216,7 +216,17 @@ proposal as if already measured.
 
 ## Package and security work allocation
 
-**G7: target baselines and native qualification.** For M6 implementation, the
+**Current G7 scope, owner amendment 2026-10-11.** The next Linux release selects
+Ubuntu 26.04 LTS x86_64 DEB/per-user archive and glibc 2.43 ceiling, with actual
+GLIBCXX requirements recorded. WSL2 may produce ordinary binaries. Clean Ubuntu
+desktop/authentication/Secret Service/installation/purge evidence remains open.
+Ubuntu 24.04 and RHEL are outside the selected set; optional RHEL RPM mechanics
+retain their own older constraints without becoming required release work.
+[BPR-1386](../issues/30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+owns bounded preparation. This owner amendment is separate from observations;
+the historical M6 rationale and unchanged M8/M9 plan below remain preserved.
+
+**Historical G7: target baselines and native qualification.** For M6 implementation, the
 initial Linux ABI floor is glibc 2.39, with Ubuntu 24.04 LTS x86_64 as the DEB
 baseline and RHEL 10 x86_64 as the RPM qualification environment. This fills the
 RFC's previously unspecified baseline; it is not an observed support claim.
@@ -329,9 +339,10 @@ requires the resulting SBOM assets but publication remains unauthorized.
 The [package guide](../development/release-packages.md) records exact baselines,
 runtime layout, strict plugin discovery, Linux X11/XWayland and system C++/TLS
 dependencies, and first-party/mixed syntax-data distribution approval still
-pending. G7's Ubuntu 24.04/RHEL 10 and Windows native definitions are not qualified
-by this macOS implementation; WSL Ubuntu 26.04 is intentionally refused as a
-package-build baseline. Signing, clean install/upgrade/uninstall, credential,
+pending. At M6, G7's Ubuntu 24.04/RHEL 10 and Windows definitions were not qualified
+by this macOS implementation, and WSL Ubuntu 26.04 was refused as a
+package-build baseline. The current owner amendment above replaces that Linux
+selection without accepting qualification. Signing, clean install/upgrade/uninstall, credential,
 native UI and independent exact-artifact security gates remain M8/M9.
 
 G5/G6 now use the [retained-lease desktop barrier](release-maintenance.md#m6-retained-lease-maintenance-composition)

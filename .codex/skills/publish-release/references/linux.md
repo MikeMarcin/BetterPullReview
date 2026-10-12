@@ -1,8 +1,10 @@
 # Linux release
 
-Use native x86_64 Ubuntu 24.04 LTS for DEB and RHEL 10 for RPM. RHEL requires
-x86-64-v3. Do not substitute Ubuntu 26.04/WSL, cross-builds or another distro for
-declared baseline evidence. Both closures enforce a glibc 2.39 ceiling; retain
+Use x86_64 Ubuntu 26.04 LTS for DEB and the per-user archive. The owner's
+2026-10-11 next-release amendment removes Ubuntu 24.04 and RHEL from the
+selected Linux release set. WSL2 is an admitted producer for ordinary Linux
+binaries; WSL/WSLg observations do not establish clean Ubuntu desktop, vault
+or installer qualification. The Ubuntu closure enforces a glibc 2.43 ceiling; retain
 actual GLIBCXX/system dependency constraints and private Qt/XCB runtime.
 Configure success does not qualify a compiler/libstdc++ baseline.
 
@@ -11,18 +13,18 @@ SPDX, `patchelf`, `readelf`, `ldd`, libsecret/libxcb development files and
 native packaging tools. Run the normal native test gate, then:
 
 ```sh
-cmake --preset linux-package
-python3 packaging/package.py --build build/linux-package \
-  --generator DEB --output build/releases/X.Y.Z/ubuntu-24.04-x64
+cmake -S /absolute/source -B /absolute/source/build/linux-package --preset linux-package
+python3 /absolute/source/packaging/package.py --build /absolute/source/build/linux-package \
+  --generator DEB --output /absolute/source/build/releases/X.Y.Z/ubuntu-26.04-x64
 ```
 
-On RHEL use `--generator RPM` and separate
-`build/releases/X.Y.Z/rhel-10-x64` output. The driver requires new directories,
+Use the exact committed source revision and selected version shared by all
+producers. CPack defaults to DEB on Ubuntu. The driver requires new directories,
 builds selected app/helpers, runs CPack and emits installer, SPDX, separate source
 ZIP, checksum, provenance and `*-user.tar.gz` from the audited runtime.
 Without signing options it remains unsigned and emits no release manifest. It never publishes.
 
-DEB/RPM are managed system installs; per-user archives require system dependencies
+DEB is a managed system install; per-user archives require system dependencies
 already installed. Do not introduce global Qt/library paths or bundle undeclared
 system libraries. Audit actual expanded installer/archive runtimes, notices,
 source binding, package dependencies, ELF hardening and loader origins with the
@@ -39,10 +41,9 @@ assets; use the owner's secure signing mechanism.
 Use the integrated signing path on the matching producer:
 
 ```sh
-python3 packaging/package.py --build build/linux-package \
-  --generator DEB --output build/releases/X.Y.Z/ubuntu-24.04-x64 \
+python3 /absolute/source/packaging/package.py --build /absolute/source/build/linux-package \
+  --generator DEB --output /absolute/source/build/releases/X.Y.Z/ubuntu-26.04-x64 \
   --gpg-key APPROVED_FULL_FINGERPRINT
-# On RHEL 10, use --generator RPM and a separate output directory.
 ```
 
 The driver detach-signs final installers, per-user archives, SPDX, source ZIP,
@@ -54,9 +55,9 @@ Obtain the approved public verification key/fingerprint through the intended
 channel. No private key or passphrase is placed on a command line by the driver;
 use the owner's secure GPG agent/pinentry setup.
 
-A successful signed run emits `*.deb.release.json` or `*.rpm.release.json`.
-Names include `linux-ubuntu-24.04-x64` or `linux-rhel-10-x64`, including installed
-source URLs, so both baselines coexist. Reconfigure older distribution builds;
+A successful selected run emits `*.deb.release.json`.
+Names include `linux-ubuntu-26.04-x64`, including installed
+source URLs. Reconfigure older distribution builds;
 do not rename already-produced source assets. Identical source assets across
 variants can be deduplicated only when names and bytes match.
 
@@ -71,10 +72,19 @@ Audit actual expanded installer/archive runtimes with the native package/securit
 tools. The manifest preflight checks the archive's complete SPDX inventory and
 source binding, final hashes and signing receipts; offline receipts are not
 independent native trust or proof that installer extraction matches the archive.
-Keep Ubuntu/RHEL installation/authentication/Secret Service vault, purge/residuals
+Keep Ubuntu installation/authentication/Secret Service vault, purge/residuals
 and removal qualification explicit. Containers can prove command behavior but
-not clean desktop qualification. Return to shared publication with both manifests
-when a complete Linux set is requested.
+not clean desktop qualification. For a coordinated Mac-host publication, return
+the complete final output directory and DEB manifest to the Mac publisher after
+the native producer's trust checks. Keep private keys and credentials on the
+approved signing PC; transfer only intended final assets and public verification
+material. No Linux key is chosen as of the 2026-10-11 preparation; signing remains
+pending. A future release request must select its version before production.
+
+The existing RHEL 10 RPM mechanics are retained as optional compatibility, with
+their glibc 2.39 ceiling and x86-64-v3 CPU floor. They are outside the selected
+release set and do not require provisioning a RHEL producer. If separately
+selected later, use its native baseline and signing/qualification gates.
 
 Primary references: [GnuPG commands](https://gnupg.org/documentation/manuals/gnupg/Operational-GPG-Commands.html)
 and [RPM signing](https://rpm.org/docs/4.20.x/man/rpmsign.8).

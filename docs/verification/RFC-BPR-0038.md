@@ -1,5 +1,23 @@
 # RFC-BPR-0038 qualification ledger
 
+## Next-release Linux scope amendment, 2026-10-11
+
+The owner selects Ubuntu 26.04 x86_64 DEB and per-user archive for the next
+release, removing Ubuntu 24.04 and RHEL from the selected set. WSL2 is admitted
+for ordinary binary production. The later instruction requests reusable future
+readiness, probably with a Mac publisher and the signing PC's Windows/Ubuntu
+producers, with no actual release now. [BPR-1386](../issues/30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+owns bounded preparation under `release-next-20261011-ubuntu2604-r2`.
+This is an owner baseline/scope amendment, not evidence that any package,
+clean desktop/vault, trust or security course passed. Current Ubuntu ABI ceiling
+is glibc 2.43; actual GLIBCXX/system dependencies still require artifact evidence.
+Optional RPM mechanics stay outside the selected set. The historical entries,
+M8/M9 plans and review packets below remain unchanged. BPR-0961 and BPR-0962
+stay Blocked; RFC0038 remains Proposed. Windows signing profile/role, Linux
+approved key, exact-candidate native/licensing/trust/security/crash obligations
+and eventual publication authority remain pending. No version, signing, build
+or publication is selected by this preparation.
+
 ## Scope and immutable evidence
 
 Owner amendment r4, assignment `/root/rfc0014_owner_closeout`, moves unfinished

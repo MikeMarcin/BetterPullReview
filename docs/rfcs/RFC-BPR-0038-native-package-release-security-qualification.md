@@ -41,8 +41,25 @@ closeout; accepting RFC-0014 M12 does not accept those milestones or this RFC.
 
 - Windows 10 and 11 x64, native supported MSVC, clean non-elevated desktop/account.
 - macOS 13+ universal x86_64/arm64, executed on native Intel and Apple Silicon.
-- Linux x86_64 Ubuntu 24.04 DEB and RHEL 10 RPM, glibc 2.39 floor;
-  RHEL requires x86-64-v3 and the documented actual C++ runtime prerequisites.
+- Selected next-release Linux: Ubuntu 26.04 LTS x86_64 DEB and per-user archive,
+  glibc 2.43 ceiling with actual C++ runtime prerequisites recorded. WSL2 is an
+  admitted producer; clean Ubuntu desktop/vault/installation acceptance remains
+  distinct from WSL/WSLg observations.
+
+## Owner amendment 2026-10-11 — next-release Linux scope
+
+The owner replaced Ubuntu 24.04 with Ubuntu 26.04 and removed RHEL from the
+selected release set: "I dont care about redhat and i dont care about 24.04,
+you can update all the scripts/configs you need to." The later instruction asks
+for reusable readiness for a future release, probably from the Mac host to the
+signing PC's remote stations, with no actual release now. Version remains
+unchanged. [BPR-1386](../issues/30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+owns this preparation under `release-next-20261011-ubuntu2604-r2`, separately
+from BPR-0961 qualification. Optional RPM mechanics remain outside the selected
+set. Historical M8/M9 plans, baseline choices, scans and review packets retain
+their original meaning; this amendment supplies no native or security evidence.
+Required trust, signing, source/SBOM/digests, clean Ubuntu desktop/Secret Service,
+crash/privacy and full selected-target acceptance remain pending.
 
 The JaegAW Windows 11 and WSL/Linux stations supplied actual native build,
 installation, PE-inspection and inspector-probe evidence. Preserve it, but do not
@@ -91,7 +108,7 @@ credential disclosure, real-PR mutation or automatic diagnostic upload.
 | [BPR-0958](../issues/50-blocked/BPR-0958-qualify-macos-arm64-package.md) | Clean Apple Silicon account/authentication/Keychain, complete exact-package rendered course, full purge and documented residuals. Three earlier scoped human accepts remain candidate-specific. |
 | [BPR-0959](../issues/50-blocked/BPR-0959-qualify-macos-intel-package.md) | Complete native Intel installation, authentication, rendering, vault, maintenance, purge and removal. |
 | [BPR-0960](../issues/50-blocked/BPR-0960-qualify-windows-x64-package.md) | Clean Windows 10/11 ordinary-user desktop, auth, high-DPI/accessibility, Credential Manager and purge/removal; completed PE mechanics do not satisfy these. |
-| [BPR-0961](../issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md) | Ubuntu 24.04/RHEL 10 signed DEB/RPM, complete native fixture/auth/vault/purge/removal. |
+| [BPR-0961](../issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md) | Selected Ubuntu 26.04 signed DEB/per-user archive, complete native fixture/auth/vault/purge/removal; WSL production does not supply clean-desktop acceptance. |
 | [BPR-0962](../issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md) | Independent final trust, Windows/Linux licensing, source access/retention, unresolved vulnerabilities, external hardening/PE CFG, active-operation network/vault and foreign-user IPC, full sanitizer/fuzz coverage, resident-material crash/privacy and broader test failures. |
 | [BPR-0973](../issues/10-backlog/BPR-0973-close-rfc-0038.md) | Reconcile every original criterion against exact final artifacts, all follow-up decisions and explicit closeout dependencies. |
 

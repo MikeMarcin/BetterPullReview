@@ -20,9 +20,15 @@ replacing Ubuntu 24.04 and removing RHEL from the selected release scope:
 scripts/configs you need to." Linux is an optional convenience distribution.
 Available WSL2 may produce ordinary Linux binaries; WSL/WSLg checks do not
 establish clean Ubuntu desktop, installation or Secret Service qualification.
-This is mandate revision `release-next-20261011-ubuntu2604-r1`, separate from
+This is mandate revision `release-next-20261011-ubuntu2604-r2`, separate from
 observations and historical acceptance. The inherited M8/M9 plan and evidence
 remain unchanged; this issue has a separate bounded preparation plan.
+
+The later instruction is: "No actual release yet, just make it work so the next
+time I say do the release, probably from the mac host to this box's remote
+stations, it works." Keep the version unchanged and prepare reusable producer
+and Mac publisher guidance. No Linux key is chosen; the coordinator handles
+Windows signing prerequisites and manual setup separately.
 
 Prepare existing DEB and per-user archive mechanics, retaining source assets,
 SBOM, final digests and approved signing/trust checks. Existing optional RPM
@@ -37,7 +43,7 @@ RFC-BPR-0038, BPR-0961 or BPR-0962.
 - AC2: Exercise native manifest and installed source binding contracts for the new target, including wrong target/generator, stale producer, digest/source substitution and signing-receipt rejection without weakening other platforms' security checks.
 - AC3: Update current release/operator/skill documentation and record the owner's Linux scope amendment separately from actual evidence. Preserve historical scans and explicit clean-desktop/vault/crash/trust/publication gaps; run focused contracts and documentation gates, reporting Windows skips and any isolated WSL evidence truthfully.
 
-## Execution
+## Verification and execution record
 
 Owner: `/root/ubuntu2604_release_prep`, sole engineering leaf on `main`.
 Entry revision: `960b03bc3`; source baseline before allocation:

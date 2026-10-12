@@ -8,7 +8,7 @@ depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["linux"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-blocked_by: "declared-linux-baselines"
+blocked_by: "clean-ubuntu-desktop-vault"
 ---
 
 # Qualify the Linux x64 packages
@@ -28,7 +28,22 @@ Paths, blocked state and exact historical evidence remain intact. The
 candidates, completed PE mechanics, raw 32/30 Grype failures and unanswered
 Windows licensing-v002 decision; earlier records below remain historical.
 
-## Acceptance
+## Owner amendment 2026-10-11 — selected Ubuntu 26.04 route
+
+The owner selected Ubuntu 26.04 x86_64 for the next release, replacing Ubuntu
+24.04 and removing RHEL/RPM from the selected release set. Linux is an optional
+convenience distribution. [BPR-1386](../30-in-progress/BPR-1386-prepare-ubuntu-2604-release-route.md)
+prepares DEB/per-user mechanics with a glibc 2.43 ceiling under
+`release-next-20261011-ubuntu2604-r2`. WSL2 is a valid ordinary binary producer;
+WSL/WSLg observations remain narrower than clean Ubuntu desktop/install/vault
+qualification. The original acceptance below is retained as authored history.
+For current AC1, test the Ubuntu 26.04 DEB and default per-user archive; RPM and
+the two obsolete selected baselines are no longer required. AC2/AC3's complete
+rendered, authenticated, Secret Service, purge/residual and removal obligations
+remain pending, along with independent trust/security acceptance. No package is
+built or qualified by the owner's amendment, and this card stays Blocked.
+
+## Original acceptance (before the 2026-10-11 Linux scope amendment)
 
 - AC1: Declare and test the oldest supported native Linux x64 baseline; install exact DEB and RPM candidates, document package-manager privileges and provide the RFC's default per-user path, then launch, authenticate through an authorized safe route and open a fixture PR to the exact selected-file comparison.
 - AC2: Exercise real high-DPI source/navigation, one shared alignment controller and DiffLinkMap, keyboard/focus/accessibility, diagnostic preview and maintenance interactions; inspect desktop/hicolor/plugin integration on the delivered package.

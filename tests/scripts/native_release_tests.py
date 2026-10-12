@@ -44,7 +44,7 @@ class NativeReleaseTests(unittest.TestCase):
         build = self.root / ("build-" + generator)
         build.mkdir()
         system = "Windows" if generator == "WIX" else "Linux"
-        target = "" if generator == "WIX" else "linux-ubuntu-24.04-x64" if generator == "DEB" else "linux-rhel-10-x64"
+        target = "" if generator == "WIX" else "linux-ubuntu-26.04-x64" if generator == "DEB" else "linux-rhel-10-x64"
         info = {"platform": system, "version": "1.2.3", "target": target,
                 "families": {"agent_integrations": False, "local_automation": True}, "variant": "-agent-free"}
         image_suffix = ".exe" if system == "Windows" else ""
@@ -122,6 +122,18 @@ class NativeReleaseTests(unittest.TestCase):
     def test_unsigned_candidate_cannot_enter_publisher(self):
         manifest = self.package("WIX", signed=False)
         self.assertFalse(manifest.exists())
+
+    def test_linux_manifest_refuses_obsolete_or_mismatched_target(self):
+        manifest = self.package("DEB")
+        record = json.loads(manifest.read_text())
+        self.assertEqual(record["target"], "linux-ubuntu-26.04-x64")
+        self.assertIn("linux-ubuntu-26.04-x64", record["sourceArchive"])
+        for target in ("linux-ubuntu-24.04-x64", "linux-rhel-10-x64", "linux-x64"):
+            with self.subTest(target=target):
+                record["target"] = target
+                runtime.write_json(manifest, record)
+                with self.assertRaisesRegex(ValueError, "baseline and generator mismatch"):
+                    release.verify(manifest, "1.2.3", self.revision)
 
     def test_stale_commit_tampered_product_and_missing_signature_refused(self):
         manifest = self.package("DEB")
