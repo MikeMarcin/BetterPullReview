@@ -259,7 +259,21 @@ int main(int aArgc, char** aArgv)
 	window.resize(900, 600);
 	settle();
 	side->ensureWidgetVisible(checkExplanation);
-	expect(checkExplanation->viewport()->width() > 80 && checkOpen->minimumSizeHint().width() <= checkOpen->width() && page->entry_button()->isEnabled() && side->widget()->width() <= side->viewport()->width(), "narrow enlarged check explanation and action remain usable with review entry available");
+	const auto checksUsable = checkExplanation->viewport()->width() > 80
+		&& checkOpen->minimumSizeHint().width() <= checkOpen->width()
+		&& page->entry_button()->isEnabled()
+		&& side->widget()->width() <= side->viewport()->width();
+	if (!checksUsable) {
+		std::cerr << "OVERVIEW_NARROW_CHECKS explanation_width=" << checkExplanation->viewport()->width()
+				  << " action_minimum=" << checkOpen->minimumSizeHint().width()
+				  << " action_width=" << checkOpen->width()
+				  << " entry_enabled=" << page->entry_button()->isEnabled()
+				  << " side_width=" << side->widget()->width()
+				  << " viewport_width=" << side->viewport()->width()
+				  << " font_points=" << qtApplication.font().pointSizeF() << '\n';
+		render(*application, QStringLiteral("check-details-enlarged-failed"));
+	}
+	expect(checksUsable, "narrow enlarged check explanation and action remain usable with review entry available");
 	render(*application, QStringLiteral("check-details-enlarged"));
 	side->ensureWidgetVisible(rosterText);
 	settle();

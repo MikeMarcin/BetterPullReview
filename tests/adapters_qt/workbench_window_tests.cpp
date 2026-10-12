@@ -5657,9 +5657,18 @@ namespace {
 			expect(extension == nullptr || !extension->isVisible(), "no review-bar control folds into an overflow menu at any width");
 			expect(!(datesGone && dated()) && !(wordsGone && worded()), "what yielded does not return at a narrower width");
 			expect(worded() || !dated(), "the dates yield before the positions' words");
-			expect(comparing->text().startsWith(QStringLiteral("Comparing")) && window.file_position_label()->text().startsWith(QStringLiteral("File"))
-					   && window.file_position_label()->toolTip() == QStringLiteral("File 3 of 40"),
-				   "the comparison and navigation groups keep their names and full position tooltips");
+			const auto named = comparing->text().startsWith(QStringLiteral("Comparing"))
+				&& window.file_position_label()->text().startsWith(QStringLiteral("File"))
+				&& window.file_position_label()->toolTip() == QStringLiteral("File 3 of 40");
+			if (!named) {
+				std::cerr << "REVIEW_BAR_NAMES window_width=" << window.width()
+						  << " comparing=" << comparing->text().toStdString()
+						  << " file=" << window.file_position_label()->text().toStdString()
+						  << " file_tooltip=" << window.file_position_label()->toolTip().toStdString()
+						  << " file_width=" << window.file_position_label()->width()
+						  << " font_points=" << window.file_position_label()->font().pointSizeF() << '\n';
+			}
+			expect(named, "the comparison and navigation groups keep their names and full position tooltips");
 			datesGone = datesGone || !dated();
 			wordsGone = wordsGone || !worded();
 		}
