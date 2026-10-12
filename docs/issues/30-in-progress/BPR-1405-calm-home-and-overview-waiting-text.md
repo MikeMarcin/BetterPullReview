@@ -41,3 +41,34 @@ roster with team display names, as one paragraph above Participants.
   the blocked assessment, failed and missing required checks, stale and
   unavailable states. Existing focused suites pass with updated wording.
 - AC5: The owner accepts the calmer Home and Overview look (attended).
+
+## Evidence
+
+Candidate `06f2e5dff` (product) and `7011e21b3` (attended stop in the Home
+waiting course). The frontend-design skill was loaded for this work.
+
+- AC1, AC2: `qt_review_landing_model` pins the RFC-BPR-0070 example sentence
+  exactly, the bounded "and N more" form, discovery's person/team counts, the
+  aggregate "Required review outstanding", and a non-authored row that keeps
+  its failure without its author's roster. Waiting on others' summary keeps
+  only the blocked count.
+- AC3: `application_pull_request_overview` pins the toned state, one
+  condition per line (review with configured minimum, failures before
+  missing results), the empty complete roster, and the caveats moved into
+  Requirement details. `application_overview_summary_{1,1_25,2}` composes the
+  three-team scenario: Blocked, three short lines, five roster rows with code
+  owners first and team names in the accessible name, keyboard details, and
+  narrow enlarged rows that fit with middle elision.
+- AC4: 52/52 of `overview|landing|home|personal_discovery|composed_github|workbench_window|review_queue`
+  pass on the dev build at `7011e21b3`; format gate passes; clang-tidy on the
+  three changed sources reports only `remainder_path`, pre-existing and fixed
+  on main by `6673a3be3`. `git merge-tree` with main is clean.
+  `verify_documentation.py` passes.
+- Offscreen renders (light/dark/high contrast, 1100/520 Home, 1280 and
+  enlarged 900 Overview) were inspected before and after. The 520 Home render
+  in the course grabs before the list relays out; with events settled the
+  row wraps correctly. That is the course's timing, not the product.
+
+## Frontier
+
+AC5 waits on the owner's look at a frozen build of `7011e21b3`.
