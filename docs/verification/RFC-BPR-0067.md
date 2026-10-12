@@ -89,3 +89,12 @@ All task commands and writers are quiescent. Frozen source/build and safe runtim
 evidence are retained under their existing protection. No additional product
 change, live GitHub action, push, browser-profile read or desktop automation was
 performed during closeout.
+
+
+The [terminal verification receipt](../issues/_checkpoints/BPR-1389/documentation-closeout.json)
+records `DOCUMENTATION_OK`, 67/67 documentation script tests, valid scoped board
+state and the retained accepted binary digest. Initial global gate failures came
+from another active RFC import and were resolved by that owner. Its source edits
+are outside this closeout and are excluded from the reused product evidence.
+The guarded accepted-card commit is `1cc5c3e71cbc18c1ebb07b31c9460ec5b04c8b36`;
+RFC-BPR-0067 and its index now have the synchronized Auto-Verified status.

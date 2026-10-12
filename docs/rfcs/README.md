@@ -526,7 +526,14 @@ scale, which the owner looks at in person on JaegAW.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0067](RFC-BPR-0067-home-draft-pull-requests.md) | Make draft pull requests obvious on Home | Proposed | RFC-BPR-0010, RFC-BPR-0026, RFC-BPR-0066 |
+| [RFC-BPR-0067](RFC-BPR-0067-home-draft-pull-requests.md) | Make draft pull requests obvious on Home | Auto-Verified | RFC-BPR-0010, RFC-BPR-0026, RFC-BPR-0066 |
+
+Closed under mandate `home-draft-r1` by [[BPR-1389]] after AC01–AC04 and
+the `home-draft-v1/draft-home` milestone exits passed. The
+[verification ledger](../verification/RFC-BPR-0067.md) binds the accepted
+product candidate `f170654e6`, passing runtime checks and the owner’s Accept
+of frozen candidate `bpr1389-home-draft-v001`. Historical RFC0032 A8 and
+separate platform/release obligations retain their scope.
 
 ## Merge gates and review waiting
 

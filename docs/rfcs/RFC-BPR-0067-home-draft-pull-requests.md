@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0067"
 title: "Make draft pull requests obvious on Home"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0010","RFC-BPR-0026","RFC-BPR-0066"]
 metadata: {"mandate_revision":"home-draft-r1","milestone_plan":{"id":"home-draft-v1","path":"docs/rfcs/plans/home-draft-v1/milestone-plan.json"}}
@@ -132,7 +132,8 @@ Home draft metadata and row treatment. Test refinement
 automated AC04 checks and the owner’s Accept of exact frozen candidate
 `bpr1389-home-draft-v001` in session `df622dfed34516817f93fa5ac168bf03`,
 decision `809ee3e4-ba73-49a3-941a-e0052c0c63cc` at event 4. Hand-back at event 5
-left no pending decision or requested change. [[BPR-1389]] owns guarded terminal
-bookkeeping. Explicit RFC dependencies are accepted; historical native/human
-obligations retain their existing scope. RFC status is reconciled after the
-accepted card is finished through the workflow guard.
+left no pending decision or requested change. [[BPR-1389]] was finished through
+the workflow guard at `1cc5c3e71cbc18c1ebb07b31c9460ec5b04c8b36`. AC01–AC04
+and the single milestone’s exits are satisfied; RFC-BPR-0010, RFC-BPR-0026 and
+RFC-BPR-0066 are Auto-Verified. Historical native/human obligations retain their
+existing scope.

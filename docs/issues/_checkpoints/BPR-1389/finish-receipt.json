@@ -1,0 +1,17 @@
+{
+  "schema": "implement-rfc.finish.v1",
+  "id": "BPR-1389",
+  "lane": "60-done",
+  "changed_paths": [
+    "docs/issues/40-parked/BPR-1389-close-rfc-0067.md",
+    "docs/issues/60-done/BPR-1389-close-rfc-0067.md",
+    "docs/issues/_checkpoints/BPR-1389/acceptance.json",
+    "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+    "docs/issues/_checkpoints/BPR-1389/post-attendance-binding.json",
+    "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+    "docs/rfcs/RFC-BPR-0067-home-draft-pull-requests.md",
+    "docs/verification/RFC-BPR-0067.md"
+  ],
+  "dry_run": false,
+  "commit": "1cc5c3e71cbc18c1ebb07b31c9460ec5b04c8b36"
+}

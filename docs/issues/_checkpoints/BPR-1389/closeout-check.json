@@ -1,0 +1,5 @@
+{
+  "action": "report-closeout",
+  "detail": "The single home-draft-r1 milestone and RFC0067 are accepted; guarded BPR-1389 finish, synchronized RFC/index, passing documentation gate and quiescent task commands complete closeout. Coordinator reports completion; no successor or pending criterion remains under this mandate.",
+  "engineering_acceptance": "not-evaluated"
+}

@@ -1,0 +1,198 @@
+{
+  "run_id": "home-draft-v1",
+  "segment_id": "implementer-2-closeout",
+  "mandate_revision": "home-draft-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "home-draft-v1",
+    "plan_path": "docs/rfcs/plans/home-draft-v1/milestone-plan.json",
+    "milestone_id": "draft-home",
+    "definition_fingerprint": "sha256:a65ca380f19c6a8fb038ae2af814b516715898a081b47bedaa72e2a7aa7fc0a2",
+    "obligations": [
+      {
+        "id": "RFC-BPR-0067:*",
+        "source": "RFC-BPR-0067",
+        "selector": null,
+        "source_fingerprint": "sha256:5f12882771c5a90ae0285438db991756b806f7390fc6b6f12e9da0253b9a85a8"
+      },
+      {
+        "id": "BPR-1389:*",
+        "source": "BPR-1389",
+        "selector": null,
+        "source_fingerprint": "sha256:0915000c4f1baa368fefc3eb7ac78a866e1c2ab748eec1c23e31b3267a5dfef9"
+      }
+    ],
+    "obligation_fingerprint": "sha256:197a49c6e9738812921601c44c7b5a24193d23eaedd3db1360da1ffc8f6a93b5",
+    "exit_criteria": [
+      {
+        "id": "draft-home:exit:1",
+        "text": "AC01: composed unopened and recent-only draft rows show the leading chip; observed non-draft and unknown rows do not."
+      },
+      {
+        "id": "draft-home:exit:2",
+        "text": "AC02: accepted draft toggles preserve exact selection, opening, attention and bounded provider work."
+      },
+      {
+        "id": "draft-home:exit:3",
+        "text": "AC03: persistence, failed/stale completions and complete authority isolation preserve last accepted draft facts."
+      },
+      {
+        "id": "draft-home:exit:4",
+        "text": "AC04: focused rendered scale/appearance, keyboard and accessible checks pass, and a fresh frozen native candidate receives owner acceptance."
+      },
+      {
+        "id": "draft-home:exit:5",
+        "text": "Focused public-path, architecture, format and documentation checks pass; truthful tracker, amendment and durable continuation bind the exact candidate."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "draft-home",
+  "disposition": "pack-complete",
+  "candidate_revision": "ffc031a0d4ba15f621959405db231572a291f07e",
+  "handoff_ref": "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/verification/RFC-BPR-0067.md",
+    "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+    "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+    "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+    "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+    "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+    "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+    "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "RFC-BPR-0067:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    },
+    {
+      "id": "BPR-1389:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    },
+    {
+      "id": "draft-home:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    },
+    {
+      "id": "draft-home:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    },
+    {
+      "id": "draft-home:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    },
+    {
+      "id": "draft-home:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    },
+    {
+      "id": "draft-home:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/verification/RFC-BPR-0067.md",
+        "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+        "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+        "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+        "docs/issues/_checkpoints/BPR-1389/human-acceptance.json",
+        "docs/issues/_checkpoints/BPR-1389/review-handoff.json",
+        "docs/issues/_checkpoints/BPR-1389/documentation-closeout.json",
+        "docs/issues/_checkpoints/BPR-1389/finish-receipt.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "The single home-draft-r1 milestone and RFC0067 are accepted; guarded BPR-1389 finish, synchronized RFC/index, passing documentation gate and quiescent task commands complete closeout. Coordinator reports completion; no successor or pending criterion remains under this mandate."
+  },
+  "ownership": "quiescent"
+}

@@ -1,0 +1,102 @@
+{
+  "schema": "bpr.home-draft-closeout-verification.v1",
+  "mandate_revision": "home-draft-r1",
+  "milestone": "home-draft-v1/draft-home",
+  "repository_revision": "ffc031a0d4ba15f621959405db231572a291f07e",
+  "candidate_scope": "Terminal RFC0067/index documentation; accepted frozen product remains f170654e6. Other source writers are excluded.",
+  "documentation_gate": {
+    "command": [
+      "python3",
+      "scripts/verify_documentation.py",
+      "--root",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview"
+    ],
+    "exit_code": 0,
+    "stdout": "DOCUMENTATION_OK",
+    "elapsed_seconds": 0.903
+  },
+  "script_tests": {
+    "command": [
+      "python3",
+      "tests/scripts/verify_documentation_tests.py"
+    ],
+    "exit_code": 0,
+    "result": "67/67 passed"
+  },
+  "scoped_board": {
+    "command": [
+      "python3",
+      ".agents/skills/implement-rfc/scripts/issue_board.py",
+      "--repo-root",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview",
+      "validate",
+      "--rfc",
+      "RFC-BPR-0067",
+      "--json"
+    ],
+    "valid": true,
+    "errors": []
+  },
+  "initial_failures": [
+    {
+      "exit_code": 1,
+      "detail": "Unrelated BPR-1392 missing immutable base; resolved by its owner."
+    },
+    {
+      "exit_code": 1,
+      "detail": "Unrelated imported PROPOSED_AMENDMENTS.md broken draft link; resolved by its owner at ffc031a0d."
+    },
+    {
+      "exit_code": 1,
+      "detail": "Disposable git archive documentation attempt lacked Git consumer metadata; it supplied no acceptance evidence and was removed. Later complete checkout gate passed."
+    },
+    {
+      "exit_code": 1,
+      "detail": "Evidence assembly found active shared source paths and a wrong assumed frozen binary directory. No product files were changed. The actual launcher path was inspected and its digest verified below."
+    }
+  ],
+  "source_verification": "Committed src still matches frozen f170654e6. No post-attendance product changes. Reused tests bind f170654e6/b781fdf93 and do not qualify another writer\u2019s changes.",
+  "other_writer_uncommitted_source": [
+    "src/adapters/github/src/github_anonymous_read_admission.hpp",
+    "src/adapters/github/src/github_paged_read.cpp",
+    "src/adapters/github/src/github_provider.cpp",
+    "src/adapters/github/src/github_read_contract.cpp",
+    "src/adapters/github/src/github_read_contract.hpp",
+    "src/adapters/github/src/github_read_normalizer.cpp",
+    "src/application/include/bpr/application/github_read_model.hpp",
+    "src/application/include/bpr/application/pull_request_overview.hpp",
+    "src/application/src/github_window_read_host.cpp",
+    "src/application/src/pull_request_overview.cpp"
+  ],
+  "frozen_binary": {
+    "path": "/Users/jaeger/bpr1389-home-draft-v001.nh7rl2k8/src/build/app-release-tests/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+    "sha256": "41f42b50631aa12a58ab3c974427f0a7c27a013670ca349901d6a9d978fed1d8",
+    "retained": true,
+    "protection": "preserved"
+  },
+  "reused_evidence": [
+    "docs/issues/_checkpoints/BPR-1389/verification-summary.json",
+    "docs/issues/_checkpoints/BPR-1389/final-focused.json",
+    "docs/issues/_checkpoints/BPR-1389/qt-final.json",
+    "docs/issues/_checkpoints/BPR-1389/human-acceptance.json"
+  ],
+  "task_commands": "Final gates and script tests finished; authenticated review stop returned stopped=true, PID 5647 is absent, session 12891 unregistered. No task background command survives.",
+  "final_upkeep_gate": {
+    "command": [
+      "python3",
+      "scripts/verify_documentation.py",
+      "--root",
+      "/Users/jaeger/Documents/GitHub/BetterPullReview"
+    ],
+    "exit_code": 0,
+    "stdout": "DOCUMENTATION_OK",
+    "detail": "Passed after the terminal binding, observation, checkpoint and ledger existed."
+  },
+  "criterion_integrity": "All four canonical criterion texts match the prior checkpoint bytes and terminal card.",
+  "milestone_check": {
+    "action": "report-closeout",
+    "detail": "The single home-draft-r1 milestone and RFC0067 are accepted; guarded BPR-1389 finish, synchronized RFC/index, passing documentation gate and quiescent task commands complete closeout. Coordinator reports completion; no successor or pending criterion remains under this mandate.",
+    "engineering_acceptance": "not-evaluated"
+  },
+  "whitespace": "git diff --check on every changed tracked closeout path: exit 0"
+}
