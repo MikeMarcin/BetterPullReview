@@ -1,0 +1,134 @@
+{
+  "schema": "bpr.remember-cli.milestone-verification.v1",
+  "mandate_revision": "remember-cli-r1",
+  "milestone": "shared-profile-restoration",
+  "issue": "BPR-1409",
+  "baseline": "46eb49b312b35ef37e69ca4ace7354c04295a6dd",
+  "source_revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+  "status": "runtime-milestone-accepted",
+  "implementation": [
+    "Startup loads profile-owned metadata before authentication and reconstructs stable connection/profile/host identity above retained counters.",
+    "Accepted exact CLI host/login/numeric identity skips inventory and repeat trust. CLI viewer acceptance checks the persisted numeric account.",
+    "Successful authenticated session schedules metadata separately from layout. Logical state and last durable snapshot are distinct; every queued operation rebases on committed durable revision.",
+    "Sign out disables reuse, Forget removes selection and pending work, successful native enrollment has fresh profile identity, and manual tokens stay session-only. Closing ingress and orderly Quit drain all admitted metadata writes.",
+    "Unreadable/refused metadata preserves data and suppresses automatic restoration. After any established metadata decision, absent connection rows suppress legacy device fallback."
+  ],
+  "checks": [
+    {
+      "command": "ctest --preset dev -R ^(application_remembered_connection_public_path|application_setup_destination_public_path|application_device_flow_cli_choice)$ --output-on-failure",
+      "outcome": "pass",
+      "revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+      "detail": "3/3, 44.22s. Exact same source bytes immediately before the explicit follow-up commit: late device completion, shared restoration/source update, CLI reopen/refusal/retry/numeric mismatch/sign-out, GHES Forget and reopen."
+    },
+    {
+      "command": "ctest --preset dev -R ^(application_remembered_connection_host|application_remembered_connection_public_path)$ --output-on-failure",
+      "outcome": "pass",
+      "revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+      "detail": "2/2, 3.21s on a09ff90c704f534c7e13c809d50b113042bd262a; exact stdout in m2-focused-evidence.json. No post-commit product edit."
+    },
+    {
+      "command": "ctest --preset dev -R ^application_device_flow_cli_choice$ --output-on-failure",
+      "outcome": "pass",
+      "detail": "1/1, 22.77s; same initial integration source, before later scoped retirement callback."
+    },
+    {
+      "command": "ctest --preset dev -R ^application_profile_window_review_restoration_public_path$ --output-on-failure",
+      "outcome": "pass",
+      "detail": "1/1, 229.11s; run within three-test initial integration pass. The two other rows initially failed and were corrected; no full integration success claimed from this run."
+    },
+    {
+      "command": "ctest --preset dev -R ^(github_provider|github_host_profile)$ --output-on-failure",
+      "outcome": "pass",
+      "detail": "2/2, 11.81s; persisted numeric provider/profile changes unchanged since this check."
+    },
+    {
+      "command": "ctest --preset core-only -R ^(core_remembered_connection_policy|sqlite_remembered_connection_storage|architecture_boundaries|architecture_boundary_contract|test_network_isolation_manifest)$ --output-on-failure",
+      "outcome": "pass",
+      "detail": "5/5, 178.68s; policy/store unchanged from M1, application includes and host boundaries checked. Later scoped retirement callback stays in composition."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py --root . <12 changed C++ files>",
+      "outcome": "pass",
+      "detail": "clang-format 22.1.8 through repository wrapper; subsequent app/test follow-up separately formatted/checked."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --root . --build-dir build/dev --clang-tidy /opt/homebrew/opt/llvm@22/bin/clang-tidy --warnings-as-errors --paths src/application/src/remembered_connection_host.cpp tests/application/remembered_connection_host_tests.cpp src/adapters/github/src/github_host_profile.cpp",
+      "outcome": "pass",
+      "detail": "Final writer, refusal/retry/drain tests and validated profile unit passed."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "outcome": "pass",
+      "detail": "Before final milestone bookkeeping; rerun owed."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "outcome": "pass",
+      "detail": "67 tests, 2.190s; before final bookkeeping."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format_check.py --root . src/app/src/github_application.cpp tests/end_to_end/remembered_connection_public_path_tests.cpp",
+      "outcome": "pass",
+      "detail": "Final follow-up source and test, clang-format 22.1.8."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "outcome": "pass",
+      "detail": "67 tests, 1.942s, after writing the milestone checkpoint; final structure gate follows finish/Ready upkeep."
+    }
+  ],
+  "corrected_failures": [
+    "First new composed course clicked a hidden action. Follow-up used Home but fixture lacked PublicPreviewEnabledCourse, so the secondary action was native sign-in. Fixed fixture selection, asserted Use GitHub CLI label and used the established cancellation/explicit-selection path.",
+    "Existing setup source/update restart course expected to select and reconfirm the account on every lifetime. Changed it to await automatic exact restoration and assert zero repeat trust prompts; passes.",
+    "An external C++ identifier-context source was mid-edit and briefly failed to compile (missing ParenthesisBase). Preserved it; its writer subsequently integrated the change and builds passed."
+  ],
+  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "render_observation": "Inspected /tmp/bpr-m2-cli-consent.png from the real offscreen QMessageBox: durable reuse wording fully visible, controls fit. Fixture capture only; no owner desktop or personal data.",
+  "self_review": "Reviewed selection ordering, retained identity allocation, provider numeric admission, native/manual provenance, exact-host setup, cross-window ownership, late completion cancellation, logical/durable rebase after refusal and shutdown lifetime order. Final follow-up adds per-server setup retirement across all windows and a GHES Forget/reopen course.",
+  "acceptance_boundary": "Runtime implementation with focused composed app lifetimes, exact-source writer and public-path evidence. Full RFC AC01\u2013AC06 fresh-process/multi-authority/last-window qualification remains BPR-1410; no human/native/independent acceptance inferred.",
+  "limitations": [
+    "macOS fixtures only; no live GitHub, GHES account, native vault acceptance or owner desktop actions.",
+    "Full fresh-process, explicit last-window closure, multiple hosts/accounts/profiles, legacy device-grant and staged/late native replacement matrix, unavailable/refused tool or storage UI, tokenless and publication consent qualification remain BPR-1410."
+  ],
+  "source_commits": [
+    "268b87049592ca4643e5303ab77114e116e7b5f3",
+    "a09ff90c704f534c7e13c809d50b113042bd262a"
+  ],
+  "source_paths": [
+    "docs/architecture/github-host-implementation.md",
+    "docs/architecture/system-architecture.md",
+    "docs/development/settings-authority-inventory.md",
+    "src/adapters/github/src/github_host_profile.cpp",
+    "src/adapters/github/src/github_host_profile.hpp",
+    "src/adapters/github/src/github_provider.cpp",
+    "src/adapters/qt/src/github_cli_consent.cpp",
+    "src/app/src/github_application.cpp",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/github_application_host.hpp",
+    "src/application/include/bpr/application/remembered_connection_host.hpp",
+    "src/application/src/github_application_host.cpp",
+    "src/application/src/remembered_connection_host.cpp",
+    "tests/application/CMakeLists.txt",
+    "tests/application/remembered_connection_host_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/remembered_connection_public_path_tests.cpp",
+    "tests/end_to_end/setup_destination_public_path_tests.cpp"
+  ],
+  "ownership": {
+    "task_commands": "quiescent at handoff; no server",
+    "excluded_paths": [
+      ".gitignore",
+      ".mask.json",
+      ".mask.lock.json",
+      "docs/rfcs/drafts/"
+    ],
+    "external_commits_observed": [
+      "5f163a08a292c0056a42812eea48ada3dfa2daa7",
+      "c58bdebda",
+      "469739602",
+      "b7b4aebbd",
+      "f5ba6df49"
+    ],
+    "detail": "Shared main writers integrated Windows title-row and C++ identifier-context work. Their source/docs/index were preserved. Source commits stage/commit only explicit task paths after an empty-index check. Shared build/dev was reused, occasionally reporting Ninja recovery; all task-owned build processes completed. External release ctest PID 97841 is not ours and was not stopped."
+  }
+}

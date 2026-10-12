@@ -1,10 +1,88 @@
 # Remembered CLI connections continuation
 
-Mandate `remember-cli-r1`; assigned implementer `/root/remember_cli_m1`; baseline
-`46eb49b312b35ef37e69ca4ace7354c04295a6dd`. First milestone
-`connection-metadata` is accepted as the policy and storage capability boundary.
-RFC-BPR-0071 remains In Progress. Original drafts and amendment were adopted into
-the immutable asset set; original draft files were preserved.
+Mandate `remember-cli-r1`; implementer `/root/remember_cli_m2` on `main`.
+RFC baseline `46eb49b312b35ef37e69ca4ace7354c04295a6dd`. M1
+`connection-metadata` and M2 `shared-profile-restoration` are accepted.
+RFC-BPR-0071 remains In Progress; complete qualification and closeout are M3.
+
+## M2 candidate and evidence
+
+- Claim: `65191bb9bd924f13c267d6fa143405afdb669521`.
+- Runtime source: `268b87049592ca4643e5303ab77114e116e7b5f3`.
+- Final scoped retirement source: `a09ff90c704f534c7e13c809d50b113042bd262a`.
+- [M2 acceptance](m2-acceptance.json), [verification](m2-verification.json),
+  [exact final-source checks](m2-focused-evidence.json),
+  [earlier exact-source checks](m2-initial-focused-evidence.json),
+  [binding](m2-binding.json), [observation](m2-observation.json) and
+  [continuation check](m2-check.json).
+- The serialized writer and real composed app lifetimes cover prompt save,
+  empty-inventory restart, pinned numeric refusal, retained-choice retry,
+  Sign out, GHES Forget/reopen and Quit drain. Writer fault courses cover
+  failed remember followed by disable/Forget, failed disable and retry,
+  refused load and queued late saves. Three composed regression rows pass;
+  provider/profile, architecture/store/isolation, format 22, focused tidy and
+  documentation checks pass. Details and corrected failures are recorded.
+
+## Implemented runtime boundary
+
+Startup loads the private metadata store before authentication selection or
+identity allocation. Saved host/profile identity is reconstructed; transient
+and replacement identities allocate above retained counters. Retained startup
+navigation uses its exact server choice; without a destination the latest
+enabled choice is tried. CLI validation uses the saved host/login and rejects
+numeric account mismatch before accepting an authenticated session. It needs
+no inventory or repeated read-trust prompt. The consent wording states reuse.
+
+The shared profile observes accepted authenticated sessions and saves promptly,
+independently of layout. The writer separates logical session state from the
+last committed snapshot and rebases each serialized operation on the latter;
+a failed save cannot skip the store's required revision. Only the latest
+queued operation owns the visible result. Sign out disables reuse. Forget
+removes the row and retires same-server setup in every sibling window, pending
+device work and active authority. Successful native replacement receives a
+fresh profile identity; manual tokens remain session-only. Refused metadata
+starts signed out without overwriting data. Once metadata has recorded a
+decision, absent rows also suppress legacy device fallback. Orderly teardown
+closes ingress and drains admitted writes before releasing effects and storage.
+
+## Next milestone: restart-qualification-and-closeout
+
+Claim BPR-1410 when Ready. Read the live RFC, authored plan, both immutable
+inputs and these evidence records. Preserve the full AC01–AC06 boundary:
+fresh-process restart and explicit last-window closure, multiple named accounts
+and servers, exact-host private restoration and sibling connection work,
+missing/refused/mismatched CLI retry, older device grants, native replacement
+and late completions, durable save/refusal/cancellation/crash, maintenance,
+tokenless execution, global CLI state and independent publication consent.
+The new test restarts composed app lifetimes inside one test process; it is
+not the required new-process qualification. M1/M2 evidence may be reused where
+unchanged but does not close the RFC. Add discriminating composed courses and
+baseline comparison before closeout. No human/native/independent acceptance is
+inferred. Finish every agent-doable check before parking owner-only judgment.
+
+BPR-1373 remains separately parked. No owner desktop was driven/captured;
+no personal app state was read; no live GitHub calls or global gh account
+switches were made. Frontend-design was loaded before the consent wording
+change; the real offscreen consent dialog was inspected. No attended candidate,
+review session, protection or server was created for this milestone.
+
+## Ownership and command state
+
+All task-owned commands are complete at handoff; no task-owned server remains.
+Shared build/dev and build/core-only trees are retained. Existing release
+ctest PID 97841 belongs to another writer and was left alone. External Windows
+title-row and C++ identifier-context commits and their staging were preserved;
+a transient mid-edit external compilation failure was not repaired or reverted.
+The index is reconciled before each explicit-path commit. Original dirty
+`.gitignore`, `.mask.json`, `.mask.lock.json` and untracked `docs/rfcs/drafts/`
+remain excluded. Temporary scripts and rendered inspection evidence under
+`/tmp/bpr-m2-*` are task-owned; durable results are recorded here.
+
+The durable observation precedes its own bookkeeping commit. A fresh exact-HEAD
+check is returned to the coordinator. Product acceptance binds the final source
+revision above; subsequent task changes are bookkeeping only.
+
+## Prior accepted milestone
 
 ## Candidate and evidence
 
@@ -41,77 +119,3 @@ preserved. The established private-directory/open helpers and connection policy
 are reused. Full profile purge includes the metadata and its SQLite sidecars.
 The hostname grammar moved into core without changing its public application
 aliases or grammar.
-
-## Next milestone: shared-profile-restoration
-
-BPR-1409 owns runtime composition and all its lifecycle changes. Claim its Ready
-card with the shared helper. Read the live RFC and both immutable authored inputs
-again, then exercise the shortest actual app startup/completion path early.
-
-- Load remembered state before authentication restoration and before allocating
-  IDs that could alias saved identities. Reconstruct stable profile/host identity
-  and advance runtime allocation above the saved counters. Different account or
-  transport needs a fresh Profile; same hostname keeps its Host. Forgotten hosts
-  need a new Host above the retained high-water mark.
-- Admit remember only after explicit transport choice, read consent and successful
-  authenticated identity observation. On startup revalidate the exact saved
-  host/login with the pinned CLI transport and require numeric Account match
-  before private state is exposed. No inventory/default-account fallback or
-  repeated selector/trust step. Retained navigation selects its exact host;
-  without a retained destination use the most recently selected resumable row.
-- Share the metadata and saves through the profile runtime across sibling
-  windows. Keep in-memory session state and the last durable snapshot distinct.
-  The store accepts one revision step with expected durable revision, so failed
-  writes must not be followed by a skipped-revision snapshot. Rebase a later
-  desired durable transition from the last durable state (or serialize/retry
-  admitted transitions), while retaining independent runtime generation guards.
-  Tests must cover failed remember followed by sign-out/Forget/retry.
-- Sign-out disables reuse of CLI and older native device grants. A sentinel is
-  available when no row exists. Forget removes selection. A successful native
-  connection replaces CLI only after its own success; a manual token remains
-  session-only. Cancellation, failed switching and late completions cannot
-  replace or re-enable the saved selection. Guard both selection revision and
-  runtime request/cancellation identity.
-- Schedule saves promptly and separately from layout persistence. A refused
-  remember leaves an explicit session-only connection; a failed disable is
-  visible. Drain admitted saves before orderly Quit/last-window teardown.
-  Malformed/newer storage starts signed out and does not get overwritten.
-- Preserve tokenless CLI process behavior, unchanged global `gh` account and
-  independent publication consent. No `gh auth switch`.
-
-## Remaining qualification and review
-
-BPR-1410 retains full composed macOS AC01–AC06, including fresh-process restart
-and last-window closure, named-account order and multiple hosts/profiles,
-missing/refused/mismatched CLI retry, sign-out and older device resume, native
-replacement and late completion, durable save/failure/cancellation/crash,
-maintenance, tokenless execution and publication consent. M1 internal policy and
-real-store evidence do not substitute for those courses. Windows containment of
-the new test remains unmeasured and registered as such.
-
-BPR-1373 remains independently parked. Its card records no frozen build. The
-attended-review conflict query returned no conflicts for the planned paths. No
-owner review, candidate, server or native session was opened for this milestone;
-no owner desktop was driven or captured and no personal browser data was read.
-If runtime UX changes, load the required frontend-design skill before that work.
-
-## Ownership and command state
-
-All task-owned build/test/tidy commands have completed. No task-owned server or
-background writer remains. Existing shared `build/core-only` is reused and is
-not removed. Task scratch under `/tmp/bpr-remember-cli-run` contains only local
-fixture/build evidence and checkpoint orchestration; durable evidence is above.
-Original dirty `.gitignore`, `.mask.json`, `.mask.lock.json` and untracked
-`docs/rfcs/drafts/` remain excluded.
-
-An external writer committed `f999d900e` and `32065db72` while M1 was running.
-Its staging was preserved. The only overlapping work was our single test
-containment registry line: after its exclusion from their release candidate,
-we committed that line in our explicit integration commit. No other external
-edit was included or reverted. The index is empty at handoff; any later writer
-must be observed by the successor before claiming work.
-
-The durable observation is a record made before its own bookkeeping commit; a
-fresh exact-HEAD observation/check is also returned to the coordinator. Product
-acceptance remains bound to the product revision above, with only registry and
-bookkeeping changes afterward.

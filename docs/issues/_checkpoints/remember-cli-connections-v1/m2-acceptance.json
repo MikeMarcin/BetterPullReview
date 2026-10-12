@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "Implement RFC-BPR-0071 AC01\u2013AC04 through shared application startup, exact-host navigation and replacement/sign-out/forget effects.",
+      "outcome": "pass",
+      "revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m2-verification.json; exact-source writer and composed result in m2-focused-evidence.json. Full RFC qualification remains BPR-1410."
+      }
+    },
+    {
+      "criterion": "Persist successful selection promptly, report session-only or disable-save failure, drain admitted saves on Quit, and reject late completions.",
+      "outcome": "pass",
+      "revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m2-verification.json; exact-source writer and composed result in m2-focused-evidence.json. Full RFC qualification remains BPR-1410."
+      }
+    },
+    {
+      "criterion": "Restore pinned host/login/numeric account without inventory or trust prompts; failures remain visible and retry exact authority without private-state exposure.",
+      "outcome": "pass",
+      "revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m2-verification.json; exact-source writer and composed result in m2-focused-evidence.json. Full RFC qualification remains BPR-1410."
+      }
+    }
+  ]
+}

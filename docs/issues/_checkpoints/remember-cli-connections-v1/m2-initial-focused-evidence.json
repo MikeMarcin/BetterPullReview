@@ -1,0 +1,13 @@
+{
+  "criterion": "BPR-1409",
+  "outcome": "pass",
+  "revision": "268b87049592ca4643e5303ab77114e116e7b5f3",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"-R\", \"^(application_remembered_connection_host|application_remembered_connection_public_path|application_setup_destination_public_path)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 22.392,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 229: application_remembered_connection_host\n1/3 Test #229: application_remembered_connection_host ..........   Passed    0.06 sec\n    Start 618: application_setup_destination_public_path\n2/3 Test #618: application_setup_destination_public_path .......   Passed   17.89 sec\n    Start 687: application_remembered_connection_public_path\n3/3 Test #687: application_remembered_connection_public_path ...   Passed    4.41 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated                    =  22.36 sec*proc (3 tests)\nbpr_serial_gui                          =  22.30 sec*proc (2 tests)\nbpr_windows_uncontained_registration    =  17.89 sec*proc (1 test)\n\nTotal Test time (real) =  22.38 sec\n",
+    "stderr_tail": ""
+  }
+}
