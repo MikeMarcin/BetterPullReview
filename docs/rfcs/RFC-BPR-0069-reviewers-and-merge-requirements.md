@@ -179,7 +179,7 @@ supported blocker and its waiting reviewers works inside BPR.
 ## Proposed implementation
 
 [Normalize requests and requirements](../issues/60-done/BPR-1393-review-requirement-observations.md),
-[compose Overview](../issues/10-backlog/BPR-1394-reviewers-and-merge-overview.md), and
+[compose Overview](../issues/20-ready/BPR-1394-reviewers-and-merge-overview.md), and
 [reconcile closeout](../issues/10-backlog/BPR-1395-close-rfc-0069.md) implement
 this scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json). See
 [the decision record](assets/merge-gates-and-review-waiting-v1/DECISIONS.md#checks-and-confirmation) for the actual
