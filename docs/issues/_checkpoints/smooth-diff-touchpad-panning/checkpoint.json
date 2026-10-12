@@ -1,0 +1,73 @@
+{
+  "schema": "bpr.smooth-diff-panning.checkpoint.v1",
+  "state": "required-skill-unavailable",
+  "assignment": "/root/smooth_panning_m1",
+  "recipe": "coordinator-implementer",
+  "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
+  "mandate_revision": "b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d",
+  "RFC_BASE_SHA": "268b87049592ca4643e5303ab77114e116e7b5f3",
+  "branch": "main",
+  "draft_sources": [
+    {
+      "path": "docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md",
+      "sha256": "50976cd37e32f9112e1559e165bd5a4d8987f2de67b88d0d28c2dd551036c4bc"
+    },
+    {
+      "path": "docs/rfcs/drafts/smooth-diff-touchpad-panning/proposed-scrolling-amendment.md",
+      "sha256": "e3534876af1fe912c327947d149f4b6bef721941b4989bd845db1291268e7251"
+    }
+  ],
+  "plan": "plan-proposal.json",
+  "plan_state": "proposed-not-adopted",
+  "live_import": null,
+  "live_rfc": null,
+  "live_cards": [],
+  "candidate_revision": null,
+  "product_changes": [],
+  "pending_criteria": [
+    "AC01",
+    "AC02",
+    "AC03",
+    "AC04",
+    "AC05",
+    "AC06",
+    "AC07",
+    "AC08"
+  ],
+  "blocker": {
+    "skill": "frontend-design:frontend-design",
+    "instruction": "AGENTS.md: Any UX or visual work (mockups, design candidates, icons, layout, Qt surfaces the owner will look at) loads the frontend-design:frontend-design skill first and says so in its report.",
+    "searched_roots": [
+      "/Users/jaeger/.agents",
+      "/Users/jaeger/.codex",
+      "/Users/jaeger/.mask",
+      "/Users/jaeger/.claude",
+      "/Users/jaeger/Documents/GitHub"
+    ],
+    "result": "No matching frontend-design SKILL.md; no orchestrator skill access tools exposed."
+  },
+  "commands": {
+    "background": [],
+    "review_server": null,
+    "writers_released": true
+  },
+  "next_action": "Resolve and read the trusted required frontend-design skill. Reconcile current writers and draft digests, import with allocated live IDs and provenance on main, adopt this bounded plan, bind/claim the live milestone, then implement and verify. Preserve AC07 for the actual owner verdict.",
+  "verification": [
+    {
+      "command": "milestone_plan.py discover --source-root docs/rfcs/drafts/smooth-diff-touchpad-panning --json",
+      "result": "absent: no authored plan in the selected draft"
+    },
+    {
+      "command": "milestone_plan.py prepare --proposal plan-proposal.json --target RFC-DRAFT-0012 --json",
+      "result": "refused: unresolved target before live import; retained in target-preparation-refusal.json"
+    },
+    {
+      "command": "milestone_plan.py prepare --proposal plan-proposal.json --json",
+      "result": "prepared: structural proposal valid; semantic coverage remains engineer judgment; not adopted or bound"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "exit 0: DOCUMENTATION_OK"
+    }
+  ]
+}
