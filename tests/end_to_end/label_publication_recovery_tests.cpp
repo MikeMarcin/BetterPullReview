@@ -113,12 +113,12 @@ namespace {
 	/// durable record once private review has answered.
 	auto accepted_body(const qt::review_draft_editor& aEditor) -> std::string
 	{
-		const auto shown = aEditor.shown_draft();
+		const auto& shown = aEditor.shown_draft();
 		return shown.has_value() ? shown->Body : std::string{ "<none>" };
 	}
 	auto accepted_state(const qt::review_draft_editor& aEditor) -> std::optional<core::review_draft_state>
 	{
-		const auto shown = aEditor.shown_draft();
+		const auto& shown = aEditor.shown_draft();
 		return shown.has_value() ? std::optional{ shown->State } : std::nullopt;
 	}
 
@@ -218,7 +218,8 @@ namespace {
 				 "the draft stays and says the result is unknown and a retry is safe");
 		const auto lost = github_application_fixture_access::review_mutation_evidence(application);
 		std::cout << "BPR_1093:lost-relabel-retried:after-loss native_posts=" << lost.NativePosts << " stored=" << lost.StoredComments << " body=\"" << lost.LastBody
-				  << "\" state=" << (accepted_state(*editor) ? static_cast<int>(*accepted_state(*editor)) : -1) << std::endl;
+				  << "\" state=" << (accepted_state(*editor) ? static_cast<int>(*accepted_state(*editor)) : -1) << '\n'
+				  << std::flush;
 		expect(lost.NativePosts == 1U && lost.StoredComments == 1U && lost.LastBody == issue, "one write reached the server, with the labelled bytes");
 		expect(accepted_state(*editor) == core::review_draft_state::publishing && accepted_body(*editor) == issue, "the draft is held publishing, with the exact body it was prepared with");
 
@@ -230,7 +231,8 @@ namespace {
 		QApplication::sendEvent(editor->body_editor(), &key);
 		settle();
 		std::cout << "BPR_1093:lost-relabel-retried:relabel-attempt chip=" << chip << " read_only=" << editor->body_editor()->isReadOnly() << " shown=\""
-				  << editor->body_editor()->toPlainText().toStdString() << "\" accepted=\"" << accepted_body(*editor) << "\"" << std::endl;
+				  << editor->body_editor()->toPlainText().toStdString() << "\" accepted=\"" << accepted_body(*editor) << "\"" << '\n'
+				  << std::flush;
 		expect(!chip, "the label chip refuses to relabel a draft whose publication is unresolved");
 		expect(editor->body_editor()->isReadOnly() && editor->body_editor()->toPlainText().toStdString() == issue, "the body cannot be typed into while the outcome is unknown");
 		expect(accepted_body(*editor) == issue && accepted_state(*editor) == core::review_draft_state::publishing, "the draft and its store keep the prepared body");
@@ -246,7 +248,8 @@ namespace {
 		const auto after = github_application_fixture_access::review_mutation_evidence(application);
 		std::cout << "BPR_1093:lost-relabel-retried:after-retry native_posts=" << after.NativePosts << " submissions=" << after.Submissions << " stored=" << after.StoredComments
 				  << " duplicate=" << after.DuplicateReturned << " body=\"" << after.LastBody << "\" posted=" << posted_count(*cards, text)
-				  << " question_posted=" << posted_count(*cards, QString::fromStdString(question)) << std::endl;
+				  << " question_posted=" << posted_count(*cards, QString::fromStdString(question)) << '\n'
+				  << std::flush;
 		expect(shown, "the drawer shows the one posted thread in place of the draft");
 		expect(after.NativePosts == 1U, "one write at the server across the lost answer and the retry: no duplicate post");
 		expect(after.Submissions == 2U && after.DuplicateReturned, "the retry was answered by reconciling the stored comment");
@@ -259,7 +262,8 @@ namespace {
 		settle();
 		const auto finished = github_application_fixture_access::review_mutation_evidence(application);
 		expect(finished.NativePosts == 1U && finished.StoredComments == 1U && finished.Submissions == after.Submissions, "a relabel after publication sends nothing");
-		std::cout << "BPR_1093:lost-relabel-retried:pass" << std::endl;
+		std::cout << "BPR_1093:lost-relabel-retried:pass" << '\n'
+				  << std::flush;
 		shut_down(composed);
 	}
 
@@ -300,7 +304,8 @@ namespace {
 		}
 		const auto whilePending = github_application_fixture_access::review_mutation_evidence(application);
 		std::cout << "BPR_1093:relabel-before-publish:pending=" << pending << " offered=" << offered << " submissions=" << whilePending.Submissions
-				  << " drawer=" << (drawer != nullptr) << " sent=\"" << whilePending.LastBody << "\" status=\"" << told.toStdString() << "\" card=\"" << draft_status(*cards).toStdString() << "\"" << std::endl;
+				  << " drawer=" << (drawer != nullptr) << " sent=\"" << whilePending.LastBody << "\" status=\"" << told.toStdString() << "\" card=\"" << draft_status(*cards).toStdString() << "\"" << '\n'
+				  << std::flush;
 		expect(pending, "both Publish gestures came while the relabel was not accepted yet");
 		// Publish follows the accepted projection, so it can still be pressed;
 		// the composition refuses a Publish whose draft has a change in flight.
@@ -319,11 +324,13 @@ namespace {
 		const auto text   = QString::fromStdString(question);
 		const auto posted = wait_until([&] { return posted_count(*cards, text) == 1U && draft_card(*cards) == nullptr; });
 		const auto after  = github_application_fixture_access::review_mutation_evidence(application);
-		std::cout << "BPR_1093:relabel-before-publish:after native_posts=" << after.NativePosts << " stored=" << after.StoredComments << " body=\"" << after.LastBody << "\"" << std::endl;
+		std::cout << "BPR_1093:relabel-before-publish:after native_posts=" << after.NativePosts << " stored=" << after.StoredComments << " body=\"" << after.LastBody << "\"" << '\n'
+				  << std::flush;
 		expect(posted, "the drawer shows the posted thread");
 		expect(after.NativePosts == 1U && after.StoredComments == 1U && after.LastBody == question, "one write, with exactly the relabelled body");
 		expect(posted_count(*cards, QString::fromStdString(issue)) == 0U, "the body shown before the relabel was never published");
-		std::cout << "BPR_1093:relabel-before-publish:pass" << std::endl;
+		std::cout << "BPR_1093:relabel-before-publish:pass" << '\n'
+				  << std::flush;
 		shut_down(composed);
 	}
 }

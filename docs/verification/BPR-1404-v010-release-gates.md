@@ -248,8 +248,10 @@ then 2,000 nodes. The repair retains one ordered exact accepted-body set across
 those transitions, replacing it when nonempty body inputs change and releasing
 it on authority clear. Its focused card regression passes in 1.39 seconds and
 covers changed body, accepted reviewer prose, reordered nodes and clear.
-All diagnostic copies and executables were removed; producer source hashes
-remain unchanged. Raw report: `build/v0.1.10-history-body-annotations.json`.
+Two independently compiled contained negative controls fail at their intended
+assertions: retaining annotations after the body changes and reparsing them on
+every placement change. All diagnostic copies and executables were removed;
+producer source hashes remain unchanged. Raw report: `build/v0.1.10-history-body-annotations.json`.
 
 The inherited BPR-1407 commits `8cc80c6ed` and `970cbf01a` add the requested
 Home age, added/removed lines and comment counts. The card records 76/76 local
@@ -271,8 +273,14 @@ Windows launcher now creates each new request-owned folder with the existing
 central owner-private descriptor, granting only its user and current package.
 It changes no existing ACL. The native wrapper course additionally checks that
 exact descriptor during the run and that each folder is gone afterwards.
-Final native closure of this repair, the pending-label course and the newly
-collected Windows title-row failure remains required.
+The exact `004a9c8ef` Mac build and three focused cards/wrapper/label courses
+pass in 69.34 seconds. Final native closure of this repair, the pending-label
+course and the newly collected Windows title-row failure remains required.
+Focused tidy finds no violations in cards or the wrapper test. Its full scan
+of the large application TU reports 14 pre-existing naming findings outside
+every changed range; no new fixture-hold finding is reported. Existing launcher
+name/type and label-test copy/flush findings receive narrow hygiene corrections;
+those two TUs are rechecked separately. Original failed tidy output is retained.
 
 The Windows x64 Debug normal gate at `8cf67d793` separately failed
 `application_diagnostic_subsystems` after 134.70 s: its enrollment child hit

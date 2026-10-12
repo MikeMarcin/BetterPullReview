@@ -157,7 +157,7 @@ namespace bpr::adapters::agent {
 			struct stat before{ }, named{ };
 			const auto  valid = ::fstat(descriptor, &before) == 0
 				&& S_ISREG(before.st_mode) && before.st_uid == ::geteuid()
-				&& (before.st_mode & (S_IRWXG | S_IRWXO)) == 0 && before.st_nlink == 1
+				&& (before.st_mode & static_cast<mode_t>(S_IRWXG | S_IRWXO)) == 0 && before.st_nlink == 1
 				&& aGuard.FileIdentity == std::array<std::uint64_t, 4U>{ 1U, static_cast<std::uint64_t>(before.st_dev), 0U, static_cast<std::uint64_t>(before.st_ino) }
 				&& ::flock(descriptor, LOCK_SH | LOCK_NB) == 0
 				&& ::lstat(path.c_str(), &named) == 0 && named.st_dev == before.st_dev && named.st_ino == before.st_ino;

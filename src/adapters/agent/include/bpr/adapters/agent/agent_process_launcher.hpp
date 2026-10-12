@@ -68,7 +68,7 @@ namespace bpr::adapters::agent {
 		/// natural bounded backpressure. Its events carry the exact session ID;
 		/// callers still apply core staleness policy to the terminal result.
 		[[nodiscard]] auto run(
-			const application::agent_launch_request& aRequest,
+			const application::agent_launch_request& aGiven,
 			int                                      aTimeoutMilliseconds,
 			const application::agent_output_sink&    aSink = { },
 			std::stop_token                          aStop = { })
