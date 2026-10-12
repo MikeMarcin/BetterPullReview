@@ -2,9 +2,10 @@
 schema: implement-rfc.card.v1
 id: BPR-1386
 title: Remove obstructive station hooks and expose management in the launcher
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"739411f14","evidence":{"kind":"observation","detail":"WSL station_hooks preview found exactly 3 station guard commands; removal returned changed true, subsequent config hooks object is empty. No station/MASK internal state mutation or skill rollout occurred; the existing transferring lifecycle is retained."}},{"criterion":"AC2","outcome":"pass","revision":"739411f14","evidence":{"kind":"command","detail":"WSL python3 scripts/launch_remote_station.py --help and status --json exit 0 through existing pinned helper. Status reports actual transferring mode, free lease and unknown runtime; no live takeover attempted. Two disposable wrapper checks pass: default root/mode/stop arguments, explicit flags and ordinary-launch forwarding."}},{"criterion":"AC3","outcome":"pass","revision":"739411f14","evidence":{"kind":"command","detail":"WSL python3 scripts/verify_documentation.py --root . returns DOCUMENTATION_OK; git diff --check clean. Existing helper successfully loads; no runtime-stop or host-reload observation is claimed. Owner must reload project hooks if their current host retains cached configuration."}}]
 ---
 
 # Remove obstructive station hooks and expose management in the launcher
