@@ -903,7 +903,9 @@ namespace bpr::app::detail {
 		void order_snapshot_reads(std::vector<recorded_exchange>& aExchanges)
 		{
 			std::stable_partition(aExchanges.begin(), aExchanges.end(), [](const auto& aExchange) {
-				return aExchange.Request.Operation != read_operation::list_checks && aExchange.Request.Operation != read_operation::list_commit_statuses;
+				return aExchange.Request.Operation != read_operation::list_checks
+					&& aExchange.Request.Operation != read_operation::list_commit_statuses
+					&& aExchange.Request.Operation != read_operation::list_pull_request_timeline;
 			});
 		}
 
