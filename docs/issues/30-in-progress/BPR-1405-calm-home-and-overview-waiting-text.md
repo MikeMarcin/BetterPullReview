@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1405"
 title: "Calm the waiting and merge-requirement text on Home and Overview"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0069", "RFC-BPR-0070"]
 depends_on: []
 priority: "P1"
