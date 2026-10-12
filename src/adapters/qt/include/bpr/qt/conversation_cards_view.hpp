@@ -520,6 +520,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto layout_nodes_visited() const noexcept -> std::uint64_t;
 		/// \brief Number of note text measurements, excluding retained-cache hits.
 		[[nodiscard]] auto measurements() const noexcept -> std::uint64_t;
+		/// \brief Accepted bodies parsed for marks and narrative boundaries.
+		[[nodiscard]] auto body_annotations() const noexcept -> std::uint64_t;
 		/// \brief The note under a viewport point.
 		[[nodiscard]] auto hit_test(QPoint aViewportPoint) const -> std::optional<std::size_t>;
 		/// \brief Lines that carry a thread on a side, zero-based, for the gutter.
@@ -622,6 +624,12 @@ namespace bpr::qt {
 		/// [[BPR-1083]]. Each retained node's mark, header length and
 		/// ([[BPR-1086]]) lead, read once per adopted forest from the accepted
 		/// body.
+		/// [[BPR-1404]]. One ordered set of exact accepted bodies keeps its
+		/// annotations across endpoint placement changes, including a
+		/// temporarily empty forest. A different nonempty set replaces it;
+		/// authority clear releases it.
+		std::vector<std::string>        AnnotatedBodies;
+		std::uint64_t                   BodyAnnotations = 0U;
 		std::vector<feedback_body_mark> RetainedMarks;
 		std::vector<qsizetype>          RetainedHeaders;
 		std::vector<qsizetype>          RetainedLeads;

@@ -598,6 +598,37 @@ namespace {
 			   "a larger code font lays the excerpt out taller at once");
 	}
 
+	auto test_endpoint_changes_retain_exact_body_annotations() -> void
+	{
+		qt::conversation_cards_view view;
+		auto                        projection = std::vector<conversation>{ thread("t", "src/a.cpp", 1U), reply("p", "t", "reviewer", "issue: First body") };
+		view.adopt(projection);
+		const auto annotations          = view.body_annotations();
+		projection.front().OriginalLine = 99U;
+		view.adopt(projection);
+		view.adopt({ });
+		view.adopt(projection);
+		expect(view.body_annotations() == annotations && view.cards().front().Posts.front().Label.has_value(),
+			   "endpoint placement and an empty forest reuse exact body annotations");
+		projection[1].ReviewerProse = "Plain replacement";
+		view.adopt(projection);
+		expect(view.body_annotations() == annotations + projection.size() && !view.cards().front().Posts.front().Label.has_value()
+				   && view.cards().front().Posts.front().Body == QStringLiteral("Plain replacement"),
+			   "accepted reviewer prose replaces the prior body's annotation");
+		projection[1].ReviewerProse.reset();
+		projection[1].Body = "suggestion: Changed body";
+		view.adopt(projection);
+		expect(view.cards().front().Posts.front().Label.has_value() && view.cards().front().Posts.front().Body == QStringLiteral("suggestion: Changed body"),
+			   "changed published text is parsed again after reviewer prose is removed");
+		std::ranges::reverse(projection);
+		view.adopt(projection);
+		expect(view.cards().front().Posts.front().Label.has_value(), "reordered nodes retain the annotation belonging to their body");
+		const auto beforeClear = view.body_annotations();
+		view.clear();
+		view.adopt(projection);
+		expect(view.body_annotations() == beforeClear + projection.size(), "authority clear releases the retained body annotations");
+	}
+
 	auto test_unchanged_refresh_retains_measured_notes() -> void
 	{
 		qt::conversation_cards_view view;
@@ -1709,6 +1740,7 @@ auto main(int argc, char** argv) -> int
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_helper();
 	test_a_reply_suggestion_is_marked_native_or_text_only();
+	test_endpoint_changes_retain_exact_body_annotations();
 	test_unchanged_refresh_retains_measured_notes();
 	test_alternating_widths_keep_both_widths_measured();
 	test_discuss_geometry_refresh_updates_excerpts();

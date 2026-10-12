@@ -545,6 +545,10 @@ namespace bpr::qt {
 	{
 		clear_measurements();
 		Retained.clear();
+		AnnotatedBodies.clear();
+		RetainedMarks.clear();
+		RetainedHeaders.clear();
+		RetainedLeads.clear();
 		index_retained();
 		Draft.reset();
 		Current.clear();
@@ -569,29 +573,40 @@ namespace bpr::qt {
 		RetainedRoot.clear();
 		RetainedDepth.clear();
 		RetainedByFile.clear();
-		RetainedMarks.clear();
-		RetainedHeaders.clear();
-		RetainedLeads.clear();
-		RetainedMarks.reserve(Retained.size());
-		RetainedHeaders.reserve(Retained.size());
-		RetainedLeads.reserve(Retained.size());
+		const auto bodyOf = [](const application::github_conversation_projection& aNode) -> const std::string& {
+			return aNode.ReviewerProse.has_value() ? *aNode.ReviewerProse : aNode.Body;
+		};
+		const auto reuseBodies = std::ranges::equal(Retained, AnnotatedBodies, { }, bodyOf);
+		if (!Retained.empty() && !reuseBodies) {
+			AnnotatedBodies.clear();
+			RetainedMarks.clear();
+			RetainedHeaders.clear();
+			RetainedLeads.clear();
+			AnnotatedBodies.reserve(Retained.size());
+			RetainedMarks.reserve(Retained.size());
+			RetainedHeaders.reserve(Retained.size());
+			RetainedLeads.reserve(Retained.size());
+			for (const auto& node : Retained) {
+				// [[BPR-1083, BPR-1086]]. An annotation depends on the exact
+				// accepted body, including a tour stop's narrative boundary.
+				const auto& body       = bodyOf(node);
+				const auto  segment    = core::published_feedback_segment(body);
+				const auto  annotation = core::recognize_feedback_body(body, segment);
+				const auto  recognized = annotation.Status == core::feedback_prefix_status::recognized && annotation.Label.has_value()
+					&& annotation.Subject.has_value();
+				AnnotatedBodies.push_back(body);
+				RetainedMarks.push_back(recognized ? feedback_body_mark{ .Label    = annotation.Label,
+																		 .Emphasis = feedback_mark_emphasis_of(annotation),
+																		 .Name     = feedback_mark_name(annotation, body) }
+												   : feedback_body_mark{ });
+				const auto lead = lead_of(body, segment);
+				RetainedLeads.push_back(lead);
+				RetainedHeaders.push_back(recognized ? header_length_of(body, annotation, lead) : 0);
+				++BodyAnnotations;
+			}
+		}
 		RetainedById.reserve(Retained.size());
 		for (std::size_t index = 0U; index < Retained.size(); ++index) {
-			// [[BPR-1083]]. Marks follow the accepted body; an unchanged forest
-			// is not read again by a relayout.
-			const auto& body = Retained[index].ReviewerProse.has_value() ? *Retained[index].ReviewerProse : Retained[index].Body;
-			// [[BPR-1086]]. A published tour stop is read inside its narrative.
-			const auto segment    = core::published_feedback_segment(body);
-			const auto annotation = core::recognize_feedback_body(body, segment);
-			const auto recognized = annotation.Status == core::feedback_prefix_status::recognized && annotation.Label.has_value()
-				&& annotation.Subject.has_value();
-			RetainedMarks.push_back(recognized ? feedback_body_mark{ .Label    = annotation.Label,
-																	 .Emphasis = feedback_mark_emphasis_of(annotation),
-																	 .Name     = feedback_mark_name(annotation, body) }
-											   : feedback_body_mark{ });
-			const auto lead = lead_of(body, segment);
-			RetainedLeads.push_back(lead);
-			RetainedHeaders.push_back(recognized ? header_length_of(body, annotation, lead) : 0);
 			// The first node with an identity answers for it.
 			RetainedById.emplace(Retained[index].Id, index);
 		}
@@ -1102,6 +1117,11 @@ namespace bpr::qt {
 	auto conversation_cards_view::layouts() const noexcept -> std::uint64_t
 	{
 		return Layouts;
+	}
+
+	auto conversation_cards_view::body_annotations() const noexcept -> std::uint64_t
+	{
+		return BodyAnnotations;
 	}
 
 	auto conversation_cards_view::measurements() const noexcept -> std::uint64_t
