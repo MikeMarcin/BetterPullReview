@@ -71,4 +71,9 @@ waiting course). The frontend-design skill was loaded for this work.
 
 ## Frontier
 
-AC5 waits on the owner's look at a frozen build of `7011e21b3`.
+AC5 waits on the owner's look at a frozen build of `7011e21b3`, root
+`/Users/jaeger/bpr1405-look.4e01kxey` (its `launch.py --check` passed at
+freeze). Attended-review session `5cbc651b593c9deafbab6516ef62ecdd`, a fresh
+short session with its own `--state`, asks two Accept/Reject questions:
+`BPR-1405-home` and `BPR-1405-overview`. Driver cursor: sequence 6. Remove
+the root afterwards with `scripts/freeze_attended_build.py remove`.
