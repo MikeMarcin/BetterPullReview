@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1386"
+  ],
+  "reserve_for": "station-hook-removal-20261011",
+  "purpose": "",
+  "created": "2026-10-12T03:16:46.975646+00:00",
+  "base": "b67d720dd72323e126d9b1db0073fde2bfb257a4"
+}
