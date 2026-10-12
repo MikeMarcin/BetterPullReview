@@ -86,6 +86,8 @@ namespace bpr::application {
 		std::optional<bool>                    Draft  = std::nullopt;
 		std::optional<github_actor_id>         AuthorIdentity;
 		core::queue_waiting_facts              Waiting;
+		/// Required title/reviews are complete; only the added summary hit a bound.
+		bool WaitingLimited = false;
 
 		auto operator<=>(const personal_discovery_row&) const = default;
 	};

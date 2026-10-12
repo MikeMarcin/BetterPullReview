@@ -4504,7 +4504,7 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		[[nodiscard]] auto read_home_summary(production_read_execution& aExecution, const validated_github_host_profile& aProfile, const application::personal_discovery_request& aRequest, server_contract aServer, const core::pull_request_request_context& aContext, const parsed_page& aPage, const github_paged_read_limits& aLimits) -> std::expected<core::queue_waiting_facts, github_paged_read_failure>
+		[[nodiscard]] auto read_home_summary(production_read_execution& aExecution, const validated_github_host_profile& aProfile, const application::personal_discovery_request& aRequest, server_contract aServer, const core::pull_request_request_context& aContext, const parsed_page& aPage, const github_paged_read_limits& aLimits, bool* aLimited = nullptr) -> std::expected<core::queue_waiting_facts, github_paged_read_failure>
 		{
 			if (!json_is_object(aPage.Document)) {
 				return core::queue_waiting_facts{ };
@@ -4537,14 +4537,24 @@ namespace bpr::adapters::github::detail {
 			if (!aExecution.bind_repository(snapshot.Repository.Repository)) {
 				return aExecution.terminal_failure(application::github_provider_failure::malformed_response);
 			}
+			const auto note_limit = [aLimited](const github_paged_read_failure& aFailure) {
+				const auto* error = std::get_if<application::github_provider_error>(&aFailure);
+				if (aLimited && error && error->Failure == application::github_provider_failure::response_limit) {
+					*aLimited = true;
+				}
+			};
 			const auto requests = read_pending_requests(aExecution, aServer, aContext, snapshot, aLimits);
 			if (!requests) {
+				note_limit(requests.error());
 				if (fatal_optional_read_failure(requests.error())) {
 					return std::unexpected{ requests.error() };
 				}
 				snapshot.ReviewRequestsAvailability = observation_failure(requests.error());
 			}
 			const auto assessment = read_merge_assessment(aExecution, aServer, aContext, snapshot);
+			if (!assessment) {
+				note_limit(assessment.error());
+			}
 			if (!assessment && fatal_optional_read_failure(assessment.error())) {
 				return std::unexpected{ assessment.error() };
 			}
@@ -4552,6 +4562,9 @@ namespace bpr::adapters::github::detail {
 			semantic.HeadOid            = snapshot.PullRequest.HeadOid.value();
 			auto checks                 = read_checks(aExecution, aProfile, semantic, snapshot.PullRequest.HeadOid.value(), snapshot.Checks, aLimits);
 			snapshot.ChecksAvailability = checks ? application::github_collection_availability::available : application::github_collection_availability::unavailable;
+			if (!checks) {
+				note_limit(checks.error());
+			}
 			if (!checks && fatal_optional_read_failure(checks.error())) {
 				return std::unexpected{ checks.error() };
 			}
@@ -4560,6 +4573,9 @@ namespace bpr::adapters::github::detail {
 			auto statuses                 = std::vector<application::github_check_record>{ };
 			auto statusRead               = read_rest_array_collection(aExecution, aProfile, semantic, statuses, aLimits.Records.MaximumChecks, aLimits.MaximumPageRecords, [&snapshot](const page_json_value& aValue) { return parse_commit_status(aValue, snapshot.PullRequest.HeadOid.value()); });
 			snapshot.StatusesAvailability = statusRead ? application::github_collection_availability::available : application::github_collection_availability::unavailable;
+			if (!statusRead) {
+				note_limit(statusRead.error());
+			}
 			if (!statusRead && fatal_optional_read_failure(statusRead.error())) {
 				return std::unexpected{ statusRead.error() };
 			}
@@ -4589,7 +4605,8 @@ namespace bpr::adapters::github::detail {
 			limits.MaximumAggregateResponseBytes = std::min(limits.MaximumAggregateResponseBytes, std::size_t{ 8U * 1024U * 1024U });
 			limits.Records.MaximumReviews        = std::min(limits.Records.MaximumReviews, application::maximum_personal_discovery_reviews);
 			const auto                context    = requested_reviewers_parent(aRequest.Context, *aRequest.Number);
-			production_read_execution execution{ aTransport, aProfile, context, limits, aStop, aRates, aRequest.AuthenticationSession, nullptr };
+			auto                      homeBudget = shared_home_budget{ };
+			production_read_execution execution{ aTransport, aProfile, context, limits, aStop, aRates, aRequest.AuthenticationSession, nullptr, &homeBudget };
 			const auto                page = execution.fetch(semantic_request_for(aServer, context, read_operation::get_pull_request));
 			if (!page) {
 				return std::unexpected{ page.error() };
@@ -4684,7 +4701,7 @@ namespace bpr::adapters::github::detail {
 			if (!reviews) {
 				return std::unexpected{ execution.enrich(reviews.error()) };
 			}
-			const auto summary = read_home_summary(execution, aProfile, aRequest, aServer, context, *page, limits);
+			const auto summary = read_home_summary(execution, aProfile, aRequest, aServer, context, *page, limits, &row.WaitingLimited);
 			if (!summary) {
 				return std::unexpected{ summary.error() };
 			}
@@ -4838,7 +4855,11 @@ namespace bpr::adapters::github::detail {
 					production_read_execution summaryExecution{ aTransport, aProfile, context, summaryLimits, aStop, rates, aRequest.AuthenticationSession, nullptr, &homeBudget };
 					const auto                metadata = summaryExecution.fetch(semantic_request_for(*server, context, read_operation::get_pull_request));
 					if (metadata && json_is_object(metadata->Document)) {
-						const auto summary = read_home_summary(summaryExecution, aProfile, aRequest, *server, context, *metadata, summaryLimits);
+						auto       limited = false;
+						const auto summary = read_home_summary(summaryExecution, aProfile, aRequest, *server, context, *metadata, summaryLimits, &limited);
+						if (limited && result.Completeness == application::personal_discovery_completeness::complete) {
+							result.Completeness = application::personal_discovery_completeness::detail_limit;
+						}
 						if (summary) {
 							application::merge_queue_waiting(row.Waiting, *summary);
 							if (!summary->Requests) {
@@ -4848,8 +4869,14 @@ namespace bpr::adapters::github::detail {
 						} else if (fatal_optional_read_failure(summary.error())) {
 							return std::unexpected{ summary.error() };
 						}
-					} else if (!metadata && fatal_optional_read_failure(metadata.error())) {
-						return std::unexpected{ metadata.error() };
+					} else if (!metadata) {
+						if (fatal_optional_read_failure(metadata.error())) {
+							return std::unexpected{ metadata.error() };
+						}
+						const auto* error = std::get_if<application::github_provider_error>(&metadata.error());
+						if (error && error->Failure == application::github_provider_failure::response_limit && result.Completeness == application::personal_discovery_completeness::complete) {
+							result.Completeness = application::personal_discovery_completeness::detail_limit;
+						}
 					}
 				} else if (result.Completeness == application::personal_discovery_completeness::complete) {
 					result.Completeness = application::personal_discovery_completeness::detail_limit;

@@ -1693,6 +1693,20 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	void test_retained_summary_limit_keeps_complete_metadata()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Followed = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		auto row           = metadata_row(17, true);
+		row.WaitingLimited = true;
+		fixture.Provider.answer(fixture.Provider.rows({ row }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Title == row.Title && fixture.item(17)->Bucket == core::attention_bucket::quiet && fixture.Discovery.status().State == application::queue_discovery_state::partial && fixture.Discovery.status().Problem == application::queue_discovery_problem::detail_limit,
+			   "retained summary limit publishes complete title/review facts and explicit partial status");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_retained_review_survives_request_withdrawal()
 	{
 		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
@@ -2498,6 +2512,7 @@ auto main() -> int
 	test_saved_repositories_are_durable_before_projection();
 	test_saved_servers_are_durable_before_projection();
 	test_retained_titles_and_reviews_before_open_and_on_refresh();
+	test_retained_summary_limit_keeps_complete_metadata();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();
 	test_draft_metadata_retains_only_accepted_exact_account_facts();

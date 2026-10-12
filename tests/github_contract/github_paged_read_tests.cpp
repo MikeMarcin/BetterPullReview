@@ -3623,6 +3623,16 @@ namespace {
 			expect(result->RateLimits.Search.has_value() && result->RateLimits.Core.has_value(), "search and core rate observations stay separate");
 		}
 		{
+			auto transport      = discovery_fixture_transport{ };
+			transport.Search    = [](const auto&) { return discovery_search({ discovery_item(5, "octo-reviewer") }, 1); };
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0); };
+			transport.Metadata  = [](const auto&) { return success_response(std::string(4U * 1024U * 1024U + 1U, 'x')); };
+			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+			expect(result && result->Rows.size() == 1 && result->Rows.front().Waiting.Requests == 0 && result->Completeness == full::detail_limit,
+				   "oversized added metadata leaves complete REST facts usable and explicitly marks discovery partial");
+		}
+
+		{
 			auto transport   = discovery_fixture_transport{ };
 			transport.Search = [](const github_wire_request& aRequest) {
 				expect(aRequest.Wire.Query.find("review-requested%3Aocto-reviewer") != std::string::npos, "the requested search names the viewer");
@@ -3875,6 +3885,21 @@ namespace {
 			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
 					   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
 				   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");
+		}
+		{
+			auto transport     = discovery_fixture_transport{ };
+			transport.Metadata = [](const auto&) {
+				auto metadata = retained_metadata();
+				metadata.insert_or_assign("node_id", "PR_17");
+				metadata.insert_or_assign("base", fixture_object{ { "sha", std::string{ base_oid } }, { "ref", "main" }, { "repo", fixture_object{ { "id", 37 }, { "node_id", "R_repository" }, { "full_name", "octo-org/review-repository" } } } });
+				return success_response(fixture_json(metadata));
+			};
+			transport.Reviews        = [](const auto&) { return success_response("[]"); };
+			auto limits              = github_paged_read_limits{ };
+			limits.MaximumTotalPages = 2;
+			const auto result        = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { }, limits);
+			expect(result && result->Rows.size() == 1 && result->Rows.front().WaitingLimited && result->Rows.front().Waiting.Requests == 2 && transport.Requests.size() == 2,
+				   "retained optional summary exhaustion is explicit and sends no extra page; complete metadata request count remains usable");
 		}
 		for (const auto violation : { 0, 1, 2, 3 }) {
 			auto transport     = discovery_fixture_transport{ };

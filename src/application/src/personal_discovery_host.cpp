@@ -514,8 +514,11 @@ namespace bpr::application {
 				fail(queue_discovery_problem::failed, false);
 				return;
 			}
-			const auto& row  = aResult.Rows.front();
-			const auto  head = core::parse_git_commit_oid(row.HeadOid->value());
+			const auto& row = aResult.Rows.front();
+			if (row.WaitingLimited && CycleProblem == queue_discovery_problem::none) {
+				CycleProblem = queue_discovery_problem::detail_limit;
+			}
+			const auto head = core::parse_git_commit_oid(row.HeadOid->value());
 			if (!head) {
 				fail(queue_discovery_problem::failed, false);
 				return;
