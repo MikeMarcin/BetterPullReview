@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1409"
 title: "Restore and persist exact remembered connections through the shared profile runtime"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0071"]
 depends_on: ["BPR-1408"]
 priority: "P1"
