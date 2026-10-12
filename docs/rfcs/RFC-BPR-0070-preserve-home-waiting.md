@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0070"
 title: "Keep authored pull requests waiting on others visible on Home"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0069", "RFC-BPR-0066"]
 metadata: {"mandate_revision":"merge-gates-r1","rfc_base_sha":"9857d596769468c0585c475467175e3998a33530","milestone_plan":{"id":"merge-gates-and-review-waiting-v1","path":"docs/rfcs/plans/merge-gates-and-review-waiting-v1/milestone-plan.json"}}
@@ -160,7 +160,16 @@ Recently viewed and public-preview access retain their established contracts.
 
 [Preserve and classify waiting facts](../issues/60-done/BPR-1396-home-waiting-facts.md),
 [compose Home explanations](../issues/60-done/BPR-1397-home-waiting-presentation.md), and
-[reconcile closeout](../issues/30-in-progress/BPR-1398-close-rfc-0070.md) implement this
+[reconcile closeout](../issues/60-done/BPR-1398-close-rfc-0070.md) implement this
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json).
 [The proposed amendment](assets/merge-gates-and-review-waiting-v1/PROPOSED_AMENDMENTS.md) preserves the prior authored
 Home decision while extending the facts it consumes.
+
+## Execution record
+
+AC01–AC05 and the three `keep-home-waiting` exits are Auto-Verified for the
+integrated read-only candidate in [the criterion ledger](../verification/RFC-BPR-0070.md).
+The final public composition joins all three pack outcomes. The user-required
+independent critical review of the final pack remains pending for the coordinator;
+this component status does not supply that separate acceptance. No human criterion
+or attended session is claimed.

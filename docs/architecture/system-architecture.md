@@ -1775,3 +1775,16 @@ requirement text. Missing app identity cannot establish optionality against an
 app-restricted context. Missing expected results do not enter observed totals.
 Qt presents native wrapped labels and disclosures with literal, accessible
 wording; its existing exact check-link intent remains the only external action.
+
+## Home waiting allocation (RFC-BPR-0070)
+
+The core's typed `queue_waiting_facts` keeps outstanding requests and server review
+requirements separate from check/merge blockers and local unread activity. The
+application maps the existing read observations, merges only observed fields under
+profile-wide dispatch order, establishes exact actor authorship for existing
+enrollment and persists bounded account-bound metadata in queue schema 9. The
+GitHub adapter reuses closed read operations for background summaries under shared
+budgets. Qt presents names, blocker text, accessible reasons and filtered counts
+through the existing native Home models and delegate. The
+[queue contract](review-queue.md#home-waiting-observations-rfc-bpr-0070) names limits,
+restart/freshness behavior and qualification boundaries.

@@ -396,3 +396,14 @@ My pull requests has a neutral header, existing state-colored row anatomy and a 
 ## Adopted draft Home amendment — 2026-10-11
 
 [RFC-BPR-0067](RFC-BPR-0067-home-draft-pull-requests.md) extends Home row anatomy with a compact neutral outlined Draft chip before identity/title and draft-first accessible wording. It carries last accepted exact-authority metadata through bounded discovery, retained reads and recent history; unknown remains unknown and displays no chip. Accepted ready changes remove the chip, including matching queue/recent rows. Attention colours, sections, counts, enrollment, row actions and native controls retain their contracts. No additional request or full PR hydration is introduced. Historical Done cards, plan exits and RFC0032 A8 human/native obligations are unchanged; fresh evidence belongs to BPR-1389.
+
+## Home waiting successor (RFC-BPR-0070)
+
+[RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) corrects the observations
+consumed by Home: exact enrolled authorship, preserved pending requests, unmet
+server review requirements and concurrent check/merge blockers. Authored waiting
+placement and unread precedence remain as settled in RFC0066. Known blockers stay
+visible under Hide quiet; bounded names, separate people/team counts and last-known
+freshness extend existing native row anatomy. This successor adds bounded provider
+reads and numeric-account-bound metadata retention; historical section rearrangement
+and its evidence are unchanged. Historical human/native obligations are not waived.

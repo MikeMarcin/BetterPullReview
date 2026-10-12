@@ -541,4 +541,4 @@ separate platform/release obligations retain their scope.
 |---|---|---|---|
 | [RFC-BPR-0069](RFC-BPR-0069-reviewers-and-merge-requirements.md) | Show pending reviewers, code-owner teams and merge requirements | Auto-Verified | RFC-BPR-0068 |
 | [RFC-BPR-0068](RFC-BPR-0068-inspect-commit-checks.md) | Inspect commit checks and their failures in Overview | Auto-Verified | — |
-| [RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) | Keep authored pull requests waiting on others visible on Home | Proposed | RFC-BPR-0069, RFC-BPR-0066 |
+| [RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) | Keep authored pull requests waiting on others visible on Home | Auto-Verified | RFC-BPR-0069, RFC-BPR-0066 |

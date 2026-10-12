@@ -717,6 +717,16 @@ and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
 
+Home waiting facts under RFC-BPR-0070 use the same row anatomy. Outstanding
+code-owner actors and ordinary users appear by name, with separate people/team
+counts; an aggregate unmet requirement says Required review outstanding. Concurrent
+failed checks remain in the reason. Unread authored activity still goes to My pull
+requests, and clearing it restores Waiting on others when review work remains.
+Known check/merge blockers say Blocked and stay visible when Quiet items are hidden;
+Only quiet excludes them. Collapsed summaries count awaiting-review and blocked
+rows. Last-known observations say so explicitly, and opening uses the exact row's
+Overview without changing enrollment or notification categories.
+
 ## GitHub host and pull-request presentation
 
 A server is configured on the Accounts & hosts page of Settings, and its

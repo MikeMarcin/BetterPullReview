@@ -113,3 +113,14 @@ the [ledger](../verification/RFC-BPR-0010.md) records exact evidence and limits.
 Role semantics, observer grammar, persistence, refresh schedule, rate limits, notification privacy, offline behavior, and queue explanations are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
+
+## Home waiting successor (RFC-BPR-0070)
+
+[RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) corrects the observations
+consumed by Home: exact enrolled authorship, preserved pending requests, unmet
+server review requirements and concurrent check/merge blockers. Authored waiting
+placement and unread precedence remain as settled in RFC0066. Known blockers stay
+visible under Hide quiet; bounded names, separate people/team counts and last-known
+freshness extend existing native row anatomy. This successor adds bounded provider
+reads and numeric-account-bound metadata retention; historical section rearrangement
+and its evidence are unchanged. Historical human/native obligations are not waived.

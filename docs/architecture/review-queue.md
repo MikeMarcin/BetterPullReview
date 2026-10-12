@@ -50,9 +50,11 @@ store. The Qt rule controls emit semantic add/remove intents; store and refresh
 work run on the effect lane; only typed terminals update the retained rules,
 enrollments, and incremental landing projection. A separate-process contract
 adds a repository rule, observes its exact match, reopens the same store, and
-deletes the rule to an empty queue. The snapshot currently supplies no GitHub
-role authority, so composition uses local observer rules rather than inferring
-assignments from review or comment history.
+deletes the rule to an empty queue. An accepted author/viewer actor match establishes presentation ownership for an
+already enrolled PR, including one held only by Follow or an observer rule.
+Ownership is separate from enrollment reasons, so Unfollow and rule removal keep
+their original effect. Opening alone does not enroll a PR.
+Review/comment history never substitutes for a direct review assignment.
 
 ## Typed vocabulary
 
@@ -149,8 +151,10 @@ read is `detail unknown`, last in the order, because nothing is known to ask
 anything of the reviewer — and not `quiet`, because nothing is known to be
 settled either. A directly requested pull request is `initial review
 requested` whatever else is unknown: the request is itself the fact. An
-authored pull request is `authored, awaiting reviewer action` only when its
-requested reviewers were read and someone is awaited.
+authored pull request is `authored, awaiting reviewer action` when an accepted
+request is outstanding or the server reports required review outstanding.
+Unread activity retains its higher precedence. Concurrent merge/check blockers
+remain visible and do not make a waiting row quiet.
 
 ## Ordering
 
@@ -436,3 +440,38 @@ identity when entering or leaving that mode. Qt labels queue-role and private
 review-progress controls unavailable; an absent role is never guessed from
 review/comment history. Reading public metadata or REST comment groups does not
 create an actionable review queue or authorize publishing.
+
+## Home waiting observations (RFC-BPR-0070)
+
+Home retains a bounded typed summary independently of private activity. It names
+up to eight code-owner actors, eight other requested actors and eight failed
+checks, with separate people/team request totals and the server's review decision.
+The complete roster remains in Overview. The summary uses current-head checks;
+test-merge evaluation and private-organization/GHES runtime parity remain unqualified.
+
+Background discovery adds metadata, request/assessment and check/status reads,
+without files, commits, conversations or diffs. Added discovery reads share a
+32-attempt/8 MiB response budget across one search answer. Existing search limits
+(100 rows/30 detailed PRs), retained limits (30 PRs/400 reviews) and two concurrent
+reads remain. Retained reads use one aggregate 32-attempt/8 MiB budget; a review
+continuation after 400 records is refused before dispatch. Exhausted discovery
+summaries are partial. A limited retained summary also reports partial detail
+while preserving its complete title, review evidence and REST request count. Every call uses the selected account transport and retains
+its resource rate observations.
+
+The profile queue host reserves dispatch order for background and window reads.
+An older result cannot replace newer waiting facts. Local read receipts and defect
+updates preserve unobserved fields. A newer complete roster can establish empty;
+an unknown review decision cannot settle a retained requirement. Changed revisions
+or unavailable observations label retained assessments/checks as last known.
+
+Enrollment schema 9 stores length-framed bounded Home metadata and its numeric
+account alongside existing reasons and Draft fields. Older tables migrate with
+unknown Home facts. Accepted provider facts remain available in memory if their
+optional metadata write fails, with the storage failure still explicit. Restored
+facts are last known and admitted only under the same accepted numeric account;
+legacy authored membership needs a new bound observation.
+Qt derives its native wrapped row reason, accessible description and collapsed
+blocker counts from the projection. Quiet filters retain known blockers, and My
+role includes authored discovery. Existing notification categories, local
+Follow/observer intent and Recently viewed authority remain unchanged.
