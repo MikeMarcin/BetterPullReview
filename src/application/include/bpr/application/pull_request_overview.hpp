@@ -127,6 +127,29 @@ namespace bpr::application {
 		auto        operator<=>(const overview_check_row&) const = default;
 	};
 
+	/// \brief How GitHub's merge assessment reads at a glance.
+	enum class overview_merge_tone : std::uint8_t {
+		/// Not observed, still being computed, or a draft.
+		unknown,
+		blocked,
+		/// Mergeable by GitHub's account, with something still not passing.
+		caution,
+		mergeable,
+	};
+
+	/// \brief [[BPR-1405]]. One outstanding review request, as one roster row.
+	struct overview_review_request
+	{
+		/// `login` or `organization/slug`; empty when the provider hid the actor.
+		std::string Name;
+		/// A team's readable name, when the provider supplied one.
+		std::string DisplayName;
+		bool        Team      = false;
+		bool        CodeOwner = false;
+
+		auto operator<=>(const overview_review_request&) const = default;
+	};
+
 	/// \brief What happened since my last review.
 	///
 	/// \details Every count that the inputs cannot answer is absent rather
@@ -211,9 +234,18 @@ namespace bpr::application {
 		std::vector<overview_check_row>   CheckRows;
 		bool                              ChecksComplete = true;
 		std::string                       ChecksNote;
-		std::string                       MergeSummary, PendingReviewers, RequirementDetails;
-		overview_review_progress          Progress;
-		overview_entry_kind               Entry = overview_entry_kind::start_review;
+		/// [[BPR-1405]]. The assessment in a word or two, then one short line
+		/// per unmet condition. The evidence limits live in the details.
+		std::string                          MergeState;
+		overview_merge_tone                  MergeTone = overview_merge_tone::unknown;
+		std::vector<std::string>             MergeConditions;
+		std::vector<overview_review_request> ReviewRequests;
+		/// Why the roster is partial or last known; empty when it is complete,
+		/// so an empty complete roster says nothing.
+		std::string              ReviewRequestsNote;
+		std::string              RequirementDetails;
+		overview_review_progress Progress;
+		overview_entry_kind      Entry = overview_entry_kind::start_review;
 		/// Where the one action lands: the first unseen change's file.
 		std::optional<std::string> EntryPath;
 

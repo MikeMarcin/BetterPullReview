@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <ranges>
@@ -14,6 +16,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -179,15 +182,18 @@ namespace bpr::application {
 			return "not observed";
 		}
 
-		[[nodiscard]] auto requested_name(const github_review_request_record& aRequest) -> std::string
+		[[nodiscard]] auto requested(const github_review_request_record& aRequest) -> overview_review_request
 		{
-			if (aRequest.Kind == github_requested_actor_kind::unavailable) {
-				return "Requested reviewer identity unavailable";
-			}
+			auto result      = overview_review_request{ };
+			result.CodeOwner = aRequest.AsCodeOwner == true;
 			if (aRequest.Kind == github_requested_actor_kind::user) {
-				return "@" + aRequest.Login;
+				result.Name = aRequest.Login;
+			} else if (aRequest.Kind == github_requested_actor_kind::team) {
+				result.Name        = aRequest.Organization + "/" + aRequest.Login;
+				result.DisplayName = aRequest.Name;
+				result.Team        = true;
 			}
-			return "@" + aRequest.Organization + "/" + aRequest.Login + (aRequest.Name.empty() ? "" : " (" + aRequest.Name + ")");
+			return result;
 		}
 
 		/// \brief Indexes required contexts and observed producers once per accepted snapshot.
@@ -243,66 +249,95 @@ namespace bpr::application {
 			std::set<std::pair<std::string, std::optional<std::uint64_t>>>      ObservedResults;
 		};
 
+		/// \brief [[BPR-1405]]. The assessment as one toned phrase, and the
+		/// sentence that qualifies it for the details.
+		struct merge_reading
+		{
+			std::string_view    State;
+			overview_merge_tone Tone = overview_merge_tone::unknown;
+			std::string_view    Sentence;
+		};
+
+		[[nodiscard]] auto read_merge(const github_merge_observation& aMerge) -> merge_reading
+		{
+			if (aMerge.Availability != github_observation_availability::available && !aMerge.Stale) {
+				return { "Merge state unavailable", overview_merge_tone::unknown, "GitHub merge assessment unavailable" };
+			}
+			switch (aMerge.Assessment) {
+			case github_merge_assessment::unknown:   return { "Merge state unknown", overview_merge_tone::unknown, "GitHub is checking merge requirements, or the assessment is unknown" };
+			case github_merge_assessment::behind:    return { "Behind base", overview_merge_tone::blocked, "GitHub reports the branch is behind its base" };
+			case github_merge_assessment::blocked:   return { "Blocked", overview_merge_tone::blocked, "GitHub reports merging is blocked" };
+			case github_merge_assessment::clean:     return { "Mergeable", overview_merge_tone::mergeable, "GitHub reports mergeable with passing status. Your merge permission is not established" };
+			case github_merge_assessment::conflicts: return { "Conflicts", overview_merge_tone::blocked, "GitHub reports merge conflicts" };
+			case github_merge_assessment::draft:     return { "Draft", overview_merge_tone::unknown, "Merging is blocked while this pull request is a draft" };
+			case github_merge_assessment::hooks:     return { "Mergeable", overview_merge_tone::mergeable, "GitHub reports mergeable with passing status; server hooks apply. Your merge permission is not established" };
+			case github_merge_assessment::unstable:  return { "Mergeable, checks not passing", overview_merge_tone::caution, "GitHub reports mergeable with non-passing status" };
+			}
+			return { "Merge state unknown", overview_merge_tone::unknown, "The merge assessment is unknown" };
+		}
+
 		void project_merge_requirements(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aChecks)
 		{
-			const auto& merge   = aSnapshot.Merge;
-			auto&       summary = aProjection.MergeSummary;
-			if (merge.Availability != github_observation_availability::available && !merge.Stale) {
-				summary = "GitHub merge assessment unavailable: " + availability_note(merge.Availability) + ".";
-			} else {
-				switch (merge.Assessment) {
-				case github_merge_assessment::unknown:   summary = "GitHub is checking merge requirements, or the assessment is unknown."; break;
-				case github_merge_assessment::behind:    summary = "GitHub reports the branch is behind its base."; break;
-				case github_merge_assessment::blocked:   summary = "GitHub reports merging is blocked."; break;
-				case github_merge_assessment::clean:     summary = "GitHub reports mergeable with passing status. Your merge permission is not established."; break;
-				case github_merge_assessment::conflicts: summary = "GitHub reports merge conflicts."; break;
-				case github_merge_assessment::draft:     summary = "Merging is blocked while this pull request is a draft."; break;
-				case github_merge_assessment::hooks:     summary = "GitHub reports mergeable with passing status; server hooks apply."; break;
-				case github_merge_assessment::unstable:  summary = "GitHub reports mergeable with non-passing status."; break;
-				}
-				if (merge.Stale) {
-					summary += " Last known assessment; refresh " + availability_note(merge.Availability) + ".";
+			const auto& merge      = aSnapshot.Merge;
+			const auto  reading    = read_merge(merge);
+			aProjection.MergeState = reading.State;
+			aProjection.MergeTone  = reading.Tone;
+			auto& conditions       = aProjection.MergeConditions;
+			auto& details          = aProjection.RequirementDetails;
+			details                = std::string{ reading.Sentence } + (merge.Availability != github_observation_availability::available ? ": " + availability_note(merge.Availability) + "." : ".");
+			if (merge.Stale) {
+				details += " Last known assessment.";
+			}
+
+			const auto& policy  = aSnapshot.BranchPolicy;
+			auto        minimum = std::optional<std::uint32_t>{ };
+			for (const auto* rules : { &policy.Rules, &policy.Protection }) {
+				for (const auto& rule : *rules) {
+					if (rule.ApprovalMinimum) {
+						minimum = std::max(minimum.value_or(0U), *rule.ApprovalMinimum);
+					}
 				}
 			}
 			switch (merge.Review) {
-			case github_review_decision::required:          summary += "\nReview required."; break;
-			case github_review_decision::changes_requested: summary += "\nChanges requested in GitHub's review assessment."; break;
-			case github_review_decision::approved:          summary += "\nGitHub's review assessment is approved."; break;
-			case github_review_decision::unknown:           summary += "\nReview assessment unavailable."; break;
+			case github_review_decision::required:
+				// A configured minimum, never a count of approvals still missing.
+				conditions.push_back(minimum ? "Review required, minimum " + std::to_string(*minimum) + (*minimum == 1U ? " approval" : " approvals") : std::string{ "Review required" });
+				break;
+			case github_review_decision::changes_requested:
+				conditions.emplace_back("Changes requested");
+				break;
+			case github_review_decision::approved:
+				details += "\nGitHub's review assessment is approved.";
+				break;
+			case github_review_decision::unknown:
+				details += "\nReview assessment unavailable.";
+				break;
 			}
-			auto owners = std::string{ }, ordinary = std::string{ };
+
 			for (const auto& request : aSnapshot.ReviewRequests) {
-				auto& names = request.AsCodeOwner == true ? owners : ordinary;
-				if (!names.empty()) {
-					names += ", ";
-				}
-				names += requested_name(request);
+				aProjection.ReviewRequests.push_back(requested(request));
 			}
-			auto& roster = aProjection.PendingReviewers;
-			if (!owners.empty()) {
-				roster = "Waiting on code-owner review from " + owners + ".";
-			}
-			if (!ordinary.empty()) {
-				roster += (roster.empty() ? "" : "\n") + std::string{ "Review requested from " } + ordinary + ".";
-			}
-			if (roster.empty()) {
-				roster = aSnapshot.ReviewRequestsAvailability == github_observation_availability::available ? "No outstanding review requests observed." : "Outstanding review requests unavailable.";
-			}
+			// Code owners first; the provider's order otherwise.
+			std::ranges::stable_partition(aProjection.ReviewRequests, &overview_review_request::CodeOwner);
 			if (aSnapshot.ReviewRequestsStale) {
-				roster += "\nLast known requests; refresh " + availability_note(aSnapshot.ReviewRequestsAvailability) + ".";
+				aProjection.ReviewRequestsNote = "Last known; refresh to update";
 			} else if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available) {
-				roster += "\nCode-owner origin and complete roster unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability) + ".";
+				aProjection.ReviewRequestsNote = aProjection.ReviewRequests.empty() ? "Review requests unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability) : "Code owners and the complete list unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability);
 			}
-			auto& details = aProjection.RequirementDetails;
-			details       = "Target: " + aSnapshot.PullRequest.BaseRef + ". Head: " + std::string{ aSnapshot.PullRequest.HeadOid.value().substr(0, 12) } + ".\nRequested code-owner teams are a waiting roster, not proof that each team must approve independently. Submitted reviews remain history; pending unpublished reviews are not review requests.\n";
-			details += merge.AutoMerge ? (*merge.AutoMerge ? "Auto-merge is enabled; the visible conditions still apply." : "Auto-merge is not enabled.") : "Auto-merge state unavailable.";
+
+			details += "\nTarget " + aSnapshot.PullRequest.BaseRef + ", head " + std::string{ aSnapshot.PullRequest.HeadOid.value().substr(0, 12) } + ".";
+			details += merge.AutoMerge ? (*merge.AutoMerge ? "\nAuto-merge is enabled; the visible conditions still apply." : "\nAuto-merge is not enabled.") : "\nAuto-merge state unavailable.";
 			if (merge.Stale && merge.AutoMerge) {
 				details += " Last known auto-merge observation.";
 			}
-			const auto& policy       = aSnapshot.BranchPolicy;
-			auto        shownMissing = std::unordered_set<std::string>{ };
-			details += "\nApplicable active rules: " + availability_note(policy.RulesAvailability) + (policy.RulesStale ? " (stale)." : ".");
-			details += "\nClassic branch protection: " + availability_note(policy.ProtectionAvailability) + (policy.ProtectionStale ? " (stale)." : ".");
+			details += "\nRequested code-owner teams are who is waited on, not proof that each team must approve.";
+			auto shownMissing = std::unordered_set<std::string>{ };
+			auto missing      = std::vector<std::string>{ };
+			for (const auto& [name, availability, stale] : { std::tuple{ "Applicable rules", policy.RulesAvailability, policy.RulesStale }, std::tuple{ "Classic branch protection", policy.ProtectionAvailability, policy.ProtectionStale } }) {
+				if (availability != github_observation_availability::available || stale) {
+					details += "\n" + std::string{ name } + ": " + availability_note(availability) + (stale ? " (stale)." : ".");
+				}
+			}
 			for (const auto* rules : { &policy.Rules, &policy.Protection }) {
 				for (const auto& rule : *rules) {
 					details += "\n\n" + rule.SourceKind + ": " + rule.Source;
@@ -310,9 +345,7 @@ namespace bpr::application {
 						details += " (ruleset " + std::to_string(rule.RulesetId) + ")";
 					}
 					if (rule.ApprovalMinimum) {
-						const auto minimum = "Configured approval minimum: " + std::to_string(*rule.ApprovalMinimum) + ". Remaining approvals are not established.";
-						details += "\n" + minimum;
-						summary += "\n" + minimum;
+						details += "\nConfigured approval minimum: " + std::to_string(*rule.ApprovalMinimum) + ". Remaining approvals are not established.";
 					}
 					if (rule.CodeOwners) {
 						details += "\nCode-owner review required.";
@@ -327,13 +360,13 @@ namespace bpr::application {
 						details += "\nNew pushes dismiss stale approvals.";
 					}
 					if (rule.Type.find("conversation") != std::string::npos) {
-						details += "\nConversation resolution required; satisfaction not evaluated here.";
+						details += "\nConversation resolution required; not evaluated here.";
 					}
 					if (!rule.ApprovalMinimum && rule.Checks.empty()) {
-						details += "\nRequired rule: " + rule.Type + "; satisfaction not evaluated here.";
+						details += "\nRequired rule: " + rule.Type + "; not evaluated here.";
 					}
-					for (const auto& [team, minimum] : rule.RequiredTeams) {
-						details += "\nSeparate team-review policy for team ID " + std::to_string(team) + ", minimum " + std::to_string(minimum) + "; matching file patterns are not evaluated here.";
+					for (const auto& [team, teamMinimum] : rule.RequiredTeams) {
+						details += "\nSeparate team-review policy for team ID " + std::to_string(team) + ", minimum " + std::to_string(teamMinimum) + "; matching file patterns are not evaluated here.";
 					}
 					for (const auto& check : rule.Checks) {
 						details += "\nRequired check: " + check.Context + (check.AppId ? " (app " + std::to_string(*check.AppId) + ")" : " (any app)") + ".";
@@ -349,16 +382,20 @@ namespace bpr::application {
 								row.Requirement = (rules == &policy.Rules ? policy.RulesStale : policy.ProtectionStale) ? "Required (stale policy)" : "Required";
 								row.Description = "No matching result was observed on the accepted head. Test merge evaluation remains unknown.";
 								aProjection.CheckRows.push_back(std::move(row));
+								missing.push_back(check.Context + (aProjection.ChecksComplete ? " has not reported" : " result unavailable"));
 							}
-							summary += (aProjection.ChecksComplete ? "\nWaiting for check result: " : "\nRequired check result unavailable: ") + check.Context + ".";
 						}
 					}
 				}
 			}
 			for (const auto& row : aProjection.CheckRows) {
 				if (row.Failed) {
-					summary += "\nFailed check: " + row.Name + " (" + row.Requirement + ").";
+					conditions.push_back(row.Name + " failed" + (row.Requirement == "Optional" ? " (optional)" : ""));
 				}
+			}
+			std::ranges::move(missing, std::back_inserter(conditions));
+			if (merge.Stale) {
+				conditions.emplace_back("Last known; refresh to update");
 			}
 		}
 		void project_checks(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aPolicy)
@@ -367,7 +404,7 @@ namespace bpr::application {
 			// Checks.
 			aProjection.ChecksComplete = aSnapshot.ChecksAvailability == github_collection_availability::available
 				&& aSnapshot.StatusesAvailability == github_collection_availability::available;
-			aProjection.ChecksNote = "Head commit " + std::string{ request.HeadOid.value().substr(0, 12) } + "…\nTest merge evaluation is not observed. Requiredness reflects the separately observed target policy.";
+			aProjection.ChecksNote = "Head commit " + std::string{ request.HeadOid.value().substr(0, 12) } + "…\nTest merge evaluation is not observed.";
 			if (!aProjection.ChecksComplete) {
 				aProjection.ChecksNote += " Partial results: ";
 				if (aSnapshot.ChecksAvailability != github_collection_availability::available) {

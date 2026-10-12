@@ -10,6 +10,7 @@
 #include <QAbstractListModel>
 #include <QSortFilterProxyModel>
 #include <QString>
+#include <QStringList>
 
 #include <cstdint>
 #include <map>
@@ -57,6 +58,9 @@ namespace bpr::qt {
 	/// row is here, that rule. Who pushed, how many updates, when and how far I
 	/// read are not projected, and the sentence does not claim them.
 	[[nodiscard]] auto home_why_sentence(const core::queue_item& aItem) -> QString;
+	/// \brief [[BPR-1405]]. Who an authored row waits on and what blocks it,
+	/// bounded to a few names with "and N more"; empty when nothing is known.
+	[[nodiscard]] auto home_waiting_clauses(const core::queue_item& aItem) -> QStringList;
 
 	/// \brief [[BPR-0776]]. A collapsed state panel's one-line summary of its rows.
 	///

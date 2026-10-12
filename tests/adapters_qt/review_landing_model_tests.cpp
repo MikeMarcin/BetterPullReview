@@ -690,7 +690,32 @@ namespace {
 		waiting.Facts.Waiting.ChecksKnown    = true;
 		waiting.Facts.Waiting.FailedChecks   = { "Branch Freshness" };
 		const auto text                      = qt::home_why_sentence(waiting);
-		expect(text.contains(QStringLiteral("@org/team-c")) && text.contains(QStringLiteral("Branch Freshness failed")) && text.contains(QStringLiteral("0 people, 3 teams")), "waiting reason names code-owner teams, separates people/team counts and preserves concurrent failure");
+		expect(text == QStringLiteral("Waiting on code-owner review from @org/team-a, @org/team-b and @org/team-c; Branch Freshness failed."), "waiting reason names code-owner teams once, without a generic clause or a count, and preserves the concurrent failure");
+		auto many                       = waiting;
+		many.Facts.Waiting.Requests     = 6;
+		many.Facts.Waiting.People       = 1;
+		many.Facts.Waiting.CodeOwners   = { "@org/team-a", "@org/team-b", "@org/team-c", "@org/team-d" };
+		many.Facts.Waiting.Reviewers    = { "@alice" };
+		many.Facts.Waiting.FailedChecks = { "Lint", "Build", "Branch Freshness" };
+		many.Facts.Waiting.ChecksStale  = true;
+		expect(qt::home_why_sentence(many) == QStringLiteral("Waiting on code-owner review from @org/team-a, @org/team-b and 2 more; review from @alice and 1 more; Lint, Build and Branch Freshness failed; last known."), "long rosters are bounded with the rest counted, and Overview holds the whole roster");
+		auto unnamed                     = waiting;
+		unnamed.Facts.Waiting.NamesKnown = false;
+		unnamed.Facts.Waiting.People     = 1;
+		unnamed.Facts.Waiting.Teams      = 2;
+		unnamed.Facts.Waiting.CodeOwners.clear();
+		unnamed.Facts.Waiting.FailedChecks.clear();
+		expect(qt::home_why_sentence(unnamed) == QStringLiteral("Waiting on 1 person and 2 teams; Merge blocked."), "without names, discovery's counts tell people from teams");
+		auto aggregate                   = unnamed;
+		aggregate.Facts.Waiting.Requests = 0;
+		aggregate.Facts.Waiting.People   = 0;
+		aggregate.Facts.Waiting.Teams    = 0;
+		expect(qt::home_why_sentence(aggregate) == QStringLiteral("Required review outstanding; Merge blocked."), "an aggregate requirement without names invents no one");
+		auto others       = waiting;
+		others.Membership = { };
+		others.Bucket     = core::attention_bucket::initial_review_requested;
+		others.Facts.Author.clear();
+		expect(qt::home_why_sentence(others) == QStringLiteral("My review is requested; Branch Freshness failed."), "someone else's row keeps its blockers but not its author's roster");
 		auto blocked                         = waiting;
 		blocked.Ref.Number                   = 32;
 		blocked.Bucket                       = core::attention_bucket::quiet;
@@ -719,7 +744,7 @@ namespace {
 		expect(decoded.has_value(), "partial check Home metadata decodes");
 		row.Facts         = *decoded;
 		const auto reason = qt::home_why_sentence(row);
-		expect(reason.contains(QStringLiteral("Branch Freshness failed")) && reason.contains(QStringLiteral("Last known; refresh for current details")), "Home qualifies a restarted partial failure even when no other field is known");
+		expect(reason.contains(QStringLiteral("Branch Freshness failed; last known.")), "Home qualifies a restarted partial failure even when no other field is known");
 	}
 
 } // namespace

@@ -2059,6 +2059,88 @@ namespace bpr::qt {
 		ChipFocus = std::move(aFocus);
 	}
 
+	namespace {
+		/// \brief [[BPR-1405]]. The merge section said once, for a polite
+		/// announcement when an accepted refresh changes it.
+		[[nodiscard]] auto merge_announcement(const application::pull_request_overview_projection& aProjection) -> QString
+		{
+			auto parts = QStringList{ QStringLiteral("Merge: %1").arg(text(aProjection.MergeState)) };
+			for (const auto& condition : aProjection.MergeConditions) {
+				parts.push_back(text(condition));
+			}
+			if (!aProjection.ReviewRequests.empty()) {
+				auto names = QStringList{ };
+				for (const auto& request : aProjection.ReviewRequests) {
+					names.push_back(request.Name.empty() ? QStringLiteral("an unavailable reviewer") : text(request.Name));
+				}
+				parts.push_back(QStringLiteral("Waiting on %1").arg(names.join(QStringLiteral(", "))));
+			}
+			return parts.join(QStringLiteral(". ")) + QLatin1Char{ '.' };
+		}
+
+		/// \brief One roster line: a tile with an initial, the name, and a
+		/// short coloured word at the right, over a rule. A circle is a
+		/// person; [[BPR-1405]] a rounded square is a team.
+		struct roster_line
+		{
+			QString Name;
+			/// Where the initial is taken from: a team's slug, not its organization.
+			qsizetype InitialFrom = 0;
+			QString   Detail;
+			QColor    DetailInk;
+			QColor    TileFill;
+			QColor    TileInk;
+			bool      Square = false;
+			/// [[BPR-1405]]. Requests keep both ends: teams of one organization
+			/// differ only in their slug.
+			Qt::TextElideMode Elide = Qt::ElideRight;
+		};
+
+		void paint_roster_line(QWidget& aRow, const roster_line& aLine)
+		{
+			auto painter = QPainter{ &aRow };
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			const auto& colours = aRow.palette();
+			const auto  centre  = QPointF{ 11.0, aRow.height() / 2.0 };
+			const auto  tile    = QRectF{ centre.x() - 9.0, centre.y() - 9.0, 18.0, 18.0 };
+			painter.setPen(Qt::NoPen);
+			painter.setBrush(aLine.TileFill);
+			if (aLine.Square) {
+				painter.drawRoundedRect(tile, 4.0, 4.0);
+			} else {
+				painter.drawEllipse(tile);
+			}
+			auto small = aRow.font();
+			small.setPointSizeF(small.pointSizeF() * 0.8);
+			small.setWeight(QFont::DemiBold);
+			painter.setFont(small);
+			painter.setPen(aLine.TileInk);
+			const auto from    = aLine.Name.cbegin() + std::clamp<qsizetype>(aLine.InitialFrom, 0, aLine.Name.size());
+			const auto initial = std::find_if(from, aLine.Name.cend(), [](const QChar aCharacter) { return aCharacter.isLetterOrNumber(); });
+			painter.drawText(tile, Qt::AlignCenter, initial == aLine.Name.cend() ? QString{ } : QString{ *initial }.toUpper());
+			// One compact line; the whole name stays in the tooltip and the
+			// accessible name when space is tight.
+			painter.setFont(aRow.font());
+			const auto metrics     = aRow.fontMetrics();
+			const auto detailWidth = std::min(metrics.horizontalAdvance(aLine.Detail), std::max(0, aRow.width() - 60));
+			painter.setPen(aLine.DetailInk);
+			painter.drawText(QRect{ aRow.width() - detailWidth - 4, 0, detailWidth, aRow.height() },
+							 Qt::AlignVCenter | Qt::AlignRight, aLine.Detail);
+			painter.setPen(colours.color(QPalette::Active, QPalette::WindowText));
+			const auto nameWidth = std::max(0, aRow.width() - detailWidth - 44);
+			painter.drawText(QRect{ 28, 0, nameWidth, aRow.height() }, Qt::AlignVCenter | Qt::AlignLeft,
+							 metrics.elidedText(aLine.Name, aLine.Elide, nameWidth));
+			// The rule beneath.
+			painter.setPen(QPen{ colours.color(QPalette::Active, QPalette::Mid), 1.0 });
+			painter.drawLine(QPointF{ 0.0, aRow.height() - 0.5 }, QPointF{ static_cast<qreal>(aRow.width()), aRow.height() - 0.5 });
+		}
+
+		[[nodiscard]] auto roster_height(const QWidget& aRow) -> int
+		{
+			return std::max(28, aRow.fontMetrics().height() + 10);
+		}
+	} // namespace
+
 	// ---- overview_participant_row -------------------------------------------
 
 	overview_participant_row::overview_participant_row(
@@ -2099,34 +2181,15 @@ namespace bpr::qt {
 	auto overview_participant_row::heightForWidth(const int aWidth) const -> int
 	{
 		static_cast<void>(aWidth);
-		return std::max(28, fontMetrics().height() + 10);
+		return roster_height(*this);
 	}
 
 	void overview_participant_row::paintEvent(QPaintEvent* const aEvent)
 	{
 		static_cast<void>(aEvent);
-		auto painter = QPainter{ this };
-		painter.setRenderHint(QPainter::Antialiasing, true);
 		const auto& colours = palette();
-		const auto  ink     = colours.color(QPalette::Active, QPalette::WindowText);
-		const auto  faint   = colours.color(QPalette::Active, QPalette::PlaceholderText);
-		// The avatar: an initial in a circle, accented for me.
-		const auto centre = QPointF{ 11.0, height() / 2.0 };
-		painter.setPen(Qt::NoPen);
-		painter.setBrush(Participant.Viewer ? Colours.Unread : colours.color(QPalette::Active, QPalette::Mid));
-		painter.drawEllipse(centre, 9.0, 9.0);
-		auto small = font();
-		small.setPointSizeF(small.pointSizeF() * 0.8);
-		small.setWeight(QFont::DemiBold);
-		painter.setFont(small);
-		painter.setPen(Participant.Viewer ? colours.color(QPalette::Active, QPalette::Base) : ink);
-		const auto initial = login().isEmpty() ? QString{ } : login().left(1).toUpper();
-		painter.drawText(QRectF{ centre.x() - 9.0, centre.y() - 9.0, 18.0, 18.0 }, Qt::AlignCenter, initial);
-		// One compact line per person; full login, role and standing remain
-		// available in the tooltip and accessible name when space is tight.
-		painter.setFont(font());
 		// The standing is coloured by what it means.
-		auto standing = faint;
+		auto standing = colours.color(QPalette::Active, QPalette::PlaceholderText);
 		switch (Participant.Signoff) {
 		case application::overview_signoff::approved:
 			standing = Colours.Accepted;
@@ -2141,18 +2204,59 @@ namespace bpr::qt {
 		case application::overview_signoff::none:
 			break;
 		}
-		painter.setPen(standing);
-		const auto details     = standing_text().isEmpty() ? role_text(Participant.Role) : standing_text();
-		const auto detailWidth = std::min(fontMetrics().horizontalAdvance(details), std::max(0, width() - 60));
-		painter.drawText(QRect{ width() - detailWidth - 4, 0, detailWidth, height() },
-						 Qt::AlignVCenter | Qt::AlignRight, details);
-		painter.setPen(ink);
-		const auto loginWidth = std::max(0, width() - detailWidth - 44);
-		painter.drawText(QRect{ 28, 0, loginWidth, height() }, Qt::AlignVCenter | Qt::AlignLeft,
-						 fontMetrics().elidedText(login(), Qt::ElideRight, loginWidth));
-		// The rule beneath.
-		painter.setPen(QPen{ colours.color(QPalette::Active, QPalette::Mid), 1.0 });
-		painter.drawLine(QPointF{ 0.0, height() - 0.5 }, QPointF{ static_cast<qreal>(width()), height() - 0.5 });
+		// The avatar is accented for me.
+		paint_roster_line(*this, { .Name = login(), .Detail = standing_text().isEmpty() ? role_text(Participant.Role) : standing_text(), .DetailInk = standing, .TileFill = Participant.Viewer ? Colours.Unread : colours.color(QPalette::Active, QPalette::Mid), .TileInk = colours.color(QPalette::Active, Participant.Viewer ? QPalette::Base : QPalette::WindowText) });
+	}
+
+	// ---- overview_request_row -----------------------------------------------
+
+	overview_request_row::overview_request_row(
+		const application::overview_review_request& aRequest,
+		const overview_colours&                     aColours,
+		QWidget* const                              aParent)
+		: QWidget{ aParent }
+		, Request{ aRequest }
+		, Colours{ aColours }
+	{
+		setObjectName(QStringLiteral("overviewReviewRequest"));
+		const auto name  = Request.Name.empty() ? QStringLiteral("Reviewer unavailable") : text(Request.Name);
+		auto       label = Request.Team ? QStringLiteral("%1, team").arg(name) : name;
+		if (!Request.DisplayName.empty()) {
+			label += QStringLiteral(" (%1)").arg(text(Request.DisplayName));
+		}
+		setAccessibleName(QStringLiteral("%1, %2").arg(label, Request.CodeOwner ? QStringLiteral("code-owner review requested") : QStringLiteral("review requested")));
+		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+		setToolTip(accessibleName());
+	}
+
+	auto overview_request_row::request() const noexcept -> const application::overview_review_request&
+	{
+		return Request;
+	}
+
+	auto overview_request_row::sizeHint() const -> QSize
+	{
+		return { 200, heightForWidth(200) };
+	}
+
+	auto overview_request_row::minimumSizeHint() const -> QSize
+	{
+		return { 0, heightForWidth(width()) };
+	}
+
+	auto overview_request_row::heightForWidth(const int aWidth) const -> int
+	{
+		static_cast<void>(aWidth);
+		return roster_height(*this);
+	}
+
+	void overview_request_row::paintEvent(QPaintEvent* const aEvent)
+	{
+		static_cast<void>(aEvent);
+		const auto& colours = palette();
+		const auto  faint   = colours.color(QPalette::Active, QPalette::PlaceholderText);
+		const auto  name    = Request.Name.empty() ? QStringLiteral("Reviewer unavailable") : text(Request.Name);
+		paint_roster_line(*this, { .Name = name, .InitialFrom = Request.Team ? name.indexOf(QLatin1Char{ '/' }) + 1 : 0, .Detail = Request.CodeOwner ? QStringLiteral("code owner") : QStringLiteral("requested"), .DetailInk = Request.CodeOwner ? Colours.Waiting : faint, .TileFill = colours.color(QPalette::Active, QPalette::Mid), .TileInk = colours.color(QPalette::Active, QPalette::WindowText), .Square = Request.Team, .Elide = Qt::ElideMiddle });
 	}
 
 	// ---- pull_request_overview_page -----------------------------------------
@@ -2492,7 +2596,10 @@ namespace bpr::qt {
 		sideColumn->setSpacing(2);
 		sideColumn->setSizeConstraint(QLayout::SetMinimumSize);
 
-		sideColumn->addWidget(make_heading(QStringLiteral("Merge requirements"), QStringLiteral("overviewMergeHeading"), side));
+		// [[BPR-1405]]. The merge state in a word, one short line per unmet
+		// condition, then who is waited on as roster rows. What the evidence
+		// cannot establish is said once, in the details.
+		sideColumn->addWidget(make_heading(QStringLiteral("Merge"), QStringLiteral("overviewMergeHeading"), side));
 		const auto makeMergeText = [&](const QString& aName) {
 			auto* label = new QLabel{ side };
 			label->setObjectName(aName);
@@ -2503,19 +2610,35 @@ namespace bpr::qt {
 			sideColumn->addWidget(label);
 			return label;
 		};
-		MergeSummary          = makeMergeText(QStringLiteral("overviewMergeSummary"));
-		PendingReviewers      = makeMergeText(QStringLiteral("overviewPendingReviewers"));
+		MergeState     = makeMergeText(QStringLiteral("overviewMergeState"));
+		auto stateFont = MergeState->font();
+		stateFont.setWeight(QFont::DemiBold);
+		MergeState->setFont(stateFont);
+		MergeConditions = makeMergeText(QStringLiteral("overviewMergeConditions"));
+		WaitingHeading  = make_heading(QStringLiteral("Waiting on"), QStringLiteral("overviewWaitingHeading"), side);
+		sideColumn->addSpacing(8);
+		sideColumn->addWidget(WaitingHeading);
+		Requests = new QVBoxLayout;
+		Requests->setContentsMargins(0, 0, 0, 0);
+		Requests->setSpacing(0);
+		sideColumn->addLayout(Requests);
+		RequestsNote = makeMergeText(QStringLiteral("overviewReviewRequestsNote"));
+		RequestsNote->setForegroundRole(QPalette::PlaceholderText);
 		RequirementDisclosure = new QToolButton{ side };
 		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));
 		RequirementDisclosure->setText(QStringLiteral("Requirement details"));
 		RequirementDisclosure->setCheckable(true);
+		RequirementDisclosure->setAutoRaise(true);
 		RequirementDisclosure->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		RequirementDisclosure->setArrowType(Qt::RightArrow);
 		RequirementDisclosure->setAccessibleDescription(QStringLiteral("Show applicable rule origins, approval restrictions and auto-merge observation"));
+		sideColumn->addSpacing(4);
 		sideColumn->addWidget(RequirementDisclosure);
 		RequirementDetails = makeMergeText(QStringLiteral("overviewRequirementDetails"));
+		RequirementDetails->setForegroundRole(QPalette::PlaceholderText);
 		RequirementDetails->hide();
 		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) {RequirementDetails->setVisible(aOpen);RequirementDisclosure->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow); });
+		sideColumn->addSpacing(12);
 
 		auto* const participantsHeading
 			= make_heading(QStringLiteral("Participants"), QStringLiteral("overviewParticipantsHeading"), side);
@@ -2673,7 +2796,7 @@ namespace bpr::qt {
 		CachedThreads->hide();
 		CachedThreadsHeading->hide();
 		const auto bodyChanged         = Projection.has_value() && Projection->Body != aProjection.Body;
-		const auto requirementsChanged = Projection && (Projection->MergeSummary != aProjection.MergeSummary || Projection->PendingReviewers != aProjection.PendingReviewers);
+		const auto requirementsChanged = Projection && (Projection->MergeState != aProjection.MergeState || Projection->MergeConditions != aProjection.MergeConditions || Projection->ReviewRequests != aProjection.ReviewRequests);
 		const auto updateBody          = !Projection.has_value() || bodyChanged;
 		// [[BPR-1089]]. Another pull request starts from the Settings default,
 		// in file order, with no counts until the host answers for it.
@@ -2731,7 +2854,7 @@ namespace bpr::qt {
 			set_description_expanded(false);
 		}
 		if (bodyChanged || requirementsChanged) {
-			const auto                   announcement = (bodyChanged ? QStringLiteral("Description updated. ") : QString{ }) + (requirementsChanged ? text(aProjection.MergeSummary) + QLatin1Char{ ' ' } + text(aProjection.PendingReviewers) : QString{ });
+			const auto                   announcement = (bodyChanged ? QStringLiteral("Description updated. ") : QString{ }) + (requirementsChanged ? merge_announcement(aProjection) : QString{ });
 			QAccessibleAnnouncementEvent event{ Body, announcement };
 			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 			QAccessible::updateAccessibility(&event);
@@ -2760,15 +2883,7 @@ namespace bpr::qt {
 		set_value(overview_value::my_unresolved_threads, count_text(since.MyUnresolvedThreads), false);
 		set_value(overview_value::checks, checks_text(aProjection.Checks), aProjection.Checks.Failed != 0U);
 		present_checks(samePullRequest);
-		MergeSummary->setText(text(aProjection.MergeSummary));
-		MergeSummary->setAccessibleName(MergeSummary->text());
-		MergeSummary->show();
-		PendingReviewers->setText(text(aProjection.PendingReviewers));
-		PendingReviewers->setAccessibleName(PendingReviewers->text());
-		PendingReviewers->show();
-		RequirementDetails->setText(text(aProjection.RequirementDetails));
-		RequirementDetails->setAccessibleName(RequirementDetails->text());
-		RequirementDisclosure->show();
+		present_merge(aProjection);
 		if (!samePullRequest) {
 			RequirementDisclosure->setChecked(false);
 		}
@@ -2960,8 +3075,15 @@ namespace bpr::qt {
 	{
 		set_description_expanded(false);
 		Projection.reset();
-		MergeSummary->hide();
-		PendingReviewers->hide();
+		MergeState->hide();
+		MergeConditions->hide();
+		WaitingHeading->hide();
+		RequestsNote->hide();
+		while (Requests->count() != 0) {
+			auto* const item = Requests->takeAt(0);
+			delete item->widget();
+			delete item;
+		}
 		RequirementDisclosure->hide();
 		RequirementDetails->hide();
 		ChecksDisclosure->hide();
@@ -3202,6 +3324,8 @@ namespace bpr::qt {
 		Colours.Unread   = aProfile.color(core::appearance_role::state_unread);
 		Colours.Accepted = aProfile.color(core::appearance_role::state_accepted);
 		Colours.Defect   = aProfile.color(core::appearance_role::state_defect);
+		Colours.Waiting  = aProfile.attention_color(attention_tone::waiting_on_others);
+		Colours.Caution  = aProfile.color(core::appearance_role::state_attention);
 		Colours.Progress = progress_mark_colours_for(aProfile);
 		// [[BPR-1089]]. The state marks: open amber and resolved green.
 		Colours.States.Open       = aProfile.color(core::appearance_role::state_attention);
@@ -3209,6 +3333,9 @@ namespace bpr::qt {
 		Colours.States.OnResolved = feedback_mark_blocking_ink(Colours.Accepted);
 		refresh_folder_icons();
 		refresh_feedback_icons();
+		if (Projection) {
+			present_merge(*Projection);
+		}
 		update();
 		Files->viewport()->update();
 	}
@@ -4020,6 +4147,71 @@ namespace bpr::qt {
 			}
 		}
 		return rows;
+	}
+
+	auto pull_request_overview_page::request_rows() const -> std::vector<overview_request_row*>
+	{
+		auto rows = std::vector<overview_request_row*>{ };
+		for (int index = 0; index < Requests->count(); ++index) {
+			if (auto* const row = dynamic_cast<overview_request_row*>(Requests->itemAt(index)->widget()); row != nullptr) {
+				rows.push_back(row);
+			}
+		}
+		return rows;
+	}
+
+	void pull_request_overview_page::present_merge(const application::pull_request_overview_projection& aProjection)
+	{
+		auto tone = palette().color(QPalette::Active, QPalette::PlaceholderText);
+		switch (aProjection.MergeTone) {
+		case application::overview_merge_tone::blocked:
+			tone = Colours.Defect;
+			break;
+		case application::overview_merge_tone::caution:
+			tone = Colours.Caution;
+			break;
+		case application::overview_merge_tone::mergeable:
+			tone = Colours.Accepted;
+			break;
+		case application::overview_merge_tone::unknown:
+			break;
+		}
+		auto statePalette = MergeState->palette();
+		statePalette.setColor(QPalette::WindowText, tone);
+		MergeState->setPalette(statePalette);
+		MergeState->setText(text(aProjection.MergeState));
+		MergeState->setAccessibleName(QStringLiteral("Merge state: %1").arg(MergeState->text()));
+		MergeState->show();
+
+		auto conditions = QStringList{ };
+		for (const auto& condition : aProjection.MergeConditions) {
+			conditions.push_back(text(condition));
+		}
+		MergeConditions->setText(conditions.join(QLatin1Char{ '\n' }));
+		MergeConditions->setAccessibleName(conditions.join(QStringLiteral(". ")));
+		MergeConditions->setVisible(!conditions.isEmpty());
+
+		// Rows are rebuilt only when the roster changed, so a refresh that
+		// settles the same requests leaves them, and their focus, alone.
+		const auto current = request_rows();
+		if (!std::ranges::equal(current, aProjection.ReviewRequests, { }, [](const overview_request_row* aRow) -> const auto& { return aRow->request(); })) {
+			while (Requests->count() != 0) {
+				auto* const item = Requests->takeAt(0);
+				delete item->widget();
+				delete item;
+			}
+			for (const auto& request : aProjection.ReviewRequests) {
+				Requests->addWidget(new overview_request_row{ request, Colours });
+			}
+		}
+		RequestsNote->setText(text(aProjection.ReviewRequestsNote));
+		RequestsNote->setAccessibleName(RequestsNote->text());
+		RequestsNote->setVisible(!aProjection.ReviewRequestsNote.empty());
+		WaitingHeading->setVisible(!aProjection.ReviewRequests.empty() || !aProjection.ReviewRequestsNote.empty());
+
+		RequirementDetails->setText(text(aProjection.RequirementDetails));
+		RequirementDetails->setAccessibleName(RequirementDetails->text());
+		RequirementDisclosure->show();
 	}
 
 	auto pull_request_overview_page::since_heading() const noexcept -> QLabel*

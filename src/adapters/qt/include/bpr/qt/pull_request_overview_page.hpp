@@ -60,6 +60,10 @@ namespace bpr::qt {
 		QColor Defect{ 0xCF, 0x22, 0x2E };
 		/// "My last review" amber, the same mark the epoch line uses.
 		QColor Marker{ 0xD2, 0x99, 0x22 };
+		/// [[BPR-1405]]. Home's Waiting on others tone, for who is waited on.
+		QColor Waiting{ 0x09, 0x69, 0xDA };
+		/// [[BPR-1405]]. Mergeable, but something is still not passing.
+		QColor Caution{ 0xBF, 0x87, 0x00 };
 		/// [[BPR-1089]]. The label marks' tints and style, and the four round
 		/// state marks' colours, for the Comments column's chips.
 		feedback_mark_theme    Marks;
@@ -305,6 +309,31 @@ namespace bpr::qt {
 		const overview_colours&           Colours;
 	};
 
+	/// \brief [[BPR-1405]]. One outstanding review request: the participant
+	/// row's anatomy, a square tile for a team, and code owner or requested
+	/// at the right. A team's readable name is in the tooltip and the
+	/// accessible name.
+	class overview_request_row final : public QWidget
+	{
+	public:
+		overview_request_row(
+			const application::overview_review_request& aRequest,
+			const overview_colours&                     aColours,
+			QWidget*                                    aParent = nullptr);
+
+		[[nodiscard]] auto request() const noexcept -> const application::overview_review_request&;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
+		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		application::overview_review_request Request;
+		const overview_colours&              Colours;
+	};
+
 	/// \brief The values the overview's side column names.
 	enum class overview_value : std::uint8_t {
 		uploads,
@@ -440,6 +469,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto expand_folders_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto file_model() const noexcept -> overview_file_model*;
 		[[nodiscard]] auto participant_rows() const -> std::vector<overview_participant_row*>;
+		/// \brief [[BPR-1405]]. The Waiting on roster, in projection order.
+		[[nodiscard]] auto request_rows() const -> std::vector<overview_request_row*>;
 		[[nodiscard]] auto since_heading() const noexcept -> QLabel*;
 		[[nodiscard]] auto value_label(overview_value aValue) const noexcept -> QLabel*;
 		[[nodiscard]] auto entry_button() const noexcept -> QPushButton*;
@@ -457,6 +488,7 @@ namespace bpr::qt {
 		void refresh_folder_icons();
 		void present_entry(const application::pull_request_overview_projection& aProjection);
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
+		void present_merge(const application::pull_request_overview_projection& aProjection);
 		/// [[BPR-1089]]. The rows in the order the sort or the file order gives.
 		[[nodiscard]] auto ordered_rows() const -> std::vector<application::overview_file_row>;
 		void               apply_rows();
@@ -484,8 +516,11 @@ namespace bpr::qt {
 		void                                                         present_checks(bool aSamePullRequest);
 		void                                                         present_selected_check();
 		QToolButton*                                                 ChecksDisclosure      = nullptr;
-		QLabel*                                                      MergeSummary          = nullptr;
-		QLabel*                                                      PendingReviewers      = nullptr;
+		QLabel*                                                      MergeState            = nullptr;
+		QLabel*                                                      MergeConditions       = nullptr;
+		QLabel*                                                      WaitingHeading        = nullptr;
+		QVBoxLayout*                                                 Requests              = nullptr;
+		QLabel*                                                      RequestsNote          = nullptr;
 		QLabel*                                                      RequirementDetails    = nullptr;
 		QToolButton*                                                 RequirementDisclosure = nullptr;
 		QWidget*                                                     CheckDetails          = nullptr;

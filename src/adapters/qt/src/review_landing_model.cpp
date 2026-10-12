@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <ranges>
 #include <set>
 #include <tuple>
 
@@ -111,6 +112,73 @@ namespace bpr::qt {
 		return QStringLiteral("%1#%2").arg(text(aItem.Ref.Repository), QString::number(aItem.Ref.Number));
 	}
 
+	namespace {
+		/// \brief "A", "A and B", "A, B and C", or "A, B and 2 more".
+		[[nodiscard]] auto bounded_list(const std::vector<std::string>& aNames, const std::size_t aTotal) -> QString
+		{
+			constexpr auto shown = std::size_t{ 3U };
+			auto           names = QStringList{ };
+			for (const auto& name : aNames | std::views::take(aTotal > shown ? shown - 1U : shown)) {
+				names.push_back(text(name));
+			}
+			const auto rest = aTotal - static_cast<std::size_t>(names.size());
+			if (rest > 0U) {
+				return QStringLiteral("%1 and %2 more").arg(names.join(QStringLiteral(", ")), QString::number(rest));
+			}
+			if (names.size() < 2) {
+				return names.join(QString{ });
+			}
+			const auto last = names.takeLast();
+			return QStringLiteral("%1 and %2").arg(names.join(QStringLiteral(", ")), last);
+		}
+	} // namespace
+
+	auto home_waiting_clauses(const core::queue_item& aItem) -> QStringList
+	{
+		const auto& waiting = aItem.Facts.Waiting;
+		auto        clauses = QStringList{ };
+		// Who else someone else's pull request waits on is its author's
+		// business ([[RFC-BPR-0070]] waiting is authored); its blockers are not.
+		const auto authored = aItem.Membership.authored();
+		const auto requests = authored ? static_cast<std::size_t>(waiting.Requests.value_or(0U)) : 0U;
+		const auto named    = authored ? waiting.CodeOwners.size() + waiting.Reviewers.size() : 0U;
+		// Requests beyond the retained names are counted with the last list.
+		const auto unnamed = waiting.NamesKnown && requests > named ? requests - named : 0U;
+		if (authored && !waiting.CodeOwners.empty()) {
+			clauses.push_back(QStringLiteral("Waiting on code-owner review from %1")
+								  .arg(bounded_list(waiting.CodeOwners, waiting.CodeOwners.size() + (waiting.Reviewers.empty() ? unnamed : 0U))));
+		}
+		if (authored && !waiting.Reviewers.empty()) {
+			clauses.push_back((waiting.CodeOwners.empty() ? QStringLiteral("Waiting on review from %1") : QStringLiteral("review from %1"))
+								  .arg(bounded_list(waiting.Reviewers, waiting.Reviewers.size() + unnamed)));
+		}
+		if (requests > 0U && !waiting.NamesKnown) {
+			// Discovery's counts, which tell people from teams but not who.
+			auto who = QStringList{ };
+			if (waiting.People > 0U) {
+				who.push_back(counted(waiting.People, QStringLiteral("person"), QStringLiteral("people")));
+			}
+			if (waiting.Teams > 0U) {
+				who.push_back(counted(waiting.Teams, QStringLiteral("team"), QStringLiteral("teams")));
+			}
+			clauses.push_back(waiting.People + waiting.Teams == requests
+								  ? QStringLiteral("Waiting on %1").arg(who.join(QStringLiteral(" and ")))
+								  : QStringLiteral("Waiting on %1").arg(counted(requests, QStringLiteral("review request"), QStringLiteral("review requests"))));
+		}
+		if (authored && named == 0U && requests == 0U && waiting.RequiredReview.value_or(false)) {
+			clauses.push_back(QStringLiteral("Required review outstanding"));
+		}
+		if (!waiting.FailedChecks.empty()) {
+			clauses.push_back(QStringLiteral("%1 failed").arg(bounded_list(waiting.FailedChecks, waiting.FailedChecks.size())));
+		} else if (waiting.MergeBlocked.value_or(false)) {
+			clauses.push_back(QStringLiteral("Merge blocked"));
+		}
+		if (!clauses.isEmpty() && (waiting.RequestsStale || waiting.AssessmentStale || waiting.ChecksStale)) {
+			clauses.push_back(QStringLiteral("last known"));
+		}
+		return clauses;
+	}
+
 	auto home_why_sentence(const core::queue_item& aItem) -> QString
 	{
 		const auto unseen  = static_cast<std::uint64_t>(aItem.Facts.UnseenComments);
@@ -154,35 +222,13 @@ namespace bpr::qt {
 			clauses.push_back(QStringLiteral("Nothing about it has been read yet"));
 			break;
 		}
-		const auto& waiting = aItem.Facts.Waiting;
-		const auto  names   = [](const std::vector<std::string>& aNames) { auto result = QStringList{}; for (const auto& name : aNames) { result.push_back(text(name)); } return result.join(QStringLiteral(", ")); };
-		if (!waiting.CodeOwners.empty()) {
-			clauses.push_back(QStringLiteral("Waiting on code-owner review from %1").arg(names(waiting.CodeOwners)));
+		// [[BPR-1405]]. Who or what is awaited, said once and bounded; the
+		// whole roster is in Overview.
+		const auto waitingClauses = home_waiting_clauses(aItem);
+		if (!waitingClauses.isEmpty() && aItem.Bucket == core::attention_bucket::authored_awaiting_reviewer_action) {
+			clauses.removeAll(QStringLiteral("My pull request waits on reviewers"));
 		}
-		if (!waiting.Reviewers.empty()) {
-			clauses.push_back(QStringLiteral("Waiting on review from %1").arg(names(waiting.Reviewers)));
-		}
-		if (waiting.Requests && *waiting.Requests > 0 && !waiting.NamesKnown) {
-			clauses.push_back(QStringLiteral("%1 requests outstanding; reviewer details unavailable").arg(*waiting.Requests));
-		}
-		if (waiting.NamesKnown && waiting.Requests && *waiting.Requests > waiting.CodeOwners.size() + waiting.Reviewers.size()) {
-			clauses.push_back(QStringLiteral("More requested reviewers in Overview"));
-		}
-		if (waiting.NamesKnown && waiting.Requests.value_or(0) > 0) {
-			clauses.push_back(QStringLiteral("Requested: %1 people, %2 teams").arg(waiting.People).arg(waiting.Teams));
-		}
-		if (waiting.RequiredReview.value_or(false)) {
-			clauses.push_back(QStringLiteral("Required review outstanding"));
-		}
-		for (const auto& check : waiting.FailedChecks) {
-			clauses.push_back(QStringLiteral("%1 failed").arg(text(check)));
-		}
-		if (waiting.MergeBlocked.value_or(false) && waiting.FailedChecks.empty()) {
-			clauses.push_back(QStringLiteral("GitHub reports a merge blocker"));
-		}
-		if (waiting.RequestsStale || waiting.AssessmentStale || waiting.ChecksStale) {
-			clauses.push_back(QStringLiteral("Last known; refresh for current details"));
-		}
+		clauses.append(waitingClauses);
 		if (aItem.Bucket != core::attention_bucket::new_comments_or_author_replies && unseen > 0U) {
 			clauses.push_back(new_comments(unseen));
 		}
@@ -241,7 +287,9 @@ namespace bpr::qt {
 		}
 		const auto blocked = std::ranges::count_if(aRows, [](const auto& aRow) { return core::merge_blocked(aRow.Facts.Waiting); });
 		const auto waiting = std::ranges::count_if(aRows, [](const auto& aRow) { return core::review_waiting(aRow.Facts.Waiting); });
-		if (waiting > 0) {
+		// [[BPR-1405]]. Every row of Waiting on others awaits review; saying
+		// so again is noise.
+		if (waiting > 0 && aGroup != home_group::waiting_on_others) {
 			summary += QStringLiteral("; %1 awaiting review").arg(waiting);
 		}
 		if (blocked > 0) {

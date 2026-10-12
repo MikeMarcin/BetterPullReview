@@ -182,22 +182,29 @@ int main(int aArgc, char** aArgv)
 		   "24 current results and matching complete totals reach the ordinary composed Overview");
 	expect(checkDisclosure->isChecked() && checkList->currentItem()->text(0).contains(QStringLiteral("Branch Freshness")) && checkExplanation->toPlainText().contains(QStringLiteral("Update the branch before merging")),
 		   "failure automatically expands with its name, actual outcome and supplied explanation");
-	auto* mergeText             = page->findChild<QLabel*>(QStringLiteral("overviewMergeSummary"));
-	auto* rosterText            = page->findChild<QLabel*>(QStringLiteral("overviewPendingReviewers"));
-	auto* requirementDisclosure = page->findChild<QToolButton*>(QStringLiteral("overviewRequirementDisclosure"));
-	auto* requirementText       = page->findChild<QLabel*>(QStringLiteral("overviewRequirementDetails"));
-	expect(mergeText->text().contains(QStringLiteral("merging is blocked")) && mergeText->text().contains(QStringLiteral("Review required")) && mergeText->text().contains(QStringLiteral("Branch Freshness")) && mergeText->text().contains(QStringLiteral("Waiting for check result: Missing CI")), "simultaneous review, known check failure and missing required result are visible beside summary");
+	auto*      mergeState            = page->findChild<QLabel*>(QStringLiteral("overviewMergeState"));
+	auto*      mergeText             = page->findChild<QLabel*>(QStringLiteral("overviewMergeConditions"));
+	auto*      requirementDisclosure = page->findChild<QToolButton*>(QStringLiteral("overviewRequirementDisclosure"));
+	auto*      requirementText       = page->findChild<QLabel*>(QStringLiteral("overviewRequirementDetails"));
+	const auto roster                = [&] {
+		auto names = QStringList{ };
+		for (const auto* row : page->request_rows()) {
+			names.push_back(row->accessibleName());
+		}
+		return names;
+	};
+	expect(mergeState->text() == QStringLiteral("Blocked") && mergeText->text().contains(QStringLiteral("Review required, minimum 2 approvals")) && mergeText->text().contains(QStringLiteral("Branch Freshness failed")) && mergeText->text().contains(QStringLiteral("Missing CI has not reported")) && mergeText->text().count(QLatin1Char{ '\n' }) == 2, "simultaneous review, known check failure and missing required result are each one short line beside summary");
 	for (int index = 0; index < 3; ++index) {
-		expect(rosterText->text().contains(QStringLiteral("@bpr-fixtures/owners-%1").arg(index)), "all three provider-marked code-owner teams are named directly");
+		expect(roster().value(index).startsWith(QStringLiteral("bpr-fixtures/owners-%1, team").arg(index)) && roster().value(index).endsWith(QStringLiteral("code-owner review requested")), "all three provider-marked code-owner teams are named directly, first");
 	}
-	expect(rosterText->text().contains(QStringLiteral("Waiting on code-owner review from")) && rosterText->text().contains(QStringLiteral("first-time-reviewer")) && rosterText->text().contains(QStringLiteral("approved-and-requested-again")), "new users and re-requested approver remain in distinct waiting roster");
+	expect(roster().value(1).contains(QStringLiteral("International renderer and platform maintainers")) && roster().size() == 5 && roster().value(3) == QStringLiteral("first-time-reviewer, review requested") && roster().value(4) == QStringLiteral("approved-and-requested-again, review requested"), "team names are kept and new users and re-requested approver remain distinct roster rows");
 	expect(std::ranges::any_of(page->projection()->Participants, [](const auto& aPerson) { return aPerson.Login == "approved-and-requested-again" && aPerson.Signoff == application::overview_signoff::approved; }), "prior approval remains history beside the current request");
 	requirementDisclosure->setFocus();
 	QKeyEvent showRequirements{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
 	QApplication::sendEvent(requirementDisclosure, &showRequirements);
 	QKeyEvent releaseRequirements{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
 	QApplication::sendEvent(requirementDisclosure, &releaseRequirements);
-	expect(requirementDisclosure->isChecked() && requirementText->isVisible() && requirementText->text().contains(QStringLiteral("Organization: bpr-fixtures (ruleset 42)")) && requirementText->text().contains(QStringLiteral("Auto-merge is not enabled")) && requirementText->text().contains(QStringLiteral("Remaining approvals are not established")) && rosterText->accessibleName() == rosterText->text(), "keyboard details expose exact origin and evidence limits, with matching accessible waiting names");
+	expect(requirementDisclosure->isChecked() && requirementText->isVisible() && requirementText->text().contains(QStringLiteral("Organization: bpr-fixtures (ruleset 42)")) && requirementText->text().contains(QStringLiteral("Auto-merge is not enabled")) && requirementText->text().contains(QStringLiteral("Remaining approvals are not established")) && mergeText->accessibleName().contains(QStringLiteral("Branch Freshness failed")), "keyboard details expose exact origin and evidence limits, with accessible conditions");
 	render(*application, QStringLiteral("requirement-details"));
 	requirementDisclosure->click();
 	render(*application, QStringLiteral("review-blockers-initial"));
@@ -241,8 +248,8 @@ int main(int aArgc, char** aArgv)
 		server->ReviewHistory = history;
 	}
 	window.github_refresh_action()->trigger();
-	wait_for([&] { return window.github_refresh_action()->isEnabled() && rosterText->text().contains(QStringLiteral("replacement-reviewer")); }, "accepted ordinary refresh replaces request identities");
-	expect(!rosterText->text().contains(QStringLiteral("first-time-reviewer")) && !rosterText->text().contains(QStringLiteral("approved-and-requested-again")) && std::ranges::any_of(page->projection()->Participants, [](const auto& aPerson) { return aPerson.Login == "approved-and-requested-again" && aPerson.Signoff == application::overview_signoff::dismissed; }), "removed requests vanish and dismissed review history remains separate after composed refresh");
+	wait_for([&] { return window.github_refresh_action()->isEnabled() && roster().join(QLatin1Char{ ';' }).contains(QStringLiteral("replacement-reviewer")); }, "accepted ordinary refresh replaces request identities");
+	expect(!roster().join(QLatin1Char{ ';' }).contains(QStringLiteral("first-time-reviewer")) && !roster().join(QLatin1Char{ ';' }).contains(QStringLiteral("approved-and-requested-again")) && std::ranges::any_of(page->projection()->Participants, [](const auto& aPerson) { return aPerson.Login == "approved-and-requested-again" && aPerson.Signoff == application::overview_signoff::dismissed; }), "removed requests vanish and dismissed review history remains separate after composed refresh");
 	checkDisclosure->setFocus();
 	QKeyEvent showChecks{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
 	QApplication::sendEvent(checkDisclosure, &showChecks);
@@ -275,9 +282,9 @@ int main(int aArgc, char** aArgv)
 	}
 	expect(checksUsable, "narrow enlarged check explanation and action remain usable with review entry available");
 	render(*application, QStringLiteral("check-details-enlarged"));
-	side->ensureWidgetVisible(rosterText);
+	side->ensureWidgetVisible(page->request_rows().front());
 	settle();
-	expect(rosterText->wordWrap() && rosterText->width() <= side->viewport()->width() && rosterText->height() >= rosterText->heightForWidth(rosterText->width()) && requirementDisclosure->minimumSizeHint().width() <= requirementDisclosure->width(), "narrow enlarged roster wraps long qualified team names and keeps native detail control usable");
+	expect(std::ranges::all_of(page->request_rows(), [&](const auto* aRow) { return aRow->width() <= side->viewport()->width() && aRow->height() >= aRow->heightForWidth(aRow->width()) && aRow->toolTip() == aRow->accessibleName(); }) && mergeText->wordWrap() && mergeText->height() >= mergeText->heightForWidth(mergeText->width()) && requirementDisclosure->minimumSizeHint().width() <= requirementDisclosure->width(), "narrow enlarged roster rows fit, keep long qualified team names whole in tooltip and accessible name, and keep native detail control usable");
 	render(*application, QStringLiteral("review-blockers-enlarged"));
 	qtApplication.setFont(originalFont);
 	window.resize(1280, 900);
