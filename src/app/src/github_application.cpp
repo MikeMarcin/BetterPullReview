@@ -3975,6 +3975,7 @@ namespace bpr::app {
 			std::function<void()>                                                                     RecentChanged;
 			std::function<void(const application::workbench_pull_request_authority&, ledger_changes)> Ledger;
 			std::function<void(const application::github_profile_option&)>                            SetupProfile;
+			std::function<void(std::string_view)>                                                     RetireServerSetup;
 			std::function<void()>                                                                     AgentWorkspaceRepair;
 		};
 		// [[BPR-0733]]. The recently viewed list is profile state; every window
@@ -7109,7 +7110,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 } }, .SignIn = [this, weak](core::host_profile_id aProfile) { if (!weak.expired() && !Closing){ begin_public_preview_sign_in(aProfile);
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
-} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .SetupProfile = [this, weak](const application::github_profile_option& aOption) { if (!weak.expired() && !Closing) { Window->add_setup_profile(aOption); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
+} }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .SetupProfile = [this, weak](const application::github_profile_option& aOption) { if (!weak.expired() && !Closing) { Window->add_setup_profile(aOption); } }, .RetireServerSetup = [this, weak](std::string_view aHostname) { if (!weak.expired() && !Closing && SetupDestination && SetupDestination->pending() && SetupDestination->pending()->Destination.Hostname == aHostname) { retire_setup_effects(); SetupOwner = next_setup_owner(); SetupDestination->cancel(); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
@@ -7501,11 +7502,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](application::saved_server_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {
 						if (aIntent.Action == application::saved_server_action::remove && Profile->Connections) {
+							Profile->for_each_window([&](const auto& aObserver) { if (aObserver.RetireServerSetup) { aObserver.RetireServerSetup(aIntent.Server.Hostname); } });
 							static_cast<void>(Profile->Connections->forget(aIntent.Server.Hostname));
 							if (DeviceHost->state().Profile) {
 								const auto* pending = find_profile(*DeviceHost->state().Profile);
 								if (pending && pending->hostname() == aIntent.Server.Hostname) {
-									retire_setup_effects();
 									DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
 								}
 							}
@@ -14337,7 +14338,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							if (Host->state().ActiveProfile) {
 								const auto* active = find_profile(*Host->state().ActiveProfile);
 								if (active && Profile->Connections) {
-									static_cast<void>(Profile->Connections->disable(std::string{ active->hostname() }));
+									const auto hostname = std::string{ active->hostname() };
+									Profile->for_each_window([&](const auto& aObserver) { if (aObserver.RetireServerSetup) { aObserver.RetireServerSetup(hostname); } });
+									static_cast<void>(Profile->Connections->disable(hostname));
 								}
 								DeviceHost->dispatch(core::cancel_device_authorization_intent{ });
 							}

@@ -9,6 +9,7 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDialog>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -31,11 +32,11 @@ namespace {
 		}
 		expect(aCondition(), aMessage);
 	}
-	auto start(app::detail::github_public_path_fixture_options aOptions) -> std::unique_ptr<app::github_application>
+	auto start(app::detail::github_public_path_fixture_options aOptions, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com) -> std::unique_ptr<app::github_application>
 	{
 		std::unique_ptr<app::github_application> result;
 		bool                                     terminal = false;
-		auto                                     startup  = github_application_fixture_access::start(app::detail::github_public_path_fixture::github_com, std::move(aOptions), [&](auto aResult) { terminal=true; if (aResult) { result=std::move(*aResult); } });
+		auto                                     startup  = github_application_fixture_access::start(aFixture, std::move(aOptions), [&](auto aResult) { terminal=true; if (aResult) { result=std::move(*aResult); } });
 		wait_for([&] { return terminal && startup->is_quiescent(); }, "startup terminates");
 		expect(result != nullptr, "application starts");
 		return result;
@@ -140,11 +141,56 @@ namespace {
 		stop(application);
 		consent.stop();
 	}
+	void forget_server()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.IndependentWindowReads     = true;
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "ghe.example.invalid", .Login = "octo-reviewer" } };
+		QTimer consent;
+		QObject::connect(&consent, &QTimer::timeout, [] { if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) { prompt->button(QMessageBox::Yes)->click(); } });
+		consent.start(1);
+		auto  application = start(options, app::detail::github_public_path_fixture::ghes_3_18);
+		auto& window      = application->window();
+		window.show();
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		window.home_landing()->secondary_button()->click();
+		window.sign_in_dialog()->reject();
+		window.home_landing()->secondary_button()->click();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "enterprise CLI connection accepts before Forget");
+		consent.stop();
+		window.open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		const auto cards = window.server_cards();
+		auto*      card  = *std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "ghe.example.invalid"; });
+		if (!card->remember_switch()->isChecked()) {
+			card->remember_switch()->click();
+		}
+		wait_for([&] { return card->forget_button()->isVisibleTo(card); }, "the retained enterprise server offers Forget");
+		card->forget_button()->click();
+		QApplication::processEvents();
+		auto* confirmation = window.forget_server_confirmation();
+		expect(confirmation != nullptr && confirmation->isVisible(), "Forget asks the existing server confirmation");
+		confirmation->findChild<QPushButton*>(QStringLiteral("forgetServerConfirm"))->click();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::no_profile; }, "Forget retires accepted enterprise authority");
+		stop(application);
+		auto       store = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
+		const auto saved = store->load({ });
+		expect(saved && saved->Connections.empty() && saved->LastProfileId != 0, "Forget removes remembered selection while retaining identity allocation");
+		options.GithubCliDiscoveryAccounts->clear();
+		application = start(options, app::detail::github_public_path_fixture::ghes_3_18);
+		expect(application->window().session_panel()->status() == core::github_status::no_profile, "Forget leaves the next launch signed out");
+		stop(application);
+	}
+
 }
 int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
 	run();
+	forget_server();
 	std::cout << "remembered-connection-public-path-tests:pass\n";
 } catch (const std::exception& aError) {
 	std::cerr << aError.what() << '\n';
