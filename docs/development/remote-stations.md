@@ -6,6 +6,37 @@ lives in `.agents/skills/implement-rfc/references/remote-routing.md`; this
 document is the operator-facing half: what to provision on each machine and
 how to launch it.
 
+## Station management and hook removal (2026-10-11)
+
+The owner removed automatic implement-rfc station hooks after they obstructed
+ordinary work and MASK recovery. `.codex/hooks.json` no longer installs the
+station prompt, tool or Stop guard. Reload project hooks in the host after
+pulling this change. The old hooks are not a security boundary, and their
+turn-admission and retired-endpoint fences no longer apply in this consumer.
+
+Use the existing project script from this checkout:
+
+```sh
+python3 scripts/launch_remote_station.py status --json
+python3 scripts/launch_remote_station.py status --observe-runtime --json
+python3 scripts/launch_remote_station.py takeover --json
+```
+
+Use `py -3` in native Windows. Status is observational and starts no runtime.
+Takeover transfers ownership to a replacement chat/local mode and may stop the
+previous writer; continuing the current station needs no takeover. If its
+automatic stop adapter is unavailable, follow its reported manual steps and
+retry with `takeover --confirm-runtime-stopped --json` only after observing the
+listed writers and commands stop. A free or stale supervisor lease does not
+prove runtime quiescence. Removing hooks does not stop the station, change its
+identity or alter MASK's state. Explicit launches still acquire the writer lease;
+agents must reconcile actual writers before conflicting checkout work.
+
+Shared-source policy and further hook controls are tracked in AgentSkills
+ASK-0105. This consumer change uses the existing pinned status/takeover helper
+and requires no skill upgrade or source publication.
+
+
 ## The shape
 
 One **station** per workstream checkout per machine. One foreground supervisor
