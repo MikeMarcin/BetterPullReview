@@ -5,7 +5,7 @@
     "command": "cmake --preset core-only; cmake --build --preset core-only --parallel 8; ctest --preset core-only --output-on-failure",
     "result": "266/266 passed",
     "elapsed_seconds": 856.81,
-    "raw_log": "/tmp/bpr-home-draft-core-tests.log"
+    "raw_log": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/evidence/bpr-home-draft-core-tests.log"
   },
   "qt_scale150": {
     "command": "QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=1.5 BPR_EXPECTED_QT_SCALE=1.5 BPR_AUTOMATED_TEST_BOUNDARY=1 python3 -I -S scripts/run_network_isolated_test.py --sandbox-exec /usr/bin/sandbox-exec --profile-template cmake/sandbox/macos-network-deny.sb --loopback-port-count 0 -- build/dev/tests/adapters_qt/better_pull_review_qt_home_list_tests build/dev/tests/adapters_qt/home-list-150.png",
@@ -39,7 +39,7 @@
   "tidy": {
     "tool": "clang-tidy 22.1.8",
     "result": "9 selected production implementation translation units passed; workbench_window.cpp failed one preexisting compact_below naming diagnostic, unchanged at immutable baseline. No changed-source diagnostic.",
-    "raw_log": "/tmp/bpr-home-draft-tidy.log"
+    "raw_log": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/evidence/bpr-home-draft-tidy.log"
   },
   "renders": {
     "root": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/renders",
@@ -57,5 +57,11 @@
       "200%"
     ],
     "platform": "macOS arm64; Qt 6.11.2; offscreen layout evidence; owner native appearance judgment pending"
+  },
+  "documentation": {
+    "structure_gate": "DOCUMENTATION_OK after parking at 9e78d605d540191a2586041f8943ec39fa87250b",
+    "script_tests": "67/67 passed",
+    "format": "31 changed C++ files passed clang-format 22.1.8 dry-run; core-only coding-format-check also passed",
+    "self_review": "Reviewed changed provider parsing, nullable storage, numeric account binding, coalesced Recent updates and shared row geometry; extracted composition metadata reconciliation to one named helper. No known in-scope product failure remains."
   }
 }
