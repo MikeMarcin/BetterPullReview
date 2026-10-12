@@ -93,6 +93,8 @@
     "/tmp/bpr-merge-gates-run/m2-doc-tests-final.log",
     "build/dev/overview-renders/1",
     "build/dev/overview-renders/1_25",
-    "build/dev/overview-renders/2"
-  ]
+    "build/dev/overview-renders/2",
+    "/tmp/bpr-merge-gates-run/milestone-2-renders"
+  ],
+  "binding_reconciliation": "Canonical Execution-record boundary restored; renewed binding preserves all six criteria, three exits and accepted predecessor."
 }

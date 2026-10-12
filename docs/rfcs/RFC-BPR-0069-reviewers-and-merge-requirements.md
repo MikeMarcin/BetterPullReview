@@ -185,7 +185,7 @@ this scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/mi
 [the decision record](assets/merge-gates-and-review-waiting-v1/DECISIONS.md#checks-and-confirmation) for the actual
 owner clarification and validation limits.
 
-## Verification
+## Execution record
 
 AC01–AC06 are Auto-Verified for the integrated read-only candidate and bounded
 host/transport qualification in [the criterion ledger](../verification/RFC-BPR-0069.md).
