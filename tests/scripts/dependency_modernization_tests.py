@@ -419,6 +419,25 @@ class DependencyModernizationTests(unittest.TestCase):
             "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
         )
 
+    def test_syntax_build_inputs_use_parent_generator(self) -> None:
+        package = cache_entry(BUILD_DIR, "KF6SyntaxHighlighting_DIR")
+        if package is None or package.endswith("-NOTFOUND"):
+            self.skipTest("this tree does not build KSyntaxHighlighting")
+        version = cache_entry(BUILD_DIR, "CPM_PACKAGE_BprKSyntaxHighlighting_VERSION")
+        self.assertIsNotNone(version)
+        staged = BUILD_DIR / "_bpr" / "ksyntaxhighlighting" / str(version)
+        parent_generator = cache_entry(BUILD_DIR, "CMAKE_GENERATOR")
+        for name in ("extra-cmake-modules-build", "syntax-highlighting-build"):
+            with self.subTest(project=name):
+                nested = staged / name
+                self.assertEqual(
+                    cache_entry(nested, "CMAKE_GENERATOR"), parent_generator
+                )
+                for option in ("CMAKE_GENERATOR_PLATFORM", "CMAKE_GENERATOR_TOOLSET"):
+                    self.assertEqual(
+                        cache_entry(nested, option), cache_entry(BUILD_DIR, option)
+                    )
+
     def test_syntax_prefix_installs_one_library_per_configuration(self) -> None:
         # A multi-configuration generator builds and installs KSyntaxHighlighting
         # once per configuration into one prefix. Without a per-configuration

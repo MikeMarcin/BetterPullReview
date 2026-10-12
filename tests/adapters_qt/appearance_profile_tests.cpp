@@ -2062,7 +2062,8 @@ namespace {
 			diff.Alignment.Groups.size() >= 3U,
 			"the fixture carries several semantic changes");
 
-		auto profile   = qt::appearance_profile{ };
+		auto profile = qt::appearance_profile{ };
+
 		auto workbench = qt::diff_workbench{ };
 		workbench.resize(1'100, 760);
 		workbench.show();
@@ -2128,7 +2129,12 @@ namespace {
 		expect(
 			beforeExtent.has_value() && *beforeExtent > 0.0,
 			"the selected ribbon has a measured extent before the font changes");
-		const auto beforeFrame      = *controller->current_frame();
+		const auto beforeFrame   = *controller->current_frame();
+		const auto readingLine   = beforeSelection->PreferredLine;
+		const auto beforeReading = workbench.line_rect(readingLine.Side, readingLine.Line);
+		expect(
+			workbench.source_line_visible(readingLine.Side, readingLine.Line),
+			"the current reading line is visible before its font changes");
 		const auto beforeComparison = controller->maximum_position();
 		const auto beforeStatistics = workbench.statistics();
 		const auto beforeRibbonBuilds
@@ -2211,11 +2217,16 @@ namespace {
 			"a font change is not a selection change");
 
 		// The one shared comparison position is reprojected, not discarded.
-		const auto& afterFrame = *controller->current_frame();
+		const auto& afterFrame   = *controller->current_frame();
+		const auto  afterReading = workbench.line_rect(readingLine.Side, readingLine.Line);
+		// [[BPR-1336]] C4: a visible reading line takes precedence over the
+		// synchronization rail. A new font can move that rail into another
+		// segment while keeping the same line within one row in the viewport.
 		expect(
 			afterFrame.Comparison == beforeFrame.Comparison
-				&& afterFrame.Segment == beforeFrame.Segment,
-			"the reprojected position keeps its comparison and semantic anchor");
+				&& workbench.source_line_visible(readingLine.Side, readingLine.Line)
+				&& std::abs(afterReading.top() - beforeReading.top()) <= afterReading.height(),
+			"the reprojected position keeps its comparison and visible reading line within one row");
 		expect(
 			!close(afterFrame.Position, beforeFrame.Position)
 				&& afterFrame.Position > 0.0,
@@ -2717,6 +2728,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+
 	QApplication::setQuitOnLastWindowClosed(false);
 
 	test_fresh_installation_defaults_to_system();

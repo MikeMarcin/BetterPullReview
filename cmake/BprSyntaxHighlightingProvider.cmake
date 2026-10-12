@@ -389,7 +389,9 @@ function(bpr_acquire_syntax_highlighting)
         endforeach()
     endif()
 
-    set(signature "")
+    # Earlier ECM stages used the machine default generator. Reconfigure
+    # those stages once so their cached build graph agrees with the parent.
+    set(signature "ECM_USES_PARENT_GENERATOR=ON\n")
     foreach(
         recorded
         IN ITEMS
@@ -455,6 +457,18 @@ function(bpr_acquire_syntax_highlighting)
             "${syntax_source}"
         )
 
+        # Both nested projects use the parent generator. Otherwise ECM
+        # defaults to Visual Studio on Windows even when the release graph
+        # uses Ninja, and FileTracker rejects the nested try-compile paths.
+        set(generator_arguments -G "${CMAKE_GENERATOR}")
+        if(CMAKE_GENERATOR_PLATFORM)
+            list(APPEND generator_arguments -A "${CMAKE_GENERATOR_PLATFORM}")
+        endif()
+        if(CMAKE_GENERATOR_TOOLSET)
+            list(APPEND generator_arguments -T "${CMAKE_GENERATOR_TOOLSET}")
+        endif()
+        set(ecm_generator_arguments ${generator_arguments})
+        bpr_syntax_forward(ecm_generator_arguments CMAKE_MAKE_PROGRAM)
         set(ecm_build "${root}/extra-cmake-modules-build")
         file(REMOVE_RECURSE "${ecm_build}")
         bpr_syntax_execute(
@@ -463,6 +477,7 @@ function(bpr_acquire_syntax_highlighting)
             "${CMAKE_COMMAND}"
             -S "${ecm_source}"
             -B "${ecm_build}"
+            ${ecm_generator_arguments}
             "-DCMAKE_INSTALL_PREFIX=${ecm_prefix}"
             -DBUILD_TESTING=OFF
             -DBUILD_HTML_DOCS=OFF
@@ -484,13 +499,6 @@ function(bpr_acquire_syntax_highlighting)
 
         set(syntax_build "${root}/syntax-highlighting-build")
         file(REMOVE_RECURSE "${syntax_build}")
-        set(generator_arguments -G "${CMAKE_GENERATOR}")
-        if(CMAKE_GENERATOR_PLATFORM)
-            list(APPEND generator_arguments -A "${CMAKE_GENERATOR_PLATFORM}")
-        endif()
-        if(CMAKE_GENERATOR_TOOLSET)
-            list(APPEND generator_arguments -T "${CMAKE_GENERATOR_TOOLSET}")
-        endif()
         bpr_syntax_execute(
             "configure"
             "${root}/logs/syntax-highlighting-configure.log"
