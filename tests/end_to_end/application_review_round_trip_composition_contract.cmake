@@ -1419,6 +1419,16 @@ endfunction()
 # Scoped source review and prior accepted RFC0067/0070 evidence are recorded
 # on BPR-1403. No provider selection, credential, grant, mutation, publication
 # or production source-inventory change; mutation-branch pin stays unchanged.
+# BPR-1404 reseal (2026-10-12), over last-matching 3cc1b2fc3: the only
+# intervening src/app commits are 8cf67d793 and f5e79380c. The latter removes
+# every temporary github_application diagnostic, restoring its full source pin.
+# Its private workflow follows a retired read-only draft restore into the same
+# current PR context and comparison, keeping the serialized store/decision lanes,
+# shutdown/context guards and all mutation revision/authority checks. Stable
+# store errors are returned normally. The other manifest edits reserve an
+# existing vector bound and make the existing virtual destructor explicit.
+# No source inventory or mutation-branch change. Scoped review and deterministic
+# old-code/refusal controls are recorded on BPR-1404 and its release gate ledger.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1641,7 +1651,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "50e895b63e95628d9ac692e06aaa52eca6d834a4de75d7aae426508198ff022d"
+        "1d6432a7024143638ed6e4c75d12ac918d27b8b99895886d40615763048fc674"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

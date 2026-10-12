@@ -1042,6 +1042,15 @@ set_tests_properties(
         TIMEOUT 15
 )
 
+set(bpr_application_composition_contract_build_dir
+    "${CMAKE_CURRENT_BINARY_DIR}/composition-contract-build"
+)
+if(WIN32)
+    # The nested Qt-generated KSyntaxHighlighting object paths exceed MSVC's
+    # path limit below tests/end_to_end/composition-contract-build. Keep the
+    # course-owned tree below this build root, with room for those suffixes.
+    set(bpr_application_composition_contract_build_dir "${PROJECT_BINARY_DIR}/cc")
+endif()
 set(bpr_application_composition_contract_command
     Python3::Interpreter
     "${CMAKE_CURRENT_SOURCE_DIR}/composition_contract_tests.py"
@@ -1050,7 +1059,7 @@ set(bpr_application_composition_contract_command
     --cxx
     "${CMAKE_CXX_COMPILER}"
     --release-build-dir
-    "${CMAKE_CURRENT_BINARY_DIR}/composition-contract-build"
+    "${bpr_application_composition_contract_build_dir}"
 )
 if(bpr_test_qt_root)
     list(

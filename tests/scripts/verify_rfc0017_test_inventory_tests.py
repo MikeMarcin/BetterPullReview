@@ -17,7 +17,6 @@ import importlib.util
 import io
 import pathlib
 import sys
-import tempfile
 import unittest
 from unittest import mock
 
@@ -32,6 +31,8 @@ if sys.version_info < MINIMUM_PYTHON:
 
 REPOSITORY = pathlib.Path(__file__).resolve().parents[2]
 SCRIPT = REPOSITORY / "scripts" / "verify_rfc0017_test_inventory.py"
+sys.path.insert(0, str(REPOSITORY))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def load_module():
@@ -175,7 +176,7 @@ class InventoryTable(unittest.TestCase):
         self.assertIn("--network-denied", self.module.FORBIDDEN_STRINGS)
 
     def test_a_stripped_image_still_refuses_a_tests_only_flag(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="bpr-rfc0017-absence-") as root:
+        with contained_temporary_directory(prefix="bpr-rfc0017-absence-") as root:
             binary = pathlib.Path(root) / "application.exe"
             with mock.patch.object(self.module, "symbol_table", return_value=""):
                 binary.write_bytes(b"MZ synthetic fixture without a test seam")

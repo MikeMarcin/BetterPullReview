@@ -180,6 +180,35 @@ personal-discovery paths in addition to this milestone's repairs.
 
 ## Windows execution context
 
+The subsequent interactive-token Windows normal gate at diagnostic source
+`8cf67d793` exposed a separate nested Release-build path failure: MSVC C1083
+on the generated KSyntaxHighlighting indexer and Qt resource objects. The
+course's original tree made the two object paths 264 and 282 characters.
+Windows now keeps that same course-owned tree at `${PROJECT_BINARY_DIR}/cc`,
+reducing those paths to 223 and 241 characters; other platforms retain their
+existing path. The same tests-disabled configure/build and binary checks still
+run. Native completion of that course on the repaired candidate is pending.
+
+The stripped-image RFC0017 counterexample added in `99e96691` initially used
+`tempfile.TemporaryDirectory`; the Mac normal gate correctly rejected that
+Windows-incompatible root. It now uses the shared contained-temporary helper.
+All 18 inventory counterexamples and six contained-temporary usage checks pass.
+
+Scoped composition review covers every `src/app` commit after the last matching
+pin at `3cc1b2fc3`: diagnostic `8cf67d793` and repair `f5e79380c`. The repair
+removes all diagnostic changes from `github_application.cpp`; its full-source
+and production mutation-branch digests match their existing pins. The only
+remaining manifest changes are the private workflow's read-only restoration
+retry, the existing vector reservation and explicit destructor override.
+Review confirms that a retry retains the same current PR context, reads its
+currently accepted head, and uses the existing serialized store/decision lanes.
+Shutdown, retired contexts and stable-generation store failures return without
+retry. No mutation, grant, revision check or publication path changes.
+The aggregate application manifest is resealed to
+`1d6432a7024143638ed6e4c75d12ac918d27b8b99895886d40615763048fc674`.
+The real composition baseline and all its hostile-source/manifest counterexamples
+pass after the recorded review; native full-course acceptance remains pending.
+
 The first `f01b79c5a` Windows native build passed. Its SSH-launched suite then
 had immediate DLL initialization/delay-load failures, empty architecture child
 outputs and unavailable Credential Manager setup; the partial failed run was

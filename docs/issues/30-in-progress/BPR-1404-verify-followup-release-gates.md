@@ -73,3 +73,15 @@ tidy and documentation pass. The shared BPR-1405 Home/Overview merge is
 preserved, with its recorded 52/52 checks and owner acceptance; final native
 affected runs include those inherited surfaces. Native full/affected results
 and independent exact-artifact security acceptance remain pending.
+
+The current Windows normal run also exposed nested Release-build object paths
+over MSVC's limit. Its course now uses the shorter owned build-tree child `cc`
+on Windows, preserving every nested-build and binary check. The RFC0017
+stripped-image counterexample uses the shared contained-temporary helper;
+18 inventory and six usage checks pass. Scoped review of all `src/app` changes
+since the last matching pin (`3cc1b2fc3`) covers `8cf67d793` and `f5e79380c`:
+temporary diagnostics are removed, private restore retries only the current
+read-only binding, and existing mutation/authority/shutdown guards remain.
+The aggregate manifest reseal and the passing hostile composition controls are
+recorded in the ledger. Actual final-source native full-course checks remain
+pending.
