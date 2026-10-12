@@ -70,11 +70,10 @@ waiting course). The frontend-design skill was loaded for this work.
   in the course grabs before the list relays out; with events settled the
   row wraps correctly. That is the course's timing, not the product.
 
-## Frontier
+## Owner acceptance
 
-AC5 waits on the owner's look at a frozen build of `7011e21b3`, root
-`/Users/jaeger/bpr1405-look.4e01kxey` (its `launch.py --check` passed at
-freeze). Attended-review session `5cbc651b593c9deafbab6516ef62ecdd`, a fresh
-short session with its own `--state`, asks two Accept/Reject questions:
-`BPR-1405-home` and `BPR-1405-overview`. Driver cursor: sequence 6. Remove
-the root afterwards with `scripts/freeze_attended_build.py remove`.
+AC5: the owner accepted both looks on 2026-10-12 in attended-review session
+`5cbc651b593c9deafbab6516ef62ecdd`, a fresh short session, against the frozen
+build of `7011e21b3`: Home (decision `9ef9f86c`, fingerprint `f53b284b63f5`)
+and Overview (decision `53c3ea12`, fingerprint `b31387aaae9d`), no notes.
+The frozen root was removed afterwards.
