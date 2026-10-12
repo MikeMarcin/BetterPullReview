@@ -1753,3 +1753,25 @@ Accepted queue publication updates an existing matching Recent destination
 without changing its viewing order or granting reading authority. Qt paints the
 leading neutral chip and draft-first accessible wording through the shared row
 delegate. Attention, membership, sorting, notifications and opening are unchanged.
+
+## Read-only merge requirements allocation (RFC-BPR-0069)
+
+The GitHub adapter compiles separate bounded read queries for the current review
+request connection (`asCodeOwner` and typed user/team identity) and the PR's
+merge/review/auto-merge assessment. It exhausts requests at 1,000 records/10 pages,
+selects active applicable target-branch rules through the branch-rules endpoint,
+and independently reads classic protection. Optional explanations share the
+selected account transport and resource rate observations but have a separate
+8 MiB/32-page aggregate budget after essential PR reads. Authentication or account
+binding loss fails the entire read; optional policy/roster failure cannot erase
+other readable observations. Native HTTPS and the closed CLI compiler select the
+same GraphQL/REST surfaces. No team membership or local CODEOWNERS evaluator is
+introduced.
+
+The application validates bounded nested requirements and field provenance,
+retains same-authority/head/base observations as explicitly stale on failure,
+and projects indexed context/app matches, waiting identities and truthful
+requirement text. Missing app identity cannot establish optionality against an
+app-restricted context. Missing expected results do not enter observed totals.
+Qt presents native wrapped labels and disclosures with literal, accessible
+wording; its existing exact check-link intent remains the only external action.

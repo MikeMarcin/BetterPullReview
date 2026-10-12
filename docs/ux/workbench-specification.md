@@ -377,9 +377,40 @@ output or a missing/refused address leaves the result readable and explains the
 unavailable action. Current check runs and newest commit-status contexts are
 separate rows even when names match. Totals are partial when either collection
 is unavailable. The current implementation labels the accepted head commit and
-states that test-merge evaluation and merge requirements are unobserved; green
-head totals do not establish merge readiness. These reads and controls neither
+states that test-merge evaluation is unobserved. RFC-BPR-0069 supplies separately
+observed target policy for required/optional classification; an unavailable
+policy or unknown required app keeps the classification unknown. Green head
+totals do not establish merge readiness. These reads and controls neither
 rerun jobs nor execute repository code.
+
+## Overview merge requirements and outstanding requests
+
+RFC-BPR-0069 puts **Merge requirements** at the top of the native summary
+column. GitHub's accepted assessment, review decision, configured approval
+minimum, failed checks and missing expected results remain visible together.
+The waiting roster names provider-marked code-owner teams with their organization,
+slug and supplied name, plus ordinary requested users. A prior approval stays
+in Participants while a re-request stays in the roster. Accepted removals,
+dismissals and replacements update both observations without turning review
+history or an unpublished review into a request.
+
+**Requirement details** is a native keyboard disclosure. It shows the exact
+active applicable rule source, classic protection, approval restrictions,
+conversation-resolution and other returned obligations, plus the observed
+auto-merge state. Team review policy retains its separate numeric identity and
+minimum; file-pattern applicability is not evaluated locally. A request roster
+never asserts that every code-owner team must separately approve. Configured
+minimums never produce a remaining count, and positive server assessment grants
+no viewer merge authority. No GitHub destination for policy is fabricated from
+an API address; check detail handoffs retain their existing exact admission.
+
+Names and explanations wrap as literal text and share the inherited palette,
+font and summary scrollbar. Accessibility receives the same waiting names and
+one combined announcement for changed description/requirements. Field failures
+remain explicit; same-head/base observations retained after a failed refresh
+are labelled stale. Required results missing on the accepted head are separate
+from the observed totals; test-merge evaluation remains explicitly unknown.
+There are no merge, rerun, assignment, reminder or policy-write controls.
 
 ## Overview files
 
