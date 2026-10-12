@@ -13532,11 +13532,11 @@ namespace bpr::qt {
 			// the caption buttons, so with four modalities the shortcuts go
 			// below 1300 there, which keeps the whole name at 1280 as on every
 			// platform. Each segment's tooltip names its key.
-			constexpr auto compact_below = 1'300;
+			constexpr auto compactBelow = 1'300;
 #else
-			constexpr auto compact_below = 1'100;
+			constexpr auto compactBelow = 1'100;
 #endif
-			Modality->set_compact(available < compact_below);
+			Modality->set_compact(available < compactBelow);
 			remeasure();
 			if (identityShort()) {
 				Modality->set_compact(true);

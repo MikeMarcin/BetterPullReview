@@ -9,6 +9,7 @@
 #include "bpr/qt/steady_columns.hpp"
 #include "overview_summary_splitter.hpp"
 #include "painted_glyph_icon.hpp"
+#include <QLatin1StringView>
 #include <QStringDecoder>
 #include <QTextEdit>
 #include <type_traits>
@@ -802,7 +803,7 @@ namespace bpr::qt {
 		// [[BPR-1089]]. The Comments column's words and drawing.
 
 		/// The "Not on a file" row's place among folder paths: no folder has it.
-		const auto remainder_path = QStringLiteral("\x01not-on-a-file");
+		constexpr auto remainder_path = QLatin1StringView{ "\x01not-on-a-file" };
 
 		constexpr qreal chip_mark = 16.0;
 		constexpr qreal chip_gap  = 5.0;
