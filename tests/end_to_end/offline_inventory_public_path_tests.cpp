@@ -291,7 +291,7 @@ try {
 		expect(window.showing_home() && window.home_recent_list()->count() == 0, "unvalidated account cannot expose authenticated Recent entries");
 		report(*owner, window, "restart-offline");
 	} else {
-		if (phase == "seed") {
+		if (phase == "seed" || phase == "legacy") {
 			window.home_landing()->primary_button()->click();
 		}
 		wait_for([&] { return window.session_panel()->status() == core::github_status::session_ready; }, "exact fixture account accepted");
