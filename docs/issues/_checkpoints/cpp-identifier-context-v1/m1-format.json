@@ -1,0 +1,13 @@
+{
+  "criterion": "cpp-lexical-context:format",
+  "outcome": "pass",
+  "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/adapters/qt/src/appearance_profile.cpp\", \"src/adapters/qt/src/appearance_role_display.cpp\", \"src/adapters/syntax/include/bpr/adapters/syntax/packaged_syntax_classifier.hpp\", \"src/adapters/syntax/src/packaged_syntax_classifier.cpp\", \"src/adapters/syntax/src/cpp_identifier_context.cpp\", \"src/adapters/syntax/src/cpp_identifier_context.hpp\", \"src/core/include/bpr/core/appearance_model.hpp\", \"src/core/src/appearance_model.cpp\", \"src/core/src/appearance_contrast.cpp\", \"tests/adapters_qt/appearance_role_display_tests.cpp\", \"tests/adapters_qt/appearance_settings_panel_tests.cpp\", \"tests/core/appearance_contrast_tests.cpp\", \"tests/core/theme_exchange_tests.cpp\", \"tests/syntax_contract/syntax_classification_contract_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.318,
+    "stdout_tail": "Checking 14 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/adapters/qt/src/appearance_profile.cpp\nsrc/adapters/qt/src/appearance_role_display.cpp\nsrc/adapters/syntax/include/bpr/adapters/syntax/packaged_syntax_classifier.hpp\nsrc/adapters/syntax/src/cpp_identifier_context.cpp\nsrc/adapters/syntax/src/cpp_identifier_context.hpp\nsrc/adapters/syntax/src/packaged_syntax_classifier.cpp\nsrc/core/include/bpr/core/appearance_model.hpp\nsrc/core/src/appearance_contrast.cpp\nsrc/core/src/appearance_model.cpp\ntests/adapters_qt/appearance_role_display_tests.cpp\ntests/adapters_qt/appearance_settings_panel_tests.cpp\ntests/core/appearance_contrast_tests.cpp\ntests/core/theme_exchange_tests.cpp\ntests/syntax_contract/syntax_classification_contract_tests.cpp\n",
+    "stderr_tail": ""
+  }
+}

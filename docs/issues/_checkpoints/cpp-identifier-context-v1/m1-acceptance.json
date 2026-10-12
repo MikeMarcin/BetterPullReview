@@ -1,0 +1,108 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Public C++ classifier gives nested GCT/Network, simple lowercase namespace, alias names and using-namespace chains independent namespace roles.",
+        "artifact": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "evidence": {
+        "kind": "observation",
+        "detail": "All Node/ID/Player/DNA declarations and scoped/unscoped enum fixtures pass. Call/parenthesis/template/braced/lambda/attribute initializers preserve enumerator boundaries, including NEXT after a shadowing lambda; AFTER_ENUM retains macro role.",
+        "artifact": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Hunk beginning after enum opener equals exactly the selected whole-blob spans. Raw strings, comments, directives and continued directives provide no structural facts.",
+        "artifact": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Existing full contract includes C, Windows Resource, type/function/macro, directive operands, predefined macros, plain text and packaged-only grammar policy. Genuine ENUM_VALUE in initializers and GCT_ASSERT stay macros.",
+        "artifact": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC5",
+      "outcome": "pass",
+      "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "evidence": {
+        "kind": "observation",
+        "detail": "C++ revision 6 refuses revision-5 requests; C/resource revision 5 stays unchanged. Public key has no theme, and host cache reuse test passes after every appearance domain changes.",
+        "artifact": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC6",
+      "outcome": "pass",
+      "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Qualified scope/member facts recognize matching declarations and namespace reopening. Negative controls deny unrelated same-named members, unknown externals, local/parameter shadows, aliases, duplicate/conflicting declarations, object-qualified paths and unresolved template paths. Unknown uppercase terminals receive no enum or macro role.",
+        "artifact": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+        ]
+      }
+    }
+  ]
+}

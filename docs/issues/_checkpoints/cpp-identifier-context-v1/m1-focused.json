@@ -1,0 +1,13 @@
+{
+  "criterion": "cpp-lexical-context:focused",
+  "outcome": "pass",
+  "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/cpp-context-m1-ckl3zbew\", \"-R\", \"^(syntax_classification_contract|core_appearance_policy|core_appearance_contrast|core_theme_exchange|qt_appearance_role_display|qt_appearance_profile|qt_appearance_settings_panel)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 3.14,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/cpp-context-m1-ckl3zbew\n    Start  83: core_appearance_policy\n1/7 Test  #83: core_appearance_policy ...........   Passed    0.26 sec\n    Start  84: core_appearance_contrast\n2/7 Test  #84: core_appearance_contrast .........   Passed    0.25 sec\n    Start  85: core_theme_exchange\n3/7 Test  #85: core_theme_exchange ..............   Passed    0.19 sec\n    Start 335: qt_appearance_settings_panel\n4/7 Test #335: qt_appearance_settings_panel .....   Passed    0.67 sec\n    Start 338: qt_appearance_role_display\n5/7 Test #338: qt_appearance_role_display .......   Passed    0.30 sec\n    Start 383: qt_appearance_profile\n6/7 Test #383: qt_appearance_profile ............   Passed    1.05 sec\n    Start 484: syntax_classification_contract\n7/7 Test #484: syntax_classification_contract ...   Passed    0.38 sec\n\n100% tests passed out of 7\n\nLabel Time Summary:\nbpr_network_isolated    =   3.10 sec*proc (7 tests)\nbpr_serial_gui          =   2.03 sec*proc (3 tests)\n\nTotal Test time (real) =   3.13 sec\n",
+    "stderr_tail": ""
+  }
+}

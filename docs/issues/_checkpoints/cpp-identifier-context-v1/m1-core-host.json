@@ -1,0 +1,13 @@
+{
+  "criterion": "cpp-lexical-context:core-host",
+  "outcome": "pass",
+  "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/cpp-context-m1-core-only\", \"-R\", \"^(core_appearance_policy|core_appearance_contrast|core_theme_exchange|application_appearance_host)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.554,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/cpp-context-m1-core-only\n    Start  76: core_appearance_policy\n1/4 Test  #76: core_appearance_policy ...........   Passed    0.06 sec\n    Start  77: core_appearance_contrast\n2/4 Test  #77: core_appearance_contrast .........   Passed    0.06 sec\n    Start  78: core_theme_exchange\n3/4 Test  #78: core_theme_exchange ..............   Passed    0.06 sec\n    Start 176: application_appearance_host\n4/4 Test #176: application_appearance_host ......   Passed    0.36 sec\n\n100% tests passed out of 4\n\nLabel Time Summary:\nbpr_network_isolated    =   0.53 sec*proc (4 tests)\n\nTotal Test time (real) =   0.55 sec\n",
+    "stderr_tail": ""
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "schema": "bpr.cpp-identifier-context.milestone-verification.v1",
+  "mandate_revision": "cpp-identifier-context-r1",
+  "milestone": "cpp-lexical-context",
+  "issue": "BPR-1411",
+  "rfc_base_sha": "6ebd33e57479a24aed91b930624bab030a436045",
+  "source_revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+  "source_paths": [
+    "docs/rfcs/RFC-BPR-0006-syntax-highlighting-themes-appearance.md",
+    "docs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md",
+    "src/adapters/qt/src/appearance_profile.cpp",
+    "src/adapters/qt/src/appearance_role_display.cpp",
+    "src/adapters/syntax/CMakeLists.txt",
+    "src/adapters/syntax/include/bpr/adapters/syntax/packaged_syntax_classifier.hpp",
+    "src/adapters/syntax/src/packaged_syntax_classifier.cpp",
+    "src/adapters/syntax/src/cpp_identifier_context.cpp",
+    "src/adapters/syntax/src/cpp_identifier_context.hpp",
+    "src/core/include/bpr/core/appearance_model.hpp",
+    "src/core/src/appearance_model.cpp",
+    "src/core/src/appearance_contrast.cpp",
+    "tests/adapters_qt/appearance_role_display_tests.cpp",
+    "tests/adapters_qt/appearance_settings_panel_tests.cpp",
+    "tests/core/appearance_contrast_tests.cpp",
+    "tests/core/theme_exchange_tests.cpp",
+    "tests/syntax_contract/syntax_classification_contract_tests.cpp",
+    "tests/fixtures/syntax/cpp_identifier_context.cpp"
+  ],
+  "source_sha256": {
+    "docs/rfcs/RFC-BPR-0006-syntax-highlighting-themes-appearance.md": "f686a41df6448e8593a39fb181b27c4eea1383676885e3742c40e618bbf0433e",
+    "docs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md": "69691d88f1437e7badd445afc1b9f309d4684286bfa5bc79ebc916f7699387da",
+    "src/adapters/qt/src/appearance_profile.cpp": "6b0ee8a82e68c665abf7bc4f2503ac6c8ce0908f37807912eb879401fb0e432b",
+    "src/adapters/qt/src/appearance_role_display.cpp": "62f57e3d135bab06b66c1aa4e3ae8513e4268f57803d33270542fab0b4d2f1c2",
+    "src/adapters/syntax/CMakeLists.txt": "8f4aa32223ba2ca496f3e7ad18172b491fbd48fcbf215485d5dfed35ebc6f431",
+    "src/adapters/syntax/include/bpr/adapters/syntax/packaged_syntax_classifier.hpp": "bd4a1dbbedebfcdbf10a1bfada62397ffc8dc24304f960d48c66ad8d06596c82",
+    "src/adapters/syntax/src/packaged_syntax_classifier.cpp": "7762dba1f5f44582eca152a35648b3fb85bf6b472b164d3e2066ac928cbced1c",
+    "src/adapters/syntax/src/cpp_identifier_context.cpp": "3cf6215313a307de4da0b1c11906369cfefcee091b07de35a53c3088a3bd07c3",
+    "src/adapters/syntax/src/cpp_identifier_context.hpp": "54e2cda76d4152fffc63d80275af17743e7616e93f44d68d3625329d022f6384",
+    "src/core/include/bpr/core/appearance_model.hpp": "48d4b0c770ac7bffa009109f655f7696596f6dc0c0a320eec62d1a2b30555bc8",
+    "src/core/src/appearance_model.cpp": "3aac0bd6c4f7416a37945d45415b7fd57f34e3a5153b0115c50c74ad7371a95e",
+    "src/core/src/appearance_contrast.cpp": "ed6d662b5f0b9f72a1b1df8f47a4d3270d7c87a37ac5e7a55ac18283bdc55ccc",
+    "tests/adapters_qt/appearance_role_display_tests.cpp": "6375da673b9cb251adea82b8fee8a047f70f3d7c90a5d9825b6fc0b6e3e7343c",
+    "tests/adapters_qt/appearance_settings_panel_tests.cpp": "3a61405c01f2fc58a77de4f5b88d6475ff91a5436556368a1cf259dc2839742a",
+    "tests/core/appearance_contrast_tests.cpp": "8a795308416efccb65485ab712b12e3b1013066a13b7a6820121150446502ec3",
+    "tests/core/theme_exchange_tests.cpp": "cb3f744547b1fdf58e264b9cdb879dac0064de482b32b6736076602c77315b83",
+    "tests/syntax_contract/syntax_classification_contract_tests.cpp": "ce799d5888aea273c5f4ec975fd8a1dbfe3fda8f4a49dca4ce6fff0e2e520aa2",
+    "tests/fixtures/syntax/cpp_identifier_context.cpp": "956c621c8f3e2305eb98d8b2d2324e5ee73348425d3bd9d9c2ab9fafa71f997d"
+  },
+  "checks": [
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "dev",
+        "-B",
+        "build/cpp-context-m1-ckl3zbew"
+      ],
+      "outcome": "pass",
+      "detail": "Separate task-owned tree; seven focused test targets built successfully after all source edits."
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-focused.json",
+      "detail": "7/7. Public complete-blob/hunk classifier plus appearance core/contrast/exchange and offscreen Qt profile/settings/display."
+    },
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "core-only",
+        "-B",
+        "build/cpp-context-m1-core-only"
+      ],
+      "outcome": "pass",
+      "detail": "Qt-free tree; appearance policy/contrast/exchange and application appearance host targets built successfully."
+    },
+    {
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/cpp-context-m1-core-only",
+        "-R",
+        "^(core_appearance_policy|core_appearance_contrast|core_theme_exchange|core_dependency_boundary|core_boundary_contract|architecture_boundaries|architecture_boundary_contract)$",
+        "--output-on-failure"
+      ],
+      "outcome": "pass",
+      "detail": "7/7, 154.27 seconds. Started before product commit against its working candidate. Only subsequent C++ enum formatting, assertion-message/comment refinements and extra existing-contract assertions followed; affected exact-candidate runtime checks were rebuilt/rerun. Core/architecture gate implementation and build graph relevant to this slice were unchanged."
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-core-host.json",
+      "detail": "4/4 exact committed candidate. Includes host counting-classifier proof that theme, palette, mode and typography changes retain spans and yield a cache hit without another classification."
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-format.json"
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-tidy.json"
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-documentation.json"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "outcome": "pass",
+      "detail": "67 tests; malformed-fixture diagnostics are expected negative cases."
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "outcome": "pass"
+    }
+  ],
+  "acceptance": {
+    "AC1": "Public C++ classifier gives nested GCT/Network, simple lowercase namespace, alias names and using-namespace chains independent namespace roles.",
+    "AC2": "All Node/ID/Player/DNA declarations and scoped/unscoped enum fixtures pass. Call/parenthesis/template/braced/lambda/attribute initializers preserve enumerator boundaries, including NEXT after a shadowing lambda; AFTER_ENUM retains macro role.",
+    "AC3": "Hunk beginning after enum opener equals exactly the selected whole-blob spans. Raw strings, comments, directives and continued directives provide no structural facts.",
+    "AC4": "Existing full contract includes C, Windows Resource, type/function/macro, directive operands, predefined macros, plain text and packaged-only grammar policy. Genuine ENUM_VALUE in initializers and GCT_ASSERT stay macros.",
+    "AC5": "C++ revision 6 refuses revision-5 requests; C/resource revision 5 stays unchanged. Public key has no theme, and host cache reuse test passes after every appearance domain changes.",
+    "AC6": "Qualified scope/member facts recognize matching declarations and namespace reopening. Negative controls deny unrelated same-named members, unknown externals, local/parameter shadows, aliases, duplicate/conflicting declarations, object-qualified paths and unresolved template paths. Unknown uppercase terminals receive no enum or macro role."
+  },
+  "negative_controls": [
+    "Other::Reason::DNA has a declared Reason but no matching member; no enum/macro role.",
+    "Local and parameter shadows suppress outer Reason::ID recognition.",
+    "Unknown ExternalReason::ID remains neutral; old revision-5 C++ key is refused.",
+    "Cancelled/over-limit public requests publish no partial spans."
+  ],
+  "failure_dispositions": [
+    "Initial negative assertion selected an earlier same-spelled declaration on its line; fixture split so assertion names intended use, then passed.",
+    "Initial new helper tidy failure exposed a missing namespace_alias enumerator and duplicate branch; corrected and final six production units pass tidy.",
+    "Initial exchange assertion omitted the two new optional roles; expected count and compatibility assertions corrected, then passed.",
+    "Initial Light namespace default #216F85 missed three tinted-background contrast pairs (4.44,4.13,4.23 against 4.50). Changed only new namespace default to #1B5E70; final all-variant profile contrast passes all 374 required pairs.",
+    "Initial format invocation used unsupported --paths; rerun with supported positional paths. Final clang-format 22.1.8 check passes."
+  ],
+  "self_review": "One bounded simplification/correctness pass retained private adapter ownership, grammar protection, noncopied name views, conservative scope facts, cancellation and all-or-nothing output; no known critical M1 defect remains.",
+  "visual_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "pending": [
+    "RFC AC06 composed offscreen declaration/use categories in both panes across light/dark with neighboring real macro; existing all-variant contrast passing evidence can be reused while defaults stay unchanged.",
+    "RFC AC08 independent per-variant editing, restart, old/new theme import/export, preservation of existing custom values and stored flags.",
+    "Final current-count and architecture documentation reconciliation plus scoped final diff against RFC_BASE_SHA and RFC/index closeout."
+  ],
+  "limits": [
+    "Best-effort lexical facts from admitted UTF-8 blob only (8 MiB admission ceiling); no compiler, includes, repository-wide symbols or alias target resolution.",
+    "No installed/release/native/human acceptance claim; no human review requirement has been inferred for this RFC.",
+    "Historical BPR-0720/BPR-0738 obligations remain unchanged."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "criterion": "cpp-lexical-context:documentation",
+  "outcome": "pass",
+  "revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.797,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}
