@@ -1670,6 +1670,7 @@ namespace bpr::app::detail {
 				response.Body     = QJsonDocument{ QJsonObject{
 													   { QStringLiteral("number"), static_cast<qint64>(found->Number) },
 													   { QStringLiteral("title"), QStringLiteral("Discovered pull request ") + number },
+													   { QStringLiteral("draft"), found->Draft && found->Draft->load() },
 													   { QStringLiteral("state"), QStringLiteral("open") },
 													   { QStringLiteral("url"), QString::fromStdString(std::string{ aState.Profile.rest_root() }) + QStringLiteral("/repos/%1/%2/pulls/%3").arg(QString::fromStdString(semantic.Owner), QString::fromStdString(semantic.Repository), number) },
 													   { QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QString::fromStdString(found->Author) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(found->Author) } } },
@@ -1723,7 +1724,7 @@ namespace bpr::app::detail {
 					{ QStringLiteral("number"), static_cast<qint64>(pullRequest.Number) },
 					{ QStringLiteral("title"), QStringLiteral("Discovered pull request ") + number },
 					{ QStringLiteral("state"), QStringLiteral("open") },
-					{ QStringLiteral("draft"), false },
+					{ QStringLiteral("draft"), pullRequest.Draft && pullRequest.Draft->load() },
 					{ QStringLiteral("pull_request"), QJsonObject{ { QStringLiteral("url"), root + path + QStringLiteral("/pulls/") + number } } },
 					{ QStringLiteral("repository_url"), root + path },
 					{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QString::fromStdString(pullRequest.Author) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(pullRequest.Author) } } },

@@ -737,6 +737,7 @@ namespace bpr::app {
 				.Role         = core::github_role::none,
 				.ChangedPaths = std::move(paths),
 				.Title        = aSnapshot.PullRequest.Title,
+				.Draft        = aSnapshot.PullRequest.Draft,
 			};
 		}
 
@@ -4099,6 +4100,7 @@ namespace bpr::app {
 		std::optional<core::bpr_window_context> Focused;
 		[[nodiscard]] auto                      current(const core::bpr_window_context& aContext) const noexcept -> bool override { return current_window(aContext); }
 		void                                    publish(const application::queue_landing_projection& aProjection) override;
+		void                                    observe_recent_drafts(const application::queue_landing_projection& aProjection);
 		class epoch_contexts final : public application::epoch_window_context_port
 		{
 		public:
@@ -5986,6 +5988,21 @@ namespace bpr::app {
 		Discovery->adopt(session ? application::personal_discovery_session_of(*session) : std::nullopt);
 	}
 
+	void github_profile_runtime::observe_recent_drafts(const application::queue_landing_projection& aProjection)
+	{
+		const auto session   = Host->access_mode() == core::github_access_mode::authenticated ? Host->accepted_profile_session() : std::nullopt;
+		const auto discovery = session ? application::personal_discovery_session_of(*session) : std::nullopt;
+		if (ReviewRestoration && discovery && discovery->Queue == aProjection.Session) {
+			const auto observed = aProjection.UpdatedItem ? std::span<const core::queue_item>{ &*aProjection.UpdatedItem, 1U } : std::span<const core::queue_item>{ aProjection.Items };
+			for (const auto& item : observed) {
+				const auto split = item.Ref.Repository.find('/');
+				if (item.Facts.Draft && item.Ref.Host == discovery->Queue.Host && item.Ref.Account == discovery->Queue.Account && split != std::string::npos && item.Ref.Number > 0 && item.Ref.Number <= core::maximum_pull_request_number) {
+					ReviewRestoration->accepted_draft({ core::github_access_mode::authenticated, item.Ref.Host, { item.Ref.Repository.substr(0, split), item.Ref.Repository.substr(split + 1) }, core::pull_request_number{ static_cast<std::uint32_t>(item.Ref.Number) }, discovery->Viewer.Account }, item.Facts.Draft);
+				}
+			}
+		}
+	}
+
 	void github_profile_runtime::publish(
 		const application::queue_landing_projection& aProjection)
 	{
@@ -6009,6 +6026,8 @@ namespace bpr::app {
 				DiscoveryReconcilePosted = false;
 			}
 		}
+
+		observe_recent_drafts(aProjection);
 
 		// Presentation receives the exact accepted projection before any
 		// notification can activate back into it.
@@ -6133,7 +6152,7 @@ namespace bpr::app {
 				// [[BPR-1365]]. The entry this window is reading, so Home can tell
 				// the open review from a selected row.
 				const auto open = ReadingDestination.has_value() && entry.Destination == *ReadingDestination;
-				projection.Entries.push_back({ entry.Destination, entry.Title, entry.ViewedAt, resumable, open });
+				projection.Entries.push_back({ entry.Destination, entry.Title, entry.ViewedAt, resumable, open, entry.Draft });
 				map.push_back(index);
 			}
 			RecentIndexMap = std::move(map);
@@ -6840,6 +6859,7 @@ namespace bpr::app {
 					ReadingDestination = destination;
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
 					Profile->ReviewRestoration->accepted_title(destination, std::string_view{ snapshot->PullRequest.Title }.substr(0, core::maximum_recent_review_title));
+					Profile->ReviewRestoration->accepted_draft(destination, snapshot->PullRequest.Draft);
 					// [[BPR-1365]]. Which recent entry is open moved with it.
 					if (opened) {
 						publish_recent();
@@ -13165,9 +13185,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&& QueueRefresh != nullptr) {
 					auto observation = queue_observation_for(aHandoff, *snapshot);
 					auto session     = application::queue_session_id{
-						.Host       = observation.Ref.Host,
-						.Account    = observation.Ref.Account,
-						.Generation = aHandoff.IdentityGeneration.value(),
+						.Host          = observation.Ref.Host,
+						.Account       = observation.Ref.Account,
+						.Generation    = aHandoff.IdentityGeneration.value(),
+						.ViewerAccount = aHandoff.Account,
 					};
 					auto       activity     = core::queue_activity_observation{ };
 					const auto sameBaseline = QueueActivityBaseline.has_value()

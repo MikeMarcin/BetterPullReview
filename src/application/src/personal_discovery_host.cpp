@@ -101,7 +101,7 @@ namespace bpr::application {
 			return std::nullopt;
 		}
 		return personal_discovery_session{
-			.Queue   = queue_session_id{ .Host = std::string{ hostname }, .Account = viewer.Login, .Generation = aSession.Generation.value() },
+			.Queue   = queue_session_id{ .Host = std::string{ hostname }, .Account = viewer.Login, .Generation = aSession.Generation.value(), .ViewerAccount = viewer.Account },
 			.Context = core::repository_request_context{
 				.ApplicationSession = aSession.ApplicationSession,
 				.Profile            = aSession.ProfileAuthority.Profile,
@@ -479,6 +479,7 @@ namespace bpr::application {
 								.Author           = std::move(row.Author),
 								.Detailed         = row.Detailed,
 								.ReviewersAwaited = row.ReviewersAwaited,
+								.Draft            = row.Draft,
 							});
 						}
 						if (aResult.Completeness != personal_discovery_completeness::complete && CycleProblem == queue_discovery_problem::none) {
@@ -532,7 +533,7 @@ namespace bpr::application {
 			Queue.apply(queue_metadata_answer{
 				.Session  = Session->Queue,
 				.Ref      = ref,
-				.Facts    = { .Title = row.Title, .Author = row.Author },
+				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft },
 				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true },
 				.Closed   = row.Closed,
 			});

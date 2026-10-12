@@ -323,10 +323,10 @@ namespace bpr::qt {
 			return badge_for(item->Bucket);
 		case reason_role:
 			return reason_for(*item);
-		case Qt::AccessibleTextRole:
-			return item->Facts.Title.empty()
-				? home_identity(*item)
-				: QStringLiteral("%1 %2").arg(home_identity(*item), text(item->Facts.Title));
+		case Qt::AccessibleTextRole: {
+			const auto label = item->Facts.Title.empty() ? home_identity(*item) : QStringLiteral("%1 %2").arg(home_identity(*item), text(item->Facts.Title));
+			return item->Facts.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(label) : label;
+		}
 		case Qt::AccessibleDescriptionRole: {
 			const auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), home_reason_word(item->Bucket));
 			// [[BPR-1365]]. The open review is said in words, as it is drawn.
@@ -377,6 +377,8 @@ namespace bpr::qt {
 		case home_row_role::icon_action:
 			// [[BPR-1338]]. Every queue row's pull request has a page on GitHub.
 			return QStringLiteral("Open on GitHub");
+		case home_row_role::draft:
+			return item->Facts.Draft.value_or(false);
 		case home_row_role::reviewing:
 			return Reviewing == item->Ref;
 		case home_row_role::time:

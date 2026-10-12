@@ -52,6 +52,8 @@ namespace bpr::qt {
 			icon_action,
 			/// [[BPR-1365]]. True for the pull request this window has open.
 			reviewing,
+			/// True only for last accepted GitHub draft status.
+			draft,
 		};
 	} // namespace home_row_role
 
@@ -224,6 +226,8 @@ namespace bpr::qt {
 		/// option's coordinates; empty for a row that is not the open review.
 		[[nodiscard]] auto reviewing_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QRect;
+		/// \brief Complete leading Draft chip, or empty for a row without that status.
+		[[nodiscard]] auto draft_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;
 		/// \brief Where the reason word is painted, in the option's coordinates.
 		[[nodiscard]] auto reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QRect;

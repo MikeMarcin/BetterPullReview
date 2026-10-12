@@ -213,11 +213,15 @@ namespace {
 		unknown.Account = { };
 		expect(!policy.accepted_read(context(1), unknown, 1), "new authenticated reads must carry accepted account identity");
 		expect(policy.accepted_read(context(1), first, 1) && policy.accepted_title(first, "First account"), "first account records its title");
+		expect(policy.accepted_draft(first, true), "accepted first account is a draft");
 		expect(policy.accepted_position(context(1), first, position()), "first account retains its exact reading");
 		expect(policy.accepted_read(context(1), second, 2) && policy.accepted_title(second, "Second account"), "same PR under second account gets a separate row");
+		expect(!policy.recent()[0].Draft && policy.recent()[1].Draft == true, "another numeric account has no inherited status");
+		expect(policy.accepted_draft(second, false) && !policy.accepted_draft(second, std::nullopt) && policy.recent()[0].Draft == false, "known ready and missing observations remain distinct");
 		expect(policy.recent().size() == 2 && !policy.recent()[0].Position && policy.recent()[1].Position == position(), "second account cannot inherit first reading");
 		expect(!policy.accepted_position(context(1), first, position()), "late first-account reading cannot update second-account window");
 		expect(policy.accepted_read(context(1), first, 3) && policy.recent()[0].Title == "First account" && policy.recent()[0].Position == position(), "returning account preserves its own title and reading");
+		expect(policy.recent()[0].Draft == true && policy.recent()[1].Draft == false, "each exact Recent destination keeps its own observed draft status");
 	}
 	/// [[BPR-1131]]. A window's document tabs travel with its reading: they are
 	/// kept for its accepted destination and its recently viewed entry, carried

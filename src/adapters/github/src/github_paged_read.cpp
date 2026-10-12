@@ -3895,9 +3895,11 @@ namespace bpr::adapters::github::detail {
 			const auto pullRequest = json_member(object, "pull_request");
 			const auto user        = json_member(object, "user");
 			const auto title       = text(json_member(object, "title"));
+			const auto draft       = json_member(object, "draft");
 			if (!number.has_value() || *number == 0U || *number > core::maximum_pull_request_number
 				|| !json_is_string(json_member(object, "title")) || !bounded_text(title, aLimits.Records.MaximumTitleBytes)
 				|| !json_is_object(pullRequest) || !one_of(json_member(object, "state"), { "open" })
+				|| (has_required_keys(object, { "draft" }) && !json_is_bool(draft))
 				|| !nonempty_string(json_member(object, "repository_url"))
 				|| (!json_is_null(user) && (!json_is_object(user) || !nonempty_string(json_member(json_object(user), "login"))))) {
 				return failed(application::github_provider_failure::malformed_response);
@@ -3915,6 +3917,7 @@ namespace bpr::adapters::github::detail {
 				.Number = core::pull_request_number{ *number },
 				.Title  = title,
 				.Author = author,
+				.Draft  = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 		}
 
@@ -3998,6 +4001,7 @@ namespace bpr::adapters::github::detail {
 			const auto object   = json_object(page->Document);
 			const auto number   = uint32(json_member(object, "number"));
 			const auto title    = json_member(object, "title");
+			const auto draft    = json_member(object, "draft");
 			const auto head     = json_member(object, "head");
 			const auto users    = json_member(object, "requested_reviewers");
 			const auto teams    = json_member(object, "requested_teams");
@@ -4006,6 +4010,7 @@ namespace bpr::adapters::github::detail {
 				+ context.Repository.Name + "/pulls/" + std::to_string(context.Number.value());
 			if (!number || *number != context.Number.value() || !json_is_string(title)
 				|| !bounded_text(text(title), limits.Records.MaximumTitleBytes, true)
+				|| (has_required_keys(object, { "draft" }) && !json_is_bool(draft))
 				|| !one_of(json_member(object, "state"), { "open", "closed" })
 				|| !json_is_string(json_member(object, "url"))
 				|| !application::detail::ascii_equal_fold(text(json_member(object, "url")), expected)
@@ -4049,6 +4054,7 @@ namespace bpr::adapters::github::detail {
 				.ReviewersAwaited = static_cast<std::uint32_t>(json_array(users).size() + json_array(teams).size()),
 				.HeadOid          = application::commit_oid{ text(json_member(json_object(head), "sha")) },
 				.Closed           = text(json_member(object, "state")) == "closed",
+				.Draft            = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 			if (row.Closed) {
 				return github_personal_discovery_read{ .Rows = { std::move(row) }, .RateLimits = aRates };

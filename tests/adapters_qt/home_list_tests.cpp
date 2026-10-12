@@ -1442,13 +1442,17 @@ namespace {
 
 			home_fixture home;
 			home.List.setPalette(palette);
-			const auto queue = one_account_queue();
+			auto queue           = one_account_queue();
+			queue[0].Facts.Draft = true;
+			queue[0].Facts.Title = "A complete draft title with enough literal text to wrap across the narrow Home row without elision";
+			queue[1].Facts.Draft = false;
 			home.Source.apply(queue);
 			home.Source.set_reviewing(queue[0].Ref);
 			home.List.set_queue_status(true, true);
 			auto* const recent = new qt::home_recent_view{ };
 			auto* const open   = recent_item(QStringLiteral("octo-org/app#101"), QStringLiteral("A title"), true, QStringLiteral("6:59 AM"));
 			open->setData(qt::home_row_role::reviewing, true);
+			open->setData(qt::home_row_role::draft, true);
 			recent->addItem(open);
 			recent->addItem(recent_item(QStringLiteral("microsoft/terminal#42"), QStringLiteral("Fix the conpty resize race"), false, QStringLiteral("Tue")));
 			home.List.adopt_recent(*recent);
@@ -1469,6 +1473,12 @@ namespace {
 				   "another row is not, and has no tag" + where);
 			const auto tag = delegate->reviewing_rect(option_for(*view, first), first);
 			expect(!tag.isEmpty() && view->visualRect(first).contains(tag), "the open review's row carries its tag inside the row" + where);
+			expect(first.data(qt::home_row_role::draft).toBool() && first.data(Qt::AccessibleTextRole).toString().startsWith(QStringLiteral("Draft pull request; octo-org/app#101")), "draft status precedes literal identity in accessible text" + where);
+			const auto chip = delegate->draft_rect(option_for(*view, first), first);
+			expect(view->visualRect(first).contains(chip) && chip.width() >= QFontMetrics{ view->font() }.horizontalAdvance(QStringLiteral("Draft")) + 12 && !chip.intersects(tag), "the complete leading chip and Reviewing tag are distinct and inside the row" + where);
+			const auto recentIndex = recent->model()->index(0, 0);
+			expect(!delegate->draft_rect(option_for(*recent, recentIndex), recentIndex).isEmpty(), "recent-only status uses the same leading chip geometry" + where);
+			expect(delegate->draft_rect(option_for(*waiting, waiting->model()->index(0, 0)), waiting->model()->index(0, 0)).isEmpty(), "unknown rows do not invent a Draft chip" + where);
 
 			const auto ground = [&home](const QAbstractItemView& aView, const QModelIndex& aIndex) {
 				const auto image = home.List.grab().toImage();

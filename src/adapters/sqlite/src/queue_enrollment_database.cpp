@@ -5,6 +5,7 @@
 #include <sqlite3.h>
 
 #include <array>
+#include <charconv>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -156,6 +157,29 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" },
 		};
 
+		constexpr std::array SchemaVersion8{
+			std::string_view{
+				"CREATE TABLE enrollment("
+				"host TEXT NOT NULL,"
+				"account TEXT NOT NULL,"
+				"repository TEXT NOT NULL,"
+				"pull_request INTEGER NOT NULL,"
+				"role INTEGER NOT NULL CHECK(role BETWEEN 0 AND 4),"
+				"matched_rule INTEGER NOT NULL CHECK(matched_rule IN (0, 1)),"
+				"rule_kind INTEGER NOT NULL CHECK(rule_kind BETWEEN 0 AND 2),"
+				"rule_pattern TEXT NOT NULL,"
+				"rule_excluding INTEGER NOT NULL CHECK(rule_excluding IN (0, 1)),"
+				"departed INTEGER NOT NULL CHECK(departed BETWEEN 0 AND 5),"
+				"authored INTEGER NOT NULL CHECK(authored IN (0, 1)),"
+				"requested INTEGER NOT NULL CHECK(requested IN (0, 1)),"
+				"followed INTEGER NOT NULL CHECK(followed IN (0, 1)),"
+				"reviewed INTEGER NOT NULL CHECK(reviewed IN (0, 1)),"
+				"draft INTEGER CHECK(draft IN(0, 1)),"
+				"draft_account TEXT NOT NULL,"
+				"PRIMARY KEY(host, account, repository, pull_request)"
+				") STRICT" }
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -207,6 +231,15 @@ namespace bpr::adapters::sqlite::detail {
 
 		constexpr std::array SchemaVersion7Tables{
 			schema_table{ "enrollment", SchemaVersion7[0] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+			schema_table{ "presentation_preferences", SchemaVersion7[1] },
+			schema_table{ "saved_repository", SchemaVersion4[0] },
+			schema_table{ "saved_server", SchemaVersion5[0] },
+		};
+
+		constexpr std::array SchemaVersion8Tables{
+			schema_table{ "enrollment", SchemaVersion8[0] },
 			schema_table{ "enrollment_meta", SchemaVersion1[0] },
 			schema_table{ "observer_rule", SchemaVersion2[0] },
 			schema_table{ "presentation_preferences", SchemaVersion7[1] },
@@ -440,8 +473,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (*version == 6) {
 				return validate_exact_version(aDatabase, 6, SchemaVersion6Tables);
 			}
+			if (*version == 7) {
+				return validate_exact_version(aDatabase, 7, SchemaVersion7Tables);
+			}
 			if (*version == queue_enrollment_schema_version) {
-				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion7Tables);
+				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion8Tables);
 			}
 			return std::unexpected(failure::schema_mismatch);
 		}
@@ -569,6 +605,15 @@ namespace bpr::adapters::sqlite::detail {
 					}
 				}
 			}
+			if (*current < 8) {
+				const auto migration = std::array{ std::string{ "CREATE TABLE draft_enrollment_migration AS SELECT * FROM enrollment" }, std::string{ "DROP TABLE enrollment" }, std::string{ SchemaVersion8[0] }, std::string{ "INSERT INTO enrollment SELECT *,NULL,'0' FROM draft_enrollment_migration" }, std::string{ "DROP TABLE draft_enrollment_migration" } };
+				for (const auto& sql : migration) {
+					if (auto migrated = execute(aDatabase, sql, aStop); !migrated) {
+						rollback();
+						return migrated;
+					}
+				}
+			}
 			if (auto meta = execute(
 					aDatabase,
 					"UPDATE enrollment_meta SET schema_format = "
@@ -595,7 +640,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion7Tables);
+			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion8Tables);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -718,8 +763,8 @@ namespace bpr::adapters::sqlite::detail {
 			"INSERT INTO enrollment("
 			"host, account, repository, pull_request, role, matched_rule,"
 			"rule_kind, rule_pattern, rule_excluding, departed,"
-			"authored, requested, followed, reviewed) "
-			"SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13, ?14, ?15 "
+			"authored, requested, followed, reviewed, draft, draft_account) "
+			"SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13, ?14, ?15, ?16, ?17 "
 			"WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM enrollment LIMIT ?11)) < ?11 "
 			"OR EXISTS(SELECT 1 FROM enrollment WHERE host = ?1 AND account = ?2 AND repository = ?3 AND pull_request = ?4) "
 			"ON CONFLICT(host, account, repository, pull_request) DO UPDATE SET "
@@ -728,11 +773,15 @@ namespace bpr::adapters::sqlite::detail {
 			"rule_excluding = excluded.rule_excluding,"
 			"departed = excluded.departed,"
 			"authored = excluded.authored, requested = excluded.requested,"
-			"followed = excluded.followed, reviewed = excluded.reviewed");
+			"followed = excluded.followed, reviewed = excluded.reviewed, draft = excluded.draft, draft_account = excluded.draft_account");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
 
+		const auto draftAccount = std::to_string(aRecord.DraftAccount.value());
+		if ((aRecord.Draft ? ::sqlite3_bind_int(statement->Value, 16, *aRecord.Draft ? 1 : 0) : ::sqlite3_bind_null(statement->Value, 16)) != SQLITE_OK || ::sqlite3_bind_text(statement->Value, 17, draftAccount.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
 		const auto& ref  = aRecord.Ref;
 		const auto& rule = aRecord.Membership.Rule;
 		if (::sqlite3_bind_int64(statement->Value, 11, static_cast<std::int64_t>(application::maximum_queue_enrollments)) != SQLITE_OK) {
@@ -820,7 +869,7 @@ namespace bpr::adapters::sqlite::detail {
 			Handle,
 			"SELECT host, account, repository, pull_request, role, matched_rule,"
 			"rule_kind, rule_pattern, rule_excluding, departed,"
-			"authored, requested, followed, reviewed FROM enrollment "
+			"authored, requested, followed, reviewed, draft, draft_account FROM enrollment "
 			"ORDER BY host, account, repository, pull_request");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -836,6 +885,14 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(failure::quota_exceeded);
 			}
 			if (stepped != SQLITE_ROW) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			const auto draftType   = ::sqlite3_column_type(statement->Value, 14);
+			const auto draftValue  = ::sqlite3_column_int64(statement->Value, 14);
+			const auto accountText = text_of(statement->Value, 15);
+			auto       account     = std::uint64_t{ 0 };
+			const auto parsed      = std::from_chars(accountText.data(), accountText.data() + accountText.size(), account);
+			if ((draftType != SQLITE_NULL && (draftType != SQLITE_INTEGER || (draftValue != 0 && draftValue != 1))) || parsed.ec != std::errc{ } || parsed.ptr != accountText.data() + accountText.size() || std::to_string(account) != accountText) {
 				return std::unexpected(failure::integrity_failure);
 			}
 			records.push_back(application::enrollment_record{
@@ -858,7 +915,9 @@ namespace bpr::adapters::sqlite::detail {
 					.Followed  = ::sqlite3_column_int64(statement->Value, 12) != 0,
 					.Reviewed  = ::sqlite3_column_int64(statement->Value, 13) != 0,
 				},
-				.Departed = static_cast<application::enrollment_departure>(::sqlite3_column_int64(statement->Value, 9)),
+				.Departed     = static_cast<application::enrollment_departure>(::sqlite3_column_int64(statement->Value, 9)),
+				.Draft        = draftType == SQLITE_NULL ? std::nullopt : std::optional<bool>{ draftValue != 0 },
+				.DraftAccount = core::github_account_id{ account },
 			});
 		}
 		return records;

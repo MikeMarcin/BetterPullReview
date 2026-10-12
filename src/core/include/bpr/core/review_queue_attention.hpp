@@ -128,6 +128,8 @@ namespace bpr::core {
 		std::string   Title;
 		std::string   Author;
 		std::uint32_t UnseenComments = 0U;
+		/// Last accepted GitHub status, independent of private review drafts.
+		std::optional<bool> Draft = std::nullopt;
 
 		auto operator<=>(const queue_item_facts&) const = default;
 	};

@@ -81,6 +81,7 @@ namespace bpr::application {
 		std::optional<commit_oid>              HeadOid;
 		std::vector<personal_discovery_review> Reviews;
 		bool                                   Closed = false;
+		std::optional<bool>                    Draft  = std::nullopt;
 
 		auto operator<=>(const personal_discovery_row&) const = default;
 	};

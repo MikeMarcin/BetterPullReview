@@ -6,6 +6,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -104,6 +105,8 @@ namespace bpr::core {
 
 		// The title as the host read it ([[BPR-0659]]); presentation only.
 		std::string Title;
+		/// Last accepted GitHub draft status; absent means unobserved.
+		std::optional<bool> Draft = std::nullopt;
 
 		auto operator<=>(const pull_request_observation&) const = default;
 	};

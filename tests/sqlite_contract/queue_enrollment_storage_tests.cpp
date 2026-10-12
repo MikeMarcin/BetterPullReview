@@ -1067,7 +1067,7 @@ namespace {
 		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_rules - 1) + ") INSERT INTO observer_rule SELECT x, 0, 'repo' || x, 0 FROM n");
 		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_saved_repositories - 1) + ") INSERT INTO saved_repository SELECT 'github.com', 'reviewer', 'octo/repo' || x FROM n");
 		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_saved_servers - 1) + ") INSERT INTO saved_server SELECT 'server' || x || '.example', 'reviewer' FROM n");
-		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_enrollments - 1) + ") INSERT INTO enrollment SELECT 'github.com', 'reviewer', 'octo/app', x, 1, 0, 0, '', 0, 0, 0, 0, 0, 0 FROM n");
+		seed("WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < " + std::to_string(application::maximum_queue_enrollments - 1) + ") INSERT INTO enrollment SELECT 'github.com', 'reviewer', 'octo/app', x, 1, 0, 0, '', 0, 0, 0, 0, 0, 0,NULL,'0' FROM n");
 		expect(port->apply_rule_change({ .Rule = { .Kind = core::observer_rule_kind::repository, .Pattern = "last-rule" } }, { }, { }).has_value(), "last rule slot is writable");
 		expect(port->apply_saved_repository_change({ .Repository = { "github.com", "reviewer", "octo/last" } }, { }).has_value(), "last repository slot is writable");
 		expect(port->apply_saved_server_change({ .Server = { "last.example", "reviewer" } }, { }).has_value(), "last server slot is writable");
@@ -1100,7 +1100,24 @@ namespace {
 		hostile("INSERT INTO observer_rule VALUES(20000,0,'overflow',0)", "DELETE FROM observer_rule WHERE ordinal=20000");
 		hostile("INSERT INTO saved_repository VALUES('github.com','reviewer','octo/overflow')", "DELETE FROM saved_repository WHERE repository='octo/overflow'");
 		hostile("INSERT INTO saved_server VALUES('overflow.example','reviewer')", "DELETE FROM saved_server WHERE hostname='overflow.example'");
-		hostile("INSERT INTO enrollment VALUES('github.com','reviewer','octo/app',20000,1,0,0,'',0,0,0,0,0,0)", "DELETE FROM enrollment WHERE pull_request=20000");
+		hostile("INSERT INTO enrollment VALUES('github.com','reviewer','octo/app',20000,1,0,0,'',0,0,0,0,0,0,NULL,'0')", "DELETE FROM enrollment WHERE pull_request=20000");
+	}
+
+	void test_optional_draft_round_trip_and_upgrade()
+	{
+		const scratch_directory directory;
+		const auto              path   = directory.file("queue.db");
+		auto                    store  = queue_enrollment_database::open(path, { });
+		auto                    record = application::enrollment_record{ .Ref = ref(17), .Membership = { .Followed = true }, .Draft = true, .DraftAccount = core::github_account_id{ 1001U } };
+		expect(opened_ok(store) && store->store(record).has_value() && store->load_all() == std::vector{ record }, "draft and accepted numeric account persist");
+		record.Draft = false;
+		expect(store->store(record).has_value() && store->load_all() == std::vector{ record }, "ready remains observed false");
+		store = std::unexpected(failure::unavailable);
+		execute_raw_sql(path, "ALTER TABLE enrollment DROP COLUMN draft; ALTER TABLE enrollment DROP COLUMN draft_account; UPDATE enrollment_meta SET schema_format=7; PRAGMA user_version=7;");
+		record.Draft.reset();
+		record.DraftAccount = { };
+		auto migrated       = queue_enrollment_database::open(path, { });
+		expect(opened_ok(migrated) && migrated->load_all() == std::vector{ record }, "version-seven upgrade retains enrollment without inventing draft or account observations");
 	}
 
 } // namespace
@@ -1110,6 +1127,7 @@ try {
 	test_repository_addition_host_survives_sqlite_reopen();
 	test_collection_limits_on_load_and_write();
 #if !defined(_WIN32)
+	test_optional_draft_round_trip_and_upgrade();
 	test_enrollment_survives_a_separate_process();
 #endif
 	test_a_newer_database_fails_closed();

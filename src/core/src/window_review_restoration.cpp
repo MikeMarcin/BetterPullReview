@@ -341,6 +341,16 @@ namespace bpr::core {
 		found->Title.assign(aTitle);
 		return true;
 	}
+	auto window_review_restoration::accepted_draft(const window_review_destination& aDestination, std::optional<bool> aDraft) -> bool
+	{
+		const auto found = std::ranges::find(Recent, aDestination, &window_recent_review::Destination);
+		if (!aDraft || found == Recent.end() || found->Draft == aDraft) {
+			return false;
+		}
+		found->Draft = aDraft;
+		return true;
+	}
+
 	void window_review_restoration::cancel_restore(bpr_window_context aContext)
 	{
 		for (auto& slot : Slots) {
@@ -425,6 +435,7 @@ namespace bpr::core {
 		auto       entry = window_recent_review{ aDestination, { }, aViewedAt };
 		const auto old   = std::ranges::find(Recent, aDestination, &window_recent_review::Destination);
 		if (old != Recent.end()) {
+			entry.Draft    = old->Draft;
 			entry.Title    = std::move(old->Title);
 			entry.Position = std::move(old->Position);
 			entry.Tabs     = std::move(old->Tabs);

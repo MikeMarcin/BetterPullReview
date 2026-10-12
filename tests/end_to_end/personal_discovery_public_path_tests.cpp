@@ -6,6 +6,7 @@
 // and a pull request opened by link is neither enrolled nor saved until the
 // reviewer follows it or saves its repository. Nothing mutates GitHub.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
@@ -180,14 +181,18 @@ try {
 	// macOS ships it, so the course forces it against the fixture, as the
 	// other composed public-preview courses do; otherwise Linux and Windows
 	// refuse the activation and never reach those steps.
-	options.PublicPreviewEnabledCourse   = true;
-	options.PersonalDiscovery            = repository_with_unrelated_pull_requests();
-	const auto approved                  = std::make_shared<std::atomic<bool>>(false);
-	const auto approvalRow               = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4003U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
-	approvalRow->ReviewedByViewer        = approved;
-	const auto awaiting                  = std::make_shared<std::atomic<bool>>(true);
-	const auto authoredRow               = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4001U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
-	authoredRow->ReviewerRequestsPresent = awaiting;
+	options.PublicPreviewEnabledCourse               = true;
+	options.PersonalDiscovery                        = repository_with_unrelated_pull_requests();
+	options.ReviewSubmissionServer                   = std::make_shared<app::detail::review_submission_fixture_state>();
+	options.ReviewSubmissionServer->DraftPullRequest = true;
+	const auto approved                              = std::make_shared<std::atomic<bool>>(false);
+	const auto approvalRow                           = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4003U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
+	approvalRow->ReviewedByViewer                    = approved;
+	const auto awaiting                              = std::make_shared<std::atomic<bool>>(true);
+	const auto authoredRow                           = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4001U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
+	authoredRow->ReviewerRequestsPresent             = awaiting;
+	const auto draftStatus                           = std::make_shared<std::atomic<bool>>(true);
+	authoredRow->Draft                               = draftStatus;
 	if (cliCourse) {
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 	}
@@ -313,7 +318,7 @@ try {
 		// the page; Home and the page populated; then every repository removed
 		// and Home with none again.
 		expect(QDir{ }.mkpath(renderDirectory), "render output directory exists");
-		const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_dark };
+		const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark };
 		const auto each  = [&](const std::function<void(const QString&, int)>& aRender) {
 			for (const auto mode : modes) {
 				windowA->appearance_settings()->choose_mode(mode);
@@ -454,6 +459,7 @@ try {
 	submit(*windowA, 17);
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "the pull request opens by link", diagnose);
 	wait_for([&] { return windowA->home_recent_list()->count() >= 1; }, "the opened pull request is under Recently viewed");
+	expect(windowA->home_recent_list()->item(0)->data(qt::home_row_role::draft).toBool() && windowA->home_recent_list()->item(0)->data(Qt::AccessibleTextRole).toString().startsWith(QStringLiteral("Draft pull request;")), "recent-only accepted draft is annotated before it is enrolled");
 	auto* const follow = windowA->follow_pull_request_action();
 	auto* const save   = windowA->save_pull_request_repository_action();
 	expect(!queue_numbers(*windowA).contains(17) && save->isEnabled() && evidence().DiscoverySearches == 2U,
@@ -708,7 +714,9 @@ try {
 	const auto beforeRefresh = evidence().AccountReadOperations.size();
 	const auto authoredRef   = queue_item(*windowA, 4001)->Ref;
 	expect(windowA->home_list()->select(authoredRef, true), "authored waiting row selected before accepted refresh");
+	expect(queue_item(*windowA, 4001)->Facts.Draft == true && queue_item(*windowA, 4002)->Facts.Draft == false, "unopened discovery shows only the accepted draft chip");
 	approved->store(true);
+	draftStatus->store(false);
 	awaiting->store(false);
 	windowB->queue_refresh_action()->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
@@ -721,6 +729,7 @@ try {
 	expect(windowA->selected_queue_item() && windowA->selected_queue_item()->Ref == authoredRef
 			   && windowA->home_list()->current_view() == windowA->home_list()->state_view(qt::home_group::my_pull_requests),
 		   "exact authored selection survives its section change without retargeting");
+	expect(queue_item(*windowA, 4001)->Facts.Draft == false && queue_item(*windowB, 4001)->Facts.Draft == false, "accepted ready updates both Homes with the same provider budget");
 	expect(!contains(state_rows(*windowA, qt::home_group::waiting_on_others), "octo-org/review-repository#4001")
 			   && !contains(state_rows(*windowA, qt::home_group::needs_you), "octo-org/review-repository#4001"),
 		   "accepted refresh leaves one active authored row and no Needs me contribution");
@@ -785,6 +794,7 @@ try {
 	// only once the desktop's runtimes are deleted from the event loop.
 	const auto followedTitle = queue_item(*windowA, 17)->Facts.Title;
 	expect(!followedTitle.empty(), "followed PR has an accepted title before restarting");
+	expect(queue_item(*windowA, 17)->Facts.Draft == true, "queue agrees with accepted Recent draft before restart");
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
 	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
@@ -818,6 +828,7 @@ try {
 
 	wait_for([&] { const auto item = queue_item(*windowA, 4003); const auto followed = queue_item(*windowA, 17); return discovery().Quiescent && item && followed && followed->Facts.Title == followedTitle && item->Facts.Title == "Discovered pull request 4003" && item->Bucket == core::attention_bucket::quiet; },
 			 "restarted Home fills retained titles and approval state before opening a review", diagnose);
+	expect(queue_item(*windowA, 17)->Facts.Draft == true && windowA->home_recent_list()->item(0)->data(qt::home_row_role::draft).toBool(), "restart preserves accepted draft in queue and Recent");
 	expect(contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"), "restored approved PR is Following before it is opened");
 	expect(std::ranges::none_of(reads_since(evidence(), beforeReconnect), [](const std::string& aOperation) {
 			   return aOperation == "GetRepository" || aOperation == "ListPullRequestFiles" || aOperation == "ListPullRequestCommits"

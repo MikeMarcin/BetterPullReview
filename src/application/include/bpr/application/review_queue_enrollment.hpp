@@ -76,7 +76,9 @@ namespace bpr::application {
 		core::pull_request_ref Ref;
 		core::queue_membership Membership;
 
-		enrollment_departure Departed = enrollment_departure::none;
+		enrollment_departure    Departed     = enrollment_departure::none;
+		std::optional<bool>     Draft        = std::nullopt;
+		core::github_account_id DraftAccount = { };
 
 		[[nodiscard]] auto present() const noexcept -> bool
 		{
@@ -117,11 +119,12 @@ namespace bpr::application {
 	/// \brief [[BPR-0989]]. One pull request a personal discovery answer found.
 	struct queue_discovered_pull_request
 	{
-		std::int64_t  Number = 0;
-		std::string   Title;
-		std::string   Author;
-		bool          Detailed         = false;
-		std::uint32_t ReviewersAwaited = 0U;
+		std::int64_t        Number = 0;
+		std::string         Title;
+		std::string         Author;
+		bool                Detailed         = false;
+		std::uint32_t       ReviewersAwaited = 0U;
+		std::optional<bool> Draft            = std::nullopt;
 
 		auto operator<=>(const queue_discovered_pull_request&) const = default;
 	};
@@ -165,6 +168,8 @@ namespace bpr::application {
 	class queue_enrollment_register final
 	{
 	public:
+		/// Retains a known observation for an existing exact queue identity.
+		[[nodiscard]] auto observe_draft(const core::pull_request_ref& aRef, std::optional<bool> aDraft, core::github_account_id aAccount) -> bool;
 		/// \brief Enrolls or re-enrolls one pull request.
 		///
 		/// \details Enrolling something already present updates its membership
@@ -236,7 +241,7 @@ namespace bpr::application {
 		/// quiet.
 		[[nodiscard]] auto project(
 			std::span<const queue_activity_report> aActivity,
-			queue_projection_work*                 aWork = nullptr) const
+			queue_projection_work* aWork = nullptr, const queue_session_id* aSession = nullptr) const
 			-> std::vector<core::queue_item>;
 
 	private:

@@ -3806,6 +3806,40 @@ namespace {
 		};
 	}
 
+	void test_home_draft_metadata_is_an_optional_wire_fact()
+	{
+		for (const auto mode : { 0, 1, 2, 3 }) {
+			auto transport   = discovery_fixture_transport{ };
+			transport.Search = [mode](const auto&) {
+				auto       item = discovery_item(17U, "octo-reviewer");
+				const auto at   = item.find("\"draft\":false,");
+				expect(at != std::string::npos, "draft fixture field exists");
+				item.replace(at, 14U, mode == 0 ? "" : mode == 1 ? "\"draft\":false,"
+								 : mode == 2                     ? "\"draft\":true,"
+																 : "\"draft\":1,");
+				return discovery_search({ item }, 1U);
+			};
+			transport.Metadata = [mode](const auto&) {
+				auto metadata = retained_metadata();
+				if (mode == 1 || mode == 2) {
+					metadata.insert_or_assign("draft", mode == 2);
+				}
+				if (mode == 3) {
+					metadata.insert_or_assign("draft", "true");
+				}
+				return success_response(fixture_json(metadata));
+			};
+			for (const auto reason : { application::personal_discovery_reason::authored, application::personal_discovery_reason::retained }) {
+				const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason), { });
+				if (mode == 3) {
+					expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response, "malformed status cannot be accepted");
+				} else {
+					expect(result && result->Rows.size() == 1U && result->Rows.front().Draft == (mode == 0 ? std::nullopt : std::optional<bool>{ mode == 2 }), "missing draft stays unknown; observed booleans stay exact");
+				}
+			}
+		}
+	}
+
 	void test_retained_home_metadata_read()
 	{
 		using reason = application::personal_discovery_reason;
@@ -3969,6 +4003,7 @@ auto main() -> int
 	test_anonymous_review_comments_rate_limit_is_typed();
 	test_anonymous_review_comments_oversized_body_is_refused();
 	test_personal_discovery_read();
+	test_home_draft_metadata_is_an_optional_wire_fact();
 	test_retained_home_metadata_read();
 	return EXIT_SUCCESS;
 }

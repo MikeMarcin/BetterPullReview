@@ -270,7 +270,7 @@ namespace {
 		auto       store     = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		auto       stop      = std::stop_source{ };
 		interruption::Stop   = &stop;
-		interruption::Prefix = "PRAGMA user_version=5";
+		interruption::Prefix = "PRAGMA user_version=6";
 		const auto first     = store->load(stop.get_token());
 		expect(stop.stop_requested() && !first && first.error().Failure == window_review_store_failure::cancelled, "initialization cancels after schema stamp");
 		interruption::Stop = nullptr;
@@ -532,7 +532,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "legacy account fixture saved");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=4");
+			execute(raw, "ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN draft; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=4");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			std::stop_source stop;
@@ -547,7 +547,7 @@ namespace {
 			interruption::Stop = nullptr;
 			raw                = raw_open(scratch.database());
 			if (std::string_view{ prefix } == "COMMIT") {
-				expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 5, "commit may finish before cancellation is observed");
+				expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 6, "commit may finish before cancellation is observed");
 			} else {
 				expect(snapshot(raw) == before, "pre-commit cancellation preserves schema and records");
 			}
@@ -573,17 +573,56 @@ namespace {
 		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "version 3 fixture persists");
 		store.reset();
 		auto* raw = raw_open(scratch.database());
-		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=3");
+		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN draft; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=3");
 		sqlite3_close(raw);
 		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		expect(store->load({ }) == saved, "a version 3 file migrates with its records and list intact");
 		store.reset();
 		raw = raw_open(scratch.database());
-		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 5
+		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 6
 				   && adapters::sqlite::detail::scalar_integer(raw, "SELECT count(*) FROM review_tabs") == 0,
-			   "the migrated file is version 5 with no tabs");
+			   "the migrated file is version 6 with no tabs");
 		sqlite3_close(raw);
 	}
+	void test_recent_draft_migration_and_rollback()
+	{
+		for (const auto prefix : { "CREATE TEMP TABLE draft_recent_migration", "DROP TABLE recent_reviews", "INSERT INTO recent_reviews", "PRAGMA user_version=6", "COMMIT" }) {
+			const auto scratch    = scratch_directory{ };
+			auto       store      = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			auto       saved      = listed();
+			saved.Recent[0].Draft = true;
+			saved.Recent[1].Draft = false;
+			expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "known draft and ready persist with exact destinations");
+			store.reset();
+			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }) == saved, "recent draft metadata survives reopening");
+			store.reset();
+			auto* raw = raw_open(scratch.database());
+			execute(raw, "ALTER TABLE recent_reviews DROP COLUMN draft; PRAGMA user_version=5");
+			const auto before = snapshot(raw);
+			sqlite3_close(raw);
+			saved.Recent[0].Draft.reset();
+			saved.Recent[1].Draft.reset();
+			std::stop_source stop;
+			interruption::Stop   = &stop;
+			interruption::Prefix = prefix;
+			expect(sqlite3_auto_extension(reinterpret_cast<void (*)()>(&interruption::install)) == SQLITE_OK, "draft migration trace installed");
+			store             = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			const auto result = store->load(stop.get_token());
+			expect(!result && result.error().Failure == window_review_store_failure::cancelled, "migration cancellation is explicit");
+			store.reset();
+			sqlite3_reset_auto_extension();
+			interruption::Stop = nullptr;
+			raw                = raw_open(scratch.database());
+			if (std::string_view{ prefix } != "COMMIT") {
+				expect(snapshot(raw) == before, "cancelled draft migration rolls back all changes");
+			}
+			sqlite3_close(raw);
+			store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+			expect(store->load({ }) == saved, "older Recent metadata remains unknown and preserves reading");
+		}
+	}
+
 }
 int main()
 try {
@@ -602,6 +641,7 @@ try {
 	test_tabs_refusals();
 	test_tabs_migration();
 	test_account_migration();
+	test_recent_draft_migration_and_rollback();
 	std::cout << "window-review-restoration-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

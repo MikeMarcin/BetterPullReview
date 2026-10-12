@@ -1567,7 +1567,7 @@ namespace {
 	{
 		const auto account = core::github_account_id{ aAccount == "reviewer" ? 1001U : 1002U };
 		return {
-			.Queue   = { .Host = "github.com", .Account = std::string{ aAccount }, .Generation = aGeneration },
+			.Queue   = { .Host = "github.com", .Account = std::string{ aAccount }, .Generation = aGeneration, .ViewerAccount = account },
 			.Context = {
 				.ApplicationSession = core::application_session_id{ 7U },
 				.Profile            = core::host_profile_id{ 11U },
@@ -1728,6 +1728,38 @@ namespace {
 		expect(!fixture.item(17) && fixture.Discovery.statistics().StaleCompletions == 1U, "late metadata cannot revive an unfollowed PR");
 		fixture.Queue.apply(application::queue_metadata_answer{ .Session = discovery_session().Queue, .Ref = ref(17), .Facts = { .Title = "Late title" } });
 		expect(!fixture.item(17), "queue metadata cannot enroll or revive a PR");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_draft_metadata_retains_only_accepted_exact_account_facts()
+	{
+		auto       fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Followed = true } } } };
+		const auto session = discovery_session();
+		fixture.Discovery.adopt(session);
+		auto draft  = metadata_row(17U);
+		draft.Draft = true;
+		fixture.Provider.answer(fixture.Provider.rows({ draft }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Draft == true && fixture.Store.State.Enrollments.front().Draft == true && fixture.record(17)->DraftAccount == session.Queue.ViewerAccount, "accepted unopened draft persists under its numeric account");
+		fixture.Discovery.refresh();
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::network));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Draft == true, "failed refresh retains the accepted draft");
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session.Queue, .Ref = ref(17), .Facts = { .Title = "ready", .Draft = false } });
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Draft == false && fixture.record(17)->Draft == false, "accepted ready removes the draft without changing membership");
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session.Queue, .Ref = ref(17), .Facts = { .Title = "unknown" } });
+		expect(fixture.item(17)->Facts.Draft == false, "omitted fact never fabricates ready or erases accepted status");
+		auto foreign = session.Queue;
+		++foreign.Generation;
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = foreign, .Ref = ref(17), .Facts = { .Draft = true } });
+		expect(fixture.item(17)->Facts.Draft == false, "late session cannot replace draft status");
+		foreign               = session.Queue;
+		foreign.ViewerAccount = core::github_account_id{ 9999U };
+		fixture.Queue.adopt(foreign);
+		fixture.settle();
+		expect(!fixture.item(17)->Facts.Draft, "same login under another numeric account cannot reuse retained metadata");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -2057,7 +2089,7 @@ namespace {
 		};
 		session.CapabilityEvidence.Revision = core::capability_revision{ 44U };
 		const auto discovery                = application::personal_discovery_session_of(session);
-		expect(discovery && discovery->Queue == application::queue_session_id{ .Host = "ghe.example", .Account = "reviewer", .Generation = 9U }
+		expect(discovery && discovery->Queue == application::queue_session_id{ .Host = "ghe.example", .Account = "reviewer", .Generation = 9U, .ViewerAccount = core::github_account_id{ 1001U } }
 				   && discovery->Context.ApplicationSession == session.ApplicationSession && discovery->Context.Profile == core::host_profile_id{ 11U }
 				   && discovery->Context.Host == core::git_host_id{ 22U } && discovery->Context.Account == core::github_account_id{ 1001U }
 				   && discovery->Context.Capabilities == core::capability_revision{ 44U } && discovery->Context.IdentityGeneration == session.Generation
@@ -2357,6 +2389,7 @@ auto main() -> int
 	test_retained_titles_and_reviews_before_open_and_on_refresh();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();
+	test_draft_metadata_retains_only_accepted_exact_account_facts();
 	test_retained_metadata_budget_and_restore_after_session();
 	test_retained_failure_and_foreign_envelopes_preserve_accepted_state();
 	test_closed_metadata_cannot_be_revived_by_the_same_search_cycle();

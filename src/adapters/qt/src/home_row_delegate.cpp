@@ -187,7 +187,8 @@ namespace bpr::qt {
 				Progress            = aIndex.data(home_row_role::progress).toString();
 				Chip                = aIndex.data(home_row_role::account_chip).toString();
 				// [[BPR-1365]]. The review this window has open says so in a word.
-				Tag = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
+				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
+				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
 				// [[BPR-1357]]. The row a pull request is being opened from says
 				// so in place of why it is listed, behind a mark, and its action
 				// place holds Cancel or Retry instead of the hover action.
@@ -232,12 +233,15 @@ namespace bpr::qt {
 				TagLeft              = ChipLeft - ((SideWidth > 0 || ChipWidth > 0) && TagWidth > 0 ? home_row_delegate::column_gap : 0) - TagWidth;
 				const auto textRight = SideWidth > 0 || ChipWidth > 0 || TagWidth > 0 ? TagLeft - home_row_delegate::column_gap : right;
 				TextWidth            = std::max(1, textRight - TextLeft);
+				DraftWidth           = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.horizontalAdvance(Draft) + tag_pad_x * 2;
+				DraftHeight          = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.height() + tag_pad_y * 2;
+				FirstIndent          = DraftWidth > 0 ? DraftWidth + open_mark_gap : 0;
 
 				auto identityFormat   = QTextLayout::FormatRange{ };
 				identityFormat.start  = 0;
 				identityFormat.length = static_cast<int>(identity.size());
 				identityFormat.format.setFontWeight(QFont::DemiBold);
-				FirstHeight = lay_out(FirstLayout, First, aOption.font, TextWidth, { identityFormat });
+				FirstHeight = std::max(DraftHeight, lay_out(FirstLayout, First, aOption.font, std::max(1, TextWidth - FirstIndent), { identityFormat }));
 
 				auto secondFormats = QList<QTextLayout::FormatRange>{ };
 				if (ReasonStart >= 0) {
@@ -323,6 +327,10 @@ namespace bpr::qt {
 			QString     Progress;
 			QString     Chip;
 			QString     Tag;
+			QString     Draft;
+			int         DraftWidth  = 0;
+			int         DraftHeight = 0;
+			int         FirstIndent = 0;
 			QFont       SideFont;
 			QTextLayout FirstLayout;
 			QTextLayout SecondLayout;
@@ -590,7 +598,19 @@ namespace bpr::qt {
 		const auto ink   = colours.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
 		const auto quiet = colours.color(group, selected ? QPalette::HighlightedText : QPalette::PlaceholderText);
 		aPainter->setPen(ink);
-		layout.FirstLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft), static_cast<qreal>(layout.ContentTop) });
+		layout.FirstLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft + layout.FirstIndent), static_cast<qreal>(layout.ContentTop) });
+		if (!layout.Draft.isEmpty()) {
+			const auto chip = QRect{ layout.TextLeft, layout.ContentTop, layout.DraftWidth, layout.DraftHeight };
+			aPainter->save();
+			aPainter->setRenderHint(QPainter::Antialiasing, true);
+			aPainter->setPen(QPen{ selected ? ink : colours.color(group, QPalette::PlaceholderText), 1.0 });
+			aPainter->setBrush(Qt::NoBrush);
+			aPainter->drawRoundedRect(QRectF{ chip }.adjusted(0.5, 0.5, -0.5, -0.5), tag_radius, tag_radius);
+			aPainter->setFont(option.font);
+			aPainter->setPen(ink);
+			aPainter->drawText(chip, Qt::AlignCenter, layout.Draft);
+			aPainter->restore();
+		}
 		if (layout.Opening) {
 			// [[BPR-1357]]. The line the reviewer waits on, in full ink behind
 			// its mark; a failure in the failure ink, which every theme holds at
@@ -697,6 +717,14 @@ namespace bpr::qt {
 					  option.rect.top() + ((layout.RowHeight - layout.TagHeight) / 2),
 					  layout.TagWidth,
 					  layout.TagHeight };
+	}
+
+	auto home_row_delegate::draft_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect
+	{
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
+		return layout.Draft.isEmpty() ? QRect{ } : QRect{ option.rect.left() + layout.TextLeft, option.rect.top() + layout.ContentTop, layout.DraftWidth, layout.DraftHeight };
 	}
 
 	auto home_row_delegate::reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const

@@ -84,6 +84,7 @@ namespace bpr::core {
 		/// [[BPR-1131]]. The tabs Resume brings back, with the reading above as
 		/// the active tab's.
 		std::optional<window_review_tabs> Tabs                                                  = std::nullopt;
+		std::optional<bool>               Draft                                                 = std::nullopt;
 		auto                              operator==(const window_recent_review&) const -> bool = default;
 	};
 	[[nodiscard]] auto valid(const window_recent_review& aEntry) noexcept -> bool;
@@ -177,6 +178,7 @@ namespace bpr::core {
 		[[nodiscard]] auto open_recent(bpr_window_context aContext, std::size_t aIndex) -> window_review_actions;
 		/// \brief Records the title once a snapshot of a listed destination was seen.
 		[[nodiscard]] auto accepted_title(const window_review_destination& aDestination, std::string_view aTitle) -> bool;
+		[[nodiscard]] auto accepted_draft(const window_review_destination& aDestination, std::optional<bool> aDraft) -> bool;
 		[[nodiscard]] auto recent() const noexcept -> const std::vector<window_recent_review>& { return Recent; }
 		[[nodiscard]] auto attach(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto current(bpr_window_context aContext) const noexcept -> bool;

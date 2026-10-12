@@ -106,6 +106,17 @@ namespace bpr::application {
 		return found == RecordIndex.end() ? nullptr : &Records[found->second];
 	}
 
+	auto queue_enrollment_register::observe_draft(const core::pull_request_ref& aRef, std::optional<bool> aDraft, core::github_account_id aAccount) -> bool
+	{
+		auto* record = find(aRef);
+		if (!record || !aDraft || (record->Draft == aDraft && record->DraftAccount == aAccount)) {
+			return false;
+		}
+		record->Draft        = aDraft;
+		record->DraftAccount = aAccount;
+		return true;
+	}
+
 	void queue_enrollment_register::enroll(
 		const core::pull_request_ref& aRef,
 		const core::queue_membership& aMembership)
@@ -203,11 +214,12 @@ namespace bpr::application {
 				auto membership    = core::queue_membership{ };
 				flagOf(membership) = true;
 				RecordIndex.emplace(ref, Records.size());
-				Records.push_back(enrollment_record{ .Ref = ref, .Membership = membership, .Departed = enrollment_departure::none });
+				Records.push_back(enrollment_record{ .Ref = ref, .Membership = membership, .Departed = enrollment_departure::none, .Draft = found.Draft, .DraftAccount = aAnswer.Session.ViewerAccount });
 				changed.push_back(ref);
 				continue;
 			}
-			if (!flagOf(record->Membership) || !record->present()) {
+			if (!flagOf(record->Membership) || !record->present() || (found.Draft && (record->Draft != found.Draft || record->DraftAccount != aAnswer.Session.ViewerAccount))) {
+				(void)observe_draft(ref, found.Draft, aAnswer.Session.ViewerAccount);
 				flagOf(record->Membership) = true;
 				record->Departed           = enrollment_departure::none;
 				changed.push_back(ref);
@@ -286,7 +298,7 @@ namespace bpr::application {
 
 	auto queue_enrollment_register::project(
 		const std::span<const queue_activity_report> aActivity,
-		queue_projection_work* const                 aWork) const
+		queue_projection_work* const aWork, const queue_session_id* const aSession) const
 		-> std::vector<core::queue_item>
 	{
 		auto items = std::vector<core::queue_item>{ };
@@ -326,6 +338,7 @@ namespace bpr::application {
 				: found->Observation;
 			auto              facts     = found == nullptr ? core::queue_item_facts{ } : found->Facts;
 			facts.UnseenComments        = activity.UnseenComments;
+			facts.Draft                 = aSession == nullptr || record.Ref.Host != aSession->Host || record.Ref.Account != aSession->Account || record.DraftAccount == aSession->ViewerAccount ? record.Draft : std::nullopt;
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = record.Membership,
@@ -715,7 +728,7 @@ namespace bpr::application {
 			Projection.publish(queue_landing_projection{
 				.Status            = Status,
 				.Rules             = Rules,
-				.Items             = itemUpdate ? std::vector<core::queue_item>{ } : Enrollments.project(Activity, &Statistics.Projection),
+				.Items             = itemUpdate ? std::vector<core::queue_item>{ } : Enrollments.project(Activity, &Statistics.Projection, &Scheduler.session()),
 				.Preferences       = Preferences,
 				.Session           = Scheduler.session(),
 				.Online            = Scheduler.online(),
@@ -785,6 +798,7 @@ namespace bpr::application {
 			SavedServers       = std::move(aResult->SavedServers);
 			for (const auto& record : aResult->Enrollments) {
 				Enrollments.enroll(record.Ref, record.Membership);
+				(void)Enrollments.observe_draft(record.Ref, record.Draft, record.DraftAccount);
 				if (!record.present()) {
 					Enrollments.depart(record.Ref, record.Departed);
 				}
@@ -1370,7 +1384,14 @@ namespace bpr::application {
 				.Title          = aRead.Title,
 				.Author         = aRead.Author,
 				.UnseenComments = aObservation.UnseenComments,
+				.Draft          = aRead.Draft,
 			};
+			if (!facts.Draft) {
+				const auto retained = Enrollments.record_for(aRef);
+				if (retained && retained->DraftAccount == Scheduler.session().ViewerAccount) {
+					facts.Draft = retained->Draft;
+				}
+			}
 			const auto found = ActivityIndex.find(aRef);
 			if (found == ActivityIndex.end()) {
 				ActivityIndex.emplace(aRef, Activity.size());
@@ -1436,6 +1457,8 @@ namespace bpr::application {
 				auto candidate = queue_enrollment_register{ };
 				candidate.enroll(existing->Ref, existing->Membership);
 				candidate.enroll(existing->Ref, membership);
+				(void)candidate.observe_draft(existing->Ref, existing->Draft, existing->DraftAccount);
+				(void)candidate.observe_draft(existing->Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount);
 				if (membership.enrolled() && candidate.record_for(existing->Ref) == existing) {
 					const auto& report = Activity[ActivityIndex.at(existing->Ref)];
 					publish(core::queue_item{ .Ref = existing->Ref, .Membership = existing->Membership, .Bucket = core::bucket_for(existing->Membership, report.Observation), .Facts = report.Facts });
@@ -1448,6 +1471,7 @@ namespace bpr::application {
 				}
 				auto prior = Enrollments;
 				Enrollments.enroll(aCompletion.Ref, membership);
+				(void)Enrollments.observe_draft(aCompletion.Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount);
 				persist_record(aCompletion.Ref, std::move(prior));
 				return;
 			}
@@ -1463,6 +1487,11 @@ namespace bpr::application {
 				return;
 			}
 			if (existing && existing->present()) {
+				auto prior = Enrollments;
+				if (Enrollments.observe_draft(existing->Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount)) {
+					persist_record(existing->Ref, std::move(prior));
+					return;
+				}
 				const auto& report = Activity[ActivityIndex.at(existing->Ref)];
 				publish(core::queue_item{ .Ref = existing->Ref, .Membership = existing->Membership, .Bucket = core::bucket_for(existing->Membership, report.Observation), .Facts = report.Facts });
 			} else {
@@ -1485,13 +1514,16 @@ namespace bpr::application {
 					Activity.push_back(queue_activity_report{
 						.Ref         = ref,
 						.Observation = { .ReviewersAwaited = found.ReviewersAwaited, .Known = known },
-						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U },
+						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U, .Draft = found.Draft },
 					});
 					continue;
 				}
 				auto* existing         = &Activity[position->second];
 				existing->Facts.Title  = found.Title;
 				existing->Facts.Author = found.Author;
+				if (found.Draft) {
+					existing->Facts.Draft = found.Draft;
+				}
 				if (found.Detailed) {
 					existing->Observation.ReviewersAwaited = found.ReviewersAwaited;
 				}
@@ -1539,14 +1571,18 @@ namespace bpr::application {
 				persist_record(aAnswer.Ref, std::move(prior));
 				return;
 			}
-			const auto position = ActivityIndex.find(aAnswer.Ref);
+			const auto draftChanged = Enrollments.observe_draft(aAnswer.Ref, aAnswer.Facts.Draft, aAnswer.Session.ViewerAccount);
+			const auto position     = ActivityIndex.find(aAnswer.Ref);
 			if (position == ActivityIndex.end()) {
 				ActivityIndex.emplace(aAnswer.Ref, Activity.size());
 				Activity.push_back({ .Ref = aAnswer.Ref, .Observation = aAnswer.Activity, .Facts = std::move(aAnswer.Facts) });
 			} else {
-				auto& report                              = Activity[position->second];
-				report.Facts.Title                        = std::move(aAnswer.Facts.Title);
-				report.Facts.Author                       = std::move(aAnswer.Facts.Author);
+				auto& report        = Activity[position->second];
+				report.Facts.Title  = std::move(aAnswer.Facts.Title);
+				report.Facts.Author = std::move(aAnswer.Facts.Author);
+				if (aAnswer.Facts.Draft) {
+					report.Facts.Draft = aAnswer.Facts.Draft;
+				}
 				report.Observation.ReviewedByMe           = aAnswer.Activity.ReviewedByMe;
 				report.Observation.HeadMovedSinceMyReview = aAnswer.Activity.HeadMovedSinceMyReview;
 				report.Observation.ReviewersAwaited       = aAnswer.Activity.ReviewersAwaited;
@@ -1560,7 +1596,11 @@ namespace bpr::application {
 				persist_record(aAnswer.Ref, std::move(prior));
 				return;
 			}
-			publish();
+			if (draftChanged) {
+				persist_record(aAnswer.Ref, std::move(prior));
+			} else {
+				publish();
+			}
 		}
 
 		void apply(queue_follow_intent aIntent)
@@ -1898,7 +1938,7 @@ namespace bpr::application {
 	auto review_queue_application_host::queue() const
 		-> std::vector<core::queue_item>
 	{
-		return Implementation->Enrollments.project(Implementation->Activity);
+		return Implementation->Enrollments.project(Implementation->Activity, nullptr, &Implementation->Scheduler.session());
 	}
 
 	auto review_queue_application_host::statistics() const noexcept

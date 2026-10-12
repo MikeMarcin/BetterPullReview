@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_REFRESH_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_QUEUE_REFRESH_HPP
 
+#include "bpr/core/github_model.hpp"
 #include "bpr/core/review_queue.hpp"
 
 #include <compare>
@@ -27,6 +28,8 @@ namespace bpr::application {
 		std::string   Host;
 		std::string   Account;
 		std::uint64_t Generation = 0U;
+		/// Exact accepted numeric account, never inferred from its display login.
+		core::github_account_id ViewerAccount = { };
 
 		auto operator<=>(const queue_session_id&) const = default;
 	};

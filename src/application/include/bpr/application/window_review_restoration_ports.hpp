@@ -21,8 +21,9 @@ namespace bpr::application {
 		std::int64_t                    ViewedAt  = 0;
 		bool                            Resumable = false;
 		/// [[BPR-1365]]. The review this window has open, behind Home or in front.
-		bool Open                                                 = false;
-		auto operator==(const recent_review_entry&) const -> bool = default;
+		bool                Open                                                 = false;
+		std::optional<bool> Draft                                                = std::nullopt;
+		auto                operator==(const recent_review_entry&) const -> bool = default;
 	};
 	struct recent_reviews_projection
 	{

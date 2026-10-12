@@ -32,6 +32,7 @@
 	#include "bpr/qt/writing_hooks_panel.hpp"
 	#include "github_application_fixture_access.hpp"
 	#include "src/private_review_fixture_course.hpp"
+	#include "src/review_submission_fixture.hpp"
 	#include "src/startup_diagnostic.hpp"
 #endif
 
@@ -5441,7 +5442,7 @@ namespace {
 			}
 			const auto rows = [&window] {
 				auto count = 0;
-				for (const auto group : { bpr::qt::home_group::needs_you, bpr::qt::home_group::waiting_on_others, bpr::qt::home_group::following }) {
+				for (const auto group : { bpr::qt::home_group::needs_you, bpr::qt::home_group::my_pull_requests, bpr::qt::home_group::waiting_on_others, bpr::qt::home_group::following }) {
 					if (auto* const model = window.home_list()->state_model(group); model != nullptr) {
 						count += model->rowCount();
 					}
@@ -9482,11 +9483,14 @@ auto main(int argc, char** argv) -> int
 			// Home's rows: the fixture's own pull request asks for my review,
 			// and one of mine waits on a reviewer; the second is the one whose
 			// reads fail when `--fixture-read-fail-number` names it.
-			fixtureOptions.RepeatReadSessions = true;
-			fixtureOptions.PersonalDiscovery  = bpr::app::detail::github_personal_discovery_fixture{
+			fixtureOptions.RepeatReadSessions                       = true;
+			fixtureOptions.ReviewSubmissionServer                   = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
+			fixtureOptions.ReviewSubmissionServer->DraftPullRequest = true;
+			fixtureOptions.PersonalDiscovery                        = bpr::app::detail::github_personal_discovery_fixture{
 				.OpenPullRequests = {
-					{ .Number = static_cast<std::uint32_t>(fixtureExpectations.Number), .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" } },
-					{ .Number = readFailNumber.value_or(4001U), .Author = "octo-reviewer", .RequestedUsers = { "alice" } },
+					{ .Number = 4002U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" }, .Draft = std::make_shared<std::atomic<bool>>(false) },
+					{ .Number = readFailNumber.value_or(4001U), .Author = "octo-reviewer", .RequestedUsers = { "alice" }, .Draft = std::make_shared<std::atomic<bool>>(true) },
+					{ .Number = 4003U, .Author = "octo-reviewer", .Draft = std::make_shared<std::atomic<bool>>(true) },
 				},
 			};
 		}

@@ -723,6 +723,8 @@ namespace bpr::qt {
 				detail += QStringLiteral(" · viewed ") + viewed;
 			}
 			auto* const item = new QListWidgetItem{ text };
+			item->setData(home_row_role::draft, aEntry.Draft.value_or(false));
+			item->setData(Qt::AccessibleTextRole, aEntry.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(text) : text);
 			item->setToolTip(detail);
 			// [[BPR-1365]]. The review this window has open is said in words, as
 			// its tag says it on the row.

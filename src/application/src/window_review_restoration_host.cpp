@@ -314,6 +314,14 @@ namespace bpr::application {
 			Implementation->notify_recent();
 		}
 	}
+	void window_review_restoration_host::accepted_draft(const core::window_review_destination& aDestination, std::optional<bool> aDraft)
+	{
+		if (!Implementation->Closing && Implementation->Policy.accepted_draft(aDestination, aDraft)) {
+			Implementation->changed();
+			Implementation->notify_recent();
+		}
+	}
+
 	void window_review_restoration_host::open_recent(core::bpr_window_context aContext, std::size_t aIndex)
 	{
 		if (!Implementation->Closing) {

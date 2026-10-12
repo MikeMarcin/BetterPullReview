@@ -1737,3 +1737,19 @@ second mutation lane, or full model reset is introduced.
 The core's `home_section_for` classifies each accepted queue row from its own author-role/authored-discovery membership and unchanged attention bucket. Waiting-only authored rows stay in Waiting on others; other authored rows go to My pull requests. The Qt landing model projects this decision separately from its attention color role, and the existing window publication restores exact selected identity after accepted refresh. No new provider work, enrollment, notification policy or repository-drawer attention is introduced.
 
 The host's window-owned `home_view_state` adds bit 16 for My pull requests without changing the original collapse bits. Workbench settings schema 19 widens the private window row's collapse bound to 31 and transactionally rebuilds older tables with all existing fields copied. The new bit starts zero on upgrade; named group/band collapse remains window-session state. Profile defaults carry no Home view.
+
+## Draft Home metadata allocation (RFC-BPR-0067)
+
+Home’s Draft chip projects an optional accepted GitHub metadata fact. Personal
+searches and retained reads carry the field without another request or full PR
+hydration; accepted ordinary PR reads carry it through the existing queue and
+Recent paths. Missing metadata remains unknown and cannot erase a retained fact.
+Queue enrollment schema 8 retains the optional flag and its accepted numeric
+account under the existing profile/host/login/PR key; the session binds that
+numeric account before reuse. Older rows migrate to unknown. Recent schema 6
+adds a nullable flag to the existing complete destination (including access mode
+and numeric account), preserving positions and document tabs transactionally.
+Accepted queue publication updates an existing matching Recent destination
+without changing its viewing order or granting reading authority. Qt paints the
+leading neutral chip and draft-first accessible wording through the shared row
+delegate. Attention, membership, sorting, notifications and opening are unchanged.
