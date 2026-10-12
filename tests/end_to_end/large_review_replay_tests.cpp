@@ -148,10 +148,10 @@ namespace {
 				std::cerr << '\n';
 			}
 			require(normalized.has_value(), "every stored head normalizes through the production pager");
-			require(!transport.Replay.consumed_all() && transport.Calls == 28U,
+			require(!transport.Replay.consumed_all() && transport.Calls == 29U,
 					"ordinary PR read leaves exactly the independent timeline request");
 			const auto timeline = perform_paged_github_timeline_read(transport, selectedProfile, request, core::repository_id{ 800002U }, { });
-			require(timeline && timeline->ForcePushEvents.empty() && transport.Calls == 29U
+			require(timeline && timeline->ForcePushEvents.empty() && transport.Calls == 30U
 						&& transport.LastOperation == read_operation::list_pull_request_timeline,
 					"all stored heads serve the exact complete empty synthetic timeline through its production pager");
 			require(transport.Replay.consumed_all() && normalized->PullRequest.HeadOid.value() == head
@@ -195,7 +195,7 @@ namespace {
 auto main() -> int
 {
 	const auto exchanges = fixture::load(BPR_LARGE_REVIEW_FIXTURE_ROOT);
-	require(exchanges.size() == 30U, "exact recorded course size");
+	require(exchanges.size() == 31U, "exact recorded course size");
 	const auto& timeline = exchanges.back();
 	require(timeline.Request.Operation == read_operation::list_pull_request_timeline
 				&& timeline.Request.Path == "/repos/bpr-fixtures/large-review/issues/17/timeline"
