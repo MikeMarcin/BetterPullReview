@@ -6498,6 +6498,18 @@ auto finish_background_reap(
             adapter_root="",
         )
 
+    def test_target_ownership_ignores_other_source_trees(self) -> None:
+        result = self.run_check({
+            ".claude/worktrees/other/src/adapters/github/CMakeLists.txt": GITHUB_TARGET,
+            "build/extracted-source/src/adapters/github/CMakeLists.txt": GITHUB_TARGET,
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_target_ownership_still_checks_root_and_nested_product_sources(self) -> None:
+        for path in ("CMakeLists.txt", "src/adapters/other/nested/CMakeLists.txt"):
+            with self.subTest(path=path):
+                self.assert_failure("must be declared only", {path: GITHUB_TARGET})
+
     def test_github_target_cannot_be_declared_at_adapter_root(self) -> None:
         self.assert_failure(
             "must be declared only",

@@ -839,9 +839,11 @@ endif()
 file(
     GLOB_RECURSE project_cmake_files
     LIST_DIRECTORIES false
-    "${BPR_ROOT}/CMakeLists.txt"
     "${BPR_ROOT}/src/*/CMakeLists.txt"
 )
+# Recursing from the root CMakeLists pattern also visits build trees and
+# nested worktrees. Inspect the one root file and the product sources only.
+list(APPEND project_cmake_files "${BPR_ROOT}/CMakeLists.txt")
 foreach(project_cmake_file IN LISTS project_cmake_files)
     if(project_cmake_file STREQUAL github_adapter_cmake)
         continue()
