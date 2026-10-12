@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1393"
 title: "Normalize pending reviewers and merge requirements"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0069"]
 depends_on: ["BPR-1392"]
 priority: "P1"
