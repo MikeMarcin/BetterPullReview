@@ -543,3 +543,5 @@ separate platform/release obligations retain their scope.
 | [RFC-BPR-0068](RFC-BPR-0068-inspect-commit-checks.md) | Inspect commit checks and their failures in Overview | Auto-Verified | — |
 | [RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) | Keep authored pull requests waiting on others visible on Home | Auto-Verified | RFC-BPR-0069, RFC-BPR-0066 |
 | [RFC-BPR-0071](RFC-BPR-0071-remember-cli-connections.md) | Remember the chosen GitHub CLI connection across launches | In Progress | None |
+
+| [RFC-BPR-0072](RFC-BPR-0072-cpp-identifier-context.md) | Context-aware C++ namespace and enum highlighting | In Progress | RFC-BPR-0006, RFC-BPR-0034 |

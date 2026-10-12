@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1411",
+    "BPR-1412"
+  ],
+  "reserve_for": "cpp-identifier-context-v1",
+  "purpose": "",
+  "created": "2026-10-12T22:29:34.424359+00:00",
+  "base": "2bdc31180c3b5b9c09cc88fefb475d7ec669faa9"
+}
