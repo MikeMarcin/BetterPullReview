@@ -10657,6 +10657,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto read = SharedDrafts->read(DraftConsumer, aDraft);
+#if defined(BPR_BUILD_TESTING)
+			if (ReplyDraftProbe) {
+				ReplyDraftProbe->Diagnostic += " | unsent_action=" + std::to_string(static_cast<int>(aAction))
+					+ " read=" + std::to_string(read.Accepted.has_value())
+					+ " ready=" + std::to_string(PrivateDraftsReady)
+					+ " pending=" + std::to_string(PrivateDraftCommandPending) + ":" + std::to_string(PrivateDraftSelectionPending);
+			}
+#endif
 			if (!read.Accepted) {
 				return;
 			}
@@ -10669,7 +10677,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (PrivateReview && PrivateDraftsReady) {
 				const auto owner = SharedDrafts;
 				PrivateReview->change_draft(*command, [this, owner](auto aCommit) {
-					if (!Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit)) {
+					const auto adopted = !Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit);
+#if defined(BPR_BUILD_TESTING)
+					if (ReplyDraftProbe) {
+						ReplyDraftProbe->Diagnostic += " | unsent_commit=" + std::to_string(aCommit.has_value())
+							+ " owner=" + std::to_string(owner == SharedDrafts) + " adopted=" + std::to_string(adopted);
+					}
+#endif
+					if (adopted) {
 						present_saved_drafts();
 					}
 				});
@@ -28252,7 +28267,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_discarded: {
 			const auto stored = saved();
 			const auto gone   = (!stored || stored->Draft.State == core::review_draft_state::discarded) && cardFor(keptId()) == nullptr;
-			note("saved=" + (stored ? std::string{ core::name(stored->Draft.State) } : std::string{ "none" }) + " note=" + std::to_string(cardFor(keptId()) != nullptr ? 1 : 0));
+			note("saved=" + (stored ? std::string{ core::name(stored->Draft.State) } : std::string{ "none" }) + " note=" + std::to_string(cardFor(keptId()) != nullptr ? 1 : 0)
+				 + " privateQuiet=" + std::to_string(!implementation->PrivateReview || implementation->PrivateReview->is_quiescent())
+				 + " pending=" + std::to_string(implementation->PrivateDraftCommandPending) + ":" + std::to_string(implementation->PrivateDraftSelectionPending));
 			if (!gone && ++probe.Waited < 160U) {
 				return result::pending;
 			}
