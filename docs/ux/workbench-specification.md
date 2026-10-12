@@ -564,7 +564,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
 - **A row** is the identity, the title, a second line that says why and ends
   in its one-word reason, and at the right the time and my reading progress.
   Recently viewed uses the same anatomy, so a row reads the same way wherever
-  it appears. Colour means state and nothing else: the reason word, and
+  it appears. [[BPR-1406]]: on a queue row for someone else's pull request
+  the second line leads with its author, "Opened by octocat; the code moved
+  since my last review", in every section; my own rows never name me, and
+  Recently viewed stores no author. Colour means state and nothing else: the reason word, and
   either a 3-point mark at the row's left or the rail of the panel holding
   it. Row text wraps rather than eliding, and the style paints its own
   selection, hover and focus.

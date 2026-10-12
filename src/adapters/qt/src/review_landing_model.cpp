@@ -187,39 +187,46 @@ namespace bpr::qt {
 		if (aItem.Membership.authored() && aItem.Bucket != core::attention_bucket::authored_awaiting_reviewer_action) {
 			clauses.push_back(QStringLiteral("My pull request"));
 		}
+		// [[BPR-1406]]. Someone else's pull request leads with who opened it,
+		// so every such row names its author in the same place.
+		if (!aItem.Membership.authored() && !author.isEmpty()) {
+			clauses.push_back(QStringLiteral("Opened by %1").arg(author));
+		}
+		// A clause after a leading one continues its sentence.
+		const auto lead = [&clauses](QString aClause) {
+			if (!clauses.isEmpty()) {
+				aClause[0] = aClause[0].toLower();
+			}
+			clauses.push_back(aClause);
+		};
 		switch (aItem.Bucket) {
 		case core::attention_bucket::initial_review_requested:
-			if (author.isEmpty()) {
-				clauses.push_back(QStringLiteral("My review is requested"));
-			} else {
-				clauses.push_back(QStringLiteral("Opened by %1").arg(author));
-				clauses.push_back(QStringLiteral("my review is requested"));
-			}
+			lead(QStringLiteral("My review is requested"));
 			break;
 		case core::attention_bucket::changed_since_my_review:
-			clauses.push_back(QStringLiteral("The code moved since my last review"));
+			lead(QStringLiteral("The code moved since my last review"));
 			break;
 		case core::attention_bucket::new_comments_or_author_replies:
-			clauses.push_back(unseen > 0U ? new_comments(unseen) + QStringLiteral(" I have not read")
-										  : QStringLiteral("Something here is unread"));
+			lead(unseen > 0U ? new_comments(unseen) + QStringLiteral(" I have not read")
+							 : QStringLiteral("Something here is unread"));
 			break;
 		case core::attention_bucket::fixes_awaiting_verification:
-			clauses.push_back(QStringLiteral("A defect I filed is marked fixed"));
+			lead(QStringLiteral("A defect I filed is marked fixed"));
 			clauses.push_back(QStringLiteral("I have not checked it"));
 			break;
 		case core::attention_bucket::authored_awaiting_reviewer_action:
-			clauses.push_back(QStringLiteral("My pull request waits on reviewers"));
+			lead(QStringLiteral("My pull request waits on reviewers"));
 			break;
 		case core::attention_bucket::observed_with_new_activity:
-			clauses.push_back(QStringLiteral("New activity on a pull request I follow"));
+			lead(QStringLiteral("New activity on a pull request I follow"));
 			break;
 		case core::attention_bucket::quiet:
 			if (!core::merge_blocked(aItem.Facts.Waiting)) {
-				clauses.push_back(QStringLiteral("Nothing here is waiting on anyone"));
+				lead(QStringLiteral("Nothing here is waiting on anyone"));
 			}
 			break;
 		case core::attention_bucket::detail_unknown:
-			clauses.push_back(QStringLiteral("Nothing about it has been read yet"));
+			lead(QStringLiteral("Nothing about it has been read yet"));
 			break;
 		}
 		// [[BPR-1405]]. Who or what is awaited, said once and bounded; the

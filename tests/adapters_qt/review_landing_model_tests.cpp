@@ -625,6 +625,21 @@ namespace {
 				   == QStringLiteral("New activity on a pull request I follow; I watch %1 src/parser.")
 						  .arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
 			   "a row here only because of a rule names the rule");
+		// [[BPR-1406]]. Every row of someone else's leads with its author; mine never names me.
+		auto byAuthor = [](auto aItem) {
+			aItem.Facts.Author = "octocat";
+			return qt::home_why_sentence(aItem);
+		};
+		expect(byAuthor(changed) == QStringLiteral("Opened by octocat; the code moved since my last review; 3 new comments.")
+				   && byAuthor(replied) == QStringLiteral("Opened by octocat; 2 new comments I have not read.")
+				   && byAuthor(item(5, bucket::fixes_awaiting_verification)) == QStringLiteral("Opened by octocat; a defect I filed is marked fixed; I have not checked it.")
+				   && byAuthor(item(6, bucket::quiet)) == QStringLiteral("Opened by octocat; nothing here is waiting on anyone."),
+			   "someone else's row names its author first, and the reason continues the sentence");
+		expect(byAuthor(watched) == QStringLiteral("Opened by octocat; new activity on a pull request I follow; I watch %1 src/parser.").arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
+			   "a followed row names its author before its rule");
+		expect(byAuthor(item(7, bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true })) == QStringLiteral("My pull request waits on reviewers.")
+				   && byAuthor(item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true })) == QStringLiteral("My pull request; nothing about it has been read yet."),
+			   "my own row does not name me");
 		const auto verify = item(5, bucket::fixes_awaiting_verification);
 		const auto quiet  = item(6, bucket::quiet);
 		expect(qt::home_state_summary(qt::home_group::needs_you, std::array{ requested, changed, replied, verify })
@@ -639,7 +654,7 @@ namespace {
 		// and is not quiet: the Quiet-only filter leaves it out.
 		const auto unknown = item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true });
 		expect(qt::home_group_of(bucket::detail_unknown) == qt::home_group::following
-				   && qt::home_why_sentence(unknown) == QStringLiteral("My pull request; Nothing about it has been read yet."),
+				   && qt::home_why_sentence(unknown) == QStringLiteral("My pull request; nothing about it has been read yet."),
 			   "an authored unread row retains its unknown explanation and identifies ownership");
 		{
 			auto source = qt::review_landing_model{ };
@@ -716,6 +731,10 @@ namespace {
 		others.Bucket     = core::attention_bucket::initial_review_requested;
 		others.Facts.Author.clear();
 		expect(qt::home_why_sentence(others) == QStringLiteral("My review is requested; Branch Freshness failed."), "someone else's row keeps its blockers but not its author's roster");
+		auto blockedOnly         = others;
+		blockedOnly.Bucket       = core::attention_bucket::quiet;
+		blockedOnly.Facts.Author = "octocat";
+		expect(qt::home_why_sentence(blockedOnly) == QStringLiteral("Opened by octocat; Branch Freshness failed."), "a check's name after the author keeps its own case");
 		auto blocked                         = waiting;
 		blocked.Ref.Number                   = 32;
 		blocked.Bucket                       = core::attention_bucket::quiet;
