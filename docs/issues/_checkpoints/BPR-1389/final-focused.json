@@ -1,0 +1,13 @@
+{
+  "criterion": "BPR-1389:corrected-public-provider-storage",
+  "outcome": "pass",
+  "revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^(sqlite_window_review_restoration_storage|github_paged_read|application_personal_discovery_public_path)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 24.543,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 247: sqlite_window_review_restoration_storage\n1/3 Test #247: sqlite_window_review_restoration_storage .....   Passed    0.60 sec\n    Start 450: github_paged_read\n2/3 Test #450: github_paged_read ............................   Passed    4.16 sec\n    Start 634: application_personal_discovery_public_path\n3/3 Test #634: application_personal_discovery_public_path ...   Passed   19.75 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated                    =  24.52 sec*proc (3 tests)\nbpr_serial_gui                          =  19.75 sec*proc (1 test)\nbpr_windows_uncontained_registration    =  20.36 sec*proc (2 tests)\n\nTotal Test time (real) =  24.53 sec\n",
+    "stderr_tail": ""
+  }
+}

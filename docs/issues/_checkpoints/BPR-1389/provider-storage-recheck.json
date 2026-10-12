@@ -1,0 +1,13 @@
+{
+  "criterion": "BPR-1389:provider-storage-recheck",
+  "outcome": "fail",
+  "revision": "f170654e651cb57e262d6c4e4696378c5464c365",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^(sqlite_window_review_restoration_storage|github_paged_read)$\"]",
+    "exit_code": 8,
+    "elapsed_seconds": 5.271,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 247: sqlite_window_review_restoration_storage\n1/2 Test #247: sqlite_window_review_restoration_storage ...***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]  0.66 sec\nFAILED: a malformed or future list refuses without fabricating a current snapshot\nTEST_RUNNER_CHILD_EXIT:1\nTEST_RUNNER_CHILD_EXIT_FAILED:1\n\n    Start 450: github_paged_read\n2/2 Test #450: github_paged_read ..........................   Passed    4.57 sec\n\n50% tests passed, 1 tests failed out of 2\n\nLabel Time Summary:\nbpr_network_isolated                    =   5.22 sec*proc (2 tests)\nbpr_windows_uncontained_registration    =   0.66 sec*proc (1 test)\n\nTotal Test time (real) =   5.26 sec\n\nThe following tests FAILED:\n\t247 - sqlite_window_review_restoration_storage (Failed) bpr_network_isolated bpr_windows_uncontained_registration\n",
+    "stderr_tail": "Errors while running CTest\n"
+  }
+}

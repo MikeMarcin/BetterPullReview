@@ -1,0 +1,13 @@
+{
+  "criterion": "BPR-1389:rendered-qt-final",
+  "outcome": "pass",
+  "revision": "f170654e651cb57e262d6c4e4696378c5464c365",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^qt_home_list_scale_.*$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 56.446,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 393: qt_home_list_scale_100\n1/3 Test #393: qt_home_list_scale_100 ...........   Passed   18.68 sec\n    Start 394: qt_home_list_scale_125\n2/3 Test #394: qt_home_list_scale_125 ...........   Passed   18.67 sec\n    Start 395: qt_home_list_scale_200\n3/3 Test #395: qt_home_list_scale_200 ...........   Passed   19.07 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated    =  56.42 sec*proc (3 tests)\nbpr_serial_gui          =  56.42 sec*proc (3 tests)\n\nTotal Test time (real) =  56.44 sec\n",
+    "stderr_tail": ""
+  }
+}

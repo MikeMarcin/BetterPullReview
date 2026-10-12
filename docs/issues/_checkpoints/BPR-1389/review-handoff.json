@@ -1,0 +1,38 @@
+{
+  "session": "df622dfed34516817f93fa5ac168bf03",
+  "cursor": 3,
+  "state": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/state",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "server": {
+    "pid": 5647,
+    "exec_session_id": 12891,
+    "port": 54587
+  },
+  "candidate": "bpr1389-home-draft-v001",
+  "fingerprint": "3dc0d110224cab33969d5ad212d02853480beaa07aa8d4659150cf88b7c76c88",
+  "product_revision": "f170654e651cb57e262d6c4e4696378c5464c365",
+  "verification_revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+  "executable_sha256": "41f42b50631aa12a58ab3c974427f0a7c27a013670ca349901d6a9d978fed1d8",
+  "frozen_root": "/Users/jaeger/bpr1389-home-draft-v001.nh7rl2k8",
+  "pending": [
+    "AC04 owner visual/native acceptance"
+  ],
+  "owner": "coordinator /root",
+  "wait_argv": [
+    "python3",
+    "-B",
+    "/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+    "--repo-root",
+    "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "--state",
+    "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/state",
+    "wait",
+    "--after",
+    "3",
+    "--kind",
+    "handed-back",
+    "--timeout",
+    "43200"
+  ],
+  "complete_handoff": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/handoff.json"
+}

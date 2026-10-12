@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Pass: composed native/CLI Home discovery and recent-only accepted PR courses; draft/non-draft/unknown wire truth table; shared row status/accessibility. Product source equals frozen candidate f170654e651cb57e262d6c4e4696378c5464c365. Evidence: docs/verification/RFC-BPR-0067.md and docs/issues/_checkpoints/BPR-1389/."
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Pass: accepted draft-to-ready in both composed windows preserves exact selection/opening and the existing request budget; host transitions retain membership/attention. Product source equals frozen candidate f170654e651cb57e262d6c4e4696378c5464c365. Evidence: docs/verification/RFC-BPR-0067.md and docs/issues/_checkpoints/BPR-1389/."
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Pass: 266 core-only tests, exact numeric account masking, Recent destination isolation, null-preserving queue/Recent migrations, restart agreement, failed/late/foreign completions and migration rollback. Product source equals frozen candidate f170654e651cb57e262d6c4e4696378c5464c365. Evidence: docs/verification/RFC-BPR-0067.md and docs/issues/_checkpoints/BPR-1389/."
+      }
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pending",
+      "revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Automated pass: four appearances and 100/125/150/200% shared rows, wrapping, selection, Reviewing/account chips, opening states and accessible wording; composed full-window captures. Pending: owner verdict in short attended session df622dfed34516817f93fa5ac168bf03. Product source equals frozen candidate f170654e651cb57e262d6c4e4696378c5464c365. Evidence: docs/verification/RFC-BPR-0067.md and docs/issues/_checkpoints/BPR-1389/."
+      }
+    }
+  ]
+}

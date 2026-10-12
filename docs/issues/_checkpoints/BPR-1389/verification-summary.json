@@ -1,0 +1,61 @@
+{
+  "product_revision": "f170654e651cb57e262d6c4e4696378c5464c365",
+  "verification_revision": "b781fdf93c49e8f49ff51f13cff7f42fd1c1a321",
+  "core_only": {
+    "command": "cmake --preset core-only; cmake --build --preset core-only --parallel 8; ctest --preset core-only --output-on-failure",
+    "result": "266/266 passed",
+    "elapsed_seconds": 856.81,
+    "raw_log": "/tmp/bpr-home-draft-core-tests.log"
+  },
+  "qt_scale150": {
+    "command": "QT_QPA_PLATFORM=offscreen QT_SCALE_FACTOR=1.5 BPR_EXPECTED_QT_SCALE=1.5 BPR_AUTOMATED_TEST_BOUNDARY=1 python3 -I -S scripts/run_network_isolated_test.py --sandbox-exec /usr/bin/sandbox-exec --profile-template cmake/sandbox/macos-network-deny.sb --loopback-port-count 0 -- build/dev/tests/adapters_qt/better_pull_review_qt_home_list_tests build/dev/tests/adapters_qt/home-list-150.png",
+    "result": "home-list-tests:pass; exit 0"
+  },
+  "composed_render": {
+    "command": [
+      "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14",
+      "-I",
+      "-S",
+      "scripts/run_network_isolated_test.py",
+      "--sandbox-exec",
+      "/usr/bin/sandbox-exec",
+      "--profile-template",
+      "cmake/sandbox/macos-network-deny.sb",
+      "--loopback-port-count",
+      "0",
+      "--",
+      "build/dev/tests/end_to_end/personal_discovery_public_path",
+      "--render-directory",
+      "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/renders"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 7.065163082908839
+  },
+  "frozen_check": {
+    "result": "CHECK_OK (first head): ATTENDED_HOME_SHOWN:rows=3:delay=0ms head None",
+    "initial_failure": "Wrong conventional-comments fixture could not discover the hardcoded Home synthetic repository; profile-window-restoration is not a main CLI fixture. Standard launcher template regenerated with the shipped github-com fixture and its committed paths; same source, binary and own --check passed. Source/build frozen read-only.",
+    "sha256": "41f42b50631aa12a58ab3c974427f0a7c27a013670ca349901d6a9d978fed1d8"
+  },
+  "tidy": {
+    "tool": "clang-tidy 22.1.8",
+    "result": "9 selected production implementation translation units passed; workbench_window.cpp failed one preexisting compact_below naming diagnostic, unchanged at immutable baseline. No changed-source diagnostic.",
+    "raw_log": "/tmp/bpr-home-draft-tidy.log"
+  },
+  "renders": {
+    "root": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1389-review-ypn3r1t_/renders",
+    "appearances": [
+      "Light",
+      "Dark",
+      "High-contrast Light",
+      "High-contrast Dark"
+    ],
+    "composed_actual_sizes": "1100x760 and 900x760 (requested 520 width is clamped by existing native minimum)",
+    "row_scales": [
+      "100%",
+      "125%",
+      "150%",
+      "200%"
+    ],
+    "platform": "macOS arm64; Qt 6.11.2; offscreen layout evidence; owner native appearance judgment pending"
+  }
+}

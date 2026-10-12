@@ -1,0 +1,13 @@
+{
+  "criterion": "BPR-1389:public-recheck",
+  "outcome": "pass",
+  "revision": "f170654e651cb57e262d6c4e4696378c5464c365",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^application_personal_discovery_public_path$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 20.337,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 634: application_personal_discovery_public_path\n1/1 Test #634: application_personal_discovery_public_path ...   Passed   20.31 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated                    =  20.31 sec*proc (1 test)\nbpr_serial_gui                          =  20.31 sec*proc (1 test)\nbpr_windows_uncontained_registration    =  20.31 sec*proc (1 test)\n\nTotal Test time (real) =  20.33 sec\n",
+    "stderr_tail": ""
+  }
+}

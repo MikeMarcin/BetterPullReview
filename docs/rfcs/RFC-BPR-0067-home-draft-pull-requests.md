@@ -122,3 +122,7 @@ not an owner acceptance of a rendered candidate.
   and high-contrast appearances, with Group and State headers settings,
   selection, Reviewing, account chips and opening states. Keyboard and
   accessible row output preserve the defined status and existing actions.
+
+## Implementation and pending acceptance
+
+Engineering is implemented at product candidate `f170654e651cb57e262d6c4e4696378c5464c365`. The [verification ledger](../verification/RFC-BPR-0067.md) records AC01–AC03 and automated AC04 evidence. [[BPR-1389]] retains pending AC04 owner visual acceptance in a fresh frozen attended session. Proposed status remains until all acceptance is supplied; historical native/human obligations are unchanged.
