@@ -1796,3 +1796,7 @@ budgets. Qt presents names, blocker text, accessible reasons and filtered counts
 through the existing native Home models and delegate. The
 [queue contract](review-queue.md#home-waiting-observations-rfc-bpr-0070) names limits,
 restart/freshness behavior and qualification boundaries.
+
+## Remembered connection allocation (RFC-BPR-0071)
+
+The core owns bounded selected-connection state, ordering, replacement and stale-result admission. A profile-owned application capability supplies serialized metadata effects; SQLite owns token-free transactional snapshots under the existing private root. The runtime must load metadata before choosing startup authentication, preserve stable transport/account identities across discovery order, and share one validation across windows. Successful authenticated selection triggers a prompt save independently of window layout; orderly Quit drains admitted saves. A disabled-reuse row suppresses old device resume. No storage record is an authenticated authority. Runtime integration and composed restart evidence remain tracked in RFC-BPR-0071.

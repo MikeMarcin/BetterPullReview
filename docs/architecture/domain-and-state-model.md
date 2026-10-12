@@ -1361,3 +1361,7 @@ captured AI-result scope; Qt owns native text history and focus. Preparation and
 reading progress confer no review correctness, receipt or shared mutation state.
 The [tour contract](review-tours.md) specifies ranges, budgets, persistence,
 publication grants and migration versions.
+
+## Remembered connections (RFC-BPR-0071)
+
+Selected-connection metadata belongs to one BPR profile, with at most one row per canonical server. It records transport, server contract, host and connection identity/revision, authenticated numeric account and login, selected order and reuse-enabled state. Snapshot revision and retained identity high-water marks prevent stale replacement and identity aliasing after Forget. Reuse-disabled rows are durable sign-out facts, including suppression of older device resume. These are validation inputs, never accepted session or offline-reading authority.

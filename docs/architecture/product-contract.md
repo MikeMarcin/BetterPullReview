@@ -314,3 +314,7 @@ provider-patch proof. All other scopes remain unknown; generic422 cannot enable
 fallback. Earlier unresolved attempts remain GET-only.
 The [RFC-0022 ledger](../verification/RFC-BPR-0022.md) records this limitation
 and the GitHub.com-only owner amendment; native GHES is unobserved.
+
+## Remembered CLI connection contract (RFC-BPR-0071)
+
+The adopted scope remembers a successful explicitly chosen CLI connection per BPR profile and canonical server, together with observed numeric identity, stable connection identity/revision and selected order. Read trust explains reuse until sign out or replacement. Durable metadata carries no token, live lease or publication grant. Startup and exact-host navigation may validate only that saved host/login, with current checks and an exact numeric-account comparison before private content. No inventory or fallback authority is permitted. Sign out disables reuse including older device resume; Forget removes the choice. Failed replacement preserves the old choice. Save failures are session-only, disable failures are reported, and unreadable/malformed/newer metadata cannot authorize CLI execution. Manual tokens remain session-only. Implementation and restart acceptance are tracked separately under RFC-BPR-0071.

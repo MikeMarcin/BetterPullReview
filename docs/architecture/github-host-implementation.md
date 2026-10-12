@@ -2313,3 +2313,7 @@ exact-host profile over an inactive native profile, then retains the existing
 native sign-in or anonymous-preview fallback. Opening checks the accepted
 session's profile and host against the configured destination before dispatching
 the window read. Publication admission is unchanged.
+
+## Remembered startup allocation (RFC-BPR-0071)
+
+The adopted restoration path uses the existing startup host from retained window/focus state and its saved exact connection. With no retained destination, it uses the most recent enabled record. The CLI profile is reconstructed with stable identity and per-call host/login pin; its current viewer must match the saved numeric account before session acceptance or any account-private state. Targeted validation skips inventory and repeat trust, never current tool/process checks. Refusal keeps the choice for retry without another authority. Sign out, Forget and successful replacement must order metadata effects with runtime cancellation; late completions cannot resurrect a choice. See RFC-BPR-0071 for pending runtime and restart acceptance.

@@ -1,0 +1,50 @@
+[
+  {
+    "path": "docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md",
+    "authored_sha256": "65576e39cce9c0006e9ade1404681cda344a246b8400596d82719e1b13c73961",
+    "adoption_sha256": "65576e39cce9c0006e9ade1404681cda344a246b8400596d82719e1b13c73961",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/RFC-BPR-0024-bpr-profiles-multiple-windows.md",
+    "authored_sha256": "3e519045a81de66b740683a50409d2666f3ddb131a369a3dd2727eccef0b50c3",
+    "adoption_sha256": "3e519045a81de66b740683a50409d2666f3ddb131a369a3dd2727eccef0b50c3",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/RFC-BPR-0032-calm-home-and-accounts-surfaces.md",
+    "authored_sha256": "b0d8cb50c2234fda079d367c687e7ee7f0f884d7c49d717dac15dabf5be8287b",
+    "adoption_sha256": "b0d8cb50c2234fda079d367c687e7ee7f0f884d7c49d717dac15dabf5be8287b",
+    "matches": true
+  },
+  {
+    "path": "docs/architecture/product-contract.md",
+    "authored_sha256": "d1444738a74be65b0b362989245468b3995ce35f0da8ac4d7a661900e3933e65",
+    "adoption_sha256": "d1444738a74be65b0b362989245468b3995ce35f0da8ac4d7a661900e3933e65",
+    "matches": true
+  },
+  {
+    "path": "docs/architecture/system-architecture.md",
+    "authored_sha256": "9ab40714ed9cf74c433fc7c19d9b3c33963d70cd913fd4080084d1c74b64ec48",
+    "adoption_sha256": "9ab40714ed9cf74c433fc7c19d9b3c33963d70cd913fd4080084d1c74b64ec48",
+    "matches": true
+  },
+  {
+    "path": "docs/architecture/github-host-implementation.md",
+    "authored_sha256": "4396026f7f137bb262add140d7eabf4afcbfb70b1b812006c20abea8c3956570",
+    "adoption_sha256": "4396026f7f137bb262add140d7eabf4afcbfb70b1b812006c20abea8c3956570",
+    "matches": true
+  },
+  {
+    "path": "docs/issues/40-parked/BPR-1373-pin-each-gh-call-to-a-chosen-account.md",
+    "authored_sha256": "f6fad66c7b7f35e6038dc75b7085dbbd65dd89f513b7da81c62c1a1e6bbeba03",
+    "adoption_sha256": "f6fad66c7b7f35e6038dc75b7085dbbd65dd89f513b7da81c62c1a1e6bbeba03",
+    "matches": true
+  },
+  {
+    "path": "docs/rfcs/plans/rfc-bpr-0015-cli-profile/milestone-plan.json",
+    "authored_sha256": "eeb2c94607c72f91e10617dab0b01f8d03e5660854283b614a39c151593af831",
+    "adoption_sha256": "eeb2c94607c72f91e10617dab0b01f8d03e5660854283b614a39c151593af831",
+    "matches": true
+  }
+]

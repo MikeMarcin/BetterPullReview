@@ -269,3 +269,7 @@ cards. [[BPR-0595]] retains the immutable base and acceptance checklist. Later
 work updates architecture, storage/privacy, startup, and settings documentation
 only as behavior becomes implemented. The index and linked cards remain the
 live execution authority; this decomposition is not a second issue board.
+
+## Remembered connection ownership amendment — 2026-10-12
+
+RFC-BPR-0071 extends existing per-profile/per-server ownership to the selected resumable transport and exact account. Retained window destinations/focus still choose one startup host; its saved connection chooses the transport/account. With no retained review destination, use the most recently selected enabled resumable connection. Closing the last window does not erase it. Sign out durably disables automatic reuse for that server, including an older device grant. Current exact-account acceptance still gates private-state restoration. Successful replacement is atomic; failed or cancelled replacement and late completions cannot replace the durable choice.

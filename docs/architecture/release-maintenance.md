@@ -498,3 +498,7 @@ Save remains disabled until a new preview is accepted. The identifying dialog
 names the retained-identity risk and defaults to Cancel. Its explicit Save action
 carries the existing core confirmation bit for that exact descriptor. No new
 capture, classification, destination, mutation or network authority is added.
+
+## Remembered connection metadata (RFC-BPR-0071)
+
+The profile-private `state/v1/remembered-connections.sqlite3` snapshot and its recognized SQLite sidecars are state-store inventory/purge targets. They carry connection selection and disable facts, never CLI credentials. Profile purge removes them through the existing exact inventory; it neither changes gh authentication/configuration nor removes shared updater/registry state. Storage/policy evidence is separate from pending runtime restart acceptance.

@@ -1,0 +1,69 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "remember-cli-connections-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0071"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "connection-metadata",
+      "outcome": "A token-free selected-connection snapshot has bounded deterministic policy and private transactional durability, ready for shared runtime wiring.",
+      "work": [
+        {
+          "issue": "BPR-1408"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Canonical bounded metadata stores no credential or publication authority and enforces one connection per server with stable identity and selected order.",
+        "Pure policy rejects stale selection, supports disabled reuse and Forget, and preserves independent profile state.",
+        "Real SQLite reopen, transactional rollback, stale writes, cancellation and malformed/newer/refused storage preserve complete data or refuse without authorization.",
+        "Profile maintenance inventories and purges the metadata with focused format, architecture and documentation checks."
+      ],
+      "boundary": "Metadata and policy capability only. Application startup, successful-selection admission and composed restart acceptance remain in the next milestone."
+    },
+    {
+      "id": "shared-profile-restoration",
+      "outcome": "The shared profile runtime remembers accepted connections and revalidates the exact selected CLI account across launches without repeating discovery or consent.",
+      "work": [
+        {
+          "issue": "BPR-1409"
+        }
+      ],
+      "depends_on": [
+        "connection-metadata"
+      ],
+      "exit_criteria": [
+        "Implement RFC-BPR-0071 AC01\u2013AC04 through shared application startup, exact-host navigation and replacement/sign-out/forget effects.",
+        "Persist successful selection promptly, report session-only or disable-save failure, drain admitted saves on Quit, and reject late completions.",
+        "Restore pinned host/login/numeric account without inventory or trust prompts; failures remain visible and retry exact authority without private-state exposure."
+      ],
+      "boundary": "Full runtime integration; composed qualification and final closeout remain."
+    },
+    {
+      "id": "restart-qualification-and-closeout",
+      "outcome": "All six RFC criteria have direct composed macOS evidence and the amended contracts and closeout match the final candidate.",
+      "work": [
+        {
+          "issue": "BPR-1410"
+        },
+        {
+          "rfc": "RFC-BPR-0071"
+        }
+      ],
+      "depends_on": [
+        "shared-profile-restoration"
+      ],
+      "exit_criteria": [
+        "Every RFC-BPR-0071 AC01\u2013AC06 is demonstrated against the RFC baseline through composed macOS fixture courses, including fresh processes and last-window closure.",
+        "Tokenless execution, publication consent, global CLI state, storage/refusal and profile maintenance canaries pass; all owning contracts describe implemented scope.",
+        "Focused integration and documentation evidence cover the exact final candidate; required acceptance remains explicit."
+      ],
+      "boundary": "Full authorized RFC and amendment acceptance; no independent or human acceptance is inferred."
+    }
+  ],
+  "unplanned_work": []
+}

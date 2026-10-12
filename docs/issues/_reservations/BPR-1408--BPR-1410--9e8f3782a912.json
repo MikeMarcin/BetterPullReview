@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1408",
+    "BPR-1409",
+    "BPR-1410"
+  ],
+  "reserve_for": "remember-cli-main",
+  "purpose": "",
+  "created": "2026-10-12T22:06:33.287728+00:00",
+  "base": "46eb49b312b35ef37e69ca4ace7354c04295a6dd"
+}

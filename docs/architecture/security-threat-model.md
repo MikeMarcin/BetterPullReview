@@ -1787,3 +1787,7 @@ These are the limits, and none is a defect this card fixed:
 - **Windows.** The course's Git canaries, FIFO, raw socket attacks and mode
   checks are POSIX. On Windows it runs the rest, and the pipe's authority,
   framing and owner death are `sqlite_tour_owner_channel`'s.
+
+## Remembered CLI selection boundary (RFC-BPR-0071)
+
+A remembered successful read choice grants only a targeted validation attempt for its exact profile/server/login. A saved numeric account must match current authenticated observation before authority or private state is admitted. Metadata contains no token, live lease, discovery inventory or publication grant; ordinary publication confirmation remains required. Malformed, newer or unavailable storage fails signed out for remembered CLI execution without silently resetting it. Existing executable, helper, CA, redirect and process risks remain. No credential generation continuity or broader platform qualification is claimed.

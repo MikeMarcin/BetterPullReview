@@ -386,3 +386,7 @@ the design that keeps the token rule intact: "Go with B" ([[BPR-1373]]).
   A profile without a chosen account keeps the active-account behaviour above,
   with its checks. The redirect, CA, executable, keychain-helper and process
   risks recorded above are unchanged.
+
+## Owner remembered-connection amendment — 2026-10-12
+
+A successful explicit CLI selection and read-trust acceptance may be remembered per BPR profile/server under RFC-BPR-0071. That durable record permits bounded targeted validation of the saved host/login and numeric account on startup or exact-host navigation, without inventory or another read-trust question. It grants no accepted session, private-state access or publication authority. Every current tool, platform, per-call private configuration and viewer check remains required. Sign out disables automatic reuse; Forget removes the choice. Failed validation retains the choice and never falls back. Historical acceptance and the old CLI plan remain unchanged; the new restart scope has its own acceptance.

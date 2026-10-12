@@ -407,3 +407,7 @@ visible under Hide quiet; bounded names, separate people/team counts and last-kn
 freshness extend existing native row anatomy. This successor adds bounded provider
 reads and numeric-account-bound metadata retention; historical section rearrangement
 and its evidence are unchanged. Historical human/native obligations are not waived.
+
+## Remembered CLI sign-in amendment — 2026-10-12
+
+RFC-BPR-0071 preserves first-time CLI discovery, account choice and read trust. A saved successful connection instead follows targeted revalidation; shared windows do not repeat selection or trust. Existing connection status/recovery controls report validation failures and session-only persistence. This amendment introduces no account-page layout change and does not answer BPR-1373’s pending owner look.
