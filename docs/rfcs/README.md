@@ -520,4 +520,4 @@ scale, which the owner looks at in person on JaegAW.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0066](RFC-BPR-0066-home-authored-pull-requests.md) | Separate authored pull requests on Home | Proposed | RFC-BPR-0010, RFC-BPR-0026 |
+| [RFC-BPR-0066](RFC-BPR-0066-home-authored-pull-requests.md) | Separate authored pull requests on Home | Auto-Verified | RFC-BPR-0010, RFC-BPR-0026 |

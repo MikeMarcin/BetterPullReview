@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0066"
 title: "Separate authored pull requests on Home"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0010","RFC-BPR-0026"]
 metadata: {"mandate_revision":"home-authored-r1","milestone_plan":{"id":"home-authored-v1","path":"docs/rfcs/plans/home-authored-v1/milestone-plan.json"}}
@@ -37,7 +37,7 @@ currently specify the old placement. The accompanying
 [proposed amendment](assets/home-authored-v1/proposed-home-amendment.md) identifies the affected live
 contracts and historical evidence; it does not modify them.
 
-## Proposed behavior and boundaries
+## Behavior and boundaries
 
 ### Separate ownership from attention
 
@@ -55,8 +55,8 @@ a separate history and resume surface and may still contain the same PR.
 ### Section membership
 
 **Decision Q1 — resolved on 2026-10-11.** The owner answered: “Keep waiting
-PRs in ‘Waiting on others’”. This settles the waiting placement; the rest of
-this document remains a proposal. No material design questions remain open.
+PRs in ‘Waiting on others’”. This settles the waiting placement; the full document was adopted under mandate
+`home-authored-r1`. No material design questions remain open.
 
 Preserve **Waiting on others** for authored rows whose current core bucket is
 `authored_awaiting_reviewer_action`. Put all other authored rows in **My pull
@@ -142,3 +142,7 @@ read or full PR load is needed to arrange already accepted queue rows.
   window after its activity changes; section arrangement adds no provider
   work. Existing Recently viewed, onboarding and signed-out courses remain
   valid for their unchanged behavior.
+
+## Verification and execution record
+
+Closed for AC01–AC05 at product candidate `a34080e0fbce7d7e8d9fdade436aa5826e21e4a5` by [[BPR-1388]]. The [ledger](../verification/RFC-BPR-0066.md) binds all criterion evidence and remaining native limits. Required RFC dependencies RFC0010 and RFC0026 are Auto-Verified. No new provider work or authority was introduced; existing unrelated human/native obligations and historical candidate verdicts retain their scope.
