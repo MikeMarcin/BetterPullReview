@@ -89,7 +89,7 @@ pending.
 New normal-gate observations remain explicit: Mac `99e96691` history passed
 all 32 retained/source checks but exceeded the unchanged 100 ms input interval
 at late refresh epochs (110–173 ms), although all refresh/selection completion
-bounds passed. Diagnosis remains open. Windows `8cf67d793` diagnostic wrapping
+bounds passed. The later isolated repair pass is recorded below. Windows `8cf67d793` diagnostic wrapping
 killed enrollment at 120 seconds despite its independent native pass in
 172.96 seconds. Explicit child backstops and a checked combined harness bound
 repair that mismatch; five refusal/canary/timeout counterexamples pass and
@@ -117,11 +117,28 @@ The ledger preserves every actual failed result and pending native acceptance.
 
 
 Inherited BPR-1407 Home facts are selected, with their recorded 76/76 local
-checks and AC4 owner look still pending in attended session
-`7cf6171a73b084a2ae161dcd95702e61`. Final native selectors include its provider,
+checks. The owner rejected the first look in attended session
+`7cf6171a73b084a2ae161dcd95702e61`; revised acceptance remains in its owning
+card's workflow. Final native selectors include its provider,
 discovery and queue storage changes. The Windows normal course's empty
 writing-folder deletion and pending-label ordering failures have scoped
 repairs using the existing owner-private descriptor and a bounded fixture-only
 persistence hold. Final native confirmation and the collected Windows title-row
 course remain pending. The composition reseal retains the unchanged production
 mutation-branch digest and hostile-source controls.
+
+The proper interactive-token Windows normal run at `8cf67d793` completed with
+653 pass, 12 fail and one configured cache-byte skip. Its final affected-source
+collection is in progress. The unchanged provider and device-refresh bounds
+pass in 23.01 and 9.67 seconds respectively; contained writing-folder cleanup
+passes in 66.83 seconds. The title-row course now opens the accepted folded
+Updates state explicitly, and the agent-finding course waits for accepted
+private text independently of Dif. Their focused Mac evidence and remaining
+native obligations are in the ledger.
+
+The selected UI also includes BPR-1407's owner amendments at `5081076e4`:
+coloured line totals, short age, comment icon/count and reviewer counts. Revised
+AC4/AC5 remain in its owning card's workflow. Scoped review finds only a
+tests-only discovered-title helper in the additional composition delta. All
+three production pins stay byte-identical; hostile-source/manifest controls
+pass. No UI acceptance or final native gate pass is inferred from this review.

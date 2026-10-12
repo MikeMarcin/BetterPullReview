@@ -373,6 +373,33 @@ but its child returned zero. These focused observations resolve the execution
 context diagnosis; they do not substitute for the required final full Windows
 gate through the correct token route. Raw local logs retain both results.
 
+The owner rejected BPR-1407's initial Home look and amended its presentation.
+Selected commit `5081076e48efdd0f7f6be1eae4f11d54ce4913b4` supplies coloured
+line counts separated by a slash, a short age, a comment icon/count, and a
+reviewer count on authored rows. Its owning card retains the required revised
+look and shorter-row acceptance; the original rejected look is not approval
+for this revision.
+
+Scoped composition review from `004a9c8ef` through `5081076e4` finds only one
+additional `src/app` change: `github_public_path_fixture.cpp` introduces
+`discovered_title` and uses it in the fixture's two existing read responses.
+It gives pull request 4002 a long title. No request, credential, storage,
+grant, mutation or source-inventory entry changes. This tests-only TU is
+excluded from the production manifest, so all three existing pins remain
+unchanged: full application `5aec6edb7ada80035e9019fa76fe9fd48a476db0f6aaf69abf2c808ce984be57`,
+aggregate manifest `a525a2fc6658c8ff1ca24a7019ec5d379311b6ecfbfda4a0ba7d7bacfd473125`,
+and mutation branch `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
+The actual baseline and hostile-source/manifest controls pass in 2.012 seconds
+on the clean revised source. There is no new hash to reseal. The final normal
+tests-disabled composition course remains required on the selected source.
+
+The clean `badb89b0a` producer (UI source `5081076e4`) builds the revised
+application, landing model, Home list and discovery course successfully.
+Eight normal focused rows pass serially in 94.47 seconds: landing model,
+Home at 1.0/1.25/2.0, personal discovery and authored waiting through both
+native and CLI paths. The owner look is still independent. Final affected
+native Windows/Ubuntu and the authoritative Mac normal gate remain pending.
+
 ## Vulnerability and wider qualification frontier
 
 The fresh v0.1.9 exact-SPDX Grype run remains failed: **32 matches**
