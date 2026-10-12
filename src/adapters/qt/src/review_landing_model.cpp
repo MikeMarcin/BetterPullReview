@@ -141,30 +141,12 @@ namespace bpr::qt {
 		// Who else someone else's pull request waits on is its author's
 		// business ([[RFC-BPR-0070]] waiting is authored); its blockers are not.
 		const auto authored = aItem.Membership.authored();
-		const auto requests = authored ? static_cast<std::size_t>(waiting.Requests.value_or(0U)) : 0U;
 		const auto named    = authored ? waiting.CodeOwners.size() + waiting.Reviewers.size() : 0U;
-		// Requests beyond the retained names are counted with the last list.
-		const auto unnamed = waiting.NamesKnown && requests > named ? requests - named : 0U;
-		if (authored && !waiting.CodeOwners.empty()) {
-			clauses.push_back(QStringLiteral("Waiting on code-owner review from %1")
-								  .arg(bounded_list(waiting.CodeOwners, waiting.CodeOwners.size() + (waiting.Reviewers.empty() ? unnamed : 0U))));
-		}
-		if (authored && !waiting.Reviewers.empty()) {
-			clauses.push_back((waiting.CodeOwners.empty() ? QStringLiteral("Waiting on review from %1") : QStringLiteral("review from %1"))
-								  .arg(bounded_list(waiting.Reviewers, waiting.Reviewers.size() + unnamed)));
-		}
-		if (requests > 0U && !waiting.NamesKnown) {
-			// Discovery's counts, which tell people from teams but not who.
-			auto who = QStringList{ };
-			if (waiting.People > 0U) {
-				who.push_back(counted(waiting.People, QStringLiteral("person"), QStringLiteral("people")));
-			}
-			if (waiting.Teams > 0U) {
-				who.push_back(counted(waiting.Teams, QStringLiteral("team"), QStringLiteral("teams")));
-			}
-			clauses.push_back(waiting.People + waiting.Teams == requests
-								  ? QStringLiteral("Waiting on %1").arg(who.join(QStringLiteral(" and ")))
-								  : QStringLiteral("Waiting on %1").arg(counted(requests, QStringLiteral("review request"), QStringLiteral("review requests"))));
+		// [[BPR-1407]]. The owner: "just show waiting on # reviewers". People
+		// and teams, code owners among them, are counted; Overview names them.
+		const auto requests = authored ? std::max(static_cast<std::size_t>(waiting.Requests.value_or(0U)), waiting.NamesKnown ? named : 0U) : 0U;
+		if (requests > 0U) {
+			clauses.push_back(QStringLiteral("Waiting on %1").arg(counted(requests, QStringLiteral("reviewer"), QStringLiteral("reviewers"))));
 		}
 		if (authored && named == 0U && requests == 0U && waiting.RequiredReview.value_or(false)) {
 			clauses.push_back(QStringLiteral("Required review outstanding"));
@@ -430,20 +412,21 @@ namespace bpr::qt {
 			return { };
 		}
 		// A true minus, so the sign is as wide as the plus and reads as one.
-		return QStringLiteral("+%1 \u2212%2").arg(grouped(*aChange.Additions), grouped(*aChange.Deletions));
+		return QStringLiteral("+%1 / \u2212%2").arg(grouped(*aChange.Additions), grouped(*aChange.Deletions));
 	}
 
-	auto home_history_text(const core::queue_change_facts& aChange, const std::optional<std::int64_t> aNow) -> QString
+	auto home_age_text(const core::queue_change_facts& aChange, const std::optional<std::int64_t> aNow) -> QString
 	{
-		auto clauses = QStringList{ };
-		if (const auto days = days_open(aChange, aNow); days) {
-			clauses.push_back(*days == 0 ? QStringLiteral("Under a day old") : *days == 1 ? QStringLiteral("1 day old")
-																						  : QStringLiteral("%1 days old").arg(grouped(static_cast<std::uint64_t>(*days))));
+		const auto days = days_open(aChange, aNow);
+		if (!days) {
+			return { };
 		}
-		if (aChange.Comments) {
-			clauses.push_back(comments(*aChange.Comments));
-		}
-		return leading(clauses.join(QStringLiteral(", ")));
+		return *days == 0 ? QStringLiteral("<1d") : QStringLiteral("%1d").arg(grouped(static_cast<std::uint64_t>(*days)));
+	}
+
+	auto home_comments_text(const core::queue_change_facts& aChange) -> QString
+	{
+		return aChange.Comments ? grouped(*aChange.Comments) : QString{ };
 	}
 
 	auto home_change_sentence(const core::queue_change_facts& aChange, const std::optional<std::int64_t> aNow) -> QString
@@ -557,8 +540,10 @@ namespace bpr::qt {
 			return Reviewing == item->Ref;
 		case home_row_role::size:
 			return home_size_text(item->Facts.Change);
-		case home_row_role::history:
-			return home_history_text(item->Facts.Change, Now);
+		case home_row_role::age:
+			return home_age_text(item->Facts.Change, Now);
+		case home_row_role::comments:
+			return home_comments_text(item->Facts.Change);
 		case home_row_role::time:
 		case home_row_role::progress:
 		case home_row_role::row_action:
@@ -705,7 +690,7 @@ namespace bpr::qt {
 			return;
 		}
 		const auto prior = std::exchange(Now, aSeconds);
-		const auto roles = QList<int>{ home_row_role::history, Qt::AccessibleDescriptionRole };
+		const auto roles = QList<int>{ home_row_role::age, Qt::AccessibleDescriptionRole };
 		for (std::size_t row = 0U; row < Items.size(); ++row) {
 			const auto& change = Items[row].Facts.Change;
 			if (days_open(change, prior) != days_open(change, Now)) {

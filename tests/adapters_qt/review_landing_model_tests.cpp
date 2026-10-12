@@ -707,7 +707,7 @@ namespace {
 		waiting.Facts.Waiting.ChecksKnown    = true;
 		waiting.Facts.Waiting.FailedChecks   = { "Branch Freshness" };
 		const auto text                      = qt::home_why_sentence(waiting);
-		expect(text == QStringLiteral("Waiting on code-owner review from @org/team-a, @org/team-b and @org/team-c; Branch Freshness failed."), "waiting reason names code-owner teams once, without a generic clause or a count, and preserves the concurrent failure");
+		expect(text == QStringLiteral("Waiting on 3 reviewers; Branch Freshness failed."), "[[BPR-1407]] waiting reason counts reviewers once, without a generic clause, and preserves the concurrent failure");
 		auto many                       = waiting;
 		many.Facts.Waiting.Requests     = 6;
 		many.Facts.Waiting.People       = 1;
@@ -715,14 +715,17 @@ namespace {
 		many.Facts.Waiting.Reviewers    = { "@alice" };
 		many.Facts.Waiting.FailedChecks = { "Lint", "Build", "Branch Freshness" };
 		many.Facts.Waiting.ChecksStale  = true;
-		expect(qt::home_why_sentence(many) == QStringLiteral("Waiting on code-owner review from @org/team-a, @org/team-b and 2 more; review from @alice and 1 more; Lint, Build and Branch Freshness failed; last known."), "long rosters are bounded with the rest counted, and Overview holds the whole roster");
+		expect(qt::home_why_sentence(many) == QStringLiteral("Waiting on 6 reviewers; Lint, Build and Branch Freshness failed; last known."), "a long roster is one count, and Overview holds the whole roster");
 		auto unnamed                     = waiting;
 		unnamed.Facts.Waiting.NamesKnown = false;
 		unnamed.Facts.Waiting.People     = 1;
 		unnamed.Facts.Waiting.Teams      = 2;
 		unnamed.Facts.Waiting.CodeOwners.clear();
 		unnamed.Facts.Waiting.FailedChecks.clear();
-		expect(qt::home_why_sentence(unnamed) == QStringLiteral("Waiting on 1 person and 2 teams; Merge blocked."), "without names, discovery's counts tell people from teams");
+		expect(qt::home_why_sentence(unnamed) == QStringLiteral("Waiting on 3 reviewers; Merge blocked."), "without names, discovery's count says the same");
+		auto one                   = unnamed;
+		one.Facts.Waiting.Requests = 1;
+		expect(qt::home_why_sentence(one) == QStringLiteral("Waiting on 1 reviewer; Merge blocked."), "one reviewer is singular");
 		auto aggregate                   = unnamed;
 		aggregate.Facts.Waiting.Requests = 0;
 		aggregate.Facts.Waiting.People   = 0;
@@ -775,25 +778,25 @@ namespace {
 		constexpr auto day    = std::int64_t{ 86'400 };
 		constexpr auto now    = std::int64_t{ 1'760'000'000 };
 		const auto     locale = QLocale{ };
-		auto           change = core::queue_change_facts{ .OpenedAt = now - (6 * day) - 5, .Additions = 1204U, .Deletions = 318U, .Comments = 14U };
-		expect(qt::home_size_text(change) == QStringLiteral("+%1 \u2212%2").arg(locale.toString(1204), locale.toString(318)), "size is added then removed, with a true minus");
-		expect(qt::home_history_text(change, now) == QStringLiteral("6 days old, 14 comments"), "history is whole days, then the count");
-		expect(qt::home_change_sentence(change, now) == QStringLiteral("Opened 6 days ago; %1 lines added and %2 removed; 14 comments.").arg(locale.toString(1204), locale.toString(318)),
+		auto           change = core::queue_change_facts{ .OpenedAt = now - (21 * day) - 5, .Additions = 1204U, .Deletions = 318U, .Comments = 14U };
+		expect(qt::home_size_text(change) == QStringLiteral("+%1 / \u2212%2").arg(locale.toString(1204), locale.toString(318)), "size is added / removed, with a true minus");
+		expect(qt::home_age_text(change, now) == QStringLiteral("21d") && qt::home_comments_text(change) == QStringLiteral("14"), "age is terse whole days; comments are the number");
+		expect(qt::home_change_sentence(change, now) == QStringLiteral("Opened 21 days ago; %1 lines added and %2 removed; 14 comments.").arg(locale.toString(1204), locale.toString(318)),
 			   "the sentence says every fact in words");
-		expect(qt::home_history_text(change, std::nullopt) == QStringLiteral("14 comments"), "without a clock there is no age");
+		expect(qt::home_age_text(change, std::nullopt).isEmpty(), "without a clock there is no age");
 		change.OpenedAt = now - day;
-		change.Comments = 1U;
-		expect(qt::home_history_text(change, now) == QStringLiteral("1 day old, 1 comment"), "one day and one comment are singular");
+		expect(qt::home_age_text(change, now) == QStringLiteral("1d"), "a day is 1d");
 		change.OpenedAt = now - day + 1;
 		change.Comments = 0U;
-		expect(qt::home_history_text(change, now) == QStringLiteral("Under a day old, no comments"), "less than a day and no comments are said as such");
+		expect(qt::home_age_text(change, now) == QStringLiteral("<1d") && qt::home_comments_text(change) == QStringLiteral("0"), "less than a day, and zero comments as a count");
 		change.OpenedAt = now + 600;
-		expect(qt::home_history_text(change, now).startsWith(QStringLiteral("Under a day old")), "a clock behind GitHub's never says a negative age");
+		expect(qt::home_age_text(change, now) == QStringLiteral("<1d"), "a clock behind GitHub's never says a negative age");
 		change.OpenedAt.reset();
-		expect(qt::home_history_text(change, now) == QStringLiteral("No comments"), "a leading clause is capitalised");
+		change.Comments = 1U;
+		expect(qt::home_change_sentence(change, now) == QStringLiteral("%1 lines added and %2 removed; 1 comment.").arg(locale.toString(1204), locale.toString(318)), "a leading clause is capitalised; one comment is singular");
 		change.Deletions.reset();
 		expect(qt::home_size_text(change).isEmpty(), "a size needs both counts");
-		expect(qt::home_size_text({ }).isEmpty() && qt::home_history_text({ }, now).isEmpty() && qt::home_change_sentence({ }, now).isEmpty(), "nothing read draws and says nothing");
+		expect(qt::home_size_text({ }).isEmpty() && qt::home_age_text({ }, now).isEmpty() && qt::home_comments_text({ }).isEmpty() && qt::home_change_sentence({ }, now).isEmpty(), "nothing read draws and says nothing");
 	}
 
 	void test_change_facts_rows_and_their_clock()
@@ -809,19 +812,19 @@ namespace {
 		model.apply(std::vector{ aged, unread });
 		const auto first       = model.index(0, 0);
 		const auto description = [&first] { return first.data(Qt::AccessibleDescriptionRole).toString(); };
-		expect(model.data(first, qt::home_row_role::history).toString() == QStringLiteral("2 comments") && !description().contains(QStringLiteral("Opened 2")), "without a clock a row has no age");
+		expect(model.data(first, qt::home_row_role::age).toString().isEmpty() && model.data(first, qt::home_row_role::comments).toString() == QStringLiteral("2") && !description().contains(QStringLiteral("Opened 2")), "without a clock a row has no age");
 		auto changed = std::vector<int>{ };
 		QObject::connect(&model, &QAbstractItemModel::dataChanged, &model, [&changed](const QModelIndex& aTop, const QModelIndex&, const QList<int>&) { changed.push_back(aTop.row()); });
 		model.set_now(now);
 		expect(changed == std::vector{ 0 }, "a clock changes only the rows whose age it gives");
-		expect(model.data(first, qt::home_row_role::history).toString() == QStringLiteral("2 days old, 2 comments") && model.data(first, qt::home_row_role::size).toString() == QStringLiteral("+5 \u22121"), "the row answers its size and history");
+		expect(model.data(first, qt::home_row_role::age).toString() == QStringLiteral("2d") && model.data(first, qt::home_row_role::size).toString() == QStringLiteral("+5 / \u22121"), "the row answers its size and age");
 		expect(description() == qt::home_why_sentence(aged) + QStringLiteral(" Requested. Opened 2 days ago; 5 lines added and 1 removed; 2 comments."), "the accessible description says the drawn facts after the reason");
 		changed.clear();
 		model.set_now(now + 3600);
 		expect(changed.empty(), "an hour that changes no day changes no row");
 		model.set_now(now + day);
-		expect(changed == std::vector{ 0 } && model.data(first, qt::home_row_role::history).toString().startsWith(QStringLiteral("3 days old")), "the next day ages the row");
-		expect(model.data(model.index(1, 0), qt::home_row_role::history).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::size).toString() == QStringLiteral("+9 \u22120"), "zero removed is a known count");
+		expect(changed == std::vector{ 0 } && model.data(first, qt::home_row_role::age).toString() == QStringLiteral("3d"), "the next day ages the row");
+		expect(model.data(model.index(1, 0), qt::home_row_role::age).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::comments).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::size).toString() == QStringLiteral("+9 / \u22120"), "zero removed is a known count");
 	}
 
 } // namespace

@@ -10,6 +10,7 @@
 #include <QIcon>
 #include <QList>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPalette>
 #include <QPen>
 #include <QPointF>
@@ -23,6 +24,7 @@
 #include <QTextOption>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <tuple>
 #include <utility>
@@ -188,7 +190,8 @@ namespace bpr::qt {
 				Progress            = aIndex.data(home_row_role::progress).toString();
 				Chip                = aIndex.data(home_row_role::account_chip).toString();
 				Size                = aIndex.data(home_row_role::size).toString();
-				History             = aIndex.data(home_row_role::history).toString();
+				Age                 = aIndex.data(home_row_role::age).toString();
+				Comments            = aIndex.data(home_row_role::comments).toString();
 				// [[BPR-1365]]. The review this window has open says so in a word.
 				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
@@ -231,10 +234,18 @@ namespace bpr::qt {
 				FactsFont = SideFont;
 				FactsFont.setFeature(QFont::Tag{ "tnum" }, 1U);
 				const auto factsMetrics = QFontMetrics{ FactsFont };
-				FactsWidth              = std::max(factsMetrics.horizontalAdvance(Size), factsMetrics.horizontalAdvance(History));
-				FactsLineHeight         = Size.isEmpty() && History.isEmpty() ? 0 : factsMetrics.height();
-				FactsAscent             = factsMetrics.ascent();
-				TagHeight               = Tag.isEmpty() ? 0 : SideLineHeight + (tag_pad_y * 2);
+				// The second line: the age, a space, then the comment icon and
+				// its count. The icon is as tall as the figures' capitals.
+				IconExtent   = Comments.isEmpty() ? 0 : factsMetrics.capHeight() + 2;
+				IconGap      = factsMetrics.horizontalAdvance(QLatin1Char{ ' ' });
+				AgeWidth     = factsMetrics.horizontalAdvance(Age);
+				HistoryWidth = AgeWidth + (Age.isEmpty() || Comments.isEmpty() ? 0 : factsMetrics.horizontalAdvance(QStringLiteral("  ")))
+					+ (Comments.isEmpty() ? 0 : IconExtent + IconGap + factsMetrics.horizontalAdvance(Comments));
+				FactsWidth      = std::max(factsMetrics.horizontalAdvance(Size), HistoryWidth);
+				FactsLineHeight = Size.isEmpty() && HistoryWidth == 0 ? 0 : factsMetrics.height();
+				FactsAscent     = factsMetrics.ascent();
+				FactsCapHeight  = factsMetrics.capHeight();
+				TagHeight       = Tag.isEmpty() ? 0 : SideLineHeight + (tag_pad_y * 2);
 
 				Width            = row_width(aOption);
 				TextLeft         = home_row_delegate::inset + (aMarks ? home_row_delegate::mark_width : 0);
@@ -277,7 +288,7 @@ namespace bpr::qt {
 				SecondHeight           = Second.isEmpty() ? 0 : lay_out(SecondLayout, Second, secondFont, std::max(1, TextWidth - SecondIndent), secondFormats);
 
 				// A row whose second line is empty still makes room for its history.
-				const auto secondExtent = std::max(SecondHeight, History.isEmpty() ? 0 : FactsLineHeight);
+				const auto secondExtent = std::max(SecondHeight, HistoryWidth == 0 ? 0 : FactsLineHeight);
 				const auto content      = (home_row_delegate::vertical_padding * 2) + FirstHeight
 					+ (secondExtent > 0 ? home_row_delegate::line_gap + secondExtent : 0);
 				const auto sideLines = (Time.isEmpty() ? 0 : 1) + (Progress.isEmpty() ? 0 : 1);
@@ -350,8 +361,14 @@ namespace bpr::qt {
 			QString     Progress;
 			QString     Chip;
 			QString     Size;
-			QString     History;
+			QString     Age;
+			QString     Comments;
 			QFont       FactsFont;
+			int         IconExtent      = 0;
+			int         IconGap         = 0;
+			int         AgeWidth        = 0;
+			int         HistoryWidth    = 0;
+			int         FactsCapHeight  = 0;
 			int         FactsWidth      = 0;
 			int         FactsLineHeight = 0;
 			int         FactsAscent     = 0;
@@ -411,6 +428,8 @@ namespace bpr::qt {
 			.WaitingOnOthers = aProfile.attention_color(attention_tone::waiting_on_others),
 			.Following       = aProfile.attention_color(attention_tone::following),
 			.Failure         = aProfile.color(core::appearance_role::state_defect),
+			.Added           = aProfile.color(core::appearance_role::state_accepted),
+			.Removed         = aProfile.color(core::appearance_role::state_defect),
 		};
 	}
 
@@ -678,13 +697,38 @@ namespace bpr::qt {
 							   Qt::AlignRight | Qt::AlignVCenter, *text);
 			sideTop += layout.SideLineHeight;
 		}
-		// [[BPR-1407]]. Each fact in its line's ink: the size beside the title,
-		// the age and conversation beside the quiet reason. No state colour.
+		// [[BPR-1407]]. Beside the title, lines added in green and removed in
+		// red with a quiet "/" between (the owner's exception to colour meaning
+		// state); beside the reason, the age and the comment icon and count in
+		// the quiet ink. A selected row keeps the style's selected ink.
 		aPainter->setFont(layout.FactsFont);
-		for (const auto& [text, top, pen] : { std::tuple{ &layout.Size, layout.SizeTop, ink }, std::tuple{ &layout.History, layout.HistoryTop, quiet } }) {
-			if (!text->isEmpty()) {
+		const auto factsMetrics = QFontMetrics{ layout.FactsFont };
+		const auto factsRight   = layout.FactsLeft + layout.FactsWidth;
+		if (!layout.Size.isEmpty()) {
+			const auto separator = QStringLiteral(" / ");
+			const auto at        = layout.Size.indexOf(separator);
+			const auto runs      = at < 0 ? std::array{ std::pair{ layout.Size, ink }, std::pair{ QString{ }, ink }, std::pair{ QString{ }, ink } }
+										  : std::array{ std::pair{ layout.Size.left(at), selected || !Colours.Added.isValid() ? ink : Colours.Added },
+														std::pair{ separator, quiet },
+														std::pair{ layout.Size.mid(at + separator.size()), selected || !Colours.Removed.isValid() ? ink : Colours.Removed } };
+			auto       x         = factsRight - factsMetrics.horizontalAdvance(layout.Size);
+			for (const auto& [run, pen] : runs) {
 				aPainter->setPen(pen);
-				aPainter->drawText(QRect{ layout.FactsLeft, top, layout.FactsWidth, layout.FactsLineHeight }, Qt::AlignRight | Qt::AlignTop, *text);
+				aPainter->drawText(QPoint{ x, layout.SizeTop + layout.FactsAscent }, run);
+				x += factsMetrics.horizontalAdvance(run);
+			}
+		}
+		if (layout.HistoryWidth > 0) {
+			const auto baseline = layout.HistoryTop + layout.FactsAscent;
+			auto       x        = factsRight - layout.HistoryWidth;
+			aPainter->setPen(quiet);
+			if (!layout.Age.isEmpty()) {
+				aPainter->drawText(QPoint{ x, baseline }, layout.Age);
+				x += layout.AgeWidth + (layout.Comments.isEmpty() ? 0 : factsMetrics.horizontalAdvance(QStringLiteral("  ")));
+			}
+			if (!layout.Comments.isEmpty()) {
+				draw_home_comment_mark(*aPainter, QRect{ x, baseline - layout.FactsCapHeight - 1, layout.IconExtent, layout.IconExtent }, quiet);
+				aPainter->drawText(QPoint{ x + layout.IconExtent + layout.IconGap, baseline }, layout.Comments);
 			}
 		}
 		if (!layout.Chip.isEmpty()) {
@@ -774,10 +818,11 @@ namespace bpr::qt {
 		initStyleOption(&option, aIndex);
 		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
 		auto             result = QRect{ };
-		for (const auto& [text, top] : { std::pair{ &layout.Size, layout.SizeTop }, std::pair{ &layout.History, layout.HistoryTop } }) {
-			if (!text->isEmpty()) {
-				result |= QRect{ layout.FactsLeft, top, layout.FactsWidth, layout.FactsLineHeight };
-			}
+		if (!layout.Size.isEmpty()) {
+			result |= QRect{ layout.FactsLeft, layout.SizeTop, layout.FactsWidth, layout.FactsLineHeight };
+		}
+		if (layout.HistoryWidth > 0) {
+			result |= QRect{ layout.FactsLeft, layout.HistoryTop, layout.FactsWidth, layout.FactsLineHeight };
 		}
 		return result.translated(option.rect.topLeft());
 	}
@@ -855,6 +900,34 @@ namespace bpr::qt {
 		constexpr auto step  = 360 / home_open_frames;
 		const auto     start = 90 - ((((aFrame % home_open_frames) + home_open_frames) % home_open_frames) * step);
 		aPainter.drawArc(box, start * 16, -open_arc_degrees * 16);
+		aPainter.restore();
+	}
+
+	void draw_home_comment_mark(QPainter& aPainter, const QRect& aRect, const QColor& aInk)
+	{
+		if (aRect.isEmpty()) {
+			return;
+		}
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		// A speech bubble: a rounded body over the upper four fifths and a tail
+		// down from its lower left, drawn as one outline.
+		const auto side   = static_cast<qreal>(std::min(aRect.width(), aRect.height()));
+		const auto stroke = std::max(qreal{ 1.0 }, side / 9.0);
+		const auto box    = QRectF{ aRect.topLeft(), QSizeF{ side, side } }.adjusted(stroke / 2.0, stroke / 2.0, -stroke / 2.0, -stroke / 2.0);
+		const auto body   = QRectF{ box.left(), box.top(), box.width(), box.height() * 0.78 };
+		const auto radius = body.height() * 0.3;
+		auto       path   = QPainterPath{ };
+		path.addRoundedRect(body, radius, radius);
+		auto tail = QPainterPath{ };
+		tail.moveTo(body.left() + (body.width() * 0.22), body.bottom() - stroke);
+		tail.lineTo(body.left() + (body.width() * 0.22), box.bottom());
+		tail.lineTo(body.left() + (body.width() * 0.48), body.bottom() - stroke);
+		tail.closeSubpath();
+		path = path.united(tail);
+		aPainter.setPen(QPen{ aInk, stroke, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+		aPainter.setBrush(Qt::NoBrush);
+		aPainter.drawPath(path);
 		aPainter.restore();
 	}
 

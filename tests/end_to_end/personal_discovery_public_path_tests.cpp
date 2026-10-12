@@ -334,7 +334,7 @@ try {
 		const auto identity = item->Ref;
 		std::cerr << "waiting bucket=" << static_cast<int>(item->Bucket) << " requests=" << item->Facts.Waiting.Requests.value_or(999) << " failures=" << item->Facts.Waiting.FailedChecks.size() << " checks-known=" << item->Facts.Waiting.ChecksKnown << " head=" << item->Facts.Waiting.Head << "\n";
 		expect(item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && item->Facts.Waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" }, "unopened mixed review/check example stays in Waiting on others");
-		expect(qt::home_why_sentence(*item).contains(QStringLiteral("@octo-org/team-0")) && qt::home_why_sentence(*item).contains(QStringLiteral("@octo-org/renderer-and-cross-platform-maintainers")) && qt::home_why_sentence(*item).contains(QStringLiteral("Branch Freshness failed")), "native row explains actor and independent failure");
+		expect(qt::home_why_sentence(*item) == QStringLiteral("Waiting on 3 reviewers; Branch Freshness failed."), "[[BPR-1407]] native row counts its reviewers and keeps the independent failure");
 		const auto renderWaiting = [&](const QString& aName) {
 			if (renderDirectory.isEmpty()) {
 				return;

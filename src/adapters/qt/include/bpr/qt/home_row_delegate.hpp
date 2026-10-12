@@ -54,12 +54,16 @@ namespace bpr::qt {
 			reviewing,
 			/// True only for last accepted GitHub draft status.
 			draft,
-			/// [[BPR-1407]]. Lines added and removed ("+1,204 −318"), drawn
-			/// at the right beside the first line; empty where unknown.
+			/// [[BPR-1407]]. Lines added and removed ("+1,204 / −318"), drawn
+			/// at the right beside the first line, the counts in green and
+			/// red; empty where unknown.
 			size,
-			/// [[BPR-1407]]. Age and comment count ("6 days old, 14
-			/// comments"), drawn beside the second line; empty where unknown.
-			history,
+			/// [[BPR-1407]]. Whole days since opening ("21d", "<1d"), drawn
+			/// beside the second line; empty where unknown.
+			age,
+			/// [[BPR-1407]]. The comment count ("14"), drawn after the age
+			/// behind a comment icon; empty where unknown.
+			comments,
 		};
 	} // namespace home_row_role
 
@@ -78,6 +82,11 @@ namespace bpr::qt {
 		/// [[BPR-1357]]. The ink a row says it could not be opened in: the
 		/// theme's defect colour, which every variant holds at text strength.
 		QColor Failure;
+		/// [[BPR-1407]]. Lines added and removed, at text strength: the
+		/// theme's accepted and defect inks. The owner's one exception to
+		/// colour meaning state on Home.
+		QColor Added;
+		QColor Removed;
 
 		/// \brief The colour of one of Home's groups.
 		[[nodiscard]] auto for_group(home_group aGroup) const -> QColor;
@@ -184,6 +193,8 @@ namespace bpr::qt {
 
 	/// \brief [[BPR-1357]]. Draws the opening mark: a faint ring and a turning arc.
 	void draw_home_open_mark(QPainter& aPainter, const QRect& aRect, int aFrame, const QColor& aArc, const QColor& aRing);
+	/// \brief [[BPR-1407]]. Draws the comment icon: an outlined speech bubble.
+	void draw_home_comment_mark(QPainter& aPainter, const QRect& aRect, const QColor& aInk);
 	/// \brief [[BPR-1357]]. Draws the failure mark: a ring with an exclamation in it.
 	void draw_home_failure_mark(QPainter& aPainter, const QRect& aRect, const QFont& aFont, const QColor& aInk);
 

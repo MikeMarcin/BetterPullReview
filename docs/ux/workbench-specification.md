@@ -568,13 +568,15 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   the second line leads with its author, "Opened by octocat; the code moved
   since my last review", in every section; my own rows never name me, and
   Recently viewed stores no author. [[BPR-1407]]: a queue row's right holds
-  a column of facts, each on the line it is about: "+1,204 −318" beside the
-  first line in its ink, "6 days old, 14 comments" beside the second in its
-  quiet ink. Tabular figures line the column up from row to row; the hover
-  action keeps its own place to the column's right. Age is whole days to the
-  clock the host supplies; comments count the conversation and inline
-  comments together; an unread fact draws nothing. The counts carry no
-  green or red. Colour means state and nothing else: the reason word, and
+  a column of facts, each on the line it is about: "+1,204 / −318" beside
+  the first line, "21d" and a comment icon with "14" beside the second in
+  its quiet ink. Tabular figures line the column up from row to row; the
+  hover action keeps its own place to the column's right. Age is whole days
+  to the clock the host supplies ("<1d" under one); comments count the
+  conversation and inline comments together; an unread fact draws nothing;
+  assistive text says the facts in words. The owner's one exception to the
+  colour rule: lines added are green and removed red (the theme's accepted
+  and defect inks). Otherwise colour means state and nothing else: the reason word, and
   either a 3-point mark at the row's left or the rail of the panel holding
   it. Row text wraps rather than eliding, and the style paints its own
   selection, hover and focus.
@@ -737,10 +739,10 @@ only the bar's width changes.
 
 Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
 an authored row's reason says who is awaited once, replacing the generic
-"waits on reviewers" clause: "Waiting on code-owner review from @org/team-a,
-@org/team-b and @org/team-c; Branch Freshness failed". Lists name at most
-three and count the rest ("and 2 more"); Overview has the whole roster.
-Without names, discovery's counts say "Waiting on 1 person and 2 teams"; an
+"waits on reviewers" clause. [[BPR-1407]] (the owner, 2026-10-12: "just show
+waiting on # reviewers") makes that a count of people and teams, code owners
+among them: "Waiting on 3 reviewers; Branch Freshness failed". Overview has
+the whole roster. An
 aggregate unmet requirement with no request says Required review outstanding.
 Someone else's row keeps its failed checks or merge block but not its author's
 roster. Unread authored activity still goes to My pull

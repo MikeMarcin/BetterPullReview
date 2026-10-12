@@ -1443,8 +1443,8 @@ namespace {
 		const auto  first    = view->model()->index(0, 0);
 		const auto  second   = view->model()->index(1, 0);
 		const auto  locale   = QLocale{ };
-		expect(first.data(qt::home_row_role::size).toString() == QStringLiteral("+%1 \u2212%2").arg(locale.toString(1204), locale.toString(318))
-				   && first.data(qt::home_row_role::history).toString() == QStringLiteral("6 days old, 14 comments"),
+		expect(first.data(qt::home_row_role::size).toString() == QStringLiteral("+%1 / \u2212%2").arg(locale.toString(1204), locale.toString(318))
+				   && first.data(qt::home_row_role::age).toString() == QStringLiteral("6d") && first.data(qt::home_row_role::comments).toString() == QStringLiteral("14"),
 			   "the first row says its size, age and comments");
 		const auto facts = delegate->facts_rect(option_for(*view, first), first);
 		expect(!facts.isEmpty() && view->visualRect(first).contains(facts), "the facts are drawn inside their row");
@@ -1453,7 +1453,7 @@ namespace {
 			   "neither the Reviewing tag nor the reason word reaches the facts");
 		const auto sizeOnly = delegate->facts_rect(option_for(*view, second), second);
 		expect(!sizeOnly.isEmpty() && sizeOnly.right() == facts.right(), "rows share the column's right edge, so their figures line up");
-		expect(second.data(qt::home_row_role::history).toString().isEmpty(), "a row without an age or a count has no history");
+		expect(second.data(qt::home_row_role::age).toString().isEmpty() && second.data(qt::home_row_role::comments).toString().isEmpty(), "a row without an age or a count has neither");
 		auto* const mine = home.List.state_view(qt::home_group::my_pull_requests);
 		expect(delegate->facts_rect(option_for(*mine, mine->model()->index(0, 0)), mine->model()->index(0, 0)).isEmpty(), "a row whose change was not read draws nothing");
 	}

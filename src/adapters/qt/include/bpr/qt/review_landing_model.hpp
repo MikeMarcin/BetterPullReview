@@ -89,13 +89,15 @@ namespace bpr::qt {
 	/// projected status; it never claims how long ago, which needs a clock.
 	[[nodiscard]] auto home_discovery_sentence(const application::queue_discovery_status& aStatus) -> QString;
 
-	/// \brief [[BPR-1407]]. A row's lines added and removed, "+1,204 −318";
+	/// \brief [[BPR-1407]]. A row's lines added and removed, "+1,204 / −318";
 	/// empty unless both are known.
 	[[nodiscard]] auto home_size_text(const core::queue_change_facts& aChange) -> QString;
-	/// \brief [[BPR-1407]]. "6 days old, 14 comments": whole days elapsed since
-	/// it was opened, measured to `aNow`, and its comment count. Either half is
-	/// left out when unknown, the age also without a clock.
-	[[nodiscard]] auto home_history_text(const core::queue_change_facts& aChange, std::optional<std::int64_t> aNow) -> QString;
+	/// \brief [[BPR-1407]]. Whole days since it was opened, measured to `aNow`:
+	/// "21d", or "<1d"; empty when unknown or without a clock.
+	[[nodiscard]] auto home_age_text(const core::queue_change_facts& aChange, std::optional<std::int64_t> aNow) -> QString;
+	/// \brief [[BPR-1407]]. The comment count drawn behind its icon ("14");
+	/// empty when unknown.
+	[[nodiscard]] auto home_comments_text(const core::queue_change_facts& aChange) -> QString;
 	/// \brief [[BPR-1407]]. The same facts in words for assistive technology:
 	/// "Opened 6 days ago; 1,204 lines added and 318 removed; 14 comments."
 	[[nodiscard]] auto home_change_sentence(const core::queue_change_facts& aChange, std::optional<std::int64_t> aNow) -> QString;

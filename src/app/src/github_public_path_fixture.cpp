@@ -55,6 +55,15 @@
 
 namespace bpr::app::detail {
 	namespace {
+		/// [[BPR-1407]]. A discovered pull request's title; #4002's is long, so
+		/// Home is seen with a title that wraps beside its facts.
+		[[nodiscard]] auto discovered_title(const QString& aNumber) -> QString
+		{
+			return aNumber == QStringLiteral("4002")
+				? QStringLiteral("Keep the review queue's discovery cache warm across restarts so one slow repository never holds back the rows of every other saved repository")
+				: QStringLiteral("Discovered pull request ") + aNumber;
+		}
+
 		constexpr std::string_view capability_diagnostic_failure_body = R"({"errors":[{"message":"Field '__type' has a max repetition count of 2","extensions":{"code":"NEVER_SEEN_CODE"}}]})";
 		using adapters::github::detail::anonymous_read_operations;
 		using adapters::github::detail::capability_probe_response;
@@ -1689,7 +1698,7 @@ namespace bpr::app::detail {
 				const auto number = QString::number(found->Number);
 				response.Body     = QJsonDocument{ QJsonObject{
 													   { QStringLiteral("number"), static_cast<qint64>(found->Number) },
-													   { QStringLiteral("title"), QStringLiteral("Discovered pull request ") + number },
+													   { QStringLiteral("title"), discovered_title(number) },
 													   { QStringLiteral("draft"), found->Draft && found->Draft->load() },
 													   { QStringLiteral("state"), QStringLiteral("open") },
 													   { QStringLiteral("url"), QString::fromStdString(std::string{ aState.Profile.rest_root() }) + QStringLiteral("/repos/%1/%2/pulls/%3").arg(QString::fromStdString(semantic.Owner), QString::fromStdString(semantic.Repository), number) },
@@ -1766,7 +1775,7 @@ namespace bpr::app::detail {
 				const auto number = QString::number(pullRequest.Number);
 				items.append(QJsonObject{
 					{ QStringLiteral("number"), static_cast<qint64>(pullRequest.Number) },
-					{ QStringLiteral("title"), QStringLiteral("Discovered pull request ") + number },
+					{ QStringLiteral("title"), discovered_title(number) },
 					{ QStringLiteral("state"), QStringLiteral("open") },
 					{ QStringLiteral("draft"), pullRequest.Draft && pullRequest.Draft->load() },
 					{ QStringLiteral("pull_request"), QJsonObject{ { QStringLiteral("url"), root + path + QStringLiteral("/pulls/") + number } } },
