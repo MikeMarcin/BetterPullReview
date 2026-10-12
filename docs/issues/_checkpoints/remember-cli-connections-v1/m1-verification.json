@@ -1,0 +1,171 @@
+{
+  "schema": "bpr.remember-cli.milestone-verification.v1",
+  "mandate_revision": "remember-cli-r1",
+  "milestone": "connection-metadata",
+  "issue": "BPR-1408",
+  "baseline": "46eb49b312b35ef37e69ca4ace7354c04295a6dd",
+  "source_revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+  "integration_revision": "6ebd33e57479a24aed91b930624bab030a436045",
+  "source_paths": [
+    "docs/development/settings-authority-inventory.md",
+    "src/adapters/sqlite/CMakeLists.txt",
+    "src/adapters/sqlite/include/bpr/adapters/sqlite/remembered_connection_store.hpp",
+    "src/adapters/sqlite/include/bpr/adapters/sqlite/testing.hpp",
+    "src/adapters/sqlite/src/release_maintenance_files.cpp",
+    "src/adapters/sqlite/src/remembered_connection_store.cpp",
+    "src/application/include/bpr/application/github_host_authority.hpp",
+    "src/application/include/bpr/application/remembered_connection_store.hpp",
+    "src/core/CMakeLists.txt",
+    "src/core/include/bpr/core/github_hostname.hpp",
+    "src/core/include/bpr/core/remembered_connection.hpp",
+    "src/core/src/remembered_connection.cpp",
+    "tests/core/CMakeLists.txt",
+    "tests/core/remembered_connection_tests.cpp",
+    "tests/sqlite_contract/CMakeLists.txt",
+    "tests/sqlite_contract/private_store_open_tests.cpp",
+    "tests/sqlite_contract/release_maintenance_files_tests.cpp",
+    "tests/sqlite_contract/remembered_connection_storage_tests.cpp"
+  ],
+  "registry_path": "scripts/verify_test_network_isolation.py",
+  "checks": [
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "core-only"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--target",
+        "test_remembered_connection_policy",
+        "test_remembered_connection_storage",
+        "test_private_store_open",
+        "test_release_maintenance_files"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "-R",
+        "^(core_remembered_connection_policy|sqlite_remembered_connection_storage|sqlite_private_store_open|sqlite_release_maintenance_files|architecture_boundaries|architecture_boundary_contract|test_network_isolation_manifest)$",
+        "--output-on-failure"
+      ],
+      "outcome": "pass",
+      "detail": "7/7, 142.27 seconds. Same product source except later clang-tidy default in the core-test fixture-mutation switch; affected test rebuilt and rerun."
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "-R",
+        "^(core_remembered_connection_policy|sqlite_remembered_connection_storage|sqlite_private_store_open|sqlite_release_maintenance_files)$",
+        "--output-on-failure"
+      ],
+      "outcome": "pass",
+      "revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+      "detail": "4/4, 2.78 seconds; exact recorded stdout in m1-focused-evidence.json."
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "-R",
+        "^test_network_isolation_manifest$",
+        "--output-on-failure"
+      ],
+      "outcome": "pass",
+      "revision": "6ebd33e57479a24aed91b930624bab030a436045",
+      "detail": "1/1, 7.14 seconds after explicit registry integration."
+    },
+    {
+      "command": [
+        "python3",
+        "_coding-standard/scripts/format_check.py",
+        "--root",
+        ".",
+        "<13 touched C++ paths>"
+      ],
+      "outcome": "pass",
+      "detail": "Project wrapper, clang-format 22.1.8. All touched C++ source and headers."
+    },
+    {
+      "command": [
+        "python3",
+        "_coding-standard/scripts/tidy.py",
+        "--root",
+        ".",
+        "--build-dir",
+        "build/core-only",
+        "--clang-tidy",
+        "/opt/homebrew/opt/llvm@22/bin/clang-tidy",
+        "--warnings-as-errors",
+        "--paths",
+        "src/core/src/remembered_connection.cpp",
+        "src/adapters/sqlite/src/remembered_connection_store.cpp",
+        "tests/core/remembered_connection_tests.cpp",
+        "tests/sqlite_contract/remembered_connection_storage_tests.cpp"
+      ],
+      "outcome": "pass-after-correction",
+      "detail": "Production units and storage test passed. Core-test fixture switch initially lacked default; corrected, rebuilt and tidy rerun passed."
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "outcome": "pass",
+      "detail": "DOCUMENTATION_OK, including the populated checkpoint and acceptance record."
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "outcome": "pass",
+      "detail": "67 tests OK; expected negative-fixture diagnostics printed."
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "outcome": "pass"
+    }
+  ],
+  "negative_control": {
+    "change": "Move production SQLite COMMIT before the test-only precommit checkpoint.",
+    "command": [
+      "ctest",
+      "--preset",
+      "core-only",
+      "-R",
+      "^sqlite_remembered_connection_storage$",
+      "--output-on-failure"
+    ],
+    "outcome": "expected-failure",
+    "exit_code": 8,
+    "assertion": "cancellation after complete writes rolls back both metadata and connection rows",
+    "restoration": "Original source restored byte-for-byte, rebuilt; all four focused checks passed, then exact source commit checks were recorded."
+  },
+  "acceptance_boundary": "Token-free policy, application port and private SQLite capability only. No shared-runtime startup or RFC AC01\u2013AC06 composed completion is claimed.",
+  "limitations": [
+    "macOS core-only evidence; Windows containment for the new test remains unmeasured and explicitly registered.",
+    "No live GitHub, GHES, native vault or owner desktop/browser actions.",
+    "No application-wide build or composed restart evidence; these belong to BPR-1409/BPR-1410."
+  ],
+  "self_review": "Reviewed identity continuity, revision/CAS, bounded read/refusal, transaction cleanup, maintenance inventory and dependency ownership. Negative control discriminates committed partial/cancelled success."
+}

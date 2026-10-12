@@ -1,0 +1,6 @@
+{
+  "action": "fresh-context",
+  "detail": "BPR-1408 policy/store capability is accepted. Fresh successor claims BPR-1409 for shared runtime startup and lifecycle integration, preserving complete RFC AC01\u2013AC06 for qualification.",
+  "engineering_acceptance": "not-evaluated",
+  "checked_revision": "6ebd33e57479a24aed91b930624bab030a436045"
+}

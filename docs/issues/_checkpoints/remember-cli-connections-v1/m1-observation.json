@@ -1,0 +1,124 @@
+{
+  "run_id": "remember-cli-r1",
+  "segment_id": "m1",
+  "mandate_revision": "remember-cli-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "remember-cli-connections-v1",
+    "plan_path": "docs/rfcs/plans/remember-cli-connections-v1/milestone-plan.json",
+    "milestone_id": "connection-metadata",
+    "definition_fingerprint": "sha256:228fb23fecde0c793ed523a41a5adde9fa687f8ab027d6f21cc1f8f258a55782",
+    "obligations": [
+      {
+        "id": "BPR-1408:*",
+        "source": "BPR-1408",
+        "selector": null,
+        "source_fingerprint": "sha256:4d01f2ff7caf2e5512e1e232c054384d4d939084ada3dfbf2a35c36f82bc8102"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8bbd4c3eed849cb4e297e8776219038355844e45e8bb14af57f1fe235464a8f8",
+    "exit_criteria": [
+      {
+        "id": "connection-metadata:exit:1",
+        "text": "Canonical bounded metadata stores no credential or publication authority and enforces one connection per server with stable identity and selected order."
+      },
+      {
+        "id": "connection-metadata:exit:2",
+        "text": "Pure policy rejects stale selection, supports disabled reuse and Forget, and preserves independent profile state."
+      },
+      {
+        "id": "connection-metadata:exit:3",
+        "text": "Real SQLite reopen, transactional rollback, stale writes, cancellation and malformed/newer/refused storage preserve complete data or refuse without authorization."
+      },
+      {
+        "id": "connection-metadata:exit:4",
+        "text": "Profile maintenance inventories and purges the metadata with focused format, architecture and documentation checks."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "connection-metadata",
+  "disposition": "milestone-complete",
+  "candidate_revision": "6ebd33e57479a24aed91b930624bab030a436045",
+  "handoff_ref": "docs/issues/_checkpoints/remember-cli-connections-v1/README.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json",
+    "docs/issues/_checkpoints/remember-cli-connections-v1/m1-focused-evidence.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1408:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json",
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-focused-evidence.json"
+      ]
+    },
+    {
+      "id": "connection-metadata:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json",
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-focused-evidence.json"
+      ]
+    },
+    {
+      "id": "connection-metadata:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json",
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-focused-evidence.json"
+      ]
+    },
+    {
+      "id": "connection-metadata:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json",
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-focused-evidence.json"
+      ]
+    },
+    {
+      "id": "connection-metadata:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json",
+        "docs/issues/_checkpoints/remember-cli-connections-v1/m1-focused-evidence.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "shared-profile-restoration",
+    "reason": "integrated-boundary",
+    "detail": "BPR-1408 policy/store capability is accepted. Fresh successor claims BPR-1409 for shared runtime startup and lifecycle integration, preserving complete RFC AC01\u2013AC06 for qualification."
+  },
+  "ownership": "quiescent"
+}

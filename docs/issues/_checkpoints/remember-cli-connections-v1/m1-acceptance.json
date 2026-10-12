@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "Canonical bounded metadata stores no credential or publication authority and enforces one connection per server with stable identity and selected order.",
+      "outcome": "pass",
+      "revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json; exact focused output in m1-focused-evidence.json"
+      }
+    },
+    {
+      "criterion": "Pure policy rejects stale selection, supports disabled reuse and Forget, and preserves independent profile state.",
+      "outcome": "pass",
+      "revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json; exact focused output in m1-focused-evidence.json"
+      }
+    },
+    {
+      "criterion": "Real SQLite reopen, transactional rollback, stale writes, cancellation and malformed/newer/refused storage preserve complete data or refuse without authorization.",
+      "outcome": "pass",
+      "revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json; exact focused output in m1-focused-evidence.json"
+      }
+    },
+    {
+      "criterion": "Profile maintenance inventories and purges the metadata with focused format, architecture and documentation checks.",
+      "outcome": "pass",
+      "revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/issues/_checkpoints/remember-cli-connections-v1/m1-verification.json; exact focused output in m1-focused-evidence.json"
+      }
+    }
+  ]
+}

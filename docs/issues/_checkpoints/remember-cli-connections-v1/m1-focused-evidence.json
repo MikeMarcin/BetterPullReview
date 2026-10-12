@@ -1,0 +1,13 @@
+{
+  "criterion": "BPR-1408",
+  "outcome": "pass",
+  "revision": "44a909e721ab461bbdfe986515a66d285f1fc5f6",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"core-only\", \"-R\", \"^(core_remembered_connection_policy|sqlite_remembered_connection_storage|sqlite_private_store_open|sqlite_release_maintenance_files)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 2.79,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/core-only\n    Start 160: core_remembered_connection_policy\n1/4 Test #160: core_remembered_connection_policy ......   Passed    0.06 sec\n    Start 233: sqlite_private_store_open\n2/4 Test #233: sqlite_private_store_open ..............   Passed    0.28 sec\n    Start 242: sqlite_release_maintenance_files\n3/4 Test #242: sqlite_release_maintenance_files .......   Passed    0.22 sec\n    Start 253: sqlite_remembered_connection_storage\n4/4 Test #253: sqlite_remembered_connection_storage ...   Passed    2.22 sec\n\n100% tests passed out of 4\n\nLabel Time Summary:\nbpr_network_isolated                    =   2.77 sec*proc (4 tests)\nbpr_windows_uncontained_registration    =   2.72 sec*proc (3 tests)\n\nTotal Test time (real) =   2.78 sec\n",
+    "stderr_tail": ""
+  }
+}
