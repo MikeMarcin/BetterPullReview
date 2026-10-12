@@ -160,7 +160,7 @@ Recently viewed and public-preview access retain their established contracts.
 
 [Preserve and classify waiting facts](../issues/60-done/BPR-1396-home-waiting-facts.md),
 [compose Home explanations](../issues/60-done/BPR-1397-home-waiting-presentation.md), and
-[reconcile closeout](../issues/10-backlog/BPR-1398-close-rfc-0070.md) implement this
+[reconcile closeout](../issues/20-ready/BPR-1398-close-rfc-0070.md) implement this
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json).
 [The proposed amendment](assets/merge-gates-and-review-waiting-v1/PROPOSED_AMENDMENTS.md) preserves the prior authored
 Home decision while extending the facts it consumes.
