@@ -120,6 +120,7 @@ namespace bpr::application {
 	struct overview_check_row
 	{
 		std::string Identity, Name, Producer, Kind, Outcome, Description, DetailsUrl;
+		std::string Requirement                                  = "Requirement unknown";
 		bool        Failed                                       = false;
 		bool        Pending                                      = false;
 		bool        LinkAvailable                                = false;
@@ -210,6 +211,7 @@ namespace bpr::application {
 		std::vector<overview_check_row>   CheckRows;
 		bool                              ChecksComplete = true;
 		std::string                       ChecksNote;
+		std::string                       MergeSummary, PendingReviewers, RequirementDetails;
 		overview_review_progress          Progress;
 		overview_entry_kind               Entry = overview_entry_kind::start_review;
 		/// Where the one action lands: the first unseen change's file.

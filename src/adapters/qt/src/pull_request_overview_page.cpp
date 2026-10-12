@@ -2475,6 +2475,31 @@ namespace bpr::qt {
 		sideColumn->setSpacing(2);
 		sideColumn->setSizeConstraint(QLayout::SetMinimumSize);
 
+		sideColumn->addWidget(make_heading(QStringLiteral("Merge requirements"), QStringLiteral("overviewMergeHeading"), side));
+		const auto makeMergeText = [&](const QString& aName) {
+			auto* label = new QLabel{ side };
+			label->setObjectName(aName);
+			label->setTextFormat(Qt::PlainText);
+			label->setWordWrap(true);
+			label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+			sideColumn->addWidget(label);
+			return label;
+		};
+		MergeSummary          = makeMergeText(QStringLiteral("overviewMergeSummary"));
+		PendingReviewers      = makeMergeText(QStringLiteral("overviewPendingReviewers"));
+		RequirementDisclosure = new QToolButton{ side };
+		RequirementDisclosure->setObjectName(QStringLiteral("overviewRequirementDisclosure"));
+		RequirementDisclosure->setText(QStringLiteral("Requirement details"));
+		RequirementDisclosure->setCheckable(true);
+		RequirementDisclosure->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		RequirementDisclosure->setArrowType(Qt::RightArrow);
+		RequirementDisclosure->setAccessibleDescription(QStringLiteral("Show applicable rule origins, approval restrictions and auto-merge observation"));
+		sideColumn->addWidget(RequirementDisclosure);
+		RequirementDetails = makeMergeText(QStringLiteral("overviewRequirementDetails"));
+		RequirementDetails->hide();
+		connect(RequirementDisclosure, &QToolButton::toggled, this, [this](bool aOpen) {RequirementDetails->setVisible(aOpen);RequirementDisclosure->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow); });
+
 		auto* const participantsHeading
 			= make_heading(QStringLiteral("Participants"), QStringLiteral("overviewParticipantsHeading"), side);
 		sideColumn->addWidget(participantsHeading);
@@ -2629,8 +2654,9 @@ namespace bpr::qt {
 		CachedThreads->clear();
 		CachedThreads->hide();
 		CachedThreadsHeading->hide();
-		const auto bodyChanged = Projection.has_value() && Projection->Body != aProjection.Body;
-		const auto updateBody  = !Projection.has_value() || bodyChanged;
+		const auto bodyChanged         = Projection.has_value() && Projection->Body != aProjection.Body;
+		const auto requirementsChanged = Projection && (Projection->MergeSummary != aProjection.MergeSummary || Projection->PendingReviewers != aProjection.PendingReviewers);
+		const auto updateBody          = !Projection.has_value() || bodyChanged;
 		// [[BPR-1089]]. Another pull request starts from the Settings default,
 		// in file order, with no counts until the host answers for it.
 		const auto samePullRequest = Projection.has_value() && Projection->Owner == aProjection.Owner && Projection->RepositoryName == aProjection.RepositoryName
@@ -2686,8 +2712,9 @@ namespace bpr::qt {
 		if (aProjection.Body.empty() && Body->expanded()) {
 			set_description_expanded(false);
 		}
-		if (bodyChanged) {
-			QAccessibleAnnouncementEvent event{ Body, QStringLiteral("Description updated") };
+		if (bodyChanged || requirementsChanged) {
+			const auto                   announcement = (bodyChanged ? QStringLiteral("Description updated. ") : QString{ }) + (requirementsChanged ? text(aProjection.MergeSummary) + QLatin1Char{ ' ' } + text(aProjection.PendingReviewers) : QString{ });
+			QAccessibleAnnouncementEvent event{ Body, announcement };
 			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 			QAccessible::updateAccessibility(&event);
 		}
@@ -2715,6 +2742,19 @@ namespace bpr::qt {
 		set_value(overview_value::my_unresolved_threads, count_text(since.MyUnresolvedThreads), false);
 		set_value(overview_value::checks, checks_text(aProjection.Checks), aProjection.Checks.Failed != 0U);
 		present_checks(samePullRequest);
+		MergeSummary->setText(text(aProjection.MergeSummary));
+		MergeSummary->setAccessibleName(MergeSummary->text());
+		MergeSummary->show();
+		PendingReviewers->setText(text(aProjection.PendingReviewers));
+		PendingReviewers->setAccessibleName(PendingReviewers->text());
+		PendingReviewers->show();
+		RequirementDetails->setText(text(aProjection.RequirementDetails));
+		RequirementDetails->setAccessibleName(RequirementDetails->text());
+		RequirementDisclosure->show();
+		if (!samePullRequest) {
+			RequirementDisclosure->setChecked(false);
+		}
+		RequirementDetails->setVisible(RequirementDisclosure->isChecked());
 		set_value(overview_value::files_read,
 				  QStringLiteral("%1 of %2").arg(count_text(aProjection.Progress.FilesRead), count_text(aProjection.Progress.FilesTotal)),
 				  false);
@@ -2812,7 +2852,7 @@ namespace bpr::qt {
 			CheckOpen->setEnabled(false);
 			return;
 		}
-		const auto heading = text(row->Name) + QStringLiteral("\n%1: %2\n%3\nRequirement unknown").arg(text(row->Kind), text(row->Outcome), row->Producer.empty() ? QStringLiteral("Producer unknown") : text(row->Producer));
+		const auto heading = text(row->Name) + QStringLiteral("\n%1: %2\n%3\n%4").arg(text(row->Kind), text(row->Outcome), row->Producer.empty() ? QStringLiteral("Producer unknown") : text(row->Producer), text(row->Requirement));
 		if (CheckHeading->text() != heading) {
 			CheckHeading->setText(heading);
 		}
@@ -2902,6 +2942,10 @@ namespace bpr::qt {
 	{
 		set_description_expanded(false);
 		Projection.reset();
+		MergeSummary->hide();
+		PendingReviewers->hide();
+		RequirementDisclosure->hide();
+		RequirementDetails->hide();
 		ChecksDisclosure->hide();
 		CheckDetails->hide();
 		CheckItems.clear();

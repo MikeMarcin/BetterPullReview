@@ -1729,6 +1729,11 @@ namespace bpr::application {
 			if (!available(aSnapshot.ReviewRequestsAvailability) || !available(aSnapshot.Merge.Availability) || !available(aSnapshot.BranchPolicy.RulesAvailability) || !available(aSnapshot.BranchPolicy.ProtectionAvailability) || aSnapshot.Merge.Assessment > github_merge_assessment::unstable || aSnapshot.Merge.Review > github_review_decision::changes_requested) {
 				return github_read_validation_error::invalid_enum;
 			}
+			const auto observed = github_observation_availability::available;
+			if ((!aSnapshot.BranchPolicy.Rules.empty() && aSnapshot.BranchPolicy.RulesAvailability != observed && !aSnapshot.BranchPolicy.RulesStale) || (!aSnapshot.BranchPolicy.Protection.empty() && aSnapshot.BranchPolicy.ProtectionAvailability != observed && !aSnapshot.BranchPolicy.ProtectionStale) || (aSnapshot.Merge.Availability != observed && !aSnapshot.Merge.Stale && (aSnapshot.Merge.Assessment != github_merge_assessment::unknown || aSnapshot.Merge.Review != github_review_decision::unknown || aSnapshot.Merge.AutoMerge))) {
+				return github_read_validation_error::invalid_relationship;
+			}
+
 			if (aSnapshot.ReviewRequests.size() > 1000U || aSnapshot.BranchPolicy.Rules.size() > 1000U || aSnapshot.BranchPolicy.Protection.size() > 1000U) {
 				return github_read_validation_error::collection_too_large;
 			}
@@ -1737,6 +1742,16 @@ namespace bpr::application {
 				if (request.Kind > github_requested_actor_kind::team || !identities.insert(request.Request).second || (!request.Actor.empty() && !actors.insert(request.Actor).second)) {
 					return github_read_validation_error::duplicate_identity;
 				}
+				if (request.AsCodeOwner && aSnapshot.ReviewRequestsAvailability != observed && !aSnapshot.ReviewRequestsStale) {
+					return github_read_validation_error::invalid_relationship;
+				}
+				if (request.Kind == github_requested_actor_kind::user) {
+					const auto consistent = [&](const github_actor_record& aActor) { return request.Actor != aActor.Actor.value() || request.Login == aActor.Login; };
+					if (!consistent(aSnapshot.Viewer) || (aSnapshot.PullRequest.Author && !consistent(*aSnapshot.PullRequest.Author)) || std::ranges::any_of(aSnapshot.Reviews, [&](const auto& aReview) { return aReview.Author && !consistent(*aReview.Author); })) {
+						return github_read_validation_error::invalid_relationship;
+					}
+				}
+
 				for (const auto& value : { std::string_view{ request.Request }, std::string_view{ request.Actor }, std::string_view{ request.Login }, std::string_view{ request.Organization }, std::string_view{ request.Name } }) {
 					if (const auto error = aBudget.consume(value, aLimits.MaximumDisplayNameBytes); error != github_read_validation_error::none) {
 						return error;
@@ -1746,6 +1761,7 @@ namespace bpr::application {
 					return github_read_validation_error::missing_identity;
 				}
 			}
+			auto requiredChecks = std::size_t{ 0 }, requiredTeams = std::size_t{ 0 };
 			for (const auto* rules : { &aSnapshot.BranchPolicy.Rules, &aSnapshot.BranchPolicy.Protection }) {
 				for (const auto& rule : *rules) {
 					for (const auto& value : { std::string_view{ rule.Type }, std::string_view{ rule.Source }, std::string_view{ rule.SourceKind } }) {
@@ -1754,6 +1770,11 @@ namespace bpr::application {
 						}
 					}
 					if ((rule.ApprovalMinimum && *rule.ApprovalMinimum > 100U) || rule.Checks.size() > 100U || rule.RequiredTeams.size() > 100U) {
+						return github_read_validation_error::collection_too_large;
+					}
+					requiredChecks += rule.Checks.size();
+					requiredTeams += rule.RequiredTeams.size();
+					if (requiredChecks > aLimits.MaximumChecks || requiredTeams > 1000U) {
 						return github_read_validation_error::collection_too_large;
 					}
 					for (const auto& check : rule.Checks) {

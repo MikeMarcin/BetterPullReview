@@ -123,10 +123,29 @@ int main(int aArgc, char** aArgv)
 	QTemporaryDir temporary{ QDir::tempPath() + QStringLiteral("/bpr-overview-summary-XXXXXX") };
 	const auto    dataRoot = e2e::private_data_root(temporary);
 	expect(dataRoot.has_value(), "private composed course root");
-	auto       server              = std::make_shared<app::detail::review_submission_fixture_state>();
-	const auto body                = description();
-	server->StagedDescription      = body;
-	server->CheckRuns              = check_results();
+	auto       server         = std::make_shared<app::detail::review_submission_fixture_state>();
+	const auto body           = description();
+	server->StagedDescription = body;
+	server->CheckRuns         = check_results();
+	auto requests             = QJsonArray{ };
+	for (int index = 0; index < 3; ++index) {
+		requests.append(QJsonObject{ { "id", QStringLiteral("request-team-%1").arg(index) }, { "asCodeOwner", true }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("team-%1").arg(index) }, { "slug", QStringLiteral("owners-%1").arg(index) }, { "name", index == 1 ? "International renderer and platform maintainers 日本語 🦊" : "Owner group" }, { "organization", QJsonObject{ { "login", "bpr-fixtures" } } } } } });
+	}
+	requests.append(QJsonObject{ { "id", "request-user" }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", "user-new" }, { "login", "first-time-reviewer" } } } });
+	requests.append(QJsonObject{ { "id", "request-again" }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", "user-approved" }, { "login", "approved-and-requested-again" } } } });
+	const auto mergeEnvelope = [](QJsonObject aFields) {
+		aFields.insert("id", "PR_21");
+		aFields.insert("headRefOid", "b20cb443428212543f5911e091a0ffeb407d23cf");
+		aFields.insert("baseRefOid", "c58160c2ffe27d7cf5e6759d78b80f023547c789");
+		aFields.insert("baseRefName", "main");
+		return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", QJsonObject{ { "id", "R_nested-folders" }, { "pullRequest", aFields } } } } } } }.toJson(QJsonDocument::Compact).toStdString();
+	};
+	server->ReviewRequests   = mergeEnvelope(QJsonObject{ { "reviewRequests", QJsonObject{ { "totalCount", requests.size() }, { "nodes", requests }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "END" } } } } } });
+	server->MergeAssessment  = mergeEnvelope(QJsonObject{ { "mergeStateStatus", "BLOCKED" }, { "reviewDecision", "REVIEW_REQUIRED" }, { "autoMergeRequest", QJsonValue::Null } });
+	server->BranchRules      = R"([{"type":"pull_request","ruleset_source_type":"Organization","ruleset_source":"bpr-fixtures","ruleset_id":42,"parameters":{"required_approving_review_count":2,"require_code_owner_review":true,"require_last_push_approval":true,"dismiss_stale_reviews_on_push":true,"required_review_thread_resolution":true}},{"type":"required_status_checks","ruleset_source_type":"Repository","ruleset_source":"bpr-fixtures/nested-folders","ruleset_id":43,"parameters":{"strict_required_status_checks_policy":true,"required_status_checks":[{"context":"Branch Freshness","integration_id":null},{"context":"Missing CI","integration_id":null}]}}])";
+	server->BranchProtection = R"({"url":"https://api.github.com/repos/bpr-fixtures/nested-folders/branches/main/protection","required_pull_request_reviews":null,"required_status_checks":null})";
+	server->ReviewHistory    = R"([{"id":4001,"node_id":"review-approved","state":"APPROVED","body":"Reviewed before re-request","commit_id":"b20cb443428212543f5911e091a0ffeb407d23cf","user":{"node_id":"user-approved","login":"approved-and-requested-again","type":"User"}}])";
+
 	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = dataRoot;
 	options.ReviewSubmissionServer = server;
@@ -159,10 +178,29 @@ int main(int aArgc, char** aArgv)
 	auto* checkList        = page->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
 	auto* checkExplanation = page->findChild<QPlainTextEdit*>(QStringLiteral("overviewCheckDescription"));
 	auto* checkOpen        = page->findChild<QPushButton*>(QStringLiteral("overviewOpenCheck"));
-	expect(page->projection()->Checks.Passed == 16 && page->projection()->Checks.Failed == 1 && page->projection()->Checks.Skipped == 7 && page->projection()->ChecksComplete && checkList->topLevelItemCount() == 24,
+	expect(page->projection()->Checks.Passed == 16 && page->projection()->Checks.Failed == 1 && page->projection()->Checks.Skipped == 7 && page->projection()->ChecksComplete && checkList->topLevelItemCount() == 25,
 		   "24 current results and matching complete totals reach the ordinary composed Overview");
 	expect(checkDisclosure->isChecked() && checkList->currentItem()->text(0).contains(QStringLiteral("Branch Freshness")) && checkExplanation->toPlainText().contains(QStringLiteral("Update the branch before merging")),
 		   "failure automatically expands with its name, actual outcome and supplied explanation");
+	auto* mergeText             = page->findChild<QLabel*>(QStringLiteral("overviewMergeSummary"));
+	auto* rosterText            = page->findChild<QLabel*>(QStringLiteral("overviewPendingReviewers"));
+	auto* requirementDisclosure = page->findChild<QToolButton*>(QStringLiteral("overviewRequirementDisclosure"));
+	auto* requirementText       = page->findChild<QLabel*>(QStringLiteral("overviewRequirementDetails"));
+	expect(mergeText->text().contains(QStringLiteral("merging is blocked")) && mergeText->text().contains(QStringLiteral("Review required")) && mergeText->text().contains(QStringLiteral("Branch Freshness")) && mergeText->text().contains(QStringLiteral("Waiting for check result: Missing CI")), "simultaneous review, known check failure and missing required result are visible beside summary");
+	for (int index = 0; index < 3; ++index) {
+		expect(rosterText->text().contains(QStringLiteral("@bpr-fixtures/owners-%1").arg(index)), "all three provider-marked code-owner teams are named directly");
+	}
+	expect(rosterText->text().contains(QStringLiteral("Waiting on code-owner review from")) && rosterText->text().contains(QStringLiteral("first-time-reviewer")) && rosterText->text().contains(QStringLiteral("approved-and-requested-again")), "new users and re-requested approver remain in distinct waiting roster");
+	expect(std::ranges::any_of(page->projection()->Participants, [](const auto& aPerson) { return aPerson.Login == "approved-and-requested-again" && aPerson.Signoff == application::overview_signoff::approved; }), "prior approval remains history beside the current request");
+	requirementDisclosure->setFocus();
+	QKeyEvent showRequirements{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+	QApplication::sendEvent(requirementDisclosure, &showRequirements);
+	QKeyEvent releaseRequirements{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+	QApplication::sendEvent(requirementDisclosure, &releaseRequirements);
+	expect(requirementDisclosure->isChecked() && requirementText->isVisible() && requirementText->text().contains(QStringLiteral("Organization: bpr-fixtures (ruleset 42)")) && requirementText->text().contains(QStringLiteral("Auto-merge is not enabled")) && requirementText->text().contains(QStringLiteral("Remaining approvals are not established")) && rosterText->accessibleName() == rosterText->text(), "keyboard details expose exact origin and evidence limits, with matching accessible waiting names");
+	render(*application, QStringLiteral("requirement-details"));
+	requirementDisclosure->click();
+	render(*application, QStringLiteral("review-blockers-initial"));
 	const auto opens = access::browser_opens(*application);
 	checkOpen->click();
 	expect(access::browser_opens(*application) == opens + 1 && access::browser_last_address(*application) == "https://ci.example.invalid/details", "explicit check gesture reaches the admitted recording browser through the public host");
@@ -189,6 +227,22 @@ int main(int aArgc, char** aArgv)
 	window.github_refresh_action()->trigger();
 	wait_for([&] { return window.github_refresh_action()->isEnabled() && page->projection()->ChecksComplete; }, "check detail public refresh settles");
 	expect(!checkDisclosure->isChecked() && checkList->currentItem() == selectedCheck && checkExplanation->textCursor().anchor() == 8 && checkExplanation->textCursor().position() == 20, "accepted refresh preserves collapse, exact selected check and reading selection");
+
+	{
+		const std::scoped_lock lock{ server->Mutex };
+		requests.removeLast();
+		requests.removeLast();
+		requests.append(QJsonObject{ { "id", "replacement-request" }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", "replacement-user" }, { "login", "replacement-reviewer" } } } });
+		server->ReviewRequests = mergeEnvelope(QJsonObject{ { "reviewRequests", QJsonObject{ { "totalCount", requests.size() }, { "nodes", requests }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "END" } } } } } });
+		auto       history     = *server->ReviewHistory;
+		const auto offset      = history.find("APPROVED");
+		expect(offset != std::string::npos, "approval fixture can be dismissed");
+		history.replace(offset, 8, "DISMISSED");
+		server->ReviewHistory = history;
+	}
+	window.github_refresh_action()->trigger();
+	wait_for([&] { return window.github_refresh_action()->isEnabled() && rosterText->text().contains(QStringLiteral("replacement-reviewer")); }, "accepted ordinary refresh replaces request identities");
+	expect(!rosterText->text().contains(QStringLiteral("first-time-reviewer")) && !rosterText->text().contains(QStringLiteral("approved-and-requested-again")) && std::ranges::any_of(page->projection()->Participants, [](const auto& aPerson) { return aPerson.Login == "approved-and-requested-again" && aPerson.Signoff == application::overview_signoff::dismissed; }), "removed requests vanish and dismissed review history remains separate after composed refresh");
 	checkDisclosure->setFocus();
 	QKeyEvent showChecks{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
 	QApplication::sendEvent(checkDisclosure, &showChecks);
@@ -207,10 +261,15 @@ int main(int aArgc, char** aArgv)
 	side->ensureWidgetVisible(checkExplanation);
 	expect(checkExplanation->viewport()->width() > 80 && checkOpen->minimumSizeHint().width() <= checkOpen->width() && page->entry_button()->isEnabled() && side->widget()->width() <= side->viewport()->width(), "narrow enlarged check explanation and action remain usable with review entry available");
 	render(*application, QStringLiteral("check-details-enlarged"));
+	side->ensureWidgetVisible(rosterText);
+	settle();
+	expect(rosterText->wordWrap() && rosterText->width() <= side->viewport()->width() && rosterText->height() >= rosterText->heightForWidth(rosterText->width()) && requirementDisclosure->minimumSizeHint().width() <= requirementDisclosure->width(), "narrow enlarged roster wraps long qualified team names and keeps native detail control usable");
+	render(*application, QStringLiteral("review-blockers-enlarged"));
 	qtApplication.setFont(originalFont);
 	window.resize(1280, 900);
 	settle();
 	side->verticalScrollBar()->setValue(0);
+	render(*application, QStringLiteral("review-blockers"));
 	render(*application, QStringLiteral("long-default"));
 	if (attended) {
 		std::cout << "OVERVIEW_ATTENDED_READY source=synthetic window=Overview\n"

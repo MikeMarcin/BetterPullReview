@@ -4115,10 +4115,40 @@ namespace {
 		}
 	}
 
+	void test_optional_explanations_preserve_account_authority()
+	{
+		for (const auto operation : { read_operation::get_merge_assessment, read_operation::list_review_requests, read_operation::list_branch_rules, read_operation::get_branch_protection, read_operation::list_checks, read_operation::list_commit_statuses }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			transport.RewriteResponse = [operation](const github_wire_request& aRequest, wire_response& aResponse) {if(aRequest.Wire.Operation == operation){aResponse.Status = 401;aResponse.Body = "{}";} };
+			const auto result         = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+			expect(!result && std::get<application::github_provider_error>(result.error()).Failure == application::github_provider_failure::authentication, "optional detail cannot downgrade lost authentication into a successful snapshot");
+		}
+		class account_loss_transport final : public github_wire_transport_port
+		{
+		public:
+			auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
+			{
+				if (aRequest.Wire.Operation == read_operation::get_merge_assessment) {
+					auto error            = application::github_provider_error{ };
+					error.Failure         = application::github_provider_failure::authentication;
+					error.AccountMismatch = true;
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = error };
+				}
+				return Fixture.perform(aRequest, aStop);
+			}
+
+		private:
+			paged_fixture_transport Fixture{ fixture_scenario::success };
+		} transport;
+		const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+		expect(!result && std::get<application::github_provider_error>(result.error()).AccountMismatch, "the CLI lease's account-mismatch terminal propagates through optional requirements unchanged");
+	}
+
 }
 
 auto main() -> int
 {
+	test_optional_explanations_preserve_account_authority();
 	test_review_request_pagination();
 	test_review_requirements();
 	test_current_check_details();

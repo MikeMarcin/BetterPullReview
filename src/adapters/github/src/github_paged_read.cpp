@@ -3449,6 +3449,17 @@ namespace bpr::adapters::github::detail {
 
 		using observation = application::github_observation_availability;
 
+		[[nodiscard]] auto fatal_optional_read_failure(const github_paged_read_failure& aFailure) -> bool
+		{
+			if (std::holds_alternative<github_paged_read_cancelled>(aFailure)) {
+				return true;
+			}
+			const auto* error = std::get_if<application::github_provider_error>(&aFailure);
+			// Lost authentication or account binding invalidates the entire read,
+			// even when only an optional explanation discovered it.
+			return error && error->Failure == application::github_provider_failure::authentication;
+		}
+
 		[[nodiscard]] auto observation_failure(const github_paged_read_failure& aFailure) -> observation
 		{
 			const auto* failure = std::get_if<application::github_provider_error>(&aFailure);
@@ -3800,19 +3811,19 @@ namespace bpr::adapters::github::detail {
 		{
 			const auto assessment = read_merge_assessment(aExecution, aServer, aContext, aSnapshot);
 			if (!assessment) {
-				if (std::holds_alternative<github_paged_read_cancelled>(assessment.error())) {
+				if (fatal_optional_read_failure(assessment.error())) {
 					return std::unexpected{ assessment.error() };
 				}
 				aSnapshot.Merge.Availability = observation_failure(assessment.error());
 			}
 			const auto requests = read_pending_requests(aExecution, aServer, aContext, aSnapshot, aLimits);
 			if (!requests) {
-				if (std::holds_alternative<github_paged_read_cancelled>(requests.error())) {
+				if (fatal_optional_read_failure(requests.error())) {
 					return std::unexpected{ requests.error() };
 				}
 				aSnapshot.ReviewRequestsAvailability = observation_failure(requests.error());
 				const auto fallback                  = read_rest_pending_requests(aExecution, aServer, aContext, aSnapshot);
-				if (!fallback && std::holds_alternative<github_paged_read_cancelled>(fallback.error())) {
+				if (!fallback && fatal_optional_read_failure(fallback.error())) {
 					return std::unexpected{ fallback.error() };
 				}
 			}
@@ -3824,14 +3835,14 @@ namespace bpr::adapters::github::detail {
 				aSnapshot.BranchPolicy.Rules             = std::move(rules);
 				aSnapshot.BranchPolicy.RulesAvailability = observation::available;
 			} else {
-				if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
+				if (fatal_optional_read_failure(read.error())) {
 					return std::unexpected{ read.error() };
 				}
 				aSnapshot.BranchPolicy.RulesAvailability = observation_failure(read.error());
 			}
 			const auto protection = read_classic_protection(aExecution, aServer, aContext, aSnapshot);
 			if (!protection) {
-				if (std::holds_alternative<github_paged_read_cancelled>(protection.error())) {
+				if (fatal_optional_read_failure(protection.error())) {
 					return std::unexpected{ protection.error() };
 				}
 				aSnapshot.BranchPolicy.ProtectionAvailability = observation_failure(protection.error());
@@ -3840,8 +3851,15 @@ namespace bpr::adapters::github::detail {
 				auto budget = application::detail::github_text_budget{ aLimits.Records };
 				return application::detail::validate_merge_observations(aRecords, budget, aLimits.Records) == application::github_read_validation_error::none;
 			};
-			auto records           = application::github_pull_request_snapshot{ };
-			records.ReviewRequests = aSnapshot.ReviewRequests;
+			auto records                                = application::github_pull_request_snapshot{ };
+			records.ReviewRequestsAvailability          = observation::available;
+			records.BranchPolicy.RulesAvailability      = observation::available;
+			records.BranchPolicy.ProtectionAvailability = observation::available;
+
+			records.Viewer             = aSnapshot.Viewer;
+			records.PullRequest.Author = aSnapshot.PullRequest.Author;
+			records.Reviews            = aSnapshot.Reviews;
+			records.ReviewRequests     = aSnapshot.ReviewRequests;
 			if (!validCollection(records)) {
 				aSnapshot.ReviewRequests.clear();
 				aSnapshot.ReviewRequestsAvailability = observation::incomplete;
@@ -4932,7 +4950,7 @@ namespace bpr::adapters::github::detail {
 												result.Checks,
 												aLimits);
 				!checks.has_value()) {
-				if (std::holds_alternative<github_paged_read_cancelled>(checks.error())) {
+				if (fatal_optional_read_failure(checks.error())) {
 					return std::unexpected{ checks.error() };
 				}
 				result.Checks.clear();
@@ -4954,7 +4972,7 @@ namespace bpr::adapters::github::detail {
 					}
 				}
 				result.StatusesAvailability = application::github_collection_availability::available;
-			} else if (std::holds_alternative<github_paged_read_cancelled>(statusRead.error())) {
+			} else if (fatal_optional_read_failure(statusRead.error())) {
 				return std::unexpected{ statusRead.error() };
 			}
 

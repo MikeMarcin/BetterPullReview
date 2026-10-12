@@ -599,7 +599,7 @@ namespace bpr::app::detail {
 				resource  = "search";
 				limit     = "30";
 				remaining = "29";
-			} else if (aOperation == read_operation::list_review_threads) {
+			} else if (graphql_read(aOperation)) {
 				resource = "graphql";
 			}
 			aResponse.Headers.push_back(
@@ -762,6 +762,10 @@ namespace bpr::app::detail {
 		{
 			const std::scoped_lock lock{ aState.Mutex };
 			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !aState.CheckRuns && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
+				return;
+			}
+			if (aOperation == read_operation::list_reviews && aState.ReviewHistory) {
+				aBody = *aState.ReviewHistory;
 				return;
 			}
 			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
@@ -2187,6 +2191,31 @@ namespace bpr::app::detail {
 			{
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				if (aRequest.Wire.Operation == read_operation::get_merge_assessment || aRequest.Wire.Operation == read_operation::list_review_requests || aRequest.Wire.Operation == read_operation::list_branch_rules || aRequest.Wire.Operation == read_operation::get_branch_protection) {
+					if (!validate_github_wire_request(State->Profile, aRequest)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					auto body = std::optional<std::string>{ };
+					if (State->PublishedTour) {
+						const std::scoped_lock lock{ State->PublishedTour->Mutex };
+						switch (aRequest.Wire.Operation) {
+						case read_operation::get_merge_assessment:  body = State->PublishedTour->MergeAssessment; break;
+						case read_operation::list_review_requests:  body = State->PublishedTour->ReviewRequests; break;
+						case read_operation::list_branch_rules:     body = State->PublishedTour->BranchRules; break;
+						case read_operation::get_branch_protection: body = State->PublishedTour->BranchProtection; break;
+						default:                                    break;
+						}
+					}
+					if (!body) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
+					}
+					auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Body = *body, .Completeness = page_completeness::complete };
+					append_rate_limit_headers(response, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
+				}
+				if (aRequest.Wire.Operation == read_operation::list_requested_reviewers && !State->PersonalDiscovery) {
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unavailable) };
 				}
 				if (aRequest.Wire.Operation == read_operation::list_commit_statuses) {
 					auto body = std::string{ "[]" };

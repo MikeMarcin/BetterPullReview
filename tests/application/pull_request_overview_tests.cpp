@@ -4,6 +4,7 @@
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/file_progress_mark.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -520,11 +521,75 @@ namespace {
 			expect(!application::project_overview_history(context.Updates, std::nullopt).Known, "no reviewed head remains unknown");
 		}
 	}
+	void test_merge_evidence_boundaries()
+	{
+		auto review                                = snapshot();
+		review.StatusesAvailability                = application::github_collection_availability::available;
+		review.Merge.Availability                  = application::github_observation_availability::available;
+		review.Merge.Assessment                    = application::github_merge_assessment::blocked;
+		review.Merge.Review                        = application::github_review_decision::required;
+		review.BranchPolicy.RulesAvailability      = application::github_observation_availability::available;
+		review.BranchPolicy.ProtectionAvailability = application::github_observation_availability::available;
+		review.ReviewRequestsAvailability          = application::github_observation_availability::available;
+		auto rule                                  = application::github_branch_requirement{ };
+		rule.Type                                  = "pull_request";
+		rule.Source                                = "EpicGames";
+		rule.SourceKind                            = "Organization";
+		rule.RulesetId                             = 42;
+		rule.ApprovalMinimum                       = 2;
+		rule.CodeOwners                            = true;
+		rule.Checks                                = { { "CI", 17 } };
+		review.BranchPolicy.Rules.push_back(rule);
+		auto check            = application::github_check_record{ };
+		check.Check           = application::github_check_id{ "optional" };
+		check.Name            = "CI";
+		check.AppId           = 18;
+		check.Status          = application::github_check_status::completed;
+		check.Conclusion      = application::github_check_conclusion::failure;
+		review.Checks         = { check };
+		auto requested        = application::github_review_request_record{ };
+		requested.Request     = "request";
+		requested.Actor       = std::string{ actor("rcaloca", 3).Actor.value() };
+		requested.Login       = "rcaloca";
+		requested.Kind        = application::github_requested_actor_kind::user;
+		requested.AsCodeOwner = false;
+		review.ReviewRequests.push_back(requested);
+		auto projected = application::project_pull_request_overview(review, { });
+		expect(projected.PendingReviewers.find("@rcaloca") != std::string::npos && std::ranges::any_of(projected.Participants, [](const auto& aPerson) { return aPerson.Login == "rcaloca" && aPerson.Signoff == application::overview_signoff::approved; }), "re-requested approval remains both history and current request");
+		expect(projected.CheckRows.front().Requirement == "Optional" && projected.CheckRows.size() == 2 && projected.CheckRows.back().Outcome == "Waiting for check result" && projected.Checks.Failed == 1 && projected.Checks.Pending == 0, "wrong-app failure stays optional; expected required result is separate from observed totals");
+		expect(projected.MergeSummary.find("Configured approval minimum: 2") != std::string::npos && projected.MergeSummary.find("Remaining approvals are not established") != std::string::npos && projected.RequirementDetails.find("Auto-merge state unavailable") != std::string::npos, "historical approvals and requested count cannot infer remaining approvals or auto-merge");
+
+		const auto appId = review.Checks.front().AppId;
+		review.Checks.front().AppId.reset();
+		projected = application::project_pull_request_overview(review, { });
+		expect(projected.CheckRows.front().Requirement.find("app identity unavailable") != std::string::npos, "a status with unknown app identity cannot be classified optional against an app-restricted requirement");
+		review.Checks.front().AppId = appId;
+		review.StatusesAvailability = application::github_collection_availability::unavailable;
+		projected                   = application::project_pull_request_overview(review, { });
+		expect(projected.CheckRows.back().Outcome == "Result unavailable" && projected.MergeSummary.find("Required check result unavailable") != std::string::npos, "an unread result collection cannot claim that the server is waiting for a missing result");
+		review.StatusesAvailability = application::github_collection_availability::available;
+		review.ReviewRequests.clear();
+		review.Reviews.back().State = application::github_review_state::pending;
+		projected                   = application::project_pull_request_overview(review, { });
+		expect(projected.PendingReviewers == "No outstanding review requests observed.", "submitted/pending history cannot manufacture an outstanding request after removal");
+		review.Merge.AutoMerge           = true;
+		review.Merge.Assessment          = application::github_merge_assessment::clean;
+		review.Merge.Review              = application::github_review_decision::approved;
+		review.Checks.front().Conclusion = application::github_check_conclusion::success;
+		projected                        = application::project_pull_request_overview(review, { });
+		expect(projected.RequirementDetails.find("Auto-merge is enabled; the visible conditions still apply") != std::string::npos && projected.MergeSummary.find("Your merge permission is not established") != std::string::npos, "positive server assessment grants no viewer authority or unconditional merge promise");
+		review.BranchPolicy.RulesAvailability = application::github_observation_availability::permission;
+		review.BranchPolicy.Rules.clear();
+		review.Merge.Assessment = application::github_merge_assessment::blocked;
+		projected               = application::project_pull_request_overview(review, { });
+		expect(projected.MergeSummary.find("merging is blocked") != std::string::npos && projected.CheckRows.front().Requirement == "Requirement unknown" && projected.RequirementDetails.find("access denied") != std::string::npos, "unavailable policy cannot erase known merge block or classify an unobserved gate");
+	}
 
 } // namespace
 
 auto main() -> int
 {
+	test_merge_evidence_boundaries();
 	test_history_header_matches_complete_projection();
 	test_receipt_updates_match_a_complete_projection();
 	test_an_accepted_file_shows_accepted_and_counts_as_done();
