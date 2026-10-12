@@ -97,3 +97,17 @@ native completion is pending. The ledger records sizing and measured context.
 The next candidate also includes the owner-requested committed BPR-1406 Home
 author labels through `77905f2fe`; its recorded 52/52 related checks are reused
 and the final native Home selectors remain required.
+
+The completed Mac normal gate returned 683 pass, six fail and one configured
+skip. Three helper/seal failures have committed repairs; two updater failures
+were the unchanged 4 GiB disk prerequisite and passed after producer cleanup.
+The history input failure remains open. A declared baseline and no-content
+GUI diagnostic localized a serialized 65–81 ms CPU turn plus scheduling delay;
+all exact retained epochs and completion limits passed. `1dca2e7dc` skips empty
+private-state joins but was insufficient by itself. `8fa5ab470` reuses only an
+exact current ordered receipt-path index, with observations/navigation rebuilt
+on every adoption; `539f2cd07` covers same-path re-adoption after clear. Clean
+Overview checks and both meaningful invalidation/clear negative controls pass,
+as do focused tidy and format 22. The uninstrumented history course awaits
+build quiescence after an explicitly recorded contended launch was stopped.
+The ledger preserves every actual failed result and pending native acceptance.

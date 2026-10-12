@@ -196,6 +196,44 @@ had maximum pulse gaps of 71–85 ms; epochs 26, 27 and 29–32 reached
 110–173 ms. This actual failure remains open while its event-lane cost and
 runtime conditions are diagnosed. No timing bound or assertion is relaxed.
 
+The completed Mac `99e96691` normal gate returned 683 pass, six fail and
+one configured cache-bytes skip in 59.98 minutes. Three failures concern the
+contained-temporary helper and aggregate composition seals repaired above.
+The updater transaction and native-staging failures had only 2.6 GiB free
+against their existing 4 GiB prerequisites; those production guards remain
+unchanged. After task-owned producer cleanup and Debug local-symbol omission
+(`-g0`, executable linker `-Wl,-x`, assertions unchanged), 26 actual native
+symbol/network/RFC0016/RFC0017/updater checks passed in 34.38 seconds. That
+focused prerequisite repair does not replace the final normal gate.
+
+A declared isolated history baseline at `8f68006e` failed in 145.14 seconds:
+all 32 retained epochs and completion bounds passed, but refresh 24 reached
+126.141 ms against 100 ms. A single no-content GUI-event diagnostic then
+failed in 149.22 seconds. The failing serialized `QObject` MetaCall spent
+99.859 ms wall time and 80.777 ms of GUI-thread CPU; ordinary corresponding
+turns spent about 65 ms in both. Benchmark instrumentation was restored
+byte-for-byte before further acceptance.
+
+Commit `1dca2e7dc` avoids deriving Overview file identities when both private
+receipt and note populations are empty. Its note-only regression passed, but
+the clean native history course still failed in 191.91 seconds with refresh
+gaps of 104–139 ms; it is not sufficient timing acceptance. Commit `8fa5ab470`
+separately retains the receipt index only while the exact current ordered path
+list is unchanged. Each adoption still rebuilds observation, progress and
+navigation state. Changed, reordered, case-changed, renamed or removed paths
+rebuild the index; clear retires both paths and authority. Commit `539f2cd07`
+adds explicit same-path re-adoption after clear.
+
+The Overview regression passes on the clean producer, and focused tidy of
+both translation units and format 22 pass. Two separately compiled, contained
+negative controls fail at the intended assertions: ignoring exact path equality
+misapplies receipts after reordering; retaining paths after clear leaves a
+stale empty index. Their temporary trees were removed without editing producer
+source. Final uninstrumented history acceptance remains pending. A launched
+course was interrupted after observing an unrelated 16-worker compiler build;
+its context and exit 143 remain recorded, with no product result claimed and
+no attribution of earlier failures to that later contention.
+
 The Windows x64 Debug normal gate at `8cf67d793` separately failed
 `application_diagnostic_subsystems` after 134.70 s: its enrollment child hit
 the wrapper's hardcoded 120-second backstop. The independent enrollment row
