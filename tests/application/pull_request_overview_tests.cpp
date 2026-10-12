@@ -452,6 +452,11 @@ namespace {
 		index.clear();
 		auto projection = application::pull_request_overview_projection{ };
 		expect(!index.apply(projection, { }), "clear retires receipt authority until another adoption");
+		projection.Files.emplace_back();
+		projection.Files.back().Path = "src/a.cpp";
+		index.adopt(projection, false, false);
+		expect(index.apply(projection, std::vector{ receipt("src/a.cpp", core::file_read_state::read) }).has_value(),
+			   "clear permits a new adoption of the same path without a stale empty index");
 	}
 
 	void test_receipt_updates_match_a_complete_projection()
