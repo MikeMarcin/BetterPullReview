@@ -107,7 +107,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # public paths' make_storage_root_owner_private refuses the same root; all
     # five pass uncontained.
     "sqlite_profile_registry_storage": "dos-volume-name",
-    "sqlite_remembered_connection_storage": "unmeasured (registered on macOS)",
     "sqlite_window_review_restoration_storage": "dos-volume-name",
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
