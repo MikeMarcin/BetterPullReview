@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1391"
 title: "Compose native check details in Overview"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0068"]
 depends_on: ["BPR-1390"]
 priority: "P1"
