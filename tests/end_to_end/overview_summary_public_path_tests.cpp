@@ -15,6 +15,9 @@
 #include <QClipboard>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -23,6 +26,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRect>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QSplitter>
 #include <QSplitterHandle>
@@ -31,6 +35,7 @@
 #include <QThread>
 #include <QToolButton>
 #include <QTreeView>
+#include <QTreeWidget>
 #include <QWheelEvent>
 
 #include <QMouseEvent>
@@ -72,6 +77,24 @@ namespace {
 		}
 		return body + "END OF ADMITTED DESCRIPTION\n";
 	}
+	auto check_results() -> std::string
+	{
+		auto rows = QJsonArray{ };
+		for (int index = 0; index < 24; ++index) {
+			auto row = QJsonObject{ { "node_id", QStringLiteral("check_%1").arg(index) }, { "head_sha", "b20cb443428212543f5911e091a0ffeb407d23cf" }, { "name", index == 0 ? QStringLiteral("Branch Freshness") : index == 1 ? QStringLiteral("CI / Extended integration test with a long readable result name 日本語 🦊")
+																																																							 : QStringLiteral("Check %1").arg(index) },
+									{ "status", "completed" },
+									{ "conclusion", index == 0 ? "failure" : index <= 16 ? "success"
+																						 : "skipped" },
+									{ "app", QJsonObject{ { "slug", "ci-fixture" } } } };
+			if (index != 17) {
+				row.insert("details_url", index == 18 ? "javascript:alert(1)" : "https://ci.example.invalid/details");
+				row.insert("output", QJsonObject{ { "title", index == 0 ? "Branch is behind its base" : "Completed" }, { "summary", index == 0 ? "Update the branch before merging. The current head lacks the latest base changes." : "<img src=https://remote.invalid/image> is literal provider text." } });
+			}
+			rows.append(row);
+		}
+		return QJsonDocument{ QJsonObject{ { "total_count", 24 }, { "check_runs", rows } } }.toJson(QJsonDocument::Compact).toStdString();
+	}
 	void render(app::github_application& aApplication, const QString& aName)
 	{
 		const auto root = qEnvironmentVariable("BPR_OVERVIEW_RENDER_ROOT");
@@ -103,6 +126,7 @@ int main(int aArgc, char** aArgv)
 	auto       server              = std::make_shared<app::detail::review_submission_fixture_state>();
 	const auto body                = description();
 	server->StagedDescription      = body;
+	server->CheckRuns              = check_results();
 	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = dataRoot;
 	options.ReviewSubmissionServer = server;
@@ -131,6 +155,62 @@ int main(int aArgc, char** aArgv)
 	auto* reader = page->body_view();
 	settle();
 	expect(std::abs(split->sizes()[0] - split->sizes()[1]) <= 2 && page->files_view()->isVisible() && page->entry_button()->isVisible(), "long composed summary starts half-sized with Files and side entry");
+	auto* checkDisclosure  = page->findChild<QToolButton*>(QStringLiteral("overviewChecksDisclosure"));
+	auto* checkList        = page->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
+	auto* checkExplanation = page->findChild<QPlainTextEdit*>(QStringLiteral("overviewCheckDescription"));
+	auto* checkOpen        = page->findChild<QPushButton*>(QStringLiteral("overviewOpenCheck"));
+	expect(page->projection()->Checks.Passed == 16 && page->projection()->Checks.Failed == 1 && page->projection()->Checks.Skipped == 7 && page->projection()->ChecksComplete && checkList->topLevelItemCount() == 24,
+		   "24 current results and matching complete totals reach the ordinary composed Overview");
+	expect(checkDisclosure->isChecked() && checkList->currentItem()->text(0).contains(QStringLiteral("Branch Freshness")) && checkExplanation->toPlainText().contains(QStringLiteral("Update the branch before merging")),
+		   "failure automatically expands with its name, actual outcome and supplied explanation");
+	const auto opens = access::browser_opens(*application);
+	checkOpen->click();
+	expect(access::browser_opens(*application) == opens + 1 && access::browser_last_address(*application) == "https://ci.example.invalid/details", "explicit check gesture reaches the admitted recording browser through the public host");
+	const auto findCheck = [&](const QString& aIdentity) {
+		for (int index = 0; index < checkList->topLevelItemCount(); ++index) {
+			if (checkList->topLevelItem(index)->data(0, Qt::UserRole) == aIdentity) {
+				return checkList->topLevelItem(index);
+			}
+		}
+		return static_cast<QTreeWidgetItem*>(nullptr);
+	};
+	checkList->setCurrentItem(findCheck(QStringLiteral("check:check_17")));
+	expect(!checkOpen->isEnabled() && checkExplanation->toPlainText().contains(QStringLiteral("No details were supplied")), "missing output and destination remain readable with unavailable action");
+	checkList->setCurrentItem(findCheck(QStringLiteral("check:check_18")));
+	checkOpen->click();
+	expect(!checkOpen->isEnabled() && access::browser_opens(*application) == opens + 1 && checkExplanation->toPlainText().contains(QStringLiteral("<img src=https://remote.invalid/image>")), "unsafe links are refused and provider HTML remains inert selectable text");
+	checkList->setCurrentItem(findCheck(QStringLiteral("check:check_0")));
+	auto checkSelection = checkExplanation->textCursor();
+	checkSelection.setPosition(8);
+	checkSelection.setPosition(20, QTextCursor::KeepAnchor);
+	checkExplanation->setTextCursor(checkSelection);
+	auto* selectedCheck = checkList->currentItem();
+	checkDisclosure->click();
+	window.github_refresh_action()->trigger();
+	wait_for([&] { return window.github_refresh_action()->isEnabled() && page->projection()->ChecksComplete; }, "check detail public refresh settles");
+	expect(!checkDisclosure->isChecked() && checkList->currentItem() == selectedCheck && checkExplanation->textCursor().anchor() == 8 && checkExplanation->textCursor().position() == 20, "accepted refresh preserves collapse, exact selected check and reading selection");
+	checkDisclosure->setFocus();
+	QKeyEvent showChecks{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+	QApplication::sendEvent(checkDisclosure, &showChecks);
+	QKeyEvent releaseChecks{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+	QApplication::sendEvent(checkDisclosure, &releaseChecks);
+	expect(checkDisclosure->isChecked() && checkDisclosure->accessibleName().contains(QStringLiteral("Check details")) && checkList->accessibleName() == QStringLiteral("Check results"), "native keyboard disclosure and result accessible names work");
+	auto* side = page->findChild<QScrollArea*>(QStringLiteral("overviewSideScroll"));
+	side->ensureWidgetVisible(checkExplanation);
+	render(*application, QStringLiteral("check-details"));
+	const auto originalFont = qtApplication.font();
+	auto       enlarged     = originalFont;
+	enlarged.setPointSizeF(originalFont.pointSizeF() * 1.35);
+	qtApplication.setFont(enlarged);
+	window.resize(900, 600);
+	settle();
+	side->ensureWidgetVisible(checkExplanation);
+	expect(checkExplanation->viewport()->width() > 80 && checkOpen->minimumSizeHint().width() <= checkOpen->width() && page->entry_button()->isEnabled() && side->widget()->width() <= side->viewport()->width(), "narrow enlarged check explanation and action remain usable with review entry available");
+	render(*application, QStringLiteral("check-details-enlarged"));
+	qtApplication.setFont(originalFont);
+	window.resize(1280, 900);
+	settle();
+	side->verticalScrollBar()->setValue(0);
 	render(*application, QStringLiteral("long-default"));
 	if (attended) {
 		std::cout << "OVERVIEW_ATTENDED_READY source=synthetic window=Overview\n"

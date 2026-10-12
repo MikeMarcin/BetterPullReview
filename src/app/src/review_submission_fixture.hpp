@@ -14,17 +14,19 @@ namespace bpr::app::detail {
 	/// \brief Independent synthetic server state, reusable across reconstructed applications.
 	struct review_submission_fixture_state
 	{
-		std::mutex                                          Mutex;
-		std::function<void(std::size_t, std::string_view)>  Boundary;
-		bool                                                DraftPullRequest = false;
-		std::map<std::uint64_t, std::uint64_t>              ReplyParents;
-		std::condition_variable_any                         StagedWait;
-		std::optional<application::staged_review_entity>    StagedReview;
-		std::vector<application::staged_review_entity>      PreviousReviews;
-		std::vector<application::staged_review_comment>     PreviousComments;
-		std::vector<std::string>                            StagedWritePaths;
-		std::vector<application::staged_review_comment>     StagedComments, CompatibilityComments;
-		std::optional<std::string>                          StagedDescription;
+		std::mutex                                         Mutex;
+		std::function<void(std::size_t, std::string_view)> Boundary;
+		bool                                               DraftPullRequest = false;
+		std::map<std::uint64_t, std::uint64_t>             ReplyParents;
+		std::condition_variable_any                        StagedWait;
+		std::optional<application::staged_review_entity>   StagedReview;
+		std::vector<application::staged_review_entity>     PreviousReviews;
+		std::vector<application::staged_review_comment>    PreviousComments;
+		std::vector<std::string>                           StagedWritePaths;
+		std::vector<application::staged_review_comment>    StagedComments, CompatibilityComments;
+		std::optional<std::string>                         StagedDescription;
+		/// Synthetic read-only check collections for composed Overview courses.
+		std::optional<std::string>                          CheckRuns, CommitStatuses;
 		std::size_t                                         StagedWrites = 0, StagedCreates = 0, StagedSubmits = 0;
 		bool                                                StagedQualified = true, StagedConflict = false, StagedRejectDescription = false, StagedBlockNext = false, StagedBlocked = false;
 		std::vector<application::review_submission_request> Reviews;

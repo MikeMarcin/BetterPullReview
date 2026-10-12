@@ -58,7 +58,7 @@ revision. Authenticated account identity is a later `/user` observation, and
 capabilities are separately probed and cached observations. The active host and
 accepted account are always visible in the application.
 
-REST supplies the broad baseline. GraphQL is limited to review-thread and viewed-state features. The GHES floor uses the supported date-version header and recorded 3.18 contracts. GitHub.com uses its own fixture set and capability profile.
+REST supplies the broad baseline. GraphQL is limited to review-thread and viewed-state features, with the narrowly compiled read extensions authorized by RFC-BPR-0068–0070 for check requirements/evaluated results, requested actors/code-owner origin, PR merge/review facts and target-branch requirements. These successor scopes retain capability shaping, bounded pagination and account leases; they authorize no general query executor or mutation. The GHES floor uses the supported date-version header and recorded 3.18 contracts. GitHub.com uses its own fixture set and capability profile.
 
 ## Authentication
 

@@ -116,6 +116,16 @@ namespace bpr::application {
 		}
 	};
 
+	/// \brief A bounded, literal result row, in failure/waiting/settled order.
+	struct overview_check_row
+	{
+		std::string Identity, Name, Producer, Kind, Outcome, Description, DetailsUrl;
+		bool        Failed                                       = false;
+		bool        Pending                                      = false;
+		bool        LinkAvailable                                = false;
+		auto        operator<=>(const overview_check_row&) const = default;
+	};
+
 	/// \brief What happened since my last review.
 	///
 	/// \details Every count that the inputs cannot answer is absent rather
@@ -197,6 +207,9 @@ namespace bpr::application {
 		std::vector<overview_participant> Participants;
 		overview_since_last_review        SinceLastReview;
 		overview_check_summary            Checks;
+		std::vector<overview_check_row>   CheckRows;
+		bool                              ChecksComplete = true;
+		std::string                       ChecksNote;
 		overview_review_progress          Progress;
 		overview_entry_kind               Entry = overview_entry_kind::start_review;
 		/// Where the one action lands: the first unseen change's file.

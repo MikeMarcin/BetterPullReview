@@ -10718,6 +10718,7 @@ namespace bpr::qt {
 			statusBar()->showMessage(message, 8000);
 		};
 		OverviewPage->body_view()->set_link_dispatch([dispatch](const std::string& aDestination) { dispatch({ }, aDestination); });
+		OverviewPage->set_check_link_dispatch(dispatch);
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
 		ReviewThreadTotal = aPullRequest.ReviewThreadCount;

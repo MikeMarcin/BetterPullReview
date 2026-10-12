@@ -361,6 +361,26 @@ small-window clamp or empty body does not erase it; Reset does. New windows
 use content-aware sizing. No description text is stored as a layout preference.
 Owner acceptance of the changed native surface remains in RFC0063's ledger.
 
+## Overview check details
+
+RFC-BPR-0068 adds a native **Check details** disclosure in Overview’s summary
+column, after the review entry action. The first accepted failure expands it;
+a reviewer’s later collapse and selected result survive the same PR’s refresh.
+The failure count stays visible while collapsed. The ordered result list shows
+failures/action-required results, waiting results, then settled results. Selecting
+a result exposes its kind, producer, actual outcome, supplied explanation and
+**Requirement unknown** until separate requirement evidence is accepted.
+
+Check explanations are bounded literal text. **Open check details** is an
+explicit host-admitted browser handoff for that exact current result. Missing
+output or a missing/refused address leaves the result readable and explains the
+unavailable action. Current check runs and newest commit-status contexts are
+separate rows even when names match. Totals are partial when either collection
+is unavailable. The current implementation labels the accepted head commit and
+states that test-merge evaluation and merge requirements are unobserved; green
+head totals do not establish merge readiness. These reads and controls neither
+rerun jobs nor execute repository code.
+
 ## Overview files
 
 Overview groups files under flat folder rows ([[BPR-1213]]). A folder that

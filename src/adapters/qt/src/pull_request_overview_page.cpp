@@ -57,6 +57,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -74,6 +75,31 @@
 
 namespace bpr::qt {
 	namespace {
+		class check_result_delegate final : public QStyledItemDelegate
+		{
+		public:
+			explicit check_result_delegate(QTreeWidget* aView)
+				: QStyledItemDelegate{ aView }
+				, View{ aView }
+			{ }
+			auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize override
+			{
+				const auto available = std::max(1, View->viewport()->width() - 8);
+				const auto bounds    = aOption.fontMetrics.boundingRect(QRect{ 0, 0, available, 10000 }, Qt::TextWordWrap, aIndex.data().toString());
+				return { available, bounds.height() + 6 };
+			}
+			void paint(QPainter* aPainter, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const override
+			{
+				auto option = aOption;
+				option.features |= QStyleOptionViewItem::WrapText;
+				option.textElideMode = Qt::ElideNone;
+				QStyledItemDelegate::paint(aPainter, option, aIndex);
+			}
+
+		private:
+			QTreeWidget* View;
+		};
+
 		auto full_view_icon(const QPalette& aPalette, const bool aExpanded) -> QIcon
 		{
 			return painted_glyph_icon([aExpanded](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
@@ -2471,8 +2497,12 @@ namespace bpr::qt {
 			value->setAccessibleName(value_name(aValue));
 			value->setTextFormat(Qt::PlainText);
 			value->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-			rowLayout->addWidget(name, 1);
-			rowLayout->addWidget(value);
+			if (aValue == overview_value::checks) {
+				value->setWordWrap(true);
+				value->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			}
+			rowLayout->addWidget(name, aValue == overview_value::checks ? 0 : 1);
+			rowLayout->addWidget(value, aValue == overview_value::checks ? 1 : 0);
 			sideColumn->addWidget(row);
 			Values[static_cast<std::size_t>(aValue)] = value;
 		};
@@ -2509,6 +2539,68 @@ namespace bpr::qt {
 		entryRow->addWidget(Entry);
 		entryRow->addStretch(1);
 		sideColumn->addLayout(entryRow);
+		ChecksDisclosure = new QToolButton{ side };
+		ChecksDisclosure->setObjectName(QStringLiteral("overviewChecksDisclosure"));
+		ChecksDisclosure->setCheckable(true);
+		ChecksDisclosure->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		ChecksDisclosure->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		sideColumn->addSpacing(12);
+		sideColumn->addWidget(ChecksDisclosure);
+		CheckDetails = new QWidget{ side };
+		CheckDetails->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		CheckDetails->setObjectName(QStringLiteral("overviewCheckDetails"));
+		auto* const checkColumn = new QVBoxLayout{ CheckDetails };
+		checkColumn->setContentsMargins(0, 0, 0, 0);
+		ChecksNote = new QLabel{ CheckDetails };
+		ChecksNote->setTextFormat(Qt::PlainText);
+		ChecksNote->setWordWrap(true);
+		ChecksNote->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		checkColumn->addWidget(ChecksNote);
+		CheckList = new QTreeWidget{ CheckDetails };
+		CheckList->setObjectName(QStringLiteral("overviewCheckList"));
+		CheckList->setAccessibleName(QStringLiteral("Check results"));
+		CheckList->setHeaderHidden(true);
+		CheckList->setRootIsDecorated(false);
+		CheckList->setWordWrap(true);
+		CheckList->setItemDelegate(new check_result_delegate{ CheckList });
+		CheckList->setTextElideMode(Qt::ElideNone);
+		CheckList->header()->setSectionResizeMode(QHeaderView::Stretch);
+		CheckList->setMinimumWidth(0);
+		CheckList->setFixedHeight(180);
+		checkColumn->addWidget(CheckList);
+		CheckHeading = new QLabel{ CheckDetails };
+		CheckHeading->setObjectName(QStringLiteral("overviewSelectedCheck"));
+		CheckHeading->setTextFormat(Qt::PlainText);
+		CheckHeading->setWordWrap(true);
+		CheckHeading->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		checkColumn->addWidget(CheckHeading);
+		CheckDescription = new QPlainTextEdit{ CheckDetails };
+		CheckDescription->setObjectName(QStringLiteral("overviewCheckDescription"));
+		CheckDescription->setAccessibleName(QStringLiteral("Check explanation"));
+		CheckDescription->setReadOnly(true);
+		CheckDescription->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+		CheckDescription->setFixedHeight(140);
+		checkColumn->addWidget(CheckDescription);
+		CheckOpen = new QPushButton{ QStringLiteral("Open check details"), CheckDetails };
+		CheckOpen->setObjectName(QStringLiteral("overviewOpenCheck"));
+		CheckOpen->setAccessibleName(QStringLiteral("Open check details"));
+		checkColumn->addWidget(CheckOpen);
+		sideColumn->addWidget(CheckDetails);
+		connect(ChecksDisclosure, &QToolButton::toggled, this, [this](const bool aOpen) {
+			CheckDetails->setVisible(aOpen);
+			ChecksDisclosure->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
+		});
+		connect(CheckList, &QTreeWidget::currentItemChanged, this, [this] { present_selected_check(); });
+		connect(CheckOpen, &QPushButton::clicked, this, [this] {
+			if (!Projection || !CheckList->currentItem() || !CheckLinkDispatch) {
+				return;
+			}
+			const auto identity = CheckList->currentItem()->data(0, Qt::UserRole).toString().toStdString();
+			const auto row      = std::ranges::find(Projection->CheckRows, identity, &application::overview_check_row::Identity);
+			if (row != Projection->CheckRows.end() && row->LinkAvailable) {
+				CheckLinkDispatch(row->Identity, row->DetailsUrl);
+			}
+		});
 		sideColumn->addStretch(1);
 		sideScroll->setWidget(side);
 
@@ -2622,6 +2714,7 @@ namespace bpr::qt {
 		set_value(overview_value::replies_to_me, count_text(since.RepliesToMe), since.RepliesToMe != 0U);
 		set_value(overview_value::my_unresolved_threads, count_text(since.MyUnresolvedThreads), false);
 		set_value(overview_value::checks, checks_text(aProjection.Checks), aProjection.Checks.Failed != 0U);
+		present_checks(samePullRequest);
 		set_value(overview_value::files_read,
 				  QStringLiteral("%1 of %2").arg(count_text(aProjection.Progress.FilesRead), count_text(aProjection.Progress.FilesTotal)),
 				  false);
@@ -2635,6 +2728,103 @@ namespace bpr::qt {
 				  false);
 
 		present_entry(aProjection);
+	}
+
+	void pull_request_overview_page::set_check_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch)
+	{
+		CheckLinkDispatch = std::move(aDispatch);
+	}
+
+	void pull_request_overview_page::present_checks(const bool aSamePullRequest)
+	{
+		const auto& shown = *Projection;
+		ChecksDisclosure->show();
+		auto summary = checks_text(shown.Checks);
+		if (!shown.ChecksComplete) {
+			summary = shown.CheckRows.empty() ? QStringLiteral("unavailable") : summary + QStringLiteral(" (partial)");
+		}
+		set_value(overview_value::checks, summary, shown.Checks.Failed != 0U);
+		auto disclosure = QStringLiteral("Check details");
+		if (shown.Checks.Failed != 0U) {
+			disclosure += QStringLiteral(": %1 failed").arg(count_text(shown.Checks.Failed));
+		}
+		ChecksDisclosure->setText(disclosure);
+		ChecksDisclosure->setAccessibleName(disclosure);
+		ChecksDisclosure->setAccessibleDescription(QStringLiteral("Expand to identify and inspect check results"));
+		ChecksNote->setText(text(shown.ChecksNote));
+		ChecksNote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		const auto           selected = aSamePullRequest && CheckList->currentItem() ? CheckList->currentItem()->data(0, Qt::UserRole).toString() : QString{ };
+		const auto           scroll   = aSamePullRequest ? CheckList->verticalScrollBar()->value() : 0;
+		const QSignalBlocker blocked{ CheckList };
+		auto                 desired = QSet<QString>{ };
+		for (const auto& row : shown.CheckRows) {
+			desired.insert(text(row.Identity));
+		}
+		for (auto it = CheckItems.begin(); it != CheckItems.end();) {
+			if (!desired.contains(it.key())) {
+				delete it.value();
+				it = CheckItems.erase(it);
+			} else {
+				++it;
+			}
+		}
+		int position = 0;
+		for (const auto& row : shown.CheckRows) {
+			const auto key  = text(row.Identity);
+			auto*      item = CheckItems.value(key, nullptr);
+			if (!item) {
+				item = new QTreeWidgetItem{ };
+				item->setData(0, Qt::UserRole, key);
+				CheckItems.insert(key, item);
+				CheckList->insertTopLevelItem(position, item);
+			} else if (CheckList->topLevelItem(position) != item) {
+				CheckList->takeTopLevelItem(CheckList->indexOfTopLevelItem(item));
+				CheckList->insertTopLevelItem(position, item);
+			}
+			const auto label = text(row.Name) + QStringLiteral(" — ") + text(row.Outcome);
+			if (item->text(0) != label) {
+				item->setText(0, label);
+			}
+			item->setData(0, Qt::AccessibleTextRole, label);
+			++position;
+		}
+		if (auto* item = CheckItems.value(selected, nullptr)) {
+			CheckList->setCurrentItem(item);
+		} else if (CheckList->topLevelItemCount() != 0) {
+			CheckList->setCurrentItem(CheckList->topLevelItem(0));
+		}
+		CheckList->verticalScrollBar()->setValue(scroll);
+		if (!aSamePullRequest) {
+			ChecksDisclosure->setChecked(shown.Checks.Failed != 0U);
+		}
+		CheckDetails->setVisible(ChecksDisclosure->isChecked());
+		ChecksDisclosure->setArrowType(ChecksDisclosure->isChecked() ? Qt::DownArrow : Qt::RightArrow);
+		present_selected_check();
+	}
+
+	void pull_request_overview_page::present_selected_check()
+	{
+		const auto identity = CheckList->currentItem() ? CheckList->currentItem()->data(0, Qt::UserRole).toString().toStdString() : std::string{ };
+		const auto row      = Projection ? std::ranges::find(Projection->CheckRows, identity, &application::overview_check_row::Identity) : std::vector<application::overview_check_row>::iterator{ };
+		if (!Projection || row == Projection->CheckRows.end()) {
+			CheckHeading->clear();
+			CheckDescription->clear();
+			CheckOpen->setEnabled(false);
+			return;
+		}
+		const auto heading = text(row->Name) + QStringLiteral("\n%1: %2\n%3\nRequirement unknown").arg(text(row->Kind), text(row->Outcome), row->Producer.empty() ? QStringLiteral("Producer unknown") : text(row->Producer));
+		if (CheckHeading->text() != heading) {
+			CheckHeading->setText(heading);
+		}
+		auto description = row->Description.empty() ? QStringLiteral("No details were supplied.") : text(row->Description);
+		if (!row->LinkAvailable) {
+			description += row->DetailsUrl.empty() ? QStringLiteral("\nNo detail destination was supplied.") : QStringLiteral("\nThe detail destination cannot be opened safely.");
+		}
+		if (CheckDescription->toPlainText() != description) {
+			CheckDescription->setPlainText(description);
+		}
+		CheckOpen->setEnabled(row->LinkAvailable);
+		CheckOpen->setToolTip(row->LinkAvailable ? QStringLiteral("Open the supplied destination in your browser") : QStringLiteral("No admitted detail destination"));
 	}
 
 	void pull_request_overview_page::present_files_heading(const application::pull_request_overview_projection& aProjection)
@@ -2712,6 +2902,12 @@ namespace bpr::qt {
 	{
 		set_description_expanded(false);
 		Projection.reset();
+		ChecksDisclosure->hide();
+		CheckDetails->hide();
+		CheckItems.clear();
+		CheckList->clear();
+		CheckDescription->clear();
+		CheckOpen->setEnabled(false);
 		Cached = false;
 		CachedBase.clear();
 		CachedHead.clear();

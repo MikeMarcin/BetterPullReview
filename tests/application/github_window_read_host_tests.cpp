@@ -819,6 +819,7 @@ namespace {
 		auto call             = provider.Calls.back();
 		auto data             = snapshot(call.Request);
 		data.PullRequest.Body = "# Original\r\n\r\n[link](./guide.md)\r\n";
+		data.Checks           = { { .Check = application::github_check_id{ "details" }, .Name = "Branch Freshness", .Status = application::github_check_status::completed, .Conclusion = application::github_check_conclusion::failure, .DetailsUrl = "https://ci.example.invalid/result" } };
 		call.Complete(application::github_pull_request_success{ call.Request, data });
 		lane.drain();
 		expect(projected && projected->MarkdownContext && projected->Body == data.PullRequest.Body
@@ -841,12 +842,17 @@ namespace {
 		foreign                   = old;
 		foreign.Window.Generation = core::bpr_window_generation{ 99 };
 		expect(host.open_markdown_link({ foreign, { }, "https://example.invalid" }, &opener) == core::markdown_link_result::stale && opener.Opened.size() == 1, "a replaced window generation cannot borrow body authority");
+		browser    checkOpener;
+		const auto checkGesture = core::markdown_link_intent{ old, "check:details", "https://ci.example.invalid/result" };
+		expect(host.open_markdown_link(checkGesture, &checkOpener) == core::markdown_link_result::opened && checkOpener.Opened.size() == 1, "accepted exact check destination uses the existing host browser admission");
+		expect(host.open_markdown_link({ old, "check:details", "https://different.invalid" }, &checkOpener) == core::markdown_link_result::stale && checkOpener.Opened.size() == 1, "check identity cannot lend authority to a substituted destination");
 		host.dispatch(core::refresh_pull_request_intent{ });
 		call = provider.Calls.back();
 		data = snapshot(call.Request); // deliberately reuses provider snapshot id
 		call.Complete(application::github_pull_request_success{ call.Request, data });
 		lane.drain();
 		expect(projected->MarkdownContext != old && host.open_markdown_link(gesture, &opener) == core::markdown_link_result::stale, "fresh body publication invalidates gestures even if provider reuses snapshot id");
+		expect(host.open_markdown_link(checkGesture, &checkOpener) == core::markdown_link_result::stale && checkOpener.Opened.size() == 1, "old check result loses navigation authority on accepted refresh");
 		opener.Succeeds = false;
 		expect(host.open_markdown_link({ *projected->MarkdownContext, { }, "http://example.invalid/doc" }, &opener) == core::markdown_link_result::failed, "browser failure remains explicit");
 		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 43 } });

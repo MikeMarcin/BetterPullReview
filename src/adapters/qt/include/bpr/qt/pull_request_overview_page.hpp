@@ -37,6 +37,8 @@ class QPlainTextEdit;
 class QPushButton;
 class QToolButton;
 class QTreeView;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QVBoxLayout;
 
 namespace bpr::qt {
@@ -374,6 +376,8 @@ namespace bpr::qt {
 		void set_prepare_tour_action(QAction* aAction);
 		/// \brief A file row activated: open it in Read.
 		void set_file_dispatch(overview_path_dispatch aDispatch);
+		/// \brief Sends an explicit check destination gesture to the accepted host.
+		void set_check_link_dispatch(std::function<void(const std::string&, const std::string&)> aDispatch);
 
 		/// \brief [[BPR-1089]]. Takes the host's counts for the view's request.
 		/// \details A projection for another request than the view's current
@@ -477,6 +481,17 @@ namespace bpr::qt {
 		void               changeEvent(QEvent* aEvent) override;
 
 		std::optional<application::pull_request_overview_projection> Projection;
+		void                                                         present_checks(bool aSamePullRequest);
+		void                                                         present_selected_check();
+		QToolButton*                                                 ChecksDisclosure = nullptr;
+		QWidget*                                                     CheckDetails     = nullptr;
+		QLabel*                                                      ChecksNote       = nullptr;
+		QTreeWidget*                                                 CheckList        = nullptr;
+		QLabel*                                                      CheckHeading     = nullptr;
+		QPlainTextEdit*                                              CheckDescription = nullptr;
+		QPushButton*                                                 CheckOpen        = nullptr;
+		QHash<QString, QTreeWidgetItem*>                             CheckItems;
+		std::function<void(const std::string&, const std::string&)>  CheckLinkDispatch;
 		overview_colours                                             Colours;
 		overview_entry_dispatch                                      EntryDispatch;
 		overview_path_dispatch                                       FileDispatch;

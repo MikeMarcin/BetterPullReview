@@ -1,5 +1,7 @@
 #include "bpr/application/pull_request_overview.hpp"
 
+#include "bpr/core/markdown_navigation.hpp"
+
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/file_progress_mark.hpp"
 
@@ -163,6 +165,103 @@ namespace bpr::application {
 		{
 			return aLeft.Incarnation == aRight.Incarnation;
 		}
+		void project_checks(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection)
+		{
+			const auto& request = aSnapshot.PullRequest;
+			// Checks.
+			aProjection.ChecksComplete = aSnapshot.ChecksAvailability == github_collection_availability::available
+				&& aSnapshot.StatusesAvailability == github_collection_availability::available;
+			aProjection.ChecksNote = "Head commit " + std::string{ request.HeadOid.value().substr(0, 12) } + "…\nTest merge evaluation and merge requirements are not observed.";
+			if (!aProjection.ChecksComplete) {
+				aProjection.ChecksNote += " Partial results: ";
+				if (aSnapshot.ChecksAvailability != github_collection_availability::available) {
+					aProjection.ChecksNote += "check runs unavailable. ";
+				}
+				if (aSnapshot.StatusesAvailability != github_collection_availability::available) {
+					aProjection.ChecksNote += "commit statuses unavailable.";
+				}
+			}
+			for (const auto& check : aSnapshot.Checks) {
+				auto& checks         = aProjection.Checks;
+				auto  row            = overview_check_row{ };
+				row.Identity         = "check:" + std::string{ check.Check.value() };
+				row.Name             = check.Name;
+				row.Producer         = check.Producer;
+				row.Kind             = check.Source == github_check_source::check_run ? "Check run" : "Commit status";
+				row.Description      = check.Description;
+				row.DetailsUrl       = check.DetailsUrl;
+				auto linkContext     = core::markdown_context{ };
+				linkContext.Revision = 1U;
+				const auto link      = core::admit_markdown_link({ linkContext, { }, row.DetailsUrl }, { .Context = linkContext, .BodyAvailable = true, .BrowserAvailable = true });
+				row.LinkAvailable    = link && link->Kind == core::markdown_destination_kind::absolute_web;
+				row.Pending          = check.Status != github_check_status::completed;
+				switch (check.Status) {
+				case github_check_status::queued:        row.Outcome = "Queued"; break;
+				case github_check_status::in_progress:   row.Outcome = "In progress"; break;
+				case github_check_status::waiting:       row.Outcome = "Waiting"; break;
+				case github_check_status::requested:     row.Outcome = "Requested"; break;
+				case github_check_status::pending:       row.Outcome = "Pending"; break;
+				case github_check_status::uninitialized: row.Outcome = "Unknown"; break;
+				case github_check_status::completed:     break;
+				}
+				if (!row.Pending) {
+					switch (check.Conclusion) {
+					case github_check_conclusion::success: row.Outcome = "Passed"; break;
+					case github_check_conclusion::failure:
+						row.Outcome = check.StatusError ? "Error" : "Failed";
+						row.Failed  = true;
+						break;
+					case github_check_conclusion::timed_out:
+						row.Outcome = "Timed out";
+						row.Failed  = true;
+						break;
+					case github_check_conclusion::action_required:
+						row.Outcome = "Action required";
+						row.Failed  = true;
+						break;
+					case github_check_conclusion::cancelled:
+						row.Outcome = "Cancelled";
+						row.Failed  = true;
+						break;
+					case github_check_conclusion::skipped:       row.Outcome = "Skipped"; break;
+					case github_check_conclusion::neutral:       row.Outcome = "Neutral"; break;
+					case github_check_conclusion::stale:         row.Outcome = "Stale"; break;
+					case github_check_conclusion::none:
+					case github_check_conclusion::uninitialized: row.Outcome = "Unknown"; break;
+					}
+				}
+				aProjection.CheckRows.push_back(std::move(row));
+				if (check.Status != github_check_status::completed) {
+					++checks.Pending;
+					continue;
+				}
+				switch (check.Conclusion) {
+				case github_check_conclusion::success:
+					++checks.Passed;
+					break;
+				case github_check_conclusion::failure:
+				case github_check_conclusion::timed_out:
+				case github_check_conclusion::action_required:
+				case github_check_conclusion::cancelled:
+					++checks.Failed;
+					break;
+				case github_check_conclusion::skipped:
+					++checks.Skipped;
+					break;
+				case github_check_conclusion::uninitialized:
+				case github_check_conclusion::none:
+				case github_check_conclusion::neutral:
+				case github_check_conclusion::stale:
+					++checks.Other;
+					break;
+				}
+			}
+			std::ranges::sort(aProjection.CheckRows, [](const overview_check_row& aLeft, const overview_check_row& aRight) {
+				const auto group = [](const overview_check_row& aRow) { return aRow.Failed ? 0 : aRow.Pending ? 1
+																											  : 2; };
+				return std::pair{ group(aLeft), aLeft.Identity } < std::pair{ group(aRight), aRight.Identity };
+			});
+		}
 	} // namespace
 
 	auto project_overview_history(const std::span<const epoch_row_projection> aUpdates,
@@ -300,34 +399,7 @@ namespace bpr::application {
 		}
 		projection.Participants = roster.take();
 
-		// Checks.
-		for (const auto& check : aSnapshot.Checks) {
-			auto& checks = projection.Checks;
-			if (check.Status != github_check_status::completed) {
-				++checks.Pending;
-				continue;
-			}
-			switch (check.Conclusion) {
-			case github_check_conclusion::success:
-				++checks.Passed;
-				break;
-			case github_check_conclusion::failure:
-			case github_check_conclusion::timed_out:
-			case github_check_conclusion::action_required:
-			case github_check_conclusion::cancelled:
-				++checks.Failed;
-				break;
-			case github_check_conclusion::skipped:
-				++checks.Skipped;
-				break;
-			case github_check_conclusion::uninitialized:
-			case github_check_conclusion::none:
-			case github_check_conclusion::neutral:
-			case github_check_conclusion::stale:
-				++checks.Other;
-				break;
-			}
-		}
+		project_checks(aSnapshot, projection);
 
 		// The files. [[BPR-0972]]. Receipts and notes are ordered by file once,
 		// so each file's are a binary search; the first for a file answers,

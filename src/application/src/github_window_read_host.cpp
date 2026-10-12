@@ -1463,19 +1463,23 @@ namespace bpr::application {
 		}
 		auto open_markdown_link(const core::markdown_link_intent& aIntent, device_authorization_browser_port* aBrowser) -> core::markdown_link_result
 		{
-			const auto  current  = markdown_identity();
-			const auto& snapshot = AcceptedSnapshot;
-			const auto  head     = snapshot ? snapshot->PullRequest.HeadOid.value() : std::string_view{ };
-			const auto  decision = core::admit_markdown_link(aIntent, {
-																		  .Context          = current,
-																		  .BodyAvailable    = current && (aIntent.Body.empty() || MarkdownBodies.contains(aIntent.Body)),
-																		  .BrowserAvailable = aBrowser != nullptr,
-																		  .Hostname         = AcceptedProfileAuthority ? std::string_view{ AcceptedProfileAuthority->Hostname.value() } : std::string_view{ },
-																		  .Owner            = snapshot ? std::string_view{ snapshot->Repository.Owner } : std::string_view{ },
-																		  .Repository       = snapshot ? std::string_view{ snapshot->Repository.Name } : std::string_view{ },
-																		  .Revision         = head,
-																		  .Number           = snapshot ? snapshot->PullRequest.Number : core::pull_request_number{ },
-																	  });
+			const auto  current   = markdown_identity();
+			const auto& snapshot  = AcceptedSnapshot;
+			const auto  head      = snapshot ? snapshot->PullRequest.HeadOid.value() : std::string_view{ };
+			const auto  checkLink = snapshot && aIntent.Body.starts_with("check:")
+				&& std::ranges::any_of(snapshot->Checks, [&](const github_check_record& aCheck) {
+									   return aIntent.Body == "check:" + std::string{ aCheck.Check.value() } && aIntent.Destination == aCheck.DetailsUrl;
+								   });
+			const auto decision = core::admit_markdown_link(aIntent, {
+																		 .Context          = current,
+																		 .BodyAvailable    = current && (aIntent.Body.starts_with("check:") ? checkLink : (aIntent.Body.empty() || MarkdownBodies.contains(aIntent.Body))),
+																		 .BrowserAvailable = aBrowser != nullptr,
+																		 .Hostname         = AcceptedProfileAuthority ? std::string_view{ AcceptedProfileAuthority->Hostname.value() } : std::string_view{ },
+																		 .Owner            = snapshot ? std::string_view{ snapshot->Repository.Owner } : std::string_view{ },
+																		 .Repository       = snapshot ? std::string_view{ snapshot->Repository.Name } : std::string_view{ },
+																		 .Revision         = head,
+																		 .Number           = snapshot ? snapshot->PullRequest.Number : core::pull_request_number{ },
+																	 });
 			if (!decision) {
 				return decision.error();
 			}

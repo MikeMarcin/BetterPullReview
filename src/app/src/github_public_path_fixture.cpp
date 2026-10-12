@@ -761,7 +761,7 @@ namespace bpr::app::detail {
 		void overlay_published_tour(std::string& aBody, read_operation aOperation, review_submission_fixture_state& aState)
 		{
 			const std::scoped_lock lock{ aState.Mutex };
-			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
+			if (aState.PreviousReviews.empty() && !aState.StagedReview && !aState.StagedDescription && !aState.CheckRuns && !(aState.DraftPullRequest && (aOperation == read_operation::get_pull_request || aOperation == read_operation::search_pull_requests))) {
 				return;
 			}
 			auto document = QJsonDocument::fromJson(QByteArray::fromStdString(aBody));
@@ -774,7 +774,9 @@ namespace bpr::app::detail {
 				comments.insert(comments.end(), aState.StagedComments.begin(), aState.StagedComments.end());
 			}
 			const auto text = [](std::string_view aValue) { return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size())); };
-			if (aOperation == read_operation::get_pull_request) {
+			if (aOperation == read_operation::list_checks && aState.CheckRuns) {
+				document = QJsonDocument::fromJson(QByteArray::fromStdString(*aState.CheckRuns));
+			} else if (aOperation == read_operation::get_pull_request) {
 				auto pull = document.object();
 				if (aState.StagedDescription) {
 					pull.insert("body", text(*aState.StagedDescription));
@@ -2185,6 +2187,16 @@ namespace bpr::app::detail {
 			{
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				if (aRequest.Wire.Operation == read_operation::list_commit_statuses) {
+					auto body = std::string{ "[]" };
+					if (State->PublishedTour) {
+						const std::scoped_lock lock{ State->PublishedTour->Mutex };
+						body = State->PublishedTour->CommitStatuses.value_or(body);
+					}
+					auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Body = std::move(body), .Completeness = page_completeness::complete };
+					append_rate_limit_headers(response, read_operation::list_commit_statuses);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
 				}
 				if (aRequest.Wire.Operation == read_operation::list_pull_request_files && State->BeforeFilesPage) {
 					State->BeforeFilesPage(aStop);
