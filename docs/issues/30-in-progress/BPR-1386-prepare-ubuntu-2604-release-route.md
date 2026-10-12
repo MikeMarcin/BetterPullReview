@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1386"
 title: "Prepare the next Ubuntu 26.04 release route"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 platforms: ["win", "linux"]
