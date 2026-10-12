@@ -207,21 +207,21 @@ namespace {
 		options.DeviceAuthorizationPending = std::make_shared<std::atomic_bool>(false);
 		auto store                         = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
 		auto application                   = start(options);
-		auto show_card                     = [&]() -> qt::server_card& {
+		auto showCard                      = [&]() -> qt::server_card& {
 			application->window().show();
 			application->window().open_settings(qt::settings_page::accounts_and_hosts);
 			QApplication::processEvents();
 			const auto cards = application->window().server_cards();
 			return **std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "github.com"; });
 		};
-		show_card().sign_in_button()->click();
+		showCard().sign_in_button()->click();
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "initial device grant is accepted");
 		wait_for([&] { return github_application_fixture_access::device_binding_durable(*application); }, "older native grant is durably resumable before replacement");
 		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "initial device choice is durable");
 		const auto native = *core::select_remembered_connection(*store->load({ }));
 		// Begin another native attempt, then explicitly choose CLI beside it.
 		options.DeviceAuthorizationPending->store(true);
-		show_card().sign_in_button()->click();
+		showCard().sign_in_button()->click();
 		wait_for([&] { return application->window().device_authorization()->signing_in(); }, "replacement device flow waits");
 		unsigned asks = 0;
 		QTimer   consent;
@@ -239,7 +239,7 @@ namespace {
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "CLI restores while the older device grant remains");
 		expect(application->window().session_panel()->active_profile() == cli.Profile && github_application_fixture_access::evidence(*application).VaultRetrieveAttempts == priorVaultAttempts, "older device material cannot replace the saved CLI connection");
 		options.DeviceAuthorizationPending->store(true);
-		show_card().sign_in_button()->click();
+		showCard().sign_in_button()->click();
 		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native attempt is pending beside the restored CLI authority");
 		const auto storesBeforeSignOut = github_application_fixture_access::evidence(*application).VaultStores;
 		const auto cardsBeforeSignOut  = application->window().server_cards();
@@ -266,18 +266,18 @@ namespace {
 		wait_for([&] { auto saved=store->load({}); return saved && core::select_remembered_connection(*saved).has_value(); }, "explicit retry has durable metadata");
 		const auto retriedCli = *core::select_remembered_connection(*store->load({ }));
 		options.DeviceAuthorizationPending->store(true);
-		show_card().sign_in_button()->click();
-		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native replacement offers its code", [&] { std::cerr << "native-begin:status=" << application->window().session_panel()->status_text() << ":stage=" << static_cast<int>(application->status().DeviceAuthorizationStage) << ":enabled=" << show_card().sign_in_button()->isEnabled() << ":submissions=" << github_application_fixture_access::evidence(*application).DeviceTransportSubmissions << '\n'; });
+		showCard().sign_in_button()->click();
+		wait_for([&] { return application->window().device_authorization()->signing_in() && !application->window().device_authorization()->user_code_field()->text().isEmpty(); }, "native replacement offers its code", [&] { std::cerr << "native-begin:status=" << application->window().session_panel()->status_text() << ":stage=" << static_cast<int>(application->status().DeviceAuthorizationStage) << ":enabled=" << showCard().sign_in_button()->isEnabled() << ":submissions=" << github_application_fixture_access::evidence(*application).DeviceTransportSubmissions << '\n'; });
 		application->window().sign_in_dialog()->reject();
 		wait_for([&] { return !application->window().device_authorization()->signing_in(); }, "native replacement cancels");
 		expect(*core::select_remembered_connection(*store->load({ })) == retriedCli, "cancelled replacement preserves the complete durable CLI choice");
 		options.DeviceAuthorizationPending->store(false);
 		options.Offline->Offline.store(true);
-		show_card().sign_in_button()->click();
+		showCard().sign_in_button()->click();
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "offline native replacement fails validation visibly");
 		expect(*core::select_remembered_connection(*store->load({ })) == retriedCli, "unsuccessful native replacement preserves durable CLI authority");
 		options.Offline->Offline.store(false);
-		show_card().sign_in_button()->click();
+		showCard().sign_in_button()->click();
 		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "successful native sign-in atomically replaces CLI");
 		const auto replacement = *core::select_remembered_connection(*store->load({ }));
 		expect(replacement.Profile != cli.Profile && replacement.Profile.value() > cli.Profile.value(), "successful native replacement receives fresh identity");
@@ -286,7 +286,7 @@ namespace {
 		application = start(options);
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "native replacement is the next launch's choice", [&] { const auto evidence=github_application_fixture_access::evidence(*application); std::cerr << "native-restore:status=" << application->window().session_panel()->status_text() << ":reason=" << application->window().session_panel()->diagnostic_text() << ":vault=" << evidence.VaultRetrieveAttempts << ":wire=" << evidence.RecordingFailure << '\n'; });
 		expect(application->window().session_panel()->active_profile() == replacement.Profile && asks == 2, "restart retains native identity without CLI trust");
-		show_card().sign_out_button()->click();
+		showCard().sign_out_button()->click();
 		wait_for([&] { return !core::select_remembered_connection(*store->load({ })); }, "native sign-out durably disables reuse");
 		const auto signedOutVaultAttempts = github_application_fixture_access::evidence(*application).VaultRetrieveAttempts;
 		stop(application);

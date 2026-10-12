@@ -219,7 +219,7 @@ namespace {
 		if (aCourse == course::cancelled) {
 			send_single(*cards);
 			const auto said = wait_until([&] { return draft_status(*cards).contains(QStringLiteral("cancelled")); }, 5000);
-			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << std::endl;
+			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(said, "the draft says the publication was not sent because the confirmation was cancelled");
 			const auto after = github_application_fixture_access::review_mutation_evidence(*application);
 			expect(publishAsks == 1U && after.Submissions == before.Submissions && after.StoredComments == 0U, "a cancelled confirmation sends nothing");
@@ -244,7 +244,7 @@ namespace {
 		publish                 = draft_publish(*cards);
 		const auto offeredTwice = publish == nullptr || publish->isEnabled();
 		std::cout << "BPR_1329:" << name << ":in-flight status=\"" << draft_status(*cards).toStdString() << "\" held="
-				  << github_application_fixture_access::held_review_mutation_terminals(*application) << std::endl;
+				  << github_application_fixture_access::held_review_mutation_terminals(*application) << '\n';
 		// Released before anything is judged, so a failure does not leave the
 		// publication held through shutdown.
 		github_application_fixture_access::hold_review_mutation_terminals(*application, false);
@@ -256,7 +256,7 @@ namespace {
 			wait_for([&] { return github_application_fixture_access::review_mutation_evidence(*application).LostResult; }, "the fixture loses the first publication's answer");
 			const auto settled = wait_until([&] { return draft_card(*cards) != nullptr && draft_status(*cards).contains(QStringLiteral("retry is safe")); });
 			std::cout << "BPR_1329:" << name << ":after-loss draft_card=" << (draft_card(*cards) != nullptr) << " status=\"" << draft_status(*cards).toStdString()
-					  << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\" publish_asks=" << publishAsks << std::endl;
+					  << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(settled, "the draft says in words that the result is unavailable and retry is safe");
 			expect(publishAsks == 1U, "the publication was confirmed once");
 			// Closed, the draft is kept as its note; opened, it says so again.
@@ -270,7 +270,7 @@ namespace {
 			publish = draft_publish(*cards);
 			std::cout << "BPR_1329:" << name << ":reopened publish=" << (publish != nullptr ? publish->text().toStdString() : std::string{ "none" })
 					  << " enabled=" << (publish != nullptr && publish->isEnabled()) << " editor_publish=" << window.review_editor()->publish_action()->text().toStdString()
-					  << " editor_enabled=" << window.review_editor()->publish_action()->isEnabled() << std::endl;
+					  << " editor_enabled=" << window.review_editor()->publish_action()->isEnabled() << '\n';
 			expect(publish != nullptr && single_offered(*cards) && publish->isEnabled() && publish->text() == QStringLiteral("Retry"),
 				   "the draft offers Retry for the same publication");
 			send_single(*cards);
