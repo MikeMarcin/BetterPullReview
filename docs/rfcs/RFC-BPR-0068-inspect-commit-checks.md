@@ -119,7 +119,7 @@ refresh retains selection and reading position where its identity survives.
 This direction applies the loaded frontend-design skill within the existing
 Qt design language; it proposes no new palette, web surface or visual theme.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** A composed PR containing the reported 24-result example still
   shows the matching totals and exposes Branch Freshness by name, its failed

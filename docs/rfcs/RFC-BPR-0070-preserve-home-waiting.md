@@ -133,7 +133,7 @@ activity and private notification content; this pack introduces no automatic
 pings or new blocker notifications. Follow/unfollow, observer exclusions,
 Recently viewed and public-preview access retain their established contracts.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** An unopened authored PR discovered with pending reviews appears
   in Waiting on others. Opening, refreshing and marking its discussion read

@@ -150,7 +150,7 @@ update, reviewer-request, reminder/message, ruleset editing or auto-merge
 mutation. Opening GitHub is an explicit secondary action; identifying a
 supported blocker and its waiting reviewers works inside BPR.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** A composed PR with requested users and teams that have never
   acted displays every returned request. A prior approval followed by a
