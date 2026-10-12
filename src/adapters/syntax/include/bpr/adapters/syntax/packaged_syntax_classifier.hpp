@@ -40,6 +40,10 @@ namespace bpr::adapters::syntax {
 	/// heuristics.
 	inline constexpr std::uint32_t identifier_heuristic_revision = 5U;
 
+	/// C++ alone additionally recognizes scoped namespace/enum context. C and
+	/// Windows Resource retain their existing rules and cache identities.
+	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 6U;
+
 	/// \brief Supplies the complete bytes of one blob.
 	///
 	/// \details The classifier reads no repository and runs no process; the

@@ -9,6 +9,8 @@ add_library(
     better_pull_review_adapter_syntax
     STATIC
         src/packaged_syntax_classifier.cpp
+        src/cpp_identifier_context.cpp
+        src/cpp_identifier_context.hpp
 )
 add_library(
     BetterPullReview::AdapterSyntax

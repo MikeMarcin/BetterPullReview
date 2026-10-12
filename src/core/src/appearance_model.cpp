@@ -298,6 +298,10 @@ namespace bpr::core {
 			return "feedback_label_polish";
 		case appearance_role::feedback_label_quibble:
 			return "feedback_label_quibble";
+		case appearance_role::syntax_namespace:
+			return "syntax_namespace";
+		case appearance_role::syntax_enum_member:
+			return "syntax_enum_member";
 		case appearance_role::state_attention:
 			return "state_attention";
 		}

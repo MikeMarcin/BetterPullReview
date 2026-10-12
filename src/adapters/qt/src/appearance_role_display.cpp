@@ -118,6 +118,10 @@ namespace bpr::qt {
 			return { group::syntax, "Syntax alert" };
 		case role::syntax_error:
 			return { group::syntax, "Syntax error" };
+		case role::syntax_namespace:
+			return { group::syntax, "Namespaces" };
+		case role::syntax_enum_member:
+			return { group::syntax, "Enum members" };
 		case role::syntax_other:
 			return { group::syntax, "Syntax other" };
 

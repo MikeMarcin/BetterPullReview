@@ -1,5 +1,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 
+#include "cpp_identifier_context.hpp"
+
 #include <KSyntaxHighlighting/AbstractHighlighter>
 #include <KSyntaxHighlighting/Definition>
 #include <KSyntaxHighlighting/Format>
@@ -165,7 +167,7 @@ namespace bpr::adapters::syntax {
 				.Version = revision > 0 ? static_cast<std::uint32_t>(revision) : 0U,
 			};
 			if (uses_identifier_heuristics(record.Name)) {
-				record.Version += identifier_heuristic_revision << 16U;
+				record.Version += (record.Name == "C++" ? cpp_identifier_heuristic_revision : identifier_heuristic_revision) << 16U;
 			}
 			return record;
 		}
@@ -1060,7 +1062,11 @@ namespace bpr::adapters::syntax {
 				return answer;
 			}
 			++LexicalPasses;
-			return collect(aRequest, definition->Name, text, aStop, std::move(answer));
+			auto result = collect(aRequest, definition->Name, text, aStop, std::move(answer));
+			if (definition->Name == "C++" && result.Status == application::syntax_classification_status::available) {
+				result.Status = refine_cpp_identifiers(*bytes, result.Spans, aRequest.MaximumSpans, aStop);
+			}
+			return result;
 		}
 
 		[[nodiscard]] auto collect(

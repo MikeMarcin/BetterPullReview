@@ -69,6 +69,16 @@ built-in value, and a stored palette or theme document without the role reads
 it as the built-in value, as for the label tints. The owner's look at the
 result is BPR-1085's own pending criterion. This status is unchanged.
 
+**Additive syntax amendment, 2026-10-12 ([[RFC-BPR-0072]]).** Namespace
+and enum-member colours append as `syntax_namespace` and `syntax_enum_member`,
+labelled "Namespaces" and "Enum members" in Syntax. The vocabulary is now 62
+roles and the Colours card offers 60, with 28 in Syntax; the two hunk-header
+roles remain in documents. These rows use this RFC's existing per-variant
+preview, commit, Reset, Import and Export behavior. Older documents missing
+them use that variant's built-in defaults without changing any existing role
+or stored flag. The new RFC owns direct qualification of these additions;
+historical C1 to C6 acceptance does not prove the new roles.
+
 **Follow-on from that verdict, 2026-09-24 ([[BPR-1107]]).** BPR-1107 builds
 the owner's white-space model. The preview and the review panes draw a space
 as a dot and a tab as a line to its stop, through one shared painter. The Type

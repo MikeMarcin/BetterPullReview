@@ -172,6 +172,10 @@ namespace bpr::core {
 		// palette or a theme document written before it existed; see
 		// `defaults_on_import`.
 		state_attention,
+
+		// Appended for durable ordinal compatibility (RFC-BPR-0072).
+		syntax_namespace,
+		syntax_enum_member,
 	};
 
 	/// \brief The opacity the code panes composite the selection wash at.
@@ -208,10 +212,10 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 60U;
+	inline constexpr std::size_t appearance_role_count = 62U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role::state_attention) + 1U == appearance_role_count,
+		static_cast<std::size_t>(appearance_role::syntax_enum_member) + 1U == appearance_role_count,
 		"appearance_role_count must cover every declared role");
 
 	/// \brief The first of the twelve label tint roles, in catalog order.
@@ -231,7 +235,8 @@ namespace bpr::core {
 	///
 	/// \details [[BPR-1083]]. Only the roles added after palettes and theme
 	/// documents had been written without them: the twelve label tints and,
-	/// after them, `state_attention` ([[BPR-1085]]). The owner's rule (BPR-1079
+	/// after them, `state_attention` ([[BPR-1085]]) and the namespace/enum
+	/// categories (RFC-BPR-0072). The owner's rule (BPR-1079
 	/// `tints-v002`) is that such a palette reads them as the built-in values and
 	/// no other role changes. The core holds no built-in colour, so an import
 	/// leaves such a role `unassigned_appearance_color` and presentation reads

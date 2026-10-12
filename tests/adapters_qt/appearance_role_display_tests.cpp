@@ -5,7 +5,7 @@
 /// vocabulary is presentation's: `core::stable_name` is the durable exchange
 /// identifier a theme document keys on and must never be shown, so this course
 /// checks that no displayed string is one, that every declared role has words and
-/// a group, and that the five groups hold the accepted 7, 8, 6, 26 and 12 roles.
+/// a group, and that the five groups hold the declared 7, 8, 7, 28 and 12 roles.
 
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/appearance_role_display.hpp"
@@ -83,7 +83,7 @@ namespace {
 		}
 	}
 
-	/// \brief The five groups must hold exactly the accepted counts, and all 60.
+	/// \brief The five groups must hold exactly the accepted counts, and all 62.
 	///
 	/// \details [[BPR-1085]] adds the attention amber to Review states.
 	void test_the_five_groups_hold_every_role()
@@ -98,21 +98,21 @@ namespace {
 
 		// The counts the accepted design prints beside each sticky header.
 		const auto accepted = std::array<std::size_t, qt::appearance_role_group_count>{
-			7U, 8U, 7U, 26U, 12U
+			7U, 8U, 7U, 28U, 12U
 		};
-		expect(counted == accepted, "the groups hold 7, 8, 7, 26 and 12 roles");
+		expect(counted == accepted, "the groups hold 7, 8, 7, 28 and 12 roles");
 
 		auto total = std::size_t{ 0U };
 		for (const auto count : counted) {
 			total += count;
 		}
 		expect(
-			total == core::appearance_role_count && total == 60U,
-			"and together they hold every one of the 60 roles, so no role can be "
+			total == core::appearance_role_count && total == 62U,
+			"and together they hold every one of the 62 roles, so no role can be "
 			"grouped out of the list");
 	}
 
-	/// \brief The card offers 58 roles: every one but the two hunk-header roles.
+	/// \brief The card offers 60 roles: every one but the two hunk-header roles.
 	///
 	/// \details [[BPR-0986]]. RFC-BPR-0034 C5 was amended from 47 offered roles
 	/// to 45 on 2026-09-24, because the review window has no hunk header for the
@@ -140,8 +140,8 @@ namespace {
 			"exactly the two hunk-header roles are not offered");
 		expect(
 			offered
-				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 7U, 26U, 12U },
-			"so the card's groups offer 7, 6, 7, 26 and 12 roles, 58 in all");
+				== std::array<std::size_t, qt::appearance_role_group_count>{ 7U, 6U, 7U, 28U, 12U },
+			"so the card's groups offer 7, 6, 7, 28 and 12 roles, 60 in all");
 		expect(
 			qt::appearance_role_group_of(core::appearance_role::diff_hunk_header_text)
 					== qt::appearance_role_group::diff

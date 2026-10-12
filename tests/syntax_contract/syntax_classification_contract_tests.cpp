@@ -922,7 +922,7 @@ namespace {
 		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
 		const auto definition = aCatalog.definition_for_path("identifier_roles.cpp");
 		expect(definition.Name == "C++", "the fixture selects the C++ definition");
-		expect((definition.Version >> 16U) == syntax::identifier_heuristic_revision,
+		expect((definition.Version >> 16U) == syntax::cpp_identifier_heuristic_revision,
 			   "the C++ record carries the identifier post-pass revision, so a "
 			   "span set cached before the post-pass is keyed away");
 		expect((aCatalog.definition_named("C")->Version >> 16U)
@@ -1005,6 +1005,94 @@ namespace {
 			   "the identifier fixture classifies under the C definition");
 		null_directive_contract("C", text, asC.Spans);
 	}
+
+	void cpp_context_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		using role       = core::appearance_role;
+		const auto text  = read_fixture("cpp_identifier_context.cpp");
+		auto       blobs = fixture_blobs{ };
+		const auto oid   = blob(32U);
+		blobs.install(oid, text);
+		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		const auto definition = aCatalog.definition_for_path("context.cpp");
+		const auto whole      = classifier.classify(request(oid, definition), { });
+		expect(whole.Status == app::syntax_classification_status::available, "C++ context fixture is available");
+		const auto has = [&](const std::string_view aMarker, const std::string_view aWord, const role aRole) {
+			return word_inside_role(whole.Spans, text, line_of(text, aMarker), aWord, aRole);
+		};
+		expect(has("namespace GCT", "GCT", role::syntax_namespace)
+				   && has("::Network {", "Network", role::syntax_namespace)
+				   && has("namespace simple", "simple", role::syntax_namespace),
+			   "multiline uppercase and mixed nested namespaces have namespace roles");
+		expect(has("namespace Alias", "Alias", role::syntax_namespace), "namespace alias name has a namespace role without alias identity propagation");
+		expect(has("using namespace GCT", "GCT", role::syntax_namespace)
+				   && has("safe split", "Network", role::syntax_namespace)
+				   && has("using namespace External", "NAMESPACE", role::syntax_namespace),
+			   "using namespace chains retain structural roles across comments and newlines");
+		for (const auto name : { "Node", "ID", "Player", "DNA" }) {
+			const auto marker = std::string{ "    " } + name;
+			expect(has(marker, name, role::syntax_enum_member), "every supplied enumerator has the independent enum-member role");
+		}
+		for (const auto name : { "FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH", "LAST" }) {
+			const auto marker = std::string{ "    " } + name;
+			expect(has(marker, name, role::syntax_enum_member), "nested initializers and attributes preserve enumerator boundaries");
+		}
+		expect(has("enum class Reason", "Reason", role::syntax_type), "enum name keeps its type role");
+		expect(has("FIRST =", "ENUM_VALUE", role::syntax_macro)
+				   && has("SECOND =", "ENUM_VALUE", role::syntax_macro)
+				   && has("GCT_ASSERT", "GCT_ASSERT", role::syntax_macro)
+				   && has("auto standalone", "ENUM_VALUE", role::syntax_macro)
+				   && has("auto predefined", "__GNUC__", role::syntax_macro)
+				   && has("#define ENUM_VALUE", "ENUM_VALUE", role::syntax_macro),
+			   "true macro references, calls, directive operands and predefined macros retain roles");
+		expect(!has("THIRD =", "char", role::syntax_enum_member), "template initializer operands do not become enumerators");
+		expect(has("enum Lambda", "NEXT", role::syntax_enum_member), "an initializer lambda's local shadow does not lose the following enumerator");
+		for (const auto& [markerText, member] : std::array<std::pair<std::string_view, std::string_view>, 8U>{ { { "auto chosen", "ID" }, { "auto dna", "DNA" }, { "auto first", "FIRST" }, { "auto qualified", "DNA" }, { "auto lower", "Lower" }, { "auto reopened", "Player" }, { "auto visible", "ID" }, { "namespace simple", "UPPER" } } }) {
+			expect(has(markerText, member, role::syntax_enum_member), "qualified enum identity matches declaration scope and membership");
+		}
+		expect(has("auto alias_qualified", "Alias", role::syntax_namespace), "namespace alias use has a namespace role without propagating its target");
+		expect(has("auto qualified", "GCT", role::syntax_namespace)
+				   && has("auto qualified", "Network", role::syntax_namespace),
+			   "recognized namespace qualifiers keep namespace roles");
+		for (const auto markerText : { "auto unrelated", "auto unknown", "auto after_comment", "auto hidden =", "auto hidden_parameter", "auto alias_unknown", "auto ambiguous", "auto duplicate_member", "auto alias_qualified", "auto template_unknown", "auto object_qualified", "enum Lambda" }) {
+			const auto name = std::string_view{ markerText }.find("unrelated") != std::string_view::npos
+					|| std::string_view{ markerText }.find("comment") != std::string_view::npos
+				? "DNA"
+				: "ID";
+			expect(!has(markerText, name, role::syntax_enum_member) && !has(markerText, name, role::syntax_macro),
+				   "unrelated, unknown, shadowed, aliased and ambiguous qualified names remain neutral");
+		}
+		expect(has("auto qualifier", "UPPER_SCOPE", role::syntax_type)
+				   && has("auto qualified_call", "CALL_MACRO", role::syntax_macro)
+				   && has("auto ordinary_call", "function", role::syntax_function),
+			   "uncertain qualifiers precede uppercase fallback while invocations retain conventions");
+		expect(has("auto after =", "AFTER_ENUM", role::syntax_macro), "enum context ends at its matching brace");
+		expect(!has("#define LOOKALIKE", "FAKE", role::syntax_namespace)
+				   && !has("namespace FALSE_NAMESPACE", "FALSE_NAMESPACE", role::syntax_namespace)
+				   && !has("namespace RAW", "RAW", role::syntax_namespace)
+				   && !has("/* enum class Comment", "COMMENT", role::syntax_namespace),
+			   "directives, continuations, raw strings and comments cannot supply structural facts");
+		const auto hunkLine  = line_of(text, "    ID = 1");
+		const auto hunk      = classifier.classify_hunk(request(oid, definition), { hunkLine, 3U }, { });
+		auto       projected = app::token_span_list{ };
+		std::copy_if(whole.Spans.begin(), whole.Spans.end(), std::back_inserter(projected), [hunkLine](const auto& aSpan) {
+			return aSpan.Line >= hunkLine && aSpan.Line < hunkLine + 3U;
+		});
+		expect(hunk.Spans == projected, "hunk beginning after an enum opener exactly projects whole-blob roles");
+		auto old    = definition;
+		old.Version = (syntax::identifier_heuristic_revision << 16U) | (old.Version & 0xFFFFU);
+		expect(classifier.classify(request(oid, old), { }).Status == app::syntax_classification_status::unavailable, "old C++ identifier cache keys are refused");
+		const auto bounded = classifier.classify(request(oid, definition, 1U), { });
+		expect(bounded.Status == app::syntax_classification_status::limit_exceeded && bounded.Spans.empty(), "span exhaustion publishes no partial roles");
+		auto stop = std::stop_source{ };
+		stop.request_stop();
+		const auto cancelled = classifier.classify(request(oid, definition), stop.get_token());
+		expect(cancelled.Status == app::syntax_classification_status::cancelled && cancelled.Spans.empty(), "cancellation publishes no partial roles");
+		const auto asC = classifier.classify(request(oid, *aCatalog.definition_named("C")), { });
+		expect(!word_inside_role(asC.Spans, text, line_of(text, "    ID = 1"), "ID", role::syntax_enum_member), "C retains its previous roles");
+		std::cout << "cpp-context-contract:pass declarations/uses/hunks/protected/macro/cache/bounds\n";
+	}
+
 } // namespace
 
 int main()
@@ -1015,6 +1103,7 @@ try {
 	definition_selection_contract(catalog);
 	complete_blob_state_contract(catalog);
 	identifier_role_contract(catalog);
+	cpp_context_contract(catalog);
 	builtin_type_contract(catalog);
 	windows_resource_contract(catalog);
 	plain_text_and_failure_contract(catalog);

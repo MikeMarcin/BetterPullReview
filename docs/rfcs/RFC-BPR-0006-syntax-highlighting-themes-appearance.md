@@ -205,3 +205,31 @@ broadened. This direct answer replaces the pending side-by-side question,
 while the v009 candidate above remains the historical record. BPR-0748
 carries the implementation and focused checks; no palette or schema value
 moves.
+
+## C++ context amendment, 2026-10-12 (RFC-BPR-0072)
+
+[[RFC-BPR-0072]] qualifies the C++ ALL_CAPS convention with complete-blob
+lexical evidence before casing. Namespace declarations, alias names and
+`using namespace` chains receive `syntax_namespace`. Scoped and unscoped
+enumerator declarations receive `syntax_enum_member`; a qualified use receives
+that role only when its declared scope and member are unambiguous in the blob.
+Unknown qualified terminal names remain ordinary identifiers, while unknown
+qualifiers keep the generic type treatment and invocations retain the existing
+macro/function convention. Aliases, shadows and conflicting declarations do
+not establish enum identity. Unqualified enum uses are outside the guarantee.
+
+The grammar still protects comments and strings, and complete preprocessor
+lines cannot supply structural declarations. Nested initializer delimiters do
+not end an enum or create enumerators. This refinement runs only for C++ in
+the syntax adapter, with bounded blob-local state and cancellation; C and
+Windows Resource retain their existing behavior. C++ identifier revision 6
+retires revision-5 cache keys; blob/definition cache identity remains independent
+of theme, and hunk spans project the complete-blob result.
+
+The two new colour roles append to the durable vocabulary without renumbering
+existing roles. Their defaults enter the existing variant profiles, contrast
+pairs and Colours controls. Missing new roles in an older palette document are
+unassigned in the core import and resolve to the chosen variant's built-in
+values in Qt. Existing overrides and stored flags remain authoritative. Final
+rendered, persistence and exchange acceptance belongs to RFC-BPR-0072; prior
+palette verdicts and parked BPR-0720/BPR-0738 obligations are preserved.

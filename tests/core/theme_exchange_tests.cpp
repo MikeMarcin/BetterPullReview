@@ -257,12 +257,12 @@ namespace {
 			   "a partial document yields no palette instead of a defaulted one");
 
 		const auto headerOnly = imported("bpr-theme 1\n");
-		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 1U,
-			   "a document that assigns nothing is missing every role but the label tints and the attention amber");
+		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 3U,
+			   "a document that assigns nothing is missing every role but the additive optional colours");
 	}
 
-	/// \brief [[BPR-1083]]. A document written before the twelve label tints
-	/// existed still imports, the tints unassigned and every other role as written.
+	/// \brief [[BPR-1083]] [[BPR-1411]]. A document written before additive
+	/// colours existed still imports, those colours unassigned and every other role as written.
 	auto test_a_document_without_label_tints_leaves_them_unassigned() -> void
 	{
 		auto document = std::string{ "bpr-theme 1\n" };
@@ -285,9 +285,9 @@ namespace {
 		}
 		const auto result = imported(document);
 		expect(result.Rejections.empty() && result.Palette.has_value(),
-			   "a 47-role document imports");
+			   "a document with the original required roles imports");
 		expect(result.Palette == std::optional{ expected },
-			   "the label tints are unassigned and every other role is the document's");
+			   "optional additive colours are unassigned and every required role is the document's");
 		const auto partial = imported(document + "feedback_label_issue #d1242fff\n");
 		expect(partial.Palette.has_value()
 				   && (*partial.Palette)[index_of(appearance_role::feedback_label_issue)] == appearance_color{ 0xD1U, 0x24U, 0x2FU, 255U }
@@ -296,8 +296,10 @@ namespace {
 		expect(!defaults_on_import(appearance_role::syntax_other) && !defaults_on_import(appearance_role::state_stale)
 				   && defaults_on_import(appearance_role::feedback_label_praise)
 				   && defaults_on_import(appearance_role::feedback_label_quibble)
-				   && defaults_on_import(appearance_role::state_attention),
-			   "only the twelve label tints and the attention amber may be absent");
+				   && defaults_on_import(appearance_role::state_attention)
+				   && defaults_on_import(appearance_role::syntax_namespace)
+				   && defaults_on_import(appearance_role::syntax_enum_member),
+			   "the twelve label tints, attention amber and new syntax categories may be absent");
 		// [[BPR-1085]]. A document written with the label tints but before the
 		// attention amber still imports, the amber unassigned.
 		const auto withoutAttention = imported(document + "feedback_label_issue #d1242fff\n");

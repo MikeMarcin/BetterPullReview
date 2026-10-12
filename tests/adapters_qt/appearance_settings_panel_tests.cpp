@@ -867,10 +867,9 @@ namespace {
 			"and it follows the theme on screen when that changes");
 
 		expect(
-			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 58U,
-			"the card lists the 58 roles it offers (RFC-BPR-0034 C5, amended "
-			"2026-09-24, for the label tints by BPR-1083 and for the attention "
-			"amber by BPR-1085)");
+			panel.colours() != nullptr && panel.colours()->listed_roles().size() == 60U,
+			"the card lists its 60 offered roles, including namespaces and "
+			"enum members (RFC-BPR-0072)");
 	}
 
 	/// \brief A swatch previews through the picker, and one bar offers the choice.

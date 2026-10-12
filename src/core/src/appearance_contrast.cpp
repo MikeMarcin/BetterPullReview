@@ -273,15 +273,27 @@ namespace bpr::core {
 
 		constexpr auto first_syntax_role = appearance_role::syntax_normal;
 		constexpr auto last_syntax_role  = appearance_role::syntax_other;
-		constexpr auto syntax_role_count
+		constexpr auto original_syntax_role_count
 			= (index_of(last_syntax_role) - index_of(first_syntax_role)) + 1U;
+		// New roles append to the durable vocabulary, rather than renumbering
+		// palettes. They have the same text obligations as the original run.
+		constexpr auto syntax_roles = [] {
+			auto roles = std::array<appearance_role, original_syntax_role_count + 2U>{ };
+			for (auto index = std::size_t{ 0U }; index < original_syntax_role_count; ++index) {
+				roles[index] = static_cast<appearance_role>(index_of(first_syntax_role) + index);
+			}
+			roles[original_syntax_role_count]      = appearance_role::syntax_namespace;
+			roles[original_syntax_role_count + 1U] = appearance_role::syntax_enum_member;
+			return roles;
+		}();
+		constexpr auto syntax_role_count = syntax_roles.size();
 
 		static_assert(
-			syntax_role_count == 26U,
-			"the syntax group must stay one contiguous run of the vocabulary");
+			original_syntax_role_count == 26U,
+			"the original syntax roles retain their contiguous ordinal identities");
 		static_assert(
 			index_of(last_syntax_role) + 1U == index_of(first_feedback_label_role),
-			"the syntax group must stay directly before the label tints at the end of the vocabulary");
+			"the original syntax roles retain their position before the label tints");
 
 		/// \brief Selects the floor one background holds its text to.
 		///
@@ -404,8 +416,7 @@ namespace bpr::core {
 			for (const auto background : code_canvas_backgrounds) {
 				for (auto offset = std::size_t{ 0U }; offset < syntax_role_count; ++offset) {
 					pairs[next] = contrast_pair{
-						.Foreground = static_cast<appearance_role>(
-							static_cast<std::uint8_t>(index_of(first_syntax_role) + offset)),
+						.Foreground = syntax_roles[offset],
 						.Background = background,
 						.Kind       = kind_for_background(background),
 					};
@@ -417,9 +428,7 @@ namespace bpr::core {
 					for (auto offset = std::size_t{ 0U }; offset < syntax_role_count;
 						 ++offset) {
 						pairs[next] = contrast_pair{
-							.Foreground = static_cast<appearance_role>(
-								static_cast<std::uint8_t>(
-									index_of(first_syntax_role) + offset)),
+							.Foreground = syntax_roles[offset],
 							.Background = background,
 							.Kind       = kind_for_background(background),
 							.Wash       = wash,
@@ -786,8 +795,7 @@ namespace bpr::core {
 		const auto minimum = minimum_contrast_hundredths(
 			contrast_kind::emphasis_text, aVariant);
 		for (auto offset = std::size_t{ 0U }; offset < syntax_role_count; ++offset) {
-			const auto role = static_cast<appearance_role>(
-				static_cast<std::uint8_t>(index_of(first_syntax_role) + offset));
+			const auto role = syntax_roles[offset];
 			if (contrast_ratio_hundredths(aPalette[index_of(role)], fill) < minimum) {
 				return true;
 			}
