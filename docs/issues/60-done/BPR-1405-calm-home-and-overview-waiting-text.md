@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1405"
 title: "Calm the waiting and merge-requirement text on Home and Overview"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0069", "RFC-BPR-0070"]
 depends_on: []
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1405--BPR-1405--0e43de1c0fb9.json","origin":"owner request 2026-10-12"}
-parked_on: "human-review"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7011e21b3","evidence":{"kind":"observation","detail":"qt_review_landing_model pins the bounded single waiting clause, counts without names, aggregate requirement and non-authored rows; composed Home waiting course passes.","path":"docs/issues/60-done/BPR-1405-calm-home-and-overview-waiting-text.md"}},{"criterion":"AC2","outcome":"pass","revision":"7011e21b3","evidence":{"kind":"observation","detail":"Waiting on others summary keeps only the blocked count; qt_review_landing_model passes.","path":"docs/issues/60-done/BPR-1405-calm-home-and-overview-waiting-text.md"}},{"criterion":"AC3","outcome":"pass","revision":"7011e21b3","evidence":{"kind":"observation","detail":"application_pull_request_overview and application_overview_summary_{1,1_25,2} pin the toned state, one line per condition, roster rows and caveats in details.","path":"docs/issues/60-done/BPR-1405-calm-home-and-overview-waiting-text.md"}},{"criterion":"AC4","outcome":"pass","revision":"7011e21b3","evidence":{"kind":"observation","detail":"52/52 overview|landing|home|personal_discovery|composed_github|workbench_window|review_queue suites pass; format gate and documentation gate pass.","path":"docs/issues/60-done/BPR-1405-calm-home-and-overview-waiting-text.md"}},{"criterion":"AC5","outcome":"pass","revision":"7011e21b3","evidence":{"kind":"observation","detail":"Owner accepted Home (9ef9f86c) and Overview (53c3ea12) looks in attended session 5cbc651b on the frozen build.","path":"docs/issues/60-done/BPR-1405-calm-home-and-overview-waiting-text.md"}}]
 ---
 
 # Calm the waiting and merge-requirement text on Home and Overview
