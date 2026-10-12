@@ -679,23 +679,28 @@ namespace bpr::application {
 					: overview_change_since_review::changed;
 				++*since.FilesChanged;
 			}
-			const auto identity = core::file_identity_of(file.Path);
-			const auto receipt  = std::ranges::lower_bound(receipts, identity, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
-			if (receipt != receipts.end() && (*receipt)->File == identity) {
-				row.Read = (*receipt)->Read;
-				row.Mark = core::progress_mark(**receipt);
-				if (core::progress_done(**receipt)) {
-					++projection.Progress.FilesRead;
+			// [[BPR-1404]]. A file identity joins private observations. Without
+			// either population there is nothing to join, so a refresh need not
+			// derive every path's identity on the serialized presentation lane.
+			if (!receipts.empty() || !notes.empty()) {
+				const auto identity = core::file_identity_of(file.Path);
+				const auto receipt  = std::ranges::lower_bound(receipts, identity, { }, [](const core::file_receipt* aReceipt) { return aReceipt->File; });
+				if (receipt != receipts.end() && (*receipt)->File == identity) {
+					row.Read = (*receipt)->Read;
+					row.Mark = core::progress_mark(**receipt);
+					if (core::progress_done(**receipt)) {
+						++projection.Progress.FilesRead;
+					}
+				}
+				const auto note = std::ranges::lower_bound(notes, identity, { }, [](const local_note_record* aNote) { return *aNote->Note.File; });
+				if (note != notes.end() && *(*note)->Note.File == identity) {
+					row.Note = (*note)->Note.Text;
 				}
 			}
 			const auto facts = factsByPath.find(std::string_view{ file.Path });
 			if (facts != factsByPath.end()) {
 				row.ThreadCount           = facts->second.Threads;
 				row.UnresolvedThreadCount = facts->second.Unresolved;
-			}
-			const auto note = std::ranges::lower_bound(notes, identity, { }, [](const local_note_record* aNote) { return *aNote->Note.File; });
-			if (note != notes.end() && *(*note)->Note.File == identity) {
-				row.Note = (*note)->Note.Text;
 			}
 			projection.Files.push_back(std::move(row));
 		}

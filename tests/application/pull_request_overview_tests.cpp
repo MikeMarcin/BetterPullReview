@@ -329,6 +329,16 @@ namespace {
 		expect(projection.EntryPath == std::optional<std::string>{ "Engine/Renderer/HairStrandsVoxelization.cpp" },
 			   "continue lands on the first changed file even when it was read");
 
+		// A note is private file state even when no receipt has been stored.
+		auto notesOnly = context;
+		notesOnly.Receipts.clear();
+		const auto noteProjection = application::project_pull_request_overview(snapshot(), notesOnly);
+		expect(row_named(noteProjection, "Engine/Renderer/HairStrandsVoxelization.cpp").Note
+					   == std::optional<std::string>{ "Re-read the atomic move" }
+				   && !row_named(noteProjection, "Engine/Renderer/HairStrandsVoxelization.cpp").Read
+				   && noteProjection.Progress.FilesRead == 0U,
+			   "a private note reaches its exact row without a receipt population");
+
 		// The head I reviewed is the head: nothing changed since.
 		context.Head = commit('c');
 		context.ChangedSinceReviewPaths.reset();
