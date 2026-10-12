@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1403"
 title: "Repair and verify the v0.1.9 release gates"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"release-v019-20261012-macos-r3","reservation":"docs/issues/_reservations/BPR-1403--BPR-1403--d8f83f6e0ba0.json","milestone_plan":{"id":"release-v019-gate-repairs","path":"docs/rfcs/plans/release-v019-gate-repairs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0829baad5c75c9d5aeac4dd4c3d311558d85e9bc","evidence":{"kind":"observation","artifact":"docs/verification/BPR-1403-v019-release-gates.md","detail":"Original normal gate retained666pass/22fail/1skip; every failure classified. Fixture/procedure/pin causes repaired, no assertion disabled or weakened; timing failures reproduced and retained under explicit r3 owner release exception."}},{"criterion":"AC2","outcome":"pass","revision":"0829baad5c75c9d5aeac4dd4c3d311558d85e9bc","evidence":{"kind":"observation","artifact":"docs/verification/BPR-1403-v019-release-gates.md","detail":"All non-timing failed/affected Mac paths pass:21rows of26 at7d88970dd plus repaired account isolation41.08s and full32head history155.23s at0829. Strict32head replay/provider/contained-temp/architecture/anonymous/native contracts pass. Responsiveness/launch timing failures remain failed104.440/101.098ms; owner accepts only forv019. Debugcachebytes remainsconfiguredskip."}},{"criterion":"AC3","outcome":"pass","revision":"0829baad5c75c9d5aeac4dd4c3d311558d85e9bc","evidence":{"kind":"observation","artifact":"docs/releases/v0.1.9.md","detail":"Direct owner r3 amendment makesv019 Mac-only publication and explicitly accepts current timing misses. Windows/Ubuntu gates/packages and timing repairs preserved onBPR-1404 with original plan exits retained in followup milestone. Native gates not supplied or claimedpassed. One committed source to coordinator; widerRFC0038 obligations unchanged."}},{"criterion":"AC4","outcome":"pass","revision":"0829baad5c75c9d5aeac4dd4c3d311558d85e9bc","evidence":{"kind":"observation","artifact":"docs/verification/BPR-1403-v019-release-gates.md","detail":"Boundary and contained-temp tests pass; ninechangedC++ files format22.1.8 passes; focusedreplaytidy warnings-as-errors passes; compositionpositive/hostile controls pass; documentation gate and67contract tests pass, finalr3docs gatepasses. TemporaryGUI source restored exactly; all owned builds/tests/sampling complete; no reviewserver; explicitpathrepaircommits preserved."}}]
 ---
 
 # Repair and verify the v0.1.9 release gates
