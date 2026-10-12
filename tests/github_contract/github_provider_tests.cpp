@@ -1750,6 +1750,15 @@ namespace {
 			provider_fixture fixture{ application::github_authentication_transport::native_https, log };
 			const auto       request       = pull_request_for(fixture, account_lease(fixture));
 			fixture.Transport->ReadHandler = [login](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				if (aWire.Wire.Operation == read_operation::get_merge_assessment
+					|| aWire.Wire.Operation == read_operation::list_review_requests
+					|| aWire.Wire.Operation == read_operation::list_requested_reviewers
+					|| aWire.Wire.Operation == read_operation::list_branch_rules
+					|| aWire.Wire.Operation == read_operation::get_branch_protection) {
+					expect(validate_outbound_read_request(aWire.Wire).has_value(), "optional diagnostic fixture request is canonical");
+					return github_wire_error{ .Correlation = aWire.Correlation,
+											  .Error       = { .Failure = application::github_provider_failure::unsupported_capability } };
+				}
 				if (aWire.Wire.Operation == read_operation::list_commit_statuses) {
 					auto response = viewer_response();
 					response.Body = "[]";

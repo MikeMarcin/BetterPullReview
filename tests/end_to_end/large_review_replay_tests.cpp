@@ -263,15 +263,17 @@ auto main() -> int
 		require(response.has_value() && *response == exchange.Response, "exact request returns its exact recorded response");
 	}
 	require(replay.consumed_all() && !replay.perform(exchanges.front().Request), "exhaustion cannot serve another course");
-	const auto headWant         = "0032want " + std::string{ fixture::head_oid } + "\n";
-	const auto baseWant         = "0032want " + std::string{ fixture::base_oid } + "\n";
-	const auto unknownWant      = "0032want " + std::string(40U, 'f') + "\n";
-	const auto disconnectedWant = std::string{ "0032want 67c9afbd86e28b19e6bd224f966b4a48e1294e6a\n" };
+	const auto headWant           = "0032want " + std::string{ fixture::head_oid } + "\n";
+	const auto baseWant           = "0032want " + std::string{ fixture::base_oid } + "\n";
+	const auto unknownWant        = "0032want " + std::string(40U, 'f') + "\n";
+	const auto disconnectedWant   = std::string{ "0032want 67c9afbd86e28b19e6bd224f966b4a48e1294e6a\n" };
+	auto       duplicateBaseWants = baseWant;
+	duplicateBaseWants.append(baseWant).append(headWant);
 	require(fixture::exact_history_fetch_wants(headWant, fixture::base_oid, fixture::head_oid)
 				&& fixture::exact_history_fetch_wants(baseWant + headWant, fixture::base_oid, fixture::head_oid),
 			"historical fetch admits exact head and optional exact base");
 	for (const auto& body : { std::string{ }, baseWant, unknownWant, headWant + unknownWant, disconnectedWant, headWant + disconnectedWant, headWant + headWant,
-							  baseWant + baseWant + headWant, headWant.substr(0U, headWant.size() - 1U) }) {
+							  duplicateBaseWants, headWant.substr(0U, headWant.size() - 1U) }) {
 		require(!fixture::exact_history_fetch_wants(body, fixture::base_oid, fixture::head_oid),
 				"historical fetch refuses missing, substituted, additional unknown, duplicate and incomplete wants");
 	}
