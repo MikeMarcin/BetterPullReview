@@ -39,3 +39,26 @@ trust, licensing and vulnerability obligations. This card accepts only repairs
 and their release gate evidence.
 
 Durable continuation: `.mask/sessions/release-v0.1.9/repairs-handoff.json`.
+
+## Composition pin review
+
+The last matching reseal is `493d08433`. Every intervening production-manifest
+change is in `f170654e651cb57e262d6c4e4696378c5464c365` and
+`393dfe602354b189a6e883c92dc66bdc6a66579f`; only `main.cpp` and
+`github_application.cpp` change in that manifest. Scoped engineering self-review
+checked their full diffs. Draft metadata is optional, accepted under the exact
+numeric account/session/host before updating an existing Recent destination;
+unknown metadata preserves prior truth. Waiting facts come from the accepted
+snapshot, with author actor equality and host dispatch revision, through the
+existing queue host. Both retain the current notification baseline and grant
+no enrollment, credential or publication authority. Main's changes are inside
+testing guards and update Home fixture composition/counting only.
+
+Prior acceptance and review remain in the RFC0067 ledger/BPR-1389 and RFC0070
+ledger/merge-gates milestone-3 handoff, with independent pack review consumed
+by the coordinator. This scoped self-review additionally accounts for the stale
+release tripwire; it is not new independent release qualification. No source
+inventory entry or mutation path changes. The production mutation-branch digest
+remains `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
+Full/application-manifest pins are resealed with unchanged semantic bypass
+checks; their positive and hostile-source controls must pass before acceptance.

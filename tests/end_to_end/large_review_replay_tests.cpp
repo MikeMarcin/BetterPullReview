@@ -80,6 +80,24 @@ namespace {
 		auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 		{
 			require(!aStop.stop_requested(), "fixture unexpectedly cancelled");
+			const auto operation = aRequest.Wire.Operation;
+			if (std::ranges::find(requirement_operations, operation) != requirement_operations.end()) {
+				require(Calls == 29U && RequirementsRefused < requirement_operations.size()
+							&& operation == requirement_operations[RequirementsRefused],
+						"optional requirement reads follow the complete snapshot in exact order");
+				auto semantic = fixture::request(operation);
+				if (operation == read_operation::list_branch_rules || operation == read_operation::get_branch_protection) {
+					semantic.PullRequestNumber = 0U;
+					semantic.BranchRef         = "main";
+				}
+				const auto expected = compile_read_request(semantic);
+				require(expected && *expected == aRequest.Wire, "optional refusal validates the exact canonical request");
+				++RequirementsRefused;
+				return github_wire_error{ .Correlation = aRequest.Correlation,
+										  .Error       = { .Failure = operation == read_operation::list_requested_reviewers
+															   ? application::github_provider_failure::unavailable
+															   : application::github_provider_failure::unsupported_capability } };
+			}
 			++Calls;
 			LastOperation = aRequest.Wire.Operation;
 			auto response = Replay.perform(aRequest.Wire);
@@ -95,8 +113,18 @@ namespace {
 			return github_wire_success{ aRequest.Correlation, std::move(*response) };
 		}
 		fixture::sequential_replay Replay;
-		std::size_t                Calls         = 0U;
-		read_operation             LastOperation = read_operation::get_viewer_identity;
+		std::size_t                Calls               = 0U;
+		std::size_t                RequirementsRefused = 0U;
+		read_operation             LastOperation       = read_operation::get_viewer_identity;
+
+	private:
+		static constexpr auto requirement_operations = std::array{
+			read_operation::get_merge_assessment,
+			read_operation::list_review_requests,
+			read_operation::list_requested_reviewers,
+			read_operation::list_branch_rules,
+			read_operation::get_branch_protection,
+		};
 	};
 
 	void test_all_epoch_snapshots()
@@ -148,6 +176,14 @@ namespace {
 				std::cerr << '\n';
 			}
 			require(normalized.has_value(), "every stored head normalizes through the production pager");
+			using observation = application::github_observation_availability;
+			require(transport.RequirementsRefused == 5U
+						&& normalized->Merge.Availability == observation::unsupported
+						&& normalized->ReviewRequestsAvailability == observation::unsupported
+						&& !normalized->ReviewRequestActorsObserved
+						&& normalized->BranchPolicy.RulesAvailability == observation::unsupported
+						&& normalized->BranchPolicy.ProtectionAvailability == observation::unsupported,
+					"refused optional surfaces remain explicitly unsupported without invented actors or policy");
 			require(!transport.Replay.consumed_all() && transport.Calls == 29U,
 					"ordinary PR read leaves exactly the independent timeline request");
 			const auto timeline = perform_paged_github_timeline_read(transport, selectedProfile, request, core::repository_id{ 800002U }, { });

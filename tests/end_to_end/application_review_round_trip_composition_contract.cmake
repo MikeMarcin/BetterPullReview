@@ -1410,6 +1410,15 @@ endfunction()
 # No request, credential, mutation, grant or source-inventory change. The
 # production mutation-branch pin is unchanged. Focused public-path and unchanged
 # performance-budget evidence is recorded on BPR-1387 and its verification note.
+# BPR-1403 reseal (2026-10-12), over 493d08433: the only intervening
+# production-manifest changes are f170654e6 and 393dfe602. The first carries
+# accepted optional Draft facts through exact account-bound queue/Recent
+# destinations, and changes tests-on Home fixtures in main.cpp. The second
+# carries accepted read-only waiting/authorship facts and dispatch revisions
+# through the existing queue host; no new enrollment or notification authority.
+# Scoped source review and prior accepted RFC0067/0070 evidence are recorded
+# on BPR-1403. No provider selection, credential, grant, mutation, publication
+# or production source-inventory change; mutation-branch pin stays unchanged.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1428,7 +1437,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6e2e4daff370efccad58d77c494d42085112d16c88435877f6f3a016a090c9cd"
+		"53e078071d948595e885f66648e92421a7339f6848bed95254ca1ab4d485ae79"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1632,7 +1641,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0e36ce813e67b61d6b22d4584333f333b7fd3764375e86e01716c432ff134e05"
+        "50e895b63e95628d9ac692e06aaa52eca6d834a4de75d7aae426508198ff022d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
