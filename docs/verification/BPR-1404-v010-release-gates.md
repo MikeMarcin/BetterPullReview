@@ -324,7 +324,11 @@ unchanged and copied scratch was removed. The actual course now checks accepted
 draft text independently of Dif, reserves the visual acknowledgement wait for
 the Dif course, and holds the private lane in the positive course to verify
 the old body remains until persistence completes. All existing terms and run
-bounds remain. Exact-source focused and native completion remain required.
+bounds remain. Exact-source Mac courses at `457a5bc29` pass 4/4 in 16.83
+seconds: positive, full-agent, workshop-press and Dif-context. The focused
+tidy run found one pre-existing local constant name in the included
+`right_side_change.hpp`; its spelling is corrected without changing the
+256-change bound. Actual repaired native Windows completion remains required.
 
 The subsequent interactive-token Windows normal gate at diagnostic source
 `8cf67d793` exposed a separate nested Release-build path failure: MSVC C1083

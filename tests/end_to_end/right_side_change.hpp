@@ -23,8 +23,8 @@ namespace bpr::e2e {
 	/// side.
 	[[nodiscard]] inline auto select_right_side_of_change(qt::diff_workbench& aSurface) -> bool
 	{
-		constexpr auto maximum_changes = 256;
-		for (auto change = 0; change < maximum_changes; ++change) {
+		constexpr auto maximumChanges = 256;
+		for (auto change = 0; change < maximumChanges; ++change) {
 			const auto& selection = aSurface.selection();
 			const auto& result    = aSurface.current_result();
 			if (!selection.has_value() || !selection->Group.has_value() || result == nullptr) {
