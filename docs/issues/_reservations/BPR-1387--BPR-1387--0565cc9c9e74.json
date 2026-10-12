@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1387"
+  ],
+  "reserve_for": "station-hook-card-collision-20261011",
+  "purpose": "",
+  "created": "2026-10-12T03:48:17.472005+00:00",
+  "base": "960b03bc3cfa924e9daf01597eb25c85d7456ad4"
+}
