@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1407"
 title: "Show each Home row's age, line changes and comment count"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1407--BPR-1407--fa077b5c77ea.json","origin":"owner request 2026-10-12"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8cc80c6ed","evidence":{"kind":"observation","detail":"github_paged_read, application_review_queue_enrollment and sqlite_queue_enrollment_storage pin reading, merging, v2/v1 encoding and the schema 10 upgrade; no request added."}},{"criterion":"AC2","outcome":"pass","revision":"8cc80c6ed","evidence":{"kind":"observation","detail":"qt_review_landing_model pins the texts and clock; qt_home_list_scale_{100,125,200} pin the facts column's geometry against the hover action, tag and reason; offscreen renders inspected."}},{"criterion":"AC3","outcome":"pass","revision":"8cc80c6ed","evidence":{"kind":"observation","detail":"Accessible description says the facts in words; 76/76 focused suites pass; format, clang-tidy (pre-existing findings only) and documentation gates pass."}},{"criterion":"AC4","outcome":"pending","revision":"8cc80c6ed","evidence":{"kind":"freeform","detail":"Owner look on frozen root /Users/jaeger/bpr1407-look.5jquigqu in attended session 7cf6171a73b084a2ae161dcd95702e61."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"5081076e4","evidence":{"kind":"observation","detail":"github_paged_read, application_review_queue_enrollment and sqlite_queue_enrollment_storage pin reading, merging, v2/v1 encoding and the schema 10 upgrade; no request added."}},{"criterion":"AC2","outcome":"pass","revision":"5081076e4","evidence":{"kind":"observation","detail":"qt_review_landing_model pins +N / −M, 21d/<1d and the comment count; qt_home_list_scale_{100,125,200} pin the facts column against the hover action, tag and reason; renders inspected."}},{"criterion":"AC3","outcome":"pass","revision":"5081076e4","evidence":{"kind":"observation","detail":"Accessible description says the facts in words; 76/76 focused suites; format, clang-tidy and documentation gates pass."}},{"criterion":"AC4","outcome":"pass","revision":"5081076e4","evidence":{"kind":"observation","detail":"Owner accepted the revised row facts (fe02b0ee) in attended session 0a56c5a5 on the frozen build."}},{"criterion":"AC5","outcome":"pass","revision":"5081076e4","evidence":{"kind":"observation","detail":"Owner accepted 'Waiting on N reviewers' (8b19d8df) in attended session 0a56c5a5; qt_review_landing_model and the composed Home course pin it."}}]
 ---
 
 # Show each Home row's age, line changes and comment count
@@ -125,6 +125,19 @@ Candidate `8cc80c6ed`. The frontend-design skill was loaded for this work.
   sources reports only pre-existing findings (`queue_enrollment_database.cpp`
   open flags, `github_paged_read.cpp` `note_limit`);
   `verify_documentation.py` passes.
-- AC4: pending. Frozen root `/Users/jaeger/bpr1407-look.5jquigqu` (launcher
-  check `CHECK_OK`), attended session `7cf6171a73b084a2ae161dcd95702e61`,
-  candidate `BPR-1407-home-facts`.
+- Revision `5081076e4` applies the owner amendments. The AC1 to AC3 suites
+  were updated to the new forms ("+1,204 / −318", "21d", "<1d", comment
+  count, "Waiting on 3 reviewers") and pass again: 76/76 focused, format,
+  clang-tidy and documentation gates.
+
+## Owner acceptance
+
+The first look (`8cc80c6ed`, session `7cf6171a73b084a2ae161dcd95702e61`,
+decision `4288387e`) was rejected; its notes are the amendments above.
+
+AC4 and AC5: the owner accepted both on 2026-10-12 in attended session
+`0a56c5a5ab179ef3e4e984f1500473f9`, a fresh short session, against the frozen
+build of `5081076e4`: the row facts (`BPR-1407-home-facts-v2`, decision
+`fe02b0ee`, fingerprint `0bde294011b3`) and the reviewer count
+(`BPR-1407-waiting-count`, decision `8b19d8df`, fingerprint `eeb1c426040e`),
+no notes. The frozen root was removed afterwards.
