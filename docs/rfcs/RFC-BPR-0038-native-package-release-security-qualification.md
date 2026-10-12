@@ -61,6 +61,26 @@ their original meaning; this amendment supplies no native or security evidence.
 Required trust, signing, source/SBOM/digests, clean Ubuntu desktop/Secret Service,
 crash/privacy and full selected-target acceptance remain pending.
 
+## Owner amendment 2026-10-11 — reusable signing credential
+
+The owner then requested: "I dont want to have to enter this GPG passphrase
+every time i ask to publish a release, we need to store that in a keychain or
+something." [BPR-1388](../issues/30-in-progress/BPR-1388-reuse-release-signing-vault-and-native-verifier.md)
+implements bounded producer preparation under
+`release-next-20261011-vault-verifier-r3`: one exact Windows Credential Manager
+credential unlocks the approved encrypted release key only in its validated
+WSL GPG home. The maintained Linux package path unlocks automatically and
+disables pinentry; missing/mismatched credentials stop it. Human enrollment is
+a separate coordinator-owned wizard action. The same slice repairs native
+Authenticode module loading when a PowerShell 7 parent pollutes `PSModulePath`.
+
+The dedicated Azure profile signer and one disposable signed Windows probe,
+and the approved Linux key's local sign/public-only verification/tamper smoke,
+have separate producer evidence in the ledger. They qualify no final package,
+remote station credential access, clean product vault/desktop, licensing,
+security or publication. No version change, additional Azure signing, access
+change or release follows from this amendment.
+
 The JaegAW Windows 11 and WSL/Linux stations supplied actual native build,
 installation, PE-inspection and inspector-probe evidence. Preserve it, but do not
 call elevated SSH a clean ordinary-user desktop or Ubuntu 26.04 WSL an

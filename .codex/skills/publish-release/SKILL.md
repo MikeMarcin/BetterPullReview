@@ -124,6 +124,23 @@ available toolchains and signing identities; documentation is not observed
 remote readiness. No version change, station launch or release follows merely
 from preparation; select version/platforms when the owner requests the release.
 
+Reuse each producer's existing nonsecret signing configuration outside source.
+The Windows preparation records approved tool/metadata paths and an isolated
+`AZURE_CONFIG_DIR` for the dedicated profile signer. Read that configuration,
+validate its approved identity/profile and use those inputs; never inspect token
+caches or switch to an admin credential. Azure user authentication may expire
+or require MFA, so use a wizard only when renewed human login is actually needed.
+For the Ubuntu WSL producer, use the existing approved
+`bpr.release-gpg-vault.v1` configuration with `package.py --gpg-vault-config
+/absolute/producer-config.json`. Packaging unlocks its exact key automatically
+through Windows Credential Manager before any build/output and signs in the
+bound GPG home with pinentry disabled. Do not ask for the passphrase again after
+one successful enrollment. A missing credential/logon session or failed key
+check stops production; the [Linux guide](references/linux.md) describes recovery.
+Remote invocation must run as the same local Windows signing account with its
+credential set and working WSL interop; this route has not yet been qualified
+through remote station dispatch. No secret/configuration is transferred to the Mac.
+
 Create/push the tag and release only when the user requests publication of the
 prepared version and platform set. Run the same
 command without `--dry-run`. Add `--prerelease` to both commands when requested;

@@ -25,6 +25,7 @@ import package as producer
 import package_runtime as runtime
 import release_signing as signing
 import verify_native_release as release
+from release_gpg_vault_tests import VaultTests
 
 
 class NativeReleaseTests(unittest.TestCase):
@@ -40,7 +41,7 @@ class NativeReleaseTests(unittest.TestCase):
         self.addCleanup(self.patches.stop)
         self.key = "B" * 40
 
-    def package(self, generator, signed=True):
+    def package(self, generator, signed=True, use_vault=False, vault_failure=False):
         build = self.root / ("build-" + generator)
         build.mkdir()
         system = "Windows" if generator == "WIX" else "Linux"
@@ -59,6 +60,12 @@ class NativeReleaseTests(unittest.TestCase):
         extension = {"WIX": ".msi", "DEB": ".deb", "RPM": ".rpm"}[generator]
         base = "BetterPullReview-1.2.3-" + ("windows-x64" if generator == "WIX" else target) + "-agent-free"
         self.events = []
+        self.detached_options = []
+        def unlock(path, key):
+            self.events.append("vault-unlock")
+            if vault_failure:
+                raise producer.vault.VaultError("stored credential unavailable; no interactive fallback")
+            return {"keyFingerprint": self.key, "gnupgHome": "/scoped/release/gnupg"}
         def native(command, **kwargs):
             if command[0] == "cmake":
                 self.events.append("build")
@@ -83,7 +90,8 @@ class NativeReleaseTests(unittest.TestCase):
             self.events.append("sign:" + path.name)
             path.write_bytes(path.read_bytes() + b"signed")
             return {"publisher": "Michael Marcin", "certificateSHA1": "C" * 40, "timestampCertificateSHA1": "D" * 40}
-        def detached(path, key):
+        def detached(path, key, **options):
+            self.detached_options.append(options)
             signature = path.with_name(path.name + ".asc")
             signature.write_bytes(b"fixture-signature")
             return signature, {"keyFingerprint": key, "signingFingerprint": key}
@@ -97,12 +105,15 @@ class NativeReleaseTests(unittest.TestCase):
             argv += ["--signtool", str(inputs[0]), "--azure-dlib", str(inputs[1]), "--azure-metadata", str(inputs[2]), "--publisher", "Michael Marcin"]
         elif signed:
             argv += ["--gpg-key", self.key]
+        if use_vault:
+            argv += ["--gpg-vault-config", str(self.root / "vault.json")]
         with (patch.object(sys, "argv", argv), patch.object(runtime, "inputs", return_value=info),
               patch.object(runtime, "run", side_effect=lambda *args: "" if args[-1] == "--porcelain" else self.revision),
               patch.object(runtime, "linux_baseline", return_value={"distribution": ["ubuntu" if generator == "DEB" else "rhel", "fixture"]}),
               patch.object(producer.subprocess, "run", side_effect=native), patch.object(signing, "sign_windows", side_effect=windows),
               patch.object(signing, "authenticode"), patch.object(signing, "sign_detached", side_effect=detached),
-              patch.object(signing, "sign_rpm", side_effect=rpm), patch.object(signing, "verify_rpm")):
+              patch.object(signing, "sign_rpm", side_effect=rpm), patch.object(signing, "verify_rpm"),
+              patch.object(producer.vault, "prepare_linux_signing", side_effect=unlock)):
             producer.main()
         return output / (base + extension + ".release.json")
 
@@ -122,6 +133,19 @@ class NativeReleaseTests(unittest.TestCase):
     def test_unsigned_candidate_cannot_enter_publisher(self):
         manifest = self.package("WIX", signed=False)
         self.assertFalse(manifest.exists())
+
+    def test_vault_unlock_precedes_build_and_scopes_every_detached_signature(self):
+        manifest = self.package("DEB", use_vault=True)
+        self.assertEqual(self.events, ["vault-unlock", "build", "cpack"])
+        self.assertEqual(len(self.detached_options), 6)
+        self.assertTrue(all(item == {"gpg_home": Path("/scoped/release/gnupg")} for item in self.detached_options))
+        self.assertIn(manifest, release.verify(manifest, "1.2.3", self.revision))
+
+    def test_failed_vault_unlock_creates_no_output_and_never_builds(self):
+        with self.assertRaisesRegex(producer.vault.VaultError, "no interactive fallback"):
+            self.package("DEB", use_vault=True, vault_failure=True)
+        self.assertEqual(self.events, ["vault-unlock"])
+        self.assertFalse((self.root / "output-DEB").exists())
 
     def test_linux_manifest_refuses_obsolete_or_mismatched_target(self):
         manifest = self.package("DEB")

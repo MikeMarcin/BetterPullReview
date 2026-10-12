@@ -13,10 +13,10 @@ clean desktop/vault, trust or security course passed. Current Ubuntu ABI ceiling
 is glibc 2.43; actual GLIBCXX/system dependencies still require artifact evidence.
 Optional RPM mechanics stay outside the selected set. The historical entries,
 M8/M9 plans and review packets below remain unchanged. BPR-0961 and BPR-0962
-stay Blocked; RFC0038 remains Proposed. Windows signing profile/role, Linux
-approved key, exact-candidate native/licensing/trust/security/crash obligations
-and eventual publication authority remain pending. No version, signing, build
-or publication is selected by this preparation.
+stay Blocked; RFC0038 remains Proposed. The subsequent producer signing
+prerequisites have separate evidence below; exact-candidate
+native/licensing/trust/security/crash obligations and eventual publication
+authority remain pending. No release version/build/publication is selected.
 
 Preparation evidence from BPR-1386, producer-scripts candidate
 `6b06c981419e15215fa9ffcd97de7585c611ea13`: the actual Ubuntu 26.04 WSL2
@@ -33,6 +33,68 @@ These are script/fixture and configure observations, not produced release
 binaries, WSLg rendering, clean desktop/vault/installer qualification, a new
 vulnerability scan, signing or publication approval. BPR-1386's Done status
 accepts only the bounded preparation slice; all wider release gaps above remain.
+
+## Reusable signing preparation, 2026-10-11
+
+Owner amendment `release-next-20261011-vault-verifier-r3`,
+[BPR-1388](../issues/30-in-progress/BPR-1388-reuse-release-signing-vault-and-native-verifier.md),
+asks for reusable passphrase storage instead of entering it for each release.
+Entry/baseline `2b56a8c30f3fbde66a3469dd0778121401ad9e0a`.
+One named generic Windows credential (local-machine persistence for the same
+Windows account) is bound to the approved full fingerprint/keygrip and an
+owned, private WSL release GPG home. No vault enumeration or secret-output
+command exists. The helper validates before retrieval, sends the in-memory
+passphrase only to the fixed preset command's stdin and checks unlock with
+pinentry disabled. Wrong passphrases clear the cache; missing credentials or
+wrong bindings fail without interactive fallback. The key remains encrypted;
+the scoped agent retains its 600/7200-second cache bounds and external-cache
+refusal. The owner completed direct enrollment through the coordinator's fresh
+wizard. Two separate fresh-agent courses then exercised maintained WSL-to-Windows
+unlock and pinentry-disabled signing with the approved key; public-only
+verification passed and tampered content was rejected in both. The public
+receipt is `.mask/sessions/release-next-20261011/gpg-vault-real-receipt.json`.
+The initial visible-terminal attempts failed before secret entry because the
+public config was absent in that native process's filesystem view. Materializing
+the unchanged public binding in the actual producer context resolved it;
+this failure remains in the coordinator's ignored checkpoint. Agent observation
+of a file alone does not prove the producer can read it.
+
+Focused local evidence: 27/28 native-release/vault tests pass on Windows with
+one explicit Bash publisher skip; Ubuntu WSL passes the complementary Bash
+case and skips only the actual Windows module-pollution row. The Windows row
+proves a poison module actually loads under normal autoload, then that the
+maintained verifier loads its own native manifest and never executes it.
+Composed package fixtures prove failed unlock precedes output/build and every
+detached signature uses the scoped home/pinentry-error path. The opt-in native
+course creates its own disposable encrypted Ed25519 key and one synthetic
+credential, proving Unicode round-trip, cold-agent unlock, Windows/WSL interop,
+missing/wrong credential/passphrase refusal, nonprivate-home and wrong metadata
+refusal, cleared
+failure cache, public-only verification and tamper rejection. It removes the
+exact synthetic credential, private GPG test root and its own agents. It reads
+no approved credential and signs no release.
+
+Separate coordinator prerequisite observations: the approved Linux Ed25519
+key UID is `BetterPullReview Release Signing`, expiry 2028-10-11, fingerprint
+`ED85BAA84A3B6D83FCD5B1F107CEC96F2688E4A8`; its prior local sign/public-only
+verify/tamper smoke passed. The dedicated Windows Azure profile signer login
+and profile-level role were observed. Exactly one approved disposable probe
+was Azure-signed/timestamped for `Michael Marcin`; the existing final probe
+SHA-256 `e1d9353dfcc085226813f63b6c595ad2a3bf817359bc83bea239f12439f0753a`
+now passes the maintained SignTool and native Authenticode checks, signer
+SHA-1 `9AE4E8F2FE30AB93CCF6BDC3378789FC2883F298` and timestamp signer
+SHA-1 `BDA7BAB5B5B180CF0768C06C0F11C49ACC9690F5`. It was never re-signed.
+No BPR release artifact has been signed by this preparation. Azure user login
+may expire or require MFA; permanent unattended Azure credentials and remote
+station logon access have not been established. Current skill/operator guides
+reuse nonsecret producer configuration and keep credentials on the signing PC.
+
+The ignored durable return is
+`.mask/sessions/release-next-20261011/vault-handoff.json`. These observations
+do not close RFC0038, BPR0958–0962 or BPR0973, replace independent final trust,
+or erase native desktop/product-vault, privacy, licensing/source access,
+security/vulnerability and future publication obligations. Historical M8/M9
+records below retain their exact original candidates and failures.
 
 ## Scope and immutable evidence
 

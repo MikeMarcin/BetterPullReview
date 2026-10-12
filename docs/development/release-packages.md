@@ -99,7 +99,13 @@ producer images after building and before CPack inventory generation, verifies
 staged bytes, then signs the MSI before final hashing. Linux `--gpg-key` takes an
 approved full fingerprint; RPM is signed/verified first, then final products and
 metadata receive verified detached signatures. Neither route provisions keys,
-discovers credentials or publishes. See the platform guides in
+discovers credentials or publishes. Optional Ubuntu WSL
+`--gpg-vault-config /absolute/producer-local/config.json` automatically unlocks
+one approved Windows Credential Manager credential before any output/build,
+then signs in its exact GPG home with pinentry disabled. Missing/wrong credentials
+stop production. One-time human enrollment uses the maintained hidden console
+helper; private keys stay encrypted and no secret is transferred to the Mac.
+See the platform guides in
 `.codex/skills/publish-release/references/` for commands and human prerequisites.
 
 Signed production emits `*.release.json` binding installer, runtime archive,
@@ -123,9 +129,17 @@ Return complete final asset directories and manifests to the Mac publisher,
 preserving source names, digests and signature receipts. Use absolute manifest
 paths for the shared dry-run preflight and separately verify native trust before
 publication. This preparation changes no version and starts no remote station;
-the owner requests the actual release later. Windows Azure profile/role and the
-Linux approved OpenPGP key remain prerequisites, alongside qualification/security
-gates. See the existing `publish-release` skill's selected platform guides.
+the owner requests the actual release later. The 2026-10-11 preparation observed
+the dedicated Windows Azure profile signer and one signed disposable probe,
+and the approved encrypted Linux key's local sign/public-only verify/tamper
+smoke. Reuse the approved producer-local nonsecret configs and isolated Azure
+CLI profile; Azure may still require renewed human login/MFA. The vault helper
+binds one named generic credential to the exact key/home, validates before
+retrieval and forwards the passphrase only to the fixed preset command's stdin.
+Local synthetic vault/WSL evidence does not prove remote station logon access,
+clean Windows/Ubuntu product vaults, final artifacts or native/security/legal
+release gates. See the existing `publish-release` skill's selected platform guides
+and [BPR-1388 evidence](../issues/30-in-progress/BPR-1388-reuse-release-signing-vault-and-native-verifier.md).
 
 ## Installation and removal boundaries
 

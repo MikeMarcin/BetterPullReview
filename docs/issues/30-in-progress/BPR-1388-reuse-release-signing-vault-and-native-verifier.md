@@ -44,3 +44,13 @@ Mandate revision: `release-next-20261011-vault-verifier-r3`.
 Durable continuation: `.mask/sessions/release-next-20261011/vault-handoff.json`.
 Enrollment is a coordinator-owned human secret entry, separate from helper
 engineering acceptance. Wider RFC0038 acceptance remains pending.
+
+The coordinator subsequently completed real enrollment through the owner's
+direct visible-console entry. Its two fresh scoped-agent courses passed
+maintained WSL-to-Windows automatic unlock, pinentry-disabled signing,
+public-only verification and tampered-content rejection. Public receipt:
+`.mask/sessions/release-next-20261011/gpg-vault-real-receipt.json`.
+The first enrollment attempts failed before secret entry because the public
+config was not visible in the native terminal process; the coordinator placed
+the same public binding there and retained that failure. No agent received
+the passphrase. Native producer-context file visibility must actually be checked.

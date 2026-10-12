@@ -27,8 +27,12 @@ Owner/Contributor alone do not grant signing. Prefer a dedicated identity scoped
 to this one profile. Microsoft documents profile-level assignment via Azure CLI;
 the scope is the account's resource ID plus `/certificateProfiles/bprrelease`.
 Verify effective roles: adding this role does not narrow an existing subscription
-Owner identity. The setup session's Owner login lacked signer access; treat
-assignment as pending until observed.
+Owner identity. The initial setup Owner login lacked signer access. On
+2026-10-11, the owner approved a separate dedicated user scoped to this profile;
+its signer role and isolated Azure CLI login were observed, and one disposable
+probe signed/timestamped and passed native SignTool/Authenticode trust checks
+for Michael Marcin. This is a producer prerequisite observation, not qualification
+of a BPR release. No service principal or broader access was provisioned.
 
 Keep authentication on the owner's signing PC; use the available wizard for
 human-only login/MFA. Do not provision service-principal secrets or leave admin
@@ -59,6 +63,17 @@ The client uses its supported Azure credential chain. Select the intended
 approved method with documented `ExcludeCredentials` when needed; do not
 silently authenticate as another developer/admin account. No private key export
 is needed.
+
+Reuse the producer's nonsecret `windows-signing.prepared.json` outside source:
+`tools.signTool`, `tools.azureDlib`, `azure.metadata`, `azure.publisher` and
+`azure.preparedCliConfigDir` bind the existing installed tools, metadata and
+isolated signer profile. Set `AZURE_CONFIG_DIR` to that approved directory only
+for the signing process. Metadata's `ExcludeCredentials` permits the intended
+Azure CLI credential and excludes other/admin fallback methods. Do not inspect
+Azure token/cache files, change global login or silently widen the credential
+chain. Recheck approved account/profile/identity through Azure's supported
+commands; user sessions may expire or require login/MFA. Permanent unattended
+Azure authentication has not been established.
 
 ## Build, sign payloads, then package
 
@@ -99,6 +114,11 @@ and `--windows-redist-root`. Check installed first-party signatures using
 10/11 clean-account install/launch/auth/repair/upgrade/removal remain qualification
 gates. The offline manifest verifier checks byte bindings and producer receipts;
 it cannot independently establish Windows trust from a Mac.
+
+The maintained verifier imports the native Windows PowerShell security module
+by its absolute `$PSHOME` manifest before `Get-AuthenticodeSignature`.
+An inherited PowerShell 7 `PSModulePath` cannot select its incompatible module;
+do not use a parent-shell environment workaround as a replacement for this check.
 
 Return to shared publication with the emitted manifest. Never hand-edit hashes
 or flip `signed` to convert an unsigned candidate into a trusted release.
