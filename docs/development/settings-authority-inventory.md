@@ -148,3 +148,23 @@ restoration belongs to RFC-0024's lifecycle, not a General preference.
 The source inventory above remains domain-specific. This is not a second status
 board: BPR-0593 holds the integration criterion ledger, BPR-0683 the native/human
 handoff, and BPR-0686 the migration-preflight defect found by independent review.
+
+## Remembered connection scope (RFC-BPR-0071)
+
+The adopted selection record is profile-owned validation metadata, separate
+from vault material and current session facts. `remembered_connection_state`
+keeps one canonical server choice, observed account binding, stable identity,
+selected order and reuse-disable facts; `remembered_connection_store_port`
+commits a complete snapshot under `state/v1/remembered-connections.sqlite3`.
+The metadata/policy capability is implemented by BPR-1408. Shared runtime
+startup and Settings intent wiring remain BPR-1409, so this addition supplies
+no composed restart acceptance yet.
+
+Successful explicit CLI/read-trust selection may persist; successful native
+device selection replaces it, while manual tokens remain session-only. Sign
+out disables all reuse for that server, including older device grants; Forget
+removes the choice. A save refusal must be presented as session-only or as an
+unsaved disable, and a refused load cannot authorize CLI execution. These are
+existing connection status/recovery responsibilities, with no new Settings
+layout or credential field. Profile purge inventories/removes metadata and
+sidecars without touching gh-owned credentials or global authentication.

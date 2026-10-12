@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_HOST_AUTHORITY_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_HOST_AUTHORITY_HPP
 
+#include "bpr/core/github_hostname.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <array>
@@ -43,53 +44,9 @@ namespace bpr::application {
 	using github_profile_revision        = github_revision<github_profile_revision_tag>;
 	using github_probe_contract_revision = github_revision<github_probe_contract_revision_tag>;
 
-	inline constexpr std::size_t maximum_github_hostname_bytes       = 253U;
-	inline constexpr std::size_t maximum_github_hostname_label_bytes = 63U;
-
-	/// \brief Computes the valid github canonical hostname result.
-	[[nodiscard]] constexpr auto valid_github_canonical_hostname(
-		const std::string_view aHostname) noexcept -> bool
-	{
-		if (
-			aHostname.empty() || aHostname.size() > maximum_github_hostname_bytes
-			|| aHostname.front() == '.' || aHostname.back() == '.') {
-			return false;
-		}
-
-		bool        sawDot     = false;
-		std::size_t labelBegin = 0U;
-		while (labelBegin < aHostname.size()) {
-			const auto labelEnd = aHostname.find('.', labelBegin);
-			const auto end      = labelEnd == std::string_view::npos ? aHostname.size() : labelEnd;
-			const auto label    = aHostname.substr(labelBegin, end - labelBegin);
-			if (
-				label.empty() || label.size() > maximum_github_hostname_label_bytes
-				|| label.front() == '-' || label.back() == '-'
-				|| label.starts_with("xn--")) {
-				return false;
-			}
-
-			bool labelHasLetter = false;
-			for (const auto character : label) {
-				if (character >= 'a' && character <= 'z') {
-					labelHasLetter = true;
-					continue;
-				}
-				if (
-					(character < '0' || character > '9')
-					&& character != '-') {
-					return false;
-				}
-			}
-
-			if (end == aHostname.size()) {
-				return sawDot && labelHasLetter;
-			}
-			sawDot     = true;
-			labelBegin = end + 1U;
-		}
-		return false;
-	}
+	using core::maximum_github_hostname_bytes;
+	using core::maximum_github_hostname_label_bytes;
+	using core::valid_github_canonical_hostname;
 
 	/// \brief Provides the github canonical hostname contract.
 	class github_canonical_hostname final

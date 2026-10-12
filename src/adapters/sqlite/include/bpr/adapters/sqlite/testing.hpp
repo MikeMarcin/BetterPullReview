@@ -9,6 +9,10 @@
 	#include <filesystem>
 
 namespace bpr::adapters::sqlite::detail::testing {
+	using remembered_connection_write_checkpoint = void (*)();
+	/// \brief Observes the complete uncommitted connection snapshot; nullptr disarms.
+	void set_remembered_connection_write_checkpoint(remembered_connection_write_checkpoint aCheckpoint) noexcept;
+
 	// Arms one test-only interruption after a complete, fsynced bootstrap
 	// database exists and before its no-replace canonical publication.
 	/// \brief Performs the interrupt next bootstrap before publication operation.

@@ -26,6 +26,7 @@
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/adapters/sqlite/release_update_store.hpp"
+#include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
@@ -88,11 +89,12 @@ namespace {
 	};
 
 	// Every durable store's file under `state/v1`: the per-profile stores and
-	// the shared ones, the same eleven the release maintenance files name.
-	constexpr auto StoreFiles = std::array<std::string_view, 11U>{
+	// the shared ones, including remembered connection metadata.
+	constexpr auto StoreFiles = std::array<std::string_view, 12U>{
 		"profile-registry.sqlite3",
 		"window-restoration.sqlite3",
 		"device-bindings.sqlite3",
+		"remembered-connections.sqlite3",
 		"appearance-settings.sqlite3",
 		"workbench-settings.sqlite3",
 		"review-queue.sqlite3",
@@ -108,18 +110,19 @@ namespace {
 	// share one file.
 	struct every_store final
 	{
-		std::unique_ptr<application::profile_registry_port>           Registry;
-		std::unique_ptr<application::window_review_restoration_port>  Restoration;
-		std::unique_ptr<application::device_binding_store_port>       Bindings;
-		std::unique_ptr<application::appearance_settings_port>        Appearance;
-		std::unique_ptr<application::workbench_settings_port>         Workbench;
-		std::unique_ptr<application::queue_enrollment_store_port>     Queue;
-		std::unique_ptr<application::review_ledger_store_port>        Ledger;
-		std::unique_ptr<application::review_mutation_recovery_port>   Recovery;
-		std::unique_ptr<application::review_submission_recovery_port> Submission;
-		std::shared_ptr<application::release_update_settings_port>    ReleaseUpdate;
-		std::shared_ptr<application::release_update_recovery_port>    ReleaseRecovery;
-		std::unique_ptr<application::epoch_catalog_port>              Catalog;
+		std::unique_ptr<application::profile_registry_port>            Registry;
+		std::unique_ptr<application::window_review_restoration_port>   Restoration;
+		std::unique_ptr<application::device_binding_store_port>        Bindings;
+		std::unique_ptr<application::remembered_connection_store_port> Connections;
+		std::unique_ptr<application::appearance_settings_port>         Appearance;
+		std::unique_ptr<application::workbench_settings_port>          Workbench;
+		std::unique_ptr<application::queue_enrollment_store_port>      Queue;
+		std::unique_ptr<application::review_ledger_store_port>         Ledger;
+		std::unique_ptr<application::review_mutation_recovery_port>    Recovery;
+		std::unique_ptr<application::review_submission_recovery_port>  Submission;
+		std::shared_ptr<application::release_update_settings_port>     ReleaseUpdate;
+		std::shared_ptr<application::release_update_recovery_port>     ReleaseRecovery;
+		std::unique_ptr<application::epoch_catalog_port>               Catalog;
 	};
 
 	// Opens every store under `aRoot` and uses it once, which is when the lazy
@@ -151,6 +154,8 @@ namespace {
 		opened("window-restoration", result.Restoration->load({ }).has_value());
 		result.Bindings = adapters::sqlite::make_device_binding_store(aRoot);
 		opened("device-bindings", result.Bindings->load({ }).has_value());
+		result.Connections = adapters::sqlite::make_remembered_connection_store(aRoot, core::default_bpr_profile_id);
+		opened("remembered-connections", result.Connections->load({ }).has_value());
 
 		auto appearance = adapters::sqlite::make_appearance_settings_store({ .StorageRoot = aRoot });
 		opened("appearance-settings", appearance.has_value() && (*appearance)->load({ }).has_value());

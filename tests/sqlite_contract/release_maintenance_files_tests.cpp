@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
+#include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "platform_test_support.hpp"
@@ -158,6 +159,14 @@ namespace {
 		write(aRoot / "state/v1/review-cycles.sqlite3-wal", "cycle sidecar");
 		write(aRoot / "state/v1/review-overviews.sqlite3", "private cached overview");
 		write(aRoot / "state/v1/review-overviews.sqlite3-wal", "cached overview sidecar");
+		{
+			auto       connections = adapters::sqlite::make_remembered_connection_store(aRoot, core::default_bpr_profile_id);
+			const auto before      = connections->load({ });
+			expect(before.has_value(), "actual connection metadata store opens in maintenance fixture");
+			const auto disabled = core::disable_connection_reuse(*before, before->Revision, "github.com");
+			expect(disabled && connections->save(*disabled, before->Revision, { }).has_value(), "real disable metadata admitted before inventory");
+		}
+		write(aRoot / "state/v1/remembered-connections.sqlite3-wal", "connection sidecar");
 		write(aRoot / "state/v1/profile-registry.sqlite3", "shared registry");
 		write(aRoot / "state/v1/release-update.sqlite3", "shared updater");
 		write(aRoot / "profiles/profile-2/keep", "sibling fixture");
@@ -221,6 +230,7 @@ namespace {
 		expect(!fs::exists(root.Path / "state/v1/review-overviews.sqlite3") && !fs::exists(root.Path / "state/v1/review-overviews.sqlite3-wal"), "profile purge removes cached overview and sidecar");
 		expect(!fs::exists(root.Path / "state/v1/review-tours.sqlite3") && !fs::exists(root.Path / "state/v1/review-tours.sqlite3-wal"), "profile purge removes tour prose and baselines");
 		expect(!fs::exists(root.Path / "state/v1/review-cycles.sqlite3") && !fs::exists(root.Path / "state/v1/review-cycles.sqlite3-wal"), "profile purge removes local review cycles");
+		expect(!fs::exists(root.Path / "state/v1/remembered-connections.sqlite3") && !fs::exists(root.Path / "state/v1/remembered-connections.sqlite3-wal"), "profile purge removes remembered connection metadata and sidecar");
 		expect(read(root.Path / "profiles/profile-2/keep") == "sibling fixture" && read(root.Path / "state/v1/profile-registry.sqlite3") == "shared registry", "sibling and registry preserved");
 		expect(read(root.Path / "updates/transaction-1/keep") == "shared transaction" && read(root.Path / "state/v1/release-update.sqlite3") == "shared updater", "desktop updater preserved");
 		expect(read(destination.Path / "diagnostics.txt") == expected && !fs::exists(root.Path / ".bpr-maintenance-v1"), "export survives and completed journal removed");

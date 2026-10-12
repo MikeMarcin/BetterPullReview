@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_adapter_sqlite
     STATIC
+        src/remembered_connection_store.cpp
         src/review_tour_store.cpp
         src/review_cycle_store.cpp
         src/release_update_store.cpp

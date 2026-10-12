@@ -73,7 +73,7 @@ namespace bpr::adapters::sqlite {
 		auto store_name(std::string_view aName) -> bool
 		{
 			constexpr std::array        names{ "appearance-settings.sqlite3", "diagnostic-preferences.sqlite3", "workbench-settings.sqlite3", "review-queue.sqlite3",
-											   "review-ledger.sqlite3", "review-tours.sqlite3", "review-cycles.sqlite3", "review-overviews.sqlite3", "window-restoration.sqlite3", "device-bindings.sqlite3", "review-mutation-recovery.sqlite3", "epoch-catalog.sqlite3" };
+											   "review-ledger.sqlite3", "review-tours.sqlite3", "review-cycles.sqlite3", "review-overviews.sqlite3", "window-restoration.sqlite3", "remembered-connections.sqlite3", "device-bindings.sqlite3", "review-mutation-recovery.sqlite3", "epoch-catalog.sqlite3" };
 			static constexpr std::array suffixes{ "", "-wal", "-shm", "-journal", "-super-journal" };
 			return std::ranges::any_of(names, [aName](std::string_view aBase) {
 				return aName.starts_with(aBase) && std::ranges::find(suffixes, aName.substr(aBase.size())) != suffixes.end();
