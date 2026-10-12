@@ -191,6 +191,16 @@
           "path": ".mask/sessions/release-v0.1.10/upstream-source/qxmlstream.cpp"
         }
       ]
+    },
+    "ubuntu_zlib": {
+      "id": "CVE-2026-85091",
+      "severity": "High",
+      "distribution": "Ubuntu26.04LTS",
+      "source": "https://ubuntu.com/security/CVE-2026-85091",
+      "upstream_fix": "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148",
+      "basis": "Canonical lists Ubuntu26.04 zlib as vulnerable with a deferred fix. Its notes warn that older-version applicability is uncertain. Do not infer safety from version text or the earlier e3dc0a8 patch.",
+      "native_inventory": "Pending exact QtCore linkage, runtime zlib package/source/patch identity and final artifact binding.",
+      "proposed": "Retain High blocker pending exact-source affected-API reachability adjudication by an independent security owner or a newly qualified fixed producer."
     }
   },
   "independent_acceptance": {
