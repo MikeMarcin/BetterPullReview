@@ -306,7 +306,9 @@ set_tests_properties(
 # The negative control for the absence half. This graph's application is
 # tests-enabled and links the `BPR_NATIVE_HTTPS_TESTING` factories, so the
 # scan that must pass against a shipped artifact must fail against it, naming
-# the test-seam factory. A scan that could pass here would pass against
+# a test seam. Windows PE images need not retain a public symbol table, but
+# the tests-only command-line flag remains observable in their bytes.
+# A scan that could pass here would pass against
 # anything (BPR-0451). The core-only graph has no application to scan.
 if(TARGET app_better_pull_review)
     # BPR-0890. The scan it runs must fail here, so this row's child exits 1 on
@@ -323,11 +325,16 @@ if(TARGET app_better_pull_review)
             --release-binary
             "$<TARGET_FILE:app_better_pull_review>"
     )
+    if(WIN32)
+        set(bpr_rfc0017_absence_refusal "string present in release binary: --network-denied")
+    else()
+        set(bpr_rfc0017_absence_refusal "symbol present in release binary: make_native_https_credential_free_transport_for_test")
+    endif()
     set_tests_properties(
         rfc0017_release_absence_negative_control
         PROPERTIES
             PASS_REGULAR_EXPRESSION
-                "symbol present in release binary: make_native_https_credential_free_transport_for_test"
+                "${bpr_rfc0017_absence_refusal}"
             TIMEOUT 120
     )
 endif()

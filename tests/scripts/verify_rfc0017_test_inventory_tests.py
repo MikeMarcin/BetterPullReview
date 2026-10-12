@@ -17,6 +17,7 @@ import importlib.util
 import io
 import pathlib
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -172,6 +173,16 @@ class InventoryTable(unittest.TestCase):
                         "make_native_https_anonymous_smart_transport"):
             self.assertIn(shipped, self.module.KNOWN_PRODUCT_CREDENTIAL_FREE)
         self.assertIn("--network-denied", self.module.FORBIDDEN_STRINGS)
+
+    def test_a_stripped_image_still_refuses_a_tests_only_flag(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="bpr-rfc0017-absence-") as root:
+            binary = pathlib.Path(root) / "application.exe"
+            with mock.patch.object(self.module, "symbol_table", return_value=""):
+                binary.write_bytes(b"MZ synthetic fixture without a test seam")
+                self.assertEqual(self.module.check_release_absence(binary), [])
+                binary.write_bytes(b"MZ synthetic fixture\0--network-denied\0")
+                self.assertEqual(self.module.check_release_absence(binary), [
+                    "string present in release binary: --network-denied"])
 
     def test_the_tests_enabled_graph_passes(self) -> None:
         self.assertEqual(self.check(DEV_GRAPH), [])
