@@ -27,7 +27,7 @@ namespace bpr::app {
 		using draft_completion = std::function<void(application::private_run_result<application::durable_draft_commit>)>;
 		using press_completion = std::function<void(application::private_run_result<application::private_workshop_press>)>;
 		private_review_workflow(application::effect_executor&, application::decision_executor&, std::mutex& aLedgerFile, private_review_recovery_registry&, qt::private_review_panel&, QWidget*, draft_sink, run_sink);
-		~private_review_workflow();
+		~private_review_workflow() override;
 		void open(adapters::sqlite::private_review_configuration, std::function<void()>);
 		void observe(core::private_review_binding, std::shared_ptr<const core::diff_semantic_index>, std::optional<core::source_line_ref>);
 		void profiles(std::span<const core::agent_profile>);

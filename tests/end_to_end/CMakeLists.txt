@@ -2295,6 +2295,15 @@ bpr_bound_automated_run(
 
 # [[BPR-1374]]. An unsent reply survives Refresh and restart; a reply whose
 # thread is resolved or deleted elsewhere is kept and flagged; nothing is sent.
+bpr_add_executable(test_private_draft_restore private_draft_restore_tests.cpp)
+target_link_libraries(test_private_draft_restore PRIVATE BetterPullReview::Composition)
+bpr_enable_hardening(test_private_draft_restore)
+bpr_enable_warnings(test_private_draft_restore)
+bpr_add_network_isolated_test(NAME application_private_draft_restore COMMAND test_private_draft_restore)
+set_tests_properties(application_private_draft_restore PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 30 PASS_REGULAR_EXPRESSION "private-draft-restore:pass")
+
 bpr_add_network_isolated_test(
     NAME application_reply_draft_contract
     WINDOWS_UNCONTAINED

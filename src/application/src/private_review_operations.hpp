@@ -1,10 +1,16 @@
 #ifndef BPR_SRC_APPLICATION_SRC_PRIVATE_REVIEW_OPERATIONS_HPP
 #define BPR_SRC_APPLICATION_SRC_PRIVATE_REVIEW_OPERATIONS_HPP
 #include "bpr/application/private_review_application_host.hpp"
+#include <exception>
+#include <utility>
 namespace bpr::application::private_review_operations {
-	struct refused
+	struct refused final : std::exception
 	{
 		private_run_error Error;
+		explicit refused(private_run_error aError)
+			: Error(std::move(aError))
+		{ }
+		auto what() const noexcept -> const char* override { return "Private review operation refused"; }
 	};
 	template <typename T>
 	auto take(private_store_result<T> aValue) -> T

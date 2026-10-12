@@ -394,6 +394,7 @@ namespace bpr::app {
 			if (aContext.Composing) {
 				auto                                        composition = application::private_composition_projection{ };
 				std::vector<core::private_source_reference> sources;
+				sources.reserve(aContext.Sources.size());
 				for (const auto& source : aContext.Sources) {
 					sources.push_back(source.Source);
 				}
@@ -675,16 +676,30 @@ namespace bpr::app {
 		if (!Binding) {
 			return;
 		}
-		const auto head = Binding->Revision.HeadOid;
+		const auto head       = Binding->Revision.HeadOid;
+		const auto generation = Generation;
+		const auto prior      = Current;
 		post([head](context& aContext) {
 			// Restore only drafts under the currently accepted head.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
 			output.Drafts  = accepted(host.restore(head));
 			output.Refresh = false;
-			return output;
-		},
-			 std::move(aCompletion));
+			return output; },
+			 [this, generation, prior, complete = std::move(aCompletion)](auto aCommit) mutable {
+				 // A comparison can retire the read while it waits on either
+				 // lane. Restore current drafts once the new binding settles;
+				 // an old conflict must not leave the caller unready forever.
+				 // A store refusal, closed workflow or different PR context
+				 // answers normally and never starts a retry loop.
+				 if (!Closing && prior == Current && Binding && generation != Generation) {
+					 restore(std::move(complete));
+					 return;
+				 }
+				 if (complete) {
+					 complete(std::move(aCommit));
+				 }
+			 });
 	}
 	void private_review_workflow::select_draft(core::source_line_ref aLine, draft_completion aCompletion)
 	{

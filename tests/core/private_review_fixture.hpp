@@ -52,7 +52,7 @@ namespace private_review_fixture {
 			.Profile = host_profile_id{ 1 }, .ProfileRevision = github_profile_revision{ 1 }, .Host = bound.Scope.Host, .HostAuthority = bound.HostAuthority, .Account = bound.Scope.Account, .Viewer = github_viewer_actor_id{ 3 }, .Repository = bound.Scope.Repository, .Cache = opaque<repository_cache_scope_id>(), .PullRequest = bound.Scope.PullRequest, .Number = pull_request_number{ 5 }, .Scope = bound.LeftAnchor.Authority
 		};
 		const auto key      = file_comparison_key{ authority, bound.Scope.Repository, bound.Scope.PullRequest, bound.LeftAnchor, bound.RightAnchor,
-												   *parse_git_blob_oid("3333333333333333333333333333333333333333"), *parse_git_blob_oid("4444444444444444444444444444444444444444"),
+												   parse_git_blob_oid("3333333333333333333333333333333333333333"), parse_git_blob_oid("4444444444444444444444444444444444444444"),
 												   file_identity_of("file.cpp"), *options_digest({ }), diff_algorithm_revision{ 1 } };
 		const auto left     = std::string{ "first\nold\nlast\n" };
 		const auto right    = std::string{ "first\nnew\nlast\n" };
