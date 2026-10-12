@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1399"
 title: "Correct merge-gates pack critical-review counterexamples"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0068", "RFC-BPR-0069", "RFC-BPR-0070"]
 depends_on: ["BPR-1392", "BPR-1395", "BPR-1398"]
 priority: "P1"
