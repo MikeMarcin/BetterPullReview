@@ -354,6 +354,8 @@ namespace bpr::qt {
 		switch (aGroup) {
 		case home_group::needs_you:
 			return NeedsMe;
+		case home_group::my_pull_requests:
+			return QColor{ };
 		case home_group::waiting_on_others:
 			return WaitingOnOthers;
 		case home_group::following:

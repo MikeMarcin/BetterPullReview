@@ -130,6 +130,8 @@ namespace bpr::app::detail {
 			/// [[BPR-1379]]. Changing this server fact lets Home Refresh observe
 			/// a submitted review without opening that PR in the course.
 			std::shared_ptr<std::atomic<bool>> ReviewedByViewer;
+			/// \brief When supplied, false means the fake server no longer requests reviewers.
+			std::shared_ptr<std::atomic<bool>> ReviewerRequestsPresent;
 		};
 		std::vector<pull_request> OpenPullRequests;
 	};

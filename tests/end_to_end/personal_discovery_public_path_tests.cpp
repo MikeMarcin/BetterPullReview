@@ -180,11 +180,14 @@ try {
 	// macOS ships it, so the course forces it against the fixture, as the
 	// other composed public-preview courses do; otherwise Linux and Windows
 	// refuse the activation and never reach those steps.
-	options.PublicPreviewEnabledCourse = true;
-	options.PersonalDiscovery          = repository_with_unrelated_pull_requests();
-	const auto approved                = std::make_shared<std::atomic<bool>>(false);
-	const auto approvalRow             = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4003U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
-	approvalRow->ReviewedByViewer      = approved;
+	options.PublicPreviewEnabledCourse   = true;
+	options.PersonalDiscovery            = repository_with_unrelated_pull_requests();
+	const auto approved                  = std::make_shared<std::atomic<bool>>(false);
+	const auto approvalRow               = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4003U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
+	approvalRow->ReviewedByViewer        = approved;
+	const auto awaiting                  = std::make_shared<std::atomic<bool>>(true);
+	const auto authoredRow               = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4001U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
+	authoredRow->ReviewerRequestsPresent = awaiting;
 	if (cliCourse) {
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 	}
@@ -486,6 +489,8 @@ try {
 	const auto waiting = state_rows(*windowA, qt::home_group::waiting_on_others);
 	expect(contains(waiting, "octo-org/review-repository#4001") && !contains(needs, "octo-org/review-repository#4001"),
 		   "an authored pull request awaiting reviewers waits on others and does not need me");
+	const auto myRows = state_rows(*windowA, qt::home_group::my_pull_requests);
+	expect(contains(myRows, "octo-org/review-repository#4002") && !contains(needs, "octo-org/review-repository#4002"), "accepted authored discovery with unknown detail has its own Home section");
 	const auto requested = queue_item(*windowA, 4003);
 	const auto authored  = queue_item(*windowA, 4001);
 	expect(requested && requested->Membership.Requested && requested->Bucket == core::attention_bucket::initial_review_requested
@@ -608,7 +613,7 @@ try {
 			   "the first window has the pull request open behind Home");
 		auto* rows = static_cast<QListView*>(nullptr);
 		auto  row  = QModelIndex{ };
-		for (const auto group : { qt::home_group::needs_you, qt::home_group::waiting_on_others, qt::home_group::following }) {
+		for (const auto group : { qt::home_group::needs_you, qt::home_group::my_pull_requests, qt::home_group::waiting_on_others, qt::home_group::following }) {
 			auto* const view = windowA->home_list()->state_view(group);
 			for (auto index = 0; view != nullptr && index < view->model()->rowCount(); ++index) {
 				if (view->model()->index(index, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#17")) {
@@ -701,17 +706,41 @@ try {
 	// both windows see.
 	expect(windowB->queue_refresh_action()->isVisible() && windowB->queue_refresh_action()->isEnabled(), "the second window's glyph can refresh");
 	const auto beforeRefresh = evidence().AccountReadOperations.size();
+	const auto authoredRef   = queue_item(*windowA, 4001)->Ref;
+	expect(windowA->home_list()->select(authoredRef, true), "authored waiting row selected before accepted refresh");
 	approved->store(true);
+	awaiting->store(false);
 	windowB->queue_refresh_action()->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
 	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads == 8U && reads_since(evidence(), beforeRefresh, cliCourse).size() == 16U
 			   && only_discovery(reads_since(evidence(), beforeRefresh, cliCourse)),
 		   "Refresh reads retained PR metadata and review summaries before the bounded personal searches");
+	wait_for([&] { const auto item = queue_item(*windowA, 4001); return item && item->Bucket == core::attention_bucket::quiet
+		&& contains(state_rows(*windowA, qt::home_group::my_pull_requests), "octo-org/review-repository#4001"); }, "accepted authored refresh moves waiting-only into My pull requests", diagnose);
+	expect(windowA->selected_queue_item() && windowA->selected_queue_item()->Ref == authoredRef
+			   && windowA->home_list()->current_view() == windowA->home_list()->state_view(qt::home_group::my_pull_requests),
+		   "exact authored selection survives its section change without retargeting");
+	expect(!contains(state_rows(*windowA, qt::home_group::waiting_on_others), "octo-org/review-repository#4001")
+			   && !contains(state_rows(*windowA, qt::home_group::needs_you), "octo-org/review-repository#4001"),
+		   "accepted refresh leaves one active authored row and no Needs me contribution");
+
 	expect(queue_numbers(*windowA).contains(4003) && queue_numbers(*windowB).contains(4003) && queue_numbers(*windowB).contains(17), "both windows keep the list");
 	expect(queue_item(*windowA, 4003)->Bucket == core::attention_bucket::quiet && queue_item(*windowB, 4003)->Bucket == core::attention_bucket::quiet
 			   && contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"),
 		   "Home Refresh moves an approved unopened PR to Following in both windows");
+
+	if (!cliCourse) {
+		// The normal Return gesture on that same authored identity opens it here.
+		const auto siblingIdentity = windowB->identity_label()->toolTip();
+		auto       openAuthored    = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(windowA->home_list()->current_view(), &openAuthored);
+		wait_for([&] { return !windowA->showing_home() && windowA->session_panel()->status() == core::github_status::pull_request_ready
+						   && windowA->identity_label()->toolTip().startsWith(QStringLiteral("octo-org/review-repository  #4001 ")); }, "ordinary authored row action opens the exact PR in its intended window", diagnose);
+		expect(windowB->showing_home() && windowB->identity_label()->toolTip() == siblingIdentity, "opening the authored row preserves the sibling's destination");
+		windowA->home_action()->trigger();
+		wait_for([&] { return windowA->showing_home(); }, "return Home after the ordinary authored open");
+	}
 
 	// A second SQLite connection holds the real fixture store's write lock.
 	// A failed durable add leaves the input and collection intact; it cannot say saved.

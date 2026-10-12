@@ -82,7 +82,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// Eighteen since [[BPR-1375]]: the profile's Claude model, in the
 	/// profile row. A migrated row reads none, Claude's own default, and keeps
 	/// every other field it had.
-	inline constexpr std::int64_t workbench_settings_schema_version = 18;
+	/// Nineteen since [[BPR-1388]]: Home's authored panel has its own collapse
+	/// bit. Older window rows retain the four original bits and start it expanded.
+	inline constexpr std::int64_t workbench_settings_schema_version = 19;
 
 	/// \brief Owns the durable workbench layout database.
 	///

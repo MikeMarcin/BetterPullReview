@@ -29,21 +29,7 @@ namespace bpr::qt {
 
 	auto home_group_of(const core::attention_bucket aBucket) noexcept -> home_group
 	{
-		switch (aBucket) {
-		case core::attention_bucket::initial_review_requested:
-		case core::attention_bucket::changed_since_my_review:
-		case core::attention_bucket::new_comments_or_author_replies:
-		case core::attention_bucket::fixes_awaiting_verification:
-			return home_group::needs_you;
-		case core::attention_bucket::authored_awaiting_reviewer_action:
-			return home_group::waiting_on_others;
-		case core::attention_bucket::observed_with_new_activity:
-		case core::attention_bucket::quiet:
-		// [[BPR-0989]]. Not known to need me; followed until it is read.
-		case core::attention_bucket::detail_unknown:
-			break;
-		}
-		return home_group::following;
+		return core::home_section_for(core::queue_membership{ }, aBucket);
 	}
 
 	auto home_group_label(const home_group aGroup) -> QString
@@ -51,6 +37,8 @@ namespace bpr::qt {
 		switch (aGroup) {
 		case home_group::needs_you:
 			return QStringLiteral("Needs me");
+		case home_group::my_pull_requests:
+			return QStringLiteral("My pull requests");
 		case home_group::waiting_on_others:
 			return QStringLiteral("Waiting on others");
 		case home_group::following:
@@ -128,6 +116,9 @@ namespace bpr::qt {
 		const auto unseen  = static_cast<std::uint64_t>(aItem.Facts.UnseenComments);
 		const auto author  = text(aItem.Facts.Author);
 		auto       clauses = QStringList{ };
+		if (aItem.Membership.authored() && aItem.Bucket != core::attention_bucket::authored_awaiting_reviewer_action) {
+			clauses.push_back(QStringLiteral("My pull request"));
+		}
 		switch (aItem.Bucket) {
 		case core::attention_bucket::initial_review_requested:
 			if (author.isEmpty()) {
@@ -199,6 +190,15 @@ namespace bpr::qt {
 				}
 			}
 			summary = parts.join(QStringLiteral(", "));
+			break;
+		}
+		case home_group::my_pull_requests: {
+			const auto actionable = std::ranges::count_if(aRows, [](const core::queue_item& aRow) { return core::home_section_for(core::queue_membership{ }, aRow.Bucket) == core::home_queue_section::needs_you; });
+			const auto unknown    = std::ranges::count(aRows, core::attention_bucket::detail_unknown, &core::queue_item::Bucket);
+			summary               = counted(static_cast<std::uint64_t>(actionable), QStringLiteral("needs action"), QStringLiteral("need action"));
+			if (unknown > 0) {
+				summary += QStringLiteral("; %1 unknown").arg(QString::number(unknown));
+			}
 			break;
 		}
 		case home_group::waiting_on_others:
@@ -351,7 +351,7 @@ namespace bpr::qt {
 				? QString{ }
 				: text(core::name(item->Membership.Role));
 		case group_role:
-			return static_cast<int>(home_group_of(item->Bucket));
+			return static_cast<int>(core::home_section_for(item->Membership, item->Bucket));
 		case unseen_role:
 			return item->Facts.UnseenComments > 0U;
 		// [[BPR-0776]]. The roles Home's one row anatomy reads. Time and

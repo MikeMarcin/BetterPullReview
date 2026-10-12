@@ -1012,7 +1012,7 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
-		/// \brief Two exact synthetic reviews and one inaccessible repository for independent windows.
+		/// \brief Three exact synthetic reviews, including one authored, and an inaccessible repository for independent windows.
 		[[nodiscard]] auto independent_window_recording(const fixture_descriptor& aDescriptor, std::string_view aHead)
 			-> std::vector<recorded_exchange>
 		{
@@ -1020,39 +1020,45 @@ namespace bpr::app::detail {
 				|| aDescriptor.PullRequestId.value() != 3001U) {
 				throw std::runtime_error{ "Independent windows require the bounded synthetic review fixture" };
 			}
-			auto result = load_recording(aDescriptor, aHead);
-			auto second = result;
-			for (auto& exchange : second) {
-				const auto oldPath = exchange.Request.Path;
-				const auto oldBody = exchange.Request.Body;
-				replace_all(exchange.Request.Path, "/pulls/17", "/pulls/18");
-				replace_all(exchange.Request.Path, "/issues/17/", "/issues/18/");
-				replace_all(exchange.Request.Body, "\"number\":17", "\"number\":18");
-				if (exchange.Request.Path == oldPath && exchange.Request.Body == oldBody) {
-					continue; // Viewer, repository, checks and search have one exact shared answer.
-				}
-				replace_all(exchange.Response.Body, "PR_fixture_17", "PR_fixture_18");
-				replace_all(exchange.Response.Body, "PRR_fixture_", "PRR_fixture_18_");
-				replace_all(exchange.Response.Body, "PRRT_fixture_", "PRRT_fixture_18_");
-				replace_all(exchange.Response.Body, "PRRC_fixture_", "PRRC_fixture_18_");
-				replace_all(exchange.Response.Body, "IC_fixture_", "IC_fixture_18_");
-				if (exchange.Request.Operation == read_operation::list_reviews) {
-					auto reviews = QJsonDocument::fromJson(QByteArray::fromStdString(exchange.Response.Body)).array();
-					if (reviews.size() != 1) {
-						throw std::runtime_error{ "Independent review recording must contain one review" };
+			const auto first  = load_recording(aDescriptor, aHead);
+			auto       result = first;
+			for (const auto number : { 18U, 4001U }) {
+				auto second = first;
+				for (auto& exchange : second) {
+					const auto oldPath = exchange.Request.Path;
+					const auto oldBody = exchange.Request.Body;
+					replace_all(exchange.Request.Path, "/pulls/17", "/pulls/" + std::to_string(number));
+					replace_all(exchange.Request.Path, "/issues/17/", "/issues/" + std::to_string(number) + "/");
+					replace_all(exchange.Request.Body, "\"number\":17", "\"number\":" + std::to_string(number));
+					if (exchange.Request.Path == oldPath && exchange.Request.Body == oldBody) {
+						continue; // Viewer, repository, checks and search have one exact shared answer.
 					}
-					auto review = reviews.at(0).toObject();
-					review.insert(QStringLiteral("id"), 4002);
-					reviews.replace(0, review);
-					exchange.Response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
+					replace_all(exchange.Response.Body, "PR_fixture_17", "PR_fixture_" + std::to_string(number));
+					replace_all(exchange.Response.Body, "PRR_fixture_", "PRR_fixture_" + std::to_string(number) + "_");
+					replace_all(exchange.Response.Body, "PRRT_fixture_", "PRRT_fixture_" + std::to_string(number) + "_");
+					replace_all(exchange.Response.Body, "PRRC_fixture_", "PRRC_fixture_" + std::to_string(number) + "_");
+					replace_all(exchange.Response.Body, "IC_fixture_", "IC_fixture_" + std::to_string(number) + "_");
+					if (exchange.Request.Operation == read_operation::list_reviews) {
+						auto reviews = QJsonDocument::fromJson(QByteArray::fromStdString(exchange.Response.Body)).array();
+						if (reviews.size() != 1) {
+							throw std::runtime_error{ "Independent review recording must contain one review" };
+						}
+						auto review = reviews.at(0).toObject();
+						review.insert(QStringLiteral("id"), number == 18U ? 4002 : 8001);
+						reviews.replace(0, review);
+						exchange.Response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
+					}
+					if (exchange.Request.Operation == read_operation::get_pull_request) {
+						auto body = QJsonDocument::fromJson(QByteArray::fromStdString(exchange.Response.Body)).object();
+						body.insert(QStringLiteral("id"), number == 18U ? 3002 : 7001);
+						body.insert(QStringLiteral("number"), static_cast<qint64>(number));
+						if (number == 4001U) {
+							body.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
+						}
+						exchange.Response.Body = QJsonDocument{ body }.toJson(QJsonDocument::Compact).toStdString();
+					}
+					result.push_back(std::move(exchange));
 				}
-				if (exchange.Request.Operation == read_operation::get_pull_request) {
-					auto body = QJsonDocument::fromJson(QByteArray::fromStdString(exchange.Response.Body)).object();
-					body.insert(QStringLiteral("id"), 3002);
-					body.insert(QStringLiteral("number"), 18);
-					exchange.Response.Body = QJsonDocument{ body }.toJson(QJsonDocument::Compact).toStdString();
-				}
-				result.push_back(std::move(exchange));
 			}
 			const auto repository = std::ranges::find_if(result, [](const auto& aExchange) {
 				return aExchange.Request.Operation == read_operation::get_repository;
@@ -1648,12 +1654,16 @@ namespace bpr::app::detail {
 					response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
 					return response;
 				}
-				auto users = QJsonArray{ };
+				auto       users           = QJsonArray{ };
+				const auto requestsPresent = !found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load();
 				for (const auto& login : found->RequestedUsers) {
+					if (!requestsPresent) {
+						break;
+					}
 					users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
 				}
 				auto teams = QJsonArray{ };
-				for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+				for (std::size_t team = 0U; team < (requestsPresent ? found->RequestedTeams : 0U); ++team) {
 					teams.append(QJsonObject{ { QStringLiteral("slug"), QStringLiteral("team-%1").arg(team) } });
 				}
 				const auto number = QString::number(found->Number);
@@ -1676,7 +1686,7 @@ namespace bpr::app::detail {
 				const auto found = std::ranges::find(fixture.OpenPullRequests, semantic.PullRequestNumber, &github_personal_discovery_fixture::pull_request::Number);
 				auto       users = QJsonArray{ };
 				auto       teams = QJsonArray{ };
-				if (ours && found != fixture.OpenPullRequests.end()) {
+				if (ours && found != fixture.OpenPullRequests.end() && (!found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load())) {
 					for (const auto& login : found->RequestedUsers) {
 						users.append(QJsonObject{ { QStringLiteral("login"), QString::fromStdString(login) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(login) } });
 					}

@@ -637,8 +637,8 @@ namespace {
 		// and is not quiet: the Quiet-only filter leaves it out.
 		const auto unknown = item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true });
 		expect(qt::home_group_of(bucket::detail_unknown) == qt::home_group::following
-				   && qt::home_why_sentence(unknown) == QStringLiteral("Nothing about it has been read yet."),
-			   "an unread row is followed and says nothing about it has been read");
+				   && qt::home_why_sentence(unknown) == QStringLiteral("My pull request; Nothing about it has been read yet."),
+			   "an authored unread row retains its unknown explanation and identifies ownership");
 		{
 			auto source = qt::review_landing_model{ };
 			auto proxy  = qt::review_landing_filter_model{ source };

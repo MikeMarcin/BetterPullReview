@@ -1731,3 +1731,9 @@ defines the single state machine, limits, migration and cancellation rules.
 Its successful receipt selects the exact server comment only after an ordinary
 accepted refresh and source material are available. No widget capability,
 second mutation lane, or full model reset is introduced.
+
+## Authored Home section allocation (RFC-BPR-0066)
+
+The core's `home_section_for` classifies each accepted queue row from its own author-role/authored-discovery membership and unchanged attention bucket. Waiting-only authored rows stay in Waiting on others; other authored rows go to My pull requests. The Qt landing model projects this decision separately from its attention color role, and the existing window publication restores exact selected identity after accepted refresh. No new provider work, enrollment, notification policy or repository-drawer attention is introduced.
+
+The host's window-owned `home_view_state` adds bit 16 for My pull requests without changing the original collapse bits. Workbench settings schema 19 widens the private window row's collapse bound to 31 and transactionally rebuilds older tables with all existing fields copied. The new bit starts zero on upgrade; named group/band collapse remains window-session state. Profile defaults carry no Home view.

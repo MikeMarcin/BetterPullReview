@@ -624,6 +624,74 @@ namespace {
 		expect(nested.back()->header_offset() == 0, "the band below keeps its header at its own top");
 	}
 
+	void test_authored_sections_in_every_home_arrangement(const QString& aRenderPath)
+	{
+		home_fixture home;
+		auto         mine           = item(1, bucket::new_comments_or_author_replies, 3U);
+		mine.Membership.Authored    = true;
+		auto waiting                = item(2, bucket::authored_awaiting_reviewer_action);
+		waiting.Membership.Role     = core::github_role::author;
+		auto quiet                  = item(3, bucket::quiet);
+		quiet.Membership.Role       = core::github_role::author;
+		auto unknown                = item(4, bucket::detail_unknown);
+		unknown.Membership.Authored = true;
+		auto other                  = item(1, bucket::new_comments_or_author_replies, 2U);
+		other.Ref.Account           = "another-account";
+		const auto queue            = core::ordered_queue(std::array{ mine, waiting, quiet, unknown, other });
+		home.Source.apply(queue);
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		home.List.refresh();
+		settle(100);
+		auto* const authored = home.List.state_panel(qt::home_group::my_pull_requests);
+		expect(authored->isVisible() && authored->count() == 3 && !authored->tone().isValid(), "mixed-state authored section has three rows and a neutral theme header");
+		expect(home.List.state_panel(qt::home_group::needs_you)->count() == 1 && home.List.state_panel(qt::home_group::waiting_on_others)->count() == 1, "Needs me counts only the other account and waiting-only keeps its panel");
+		expect(authored->summary().contains(QStringLiteral("1 needs action")) && authored->summary().contains(QStringLiteral("3 new comments")) && authored->summary().contains(QStringLiteral("1 unknown")), "collapsed authored summary preserves actionable, unread and unknown facts");
+		const auto row = home.List.state_model(qt::home_group::my_pull_requests)->index(0, 0);
+		expect(row.data(qt::home_row_role::why).toString().contains(QStringLiteral("My pull request")) && row.data(qt::home_row_role::why).toString().contains(QStringLiteral("3 new comments")), "authored row identifies ownership and unread activity when headers are hidden");
+		expect(row.data(qt::home_row_role::state).toInt() == static_cast<int>(qt::home_group::needs_you), "authorship separation keeps the row's amber attention state");
+		for (const auto grouping : { application::home_grouping::none, application::home_grouping::organization, application::home_grouping::repository, application::home_grouping::account }) {
+			for (const auto headers : { true, false }) {
+				home.List.set_grouping(grouping);
+				home.List.set_state_headers(headers);
+				home.List.refresh();
+				settle(50);
+				expect(home.List.select(mine.Ref, true) && home.List.current_queue_item()->Ref == mine.Ref, "every grouping/header arrangement keeps exact authored selection reachable");
+				auto sections = std::vector<int>{ };
+				if (grouping == application::home_grouping::none && !headers) {
+					const auto* model = home.List.flat_view()->model();
+					for (auto i = 0; i < model->rowCount(); ++i) {
+						sections.push_back(model->index(i, 0).data(qt::review_landing_model::group_role).toInt());
+					}
+					expect(std::ranges::is_sorted(sections), "without headers ownership sections remain contiguous in section order");
+				}
+				if (!aRenderPath.isEmpty()) {
+					const auto path = QString{ aRenderPath }.replace(QStringLiteral(".png"), QStringLiteral("-authored-%1-%2.png").arg(static_cast<int>(grouping)).arg(headers));
+					expect(home.List.grab().save(path), "authored arrangements render to inspection artifacts");
+				}
+			}
+		}
+		home.List.set_grouping(application::home_grouping::none);
+		home.List.set_state_headers(true);
+		home.List.set_collapsed_panels(application::home_collapsed_panel::waiting_on_others);
+		expect(!authored->collapsed(), "old waiting collapse never hides separated authored activity");
+		authored->header()->setFocus();
+		send_key(*authored->header(), Qt::Key_Left);
+		expect(authored->collapsed() && (home.List.collapsed_panels() & application::home_collapsed_panel::my_pull_requests) != 0U, "keyboard collapse uses its own durable bit");
+		send_key(*authored->header(), Qt::Key_Right);
+		expect(!authored->collapsed(), "keyboard expands the authored panel");
+		auto preferences  = application::queue_presentation_preferences{ };
+		preferences.Quiet = application::queue_quiet_filter::attention;
+		home.Filter.apply(preferences);
+		home.List.refresh();
+		expect(authored->count() == 2 && authored->summary().contains(QStringLiteral("1 unknown")), "filtered authored count excludes quiet while preserving unknown");
+		home.Filter.apply({ });
+		home.Source.apply(std::array{ mine, quiet, unknown });
+		home.List.refresh();
+		settle(50);
+		expect(authored->isVisible() && !home.List.empty_sentence()->isVisible() && !home.List.state_panel(qt::home_group::needs_you)->isVisible(), "authored-only Home has its rows and no empty Needs me panel");
+	}
+
 	// Empty states are absent; an empty ready queue is one sentence linking to Repositories.
 	void test_empty_states_and_the_all_empty_sentence()
 	{
@@ -1587,6 +1655,7 @@ auto main(int argc, char** argv) -> int
 	}
 	const auto scrolledPath = renderPath.isEmpty() ? QString{ } : QString{ renderPath }.replace(QStringLiteral(".png"), QStringLiteral("-scrolled.png"));
 
+	test_authored_sections_in_every_home_arrangement(renderPath);
 	test_rows_follow_state_order_with_one_anatomy(renderPath);
 	test_colour_is_only_the_reason_word_and_the_rail();
 	test_rows_wrap_without_elision();

@@ -490,12 +490,18 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   the next load. The pull-request stack's empty page is not part of Home; it
   stays parented in the hidden pull-request column so what writes to it keeps
   its shape.
-- **The list** is always in state order — Needs me, then Waiting on others,
-  then Following — from the core's attention projection. Qt invents no
-  urgency, and Group only changes the panels around the rows. A pull request
-  nothing has been read about yet sits in Following with the reason word
-  Unknown and "Nothing about it has been read yet", never Quiet, and the
-  Quiet-only filter does not show it ([[BPR-0989]]).
+- **The list** is in section order — Needs me, My pull requests, Waiting on
+  others, Following, then Recently viewed — from the core's row-scoped Home
+  decision ([RFC-BPR-0066](../rfcs/RFC-BPR-0066-home-authored-pull-requests.md)).
+  Accepted author-role or authored-discovery membership never appears or counts
+  in Needs me. Authored rows with the waiting-only bucket remain in Waiting on
+  others; every other authored row is in My pull requests, including actionable,
+  quiet and unknown. Unread activity still outranks waiting, so it moves an
+  authored PR to My pull requests and retains its unread count. Other people's
+  unknown rows sit in Following. Unknown detail is labeled and never treated as
+  Quiet. Group changes the panels around the rows; section order comes first
+  and the chosen sort orders rows inside each section. Notifications and the
+  repository drawer retain the same attention policy and counts.
 - **A row** is the identity, the title, a second line that says why and ends
   in its one-word reason, and at the right the time and my reading progress.
   Recently viewed uses the same anatomy, so a row reads the same way wherever
@@ -524,7 +530,12 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   row.
 - **Panels.** With State headers on — the default — each state is a bordered
   card with a rail in its colour and a tinted header carrying the name and
-  the count. A header sticks to the top of the scroll area while its panel is
+  the count. My pull requests uses a neutral header because its rows carry
+  different states; their reason words keep their existing state colours and
+  their sentences identify the PR as mine alongside the observed activity.
+  Its collapsed summary names actionable and unread activity, retaining unknown
+  detail distinctly. Its own collapse starts expanded on upgrade and then
+  persists per window independently of Waiting on others. A header sticks to the top of the scroll area while its panel is
   in view. Every panel collapses to its header by chevron, Space, Return,
   Left and Right, keeps its count and a one-line summary while collapsed, and
   announces its expanded or collapsed state. An empty state is not shown, and
@@ -633,7 +644,8 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
 
 Group, State headers, Filter and the collapse of the panels that carry no
 name are remembered per window, in the per-window table of the workbench
-layout store (schema 8). A group panel's own collapse is not: its key would
+layout store (Home view introduced in schema 8; schema 19 adds the
+independent My pull requests collapse bit). A group panel's own collapse is not: its key would
 name an owner, a repository or an account, which that store has never held
 ([[BPR-0189]]), so it lasts only while its window is open.
 

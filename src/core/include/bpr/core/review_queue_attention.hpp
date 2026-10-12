@@ -32,6 +32,17 @@ namespace bpr::core {
 		detail_unknown,
 	};
 
+	/// \brief Home's section order, independent of a row's unchanged attention bucket.
+	enum class home_queue_section : std::uint8_t {
+		needs_you,
+		my_pull_requests,
+		waiting_on_others,
+		following,
+	};
+
+	/// \brief Classifies accepted row-scoped authorship for Home without changing attention or notification eligibility.
+	[[nodiscard]] auto home_section_for(const queue_membership& aMembership, attention_bucket aBucket) noexcept -> home_queue_section;
+
 	/// \brief Durable local notification choices; pause preserves enablement.
 	struct notification_preferences
 	{

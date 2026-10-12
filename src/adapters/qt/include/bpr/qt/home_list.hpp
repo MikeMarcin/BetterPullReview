@@ -352,9 +352,9 @@ namespace bpr::qt {
 			QVBoxLayout*                      Column    = nullptr;
 			home_slice_model*                 RowsModel = nullptr;
 			home_row_view*                    RowsView  = nullptr;
-			std::array<home_panel*, 3U>       Bands{ };
-			std::array<home_slice_model*, 3U> BandModels{ };
-			std::array<home_row_view*, 3U>    BandViews{ };
+			std::array<home_panel*, 4U>       Bands{ };
+			std::array<home_slice_model*, 4U> BandModels{ };
+			std::array<home_row_view*, 4U>    BandViews{ };
 		};
 
 		/// \brief One shown panel and the rows it holds, in reading order.
@@ -422,9 +422,9 @@ namespace bpr::qt {
 		QWidget*                                     Column   = nullptr;
 		QVBoxLayout*                                 Layout   = nullptr;
 		home_row_delegate*                           Delegate = nullptr;
-		std::array<home_slice_model*, 3U>            StateModels{ };
-		std::array<home_panel*, 3U>                  StatePanels{ };
-		std::array<home_row_view*, 3U>               StateViews{ };
+		std::array<home_slice_model*, 4U>            StateModels{ };
+		std::array<home_panel*, 4U>                  StatePanels{ };
+		std::array<home_row_view*, 4U>               StateViews{ };
 		home_panel*                                  FlatPanel = nullptr;
 		home_slice_model*                            FlatModel = nullptr;
 		home_row_view*                               FlatView  = nullptr;

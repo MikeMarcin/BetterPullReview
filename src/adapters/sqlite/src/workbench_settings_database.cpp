@@ -202,20 +202,20 @@ namespace bpr::adapters::sqlite::detail {
 		/// `github_role::none` — a role a reviewer can filter by — stays
 		/// distinct from no role filter at all.
 		///
-		/// No name here says what was reviewed. `home_collapsed` is the four
+		/// No name here says what was reviewed. `home_collapsed` is the five
 		/// panels that carry no name; a group panel is keyed by an owner, a
 		/// repository or an account, and its collapse stays in the window.
 		constexpr std::string_view HomeColumns
 			= ",home_grouping INTEGER NOT NULL DEFAULT 0 CHECK(home_grouping BETWEEN 0 AND 3),"
 			  "home_state_headers INTEGER NOT NULL DEFAULT 1 CHECK(home_state_headers BETWEEN 0 AND 1),"
-			  "home_collapsed INTEGER NOT NULL DEFAULT 0 CHECK(home_collapsed BETWEEN 0 AND 15),"
+			  "home_collapsed INTEGER NOT NULL DEFAULT 0 CHECK(home_collapsed BETWEEN 0 AND 31),"
 			  "home_filter_owned INTEGER NOT NULL DEFAULT 0 CHECK(home_filter_owned BETWEEN 0 AND 1),"
 			  "home_role INTEGER NOT NULL DEFAULT 0 CHECK(home_role BETWEEN 0 AND 5),"
 			  "home_added_by INTEGER NOT NULL DEFAULT 0 CHECK(home_added_by BETWEEN 0 AND 3),"
 			  "home_quiet INTEGER NOT NULL DEFAULT 0 CHECK(home_quiet BETWEEN 0 AND 2),"
 			  "home_sort INTEGER NOT NULL DEFAULT 0 CHECK(home_sort BETWEEN 0 AND 2)";
 		static_assert(static_cast<std::int64_t>(application::home_grouping::account) == 3);
-		static_assert(application::home_collapsed_panel::all == 15U);
+		static_assert(application::home_collapsed_panel::all == 31U);
 		static_assert(static_cast<std::int64_t>(core::github_role::author) + 1 == 5);
 		static_assert(static_cast<std::int64_t>(core::observer_rule_kind::path) + 1 == 3);
 		static_assert(static_cast<std::int64_t>(application::queue_quiet_filter::quiet) == 2);
@@ -254,7 +254,11 @@ namespace bpr::adapters::sqlite::detail {
 						"window_id TEXT PRIMARY KEY NOT NULL CHECK(length(window_id) BETWEEN 1 AND 20 AND window_id NOT GLOB '*[^0-9]*' AND substr(window_id,1,1) != '0')");
 			sql.resize(sql.find(",open_modality"));
 			if (aVersion >= 8) {
-				sql += HomeColumns;
+				auto homeColumns = std::string{ HomeColumns };
+				if (aVersion < 19) {
+					homeColumns.replace(homeColumns.find("home_collapsed BETWEEN 0 AND 31"), std::string_view{ "home_collapsed BETWEEN 0 AND 31" }.size(), "home_collapsed BETWEEN 0 AND 15");
+				}
+				sql += homeColumns;
 			}
 			if (aVersion >= 9) {
 				sql += GeometryColumns;
@@ -689,11 +693,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to seventeen
+			// migration named here carries versions one to eighteen
 			// specifically, written out rather than derived from the constant,
 			// so a version this build has no step for is refused rather than
 			// handed to the wrong one.
-			if (*current < 0 || *current > 17) {
+			if (*current < 0 || *current > 18) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}

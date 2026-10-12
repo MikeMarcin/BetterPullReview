@@ -51,6 +51,31 @@ namespace {
 		core::attention_bucket::detail_unknown,
 	};
 
+	void test_home_ownership_preserves_attention()
+	{
+		for (const auto value : every_bucket) {
+			for (const auto role : { core::github_role::author, core::github_role::reviewer }) {
+				auto own            = membership(role, true);
+				own.Authored        = role != core::github_role::author;
+				own.Requested       = true;
+				own.Followed        = true;
+				const auto expected = value == core::attention_bucket::authored_awaiting_reviewer_action
+					? core::home_queue_section::waiting_on_others
+					: core::home_queue_section::my_pull_requests;
+				expect(core::home_section_for(own, value) == expected, "either accepted authorship source separates all attention states despite coexisting reasons");
+			}
+		}
+		auto       authored = membership(core::github_role::author);
+		const auto unread   = core::queue_activity_observation{ .UnseenComments = 3U, .ReviewersAwaited = 2U };
+		const auto bucket   = core::bucket_for(authored, unread);
+		expect(bucket == core::attention_bucket::new_comments_or_author_replies, "authored unread activity still outranks waiting");
+		expect(core::home_section_for(authored, bucket) == core::home_queue_section::my_pull_requests, "unread authored activity belongs to My pull requests");
+		const auto otherAccount = membership(core::github_role::reviewer);
+		expect(core::home_section_for(otherAccount, bucket) == core::home_queue_section::needs_you, "another account without its own authorship still needs me");
+		expect(core::permits_notification({ }, bucket), "Home separation leaves the existing notification eligibility intact");
+		expect(core::home_section_for(authored, core::bucket_for(authored, { .ReviewersAwaited = 2U })) == core::home_queue_section::waiting_on_others, "read activity returns to waiting-only placement");
+	}
+
 	// Seven buckets, and every one of them is reachable. A bucket nothing can
 	// land in is a promise the queue does not keep.
 	void test_every_bucket_is_reachable()
@@ -327,6 +352,7 @@ namespace {
 
 auto main() -> int
 {
+	test_home_ownership_preserves_attention();
 	test_discovery_reasons_and_unknown_detail();
 	for (const auto enabled : { false, true }) {
 		for (const auto paused : { false, true }) {

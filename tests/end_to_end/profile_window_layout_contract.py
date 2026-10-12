@@ -60,7 +60,7 @@ def main():
             home = {window: values for window, *values in database.execute(
                 "SELECT window_id,home_grouping,home_state_headers,home_collapsed,home_filter_owned,home_role"
                 " FROM window_layout")}
-            if home != {str(first): [1, 0, 0, 0, 0], str(second): [0, 1, 8, 1, 4]}:
+            if home != {str(first): [1, 0, 0, 0, 0], str(second): [0, 1, 24, 1, 4]}:
                 raise SystemExit(f"per-window Home views disagree: {home}")
             placements = {window: values for window, *values in database.execute(
                 "SELECT window_id,geometry_x,geometry_y,geometry_width,geometry_height FROM window_layout")}
@@ -77,7 +77,7 @@ def main():
             if dict(rows) != {str(second): width_b}:
                 raise SystemExit(f"explicit Close/orphan reconciliation changed the wrong rows: {rows}")
             if dict(database.execute(
-                    "SELECT window_id,home_collapsed FROM window_layout")) != {str(second): 8}:
+                    "SELECT window_id,home_collapsed FROM window_layout")) != {str(second): 24}:
                 raise SystemExit("the surviving window lost its own Home view")
             if {name: database.execute(f'SELECT * FROM "{name}"').fetchall() for name in tables} != defaults:
                 raise SystemExit("window gestures changed profile defaults or behaviour")

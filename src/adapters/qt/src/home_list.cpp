@@ -22,7 +22,7 @@
 
 namespace bpr::qt {
 	namespace {
-		constexpr auto state_count = std::size_t{ 3U };
+		constexpr auto state_count = std::size_t{ 4U };
 		/// The all-empty sentence sits at a row's inset inside its panel.
 		constexpr auto sentence_inset          = 14;
 		constexpr auto sentence_inset_vertical = 12;
@@ -31,6 +31,7 @@ namespace bpr::qt {
 
 		constexpr auto groups = std::array{
 			home_group::needs_you,
+			home_group::my_pull_requests,
 			home_group::waiting_on_others,
 			home_group::following,
 		};
@@ -45,6 +46,8 @@ namespace bpr::qt {
 			switch (aGroup) {
 			case home_group::needs_you:
 				return QStringLiteral("homeNeedsMePanel");
+			case home_group::my_pull_requests:
+				return QStringLiteral("homeAuthoredPanel");
 			case home_group::waiting_on_others:
 				return QStringLiteral("homeWaitingOnOthersPanel");
 			case home_group::following:
@@ -58,6 +61,8 @@ namespace bpr::qt {
 			switch (aGroup) {
 			case home_group::needs_you:
 				return QStringLiteral("homeNeedsMeRows");
+			case home_group::my_pull_requests:
+				return QStringLiteral("homeAuthoredRows");
 			case home_group::waiting_on_others:
 				return QStringLiteral("homeWaitingOnOthersRows");
 			case home_group::following:
@@ -75,6 +80,8 @@ namespace bpr::qt {
 			switch (*aState) {
 			case home_group::needs_you:
 				return application::home_collapsed_panel::needs_me;
+			case home_group::my_pull_requests:
+				return application::home_collapsed_panel::my_pull_requests;
 			case home_group::waiting_on_others:
 				return application::home_collapsed_panel::waiting_on_others;
 			case home_group::following:

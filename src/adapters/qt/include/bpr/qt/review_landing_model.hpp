@@ -21,19 +21,10 @@ namespace bpr::qt {
 	/// \brief Returns the bucket badge, readable without colour.
 	[[nodiscard]] auto badge_for(core::attention_bucket aBucket) -> QString;
 
-	/// \brief Home's three groups ([[BPR-0650]]): what needs me, what waits
-	/// on somebody else, and what I follow.
-	enum class home_group : std::uint8_t {
-		needs_you,
-		waiting_on_others,
-		following,
-	};
+	/// \brief The core-decided Home sections; ownership is separate from attention.
+	using home_group = core::home_queue_section;
 
-	/// \brief Which of Home's groups a bucket belongs to.
-	///
-	/// \details The first four buckets are the ones that need me, exactly
-	/// the set the repositories drawer marks amber; authored-and-waiting is
-	/// waiting on others; observed activity and quiet are following.
+	/// \brief The attention colour group for a bucket, independent of Home ownership placement.
 	[[nodiscard]] auto home_group_of(core::attention_bucket aBucket) noexcept -> home_group;
 	/// \brief The group's heading, first person and one line.
 	[[nodiscard]] auto home_group_label(home_group aGroup) -> QString;

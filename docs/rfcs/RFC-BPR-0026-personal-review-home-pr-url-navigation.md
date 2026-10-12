@@ -251,3 +251,9 @@ capabilities, and URL-to-workspace routing before allocating bounded slices.
 [[BPR-0599]] anchors acceptance. Later implementation updates the queue, startup,
 URL-opening, and onboarding guides and revises only the affected architecture
 contracts. Until then, the UX specification links this document as future design.
+
+## Adopted authored Home amendment — 2026-10-11
+
+[RFC-BPR-0066](RFC-BPR-0066-home-authored-pull-requests.md) supersedes this RFC's Home and attention and AC-02 where they use attention alone for Home placement. Accepted author-role or authored-discovery membership is scoped to each exact host/account/PR row. Authored rows whose current bucket is waiting-only remain in Waiting on others (the owner's settled Q1); all other authored rows belong to My pull requests and never appear or count in Needs me. The order is Needs me → My pull requests → Waiting on others → Following → Recently viewed, inside every named group and with headers hidden. Attention, unread facts, notification eligibility and repository-drawer counts remain unchanged.
+
+My pull requests has a neutral header, existing state-colored row anatomy and a collapsed count/actionable/unread summary with unknown detail preserved. Its independent top-level collapse starts expanded on upgrade and persists per window; named group and band collapse remains session-only. Filters/counts, selection/opening authority, Recently viewed, the adopted onboarding correction and the later stable Home layout remain intact. The core owns the new deterministic section decision; the host persists its view state; Qt presents it. Historical Done cards and plan exits retain their exact evidence, and RFC0032 A8 human/native obligations are neither accepted nor waived by this amendment. Fresh changed-surface evidence belongs to BPR-1388.

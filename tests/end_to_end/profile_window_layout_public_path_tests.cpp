@@ -318,6 +318,7 @@ auto main(int aArgc, char** aArgv) -> int
 		a->home_group_action(application::home_grouping::organization)->trigger();
 		a->home_state_headers_action()->trigger();
 		b->home_list()->recent_panel()->set_collapsed(true);
+		b->home_list()->state_panel(qt::home_group::my_pull_requests)->set_collapsed(true);
 		auto* const requested = b->home_filter_menu()->findChild<QAction*>(QStringLiteral("homeFilterRequestedAction"));
 		expect(requested != nullptr, "the Filter menu names its Requested item");
 		// A Filter gesture is refused until the queue is ready to be filtered,
@@ -334,7 +335,7 @@ auto main(int aArgc, char** aArgv) -> int
 				   && a->home_view().Collapsed == 0U && !a->home_view().FilterOwned,
 			   "A holds only its own Home arrangement");
 		expect(b->home_view().Grouping == application::home_grouping::none && b->home_view().StateHeaders
-				   && b->home_view().Collapsed == application::home_collapsed_panel::recently_viewed
+				   && b->home_view().Collapsed == (application::home_collapsed_panel::recently_viewed | application::home_collapsed_panel::my_pull_requests)
 				   && b->home_view().Filter.Role == core::github_role::requested_reviewer,
 			   "B holds only its own");
 		const auto available = QGuiApplication::primaryScreen()->availableGeometry();
@@ -371,7 +372,7 @@ auto main(int aArgc, char** aArgv) -> int
 				 "Line details stays hidden after a restart");
 		expect(static_cast<std::uint64_t>(b->files_drawer()->width()) == saved[3], "B restores chosen files width");
 		// [[BPR-0783]]. The window's Home view came back from its own row.
-		wait_for([&] { return b->home_view().Collapsed == application::home_collapsed_panel::recently_viewed; },
+		wait_for([&] { return b->home_view().Collapsed == (application::home_collapsed_panel::recently_viewed | application::home_collapsed_panel::my_pull_requests); },
 				 "B restores the Recently viewed panel it collapsed",
 				 [&] { std::cerr << "b collapsed=" << static_cast<unsigned>(b->home_view().Collapsed)
 								 << " owned=" << b->home_view().FilterOwned << '\n'; });

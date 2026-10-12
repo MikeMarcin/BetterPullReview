@@ -137,6 +137,12 @@ namespace bpr::core {
 			return Role != github_role::none || MatchedRule || Authored || Requested || Followed || Reviewed;
 		}
 
+		/// \brief Accepted authorship for this exact queue row, independent of other enrollment reasons.
+		[[nodiscard]] auto authored() const noexcept -> bool
+		{
+			return Role == github_role::author || Authored;
+		}
+
 		/// \brief Whether a search of a saved repository put it here.
 		[[nodiscard]] auto discovered() const noexcept -> bool
 		{

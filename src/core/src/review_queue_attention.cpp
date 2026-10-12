@@ -3,6 +3,27 @@
 #include <algorithm>
 
 namespace bpr::core {
+	auto home_section_for(const queue_membership& aMembership, const attention_bucket aBucket) noexcept -> home_queue_section
+	{
+		if (aMembership.authored() && aBucket != attention_bucket::authored_awaiting_reviewer_action) {
+			return home_queue_section::my_pull_requests;
+		}
+		switch (aBucket) {
+		case attention_bucket::initial_review_requested:
+		case attention_bucket::changed_since_my_review:
+		case attention_bucket::new_comments_or_author_replies:
+		case attention_bucket::fixes_awaiting_verification:
+			return home_queue_section::needs_you;
+		case attention_bucket::authored_awaiting_reviewer_action:
+			return home_queue_section::waiting_on_others;
+		case attention_bucket::observed_with_new_activity:
+		case attention_bucket::quiet:
+		case attention_bucket::detail_unknown:
+			return home_queue_section::following;
+		}
+		return home_queue_section::following;
+	}
+
 	auto name(const attention_bucket aBucket) noexcept -> std::string_view
 	{
 		switch (aBucket) {

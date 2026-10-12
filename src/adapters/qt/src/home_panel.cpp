@@ -91,7 +91,7 @@ namespace bpr::qt {
 				: 0;
 			const auto lineHeight = std::max({ titleMetrics.height(), chevron_extent, tile, chip });
 			const auto top        = vertical_padding(style);
-			const auto rail       = aPanel.state().has_value() ? home_panel::rail_width : 0;
+			const auto rail       = aPanel.tone().isValid() ? home_panel::rail_width : 0;
 			auto       geometry   = header_geometry{ };
 			auto       x          = rail + leading_inset(style);
 			geometry.Chevron      = QRect{ x, top + ((lineHeight - chevron_extent) / 2), chevron_extent, chevron_extent };
@@ -684,7 +684,7 @@ namespace bpr::qt {
 		// [[BPR-0783]]. A headerless card keeps the border its top edge is.
 		const auto header  = HeaderShown ? Header->heightForWidth(std::max(width(), 1)) : 0;
 		const auto margins = QMargins{
-			State.has_value() ? rail_width : (panelled ? 1 : 0),
+			tone().isValid() ? rail_width : (panelled ? 1 : 0),
 			header > 0 ? header : (panelled ? 1 : 0),
 			panelled ? 1 : 0,
 			panelled && !Collapsed ? 1 : 0,
