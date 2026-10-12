@@ -143,6 +143,6 @@ Qt design language; it proposes no new palette, web surface or visual theme.
 
 [Normalize observations](../issues/60-done/BPR-1390-check-observations.md),
 [compose Overview](../issues/60-done/BPR-1391-check-details-overview.md), and
-[reconcile closeout](../issues/10-backlog/BPR-1392-close-rfc-0068.md) implement this
+[reconcile closeout](../issues/20-ready/BPR-1392-close-rfc-0068.md) implement this
 scope under the [canonical plan](plans/merge-gates-and-review-waiting-v1/milestone-plan.json). See the
 [decision record](assets/merge-gates-and-review-waiting-v1/DECISIONS.md#checks-and-confirmation) for draft readiness.
