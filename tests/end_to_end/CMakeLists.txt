@@ -4033,13 +4033,25 @@ if(UNIX)
     set_tests_properties(application_terminal_diagnostics PROPERTIES TIMEOUT 60)
 endif()
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
+# Windows x64 Debug's independent enrollment course completed in 172.96 s;
+# the old 120 s child backstop killed that same valid course inside this row.
+# Keep the other backstops and give enrollment three times that observation,
+# rounded up. The four serial children permit 900 s in total, with 30 s for
+# startup/teardown, inside three quarters of the 1260 s harness allowance.
+set(bpr_diagnostic_child_timeout 120)
+set(bpr_diagnostic_enrollment_timeout 540)
 bpr_add_network_isolated_test(NAME application_diagnostic_subsystems
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_subsystem_contract.py"
-        "$<TARGET_FILE:test_better_pull_review_application_diff_host_tests>"
-        "$<TARGET_FILE:test_better_pull_review_syntax_classification_contract_tests>"
-        "$<TARGET_FILE:test_better_pull_review_review_queue_enrollment_tests>"
-        "$<TARGET_FILE:test_better_pull_review_agent_protocol_loop_tests>")
-set_tests_properties(application_diagnostic_subsystems PROPERTIES TIMEOUT 180)
+        --course "${bpr_diagnostic_child_timeout}" "$<TARGET_FILE:test_better_pull_review_application_diff_host_tests>"
+        --course "${bpr_diagnostic_child_timeout}" "$<TARGET_FILE:test_better_pull_review_syntax_classification_contract_tests>"
+        --course "${bpr_diagnostic_enrollment_timeout}" "$<TARGET_FILE:test_better_pull_review_review_queue_enrollment_tests>"
+        --course "${bpr_diagnostic_child_timeout}" "$<TARGET_FILE:test_better_pull_review_agent_protocol_loop_tests>")
+math(EXPR bpr_diagnostic_enrollment_ms "${bpr_diagnostic_enrollment_timeout} * 1000")
+math(EXPR bpr_diagnostic_reserve_ms "3 * ${bpr_diagnostic_child_timeout} * 1000 + 30000")
+bpr_bound_automated_run(application_diagnostic_subsystems TIMEOUT 1260
+    BUDGET_MS "${bpr_diagnostic_enrollment_ms}" RUNS 1 RESERVE_MS "${bpr_diagnostic_reserve_ms}")
+bpr_add_network_isolated_test(NAME diagnostic_subsystem_contract
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/diagnostic_subsystem_contract_tests.py")
 endif()
 
 # BPR-0972 reports structural counterexamples; the marker is not blanket AC2 acceptance.

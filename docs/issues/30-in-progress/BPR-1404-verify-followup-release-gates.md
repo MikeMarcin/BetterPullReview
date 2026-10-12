@@ -85,3 +85,15 @@ read-only binding, and existing mutation/authority/shutdown guards remain.
 The aggregate manifest reseal and the passing hostile composition controls are
 recorded in the ledger. Actual final-source native full-course checks remain
 pending.
+
+New normal-gate observations remain explicit: Mac `99e96691` history passed
+all 32 retained/source checks but exceeded the unchanged 100 ms input interval
+at late refresh epochs (110–173 ms), although all refresh/selection completion
+bounds passed. Diagnosis remains open. Windows `8cf67d793` diagnostic wrapping
+killed enrollment at 120 seconds despite its independent native pass in
+172.96 seconds. Explicit child backstops and a checked combined harness bound
+repair that mismatch; five refusal/canary/timeout counterexamples pass and
+native completion is pending. The ledger records sizing and measured context.
+The next candidate also includes the owner-requested committed BPR-1406 Home
+author labels through `77905f2fe`; its recorded 52/52 related checks are reused
+and the final native Home selectors remain required.

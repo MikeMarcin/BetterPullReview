@@ -178,6 +178,43 @@ checks and the owner's accepted frozen looks. Those changes are preserved;
 final native affected checks must include Home, Overview, landing models and
 personal-discovery paths in addition to this milestone's repairs.
 
+The owner's subsequent instruction includes committed BPR-1406 through
+`77905f2fe289320f03792f516896a4f4fc1c088a` in the next release candidate.
+Its [completed card](../issues/60-done/BPR-1406-name-the-author-on-home-rows.md)
+records author labels on every non-authored Home row, matching accessibility
+text, 52/52 related checks, format/tidy/documentation and an inspected offscreen
+render. The same native Home-related selectors cover this inherited change.
+
+## Newly collected timing frontiers
+
+The clean Mac normal gate at `99e96691` passed both unchanged 100 ms load
+courses (responsiveness 12.14 s, launch 12.35 s), but failed history in
+196.38 s. All 32 retained epochs and exact sources passed. Every refresh
+completed within 12 seconds and every source selection within two seconds;
+the failed bound is the separate 100 ms input interval. Refresh epochs 2–25
+had maximum pulse gaps of 71–85 ms; epochs 26, 27 and 29–32 reached
+110–173 ms. This actual failure remains open while its event-lane cost and
+runtime conditions are diagnosed. No timing bound or assertion is relaxed.
+
+The Windows x64 Debug normal gate at `8cf67d793` separately failed
+`application_diagnostic_subsystems` after 134.70 s: its enrollment child hit
+the wrapper's hardcoded 120-second backstop. The independent enrollment row
+had already passed in 172.96 s on that same native producer, Qt 6.11.2,
+without another Windows/WSL course running. Mac and Ubuntu completed the
+independent row in 33.48 s and 52.49 s respectively. This is a wrapper bound,
+not an enrollment performance assertion or application run budget.
+
+The wrapper now takes explicit per-child bounds. The other three remain
+120 seconds; enrollment gets 540 seconds, three times the observed native
+completion rounded upward according to the existing sizing guide. Their
+900-second sum plus 30 seconds for process startup/teardown fits inside
+three quarters of the 1260-second CTest allowance. Configuration checks that
+relationship through the existing bound helper. Child exit and both-terminal
+canary checks remain; timeout output names the child and bound without
+printing unvalidated partial content. Five hermetic counterexamples pass,
+including nonzero exit, either-stream canary, timeout and invalid bounds.
+Actual native wrapper completion and margin remain pending.
+
 ## Windows execution context
 
 The subsequent interactive-token Windows normal gate at diagnostic source
