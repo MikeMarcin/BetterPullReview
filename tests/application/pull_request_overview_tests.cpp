@@ -555,9 +555,10 @@ namespace {
 		requested.AsCodeOwner = false;
 		review.ReviewRequests.push_back(requested);
 		auto projected = application::project_pull_request_overview(review, { });
-		expect(projected.PendingReviewers.find("@rcaloca") != std::string::npos && std::ranges::any_of(projected.Participants, [](const auto& aPerson) { return aPerson.Login == "rcaloca" && aPerson.Signoff == application::overview_signoff::approved; }), "re-requested approval remains both history and current request");
+		expect(projected.ReviewRequests.size() == 1 && projected.ReviewRequests.front().Name == "rcaloca" && !projected.ReviewRequests.front().CodeOwner && projected.ReviewRequestsNote.empty() && std::ranges::any_of(projected.Participants, [](const auto& aPerson) { return aPerson.Login == "rcaloca" && aPerson.Signoff == application::overview_signoff::approved; }), "re-requested approval remains both history and current request");
 		expect(projected.CheckRows.front().Requirement == "Optional" && projected.CheckRows.size() == 2 && projected.CheckRows.back().Outcome == "Waiting for check result" && projected.Checks.Failed == 1 && projected.Checks.Pending == 0, "wrong-app failure stays optional; expected required result is separate from observed totals");
-		expect(projected.MergeSummary.find("Configured approval minimum: 2") != std::string::npos && projected.MergeSummary.find("Remaining approvals are not established") != std::string::npos && projected.RequirementDetails.find("Auto-merge state unavailable") != std::string::npos, "historical approvals and requested count cannot infer remaining approvals or auto-merge");
+		expect(projected.MergeState == "Blocked" && projected.MergeTone == application::overview_merge_tone::blocked && projected.MergeConditions == std::vector<std::string>{ "Review required, minimum 2 approvals", "CI failed (optional)", "CI has not reported" }, "the blocked state leads one short line per unmet condition, failures before missing results");
+		expect(projected.RequirementDetails.find("Configured approval minimum: 2. Remaining approvals are not established") != std::string::npos && projected.RequirementDetails.find("Auto-merge state unavailable") != std::string::npos, "historical approvals and requested count cannot infer remaining approvals or auto-merge");
 
 		const auto appId = review.Checks.front().AppId;
 		review.Checks.front().AppId.reset();
@@ -566,23 +567,23 @@ namespace {
 		review.Checks.front().AppId = appId;
 		review.StatusesAvailability = application::github_collection_availability::unavailable;
 		projected                   = application::project_pull_request_overview(review, { });
-		expect(projected.CheckRows.back().Outcome == "Result unavailable" && projected.MergeSummary.find("Required check result unavailable") != std::string::npos, "an unread result collection cannot claim that the server is waiting for a missing result");
+		expect(projected.CheckRows.back().Outcome == "Result unavailable" && std::ranges::contains(projected.MergeConditions, std::string{ "CI result unavailable" }), "an unread result collection cannot claim that the server is waiting for a missing result");
 		review.StatusesAvailability = application::github_collection_availability::available;
 		review.ReviewRequests.clear();
 		review.Reviews.back().State = application::github_review_state::pending;
 		projected                   = application::project_pull_request_overview(review, { });
-		expect(projected.PendingReviewers == "No outstanding review requests observed.", "submitted/pending history cannot manufacture an outstanding request after removal");
+		expect(projected.ReviewRequests.empty() && projected.ReviewRequestsNote.empty(), "submitted/pending history cannot manufacture an outstanding request after removal");
 		review.Merge.AutoMerge           = true;
 		review.Merge.Assessment          = application::github_merge_assessment::clean;
 		review.Merge.Review              = application::github_review_decision::approved;
 		review.Checks.front().Conclusion = application::github_check_conclusion::success;
 		projected                        = application::project_pull_request_overview(review, { });
-		expect(projected.RequirementDetails.find("Auto-merge is enabled; the visible conditions still apply") != std::string::npos && projected.MergeSummary.find("Your merge permission is not established") != std::string::npos, "positive server assessment grants no viewer authority or unconditional merge promise");
+		expect(projected.RequirementDetails.find("Auto-merge is enabled; the visible conditions still apply") != std::string::npos && projected.MergeState == "Mergeable" && projected.MergeTone == application::overview_merge_tone::mergeable && projected.MergeConditions == std::vector<std::string>{ "CI has not reported" } && projected.RequirementDetails.find("Your merge permission is not established") != std::string::npos, "positive server assessment grants no viewer authority or unconditional merge promise");
 		review.BranchPolicy.RulesAvailability = application::github_observation_availability::permission;
 		review.BranchPolicy.Rules.clear();
 		review.Merge.Assessment = application::github_merge_assessment::blocked;
 		projected               = application::project_pull_request_overview(review, { });
-		expect(projected.MergeSummary.find("merging is blocked") != std::string::npos && projected.CheckRows.front().Requirement == "Requirement unknown" && projected.RequirementDetails.find("access denied") != std::string::npos, "unavailable policy cannot erase known merge block or classify an unobserved gate");
+		expect(projected.MergeState == "Blocked" && projected.RequirementDetails.find("merging is blocked") != std::string::npos && projected.CheckRows.front().Requirement == "Requirement unknown" && projected.RequirementDetails.find("access denied") != std::string::npos, "unavailable policy cannot erase known merge block or classify an unobserved gate");
 	}
 
 } // namespace

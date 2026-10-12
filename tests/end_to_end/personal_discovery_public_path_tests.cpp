@@ -298,7 +298,7 @@ try {
 
 	// [[BPR-1310]]. This exact composed fixture is also the attended candidate.
 	// It uses its own temporary private profile and never reaches a live provider.
-	if (attended) {
+	if (attended && !homeWaiting) {
 		QApplication::setQuitOnLastWindowClosed(true);
 		std::cout << "REPOSITORY_HOME_READY: fixture account octo-reviewer on github.com; no live GitHub reads\n"
 				  << std::flush;
@@ -351,20 +351,27 @@ try {
 			}
 		};
 		renderWaiting(QStringLiteral("waiting-discovered"));
+		// [[BPR-1405]]. The owner's look at the waiting rows: the same
+		// composed fixture, left open after discovery.
+		if (attended) {
+			windowA->resize(1100, 760);
+			QApplication::setQuitOnLastWindowClosed(true);
+			std::cout << "HOME_WAITING_ATTENDED_READY: fixture account; no live GitHub reads\n"
+					  << std::flush;
+			QApplication::exec();
+			owner->begin_shutdown();
+			wait_for([&] { return owner->status().ShutdownComplete; }, "attended waiting fixture drains");
+			desktop.reset();
+			expect(e2e::remove_course_root(temporary), "attended waiting fixture removes its private root");
+			return EXIT_SUCCESS;
+		}
 		expect(windowA->home_list()->select(identity, true), "exact waiting identity selected");
 		auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(windowA->home_list()->current_view(), &open);
 		wait_for([&] { return windowA->showing_overview() && windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "Home opens the exact accepted Overview", diagnose);
-		const auto* roster = windowA->overview_page()->findChild<QLabel*>(QStringLiteral("overviewPendingReviewers"));
-		if (!roster) {
-			for (const auto* label : windowA->overview_page()->findChildren<QLabel*>()) {
-				if (label->text().contains(QStringLiteral("@octo-org/team-0"))) {
-					roster = label;
-					break;
-				}
-			}
-		}
-		expect(roster && roster->text().contains(QStringLiteral("@octo-org/team-2")), "Overview preserves the same three accepted code-owner teams");
+		const auto rows  = windowA->overview_page()->request_rows();
+		const auto teams = std::ranges::count_if(rows, [](const auto* aRow) { return aRow->request().Team && aRow->request().Name.starts_with("octo-org/team-"); });
+		expect(teams == 3, "Overview preserves the same three accepted code-owner teams");
 		windowA->home_action()->trigger();
 		wait_for([&] {const auto row=queue_item(*windowA,4001);return windowA->showing_home() && row && row->Facts.Waiting.CodeOwners.size()==3; }, "returning Home preserves requests", diagnose);
 		item = queue_item(*windowA, 4001);

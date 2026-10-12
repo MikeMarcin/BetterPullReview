@@ -385,17 +385,25 @@ rerun jobs nor execute repository code.
 
 ## Overview merge requirements and outstanding requests
 
-RFC-BPR-0069 puts **Merge requirements** at the top of the native summary
-column. GitHub's accepted assessment, review decision, configured approval
-minimum, failed checks and missing expected results remain visible together.
-The waiting roster names provider-marked code-owner teams with their organization,
-slug and supplied name, plus ordinary requested users. A prior approval stays
-in Participants while a re-request stays in the roster. Accepted removals,
-dismissals and replacements update both observations without turning review
-history or an unpublished review into a request.
+RFC-BPR-0069 puts **Merge** at the top of the native summary column.
+[[BPR-1405]] keeps it short. GitHub's accepted assessment is one toned phrase
+(Blocked, Conflicts, Behind base, Mergeable, Draft, Merge state unknown), and
+each unmet condition follows on its own line: review required with its
+configured minimum, changes requested, each failed check, and each expected
+required result that has not reported. They remain visible together.
+**Waiting on** lists outstanding requests as roster rows in Participants'
+anatomy, code-owner requests first and marked "code owner", ordinary requests
+marked "requested". A team has a square tile and its organization-qualified
+slug; its supplied name is in the row's tooltip and accessible name. Names
+elide in the middle, so teams of one organization stay distinguishable. A
+complete empty roster shows nothing; a partial or last-known one says so. A
+prior approval stays in Participants while a re-request stays in the roster.
+Accepted removals, dismissals and replacements update both observations
+without turning review history or an unpublished review into a request.
 
-**Requirement details** is a native keyboard disclosure. It shows the exact
-active applicable rule source, classic protection, approval restrictions,
+**Requirement details** is a native keyboard disclosure, closed by default. It
+opens with GitHub's assessment as a sentence and holds the evidence limits the
+short section leaves out. It shows the exact active applicable rule source, classic protection, approval restrictions,
 conversation-resolution and other returned obligations, plus the observed
 auto-merge state. Team review policy retains its separate numeric identity and
 minimum; file-pattern applicability is not evaluated locally. A request roster
@@ -717,14 +725,20 @@ and went with the review, so the bar and the list moved under the pointer
 when a new pull request was opened (the owner, 2026-10-10). Beside the bar
 only the bar's width changes.
 
-Home waiting facts under RFC-BPR-0070 use the same row anatomy. Outstanding
-code-owner actors and ordinary users appear by name, with separate people/team
-counts; an aggregate unmet requirement says Required review outstanding. Concurrent
-failed checks remain in the reason. Unread authored activity still goes to My pull
+Home waiting facts under RFC-BPR-0070 use the same row anatomy. [[BPR-1405]]:
+an authored row's reason says who is awaited once, replacing the generic
+"waits on reviewers" clause: "Waiting on code-owner review from @org/team-a,
+@org/team-b and @org/team-c; Branch Freshness failed". Lists name at most
+three and count the rest ("and 2 more"); Overview has the whole roster.
+Without names, discovery's counts say "Waiting on 1 person and 2 teams"; an
+aggregate unmet requirement with no request says Required review outstanding.
+Someone else's row keeps its failed checks or merge block but not its author's
+roster. Unread authored activity still goes to My pull
 requests, and clearing it restores Waiting on others when review work remains.
 Known check/merge blockers say Blocked and stay visible when Quiet items are hidden;
-Only quiet excludes them. Collapsed summaries count awaiting-review and blocked
-rows. Last-known observations say so explicitly, and opening uses the exact row's
+Only quiet excludes them. Collapsed summaries count blocked rows, and
+awaiting-review rows outside Waiting on others. Last-known observations end
+"last known", and opening uses the exact row's
 Overview without changing enrollment or notification categories.
 
 ## GitHub host and pull-request presentation
