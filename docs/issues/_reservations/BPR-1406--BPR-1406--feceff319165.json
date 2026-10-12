@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1406"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Name the author on every Home row that is not mine",
+  "created": "2026-10-12T19:14:46.745129+00:00",
+  "base": "a0ba5770681aaff6cc80b19dbd8d3bef1f518874"
+}
