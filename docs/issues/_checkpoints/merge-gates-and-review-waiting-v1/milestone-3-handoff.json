@@ -123,7 +123,7 @@
       "docs/rfcs/assets/merge-gates-and-review-waiting-v1/IMPLEMENTATION_PROMPT.md",
       "docs/rfcs/assets/merge-gates-and-review-waiting-v1/DECISIONS.md",
       "docs/rfcs/assets/merge-gates-and-review-waiting-v1/PROPOSED_AMENDMENTS.md",
-      "docs/rfcs/RFC-BPR-0068-inspect-check-failures.md",
+      "docs/rfcs/RFC-BPR-0068-inspect-commit-checks.md",
       "docs/rfcs/RFC-BPR-0069-reviewers-and-merge-requirements.md",
       "docs/rfcs/RFC-BPR-0070-preserve-home-waiting.md"
     ],
