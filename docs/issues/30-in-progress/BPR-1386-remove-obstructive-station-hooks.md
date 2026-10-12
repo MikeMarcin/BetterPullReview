@@ -2,7 +2,7 @@
 schema: implement-rfc.card.v1
 id: BPR-1386
 title: Remove obstructive station hooks and expose management in the launcher
-status: Ready
+status: "In Progress"
 rfcs: []
 depends_on: []
 ---
