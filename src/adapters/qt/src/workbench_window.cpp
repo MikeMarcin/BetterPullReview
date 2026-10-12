@@ -57,6 +57,7 @@
 #include <QDialogButtonBox>
 #include <QFont>
 #include <QFontMetrics>
+#include <QFontMetricsF>
 #include <QFormLayout>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -113,6 +114,7 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -124,7 +126,13 @@ namespace bpr::qt {
 	namespace {
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
 		{
-			auto result = aMetrics.horizontalAdvance(aName);
+			// Native glyph advances can be fractional. Rounding down makes
+			// elidedText shorten even the group name that the slot must retain.
+			const auto precise = QFontMetricsF{ aMetrics };
+			const auto width   = [&precise](const QString& aText) {
+				return static_cast<int>(std::ceil(precise.horizontalAdvance(aText)));
+			};
+			auto result = width(aName);
 			if (!aShown) {
 				return result;
 			}
@@ -132,7 +140,7 @@ namespace bpr::qt {
 				const auto number = QString(aCompact ? 3 : 4, QLatin1Char{ digit });
 				const auto sample = aCompact ? QStringLiteral("%1 %2/%2").arg(aName, number)
 											 : QStringLiteral("%1 %2 of %2").arg(aName, number);
-				result            = std::max(result, aMetrics.horizontalAdvance(sample));
+				result            = std::max(result, width(sample));
 			}
 			return result;
 		}

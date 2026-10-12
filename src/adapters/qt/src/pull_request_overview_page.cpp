@@ -656,6 +656,23 @@ namespace bpr::qt {
 		}
 
 		constexpr int side_width = 300;
+
+		void fit_side_width(QScrollArea& aSide)
+		{
+			if (aSide.widget() == nullptr) {
+				return;
+			}
+			// A native scrollbar consumes part of the fixed sidebar. Keep its
+			// controls' minimum width when a larger system font needs more room;
+			// overlay scrollbars contribute only their non-overlapping extent.
+			const auto scrollbar = std::max(0, aSide.verticalScrollBar()->sizeHint().width() - aSide.style()->pixelMetric(QStyle::PM_ScrollView_ScrollBarOverlap, nullptr, &aSide));
+			const auto requested = std::max(side_width,
+											aSide.widget()->minimumSizeHint().width() + scrollbar + 2 * aSide.frameWidth());
+			if (aSide.minimumWidth() != requested || aSide.maximumWidth() != requested) {
+				aSide.setFixedWidth(requested);
+			}
+		}
+
 		constexpr int chip_width = 58;
 		/// [[BPR-1331]] v003. The read column's mark: a 24-unit design box this
 		/// wide paints a mark ten pixels across, as the dot it replaced.
@@ -2628,6 +2645,7 @@ namespace bpr::qt {
 		});
 		sideColumn->addStretch(1);
 		sideScroll->setWidget(side);
+		side->installEventFilter(this);
 
 		auto* const columns = new QHBoxLayout{ this };
 		columns->setContentsMargins(0, 0, 0, 0);
@@ -3590,6 +3608,10 @@ namespace bpr::qt {
 
 	bool pull_request_overview_page::eventFilter(QObject* const aObject, QEvent* const aEvent)
 	{
+		if (auto* const scroll = qobject_cast<QScrollArea*>(Side);
+			scroll != nullptr && aObject == scroll->widget() && aEvent->type() == QEvent::LayoutRequest) {
+			fit_side_width(*scroll);
+		}
 		if (aObject == Files->viewport()) {
 			const auto type = aEvent->type();
 			if (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick) {
