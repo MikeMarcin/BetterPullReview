@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1407"
+  ],
+  "reserve_for": "home-change-facts",
+  "purpose": "owner request 2026-10-12: age, line changes and comments on Home rows",
+  "created": "2026-10-12T20:15:33.234955+00:00",
+  "base": "8f68006eb32c62fa244606f2be931e07d12e0763"
+}
