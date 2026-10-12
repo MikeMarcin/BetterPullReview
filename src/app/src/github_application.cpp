@@ -30166,27 +30166,41 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& implementation->ReviewLedgerHost->is_quiescent();
 	}
 
+	namespace {
+		auto hold_fixture_effects(application::effect_executor& aEffects) -> std::function<void()>
+		{
+			struct gate
+			{
+				std::mutex              Mutex;
+				std::condition_variable Changed;
+				bool                    Open = false;
+			};
+			auto held = std::make_shared<gate>();
+			aEffects.post([held] {
+				auto lock = std::unique_lock{ held->Mutex };
+				static_cast<void>(held->Changed.wait_for(lock, std::chrono::seconds{ 30 }, [&held] { return held->Open; }));
+			});
+			return [held] {
+				{
+					const auto lock = std::scoped_lock{ held->Mutex };
+					held->Open      = true;
+				}
+				held->Changed.notify_all();
+			};
+		}
+
+	}
+
 	auto detail::github_application_fixture_access::hold_review_ledger_effects(
 		github_application& aApplication) -> std::function<void()>
 	{
-		struct gate
-		{
-			std::mutex              Mutex;
-			std::condition_variable Changed;
-			bool                    Open = false;
-		};
-		auto held = std::make_shared<gate>();
-		aApplication.Implementation->ReviewLedgerEffects.post([held] {
-			auto lock = std::unique_lock{ held->Mutex };
-			static_cast<void>(held->Changed.wait_for(lock, std::chrono::seconds{ 30 }, [&held] { return held->Open; }));
-		});
-		return [held] {
-			{
-				const auto lock = std::scoped_lock{ held->Mutex };
-				held->Open      = true;
-			}
-			held->Changed.notify_all();
-		};
+		return hold_fixture_effects(aApplication.Implementation->ReviewLedgerEffects);
+	}
+
+	auto detail::github_application_fixture_access::hold_private_review_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+		return hold_fixture_effects(aApplication.Implementation->ReviewMutationEffects);
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_available(

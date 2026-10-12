@@ -229,10 +229,50 @@ both translation units and format 22 pass. Two separately compiled, contained
 negative controls fail at the intended assertions: ignoring exact path equality
 misapplies receipts after reordering; retaining paths after clear leaves a
 stale empty index. Their temporary trees were removed without editing producer
-source. Final uninstrumented history acceptance remains pending. A launched
+source. A subsequent declared uninstrumented history course passes as recorded
+below. A launched
 course was interrupted after observing an unrelated 16-worker compiler build;
 its context and exit 143 remain recorded, with no product result claimed and
 no attribution of earlier failures to that later contention.
+
+
+At `15671d48221496f5e3d66a42fe0f5d446b44dacd`, the declared isolated,
+probe-free native Mac history course passes in **122.02 seconds**, retaining
+all **32 exact epochs**, **961 recorded account reads** and **zero model
+resets**. The largest refresh input gap is **72.578917 ms** against the
+unchanged **100 ms** limit; the largest refresh completion is 1,562.876 ms.
+A preceding two-epoch copied-source diagnostic (explicitly contended and not
+acceptance) measured 7.8–8.2 ms GUI CPU reparsing the same accepted bodies in
+each nonempty card forest. Endpoint placement repeatedly adopts 2,000, zero,
+then 2,000 nodes. The repair retains one ordered exact accepted-body set across
+those transitions, replacing it when nonempty body inputs change and releasing
+it on authority clear. Its focused card regression passes in 1.39 seconds and
+covers changed body, accepted reviewer prose, reordered nodes and clear.
+All diagnostic copies and executables were removed; producer source hashes
+remain unchanged. Raw report: `build/v0.1.10-history-body-annotations.json`.
+
+The inherited BPR-1407 commits `8cc80c6ed` and `970cbf01a` add the requested
+Home age, added/removed lines and comment counts. The card records 76/76 local
+related checks. Its AC4 owner look remains pending in attended session
+`7cf6171a73b084a2ae161dcd95702e61`, candidate `BPR-1407-home-facts`, frozen
+root `/Users/jaeger/bpr1407-look.5jquigqu`. Final native selectors include the
+provider read, discovery, queue facts storage and Home surfaces. Scoped review
+of the inherited composition clock and this repair's fixture-only private
+persistence hold reseals the full application and aggregate source pins; the
+production mutation-branch digest stays unchanged. The pending-label course
+now holds actual persistence while both public Publish gestures turn events,
+then releases it and requires a new exact-body gesture. Assertions and product
+publication guards remain unchanged.
+
+The Windows 8cf normal course also exposed three empty tool-free writing
+folders that Qt could not remove. They carry no read-only attribute; their
+owner-only DACL lacks the package grant a lowbox access check requires. The
+Windows launcher now creates each new request-owned folder with the existing
+central owner-private descriptor, granting only its user and current package.
+It changes no existing ACL. The native wrapper course additionally checks that
+exact descriptor during the run and that each folder is gone afterwards.
+Final native closure of this repair, the pending-label course and the newly
+collected Windows title-row failure remains required.
 
 The Windows x64 Debug normal gate at `8cf67d793` separately failed
 `application_diagnostic_subsystems` after 134.70 s: its enrollment child hit

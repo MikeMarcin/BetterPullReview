@@ -1499,6 +1499,11 @@ namespace bpr::app::detail {
 		/// function releases it, or thirty seconds pass.
 		[[nodiscard]] static auto hold_review_ledger_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-1404]]. Holds private draft persistence on its existing
+		/// effect lane until the returned function releases it, or thirty
+		/// seconds pass. Decision delivery and public gestures keep turning.
+		[[nodiscard]] static auto hold_private_review_effects(
+			github_application& aApplication) -> std::function<void()>;
 		/// \brief [[BPR-1254]]. Whether this window's review ledger answered
 		/// its latest opening as available; empty while it has not answered.
 		[[nodiscard]] static auto review_ledger_available(

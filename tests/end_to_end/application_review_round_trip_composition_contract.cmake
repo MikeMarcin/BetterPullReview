@@ -1429,6 +1429,17 @@ endfunction()
 # existing vector bound and make the existing virtual destructor explicit.
 # No source inventory or mutation-branch change. Scoped review and deterministic
 # old-code/refusal controls are recorded on BPR-1404 and its release gate ledger.
+# BPR-1404/BPR-1407 reseal (2026-10-12), over a0ba57706: only
+# 8cc80c6ed changes a production manifest member before this repair. Its
+# github_application.cpp supplies the existing discovery clock to Home and
+# retains its profile-owned reference; the tests-only public fixture adds five
+# already-read pull-request facts. No new effect, request or source member.
+# This repair factors the existing bounded tests-only ledger-lane hold and
+# exposes the same hold for private draft persistence. It pins the labelled
+# publication course's genuinely pending ordering while its public menu turns
+# events; no production mutation, authority or persistence rule changes.
+# The production mutation-branch pin remains e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df.
+# BPR-1407's AC4 owner look remains pending in its separate attended session.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1447,7 +1458,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"53e078071d948595e885f66648e92421a7339f6848bed95254ca1ab4d485ae79"
+		"5aec6edb7ada80035e9019fa76fe9fd48a476db0f6aaf69abf2c808ce984be57"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1651,7 +1662,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "1d6432a7024143638ed6e4c75d12ac918d27b8b99895886d40615763048fc674"
+        "a525a2fc6658c8ff1ca24a7019ec5d379311b6ecfbfda4a0ba7d7bacfd473125"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

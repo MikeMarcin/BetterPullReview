@@ -36,6 +36,10 @@
 #include <string_view>
 #include <vector>
 
+#if defined(Q_OS_WIN)
+	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
+#endif
+
 #if defined(Q_OS_UNIX)
 	#include <sys/stat.h>
 #endif
@@ -261,8 +265,25 @@ namespace {
 		auto wrapped  = application::wrapped_claude_process{ counted, source, &adapters::agent::inspect_claude_process_wrapper };
 		for (const auto kind : { entry::agent_panel, entry::writing, entry::round_send, entry::round_continue }) {
 			// Today: the profile names the program that runs.
+			const auto inspectWritingFolder = [&](const application::agent_stream_event& aEvent) {
+#if defined(Q_OS_WIN)
+				if (kind == entry::writing && aEvent.Text.starts_with("cwd\t")) {
+					namespace private_folder = adapters::agent::detail;
+					const auto principals    = private_folder::windows_private_principals::load();
+					expect(principals.has_value(), "writing folder token principals are available");
+					const auto path      = QDir::toNativeSeparators(QString::fromStdString(aEvent.Text.substr(4U))).toStdWString();
+					const auto directory = private_folder::windows_handle{ ::CreateFileW(
+						path.c_str(), FILE_READ_ATTRIBUTES | READ_CONTROL, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+						nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr) };
+					expect(directory && private_folder::windows_private_to_current_user(directory.get(), *principals, true),
+						   "a writing folder grants only its owner and its containing package, when contained");
+				}
+#else
+				static_cast<void>(aEvent);
+#endif
+			};
 			const auto today = build(kind, claude_profile(BPR_AGENT_CANARY_EXECUTABLE), aRoot);
-			const auto was   = launcher.run(today, 20'000);
+			const auto was   = launcher.run(today, 20'000, inspectWritingFolder);
 			expect(was.Outcome == application::agent_run_outcome::success && !event_values(was, "argv").empty(), "today's Claude launch runs and reports itself");
 			// Shipped: the profile names the bare `claude`, the wrapper is saved.
 			const auto shipped = build(kind, claude_profile("claude"), aRoot);
@@ -273,7 +294,7 @@ namespace {
 			const auto bare = launcher.run(shipped, 20'000);
 			expect(bare.Outcome == application::agent_run_outcome::failed_to_start, "without a wrapper the shipped bare claude cannot start");
 			const auto before = counted.Runs;
-			const auto now    = wrapped.run(shipped, 20'000);
+			const auto now    = wrapped.run(shipped, 20'000, inspectWritingFolder);
 			expect(now.Outcome == application::agent_run_outcome::success, "the wrapper runs in place of claude");
 			expect(counted.Runs == before + 1U && counted.Executables.back() == text(wrapper), "the one process started is the wrapper");
 			auto argv    = event_values(now, "argv");

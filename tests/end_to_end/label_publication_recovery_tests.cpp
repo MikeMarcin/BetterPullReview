@@ -276,7 +276,15 @@ namespace {
 		expect(editor->publish_action()->isEnabled(), "the accepted issue draft can be published");
 		expect(single_offered(*cards), "the drawer offers its Add single comment too");
 
-		// The chip's relabel leaves this widget at once; its owner answers later.
+		// Opening the drawer's split menu turns the event loop. Hold the
+		// private store lane so that both gestures below really precede the
+		// relabel's durable acceptance, regardless of native scheduling.
+		const auto releaseDraft = github_application_fixture_access::hold_private_review_effects(application);
+		struct held_draft
+		{
+			std::function<void()> Release;
+			~held_draft() { Release(); }
+		} held{ releaseDraft };
 		expect(choose_label(*editor, core::feedback_label::question), "the chip relabels the draft question");
 		const auto pending = accepted_body(*editor) == issue;
 		const auto offered = editor->publish_action()->isEnabled();
@@ -297,6 +305,8 @@ namespace {
 		// Publish follows the accepted projection, so it can still be pressed;
 		// the composition refuses a Publish whose draft has a change in flight.
 		expect(said && whilePending.Submissions == 0U && told.startsWith(QStringLiteral("Not published")), "a Publish pressed while the relabel waits for its owner sends nothing, and says so");
+		expect(accepted_body(*editor) == issue, "both public gestures finish while the durable relabel is still held");
+		releaseDraft();
 		wait_for([&] { return accepted_body(*editor) == question; }, "the owner accepts the relabelled draft");
 		settle();
 		const auto accepted = github_application_fixture_access::review_mutation_evidence(application);

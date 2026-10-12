@@ -6,7 +6,10 @@
 #include <QTemporaryDir>
 
 #if defined(Q_OS_WIN)
+	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
 	#include "windows_agent_process.hpp"
+
+	#include <QUuid>
 #else
 	#include <QByteArray>
 	#include <QCoreApplication>
@@ -50,6 +53,56 @@ namespace bpr::adapters::agent {
 	};
 
 	namespace {
+#if defined(Q_OS_WIN)
+		/// [[BPR-1404]]. QTemporaryDir grants only the token user. An
+		/// AppContainer also needs its package grant to remove the folder it
+		/// created. Use the same initial owner-private descriptor as the
+		/// workspace guard, without changing a pre-existing object's ACL.
+		class writing_directory final
+		{
+		public:
+			explicit writing_directory(const QString& aTemplate)
+			{
+				const auto principals = detail::windows_private_principals::load();
+				if (!principals) {
+					return;
+				}
+				auto descriptor = detail::windows_private_descriptor::make(*principals, true);
+				if (!descriptor) {
+					return;
+				}
+				for (auto attempt = 0; attempt < 8; ++attempt) {
+					auto candidate = aTemplate;
+					candidate.replace(QStringLiteral("XXXXXX"), QUuid::createUuid().toString(QUuid::WithoutBraces));
+					const auto native = QDir::toNativeSeparators(candidate).toStdWString();
+					if (::CreateDirectoryW(native.c_str(), descriptor->attributes()) != FALSE) {
+						Path = std::move(candidate);
+						return;
+					}
+					if (::GetLastError() != ERROR_ALREADY_EXISTS) {
+						return;
+					}
+				}
+			}
+			writing_directory(const writing_directory&)                    = delete;
+			auto operator=(const writing_directory&) -> writing_directory& = delete;
+			writing_directory(writing_directory&&)                         = delete;
+			auto operator=(writing_directory&&) -> writing_directory&      = delete;
+			~writing_directory()
+			{
+				if (isValid() && !QDir{ Path }.removeRecursively()) {
+					qWarning("Tool-free writing folder could not be removed");
+				}
+			}
+			[[nodiscard]] auto isValid() const noexcept -> bool { return !Path.isEmpty(); }
+			[[nodiscard]] auto path() const noexcept -> const QString& { return Path; }
+
+		private:
+			QString Path;
+		};
+#else
+		using writing_directory = QTemporaryDir;
+#endif
 #if !defined(Q_OS_WIN)
 		struct process_state
 		{
@@ -313,7 +366,7 @@ namespace bpr::adapters::agent {
 		// review workspace: nothing in the reviewed repository (a CLAUDE.md, a
 		// `.claude` or `.mcp.json`, a Git configuration) is where the agent
 		// starts, and nothing the agent leaves behind outlives the request.
-		auto writingFolder  = std::optional<QTemporaryDir>{ };
+		auto writingFolder  = std::optional<writing_directory>{ };
 		auto writingRequest = std::optional<application::agent_launch_request>{ };
 		if (aGiven.WritingOnly) {
 			writingFolder.emplace(QDir{ QDir::tempPath() }.filePath(QStringLiteral("bpr-writing-XXXXXX")));

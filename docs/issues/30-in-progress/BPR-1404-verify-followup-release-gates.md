@@ -101,13 +101,27 @@ and the final native Home selectors remain required.
 The completed Mac normal gate returned 683 pass, six fail and one configured
 skip. Three helper/seal failures have committed repairs; two updater failures
 were the unchanged 4 GiB disk prerequisite and passed after producer cleanup.
-The history input failure remains open. A declared baseline and no-content
+The history input failure has a subsequent passing exact-source course. A declared baseline and no-content
 GUI diagnostic localized a serialized 65–81 ms CPU turn plus scheduling delay;
 all exact retained epochs and completion limits passed. `1dca2e7dc` skips empty
 private-state joins but was insufficient by itself. `8fa5ab470` reuses only an
 exact current ordered receipt-path index, with observations/navigation rebuilt
 on every adoption; `539f2cd07` covers same-path re-adoption after clear. Clean
 Overview checks and both meaningful invalidation/clear negative controls pass,
-as do focused tidy and format 22. The uninstrumented history course awaits
-build quiescence after an explicitly recorded contended launch was stopped.
+as do focused tidy and format 22. A subsequent isolated uninstrumented history course at `15671d482` passes in
+122.02 seconds, with all 32 exact epochs, 961 reads, zero model resets and
+72.578917 ms maximum refresh gap against the unchanged 100 ms limit. Its
+measured body-annotation reuse has passing changed-body/prose/reorder/clear
+regressions. The earlier contended launch and failures remain preserved.
 The ledger preserves every actual failed result and pending native acceptance.
+
+
+Inherited BPR-1407 Home facts are selected, with their recorded 76/76 local
+checks and AC4 owner look still pending in attended session
+`7cf6171a73b084a2ae161dcd95702e61`. Final native selectors include its provider,
+discovery and queue storage changes. The Windows normal course's empty
+writing-folder deletion and pending-label ordering failures have scoped
+repairs using the existing owner-private descriptor and a bounded fixture-only
+persistence hold. Final native confirmation and the collected Windows title-row
+course remain pending. The composition reseal retains the unchanged production
+mutation-branch digest and hostile-source controls.
