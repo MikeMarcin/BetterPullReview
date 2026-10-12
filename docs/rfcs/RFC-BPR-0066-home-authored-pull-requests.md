@@ -117,7 +117,7 @@ In particular, the repository drawer may still count activity on authored PRs;
 Home's Needs me count describes only its own section. No additional provider
 read or full PR load is needed to arrange already accepted queue rows.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** With an authored PR and another person's PR both carrying unread
   activity, only the latter appears or counts in Needs me. Author-role and
