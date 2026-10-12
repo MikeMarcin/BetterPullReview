@@ -402,6 +402,51 @@ native and CLI paths. The owner look is still independent. Final affected
 native Windows/Ubuntu and the authoritative Mac normal gate remain pending;
 the separately recorded revised owner look passes.
 
+## Final Windows affected-course frontier
+
+The native Windows x64 Debug/Qt 6.11.2 affected run at
+`004a9c8effb26b468572ccfaa9575d16aad3a488` completed 83 rows:
+79 pass, four fail, no skip, in 3913.87 seconds. Provider, device refresh,
+tests-disabled composition, writing-folder cleanup, retained history, reply
+restoration, label publication and the repaired diagnostic wrapper pass with
+their existing bounds. The four failures are the older title-row assertion
+already repaired by `d6c12b7a8`, the new private-draft restore row's contained
+storage setup, and Overview rendering at scales 1.25 and 2. These remain
+failed observations until their final registered native reruns pass.
+
+The private-draft row fails contained in 0.17 seconds at "the course makes its
+data root owner-private". A bounded diagnostic ran the identical executable
+(SHA-256 `68c591c88fc574577885c36c9cf4b1e967c1fb21979fcb66f361dff8667c6d8b`)
+with its exact configured environment and working directory, omitting only the
+AppContainer wrapper. It passes in 0.341 seconds, including all restore and
+shutdown assertions. The real SQLite store's retained ancestor check calls
+`GetFinalPathNameByHandleW` with `VOLUME_NAME_DOS`, the measured kernel-object
+restriction already recorded for the private-store contracts. The test's
+narrow Windows-only uncontained registration and paired measured inventory
+entry preserve every production storage/ACL check and all Mac/Linux
+containment. The 69 isolation-verifier counterexamples pass in 3.996 seconds;
+final configured-manifest and native-row checks remain required.
+
+The 90-second Overview CTest timeout includes twelve semantic render stages,
+each switching through six appearances and writing a full-window PNG.
+Scale 1 finishes in 88.34 seconds; the failed 1.25/2 runs leave only 66/52
+images. Serial isolated diagnostics on the same Windows x64 Debug/Qt 6.11.2
+producer, with no other native build/test active, run the identical configured
+command, environment, working directory and binary (SHA-256
+`94f9eef85a2e0f1446d182b97fe4c93a0b42517a58e7878d74f020518ae2f88f`).
+Both complete with all assertions, the success marker and 72 freshly written
+images: 93.644 seconds at 1.25 and 125.770 seconds at 2. Five-second image
+checkpoints and the before/after inventories remain local alongside the
+receipts. These diagnostic runs establish completion, not a normal gate pass.
+
+The Windows-only evidence-output harness timeout is now 420 seconds:
+three times the measured 125.770-second maximum is 377.310 seconds, rounded
+up to the next minute. The allowance is 3.34 times that native completion.
+Mac/Linux keep 90 seconds, all semantic waits and appearance assertions remain,
+and no 100 ms responsiveness or resource bound changes. Final registered
+Windows reruns are required; other Windows load/architecture observations
+remain outside this one-machine sizing measurement.
+
 ## Vulnerability and wider qualification frontier
 
 The fresh v0.1.9 exact-SPDX Grype run remains failed: **32 matches**

@@ -2308,7 +2308,11 @@ bpr_add_executable(test_private_draft_restore private_draft_restore_tests.cpp)
 target_link_libraries(test_private_draft_restore PRIVATE BetterPullReview::Composition)
 bpr_enable_hardening(test_private_draft_restore)
 bpr_enable_warnings(test_private_draft_restore)
-bpr_add_network_isolated_test(NAME application_private_draft_restore COMMAND test_private_draft_restore)
+# [[BPR-1404]]. Measured contained on Windows at 004a9c8ef: the real
+# SQLite store's retained ancestor check refuses its owner-private data root
+# (dos-volume-name); the identical executable passes uncontained in 0.341 s.
+bpr_add_network_isolated_test(NAME application_private_draft_restore WINDOWS_UNCONTAINED
+    COMMAND test_private_draft_restore)
 set_tests_properties(application_private_draft_restore PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
     TIMEOUT 30 PASS_REGULAR_EXPRESSION "private-draft-restore:pass")
@@ -3851,13 +3855,21 @@ target_compile_definitions(test_overview_summary_public_path PRIVATE BPR_BUILD_T
 target_compile_features(test_overview_summary_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_overview_summary_public_path)
 bpr_enable_warnings(test_overview_summary_public_path)
+set(bpr_overview_summary_timeout 90)
+if(WIN32)
+    # [[BPR-1404]]. Isolated Windows x64 Debug/Qt 6.11.2 at 004a9c8ef:
+    # all assertions and 72 appearance PNGs finish in 93.644 s at 1.25x
+    # and 125.770 s at 2x. Round 3 * 125.770 s upward to 420 s for the
+    # whole evidence-output course; its semantic waits remain unchanged.
+    set(bpr_overview_summary_timeout 420)
+endif()
 foreach(summary_scale IN ITEMS 1 1.25 2)
     string(REPLACE "." "_" summary_scale_name "${summary_scale}")
     bpr_add_network_isolated_test(NAME application_overview_summary_${summary_scale_name} WINDOWS_UNCONTAINED
         COMMAND test_overview_summary_public_path)
     set_tests_properties(application_overview_summary_${summary_scale_name} PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${summary_scale};BPR_OVERVIEW_RENDER_ROOT=${PROJECT_BINARY_DIR}/overview-renders/${summary_scale_name}"
-        TIMEOUT 90 PASS_REGULAR_EXPRESSION "OVERVIEW_SUMMARY_PUBLIC_PATH_OK")
+        TIMEOUT ${bpr_overview_summary_timeout} PASS_REGULAR_EXPRESSION "OVERVIEW_SUMMARY_PUBLIC_PATH_OK")
 endforeach()
 
 # [[BPR-1328]]. The file and change arrows are a bounded previous and next

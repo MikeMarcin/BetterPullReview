@@ -107,6 +107,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # public paths' make_storage_root_owner_private refuses the same root; all
     # five pass uncontained.
     "sqlite_profile_registry_storage": "dos-volume-name",
+    "sqlite_remembered_connection_storage": "unmeasured (registered on macOS)",
     "sqlite_window_review_restoration_storage": "dos-volume-name",
     "application_windows_profile_storage_startup_contract": "dos-volume-name",
     "application_profile_management_public_path": "dos-volume-name",
@@ -659,6 +660,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_submission_composition_scale_125": "dos-volume-name",
     "application_review_submission_composition_scale_200": "dos-volume-name",
     "application_profile_window_layout_drain": "dos-volume-name",
+    # [[BPR-1404]]. Measured on JaegAW 2026-10-12 at 004a9c8ef. Contained,
+    # the real SQLite private store stops at "the course makes its data root
+    # owner-private" in 0.17 s. Its retained ancestor chain resolves DOS volume
+    # names. The identical binary with the configured environment passes
+    # uncontained in 0.341 s, without storage-policy or ACL changes.
+    "application_private_draft_restore": "dos-volume-name",
     # [[BPR-1237]]. Courses whose own private root cannot be narrowed contained:
     # "owner-private root", "wire fixture root is owner-private", "owner-private data
     # root", "private application root", "private fixture state root", "native private

@@ -143,3 +143,15 @@ AC4/AC5 have recorded owner acceptance at `5081076e4`. Scoped review finds only 
 tests-only discovered-title helper in the additional composition delta. All
 three production pins stay byte-identical; hostile-source/manifest controls
 pass. No UI acceptance or final native gate pass is inferred from this review.
+
+The completed Windows `004a9c8ef` affected run returns 79 pass and four fail
+from 83 rows. Three remaining causes are accounted for: the older title-row
+assertion has a committed repair; the new private-draft row's real SQLite
+retained-ancestor check fails contained but the identical binary passes
+uncontained in 0.341 seconds; and the complete 72-image Overview course takes
+93.644/125.770 seconds at 1.25/2 scale. Its narrow Windows storage registration
+and measured inventory entry preserve product guards. The Windows-only
+Overview evidence-output harness now gets 420 seconds, three times the
+measured maximum rounded up to a minute; Mac/Linux keep 90 seconds and the
+100 ms performance criteria remain unchanged. Final normal registered native
+reruns and exact-artifact security acceptance remain pending.
