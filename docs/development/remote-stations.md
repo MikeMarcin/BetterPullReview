@@ -36,7 +36,6 @@ Shared-source policy and further hook controls are tracked in AgentSkills
 ASK-0105. This consumer change uses the existing pinned status/takeover helper
 and requires no skill upgrade or source publication.
 
-
 ## The shape
 
 One **station** per workstream checkout per machine. One foreground supervisor
