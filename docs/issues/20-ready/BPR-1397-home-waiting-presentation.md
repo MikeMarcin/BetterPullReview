@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1397"
 title: "Explain pending reviews and concurrent blockers on Home"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0070"]
 depends_on: ["BPR-1396"]
 priority: "P1"
