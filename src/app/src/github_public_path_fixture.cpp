@@ -2289,7 +2289,7 @@ namespace bpr::app::detail {
 				if (aRequest.Wire.Operation == read_operation::list_requested_reviewers && !State->PersonalDiscovery) {
 					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unavailable) };
 				}
-				if (aRequest.Wire.Operation == read_operation::list_commit_statuses) {
+				if (aRequest.Wire.Operation == read_operation::list_commit_statuses && !State->Descriptor.Paged) {
 					auto body = std::string{ "[]" };
 					if (State->PublishedTour) {
 						const std::scoped_lock lock{ State->PublishedTour->Mutex };

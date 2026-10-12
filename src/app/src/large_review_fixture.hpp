@@ -52,6 +52,7 @@ namespace bpr::app::detail::large_review_fixture {
 			break;
 		case wire::read_operation::get_repository:
 			break;
+		case wire::read_operation::list_commit_statuses:
 		case wire::read_operation::list_checks:
 			result.HeadOid = aHead;
 			break;
@@ -308,12 +309,13 @@ namespace bpr::app::detail::large_review_fixture {
 		append_exchange(exchanges, request(wire::read_operation::list_reviews), glz::generic::array_t{ });
 		append_graphql(exchanges, aRoot, manifest, aHead);
 		append_exchange(exchanges, request(wire::read_operation::list_issue_comments), glz::generic::array_t{ });
-		append_exchange(exchanges, request(wire::read_operation::list_checks, 1U, aHead), glz::generic{ { "total_count", 0 }, { "check_runs", glz::generic::array_t{ } } });
 		append_exchange(exchanges, request(wire::read_operation::search_pull_requests), glz::generic{
 																							{ "total_count", 0 },
 																							{ "incomplete_results", false },
 																							{ "items", glz::generic::array_t{ } },
 																						});
+		append_exchange(exchanges, request(wire::read_operation::list_checks, 1U, aHead), glz::generic{ { "total_count", 0 }, { "check_runs", glz::generic::array_t{ } } });
+		append_exchange(exchanges, request(wire::read_operation::list_commit_statuses, 1U, aHead), glz::generic::array_t{ });
 		// Stored heads are observed sequentially; this synthetic course has no
 		// provider-evidenced force pushes. Exhaust the real timeline read too.
 		append_exchange(exchanges, request(wire::read_operation::list_pull_request_timeline), glz::generic::array_t{ });
