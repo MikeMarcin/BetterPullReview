@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-next-vault-verifier",
+  "scope": {
+    "issues": [
+      "BPR-1388"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "vault-verifier-preparation",
+      "outcome": "Release producers can reuse one Windows-protected OpenPGP credential in a validated WSL GPG home and native Authenticode verification resists inherited PowerShell module paths.",
+      "work": [
+        {
+          "issue": "BPR-1388"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The maintained vault enrollment/unlock and Linux package composition have focused passing failure and secret-transport evidence, with real enrollment owned separately by the coordinator.",
+        "The native verifier passes a polluted PowerShell module-path regression and read-only verification of the unchanged signed probe.",
+        "Current release guidance is accurate; exact-candidate evidence, intentional commits, documentation gates and a quiescent durable handoff preserve all broader release obligations."
+      ],
+      "boundary": "Preparation only; no version change, real release, Azure signing, access changes, GitHub mutation or wider native/security/legal qualification acceptance. Real secret enrollment belongs to the coordinator."
+    }
+  ],
+  "unplanned_work": []
+}
