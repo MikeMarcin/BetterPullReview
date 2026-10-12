@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1408"
 title: "Persist bounded remembered-connection metadata and selection policy"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0071"]
 depends_on: []
 priority: "P1"
