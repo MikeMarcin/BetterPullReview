@@ -3570,6 +3570,9 @@ namespace {
 			if (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews) {
 				expect(std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
 					   "retained metadata stays scoped to the exact enrolled PR");
+				if (aRequest.Wire.Operation == read_operation::get_pull_request && !Metadata) {
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = application::github_provider_error{ .Failure = application::github_provider_failure::unavailable } };
+				}
 				return github_wire_success{ .Correlation = aRequest.Correlation,
 											.Response    = aRequest.Wire.Operation == read_operation::get_pull_request ? Metadata(aRequest) : Reviews(aRequest) };
 			}
@@ -3615,8 +3618,8 @@ namespace {
 					   && result->Rows[0].Title == "Pull request 5" && result->Rows[0].Author == "octo-reviewer",
 				   "authored rows are the viewer's own, with the reviewers each awaits");
 			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
-					   && transport.Requests.size() == 3U,
-				   "one search and one detail read per kept row; another actor's row costs nothing");
+					   && transport.Requests.size() == 5U,
+				   "one search, bounded reviewer and optional Home-summary reads; another actor's row costs nothing");
 			expect(result->RateLimits.Search.has_value() && result->RateLimits.Core.has_value(), "search and core rate observations stay separate");
 		}
 		{
@@ -3683,8 +3686,8 @@ namespace {
 			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 2U); };
 			const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::authored, application::github_server_contract::ghes_3_18_2022_11_28), { });
 			expect(result.has_value() && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 2U
-					   && transport.Requests.back().Wire.Path == "/api/v3/repos/octo-org/review-repository/pulls/5/requested_reviewers",
-				   "the same two reads on a GHES 3.18 contract");
+					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/api/v3/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
+				   "the same bounded personal and optional metadata reads on a GHES 3.18 fixture contract");
 		}
 		const auto failing = [](const int aStatus, const std::string_view aRemaining, const bool aDetail, std::string aBody = "{\"message\":\"no\"}") {
 			auto       transport = discovery_fixture_transport{ };
@@ -3866,7 +3869,7 @@ namespace {
 			const auto result             = perform_personal_discovery_read(transport, enterprise ? enterprise_profile() : profile(), request, { });
 			expect(result && result->Rows.size() == 1U && result->Rows.front().Title == "Fix the queue before opening"
 					   && result->Rows.front().HeadOid == application::commit_oid{ std::string{ head_oid } }
-					   && result->Rows.front().ReviewersAwaited == 2U && result->Rows.front().Reviews.size() == 101U
+					   && result->Rows.front().ReviewersAwaited == 2U && result->Rows.front().Waiting.Requests == 2U && result->Rows.front().Reviews.size() == 101U
 					   && result->Rows.front().Reviews.back().State == application::github_review_state::approved,
 				   "retained Home read carries title, current head and complete ordered review evidence");
 			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U

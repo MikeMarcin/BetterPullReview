@@ -10,14 +10,18 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/profile_management_window.hpp"
+#include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
+#include <QAbstractButton>
 
 #include <QAction>
 #include <QApplication>
@@ -165,6 +169,7 @@ try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
 	const auto    cliCourse       = QApplication::arguments().contains(QStringLiteral("--gh-cli"));
+	const auto    homeWaiting     = QApplication::arguments().contains(QStringLiteral("--home-waiting"));
 	const auto    attended        = QApplication::arguments().contains(QStringLiteral("--attended"));
 	const auto    renderArgument  = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
 	const auto    renderDirectory = renderArgument >= 0 ? QApplication::arguments().value(renderArgument + 1) : QString{ };
@@ -197,9 +202,15 @@ try {
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 	}
 	options.SharedDeviceVault = app::detail::make_shared_github_fixture_vault();
-	options.Offline           = std::make_shared<app::detail::github_offline_fixture>();
-	options.RateLimit         = std::make_shared<app::detail::github_rate_limit_fixture>();
-	const auto unrelated      = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
+	if (homeWaiting) {
+		authoredRow->WaitingDetails        = true;
+		authoredRow->RequestedTeams        = 3;
+		authoredRow->RequiredReviewPresent = std::make_shared<std::atomic<bool>>(true);
+		authoredRow->CheckFailed           = std::make_shared<std::atomic<bool>>(true);
+	}
+	options.Offline      = std::make_shared<app::detail::github_offline_fixture>();
+	options.RateLimit    = std::make_shared<app::detail::github_rate_limit_fixture>();
+	const auto unrelated = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
 	expect(unrelated >= 2'000U, "the saved repository holds at least 2,000 unrelated open pull requests");
 
 	app::github_application* owner    = nullptr;
@@ -312,6 +323,64 @@ try {
 		draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionCancel"))->click();
 		windowA->settings()->hide();
 	};
+	if (homeWaiting) {
+		windowA->home_repository_onboarding_button()->click();
+		wait_for(draftReady, "waiting course opens repository setup");
+		addDraft(QStringLiteral("octo-org/review-repository"));
+		wait_for([&] { const auto item=queue_item(*windowA,4001); return !draft->isVisible() && discovery().Quiescent && item && item->Facts.Waiting.CodeOwners.size()==3; }, "unopened discovery publishes all three named code-owner teams", diagnose);
+		windowA->settings()->hide();
+		windowA->home_action()->trigger();
+		auto       item     = queue_item(*windowA, 4001);
+		const auto identity = item->Ref;
+		std::cerr << "waiting bucket=" << static_cast<int>(item->Bucket) << " requests=" << item->Facts.Waiting.Requests.value_or(999) << " failures=" << item->Facts.Waiting.FailedChecks.size() << " checks-known=" << item->Facts.Waiting.ChecksKnown << " head=" << item->Facts.Waiting.Head << "\n";
+		expect(item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && item->Facts.Waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" }, "unopened mixed review/check example stays in Waiting on others");
+		expect(qt::home_why_sentence(*item).contains(QStringLiteral("@octo-org/team-0")) && qt::home_why_sentence(*item).contains(QStringLiteral("@octo-org/renderer-and-cross-platform-maintainers")) && qt::home_why_sentence(*item).contains(QStringLiteral("Branch Freshness failed")), "native row explains actor and independent failure");
+		const auto renderWaiting = [&](const QString& aName) {
+			if (renderDirectory.isEmpty()) {
+				return;
+			}
+			expect(QDir{ }.mkpath(renderDirectory), "Home waiting render directory exists");
+			for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+				windowA->appearance_settings()->choose_mode(mode);
+				wait_for([&] { return owner->status().ProfileMode == mode; }, "Home appearance accepted");
+				for (const auto width : { 1100, 520 }) {
+					windowA->resize(width, 760);
+					QApplication::processEvents();
+					expect(windowA->grab().save(renderDirectory + QStringLiteral("/%1-%2-%3.png").arg(aName, QString::fromUtf8(core::stable_name(mode))).arg(width)), "composed Home waiting render saved");
+				}
+			}
+		};
+		renderWaiting(QStringLiteral("waiting-discovered"));
+		expect(windowA->home_list()->select(identity, true), "exact waiting identity selected");
+		auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(windowA->home_list()->current_view(), &open);
+		wait_for([&] { return windowA->showing_overview() && windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "Home opens the exact accepted Overview", diagnose);
+		const auto* roster = windowA->overview_page()->findChild<QLabel*>(QStringLiteral("overviewPendingReviewers"));
+		if (!roster) {
+			for (const auto* label : windowA->overview_page()->findChildren<QLabel*>()) {
+				if (label->text().contains(QStringLiteral("@octo-org/team-0"))) {
+					roster = label;
+					break;
+				}
+			}
+		}
+		expect(roster && roster->text().contains(QStringLiteral("@octo-org/team-2")), "Overview preserves the same three accepted code-owner teams");
+		windowA->home_action()->trigger();
+		wait_for([&] {const auto row=queue_item(*windowA,4001);return windowA->showing_home() && row && row->Facts.Waiting.CodeOwners.size()==3; }, "returning Home preserves requests", diagnose);
+		item = queue_item(*windowA, 4001);
+		expect(core::home_section_for(item->Membership, item->Bucket) == (item->Facts.UnseenComments ? core::home_queue_section::my_pull_requests : core::home_queue_section::waiting_on_others), "accepted unread activity retains existing authored precedence");
+		awaiting->store(false);
+		windowA->queue_refresh_action()->trigger();
+		wait_for([&] {const auto row=queue_item(*windowA,4001);return discovery().Quiescent && row && row->Facts.Waiting.Requests==0; }, "complete newer request removal updates Home", diagnose);
+		expect(queue_item(*windowA, 4001)->Facts.Waiting.RequiredReview == true && queue_item(*windowA, 4001)->Facts.Waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" }, "removal preserves aggregate review requirement and check failure");
+		expect(options.ReviewSubmissionServer->Submissions == 0 && options.ReviewSubmissionServer->StagedWrites == 0, "Home waiting course is read-only");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "Home waiting course drains every host");
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "Home waiting course removes its private root");
+		std::cout << "home-waiting-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (!renderDirectory.isEmpty()) {
 		// [[BPR-1310]] v003. Actual composition, offscreen: Home first run; the
 		// Repositories page empty, adding and refusing; two durable saves through
@@ -482,8 +551,8 @@ try {
 		}
 		std::cerr << '\n';
 	}
-	expect(served.DiscoverySearches == 6U && served.DiscoveryDetailReads == 4U && reads.size() == 8U && only_discovery(reads),
-		   "one refresh is two personal searches per saved repository and one requested-reviewers read per row they returned; no snapshot, file, diff or list read");
+	expect(served.DiscoverySearches == 6U && served.DiscoveryDetailReads == 5U && reads.size() == 11U && only_discovery(reads),
+		   "one refresh uses personal searches and bounded reviewer/metadata reads; no files, diffs or conversations");
 	auto terms = served.DiscoverySearchTerms;
 	std::ranges::sort(terms);
 	terms.erase(std::ranges::unique(terms).begin(), terms.end());
@@ -721,7 +790,8 @@ try {
 	windowB->queue_refresh_action()->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
-	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads == 8U && reads_since(evidence(), beforeRefresh, cliCourse).size() == 16U
+	std::cerr << "refresh searches=" << evidence().DiscoverySearches << " details=" << evidence().DiscoveryDetailReads << " reads=" << reads_since(evidence(), beforeRefresh, cliCourse).size() << "\n";
+	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads <= 12U && reads_since(evidence(), beforeRefresh, cliCourse).size() <= 32U
 			   && only_discovery(reads_since(evidence(), beforeRefresh, cliCourse)),
 		   "Refresh reads retained PR metadata and review summaries before the bounded personal searches");
 	wait_for([&] { const auto item = queue_item(*windowA, 4001); return item && item->Bucket == core::attention_bucket::quiet

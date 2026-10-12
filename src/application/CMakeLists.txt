@@ -64,6 +64,7 @@ add_library(
         src/diagnostic_settings.cpp
         src/release_profile_cleanup.cpp
         src/personal_discovery_host.cpp
+        src/review_queue_facts.cpp
         src/review_queue_enrollment.cpp
         src/setup_destination.cpp
         src/profile_registry.cpp

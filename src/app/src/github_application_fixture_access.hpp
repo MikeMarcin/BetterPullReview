@@ -133,6 +133,8 @@ namespace bpr::app::detail {
 			/// \brief When supplied, false means the fake server no longer requests reviewers.
 			std::shared_ptr<std::atomic<bool>> ReviewerRequestsPresent;
 			std::shared_ptr<std::atomic<bool>> Draft;
+			bool                               WaitingDetails = false;
+			std::shared_ptr<std::atomic<bool>> RequiredReviewPresent, CheckFailed;
 		};
 		std::vector<pull_request> OpenPullRequests;
 	};

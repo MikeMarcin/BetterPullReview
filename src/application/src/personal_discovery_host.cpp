@@ -371,6 +371,7 @@ namespace bpr::application {
 				if (next.Request.Reason == personal_discovery_reason::retained && !still_enrolled(next)) {
 					continue;
 				}
+				next.Request.FactRevision = Queue.begin_observation();
 				Active.push_back(next);
 				++Statistics.Submitted;
 				Statistics.MaximumInFlight = std::max<std::uint64_t>(Statistics.MaximumInFlight, Active.size());
@@ -468,6 +469,7 @@ namespace bpr::application {
 							.Complete     = aResult.Completeness == personal_discovery_completeness::complete && !MetadataFailed,
 							.PullRequests = { },
 						};
+						answer.FactRevision = finished.Request.FactRevision;
 						answer.PullRequests.reserve(aResult.Rows.size());
 						for (auto& row : aResult.Rows) {
 							if (ClosedThisCycle.contains(queue_ref(finished.Repository, row.Number))) {
@@ -480,6 +482,7 @@ namespace bpr::application {
 								.Detailed         = row.Detailed,
 								.ReviewersAwaited = row.ReviewersAwaited,
 								.Draft            = row.Draft,
+								.Waiting          = row.Waiting,
 							});
 						}
 						if (aResult.Completeness != personal_discovery_completeness::complete && CycleProblem == queue_discovery_problem::none) {
@@ -534,8 +537,9 @@ namespace bpr::application {
 				.Session  = Session->Queue,
 				.Ref      = ref,
 				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft },
-				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true },
+				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true, .Waiting = row.Waiting, .FactRevision = aJob.Request.FactRevision },
 				.Closed   = row.Closed,
+				.Authored = row.AuthorIdentity ? std::optional<bool>{ *row.AuthorIdentity == Session->Viewer.Node } : std::nullopt,
 			});
 		}
 

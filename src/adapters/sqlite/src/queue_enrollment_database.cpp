@@ -1,4 +1,5 @@
 #include "queue_enrollment_database.hpp"
+#include "bpr/application/review_queue_facts.hpp"
 
 #include "storage_internal.hpp"
 
@@ -180,6 +181,31 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" }
 		};
 
+		constexpr std::array SchemaVersion9{
+			std::string_view{
+				"CREATE TABLE enrollment("
+				"host TEXT NOT NULL,"
+				"account TEXT NOT NULL,"
+				"repository TEXT NOT NULL,"
+				"pull_request INTEGER NOT NULL,"
+				"role INTEGER NOT NULL CHECK(role BETWEEN 0 AND 4),"
+				"matched_rule INTEGER NOT NULL CHECK(matched_rule IN (0, 1)),"
+				"rule_kind INTEGER NOT NULL CHECK(rule_kind BETWEEN 0 AND 2),"
+				"rule_pattern TEXT NOT NULL,"
+				"rule_excluding INTEGER NOT NULL CHECK(rule_excluding IN (0, 1)),"
+				"departed INTEGER NOT NULL CHECK(departed BETWEEN 0 AND 5),"
+				"authored INTEGER NOT NULL CHECK(authored IN (0, 1)),"
+				"requested INTEGER NOT NULL CHECK(requested IN (0, 1)),"
+				"followed INTEGER NOT NULL CHECK(followed IN (0, 1)),"
+				"reviewed INTEGER NOT NULL CHECK(reviewed IN (0, 1)),"
+				"draft INTEGER CHECK(draft IN(0, 1)),"
+				"draft_account TEXT NOT NULL,"
+				"home_facts TEXT NOT NULL CHECK(length(CAST(home_facts AS BLOB)) <= 32768),"
+				"facts_account TEXT NOT NULL,"
+				"PRIMARY KEY(host, account, repository, pull_request)"
+				") STRICT" }
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -240,6 +266,15 @@ namespace bpr::adapters::sqlite::detail {
 
 		constexpr std::array SchemaVersion8Tables{
 			schema_table{ "enrollment", SchemaVersion8[0] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+			schema_table{ "presentation_preferences", SchemaVersion7[1] },
+			schema_table{ "saved_repository", SchemaVersion4[0] },
+			schema_table{ "saved_server", SchemaVersion5[0] },
+		};
+
+		constexpr std::array SchemaVersion9Tables{
+			schema_table{ "enrollment", SchemaVersion9[0] },
 			schema_table{ "enrollment_meta", SchemaVersion1[0] },
 			schema_table{ "observer_rule", SchemaVersion2[0] },
 			schema_table{ "presentation_preferences", SchemaVersion7[1] },
@@ -476,8 +511,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (*version == 7) {
 				return validate_exact_version(aDatabase, 7, SchemaVersion7Tables);
 			}
+			if (*version == 8) {
+				return validate_exact_version(aDatabase, 8, SchemaVersion8Tables);
+			}
 			if (*version == queue_enrollment_schema_version) {
-				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion8Tables);
+				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion9Tables);
 			}
 			return std::unexpected(failure::schema_mismatch);
 		}
@@ -614,6 +652,15 @@ namespace bpr::adapters::sqlite::detail {
 					}
 				}
 			}
+			if (*current < 9) {
+				const auto migration = std::array{ std::string{ "CREATE TABLE home_metadata_migration AS SELECT * FROM enrollment" }, std::string{ "DROP TABLE enrollment" }, std::string{ SchemaVersion9[0] }, std::string{ "INSERT INTO enrollment SELECT *, '', '0' FROM home_metadata_migration" }, std::string{ "DROP TABLE home_metadata_migration" } };
+				for (const auto& sql : migration) {
+					if (const auto migrated = execute(aDatabase, sql, aStop); !migrated) {
+						rollback();
+						return migrated;
+					}
+				}
+			}
 			if (auto meta = execute(
 					aDatabase,
 					"UPDATE enrollment_meta SET schema_format = "
@@ -640,7 +687,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion8Tables);
+			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion9Tables);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -763,8 +810,8 @@ namespace bpr::adapters::sqlite::detail {
 			"INSERT INTO enrollment("
 			"host, account, repository, pull_request, role, matched_rule,"
 			"rule_kind, rule_pattern, rule_excluding, departed,"
-			"authored, requested, followed, reviewed, draft, draft_account) "
-			"SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13, ?14, ?15, ?16, ?17 "
+			"authored, requested, followed, reviewed, draft, draft_account, home_facts, facts_account) "
+			"SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19 "
 			"WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM enrollment LIMIT ?11)) < ?11 "
 			"OR EXISTS(SELECT 1 FROM enrollment WHERE host = ?1 AND account = ?2 AND repository = ?3 AND pull_request = ?4) "
 			"ON CONFLICT(host, account, repository, pull_request) DO UPDATE SET "
@@ -773,11 +820,19 @@ namespace bpr::adapters::sqlite::detail {
 			"rule_excluding = excluded.rule_excluding,"
 			"departed = excluded.departed,"
 			"authored = excluded.authored, requested = excluded.requested,"
-			"followed = excluded.followed, reviewed = excluded.reviewed, draft = excluded.draft, draft_account = excluded.draft_account");
+			"followed = excluded.followed, reviewed = excluded.reviewed, draft = excluded.draft, draft_account = excluded.draft_account, home_facts = excluded.home_facts, facts_account = excluded.facts_account");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
 
+		const auto facts = application::encode_queue_facts(aRecord.LastFacts);
+		if (!facts) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		const auto factsAccount = std::to_string(aRecord.FactsAccount.value());
+		if (::sqlite3_bind_text(statement->Value, 18, facts->c_str(), static_cast<int>(facts->size()), SQLITE_TRANSIENT) != SQLITE_OK || ::sqlite3_bind_text(statement->Value, 19, factsAccount.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
 		const auto draftAccount = std::to_string(aRecord.DraftAccount.value());
 		if ((aRecord.Draft ? ::sqlite3_bind_int(statement->Value, 16, *aRecord.Draft ? 1 : 0) : ::sqlite3_bind_null(statement->Value, 16)) != SQLITE_OK || ::sqlite3_bind_text(statement->Value, 17, draftAccount.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK) {
 			return std::unexpected(failure::unavailable);
@@ -869,7 +924,7 @@ namespace bpr::adapters::sqlite::detail {
 			Handle,
 			"SELECT host, account, repository, pull_request, role, matched_rule,"
 			"rule_kind, rule_pattern, rule_excluding, departed,"
-			"authored, requested, followed, reviewed, draft, draft_account FROM enrollment "
+			"authored, requested, followed, reviewed, draft, draft_account, home_facts, facts_account FROM enrollment "
 			"ORDER BY host, account, repository, pull_request");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -895,6 +950,13 @@ namespace bpr::adapters::sqlite::detail {
 			if ((draftType != SQLITE_NULL && (draftType != SQLITE_INTEGER || (draftValue != 0 && draftValue != 1))) || parsed.ec != std::errc{ } || parsed.ptr != accountText.data() + accountText.size() || std::to_string(account) != accountText) {
 				return std::unexpected(failure::integrity_failure);
 			}
+			const auto facts            = application::decode_queue_facts(text_of(statement->Value, 16));
+			const auto factsAccountText = text_of(statement->Value, 17);
+			auto       factsAccount     = std::uint64_t{ 0 };
+			const auto factsParsed      = std::from_chars(factsAccountText.data(), factsAccountText.data() + factsAccountText.size(), factsAccount);
+			if (!facts || factsParsed.ec != std::errc{ } || factsParsed.ptr != factsAccountText.data() + factsAccountText.size() || std::to_string(factsAccount) != factsAccountText) {
+				return std::unexpected(failure::integrity_failure);
+			}
 			records.push_back(application::enrollment_record{
 				.Ref = core::pull_request_ref{
 					.Host       = text_of(statement->Value, 0),
@@ -918,6 +980,8 @@ namespace bpr::adapters::sqlite::detail {
 				.Departed     = static_cast<application::enrollment_departure>(::sqlite3_column_int64(statement->Value, 9)),
 				.Draft        = draftType == SQLITE_NULL ? std::nullopt : std::optional<bool>{ draftValue != 0 },
 				.DraftAccount = core::github_account_id{ account },
+				.LastFacts    = *facts,
+				.FactsAccount = core::github_account_id{ factsAccount },
 			});
 		}
 		return records;

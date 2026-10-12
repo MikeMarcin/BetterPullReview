@@ -5,6 +5,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -70,6 +71,23 @@ namespace bpr::core {
 	[[nodiscard]] auto explanation(attention_bucket aBucket) noexcept
 		-> std::string_view;
 
+	/// \brief A bounded last accepted review/merge summary, independent of local activity.
+	struct queue_waiting_facts
+	{
+		std::optional<std::uint32_t> Requests;
+		std::uint32_t                People = 0, Teams = 0;
+		std::vector<std::string>     CodeOwners, Reviewers, FailedChecks;
+		std::optional<bool>          RequiredReview, MergeBlocked;
+		bool                         ChecksKnown = false, NamesKnown = false;
+		bool                         RequestsStale = false, AssessmentStale = false, ChecksStale = false;
+		std::string                  Head, Base;
+		auto                         operator<=>(const queue_waiting_facts&) const = default;
+	};
+
+	/// \brief Whether an observed summary still reports review work or an independent blocker.
+	[[nodiscard]] auto review_waiting(const queue_waiting_facts& aFacts) noexcept -> bool;
+	[[nodiscard]] auto merge_blocked(const queue_waiting_facts& aFacts) noexcept -> bool;
+
 	/// \brief What the host observed about one enrolled pull request's state.
 	///
 	/// \details A bounded record. Every field is something the host read from
@@ -106,7 +124,11 @@ namespace bpr::core {
 		// enrolled by discovery or restored from the store has not been read
 		// until a detail read or an open says what it holds, and until then
 		// its quiet is unknown rather than observed.
-		bool Known = true;
+		bool                Known = true;
+		queue_waiting_facts Waiting;
+		/// Profile-owned dispatch ordering; zero is a legacy local-only observation.
+		std::uint64_t       FactRevision = 0;
+		std::optional<bool> Authored;
 
 		auto operator<=>(const queue_activity_observation&) const = default;
 	};
@@ -130,9 +152,14 @@ namespace bpr::core {
 		std::uint32_t UnseenComments = 0U;
 		/// Last accepted GitHub status, independent of private review drafts.
 		std::optional<bool> Draft = std::nullopt;
+		queue_waiting_facts Waiting;
+		std::optional<bool> Authored;
 
 		auto operator<=>(const queue_item_facts&) const = default;
 	};
+
+	/// \brief Adds accepted ownership to presentation without changing retained enrollment reasons.
+	[[nodiscard]] auto queue_membership_with_authorship(queue_membership aMembership, std::optional<bool> aAuthored) noexcept -> queue_membership;
 
 	struct queue_item
 	{

@@ -135,6 +135,7 @@
 #include "bpr/application/review_ledger_application_host.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/application/review_queue_facts.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/shared_draft_application_host.hpp"
 #include "bpr/application/workbench_application_host.hpp"
@@ -731,9 +732,7 @@ namespace bpr::app {
 					.Number = aSnapshot.PullRequest.Number.value(),
 				},
 				.Author = aSnapshot.PullRequest.Author.has_value() ? aSnapshot.PullRequest.Author->Login : std::string{ },
-				// The accepted snapshot does not carry GitHub's explicit queue-role
-				// authority. Review and comment history are evidence of activity, not
-				// a substitute for an assignment supplied by the provider.
+				// Exact accepted provider identity establishes authorship without saving a repository.
 				.Role         = core::github_role::none,
 				.ChangedPaths = std::move(paths),
 				.Title        = aSnapshot.PullRequest.Title,
@@ -6120,6 +6119,8 @@ namespace bpr::app {
 
 		std::unique_ptr<window_read_decision_lane>            ReadDecision;
 		std::shared_ptr<application::github_window_read_host> WindowRead;
+		std::optional<core::pull_request_request_context>     QueueFactRequest;
+		std::uint64_t                                         QueueFactRevision = 0;
 		/// [[BPR-1357]]. What this window's Home shows of the pull request it
 		/// asked to open, and the clock behind its wait.
 		std::unique_ptr<application::home_open_host>    HomeOpen;
@@ -6928,6 +6929,9 @@ namespace bpr::app {
 			});
 			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
+}
+if (QueueHost && WindowRead->state().PendingPullRequest && QueueFactRequest != WindowRead->state().PendingPullRequest) {
+    QueueFactRequest = WindowRead->state().PendingPullRequest; QueueFactRevision = QueueHost->begin_observation();
 }
 if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	ReadStateCache.reset();
@@ -13190,8 +13194,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						.Generation    = aHandoff.IdentityGeneration.value(),
 						.ViewerAccount = aHandoff.Account,
 					};
-					auto       activity     = core::queue_activity_observation{ };
-					const auto sameBaseline = QueueActivityBaseline.has_value()
+					auto activity    = core::queue_activity_observation{ };
+					activity.Waiting = application::queue_waiting_for(*snapshot);
+					if (snapshot->PullRequest.Author) {
+						activity.Authored = snapshot->PullRequest.Author->Actor == snapshot->Viewer.Actor;
+					}
+					activity.ReviewersAwaited = activity.Waiting.Requests.value_or(0);
+					activity.FactRevision     = QueueFactRevision;
+					const auto sameBaseline   = QueueActivityBaseline.has_value()
 						&& QueueActivityBaseline->Session == session
 						&& QueueActivityBaseline->Ref == observation.Ref;
 					if (sameBaseline) {

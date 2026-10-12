@@ -3473,6 +3473,18 @@ set_tests_properties(application_personal_discovery_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "personal-discovery-public-path:pass")
 
+# RFC-BPR-0070: read-only Home waiting composition through discovery and ordinary open.
+bpr_add_network_isolated_test(NAME application_home_waiting_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-waiting)
+set_tests_properties(application_home_waiting_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
+    set_tests_properties(application_home_waiting_cli_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+        PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
+endif()
+
 # [[BPR-1379]]. The same composed Home restoration and Refresh course under
 # a fixture-qualified CLI account lease, with no native sign-in or live API.
 # The CLI sign-in path is composed only on macOS.

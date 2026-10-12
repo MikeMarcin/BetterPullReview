@@ -1644,7 +1644,7 @@ namespace bpr::app::detail {
 					response.Body   = R"({"message":"Not Found"})";
 					return response;
 				}
-				const auto head = QString{ 40, QLatin1Char('a') };
+				const auto head = found->WaitingDetails ? QString::fromUtf8(aState.Descriptor.HeadOneOid) : QString{ 40, QLatin1Char('a') };
 				if (aRequest.Operation == read_operation::list_reviews) {
 					auto reviews = QJsonArray{ };
 					if (found->ReviewedByViewer && found->ReviewedByViewer->load()) {
@@ -1679,7 +1679,7 @@ namespace bpr::app::detail {
 													   { QStringLiteral("draft"), found->Draft && found->Draft->load() },
 													   { QStringLiteral("state"), QStringLiteral("open") },
 													   { QStringLiteral("url"), QString::fromStdString(std::string{ aState.Profile.rest_root() }) + QStringLiteral("/repos/%1/%2/pulls/%3").arg(QString::fromStdString(semantic.Owner), QString::fromStdString(semantic.Repository), number) },
-													   { QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QString::fromStdString(found->Author) }, { QStringLiteral("node_id"), QStringLiteral("U_") + QString::fromStdString(found->Author) } } },
+													   { QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QString::fromStdString(found->Author) }, { QStringLiteral("node_id"), found->Author == "octo-reviewer" ? QStringLiteral("U_fixture_viewer") : QStringLiteral("U_") + QString::fromStdString(found->Author) } } },
 													   { QStringLiteral("head"), QJsonObject{ { QStringLiteral("sha"), head } } },
 													   { QStringLiteral("base"), QJsonObject{ { QStringLiteral("repo"), QJsonObject{ { QStringLiteral("id"), static_cast<qint64>(aState.Descriptor.RepositoryId.value()) }, { QStringLiteral("full_name"), QString::fromStdString(semantic.Owner + "/" + semantic.Repository) } } } } },
 													   { QStringLiteral("requested_reviewers"), users },
@@ -1687,6 +1687,13 @@ namespace bpr::app::detail {
 												   } }
 										.toJson(QJsonDocument::Compact)
 										.toStdString();
+				if (found->WaitingDetails) {
+					auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response.Body)).object();
+					document.insert("node_id", "PR_fixture_17");
+					document.insert("user", QJsonObject{ { "node_id", found->Author == "octo-reviewer" ? "U_fixture_viewer" : "U_fixture_author" }, { "login", QString::fromStdString(found->Author) } });
+					document.insert("base", QJsonObject{ { "sha", QString::fromUtf8(aState.Descriptor.BaseOid) }, { "ref", "main" }, { "repo", QJsonObject{ { "id", static_cast<qint64>(aState.Descriptor.RepositoryId.value()) }, { "node_id", "R_fixture_repository" }, { "full_name", QString::fromStdString(semantic.Owner + "/" + semantic.Repository) } } } });
+					response.Body = QJsonDocument{ document }.toJson(QJsonDocument::Compact).toStdString();
+				}
 				return response;
 			}
 			if (aRequest.Operation == read_operation::list_requested_reviewers) {
@@ -2172,6 +2179,50 @@ namespace bpr::app::detail {
 			return QJsonDocument{ root }.toJson(QJsonDocument::Compact).toStdString();
 		}
 
+		[[nodiscard]] auto home_waiting_response(const fixture_recording_state& aState, const github_wire_request& aRequest) -> std::optional<wire_response>
+		{
+			if (!aState.PersonalDiscovery) {
+				return std::nullopt;
+			}
+			const auto* parent = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+			const auto  number = parent ? parent->Number.value() : aRequest.Wire.Semantic.PullRequestNumber;
+			const auto  found  = std::ranges::find(aState.PersonalDiscovery->OpenPullRequests, number, &github_personal_discovery_fixture::pull_request::Number);
+			if (found == aState.PersonalDiscovery->OpenPullRequests.end() || !found->WaitingDetails) {
+				return std::nullopt;
+			}
+			const auto operation = aRequest.Wire.Operation;
+			if (operation != read_operation::list_review_requests && operation != read_operation::get_merge_assessment && operation != read_operation::list_checks) {
+				return std::nullopt;
+			}
+			auto body = QJsonObject{ };
+			if (operation == read_operation::list_checks) {
+				auto rows = QJsonArray{ };
+				for (int index = 0; index < 24; ++index) {
+					rows.append(QJsonObject{ { "node_id", QStringLiteral("home-check-%1").arg(index) }, { "head_sha", QString::fromUtf8(aState.Descriptor.HeadOneOid) }, { "name", index == 0 ? "Branch Freshness" : "CI" }, { "status", "completed" }, { "conclusion", index == 0 && (!found->CheckFailed || found->CheckFailed->load()) ? "failure" : index <= 16 ? "success"
+																																																																																									: "skipped" },
+											 { "output", QJsonObject{ { "title", "Branch behind base" }, { "summary", "Refresh branch before merging." } } } });
+				}
+				body = QJsonObject{ { "total_count", 24 }, { "check_runs", rows } };
+			} else {
+				auto pull = QJsonObject{ { "id", "PR_fixture_17" }, { "headRefOid", QString::fromUtf8(aState.Descriptor.HeadOneOid) }, { "baseRefOid", QString::fromUtf8(aState.Descriptor.BaseOid) }, { "baseRefName", "main" } };
+				if (operation == read_operation::get_merge_assessment) {
+					pull.insert("mergeStateStatus", "BLOCKED");
+					pull.insert("reviewDecision", !found->RequiredReviewPresent || found->RequiredReviewPresent->load() ? "REVIEW_REQUIRED" : "APPROVED");
+					pull.insert("autoMergeRequest", QJsonValue::Null);
+				} else {
+					auto requests = QJsonArray{ };
+					if (!found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load()) {
+						for (int index = 0; index < 3; ++index) {
+							requests.append(QJsonObject{ { "id", QStringLiteral("home-request-%1").arg(index) }, { "asCodeOwner", true }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("home-team-%1").arg(index) }, { "slug", index == 1 ? QStringLiteral("renderer-and-cross-platform-maintainers") : QStringLiteral("team-%1").arg(index) }, { "name", "Platform owners" }, { "organization", QJsonObject{ { "login", "octo-org" } } } } } });
+						}
+					}
+					pull.insert("reviewRequests", QJsonObject{ { "totalCount", requests.size() }, { "nodes", requests }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", requests.isEmpty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ "HOME_END" } } } } });
+				}
+				body = QJsonObject{ { "data", QJsonObject{ { "repository", QJsonObject{ { "id", "R_fixture_repository" }, { "pullRequest", pull } } } } } };
+			}
+			return wire_response{ .Status = 200, .Headers = response_headers(), .Body = QJsonDocument{ body }.toJson(QJsonDocument::Compact).toStdString(), .Completeness = page_completeness::complete };
+		}
+
 		class fixture_recorded_wire_transport final
 			: public github_wire_transport_port,
 			  public application::git_smart_transport_factory_port
@@ -2191,6 +2242,13 @@ namespace bpr::app::detail {
 			{
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				if (auto summary = home_waiting_response(*State, aRequest)) {
+					if (!validate_github_wire_request(State->Profile, aRequest)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					append_rate_limit_headers(*summary, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(*summary) };
 				}
 				if (aRequest.Wire.Operation == read_operation::get_merge_assessment || aRequest.Wire.Operation == read_operation::list_review_requests || aRequest.Wire.Operation == read_operation::list_branch_rules || aRequest.Wire.Operation == read_operation::get_branch_protection) {
 					if (!validate_github_wire_request(State->Profile, aRequest)) {
@@ -2408,6 +2466,10 @@ namespace bpr::app::detail {
 					const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body));
 					auto       object   = document.object();
 					object.insert(QStringLiteral("url"), QString::fromStdString(std::string{ State->Profile.rest_root() }) + QStringLiteral("/repos/%1/%2/pulls/%3").arg(QString::fromStdString(aRequest.Wire.Semantic.Owner), QString::fromStdString(aRequest.Wire.Semantic.Repository)).arg(aRequest.Wire.Semantic.PullRequestNumber));
+					const auto found = std::ranges::find(State->PersonalDiscovery->OpenPullRequests, aRequest.Wire.Semantic.PullRequestNumber, &github_personal_discovery_fixture::pull_request::Number);
+					if (found != State->PersonalDiscovery->OpenPullRequests.end() && found->WaitingDetails) {
+						object.insert("user", QJsonObject{ { "node_id", found->Author == "octo-reviewer" ? "U_fixture_viewer" : "U_fixture_author" }, { "login", QString::fromStdString(found->Author) } });
+					}
 					object.insert(QStringLiteral("requested_reviewers"), QJsonArray{ });
 					object.insert(QStringLiteral("requested_teams"), QJsonArray{ });
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();

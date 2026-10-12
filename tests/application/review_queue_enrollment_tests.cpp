@@ -1,6 +1,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/application/review_queue_facts.hpp"
 
 #include <algorithm>
 #include <array>
@@ -288,6 +289,7 @@ namespace {
 			refresh.Observation = core::pull_request_observation{ .Ref = ref(1), .Author = "fixture", .ChangedPaths = { "one.cpp" } };
 			const auto before   = host.statistics();
 			host.refresh(ref(1));
+			run_one(effects, decisions);
 			run_one(effects, decisions);
 			const auto after = host.statistics();
 			expect(after.AppliedRefreshes == before.AppliedRefreshes + 1U, "single exact refresh accepted on decision lane");
@@ -1264,10 +1266,11 @@ namespace {
 			refresh.Observation = { .Ref = ref(count), .Author = "fixture", .Role = core::github_role::reviewer, .Title = "one changed item" };
 			host.refresh(ref(count), { .UnseenComments = 2U });
 			run_one(effects, decisions);
+			run_one(effects, decisions);
 			const auto after = host.statistics();
 			expect(after.ItemPublications == before.ItemPublications + 1U && after.Projection == before.Projection
-					   && after.PersistenceRequests == before.PersistenceRequests && effects.pending() == 0U,
-				   "unchanged enrollment updates one item without catalogue projection or persistence");
+					   && after.PersistenceRequests == before.PersistenceRequests + 1U && effects.pending() == 0U,
+				   "accepted metadata persists and updates one item without a catalogue projection");
 			const auto& delta = first->Published.back();
 			expect(delta.Items.empty() && delta.UpdatedItem && delta.UpdatedItem->Ref == ref(count) && delta.UpdatedItem->Facts.UnseenComments == 2U, "caught-up consumer receives exact changed identity");
 			auto second = std::make_shared<window_queue_log>();
@@ -1277,6 +1280,7 @@ namespace {
 				first->Callback         = { };
 				refresh.Observation.Ref = ref(count - 1);
 				host.refresh(ref(count - 1), { .UnseenComments = 4U });
+				run_one(effects, decisions);
 				run_one(effects, decisions);
 			};
 			host.refresh(ref(count), { .UnseenComments = 3U });
@@ -1646,6 +1650,7 @@ namespace {
 		if (aReviewed) {
 			result.Reviews.push_back({ .DatabaseId = 1U, .Author = application::github_actor_id{ "U_reviewer" }, .State = application::github_review_state::approved, .Commit = application::commit_oid{ std::string(40U, 'a') } });
 		}
+		result.Waiting.Requests = result.ReviewersAwaited;
 		return result;
 	}
 
@@ -2103,6 +2108,112 @@ namespace {
 			   "a signed-out session, or one without a viewer login, has nothing to search for");
 	}
 
+	void test_observer_authorship_does_not_change_enrollment()
+	{
+		auto membership        = core::queue_membership{ };
+		membership.MatchedRule = true;
+		membership.Rule        = { .Kind = core::observer_rule_kind::repository, .Pattern = "octo/app" };
+		auto       fixture     = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = membership } } };
+		const auto session     = discovery_session().Queue;
+		fixture.Queue.adopt(session);
+		auto waiting           = core::queue_waiting_facts{ };
+		waiting.RequiredReview = true;
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Observer author" }, .Activity = { .Known = true, .Waiting = waiting, .FactRevision = fixture.Queue.begin_observation() }, .Authored = true });
+		fixture.settle();
+		expect(fixture.item(17)->Membership.authored() && fixture.item(17)->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && fixture.record(17)->Membership == membership && fixture.Queue.saved_repositories().empty(), "observer-only authored waiting is a projection fact; the original enrollment reason stays unchanged");
+		fixture.Queue.shutdown();
+		fixture.Discovery.shutdown();
+		fixture.settle();
+	}
+
+	void test_failed_metadata_storage_preserves_accepted_observations()
+	{
+		auto       fixture = discovery_fixture{ { } };
+		const auto session = discovery_session().Queue;
+		fixture.Queue.adopt(session);
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = ref(17), .Follow = true });
+		fixture.settle();
+		fixture.Store.FailEnrollmentStore = true;
+		auto waiting                      = core::queue_waiting_facts{ };
+		waiting.RequiredReview            = true;
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Read despite storage failure" }, .Activity = { .Known = true, .Waiting = waiting, .FactRevision = fixture.Queue.begin_observation() }, .Authored = true });
+		fixture.settle();
+		const auto item = fixture.item(17);
+		expect(item && item->Membership.authored() && item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action, "failed optional metadata persistence cannot erase accepted authorship or aggregate review waiting");
+		expect(fixture.First->Published.back().Status == application::queue_landing_status::unavailable, "storage failure remains explicit without changing server facts");
+		fixture.Store.FailEnrollmentStore = false;
+		fixture.Queue.shutdown();
+		fixture.Discovery.shutdown();
+		fixture.settle();
+	}
+
+	void test_home_waiting_observations_survive_local_activity_and_restart()
+	{
+		auto       fixture = discovery_fixture{ { } };
+		const auto session = discovery_session().Queue;
+		fixture.Queue.adopt(session);
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = ref(17), .Follow = true });
+		fixture.settle();
+		auto waiting           = core::queue_waiting_facts{ };
+		waiting.Requests       = 3;
+		waiting.Teams          = 3;
+		waiting.NamesKnown     = true;
+		waiting.CodeOwners     = { "@org/team-a", "@org/team-b", "@org/team-c" };
+		waiting.RequiredReview = true;
+		waiting.MergeBlocked   = true;
+		waiting.ChecksKnown    = true;
+		waiting.FailedChecks   = { "Branch Freshness" };
+		waiting.Head           = std::string(40, 'a');
+		waiting.Base           = std::string(40, 'b');
+		const auto newer       = fixture.Queue.begin_observation();
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Authored follow", .Author = "reviewer", .Waiting = waiting }, .Activity = { .Known = true, .Waiting = waiting, .FactRevision = newer }, .Authored = true });
+		fixture.settle();
+		expect(fixture.item(17)->Membership.authored() && fixture.item(17)->Membership.Followed && fixture.item(17)->Bucket == core::attention_bucket::authored_awaiting_reviewer_action, "Follow-only identity becomes authored and waits without saving its repository");
+		fixture.Refresh.Observation = { .Ref = ref(17), .Author = "reviewer", .Role = core::github_role::none, .Title = "Authored follow" };
+		fixture.Queue.refresh(ref(17), { .UnseenComments = 2, .Known = true });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::new_comments_or_author_replies && fixture.item(17)->Facts.Waiting.CodeOwners.size() == 3, "local unread observation preserves roster and concurrent failure");
+		fixture.Queue.refresh(ref(17), { .Known = true });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && fixture.item(17)->Facts.Waiting.FailedChecks == std::vector<std::string>{ "Branch Freshness" }, "marking read restores waiting and never erases a check failure");
+		auto empty     = waiting;
+		empty.Requests = 0;
+		empty.People   = 0;
+		empty.Teams    = 0;
+		empty.CodeOwners.clear();
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Authored follow" }, .Activity = { .Known = true, .Waiting = empty, .FactRevision = fixture.Queue.begin_observation() } });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::authored_awaiting_reviewer_action, "complete last-request removal cannot settle a separate unmet requirement");
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Authored follow" }, .Activity = { .Known = true, .Waiting = waiting, .FactRevision = newer } });
+		fixture.settle();
+		expect(fixture.item(17)->Facts.Waiting.Requests == 0, "older completion cannot restore requests removed by a newer dispatch");
+		empty.RequiredReview = false;
+		fixture.Queue.apply(application::queue_metadata_answer{ .Session = session, .Ref = ref(17), .Facts = { .Title = "Authored follow" }, .Activity = { .Known = true, .Waiting = empty, .FactRevision = fixture.Queue.begin_observation() } });
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::quiet && core::merge_blocked(fixture.item(17)->Facts.Waiting), "settled review leaves independent blocker without inventing a notification category");
+		auto       restored = application::queue_enrollment_register{ };
+		const auto durable  = fixture.Store.State.Enrollments.front();
+		restored.enroll(durable.Ref, durable.Membership);
+		const auto encoded = application::encode_queue_facts(durable.LastFacts);
+		expect(encoded.has_value(), "summary fits the bounded codec");
+		const auto decoded = application::decode_queue_facts(*encoded);
+		expect(decoded && decoded->Waiting.ChecksStale, "stored facts restart explicitly last-known");
+		(void)restored.observe_facts(durable.Ref, *decoded, durable.FactsAccount);
+		const auto items = restored.project({ }, nullptr, &session);
+		expect(items.size() == 1 && items.front().Facts.Waiting.FailedChecks == waiting.FailedChecks, "same-account restart preserves remaining blockers");
+		auto other          = session;
+		other.ViewerAccount = core::github_account_id{ 9999 };
+		const auto hidden   = restored.project({ }, nullptr, &other);
+		expect(!hidden.front().Membership.authored() && hidden.front().Facts.Waiting.FailedChecks.empty(), "same login with another numeric account cannot borrow author or waiting facts");
+		expect(!application::decode_queue_facts("1;99999:x"), "malformed private metadata fails closed");
+		fixture.Queue.apply(application::queue_follow_intent{ .Ref = ref(17), .Follow = false });
+		fixture.settle();
+		expect(!fixture.item(17), "accepted ownership cannot turn a Follow-only PR into a new enrollment reason after Unfollow");
+		fixture.Queue.shutdown();
+		fixture.Discovery.shutdown();
+		fixture.settle();
+	}
+
 	// [[BPR-0990]]. Saving a repository is searched without waiting for the
 	// freshness window, a repository saved during a refresh is searched when it
 	// ends, and forgetting one withdraws only what was found there.
@@ -2400,6 +2511,9 @@ auto main() -> int
 	test_discovery_refuses_an_earlier_generation_of_the_same_account();
 	test_a_refused_discovery_write_is_reported_not_kept();
 	test_the_discovery_session_of_an_accepted_session();
+	test_observer_authorship_does_not_change_enrollment();
+	test_failed_metadata_storage_preserves_accepted_observations();
+	test_home_waiting_observations_survive_local_activity_and_restart();
 	test_discovery_follows_the_saved_repositories();
 	test_discovery_freshness_and_forgotten_repositories();
 

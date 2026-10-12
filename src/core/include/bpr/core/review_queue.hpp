@@ -134,6 +134,8 @@ namespace bpr::core {
 		bool Requested = false;
 		bool Followed  = false;
 		bool Reviewed  = false;
+		/// Accepted ownership of an enrolled row; never an enrollment reason.
+		bool OwnsPullRequest = false;
 
 		[[nodiscard]] auto enrolled() const noexcept -> bool
 		{
@@ -143,7 +145,7 @@ namespace bpr::core {
 		/// \brief Accepted authorship for this exact queue row, independent of other enrollment reasons.
 		[[nodiscard]] auto authored() const noexcept -> bool
 		{
-			return Role == github_role::author || Authored;
+			return Role == github_role::author || Authored || OwnsPullRequest;
 		}
 
 		/// \brief Whether a search of a saved repository put it here.

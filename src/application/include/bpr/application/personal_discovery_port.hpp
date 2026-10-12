@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_PORT_HPP
 
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/core/review_queue_attention.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -49,6 +50,7 @@ namespace bpr::application {
 		std::optional<core::application_session_id> AuthenticationSession;
 		/// Present only for a retained read; never a discovery search qualifier.
 		std::optional<core::pull_request_number> Number;
+		std::uint64_t                            FactRevision = 0;
 
 		auto operator<=>(const personal_discovery_request&) const = default;
 	};
@@ -82,6 +84,8 @@ namespace bpr::application {
 		std::vector<personal_discovery_review> Reviews;
 		bool                                   Closed = false;
 		std::optional<bool>                    Draft  = std::nullopt;
+		std::optional<github_actor_id>         AuthorIdentity;
+		core::queue_waiting_facts              Waiting;
 
 		auto operator<=>(const personal_discovery_row&) const = default;
 	};

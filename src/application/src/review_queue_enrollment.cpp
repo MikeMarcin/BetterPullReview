@@ -1,4 +1,5 @@
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/application/review_queue_facts.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -114,6 +115,19 @@ namespace bpr::application {
 		}
 		record->Draft        = aDraft;
 		record->DraftAccount = aAccount;
+		return true;
+	}
+
+	auto queue_enrollment_register::observe_facts(const core::pull_request_ref& aRef, const core::queue_item_facts& aFacts, core::github_account_id aAccount) -> bool
+	{
+		auto* record         = find(aRef);
+		auto  facts          = aFacts;
+		facts.UnseenComments = 0;
+		if (!record || (record->LastFacts == facts && record->FactsAccount == aAccount)) {
+			return false;
+		}
+		record->LastFacts    = std::move(facts);
+		record->FactsAccount = aAccount;
 		return true;
 	}
 
@@ -333,16 +347,35 @@ namespace bpr::application {
 				}
 				return aLeft < aRight; }, [](const queue_activity_report* aReport) -> const core::pull_request_ref& { return aReport->Ref; });
 			const auto* const found     = candidate != reports.end() && (*candidate)->Ref == record.Ref ? *candidate : nullptr;
-			const auto        activity  = found == nullptr
+			auto              activity  = found == nullptr
 				? core::queue_activity_observation{ .Known = false }
 				: found->Observation;
 			auto              facts     = found == nullptr ? core::queue_item_facts{ } : found->Facts;
-			facts.UnseenComments        = activity.UnseenComments;
-			facts.Draft                 = aSession == nullptr || record.Ref.Host != aSession->Host || record.Ref.Account != aSession->Account || record.DraftAccount == aSession->ViewerAccount ? record.Draft : std::nullopt;
+			if (found == nullptr && aSession && record.FactsAccount.value() != 0 && record.FactsAccount == aSession->ViewerAccount && record.Ref.Host == aSession->Host && record.Ref.Account == aSession->Account) {
+				facts = record.LastFacts;
+			}
+			if (found == nullptr && facts.Waiting.Requests) {
+				activity.Known   = true;
+				activity.Waiting = facts.Waiting;
+			}
+			if (found == nullptr && facts.Waiting.RequiredReview) {
+				activity.Known   = true;
+				activity.Waiting = facts.Waiting;
+			}
+			facts.UnseenComments = activity.UnseenComments;
+			facts.Draft          = aSession == nullptr || record.Ref.Host != aSession->Host || record.Ref.Account != aSession->Account || record.DraftAccount == aSession->ViewerAccount ? record.Draft : std::nullopt;
+			auto membership      = record.Membership;
+			if (aSession && aSession->ViewerAccount.value() != 0 && record.FactsAccount != aSession->ViewerAccount) {
+				if (membership.Role == core::github_role::author) {
+					membership.Role = core::github_role::none;
+				}
+				membership.Authored = false;
+			}
+			membership = core::queue_membership_with_authorship(membership, facts.Authored);
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
-				.Membership = record.Membership,
-				.Bucket     = core::bucket_for(record.Membership, activity),
+				.Membership = membership,
+				.Bucket     = core::bucket_for(membership, activity),
 				.Facts      = std::move(facts),
 			});
 		}
@@ -799,10 +832,12 @@ namespace bpr::application {
 			for (const auto& record : aResult->Enrollments) {
 				Enrollments.enroll(record.Ref, record.Membership);
 				(void)Enrollments.observe_draft(record.Ref, record.Draft, record.DraftAccount);
+				(void)Enrollments.observe_facts(record.Ref, record.LastFacts, record.FactsAccount);
 				if (!record.present()) {
 					Enrollments.depart(record.Ref, record.Departed);
 				}
 			}
+			restore_activity();
 			Failure.reset();
 			Status = queue_landing_status::ready;
 			publish();
@@ -1299,6 +1334,27 @@ namespace bpr::application {
 			}
 		}
 
+		void restore_activity()
+		{
+			const auto& session = Scheduler.session();
+			if (session.ViewerAccount.value() == 0) {
+				return;
+			}
+			for (const auto& record : Enrollments.records()) {
+				if (record.Ref.Host != session.Host || record.Ref.Account != session.Account || record.FactsAccount != session.ViewerAccount || ActivityIndex.contains(record.Ref)) {
+					continue;
+				}
+				auto  facts             = record.LastFacts;
+				auto& waiting           = facts.Waiting;
+				waiting.RequestsStale   = waiting.Requests.has_value();
+				waiting.AssessmentStale = waiting.RequiredReview.has_value() || waiting.MergeBlocked.has_value();
+				waiting.ChecksStale     = waiting.ChecksKnown;
+				const auto known        = waiting.Requests.has_value() || waiting.RequiredReview.has_value();
+				ActivityIndex.emplace(record.Ref, Activity.size());
+				Activity.push_back({ .Ref = record.Ref, .Observation = { .ReviewersAwaited = waiting.Requests.value_or(0), .Known = known, .Waiting = waiting }, .Facts = std::move(facts) });
+			}
+		}
+
 		void adopt(queue_session_id aSession)
 		{
 			if (Closing || aSession == Scheduler.session()) {
@@ -1311,7 +1367,11 @@ namespace bpr::application {
 					request.Stop.request_stop();
 				}
 			}
+			Activity.clear();
+			ActivityIndex.clear();
+			LastObservation.reset();
 			Scheduler.adopt(std::move(aSession));
+			restore_activity();
 			publish();
 		}
 
@@ -1373,6 +1433,12 @@ namespace bpr::application {
 			}
 		}
 
+		[[nodiscard]] static auto observed_item(const enrollment_record& aRecord, const queue_activity_report& aReport) -> core::queue_item
+		{
+			const auto membership = core::queue_membership_with_authorship(aRecord.Membership, aReport.Facts.Authored);
+			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, aReport.Observation), .Facts = aReport.Facts };
+		}
+
 		void remember_activity(
 			const core::pull_request_ref&           aRef,
 			const core::queue_activity_observation& aObservation,
@@ -1385,6 +1451,8 @@ namespace bpr::application {
 				.Author         = aRead.Author,
 				.UnseenComments = aObservation.UnseenComments,
 				.Draft          = aRead.Draft,
+				.Waiting        = aObservation.Waiting,
+				.Authored       = aObservation.Authored,
 			};
 			if (!facts.Draft) {
 				const auto retained = Enrollments.record_for(aRef);
@@ -1401,8 +1469,28 @@ namespace bpr::application {
 					.Facts       = std::move(facts),
 				});
 			} else {
-				Activity[found->second].Observation = aObservation;
-				Activity[found->second].Facts       = std::move(facts);
+				auto& report   = Activity[found->second];
+				auto  waiting  = report.Observation.Waiting;
+				auto  revision = report.Observation.FactRevision;
+				auto  awaited  = report.Observation.ReviewersAwaited;
+				if (aObservation.FactRevision >= revision) {
+					merge_queue_waiting(waiting, aObservation.Waiting);
+					if (aObservation.Waiting.Requests) {
+						awaited = *aObservation.Waiting.Requests;
+					} else if (aObservation.ReviewersAwaited > 0) {
+						awaited = aObservation.ReviewersAwaited;
+					}
+					revision = aObservation.FactRevision;
+				}
+				report.Observation                  = aObservation;
+				report.Observation.Waiting          = waiting;
+				report.Observation.ReviewersAwaited = awaited;
+				report.Observation.FactRevision     = revision;
+				facts.Waiting                       = waiting;
+				if (!facts.Authored) {
+					facts.Authored = report.Facts.Authored;
+				}
+				report.Facts = std::move(facts);
 			}
 		}
 
@@ -1434,7 +1522,7 @@ namespace bpr::application {
 			if (disposition == refresh_disposition::withdrawn) {
 				auto prior = Enrollments;
 				Enrollments.observe(aCompletion, disposition);
-				persist_record(aCompletion.Ref, std::move(prior));
+				persist_record(aCompletion.Ref, std::move(prior), true);
 				return;
 			}
 			if (disposition != refresh_disposition::applied
@@ -1459,9 +1547,10 @@ namespace bpr::application {
 				candidate.enroll(existing->Ref, membership);
 				(void)candidate.observe_draft(existing->Ref, existing->Draft, existing->DraftAccount);
 				(void)candidate.observe_draft(existing->Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount);
+				(void)candidate.observe_facts(existing->Ref, Activity[ActivityIndex.at(existing->Ref)].Facts, aCompletion.Session.ViewerAccount);
 				if (membership.enrolled() && candidate.record_for(existing->Ref) == existing) {
 					const auto& report = Activity[ActivityIndex.at(existing->Ref)];
-					publish(core::queue_item{ .Ref = existing->Ref, .Membership = existing->Membership, .Bucket = core::bucket_for(existing->Membership, report.Observation), .Facts = report.Facts });
+					publish(observed_item(*existing, report));
 					return;
 				}
 			}
@@ -1472,7 +1561,8 @@ namespace bpr::application {
 				auto prior = Enrollments;
 				Enrollments.enroll(aCompletion.Ref, membership);
 				(void)Enrollments.observe_draft(aCompletion.Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount);
-				persist_record(aCompletion.Ref, std::move(prior));
+				(void)Enrollments.observe_facts(aCompletion.Ref, Activity[ActivityIndex.at(aCompletion.Ref)].Facts, aCompletion.Session.ViewerAccount);
+				persist_record(aCompletion.Ref, std::move(prior), true);
 				return;
 			}
 			// Discovery, a follow or a review hold a record the rules no longer
@@ -1483,17 +1573,18 @@ namespace bpr::application {
 				Enrollments.depart(
 					aCompletion.Ref,
 					enrollment_departure::removed_by_reviewer);
-				persist_record(aCompletion.Ref, std::move(prior));
+				persist_record(aCompletion.Ref, std::move(prior), true);
 				return;
 			}
 			if (existing && existing->present()) {
-				auto prior = Enrollments;
-				if (Enrollments.observe_draft(existing->Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount)) {
-					persist_record(existing->Ref, std::move(prior));
+				auto       prior        = Enrollments;
+				const auto factsChanged = Enrollments.observe_facts(existing->Ref, Activity[ActivityIndex.at(existing->Ref)].Facts, aCompletion.Session.ViewerAccount);
+				if (Enrollments.observe_draft(existing->Ref, aCompletion.Observation->Draft, aCompletion.Session.ViewerAccount) || factsChanged) {
+					persist_record(existing->Ref, std::move(prior), true);
 					return;
 				}
 				const auto& report = Activity[ActivityIndex.at(existing->Ref)];
-				publish(core::queue_item{ .Ref = existing->Ref, .Membership = existing->Membership, .Bucket = core::bucket_for(existing->Membership, report.Observation), .Facts = report.Facts });
+				publish(observed_item(*existing, report));
 			} else {
 				publish();
 			}
@@ -1513,8 +1604,8 @@ namespace bpr::application {
 					ActivityIndex.emplace(ref, Activity.size());
 					Activity.push_back(queue_activity_report{
 						.Ref         = ref,
-						.Observation = { .ReviewersAwaited = found.ReviewersAwaited, .Known = known },
-						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U, .Draft = found.Draft },
+						.Observation = { .ReviewersAwaited = found.ReviewersAwaited, .Known = known, .Waiting = found.Waiting, .FactRevision = aAnswer.FactRevision },
+						.Facts       = { .Title = found.Title, .Author = found.Author, .UnseenComments = 0U, .Draft = found.Draft, .Waiting = found.Waiting },
 					});
 					continue;
 				}
@@ -1524,8 +1615,11 @@ namespace bpr::application {
 				if (found.Draft) {
 					existing->Facts.Draft = found.Draft;
 				}
-				if (found.Detailed) {
-					existing->Observation.ReviewersAwaited = found.ReviewersAwaited;
+				if (found.Detailed && aAnswer.FactRevision >= existing->Observation.FactRevision) {
+					existing->Observation.ReviewersAwaited = found.Waiting.Requests.value_or(found.ReviewersAwaited);
+					merge_queue_waiting(existing->Observation.Waiting, found.Waiting);
+					existing->Observation.FactRevision = aAnswer.FactRevision;
+					existing->Facts.Waiting            = existing->Observation.Waiting;
 				}
 				existing->Observation.Known = existing->Observation.Known || known;
 			}
@@ -1544,14 +1638,20 @@ namespace bpr::application {
 				++Statistics.StaleDiscoveryAnswers;
 				return;
 			}
-			auto       prior   = Enrollments;
-			const auto changed = Enrollments.observe_discovery(aAnswer);
+			auto prior   = Enrollments;
+			auto changed = Enrollments.observe_discovery(aAnswer);
 			if (Enrollments.records().size() > maximum_queue_enrollments) {
 				Enrollments = std::move(prior);
 				report_collection_limit();
 				return;
 			}
 			remember_discovery(aAnswer);
+			for (const auto& found : aAnswer.PullRequests) {
+				const auto ref = core::pull_request_ref{ .Host = aAnswer.Session.Host, .Account = aAnswer.Session.Account, .Repository = aAnswer.Repository, .Number = found.Number };
+				if (Enrollments.observe_facts(ref, Activity[ActivityIndex.at(ref)].Facts, aAnswer.Session.ViewerAccount) && std::ranges::find(changed, ref) == changed.end()) {
+					changed.push_back(ref);
+				}
+			}
 			persist_records(changed, std::move(prior));
 		}
 
@@ -1561,6 +1661,10 @@ namespace bpr::application {
 				|| aAnswer.Ref.Host != aAnswer.Session.Host || aAnswer.Ref.Account != aAnswer.Session.Account) {
 				return;
 			}
+			const auto accepted = ActivityIndex.find(aAnswer.Ref);
+			if (accepted != ActivityIndex.end() && aAnswer.Activity.FactRevision != 0 && aAnswer.Activity.FactRevision < Activity[accepted->second].Observation.FactRevision) {
+				return;
+			}
 			const auto existing = Enrollments.record_for(aAnswer.Ref);
 			if (!existing || !existing->present()) {
 				return;
@@ -1568,16 +1672,21 @@ namespace bpr::application {
 			auto prior = Enrollments;
 			if (aAnswer.Closed) {
 				Enrollments.depart(aAnswer.Ref, enrollment_departure::closed);
-				persist_record(aAnswer.Ref, std::move(prior));
+				persist_record(aAnswer.Ref, std::move(prior), true);
 				return;
 			}
+			aAnswer.Facts.Authored  = aAnswer.Authored;
 			const auto draftChanged = Enrollments.observe_draft(aAnswer.Ref, aAnswer.Facts.Draft, aAnswer.Session.ViewerAccount);
 			const auto position     = ActivityIndex.find(aAnswer.Ref);
 			if (position == ActivityIndex.end()) {
 				ActivityIndex.emplace(aAnswer.Ref, Activity.size());
+				aAnswer.Facts.Waiting = aAnswer.Activity.Waiting;
 				Activity.push_back({ .Ref = aAnswer.Ref, .Observation = aAnswer.Activity, .Facts = std::move(aAnswer.Facts) });
 			} else {
-				auto& report        = Activity[position->second];
+				auto& report = Activity[position->second];
+				if (aAnswer.Authored) {
+					report.Facts.Authored = aAnswer.Authored;
+				}
 				report.Facts.Title  = std::move(aAnswer.Facts.Title);
 				report.Facts.Author = std::move(aAnswer.Facts.Author);
 				if (aAnswer.Facts.Draft) {
@@ -1585,19 +1694,30 @@ namespace bpr::application {
 				}
 				report.Observation.ReviewedByMe           = aAnswer.Activity.ReviewedByMe;
 				report.Observation.HeadMovedSinceMyReview = aAnswer.Activity.HeadMovedSinceMyReview;
-				report.Observation.ReviewersAwaited       = aAnswer.Activity.ReviewersAwaited;
-				report.Observation.Known                  = aAnswer.Activity.Known;
+				if (aAnswer.Activity.FactRevision >= report.Observation.FactRevision) {
+					if (aAnswer.Activity.Waiting.Requests) {
+						report.Observation.ReviewersAwaited = *aAnswer.Activity.Waiting.Requests;
+					} else if (aAnswer.Activity.ReviewersAwaited > 0) {
+						report.Observation.ReviewersAwaited = aAnswer.Activity.ReviewersAwaited;
+					}
+					merge_queue_waiting(report.Observation.Waiting, aAnswer.Activity.Waiting);
+					report.Observation.FactRevision = aAnswer.Activity.FactRevision;
+					report.Facts.Waiting            = report.Observation.Waiting;
+				}
+				report.Observation.Known = report.Observation.Known || aAnswer.Activity.Known;
 			}
+			const auto factsChanged = Enrollments.observe_facts(aAnswer.Ref, Activity[ActivityIndex.at(aAnswer.Ref)].Facts, aAnswer.Session.ViewerAccount);
 			// Read the submitted review before discovery can withdraw the old
 			// request: it keeps a discovered PR in Following when that request goes.
 			if (aAnswer.Activity.ReviewedByMe && !existing->Membership.Reviewed
 				&& (existing->Membership.discovered() || existing->Membership.Role == core::github_role::requested_reviewer)) {
 				Enrollments.enroll(aAnswer.Ref, { .Reviewed = true });
-				persist_record(aAnswer.Ref, std::move(prior));
+				persist_record(aAnswer.Ref, std::move(prior), true);
 				return;
 			}
-			if (draftChanged) {
-				persist_record(aAnswer.Ref, std::move(prior));
+
+			if (draftChanged || factsChanged || Enrollments.record_for(aAnswer.Ref) != existing) {
+				persist_record(aAnswer.Ref, std::move(prior), true);
 			} else {
 				publish();
 			}
@@ -1689,7 +1809,7 @@ namespace bpr::application {
 
 		void persist_record(
 			const core::pull_request_ref& aRef,
-			queue_enrollment_register     aPrior)
+			queue_enrollment_register aPrior, const bool aKeepProviderFacts = false)
 		{
 			const auto record = Enrollments.record_for(aRef);
 			if (!record.has_value()) {
@@ -1701,22 +1821,26 @@ namespace bpr::application {
 			const auto id       = request.Id;
 			const auto stop     = request.Stop.get_token();
 			const auto gate     = std::weak_ptr<completion_gate>{ Gate };
+			const auto previous = aPrior.record_for(aRef);
+			const auto delta    = previous && previous->Membership == record->Membership && previous->Departed == record->Departed ? std::optional{ aRef } : std::nullopt;
 			const auto rollback = std::make_shared<queue_enrollment_register>(
 				std::move(aPrior));
 			try {
-				Effects.post([this, gate, id, stop, enrollmentRecord = *record, rollback] {
+				Effects.post([this, gate, id, stop, enrollmentRecord = *record, rollback, delta, keepProviderFacts = aKeepProviderFacts] {
 					auto result = Store.store_enrollment(enrollmentRecord, stop);
 					DecisionLane.post(
-						[gate, id, rollback, storeResult = std::move(result)]() mutable {
+						[gate, id, rollback, delta, keepProviderFacts, storeResult = std::move(result)]() mutable {
 							if (auto* const host = locked_host(gate); host != nullptr) {
 								host->finish_store_enrollment(
-									id, rollback, std::move(storeResult));
+									id, rollback, std::move(storeResult), delta, keepProviderFacts);
 							}
 						});
 				});
 			} catch (...) {
 				(void)retire(id, request_kind::store_enrollment);
-				Enrollments = *rollback;
+				if (!aKeepProviderFacts) {
+					Enrollments = *rollback;
+				}
 				report_unavailable();
 			}
 		}
@@ -1724,18 +1848,30 @@ namespace bpr::application {
 		void finish_store_enrollment(
 			const std::uint64_t                               aId,
 			const std::shared_ptr<queue_enrollment_register>& aRollback,
-			const std::expected<void, queue_store_failure>&   aResult)
+			const std::expected<void, queue_store_failure>& aResult, const std::optional<core::pull_request_ref>& aDelta, const bool aKeepProviderFacts)
 		{
 			if (!retire(aId, request_kind::store_enrollment) || Closing) {
 				return;
 			}
 			if (!aResult) {
-				Enrollments = *aRollback;
+				// Storage failure cannot revoke an accepted shared server fact or
+				// restore an older provider observation over another completed read.
+				if (!aKeepProviderFacts) {
+					Enrollments = *aRollback;
+				}
 				report_unavailable(aResult.error());
 				return;
 			}
 			Failure.reset();
 			Status = queue_landing_status::ready;
+			if (aDelta && ActivityIndex.contains(*aDelta)) {
+				const auto  record = Enrollments.record_for(*aDelta);
+				const auto& report = Activity[ActivityIndex.at(*aDelta)];
+				if (record && record->present()) {
+					publish(observed_item(*record, report));
+					return;
+				}
+			}
 			publish();
 		}
 
@@ -1788,6 +1924,7 @@ namespace bpr::application {
 		bool                                          DurableStateLoaded = false;
 		std::shared_ptr<completion_gate>              Gate;
 		std::uint64_t                                 NextRequest                = 1U;
+		std::uint64_t                                 NextFactRevision           = 1;
 		bool                                          Restored                   = false;
 		bool                                          Closing                    = false;
 		bool                                          RuleMutationPending        = false;
@@ -1912,6 +2049,11 @@ namespace bpr::application {
 		core::queue_activity_observation aActivity)
 	{
 		Implementation->refresh(aRef, aActivity);
+	}
+
+	auto review_queue_application_host::begin_observation() -> std::uint64_t
+	{
+		return Implementation->NextFactRevision++;
 	}
 
 	void review_queue_application_host::cancel()

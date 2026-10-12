@@ -128,6 +128,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-0990]]. The multi-window row's private root and fixture composition,
     # so the same refusal; pinned by that shape, not yet measured contained.
     "application_personal_discovery_public_path": "dos-volume-name",
+    "application_home_waiting_public_path": "dos-volume-name",
     # [[BPR-1357]]. The personal-discovery row's private root and fixture
     # composition. Measured on JaegAW 2026-10-09 at 66c1cf4c8: passes
     # uncontained; contained through the sandbox launcher it exits 3 with

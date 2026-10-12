@@ -79,6 +79,8 @@ namespace bpr::application {
 		enrollment_departure    Departed     = enrollment_departure::none;
 		std::optional<bool>     Draft        = std::nullopt;
 		core::github_account_id DraftAccount = { };
+		core::queue_item_facts  LastFacts;
+		core::github_account_id FactsAccount = { };
 
 		[[nodiscard]] auto present() const noexcept -> bool
 		{
@@ -119,12 +121,13 @@ namespace bpr::application {
 	/// \brief [[BPR-0989]]. One pull request a personal discovery answer found.
 	struct queue_discovered_pull_request
 	{
-		std::int64_t        Number = 0;
-		std::string         Title;
-		std::string         Author;
-		bool                Detailed         = false;
-		std::uint32_t       ReviewersAwaited = 0U;
-		std::optional<bool> Draft            = std::nullopt;
+		std::int64_t              Number = 0;
+		std::string               Title;
+		std::string               Author;
+		bool                      Detailed         = false;
+		std::uint32_t             ReviewersAwaited = 0U;
+		std::optional<bool>       Draft            = std::nullopt;
+		core::queue_waiting_facts Waiting;
 
 		auto operator<=>(const queue_discovered_pull_request&) const = default;
 	};
@@ -142,6 +145,7 @@ namespace bpr::application {
 		bool                                       Requested = false;
 		bool                                       Complete  = false;
 		std::vector<queue_discovered_pull_request> PullRequests;
+		std::uint64_t                              FactRevision = 0;
 
 		auto operator<=>(const queue_discovery_answer&) const = default;
 	};
@@ -156,6 +160,7 @@ namespace bpr::application {
 		core::queue_item_facts           Facts;
 		core::queue_activity_observation Activity;
 		bool                             Closed = false;
+		std::optional<bool>              Authored;
 
 		auto operator<=>(const queue_metadata_answer&) const = default;
 	};
@@ -176,7 +181,8 @@ namespace bpr::application {
 		/// only when it gained a GitHub role. A rule match must not overwrite a
 		/// role, and a role must not overwrite the rule that first brought the
 		/// item in — the reviewer is owed both reasons.
-		void enroll(
+		[[nodiscard]] auto observe_facts(const core::pull_request_ref& aRef, const core::queue_item_facts& aFacts, core::github_account_id aAccount) -> bool;
+		void               enroll(
 			const core::pull_request_ref& aRef,
 			const core::queue_membership& aMembership);
 
@@ -731,8 +737,10 @@ namespace bpr::application {
 		void refresh(
 			const core::pull_request_ref&    aRef,
 			core::queue_activity_observation aActivity = { });
-		void cancel();
-		void shutdown();
+		/// \brief Reserves profile-wide dispatch order for background and window observations.
+		[[nodiscard]] auto begin_observation() -> std::uint64_t;
+		void               cancel();
+		void               shutdown();
 
 		[[nodiscard]] auto rules() const noexcept
 			-> std::span<const core::observer_rule>;

@@ -3,6 +3,28 @@
 #include <algorithm>
 
 namespace bpr::core {
+	auto queue_membership_with_authorship(queue_membership aMembership, std::optional<bool> aAuthored) noexcept -> queue_membership
+	{
+		aMembership.OwnsPullRequest = aAuthored.value_or(false);
+		if (aAuthored && !*aAuthored) {
+			aMembership.Authored = false;
+			if (aMembership.Role == github_role::author) {
+				aMembership.Role = github_role::none;
+			}
+		}
+		return aMembership;
+	}
+
+	auto review_waiting(const queue_waiting_facts& aFacts) noexcept -> bool
+	{
+		return aFacts.Requests.value_or(0) > 0 || aFacts.RequiredReview.value_or(false);
+	}
+
+	auto merge_blocked(const queue_waiting_facts& aFacts) noexcept -> bool
+	{
+		return aFacts.MergeBlocked.value_or(false) || !aFacts.FailedChecks.empty();
+	}
+
 	auto home_section_for(const queue_membership& aMembership, const attention_bucket aBucket) noexcept -> home_queue_section
 	{
 		if (aMembership.authored() && aBucket != attention_bucket::authored_awaiting_reviewer_action) {
@@ -108,8 +130,8 @@ namespace bpr::core {
 		// Authored comes after the reviewer-facing buckets on purpose. Waiting
 		// on somebody else is not work this reviewer can do, so it must not
 		// displace work they can.
-		if ((aMembership.Role == github_role::author || aMembership.Authored)
-			&& aActivity.ReviewersAwaited > 0U) {
+		if (aMembership.authored()
+			&& (aActivity.ReviewersAwaited > 0U || review_waiting(aActivity.Waiting))) {
 			return attention_bucket::authored_awaiting_reviewer_action;
 		}
 
