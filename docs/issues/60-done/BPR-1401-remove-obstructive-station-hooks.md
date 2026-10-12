@@ -45,3 +45,15 @@ outside the live reservation index under docs/development/station-hook-provenanc
 ## Mac/Windows reconciliation
 
 Renumbered from Windows BPR-1387 to BPR-1401 during authorized integration on 2026-10-12 because the Mac had independently allocated BPR-1387. Historical acceptance SHAs and original reservation provenance are retained. The new integration reservation is `docs/issues/_reservations/BPR-1400--BPR-1402--f418763b96dd.json`.
+
+## Origin lane reconciliation (2026-10-12)
+
+Fetched origin and reconciled `windows-lane` at `b274f4754` and `linux-lane`
+at `46d61d048`. Their station changes (`a1dea9354` and `b31fcd4e9`, whose
+historical subjects say BPR-1386) are already byte-for-byte present in the
+current hook configuration and launcher under this card. No new card or
+acceptance is implied by those duplicate implementations. Retained the current
+station inventory and private-bus testing documentation rather than the older
+lane copies. The lane MASK locks have the same package payloads already held
+locally but omit newer selected skills; retained the current lock and preserved
+the owner's pending configuration additions. No product source changed.
