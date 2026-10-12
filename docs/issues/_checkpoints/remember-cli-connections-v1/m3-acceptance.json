@@ -1,0 +1,87 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC05",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "AC06",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "Every RFC-BPR-0071 AC01\u2013AC06 is demonstrated against the RFC baseline through composed macOS fixture courses, including fresh processes and last-window closure.",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "Tokenless execution, publication consent, global CLI state, storage/refusal and profile maintenance canaries pass; all owning contracts describe implemented scope.",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    },
+    {
+      "criterion": "Focused integration and documentation evidence cover the exact final candidate; required acceptance remains explicit.",
+      "outcome": "pass",
+      "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0071.md; docs/issues/_checkpoints/remember-cli-connections-v1/m3-verification.json; exact-source15/15 command capture in m3-focused-evidence.json. Final test-only follow-up recheck: m3-final-candidate-evidence.json."
+      }
+    }
+  ]
+}

@@ -158,8 +158,9 @@ selected order and reuse-disable facts; `remembered_connection_store_port`
 commits a complete snapshot under `state/v1/remembered-connections.sqlite3`.
 BPR-1408 supplies the metadata/policy capability. BPR-1409 wires shared
 runtime startup, successful-session observation, Sign out and Forget, with
-a dedicated serialized writer and orderly shutdown drain. BPR-1410 retains
-full fresh-process qualification.
+a dedicated serialized writer and orderly shutdown drain.
+[BPR-1410 qualification](../verification/RFC-BPR-0071.md) exercises fresh
+processes, exact-host navigation, replacement and visible persistence failures.
 
 Successful explicit CLI/read-trust selection may persist; successful native
 device selection replaces it, while manual tokens remain session-only. Sign

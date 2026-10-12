@@ -1,0 +1,92 @@
+{
+  "source_revision": "c27eb1356f40a33cff872be9f0dc253d0b5a00bb",
+  "baseline": "46eb49b312b35ef37e69ca4ace7354c04295a6dd",
+  "path": "src/app/src/github_application.cpp",
+  "outcome": "pre-existing-style-diagnostics",
+  "diagnostics": [
+    {
+      "current_line": 7307,
+      "baseline_line": 7178,
+      "diagnostic": "invalid case style for parameter 'session' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 7307,
+      "baseline_line": 7178,
+      "diagnostic": "invalid case style for parameter 'generation' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 7307,
+      "baseline_line": 7178,
+      "diagnostic": "invalid case style for parameter 'plan' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 7315,
+      "baseline_line": 7186,
+      "diagnostic": "invalid case style for parameter 'binding' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 7315,
+      "baseline_line": 7186,
+      "diagnostic": "invalid case style for parameter 'record' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 8171,
+      "baseline_line": 8025,
+      "diagnostic": "invalid case style for parameter 'hook' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 8171,
+      "baseline_line": 8025,
+      "diagnostic": "invalid case style for parameter 'captured' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 9387,
+      "baseline_line": 9241,
+      "diagnostic": "invalid case style for local variable 'maximum_cancellations' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 10159,
+      "baseline_line": 10013,
+      "diagnostic": "invalid case style for parameter 'id' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 10159,
+      "baseline_line": 10013,
+      "diagnostic": "invalid case style for parameter 'text' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 10159,
+      "baseline_line": 10013,
+      "diagnostic": "invalid case style for parameter 'limit' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 28651,
+      "baseline_line": 28438,
+      "diagnostic": "invalid case style for local variable 'count_published' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 28660,
+      "baseline_line": 28447,
+      "diagnostic": "invalid case style for local variable 'count_held' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    },
+    {
+      "current_line": 28837,
+      "baseline_line": 28624,
+      "diagnostic": "invalid case style for local variable 'start_one' [readability-identifier-naming,-warnings-as-errors]",
+      "unchanged_from_rfc_baseline": true
+    }
+  ]
+}

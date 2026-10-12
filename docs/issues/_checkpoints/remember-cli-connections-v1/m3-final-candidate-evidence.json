@@ -1,0 +1,13 @@
+{
+  "criterion": "Final test-style follow-up preserves native replacement and restored publication consent",
+  "outcome": "pass",
+  "revision": "62bd6a5a0aefbca78a8678a6884ccd6b7575e885",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/remember-cli-m3\", \"-R\", \"^(application_remembered_connection_public_path|application_inline_publish_cli_consent)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 38.083,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/remember-cli-m3\n    Start 605: application_inline_publish_cli_consent\n1/2 Test #605: application_inline_publish_cli_consent ..........   Passed    8.56 sec\n    Start 687: application_remembered_connection_public_path\n2/2 Test #687: application_remembered_connection_public_path ...   Passed   29.49 sec\n\n100% tests passed out of 2\n\nLabel Time Summary:\nbpr_network_isolated    =  38.05 sec*proc (2 tests)\nbpr_serial_gui          =  38.05 sec*proc (2 tests)\n\nTotal Test time (real) =  38.07 sec\n",
+    "stderr_tail": ""
+  }
+}

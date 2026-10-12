@@ -1,124 +1,77 @@
 # Remembered CLI connections continuation
 
-Mandate `remember-cli-r1`; implementer `/root/remember_cli_m2` on `main`.
-RFC baseline `46eb49b312b35ef37e69ca4ace7354c04295a6dd`. M1
-`connection-metadata` and M2 `shared-profile-restoration` are accepted.
-RFC-BPR-0071 remains In Progress; complete qualification and closeout are M3.
+Mandate `remember-cli-r1`; implementer `/root/remember_cli_m3` on `main`.
+RFC baseline `46eb49b312b35ef37e69ca4ace7354c04295a6dd`.
+M1 BPR-1408, M2 BPR-1409 and M3 BPR-1410 are accepted; RFC-BPR-0071 and
+the accompanying proposed CLI amendment are fully implemented and qualified.
 
-## M2 candidate and evidence
+## Final candidate and evidence
 
-- Claim: `65191bb9bd924f13c267d6fa143405afdb669521`.
-- Runtime source: `268b87049592ca4643e5303ab77114e116e7b5f3`.
-- Final scoped retirement source: `a09ff90c704f534c7e13c809d50b113042bd262a`.
-- M2 acceptance/bookkeeping: `352b67968b2d2b6d150abc0b16c1d7f721d68e9d`.
-  BPR-1409 is Done; BPR-1410 is Ready.
-- [M2 acceptance](m2-acceptance.json), [verification](m2-verification.json),
-  [exact final-source checks](m2-focused-evidence.json),
-  [earlier exact-source checks](m2-initial-focused-evidence.json),
-  [binding](m2-binding.json), [observation](m2-observation.json) and
-  [continuation check](m2-check.json).
-- The serialized writer and real composed app lifetimes cover prompt save,
-  empty-inventory restart, pinned numeric refusal, retained-choice retry,
-  Sign out, GHES Forget/reopen and Quit drain. Writer fault courses cover
-  failed remember followed by disable/Forget, failed disable and retry,
-  refused load and queued late saves. Three composed regression rows pass;
-  provider/profile, architecture/store/isolation, format 22, focused tidy and
-  documentation checks pass. Details and corrected failures are recorded.
+- M3 claim: `357645d57d36118346c619c98bd35d2e1fc44c6b`.
+- Runtime/qualification source: `c27eb1356f40a33cff872be9f0dc253d0b5a00bb`.
+- Final test-style follow-up: `62bd6a5a0aefbca78a8678a6884ccd6b7575e885`;
+  production bytes remain unchanged.
+- [Acceptance map](../../../verification/RFC-BPR-0071.md),
+  [M3 acceptance](m3-acceptance.json), [verification](m3-verification.json),
+  [exact runtime-source evidence](m3-focused-evidence.json),
+  [final candidate recheck](m3-final-candidate-evidence.json),
+  [inherited tidy mapping](m3-inherited-tidy.json), [binding](m3-binding.json),
+  [observation](m3-observation.json) and [continuation check](m3-check.json).
 
-## Implemented runtime boundary
+## Qualification and repairs
 
-Startup loads the private metadata store before authentication selection or
-identity allocation. Saved host/profile identity is reconstructed; transient
-and replacement identities allocate above retained counters. Retained startup
-navigation uses its exact server choice; without a destination the latest
-enabled choice is tried. CLI validation uses the saved host/login and rejects
-numeric account mismatch before accepting an authenticated session. It needs
-no inventory or repeated read-trust prompt. The consent wording states reuse.
+The combined runtime-source pass is 15/15 in 156.84s. Fresh OS processes prove
+explicit inactive-account selection and first trust, empty-inventory restore,
+last-window closure, account replacement, two-server stable identities, exact
+private PR navigation, sibling connection sharing, retained-choice failure and
+retry, Sign out and Forget. Real rival SQLite locks prove visible session-only
+and failed-disable behavior; newer data is preserved byte-for-byte. Removing
+metadata is a negative control for implicit CLI consent. Native courses cover
+an older durable device grant, pending/late authorization after Sign out,
+cancelled/offline replacement and a fresh durable native restart. Restored read
+consent still requires independent publication confirmation and cancellation.
 
-The shared profile observes accepted authenticated sessions and saves promptly,
-independently of layout. The writer separates logical session state from the
-last committed snapshot and rebases each serialized operation on the latter;
-a failed save cannot skip the store's required revision. Only the latest
-queued operation owns the visible result. Sign out disables reuse. Forget
-removes the row and retires same-server setup in every sibling window, pending
-device work and active authority. Successful native replacement receives a
-fresh profile identity; manual tokens remain session-only. Refused metadata
-starts signed out without overwriting data. Once metadata has recorded a
-decision, absent rows also suppress legacy device fallback. Orderly teardown
-closes ingress and drains admitted writes before releasing effects and storage.
+M3 repaired three real integration gaps: observing a retiring model during
+identity invalidation, failing to initiate saved exact-host validation, and
+keeping a native device capability/refresh binding on a retired connection ID.
+Core/host admission regressions accompany the repairs. Core-only, architecture,
+isolation, format 22, focused tidy and documentation checks are recorded.
+Whole-composition tidy finds 14 naming errors on unchanged baseline lines; the
+mapping is explicit and no globally clean tidy result is claimed.
 
-## Next milestone: restart-qualification-and-closeout
-
-Claim the Ready BPR-1410 card with the shared helper. Read the live RFC, authored plan, both immutable
-inputs and these evidence records. Preserve the full AC01–AC06 boundary:
-fresh-process restart and explicit last-window closure, multiple named accounts
-and servers, exact-host private restoration and sibling connection work,
-missing/refused/mismatched CLI retry, older device grants, native replacement
-and late completions, durable save/refusal/cancellation/crash, maintenance,
-tokenless execution, global CLI state and independent publication consent.
-The new test restarts composed app lifetimes inside one test process; it is
-not the required new-process qualification. M1/M2 evidence may be reused where
-unchanged but does not close the RFC. Add discriminating composed courses and
-baseline comparison before closeout. No human/native/independent acceptance is
-inferred. Finish every agent-doable check before parking owner-only judgment.
-
-BPR-1373 remains separately parked. No owner desktop was driven/captured;
-no personal app state was read; no live GitHub calls or global gh account
-switches were made. Frontend-design was loaded before the consent wording
-change; the real offscreen consent dialog was inspected. No attended candidate,
-review session, protection or server was created for this milestone.
+All six criteria and every adopted amendment obligation are accepted. No owner,
+native or independent acceptance is required/pending in this scope. Evidence
+is macOS arm64 Qt 6.11.2 offscreen network-denied fixtures, with no live GitHub
+or GHES calls, global gh switch, owner desktop control/capture or personal
+browser reads. Frontend-design was loaded before considering existing
+interaction surfaces; no layout/design candidate was introduced. BPR-1373
+remains separately parked; historical CLI-plan and native/release security
+qualification keep their original scope.
 
 ## Ownership and command state
 
-All task-owned commands are complete at handoff; no task-owned server remains.
-Shared build/dev and build/core-only trees are retained. Existing release
-ctest PID 97841 belongs to another writer and was left alone. External Windows
-title-row and C++ identifier-context commits and their staging were preserved;
-a transient mid-edit external compilation failure was not repaired or reverted.
-The index is reconciled before each explicit-path commit. Original dirty
-`.gitignore`, `.mask.json`, `.mask.lock.json` and untracked `docs/rfcs/drafts/`
-remain excluded. Task-owned temporary edit scripts were removed. Local build/test logs and the
-offscreen inspection image under `/tmp/bpr-m2-*` contain fixture evidence only;
-durable results are recorded here.
+All task-owned commands completed; no server or background task remains.
+The observation/check record the final state. Task builds are isolated in `build/remember-cli-m3`
+and `build/remember-cli-core-m3`. No shared Ninja tree was mutated. External
+release ctest PID 97841 was left untouched. Original dirty `.gitignore`,
+`.mask.json`, `.mask.lock.json` and untracked `docs/rfcs/drafts/` remain
+excluded, and unrelated source writers/candidates were preserved. Task-owned
+fixture roots remove themselves; local `/tmp/bpr-m3-*` logs contain fixture
+evidence only. No temporary edit script or attended server remains.
 
-The durable observation precedes its own bookkeeping commit. A fresh exact-HEAD
-check is returned to the coordinator. Product acceptance binds the final source
-revision above; subsequent task changes are bookkeeping only.
+## Prior accepted milestones
 
-## Prior accepted milestone
+M1 source `44a909e721ab461bbdfe986515a66d285f1fc5f6` and containment registry
+`6ebd33e57479a24aed91b930624bab030a436045` supply pure metadata policy,
+transactional snapshots and profile maintenance. See [M1 acceptance](m1-acceptance.json)
+and [verification](m1-verification.json). M2 runtime
+`268b87049592ca4643e5303ab77114e116e7b5f3`, retirement follow-up
+`a09ff90c704f534c7e13c809d50b113042bd262a` and acceptance
+`352b67968b2d2b6d150abc0b16c1d7f721d68e9d` supply shared startup, writer
+and lifecycle integration. See [M2 acceptance](m2-acceptance.json) and
+[verification](m2-verification.json). Original records remain unchanged.
 
-## Candidate and evidence
+## Next action
 
-- Adoption: `3670a65e3`; claim: `a42c8de9f`.
-- Product source: `44a909e721ab461bbdfe986515a66d285f1fc5f6`.
-- Test containment registry: `6ebd33e57479a24aed91b930624bab030a436045`.
-- [Acceptance records](m1-acceptance.json), [verification details](m1-verification.json),
-  [exact product-source test output](m1-focused-evidence.json),
-  [assigned binding](m1-binding.json), [milestone observation](m1-observation.json),
-  [continuation check](m1-check.json) and [pinned strategy selection](selection.json).
-- Four factory/core/maintenance tests pass against the product commit. Seven
-  integration checks pass, including both architecture gates and isolation
-  manifest. Registry integration has a subsequent passing manifest check.
-  Format 22 and focused tidy pass; documentation gate and its 67-test suite pass.
-- A deliberate early COMMIT causes the cancellation rollback assertion to fail;
-  restored production source rebuilds and all focused tests pass.
-
-## Implemented capability
-
-`src/core/include/bpr/core/remembered_connection.hpp` defines one canonical-host
-row per BPR profile, complete snapshots with revision and retained identity/order
-high-water marks, exact-host/latest selection, remember, disable and Forget.
-Metadata has no credential, reading authority or publication consent. Stable
-profile/host IDs cannot be silently rebound to different authority. Disabled
-identity-free sentinel rows suppress older device grants even when sign-out
-precedes the first successful remembered selection. Forget retains counters.
-
-`src/application/include/bpr/application/remembered_connection_store.hpp` is a
-synchronous narrow port for a serialized effect lane. The SQLite factory binds
-the profile and its own `state/v1/remembered-connections.sqlite3`, uses exact
-versioned schema validation and bounded reads, and commits metadata plus all
-rows together with a revision comparison. Refused malformed/newer data is
-preserved. The established private-directory/open helpers and connection policy
-are reused. Full profile purge includes the metadata and its SQLite sidecars.
-The hostname grammar moved into core without changing its public application
-aliases or grammar.
+Coordinator verifies this final handoff and reports complete authorized scope.
+No further milestone or pending obligation remains for remember-cli-r1.

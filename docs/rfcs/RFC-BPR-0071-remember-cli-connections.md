@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0071"
 title: "Remember the chosen GitHub CLI connection across launches"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
 metadata: {"mandate_revision": "remember-cli-r1", "rfc_base_sha": "46eb49b312b35ef37e69ca4ace7354c04295a6dd", "milestone_plan": {"id": "remember-cli-connections-v1", "path": "docs/rfcs/plans/remember-cli-connections-v1/milestone-plan.json"}}
@@ -175,3 +175,20 @@ implementation, runtime acceptance or broader platform qualification.
 - **AC06:** Fixture canaries demonstrate that persistence and restored
   execution retain the existing tokenless boundary and global CLI state;
   restored read consent cannot bypass ordinary publication confirmation.
+
+## Implementation acceptance — 2026-10-12
+
+BPR-1408, BPR-1409 and BPR-1410 implement the complete adopted scope and CLI
+amendment against baseline `46eb49b312b35ef37e69ca4ace7354c04295a6dd`.
+All six criteria are accepted on source
+`62bd6a5a0aefbca78a8678a6884ccd6b7575e885`: the combined runtime-source
+pass on `c27eb1356` is 15/15, followed by a 2/2 recheck of the final test-only
+style follow-up. Production bytes are unchanged. Core-only policy checks,
+architecture/isolation, format 22 and documentation also pass. The [qualification map](../verification/RFC-BPR-0071.md)
+and [durable M3 ledger](../issues/_checkpoints/remember-cli-connections-v1/m3-verification.json)
+record baseline discrimination, repaired regressions and limitations.
+
+This is macOS offscreen fixture acceptance. Windows/Linux CLI support, native
+vault/package qualification, BPR-1373's owner judgment and historical CLI-plan
+acceptance keep their existing scope. No required human or independent
+acceptance is inferred or left pending by this RFC.
