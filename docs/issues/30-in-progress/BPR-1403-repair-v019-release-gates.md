@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1403"
 title: "Repair and verify the v0.1.9 release gates"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
