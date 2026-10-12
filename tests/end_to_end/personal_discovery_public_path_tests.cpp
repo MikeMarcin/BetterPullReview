@@ -298,7 +298,7 @@ try {
 
 	// [[BPR-1310]]. This exact composed fixture is also the attended candidate.
 	// It uses its own temporary private profile and never reaches a live provider.
-	if (attended) {
+	if (attended && !homeWaiting) {
 		QApplication::setQuitOnLastWindowClosed(true);
 		std::cout << "REPOSITORY_HOME_READY: fixture account octo-reviewer on github.com; no live GitHub reads\n"
 				  << std::flush;
@@ -351,6 +351,20 @@ try {
 			}
 		};
 		renderWaiting(QStringLiteral("waiting-discovered"));
+		// [[BPR-1405]]. The owner's look at the waiting rows: the same
+		// composed fixture, left open after discovery.
+		if (attended) {
+			windowA->resize(1100, 760);
+			QApplication::setQuitOnLastWindowClosed(true);
+			std::cout << "HOME_WAITING_ATTENDED_READY: fixture account; no live GitHub reads\n"
+					  << std::flush;
+			QApplication::exec();
+			owner->begin_shutdown();
+			wait_for([&] { return owner->status().ShutdownComplete; }, "attended waiting fixture drains");
+			desktop.reset();
+			expect(e2e::remove_course_root(temporary), "attended waiting fixture removes its private root");
+			return EXIT_SUCCESS;
+		}
 		expect(windowA->home_list()->select(identity, true), "exact waiting identity selected");
 		auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(windowA->home_list()->current_view(), &open);
