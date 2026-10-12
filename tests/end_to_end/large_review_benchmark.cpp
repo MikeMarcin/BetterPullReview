@@ -864,7 +864,7 @@ namespace bpr::e2e::large_review {
 			aReport.Head           = aManifest.heads[index];
 			const auto evidence    = access::evidence(aApplication);
 			require(evidence.RecordingConsumed && evidence.RecordingFailure == -1
-						&& evidence.AccountReadCount == static_cast<int>(1 + 29 * ordinal),
+						&& evidence.AccountReadCount == static_cast<int>(1 + 30 * ordinal),
 					"refresh did not exhaust exactly one recorded snapshot");
 			const auto file           = index == 0U ? 0 : static_cast<int>(index - 1U);
 			const auto value          = static_cast<int>(ordinal);
