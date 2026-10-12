@@ -146,3 +146,7 @@ read or full PR load is needed to arrange already accepted queue rows.
 ## Verification and execution record
 
 Closed for AC01–AC05 at product candidate `a34080e0fbce7d7e8d9fdade436aa5826e21e4a5` by [[BPR-1388]]. The [ledger](../verification/RFC-BPR-0066.md) binds all criterion evidence and remaining native limits. Required RFC dependencies RFC0010 and RFC0026 are Auto-Verified. No new provider work or authority was introduced; existing unrelated human/native obligations and historical candidate verdicts retain their scope.
+
+## Adopted draft Home amendment — 2026-10-11
+
+[RFC-BPR-0067](RFC-BPR-0067-home-draft-pull-requests.md) extends Home row anatomy with a compact neutral outlined Draft chip before identity/title and draft-first accessible wording. It carries last accepted exact-authority metadata through bounded discovery, retained reads and recent history; unknown remains unknown and displays no chip. Accepted ready changes remove the chip, including matching queue/recent rows. Attention colours, sections, counts, enrollment, row actions and native controls retain their contracts. No additional request or full PR hydration is introduced. Historical Done cards, plan exits and RFC0032 A8 human/native obligations are unchanged; fresh evidence belongs to BPR-1389.

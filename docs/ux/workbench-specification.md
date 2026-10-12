@@ -1862,3 +1862,7 @@ file subjects use the same focus and selection behavior. Three-scale, three-them
 rendered evidence is in the [RFC-0022 ledger](../verification/RFC-BPR-0022.md).
 Production fallback remains unavailable until an exact unsupported response
 contract is admitted; the UI does not infer support from host name or version.
+
+## Draft status on Home
+
+[RFC-BPR-0067](../rfcs/RFC-BPR-0067-home-draft-pull-requests.md) adds a neutral outlined **Draft** chip immediately before a draft PR’s identity/title in every queue section and Recently viewed. It uses the row’s native font and selection ink, remains complete while the identity/title wrap, and adds no action or keyboard stop. Accessible row text says draft pull request before its identity. Only last accepted exact-authority metadata establishes it: ready removes it, unknown (including older stored entries) has no chip, and cached rows retain it under existing freshness reporting. Account chips, Reviewing, attention, actions, opening and authored section placement retain their behavior.

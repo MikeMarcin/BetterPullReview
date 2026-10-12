@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1389"
+  ],
+  "reserve_for": "home-draft-v1",
+  "purpose": "",
+  "created": "2026-10-12T02:41:59.126355+00:00",
+  "base": "2beb98cc9a58eeeeeebb8bdd08cc0af4a49c4e20"
+}

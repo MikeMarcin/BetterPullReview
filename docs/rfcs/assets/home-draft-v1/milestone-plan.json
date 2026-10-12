@@ -1,0 +1,37 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "home-draft-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0067"
+    ],
+    "issues": [
+      "BPR-1389"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "draft-home",
+      "outcome": "Home shows last accepted GitHub draft metadata as a leading neutral chip in active and recent rows, preserves exact authority and navigation across refresh and restart, and has fresh rendered and human acceptance.",
+      "work": [
+        {
+          "rfc": "RFC-BPR-0067"
+        },
+        {
+          "issue": "BPR-1389"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01: composed unopened and recent-only draft rows show the leading chip; observed non-draft and unknown rows do not.",
+        "AC02: accepted draft toggles preserve exact selection, opening, attention and bounded provider work.",
+        "AC03: persistence, failed/stale completions and complete authority isolation preserve last accepted draft facts.",
+        "AC04: focused rendered scale/appearance, keyboard and accessible checks pass, and a fresh frozen native candidate receives owner acceptance.",
+        "Focused public-path, architecture, format and documentation checks pass; truthful tracker, amendment and durable continuation bind the exact candidate."
+      ],
+      "boundary": "One complete integrated milestone; human verdict remains pending when prepared."
+    }
+  ],
+  "unplanned_work": []
+}
