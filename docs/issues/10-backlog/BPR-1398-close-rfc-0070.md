@@ -35,3 +35,7 @@ RFC base: `9857d596769468c0585c475467175e3998a33530`.
 | **AC03:** The mixed Branch Freshness/code-owner example remains in Waiting on others with its team names and failure visible. Unread activity and its clearance follow the defined My pull requests precedence. Removing the last request does not hide an independently remaining review requirement or check problem behind Quiet. | Pending composed evidence | pending | — |
 | **AC04:** Interleaved discovery/open/retained reads, head/account changes, incomplete or failed refresh, restart and old stored rows follow the availability rules. A complete newer removal or approval clears only the facts it actually settles; Home refresh stays bounded without full PR loads. | Pending composed evidence | pending | — |
 | **AC05:** Composed Home preserves exact row selection, opening destination, accurate filtered/grouped counts, collapsed summaries and accessible waiting text. The Quiet-items filter, existing notification policy, unrelated enrollment and Recently viewed behavior follow the boundaries above. | Pending composed evidence | pending | — |
+
+## Final pack obligation
+
+The implementation mandate `merge-gates-r1` explicitly requires an independent critical review at the end of the complete pack. The coordinator dispatches that review separately; final pack acceptance must preserve and consume its actual findings and any verified corrections. The first milestone’s self-review and Auto-Verified status do not satisfy this obligation.

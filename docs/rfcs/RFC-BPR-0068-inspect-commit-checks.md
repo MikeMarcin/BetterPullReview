@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0068"
 title: "Inspect commit checks and their failures in Overview"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
 metadata: {"mandate_revision":"merge-gates-r1","rfc_base_sha":"9857d596769468c0585c475467175e3998a33530","milestone_plan":{"id":"merge-gates-and-review-waiting-v1","path":"docs/rfcs/plans/merge-gates-and-review-waiting-v1/milestone-plan.json"}}
