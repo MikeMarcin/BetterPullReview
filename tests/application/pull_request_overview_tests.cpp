@@ -411,6 +411,49 @@ namespace {
 	// [[BPR-0972]]. Receipt changes applied one file at a time decide exactly
 	// what projecting the whole overview again decides, touch only their own
 	// rows, and refuse a file the projection does not hold.
+	void test_receipt_readoption_keeps_exact_current_paths()
+	{
+		auto index = application::overview_receipt_index{ };
+		for (const auto& paths : std::vector<std::vector<std::string>>{
+				 { "src/a.cpp", "src/b.cpp", "src/a.cpp" },
+				 { "src/a.cpp", "src/b.cpp", "src/a.cpp" },
+				 { "src/b.cpp", "src/a.cpp", "src/a.cpp" },
+				 { "src/A.cpp", "src/b.cpp" },
+				 { "src/renamed.cpp", "src/b.cpp" },
+				 { },
+				 { "src/a.cpp" } }) {
+			auto projection = application::pull_request_overview_projection{ };
+			for (const auto& path : paths) {
+				auto row = application::overview_file_row{ };
+				row.Path = path;
+				projection.Files.push_back(std::move(row));
+			}
+			index.adopt(projection, false, false);
+			if (paths.empty()) {
+				expect(!index.apply(projection, std::vector{ receipt("src/a.cpp", core::file_read_state::read) }),
+					   "an empty readoption forgets removed paths");
+				continue;
+			}
+			const auto changed = receipt(paths.front(), core::file_read_state::read);
+			const auto update  = index.apply(projection, std::vector{ changed });
+			expect(update.has_value(), "a readopted path receives its receipt");
+			for (const auto& row : projection.Files) {
+				expect(row.Read.has_value() == (row.Path == paths.front()),
+					   "receipts update exactly the matching current paths, including duplicates and case");
+			}
+			const auto unread = std::ranges::find_if(projection.Files, [](const auto& aRow) { return !aRow.Read; });
+			expect(projection.EntryPath == std::optional{ unread == projection.Files.end() ? paths.front() : unread->Path },
+				   "readoption rebuilds progress and the next unread row");
+			if (std::ranges::find(paths, "src/a.cpp") == paths.end()) {
+				expect(!index.apply(projection, std::vector{ receipt("src/a.cpp", core::file_read_state::read) }),
+					   "a case-changed or renamed path refuses the retired identity");
+			}
+		}
+		index.clear();
+		auto projection = application::pull_request_overview_projection{ };
+		expect(!index.apply(projection, { }), "clear retires receipt authority until another adoption");
+	}
+
 	void test_receipt_updates_match_a_complete_projection()
 	{
 		for (const auto withLastReview : { false, true }) {
@@ -602,6 +645,7 @@ auto main() -> int
 {
 	test_merge_evidence_boundaries();
 	test_history_header_matches_complete_projection();
+	test_receipt_readoption_keeps_exact_current_paths();
 	test_receipt_updates_match_a_complete_projection();
 	test_an_accepted_file_shows_accepted_and_counts_as_done();
 	test_first_visit_starts_at_the_first_file();

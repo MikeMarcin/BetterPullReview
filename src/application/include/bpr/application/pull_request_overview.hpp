@@ -317,6 +317,8 @@ namespace bpr::application {
 			-> std::optional<overview_receipt_update>;
 
 	private:
+		/// Exact current row paths bound the reusable identity index.
+		std::vector<std::string>                                 Paths;
 		std::vector<std::pair<core::file_identity, std::size_t>> Rows;
 		/// Rows not yet done: neither read nor accepted ([[BPR-1339]]).
 		std::set<std::size_t>      NotDone;

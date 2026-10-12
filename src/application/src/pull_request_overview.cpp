@@ -738,13 +738,24 @@ namespace bpr::application {
 		const bool                              aLastReviewedKnown,
 		const bool                              aAnyReceipt)
 	{
-		Rows.clear();
+		// [[BPR-1404]]. Refreshes change observations without necessarily
+		// changing paths. Reuse only the exact current ordered path list;
+		// receipt, progress and navigation state are rebuilt every time.
+		const auto samePaths = std::ranges::equal(aProjection.Files, Paths, { }, &overview_file_row::Path);
+		if (!samePaths) {
+			Rows.clear();
+			Paths.clear();
+			Rows.reserve(aProjection.Files.size());
+			Paths.reserve(aProjection.Files.size());
+		}
 		NotDone.clear();
 		FirstChanged.reset();
-		Rows.reserve(aProjection.Files.size());
 		for (std::size_t row = 0U; row < aProjection.Files.size(); ++row) {
 			const auto& file = aProjection.Files[row];
-			Rows.emplace_back(core::file_identity_of(file.Path), row);
+			if (!samePaths) {
+				Rows.emplace_back(core::file_identity_of(file.Path), row);
+				Paths.push_back(file.Path);
+			}
 			if (!row_done(file)) {
 				NotDone.insert(row);
 			}
@@ -756,7 +767,9 @@ namespace bpr::application {
 		}
 		// The first row for a file answers for it, as the projection's own
 		// search did.
-		std::ranges::stable_sort(Rows, { }, &std::pair<core::file_identity, std::size_t>::first);
+		if (!samePaths) {
+			std::ranges::stable_sort(Rows, { }, &std::pair<core::file_identity, std::size_t>::first);
+		}
 		LastReviewedKnown = aLastReviewedKnown;
 		AnyReceipt        = aAnyReceipt;
 		Adopted           = true;
@@ -764,6 +777,7 @@ namespace bpr::application {
 
 	void overview_receipt_index::clear() noexcept
 	{
+		Paths.clear();
 		Rows.clear();
 		NotDone.clear();
 		FirstChanged.reset();
