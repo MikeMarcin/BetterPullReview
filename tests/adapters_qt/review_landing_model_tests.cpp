@@ -676,6 +676,36 @@ namespace {
 		expect(row.data(Qt::AccessibleDescriptionRole).toString() == qt::home_why_sentence(requested) + QStringLiteral(" Requested"),
 			   "a row describes itself as it is drawn");
 	}
+	void test_waiting_blockers_and_quiet_filters()
+	{
+		auto waiting                         = item(31, core::attention_bucket::authored_awaiting_reviewer_action, { .Authored = true });
+		waiting.Facts.Waiting.Requests       = 3;
+		waiting.Facts.Waiting.Teams          = 3;
+		waiting.Facts.Waiting.NamesKnown     = true;
+		waiting.Facts.Waiting.CodeOwners     = { "@org/team-a", "@org/team-b", "@org/team-c" };
+		waiting.Facts.Waiting.RequiredReview = true;
+		waiting.Facts.Waiting.MergeBlocked   = true;
+		waiting.Facts.Waiting.ChecksKnown    = true;
+		waiting.Facts.Waiting.FailedChecks   = { "Branch Freshness" };
+		const auto text                      = qt::home_why_sentence(waiting);
+		expect(text.contains(QStringLiteral("@org/team-c")) && text.contains(QStringLiteral("Branch Freshness failed")) && text.contains(QStringLiteral("0 people, 3 teams")), "waiting reason names code-owner teams, separates people/team counts and preserves concurrent failure");
+		auto blocked                         = waiting;
+		blocked.Ref.Number                   = 32;
+		blocked.Bucket                       = core::attention_bucket::quiet;
+		blocked.Facts.Waiting.Requests       = 0;
+		blocked.Facts.Waiting.RequiredReview = false;
+		blocked.Facts.Waiting.CodeOwners.clear();
+		auto source = qt::review_landing_model{ };
+		auto proxy  = qt::review_landing_filter_model{ source };
+		source.apply(std::vector{ waiting, blocked });
+		expect(!source.data(source.index(1, 0), Qt::AccessibleDescriptionRole).toString().contains(QStringLiteral("Quiet")) && !qt::home_why_sentence(blocked).contains(QStringLiteral("Nothing here")), "independent remaining block never claims quiet or settled");
+		proxy.apply(application::queue_presentation_preferences{ .Role = core::github_role::author, .Quiet = application::queue_quiet_filter::attention });
+		expect(proxy.rowCount() == 2, "My role author and Hide quiet retain authored discovery and known blockers");
+		proxy.apply(application::queue_presentation_preferences{ .Quiet = application::queue_quiet_filter::quiet });
+		expect(proxy.rowCount() == 0, "Only quiet excludes known blockers");
+		expect(qt::home_state_summary(qt::home_group::waiting_on_others, std::array{ waiting }).contains(QStringLiteral("1 blocked")), "collapsed summary carries the blocker count");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -695,6 +725,7 @@ auto main(int argc, char** argv) -> int
 	test_a_large_queue_filter_emits_one_bounded_change();
 	test_switching_directly_between_alternate_sorts_reorders();
 	test_home_rows_say_why_in_projected_facts();
+	test_waiting_blockers_and_quiet_filters();
 
 	std::cout << "review-landing-model-tests:pass\n";
 	return EXIT_SUCCESS;

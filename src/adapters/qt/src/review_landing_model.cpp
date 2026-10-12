@@ -58,7 +58,7 @@ namespace bpr::qt {
 
 	auto reason_for(const core::queue_item& aItem) -> QString
 	{
-		auto reason = text(core::explanation(aItem.Bucket));
+		auto reason = core::review_waiting(aItem.Facts.Waiting) || core::merge_blocked(aItem.Facts.Waiting) ? home_why_sentence(aItem) : text(core::explanation(aItem.Bucket));
 		// The rule is named only when it is why the item is here at all. Saying
 		// "you watch src/parser" about a review someone asked for would bury
 		// the fact that they were asked.
@@ -146,11 +146,42 @@ namespace bpr::qt {
 			clauses.push_back(QStringLiteral("New activity on a pull request I follow"));
 			break;
 		case core::attention_bucket::quiet:
-			clauses.push_back(QStringLiteral("Nothing here is waiting on anyone"));
+			if (!core::merge_blocked(aItem.Facts.Waiting)) {
+				clauses.push_back(QStringLiteral("Nothing here is waiting on anyone"));
+			}
 			break;
 		case core::attention_bucket::detail_unknown:
 			clauses.push_back(QStringLiteral("Nothing about it has been read yet"));
 			break;
+		}
+		const auto& waiting = aItem.Facts.Waiting;
+		const auto  names   = [](const std::vector<std::string>& aNames) { auto result = QStringList{}; for (const auto& name : aNames) { result.push_back(text(name)); } return result.join(QStringLiteral(", ")); };
+		if (!waiting.CodeOwners.empty()) {
+			clauses.push_back(QStringLiteral("Waiting on code-owner review from %1").arg(names(waiting.CodeOwners)));
+		}
+		if (!waiting.Reviewers.empty()) {
+			clauses.push_back(QStringLiteral("Waiting on review from %1").arg(names(waiting.Reviewers)));
+		}
+		if (waiting.Requests && *waiting.Requests > 0 && !waiting.NamesKnown) {
+			clauses.push_back(QStringLiteral("%1 requests outstanding; reviewer details unavailable").arg(*waiting.Requests));
+		}
+		if (waiting.NamesKnown && waiting.Requests && *waiting.Requests > waiting.CodeOwners.size() + waiting.Reviewers.size()) {
+			clauses.push_back(QStringLiteral("More requested reviewers in Overview"));
+		}
+		if (waiting.NamesKnown && waiting.Requests.value_or(0) > 0) {
+			clauses.push_back(QStringLiteral("Requested: %1 people, %2 teams").arg(waiting.People).arg(waiting.Teams));
+		}
+		if (waiting.RequiredReview.value_or(false)) {
+			clauses.push_back(QStringLiteral("Required review outstanding"));
+		}
+		for (const auto& check : waiting.FailedChecks) {
+			clauses.push_back(QStringLiteral("%1 failed").arg(text(check)));
+		}
+		if (waiting.MergeBlocked.value_or(false) && waiting.FailedChecks.empty()) {
+			clauses.push_back(QStringLiteral("GitHub reports a merge blocker"));
+		}
+		if (waiting.RequestsStale || waiting.AssessmentStale || waiting.ChecksStale) {
+			clauses.push_back(QStringLiteral("Last known; refresh for current details"));
 		}
 		if (aItem.Bucket != core::attention_bucket::new_comments_or_author_replies && unseen > 0U) {
 			clauses.push_back(new_comments(unseen));
@@ -207,6 +238,14 @@ namespace bpr::qt {
 		case home_group::following:
 			summary = QStringLiteral("%1 followed").arg(QString::number(aRows.size()));
 			break;
+		}
+		const auto blocked = std::ranges::count_if(aRows, [](const auto& aRow) { return core::merge_blocked(aRow.Facts.Waiting); });
+		const auto waiting = std::ranges::count_if(aRows, [](const auto& aRow) { return core::review_waiting(aRow.Facts.Waiting); });
+		if (waiting > 0) {
+			summary += QStringLiteral("; %1 awaiting review").arg(waiting);
+		}
+		if (blocked > 0) {
+			summary += QStringLiteral("; %1 blocked").arg(blocked);
 		}
 		if (unseen > 0U) {
 			summary += QStringLiteral("; ") + new_comments(unseen);
@@ -328,7 +367,7 @@ namespace bpr::qt {
 			return item->Facts.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(label) : label;
 		}
 		case Qt::AccessibleDescriptionRole: {
-			const auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), home_reason_word(item->Bucket));
+			const auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket));
 			// [[BPR-1365]]. The open review is said in words, as it is drawn.
 			return Reviewing == item->Ref ? QStringLiteral("%1; %2").arg(home_reviewing_description(), why) : why;
 		}
@@ -347,6 +386,9 @@ namespace bpr::qt {
 		case author_role:
 			return text(item->Facts.Author);
 		case role_role:
+			if (item->Membership.authored()) {
+				return text(core::name(core::github_role::author));
+			}
 			return item->Membership.Role == core::github_role::none
 				? QString{ }
 				: text(core::name(item->Membership.Role));
@@ -364,7 +406,7 @@ namespace bpr::qt {
 		case home_row_role::why:
 			return home_why_sentence(*item);
 		case home_row_role::reason_word:
-			return home_reason_word(item->Bucket);
+			return item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket);
 		case home_row_role::state:
 			return static_cast<int>(home_group_of(item->Bucket));
 		case home_row_role::account_chip:
@@ -708,8 +750,8 @@ namespace bpr::qt {
 		if (!item) {
 			return false;
 		}
-		if (Effective.Role.has_value()
-			&& item->Membership.Role != *Effective.Role) {
+		const auto role = item->Membership.authored() ? core::github_role::author : item->Membership.Role;
+		if (Effective.Role.has_value() && role != *Effective.Role) {
 			return false;
 		}
 		if (Effective.ObserverReason.has_value()
@@ -726,11 +768,11 @@ namespace bpr::qt {
 			return false;
 		}
 		if (Effective.Quiet == application::queue_quiet_filter::attention
-			&& item->Bucket == core::attention_bucket::quiet) {
+			&& item->Bucket == core::attention_bucket::quiet && !core::merge_blocked(item->Facts.Waiting)) {
 			return false;
 		}
 		if (Effective.Quiet == application::queue_quiet_filter::quiet
-			&& item->Bucket != core::attention_bucket::quiet) {
+			&& (item->Bucket != core::attention_bucket::quiet || core::merge_blocked(item->Facts.Waiting))) {
 			return false;
 		}
 		return true;
