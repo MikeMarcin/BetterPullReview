@@ -22,7 +22,11 @@ def authenticode(path: Path, signtool: Path, publisher: str) -> dict:
     command(signtool, "verify", "/pa", "/all", "/v", path)
     # Values are JSON data passed through base64, never PowerShell source.
     data = base64.b64encode(json.dumps({"path": str(path.resolve()), "publisher": publisher}).encode()).decode()
-    script = f"$inputData = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{data}')) | ConvertFrom-Json\n"
+    # A PowerShell 7 parent can put incompatible modules first in PSModulePath.
+    # Load this child's own Windows PowerShell module by its absolute manifest.
+    script = "$ErrorActionPreference = 'Stop'\n"
+    script += "Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop\n"
+    script += f"$inputData = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{data}')) | ConvertFrom-Json\n"
     script += """$s = Get-AuthenticodeSignature -LiteralPath $inputData.path
 if ($s.Status -ne 'Valid' -or !$s.SignerCertificate -or !$s.TimeStamperCertificate) {
   throw 'Valid publisher signature and timestamp required'
@@ -52,9 +56,10 @@ def fingerprint(value: str) -> str:
     return value
 
 
-def verify_detached(path: Path, signature: Path, approved_key: str) -> dict:
+def verify_detached(path: Path, signature: Path, approved_key: str, *, gpg_home: Path | None = None) -> dict:
     approved_key = fingerprint(approved_key)
-    result = subprocess.run(["gpg", "--batch", "--status-fd", "1", "--verify", str(signature), str(path)],
+    prefix = ["/usr/bin/gpg", "--homedir", str(gpg_home), "--no-options"] if gpg_home else ["gpg"]
+    result = subprocess.run([*prefix, "--batch", "--status-fd", "1", "--verify", str(signature), str(path)],
                             check=True, text=True, capture_output=True)
     valid = [line.split() for line in result.stdout.splitlines() if line.startswith("[GNUPG:] VALIDSIG ")]
     if len(valid) != 1 or len(valid[0]) < 11 or valid[0][9] != "8" or (valid[0][2] != approved_key and valid[0][-1] != approved_key):
@@ -62,13 +67,15 @@ def verify_detached(path: Path, signature: Path, approved_key: str) -> dict:
     return {"keyFingerprint": approved_key, "signingFingerprint": valid[0][2]}
 
 
-def sign_detached(path: Path, approved_key: str) -> tuple[Path, dict]:
+def sign_detached(path: Path, approved_key: str, *, gpg_home: Path | None = None) -> tuple[Path, dict]:
     approved_key = fingerprint(approved_key)
     signature = path.with_name(path.name + ".asc")
     if signature.exists():
         raise ValueError(f"signature already exists: {signature.name}")
-    command("gpg", "--armor", "--digest-algo", "SHA256", "--local-user", approved_key, "--output", signature, "--detach-sign", path)
-    return signature, verify_detached(path, signature, approved_key)
+    prefix = ["/usr/bin/gpg", "--homedir", gpg_home, "--no-options", "--batch", "--pinentry-mode", "error"] if gpg_home else ["gpg"]
+    command(*prefix, "--armor", "--digest-algo", "SHA256", "--local-user", approved_key + ("!" if gpg_home else ""),
+            "--output", signature, "--detach-sign", path)
+    return signature, verify_detached(path, signature, approved_key, gpg_home=gpg_home)
 
 
 def sign_rpm(path: Path, approved_key: str) -> None:

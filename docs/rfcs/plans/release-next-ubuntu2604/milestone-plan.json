@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-next-ubuntu2604",
+  "scope": {
+    "issues": [
+      "BPR-1400"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "ubuntu2604-preparation",
+      "outcome": "The next-release Linux producer route admits Ubuntu 26.04 x86_64 with exact source, artifact and trust mechanics while qualifications remain explicit.",
+      "work": [
+        {
+          "issue": "BPR-1400"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The public baseline, naming, ABI rejection and native-manifest/source-binding paths have focused passing evidence for Ubuntu 26.04.",
+        "Current operator and skill guidance matches the amended Linux scope; historical evidence and pending release prerequisites remain explicit.",
+        "The accepted preparation slice is committed with documentation gates and a durable handoff; task-owned writers and commands are quiescent."
+      ],
+      "boundary": "Preparation only. No selected version, full release build, signing, enrollment, installation, publication or M8/M9/RFC0038 qualification acceptance."
+    }
+  ],
+  "unplanned_work": []
+}

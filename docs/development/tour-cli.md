@@ -204,7 +204,7 @@ that platform and what has actually been observed ([[BPR-1068]] and the
 | Capability | macOS | Linux | Windows |
 |---|---|---|---|
 | `tests-off` install runs with no display | Observed (BPR-1054) | Observed: Ubuntu 26.04 under WSL2, private Qt, `ldd` has no GUI library | Not run |
-| Release package | None | None; `package.py` also refuses Ubuntu 26.04 | None |
+| Release package | None | None observed; the 2026-10-11 next-release amendment now admits Ubuntu 26.04 production, without qualifying this component or its installed package | None |
 | First run creates the private default profile | Fixture courses | Observed from the install on a fresh root | Fixture courses |
 | Native device sign-in | Composed (Keychain); not run live | Composed (Secret Service, checked first); completion, stored grant and restore pass against the loopback course ([[BPR-1302]]); live completion not run | Composed (Credential Manager); not run live |
 | `--transport gh` | Explicit opt-in; loopback course gh rows owed | `transport_unavailable` | `transport_unavailable` |

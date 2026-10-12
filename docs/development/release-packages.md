@@ -22,8 +22,7 @@ There is no new core SDK or embedding API.
 |---|---|---|
 | macOS | `macos-release`; universal x86_64/arm64, minimum macOS 13; app/ZIP, full release also DMG | Existing Qt/macOS toolchain; local prepare mode needs no Apple credential |
 | Windows 10/11 x64 | `windows-app-release`; WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
-| Ubuntu 24.04 LTS x86_64 | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret and libxcb development files |
-| RHEL 10 x86_64 | `linux-package`; RPM and per-user archive | Native RHEL packaging/development tools and the same runtime requirements; CPU floor x86-64-v3 |
+| Ubuntu 26.04 LTS x86_64 (including WSL2 producer) | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret and libxcb development files |
 
 Build prerequisites include CMake 4.4.2, Ninja, Python 3.10+ and a C++23
 compiler/library accepted by the root feature checks. The inspected macOS release
@@ -38,8 +37,13 @@ every compatible toolchain. No Linux compiler/libstdc++ package baseline has yet
 completed native qualification. Installed Git 2.39+ is required for the Git path;
 optional `gh` and agents are separately installed and explicitly selected.
 
-Linux deliberately rejects Ubuntu 26.04 and other undeclared build baselines.
-Both targets have a glibc 2.39 ceiling on required ELF symbol versions. The
+The owner's 2026-10-11 next-release amendment selects Ubuntu 26.04 and removes
+Ubuntu 24.04 and RHEL from the selected release set. Ubuntu packaging rejects
+obsolete/undeclared Ubuntu versions and enforces a glibc 2.43 ceiling on required
+ELF symbol versions. WSL2 may produce ordinary Linux binaries. WSL/WSLg testing
+does not establish clean Ubuntu desktop, Secret Service or installer qualification.
+Retained optional RHEL 10 RPM mechanics keep glibc 2.39/x86-64-v3 constraints;
+they require no producer for the selected release. The
 staged runtime records actual GLIBCXX requirements; the native system package
 dependency generator supplies corresponding system-library constraints. A newer
 C++23 toolchain is not permission to raise the runtime baseline. Exact compiler,
@@ -81,7 +85,7 @@ Linux on its exact baseline:
 cmake --preset linux-package
 python3 packaging/package.py --build build/linux-package \
   --generator DEB --output build/releases/ubuntu-candidate
-# On RHEL 10, use --generator RPM and a different new output directory.
+# Ubuntu's CPack default is DEB; the per-user archive uses the same runtime.
 ```
 
 The native driver builds the application and both helpers, runs CPack, requires
@@ -95,13 +99,20 @@ producer images after building and before CPack inventory generation, verifies
 staged bytes, then signs the MSI before final hashing. Linux `--gpg-key` takes an
 approved full fingerprint; RPM is signed/verified first, then final products and
 metadata receive verified detached signatures. Neither route provisions keys,
-discovers credentials or publishes. See the platform guides in
+discovers credentials or publishes. Optional Ubuntu WSL
+`--gpg-vault-config /absolute/producer-local/config.json` automatically unlocks
+one approved Windows Credential Manager credential before any output/build,
+then signs in its exact GPG home with pinentry disabled. Missing/wrong credentials
+stop production. One-time human enrollment uses the maintained hidden console
+helper; private keys stay encrypted and no secret is transferred to the Mac.
+See the platform guides in
 `.codex/skills/publish-release/references/` for commands and human prerequisites.
 
 Signed production emits `*.release.json` binding installer, runtime archive,
 SPDX, separate source ZIP, final checksums/provenance and signature receipts.
-Linux names and installed source URLs include `linux-ubuntu-24.04-x64` or
-`linux-rhel-10-x64`; reconfigure older distribution builds before production.
+Selected Linux names and installed source URLs include `linux-ubuntu-26.04-x64`;
+reconfigure older distribution builds before production. Optional RPM names
+remain `linux-rhel-10-x64` and are not required assets.
 `tools/publish-release.sh --manifest PATH` accepts these manifests repeatedly;
 `--macos` includes the existing standard macOS set. Native manifest preflight
 verifies the complete archive inventory and byte/source bindings before remote
@@ -109,6 +120,26 @@ mutations, but does not independently verify native trust or equate installer
 payloads with the archive. Extract and audit final installers and verify native
 signatures separately. Clean desktop qualification, owner/legal approval,
 recipient access/retention and the recorded security gaps remain release gates.
+
+For future coordinated releases, the Mac host can publish the combined set after
+its own macOS producer and the signing PC's native Windows / Ubuntu 26.04 WSL2
+producers finish. Every producer uses the same committed source and selected
+version. Keep private signing credentials/keys on the approved producer PC.
+Return complete final asset directories and manifests to the Mac publisher,
+preserving source names, digests and signature receipts. Use absolute manifest
+paths for the shared dry-run preflight and separately verify native trust before
+publication. This preparation changes no version and starts no remote station;
+the owner requests the actual release later. The 2026-10-11 preparation observed
+the dedicated Windows Azure profile signer and one signed disposable probe,
+and the approved encrypted Linux key's local sign/public-only verify/tamper
+smoke. Reuse the approved producer-local nonsecret configs and isolated Azure
+CLI profile; Azure may still require renewed human login/MFA. The vault helper
+binds one named generic credential to the exact key/home, validates before
+retrieval and forwards the passphrase only to the fixed preset command's stdin.
+Local synthetic vault/WSL evidence does not prove remote station logon access,
+clean Windows/Ubuntu product vaults, final artifacts or native/security/legal
+release gates. See the existing `publish-release` skill's selected platform guides
+and [BPR-1402 evidence](../issues/60-done/BPR-1402-reuse-release-signing-vault-and-native-verifier.md).
 
 ## Installation and removal boundaries
 
@@ -281,8 +312,9 @@ The installed `ThirdParty` directory (macOS: `Contents/Resources/ThirdParty`)
 contains `THIRD-PARTY-NOTICES.txt`, `SOURCE-OFFERS.txt`, source provenance and
 selected Qt producer provenance. Corresponding source is a separate asset:
 `Source-BetterPullReview-VERSION-PLATFORM-corresponding-source.zip`, where PLATFORM is
-`macos-universal`, `windows-x64`, `linux-ubuntu-24.04-x64` or
-`linux-rhel-10-x64` (older Linux candidates used `linux-x64`). It is not embedded in the app,
+`macos-universal`, `windows-x64` or `linux-ubuntu-26.04-x64` for the selected set.
+Optional RPM uses `linux-rhel-10-x64`; historical Linux candidates used
+`linux-ubuntu-24.04-x64` or `linux-x64`. It is not embedded in the app,
 installer or per-user archive. Both installed notices and source offers point
 to its exact `releases/download/vVERSION/ASSET` location and SHA-256; the
 installed provenance also binds the producer commit and upstream input hashes.
@@ -417,4 +449,5 @@ course; use the guarded course for an installed macOS candidate. The manual
 `runtime_surface_native_probe.py` checks the inspector against its own loopback
 listener/connected socket and child process. Run it under the station lease and
 qualification guard in a disposable root on remote stations. A passing WSL
-probe does not qualify an undeclared Linux distribution or package baseline.
+probe records only its observed operations; it does not qualify a clean Ubuntu
+desktop, Secret Service or the delivered installer.

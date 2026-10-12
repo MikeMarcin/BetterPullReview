@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1388"
+  ],
+  "reserve_for": "release-next-vault-verifier",
+  "purpose": "Reusable Windows credential to scoped WSL signing cache and native Authenticode verifier repair",
+  "created": "2026-10-12T05:48:56.066366+00:00",
+  "base": "2b56a8c30f3fbde66a3469dd0778121401ad9e0a"
+}

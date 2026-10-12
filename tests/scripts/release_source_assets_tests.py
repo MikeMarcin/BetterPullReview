@@ -129,7 +129,7 @@ class SourceAssetTests(unittest.TestCase):
                 output = self.root / ("output-" + generator)
                 info = {**self.info, "platform": system}
                 if system == "Linux":
-                    info["target"] = "linux-ubuntu-24.04-x64" if generator == "DEB" else "linux-rhel-10-x64"
+                    info["target"] = "linux-ubuntu-26.04-x64" if generator == "DEB" else "linux-rhel-10-x64"
                 source = runtime.source_asset_path(build, info, self.revision)
                 source.parent.mkdir(parents=True)
                 source.write_bytes(self.asset.read_bytes())

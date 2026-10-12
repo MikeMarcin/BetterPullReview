@@ -132,11 +132,53 @@ class PackageRuntimeTests(unittest.TestCase):
             self.assertFalse(runtime.qt_library(name))
 
     def test_native_baseline_does_not_silently_rise(self):
-        with patch.object(Path, "read_text", return_value='ID=ubuntu\nVERSION_ID="26.04"\n'):
-            with self.assertRaisesRegex(ValueError, "not a supported"):
+        for identity in (('ubuntu', '24.04'), ('ubuntu', '26.10'), ('debian', '13')):
+            with self.subTest(identity=identity), patch.object(Path, "read_text", return_value=f'ID={identity[0]}\nVERSION_ID="{identity[1]}"\n'):
+                with self.assertRaisesRegex(ValueError, "not a supported"):
+                    runtime.linux_baseline()
+        with patch.object(Path, "read_text", return_value='ID=ubuntu\nVERSION_ID="26.04"\n'), patch.object(runtime.platform, "machine", return_value="x86_64"):
+            self.assertEqual(runtime.linux_baseline(), {"distribution": ("ubuntu", "26.04"), "glibcFloor": "2.43", "cpuFloor": "x86-64"})
+            self.assertEqual(runtime.linux_target(), "linux-ubuntu-26.04-x64")
+            with patch.object(runtime.platform, "machine", return_value="aarch64"), self.assertRaisesRegex(ValueError, "require x86_64"):
                 runtime.linux_baseline()
         with patch.object(Path, "read_text", return_value='ID=rhel\nVERSION_ID="10.0"\n'), patch.object(runtime.platform, "machine", return_value="x86_64"):
             self.assertEqual(runtime.linux_baseline()["cpuFloor"], "x86-64-v3")
+            self.assertEqual(runtime.linux_baseline()["glibcFloor"], "2.39")
+
+    def test_source_name_refuses_obsolete_ubuntu_target(self):
+        info = {"platform": "Linux", "version": "1.2.3", "target": "linux-ubuntu-26.04-x64"}
+        self.assertEqual(runtime.source_asset_name(info), "Source-BetterPullReview-1.2.3-linux-ubuntu-26.04-x64-corresponding-source.zip")
+        info["target"] = "linux-ubuntu-24.04-x64"
+        with self.assertRaisesRegex(ValueError, "invalid Linux release target"):
+            runtime.source_asset_name(info)
+
+    @unittest.skipUnless(sys.platform == "linux", "the Linux CPack definition requires its native producer; run on Linux")
+    def test_linux_cpack_default_matches_native_baseline(self):
+        # Configure the production install definition in a tiny native graph;
+        # no product dependency acquisition, compilation or installation runs.
+        with ContainedTemporaryDirectory() as directory:
+            source, build = Path(directory) / "source", Path(directory) / "build"
+            source.mkdir()
+            (source / "fixture.cpp").write_text("int main() { return 0; }\n")
+            (source / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.26)
+project(package_baseline_fixture VERSION 1.2.3 LANGUAGES CXX)
+set(CMAKE_BUILD_TYPE Release)
+set(BUILD_TESTING OFF)
+set(BPR_BUILD_AGENT_INTEGRATIONS OFF)
+set(BPR_BUILD_LOCAL_AUTOMATION OFF)
+set(CMAKE_INSTALL_PREFIX /usr)
+set(Qt6_DIR "{ROOT.as_posix()}/fixture-qt/lib/cmake/Qt6")
+set(BPR_PRODUCT_QT_VERSION 6.11.2)
+add_executable(app_better_pull_review fixture.cpp)
+add_executable(tool_better_pull_review_agent_supervisor fixture.cpp)
+set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")
+include("{ROOT.as_posix()}/packaging/Install.cmake")
+''')
+            runtime.run("cmake", "-S", source, "-B", build)
+            info = json.loads((build / "_bpr/package-inputs.json").read_text())
+            self.assertEqual(info["target"], runtime.linux_target())
+            expected = "DEB" if runtime.linux_baseline()["distribution"][0] == "ubuntu" else "RPM"
+            self.assertIn(f'set(CPACK_GENERATOR "{expected}")', (build / "CPackConfig.cmake").read_text())
 
     def test_development_build_cannot_package(self):
         with ContainedTemporaryDirectory() as directory:
@@ -265,15 +307,23 @@ class PackageRuntimeTests(unittest.TestCase):
                 if arguments[:2] == ("readelf", "--file-header"):
                     return "Class: ELF64\nMachine: Advanced Micro Devices X86-64\n"
                 if arguments[:2] == ("readelf", "--version-info"):
-                    return "GLIBC_2.39 GLIBCXX_3.4.32"
+                    return versions
                 self.assertEqual(arguments[0], "patchelf")
                 return ""
 
-            with patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.39"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
+            versions = "GLIBC_2.43 GLIBCXX_3.4.35"
+            with patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
                 runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
             closure = json.loads((stage / "runtime-closure.json").read_text())
             self.assertIn("libQt6Core.so.6", closure["files"])
-            self.assertEqual(closure["baseline"]["requiredGLIBCXX"], ["3.4.32"])
+            self.assertEqual(closure["baseline"], {"glibcFloor": "2.43", "requiredGLIBCXX": ["3.4.35"]})
+            for ceiling, versions in (("2.43", "GLIBC_2.44"), ("2.39", "GLIBC_2.43")):
+                with self.subTest(ceiling=ceiling), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": ceiling}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
+                    # Prior deployment output is data, not an ELF input.
+                    for name in ("qt.conf", "runtime-closure.json"):
+                        (stage / name).unlink(missing_ok=True)
+                    with self.assertRaisesRegex(ValueError, f"glibc {ceiling} ceiling"):
+                        runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
 
     def test_linux_sonames_bind_versioned_qt_producer_records(self):
         with ContainedTemporaryDirectory() as directory:

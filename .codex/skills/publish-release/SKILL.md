@@ -21,7 +21,7 @@ tools; GitHub Actions has no role in this repository's release workflow.
      DMG and ZIP through `tools/release.sh`.
    - [Windows](references/windows.md): native x64 MSI and manual Azure Artifact
      Signing for application/helpers and installer.
-   - [Linux](references/linux.md): Ubuntu 24.04 DEB, RHEL 10 RPM, per-user
+   - [Linux](references/linux.md): Ubuntu 26.04 x86_64 DEB, per-user
      archives and approved OpenPGP signing.
 3. Read `docs/development/release-packages.md` and
    `docs/security/release-policy.md`. Check the current
@@ -100,14 +100,46 @@ Review notes/artifacts and preflight the selected set:
 ```sh
 tools/publish-release.sh --version X.Y.Z --notes-file /absolute/notes.md \
   --macos --manifest /absolute/windows/INSTALLER.msi.release.json \
-  --manifest /absolute/ubuntu/INSTALLER.deb.release.json \
-  --manifest /absolute/rhel/INSTALLER.rpm.release.json --dry-run
+  --manifest /absolute/ubuntu/INSTALLER.deb.release.json --dry-run
 ```
 
 Omit unrequested platforms. The publisher preserves private-repository guards,
 exact version/commit checks, checksum/source binding and atomic
 `main`/annotated-tag push. macOS variants still require a separate publisher
 extension; do not treat native manifests as arbitrary asset upload lists.
+
+For a coordinated release from the Mac host, use its existing macOS producer
+and publisher plus the signing PC's native Windows station and Ubuntu 26.04
+WSL2 producer. The owner selected this Linux route for the next release on
+2026-10-11; Ubuntu 24.04 and RHEL are not required release targets. Ordinary
+Linux binaries may be produced under WSL2; clean Ubuntu desktop/vault and final
+installation qualification remain separate. Keep signing credentials and
+private keys on their approved producer PC. Return each producer's complete
+final artifact directory, including `.release.json`, runtime archive, SPDX,
+separate source asset, checksums, provenance and public signatures, to the Mac
+publisher. Preserve names and bytes; use absolute manifest paths there for the
+shared preflight. Its offline checks do not verify native trust independently.
+Remote station dispatch uses the configured station workflow and requires
+available toolchains and signing identities; documentation is not observed
+remote readiness. No version change, station launch or release follows merely
+from preparation; select version/platforms when the owner requests the release.
+
+Reuse each producer's existing nonsecret signing configuration outside source.
+The Windows preparation records approved tool/metadata paths and an isolated
+`AZURE_CONFIG_DIR` for the dedicated profile signer. Read that configuration,
+validate its approved identity/profile and use those inputs; never inspect token
+caches or switch to an admin credential. Azure user authentication may expire
+or require MFA, so use a wizard only when renewed human login is actually needed.
+For the Ubuntu WSL producer, use the existing approved
+`bpr.release-gpg-vault.v1` configuration with `package.py --gpg-vault-config
+/absolute/producer-config.json`. Packaging unlocks its exact key automatically
+through Windows Credential Manager before any build/output and signs in the
+bound GPG home with pinentry disabled. Do not ask for the passphrase again after
+one successful enrollment. A missing credential/logon session or failed key
+check stops production; the [Linux guide](references/linux.md) describes recovery.
+Remote invocation must run as the same local Windows signing account with its
+credential set and working WSL interop; this route has not yet been qualified
+through remote station dispatch. No secret/configuration is transferred to the Mac.
 
 Create/push the tag and release only when the user requests publication of the
 prepared version and platform set. Run the same

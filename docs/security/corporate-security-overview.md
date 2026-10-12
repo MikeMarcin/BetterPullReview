@@ -19,8 +19,11 @@ source assets. Earlier records remain candidate-specific history.
 ## Release qualification
 
 The declared matrix is Windows 10/11 x64, macOS 13+ on native Intel and Apple
-Silicon, and Linux x86_64 on Ubuntu 24.04 and RHEL 10. Linux's glibc floor is
-2.39; the RHEL target requires x86-64-v3. These are qualification targets, not
+Silicon, and selected Linux x86_64 on Ubuntu 26.04 with a glibc 2.43 ceiling,
+under the owner's 2026-10-11 next-release scope amendment. WSL2 may produce the
+DEB/per-user archive; clean Ubuntu desktop, Secret Service and final installer
+acceptance remain pending. Ubuntu 24.04 and RHEL are no longer selected targets;
+retained optional RPM mechanics do not add a release requirement. These are qualification targets, not
 completed support certifications. The [package guide](../development/release-packages.md)
 names toolchains, runtime prerequisites and installation routes.
 

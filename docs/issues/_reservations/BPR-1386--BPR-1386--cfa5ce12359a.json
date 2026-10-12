@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1386"
+  ],
+  "reserve_for": "ubuntu2604-release-prep",
+  "purpose": "Prepare next release for Ubuntu 26.04 x64 WSL; exclude Ubuntu 24.04 and RHEL from active release scope",
+  "created": "2026-10-12T03:44:43.705952+00:00",
+  "base": "86303b24b516c72a61944633f71be09bf2e81c6c"
+}

@@ -11,6 +11,7 @@ import zipfile
 
 import package_runtime as runtime
 import release_signing as signing
+import release_gpg_vault as vault
 
 
 def main() -> None:
@@ -23,6 +24,8 @@ def main() -> None:
     parser.add_argument("--azure-metadata", type=Path)
     parser.add_argument("--publisher", help="approved exact certificate publisher, e.g. Michael Marcin")
     parser.add_argument("--gpg-key", help="approved full OpenPGP fingerprint; already enrolled locally")
+    parser.add_argument("--gpg-vault-config", type=Path,
+                        help="absolute approved Windows/WSL vault config; unlock automatically without pinentry")
     args = parser.parse_args()
     build = args.build.resolve(strict=True)
     info = runtime.inputs(build)
@@ -46,6 +49,13 @@ def main() -> None:
         raise ValueError("Windows signing requires signtool, azure-dlib, azure-metadata and publisher together")
     if args.gpg_key and info["platform"] != "Linux":
         raise ValueError("OpenPGP signing is only supported for Linux packages")
+    gpg_options = {}
+    if args.gpg_vault_config:
+        if info["platform"] != "Linux" or args.generator != "DEB":
+            raise ValueError("Windows/WSL vault signing is only supported for the Ubuntu DEB producer")
+        binding = vault.prepare_linux_signing(args.gpg_vault_config, args.gpg_key)
+        args.gpg_key = binding["keyFingerprint"]
+        gpg_options = {"gpg_home": Path(binding["gnupgHome"])}
     if args.gpg_key:
         args.gpg_key = signing.fingerprint(args.gpg_key)
     for path in (args.signtool, args.azure_dlib, args.azure_metadata):
@@ -107,7 +117,7 @@ def main() -> None:
         products.append(archive)
     if args.gpg_key:
         for path in list(products):
-            signature, receipt = signing.sign_detached(path, args.gpg_key)
+            signature, receipt = signing.sign_detached(path, args.gpg_key, **gpg_options)
             signatures[path.name] = {"signature": signature.name, **receipt}
             products.append(signature)
     checksums = output / (artifact.name + ".sha256")
@@ -123,7 +133,7 @@ def main() -> None:
         products.extend([checksums, provenance_file])
         if args.gpg_key:
             for path in (checksums, provenance_file):
-                signature, receipt = signing.sign_detached(path, args.gpg_key)
+                signature, receipt = signing.sign_detached(path, args.gpg_key, **gpg_options)
                 signatures[path.name] = {"signature": signature.name, **receipt}
                 products.append(signature)
         if runtime.run("git", "-C", source, "rev-parse", "HEAD").strip() != revision or runtime.run("git", "-C", source, "status", "--porcelain").strip():
