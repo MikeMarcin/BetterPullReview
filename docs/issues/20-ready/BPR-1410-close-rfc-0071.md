@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1410"
 title: "Verify and close RFC-BPR-0071"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0071"]
 depends_on: ["BPR-1409"]
 priority: "P1"
@@ -34,4 +34,4 @@ RFC base: `46eb49b312b35ef37e69ca4ace7354c04295a6dd`.
 
 ## Continuation
 
-First milestone in progress; durable checkpoint directory: [remember-cli-connections-v1](../_checkpoints/remember-cli-connections-v1/README.md).
+Policy/storage BPR-1408 and shared runtime BPR-1409 are accepted. Final runtime source is `a09ff90c704f534c7e13c809d50b113042bd262a`; focused application-lifetime checks pass. The criteria above still require complete qualification. Durable checkpoint directory: [remember-cli-connections-v1](../_checkpoints/remember-cli-connections-v1/README.md).

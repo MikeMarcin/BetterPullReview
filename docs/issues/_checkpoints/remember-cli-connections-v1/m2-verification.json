@@ -75,6 +75,30 @@
       "command": "python3 tests/scripts/verify_documentation_tests.py",
       "outcome": "pass",
       "detail": "67 tests, 1.942s, after writing the milestone checkpoint; final structure gate follows finish/Ready upkeep."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "outcome": "pass",
+      "detail": "DOCUMENTATION_OK with populated final checkpoint/acceptance, immediately before shared finish; final Ready handoff gate rerun follows."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "outcome": "pass",
+      "detail": "Final Done/Ready handoff: DOCUMENTATION_OK."
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "outcome": "pass",
+      "detail": "Final Done/Ready handoff: 67 tests in 1.924s, OK."
+    },
+    {
+      "command": "issue_board.py validate --rfc RFC-BPR-0071 --json",
+      "outcome": "pass",
+      "detail": "valid=true; no errors, 1402 live cards."
+    },
+    {
+      "command": "git diff --check",
+      "outcome": "pass"
     }
   ],
   "corrected_failures": [
@@ -130,5 +154,6 @@
       "f5ba6df49"
     ],
     "detail": "Shared main writers integrated Windows title-row and C++ identifier-context work. Their source/docs/index were preserved. Source commits stage/commit only explicit task paths after an empty-index check. Shared build/dev was reused, occasionally reporting Ninja recovery; all task-owned build processes completed. External release ctest PID 97841 is not ours and was not stopped."
-  }
+  },
+  "integration_revision": "352b67968b2d2b6d150abc0b16c1d7f721d68e9d"
 }

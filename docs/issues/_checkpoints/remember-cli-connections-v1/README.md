@@ -10,6 +10,8 @@ RFC-BPR-0071 remains In Progress; complete qualification and closeout are M3.
 - Claim: `65191bb9bd924f13c267d6fa143405afdb669521`.
 - Runtime source: `268b87049592ca4643e5303ab77114e116e7b5f3`.
 - Final scoped retirement source: `a09ff90c704f534c7e13c809d50b113042bd262a`.
+- M2 acceptance/bookkeeping: `352b67968b2d2b6d150abc0b16c1d7f721d68e9d`.
+  BPR-1409 is Done; BPR-1410 is Ready.
 - [M2 acceptance](m2-acceptance.json), [verification](m2-verification.json),
   [exact final-source checks](m2-focused-evidence.json),
   [earlier exact-source checks](m2-initial-focused-evidence.json),
@@ -47,7 +49,7 @@ closes ingress and drains admitted writes before releasing effects and storage.
 
 ## Next milestone: restart-qualification-and-closeout
 
-Claim BPR-1410 when Ready. Read the live RFC, authored plan, both immutable
+Claim the Ready BPR-1410 card with the shared helper. Read the live RFC, authored plan, both immutable
 inputs and these evidence records. Preserve the full AC01–AC06 boundary:
 fresh-process restart and explicit last-window closure, multiple named accounts
 and servers, exact-host private restoration and sibling connection work,
@@ -75,8 +77,9 @@ title-row and C++ identifier-context commits and their staging were preserved;
 a transient mid-edit external compilation failure was not repaired or reverted.
 The index is reconciled before each explicit-path commit. Original dirty
 `.gitignore`, `.mask.json`, `.mask.lock.json` and untracked `docs/rfcs/drafts/`
-remain excluded. Temporary scripts and rendered inspection evidence under
-`/tmp/bpr-m2-*` are task-owned; durable results are recorded here.
+remain excluded. Task-owned temporary edit scripts were removed. Local build/test logs and the
+offscreen inspection image under `/tmp/bpr-m2-*` contain fixture evidence only;
+durable results are recorded here.
 
 The durable observation precedes its own bookkeeping commit. A fresh exact-HEAD
 check is returned to the coordinator. Product acceptance binds the final source

@@ -61,7 +61,7 @@
   },
   "milestone": "shared-profile-restoration",
   "disposition": "milestone-complete",
-  "candidate_revision": "a09ff90c704f534c7e13c809d50b113042bd262a",
+  "candidate_revision": "352b67968b2d2b6d150abc0b16c1d7f721d68e9d",
   "handoff_ref": "docs/issues/_checkpoints/remember-cli-connections-v1/README.md",
   "required_pending": [],
   "evidence_refs": [
