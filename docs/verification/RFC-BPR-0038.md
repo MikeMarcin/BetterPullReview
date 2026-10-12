@@ -37,9 +37,11 @@ accepts only the bounded preparation slice; all wider release gaps above remain.
 ## Reusable signing preparation, 2026-10-11
 
 Owner amendment `release-next-20261011-vault-verifier-r3`,
-[BPR-1388](../issues/30-in-progress/BPR-1388-reuse-release-signing-vault-and-native-verifier.md),
+[BPR-1388](../issues/60-done/BPR-1388-reuse-release-signing-vault-and-native-verifier.md),
 asks for reusable passphrase storage instead of entering it for each release.
 Entry/baseline `2b56a8c30f3fbde66a3469dd0778121401ad9e0a`.
+Implemented and tested producer candidate
+`277c58f26` (full revision in the ignored candidate-check receipt).
 One named generic Windows credential (local-machine persistence for the same
 Windows account) is bound to the approved full fingerprint/keygrip and an
 owned, private WSL release GPG home. No vault enumeration or secret-output

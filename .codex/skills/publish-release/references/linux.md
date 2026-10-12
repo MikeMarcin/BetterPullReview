@@ -71,6 +71,11 @@ digest and scoped GPG home. Its local signing/public-only verification/tamper
 smoke passed; no Linux release package has been signed or qualified. Keep the
 exact fingerprint in approved producer configuration and obtain the public key
 through the intended distribution channel.
+When preparing the future private release, supply that approved exported public
+verification key and full fingerprint through the same private release channel,
+alongside the final signatures, checksums, SPDX and corresponding source. Match
+the producer record's public-key digest before handing it over. Keep all existing
+asset/source/manifest guards; private keys and passphrases stay on the producer.
 
 `packaging/release_gpg_vault.py` enrolls one named generic Windows credential,
 `BetterPullReview/ReleaseSigning/OpenPGP/FULL_FINGERPRINT`, user

@@ -65,7 +65,7 @@ crash/privacy and full selected-target acceptance remain pending.
 
 The owner then requested: "I dont want to have to enter this GPG passphrase
 every time i ask to publish a release, we need to store that in a keychain or
-something." [BPR-1388](../issues/30-in-progress/BPR-1388-reuse-release-signing-vault-and-native-verifier.md)
+something." [BPR-1388](../issues/60-done/BPR-1388-reuse-release-signing-vault-and-native-verifier.md)
 implements bounded producer preparation under
 `release-next-20261011-vault-verifier-r3`: one exact Windows Credential Manager
 credential unlocks the approved encrypted release key only in its validated

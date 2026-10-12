@@ -139,7 +139,7 @@ retrieval and forwards the passphrase only to the fixed preset command's stdin.
 Local synthetic vault/WSL evidence does not prove remote station logon access,
 clean Windows/Ubuntu product vaults, final artifacts or native/security/legal
 release gates. See the existing `publish-release` skill's selected platform guides
-and [BPR-1388 evidence](../issues/30-in-progress/BPR-1388-reuse-release-signing-vault-and-native-verifier.md).
+and [BPR-1388 evidence](../issues/60-done/BPR-1388-reuse-release-signing-vault-and-native-verifier.md).
 
 ## Installation and removal boundaries
 
