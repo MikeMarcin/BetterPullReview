@@ -3,14 +3,15 @@
   "id": "release-v019-gate-repairs",
   "scope": {
     "issues": [
-      "BPR-1403"
+      "BPR-1403",
+      "BPR-1404"
     ]
   },
   "coverage": "complete",
   "milestones": [
     {
       "id": "repair-and-verify",
-      "outcome": "Repair v0.1.9 release gate regressions without weakening assertions, then provide one verified source candidate for native producers.",
+      "outcome": "Freeze one verified non-timing macOS v0.1.9 source candidate under explicit owner timing acceptance; preserve wider work for follow-up.",
       "work": [
         {
           "issue": "BPR-1403"
@@ -18,11 +19,29 @@
       ],
       "depends_on": [],
       "exit_criteria": [
+        "Every Mac normal-gate failure is repaired and verified or explicitly retained under the owner timing release acceptance; no failed timing is reported as passing.",
+        "One clean committed Mac candidate and source/verification handoff are supplied, with Windows/Ubuntu and timing obligations transferred to BPR-1404.",
+        "Relevant boundary, format and documentation checks pass, all owned source instrumentation is removed and commands are quiescent."
+      ],
+      "boundary": "release-v019-20261012-macos-r3: owner narrows v0.1.9 to current Mac and accepts timing misses. Coordinator owns Mac signing/notarization/publication; preserve all wider qualification and follow-up obligations."
+    },
+    {
+      "id": "followup-gates",
+      "outcome": "Repair Mac timing and remaining native release gates, including Windows and Ubuntu26.04, for a separately selected follow-up patch.",
+      "work": [
+        {
+          "issue": "BPR-1404"
+        }
+      ],
+      "depends_on": [
+        "repair-and-verify"
+      ],
+      "exit_criteria": [
         "Every failure in the collected macOS gate is dispositioned, and repaired plus materially affected public-path checks pass on the exact candidate.",
         "Normal Windows and Ubuntu 26.04 native gates are accounted for before packaging handoff; remaining qualification gaps stay explicit.",
         "Boundary, format and documentation checks pass; source repairs and evidence bookkeeping are committed, and task commands are quiescent."
       ],
-      "boundary": "release-v019-20261012-rfc-implementer-r2: prerelease patch full packages macOS/Windows/Ubuntu26.04. Repairs only within RFC0038; no signing, notarization, push, publication, live GitHub mutation, or wider qualification closeout."
+      "boundary": "Deferred by direct owner r3 amendment; no version bump or mutation of frozen v019 source. Preserve native/package/trust qualification."
     }
   ],
   "unplanned_work": []

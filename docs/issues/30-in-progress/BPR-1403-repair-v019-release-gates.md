@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate_revision":"release-v019-20261012-rfc-implementer-r2","reservation":"docs/issues/_reservations/BPR-1403--BPR-1403--d8f83f6e0ba0.json","milestone_plan":{"id":"release-v019-gate-repairs","path":"docs/rfcs/plans/release-v019-gate-repairs/milestone-plan.json"}}
+metadata: {"mandate_revision":"release-v019-20261012-macos-r3","reservation":"docs/issues/_reservations/BPR-1403--BPR-1403--d8f83f6e0ba0.json","milestone_plan":{"id":"release-v019-gate-repairs","path":"docs/rfcs/plans/release-v019-gate-repairs/milestone-plan.json"}}
 ---
 
 # Repair and verify the v0.1.9 release gates
@@ -23,8 +23,8 @@ Existing repair commits are adopted and checked, preserving failed-run evidence.
 ## Acceptance
 
 - AC1: Collect the running macOS normal gate and disposition every failed row against current source; fix actual causes without weakened assertions, disabled rows, broad ignores or bypasses.
-- AC2: Rebuild repaired targets and pass failed plus materially affected public-path checks, including provider/replay, large review, rate/scaling, offline account isolation and attended replay. Preserve unchanged passing evidence and explicit platform skips.
-- AC3: Account for normal Windows and Ubuntu 26.04 native gates on the final product/test source before packaging handoff. Required native evidence remains pending until supplied by the coordinator's producers.
+- AC2: Rebuild repaired targets and pass non-timing failed plus materially affected Mac public-path checks, including provider/replay, large review, rate/scaling, offline account isolation and attended replay. Preserve actual timing failures under the explicit owner release acceptance, unchanged passing evidence and configured skips.
+- AC3: Bind one clean committed Mac candidate for the owner-authorized macOS-only v0.1.9 release. Transfer Windows/Ubuntu normal gates, package obligations and timing repairs to BPR-1404 without claiming them passed.
 - AC4: Pass relevant boundary, format and documentation checks, commit explicit repair paths and upkeep, and leave a durable checkpoint with candidate identities, commands, verification and pending scope.
 
 ## Ownership and limits
@@ -62,3 +62,26 @@ inventory entry or mutation path changes. The production mutation-branch digest
 remains `e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df`.
 Full/application-manifest pins are resealed with unchanged semantic bypass
 checks; their positive and hostile-source controls must pass before acceptance.
+
+
+## Owner amendment: macOS-only v0.1.9
+
+Mandate revision `release-v019-20261012-macos-r3`, 2026-10-12: "Just get the
+current mac build out, timing misses be damned, and fix everything else
+including windows and ubuntu for a follow-up patch". This supersedes the
+selected three-platform release boundary for v0.1.9. Root owns Mac packaging,
+signing/notarization/publication. This implementer freezes source and stops
+before touching that release candidate again. No follow-up version is chosen.
+
+The owner accepts the current timing misses for v0.1.9; this is a release
+exception, not passing timing evidence or a relaxed assertion. Initial load
+misses 111.602/107.923 ms reproduce in isolation at 104.440/101.098 ms against
+100 ms. The Debug cache-bytes skip remains explicit. Profiling and temporary
+event instrumentation are stopped and exact pre-instrument source restored.
+Original normal gate and focused failed logs remain intact.
+
+BPR-1404 retains timing diagnosis, Windows/Ubuntu gates and packages and any
+other remaining actual repairs for the follow-up patch. Original r2 mandate,
+plan source receipt and failed observations remain history; current AC2/AC3
+are revised only under this direct owner amendment. Wider RFC0038 qualification
+criteria and its standalone blocked cards are unchanged.
