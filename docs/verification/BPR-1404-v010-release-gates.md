@@ -447,6 +447,27 @@ and no 100 ms responsiveness or resource bound changes. Final registered
 Windows reruns are required; other Windows load/architecture observations
 remain outside this one-machine sizing measurement.
 
+The final `32065db72` Windows title-row course reaches its later native hover
+check after the folded-line repair. It fails in 6.24 seconds at "leaving the
+caption buttons clears the hover". The course injects a synthetic non-client
+move directly into Qt's native filters, then incorrectly relies on the
+station's independent physical cursor position to make `TrackMouseEvent`
+queue a leave. The repair explicitly queues the matching `WM_NCMOUSELEAVE`
+through the existing native-input helper. It keeps the hot-on-move assertion
+and requires all three buttons to become non-hot. No desktop cursor is read
+or moved, no production handler changes and the 60-second timeout remains.
+The recorded old-course failure is preserved; target-native confirmation of
+the corrected input sequence remains required.
+
+This correction changes only `windows_title_row_host_tests.cpp` and this
+ledger. CMake encloses that test executable and its row in `if(WIN32)`; the
+clean Mac `32065db72` selected `compile_commands.json` and CTest registrations
+contain neither. No production source, source-inventory manifest, generated
+resource, binary packaging rule or selected Mac test changes. The active Mac normal
+gate therefore continues to verify the unchanged selected graph; it does not
+certify the corrected Windows-only row. Final source assets and native
+Windows checks must bind the corrected release candidate separately.
+
 ## Vulnerability and wider qualification frontier
 
 The fresh v0.1.9 exact-SPDX Grype run remains failed: **32 matches**

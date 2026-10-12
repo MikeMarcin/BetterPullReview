@@ -340,18 +340,19 @@ auto main(int argc, char** argv) -> int
 			   "close is the row's full height and reaches the window's corner");
 	}
 
-	// Non-client hover is reported back for the buttons to draw. The move is
-	// handed to the native event filters exactly as the event dispatcher hands a
-	// queued one, and checked before the loop turns: the host asks the platform
-	// to report the leave, and with the cursor elsewhere the platform queues it
-	// at once, which the next turn delivers.
+	// Non-client hover is reported back for the buttons to draw. Check the
+	// synthetic move before turning the loop, then queue the matching native
+	// leave. TrackMouseEvent observes the real station cursor, whose position
+	// is independent of this course's synthetic move and is never changed here.
 	{
 		auto move   = MSG{ .hwnd = handle, .message = WM_NCMOUSEMOVE, .wParam = HTMAXBUTTON, .lParam = packed(centre(maximize)) };
 		auto result = qintptr{ 0 };
 		expect(QAbstractEventDispatcher::instance()->filterNativeEvent(QByteArrayLiteral("windows_generic_MSG"), &move, &result),
 			   "the host takes a non-client move over a caption button");
 		expect(maximize->native_hot() && !minimize->native_hot() && !close->native_hot(), "hovering maximise shows it hot");
-		expect(settle([maximize] { return !maximize->native_hot(); }), "leaving the caption buttons clears the hover");
+		post_input(handle, WM_NCMOUSELEAVE, 0, 0);
+		expect(settle([minimize, maximize, close] { return !minimize->native_hot() && !maximize->native_hot() && !close->native_hot(); }),
+			   "leaving the caption buttons clears the hover");
 	}
 
 	// Maximised, the strip's top row is at the work area's top, not cut off, the
