@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1407"
 title: "Show each Home row's age, line changes and comment count"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
