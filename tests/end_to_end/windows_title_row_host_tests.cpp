@@ -229,8 +229,17 @@ auto main(int argc, char** argv) -> int
 		review.Commands = commands;
 		window.publish(review);
 	}
-	expect(settle([&window] { return !window.showing_home() && window.epoch_selectors()->isVisible(); }),
+	expect(settle([&window] { return !window.showing_home() && window.review_bar()->isVisible(); }),
 		   "a published review replaces Home with the review surface");
+	expect(!window.updates_line_open() && !window.epoch_selectors()->isVisible(),
+		   "a new review starts with its Updates line folded");
+	// [[BPR-1130]]. The geometry course below measures the open line. Opening
+	// it requires the core's projection; publishing files never unfolds it.
+	auto openLine        = application::workbench_projection{ };
+	openLine.UpdatesLine = core::workbench_updates_line_delta{ .State = core::workbench_updates_line::open };
+	window.publish(openLine);
+	expect(settle([&window] { return window.updates_line_open() && window.epoch_selectors()->isVisible(); }),
+		   "the decided open Updates line is visible for native geometry checks");
 
 	// The first point of bare strip surface along the row's middle.
 	const auto barePoint = [&window, strip] {

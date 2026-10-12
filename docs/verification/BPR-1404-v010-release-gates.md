@@ -303,6 +303,16 @@ Actual native wrapper completion and margin remain pending.
 
 ## Windows execution context
 
+The native title-row baseline failed its expectation that publishing review
+files also makes the epoch selectors visible. The accepted
+[BPR-1130 contract](../issues/60-done/BPR-1130-the-updates-line-folds-and-loses-its-permanent-caption.md)
+starts a new window with Updates folded; the portable Qt course already
+checks that the hidden timeline leaves no row. The Windows course now verifies
+the visible review bar and default folded state, then publishes the explicit
+core open-line delta before its existing full-width timeline and native-frame
+geometry checks. No product behavior, geometry assertion or wait bound changes.
+Actual repaired native Windows completion remains required.
+
 The subsequent interactive-token Windows normal gate at diagnostic source
 `8cf67d793` exposed a separate nested Release-build path failure: MSVC C1083
 on the generated KSyntaxHighlighting indexer and Qt resource objects. The
