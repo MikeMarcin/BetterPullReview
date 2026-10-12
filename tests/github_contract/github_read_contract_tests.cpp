@@ -497,10 +497,13 @@ namespace {
 			},
 			.Checks = {
 				{
-					.Check      = application::github_check_id{ "CR_fixture_1" },
-					.Name       = "Local verification",
-					.Status     = application::github_check_status::completed,
-					.Conclusion = application::github_check_conclusion::success,
+					.Check       = application::github_check_id{ "CR_fixture_1" },
+					.Name        = "Local verification",
+					.Status      = application::github_check_status::completed,
+					.Conclusion  = application::github_check_conclusion::success,
+					.Producer    = { },
+					.Description = { },
+					.DetailsUrl  = { },
 				},
 			},
 			.SearchResults = {

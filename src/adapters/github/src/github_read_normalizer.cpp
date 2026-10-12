@@ -1359,14 +1359,12 @@ namespace bpr::adapters::github::detail {
 				if (object.HeadSha != headOid) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
-				result.PullRequest.Checks.push_back(
-					application::github_check_record{
-						.Check = application::github_check_id{
-							object.NodeId },
-						.Name       = object.Name,
-						.Status     = check_status(object.Status),
-						.Conclusion = check_conclusion(object.Conclusion),
-					});
+				auto check       = application::github_check_record{ };
+				check.Check      = application::github_check_id{ object.NodeId };
+				check.Name       = object.Name;
+				check.Status     = check_status(object.Status);
+				check.Conclusion = check_conclusion(object.Conclusion);
+				result.PullRequest.Checks.push_back(std::move(check));
 			}
 
 			const auto& searchResults = documents.Search.Items;

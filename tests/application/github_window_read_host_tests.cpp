@@ -819,7 +819,13 @@ namespace {
 		auto call             = provider.Calls.back();
 		auto data             = snapshot(call.Request);
 		data.PullRequest.Body = "# Original\r\n\r\n[link](./guide.md)\r\n";
-		data.Checks           = { { .Check = application::github_check_id{ "details" }, .Name = "Branch Freshness", .Status = application::github_check_status::completed, .Conclusion = application::github_check_conclusion::failure, .DetailsUrl = "https://ci.example.invalid/result" } };
+		auto check            = application::github_check_record{ };
+		check.Check           = application::github_check_id{ "details" };
+		check.Name            = "Branch Freshness";
+		check.Status          = application::github_check_status::completed;
+		check.Conclusion      = application::github_check_conclusion::failure;
+		check.DetailsUrl      = "https://ci.example.invalid/result";
+		data.Checks.push_back(std::move(check));
 		call.Complete(application::github_pull_request_success{ call.Request, data });
 		lane.drain();
 		expect(projected && projected->MarkdownContext && projected->Body == data.PullRequest.Body

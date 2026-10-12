@@ -2863,12 +2863,11 @@ namespace bpr::adapters::github::detail {
 				|| (completed != !json_is_null(json_member(object, "conclusion")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			auto result = application::github_check_record{
-				.Check      = application::github_check_id{ text(json_member(object, "node_id")) },
-				.Name       = text(json_member(object, "name")),
-				.Status     = check_status(json_text(json_member(object, "status"))),
-				.Conclusion = check_conclusion(json_member(object, "conclusion")),
-			};
+			auto result             = application::github_check_record{ };
+			result.Check            = application::github_check_id{ text(json_member(object, "node_id")) };
+			result.Name             = text(json_member(object, "name"));
+			result.Status           = check_status(json_text(json_member(object, "status")));
+			result.Conclusion       = check_conclusion(json_member(object, "conclusion"));
 			result.EvaluatedOid     = application::commit_oid{ std::string{ aHeadOid } };
 			const auto optionalText = [](const page_json_value& aField) { return json_is_string(aField) ? text(aField) : std::string{ }; };
 			result.DetailsUrl       = optionalText(json_member(object, "details_url"));

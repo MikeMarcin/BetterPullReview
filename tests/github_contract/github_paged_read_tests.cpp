@@ -3971,6 +3971,25 @@ namespace {
 namespace {
 	void test_current_check_details()
 	{
+		for (const auto limitedStatuses : { false, true }) {
+			auto transport            = paged_fixture_transport{ fixture_scenario::success };
+			transport.RewriteResponse = [limitedStatuses](const github_wire_request& aRequest, wire_response& aResponse) {
+				if (aRequest.Wire.Operation != read_operation::list_commit_statuses) {
+					return;
+				}
+				aResponse.Body = R"([{"node_id":"new","context":"c","state":"success","description":null,"target_url":null},{"node_id":"old","context":"c","state":"failure","description":null,"target_url":null}])";
+				if (!limitedStatuses) {
+					aResponse.Headers.push_back({ "Link", "<https://foreign.invalid/steal>; rel=\"next\"" });
+					aResponse.Completeness = page_completeness::has_next_page;
+				}
+			};
+			auto limits = github_paged_read_limits{ };
+			if (limitedStatuses) {
+				limits.Records.MaximumChecks = 1U;
+			}
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { }, limits);
+			expect(result && result->Checks.size() == 1 && result->StatusesAvailability == application::github_collection_availability::unavailable && !result->Files.empty(), "limited or hostile status pagination preserves known checks as explicitly partial and keeps PR content");
+		}
 		for (const auto enterprise : { false, true }) {
 			auto transport            = paged_fixture_transport{ fixture_scenario::success, enterprise ? "ghe.example.invalid" : "api.github.com" };
 			transport.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {
