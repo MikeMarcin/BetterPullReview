@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1450"
 title: "Adopt sha1collisiondetection for every SHA-1 Git identity"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"hashing-replacement-r1","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1446--BPR-1453--810e9a5c8803.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"23c6b345f","evidence":{"kind":"command","detail":"After merging main: core_git_objects, core_sha256, all core_review_cycle* rows, sqlite_review_cycle_storage, application_epoch_host, review_cycle_publication(_matrix), review_cycle_git_readers, github_publication_contract, native_git_smart_transport_contract and the hash_evaluation rows pass (47/47); evaluation driver correctness/git/sweep zero mismatches with core now sha1dc across 107,084 repository objects, no detection.","path":"docs/issues/60-done/BPR-1450-adopt-sha1collisiondetection-for-sha1-identities.md"}},{"criterion":"AC2","outcome":"pass","revision":"23c6b345f","evidence":{"kind":"observation","detail":"Amended AC03: core_git_objects refuses the SHAttered 320-byte prefixes and SHA-mbles through sha1_stream and sha1() while plain SHA-1 collides; inspection table maps core identity construction, blob_matches, smart-transport verification and Review Cycle publication to sha1_stream::finish with collision_detected refusals; architecture_boundaries and its contract refuse any other SHA-1 implementation and allow QCryptographicHash::Sha1 only for pack checksums.","path":"docs/issues/60-done/BPR-1450-adopt-sha1collisiondetection-for-sha1-identities.md"}},{"criterion":"AC3","outcome":"pass","revision":"23c6b345f","evidence":{"kind":"command","detail":"Full dev build and core-only configure/build of core and core_git_objects; core_dependency_boundary, core_boundary_contract, architecture_boundaries and architecture_boundary_contract pass with BetterPullReview::Sha1dc; src/core/src/sha1.cpp deleted, known-answer rows kept.","path":"docs/issues/60-done/BPR-1450-adopt-sha1collisiondetection-for-sha1-identities.md"}},{"criterion":"AC4","outcome":"pass","revision":"23c6b345f","evidence":{"kind":"command","detail":"BprSha1dcProvider pins archive and licence digests; third_party/sha1collisiondetection LICENSE and PROVENANCE.md; dependencies.json entry; NOTICE_FILES; dependency_modernization_contract (offline configure), package_runtime_contract, release_security_audit_contract and binary_dependency_audit_contract pass on macOS; architecture, release inventory and sha1.hpp wording updated.","path":"docs/issues/60-done/BPR-1450-adopt-sha1collisiondetection-for-sha1-identities.md"}}]
 ---
 
 # BPR-1450: Adopt sha1collisiondetection for every SHA-1 Git identity
