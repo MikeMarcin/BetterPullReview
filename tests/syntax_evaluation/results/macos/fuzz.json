@@ -1,0 +1,186 @@
+{
+ "command": "<fuzz binary> -jobs=3 -workers=3 -max_total_time=4800 -max_len=65536 -timeout=10 -rss_limit_mb=2048 -malloc_limit_mb=512 -seed=<seed> corpus",
+ "graph": "build/fuzz: BPR_BUILD_FUZZERS=ON (fuzzer-no-link, address, undefined, -O1), Homebrew LLVM 23 libclang_rt.fuzzer_osx.a, Apple clang 21",
+ "campaigns": {
+  "baseline (fuzz_syntax)": {
+   "started": "2026-10-13T19:55:55Z",
+   "finished": "2026-10-13T21:15:56Z",
+   "seed": 1442,
+   "note": "the shipped classifier",
+   "binary_sha256": null,
+   "artifacts": 0,
+   "jobs": [
+    {
+     "runs": 411109,
+     "seconds": 4801,
+     "cov": 3713,
+     "ft": 16427,
+     "rss_mb": 367,
+     "findings": 0
+    },
+    {
+     "runs": 416189,
+     "seconds": 4801,
+     "cov": 3718,
+     "ft": 16427,
+     "rss_mb": 363,
+     "findings": 0
+    },
+    {
+     "runs": 420559,
+     "seconds": 4801,
+     "cov": 3714,
+     "ft": 16436,
+     "rss_mb": 362,
+     "findings": 0
+    }
+   ],
+   "total_runs": 1247857,
+   "cpu_hours": 4.0
+  },
+  "T v0.23.4 final (fuzz_syntax_v0_23_4)": {
+   "started": "2026-10-13T21:18:14Z",
+   "finished": "2026-10-13T22:38:16Z",
+   "seed": 1443,
+   "note": "final candidate (lenient, chain check); started from the earlier T corpus",
+   "binary_sha256": "a4d42ed7a85b9dc64a3d0e05bbe3bdaa458cee0d8d6096bbc4f2205e64cd60d8",
+   "artifacts": 0,
+   "jobs": [
+    {
+     "runs": 2420765,
+     "seconds": 4801,
+     "cov": 8046,
+     "ft": 43397,
+     "rss_mb": 540,
+     "findings": 0
+    },
+    {
+     "runs": 2430306,
+     "seconds": 4801,
+     "cov": 8044,
+     "ft": 43390,
+     "rss_mb": 521,
+     "findings": 0
+    },
+    {
+     "runs": 2418530,
+     "seconds": 4801,
+     "cov": 8057,
+     "ft": 43409,
+     "rss_mb": 541,
+     "findings": 0
+    }
+   ],
+   "total_runs": 7269601,
+   "cpu_hours": 4.0
+  },
+  "T master final (fuzz_syntax_master)": {
+   "started": "2026-10-13T21:18:15Z",
+   "finished": "2026-10-13T22:38:16Z",
+   "seed": 1443,
+   "note": "final candidate (lenient, chain check); started from the earlier T corpus",
+   "binary_sha256": "896cfde60cb4ad558b69d3d786e55402203df00f9cae2b04e20997252212d912",
+   "artifacts": 0,
+   "jobs": [
+    {
+     "runs": 2291100,
+     "seconds": 4801,
+     "cov": 8304,
+     "ft": 44625,
+     "rss_mb": 581,
+     "findings": 0
+    },
+    {
+     "runs": 2333034,
+     "seconds": 4801,
+     "cov": 8301,
+     "ft": 44615,
+     "rss_mb": 557,
+     "findings": 0
+    },
+    {
+     "runs": 2278704,
+     "seconds": 4801,
+     "cov": 8300,
+     "ft": 44604,
+     "rss_mb": 649,
+     "findings": 0
+    }
+   ],
+   "total_runs": 6902838,
+   "cpu_hours": 4.0
+  },
+  "T v0.23.4 earlier": {
+   "started": "2026-10-13T19:55:55Z",
+   "finished": "2026-10-13T21:15:57Z",
+   "seed": 1442,
+   "note": "an earlier candidate revision (strict, no chain check)",
+   "binary_sha256": null,
+   "artifacts": 0,
+   "jobs": [
+    {
+     "runs": 193816,
+     "seconds": 4801,
+     "cov": 7812,
+     "ft": 40410,
+     "rss_mb": 450,
+     "findings": 0
+    },
+    {
+     "runs": 195409,
+     "seconds": 4801,
+     "cov": 7812,
+     "ft": 40431,
+     "rss_mb": 447,
+     "findings": 0
+    },
+    {
+     "runs": 198275,
+     "seconds": 4801,
+     "cov": 7812,
+     "ft": 40415,
+     "rss_mb": 466,
+     "findings": 0
+    }
+   ],
+   "total_runs": 587500,
+   "cpu_hours": 4.0
+  },
+  "T master earlier": {
+   "started": "2026-10-13T19:55:55Z",
+   "finished": "2026-10-13T21:15:57Z",
+   "seed": 1442,
+   "note": "an earlier candidate revision (strict, no chain check)",
+   "binary_sha256": null,
+   "artifacts": 0,
+   "jobs": [
+    {
+     "runs": 191421,
+     "seconds": 4801,
+     "cov": 8055,
+     "ft": 41913,
+     "rss_mb": 408,
+     "findings": 0
+    },
+    {
+     "runs": 190190,
+     "seconds": 4801,
+     "cov": 8056,
+     "ft": 41907,
+     "rss_mb": 423,
+     "findings": 0
+    },
+    {
+     "runs": 192785,
+     "seconds": 4801,
+     "cov": 8053,
+     "ft": 41909,
+     "rss_mb": 417,
+     "findings": 0
+    }
+   ],
+   "total_runs": 574396,
+   "cpu_hours": 4.0
+  }
+ }
+}

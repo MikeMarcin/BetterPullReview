@@ -1,0 +1,2160 @@
+{
+ "pins": {
+  "master": {
+   "accuracy": {
+    "baseline": {
+     "abseil": {
+      "conservative_negative": {
+       "labels": 1600
+      },
+      "enum_use": {
+       "fn": 111,
+       "fp": 10,
+       "labels": 455,
+       "tp": 344
+      },
+      "enumerator_decl": {
+       "fn": 1,
+       "labels": 665,
+       "tp": 664
+      },
+      "macro_keep": {
+       "fn": 39,
+       "labels": 18661,
+       "tp": 18622
+      },
+      "ns_decl": {
+       "labels": 1187,
+       "tp": 1187
+      },
+      "ns_qualifier": {
+       "fn": 845,
+       "fp": 57,
+       "labels": 9105,
+       "tp": 8260
+      },
+      "protected": {
+       "labels": 470635
+      }
+     },
+     "contract": {
+      "conservative_negative": {
+       "labels": 14
+      },
+      "enum_use": {
+       "labels": 17,
+       "tp": 17
+      },
+      "enumerator_decl": {
+       "labels": 43,
+       "tp": 43
+      },
+      "macro_keep": {
+       "labels": 72,
+       "tp": 72
+      },
+      "ns_decl": {
+       "labels": 24,
+       "tp": 24
+      },
+      "ns_qualifier": {
+       "labels": 16,
+       "tp": 16
+      },
+      "protected": {
+       "labels": 32943
+      }
+     },
+     "first-party": {
+      "conservative_negative": {
+       "labels": 28765
+      },
+      "enum_use": {
+       "fn": 265,
+       "labels": 2624,
+       "tp": 2359
+      },
+      "enumerator_decl": {
+       "fn": 4,
+       "labels": 4975,
+       "tp": 4971
+      },
+      "macro_keep": {
+       "fn": 11,
+       "labels": 2838,
+       "tp": 2827
+      },
+      "ns_decl": {
+       "fn": 2,
+       "labels": 2394,
+       "tp": 2392
+      },
+      "ns_qualifier": {
+       "fn": 121,
+       "fp": 1,
+       "labels": 1933,
+       "tp": 1812
+      },
+      "protected": {
+       "labels": 523801
+      }
+     },
+     "fragments": {
+      "conservative_negative": {
+       "labels": 343
+      },
+      "enum_use": {
+       "labels": 25,
+       "tp": 25
+      },
+      "enumerator_decl": {
+       "labels": 211,
+       "tp": 211
+      },
+      "macro_keep": {
+       "fn": 23,
+       "labels": 309,
+       "tp": 286
+      },
+      "ns_decl": {
+       "fn": 3,
+       "labels": 69,
+       "tp": 66
+      },
+      "ns_qualifier": {
+       "labels": 12,
+       "tp": 12
+      },
+      "protected": {
+       "labels": 24195
+      }
+     },
+     "gap": {
+      "conservative_negative": {
+       "fp": 3,
+       "labels": 14
+      },
+      "enum_use": {
+       "fn": 5,
+       "labels": 9,
+       "tp": 4
+      },
+      "enumerator_decl": {
+       "fn": 3,
+       "fp": 1,
+       "labels": 25,
+       "tp": 22
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 6,
+       "tp": 5
+      },
+      "ns_decl": {
+       "fn": 3,
+       "labels": 7,
+       "tp": 4
+      },
+      "ns_qualifier": {
+       "fn": 3,
+       "labels": 7,
+       "tp": 4
+      },
+      "protected": {
+       "labels": 175
+      }
+     },
+     "glaze": {
+      "conservative_negative": {
+       "fp": 20,
+       "labels": 2866
+      },
+      "enum_use": {
+       "fn": 19,
+       "fp": 2,
+       "labels": 469,
+       "tp": 450
+      },
+      "enumerator_decl": {
+       "labels": 1090,
+       "tp": 1090
+      },
+      "macro_keep": {
+       "labels": 1152,
+       "tp": 1152
+      },
+      "ns_decl": {
+       "fn": 230,
+       "labels": 1175,
+       "tp": 945
+      },
+      "ns_qualifier": {
+       "fn": 982,
+       "fp": 21,
+       "labels": 3745,
+       "tp": 2763
+      },
+      "protected": {
+       "labels": 313046
+      }
+     },
+     "ksyntaxhighlighting": {
+      "conservative_negative": {
+       "labels": 415
+      },
+      "enum_use": {
+       "fn": 1,
+       "labels": 242,
+       "tp": 241
+      },
+      "enumerator_decl": {
+       "labels": 136,
+       "tp": 136
+      },
+      "macro_keep": {
+       "fn": 510,
+       "labels": 591,
+       "tp": 81
+      },
+      "ns_decl": {
+       "fn": 3,
+       "labels": 67,
+       "tp": 64
+      },
+      "ns_qualifier": {
+       "fp": 3,
+       "labels": 40,
+       "tp": 40
+      },
+      "protected": {
+       "labels": 19862
+      }
+     },
+     "quill": {
+      "conservative_negative": {
+       "fp": 18,
+       "labels": 547
+      },
+      "enum_use": {
+       "fn": 35,
+       "labels": 445,
+       "tp": 410
+      },
+      "enumerator_decl": {
+       "labels": 539,
+       "tp": 539
+      },
+      "macro_keep": {
+       "fn": 33,
+       "labels": 7371,
+       "tp": 7338
+      },
+      "ns_decl": {
+       "fn": 2,
+       "labels": 391,
+       "tp": 389
+      },
+      "ns_qualifier": {
+       "fn": 319,
+       "labels": 1160,
+       "tp": 841
+      },
+      "protected": {
+       "labels": 145414
+      }
+     },
+     "re2": {
+      "conservative_negative": {
+       "labels": 475
+      },
+      "enum_use": {
+       "fn": 2,
+       "labels": 2
+      },
+      "enumerator_decl": {
+       "labels": 181,
+       "tp": 181
+      },
+      "macro_keep": {
+       "labels": 2162,
+       "tp": 2162
+      },
+      "ns_decl": {
+       "labels": 85,
+       "tp": 85
+      },
+      "ns_qualifier": {
+       "labels": 47,
+       "tp": 47
+      },
+      "protected": {
+       "labels": 58031
+      }
+     }
+    },
+    "candidate": {
+     "abseil": {
+      "conservative_negative": {
+       "labels": 1600
+      },
+      "enum_use": {
+       "fn": 167,
+       "fp": 4,
+       "labels": 455,
+       "tp": 288
+      },
+      "enumerator_decl": {
+       "fn": 51,
+       "labels": 665,
+       "tp": 614
+      },
+      "macro_keep": {
+       "fn": 39,
+       "labels": 18661,
+       "tp": 18622
+      },
+      "ns_decl": {
+       "fn": 438,
+       "labels": 1187,
+       "tp": 749
+      },
+      "ns_qualifier": {
+       "fn": 3518,
+       "fp": 21,
+       "labels": 9105,
+       "tp": 5587
+      },
+      "protected": {
+       "labels": 470635
+      }
+     },
+     "contract": {
+      "conservative_negative": {
+       "labels": 14
+      },
+      "enum_use": {
+       "labels": 17,
+       "tp": 17
+      },
+      "enumerator_decl": {
+       "fn": 1,
+       "labels": 43,
+       "tp": 42
+      },
+      "macro_keep": {
+       "labels": 72,
+       "tp": 72
+      },
+      "ns_decl": {
+       "labels": 24,
+       "tp": 24
+      },
+      "ns_qualifier": {
+       "labels": 16,
+       "tp": 16
+      },
+      "protected": {
+       "labels": 32943
+      }
+     },
+     "first-party": {
+      "conservative_negative": {
+       "labels": 28765
+      },
+      "enum_use": {
+       "fn": 265,
+       "labels": 2624,
+       "tp": 2359
+      },
+      "enumerator_decl": {
+       "fn": 3,
+       "labels": 4975,
+       "tp": 4972
+      },
+      "macro_keep": {
+       "fn": 11,
+       "labels": 2838,
+       "tp": 2827
+      },
+      "ns_decl": {
+       "fn": 4,
+       "labels": 2394,
+       "tp": 2390
+      },
+      "ns_qualifier": {
+       "fn": 159,
+       "fp": 1,
+       "labels": 1933,
+       "tp": 1774
+      },
+      "protected": {
+       "labels": 523801
+      }
+     },
+     "fragments": {
+      "conservative_negative": {
+       "labels": 343
+      },
+      "enum_use": {
+       "labels": 25,
+       "tp": 25
+      },
+      "enumerator_decl": {
+       "fn": 83,
+       "labels": 211,
+       "tp": 128
+      },
+      "macro_keep": {
+       "fn": 23,
+       "labels": 309,
+       "tp": 286
+      },
+      "ns_decl": {
+       "fn": 23,
+       "labels": 69,
+       "tp": 46
+      },
+      "ns_qualifier": {
+       "labels": 12,
+       "tp": 12
+      },
+      "protected": {
+       "labels": 24195
+      }
+     },
+     "gap": {
+      "conservative_negative": {
+       "labels": 14
+      },
+      "enum_use": {
+       "labels": 9,
+       "tp": 9
+      },
+      "enumerator_decl": {
+       "fn": 2,
+       "fp": 1,
+       "labels": 25,
+       "tp": 23
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 6,
+       "tp": 5
+      },
+      "ns_decl": {
+       "labels": 7,
+       "tp": 7
+      },
+      "ns_qualifier": {
+       "labels": 7,
+       "tp": 7
+      },
+      "protected": {
+       "labels": 175
+      }
+     },
+     "glaze": {
+      "conservative_negative": {
+       "fp": 20,
+       "labels": 2866
+      },
+      "enum_use": {
+       "fn": 54,
+       "labels": 469,
+       "tp": 415
+      },
+      "enumerator_decl": {
+       "fn": 3,
+       "labels": 1090,
+       "tp": 1087
+      },
+      "macro_keep": {
+       "labels": 1152,
+       "tp": 1152
+      },
+      "ns_decl": {
+       "fn": 236,
+       "labels": 1175,
+       "tp": 939
+      },
+      "ns_qualifier": {
+       "fn": 1422,
+       "fp": 14,
+       "labels": 3745,
+       "tp": 2323
+      },
+      "protected": {
+       "labels": 313046
+      }
+     },
+     "ksyntaxhighlighting": {
+      "conservative_negative": {
+       "labels": 415
+      },
+      "enum_use": {
+       "fn": 1,
+       "labels": 242,
+       "tp": 241
+      },
+      "enumerator_decl": {
+       "labels": 136,
+       "tp": 136
+      },
+      "macro_keep": {
+       "fn": 510,
+       "labels": 591,
+       "tp": 81
+      },
+      "ns_decl": {
+       "fn": 11,
+       "labels": 67,
+       "tp": 56
+      },
+      "ns_qualifier": {
+       "fn": 13,
+       "fp": 1,
+       "labels": 40,
+       "tp": 27
+      },
+      "protected": {
+       "labels": 19862
+      }
+     },
+     "quill": {
+      "conservative_negative": {
+       "fp": 18,
+       "labels": 547
+      },
+      "enum_use": {
+       "fn": 209,
+       "labels": 445,
+       "tp": 236
+      },
+      "enumerator_decl": {
+       "fn": 180,
+       "labels": 539,
+       "tp": 359
+      },
+      "macro_keep": {
+       "fn": 33,
+       "labels": 7371,
+       "tp": 7338
+      },
+      "ns_decl": {
+       "fn": 87,
+       "labels": 391,
+       "tp": 304
+      },
+      "ns_qualifier": {
+       "fn": 801,
+       "labels": 1160,
+       "tp": 359
+      },
+      "protected": {
+       "labels": 145414
+      }
+     },
+     "re2": {
+      "conservative_negative": {
+       "labels": 475
+      },
+      "enum_use": {
+       "fn": 2,
+       "labels": 2
+      },
+      "enumerator_decl": {
+       "fn": 1,
+       "labels": 181,
+       "tp": 180
+      },
+      "macro_keep": {
+       "labels": 2162,
+       "tp": 2162
+      },
+      "ns_decl": {
+       "fn": 4,
+       "labels": 85,
+       "tp": 81
+      },
+      "ns_qualifier": {
+       "labels": 47,
+       "tp": 47
+      },
+      "protected": {
+       "labels": 58031
+      }
+     }
+    }
+   },
+   "hypotheses": {
+    "H1": {
+     "baseline": {
+      "failures": [
+       "A: syntax_type (want syntax_namespace, H1)",
+       "B: syntax_normal (want syntax_namespace, H1)",
+       "A: syntax_type (want syntax_namespace, H1)",
+       "B: syntax_type (want syntax_namespace, H1)",
+       "Fast: syntax_normal (want syntax_enum_member, H1)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H2": {
+     "baseline": {
+      "failures": [
+       "Legacy: syntax_normal (want syntax_namespace, H2)",
+       "Legacy: syntax_type (want syntax_namespace, H2)",
+       "FAILED: syntax_normal (want syntax_enum_member, H2)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H3": {
+     "baseline": {
+      "failures": [
+       "High: syntax_normal (want syntax_enum_member, H3)",
+       "High: syntax_normal (want syntax_enum_member, H3)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H4": {
+     "baseline": {
+      "failures": [
+       "COLOUR_LIST: syntax_enum_member (want syntax_macro, H4)",
+       "unlabelled syntax_enum_member: COLOUR_LIST"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [
+       "COLOUR_LIST: syntax_enum_member (want syntax_macro, H4)",
+       "unlabelled syntax_enum_member: COLOUR_LIST"
+      ],
+      "status": "confirmed"
+     }
+    },
+    "H5": {
+     "baseline": {
+      "failures": [
+       "b: syntax_enum_member (H5-after)",
+       "c: syntax_enum_member (H5-after)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H6": {
+     "baseline": {
+      "failures": [
+       "ID: syntax_enum_member (H6)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H7": {
+     "baseline": {
+      "failures": [
+       "caf\u00e9: mixed (want syntax_enum_member, H7)",
+       "th\u00e9: mixed (want syntax_enum_member, H7)",
+       "caf\u00e9: mixed (want syntax_enum_member, H7)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H8": {
+     "baseline": {
+      "eight_mib_inputs": {
+       "malformed/brace-flood-8388600.cpp": 1102053392,
+       "malformed/brace-flood-8388608.cpp": 2022719504,
+       "malformed/enum-names-8mib.cpp": 0
+      },
+      "largest_input": "malformed/brace-flood-8388608.cpp",
+      "largest_peak_heap": 2022719504,
+      "status": "confirmed"
+     },
+     "candidate": {
+      "eight_mib_inputs": {
+       "malformed/brace-flood-8388600.cpp": 2242906688,
+       "malformed/brace-flood-8388608.cpp": 2240811584,
+       "malformed/enum-names-8mib.cpp": 0
+      },
+      "largest_input": "malformed/brace-flood-8388600.cpp",
+      "largest_peak_heap": 2242906688,
+      "status": "confirmed"
+     }
+    }
+   },
+   "metrics": {
+    "composer_per_edit": {
+     "baseline": {
+      "edits": 906,
+      "median_ms": 1.34975,
+      "p95_ms": 2.074625
+     },
+     "candidate": {
+      "edits": 906,
+      "median_ms": 2.411792,
+      "p95_ms": 3.459125
+     }
+    },
+    "heap": {
+     "L": {
+      "baseline": {
+       "max_bytes": 15199232,
+       "median_bytes": 0
+      },
+      "candidate": {
+       "max_bytes": 41292992,
+       "median_bytes": 0
+      }
+     },
+     "M": {
+      "baseline": {
+       "max_bytes": 8592112,
+       "median_bytes": 1286168.0
+      },
+      "candidate": {
+       "max_bytes": 19173520,
+       "median_bytes": 2939240.0
+      }
+     },
+     "S": {
+      "baseline": {
+       "max_bytes": 877760,
+       "median_bytes": 39864.0
+      },
+      "candidate": {
+       "max_bytes": 2354144,
+       "median_bytes": 113088.0
+      }
+     },
+     "fragment": {
+      "baseline": {
+       "max_bytes": 137040,
+       "median_bytes": 5800.0
+      },
+      "candidate": {
+       "max_bytes": 250288,
+       "median_bytes": 24688.0
+      }
+     },
+     "pathological": {
+      "baseline": {
+       "max_bytes": 2022719504,
+       "median_bytes": 91712
+      },
+      "candidate": {
+       "max_bytes": 2242906688,
+       "median_bytes": 241840
+      }
+     }
+    },
+    "nondeterministic": [],
+    "resident_bytes": {
+     "composer": 33849344,
+     "contract": 74809344,
+     "first-party": 157532160,
+     "fragments": 35340288,
+     "gap": 31457280,
+     "malformed": 4505927680,
+     "third-party": 75235328
+    },
+    "statuses": {
+     "baseline": {
+      "available": 15792,
+      "limit_exceeded": 12
+     },
+     "candidate": {
+      "available": 15792,
+      "limit_exceeded": 12
+     }
+    },
+    "stop": {
+     "L/refinement": {
+      "baseline": {
+       "max_ms": 10.568375,
+       "median_ms": 0.112354,
+       "p95_ms": 2.209917,
+       "trials": 30
+      },
+      "candidate": {
+       "max_ms": 12.186959,
+       "median_ms": 2.956334,
+       "p95_ms": 12.129167,
+       "trials": 25
+      }
+     },
+     "L/whole": {
+      "baseline": {
+       "max_ms": 98.294,
+       "median_ms": 2.870375,
+       "p95_ms": 35.672834,
+       "trials": 95
+      },
+      "candidate": {
+       "max_ms": 75.327167,
+       "median_ms": 2.3263545,
+       "p95_ms": 38.633041,
+       "trials": 88
+      }
+     },
+     "pathological/refinement": {
+      "baseline": {
+       "max_ms": 559.176417,
+       "median_ms": 0.00225,
+       "p95_ms": 1.943375,
+       "trials": 609
+      },
+      "candidate": {
+       "max_ms": 608.147125,
+       "median_ms": 0.04675,
+       "p95_ms": 8.801667,
+       "trials": 737
+      }
+     },
+     "pathological/whole": {
+      "baseline": {
+       "max_ms": 757.683917,
+       "median_ms": 0.352667,
+       "p95_ms": 39.726209,
+       "trials": 794
+      },
+      "candidate": {
+       "max_ms": 496.792791,
+       "median_ms": 0.2508545,
+       "p95_ms": 31.922959,
+       "trials": 786
+      }
+     }
+    },
+    "stop_outcomes": {
+     "baseline": {
+      "cancelled, no spans": 1502,
+      "complete answer (stop after the last check)": 26,
+      "finished before the stop": 392
+     },
+     "candidate": {
+      "cancelled, no spans": 1604,
+      "complete answer (stop after the last check)": 32,
+      "finished before the stop": 284
+     }
+    },
+    "stop_publication_failures": 0,
+    "timing": {
+     "L": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 1105.799167,
+        "median_ms": 444.103083,
+        "p95_ms": 1105.799167
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 30.434625,
+        "median_ms": 0.0,
+        "p95_ms": 30.434625
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 1105.799167,
+        "median_ms": 444.103083,
+        "p95_ms": 1105.799167
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 1207.910208,
+        "median_ms": 446.484375,
+        "p95_ms": 1207.910208
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 280.359458,
+        "median_ms": 0.0,
+        "p95_ms": 280.359458
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 1207.910208,
+        "median_ms": 464.694042,
+        "p95_ms": 1207.910208
+       }
+      }
+     },
+     "M": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 114,
+        "max_ms": 370.669083,
+        "median_ms": 17.7557705,
+        "p95_ms": 117.462875
+       },
+       "refine_ns": {
+        "files": 114,
+        "max_ms": 8.572833,
+        "median_ms": 0.840271,
+        "p95_ms": 3.616292
+       },
+       "total_ns": {
+        "files": 114,
+        "max_ms": 375.70625,
+        "median_ms": 18.466812500000003,
+        "p95_ms": 119.666125
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 114,
+        "max_ms": 341.394708,
+        "median_ms": 18.1959795,
+        "p95_ms": 104.440958
+       },
+       "refine_ns": {
+        "files": 114,
+        "max_ms": 178.254625,
+        "median_ms": 11.927042,
+        "p95_ms": 56.340833
+       },
+       "total_ns": {
+        "files": 114,
+        "max_ms": 499.836209,
+        "median_ms": 32.533395999999996,
+        "p95_ms": 158.217959
+       }
+      }
+     },
+     "S": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 4684,
+        "max_ms": 46.01625,
+        "median_ms": 0.5300215,
+        "p95_ms": 4.418542
+       },
+       "refine_ns": {
+        "files": 4684,
+        "max_ms": 6.471834,
+        "median_ms": 0.0317915,
+        "p95_ms": 0.233167
+       },
+       "total_ns": {
+        "files": 4684,
+        "max_ms": 47.955458,
+        "median_ms": 0.5621455,
+        "p95_ms": 4.683584
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 4684,
+        "max_ms": 34.986625,
+        "median_ms": 0.5281039999999999,
+        "p95_ms": 4.344917
+       },
+       "refine_ns": {
+        "files": 4684,
+        "max_ms": 33.188708,
+        "median_ms": 0.392104,
+        "p95_ms": 3.096792
+       },
+       "total_ns": {
+        "files": 4684,
+        "max_ms": 95.505667,
+        "median_ms": 0.9456665,
+        "p95_ms": 7.796625
+       }
+      }
+     },
+     "fragment": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 420,
+        "max_ms": 1.682458,
+        "median_ms": 0.0865835,
+        "p95_ms": 0.729125
+       },
+       "refine_ns": {
+        "files": 420,
+        "max_ms": 0.086459,
+        "median_ms": 0.0055625,
+        "p95_ms": 0.039333
+       },
+       "total_ns": {
+        "files": 420,
+        "max_ms": 1.768917,
+        "median_ms": 0.092229,
+        "p95_ms": 0.766208
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 420,
+        "max_ms": 1.652708,
+        "median_ms": 0.086479,
+        "p95_ms": 0.723084
+       },
+       "refine_ns": {
+        "files": 420,
+        "max_ms": 1.239959,
+        "median_ms": 0.0896875,
+        "p95_ms": 0.6265
+       },
+       "total_ns": {
+        "files": 420,
+        "max_ms": 2.786084,
+        "median_ms": 0.180604,
+        "p95_ms": 1.372834
+       }
+      }
+     },
+     "pathological": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 45,
+        "max_ms": 703.297125,
+        "median_ms": 1.28375,
+        "p95_ms": 300.279417
+       },
+       "refine_ns": {
+        "files": 45,
+        "max_ms": 521.54625,
+        "median_ms": 0.092833,
+        "p95_ms": 13.808834
+       },
+       "total_ns": {
+        "files": 45,
+        "max_ms": 1265.784791,
+        "median_ms": 1.351125,
+        "p95_ms": 405.967334
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 45,
+        "max_ms": 719.946959,
+        "median_ms": 1.255958,
+        "p95_ms": 290.675541
+       },
+       "refine_ns": {
+        "files": 45,
+        "max_ms": 6434.546875,
+        "median_ms": 1.28225,
+        "p95_ms": 1612.4685
+       },
+       "total_ns": {
+        "files": 45,
+        "max_ms": 6535.693542,
+        "median_ms": 2.712833,
+        "p95_ms": 1902.854042
+       }
+      }
+     }
+    }
+   }
+  },
+  "v0_23_4": {
+   "accuracy": {
+    "baseline": {
+     "abseil": {
+      "conservative_negative": {
+       "labels": 1600
+      },
+      "enum_use": {
+       "fn": 111,
+       "fp": 10,
+       "labels": 455,
+       "tp": 344
+      },
+      "enumerator_decl": {
+       "fn": 1,
+       "labels": 665,
+       "tp": 664
+      },
+      "macro_keep": {
+       "fn": 39,
+       "labels": 18661,
+       "tp": 18622
+      },
+      "ns_decl": {
+       "labels": 1187,
+       "tp": 1187
+      },
+      "ns_qualifier": {
+       "fn": 845,
+       "fp": 57,
+       "labels": 9105,
+       "tp": 8260
+      },
+      "protected": {
+       "labels": 470635
+      }
+     },
+     "contract": {
+      "conservative_negative": {
+       "labels": 14
+      },
+      "enum_use": {
+       "labels": 17,
+       "tp": 17
+      },
+      "enumerator_decl": {
+       "labels": 43,
+       "tp": 43
+      },
+      "macro_keep": {
+       "labels": 72,
+       "tp": 72
+      },
+      "ns_decl": {
+       "labels": 24,
+       "tp": 24
+      },
+      "ns_qualifier": {
+       "labels": 16,
+       "tp": 16
+      },
+      "protected": {
+       "labels": 32943
+      }
+     },
+     "first-party": {
+      "conservative_negative": {
+       "labels": 28765
+      },
+      "enum_use": {
+       "fn": 265,
+       "labels": 2624,
+       "tp": 2359
+      },
+      "enumerator_decl": {
+       "fn": 4,
+       "labels": 4975,
+       "tp": 4971
+      },
+      "macro_keep": {
+       "fn": 11,
+       "labels": 2838,
+       "tp": 2827
+      },
+      "ns_decl": {
+       "fn": 2,
+       "labels": 2394,
+       "tp": 2392
+      },
+      "ns_qualifier": {
+       "fn": 121,
+       "fp": 1,
+       "labels": 1933,
+       "tp": 1812
+      },
+      "protected": {
+       "labels": 523801
+      }
+     },
+     "fragments": {
+      "conservative_negative": {
+       "labels": 343
+      },
+      "enum_use": {
+       "labels": 25,
+       "tp": 25
+      },
+      "enumerator_decl": {
+       "labels": 211,
+       "tp": 211
+      },
+      "macro_keep": {
+       "fn": 23,
+       "labels": 309,
+       "tp": 286
+      },
+      "ns_decl": {
+       "fn": 3,
+       "labels": 69,
+       "tp": 66
+      },
+      "ns_qualifier": {
+       "labels": 12,
+       "tp": 12
+      },
+      "protected": {
+       "labels": 24195
+      }
+     },
+     "gap": {
+      "conservative_negative": {
+       "fp": 3,
+       "labels": 14
+      },
+      "enum_use": {
+       "fn": 5,
+       "labels": 9,
+       "tp": 4
+      },
+      "enumerator_decl": {
+       "fn": 3,
+       "fp": 1,
+       "labels": 25,
+       "tp": 22
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 6,
+       "tp": 5
+      },
+      "ns_decl": {
+       "fn": 3,
+       "labels": 7,
+       "tp": 4
+      },
+      "ns_qualifier": {
+       "fn": 3,
+       "labels": 7,
+       "tp": 4
+      },
+      "protected": {
+       "labels": 175
+      }
+     },
+     "glaze": {
+      "conservative_negative": {
+       "fp": 20,
+       "labels": 2866
+      },
+      "enum_use": {
+       "fn": 19,
+       "fp": 2,
+       "labels": 469,
+       "tp": 450
+      },
+      "enumerator_decl": {
+       "labels": 1090,
+       "tp": 1090
+      },
+      "macro_keep": {
+       "labels": 1152,
+       "tp": 1152
+      },
+      "ns_decl": {
+       "fn": 230,
+       "labels": 1175,
+       "tp": 945
+      },
+      "ns_qualifier": {
+       "fn": 982,
+       "fp": 21,
+       "labels": 3745,
+       "tp": 2763
+      },
+      "protected": {
+       "labels": 313046
+      }
+     },
+     "ksyntaxhighlighting": {
+      "conservative_negative": {
+       "labels": 415
+      },
+      "enum_use": {
+       "fn": 1,
+       "labels": 242,
+       "tp": 241
+      },
+      "enumerator_decl": {
+       "labels": 136,
+       "tp": 136
+      },
+      "macro_keep": {
+       "fn": 510,
+       "labels": 591,
+       "tp": 81
+      },
+      "ns_decl": {
+       "fn": 3,
+       "labels": 67,
+       "tp": 64
+      },
+      "ns_qualifier": {
+       "fp": 3,
+       "labels": 40,
+       "tp": 40
+      },
+      "protected": {
+       "labels": 19862
+      }
+     },
+     "quill": {
+      "conservative_negative": {
+       "fp": 18,
+       "labels": 547
+      },
+      "enum_use": {
+       "fn": 35,
+       "labels": 445,
+       "tp": 410
+      },
+      "enumerator_decl": {
+       "labels": 539,
+       "tp": 539
+      },
+      "macro_keep": {
+       "fn": 33,
+       "labels": 7371,
+       "tp": 7338
+      },
+      "ns_decl": {
+       "fn": 2,
+       "labels": 391,
+       "tp": 389
+      },
+      "ns_qualifier": {
+       "fn": 319,
+       "labels": 1160,
+       "tp": 841
+      },
+      "protected": {
+       "labels": 145414
+      }
+     },
+     "re2": {
+      "conservative_negative": {
+       "labels": 475
+      },
+      "enum_use": {
+       "fn": 2,
+       "labels": 2
+      },
+      "enumerator_decl": {
+       "labels": 181,
+       "tp": 181
+      },
+      "macro_keep": {
+       "labels": 2162,
+       "tp": 2162
+      },
+      "ns_decl": {
+       "labels": 85,
+       "tp": 85
+      },
+      "ns_qualifier": {
+       "labels": 47,
+       "tp": 47
+      },
+      "protected": {
+       "labels": 58031
+      }
+     }
+    },
+    "candidate": {
+     "abseil": {
+      "conservative_negative": {
+       "labels": 1600
+      },
+      "enum_use": {
+       "fn": 167,
+       "fp": 4,
+       "labels": 455,
+       "tp": 288
+      },
+      "enumerator_decl": {
+       "fn": 51,
+       "labels": 665,
+       "tp": 614
+      },
+      "macro_keep": {
+       "fn": 39,
+       "labels": 18661,
+       "tp": 18622
+      },
+      "ns_decl": {
+       "fn": 440,
+       "labels": 1187,
+       "tp": 747
+      },
+      "ns_qualifier": {
+       "fn": 3536,
+       "fp": 19,
+       "labels": 9105,
+       "tp": 5569
+      },
+      "protected": {
+       "labels": 470635
+      }
+     },
+     "contract": {
+      "conservative_negative": {
+       "labels": 14
+      },
+      "enum_use": {
+       "labels": 17,
+       "tp": 17
+      },
+      "enumerator_decl": {
+       "fn": 1,
+       "labels": 43,
+       "tp": 42
+      },
+      "macro_keep": {
+       "labels": 72,
+       "tp": 72
+      },
+      "ns_decl": {
+       "labels": 24,
+       "tp": 24
+      },
+      "ns_qualifier": {
+       "labels": 16,
+       "tp": 16
+      },
+      "protected": {
+       "labels": 32943
+      }
+     },
+     "first-party": {
+      "conservative_negative": {
+       "labels": 28765
+      },
+      "enum_use": {
+       "fn": 265,
+       "labels": 2624,
+       "tp": 2359
+      },
+      "enumerator_decl": {
+       "fn": 3,
+       "labels": 4975,
+       "tp": 4972
+      },
+      "macro_keep": {
+       "fn": 11,
+       "labels": 2838,
+       "tp": 2827
+      },
+      "ns_decl": {
+       "fn": 4,
+       "labels": 2394,
+       "tp": 2390
+      },
+      "ns_qualifier": {
+       "fn": 159,
+       "fp": 1,
+       "labels": 1933,
+       "tp": 1774
+      },
+      "protected": {
+       "labels": 523801
+      }
+     },
+     "fragments": {
+      "conservative_negative": {
+       "labels": 343
+      },
+      "enum_use": {
+       "labels": 25,
+       "tp": 25
+      },
+      "enumerator_decl": {
+       "fn": 83,
+       "labels": 211,
+       "tp": 128
+      },
+      "macro_keep": {
+       "fn": 23,
+       "labels": 309,
+       "tp": 286
+      },
+      "ns_decl": {
+       "fn": 23,
+       "labels": 69,
+       "tp": 46
+      },
+      "ns_qualifier": {
+       "labels": 12,
+       "tp": 12
+      },
+      "protected": {
+       "labels": 24195
+      }
+     },
+     "gap": {
+      "conservative_negative": {
+       "labels": 14
+      },
+      "enum_use": {
+       "labels": 9,
+       "tp": 9
+      },
+      "enumerator_decl": {
+       "fn": 2,
+       "fp": 1,
+       "labels": 25,
+       "tp": 23
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 6,
+       "tp": 5
+      },
+      "ns_decl": {
+       "labels": 7,
+       "tp": 7
+      },
+      "ns_qualifier": {
+       "labels": 7,
+       "tp": 7
+      },
+      "protected": {
+       "labels": 175
+      }
+     },
+     "glaze": {
+      "conservative_negative": {
+       "fp": 20,
+       "labels": 2866
+      },
+      "enum_use": {
+       "fn": 54,
+       "labels": 469,
+       "tp": 415
+      },
+      "enumerator_decl": {
+       "fn": 3,
+       "labels": 1090,
+       "tp": 1087
+      },
+      "macro_keep": {
+       "labels": 1152,
+       "tp": 1152
+      },
+      "ns_decl": {
+       "fn": 236,
+       "labels": 1175,
+       "tp": 939
+      },
+      "ns_qualifier": {
+       "fn": 1429,
+       "fp": 13,
+       "labels": 3745,
+       "tp": 2316
+      },
+      "protected": {
+       "labels": 313046
+      }
+     },
+     "ksyntaxhighlighting": {
+      "conservative_negative": {
+       "labels": 415
+      },
+      "enum_use": {
+       "fn": 1,
+       "labels": 242,
+       "tp": 241
+      },
+      "enumerator_decl": {
+       "labels": 136,
+       "tp": 136
+      },
+      "macro_keep": {
+       "fn": 510,
+       "labels": 591,
+       "tp": 81
+      },
+      "ns_decl": {
+       "fn": 11,
+       "labels": 67,
+       "tp": 56
+      },
+      "ns_qualifier": {
+       "fn": 13,
+       "fp": 1,
+       "labels": 40,
+       "tp": 27
+      },
+      "protected": {
+       "labels": 19862
+      }
+     },
+     "quill": {
+      "conservative_negative": {
+       "fp": 18,
+       "labels": 547
+      },
+      "enum_use": {
+       "fn": 209,
+       "labels": 445,
+       "tp": 236
+      },
+      "enumerator_decl": {
+       "fn": 191,
+       "labels": 539,
+       "tp": 348
+      },
+      "macro_keep": {
+       "fn": 33,
+       "labels": 7371,
+       "tp": 7338
+      },
+      "ns_decl": {
+       "fn": 97,
+       "labels": 391,
+       "tp": 294
+      },
+      "ns_qualifier": {
+       "fn": 803,
+       "labels": 1160,
+       "tp": 357
+      },
+      "protected": {
+       "labels": 145414
+      }
+     },
+     "re2": {
+      "conservative_negative": {
+       "labels": 475
+      },
+      "enum_use": {
+       "fn": 2,
+       "labels": 2
+      },
+      "enumerator_decl": {
+       "fn": 1,
+       "labels": 181,
+       "tp": 180
+      },
+      "macro_keep": {
+       "labels": 2162,
+       "tp": 2162
+      },
+      "ns_decl": {
+       "fn": 4,
+       "labels": 85,
+       "tp": 81
+      },
+      "ns_qualifier": {
+       "labels": 47,
+       "tp": 47
+      },
+      "protected": {
+       "labels": 58031
+      }
+     }
+    }
+   },
+   "hypotheses": {
+    "H1": {
+     "baseline": {
+      "failures": [
+       "A: syntax_type (want syntax_namespace, H1)",
+       "B: syntax_normal (want syntax_namespace, H1)",
+       "A: syntax_type (want syntax_namespace, H1)",
+       "B: syntax_type (want syntax_namespace, H1)",
+       "Fast: syntax_normal (want syntax_enum_member, H1)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H2": {
+     "baseline": {
+      "failures": [
+       "Legacy: syntax_normal (want syntax_namespace, H2)",
+       "Legacy: syntax_type (want syntax_namespace, H2)",
+       "FAILED: syntax_normal (want syntax_enum_member, H2)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H3": {
+     "baseline": {
+      "failures": [
+       "High: syntax_normal (want syntax_enum_member, H3)",
+       "High: syntax_normal (want syntax_enum_member, H3)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H4": {
+     "baseline": {
+      "failures": [
+       "COLOUR_LIST: syntax_enum_member (want syntax_macro, H4)",
+       "unlabelled syntax_enum_member: COLOUR_LIST"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [
+       "COLOUR_LIST: syntax_enum_member (want syntax_macro, H4)",
+       "unlabelled syntax_enum_member: COLOUR_LIST"
+      ],
+      "status": "confirmed"
+     }
+    },
+    "H5": {
+     "baseline": {
+      "failures": [
+       "b: syntax_enum_member (H5-after)",
+       "c: syntax_enum_member (H5-after)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H6": {
+     "baseline": {
+      "failures": [
+       "ID: syntax_enum_member (H6)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H7": {
+     "baseline": {
+      "failures": [
+       "caf\u00e9: mixed (want syntax_enum_member, H7)",
+       "th\u00e9: mixed (want syntax_enum_member, H7)",
+       "caf\u00e9: mixed (want syntax_enum_member, H7)"
+      ],
+      "status": "confirmed"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H8": {
+     "baseline": {
+      "eight_mib_inputs": {
+       "malformed/brace-flood-8388600.cpp": 1102053392,
+       "malformed/brace-flood-8388608.cpp": 2022703120,
+       "malformed/enum-names-8mib.cpp": 0
+      },
+      "largest_input": "malformed/brace-flood-8388608.cpp",
+      "largest_peak_heap": 2022703120,
+      "status": "confirmed"
+     },
+     "candidate": {
+      "eight_mib_inputs": {
+       "malformed/brace-flood-8388600.cpp": 2242906688,
+       "malformed/brace-flood-8388608.cpp": 2240811584,
+       "malformed/enum-names-8mib.cpp": 0
+      },
+      "largest_input": "malformed/brace-flood-8388600.cpp",
+      "largest_peak_heap": 2242906688,
+      "status": "confirmed"
+     }
+    }
+   },
+   "metrics": {
+    "composer_per_edit": {
+     "baseline": {
+      "edits": 906,
+      "median_ms": 1.555187,
+      "p95_ms": 2.598583
+     },
+     "candidate": {
+      "edits": 906,
+      "median_ms": 2.7280205,
+      "p95_ms": 4.60675
+     }
+    },
+    "heap": {
+     "L": {
+      "baseline": {
+       "max_bytes": 15001616,
+       "median_bytes": 0
+      },
+      "candidate": {
+       "max_bytes": 41301264,
+       "median_bytes": 0
+      }
+     },
+     "M": {
+      "baseline": {
+       "max_bytes": 8592112,
+       "median_bytes": 1286168.0
+      },
+      "candidate": {
+       "max_bytes": 19173520,
+       "median_bytes": 2941104.0
+      }
+     },
+     "S": {
+      "baseline": {
+       "max_bytes": 877760,
+       "median_bytes": 39864.0
+      },
+      "candidate": {
+       "max_bytes": 2353968,
+       "median_bytes": 113672.0
+      }
+     },
+     "fragment": {
+      "baseline": {
+       "max_bytes": 137040,
+       "median_bytes": 5800.0
+      },
+      "candidate": {
+       "max_bytes": 250288,
+       "median_bytes": 24688.0
+      }
+     },
+     "pathological": {
+      "baseline": {
+       "max_bytes": 2022703120,
+       "median_bytes": 91712
+      },
+      "candidate": {
+       "max_bytes": 2242906688,
+       "median_bytes": 242224
+      }
+     }
+    },
+    "nondeterministic": [],
+    "resident_bytes": {
+     "composer": 33832960,
+     "contract": 68009984,
+     "first-party": 158154752,
+     "fragments": 33538048,
+     "gap": 30818304,
+     "malformed": 5409996800,
+     "third-party": 77758464
+    },
+    "statuses": {
+     "baseline": {
+      "available": 15792,
+      "limit_exceeded": 12
+     },
+     "candidate": {
+      "available": 15792,
+      "limit_exceeded": 12
+     }
+    },
+    "stop": {
+     "L/refinement": {
+      "baseline": {
+       "max_ms": 0.165,
+       "median_ms": 0.0267915,
+       "p95_ms": 0.16175,
+       "trials": 38
+      },
+      "candidate": {
+       "max_ms": 11.511084,
+       "median_ms": 1.964625,
+       "p95_ms": 7.324458,
+       "trials": 37
+      }
+     },
+     "L/whole": {
+      "baseline": {
+       "max_ms": 6.2795,
+       "median_ms": 1.790041,
+       "p95_ms": 5.722209,
+       "trials": 98
+      },
+      "candidate": {
+       "max_ms": 36.69975,
+       "median_ms": 2.0958335000000003,
+       "p95_ms": 6.6315,
+       "trials": 100
+      }
+     },
+     "pathological/refinement": {
+      "baseline": {
+       "max_ms": 33.754667,
+       "median_ms": 0.002417,
+       "p95_ms": 0.300917,
+       "trials": 715
+      },
+      "candidate": {
+       "max_ms": 232.985458,
+       "median_ms": 0.064333,
+       "p95_ms": 7.202666,
+       "trials": 787
+      }
+     },
+     "pathological/whole": {
+      "baseline": {
+       "max_ms": 288.049917,
+       "median_ms": 0.487416,
+       "p95_ms": 28.110667,
+       "trials": 851
+      },
+      "candidate": {
+       "max_ms": 255.49825,
+       "median_ms": 0.230771,
+       "p95_ms": 29.452666,
+       "trials": 836
+      }
+     }
+    },
+    "stop_outcomes": {
+     "baseline": {
+      "cancelled, no spans": 1678,
+      "complete answer (stop after the last check)": 24,
+      "finished before the stop": 218
+     },
+     "candidate": {
+      "cancelled, no spans": 1728,
+      "complete answer (stop after the last check)": 32,
+      "finished before the stop": 160
+     }
+    },
+    "stop_publication_failures": 0,
+    "timing": {
+     "L": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 487.896458,
+        "median_ms": 471.140084,
+        "p95_ms": 487.896458
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 13.227583,
+        "median_ms": 0.0,
+        "p95_ms": 13.227583
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 487.896458,
+        "median_ms": 471.140084,
+        "p95_ms": 487.896458
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 490.545166,
+        "median_ms": 448.045625,
+        "p95_ms": 490.545166
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 140.938,
+        "median_ms": 0.0,
+        "p95_ms": 140.938
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 490.545166,
+        "median_ms": 448.045625,
+        "p95_ms": 490.545166
+       }
+      }
+     },
+     "M": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 114,
+        "max_ms": 143.5145,
+        "median_ms": 17.2376045,
+        "p95_ms": 72.740667
+       },
+       "refine_ns": {
+        "files": 114,
+        "max_ms": 5.285583,
+        "median_ms": 0.8481455,
+        "p95_ms": 3.275667
+       },
+       "total_ns": {
+        "files": 114,
+        "max_ms": 148.73175,
+        "median_ms": 18.018437,
+        "p95_ms": 75.992125
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 114,
+        "max_ms": 140.012208,
+        "median_ms": 17.041249999999998,
+        "p95_ms": 73.027958
+       },
+       "refine_ns": {
+        "files": 114,
+        "max_ms": 73.37975,
+        "median_ms": 11.957520500000001,
+        "p95_ms": 41.267166
+       },
+       "total_ns": {
+        "files": 114,
+        "max_ms": 195.956583,
+        "median_ms": 29.6893125,
+        "p95_ms": 123.843667
+       }
+      }
+     },
+     "S": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 4684,
+        "max_ms": 28.9475,
+        "median_ms": 0.548208,
+        "p95_ms": 4.260583
+       },
+       "refine_ns": {
+        "files": 4684,
+        "max_ms": 0.64975,
+        "median_ms": 0.031375,
+        "p95_ms": 0.230125
+       },
+       "total_ns": {
+        "files": 4684,
+        "max_ms": 29.725208,
+        "median_ms": 0.5829789999999999,
+        "p95_ms": 4.513417
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 4684,
+        "max_ms": 40.396458,
+        "median_ms": 0.5492284999999999,
+        "p95_ms": 4.294959
+       },
+       "refine_ns": {
+        "files": 4684,
+        "max_ms": 24.78125,
+        "median_ms": 0.389167,
+        "p95_ms": 3.040625
+       },
+       "total_ns": {
+        "files": 4684,
+        "max_ms": 56.067375,
+        "median_ms": 0.9602915,
+        "p95_ms": 7.218708
+       }
+      }
+     },
+     "fragment": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 420,
+        "max_ms": 1.692583,
+        "median_ms": 0.09085399999999999,
+        "p95_ms": 0.749791
+       },
+       "refine_ns": {
+        "files": 420,
+        "max_ms": 0.0785,
+        "median_ms": 0.005583,
+        "p95_ms": 0.036167
+       },
+       "total_ns": {
+        "files": 420,
+        "max_ms": 1.771083,
+        "median_ms": 0.09647900000000001,
+        "p95_ms": 0.785625
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 420,
+        "max_ms": 1.70575,
+        "median_ms": 0.0899585,
+        "p95_ms": 0.75
+       },
+       "refine_ns": {
+        "files": 420,
+        "max_ms": 1.204166,
+        "median_ms": 0.08977099999999999,
+        "p95_ms": 0.598958
+       },
+       "total_ns": {
+        "files": 420,
+        "max_ms": 2.726833,
+        "median_ms": 0.184396,
+        "p95_ms": 1.351583
+       }
+      }
+     },
+     "pathological": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 45,
+        "max_ms": 312.726416,
+        "median_ms": 1.366166,
+        "p95_ms": 288.697584
+       },
+       "refine_ns": {
+        "files": 45,
+        "max_ms": 231.192666,
+        "median_ms": 0.103333,
+        "p95_ms": 13.470792
+       },
+       "total_ns": {
+        "files": 45,
+        "max_ms": 542.604042,
+        "median_ms": 1.480875,
+        "p95_ms": 310.410125
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 45,
+        "max_ms": 310.3215,
+        "median_ms": 1.503917,
+        "p95_ms": 298.524042
+       },
+       "refine_ns": {
+        "files": 45,
+        "max_ms": 1697.878,
+        "median_ms": 1.536875,
+        "p95_ms": 1216.259542
+       },
+       "total_ns": {
+        "files": 45,
+        "max_ms": 2003.485083,
+        "median_ms": 2.988667,
+        "p95_ms": 1514.783584
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}
