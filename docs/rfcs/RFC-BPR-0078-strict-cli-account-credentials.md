@@ -1,10 +1,10 @@
 ---
 id: "RFC-BPR-0078"
 title: "Use the chosen GitHub CLI account without credential fallback"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
-metadata: {"mandate_revision":"strict-cli-publication-r2","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","milestone_plan":{"id":"strict-cli-account-publication-v1","path":"docs/rfcs/plans/strict-cli-account-publication-v1/milestone-plan.json"},"engineering_acceptance":{"status":"accepted","milestone":"strict-credential-qualification","source_revision":"2793606c5a7785d0b671b81a31f016b401cab1b5","evidence":"docs/issues/_checkpoints/strict-cli-account-publication-v1/m2-evidence.json","independent_receipt":"/tmp/bpr-strict-cli-run/critical-m2-review.md","terminal_status_owner":"main integrator; preserve RFC/index status pair until integration confirmation"}}
+metadata: {"mandate_revision":"strict-cli-publication-r2","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","milestone_plan":{"id":"strict-cli-account-publication-v1","path":"docs/rfcs/plans/strict-cli-account-publication-v1/milestone-plan.json"},"engineering_acceptance":{"status":"accepted","milestone":"strict-credential-qualification","source_revision":"2793606c5a7785d0b671b81a31f016b401cab1b5","evidence":"docs/issues/_checkpoints/strict-cli-account-publication-v1/m2-evidence.json","independent_receipt":"/tmp/bpr-strict-cli-run/critical-m2-review.md","terminal_status_owner":"confirmed on main after exact accepted integration","integrated_revision":"fd01bc16afb37798162587e254bcbdb9f1fef596"}}
 ---
 
 # Use the chosen GitHub CLI account without credential fallback
@@ -197,3 +197,16 @@ existing Proposed/Proposed pair consistent while recording actual engineering
 acceptance. BPR-1427 is finished with supplied acceptance; the companion can now
 start through a fresh milestone owner. Historical BPR-1373 owner judgment and
 imported tokenless plans/evidence remain unchanged.
+
+## Main integration confirmation — 2026-10-13
+
+The accepted strict source `2793606c5a7785d0b671b81a31f016b401cab1b5`,
+tracker `4ae67d6b59db79e83bc59eb0550cf7c5f8c9efb0`, and final independent
+critical receipt were integrated on main at `fd01bc16afb37798162587e254bcbdb9f1fef596`.
+The monitor's exact candidate passed ten focused checks, both direct strict
+review/tour selectors, the documentation gate and all 67 documentation contracts.
+All 42 protected controls/draft hashes were preserved. This terminal status
+confirms RFC AC01–AC05 acceptance recorded in the strict verification ledger and
+M2 handoff, with their stated native and memory limits. It supplies no companion,
+release or historical BPR-1373 owner verdict. Receipt:
+`/tmp/bpr-strict-main-landing.json`.
