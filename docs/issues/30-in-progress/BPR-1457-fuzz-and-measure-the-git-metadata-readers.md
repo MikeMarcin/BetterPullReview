@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1457"
 title: "Fuzz oracles, adversarial timing and the 250,000-entry bench for the Git metadata readers"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1454"]
 priority: "P2"
