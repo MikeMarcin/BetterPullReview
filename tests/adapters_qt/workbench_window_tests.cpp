@@ -13642,6 +13642,8 @@ namespace {
 		});
 		auto recents = std::vector<application::recent_review_intent>{ };
 		window.set_recent_review_dispatch([&recents](application::recent_review_intent aIntent) { recents.push_back(aIntent); });
+		auto removals = std::vector<application::recent_review_row>{ };
+		window.set_recent_removal_dispatch([&removals](application::recent_review_row aRow) { removals.push_back(aRow); });
 		window.set_pull_request_page_dispatch([](const application::pull_request_page_intent&) { return core::markdown_link_result::opened; });
 		auto management = std::vector<application::profile_management_intent>{ };
 		window.set_profile_management_dispatch([&management](application::profile_management_intent aIntent) { management.push_back(std::move(aIntent)); }, [] { });
@@ -13665,6 +13667,7 @@ namespace {
 		auto*      menu  = window.home_row_menu();
 		auto*      page  = window.open_on_github_action();
 		auto*      again = window.home_recent_resume_action();
+		auto*      drop  = window.home_recent_remove_action();
 
 		// The menu, on a queue row.
 		auto menuAt = QContextMenuEvent{ QContextMenuEvent::Mouse, row.center(), view->viewport()->mapToGlobal(row.center()) };
@@ -13672,11 +13675,12 @@ namespace {
 		process_events();
 		const auto items = menu->actions();
 		expect(menu->isVisible() && view->currentIndex() == index, "a right click makes the queue row current and opens its menu");
-		expect(items.size() == 5 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page && menu->defaultAction() == open,
-			   "the menu is Open Review (the default), Open Review in New Window, Resume, then Open on GitHub");
+		expect(items.size() == 7 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page
+				   && items[5]->isSeparator() && items[6] == drop && menu->defaultAction() == open,
+			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open on GitHub, then Remove from Recently Viewed");
 		expect(open->text() == QStringLiteral("Open Review") && fresh->text() == QStringLiteral("Open Review in New Window") && open->isEnabled() && fresh->isEnabled()
-				   && !again->isVisible() && page->isEnabled(),
-			   "on a queue row both are offered and Resume is not");
+				   && !again->isVisible() && !drop->isVisible() && page->isEnabled(),
+			   "on a queue row both are offered and neither Resume nor Remove is");
 		expect(open->shortcut() == QKeySequence{ Qt::Key_Return } && fresh->shortcut() == QKeySequence{ Qt::CTRL | Qt::Key_Return }
 				   && open->isShortcutVisibleInContextMenu() && fresh->isShortcutVisibleInContextMenu() && page->isShortcutVisibleInContextMenu()
 				   && open->shortcutContext() == Qt::WidgetShortcut && fresh->shortcutContext() == Qt::WidgetShortcut,
@@ -13732,6 +13736,8 @@ namespace {
 		expect(menu->isVisible() && recentList->currentRow() == 0 && open->isEnabled() && fresh->isEnabled() && again->isVisible() && again->isEnabled()
 				   && again->shortcut() == QKeySequence{ Qt::SHIFT | Qt::Key_Return } && again->isShortcutVisibleInContextMenu(),
 			   "on a Recently viewed row the menu adds Resume with ⇧Return");
+		expect(drop->isVisible() && drop->isEnabled() && drop->text() == QStringLiteral("Remove from Recently Viewed") && drop->shortcut().isEmpty(),
+			   "and Remove from Recently Viewed, whose Delete the list reads rather than the window");
 		save_open_review_render(*menu, QStringLiteral("recent-row-menu"));
 		fresh->trigger();
 		menu->hide();
@@ -13758,6 +13764,14 @@ namespace {
 		expect(recents.size() == 3U && windows.size() == 8U && recentList->currentRow() == 0, "a plain click on a Recently viewed row selects it and opens nothing");
 		double_click_row(*recentList, recentList->model()->index(0, 0));
 		expect(recents.size() == 4U && !recents.back().Resume && windows.size() == 8U, "a double-click opens it here");
+		drop->trigger();
+		expect(removals.size() == 1U && removals.back().Index == 0U && recents.size() == 4U, "Remove names the Recently viewed row by its place");
+		recentList->setFocus(Qt::OtherFocusReason);
+		recentList->setCurrentRow(0);
+		process_events();
+		deliver_key(window, Qt::Key_Delete, Qt::NoModifier);
+		deliver_key(window, Qt::Key_Backspace, Qt::NoModifier);
+		expect(removals.size() == 3U && removals.back().Index == 0U && recents.size() == 4U, "Delete and Backspace remove the current row too");
 
 		// What the host refuses is said; without the profile's New Window
 		// nothing is asked for.

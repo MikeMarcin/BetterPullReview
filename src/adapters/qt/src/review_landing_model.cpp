@@ -519,6 +519,7 @@ namespace bpr::qt {
 		// progress are not projected for a queue row, so they are empty and
 		// nothing is drawn for them.
 		case home_row_role::identity:
+		case home_row_role::shown_identity:
 			return home_identity(*item);
 		case home_row_role::title:
 			return text(item->Facts.Title);

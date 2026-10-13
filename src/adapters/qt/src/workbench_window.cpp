@@ -3070,13 +3070,13 @@ namespace bpr::qt {
 			HomeRecentResumeAction->setEnabled(false);
 			// Recently viewed keeps the last ten pull requests read, so the
 			// reviewer can take one off it, from the row's menu or by Delete.
+			// Delete is the tour editor's Remove in this window, so the list
+			// reads the key itself, as Settings › Repositories' list does, and
+			// the action claims no sequence.
 			HomeRecentRemoveAction = new QAction{ tr("Remove from Recently Viewed"), this };
 			HomeRecentRemoveAction->setObjectName(QStringLiteral("homeRecentRemoveAction"));
 			HomeRecentRemoveAction->setStatusTip(QStringLiteral(
 				"Takes the selected pull request off Recently viewed; nothing changes on GitHub"));
-			HomeRecentRemoveAction->setShortcut(QKeySequence{ Qt::Key_Delete });
-			HomeRecentRemoveAction->setShortcutContext(Qt::WidgetShortcut);
-			HomeRecentRemoveAction->setShortcutVisibleInContextMenu(true);
 			HomeRecentRemoveAction->setEnabled(false);
 			auto* const recentList = new home_recent_view{ HomePage };
 			recentList->hide();

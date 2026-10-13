@@ -348,10 +348,40 @@ namespace {
 		expect(ordered.front().Ref == ref(2), "unknown detail sorts after quiet, where no stored value moves");
 	}
 
+	// "My role" holds discovery's reasons as well as GitHub's own Role, which a
+	// signed-in account's queue never fills: requested and reviewed rows were
+	// hidden by Reviewer and Requested before this.
+	void test_a_role_is_held_by_any_of_its_reasons()
+	{
+		const auto item = [](const core::queue_membership aMembership, const core::attention_bucket aBucket = core::attention_bucket::quiet) {
+			return core::queue_item{ .Ref = ref(1), .Membership = aMembership, .Bucket = aBucket, .Facts = { } };
+		};
+		const auto requested = item({ .Requested = true });
+		const auto reviewed  = item({ .Reviewed = true });
+		const auto authored  = item({ .Authored = true });
+		const auto ruled     = item(membership(core::github_role::none, true));
+		const auto changed   = item(membership(core::github_role::none, true), core::attention_bucket::changed_since_my_review);
+		expect(core::holds_role(requested, core::github_role::requested_reviewer), "a discovered request is Requested");
+		expect(!core::holds_role(requested, core::github_role::reviewer) && !core::holds_role(requested, core::github_role::none),
+			   "a discovered request is neither Reviewer nor No role");
+		expect(core::holds_role(reviewed, core::github_role::reviewer), "an observed review is Reviewer");
+		expect(core::holds_role(changed, core::github_role::reviewer), "changed since my review is Reviewer, even for a rule's item");
+		expect(core::holds_role(authored, core::github_role::author) && !core::holds_role(authored, core::github_role::none),
+			   "a discovered authored item is Author");
+		expect(core::holds_role(ruled, core::github_role::none), "a rule's item with no role of its own is No role");
+		const auto both = item({ .Requested = true, .Reviewed = true });
+		expect(core::holds_role(both, core::github_role::requested_reviewer) && core::holds_role(both, core::github_role::reviewer),
+			   "an item holds every role it has a reason for");
+		for (const auto role : { core::github_role::participant, core::github_role::reviewer, core::github_role::requested_reviewer, core::github_role::author }) {
+			expect(core::holds_role(item(membership(role)), role), "GitHub's own Role still holds");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_a_role_is_held_by_any_of_its_reasons();
 	test_home_ownership_preserves_attention();
 	test_discovery_reasons_and_unknown_detail();
 	for (const auto enabled : { false, true }) {

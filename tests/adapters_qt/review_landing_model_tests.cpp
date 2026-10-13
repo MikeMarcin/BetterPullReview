@@ -521,6 +521,38 @@ namespace {
 			"the other explicit alternate sort keeps a total identity tie-break");
 	}
 
+	// A signed-in account's rows carry discovery's reasons, never GitHub's own
+	// Role, so My role must read them: Reviewer and Requested hid every such
+	// row, and No role listed every row that was not authored.
+	void test_my_role_filters_rows_by_their_discovery_reasons()
+	{
+		auto       source    = qt::review_landing_model{ };
+		auto       proxy     = qt::review_landing_filter_model{ source };
+		const auto requested = item(1, core::attention_bucket::initial_review_requested, core::queue_membership{ .Requested = true });
+		const auto reviewed  = item(2, core::attention_bucket::quiet, core::queue_membership{ .Reviewed = true });
+		const auto authored  = item(3, core::attention_bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true });
+		const auto followed  = item(4, core::attention_bucket::quiet, core::queue_membership{ .Followed = true });
+		source.apply(std::array{ requested, reviewed, authored, followed });
+		const auto shown = [&proxy] {
+			auto numbers = std::vector<std::int64_t>{ };
+			for (auto row = 0; row < proxy.rowCount(); ++row) {
+				numbers.push_back(proxy.item_at(proxy.index(row, 0))->Ref.Number);
+			}
+			return numbers;
+		};
+		proxy.apply(application::queue_presentation_preferences{ .Role = core::github_role::requested_reviewer });
+		expect(shown() == std::vector<std::int64_t>{ 1 }, "Requested lists the discovered review request");
+		proxy.apply(application::queue_presentation_preferences{ .Role = core::github_role::reviewer });
+		expect(shown() == std::vector<std::int64_t>{ 2 }, "Reviewer lists the pull request reviewed here");
+		proxy.apply(application::queue_presentation_preferences{ .Role = core::github_role::author });
+		expect(shown() == std::vector<std::int64_t>{ 3 }, "Author lists the authored pull request");
+		proxy.apply(application::queue_presentation_preferences{ .Role = core::github_role::none });
+		expect(shown() == std::vector<std::int64_t>{ 4 }, "No role lists only the followed pull request");
+		expect(source.data(source.index(0, 0), qt::review_landing_model::role_role).toString() == QStringLiteral("requested reviewer")
+				   && source.data(source.index(1, 0), qt::review_landing_model::role_role).toString() == QStringLiteral("reviewer"),
+			   "the role a row shows is the one it is filtered by");
+	}
+
 	void test_a_large_queue_filter_emits_one_bounded_change()
 	{
 		auto source = qt::review_landing_model{ };
@@ -843,6 +875,7 @@ auto main(int argc, char** argv) -> int
 	test_the_model_cannot_be_edited();
 	test_clearing_removes_rather_than_resets();
 	test_filters_and_explicit_sorts_preserve_stable_identity();
+	test_my_role_filters_rows_by_their_discovery_reasons();
 	test_a_large_queue_filter_emits_one_bounded_change();
 	test_switching_directly_between_alternate_sorts_reorders();
 	test_home_rows_say_why_in_projected_facts();

@@ -183,6 +183,13 @@ namespace {
 		other.Number = pull_request_number{ 109 };
 		expect(policy.accepted_position(context(1), other, saved) && policy.recent().front().Position == saved, "an accepted reading reaches the listed entry");
 		expect(policy.close(context(1)) && policy.records().empty() && policy.recent().size() == maximum_recent_reviews, "closing a window keeps the list");
+		auto removed   = destination();
+		removed.Number = pull_request_number{ 105 };
+		expect(policy.forget_recent(removed) && policy.recent().size() == maximum_recent_reviews - 1U
+				   && std::ranges::none_of(policy.recent(), [&](const auto& aEntry) { return aEntry.Destination == removed; })
+				   && policy.recent().front().Destination == other,
+			   "a removed entry leaves the list and the rest keep their order");
+		expect(!policy.forget_recent(removed), "removing an entry that is not listed changes nothing");
 		expect(!valid_recent_reviews({ { first, { }, 0, { } }, { first, { }, 0, { } } }), "duplicate destinations are refused");
 		expect(!valid_recent_reviews(std::vector<window_recent_review>(maximum_recent_reviews + 1U, window_recent_review{ first, { }, 0, { } })), "an overlong list is refused");
 		window_review_restoration corrupt{ default_bpr_profile_id, { context(1) }, { "github.com" } };

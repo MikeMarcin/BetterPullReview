@@ -447,7 +447,8 @@ namespace {
 		const auto  index    = view->model()->index(0, 0);
 		const auto  option   = option_for(*view, index);
 		const auto  lines    = delegate->line_texts(option, index);
-		const auto  expected = QStringLiteral("octo/app#1  ") + QString::fromStdString(title)
+		// The title leads; the repository and number head the second line.
+		const auto  expected = QString::fromStdString(title) + QStringLiteral("octo/app#1  ")
 			+ index.data(qt::home_row_role::why).toString() + QStringLiteral(" Changed");
 		expect(lines.join(QString{ }) == expected, "the laid-out lines are the whole literal text");
 		expect(lines.size() > 3, "a long title wraps onto more lines");
@@ -1638,6 +1639,37 @@ namespace {
 			   "the group's rows are the rows it counted");
 	}
 
+	// A row under a group says only what its group header does not: the number
+	// under a repository, "name#123" under an owner, the whole identity otherwise.
+	void test_a_grouped_row_drops_what_its_group_names()
+	{
+		home_fixture home;
+		home.Source.apply(core::ordered_queue(std::vector{
+			owned_item(7, bucket::initial_review_requested, default_host, default_login, "octo-org/app"),
+		}));
+		home.List.set_queue_status(true, true);
+		home.List.set_state_headers(false);
+		home.List.resize(700, 500);
+		home.List.show();
+		settle(300);
+		const auto shown = [&home] {
+			const auto panels = home.List.group_panels();
+			auto* const view  = panels.empty() ? home.List.flat_view() : home.List.rows_view(*panels.front());
+			return view->model()->index(0, 0).data(qt::home_row_role::shown_identity);
+		};
+		const auto none = shown();
+		expect(none.toString() == QStringLiteral("octo-org/app#7"), "ungrouped, a row names its whole identity");
+		home.List.set_grouping(application::home_grouping::repository);
+		settle(300);
+		expect(shown().toString() == QStringLiteral("#7"), "under a repository, a row names only its number");
+		home.List.set_grouping(application::home_grouping::organization);
+		settle(300);
+		expect(shown().toString() == QStringLiteral("app#7"), "under an owner, a row names its repository and number");
+		home.List.set_grouping(application::home_grouping::account);
+		settle(300);
+		expect(shown().toString() == QStringLiteral("octo-org/app#7"), "under an account, a row names its whole identity");
+	}
+
 	// A7: the chosen sort orders rows inside a state, never across states.
 	void test_a_sort_orders_rows_within_a_state()
 	{
@@ -1733,6 +1765,7 @@ auto main(int argc, char** argv) -> int
 	test_an_empty_queue_is_one_sentence_in_every_grouping();
 	test_a_sort_orders_rows_within_a_state();
 	test_a_large_grouped_queue_stays_incremental();
+	test_a_grouped_row_drops_what_its_group_names();
 	// [[BPR-1364]]. A single click selects; a double-click or Return opens.
 	test_a_single_click_selects_and_a_double_click_opens();
 	// [[BPR-1365]]. The open review is quiet; Home shows one selection.
