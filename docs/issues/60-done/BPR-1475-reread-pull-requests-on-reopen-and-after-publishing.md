@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1475"
 title: "Reread a pull request on every reopen and after publishing to it"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1472"]
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1475--BPR-1475--f4fade45d6e3.json","origin":"owner decision 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"06399eb7f","evidence":{"kind":"observation","detail":"Opening the shown pull request from Recently viewed or a pasted link reads it fresh: finish course reopen reads=37 before=28 with a new snapshot, on Overview; BPR-1472's reuse removed.","path":"docs/issues/60-done/BPR-1475-reread-pull-requests-on-reopen-and-after-publishing.md"}},{"criterion":"AC2","outcome":"pass","revision":"06399eb7f","evidence":{"kind":"observation","detail":"A confirmed review rereads with nothing pressed: finish course phase=17 reads=19 before=10, new snapshot; fails no-reread-after-publish with the reread disabled. Comments, replies and tours reread; one owed read waits for any read in flight.","path":"docs/issues/60-done/BPR-1475-reread-pull-requests-on-reopen-and-after-publishing.md"}},{"criterion":"AC3","outcome":"pass","revision":"06399eb7f","evidence":{"kind":"observation","detail":"After the reread Review, the file and its selection stay (file=1 selection=1) and the status line keeps its message; a note being written is held again and reopened in the drawer (writing=1 written=1 open=1). Evidence 11111111.","path":"docs/issues/60-done/BPR-1475-reread-pull-requests-on-reopen-and-after-publishing.md"}},{"criterion":"AC4","outcome":"pass","revision":"06399eb7f","evidence":{"kind":"observation","detail":"application_setup_destination_public_path and application_profile_window_review_restoration_public_path now require a fresh read for the shown pull request and pass on the main-merged tree.","path":"docs/issues/60-done/BPR-1475-reread-pull-requests-on-reopen-and-after-publishing.md"}}]
 ---
 
 # Reread a pull request on every reopen and after publishing to it
