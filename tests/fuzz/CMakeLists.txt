@@ -112,6 +112,12 @@ if(TARGET better_pull_review_adapter_qt)
     endif()
 endif()
 
+# [[BPR-1441]]. The C++ syntax classifier and its identifier refinement exist
+# only in a Qt graph, beside the packaged KSyntaxHighlighting definitions.
+if(TARGET better_pull_review_adapter_syntax)
+    bpr_add_fuzz_target(syntax MAX_LEN 65536 LIBRARIES BetterPullReview::AdapterSyntax Qt6::Core)
+endif()
+
 add_custom_target(parser-fuzzers DEPENDS ${bpr_fuzz_targets})
 # [[BPR-1260]]. On Linux each corpus row runs under the network sandbox tool,
 # so the documented build-then-ctest sequence needs it built as well.

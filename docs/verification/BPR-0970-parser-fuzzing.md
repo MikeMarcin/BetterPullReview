@@ -54,6 +54,7 @@ target's header comment gives the layout. Multi-part inputs are split at
 | `fuzz_git_output` | `fuzz_git_output_corpus` | 65,536 | Git output parsing |
 | `fuzz_agent_output` | `fuzz_agent_output_corpus` | 65,536 | AI structured output |
 | `fuzz_review_cycle` | `fuzz_review_cycle_corpus` | 65,536 | AI structured output (Review Cycles) |
+| `fuzz_syntax` | `fuzz_syntax_corpus` (Qt graph only) | 65,536 | C++ syntax classification ([[BPR-1441]]) |
 
 A target checks more than the absence of a crash where the production
 contract states a property: a published diff validates and stays inside its
@@ -161,6 +162,24 @@ same hexadecimal rule as `parse_object`; it is not fuzzed separately.
 | `parse_cycle_json`, `canonical_cycle_json`, `decode_cycle_base64`, `parse_cycle_sha256` | The strict JSON and encodings under every cycle document | `core_review_cycle_round` | selectors 6 and 7 |
 | `read_cycle_zip`, `inflate_cycle_deflate`, `open_round_bundle` (`core/review_cycle_zip.cpp`, `_bundle.cpp`) | A `.bpr-review.zip` bundle | `core_review_cycle_bundle`, `core_review_cycle_bundle_pack_oracle` | selectors 11 and 12 |
 | `decode_manifest`, `decode_publication_plan`, `decode_publication_journal`, `decode_import_association` | The cycle's own durable records | `core_review_cycle_manifest`, `core_review_cycle_publication`, `core_review_cycle_import` | selectors 8, 9, 10 |
+
+### C++ syntax classification ([[BPR-1441]])
+
+Added for RFC-BPR-0081, after this card's campaigns. The target stays whatever
+that evaluation decides.
+
+| Entry point | Input | Deterministic rows | Fuzzed by |
+|---|---|---|---|
+| `packaged_syntax_classifier::classify`, `classify_hunk` with the C++ definition: the KSyntaxHighlighting complete-blob pass and `refine_cpp_identifiers` (`adapters/syntax/`) | A file's bytes from the pull request, a Review Cycle workspace or the suggestion composer | `syntax_classification_contract`, `syntax_refinement_cancellation`, `qt_syntax_pane_composition` | `fuzz_syntax`: bytes 1 and 2 name a hunk's first line, byte 3 its line count, the rest is the blob |
+
+It checks that a result other than `available` carries no spans; that
+available spans are nonempty, ordered, non-overlapping, inside the blob's
+lines and syntax roles; that a request answers the same twice; that a hunk is
+exactly the whole blob's spans on its lines; that a span limit below the
+answer's count refuses with no spans; that a stop requested before the call
+publishes nothing; and that strictly valid UTF-8 is never `unavailable`. A
+first 300-second run on macOS (Apple M4 Pro, seed 1441, 66,040 executions)
+was clean.
 
 Every entry point above has a target. The two `tests/fuzz/release_*_fuzz.cpp`
 harnesses belong to the release policy's own recipe and are not registered
