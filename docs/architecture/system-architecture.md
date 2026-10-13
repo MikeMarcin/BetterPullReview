@@ -1023,9 +1023,15 @@ panes through Next/Previous navigation, including cached large-file revisits.
 
 The syntax adapter implements the host's classification port through
 KSyntaxHighlighting's low-level interface. It classifies a complete blob in one
-lexical pass and projects a hunk from that pass; highlighting a range on its own
-would lose the state that opened a multiline construct earlier. It produces core
-roles, never colours, and consults no standard path.
+grammar pass and projects a hunk from the complete result; highlighting a range
+on its own would lose the state that opened a multiline construct earlier. It produces core
+roles, never colours, and consults no standard path. RFC-BPR-0072 adds bounded,
+cancellable C++ refinement over grammar-protected spans: blob-local namespace,
+enum, scope and delimiter facts recognize declarations and unambiguous qualified
+uses. Aliases, shadows and unresolved scopes stay conservative; no compiler or
+cross-file lookup is composed. C++ identifier revision 6 retires prior spans; C
+and Resource retain revision 5. Core appends stable namespace and enum-member
+role identities; Qt owns their four-variant defaults and independent controls.
 
 The Qt adapter turns a core-resolved variant plus a palette into applied
 presentation without installing a forced style or QSS, preserving the contract
@@ -1042,9 +1048,11 @@ BPR-0645), so tuning a second theme discarded the first; `palette_variant` had
 no meaning left once every variant owns a slot and is migration input rather
 than a column. The stored flag, not the document, says whether a slot is a
 decision: every slot holds a *complete* document, because the reader imports
-each one through the core parser and that parser refuses a document that fails
-to assign every role. Scoped palette reset removes one variant's overrides
-without deleting other appearance preferences.
+each one through the core parser. Every original role is required; additive
+label, attention, namespace and enum-member roles omitted by older documents
+resolve to that variant's built-in defaults. Existing values and stored flags
+survive without a palette reset. Scoped palette reset removes one variant's
+overrides without deleting other appearance preferences.
 
 Migration files the version-6 palette under exactly the variant that row
 recorded, keeping its document bytes, and leaves the other three uncustomized,

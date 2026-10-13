@@ -1,0 +1,11 @@
+[
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "review.cpp",
+		"patch": "@@ -14,4 +14,4 @@\n constexpr auto selected = GCT::Network::Reason::DNA;\n constexpr auto colour = MixedCase::Colour::Red;\n void verify() { GCT_ASSERT(selected == GCT::Network::Reason::ID); }\n-constexpr int changed = 1;\n+constexpr int changed = 2;",
+		"sha": "ce55ae99decb609af0a18cd18d44a13ad612914d",
+		"status": "modified"
+	}
+]

@@ -85,7 +85,7 @@ namespace bpr::qt {
 		auto operator<=>(const colour_role_list_statistics&) const = default;
 	};
 
-	/// \brief RFC-BPR-0034's Colours list: 58 offered roles, grouped, filtered,
+	/// \brief RFC-BPR-0034's Colours list: 60 offered roles, grouped, filtered,
 	/// picked.
 	///
 	/// \details [[BPR-0790]]. Every role of the core's closed vocabulary that the
@@ -102,7 +102,7 @@ namespace bpr::qt {
 	/// box.
 	///
 	/// The rows are built when the list is first shown or first asked about, not
-	/// when it is constructed. Fifty-eight rows of four widgets each is the largest
+	/// when it is constructed. Sixty rows of four widgets each is the largest
 	/// fixed structure in the application's chrome, and a reviewer who never opens
 	/// Appearance should not be carrying it: the workbench's own bound on its
 	/// retained widget tree is what makes that concrete. Everything supplied before

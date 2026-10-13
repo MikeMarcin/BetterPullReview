@@ -60,6 +60,8 @@ namespace bpr::app::detail {
 		nested_folders_v1,
 		/// RFC-BPR-0074 synthetic cross-folder counterparts.
 		header_source_v1,
+		/// RFC-BPR-0072 complete-blob namespace/enum declarations and uses.
+		cpp_identifiers_v1,
 		/// [[BPR-1083]]. The nested-folders pull request with review threads
 		/// whose posts carry every Conventional Comments label, for judging the
 		/// thread marks, the label chip and the shortcodes in the application.

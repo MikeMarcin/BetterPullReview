@@ -1930,3 +1930,30 @@ versions. `application_header_source_navigation_large` runs 100 real no-match
 commands against the existing 515-file large-review fixture. These offscreen
 courses establish deterministic composition and input routing, with no claim of
 native device or system-appearance acceptance.
+
+## C++ identifier appearance (RFC-BPR-0072)
+
+`cpp-identifiers-v1` is a synthetic one-file pull request, served through the
+existing test-build composition. `scripts/build_cpp_identifier_fixture.py`
+creates its construction, and the recorded-pull-request contract and pack
+builders create its committed HTTP tree and Git objects. It contains uppercase
+and mixed-case namespace declarations, scoped and unscoped enums, qualified
+namespace/member uses and a defined `GCT_ASSERT` beside them. Base and head
+change only the final integer. No recording or remote data is used.
+
+`application_cpp_identifier_appearance` opens it on Overview, enters Review,
+opens `review.cpp` through Next file, and closes the drawers through their public
+commands so both source panes display the qualified names. It asserts token
+layout colors and visible raster pixels in Light and Dark, saves full-window
+offscreen renders when `BPR_CPP_IDENTIFIER_RENDER_ROOT` is set, and proves that
+repainting retains both span identities and the comparison. All four built-in
+palettes pass the 374 published contrast pairs.
+
+The same course uses five fresh OS processes: rendered comparison, loading older
+stored palettes and customizing, restart, importing new exports, and another
+restart. Existing palette documents omit only the two new fields; old import
+files are valid customized themes under the host's existing all-variant contrast
+floor. Every old value, mixed stored flag and unrelated typography preference is
+checked before editing. Picker edits and old/new imports change only their named
+variant, and every new export includes all 62 stable identities. Explicit
+unreadable new-role ink remains a typed refusal in `application_appearance_host`.

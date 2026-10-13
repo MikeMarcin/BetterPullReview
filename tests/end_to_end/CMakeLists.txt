@@ -4254,6 +4254,19 @@ set_tests_properties(application_header_source_navigation_large PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_HEADER_SOURCE_RENDER_ROOT=${PROJECT_BINARY_DIR}/header-source-renders"
     TIMEOUT 120 PASS_REGULAR_EXPRESSION "HEADER_SOURCE_LARGE_OK")
 
+# RFC-BPR-0072: both pane rasters and four-variant exchange in fresh processes.
+bpr_add_executable(test_cpp_identifier_appearance_public_path cpp_identifier_appearance_public_path_tests.cpp)
+target_link_libraries(test_cpp_identifier_appearance_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_cpp_identifier_appearance_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_cpp_identifier_appearance_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_cpp_identifier_appearance_public_path)
+bpr_enable_warnings(test_cpp_identifier_appearance_public_path)
+bpr_add_network_isolated_test(NAME application_cpp_identifier_appearance WINDOWS_UNCONTAINED
+    COMMAND test_cpp_identifier_appearance_public_path)
+set_tests_properties(application_cpp_identifier_appearance PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_CPP_IDENTIFIER_RENDER_ROOT=${PROJECT_BINARY_DIR}/cpp-identifier-renders"
+    TIMEOUT 240 PASS_REGULAR_EXPRESSION "CPP_IDENTIFIER_APPEARANCE_OK")
+
 # RFC-BPR-0076: entry, exact tab restoration, bounds and actual window-system keys.
 bpr_add_executable(test_review_navigation_entry_public_path review_navigation_entry_public_path_tests.cpp)
 target_link_libraries(test_review_navigation_entry_public_path PRIVATE BetterPullReview::Composition)

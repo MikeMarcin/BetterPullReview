@@ -103,8 +103,8 @@ role combo box with a hex field, and five full-width buttons.
 
 This RFC owns two things: the presentation of the page, and one behaviour
 change in the appearance domain. Everything else about appearance (the six
-modes, the four built-in palettes, the semantic roles (47 then, 59 since
-the 2026-10-05 amendment), typography bounds,
+modes, the four built-in palettes, the semantic roles (47 at adoption, 62 after
+the additive RFC-BPR-0072 amendment), typography bounds,
 theme import and export documents, preview and commit) is RFC-BPR-0006's and
 RFC-BPR-0018's and is consumed as it is.
 
@@ -180,9 +180,10 @@ second renderer.
 
 The card is titled for the theme on screen, "Colours for Dark", with the
 subtitle "Edits change Dark only. Each theme keeps its own colours." Its header
-holds Import, Export and Reset all. Under a filter field, a list of the 58
-roles the review window shows (all 60 but the two hunk-header roles; owner
-amendments 2026-09-24 and 2026-10-05, and the owner's direction of 2026-10-06) in five groups with sticky group headers and counts, Surfaces and text,
+holds Import, Export and Reset all. Under a filter field, a list of the 60
+roles the review window shows (all 62 but the two hunk-header roles; owner
+amendments 2026-09-24 and 2026-10-05, the owner's direction of 2026-10-06,
+and RFC-BPR-0072's additive syntax amendment) in five groups with sticky group headers and counts, Surfaces and text,
 Diff, Review states, Syntax, Comment labels, each row a swatch, the role's name in words and
 its value in the code font. The list scrolls inside the card. A swatch opens
 the platform colour picker and the change previews in the review window as
@@ -223,7 +224,7 @@ The core decides. The host performs. Qt presents.
   widget (**new**) with popover and accessible description, shared with the
   Accounts page; a `type_preview` widget (**new**) painted by the existing
   code painter; a `colour_role_list` (**new**) over the offered roles (45
-  after the 2026-09-24 amendment, 57 after the 2026-10-05 one, 58 after the 2026-10-06 direction) with a filter, sticky group headers and the picker; the preview bar. Spin boxes
+  after the 2026-09-24 amendment, 57 after the 2026-10-05 one, 58 after the 2026-10-06 direction, 60 after RFC-BPR-0072) with a filter, sticky group headers and the picker; the preview bar. Spin boxes
   show points.
 - **Composition root.** Supplies the resolved variant to scoped intents and
   the theme on screen to the Colours card title.
@@ -234,7 +235,7 @@ losing an existing customisation in migration.
 
 ## Non-goals
 
-New roles, new modes, new typography fields, a theme gallery or marketplace,
+Roles beyond the named additive amendments, new modes, new typography fields, a theme gallery or marketplace,
 per-window themes, and any change to theme document format beyond carrying a
 variant, which it already does.
 
@@ -266,10 +267,11 @@ variant, which it already does.
   repainting on every accepted change.
 - **C5 — The colours card.** Titled for the theme on screen with its
   subtitle; Import, Export and Reset all in the header; a filtered, grouped,
-  scrolling list of 58 roles (the 60 less the two hunk-header roles the review
+  scrolling list of 60 roles (the 62 less the two hunk-header roles the review
   window has no surface for; owner amendments, 2026-09-24 and 2026-10-05,
   the second adding the twelve label tints as a fifth group, and the owner's
-  direction of 2026-10-06 adding the attention amber to Review states) with sticky
+  direction of 2026-10-06 adding the attention amber to Review states, and
+  RFC-BPR-0072 adding namespace and enum-member rows to Syntax) with sticky
   headers, swatch, name and value;
   a swatch opens the picker and previews live; edited rows show new and old;
   one bar with Cancel and Keep changes appears only while previewing; the
@@ -287,7 +289,7 @@ variant, which it already does.
 | C1 | Appearance host, store and profile with prior-schema fixtures | Migrate a stored light and a stored dark palette; commit on each variant and reopen; assert both survive, counts, and that the other variants render built-ins; export and import name the variant |
 | C2 | Composed Settings with the preview strip | Tile inventory and order; scroll and keyboard selection; pixel assertions on both halves of the System tiles against the built-in palettes; captions per resolution and customisation |
 | C3, C4 | Composed Settings and the shared painter | Row inventory and one-line geometry; popover on hover, focus and its accessible description; preview repaint after each accepted change with the expected glyph runs |
-| C5 | Composed Settings with the recording picker port | Title follows the variant on screen; list inventory equals 58 (47 before the 2026-09-24 amendment, 45 until the 2026-10-05 one, 57 until the 2026-10-06 direction); filter; picker preview and Keep changes through the existing commit; bar presence only while previewing |
+| C5 | Composed Settings with the recording picker port | Title follows the variant on screen; list inventory equals 60 (47 before the 2026-09-24 amendment, 45 until the 2026-10-05 one, 57 until the 2026-10-06 direction, 58 until RFC-BPR-0072); filter; picker preview and Keep changes through the existing commit; bar presence only while previewing |
 | C6 | Deterministic captures then attended review | Four appearances, four scales, three states; keyboard walk; VoiceOver; one attended candidate |
 
 ## Documentation impact

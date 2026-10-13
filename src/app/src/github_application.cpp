@@ -1001,6 +1001,7 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Recorded google/UIforETW#74",
 				};
+			case detail::github_public_path_fixture::cpp_identifiers_v1:
 			case detail::github_public_path_fixture::header_source_v1:
 			case detail::github_public_path_fixture::nested_folders_v1:
 				return {

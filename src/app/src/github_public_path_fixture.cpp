@@ -532,6 +532,26 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "conversations-v1/objects.pack" },
 				};
+			case github_public_path_fixture::cpp_identifiers_v1:
+				return {
+					.ContractDirectory   = "cpp-identifiers-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 72U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "cpp-identifiers",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "c587f5b879dc20b319b5de8fb75f512d493bf36b",
+					.HeadOneOid          = "7b0b05bac636051f80198ef1ad6c52aff0aedf36",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "cpp-identifiers-v1/objects.pack" },
+				};
 			case github_public_path_fixture::header_source_v1:
 				return {
 					.ContractDirectory   = "header-source-v1",
