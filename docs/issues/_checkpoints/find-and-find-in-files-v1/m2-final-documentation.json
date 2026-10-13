@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-final-documentation",
+  "outcome": "pass",
+  "revision": "5039466bd543241a2582b1047c81b5a357f182a0",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.965,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}

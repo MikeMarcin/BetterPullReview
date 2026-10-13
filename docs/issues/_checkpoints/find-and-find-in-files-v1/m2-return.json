@@ -64,15 +64,16 @@
     "diagnostics": [],
     "diagnostics_truncated": false
   },
-  "disposition": "continue-milestone",
-  "candidate_revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "disposition": "milestone-complete",
+  "candidate_revision": "5039466bd543241a2582b1047c81b5a357f182a0",
   "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
   "required_pending": [],
   "evidence_refs": [
     "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
     "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
     "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
-    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-final-documentation.json"
   ],
   "acceptance_records": [
     {
@@ -82,7 +83,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-final-documentation.json"
       ]
     },
     {
@@ -92,7 +94,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-final-documentation.json"
       ]
     },
     {
@@ -102,7 +105,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-final-documentation.json"
       ]
     },
     {
@@ -112,7 +116,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-final-documentation.json"
       ]
     },
     {
@@ -122,15 +127,16 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-final-documentation.json"
       ]
     }
   ],
   "continuation": {
-    "intent": "continue",
-    "next_milestone": "shared-matching",
-    "reason": "engineering-progress",
-    "detail": "All product exits verified at c88131c9d; final acceptance/board upkeep is in progress."
+    "intent": "fresh",
+    "next_milestone": "exact-pr-corpus",
+    "reason": "integrated-boundary",
+    "detail": "M2 BPR-1420 accepted at d7c8d61b422fe39662d60f3d703576364e414cb6; exact tested product c88131c9d0ca331da95eab1d701de718ef557f9e; tracker/ready successor revision 5039466bd543241a2582b1047c81b5a357f182a0. Fresh M3 owner claims Ready BPR-1421 after binding accepted M1/M2. AC01\u2013AC08 and retained broad-core failures remain pending. No corpus/UI/native/full-RFC acceptance inferred."
   },
-  "ownership": "active"
+  "ownership": "quiescent"
 }

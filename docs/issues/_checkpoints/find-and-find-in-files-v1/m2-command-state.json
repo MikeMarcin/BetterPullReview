@@ -1,20 +1,94 @@
 {
+  "schema": "bpr.find.command-state.v1",
   "milestone": "shared-matching",
-  "candidate": "c88131c9d0ca331da95eab1d701de718ef557f9e",
-  "writer": "M2 leaf; product work stopped, bookkeeping active",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "product_candidate": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "acceptance_commit": "d7c8d61b422fe39662d60f3d703576364e414cb6",
+  "handoff_parent_revision": "5039466bd543241a2582b1047c81b5a357f182a0",
+  "writer": "released; M2 product writer and all task-owned background commands quiescent",
   "active_commands": [],
   "background_descendants": [],
   "review_server": null,
   "protected_candidates": [],
   "completed": [
     "core-only build",
-    "six-case scoped integration",
-    "touched format/tidy 22",
-    "RE2 reference",
+    "exact-candidate six-case scoped integration",
+    "14-file format22 and nine-TU tidy22",
+    "RE2 reference 4891 spans",
     "Unicode regeneration/tamper refusal",
-    "CRLF mutation negative control",
-    "package notices",
-    "documentation gate and regressions"
+    "CRLF negative control",
+    "package notice regression (native Linux one skipped)",
+    "documentation gate and 67 regressions",
+    "board finish/ready successor and binding/check"
   ],
-  "cleanup": "Disposable mutant removed; task oracle/UCD/scripts pending cleanup before final handoff"
+  "command_refusals": [
+    {
+      "action": "ready successor move using alias ready",
+      "result": "guard refused unknown lane; no mutation; retried canonical 20-ready successfully"
+    }
+  ],
+  "cleanup": [
+    "Task-owned UCD/oracle directories and transient verification scripts removed",
+    "Disposable mutant source/object/executable and dependency file removed",
+    "Shared core-only build/CPM cache retained for successor"
+  ],
+  "changed_product_paths": [
+    "packaging/dependencies.json",
+    "packaging/package_runtime.py",
+    "scripts/generate_source_search_unicode.py",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/source_search_host.hpp",
+    "src/application/src/source_match_execution.cpp",
+    "src/application/src/source_search_host.cpp",
+    "src/core/CMakeLists.txt",
+    "src/core/include/bpr/core/source_matcher.hpp",
+    "src/core/include/bpr/core/source_search.hpp",
+    "src/core/src/source_match_compile.cpp",
+    "src/core/src/source_match_entry.cpp",
+    "src/core/src/source_match_scan.cpp",
+    "src/core/src/source_matcher_internal.hpp",
+    "src/core/src/source_path_filter.cpp",
+    "src/core/src/source_search.cpp",
+    "src/core/src/source_search_unicode_data.hpp",
+    "tests/application/source_search_host_tests.cpp",
+    "tests/core/CMakeLists.txt",
+    "tests/core/source_matcher_tests.cpp",
+    "tests/scripts/package_runtime_tests.py",
+    "tests/scripts/source_matcher_reference_tests.py",
+    "third_party/unicode/LICENSE.txt"
+  ],
+  "product_path_sha256": {
+    "packaging/dependencies.json": "2f077f9d4c20960c9f0f3238a8e3e4e9dc6c0191fd2bdf6d1a4858326c82a0ac",
+    "packaging/package_runtime.py": "6d9d8dacae69765a7333c8914a22dde5b6497a22715e44b77d7684a45565aeec",
+    "scripts/generate_source_search_unicode.py": "fc068c0d70acc03dd5e3c96ce74018fb7846b6fb40129a44a05724639a547d98",
+    "src/application/CMakeLists.txt": "7ba2cb09bad9a1755eaa81b3c96f00df5dc13fea49ceb3e0375ecdadbae73bb9",
+    "src/application/include/bpr/application/source_search_host.hpp": "f08702fd30d9410500b05ca2d61fa878df8aa0a67b5fc574b8a91da74318d03a",
+    "src/application/src/source_match_execution.cpp": "84d7de934375a0c6294b3ee8e9f61ef751ba2e50cc56f78065238bc595cc9ded",
+    "src/application/src/source_search_host.cpp": "4eb5dc7b1f5c28438b49053f0c101f4f2170ff2acc87b46011af7e889549ba86",
+    "src/core/CMakeLists.txt": "056da8156f9b5200984dce8ddf93935a77e2473471e727c6d64ff10458474c11",
+    "src/core/include/bpr/core/source_matcher.hpp": "b66377cc0bc06a71cc0a9d80d6f8bc09121317b9b57d229ed5dd6b37de10c9cf",
+    "src/core/include/bpr/core/source_search.hpp": "633dfc8e9e5a7bc5a0cfa28bce6d23154240be47087b0fa72ef029514de98ff3",
+    "src/core/src/source_match_compile.cpp": "104f79767772f6c1ae7b1a6c917e4f080dceca3e433175e0e6895f73bcd1e712",
+    "src/core/src/source_match_entry.cpp": "710562b7c6faf8b2634b2a20a77ff8a8c98e918546facde40a40946cf156044d",
+    "src/core/src/source_match_scan.cpp": "96139663cf55966ce64c59c8bd4625a7cafce119da641e29a3f659ab02ecf669",
+    "src/core/src/source_matcher_internal.hpp": "79e79a427851a8547248093f79cbdcb0b57f68909af8d606a36bbcbcf626fef6",
+    "src/core/src/source_path_filter.cpp": "6ab336480c5d3a12be8512c5b03204a5ae3667674ad0b609edd07a5fcdf34861",
+    "src/core/src/source_search.cpp": "0e8460a851186787d831da3e80b7e730db3ebccba79a6e4718d3dff3da70deca",
+    "src/core/src/source_search_unicode_data.hpp": "02e883d504ba39610f459ac96888d271e1f78ebd0336a186b489bde6d4b221c2",
+    "tests/application/source_search_host_tests.cpp": "78ad88d344fac0aca721459bb079c266c2ae0bd0ec550f2129081a1d63af8c09",
+    "tests/core/CMakeLists.txt": "fe750bc0c0217701c4b47311f251577f009f28004d757ffda5f398bd71f02b56",
+    "tests/core/source_matcher_tests.cpp": "4bd2eb0781c470102d531225c00d1b8be19d088156f6f926146b83974cd5983e",
+    "tests/scripts/package_runtime_tests.py": "bf72bf6d76d8058a8e8b39287b0ac7355d849e5de7cd49704b85cea78192a254",
+    "tests/scripts/source_matcher_reference_tests.py": "8c89630bae98ba0262a0a71578ab43dce6c7de8c5771c894fc4f39b033b8c6e4",
+    "third_party/unicode/LICENSE.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+  },
+  "main_source_or_tracker_writes": false,
+  "live_desktop_or_personal_app_data": false,
+  "remote_mutations_or_push": false,
+  "pending_obligations": [
+    "M3 exact retained epoch corpus/acquisition, aggregate memory, streaming/progress/priority",
+    "M4 pane/native UI/reveal and M5 PR composition/full AC01\u2013AC08 qualification",
+    "M1 broad-core format, fixture inventory and uncached dependency failures remain retained"
+  ],
+  "next_action": "Fresh M3 owner binds M1/M2 accepted and claims Ready BPR-1421"
 }
