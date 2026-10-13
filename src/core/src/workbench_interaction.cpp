@@ -748,6 +748,29 @@ namespace bpr::core {
 			&& aCursor.NextAvailable == (aCursor.Ordinal < aCursor.ChangeCount);
 	}
 
+	namespace {
+		[[nodiscard]] auto header_source_command(const workbench_interaction_state& aState) noexcept -> workbench_command_projection
+		{
+			auto reason = workbench_reason_code::none;
+			if (aState.Modality != workbench_modality::review) {
+				reason = workbench_reason_code::header_source_requires_review;
+			} else {
+				switch (aState.HeaderSource) {
+				case header_source_status::no_selection:          reason = workbench_reason_code::header_source_no_selection; break;
+				case header_source_status::unsupported_file:      reason = workbench_reason_code::header_source_unsupported_file; break;
+				case header_source_status::unavailable_catalogue: reason = workbench_reason_code::header_source_unavailable_catalogue; break;
+				case header_source_status::matched:
+				case header_source_status::no_match:
+				case header_source_status::ambiguous:             break;
+				}
+				if (reason == workbench_reason_code::none && (!aState.Navigation || !aState.Navigation->File)) {
+					reason = workbench_reason_code::header_source_no_selection;
+				}
+			}
+			return { .Id = workbench_command_id::go_to_header_source, .Enabled = reason == workbench_reason_code::none, .DisabledReason = reason };
+		}
+	}
+
 	auto project_workbench_commands(
 		const workbench_interaction_state& aState) noexcept
 		-> workbench_command_delta
@@ -779,6 +802,7 @@ namespace bpr::core {
 				line_numbers_command(aState, workbench_command_id::toggle_one_pane),
 				drawer_command(aState, workbench_command_id::toggle_updates_line),
 				drawers_command(aState),
+				header_source_command(aState),
 			},
 			.Policy = aState.NavigationPolicy,
 		};

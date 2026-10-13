@@ -2880,6 +2880,11 @@ namespace bpr::qt {
 		return Right;
 	}
 
+	void diff_workbench::focus_source()
+	{
+		(OnePaneEnabled ? Unified : Right)->setFocus(Qt::ShortcutFocusReason);
+	}
+
 	auto diff_workbench::detail_pane() const noexcept -> QPlainTextEdit*
 	{
 		return Detail;

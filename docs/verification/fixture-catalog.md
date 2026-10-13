@@ -1911,3 +1911,22 @@ cover semantic selection, collapsed support details, focus and accessibility
 in light, dark and high contrast. State-loss reconstruction uses a fresh host
 without a database or receipt; it is not an actual uninstall or power-loss test.
 The [criterion ledger](RFC-BPR-0022.md) records exact producing candidates.
+
+## Header/source navigation course (RFC-BPR-0074)
+
+`header-source-v1` is a synthetic 16-file PR with cross-folder pairs, exact-folder
+priority, closest trailing directories, equal-best ambiguity, unmatched source
+and header files, an unsupported Markdown file and an added header absent from
+its base. `scripts/build_header_source_fixture.py` writes the construction;
+`build_recorded_pull_request_contract.py` and `build_recorded_pull_request_pack.py`
+write the committed contract and Git objects. No source is executed or remote data
+read. The base is `71dc98a8939742f51fa98dd44936ba727c3e5796` and the head is
+`24537f5b9f51511d4ee94c420192f04a972e7548`.
+
+`application_header_source_navigation` drives the real View QAction and window-system
+Option/Alt+O through the installed-Git/cache actor and full rendered window. Its
+older base/base tab reads base blobs and reports the added header absent from both
+versions. `application_header_source_navigation_large` runs 100 real no-match
+commands against the existing 515-file large-review fixture. These offscreen
+courses establish deterministic composition and input routing, with no claim of
+native device or system-appearance acceptance.

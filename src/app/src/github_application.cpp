@@ -1001,6 +1001,7 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Recorded google/UIforETW#74",
 				};
+			case detail::github_public_path_fixture::header_source_v1:
 			case detail::github_public_path_fixture::nested_folders_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -7215,6 +7216,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				nullptr,
 				aConfig.DifCatalog);
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
+			Window->set_header_source_dispatch([this] { dispatch_header_source(); });
 			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
 				if (!Closing && TourHost && current(DraftWindow)) {
 					aCommand.Attention = current_tour_attention();
@@ -8934,6 +8936,56 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			DeviceHost->open_verification_address();
+		}
+
+		/// \brief Resolves once, then commits only in the exact originating review context.
+		void dispatch_header_source()
+		{
+			if (Closing || !WorkbenchHost || !EpochHost || !TabHost || !LastAcceptedHandoff
+				|| Window->showing_home() || WorkbenchHost->state().Modality != core::workbench_modality::review) {
+				return;
+			}
+			const auto commands = core::project_workbench_commands(WorkbenchHost->state());
+			if (!commands.Commands[static_cast<std::size_t>(core::workbench_command_id::go_to_header_source)].Enabled) {
+				return;
+			}
+			const auto result = WorkbenchHost->header_source_target();
+			if (result.Status != core::header_source_status::matched || !result.File) {
+				Window->present_header_source_result(result);
+				return;
+			}
+			const auto  generation    = WorkbenchHost->generation();
+			const auto  selected      = WorkbenchHost->selected();
+			const auto  sourceRequest = SelectedDiffRequest;
+			const auto  authority     = workbench_authority(*LastAcceptedHandoff);
+			const auto  active        = TabHost->state().Active;
+			const auto* tab           = active ? core::find_tab(TabHost->state(), *active) : nullptr;
+			const auto  view          = tab != nullptr ? std::optional{ tab->View } : std::nullopt;
+			const auto  comparison    = EpochHost->state().AcceptedComparison;
+			// A tab still restoring its pair cannot lend the visible newer pair to
+			// this command. Once ready, the ordinary selection lane keeps its pair.
+			if (!comparison || EpochHost->state().PendingComparison || (view && view->Comparison != *comparison)) {
+				return;
+			}
+			DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }, result, generation, selected, sourceRequest, authority, active, view, comparison] {
+				if (weak.expired() || Closing || !current(DraftWindow) || !LastAcceptedHandoff
+					|| workbench_authority(*LastAcceptedHandoff) != authority
+					|| WorkbenchHost->generation() != generation || WorkbenchHost->selected() != selected
+					|| SelectedDiffRequest != sourceRequest
+					|| WorkbenchHost->state().Modality != core::workbench_modality::review || Window->showing_home()
+					|| TabHost->state().Active != active || EpochHost->state().PendingComparison
+					|| Window->document_tabs()->tab_at(Window->document_tabs()->tab_bar()->currentIndex()) != active
+					|| EpochHost->state().AcceptedComparison != comparison || !WorkbenchHost->contains_file(*result.File)) {
+					return;
+				}
+				const auto* now = active ? core::find_tab(TabHost->state(), *active) : nullptr;
+				if ((now != nullptr) != view.has_value()
+					|| (now != nullptr && (now->View.File != view->File || now->View.Comparison != view->Comparison))) {
+					return;
+				}
+				dispatch_workbench_intent(core::select_workbench_file_intent{ *result.File });
+				Window->present_header_source_result(result);
+			});
 		}
 
 		void dispatch_workbench_intent(

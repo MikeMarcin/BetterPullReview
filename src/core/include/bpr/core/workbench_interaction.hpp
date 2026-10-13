@@ -3,6 +3,7 @@
 
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "bpr/core/header_source_navigation.hpp"
 
 #include <array>
 #include <compare>
@@ -88,6 +89,10 @@ namespace bpr::core {
 		/// [[BPR-1293]] [[BPR-1341]]. Threads is a page that finds a thread;
 		/// its drawers are hidden, so hiding and showing them is not offered.
 		threads_finds_a_thread,
+		header_source_requires_review,
+		header_source_no_selection,
+		header_source_unsupported_file,
+		header_source_unavailable_catalogue,
 	};
 
 	/// \brief The review modality the window has chosen.
@@ -355,9 +360,10 @@ namespace bpr::core {
 		toggle_updates_line,
 		/// [[BPR-1295]]. Hide or show every drawer; offered in Review only.
 		toggle_drawers,
+		go_to_header_source,
 	};
 
-	inline constexpr std::size_t workbench_command_count = 11U;
+	inline constexpr std::size_t workbench_command_count = 12U;
 
 	/// \brief Describes the workbench command projection record.
 	///
@@ -512,6 +518,8 @@ namespace bpr::core {
 		/// [[BPR-1295]]. Whether Review has been entered in this window; until
 		/// it has, entering it applies its preset.
 		bool ReviewEntered = false;
+		/// \brief Bounded host observation of catalogue/selected-path availability; no candidate list.
+		header_source_status HeaderSource = header_source_status::no_selection;
 
 		auto operator<=>(const workbench_interaction_state&) const = default;
 	};

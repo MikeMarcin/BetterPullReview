@@ -1,0 +1,92 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_header-source",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "src/widget.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/widget.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/a/b/c/closest.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/project/a/b/c/closest.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/a/b/d/closest.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/local/pair.cc",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/local/pair.HPP",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/local/pair.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/tie/ambiguous.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/one/ambiguous.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/two/ambiguous.hpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/lonely.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/alone.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "README.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/missing.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "inc/missing.h",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/header-source:74:files",
+						"hasNextPage": false
+					},
+					"totalCount": 16
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_74",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

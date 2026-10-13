@@ -532,6 +532,26 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "conversations-v1/objects.pack" },
 				};
+			case github_public_path_fixture::header_source_v1:
+				return {
+					.ContractDirectory   = "header-source-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 74U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "header-source",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "71dc98a8939742f51fa98dd44936ba727c3e5796",
+					.HeadOneOid          = "24537f5b9f51511d4ee94c420192f04a972e7548",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "header-source-v1/objects.pack" },
+				};
 			case github_public_path_fixture::nested_folders_v1:
 				return {
 					.ContractDirectory   = "nested-folders-v1",

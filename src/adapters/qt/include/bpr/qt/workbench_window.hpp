@@ -901,6 +901,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto file_position_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto previous_file_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_file_action() const noexcept -> QAction*;
+		/// \brief The review window's single View > Go to header/source command.
+		[[nodiscard]] auto header_source_action() const noexcept -> QAction*;
+		void               set_header_source_dispatch(std::function<void()> aDispatch);
+		/// \brief Presents one command result, announcing no-op reasons or focusing the source.
+		void               present_header_source_result(core::header_source_resolution aResult);
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto seen_action() const noexcept -> QAction*;
@@ -1622,6 +1627,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto presented_repositories_state() const -> core::workbench_drawer_state;
 		void               apply_focus_order();
 		void               update_action_state();
+		void               update_header_source_action();
 		void               build_menu_bar();
 		void               dispatch_line_numbers_toggle();
 		/// [[BPR-1334]]. View > Line Details: dispatches the profile's
@@ -1948,6 +1954,8 @@ namespace bpr::qt {
 		QAction*                                  ZoomOutAction    = nullptr;
 		QAction*                                  ActualSizeAction = nullptr;
 		std::function<void(core::code_zoom_step)> CodeZoomDispatch;
+		std::function<void()>                     HeaderSourceDispatch;
+		QAction*                                  HeaderSourceAction = nullptr;
 		std::optional<core::code_font_settings>   CodeZoom;
 		void                                      dispatch_code_zoom(core::code_zoom_step aStep);
 		void                                      apply_code_zoom();

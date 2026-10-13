@@ -1967,7 +1967,14 @@ namespace bpr::application {
 			if (PublishedUpdatesLine != updatesLine) {
 				projection.UpdatesLine = updatesLine;
 			}
-			const auto commands = core::project_workbench_commands(State);
+			// Availability observes only the selected accepted path. Candidate lookup
+			// stays in the explicit gesture, never in projection publication.
+			const auto* counterpartSelection = selected_file();
+			State.HeaderSource               = !CatalogueAvailable                                                                ? core::header_source_status::unavailable_catalogue
+				: counterpartSelection == nullptr                                                                                 ? core::header_source_status::no_selection
+				: core::classify_header_source_path(header_source_repository_path(counterpartSelection->CurrentPath)).has_value() ? core::header_source_status::matched
+																																  : core::header_source_status::unsupported_file;
+			const auto commands              = core::project_workbench_commands(State);
 			if (PublishedCommands != commands) {
 				projection.Commands = commands;
 			}

@@ -40,7 +40,29 @@ order keep the same complete catalogue. Accepted catalogue refresh rebuilds the
 index once. Ordinary exact selection can load a withheld entry through the
 existing selected-diff path without changing the actionable order or receipt.
 
-The first milestone provides and verifies this core/host boundary. The native
-View command, keyboard translation, active-tab context, focus/status presentation
-and composed split/unified acceptance are the second milestone, tracked by
-[BPR-1416](../issues/30-in-progress/BPR-1416-composed-header-source-command.md).
+The host supplies one bounded `HeaderSource` availability observation to core's
+workbench state. Core projects `go_to_header_source` legality with distinct
+no-selection, unsupported-path, unavailable-catalogue and inactive-modality
+reasons. Publishing availability reuses the retained selected entry; it neither
+runs counterpart lookup nor adds a catalogue scan or selected-file index query.
+
+Qt presents one View action and window shortcut, with no toolbar or setting.
+The native menu equivalent is disabled while an editable field or composer has
+focus. Successful navigation focuses the visible split or unified source editor;
+no-match and ambiguity announce polite nonmodal status. Application focus ingress
+is disconnected before window children destruct, including child settings windows
+whose teardown changes focus after the actions have gone.
+
+Composition resolves synchronously on the decision lane, then queues an exact
+open bound to the window lifetime/context, accepted PR authority, catalogue
+generation, active tab, file, selected-diff request and comparison. It revalidates
+all identities and membership before dispatching the existing exact-file intent.
+A changed tab's pending visible selection also rejects the old gesture. Ordinary
+reading-line observations do not change this context. The existing file lane
+replaces the active tab and retains its comparison, including an earlier pair;
+sibling views are untouched. Ordinary selected-diff admission rejects late results
+and reports targets absent from the retained comparison without newer fallback.
+
+The [BPR-1416 closeout](../issues/30-in-progress/BPR-1416-composed-header-source-command.md)
+and [verification ledger](../verification/RFC-BPR-0074.md) bind the composed command,
+physical-key, render and indexed-work evidence to the implemented candidate.

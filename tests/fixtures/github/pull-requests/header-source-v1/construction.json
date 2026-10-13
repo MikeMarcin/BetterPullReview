@@ -1,0 +1,218 @@
+{
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "Update header and source counterparts",
+			"parents": [
+				"71dc98a8939742f51fa98dd44936ba727c3e5796"
+			],
+			"sha": "24537f5b9f51511d4ee94c420192f04a972e7548"
+		}
+	],
+	"constructed": "Synthetic BPR-1416 header/source course; no recording or remote data",
+	"files": [
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL3dpZGdldC5jcHAKaW50IHZhbHVlID0gMTsK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/widget.cpp",
+			"head_content_base64": "Ly8gc3JjL3dpZGdldC5jcHAKaW50IHZhbHVlID0gMjsK",
+			"patch": "@@ -1,2 +1,2 @@\n // src/widget.cpp\n-int value = 1;\n+int value = 2;",
+			"sha": "990260a0bd7e36c064c7b7e1f4f776d1da24eb94",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL3dpZGdldC5oCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/widget.h",
+			"head_content_base64": "Ly8gaW5jL3dpZGdldC5oCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/widget.h\n-int value = 1;\n+int value = 2;",
+			"sha": "24e447091e3dac70298f2e85babcfa3afe681bcd",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL2EvYi9jL2Nsb3Nlc3QuY3BwCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/a/b/c/closest.cpp",
+			"head_content_base64": "Ly8gc3JjL2EvYi9jL2Nsb3Nlc3QuY3BwCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // src/a/b/c/closest.cpp\n-int value = 1;\n+int value = 2;",
+			"sha": "48fb9294b091b0aae79d8c805accbf22e9f56494",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL3Byb2plY3QvYS9iL2MvY2xvc2VzdC5oCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/project/a/b/c/closest.h",
+			"head_content_base64": "Ly8gaW5jL3Byb2plY3QvYS9iL2MvY2xvc2VzdC5oCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/project/a/b/c/closest.h\n-int value = 1;\n+int value = 2;",
+			"sha": "61dfd92628b2704fe86c523cca3f20b6f39abe3e",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL2EvYi9kL2Nsb3Nlc3QuaAppbnQgdmFsdWUgPSAxOwo=",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/a/b/d/closest.h",
+			"head_content_base64": "Ly8gaW5jL2EvYi9kL2Nsb3Nlc3QuaAppbnQgdmFsdWUgPSAyOwo=",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/a/b/d/closest.h\n-int value = 1;\n+int value = 2;",
+			"sha": "282ddd287b1629d6acb537bfa23a1c8867da5b49",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL2xvY2FsL3BhaXIuY2MKaW50IHZhbHVlID0gMTsK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/local/pair.cc",
+			"head_content_base64": "Ly8gc3JjL2xvY2FsL3BhaXIuY2MKaW50IHZhbHVlID0gMjsK",
+			"patch": "@@ -1,2 +1,2 @@\n // src/local/pair.cc\n-int value = 1;\n+int value = 2;",
+			"sha": "4441c78ce207a3473294df73d0a11331b5ee3998",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL2xvY2FsL3BhaXIuSFBQCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/local/pair.HPP",
+			"head_content_base64": "Ly8gc3JjL2xvY2FsL3BhaXIuSFBQCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // src/local/pair.HPP\n-int value = 1;\n+int value = 2;",
+			"sha": "baeb8399b15b1655f51cfb3e82bc7dc7eb4b633d",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL2xvY2FsL3BhaXIuaAppbnQgdmFsdWUgPSAxOwo=",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/local/pair.h",
+			"head_content_base64": "Ly8gaW5jL2xvY2FsL3BhaXIuaAppbnQgdmFsdWUgPSAyOwo=",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/local/pair.h\n-int value = 1;\n+int value = 2;",
+			"sha": "d4cde7db244f2bd37a276f869443941da2eefbde",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL3RpZS9hbWJpZ3VvdXMuY3BwCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/tie/ambiguous.cpp",
+			"head_content_base64": "Ly8gc3JjL3RpZS9hbWJpZ3VvdXMuY3BwCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // src/tie/ambiguous.cpp\n-int value = 1;\n+int value = 2;",
+			"sha": "cf05ac09e5391d5da5e52087c1a108eaf9f8eafe",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL29uZS9hbWJpZ3VvdXMuaAppbnQgdmFsdWUgPSAxOwo=",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/one/ambiguous.h",
+			"head_content_base64": "Ly8gaW5jL29uZS9hbWJpZ3VvdXMuaAppbnQgdmFsdWUgPSAyOwo=",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/one/ambiguous.h\n-int value = 1;\n+int value = 2;",
+			"sha": "d4cfc738e4b8cd3176d41a617de7a5506dd1df90",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL3R3by9hbWJpZ3VvdXMuaHBwCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/two/ambiguous.hpp",
+			"head_content_base64": "Ly8gaW5jL3R3by9hbWJpZ3VvdXMuaHBwCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/two/ambiguous.hpp\n-int value = 1;\n+int value = 2;",
+			"sha": "79faee9a320a021b1150657fbbc56bacc288d34c",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL2xvbmVseS5jcHAKaW50IHZhbHVlID0gMTsK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/lonely.cpp",
+			"head_content_base64": "Ly8gc3JjL2xvbmVseS5jcHAKaW50IHZhbHVlID0gMjsK",
+			"patch": "@@ -1,2 +1,2 @@\n // src/lonely.cpp\n-int value = 1;\n+int value = 2;",
+			"sha": "ec041bec4ee4898648fbb07a27f26400b2644e83",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gaW5jL2Fsb25lLmgKaW50IHZhbHVlID0gMTsK",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "inc/alone.h",
+			"head_content_base64": "Ly8gaW5jL2Fsb25lLmgKaW50IHZhbHVlID0gMjsK",
+			"patch": "@@ -1,2 +1,2 @@\n // inc/alone.h\n-int value = 1;\n+int value = 2;",
+			"sha": "19e61a6c79fa9278765b59d6d4619fae5194fbdb",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gUkVBRE1FLm1kCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "README.md",
+			"head_content_base64": "Ly8gUkVBRE1FLm1kCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // README.md\n-int value = 1;\n+int value = 2;",
+			"sha": "d620f2808cad4a7589e378a4fe32b26854a196bc",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "Ly8gc3JjL21pc3NpbmcuY3BwCmludCB2YWx1ZSA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "src/missing.cpp",
+			"head_content_base64": "Ly8gc3JjL21pc3NpbmcuY3BwCmludCB2YWx1ZSA9IDI7Cg==",
+			"patch": "@@ -1,2 +1,2 @@\n // src/missing.cpp\n-int value = 1;\n+int value = 2;",
+			"sha": "9abfeb95a1a1cbd4b50767fa86044a205c685651",
+			"status": "modified"
+		},
+		{
+			"additions": 2,
+			"changes": 2,
+			"deletions": 0,
+			"filename": "inc/missing.h",
+			"head_content_base64": "Ly8gaW5jL21pc3NpbmcuaAppbnQgdmFsdWUgPSAyOwo=",
+			"patch": "@@ -0,0 +1,2 @@\n+// inc/missing.h\n+int value = 2;",
+			"sha": "cabacb9ac720068af2c53e0bda060360d4b772dc",
+			"status": "added"
+		}
+	],
+	"pull_request": {
+		"additions": 17,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "main",
+			"sha": "71dc98a8939742f51fa98dd44936ba727c3e5796"
+		},
+		"body": "Constructed cross-folder, closest-directory and ambiguous pairs.\n",
+		"changed_files": 16,
+		"commits": 1,
+		"deletions": 15,
+		"head": {
+			"ref": "header-source",
+			"sha": "24537f5b9f51511d4ee94c420192f04a972e7548"
+		},
+		"number": 74,
+		"state": "open",
+		"title": "Update header and source counterparts"
+	},
+	"repository": {
+		"name": "header-source",
+		"owner": "bpr-fixtures"
+	}
+}

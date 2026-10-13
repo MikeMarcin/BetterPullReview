@@ -116,6 +116,12 @@ namespace bpr::qt {
 		ViewMenu->setAccessibleName(QStringLiteral("View"));
 		ViewMenu->setAccessibleDescription(
 			QStringLiteral("Presentation options for the comparison surface, unavailable while no window is open"));
+		auto* const counterpart = ViewMenu->addAction(QStringLiteral("Go to header/source"));
+		counterpart->setObjectName(QStringLiteral("desktopGoToHeaderSourceAction"));
+		counterpart->setShortcut(QKeySequence{ QStringLiteral("Alt+O") });
+		counterpart->setStatusTip(QStringLiteral("Open a review window to go to a matching header or source file."));
+		counterpart->setEnabled(false);
+		ViewMenu->addSeparator();
 		auto* const lineNumbers = ViewMenu->addAction(QStringLiteral("&Line numbers"));
 		lineNumbers->setObjectName(QStringLiteral("desktopToggleLineNumbersAction"));
 		lineNumbers->setCheckable(true);

@@ -363,6 +363,8 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
+		/// \brief Focuses the visible source editor in split or unified presentation.
+		void               focus_source();
 		[[nodiscard]] auto detail_pane() const noexcept -> QPlainTextEdit*;
 		/// \brief [[BPR-1334]]. Line details, the strip under the comparison;
 		/// the same widget as `detail_pane`.

@@ -1,0 +1,146 @@
+[
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/widget.cpp",
+		"patch": "@@ -1,2 +1,2 @@\n // src/widget.cpp\n-int value = 1;\n+int value = 2;",
+		"sha": "990260a0bd7e36c064c7b7e1f4f776d1da24eb94",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/widget.h",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/widget.h\n-int value = 1;\n+int value = 2;",
+		"sha": "24e447091e3dac70298f2e85babcfa3afe681bcd",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/a/b/c/closest.cpp",
+		"patch": "@@ -1,2 +1,2 @@\n // src/a/b/c/closest.cpp\n-int value = 1;\n+int value = 2;",
+		"sha": "48fb9294b091b0aae79d8c805accbf22e9f56494",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/project/a/b/c/closest.h",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/project/a/b/c/closest.h\n-int value = 1;\n+int value = 2;",
+		"sha": "61dfd92628b2704fe86c523cca3f20b6f39abe3e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/a/b/d/closest.h",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/a/b/d/closest.h\n-int value = 1;\n+int value = 2;",
+		"sha": "282ddd287b1629d6acb537bfa23a1c8867da5b49",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/local/pair.cc",
+		"patch": "@@ -1,2 +1,2 @@\n // src/local/pair.cc\n-int value = 1;\n+int value = 2;",
+		"sha": "4441c78ce207a3473294df73d0a11331b5ee3998",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/local/pair.HPP",
+		"patch": "@@ -1,2 +1,2 @@\n // src/local/pair.HPP\n-int value = 1;\n+int value = 2;",
+		"sha": "baeb8399b15b1655f51cfb3e82bc7dc7eb4b633d",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/local/pair.h",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/local/pair.h\n-int value = 1;\n+int value = 2;",
+		"sha": "d4cde7db244f2bd37a276f869443941da2eefbde",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/tie/ambiguous.cpp",
+		"patch": "@@ -1,2 +1,2 @@\n // src/tie/ambiguous.cpp\n-int value = 1;\n+int value = 2;",
+		"sha": "cf05ac09e5391d5da5e52087c1a108eaf9f8eafe",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/one/ambiguous.h",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/one/ambiguous.h\n-int value = 1;\n+int value = 2;",
+		"sha": "d4cfc738e4b8cd3176d41a617de7a5506dd1df90",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/two/ambiguous.hpp",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/two/ambiguous.hpp\n-int value = 1;\n+int value = 2;",
+		"sha": "79faee9a320a021b1150657fbbc56bacc288d34c",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/lonely.cpp",
+		"patch": "@@ -1,2 +1,2 @@\n // src/lonely.cpp\n-int value = 1;\n+int value = 2;",
+		"sha": "ec041bec4ee4898648fbb07a27f26400b2644e83",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "inc/alone.h",
+		"patch": "@@ -1,2 +1,2 @@\n // inc/alone.h\n-int value = 1;\n+int value = 2;",
+		"sha": "19e61a6c79fa9278765b59d6d4619fae5194fbdb",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "README.md",
+		"patch": "@@ -1,2 +1,2 @@\n // README.md\n-int value = 1;\n+int value = 2;",
+		"sha": "d620f2808cad4a7589e378a4fe32b26854a196bc",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/missing.cpp",
+		"patch": "@@ -1,2 +1,2 @@\n // src/missing.cpp\n-int value = 1;\n+int value = 2;",
+		"sha": "9abfeb95a1a1cbd4b50767fa86044a205c685651",
+		"status": "modified"
+	},
+	{
+		"additions": 2,
+		"changes": 2,
+		"deletions": 0,
+		"filename": "inc/missing.h",
+		"patch": "@@ -0,0 +1,2 @@\n+// inc/missing.h\n+int value = 2;",
+		"sha": "cabacb9ac720068af2c53e0bda060360d4b772dc",
+		"status": "added"
+	}
+]
