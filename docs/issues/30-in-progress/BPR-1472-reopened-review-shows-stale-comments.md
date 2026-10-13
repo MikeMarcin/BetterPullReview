@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1472"
 title: "Reopening a pull request from Recently viewed shows comments published since"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
