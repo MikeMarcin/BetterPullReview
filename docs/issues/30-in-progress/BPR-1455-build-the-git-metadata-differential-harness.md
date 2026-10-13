@@ -25,4 +25,7 @@ readers from [[BPR-1454]].
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done on `9a8cde4f5` (macOS, Git 2.50.1); evidence in the
+[verification ledger](../../verification/RFC-BPR-0083.md#bpr-1455-and-bpr-1456-the-differential-harness-and-canary-course).
+L joins the same harness when the evaluation-only `bpr_libgit2_candidate`
+target exists ([[BPR-1458]]). Windows and Linux runs are [[BPR-1462]] and [[BPR-1463]].
