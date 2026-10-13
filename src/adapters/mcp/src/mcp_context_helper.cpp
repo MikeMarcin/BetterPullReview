@@ -4,7 +4,10 @@
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/json_preflight.hpp"
 #include "bpr/core/utf8.hpp"
+
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <charconv>
@@ -74,356 +77,57 @@ namespace bpr::adapters::mcp {
 			return nullptr;
 		}
 
-		/// \brief Decodes one bounded JSON document with no external library.
-		class json_reader final
+		/// \brief Copies a glaze value into the helper's own node shape.
+		[[nodiscard]] auto to_node(const glz::generic& aValue) -> json_node
 		{
-		public:
-			explicit json_reader(const std::string_view aText) noexcept
-				: Text{ aText }
-			{
-			}
-
-			[[nodiscard]] auto parse() -> std::optional<json_node>
-			{
-				skip_whitespace();
-				auto value = parse_value(0U);
-				if (!value) {
-					return std::nullopt;
+			auto node = json_node{ };
+			if (aValue.is_boolean()) {
+				node.Kind    = json_node::kind::boolean;
+				node.Boolean = aValue.get<bool>();
+			} else if (aValue.is_number()) {
+				node.Kind   = json_node::kind::number;
+				node.Number = aValue.get<double>();
+			} else if (aValue.is_string()) {
+				node.Kind = json_node::kind::string;
+				node.Text = aValue.get<std::string>();
+			} else if (aValue.is_array()) {
+				node.Kind = json_node::kind::array;
+				for (const auto& item : aValue.get_array()) {
+					node.Array.push_back(to_node(item));
 				}
-				skip_whitespace();
-				if (Index != Text.size()) {
-					return std::nullopt;
-				}
-				return value;
-			}
-
-		private:
-			void skip_whitespace() noexcept
-			{
-				while (Index < Text.size()) {
-					const auto character = Text[Index];
-					if (character != ' ' && character != '\t' && character != '\n'
-						&& character != '\r') {
-						return;
-					}
-					++Index;
+			} else if (aValue.is_object()) {
+				node.Kind = json_node::kind::object;
+				for (const auto& [name, value] : aValue.get_object()) {
+					node.Object.push_back({ .Name = name, .Value = to_node(value) });
 				}
 			}
-
-			[[nodiscard]] auto peek() const noexcept -> char
-			{
-				return Index < Text.size() ? Text[Index] : '\0';
-			}
-
-			[[nodiscard]] auto consume(const std::string_view aLiteral) noexcept
-				-> bool
-			{
-				if (Text.substr(Index).starts_with(aLiteral)) {
-					Index += aLiteral.size();
-					return true;
-				}
-				return false;
-			}
-
-			[[nodiscard]] auto parse_value(const std::size_t aDepth)
-				-> std::optional<json_node>
-			{
-				if (aDepth > maximum_mcp_json_depth) {
-					return std::nullopt;
-				}
-				skip_whitespace();
-				switch (peek()) {
-				case 'n':
-					return consume("null") ? std::optional{ json_node{ } }
-										   : std::nullopt;
-				case 't':
-					return consume("true")
-						? std::optional{ json_node{
-							  .Kind    = json_node::kind::boolean,
-							  .Boolean = true } }
-						: std::nullopt;
-				case 'f':
-					return consume("false")
-						? std::optional{ json_node{
-							  .Kind    = json_node::kind::boolean,
-							  .Boolean = false } }
-						: std::nullopt;
-				case '"':
-					return parse_string_value();
-				case '[':
-					return parse_array(aDepth);
-				case '{':
-					return parse_object(aDepth);
-				default:
-					return parse_number();
-				}
-			}
-
-			[[nodiscard]] auto parse_string_value() -> std::optional<json_node>
-			{
-				auto text = parse_string();
-				if (!text) {
-					return std::nullopt;
-				}
-				return json_node{
-					.Kind = json_node::kind::string,
-					.Text = std::move(*text),
-				};
-			}
-
-			[[nodiscard]] auto parse_hex_quad() -> std::optional<std::uint32_t>
-			{
-				if (Index + 4U > Text.size()) {
-					return std::nullopt;
-				}
-				auto value = std::uint32_t{ 0U };
-				for (auto position = std::size_t{ 0U }; position < 4U; ++position) {
-					const auto character = Text[Index + position];
-					auto       digit     = std::uint32_t{ 0U };
-					if (character >= '0' && character <= '9') {
-						digit = static_cast<std::uint32_t>(character - '0');
-					} else if (character >= 'a' && character <= 'f') {
-						digit = static_cast<std::uint32_t>(character - 'a') + 10U;
-					} else if (character >= 'A' && character <= 'F') {
-						digit = static_cast<std::uint32_t>(character - 'A') + 10U;
-					} else {
-						return std::nullopt;
-					}
-					value = (value << 4U) | digit;
-				}
-				Index += 4U;
-				return value;
-			}
-
-			/// \brief Appends a scalar value; false for a lone surrogate, which
-			/// has no UTF-8 encoding ([[BPR-1434]]: the shared core encoder).
-			[[nodiscard]] static auto append_code_point(std::string& aOutput, const std::uint32_t aCodePoint) -> bool
-			{
-				return core::utf8::append(aOutput, static_cast<char32_t>(aCodePoint));
-			}
-
-			[[nodiscard]] auto parse_string() -> std::optional<std::string>
-			{
-				if (peek() != '"') {
-					return std::nullopt;
-				}
-				++Index;
-				auto output = std::string{ };
-				while (Index < Text.size()) {
-					const auto character = Text[Index];
-					++Index;
-					if (character == '"') {
-						return output;
-					}
-					if (character != '\\') {
-						output.push_back(character);
-						continue;
-					}
-					if (Index >= Text.size()) {
-						return std::nullopt;
-					}
-					const auto escape = Text[Index];
-					++Index;
-					switch (escape) {
-					case '"':
-						output.push_back('"');
-						break;
-					case '\\':
-						output.push_back('\\');
-						break;
-					case '/':
-						output.push_back('/');
-						break;
-					case 'b':
-						output.push_back('\b');
-						break;
-					case 'f':
-						output.push_back('\f');
-						break;
-					case 'n':
-						output.push_back('\n');
-						break;
-					case 'r':
-						output.push_back('\r');
-						break;
-					case 't':
-						output.push_back('\t');
-						break;
-					case 'u': {
-						const auto high = parse_hex_quad();
-						if (!high) {
-							return std::nullopt;
-						}
-						auto codePoint = *high;
-						if (codePoint >= 0xD800U && codePoint <= 0xDBFFU) {
-							if (!consume("\\u")) {
-								return std::nullopt;
-							}
-							const auto low = parse_hex_quad();
-							if (!low || *low < 0xDC00U || *low > 0xDFFFU) {
-								return std::nullopt;
-							}
-							codePoint = 0x10000U
-								+ ((codePoint - 0xD800U) << 10U)
-								+ (*low - 0xDC00U);
-						}
-						if (!append_code_point(output, codePoint)) {
-							return std::nullopt;
-						}
-						break;
-					}
-					default:
-						return std::nullopt;
-					}
-				}
-				return std::nullopt;
-			}
-
-			[[nodiscard]] auto parse_number() -> std::optional<json_node>
-			{
-				const auto begin = Index;
-				if (peek() == '-') {
-					++Index;
-				}
-				while (Index < Text.size()
-					   && ((Text[Index] >= '0' && Text[Index] <= '9')
-						   || Text[Index] == '.' || Text[Index] == 'e'
-						   || Text[Index] == 'E' || Text[Index] == '+'
-						   || Text[Index] == '-')) {
-					++Index;
-				}
-				if (Index == begin) {
-					return std::nullopt;
-				}
-				const auto token = std::string{ Text.substr(begin, Index - begin) };
-				auto       value = 0.0;
-				try {
-					std::size_t consumed = 0U;
-					value                = std::stod(token, &consumed);
-					if (consumed != token.size()) {
-						return std::nullopt;
-					}
-				} catch (...) {
-					return std::nullopt;
-				}
-				return json_node{
-					.Kind   = json_node::kind::number,
-					.Number = value,
-				};
-			}
-
-			[[nodiscard]] auto parse_array(const std::size_t aDepth)
-				-> std::optional<json_node>
-			{
-				++Index;
-				auto node = json_node{ .Kind = json_node::kind::array };
-				skip_whitespace();
-				if (peek() == ']') {
-					++Index;
-					return node;
-				}
-				while (true) {
-					auto element = parse_value(aDepth + 1U);
-					if (!element) {
-						return std::nullopt;
-					}
-					node.Array.push_back(std::move(*element));
-					skip_whitespace();
-					if (peek() == ',') {
-						++Index;
-						continue;
-					}
-					if (peek() == ']') {
-						++Index;
-						return node;
-					}
-					return std::nullopt;
-				}
-			}
-
-			[[nodiscard]] auto parse_object(const std::size_t aDepth)
-				-> std::optional<json_node>
-			{
-				++Index;
-				auto node = json_node{ .Kind = json_node::kind::object };
-				skip_whitespace();
-				if (peek() == '}') {
-					++Index;
-					return node;
-				}
-				while (true) {
-					skip_whitespace();
-					auto key = parse_string();
-					if (!key) {
-						return std::nullopt;
-					}
-					skip_whitespace();
-					if (peek() != ':') {
-						return std::nullopt;
-					}
-					++Index;
-					auto value = parse_value(aDepth + 1U);
-					if (!value) {
-						return std::nullopt;
-					}
-					node.Object.push_back(json_member{ .Name = std::move(*key), .Value = std::move(*value) });
-					skip_whitespace();
-					if (peek() == ',') {
-						++Index;
-						continue;
-					}
-					if (peek() == '}') {
-						++Index;
-						return node;
-					}
-					return std::nullopt;
-				}
-			}
-
-			std::string_view Text;
-			std::size_t      Index = 0U;
-		};
-
-		[[nodiscard]] auto json_escape(const std::string_view aValue) -> std::string
-		{
-			constexpr std::string_view hex    = "0123456789abcdef";
-			auto                       output = std::string{ };
-			output.reserve(aValue.size() + 2U);
-			for (const auto character : aValue) {
-				const auto byte = static_cast<unsigned char>(character);
-				switch (character) {
-				case '"':
-					output += "\\\"";
-					break;
-				case '\\':
-					output += "\\\\";
-					break;
-				case '\n':
-					output += "\\n";
-					break;
-				case '\r':
-					output += "\\r";
-					break;
-				case '\t':
-					output += "\\t";
-					break;
-				default:
-					if (byte < 0x20U) {
-						output += "\\u00";
-						output.push_back(hex[byte >> 4U]);
-						output.push_back(hex[byte & 0x0FU]);
-					} else {
-						output.push_back(character);
-					}
-					break;
-				}
-			}
-			return output;
+			return node;
 		}
 
+		/// \brief Decodes one bounded JSON-RPC line ([[BPR-1433]]): the shared
+		/// core structural check (well-formed RFC 8259, no duplicate or escaped
+		/// key, the helper's depth) and then glaze. Text must also be UTF-8.
+		[[nodiscard]] auto parse_document(const std::string_view aText) -> std::optional<json_node>
+		{
+			const auto limits = core::json_preflight_limits{ .Depth = maximum_mcp_json_depth + 1U, .ObjectMembers = 64U, .ArrayElements = 1'024U, .Values = 4'096U, .StringBytes = maximum_mcp_request_bytes };
+			if (core::json_preflight(aText, limits).Result != core::json_preflight_result::valid || !core::utf8::valid(aText)) {
+				return std::nullopt;
+			}
+			auto value = glz::generic{ };
+			if (glz::read_json(value, aText)) {
+				return std::nullopt;
+			}
+			return to_node(value);
+		}
+
+		/// \brief A JSON string literal, escaped by glaze ([[BPR-1433]]).
 		[[nodiscard]] auto json_string(const std::string_view aValue) -> std::string
 		{
-			return std::string{ "\"" } + json_escape(aValue) + "\"";
+			auto output = std::string{ };
+			if (glz::write_json(aValue, output)) {
+				return "\"\"";
+			}
+			return output;
 		}
 
 		/// \brief Echoes one JSON-RPC identity exactly as the caller sent it.
@@ -891,7 +595,7 @@ namespace bpr::adapters::mcp {
 			return error_response("null", mcp_refusal::invalid_request);
 		}
 
-		const auto document = json_reader{ line }.parse();
+		const auto document = parse_document(line);
 		if (!document || document->Kind != json_node::kind::object) {
 			return error_response("null", mcp_refusal::invalid_request);
 		}
