@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1432"
 title: "Count source lines as Git does, so a lone CR stays inside its line"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
