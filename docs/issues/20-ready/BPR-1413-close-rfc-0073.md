@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1413"
 title: "Verify and close RFC-BPR-0073"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0073"]
 depends_on: []
 closeout_for: ["RFC-BPR-0073"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"smooth-diff-touchpad-panning","path":"docs/rfcs/plans/smooth-diff-touchpad-panning/milestone-plan.json"}}
 acceptance: [{"criterion":"AC01","outcome":"pass","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2"}},{"criterion":"AC02","outcome":"pass","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2"}},{"criterion":"AC03","outcome":"pass","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2"}},{"criterion":"AC04","outcome":"pass","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2"}},{"criterion":"AC05","outcome":"pass","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2"}},{"criterion":"AC06","outcome":"pass","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2"}},{"criterion":"AC07","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"observation","detail":"Owner accepted BPR-1413-AC07-v002 in session c595e5c955c2cd527f9f4a351d3ab175, decision 0a0ba98a-3e76-4cb8-b404-fb0196dbd48c; unchanged axis implementation retained."}},{"criterion":"AC08","outcome":"pending","revision":"a9af17c712f2fc3e7dc4c4718689ff482af8fed7","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m3-verification.json: seven affected integration checks pass; unchanged controller evidence reused from M2; v002 owner rejected, separate v003 owner minimum keyboard reveal judgment pending"}}]
-parked_on: "human-review"
 ---
 
 # Smooth diff touchpad panning
