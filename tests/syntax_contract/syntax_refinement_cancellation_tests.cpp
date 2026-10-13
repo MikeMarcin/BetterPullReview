@@ -65,6 +65,7 @@ namespace {
 		std::atomic<bool>              Armed{ false };
 		std::atomic<bool>              Refining{ false };
 		std::atomic<std::size_t>       Allocations{ 0U };
+		std::atomic<std::size_t>       Bytes{ 0U };
 		std::atomic<std::size_t>       StopAt{ 0U };
 		std::atomic<std::stop_source*> Stopper{ nullptr };
 		std::atomic<bool>              Stopped{ false };
@@ -75,6 +76,7 @@ namespace {
 			Thread.store(std::this_thread::get_id());
 			Refining.store(false);
 			Allocations.store(0U);
+			Bytes.store(0U);
 			Stopped.store(false);
 			StopAt.store(aStopAt);
 			Stopper.store(aStopper);
@@ -98,6 +100,7 @@ namespace {
 			if (!Refining.load()) {
 				return;
 			}
+			Bytes.fetch_add(aBytes);
 			const auto count = Allocations.fetch_add(1U) + 1U;
 			auto*      stop  = Stopper.load();
 			if (stop != nullptr && count == StopAt.load()) {
@@ -212,6 +215,37 @@ namespace {
 		expect(again.Status == whole.Status && again.Spans == whole.Spans, "the next request is answered as before");
 		std::cout << "refinement-stop-contract:pass allocations=" << total << " stop_at=" << total / 2U << '\n';
 	}
+
+	/// [[BPR-1474]], RFC-BPR-0081's H8: a run of `{` held a block scope per byte,
+	/// so 8 MiB of them took about 2 GB. Deep blocks now share their parent's
+	/// scope, and every byte the refinement requests, freed or not, stays within
+	/// a small multiple of the source: the tokens and the brace stacks.
+	void brace_flood_contract()
+	{
+		auto text = std::string{ };
+		while (text.size() + 64U < BlobBytes) {
+			text.append(63U, '{');
+			text += '\n';
+		}
+		text.append(BlobBytes - text.size() - 1U, '{');
+		text += '\n';
+		const auto catalog    = syntax::packaged_definition_catalog{ };
+		auto       blobs      = single_blob{ text };
+		auto       classifier = syntax::packaged_syntax_classifier{ catalog, blobs };
+		const auto request    = app::syntax_classification_request{
+			.Context      = { },
+			.Key          = { .Blob = blob(), .Definition = catalog.definition_for_path("flood.cpp") },
+			.MaximumSpans = 1'000'000U,
+		};
+		probe().arm(0U, nullptr);
+		const auto result = classifier.classify(request, { });
+		probe().disarm();
+		const auto bytes = probe().Bytes.load();
+		expect(result.Status == app::syntax_classification_status::available, "the brace flood classifies");
+		expect(probe().Refining.load(), "the refinement ran on the brace flood");
+		expect(bytes < 128U * BlobBytes, "the refinement requests fewer than 128 bytes per source byte on a brace flood");
+		std::cout << "brace-flood-contract:pass bytes_per_source_byte=" << bytes / BlobBytes << '\n';
+	}
 }
 
 // The replaceable global allocation functions. The array and no-throw forms
@@ -235,6 +269,7 @@ auto main() -> int
 try {
 	QStandardPaths::setTestModeEnabled(true);
 	refinement_stop_contract();
+	brace_flood_contract();
 	std::cout << "syntax-refinement-cancellation-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

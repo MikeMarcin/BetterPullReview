@@ -27,6 +27,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -1093,6 +1094,84 @@ namespace {
 		std::cout << "cpp-context-contract:pass declarations/uses/hunks/protected/macro/cache/bounds\n";
 	}
 
+	/// \brief [[BPR-1474]]: RFC-BPR-0081's confirmed gap classes, each through its
+	/// committed gap fixture. Every expectation failed on revision 6.
+	void cpp_gap_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		using role            = core::appearance_role;
+		auto       blobs      = fixture_blobs{ };
+		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		auto       seed       = std::uint8_t{ 96U };
+		const auto definition = aCatalog.definition_for_path("gap.cpp");
+		const auto classify   = [&](const std::string_view aName) {
+			auto       text = read_fixture(std::string{ "evaluation/gap/" } + std::string{ aName });
+			const auto oid  = blob(seed++);
+			blobs.install(oid, text);
+			auto result = classifier.classify(request(oid, definition), { });
+			expect(result.Status == app::syntax_classification_status::available, "the gap fixture classifies");
+			return std::pair{ std::move(text), std::move(result.Spans) };
+		};
+		const auto exact = [](const auto& aRun, const std::string_view aMarker, const std::string_view aWord, const role aRole) {
+			return word_has_role(aRun.second, aRun.first, line_of(aRun.first, aMarker), aWord, aRole);
+		};
+		const auto structural = [](const auto& aRun, const std::string_view aMarker, const std::string_view aWord) {
+			const auto line = line_of(aRun.first, aMarker);
+			return word_inside_role(aRun.second, aRun.first, line, aWord, role::syntax_enum_member)
+				|| word_inside_role(aRun.second, aRun.first, line, aWord, role::syntax_namespace);
+		};
+
+		const auto h1 = classify("h1_inline_namespace.cpp");
+		expect(exact(h1, "namespace A::inline B", "A", role::syntax_namespace)
+				   && exact(h1, "namespace A::inline B", "B", role::syntax_namespace)
+				   && !structural(h1, "namespace A::inline B", "inline"),
+			   "H1: an inline nested namespace head names both namespaces");
+		expect(exact(h1, "auto mode", "A", role::syntax_namespace) && exact(h1, "auto mode", "B", role::syntax_namespace)
+				   && exact(h1, "auto mode", "Fast", role::syntax_enum_member),
+			   "H1: a use through the inline namespace resolves");
+
+		const auto h2 = classify("h2_attributed_namespace.cpp");
+		expect(exact(h2, "namespace [[deprecated]]", "Legacy", role::syntax_namespace)
+				   && exact(h2, "auto code", "Legacy", role::syntax_namespace)
+				   && exact(h2, "auto code", "FAILED", role::syntax_enum_member),
+			   "H2: an attributed namespace head is recognized");
+
+		const auto h3 = classify("h3_enum_comparisons.cpp");
+		expect(exact(h3, "enum Limits", "High", role::syntax_enum_member) && exact(h3, "enum Limits", "Last", role::syntax_enum_member)
+				   && exact(h3, "auto limit", "High", role::syntax_enum_member) && !structural(h3, "enum Limits", "Y"),
+			   "H3: comparisons in initializers are not a template argument list");
+
+		const auto h4 = classify("h4_x_macro.cpp");
+		expect(exact(h4, "enum Colour", "COLOUR_LIST", role::syntax_macro) && !structural(h4, "auto colour", "RED"),
+			   "H4: an X-macro invocation in an enum body keeps its macro role");
+
+		const auto h5 = classify("h5_conditional_enum.cpp");
+		expect(exact(h5, "\tIdle", "Idle", role::syntax_enum_member) && exact(h5, "\tBusy", "Busy", role::syntax_enum_member),
+			   "H5: the enum opened in both branches has its enumerators");
+		expect(!structural(h5, "struct Pair", "second") && !structural(h5, "int a, b, c;", "b")
+				   && !structural(h5, "int a, b, c;", "c"),
+			   "H5: the enum opened in both branches closes at its brace");
+
+		const auto h6 = classify("h6_brace_shadow.cpp");
+		expect(!structural(h6, "auto hidden", "ID") && exact(h6, "auto visible", "DNA", role::syntax_enum_member),
+			   "H6: a brace-initialized local shadows the enum");
+
+		const auto h7 = classify("h7_non_ascii.cpp");
+		expect(exact(h7, "enum Drink", "caf\xC3\xA9", role::syntax_enum_member)
+				   && exact(h7, "enum Drink", "th\xC3\xA9", role::syntax_enum_member)
+				   && exact(h7, "auto drink", "caf\xC3\xA9", role::syntax_enum_member),
+			   "H7: a non-ASCII enumerator is painted whole");
+
+		const auto guards = classify("extern_c_guards.cpp");
+		expect(exact(guards, "auto flag", "FLAG_READ", role::syntax_enum_member) && exact(guards, "auto tail", "END", role::syntax_enum_member),
+			   "an enum inside a split extern \"C\" block is found from outside it");
+
+		auto old    = definition;
+		old.Version = ((syntax::cpp_identifier_heuristic_revision - 1U) << 16U) | (old.Version & 0xFFFFU);
+		expect(classifier.classify(request(blob(seed), old), { }).Status == app::syntax_classification_status::unavailable,
+			   "spans cached under revision 6 are refused");
+		std::cout << "cpp-gap-contract:pass H1-H7 extern-c revision\n";
+	}
+
 } // namespace
 
 int main()
@@ -1104,6 +1183,7 @@ try {
 	complete_blob_state_contract(catalog);
 	identifier_role_contract(catalog);
 	cpp_context_contract(catalog);
+	cpp_gap_contract(catalog);
 	builtin_type_contract(catalog);
 	windows_resource_contract(catalog);
 	plain_text_and_failure_contract(catalog);
