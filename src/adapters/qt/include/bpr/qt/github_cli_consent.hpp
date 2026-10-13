@@ -38,6 +38,9 @@ namespace bpr::qt {
 	/// \brief Fixed actionable text for typed CLI refusal in the existing publication surface.
 	[[nodiscard]] auto github_cli_publication_failure_text(application::review_mutation_failure aFailure,
 														   const QString& aLogin, const QString& aHost, bool aStarted = false) -> QString;
+	/// \brief Explains a refused reconciliation without claiming the earlier attempt failed.
+	[[nodiscard]] auto github_cli_publication_recovery_text(application::review_mutation_failure aFailure,
+															const QString& aLogin, const QString& aHost) -> QString;
 
 }
 

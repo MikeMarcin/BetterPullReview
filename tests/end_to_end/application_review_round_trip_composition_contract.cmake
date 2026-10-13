@@ -1440,6 +1440,16 @@ endfunction()
 # events; no production mutation, authority or persistence rule changes.
 # The production mutation-branch pin remains e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df.
 # BPR-1407's AC4 owner look remains pending in its separate attended session.
+# BPR-1429 post-critical-review M3 repair (2026-10-13), over frozen611c:
+# exact publishing knowledge is captured before a retry and merged in core with
+# the current outcome. Early capability/coordinator refusals retain the original
+# locked draft and journal identity; only an exact receipt resolves uncertainty.
+# Qt presents unknown plus the current refusal, with the bound account/server.
+# The fixture's existing acquisition seam now covers coordinator observations.
+# No grant, actor/target/head/content admission, provider selection, publication
+# journal transition, source inventory or production mutation-branch change.
+# The composed old-library regression fails; repeated cuts then restore must
+# resolve exactly one comment with no second POST. M3 independent recheck pending.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1458,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4c54e2e48cffb809616a0d79fe70cf228485b69fc5873da1a50a0ddf49881b85"
+		"0c7395681b44e437bc3c2981389613119846fcaddded49dd652129f6d3ccd31e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1662,7 +1672,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "173abc3f1130a69a0f3e84b4e74cf7743f65bfdcd1effb3e26aef8a103658896"
+        "ae05f7446f62da07a8a0cfe0620ab2d712375358790c4778db22cc57afe450ce"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
