@@ -303,12 +303,19 @@ CLI_DISCOVERY_ACCOUNTS_ASSIGNMENT = re.compile(
     r"GithubCliDiscoveryAccounts\s*=\s*aFixture\.has_value\(\)\s*"
     r"\?\s*aFixtureOptions\.GithubCliDiscoveryAccounts\s*:\s*std::nullopt\s*;"
 )
-# Each consent's title and the call that asks it. [[BPR-0933]] moved the read
-# opt-in's layout into the Qt adapter, so it is asked through that adapter's
-# question rather than a static warning box; the gate around it is unchanged.
-CLI_CONSENT_QUESTIONS = (
-    ("Confirm GitHub CLI publication", r"QMessageBox::warning"),
-    ("Use configured GitHub CLI", r"qt::ask_github_cli_read_consent"),
+# RFC0079 retains read trust and replaces the per-write CLI warning with
+# strict exact-operation admission. Remembered consent skips only this read
+# question; it never substitutes for the ordinary one-use publication grant.
+CLI_READ_CONSENT_GATE = re.compile(
+    r"#\s*if\s+defined\(__APPLE__\)\s*"
+    r"if\s*\(\s*profile->cli_account_login\(\s*\)\.empty\(\s*\)\s*\)\s*\{\s*"
+    r"discover_github_cli_accounts\(true\);\s*return;\s*\}\s*"
+    r"const\s+auto\s+remembered\s*=\s*Profile->selected_connection\(profile->hostname\(\)\);\s*"
+    r"if\s*\(\s*Profile->cli_read_offered_here\(\s*\)\s*&&\s*"
+    r"!Profile->CliConsent\.contains\(aValue\.Profile\)\s*&&\s*"
+    r"\(!remembered\s*\|\|\s*remembered->Profile\s*!=\s*aValue\.Profile\)\s*\)\s*\{\s*"
+    r"const\s+auto\s+consent\s*=\s*qt::ask_github_cli_read_consent\(\s*"
+    r'Window\.get\(\)\s*,\s*QStringLiteral\(\s*"Use configured GitHub CLI"\s*\)'
 )
 
 
@@ -335,18 +342,19 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
             "fixture-discovered CLI accounts must be assigned once, and only "
             "from a fixture"
         )
-    for title, question in CLI_CONSENT_QUESTIONS:
-        gate = re.compile(
-            r"#\s*if\s+defined\(__APPLE__\)\s*"
-            r"if\s*\(\s*Profile->cli_read_offered_here\(\s*\)\s*\)\s*\{\s*"
-            r"const\s+auto\s+consent\s*=\s*" + question + r"\(\s*"
-            r"Window\.get\(\)\s*,\s*QStringLiteral\(\s*\"" + re.escape(title) + r"\"\s*\)"
-        )
-        if code.count(f'"{title}"') != 1 or len(gate.findall(code)) != 1:
-            findings.append(
-                f"the {title!r} consent must appear once, compiled for macOS "
-                "and asked whenever the run-time CLI offer is open"
-            )
+    if code.count('"Use configured GitHub CLI"') != 1 or len(CLI_READ_CONSENT_GATE.findall(code)) != 1:
+        findings.append("first-use read consent must retain the macOS runtime and remembered-choice gates")
+    if '"Confirm GitHub CLI publication"' in code:
+        findings.append("ordinary strict CLI publication must not restore the transport warning")
+    admission = re.search(
+        r"auto\s+admit_cli_publication\(.*?\n\s*->\s*std::expected<void,\s*application::review_mutation_failure>\s*\{(?P<body>.*?)\n\t\t\}",
+        code, re.DOTALL,
+    )
+    body = admission.group("body") if admission else ""
+    if not re.search(r"if\s*\(\s*!lease\s*\|\|\s*!lease->strict_cli\(\)\s*\)", body):
+        findings.append("CLI publication admission must refuse a lease without strict capability")
+    if "session.Viewer.Account != aActor.Account" not in body or "aTarget.Semantic.ExpectedHead != *head" not in body:
+        findings.append("strict publication admission must retain the exact actor and head checks")
     return findings
 
 
@@ -856,18 +864,21 @@ class CompositionContractTests(unittest.TestCase):
         self.assertRegex(composition_source, r"worker_executor\s+VaultEffects;")
         self.assertIn("make_github_cli_process_runner", composition_source)
         self.assertEqual(cli_consent_gate_findings(composition_source), [])
-        publication_gate = (
-            "#if defined(__APPLE__)\n\t\t\tif (Profile->cli_read_offered_here()) {"
-        )
-        self.assertIn(publication_gate, composition_source)
+        read_gate = CLI_READ_CONSENT_GATE.search(strip_cxx_comments(composition_source))
+        self.assertIsNotNone(read_gate)
         hostile_consent_sources = {
-            # The pre-BPR-0797 compile-time gate: a person's tests-enabled
-            # build composes the CLI transport with this confirmation absent.
-            "publication-consent-compiled-out-of-tests-enabled-graphs": composition_source.replace(
-                publication_gate,
-                "#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)\n\t\t\tif (true) {",
+            "read-consent-compiled-out-of-tests-enabled-graphs": composition_source.replace(
+                "#if defined(__APPLE__)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
+                "#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
                 1,
             ),
+            "strict-capability-admission-disabled": composition_source.replace(
+                "if (!lease || !lease->strict_cli()) {", "if (false) {", 1,
+            ),
+            "exact-actor-admission-removed": composition_source.replace(
+                "session.Viewer.Account != aActor.Account", "false", 1,
+            ),
+            "cli-publication-warning-restored": composition_source + '\nconst auto warningTitle = "Confirm GitHub CLI publication";\n',
             # A suite run whose CLI offer stays open can spend somebody's gh sign-in.
             "offer-open-inside-the-boundary": composition_source.replace(
                 "return !aInsideAutomatedTestBoundary;", "return true;", 1

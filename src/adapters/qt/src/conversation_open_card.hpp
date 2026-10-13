@@ -243,6 +243,7 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
+		auto event(QEvent* aEvent) -> bool override;
 
 	private:
 		void build(const thread_card& aCard);
