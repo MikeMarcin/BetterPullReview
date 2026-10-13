@@ -17,7 +17,8 @@ namespace bpr::qt {
 									 close,
 									 selection,
 									 query_dirty,
-									 document_changed };
+									 document_changed,
+									 escape };
 	/// \brief Presentation gesture with fixed original source bounds and reading origin.
 	struct source_find_intent
 	{
@@ -34,7 +35,7 @@ namespace bpr::qt {
 	class source_find_bar final : public QWidget
 	{
 	public:
-		explicit source_find_bar(QWidget* aParent);
+		explicit source_find_bar(QWidget* aParent, bool aFiles = false);
 		std::function<void(source_find_gesture)> Dispatch;
 		void                                     present(const application::source_search_projection& aProjection);
 		void                                     seed(const QString& aText, bool aLiteral);
@@ -42,10 +43,12 @@ namespace bpr::qt {
 		void                                     clear_selection();
 		void                                     reset_query();
 		void                                     flush();
+		void                                     cancel_pending();
 		[[nodiscard]] auto                       query() const -> std::string;
 		[[nodiscard]] auto                       options() const -> core::source_search_options;
 		[[nodiscard]] auto                       in_selection() const -> bool;
 		[[nodiscard]] auto                       query_editor() const -> QPlainTextEdit*;
+		[[nodiscard]] auto                       status_text() const -> QString;
 		[[nodiscard]] auto                       projection() const -> const application::source_search_projection&;
 
 	protected:
@@ -64,6 +67,7 @@ namespace bpr::qt {
 		QLabel*                               Status    = nullptr;
 		QTimer*                               Debounce  = nullptr;
 		bool                                  Composing = false;
+		bool                                  Files     = false;
 		QString                               SeedError;
 		application::source_search_projection Projection;
 		void                                  schedule();

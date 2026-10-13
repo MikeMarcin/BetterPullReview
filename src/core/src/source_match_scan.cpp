@@ -344,6 +344,9 @@ namespace bpr::core {
 		try {
 			auto begin = static_cast<std::size_t>(aSpan.Begin);
 			for (auto count = 0U; count < 80U && begin > 0U; ++count) {
+				if (aSource[begin - 1U] == '\n' || aSource[begin - 1U] == '\r') {
+					break;
+				}
 				--begin;
 				while ((static_cast<unsigned char>(aSource[begin]) & 0xC0U) == 0x80U) {
 					--begin;

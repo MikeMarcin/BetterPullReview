@@ -3554,7 +3554,14 @@ namespace bpr::qt {
 			connect(FilesFilterNotice->clear_button(), &QAbstractButton::clicked, this, [this] {
 				FilesFilter->clear();
 			});
-			Drawers[0].Panel->host_beside_list(filesSurface, FilesTree);
+			FileSearchTabs = new QTabWidget;
+			FileSearchTabs->setObjectName(QStringLiteral("fileSearchTabs"));
+			FileSearchTabs->setAccessibleName(tr("Files and Search"));
+			FileSearchTabs->addTab(filesSurface, tr("Files"));
+			SearchPanel          = new source_search_panel{ FileSearchTabs };
+			SearchPanel->Changed = [this] { update_source_find_actions(); };
+			FileSearchTabs->addTab(SearchPanel, tr("Search"));
+			Drawers[0].Panel->host_beside_list(FileSearchTabs, FilesTree);
 		}
 		// [[BPR-0671]]. The pull request's identity, author, branches, state
 		// and description are the overview's, and the strip already names the
@@ -10371,6 +10378,14 @@ namespace bpr::qt {
 		QAccessible::updateAccessibility(&announcement);
 	}
 
+	void workbench_window::set_pr_search_dispatch(std::function<void(source_find_gesture)> aDispatch)
+	{
+		PrSearchDispatch = std::move(aDispatch);
+		connect(FileSearchTabs, &QTabWidget::currentChanged, this, [this](int aIndex) {if(aIndex==1 && PrSearchDispatch){PrSearchDispatch(source_find_gesture::document_changed);} });
+		SearchPanel->Dispatch = [this](auto aGesture) {if(PrSearchDispatch){PrSearchDispatch(aGesture);}if(aGesture==source_find_gesture::close){FileSearchTabs->setCurrentIndex(SearchPreviousTab);if(SearchWasCollapsed && Dispatch){Dispatch(core::set_workbench_drawer_intent{core::workbench_drawer::files,core::workbench_drawer_state::collapsed});}ComparisonSurface->focus_source();}update_source_find_actions(); };
+		update_source_find_actions();
+	}
+	auto workbench_window::pr_search() const -> source_search_panel* { return SearchPanel; }
 	void workbench_window::update_source_find_actions()
 	{
 		if (!SourceFindActions[0] || !ComparisonSurface) {
@@ -10382,6 +10397,12 @@ namespace bpr::qt {
 		const bool queryFocus = focused && ComparisonSurface->source_find()->isAncestorOf(focused);
 		const bool textFocus  = qobject_cast<QLineEdit*>(focused) || qobject_cast<QPlainTextEdit*>(focused) || qobject_cast<QTextEdit*>(focused);
 
+		const auto filesCommands = core::project_source_files_commands({ .PullRequest = HasGithubPullRequest && !showing_home() && !LocalCycleShown && static_cast<bool>(PrSearchDispatch), .Modal = QApplication::activeModalWidget() != nullptr, .Editor = textFocus && !sourceFocus && !queryFocus && !(focused && SearchPanel && SearchPanel->isAncestorOf(focused)), .Query = SearchPanel && !SearchPanel->projection().Query.empty(), .Hits = SearchPanel && SearchPanel->projection().CurrentMatch.has_value() });
+		for (std::size_t index = 0; index < SourceFilesActions.size(); ++index) {
+			if (SourceFilesActions[index]) {
+				describe_action(SourceFilesActions[index], filesCommands[index], index == 0 ? tr("Search full changed files in the active comparison") : tr("Open the next exact search occurrence"), tr("Open a pull request and leave modal dialogs"));
+			}
+		}
 		const auto commands = core::project_source_find_commands({ .Reader         = !showing_home() && !LocalCycleShown && !CompositionPage && current_modality() == review_modality::review,
 																   .Material       = ComparisonSurface->source_find_available(),
 																   .EditorOwnsFind = textFocus && !sourceFocus && !queryFocus,
@@ -14049,6 +14070,20 @@ namespace bpr::qt {
 					ComparisonSurface->navigate_source_find(index == 1U ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
 				}
 			});
+		}
+		const auto fileTitles = std::array{ tr("Find in Files"), tr("Next PR result"), tr("Previous PR result") };
+		const auto fileNames  = std::array{ QStringLiteral("sourceFilesAction"), QStringLiteral("sourceFilesNextAction"), QStringLiteral("sourceFilesPreviousAction") };
+		for (std::size_t index = 0; index < SourceFilesActions.size(); ++index) {
+			auto* action = new QAction{ fileTitles[index], this };
+			action->setObjectName(fileNames[index]);
+			action->setShortcut(QKeySequence{ index == 0 ? QStringLiteral("Ctrl+Shift+F") : index == 1 ? QStringLiteral("F4")
+																									   : QStringLiteral("Shift+F4") });
+			action->setShortcutContext(Qt::WindowShortcut);
+			action->setEnabled(false);
+			SourceFilesActions[index] = action;
+			addAction(action);
+			findMenu->addAction(action);
+			connect(action, &QAction::triggered, this, [this, index] {update_source_find_actions();if(!SourceFilesActions[index]->isEnabled() || !PrSearchDispatch){return;}if(index==0){if(!SearchPanel->projection().Open){SearchWasCollapsed=DrawerStates.Files==core::workbench_drawer_state::collapsed;SearchPreviousTab=FileSearchTabs->currentIndex();}if(current_modality()!=review_modality::review || CompositionPage){choose_modality(review_modality::review);}if(Dispatch){Dispatch(core::set_workbench_drawer_intent{core::workbench_drawer::files,core::workbench_drawer_state::expanded});}FileSearchTabs->setCurrentWidget(SearchPanel);PrSearchDispatch(source_find_gesture::document_changed);}else{if(current_modality()!=review_modality::review || CompositionPage){choose_modality(review_modality::review);}PrSearchDispatch(index==1?source_find_gesture::next:source_find_gesture::previous);} });
 		}
 		connect(findMenu, &QMenu::aboutToShow, this, [this] { update_source_find_actions(); });
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget*) { update_source_find_actions(); });

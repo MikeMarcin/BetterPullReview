@@ -7,6 +7,18 @@
 #include <string>
 
 namespace bpr::application {
+	/// \brief Content-free execution measurements for structural regression checks.
+	struct source_search_statistics
+	{
+		std::uint64_t Compilations            = 0U;
+		std::uint64_t ReadCalls               = 0U;
+		std::uint64_t CacheHits               = 0U;
+		std::uint64_t AcquiredBytes           = 0U;
+		std::uint64_t Scans                   = 0U;
+		std::uint64_t AcquisitionMicroseconds = 0U;
+		std::uint64_t MatchingMicroseconds    = 0U;
+		std::uint64_t PeakOwnedBound          = 0U;
+	};
 	/// \brief One exact source occurrence; locations retain both proven sides.
 	struct source_search_match
 	{
@@ -31,6 +43,8 @@ namespace bpr::application {
 		core::source_search_input                                      Input  = core::source_search_input::empty;
 		core::source_search_status                                     Status = core::source_search_status::idle;
 		core::source_search_summary                                    Summary;
+		std::uint64_t                                                  Generation = 0U;
+		source_search_statistics                                       Statistics;
 		std::shared_ptr<const std::vector<source_search_match>>        Matches;
 		std::optional<std::uint32_t>                                   CurrentMatch;
 		std::shared_ptr<const source_corpus>                           Corpus;

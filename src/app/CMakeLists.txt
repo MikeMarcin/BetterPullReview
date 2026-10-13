@@ -76,6 +76,7 @@ if(BPR_BUILD_QT)
             src/foundation_application.cpp
             src/github_application.cpp
             src/pane_find_controller.cpp
+            src/pr_search_controller.cpp
             src/github_cli_runtime.cpp
             src/profile_desktop.cpp
             src/platform_credential_vault.cpp

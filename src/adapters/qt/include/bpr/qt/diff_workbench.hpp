@@ -385,7 +385,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto source_find_available() const -> bool;
 		[[nodiscard]] auto source_find_navigable() const -> bool;
 		/// \brief Selects original UTF-8 spans only on the accepted exact blob.
-		[[nodiscard]] auto reveal_source_match(const core::source_match_location& aLocation) -> bool;
+		[[nodiscard]] auto reveal_source_match(const core::source_match_location& aLocation, bool aExternal = false) -> bool;
+		/// \brief Nonempty native source selection for literal PR query seeding.
+		[[nodiscard]] auto source_search_seed() const -> QString;
 		[[nodiscard]] auto detail_pane() const noexcept -> QPlainTextEdit*;
 		/// \brief [[BPR-1334]]. Line details, the strip under the comparison;
 		/// the same widget as `detail_pane`.

@@ -183,6 +183,7 @@ def main() -> int:
             "patch": entry["patch"],
             "sha": entry["sha"],
             "status": entry["status"],
+            **({"previous_filename": entry["previous_filename"]} if "previous_filename" in entry else {}),
         }
         for entry in recording["files"]
     ])

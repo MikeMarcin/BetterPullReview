@@ -62,6 +62,8 @@ namespace bpr::app::detail {
 		header_source_v1,
 		/// RFC-BPR-0077 complete Unicode/CRLF offscreen pane source.
 		source_find_v1,
+		source_pr_search_v1,
+		source_pr_search_large_v1,
 		/// RFC-BPR-0072 complete-blob namespace/enum declarations and uses.
 		cpp_identifiers_v1,
 		/// [[BPR-1083]]. The nested-folders pull request with review threads

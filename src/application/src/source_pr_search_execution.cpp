@@ -2,6 +2,7 @@
 #include "bpr/core/review_preparation.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <mutex>
 #include <thread>
@@ -63,6 +64,7 @@ namespace bpr::application {
 		core::source_match_limits         Limits;
 		std::mutex                        Mutex;
 		std::optional<source_search_work> Demand;
+		std::atomic<std::uint64_t>        Compilations{ 0 }, ReadCalls{ 0 }, CacheHits{ 0 }, AcquiredBytes{ 0 }, Scans{ 0 }, AcquisitionMicroseconds{ 0 }, MatchingMicroseconds{ 0 }, PeakOwnedBound{ 0 };
 
 		auto needed(const source_search_work& aWork, const source_corpus_entry& aEntry, const core::source_path_filter& aFilter) -> source_corpus_read_needed
 		{
@@ -82,7 +84,17 @@ namespace bpr::application {
 		{
 			auto answer = source_corpus_material{ };
 			do {
+				const auto began = std::chrono::steady_clock::now();
+				ReadCalls.fetch_add(1U, std::memory_order_relaxed);
 				answer = Corpus.read(aCorpus, aIndex, aSide, aStop, needed(aWork, aCorpus->Entries[aIndex], aFilter));
+				AcquisitionMicroseconds.fetch_add(static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - began).count()), std::memory_order_relaxed);
+				if (answer.Bytes) {
+					if (answer.Cached) {
+						CacheHits.fetch_add(1U, std::memory_order_relaxed);
+					} else {
+						AcquiredBytes.fetch_add(answer.Bytes->size(), std::memory_order_relaxed);
+					}
+				}
 				if (answer.Yielded && !aStop.stop_requested()) {
 					std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 				}
@@ -114,7 +126,8 @@ namespace bpr::application {
 			if (!core::valid(aWork.Request.Scope) || aWork.Request.Scope.Target != core::source_search_target::files || aWork.Query.empty()) {
 				return output;
 			}
-			auto       stop        = search_stop{ aStop };
+			auto stop = search_stop{ aStop };
+			Compilations.fetch_add(1U, std::memory_order_relaxed);
 			const auto compiled    = core::compile_source_match(aWork.Query, aWork.Request.Options, Limits, &stop);
 			output.Terminal.Status = compiled.Status;
 			if (!compiled.Program) {
@@ -154,6 +167,7 @@ namespace bpr::application {
 			summary.EligibleFiles = static_cast<std::uint32_t>(selected.size());
 			const auto bound      = 16U * 1024U * 1024U + 2U * Limits.MaximumBytes + 2U * maximum_git_changed_catalogue_bytes + Limits.MaximumOwnedBytes + 3U * Limits.MaximumResultBytes + selected.size() * 2U * sizeof(source_search_skipped_side) + selected.capacity() * sizeof(std::size_t);
 			output.PeakOwnedBound = bound;
+			PeakOwnedBound.store(std::max(PeakOwnedBound.load(std::memory_order_relaxed), static_cast<std::uint64_t>(bound)), std::memory_order_relaxed);
 			if (bound > maximum_source_pr_search_owned_bytes) {
 				output.Terminal.Status = core::source_search_status::resource_limit;
 				return output;
@@ -207,7 +221,10 @@ namespace bpr::application {
 				do {
 					const auto priority = Corpus.scan_stop_token(aWork.Request.Scope);
 					auto       scanStop = search_stop{ aStop, priority };
-					matched             = core::match_source_entry(*compiled.Program, scan, &scanStop);
+					const auto began    = std::chrono::steady_clock::now();
+					Scans.fetch_add(1U, std::memory_order_relaxed);
+					matched = core::match_source_entry(*compiled.Program, scan, &scanStop);
+					MatchingMicroseconds.fetch_add(static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - began).count()), std::memory_order_relaxed);
 					if (matched.Status == core::source_search_status::cancelled && !aStop.stop_requested() && priority.stop_requested()) {
 						const auto current = Corpus.catalogue(aWork.Request.Scope, aStop);
 						if (current.Corpus != corpus) {
@@ -264,6 +281,11 @@ namespace bpr::application {
 	source_pr_search_execution::source_pr_search_execution(source_corpus_port& aCorpus, core::source_match_limits aLimits)
 		: Implementation(std::make_shared<implementation>(aCorpus, aLimits))
 	{ }
+	auto source_pr_search_execution::statistics() const -> source_search_statistics
+	{
+		const auto& impl = *Implementation;
+		return { impl.Compilations.load(std::memory_order_relaxed), impl.ReadCalls.load(std::memory_order_relaxed), impl.CacheHits.load(std::memory_order_relaxed), impl.AcquiredBytes.load(std::memory_order_relaxed), impl.Scans.load(std::memory_order_relaxed), impl.AcquisitionMicroseconds.load(std::memory_order_relaxed), impl.MatchingMicroseconds.load(std::memory_order_relaxed), impl.PeakOwnedBound.load(std::memory_order_relaxed) };
+	}
 	source_pr_search_execution::~source_pr_search_execution() { update_demand({ }); }
 	auto source_pr_search_execution::execute(const source_search_work& aWork, std::stop_token aStop) -> source_search_execution { return Implementation->execute(aWork, aStop, { }); }
 	auto source_pr_search_execution::execute(const source_search_work& aWork, std::stop_token aStop, const source_search_batch_sink& aPublish) -> source_search_execution { return Implementation->execute(aWork, aStop, aPublish); }

@@ -4846,9 +4846,13 @@ namespace bpr::application {
 			if (!snapshot) {
 				return false;
 			}
-			const auto anchors = aContext.Catalog->exact_anchors({ snapshot->Binding.Catalog, { aPair.Left.Identity, aPair.Right.Identity } }, aStop);
-			return anchors && anchors->Catalog == snapshot->Binding.Catalog && anchors->Anchors.size() == 2U
-				&& anchors->Anchors[0] == aPair.Left && anchors->Anchors[1] == aPair.Right;
+			auto identities = std::vector{ aPair.Left.Identity };
+			if (aPair.Right.Identity != aPair.Left.Identity) {
+				identities.push_back(aPair.Right.Identity);
+			}
+			const auto anchors = aContext.Catalog->exact_anchors({ snapshot->Binding.Catalog, identities }, aStop);
+			return anchors && anchors->Catalog == snapshot->Binding.Catalog && anchors->Anchors.size() == identities.size()
+				&& anchors->Anchors.front() == aPair.Left && anchors->Anchors.back() == aPair.Right;
 		}
 
 		[[nodiscard]] static auto build_source_corpus(const std::shared_ptr<authority_effect_actor>& aActor, const std::shared_ptr<authority_context>& aContext, const core::source_search_scope& aScope, std::stop_token aWorkStop) -> source_corpus_observation
@@ -4992,7 +4996,8 @@ namespace bpr::application {
 						std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 						bytes = retained_blob(*aActor, aWaiter->Blob);
 					}
-					auto cached = bytes ? git_cache_result<std::vector<std::uint8_t>>{ std::move(*bytes) } : aActor->Cache->materialize_blob({ aWaiter->Blob, maximum_git_cache_blob_materialization_bytes }, workStop);
+					material.Cached = bytes.has_value();
+					auto cached     = bytes ? git_cache_result<std::vector<std::uint8_t>>{ std::move(*bytes) } : aActor->Cache->materialize_blob({ aWaiter->Blob, maximum_git_cache_blob_materialization_bytes }, workStop);
 					if (cached) {
 						bytes = std::move(*cached);
 					} else {

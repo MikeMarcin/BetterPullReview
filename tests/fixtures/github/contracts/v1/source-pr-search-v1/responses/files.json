@@ -1,0 +1,75 @@
+[
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/000.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 000 full unchanged source row 0000\n // fixture 000 full unchanged source row 0001\n // fixture 000 full unchanged source row 0002",
+		"sha": "340d8ec32808dca4b9166428f9df79d41ef7b2e4",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/001.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 001 full unchanged source row 0000\n // fixture 001 full unchanged source row 0001\n // fixture 001 full unchanged source row 0002",
+		"sha": "454c0457648b1d8ae752607343429cb01ef98ced",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "historical/only.cpp",
+		"patch": "@@ -0,0 +1 @@\n+historical-only token",
+		"sha": "93319e112da37a058791f8578d41040449945b90",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "src/added.cpp",
+		"patch": "@@ -0,0 +1 @@\n+added catalogue token",
+		"sha": "5bcb8823c3d698d73cdda3860f05a2a6b84bef9c",
+		"status": "added"
+	},
+	{
+		"additions": 0,
+		"changes": 1,
+		"deletions": 1,
+		"filename": "src/removed.cpp",
+		"patch": "@@ -1 +0,0 @@\n-removed catalogue token",
+		"sha": "23110d1bea20c7c9ac4ef74b0ef20714dd9ce8f3",
+		"status": "removed"
+	},
+	{
+		"additions": 0,
+		"changes": 0,
+		"deletions": 0,
+		"filename": "src/renamed.cpp",
+		"patch": "",
+		"previous_filename": "old/name.cpp",
+		"sha": "30f7bdf256329fcba451c722d9b815c6c1421cd1",
+		"status": "renamed"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "unsupported/binary.bin",
+		"patch": "@@ -0,0 +1 @@\n+catalogue token\u0000binary",
+		"sha": "a2417abf1bac4f7cbcc7fc551b2d516f6b394aa4",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "unsupported/invalid.cpp",
+		"patch": "@@ -0,0 +1 @@\n+catalogue token\ufffd",
+		"sha": "514897d0c9fc1ed5f231c81395037e42b325c71d",
+		"status": "added"
+	}
+]

@@ -33,6 +33,7 @@ namespace bpr::application {
 		diff_blob_status                                 Status  = diff_blob_status::failure;
 		bool                                             Yielded = false;
 		std::shared_ptr<const std::vector<std::uint8_t>> Bytes;
+		bool                                             Cached = false;
 	};
 	/// \brief A query-independent exact read remains needed only by this replacement.
 	using source_corpus_read_needed = std::function<bool()>;

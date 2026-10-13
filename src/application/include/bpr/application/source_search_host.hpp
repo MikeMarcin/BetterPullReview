@@ -104,6 +104,8 @@ namespace bpr::application {
 		auto clear() -> bool;
 		auto reset() -> bool;
 		auto navigate(core::change_navigation_direction aDirection) -> bool;
+		/// \brief Selects one accepted occurrence without matching or effects.
+		auto select_match(std::uint32_t aIndex) -> bool;
 		/// \brief Closes ingress immediately, requests stop and drains every admitted terminal.
 		void               shutdown();
 		[[nodiscard]] auto projection() const -> source_search_projection;

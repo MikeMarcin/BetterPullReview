@@ -39,6 +39,7 @@
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/server_card.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
@@ -52,6 +53,7 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QSplitter>
+class QTabWidget;
 #include <QString>
 
 #include <array>
@@ -503,10 +505,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto profiles_menu() const noexcept -> QMenu*;
 
 		void set_dispatch(workbench_intent_dispatch aDispatch);
-		void set_change_dispatch(workbench_change_dispatch aChangeDispatch);
-		void set_width_dispatch(workbench_drawer_width_dispatch aWidthDispatch);
-		void set_receipt_dispatch(workbench_receipt_dispatch aReceiptDispatch);
-		void set_review_draft_dispatch(
+		/// \brief Window PR Search commands; the composition owns query effects and exact opens.
+		void               set_pr_search_dispatch(std::function<void(source_find_gesture)> aDispatch);
+		[[nodiscard]] auto pr_search() const -> source_search_panel*;
+		void               set_change_dispatch(workbench_change_dispatch aChangeDispatch);
+		void               set_width_dispatch(workbench_drawer_width_dispatch aWidthDispatch);
+		void               set_receipt_dispatch(workbench_receipt_dispatch aReceiptDispatch);
+		void               set_review_draft_dispatch(
 			workbench_review_draft_dispatch aDraftDispatch);
 		void set_review_submission_dispatch(review_submission_editor_dispatch aDispatch);
 		/// \brief [[BPR-1345]]. Where Start a review and Add review comment go:
@@ -1963,6 +1968,12 @@ namespace bpr::qt {
 		std::function<void()>                     HeaderSourceDispatch;
 		QAction*                                  HeaderSourceAction = nullptr;
 		std::array<QAction*, 3>                   SourceFindActions{ };
+		std::array<QAction*, 3>                   SourceFilesActions{ };
+		source_search_panel*                      SearchPanel    = nullptr;
+		QTabWidget*                               FileSearchTabs = nullptr;
+		std::function<void(source_find_gesture)>  PrSearchDispatch;
+		bool                                      SearchWasCollapsed = false;
+		int                                       SearchPreviousTab  = 0;
 		void                                      update_source_find_actions();
 		std::optional<core::code_font_settings>   CodeZoom;
 		void                                      dispatch_code_zoom(core::code_zoom_step aStep);

@@ -17,6 +17,7 @@
 #include "github_release_update.hpp"
 #include "pane_find_controller.hpp"
 #include "platform_credential_vault.hpp"
+#include "pr_search_controller.hpp"
 #include "profile_window_layout_port.hpp"
 #include "terminal_diagnostics.hpp"
 #include "tour_observation.hpp"
@@ -1005,6 +1006,8 @@ namespace bpr::app {
 			case detail::github_public_path_fixture::cpp_identifiers_v1:
 			case detail::github_public_path_fixture::header_source_v1:
 			case detail::github_public_path_fixture::source_find_v1:
+			case detail::github_public_path_fixture::source_pr_search_v1:
+			case detail::github_public_path_fixture::source_pr_search_large_v1:
 			case detail::github_public_path_fixture::nested_folders_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -3931,6 +3934,7 @@ namespace bpr::app {
 		worker_executor                  DeviceTransportEffects;
 		worker_executor                  EpochEffects;
 		worker_executor                  DiffEffects;
+		worker_executor                  SearchEffects;
 		/// [[BPR-1327]]. Prepares the files a reviewer is about to open: tree
 		/// lookups queued on the repository actor and batched blob reads, off
 		/// the actor and off the diff lane.
@@ -4451,7 +4455,7 @@ namespace bpr::app {
 				return;
 			}
 			if (!ConnectionEffects.idle() || !ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
-				|| !EpochEffects.idle() || !DiffEffects.idle() || !PrepareEffects.idle()
+				|| !EpochEffects.idle() || !DiffEffects.idle() || !SearchEffects.idle() || !PrepareEffects.idle()
 				|| !WorkbenchEffects.idle() || !AppearanceEffects.idle() || !QueueEffects.idle()
 				|| !ReviewMutationEffects.idle() || !ReviewSubmissionEffects.idle() || !ReviewLedgerEffects.idle()) {
 				return;
@@ -4511,6 +4515,7 @@ namespace bpr::app {
 			Provider->shutdown();
 			AnonymousProvider->shutdown();
 			ProfileCatalog->shutdown();
+			SearchEffects.close_and_drain();
 			DiffEffects.close_and_drain();
 			PrepareEffects.close_and_drain();
 			EpochEffects.close_and_drain();
@@ -6591,6 +6596,9 @@ namespace bpr::app {
 					if (Owner.PaneFind) {
 						Owner.PaneFind->observe_scope();
 					}
+					if (Owner.PrFind) {
+						Owner.PrFind->observe_scope();
+					}
 					Owner.Window->publish(aProjection);
 				}
 			}
@@ -6626,6 +6634,59 @@ namespace bpr::app {
 				&& surface->current_result() && surface->current_context()
 				&& surface->current_context()->Key == SelectedDiffPublication->Key
 				&& (!aView.Selection || surface->selection() == aView.Selection);
+		}
+		auto pr_search_scope() -> std::optional<core::source_search_scope>
+		{
+			if (Closing || !LastAcceptedHandoff || !EpochHost || !TabHost || !EpochHost->state().AcceptedComparison) {
+				return { };
+			}
+			const auto& tabs   = TabHost->state();
+			const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+			const auto  pair   = active ? active->View.Comparison : tabs.WindowComparison.value_or(*EpochHost->state().AcceptedComparison);
+			if (SearchCreatedTab && (tabs.Active != SearchCreatedTab || !SearchCreatedComparison || *SearchCreatedComparison != pair)) {
+				SearchCreatedTab.reset();
+				SearchCreatedComparison.reset();
+			}
+			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, (SearchOpeningNoTab || SearchCreatedTab) ? std::nullopt : tabs.Active);
+		}
+		auto register_search_open() -> bool
+		{
+			if (!SearchOpenFile || !LastAcceptedHandoff || !WorkbenchHost || !EpochHost || !TabHost) {
+				return false;
+			}
+			const auto& [scope, entry] = *SearchOpenFile;
+			const auto context         = EpochHost->context(workbench_authority(*LastAcceptedHandoff));
+			if (!context || context->Authority != scope.Authority || context->Comparison != scope.Comparison) {
+				return false;
+			}
+			auto file             = application::workbench_file_observation_entry{ };
+			file.File             = entry.File;
+			file.PresentationPath = entry.path();
+			file.CurrentPath      = std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(entry.path().data()), entry.path().size() } };
+			file.ContentKind      = application::workbench_file_content_kind::text;
+			switch (entry.Change) {
+			case 'A': file.Change = application::workbench_file_change_kind::added; break;
+			case 'D': file.Change = application::workbench_file_change_kind::removed; break;
+			case 'R': file.Change = application::workbench_file_change_kind::renamed; break;
+			case 'C': file.Change = application::workbench_file_change_kind::copied; break;
+			case 'T': file.Change = application::workbench_file_change_kind::type_changed; break;
+			default:  file.Change = application::workbench_file_change_kind::modified; break;
+			}
+			if (entry.Change == 'R' || entry.Change == 'C') {
+				if (!entry.Left || !entry.Right) {
+					return false;
+				}
+				file.PreviousPath = std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(entry.Left->Path.data()), entry.Left->Path.size() } };
+			}
+			auto tabs = std::vector<core::window_review_position>{ };
+			for (const auto& tab : TabHost->state().Tabs) {
+				tabs.push_back(tab.View);
+			}
+			const auto retained = WorkbenchHost->retain_source_file(*context, std::move(file), tabs);
+			if (retained) {
+				SearchOpenFile.reset();
+			}
+			return retained;
 		}
 		void present_tab(const core::document_tab_view_request& aRequest)
 		{
@@ -6709,6 +6770,9 @@ namespace bpr::app {
 		}
 		void request_review_navigation(const std::optional<core::workbench_command_id> aCommand)
 		{
+			if (PrFind) {
+				PrFind->cancel_reveal();
+			}
 			cancel_review_navigation();
 			if (!aCommand || Closing || !TabHost || !WorkbenchHost || !EpochHost || !LastAcceptedHandoff) {
 				return;
@@ -6807,6 +6871,7 @@ namespace bpr::app {
 		}
 		void drive_tab()
 		{
+			static_cast<void>(register_search_open());
 			const auto& position    = TabDriver->position();
 			const auto* surface     = Window->comparison_surface();
 			const auto& publication = SelectedDiffPublication;
@@ -7018,6 +7083,9 @@ namespace bpr::app {
 		}
 		void cancel_restoration(bool aStartup, bool aReadingGesture = false)
 		{
+			if (aReadingGesture && PrFind) {
+				PrFind->cancel_reveal();
+			}
 			if (!Profile->ReviewRestoration) {
 				return;
 			}
@@ -8312,11 +8380,44 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TabHost  = std::make_unique<application::document_tab_host>(
 				DecisionLane, *TabPorts, *TabPorts,
 				[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
+			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry) -> std::optional<core::document_tab_id> {
+                if(pr_search_scope()!=std::optional{aScope}){return {};}
+                cancel_review_navigation();cancel_restoration(false,true);abandon_tab_load();
+                SearchOpenFile=std::pair{aScope,aEntry};static_cast<void>(register_search_open());
+                observe_tab_reading();SearchOpeningNoTab=!TabHost->state().Active;TabHost->apply(core::open_in_active_tab_intent{.File=aEntry.File});
+                if(SearchOpeningNoTab){SearchCreatedTab=TabHost->state().Active;SearchCreatedComparison=aScope.Comparison;}SearchOpeningNoTab=false;return TabHost->state().Active; }, [this](const core::source_search_scope& aScope, core::file_identity aFile, const std::string& aPath, const core::source_match_location& aLocation) {
+                if(!SelectedDiffPublication || SelectedDiffPublication->Request.Diff.Authority!=aScope.Authority || SelectedDiffPublication->Request.Diff.Comparison!=aScope.Comparison || SelectedDiffPublication->Key.File!=aFile){return false;}
+                const auto& endpoint=aLocation.Side==core::diff_side::left?SelectedDiffPublication->LeftEndpoint:SelectedDiffPublication->RightEndpoint;
+                if(!endpoint || endpoint->blob()!=aLocation.Blob || endpoint->side()!=aLocation.Side){return false;}
+                const auto path=endpoint->path().generic_u8string();return std::string_view{reinterpret_cast<const char*>(path.data()),path.size()}==aPath; }, [this] { return TabHost ? TabHost->state().Active : std::nullopt; });
+			Window->set_pr_search_dispatch([this](auto aGesture) {
+				if (!PrFind || Closing) {
+					return;
+				}
+				if (aGesture == qt::source_find_gesture::document_changed) {
+					const auto scope = pr_search_scope();
+					if (scope && LastAcceptedHandoff) {
+						const auto left  = core::canonical_hex(scope->Comparison.Left.Commit);
+						const auto right = core::canonical_hex(scope->Comparison.Right.Commit);
+						Window->pr_search()->set_scope_labels(QStringLiteral("PR #%1  %2 → %3").arg(LastAcceptedHandoff->Number.value()).arg(QString::fromUtf8(left.view().data(), 8), QString::fromUtf8(right.view().data(), 8)), QStringLiteral("Left %1\nRight %2").arg(QString::fromUtf8(left.view().data(), static_cast<qsizetype>(left.view().size())), QString::fromUtf8(right.view().data(), static_cast<qsizetype>(right.view().size()))));
+					}
+					PrFind->open();
+				} else if (aGesture == qt::source_find_gesture::next || aGesture == qt::source_find_gesture::previous) {
+					PrFind->navigate(aGesture == qt::source_find_gesture::next ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
+				} else {
+					PrFind->dispatch(aGesture);
+				}
+			});
 			Window->set_document_tab_dispatch([this](const core::document_tab_intent& aIntent) {
 				if (Closing || TabHost == nullptr) {
 					return;
 				}
 				cancel_review_navigation();
+				if (PrFind) {
+					PrFind->cancel_reveal();
+				}
+				SearchCreatedTab.reset();
+				SearchCreatedComparison.reset();
 				observe_tab_reading();
 				DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }, intent = aIntent] {
 					if (weak.expired() || Closing || TabHost == nullptr) {
@@ -13594,6 +13695,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReadingRestoration && RestorationReadAccepted) {
 				finish_reading_restoration(false);
 			}
+			if (PrFind) {
+				PrFind->reset();
+				SearchOpenFile.reset();
+				SearchCreatedTab.reset();
+				SearchCreatedComparison.reset();
+			}
 			if (PaneFind) {
 				PaneFind->reset();
 			}
@@ -16144,6 +16251,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			Window->publish(aUpdate);
+			if (PrFind) {
+				PrFind->observe_scope();
+			}
 			const auto acceptedHead = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
 				? std::optional{ EpochHost->state().AcceptedRevision->Head }
 				: std::nullopt;
@@ -17229,6 +17339,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (auto& host : RetiredReviewMutationHosts) {
 				host->shutdown();
 			}
+			if (PrFind) {
+				PrFind->shutdown();
+			}
 			if (PaneFind) {
 				PaneFind->shutdown();
 			}
@@ -17271,7 +17384,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			begin_other_shutdown();
 			if (
-				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || (PaneFind && !PaneFind->is_quiescent()) || ReadingAdvanceQueued
+				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || (PaneFind && !PaneFind->is_quiescent()) || (PrFind && !PrFind->is_quiescent()) || ReadingAdvanceQueued
 				|| TourSourceReadsInFlight.load(std::memory_order_acquire) != 0U
 				|| PreparationsInFlight.load(std::memory_order_acquire) != 0U
 				|| (WindowRead && !WindowRead->is_quiescent())
@@ -18266,17 +18379,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// turn started to answer it, spent by that turn's outcome and by no
 		/// other. Absent is the ordinary state, and it is what makes a
 		/// promoted finding a proposal nobody workshopped.
-		std::optional<pending_comment_workshop>             PendingWorkshopOperation;
-		std::optional<core::agent_session>                  LatestAgentSession;
-		std::size_t                                         FindingRefusalsPresented = 0U;
-		std::size_t                                         SideChatIntents          = 0U;
-		std::size_t                                         SideChatPresentations    = 0U;
-		std::size_t                                         SideChatTurns            = 0U;
-		std::size_t                                         SideChatRefusals         = 0U;
-		std::size_t                                         FrozenSnapshotWrites     = 0U;
-		std::unique_ptr<composition_diff_projection>        DiffProjections;
-		std::unique_ptr<application::diff_application_host> DiffHost;
-		std::unique_ptr<pane_find_controller>               PaneFind;
+		std::optional<pending_comment_workshop>                                               PendingWorkshopOperation;
+		std::optional<core::agent_session>                                                    LatestAgentSession;
+		std::size_t                                                                           FindingRefusalsPresented = 0U;
+		std::size_t                                                                           SideChatIntents          = 0U;
+		std::size_t                                                                           SideChatPresentations    = 0U;
+		std::size_t                                                                           SideChatTurns            = 0U;
+		std::size_t                                                                           SideChatRefusals         = 0U;
+		std::size_t                                                                           FrozenSnapshotWrites     = 0U;
+		std::unique_ptr<composition_diff_projection>                                          DiffProjections;
+		std::unique_ptr<application::diff_application_host>                                   DiffHost;
+		std::unique_ptr<pane_find_controller>                                                 PaneFind;
+		std::unique_ptr<pr_search_controller>                                                 PrFind;
+		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;
+		bool                                                                                  SearchOpeningNoTab = false;
+		std::optional<core::document_tab_id>                                                  SearchCreatedTab;
+		std::optional<core::comparison_pair>                                                  SearchCreatedComparison;
 		/// [[BPR-1327]]. The window being prepared, its cancellation and the
 		/// preparations whose completion has not yet returned to the lane.
 		std::vector<application::workbench_selected_diff_request> PreparedWindow;

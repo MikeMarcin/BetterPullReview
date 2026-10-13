@@ -12,8 +12,9 @@
 #include <QVBoxLayout>
 
 namespace bpr::qt {
-	source_find_bar::source_find_bar(QWidget* const aParent)
+	source_find_bar::source_find_bar(QWidget* const aParent, const bool aFiles)
 		: QWidget{ aParent }
+		, Files{ aFiles }
 	{
 		setObjectName(QStringLiteral("sourceFindBar"));
 		setAccessibleName(QStringLiteral("Find in source"));
@@ -84,6 +85,16 @@ namespace bpr::qt {
 		connect(close, &QToolButton::clicked, this, [this] {Debounce->stop(); if(Dispatch){ Dispatch(source_find_gesture::close);
 } });
 		adapt_font();
+		if (Files) {
+			setObjectName(QStringLiteral("sourceFilesBar"));
+			Query->setObjectName(QStringLiteral("sourceFilesQuery"));
+			Query->setAccessibleName(QStringLiteral("Find in Files query"));
+			Query->setAccessibleDescription(QStringLiteral("Search full changed files. Enter searches now; Ctrl+Enter newline; Escape returns to source."));
+			Scope->hide();
+			Selection->hide();
+			Previous->hide();
+			Next->hide();
+		}
 		hide();
 	}
 	void source_find_bar::adapt_font()
@@ -115,6 +126,7 @@ namespace bpr::qt {
 			Debounce->start();
 		}
 	}
+	void source_find_bar::cancel_pending() { Debounce->stop(); }
 	void source_find_bar::flush()
 	{
 		Debounce->stop();
@@ -138,7 +150,7 @@ namespace bpr::qt {
 			if (aEvent->type() == QEvent::KeyPress) {
 				Debounce->stop();
 				if (Dispatch) {
-					Dispatch(source_find_gesture::close);
+					Dispatch(Files ? source_find_gesture::escape : source_find_gesture::close);
 				}
 			}
 			return true;
@@ -153,7 +165,7 @@ namespace bpr::qt {
 				if (key->key() == Qt::Key_Escape) {
 					Debounce->stop();
 					if (Dispatch) {
-						Dispatch(source_find_gesture::close);
+						Dispatch(Files ? source_find_gesture::escape : source_find_gesture::close);
 					}
 				} else if ((key->modifiers().testFlag(Qt::ControlModifier)
 #if defined(Q_OS_MACOS)
@@ -164,7 +176,7 @@ namespace bpr::qt {
 				} else {
 					const bool pending = Debounce->isActive();
 					flush();
-					if (!pending && Dispatch) {
+					if (!Files && !pending && Dispatch) {
 						Dispatch(key->modifiers().testFlag(Qt::ShiftModifier) ? source_find_gesture::previous : source_find_gesture::next);
 					}
 				}
@@ -237,6 +249,7 @@ namespace bpr::qt {
 		hide();
 	}
 	auto source_find_bar::query_editor() const -> QPlainTextEdit* { return Query; }
+	auto source_find_bar::status_text() const -> QString { return Status->text(); }
 	auto source_find_bar::projection() const -> const application::source_search_projection& { return Projection; }
 	void source_find_bar::present(const application::source_search_projection& aProjection)
 	{
@@ -271,9 +284,11 @@ namespace bpr::qt {
 		if (Status->text() != words) {
 			Status->setText(words);
 			Status->setAccessibleDescription(Scope->text() + QStringLiteral(" source. ") + words);
-			auto announcement = QAccessibleAnnouncementEvent{ Status, Status->accessibleDescription() };
-			announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
-			QAccessible::updateAccessibility(&announcement);
+			if (!Files) {
+				auto announcement = QAccessibleAnnouncementEvent{ Status, Status->accessibleDescription() };
+				announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+				QAccessible::updateAccessibility(&announcement);
+			}
 		}
 	}
 }

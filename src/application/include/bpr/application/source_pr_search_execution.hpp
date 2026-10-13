@@ -16,6 +16,7 @@ namespace bpr::application {
 		[[nodiscard]] auto execute(const source_search_work& aWork, std::stop_token aStop) -> source_search_execution override;
 		[[nodiscard]] auto execute(const source_search_work& aWork, std::stop_token aStop, const source_search_batch_sink& aPublish) -> source_search_execution override;
 		void               update_demand(std::optional<source_search_work> aWork) override;
+		[[nodiscard]] auto statistics() const -> source_search_statistics;
 
 	private:
 		struct implementation;

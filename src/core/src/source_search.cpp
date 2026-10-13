@@ -243,6 +243,14 @@ namespace bpr::core {
 		return output;
 	}
 
+	auto select_source_search_match(source_search_state& aState, const std::uint32_t aIndex) -> source_search_output
+	{
+		if (!aState.CurrentMatch || aIndex >= aState.Summary.Matches) {
+			return { .Reason = source_search_reason::no_matches };
+		}
+		aState.CurrentMatch = aIndex;
+		return { .Changed = true };
+	}
 	auto source_search_no_results(const source_search_state& aState) noexcept -> bool
 	{
 		return aState.Status == source_search_status::complete && aState.Summary.Matches == 0U;

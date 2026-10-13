@@ -693,6 +693,17 @@ namespace bpr::application {
 
 		[[nodiscard]] auto catalogue_file(const core::workbench_file_id aFile) const noexcept -> const workbench_file_observation_entry*
 		{
+			if (Authority && SelectedDiffs) {
+				try {
+					const auto context = SelectedDiffs->context(*Authority);
+					const auto found   = std::ranges::find_if(SourceFiles, [&](const auto& aEntry) { return context && aEntry.first == context->Comparison && aEntry.second.File == aFile; });
+					if (found != SourceFiles.end()) {
+						return &found->second;
+					}
+				} catch (...) {
+					return nullptr;
+				}
+			}
 			const auto position = file_position(aFile);
 			if (position) {
 				return &Files[*position];
@@ -1055,7 +1066,10 @@ namespace bpr::application {
 			retire(workbench_request_domain::selected_diff,
 				   workbench_terminal_rejection::superseded);
 			Generation = core::request_generation{ Generation.value() + 1U };
-			Authority  = aAuthority;
+			if (!Authority || Authority->ApplicationSession != aAuthority.ApplicationSession || Authority->Profile != aAuthority.Profile || Authority->ProfileRevision != aAuthority.ProfileRevision || Authority->Host != aAuthority.Host || Authority->HostAuthority != aAuthority.HostAuthority || Authority->Account != aAuthority.Account || Authority->Viewer != aAuthority.Viewer || Authority->Repository != aAuthority.Repository || Authority->PullRequest != aAuthority.PullRequest) {
+				SourceFiles.clear();
+			}
+			Authority = aAuthority;
 			Actionable.clear();
 			Files.clear();
 			FileIndex.clear();
@@ -1211,6 +1225,7 @@ namespace bpr::application {
 				   workbench_terminal_rejection::superseded);
 			Generation = core::request_generation{ Generation.value() + 1U };
 			Authority.reset();
+			SourceFiles.clear();
 			Actionable.clear();
 			Files.clear();
 			FileIndex.clear();
@@ -2103,19 +2118,20 @@ namespace bpr::application {
 		bool                CatalogueAvailable = false;
 		/// [[BPR-0972]]. Catalogue files withheld from the order, by file, and
 		/// whether the order's catalogue positions are strictly increasing.
-		std::map<core::workbench_file_id, workbench_file_observation_entry> Withheld;
-		bool                                                                Numbered = false;
-		std::optional<workbench_files_delta>                                PendingFilesDelta;
-		std::vector<std::pair<core::workbench_file_id, std::size_t>>        FileIndex;
-		bool                                                                FilesDirty = true;
-		std::vector<core::workbench_file_id>                                Actionable;
-		std::vector<workbench_file_observation_entry>                       Files;
-		std::optional<core::workbench_file_id>                              Selected;
-		std::optional<workbench_file_observation_entry>                     SelectedFile;
-		std::optional<workbench_pull_request_authority>                     Authority;
-		std::optional<workbench_selected_diff_request>                      AcceptedSelectedDiff;
-		workbench_layout_settings                                           Layout;
-		std::optional<workbench_layout_settings>                            PendingLayout;
+		std::map<core::workbench_file_id, workbench_file_observation_entry>             Withheld;
+		bool                                                                            Numbered = false;
+		std::optional<workbench_files_delta>                                            PendingFilesDelta;
+		std::vector<std::pair<core::workbench_file_id, std::size_t>>                    FileIndex;
+		bool                                                                            FilesDirty = true;
+		std::vector<core::workbench_file_id>                                            Actionable;
+		std::vector<workbench_file_observation_entry>                                   Files;
+		std::optional<core::workbench_file_id>                                          Selected;
+		std::optional<workbench_file_observation_entry>                                 SelectedFile;
+		std::optional<workbench_pull_request_authority>                                 Authority;
+		std::vector<std::pair<core::comparison_pair, workbench_file_observation_entry>> SourceFiles;
+		std::optional<workbench_selected_diff_request>                                  AcceptedSelectedDiff;
+		workbench_layout_settings                                                       Layout;
+		std::optional<workbench_layout_settings>                                        PendingLayout;
 		/// [[BPR-0783]]. A Home view applied before this window's own record
 		/// loaded, waiting to be merged into it.
 		std::optional<home_view_state>              HeldHome;
@@ -2310,6 +2326,21 @@ namespace bpr::application {
 		return Implementation->Layout;
 	}
 
+	auto workbench_application_host::retain_source_file(const workbench_selected_diff_context& aContext, workbench_file_observation_entry aEntry, std::span<const core::window_review_position> aTabs) -> bool
+	{
+		auto& owner = *Implementation;
+		if (owner.Closing || !owner.Authority || !owner.SelectedDiffs || owner.SelectedDiffs->context(*owner.Authority) != std::optional{ aContext } || !valid(aEntry) || aTabs.size() > core::maximum_document_tabs) {
+			return false;
+		}
+		std::erase_if(owner.SourceFiles, [&](const auto& aRetained) { return !std::ranges::any_of(aTabs, [&](const auto& aTab) { return aTab.Comparison == aRetained.first && aTab.File == std::optional{ aRetained.second.File }; }); });
+		const auto found = std::ranges::find_if(owner.SourceFiles, [&](const auto& aRetained) { return aRetained.first == aContext.Comparison && aRetained.second.File == aEntry.File; });
+		if (found != owner.SourceFiles.end()) {
+			found->second = std::move(aEntry);
+		} else {
+			owner.SourceFiles.emplace_back(aContext.Comparison, std::move(aEntry));
+		}
+		return true;
+	}
 	auto workbench_application_host::file_observation(const core::workbench_file_id aFile) const -> std::optional<workbench_file_observation_entry>
 	{
 		const auto* entry = Implementation->catalogue_file(aFile);

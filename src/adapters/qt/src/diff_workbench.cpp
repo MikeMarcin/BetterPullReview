@@ -2191,10 +2191,11 @@ namespace bpr::qt {
 		std::shared_ptr<const std::vector<application::source_search_match>>                    Records;
 		std::weak_ptr<const std::vector<application::source_search_match>>                      MappedRecords;
 		std::optional<std::uint32_t>                                                            Current;
-		bool                                                                                    Rebind          = false;
-		bool                                                                                    ClosedNavigable = false;
-		bool                                                                                    Recall          = false;
-		bool                                                                                    Navigating      = false;
+		bool                                                                                    Rebind            = false;
+		bool                                                                                    ClosedNavigable   = false;
+		bool                                                                                    Recall            = false;
+		bool                                                                                    Navigating        = false;
+		bool                                                                                    ExternalSelection = false;
 		std::optional<core::change_navigation_direction>                                        ReopenDirection;
 		std::optional<core::source_match_location>                                              PendingReveal;
 		std::optional<core::source_match_location>                                              CopyMatch;
@@ -2378,6 +2379,23 @@ namespace bpr::qt {
 		}
 		return Find->Fragments.emplace(key, std::move(pieces)).first->second;
 	}
+	auto diff_workbench::source_search_seed() const -> QString
+	{
+		const auto* target  = OnePaneEnabled ? Unified : Find->Recent && Find->Recent->isVisible() ? Find->Recent.data()
+																								   : Right;
+		const auto* focused = QApplication::focusWidget();
+		if (focused == Left || focused == Right || focused == Unified) {
+			target = static_cast<const QPlainTextEdit*>(focused);
+		}
+		const auto cursor = target->textCursor();
+		if (!cursor.hasSelection()) {
+			return { };
+		}
+		if (cursor.selectionEnd() - cursor.selectionStart() > static_cast<int>(core::maximum_source_search_query_bytes)) {
+			return QString{ static_cast<qsizetype>(core::maximum_source_search_query_bytes + 1U), QLatin1Char(' ') };
+		}
+		return cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+	}
 	void diff_workbench::open_source_find()
 	{
 		if (!source_find_available()) {
@@ -2466,10 +2484,12 @@ namespace bpr::qt {
 		}
 		intent.Selection = Find->Fixed;
 		if (aGesture == source_find_gesture::next || aGesture == source_find_gesture::previous) {
-			Find->Navigating = true;
+			Find->ExternalSelection = false;
+			Find->Navigating        = true;
 		}
 		if (aGesture == source_find_gesture::query_dirty) {
-			Find->ClosedNavigable = false;
+			Find->ExternalSelection = false;
+			Find->ClosedNavigable   = false;
 			Find->Records.reset();
 			Find->PendingReveal.reset();
 			Find->Current.reset();
@@ -2555,7 +2575,7 @@ namespace bpr::qt {
 			Find->Changed();
 		}
 	}
-	auto diff_workbench::reveal_source_match(const core::source_match_location& aLocation) -> bool
+	auto diff_workbench::reveal_source_match(const core::source_match_location& aLocation, const bool aExternal) -> bool
 	{
 		if (!CurrentContext || !CurrentResult || !SemanticIndex || geometry_pending()) {
 			return false;
@@ -2563,6 +2583,10 @@ namespace bpr::qt {
 		const auto blob = aLocation.Side == core::diff_side::left ? CurrentContext->Key.LeftBlob : CurrentContext->Key.RightBlob;
 		if (blob != std::optional{ aLocation.Blob }) {
 			return false;
+		}
+		if (aExternal) {
+			Find->ExternalSelection = true;
+			Find->PendingReveal.reset();
 		}
 		const auto& pieces = source_match_fragments(aLocation);
 		if (pieces.empty()) {
@@ -2668,7 +2692,7 @@ namespace bpr::qt {
 			dispatch_source_find(direction == core::change_navigation_direction::next ? source_find_gesture::next : source_find_gesture::previous);
 			return;
 		}
-		const bool reveal = aProjection.CurrentMatch && (Find->Navigating || Find->Current != aProjection.CurrentMatch || Find->Bar->projection().Matches != aProjection.Matches);
+		const bool reveal = aProjection.CurrentMatch && !Find->ExternalSelection && (Find->Navigating || Find->Current != aProjection.CurrentMatch || Find->Bar->projection().Matches != aProjection.Matches);
 		Find->Current     = aProjection.CurrentMatch;
 		Find->Bar->present(aProjection);
 		if (reveal && aProjection.Matches && *aProjection.CurrentMatch < aProjection.Matches->size()) {

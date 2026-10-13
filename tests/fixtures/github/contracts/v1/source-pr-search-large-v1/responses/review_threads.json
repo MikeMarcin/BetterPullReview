@@ -1,0 +1,308 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_source-pr-search-large",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "bulk/000.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/001.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/002.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/003.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/004.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/005.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/006.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/007.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/008.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/009.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/010.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/011.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/012.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/013.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/014.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/015.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/016.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/017.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/018.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/019.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/020.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/021.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/022.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/023.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/024.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/025.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/026.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/027.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/028.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/029.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/030.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/031.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/032.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/033.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/034.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/035.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/036.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/037.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/038.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/039.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/040.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/041.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/042.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/043.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/044.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/045.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/046.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/047.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/048.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/049.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/050.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/051.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/052.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/053.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/054.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/055.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/056.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/057.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/058.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/059.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/060.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/061.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/062.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/063.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "historical/only.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/added.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/removed.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/renamed.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "unsupported/binary.bin",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "unsupported/invalid.cpp",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/source-pr-search-large:78:files",
+						"hasNextPage": false
+					},
+					"totalCount": 70
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_78",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

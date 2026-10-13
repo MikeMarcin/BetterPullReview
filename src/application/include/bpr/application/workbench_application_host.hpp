@@ -6,6 +6,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/header_source_navigation.hpp"
+#include "bpr/core/window_review_restoration.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -85,6 +86,10 @@ namespace bpr::application {
 		// Replays the retained semantic selection after an accepted comparison
 		// becomes available or changes.
 		void refresh_selected_diff();
+		/// \brief Retains an epoch-catalogue entry for ordinary exact tab loading, outside Files filters.
+		/// \details Only the current exact selected-diff context admits an entry. Retention
+		/// is bounded to the sixteen live tabs plus the next explicit open.
+		auto retain_source_file(const workbench_selected_diff_context& aContext, workbench_file_observation_entry aEntry, std::span<const core::window_review_position> aTabs) -> bool;
 		// Reobserves receipt-derived actionability without replacing the accepted
 		// authority or detaching its retained selected diff.
 		void refresh_actionability();

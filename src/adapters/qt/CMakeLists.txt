@@ -78,6 +78,7 @@ add_library(
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
         src/source_find_bar.cpp
+        src/source_search_panel.cpp
         src/line_details_pane.cpp
         src/finding_queue_view.cpp
         src/event_loop_executor.cpp

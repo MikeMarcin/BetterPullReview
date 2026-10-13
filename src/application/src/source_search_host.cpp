@@ -101,7 +101,8 @@ namespace bpr::application {
 												 close,
 												 reset,
 												 next,
-												 previous };
+												 previous,
+												 select };
 		struct command
 		{
 			command_kind                             Kind = command_kind::open;
@@ -111,6 +112,7 @@ namespace bpr::application {
 			core::source_search_options              Options;
 			std::string                              Include;
 			std::string                              Exclude;
+			std::uint32_t                            Index = 0U;
 		};
 		struct job
 		{
@@ -170,6 +172,7 @@ namespace bpr::application {
 			output.Input          = State.Input;
 			output.Status         = State.Status;
 			output.Summary        = State.Summary;
+			output.Generation     = State.Generation;
 			output.Matches        = Matches;
 			output.CurrentMatch   = State.CurrentMatch;
 			output.Reason         = Reason;
@@ -282,6 +285,7 @@ namespace bpr::application {
 			case command_kind::reset:    perform(core::reset_source_search(State)); break;
 			case command_kind::next:     perform(core::navigate_source_search(State, core::change_navigation_direction::next)); break;
 			case command_kind::previous: perform(core::navigate_source_search(State, core::change_navigation_direction::previous)); break;
+			case command_kind::select:   perform(core::select_source_search_match(State, aCommand.Index)); break;
 			}
 		}
 
@@ -534,6 +538,13 @@ namespace bpr::application {
 	auto source_search_host::navigate(const core::change_navigation_direction aDirection) -> bool
 	{
 		return Implementation->enqueue({ aDirection == core::change_navigation_direction::next ? implementation::command_kind::next : implementation::command_kind::previous, { }, { }, core::source_search_input::empty, { }, { }, { } });
+	}
+	auto source_search_host::select_match(const std::uint32_t aIndex) -> bool
+	{
+		auto command  = implementation::command{ };
+		command.Kind  = implementation::command_kind::select;
+		command.Index = aIndex;
+		return Implementation->enqueue(std::move(command));
 	}
 	void source_search_host::shutdown() { Implementation->shutdown(); }
 	auto source_search_host::projection() const -> source_search_projection { return Implementation->projection(); }

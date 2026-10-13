@@ -78,6 +78,21 @@ namespace bpr::core {
 		const bool traverse = find && aObservation.Query && aObservation.Hits;
 		return { find, traverse, traverse };
 	}
+	/// \brief PR Find is available from its composer; traversal respects unrelated editors.
+	struct source_files_command_observation
+	{
+		bool PullRequest = false;
+		bool Modal       = false;
+		bool Editor      = false;
+		bool Query       = false;
+		bool Hits        = false;
+	};
+	[[nodiscard]] constexpr auto project_source_files_commands(source_files_command_observation aObservation) -> std::array<bool, 3>
+	{
+		const bool open     = aObservation.PullRequest && !aObservation.Modal;
+		const bool traverse = open && !aObservation.Editor && aObservation.Query && aObservation.Hits;
+		return { open, traverse, traverse };
+	}
 
 	enum class source_search_input : std::uint8_t { empty,
 													ready,
@@ -191,6 +206,7 @@ namespace bpr::core {
 	[[nodiscard]] auto progress_source_search(source_search_state& aState, const source_search_request& aRequest, source_search_summary aSummary) -> source_search_output;
 	/// \brief Traverses accepted counts in constant work, without matching or source access.
 	[[nodiscard]] auto navigate_source_search(source_search_state& aState, change_navigation_direction aDirection) -> source_search_output;
+	[[nodiscard]] auto select_source_search_match(source_search_state& aState, std::uint32_t aIndex) -> source_search_output;
 	/// \brief True only for an unqualified, completely searched, empty corpus.
 	[[nodiscard]] auto source_search_no_results(const source_search_state& aState) noexcept -> bool;
 }
