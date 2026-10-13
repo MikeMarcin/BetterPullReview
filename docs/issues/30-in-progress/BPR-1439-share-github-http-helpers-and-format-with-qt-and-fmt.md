@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1439"
 title: "Share GitHub HTTP helpers and format with Qt and fmt"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
