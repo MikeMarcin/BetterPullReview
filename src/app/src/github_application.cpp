@@ -6404,6 +6404,21 @@ namespace bpr::app {
 			cancel_restoration(true);
 			SetupDestination->submit(application::pull_request_page_address(*page));
 		}
+		/// A Recently viewed row's Remove: only a row this window published,
+		/// still naming the entry it was published for.
+		void forget_recent(application::recent_review_row aRow)
+		{
+			if (Closing || !Profile->ReviewRestoration || !RecentPublished || aRow.Index >= RecentIndexMap.size()
+				|| aRow.Index >= RecentPublished->Entries.size()) {
+				return;
+			}
+			const auto  index  = RecentIndexMap[aRow.Index];
+			const auto& recent = Profile->ReviewRestoration->recent();
+			if (index >= recent.size() || recent[index].Destination != RecentPublished->Entries[aRow.Index].Destination) {
+				return;
+			}
+			Profile->ReviewRestoration->forget_recent(RecentPublished->Entries[aRow.Index].Destination);
+		}
 		void open_recent(application::recent_review_intent aIntent)
 		{
 			if (Closing || !Profile->ReviewRestoration || aIntent.Index >= RecentIndexMap.size()) {
@@ -7249,6 +7264,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			});
 			Window->set_recent_review_dispatch([this](application::recent_review_intent aIntent) { open_recent(aIntent); });
+			Window->set_recent_removal_dispatch([this](application::recent_review_row aRow) { forget_recent(aRow); });
 			Window->set_review_window_dispatch([this](const application::review_window_intent& aIntent) { return request_review_window(aIntent); });
 			// Suggest change is coloured by the panes' classifier over the same
 			// definitions, on the lane every classifier over them runs on.

@@ -64,6 +64,11 @@ namespace bpr::qt {
 			/// [[BPR-1407]]. The comment count ("14"), drawn after the age
 			/// behind a comment icon; empty where unknown.
 			comments,
+			/// The identity as the row shows it, at the head of its second
+			/// line: `identity`, less what the row's group already names
+			/// ("name#123" under an owner, "#123" under a repository). Absent
+			/// means `identity`.
+			shown_identity,
 		};
 	} // namespace home_row_role
 

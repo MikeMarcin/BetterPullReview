@@ -328,6 +328,13 @@ namespace bpr::application {
 			Implementation->deliver(Implementation->Policy.open_recent(aContext, aIndex));
 		}
 	}
+	void window_review_restoration_host::forget_recent(const core::window_review_destination& aDestination)
+	{
+		if (!Implementation->Closing && Implementation->Policy.forget_recent(aDestination)) {
+			Implementation->changed();
+			Implementation->notify_recent();
+		}
+	}
 	auto window_review_restoration_host::recent() const noexcept -> const std::vector<core::window_recent_review>& { return Implementation->Policy.recent(); }
 	void window_review_restoration_host::close(core::bpr_window_context aContext) { Implementation->close(aContext); }
 	void window_review_restoration_host::accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition)

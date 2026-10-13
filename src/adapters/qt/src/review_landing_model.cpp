@@ -501,12 +501,16 @@ namespace bpr::qt {
 		case author_role:
 			return text(item->Facts.Author);
 		case role_role:
-			if (item->Membership.authored()) {
-				return text(core::name(core::github_role::author));
+			// The first role the item holds, in the order "My role" lists them.
+			for (const auto role : { core::github_role::author,
+									 core::github_role::requested_reviewer,
+									 core::github_role::reviewer,
+									 core::github_role::participant }) {
+				if (core::holds_role(*item, role)) {
+					return text(core::name(role));
+				}
 			}
-			return item->Membership.Role == core::github_role::none
-				? QString{ }
-				: text(core::name(item->Membership.Role));
+			return QString{ };
 		case group_role:
 			return static_cast<int>(core::home_section_for(item->Membership, item->Bucket));
 		case unseen_role:
@@ -892,8 +896,7 @@ namespace bpr::qt {
 		if (!item) {
 			return false;
 		}
-		const auto role = item->Membership.authored() ? core::github_role::author : item->Membership.Role;
-		if (Effective.Role.has_value() && role != *Effective.Role) {
+		if (Effective.Role.has_value() && !core::holds_role(*item, *Effective.Role)) {
 			return false;
 		}
 		if (Effective.ObserverReason.has_value()

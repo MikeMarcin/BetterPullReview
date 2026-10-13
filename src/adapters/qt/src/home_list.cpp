@@ -262,6 +262,19 @@ namespace bpr::qt {
 			// repeat it: under Account grouping, and in a single-account group.
 			return QString{ };
 		}
+		if (aRole == home_row_role::shown_identity && !Key.empty()
+			&& (Grouping == application::home_grouping::organization || Grouping == application::home_grouping::repository)) {
+			// The group's header names the owner or the repository, so its rows
+			// say only the rest: "name#123" under an owner, "#123" under a
+			// repository.
+			const auto number = QStringLiteral("#%1").arg(QSortFilterProxyModel::data(aIndex, review_landing_model::number_role).toLongLong());
+			if (Grouping == application::home_grouping::repository) {
+				return number;
+			}
+			const auto repository = QSortFilterProxyModel::data(aIndex, review_landing_model::repository_role).toString();
+			const auto slash      = repository.indexOf(QLatin1Char{ '/' });
+			return (slash > 0 ? repository.mid(slash + 1) : repository) + number;
+		}
 		return QSortFilterProxyModel::data(aIndex, aRole);
 	}
 

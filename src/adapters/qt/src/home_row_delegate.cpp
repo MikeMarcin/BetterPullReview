@@ -205,8 +205,16 @@ namespace bpr::qt {
 				Opening                = open != nullptr;
 				OpenAction             = open != nullptr ? open->Action : QString{ };
 
-				First  = title.isEmpty() ? identity : identity + identity_separator + title;
-				Second = open != nullptr ? open->Line : why;
+				// The title leads: it is what a reviewer reads a row by. The
+				// repository and number follow at the head of the quieter second
+				// line, unless there is no title for them to follow.
+				const auto shownData = aIndex.data(home_row_role::shown_identity);
+				const auto shown     = shownData.isValid() ? shownData.toString() : identity;
+				First                = title.isEmpty() ? identity : title;
+				Second               = open != nullptr ? open->Line : why;
+				if (!Opening && !title.isEmpty() && !shown.isEmpty()) {
+					Second = Second.isEmpty() ? shown : shown + identity_separator + Second;
+				}
 				if (!reason.isEmpty() && !Opening) {
 					if (!Second.isEmpty()) {
 						Second += QLatin1Char{ ' ' };
@@ -263,11 +271,11 @@ namespace bpr::qt {
 				DraftHeight          = Draft.isEmpty() ? 0 : QFontMetrics{ aOption.font }.height() + tag_pad_y * 2;
 				FirstIndent          = DraftWidth > 0 ? DraftWidth + open_mark_gap : 0;
 
-				auto identityFormat   = QTextLayout::FormatRange{ };
-				identityFormat.start  = 0;
-				identityFormat.length = static_cast<int>(identity.size());
-				identityFormat.format.setFontWeight(QFont::DemiBold);
-				FirstHeight = std::max(DraftHeight, lay_out(FirstLayout, First, aOption.font, std::max(1, TextWidth - FirstIndent), { identityFormat }));
+				auto leadFormat   = QTextLayout::FormatRange{ };
+				leadFormat.start  = 0;
+				leadFormat.length = static_cast<int>(First.size());
+				leadFormat.format.setFontWeight(QFont::DemiBold);
+				FirstHeight = std::max(DraftHeight, lay_out(FirstLayout, First, aOption.font, std::max(1, TextWidth - FirstIndent), { leadFormat }));
 
 				auto secondFormats = QList<QTextLayout::FormatRange>{ };
 				if (ReasonStart >= 0) {

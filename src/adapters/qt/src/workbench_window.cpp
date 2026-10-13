@@ -3068,6 +3068,16 @@ namespace bpr::qt {
 			HomeRecentResumeAction->setToolTip(QStringLiteral(
 				"Opens the selected recently viewed pull request where its reading was left"));
 			HomeRecentResumeAction->setEnabled(false);
+			// Recently viewed keeps the last ten pull requests read, so the
+			// reviewer can take one off it, from the row's menu or by Delete.
+			HomeRecentRemoveAction = new QAction{ tr("Remove from Recently Viewed"), this };
+			HomeRecentRemoveAction->setObjectName(QStringLiteral("homeRecentRemoveAction"));
+			HomeRecentRemoveAction->setStatusTip(QStringLiteral(
+				"Takes the selected pull request off Recently viewed; nothing changes on GitHub"));
+			HomeRecentRemoveAction->setShortcut(QKeySequence{ Qt::Key_Delete });
+			HomeRecentRemoveAction->setShortcutContext(Qt::WidgetShortcut);
+			HomeRecentRemoveAction->setShortcutVisibleInContextMenu(true);
+			HomeRecentRemoveAction->setEnabled(false);
 			auto* const recentList = new home_recent_view{ HomePage };
 			recentList->hide();
 			HomeRecentList = recentList;
@@ -3119,6 +3129,9 @@ namespace bpr::qt {
 					});
 			connect(HomeRecentResumeAction, &QAction::triggered, this, [this] {
 				dispatch_recent_review(HomeRecentList->currentRow(), true);
+			});
+			connect(HomeRecentRemoveAction, &QAction::triggered, this, [this] {
+				remove_recent_review(HomeRecentList->currentRow());
 			});
 			// [[BPR-1157]]. Review Cycles beside the pull request ways in: Open
 			// Project and the cycles this profile keeps, most recent first. It
@@ -3831,10 +3844,16 @@ namespace bpr::qt {
 		}
 		HomeRowMenu->addSeparator();
 		HomeRowMenu->addAction(OpenOnGithubAction);
+		if (HomeRecentRemoveAction != nullptr) {
+			HomeRowMenu->addSeparator();
+			HomeRowMenu->addAction(HomeRecentRemoveAction);
+		}
 		HomeRowMenu->setDefaultAction(HomeOpenReviewAction);
 		connect(HomeRowMenu, &QMenu::aboutToHide, this, [this] {
-			if (HomeRecentResumeAction != nullptr) {
-				HomeRecentResumeAction->setVisible(true);
+			for (auto* const action : { HomeRecentResumeAction, HomeRecentRemoveAction }) {
+				if (action != nullptr) {
+					action->setVisible(true);
+				}
 			}
 		});
 		HomeList->set_row_menu_dispatch([this](const QPoint& aGlobal) {
@@ -10982,8 +11001,11 @@ namespace bpr::qt {
 		// menu is open on a queue row, because a hidden action is a disabled
 		// one, and the row's hover button follows this action.
 		const auto target = home_review_target();
-		if (HomeRecentResumeAction != nullptr) {
-			HomeRecentResumeAction->setVisible(target.has_value() && std::holds_alternative<application::recent_review_row>(*target));
+		const auto recent = target.has_value() && std::holds_alternative<application::recent_review_row>(*target);
+		for (auto* const action : { HomeRecentResumeAction, HomeRecentRemoveAction }) {
+			if (action != nullptr) {
+				action->setVisible(recent);
+			}
 		}
 		HomeRowMenu->popup(aGlobal);
 	}
@@ -12092,10 +12114,21 @@ namespace bpr::qt {
 		return HomeRecentResumeAction;
 	}
 
+	auto workbench_window::home_recent_remove_action() const noexcept -> QAction*
+	{
+		return HomeRecentRemoveAction;
+	}
+
 	void workbench_window::set_recent_review_dispatch(
 		std::function<void(application::recent_review_intent)> aDispatch)
 	{
 		RecentReviewDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_recent_removal_dispatch(std::function<void(application::recent_review_row)> aDispatch)
+	{
+		RecentRemovalDispatch = std::move(aDispatch);
+		update_recent_resume_action();
 	}
 
 	void workbench_window::publish(const application::recent_reviews_projection& aProjection)
@@ -12175,10 +12208,20 @@ namespace bpr::qt {
 		if (HomeRecentResumeAction == nullptr || HomeRecentList == nullptr) {
 			return;
 		}
-		const auto row = HomeRecentList->currentRow();
-		HomeRecentResumeAction->setEnabled(
-			row >= 0 && static_cast<std::size_t>(row) < RecentReviews.Entries.size()
-			&& RecentReviews.Entries[static_cast<std::size_t>(row)].Resumable);
+		const auto row    = HomeRecentList->currentRow();
+		const auto listed = row >= 0 && static_cast<std::size_t>(row) < RecentReviews.Entries.size();
+		HomeRecentResumeAction->setEnabled(listed && RecentReviews.Entries[static_cast<std::size_t>(row)].Resumable);
+		if (HomeRecentRemoveAction != nullptr) {
+			HomeRecentRemoveAction->setEnabled(listed && static_cast<bool>(RecentRemovalDispatch));
+		}
+	}
+
+	void workbench_window::remove_recent_review(const int aRow)
+	{
+		if (!RecentRemovalDispatch || aRow < 0 || static_cast<std::size_t>(aRow) >= RecentReviews.Entries.size()) {
+			return;
+		}
+		RecentRemovalDispatch(application::recent_review_row{ static_cast<std::size_t>(aRow) });
 	}
 
 	void workbench_window::claim_home_selection(const home_selection_list aList)
@@ -12285,6 +12328,13 @@ namespace bpr::qt {
 		if (aWatched == HomeRecentList && aEvent != nullptr
 			&& aEvent->type() == QEvent::KeyPress) {
 			auto* const key = static_cast<QKeyEvent*>(aEvent);
+			// Delete, or Backspace as macOS lists take it, removes the row, as
+			// Settings › Repositories' list does.
+			if ((key->key() == Qt::Key_Delete || key->key() == Qt::Key_Backspace)
+				&& key->modifiers() == Qt::NoModifier) {
+				remove_recent_review(HomeRecentList->currentRow());
+				return true;
+			}
 			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
 				// Both Return gestures are read here rather than left to the
 				// view. On macOS Return is an item view's editing key and

@@ -190,6 +190,17 @@ namespace bpr::core {
 		auto operator<=>(const queue_item&) const = default;
 	};
 
+	/// \brief Whether one item is in this queue in the supplied role.
+	///
+	/// \details What "My role" filters by. GitHub's own `Role` is one way in;
+	/// personal discovery records the same facts as reasons beside it —
+	/// `Authored`, `Requested`, `Reviewed` — and a reviewer asking for the pull
+	/// requests they were requested on means both. A changed-since-my-review
+	/// bucket is itself an observed review. An item holds several roles at
+	/// once, so this is a test rather than a single answer, and `none` holds
+	/// exactly when no other role does.
+	[[nodiscard]] auto holds_role(const queue_item& aItem, github_role aRole) noexcept -> bool;
+
 	/// \brief Decides which bucket one enrolled pull request belongs in.
 	///
 	/// \details The whole of the attention policy. It reads no clock, reaches

@@ -179,6 +179,10 @@ namespace bpr::core {
 		/// \brief Records the title once a snapshot of a listed destination was seen.
 		[[nodiscard]] auto accepted_title(const window_review_destination& aDestination, std::string_view aTitle) -> bool;
 		[[nodiscard]] auto accepted_draft(const window_review_destination& aDestination, std::optional<bool> aDraft) -> bool;
+		/// \brief A reviewer's removal of one destination from the recently
+		/// viewed list. Its window records are untouched: a window reading it
+		/// still restores there, and the next accepted read lists it again.
+		[[nodiscard]] auto forget_recent(const window_review_destination& aDestination) -> bool;
 		[[nodiscard]] auto recent() const noexcept -> const std::vector<window_recent_review>& { return Recent; }
 		[[nodiscard]] auto attach(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto current(bpr_window_context aContext) const noexcept -> bool;

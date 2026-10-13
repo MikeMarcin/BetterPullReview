@@ -15,6 +15,26 @@ namespace bpr::core {
 		return aMembership;
 	}
 
+	auto holds_role(const queue_item& aItem, const github_role aRole) noexcept -> bool
+	{
+		const auto& membership = aItem.Membership;
+		switch (aRole) {
+		case github_role::author:
+			return membership.authored();
+		case github_role::requested_reviewer:
+			return membership.Role == github_role::requested_reviewer || membership.Requested;
+		case github_role::reviewer:
+			return membership.Role == github_role::reviewer || membership.Reviewed
+				|| aItem.Bucket == attention_bucket::changed_since_my_review;
+		case github_role::participant:
+			return membership.Role == github_role::participant;
+		case github_role::none:
+			return !holds_role(aItem, github_role::author) && !holds_role(aItem, github_role::requested_reviewer)
+				&& !holds_role(aItem, github_role::reviewer) && !holds_role(aItem, github_role::participant);
+		}
+		return false;
+	}
+
 	auto review_waiting(const queue_waiting_facts& aFacts) noexcept -> bool
 	{
 		return aFacts.Requests.value_or(0) > 0 || aFacts.RequiredReview.value_or(false);

@@ -32,6 +32,8 @@ namespace bpr::application {
 		void accepted_title(const core::window_review_destination& aDestination, std::string_view aTitle);
 		/// [[BPR-0733]]. A window's gesture on its recently viewed list.
 		void               open_recent(core::bpr_window_context aContext, std::size_t aIndex);
+		/// \brief A reviewer's removal of one destination from the recently viewed list, persisted.
+		void forget_recent(const core::window_review_destination& aDestination);
 		[[nodiscard]] auto recent() const noexcept -> const std::vector<core::window_recent_review>&;
 		/// \brief Retains an exact accepted reading position for the current accepted destination.
 		void accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition);

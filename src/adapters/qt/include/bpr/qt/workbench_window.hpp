@@ -431,6 +431,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-0733]]. Where a recently viewed row's open or resume goes.
 		void set_recent_review_dispatch(
 			std::function<void(application::recent_review_intent)> aDispatch);
+		/// \brief Where a recently viewed row's Remove goes.
+		void set_recent_removal_dispatch(std::function<void(application::recent_review_row)> aDispatch);
 		void               clear_overview();
 		[[nodiscard]] auto overview_page() const noexcept -> pull_request_overview_page*;
 		/// \brief Whether the centre shows the overview rather than the comparison.
@@ -1117,6 +1119,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto home_recent_list() const noexcept -> QListWidget*;
 		[[nodiscard]] auto home_recent_resume_action() const noexcept -> QAction*;
+		[[nodiscard]] auto home_recent_remove_action() const noexcept -> QAction*;
 		[[nodiscard]] auto home_recent_row_action() const noexcept -> QToolButton*;
 		/// \brief Selects and focuses one exact visible local-queue identity.
 		///
@@ -1477,6 +1480,7 @@ namespace bpr::qt {
 		void update_home_surface();
 		/// \brief [[BPR-0733]]. Sends one recently viewed row out, to open or to resume.
 		void dispatch_recent_review(int aRow, bool aResume);
+		void remove_recent_review(int aRow);
 		/// \brief [[BPR-1157]] [[BPR-1364]]. Resumes one of Home's recent review
 		/// cycles, by a double-click or Return on its row.
 		void resume_home_cycle(int aRow);
@@ -2371,6 +2375,8 @@ namespace bpr::qt {
 		// a row's index into them is what leaves through the dispatch.
 		QListWidget*                                           HomeRecentList         = nullptr;
 		QAction*                                               HomeRecentResumeAction = nullptr;
+		QAction*                                               HomeRecentRemoveAction = nullptr;
+		std::function<void(application::recent_review_row)>    RecentRemovalDispatch;
 		application::recent_reviews_projection                 RecentReviews;
 		std::function<void(application::recent_review_intent)> RecentReviewDispatch;
 	};
