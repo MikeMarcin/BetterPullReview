@@ -239,8 +239,11 @@ namespace bpr::qt {
 	{
 		/// The green resolved check; empty when the note is not resolved.
 		QRectF Resolved;
-		/// The blue new-post count; empty when nothing in the note is new.
+		/// The blue new-post count; empty when nothing in the note is new. Its
+		/// right edge is the same on every closed note ([[BPR-1473]]).
 		QRectF NewCount;
+		/// "Your reply" and its pencil, left of the count; empty without one.
+		QRectF UnsentReply;
 		/// The right edge the reply count and the repliers' faces start from.
 		int Replies = 0;
 	};

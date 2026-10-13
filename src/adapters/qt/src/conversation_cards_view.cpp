@@ -2178,23 +2178,22 @@ namespace bpr::qt {
 			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::lock, ink);
 			right -= w + 20;
 		} else {
-			// [[BPR-1471]]. The resolved check's slot is kept on every note,
-			// so the blue counts line up down the list.
+			// [[BPR-1471]], [[BPR-1473]]. The resolved check's slot is kept on
+			// every note and the blue count follows it, so the counts line up
+			// down the list whatever else a note shows.
 			const auto meta = closed_meta(aCard);
 			if (!meta.Resolved.isEmpty()) {
 				paint_conversation_glyph(aPainter, meta.Resolved, conversation_glyph::resolved, colours.Ok);
 			}
-			right -= resolved_slot;
 			// [[BPR-1374]]. My reply written in this thread and not sent, in
 			// the writing blue, at full strength on a resolved note too.
-			if (aCard.UnsentReply.has_value()) {
+			if (!meta.UnsentReply.isEmpty()) {
 				const auto words = QStringLiteral("Your reply");
-				const auto w     = smallMetrics.horizontalAdvance(words);
 				aPainter.save();
 				aPainter.setOpacity(1.0);
 				aPainter.setPen(colours.Signal);
-				aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
-				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.Signal);
+				aPainter.drawText(meta.UnsentReply.adjusted(16.0, 0.0, 1.0, 0.0), Qt::AlignRight | Qt::AlignVCenter, words);
+				paint_conversation_glyph(aPainter, QRectF{ meta.UnsentReply.left(), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.Signal);
 				aPainter.restore();
 			}
 			if (!meta.NewCount.isEmpty()) {
@@ -2370,13 +2369,17 @@ namespace bpr::qt {
 			meta.Resolved = QRectF{ static_cast<qreal>(right - resolved_size), top + ((nameH - resolved_size) / 2.0), resolved_size, resolved_size };
 		}
 		right -= resolved_slot;
-		if (aCard.UnsentReply.has_value()) {
-			right -= QFontMetrics{ scaled(font(), 0.92) }.horizontalAdvance(QStringLiteral("Your reply")) + 16 + 8;
-		}
+		// [[BPR-1473]]. The blue count comes straight after the check's slot,
+		// so nothing else on the row moves it.
 		if (aCard.UnreadCount > 0U) {
 			const auto w  = std::max(16, QFontMetrics{ new_count_font(font()) }.horizontalAdvance(QString::number(aCard.UnreadCount)) + 10);
 			meta.NewCount = QRectF{ static_cast<qreal>(right - w), top + ((nameH - 16) / 2.0), static_cast<qreal>(w), 16.0 };
 			right -= w + 6;
+		}
+		if (aCard.UnsentReply.has_value()) {
+			const auto w     = QFontMetrics{ scaled(font(), 0.92) }.horizontalAdvance(QStringLiteral("Your reply"));
+			meta.UnsentReply = QRectF{ static_cast<qreal>(right - w - 16), top, static_cast<qreal>(w + 16), static_cast<qreal>(nameH) };
+			right -= w + 16 + 8;
 		}
 		meta.Replies = right;
 		return meta;
