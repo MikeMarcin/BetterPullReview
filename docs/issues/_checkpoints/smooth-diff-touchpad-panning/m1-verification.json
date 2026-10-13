@@ -1,0 +1,82 @@
+{
+  "schema": "bpr.smooth-panning.verification.v1",
+  "candidate_revision": "60aa863613259ce3e4cad77f5517582187353492",
+  "environment": {
+    "os": "macOS",
+    "Qt": "6.11.2",
+    "platform": "offscreen",
+    "display_scales": [
+      1.0,
+      1.25,
+      2.0
+    ],
+    "code_zoom_percent": 150
+  },
+  "checks": [
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_qt_diff_workbench_tests test_better_pull_review_qt_comparison_scroll_controller_tests test_better_pull_review_qt_diff_link_map_tests -j 4",
+      "exit_code": 0
+    },
+    {
+      "command": "ctest --preset dev -R '^(qt_diff_workbench_scale_(100|125|200)|qt_comparison_scroll_controller_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200)|architecture_boundaries)$' --output-on-failure",
+      "exit_code": 0,
+      "passed": 10,
+      "total": 10,
+      "elapsed_seconds": 50.83
+    },
+    {
+      "command": "ctest --preset dev -R '^(qt_diff_workbench_scale_(100|125|200)|qt_comparison_scroll_controller_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200))$' --output-on-failure",
+      "exit_code": 0,
+      "passed": 9,
+      "total": 9,
+      "elapsed_seconds": 29.01,
+      "reason": "Restored source and rebuilt binaries after essential-dependency negative control; final naming/optional-assignment corrections included."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp src/adapters/qt/include/bpr/qt/comparison_scroll_controller.hpp src/adapters/qt/src/comparison_scroll_controller.cpp src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/comparison_scroll_controller_tests.cpp tests/adapters_qt/diff_workbench_tests.cpp",
+      "exit_code": 0,
+      "clang_format": "22.1.8"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --paths src/adapters/qt/src/diff_workbench.cpp src/adapters/qt/src/comparison_scroll_controller.cpp tests/adapters_qt/diff_workbench_tests.cpp tests/adapters_qt/comparison_scroll_controller_tests.cpp --warnings-as-errors",
+      "initial_exit_code": 1,
+      "initial_findings": "Two optional-value conversions and six existing local test identifiers. Corrected without behavior change.",
+      "final_exit_code": 0,
+      "scope": "Two affected units rerun; two unchanged passing units reused."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "output": "DOCUMENTATION_OK"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "exit_code": 0,
+      "passed": 67
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "negative_control": {
+    "original_sha256": "eb5af751f0579fb0cc2ff235e54b4dcaf55fbd64c35c9a0528f1f1a7b04c1ee5",
+    "exit_code": 8,
+    "essential_dependency_removed": "apply_frame within-line offset forced to zero",
+    "expected_assertion": "sub-line input visibly moves the real source row before a line step",
+    "restored_sha256": "eb5af751f0579fb0cc2ff235e54b4dcaf55fbd64c35c9a0528f1f1a7b04c1ee5"
+  },
+  "agent_verified_criteria": [
+    "AC01",
+    "AC02",
+    "AC03",
+    "AC04",
+    "AC05",
+    "AC06",
+    "AC08"
+  ],
+  "required_pending": [
+    "AC07"
+  ],
+  "evidence_ledger": "docs/verification/RFC-BPR-0073.md"
+}

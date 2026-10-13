@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-1413-AC07-v001",
+      "title": "Keep the smooth diff touchpad panning behavior?",
+      "revision": "60aa863613259ce3e4cad77f5517582187353492 / executable 21f856699ccf5e4ff5d4c51463b9cafbec4f425937f783f11b4a39512b393a8e",
+      "criteria": [
+        "Does horizontal panning stay at the intended vertical reading position despite minor finger wobble?"
+      ],
+      "content": "Launch the frozen build using the command below. It opens a fixture file in Review. Scroll to a middle section with long lines (around lines 500\u2013600 works), then use the touchpad to pan left and right, reverse direction, reach a horizontal edge and stop. Use your normal finger movement, including minor wobble. You can switch to unified view for the same judgment. Accept to keep this behavior, or Reject and describe the change you want in the note. The deterministic fractional-motion, geometry and keyboard checks already pass; this question is about the physical touchpad behavior. After saving, use Finish and hand back.",
+      "paths": [
+        "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
+        "src/adapters/qt/include/bpr/qt/comparison_scroll_controller.hpp",
+        "src/adapters/qt/src/comparison_scroll_controller.cpp",
+        "src/adapters/qt/src/diff_workbench.cpp"
+      ],
+      "resources": [
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk"
+      ],
+      "resource_versions": {
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk": "sha256:21f856699ccf5e4ff5d4c51463b9cafbec4f425937f783f11b4a39512b393a8e"
+      },
+      "launch": {
+        "label": "Launch the exact frozen comparison",
+        "command": "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk/launch.py"
+      },
+      "metadata": {
+        "rfc": "RFC-BPR-0073",
+        "criterion": "AC07",
+        "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk",
+        "source_revision": "60aa863613259ce3e4cad77f5517582187353492",
+        "freeze_check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832"
+      }
+    }
+  ]
+}

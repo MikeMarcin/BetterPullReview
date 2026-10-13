@@ -1,53 +1,107 @@
-# Smooth diff touchpad panning: initial checkpoint
+# Smooth diff touchpad panning continuation
 
-Assignment `/root/smooth_panning_m1`, coordinator/implementer recipe revision 2.
-The exact mandate, its digest, draft digests, baseline and command state are in
-[checkpoint.json](checkpoint.json); the resolved selection is preserved in
-[strategy-selection.json](strategy-selection.json).
+Assignment: `/root/smooth_panning_m1`, non-delegating `rfc-implementer`, coordinator/implementer recipe, milestone `smooth-comparison-panning`.
 
-Execution stopped before import, allocation, claim or product edits because the
-required `frontend-design:frontend-design` skill was unavailable. Root
-`AGENTS.md` requires: “Any UX or visual work (mockups, design candidates, icons,
-layout, Qt surfaces the owner will look at) loads the
-`frontend-design:frontend-design` skill first and says so in its report.”
-No matching `SKILL.md` was found under the five roots recorded in the checkpoint,
-and this runtime exposes no orchestrator skill lookup. The skill has not been
-loaded; this checkpoint does not claim that requirement is satisfied.
+Mandate: `/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.`
 
-The selected draft has no authored milestone plan. The bounded
-[proposal](plan-proposal.json) preserves all AC01–AC08 in one integrated milestone,
-including the owner’s explicit drift-suppression and discrete-keyboard amendments.
-The [preparation receipt](plan-preparation.json) validates its structure, without
-adopting it or proving coverage. A target-aware preparation refused the not-yet-live
-RFC-DRAFT-0012; that [refusal](target-preparation-refusal.json) is retained. No live
-RFC/card IDs were allocated and no acceptance evidence exists.
+Mandate revision: `b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d`.
+RFC base: `268b87049592ca4643e5303ab77114e116e7b5f3` on `main`.
 
-The verified immutable source baseline is
-`268b87049592ca4643e5303ab77114e116e7b5f3`. RFC-BPR-0004 and RFC-BPR-0005 are
-Auto-Verified in the live RFC index. The source draft and proposed amendment
-remain unchanged and untracked, with their exact digests recorded.
+## Engineering result
 
-The next implementer should read a trusted supplied or installed
-`frontend-design:frontend-design` SKILL.md, reconcile concurrent writers and the
-draft digests, then import with live allocated IDs and provenance on main, adopt
-the proposal and bind/claim the milestone. The concrete Qt touchpoints are
-`comparison_scroll_controller`, `measured_alignment_axis`, and `source_pane`
-inside `diff_workbench.cpp`; the composed evidence surface is
-`tests/adapters_qt/diff_workbench_tests.cpp`. Existing controller and workbench
-scale courses run at 100%, 125%, and 200%. They are starting surfaces, not new
-acceptance evidence. Exercise the shortest composed fractional-origin course
-early, retaining actual pane/hit-test/ribbon geometry and keyboard behavior.
+Implementation candidate: `60aa863613259ce3e4cad77f5517582187353492`.
+AC01–AC06 and AC08 pass; AC07 alone requires the actual owner touchpad verdict.
+The live RFC remains In Progress. No later milestone exists in this plan.
 
-Finish all unattended engineering and focused verification before AC07. Prepare
-its self-contained build with `scripts/freeze_attended_build.py`, then a fresh
-short attended-review session and loopback server. Keep AC07 pending until the
-owner gives the actual Accept/Reject verdict; no desktop automation or capture.
+The [verification ledger](../../../verification/RFC-BPR-0073.md) records the
+native fractional movement, gesture discrimination, keyboard alignment, old
+scrolling behavior, three display scales, code zoom and large-file budgets.
+[m1-verification.json](m1-verification.json) records exact candidate/check results
+and the essential-dependency negative control. The native offset was restored
+byte-for-byte and its rebuilt candidate passes all nine rendered checks.
 
-This assignment started no background command, server or worktree. Writer
-ownership is released. Other agents’ connection work and initial `.gitignore`,
-`.mask.json`, `.mask.lock.json` edits remain untouched. The only task-owned files
-are this checkpoint directory. No product build or tests ran because no product
-candidate exists. Resume this milestone after the required skill is resolved.
+The required frontend-design skill was read from the owner-supplied source:
+`/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
+The established native UI is preserved. The earlier missing-skill blocker is resolved.
 
-Validation: `python3 scripts/verify_documentation.py --root .` passed with
-`DOCUMENTATION_OK`; the plan preparation passed. Product criteria remain untested.
+The selected draft and proposed amendment remain untouched. Immutable imported
+copies, provenance and the adopted plan live under `docs/rfcs/assets/` and
+`docs/rfcs/plans/smooth-diff-touchpad-panning/`. The plan/requirement binding is
+[m1-binding.json](m1-binding.json); the import and claim commits are
+`c86b4b0af` and `7afbd357e`. The initial blocker checkpoint is `f5ba6df49`.
+
+## Attended review preparation
+
+The official frozen root is
+`/Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk`.
+Its source and build tree are inside that root. It exports the exact candidate
+commit and uses the committed `inline-drawer-v1` fixture, opening
+`src/ui/conversation_cards_view.cpp`. The official freeze exited 0. Its launcher’s own `--check` reached
+`ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`, fixture head
+`89df5e592e5db97a526a05a445735733395e4832`. The source/build tree is frozen read-only.
+Executable SHA-256: `21f856699ccf5e4ff5d4c51463b9cafbec4f425937f783f11b4a39512b393a8e`.
+
+Fresh session: `e64e44acf84114c0994623f552e9cab1`; saved event cursor **4**.
+Candidate: `BPR-1413-AC07-v001`, ready and protected, no decision.
+Fingerprint: `7e5c957d53749fc1c7f9a90c6b1f3138daeecd398d5321bf9eb44e91df510000`.
+State: `/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v001-20261012`.
+Registry: `/Users/jaeger/.mask/attended-review-resources`.
+The full token-bearing loopback URL is local in that state’s `handoff.json` and
+is returned to the coordinator; it is not published in Git.
+
+Server: PID `22360`, command session `61506`, port `49756`, bound to `127.0.0.1`.
+Authenticated `/api/status` confirms the expected session and ready candidate.
+The offline fallback is `offline-review.html` inside the state directory; its
+export requires the skill’s `import --file` before any verdict is authoritative.
+[attended-manifest.json](attended-manifest.json) binds the exact source revision,
+frozen executable version and four protected production paths.
+
+The single Accept/Reject criterion is: “Does horizontal panning stay at the
+intended vertical reading position despite minor finger wobble?” A rejection
+uses the note for the desired change. There are no bundled independent decisions.
+
+The launcher command names every file absolutely:
+
+```sh
+/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk/launch.py
+```
+
+## Ownership and continuation
+
+The implementer releases repository writer ownership at return. All task-owned
+build, tidy, test, freeze and launch-check commands have completed. Only the
+explicitly handed-off review server remains; no review app or waiter is left
+running by this implementer. The coordinator owns the subsequent review wait.
+The final source/tracker HEAD and quiescent milestone-check result are recorded
+in the external state’s `handoff.json`, `m1-observation.json` and `m1-check.json`.
+The candidate code/fixture remains bound to `60aa863613259ce3e4cad77f5517582187353492`;
+later bookkeeping commits do not change it.
+No wait-stack qualification has been observed by this implementer. If the
+coordinator has no matching observed qualification, decisions remain durable
+and the owner sends `Resume the attended review` after **Finish and hand back**.
+No recurring status poller or heartbeat is part of this session.
+
+Exact status/intake command:
+
+```sh
+/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v001-20261012 --registry /Users/jaeger/.mask/attended-review-resources status --after 4
+```
+
+Only a qualified coordinator stack may use this exact deterministic waiter:
+
+```sh
+/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v001-20261012 --registry /Users/jaeger/.mask/attended-review-resources wait --after 4 --kind handed-back --timeout 43200
+```
+
+After handback, verify the same session, candidate fingerprint and frozen
+executable hash, read events newer than the saved cursor, and persist the
+consumed cursor before continuation. Accept permits recording AC07 and completing
+the card/RFC/plan upkeep with the documentation gate. Reject or an unanswered
+criterion remains pending; any engineering continuation crosses the attended
+boundary into a fresh implementer under the same mandate. Query/release only the
+relevant candidate protection before changing its paths or frozen resource.
+
+Preserve unrelated `.gitignore`, `.mask.json`, `.mask.lock.json` and untracked
+`docs/rfcs/drafts/`. No stash, push, live desktop automation or browser-profile
+reads were used. Task-owned build/test commands must be stopped before return;
+only the explicitly handed-off review server may remain.

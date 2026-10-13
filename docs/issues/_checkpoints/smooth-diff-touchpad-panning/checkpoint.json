@@ -1,6 +1,6 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
-  "state": "implementing",
+  "state": "human-pending",
   "assignment": "/root/smooth_panning_m1",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
@@ -17,49 +17,77 @@
       "sha256": "e3534876af1fe912c327947d149f4b6bef721941b4989bd845db1291268e7251"
     }
   ],
-  "plan": "plan-proposal.json",
-  "plan_state": "proposed-not-adopted",
-  "live_import": null,
+  "plan": "docs/rfcs/plans/smooth-diff-touchpad-panning/milestone-plan.json",
+  "plan_state": "adopted",
+  "live_import": "docs/rfcs/assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md",
   "live_rfc": "RFC-BPR-0073",
   "live_cards": [
     "BPR-1413"
   ],
-  "candidate_revision": null,
-  "product_changes": [],
+  "candidate_revision": "60aa863613259ce3e4cad77f5517582187353492",
+  "product_changes": [
+    "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
+    "src/adapters/qt/include/bpr/qt/comparison_scroll_controller.hpp",
+    "src/adapters/qt/src/comparison_scroll_controller.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "tests/adapters_qt/comparison_scroll_controller_tests.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp"
+  ],
   "pending_criteria": [
-    "AC01",
-    "AC02",
-    "AC03",
-    "AC04",
-    "AC05",
-    "AC06",
-    "AC07",
-    "AC08"
+    "AC07"
   ],
   "blocker": null,
   "commands": {
     "background": [],
-    "review_server": null,
-    "writers_released": false
+    "review_server": {
+      "pid": 22360,
+      "command_session": 61506,
+      "port": 49756,
+      "session": "e64e44acf84114c0994623f552e9cab1",
+      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v001-20261012",
+      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v001-20261012/handoff.json"
+    },
+    "writers_released": true
   },
-  "next_action": "Resolve and read the trusted required frontend-design skill. Reconcile current writers and draft digests, import with allocated live IDs and provenance on main, adopt this bounded plan, bind/claim the live milestone, then implement and verify. Preserve AC07 for the actual owner verdict.",
+  "next_action": "Owner reviews the ready frozen candidate and saves Accept/Reject for AC07, then Finish and hand back. Automatic wait is unqualified; owner sends Resume the attended review. Coordinator verifies session/candidate/events and persists consumed cursor before final closeout or fresh engineering.",
   "verification": [
     {
-      "command": "milestone_plan.py discover --source-root docs/rfcs/drafts/smooth-diff-touchpad-panning --json",
-      "result": "absent: no authored plan in the selected draft"
+      "artifact": "docs/verification/RFC-BPR-0073.md",
+      "result": "AC01\u2013AC06 and AC08 pass; actual criterion evidence and diagnosis"
     },
     {
-      "command": "milestone_plan.py prepare --proposal plan-proposal.json --target RFC-DRAFT-0012 --json",
-      "result": "refused: unresolved target before live import; retained in target-preparation-refusal.json"
+      "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m1-verification.json",
+      "result": "Exact candidate, passing integration/gates and failing essential-dependency negative control with byte-identical restoration"
     },
     {
-      "command": "milestone_plan.py prepare --proposal plan-proposal.json --json",
-      "result": "prepared: structural proposal valid; semantic coverage remains engineer judgment; not adopted or bound"
+      "command": "scripts/freeze_attended_build.py freeze --name bpr-1413-smooth-panning-v001 --fixture inline-drawer-v1 --open-file src/ui/conversation_cards_view.cpp --commit 60aa863613259ce3e4cad77f5517582187353492",
+      "result": "exit 0; official launcher fixture/offscreen --check reached ATTENDED_FILE_SHOWN"
     },
     {
-      "command": "python3 scripts/verify_documentation.py --root .",
-      "result": "exit 0: DOCUMENTATION_OK"
+      "command": "Authenticated loopback /api/status",
+      "result": "Expected session, cursor 4, ready/protected candidate, no owner decision"
     }
   ],
-  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md"
+  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "last_finding": "AC01\u2013AC06 and AC08 pass. Official frozen-build launcher --check passes, fresh one-question attended session ready/protected at cursor 4. All unattended engineering/upkeep complete; required AC07 actual owner verdict remains pending.",
+  "active_commands": [
+    "attended-review loopback server PID 22360 only"
+  ],
+  "milestone": "smooth-comparison-panning",
+  "review": {
+    "session": "e64e44acf84114c0994623f552e9cab1",
+    "cursor": 4,
+    "candidate": "BPR-1413-AC07-v001",
+    "fingerprint": "7e5c957d53749fc1c7f9a90c6b1f3138daeecd398d5321bf9eb44e91df510000",
+    "manifest": "attended-manifest.json",
+    "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v001-20261012",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v001.m2x96ozk",
+    "executable_sha256": "21f856699ccf5e4ff5d4c51463b9cafbec4f425937f783f11b4a39512b393a8e",
+    "wait_owner": "coordinator /root",
+    "wait_qualification": "unobserved; manual resume required",
+    "pending_decisions": [
+      "AC07 Accept/Reject with change note"
+    ]
+  }
 }
