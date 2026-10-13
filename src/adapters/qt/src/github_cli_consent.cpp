@@ -75,5 +75,28 @@ namespace bpr::qt {
 			return { };
 		}
 	}
-
+	auto github_cli_publication_recovery_text(const application::review_mutation_failure aFailure,
+											  const QString& aLogin, const QString& aHost) -> QString
+	{
+		auto reason = QString{ };
+		switch (aFailure) {
+		case application::review_mutation_failure::credential_unavailable:
+			reason = QObject::tr(" Check %1’s GitHub CLI sign-in and credential access on %2.").arg(aLogin, aHost);
+			break;
+		case application::review_mutation_failure::credential_tool_failed:
+			reason = QObject::tr(" GitHub CLI could not check %1’s credential on %2.").arg(aLogin, aHost);
+			break;
+		case application::review_mutation_failure::cancelled:
+			reason = QObject::tr(" The check was cancelled.");
+			break;
+		case application::review_mutation_failure::unsupported:
+			reason = QObject::tr(" This connection cannot check the publication.");
+			break;
+		default:
+			reason = QObject::tr(" Check the pull request and connection before retrying.");
+			break;
+		}
+		return QObject::tr("Publication result is still unknown; retry is safe.") + reason
+			+ QObject::tr(" Your draft is locked. Retry checks GitHub without publishing again.");
+	}
 }

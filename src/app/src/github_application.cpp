@@ -9710,7 +9710,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const application::workbench_pull_request_authority& aAuthority)
 			-> bool
 		{
-			return aRecord.Draft.State == core::review_draft_state::drafting
+			return (aRecord.Draft.State == core::review_draft_state::drafting || aRecord.Draft.State == core::review_draft_state::publishing)
 				&& aRecord.Draft.Anchor == aSelection.PreferredLine
 				&& aRecord.Draft.Anchor.Comparison == aSelection.Comparison
 				&& aRecord.Authority == aAuthority;
@@ -11279,7 +11279,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 
-			auto outcome = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
+			auto outcome = aPreserveForRetry ? SharedDrafts->read(DraftConsumer, publishing->Draft.Id)
+											 : SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
 			if (!outcome.Failure && outcome.Accepted) {
 				accept_shared_draft(*outcome.Accepted);
 			}
@@ -11837,6 +11838,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		void present_inline_publication_failure(application::review_mutation_failure                       aFailure,
+												core::review_publication_outcome                           aOutcome,
+												const std::optional<designated_review_mutation_selection>& aBinding)
+		{
+			if (!Window || !Window->review_editor()) {
+				return;
+			}
+			const auto login  = aBinding ? QString::fromStdString(aBinding->ActingIdentity.Login) : QString{ };
+			const auto host   = aBinding ? QString::fromStdString(std::string{ aBinding->Target.Hostname.value() }) : QString{ };
+			const auto status = aOutcome == core::review_publication_outcome::indeterminate
+				? qt::github_cli_publication_recovery_text(aFailure, login, host)
+				: aBinding ? qt::github_cli_publication_failure_text(aFailure, login, host)
+						   : QString{ };
+			if (status.isEmpty()) {
+				Window->review_editor()->present(aFailure);
+			} else {
+				Window->review_editor()->present_publication_refusal(status);
+			}
+		}
+
 		/// \brief Applies one draft command, and says once whether it was accepted.
 		///
 		/// \details [[BPR-1246]]. With private review the command is written
@@ -11863,20 +11884,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				settle(false);
 				return;
 			}
-			const auto& aCommand = aRevisionedCommand.Command;
-			const auto  publish  = aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			const auto& aCommand     = aRevisionedCommand.Command;
+			const auto  publish      = aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			const auto  priorOutcome = ReviewDraft->State == core::review_draft_state::publishing
+				? core::review_publication_outcome::indeterminate
+				: core::review_publication_outcome::not_published;
 			// [[BPR-1329]]. A Publish that stops here says why, where the draft
 			// is shown; it used to stop without a word.
-			const auto refusePublish = [this, publish](const QString& aReason) {
+			const auto refusePublish = [this, publish, priorOutcome](const QString& aReason) {
 				if (publish && !Closing && Window && Window->review_editor()) {
-					Window->review_editor()->present_publication_refusal(aReason);
+					if (priorOutcome == core::review_publication_outcome::indeterminate) {
+						present_inline_publication_failure(application::review_mutation_failure::undesignated_target, priorOutcome, InlineReviewBinding);
+					} else {
+						Window->review_editor()->present_publication_refusal(aReason);
+					}
 				}
 			};
 			if (publish) {
 				const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
 														   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
 				if (!admission) {
-					Window->review_editor()->present(admission.error());
+					present_inline_publication_failure(admission.error(), priorOutcome, InlineReviewBinding);
 					settle(false);
 					return;
 				}
@@ -11924,7 +11952,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
 						const auto retained = SharedDrafts->read(DraftConsumer, ReviewDraft->Id);
 						if (retained.Accepted) {
-							finish_review_draft_command(aRevisionedCommand, retained);
+							finish_review_draft_command(aRevisionedCommand, retained, priorOutcome);
 							finished = true;
 						}
 					}
@@ -11938,7 +11966,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				PrivateDraftCommandPending = true;
 				const auto owner           = SharedDrafts;
-				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, settled = std::move(aSettled)](auto aCommit) {
+				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, priorOutcome, settled = std::move(aSettled)](auto aCommit) {
 					PrivateDraftCommandPending = false;
 					const auto answer          = [&settled](const bool aAccepted) {
 						if (settled) {
@@ -11955,20 +11983,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					present_saved_drafts();
 					const auto accepted = owner->read(DraftConsumer, aRevisionedCommand.Command.Id);
 					if (accepted.Accepted) {
-						finish_review_draft_command(aRevisionedCommand, accepted);
+						finish_review_draft_command(aRevisionedCommand, accepted, priorOutcome);
 					}
 					answer(accepted.Accepted.has_value() && !accepted.Failure);
 				});
 				return;
 			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
-			finish_review_draft_command(aRevisionedCommand, outcome);
+			finish_review_draft_command(aRevisionedCommand, outcome, priorOutcome);
 			settle(!outcome.Failure && outcome.Accepted.has_value());
 		}
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
 		/// [[BPR-1374]]. The reply the editor held when a Refresh retired it.
 		std::optional<core::review_draft_id> ResumeReply;
-		void                                 finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
+		void                                 finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome, core::review_publication_outcome aPriorOutcome)
 		{
 			const auto& aCommand = aRevisionedCommand.Command;
 
@@ -11986,7 +12014,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->accept_dif_draft(aRevisionedCommand, *aOutcome.Accepted);
 			if (aCommand.Kind == core::review_draft_command_kind::begin_publish) {
-				PublishingDraft = *aOutcome.Accepted;
+				PublishingDraft        = *aOutcome.Accepted;
+				PublishingPriorOutcome = aPriorOutcome;
 			}
 
 			if (RetryableReviewDraft.has_value()
@@ -12012,12 +12041,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			if (!proposal.has_value()) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				return;
 			}
 			if (!SelectedDiffPublication.has_value()
 				|| !SelectedSemanticSelection.has_value()) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 				refresh_agent_private_context_choices();
 				editor->present(
@@ -12027,9 +12056,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
 													   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
 			if (!admission) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
-				editor->present(admission.error());
+				present_inline_publication_failure(admission.error(), aPriorOutcome, InlineReviewBinding);
 				return;
 			}
 			auto request = application::review_mutation_publication_request{
@@ -12048,9 +12077,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			const auto context = ReviewMutationHost->publish(std::move(request), std::move(grant));
 			if (context.Request.value() == 0U) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
-				editor->present(application::review_mutation_failure::unavailable);
+				present_inline_publication_failure(application::review_mutation_failure::unavailable, aPriorOutcome, InlineReviewBinding);
 				return;
 			}
 			PendingReviewMutation = context;
@@ -12285,17 +12314,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Closing && aTerminal.Lineage == application::review_lineage_state::pending && ReviewMutationHost) {
 				ReviewMutationHost->repair_pending_publications();
 			}
+			using outcome       = core::review_publication_outcome;
+			auto currentOutcome = outcome::published;
+			if (!aTerminal.Result) {
+				const auto failure         = aTerminal.Result.error();
+				const auto definiteRefusal = failure == application::review_mutation_failure::refused_by_server
+					|| failure == application::review_mutation_failure::incompatible_body
+					|| failure == application::review_mutation_failure::unsupported;
+				const auto unconfirmed = (aTerminal.MutationAttempted && !definiteRefusal)
+					|| failure == application::review_mutation_failure::unavailable
+					|| failure == application::review_mutation_failure::target_unavailable
+					|| failure == application::review_mutation_failure::malformed_response;
+				currentOutcome = unconfirmed ? outcome::indeterminate : outcome::not_published;
+			}
+			const auto publicationOutcome = core::retain_review_publication_outcome(PublishingPriorOutcome, currentOutcome);
 			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {
 				if (aTerminal.Result && Window && Window->review_editor()) {
 					Window->review_editor()->acknowledge_published_body(*PublishingDraft);
 				}
-				const auto uncertain = !aTerminal.Result && (aTerminal.Result.error() == application::review_mutation_failure::unavailable || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable || aTerminal.Result.error() == application::review_mutation_failure::malformed_response || aTerminal.Result.error() == application::review_mutation_failure::cancelled);
-				complete_shared_draft(aTerminal.Result.has_value(), [this, terminal = aTerminal] { finish_review_terminal(terminal); }, uncertain);
+				const auto uncertain = publicationOutcome == outcome::indeterminate;
+				complete_shared_draft(aTerminal.Result.has_value(), [this, terminal = aTerminal, publicationOutcome] { finish_review_terminal(terminal, publicationOutcome); }, uncertain);
 				return;
 			}
-			finish_review_terminal(aTerminal);
+			finish_review_terminal(aTerminal, publicationOutcome);
 		}
-		void finish_review_terminal(const application::review_mutation_terminal& aTerminal)
+		void finish_review_terminal(const application::review_mutation_terminal& aTerminal, core::review_publication_outcome aPublicationOutcome)
 		{
 
 			if (Closing
@@ -12315,7 +12358,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				return;
 			}
-			complete_shared_draft(aTerminal.Result.has_value());
+			complete_shared_draft(aTerminal.Result.has_value(), { }, aPublicationOutcome == core::review_publication_outcome::indeterminate);
 			const auto sameRetry = RetryableReviewDraft.has_value()
 				&& RetryableReviewDraft->Draft.Id == ReviewDraft->Id;
 			if (aTerminal.Result.has_value()) {
@@ -12323,9 +12366,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					RetryableReviewDraft.reset();
 				}
 			} else if (
-				(aTerminal.Result.error() == application::review_mutation_failure::unavailable
-				 || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable
-				 || aTerminal.Result.error() == application::review_mutation_failure::malformed_response)
+				aPublicationOutcome == core::review_publication_outcome::indeterminate
 				&& SelectedDiffPublication.has_value()
 				&& ReviewDraft->Anchor.Comparison
 					== core::comparison_digest(SelectedDiffPublication->Key)) {
@@ -12366,14 +12407,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					});
 				}
 			} else {
-				const auto status = failedBinding ? qt::github_cli_publication_failure_text(aTerminal.Result.error(),
-																							QString::fromStdString(failedBinding->ActingIdentity.Login), QString::fromStdString(std::string{ failedBinding->Target.Hostname.value() }))
-												  : QString{ };
-				if (!status.isEmpty()) {
-					editor->present_publication_refusal(status);
-				} else {
-					editor->present(aTerminal.Result.error());
-				}
+				present_inline_publication_failure(aTerminal.Result.error(), aPublicationOutcome, failedBinding);
 			}
 		}
 
@@ -18068,6 +18102,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::LiveReviewMutationGrant)&    LiveReviewMutationGrant = Profile->LiveReviewMutationGrant;
 		std::optional<designated_review_mutation_selection>           InlineReviewBinding;
 		std::optional<designated_review_mutation_selection>           PublishingBinding;
+		core::review_publication_outcome                              PublishingPriorOutcome     = core::review_publication_outcome::not_published;
 		decltype(github_profile_runtime::AttendedReviewMutationMode)& AttendedReviewMutationMode = Profile->AttendedReviewMutationMode;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
 		/// [[BPR-0657]]. The thread resolution in flight and what came of them.

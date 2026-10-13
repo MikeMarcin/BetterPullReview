@@ -1,6 +1,17 @@
 #include "bpr/core/review_publication_policy.hpp"
 
 namespace bpr::core {
+	auto retain_review_publication_outcome(const review_publication_outcome aPrior, const review_publication_outcome aCurrent) noexcept -> review_publication_outcome
+	{
+		if (aCurrent == review_publication_outcome::published || aPrior == review_publication_outcome::published) {
+			return review_publication_outcome::published;
+		}
+		if (aPrior == review_publication_outcome::indeterminate || aCurrent == review_publication_outcome::indeterminate) {
+			return review_publication_outcome::indeterminate;
+		}
+		return review_publication_outcome::not_published;
+	}
+
 	namespace {
 		[[nodiscard]] auto valid_observation(const review_publication_observation& aObservation) noexcept -> bool
 		{

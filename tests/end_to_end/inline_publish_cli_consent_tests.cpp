@@ -21,6 +21,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
@@ -87,6 +88,51 @@ namespace {
 		}
 		auto* const label = open->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
 		return label != nullptr && label->isVisibleTo(open) ? label->text() : QString{ };
+	}
+
+	void capture_settled(qt::workbench_window& aWindow, const QString& aSuffix)
+	{
+		const auto root = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (root.isEmpty()) {
+			return;
+		}
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (elapsed.elapsed() < 900) {
+			QApplication::processEvents();
+			QThread::msleep(2);
+		}
+		expect(aWindow.grab().save(root + aSuffix + ".png"), "settled full inline publication surface renders");
+	}
+
+	void refuse_recovery(app::github_application& aApplication, const app::detail::github_public_path_fixture_options& aOptions,
+						 qt::conversation_cards_view& aCards, const core::review_comment_draft& aOriginal,
+						 std::optional<application::review_mutation_failure> aFailure, const QString& aReason)
+	{
+		const auto before = github_application_fixture_access::review_mutation_evidence(aApplication);
+		{
+			const auto lock                                        = std::scoped_lock{ aOptions.ReviewSubmissionServer->Mutex };
+			aOptions.ReviewSubmissionServer->CliAcquisitionFailure = aFailure;
+		}
+		aOptions.GithubCliStrictCapability->store(aFailure.has_value());
+		send_single(aCards);
+		auto& editor = *aApplication.window().review_editor();
+		wait_for([&] { return draft_status(aCards).contains(aReason) && editor.publication_retry_offered(); },
+				 "refused recovery keeps the same retry in the public drawer");
+		const auto after = github_application_fixture_access::review_mutation_evidence(aApplication);
+		expect(draft_status(aCards).contains(QStringLiteral("still unknown")) && !draft_status(aCards).contains(QStringLiteral("Not published")),
+			   "a refused check cannot claim the original comment was not published");
+		expect(editor.shown_draft() && *editor.shown_draft() == aOriginal && editor.body_editor()->isReadOnly(),
+			   "body, anchor, publication identity and publishing lock are retained");
+		expect(after.NativePosts == before.NativePosts && after.FilePosts == before.FilePosts && after.StoredComments == 1U,
+			   "every refused recovery makes zero additional POSTs");
+		expect(after.DurableJournalReads == before.DurableJournalReads,
+			   "early capability or coordinator observation refusal is covered before session recovery loads");
+		expect(after.Submissions == before.Submissions && after.TargetObservations == before.TargetObservations + (aFailure ? 1U : 0U),
+			   "credential refusal reaches the coordinator observation; capability refusal stops before it");
+		auto* const retry = draft_publish(aCards);
+		expect(retry && retry->isEnabled() && retry->text() == QStringLiteral("Retry"), "the ordinary new-comment action never replaces the retry");
+		std::cout << "M3_RECOVERY_REFUSAL reason=" << aReason.toStdString() << " posts=" << after.NativePosts << " stored=" << after.StoredComments << '\n';
 	}
 
 	enum class course : std::uint8_t {
@@ -157,8 +203,8 @@ namespace {
 		QApplication::processEvents();
 		firstWindow.home_landing()->secondary_button()->click();
 		wait_for([&] { return firstWindow.session_panel()->status() == core::github_status::session_ready; }, "Use GitHub CLI connects the discovered account");
-		// BPR-1410: publication after restored read consent still needs its
-		// ordinary exact-operation confirmation, including cancellation.
+		// Publication after restored read trust still requires the ordinary
+		// exact-operation gesture and its grant; trust itself issues no write.
 		expect(readOptIns == 1U, "first explicit selection accepts read trust once");
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "first lifetime drains its remembered selection");
@@ -208,12 +254,10 @@ namespace {
 		}
 		if (aCourse == course::unsupported || options.ReviewSubmissionServer->CliAcquisitionFailure) {
 			send_single(*cards);
-			const auto said = wait_until([&] { return aCourse == course::unsupported ? draft_status(*cards).contains(QStringLiteral("unavailable")) : draft_status(*cards).contains(QStringLiteral("draft is kept")); }, 5000);
+			const auto said = wait_until([&] { return aCourse == course::unsupported ? draft_status(*cards).contains(QStringLiteral("does not support")) : draft_status(*cards).contains(QStringLiteral("draft is kept")); }, 5000);
 			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(said, "the draft says publication is unavailable and keeps its text");
-			if (const auto render = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !render.isEmpty()) {
-				expect(window.grab().save(render + "-inline-" + QString::number(static_cast<unsigned int>(aCourse)) + ".png"), "full inline CLI failure presentation renders");
-			}
+			capture_settled(window, "-inline-" + QString::number(static_cast<unsigned int>(aCourse)));
 			if (aCourse == course::credential_unavailable || aCourse == course::tool_failed) {
 				expect(draft_status(*cards).contains(QStringLiteral("octo-reviewer")) && draft_status(*cards).contains(QStringLiteral("github.com")), "inline failure uses its failed operation's chosen account and server");
 			}
@@ -270,6 +314,19 @@ namespace {
 					  << " editor_enabled=" << window.review_editor()->publish_action()->isEnabled() << '\n';
 			expect(publish != nullptr && single_offered(*cards) && publish->isEnabled() && publish->text() == QStringLiteral("Retry"),
 				   "the draft offers Retry for the same publication");
+			const auto original = *window.review_editor()->shown_draft();
+			for (unsigned repeated = 0; repeated < 2; ++repeated) {
+				refuse_recovery(*application, options, *cards, original, application::review_mutation_failure::credential_unavailable, QStringLiteral("credential access"));
+			}
+			capture_settled(window, QStringLiteral("-unknown-credential"));
+			refuse_recovery(*application, options, *cards, original, application::review_mutation_failure::credential_tool_failed, QStringLiteral("could not check"));
+			refuse_recovery(*application, options, *cards, original, application::review_mutation_failure::cancelled, QStringLiteral("check was cancelled"));
+			refuse_recovery(*application, options, *cards, original, std::nullopt, QStringLiteral("cannot check"));
+			{
+				const auto lock = std::scoped_lock{ options.ReviewSubmissionServer->Mutex };
+				options.ReviewSubmissionServer->CliAcquisitionFailure.reset();
+			}
+			options.GithubCliStrictCapability->store(true);
 			send_single(*cards);
 		}
 
@@ -280,12 +337,13 @@ namespace {
 				  << " draft_card=" << (draft_card(*cards) != nullptr) << " posted_card=" << (posted_card(*cards, text) != nullptr)
 				  << " status=\"" << window.status_text().toStdString() << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\"\n";
 		expect(publishAsks == 0U, "ordinary Publish and retry open no CLI modal");
-		expect(after.StoredComments == 1U && after.LastBody == body, "the fixture server holds exactly the one comment, with the draft's text");
+		expect(after.NativePosts == before.NativePosts + 1U && after.StoredComments == 1U && after.LastBody == body, "the fixture server holds exactly the one comment, with the draft's text");
 		expect(shown, "the drawer shows the posted thread in place of the draft");
 		expect(posted_count(*cards, text) == 1U, "one posted thread, not two");
 		const auto* const posted = posted_card(*cards, text);
 		expect(cards->open_card() != nullptr && cards->open_card()->isVisible() && cards->open_card()->property("threadKey").toString().startsWith(QString::fromStdString(posted->Id)),
 			   "the posted thread is the one open in the drawer");
+		capture_settled(window, QStringLiteral("-reconciled"));
 		std::cout << "BPR_1329:" << name << ":pass\n";
 
 		consent.stop();
@@ -297,7 +355,7 @@ namespace {
 int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
-	// One course by name, or all three.
+	// One course by name, or the complete bounded fixture course.
 	const auto only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
 	for (const auto& [course, name] : { std::pair{ course::published, std::string_view{ "published" } },
 										std::pair{ course::lost_then_retried, std::string_view{ "lost-then-retried" } },

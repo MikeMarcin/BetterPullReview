@@ -4020,6 +4020,23 @@ namespace bpr::app::detail {
 		};
 		class fixture_publication_lease final : public application::review_mutation_transport_lease
 		{ };
+		// The same synthetic acquisition seam applies to the coordinator's target
+		// observation and the session. Refusal can precede any journal read.
+		auto admit_fixture_cli_operation(const std::shared_ptr<fixture_recording_state>& aState, const std::stop_token aStop)
+			-> std::expected<void, application::review_mutation_failure>
+		{
+			if (aState && aState->CliEnabled && aState->PublishedTour) {
+				const auto lock = std::scoped_lock{ aState->PublishedTour->Mutex };
+				++aState->PublishedTour->CliAcquisitions;
+				if (aStop.stop_requested()) {
+					return std::unexpected(application::review_mutation_failure::cancelled);
+				}
+				if (aState->PublishedTour->CliAcquisitionFailure) {
+					return std::unexpected(*aState->PublishedTour->CliAcquisitionFailure);
+				}
+			}
+			return { };
+		}
 		class fixture_publication_wire final : public adapters::github::detail::github_mutation_wire_transport, public std::enable_shared_from_this<fixture_publication_wire>
 		{
 		public:
@@ -4032,15 +4049,10 @@ namespace bpr::app::detail {
 			{ }
 			auto begin_mutation_operation(std::stop_token aStop) -> adapters::github::detail::github_mutation_operation override
 			{
+				if (const auto admitted = admit_fixture_cli_operation(State, aStop); !admitted) {
+					return std::unexpected(admitted.error());
+				}
 				if (State->CliEnabled && State->PublishedTour) {
-					const auto lock = std::scoped_lock{ State->PublishedTour->Mutex };
-					++State->PublishedTour->CliAcquisitions;
-					if (aStop.stop_requested()) {
-						return std::unexpected(application::review_mutation_failure::cancelled);
-					}
-					if (State->PublishedTour->CliAcquisitionFailure) {
-						return std::unexpected(*State->PublishedTour->CliAcquisitionFailure);
-					}
 					return std::shared_ptr<adapters::github::detail::github_mutation_wire_transport>{ shared_from_this() };
 				}
 				return std::shared_ptr<adapters::github::detail::github_mutation_wire_transport>{ };
@@ -4228,8 +4240,18 @@ namespace bpr::app::detail {
 				core::review_mutation_target,
 				application::review_mutation_failure> override
 			{
+				return observe_target({ });
+			}
+
+			auto observe_target(const std::stop_token aStop) -> std::expected<
+				core::review_mutation_target,
+				application::review_mutation_failure> override
+			{
 				const std::scoped_lock providerLock{ Mutex };
 				++Evidence.TargetObservations;
+				if (const auto admitted = admit_fixture_cli_operation(State, aStop); !admitted) {
+					return std::unexpected(admitted.error());
+				}
 				return Reported;
 			}
 

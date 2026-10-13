@@ -434,6 +434,22 @@ namespace {
 } // namespace
 
 namespace {
+	void test_publication_knowledge_survives_a_refused_retry()
+	{
+		using outcome = core::review_publication_outcome;
+		auto known    = core::retain_review_publication_outcome(outcome::not_published, outcome::not_published);
+		expect(known == outcome::not_published, "a fresh refusal makes no publication claim");
+		known = core::retain_review_publication_outcome(known, outcome::indeterminate);
+		for (unsigned retry = 0; retry < 4; ++retry) {
+			known = core::retain_review_publication_outcome(known, outcome::not_published);
+			expect(known == outcome::indeterminate, "refused recovery cannot unlock a draft after an unknown attempt");
+		}
+		known = core::retain_review_publication_outcome(known, outcome::published);
+		expect(known == outcome::published, "a confirmed exact receipt resolves the previous unknown publication");
+		expect(core::retain_review_publication_outcome(known, outcome::not_published) == outcome::published,
+			   "a later unavailable credential cannot erase a confirmed receipt");
+	}
+
 	void test_publication_policy()
 	{
 		using namespace core;
@@ -509,6 +525,7 @@ namespace {
 auto main() -> int
 {
 	test_publication_policy();
+	test_publication_knowledge_survives_a_refused_retry();
 	test_a_draft_composes_publishes_and_becomes_shared();
 	test_a_second_publish_while_one_is_in_flight_is_refused();
 	test_a_failed_publish_returns_the_text_to_the_author();
