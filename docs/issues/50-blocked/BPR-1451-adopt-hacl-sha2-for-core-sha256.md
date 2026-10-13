@@ -16,15 +16,15 @@ blocked_by: "owner-core-library-approval"
 RFC: [RFC-BPR-0080](../../rfcs/RFC-BPR-0080-hashing-replacement.md), milestone
 `adopt-hacl-sha2`.
 
-## Blocker
+## Owner answer
 
-RFC Q2 is unanswered: may HACL*'s generated SHA-2 C (MIT) join core's approved
-libraries, as its own pinned static target linked by core? Until the owner
-answers Accept, nothing here starts and nothing is added to
-`cmake/VerifyCoreBoundary.cmake`. On Reject, core keeps its first-party
-SHA-256 and this card closes with that decision recorded.
+Q2 answered **Accept** on 2026-10-13: HACL*'s generated SHA-2 joins core's
+approved libraries (`BetterPullReview::HaclSha2` in
+`cmake/VerifyCoreBoundary.cmake`). This card still depends on [[BPR-1446]]:
+the RFC's HACL* adopt rule needs W1 to W3 under the RFC's throughput
+conditions, including an idle machine, which BPR-1446's AC4 has not yet met.
 
-## Acceptance (after Accept)
+## Acceptance
 
 - **AC1 (RFC AC02):** Zero mismatches across the known answers, differential
   runs and every existing digest-using row; data persisted before adoption

@@ -16,25 +16,27 @@ blocked_by: "owner-core-library-approval"
 RFC: [RFC-BPR-0080](../../rfcs/RFC-BPR-0080-hashing-replacement.md), milestone
 `adopt-sha1dc`.
 
-## Blocker
+## Owner answer
 
-RFC Q1 is unanswered: may sha1collisiondetection (MIT) join core's approved
-libraries, as its own pinned static C target linked only by
-`better_pull_review_core`, configured as Git builds it? Until the owner
-answers Accept, nothing here starts and nothing is added to
-`cmake/VerifyCoreBoundary.cmake`. On Reject, follow the RFC's fallback (sha1dc
-in an adapter behind a host port for external bytes; core keeps first-party
-SHA-1 and the report states the remaining gap) and see [[BPR-1452]].
+Q1 answered **Accept** on 2026-10-13: sha1collisiondetection joins core's
+approved libraries (`BetterPullReview::Sha1dc` in
+`cmake/VerifyCoreBoundary.cmake`). The owner also accepted the collision
+amendment recorded in the RFC. This card still depends on [[BPR-1446]]: the
+RFC's sha1dc adopt rule needs W1 to W3 under the RFC's throughput conditions,
+including an idle machine, which BPR-1446's AC4 has not yet met.
 
-## Acceptance (after Accept)
+## Acceptance
 
 - **AC1 (RFC AC02):** Zero mismatches across the known answers, differential
   runs, the full repository sweep and every existing digest-using row.
-- **AC2 (RFC AC03):** Every collision input is refused, never digested, at core
-  identity construction, host blob verification (`blob_matches`), transport
-  verification and Review Cycle publication, with a reason code naming
-  collision detection, while the plain-SHA-1 control collides; ordinary
-  objects and valid pack checksums are still accepted.
+- **AC2 (RFC AC03, amended 2026-10-13):** The SHAttered and SHA-mbles inputs
+  are detected and refused, never digested, when hashed as raw byte streams
+  through the core SHA-1 stream and one-shot functions, while the plain-SHA-1
+  control collides. Code inspection and tests show that core identity
+  construction, host blob verification (`blob_matches`), transport
+  verification and Review Cycle publication all use that detecting library
+  and end a detection at a refusal with a reason code naming collision
+  detection. Ordinary objects and valid pack checksums are still accepted.
 - **AC3 (RFC AC06):** `core-only` and `dev` build; `architecture_boundaries`
   admits exactly the approved target; the first-party `sha1.cpp` is deleted
   and its known-answer rows stay.

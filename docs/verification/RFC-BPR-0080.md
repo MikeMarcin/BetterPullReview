@@ -13,15 +13,21 @@ claims a result for them.
 | Question | Answer | Date |
 |---|---|---|
 | Which libraries may core link? | "Core may link only the owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries: glaze, utf8proc, zlib and fmt" (root `AGENTS.md`) | 2026-10-13 |
-| Q1: add sha1collisiondetection (MIT) to core's approved libraries? | Unanswered | — |
-| Q2: add HACL*'s generated SHA-2 C (MIT) to core's approved libraries? | Unanswered | — |
+| Q1: add sha1collisiondetection (MIT) to core's approved libraries? | Accept | 2026-10-13 |
+| Q2: add HACL*'s generated SHA-2 C (MIT) to core's approved libraries? | Accept | 2026-10-13 |
+| Amendment: the collision requirement is met by detection on raw byte streams plus the same library at every object-ID path, shown by inspection and test | Accept ("A Git-header collision vector is not required") | 2026-10-13 |
 | Q3: may the Linux build link the system libcrypto directly? | Not asked: the Linux backend has not been measured | — |
 
 ## Decisions
 
+The decisions below were made before the owner's answers. With Q1 and Q2
+accepted, "eligible pending Q1" and "eligible pending Q2" now wait only on the
+RFC's idle-machine throughput condition ([[BPR-1446]] AC4) and their adoption
+cards.
+
 | Component | Role | Decision | Rule result on macOS arm64 |
 |---|---|---|---|
-| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.55x to 2.96x the current core SHA-1 (rule: at least 1.0x; run 1: 2.06x to 3.03x), and 1.53x to 1.90x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector. |
+| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.55x to 2.96x the current core SHA-1 (rule: at least 1.0x; run 1: 2.06x to 3.03x), and 1.53x to 1.90x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector (the owner accepted that amendment on 2026-10-13). |
 | HACL* `Hacl_Hash_SHA2` | Core SHA-256 | **Eligible pending Q2** | Gate: zero mismatches, including `main`'s whole history as SHA-256. W1 to W3: 1.18x to 1.48x the core SHA-256 (rule: at least 0.9x; run 1: 1.32x to 1.71x). The block-level wrapper allocates nothing. |
 | CommonCrypto behind a host port | Bulk SHA-256 the host already holds, on macOS | **Throughput condition passes; site decision pending [[BPR-1447]]** | Inputs of 1 MiB or more: 7.11x to 8.54x core (rule: at least 3x on a SHA-extension target; run 1: 7.35x to 9.56x). The site condition (10 ms less window-thread hashing at 10k, or none on the window thread) can be measured only with the port built. |
 | CNG `BCrypt*` behind the port | The same, on Windows | **Unmeasured** | Station missing ([[BPR-1448]]). |
