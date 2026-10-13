@@ -222,6 +222,17 @@ is interpreted as edge alignment under this explicit amendment. Its scope,
 grouping and all other exits are unchanged; imported draft bytes and historical
 evidence remain intact.
 
+## Owner handback after candidate v004
+
+The owner rejected `BPR-1413-AC08-v004` in session
+`a300291de66a8fb8963c182932d117d4` (handback cursor 5):
+“The alignment/scroll looks fixed now. But why does scrolling by tapping the down key bring up the horizontal scroll bar?”
+This is an observation that alignment is fixed and a remaining scrollbar concern,
+not an acceptance verdict. AC07 remains accepted on v002. Preserve the exact-flush
+geometry while preventing vertical navigation from unnecessarily waking the native
+horizontal overlay; actual horizontal input and native hover remain available.
+The remaining attended question concerns that scrollbar behavior alone.
+
 ## Acceptance criteria
 
 - **AC01:** In rendered split and unified comparisons, successive vertical
@@ -265,9 +276,9 @@ evidence remain intact.
 
 No material product choice remains open. Exact filtering constants and the
 native-control technique remain implementation decisions. The owner's v002
-touchpad acceptance is retained; the revised edge-flush keyboard reveal still
+touchpad acceptance is retained; the revised native scrollbar behavior still
 requires its separate attended judgment.
 
 ## Adoption and execution
 
-Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002; BPR-1413 remains open only for the separate edge-flush keyboard reveal judgment on v004. No human acceptance is inferred from automated checks or the scoped diagnostic.
+Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002; BPR-1413 remains open for the native horizontal-scrollbar judgment on v005 after the owner observed v004 alignment fixed but rejected the scrollbar wake. No human acceptance is inferred from automated checks or the scoped diagnostic.
