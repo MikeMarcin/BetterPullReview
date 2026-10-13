@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1426"
 title: "Bind every composed CLI operation to one transient credential"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0078"]
 depends_on: ["BPR-1425"]
 platforms: ["mac"]
