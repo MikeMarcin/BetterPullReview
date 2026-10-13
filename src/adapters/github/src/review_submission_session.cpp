@@ -16,7 +16,7 @@ namespace bpr::adapters::github::detail {
 		auto receipt(const review_submission_observation& aReview) -> application::review_submission_receipt { return { .ReviewDatabaseId = application::review_database_id{ aReview.ReviewDatabaseId }, .ReviewNodeId = aReview.ReviewNodeId, .Target = aReview.Target.Semantic, .ActingAccount = aReview.Author.Account, .Disposition = aReview.Disposition }; }
 	}
 	review_submission_session::review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery)
-		: Transport{ aTransport }
+		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
 		, Recovery{ std::move(aRecovery) }
@@ -29,7 +29,7 @@ namespace bpr::adapters::github::detail {
 		if (!Lease || !Lease->active() || !valid(Configuration) || !validate_outbound_review_mutation_request(aWire)) {
 			return github_mutation_wire_error{ };
 		}
-		return Transport.perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
+		return Transport->perform_review_mutation({ .Context = Configuration.CredentialContext, .Wire = std::move(aWire) }, aStop, std::move(aWitness));
 	}
 	auto review_submission_session::observe_exact(std::stop_token aStop, bool aHistorical) -> std::expected<void, application::review_mutation_failure>
 	{
@@ -203,7 +203,7 @@ namespace bpr::adapters::github::detail {
 			return outcome;
 		}
 		outcome.Publication = application::review_submission_publication::published;
-		outcome.Receipt     = candidate;
+		outcome.Receipt     = std::move(candidate);
 		outcome.Duplicate   = aDuplicate;
 		return outcome;
 	}
@@ -211,7 +211,11 @@ namespace bpr::adapters::github::detail {
 	{
 		using publication = application::review_submission_publication;
 		try {
-			std::scoped_lock lock{ Mutex };
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, operation.failure());
+			}
 			if (!application::valid(aRequest) || !aRequest.LiveBinding || !application::same_review_submission_identity(*aRequest.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
 				return result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, application::review_mutation_failure::undesignated_target);
 			}

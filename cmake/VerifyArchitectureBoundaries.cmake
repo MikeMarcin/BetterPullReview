@@ -4229,10 +4229,32 @@ reject_github_process_runner_surface(
     "errorString[ \t\r\n]*\\("
     "raw process error-string exposure"
 )
-reject_github_process_runner_surface(
-    "(\"--(auth-token|with-token|token|include|cache|verbose|debug|jq|template|paginate|slurp|preview|field|raw-field|silent)\"|(^|[^A-Za-z0-9_])(Authorization|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_DEBUG)([^A-Za-z0-9_]|$))"
-    "credential, status-output, cache, or debug"
-)
+# RFC-BPR-0078: only this closed constant table names child token variables.
+# Generic requests still refuse them; the dedicated runner input owns the
+# credential separately through worker/reap lifetime. Everything outside the
+# exact table remains subject to the original credential-literal prohibition.
+set(github_runner_credential_view "${github_process_runner_compact}")
+set(github_runner_credential_table "constexpr std::array<std::string_view, 4U> credential_environment_names{ \"GH_TOKEN\", \"GITHUB_TOKEN\", \"GH_ENTERPRISE_TOKEN\", \"GITHUB_ENTERPRISE_TOKEN\" };")
+string(REPLACE "${github_runner_credential_table}" "" github_runner_credential_view "${github_runner_credential_view}")
+if(github_runner_credential_view MATCHES "(\"--(auth-token|with-token|token|include|cache|verbose|debug|jq|template|paginate|slurp|preview|field|raw-field|silent)\"|(^|[^A-Za-z0-9_])(Authorization|GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GH_DEBUG)([^A-Za-z0-9_]|$))")
+    message(FATAL_ERROR "Forbidden credential, status-output, cache, or debug surface in ${github_process_runner_relative}")
+endif()
+if(github_process_runner_compact MATCHES "credential_environment_names")
+    foreach(required_sensitive_fragment IN ITEMS
+        "std::ranges::any_of(credential_environment_names,"
+        "equal_environment_names(entry.Name, aName)"
+        "item->Capture = std::move(aCapture)"
+        "item->Credential = std::move(aCredential)"
+        "aCapture.get()"
+        "aCredential->view()"
+        "outputFilter->finish"
+        "capture->finish_credential()")
+        string(FIND "${github_process_runner_compact}" "${required_sensitive_fragment}" sensitive_fragment_at)
+        if(sensitive_fragment_at EQUAL -1)
+            message(FATAL_ERROR "GitHub CLI sensitive ownership contract missing: ${required_sensitive_fragment}")
+        endif()
+    endforeach()
+endif()
 reject_github_process_runner_surface(
     "(std::(cout|cerr|clog)|(^|[^A-Za-z0-9_])(printf|fprintf|puts|fputs|perror|syslog|os_log|NSLog|qDebug|qInfo|qWarning|qCritical|qFatal)[ \t\r\n]*\\(|spdlog)"
     "logging/printing"

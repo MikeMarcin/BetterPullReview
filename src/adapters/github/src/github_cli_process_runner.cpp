@@ -146,6 +146,8 @@ namespace bpr::adapters::github::detail {
 			return true;
 		}
 
+		constexpr std::array<std::string_view, 4U> credential_environment_names{ "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN" };
+
 		[[nodiscard]] auto valid_request_shape(
 			const github_cli_process_request& aRequest) noexcept -> bool
 		{
@@ -204,6 +206,9 @@ namespace bpr::adapters::github::detail {
 #endif
 			for (std::size_t index = 0; index < aRequest.Environment.size(); ++index) {
 				const auto& entry = aRequest.Environment[index];
+				if (std::ranges::any_of(credential_environment_names, [&entry](std::string_view aName) { return equal_environment_names(entry.Name, aName); })) {
+					return false;
+				}
 				if (
 					entry.Name.size()
 						> github_cli_process_max_environment_name_bytes
@@ -467,12 +472,75 @@ namespace bpr::adapters::github::detail {
 			standard_error,
 		};
 
+		// Withhold a possible credential prefix across read chunks. No complete
+		// credential reaches the generic response string, even when a child echoes it.
+
+		class credential_output_filter final
+		{
+		public:
+			explicit credential_output_filter(cli_transient_credential aCredential)
+				: Credential{ std::move(aCredential) }
+			{
+				const auto secret = Credential->view();
+				for (std::size_t index = 1U, matched = 0U; index < secret.size(); ++index) {
+					while (matched != 0U && secret[index] != secret[matched]) {
+						matched = Prefix[matched - 1U];
+					}
+					if (secret[index] == secret[matched]) {
+						++matched;
+					}
+					Prefix[index] = matched;
+				}
+			}
+			~credential_output_filter()
+			{
+				volatile std::size_t* cursor = Prefix.data();
+				for (std::size_t index = 0U; index < Prefix.size(); ++index) {
+					cursor[index] = 0U;
+				}
+			}
+			[[nodiscard]] auto append(std::string_view aBytes, std::string* aOutput) -> bool
+			{
+				const auto secret = Credential->view();
+				for (char byte : aBytes) {
+					while (Matched != 0U && secret[Matched] != byte) {
+						const auto fallback = Prefix[Matched - 1U];
+						if (aOutput) {
+							aOutput->append(secret.substr(0U, Matched - fallback));
+						}
+						Matched = fallback;
+					}
+					if (secret[Matched] == byte) {
+						if (++Matched == secret.size()) {
+							return false;
+						}
+					} else if (aOutput) {
+						aOutput->push_back(byte);
+					}
+				}
+				return true;
+			}
+			void finish(std::string* aOutput)
+			{
+				if (aOutput) {
+					aOutput->append(Credential->view().substr(0U, Matched));
+				}
+				Matched = 0U;
+			}
+
+		private:
+			cli_transient_credential       Credential;
+			std::array<std::size_t, 8192U> Prefix{ };
+			std::size_t                    Matched = 0U;
+		};
+
 		[[nodiscard]] auto drain_channel(
 			QProcess&            aProcess,
 			const process_stream aStream,
 			const std::size_t    aLimit,
 			std::size_t&         aConsumed,
-			std::string*         aRetainedOutput)
+			std::string*         aRetainedOutput,
+			cli_sensitive_bytes* aSensitiveOutput = nullptr, credential_output_filter* aFilter = nullptr)
 			-> std::optional<github_cli_process_failure>
 		{
 			const auto channel = aStream == process_stream::standard_output
@@ -484,6 +552,17 @@ namespace bpr::adapters::github::detail {
 			aProcess.setReadChannel(channel);
 
 			std::array<char, 16U * 1024U> buffer{ };
+			struct wipe_chunk
+			{
+				std::array<char, 16U * 1024U>& Bytes;
+				~wipe_chunk()
+				{
+					volatile char* cursor = Bytes.data();
+					for (std::size_t i = 0; i < Bytes.size(); ++i) {
+						cursor[i] = 0;
+					}
+				}
+			} wipe{ buffer };
 			while (aProcess.bytesAvailable() > 0) {
 				const auto remaining = aLimit - aConsumed;
 				const auto requested = std::min<std::size_t>(
@@ -503,7 +582,14 @@ namespace bpr::adapters::github::detail {
 				if (byteCount > remaining) {
 					return failure;
 				}
-				if (aRetainedOutput != nullptr) {
+				if (aSensitiveOutput != nullptr && !aSensitiveOutput->append({ buffer.data(), byteCount })) {
+					return failure;
+				}
+				if (aFilter != nullptr) {
+					if (!aFilter->append({ buffer.data(), byteCount }, aRetainedOutput)) {
+						return failure;
+					}
+				} else if (aRetainedOutput != nullptr) {
 					aRetainedOutput->append(buffer.data(), byteCount);
 				}
 				aConsumed += byteCount;
@@ -548,12 +634,14 @@ namespace bpr::adapters::github::detail {
 		/// the launch's standard error handle, as a null standard handle would,
 		/// so the standard-handle list cannot be built and the launch is refused.
 		[[nodiscard]] auto execute_process(
-			const github_cli_process_request&     aRequest,
-			const std::stop_token                 aStop,
-			const std::atomic_bool&               aShutdownRequested,
-			const clock::time_point               aDeadline,
-			const github_cli_process_file_limits& aFileLimits,
-			[[maybe_unused]] const bool           aFailStandardHandleList) -> process_execution
+			const github_cli_process_request&           aRequest,
+			const std::stop_token                       aStop,
+			const std::atomic_bool&                     aShutdownRequested,
+			const clock::time_point                     aDeadline,
+			const github_cli_process_file_limits&       aFileLimits,
+			[[maybe_unused]] const bool                 aFailStandardHandleList,
+			const std::shared_ptr<cli_sensitive_bytes>& aCapture,
+			const cli_transient_credential& aCredential, cli_credential_environment aCredentialEnvironment) -> process_execution
 		{
 			validated_process_request validated;
 			try {
@@ -598,6 +686,30 @@ namespace bpr::adapters::github::detail {
 			auto       process        = std::make_unique<QProcess>();
 			const auto processGroupId = std::make_shared<qint64>(0);
 			try {
+				if ((aCapture || aCredential) && (!aFileLimits.StandardOutputFile.empty() || (aRequest.PreserveCompletedOutput && aCapture))) {
+					return failed_execution(process, 0, aRequest.ReapTimeout, github_cli_process_failure::invalid_request);
+				}
+				if (aCredential) {
+					const auto secret = aCredential->view();
+					const auto name   = QString::fromLatin1(credential_environment_names[aCredentialEnvironment == cli_credential_environment::github ? 0U : 2U].data());
+					if (secret.empty() || secret.size() > 8192U || !std::ranges::all_of(secret, [](unsigned char aByte) { return aByte > 32U && aByte < 127U; })
+						|| secret.size() > github_cli_process_max_environment_value_bytes
+						|| aRequest.Environment.size() >= github_cli_process_max_environment_count) {
+						return failed_execution(process, 0, aRequest.ReapTimeout, github_cli_process_failure::invalid_request);
+					}
+					std::size_t environmentBytes = secret.size() + static_cast<std::size_t>(name.size());
+					for (const auto& entry : aRequest.Environment) {
+						environmentBytes += entry.Name.size() + entry.Value.size();
+					}
+					if (environmentBytes > github_cli_process_max_environment_bytes || aRequest.StandardInput.find(secret) != std::string::npos
+						|| std::ranges::any_of(aRequest.Arguments, [secret](const auto& aArgument) { return aArgument.find(secret) != std::string::npos; })) {
+						return failed_execution(process, 0, aRequest.ReapTimeout, github_cli_process_failure::invalid_request);
+					}
+					// Only Qt/OS launch storage receives this copy; the generic request stays token-free.
+					auto value = QString::fromLatin1(secret.data(), static_cast<qsizetype>(secret.size()));
+					validated.Environment.insert(name, value);
+					value.fill(QChar{ 0 });
+				}
 				process->setProgram(validated.Executable);
 				process->setArguments(validated.Arguments);
 				process->setProcessEnvironment(validated.Environment);
@@ -644,6 +756,10 @@ namespace bpr::adapters::github::detail {
 				standardOutput.reserve(std::min<std::size_t>(
 					aRequest.StandardOutputLimit,
 					64U * 1024U));
+				std::optional<credential_output_filter> outputFilter;
+				if (aCredential) {
+					outputFilter.emplace(aCredential);
+				}
 				std::size_t standardOutputBytes = 0;
 				std::size_t standardErrorBytes  = 0;
 
@@ -672,7 +788,7 @@ namespace bpr::adapters::github::detail {
 							process_stream::standard_output,
 							aRequest.StandardOutputLimit,
 							standardOutputBytes,
-							aFileLimits.DiscardStandardOutput ? nullptr : &standardOutput);
+							aCapture || aFileLimits.DiscardStandardOutput ? nullptr : &standardOutput, aCapture.get(), outputFilter ? &*outputFilter : nullptr);
 						failure.has_value()) {
 						return failure;
 					}
@@ -842,6 +958,9 @@ namespace bpr::adapters::github::detail {
 						github_cli_process_failure::unexpected_standard_error);
 				}
 
+				if (outputFilter) {
+					outputFilter->finish(aFileLimits.DiscardStandardOutput ? nullptr : &standardOutput);
+				}
 				kill_process_group(*processGroupId);
 				return {
 					.Result = github_cli_process_success{
@@ -863,6 +982,9 @@ namespace bpr::adapters::github::detail {
 		struct process_work_item
 		{
 			github_cli_process_request               Request;
+			std::shared_ptr<cli_sensitive_bytes>     Capture;
+			cli_transient_credential                 Credential;
+			cli_credential_environment               CredentialEnvironment = cli_credential_environment::github;
 			std::stop_token                          Stop;
 			clock::time_point                        Deadline;
 			std::mutex                               Mutex;
@@ -897,8 +1019,10 @@ namespace bpr::adapters::github::detail {
 			}
 
 			[[nodiscard]] auto submit(
-				const github_cli_process_request& aRequest,
-				const std::stop_token             aStop) -> github_cli_process_result
+				const github_cli_process_request&    aRequest,
+				const std::stop_token                aStop,
+				std::shared_ptr<cli_sensitive_bytes> aCapture = { }, cli_transient_credential aCredential = { },
+				cli_credential_environment aCredentialEnvironment = cli_credential_environment::github) -> github_cli_process_result
 			{
 				if (!valid_request_shape(aRequest)) {
 					return std::unexpected{
@@ -913,10 +1037,13 @@ namespace bpr::adapters::github::detail {
 
 				std::shared_ptr<process_work_item> item;
 				try {
-					item           = std::make_shared<process_work_item>();
-					item->Request  = aRequest;
-					item->Stop     = aStop;
-					item->Deadline = clock::now() + aRequest.Timeout;
+					item                        = std::make_shared<process_work_item>();
+					item->Request               = aRequest;
+					item->Capture               = std::move(aCapture);
+					item->Credential            = std::move(aCredential);
+					item->CredentialEnvironment = aCredentialEnvironment;
+					item->Stop                  = aStop;
+					item->Deadline              = clock::now() + aRequest.Timeout;
 				} catch (...) {
 					return std::unexpected{
 						github_cli_process_failure::start_failure
@@ -1023,7 +1150,7 @@ namespace bpr::adapters::github::detail {
 							item->Request,
 							item->Stop,
 							ShutdownRequested,
-							item->Deadline, FileLimits, failStandardHandleList));
+							item->Deadline, FileLimits, failStandardHandleList, item->Capture, item->Credential, item->CredentialEnvironment));
 					} catch (...) {
 						publish(
 							item,
@@ -1090,6 +1217,45 @@ namespace bpr::adapters::github::detail {
 				const github_cli_process_request& aRequest,
 				const std::stop_token             aStop) -> github_cli_process_result override
 			{
+				return dispatch(aRequest, aStop);
+			}
+
+			[[nodiscard]] auto acquire_sensitive(const github_cli_process_request& aRequest, std::stop_token aStop, std::shared_ptr<const void> aLifetime) -> cli_sensitive_result override
+			{
+				if (aRequest.StandardOutputLimit != cli_sensitive_bytes::capacity || aRequest.PreserveCompletedOutput) {
+					return std::unexpected{ github_cli_process_failure::invalid_request };
+				}
+				struct capture_owner
+				{
+					cli_sensitive_bytes         Bytes;
+					std::shared_ptr<const void> Lifetime;
+				};
+				auto owner         = std::make_shared<capture_owner>();
+				owner->Lifetime    = std::move(aLifetime);
+				auto       capture = std::shared_ptr<cli_sensitive_bytes>{ owner, &owner->Bytes };
+				const auto answer  = dispatch(aRequest, aStop, capture);
+				if (!answer) {
+					return std::unexpected{ answer.error() };
+				}
+				if (!capture->finish_credential()) {
+					return std::unexpected{ github_cli_process_failure::invalid_request };
+				}
+				return cli_transient_credential{ std::move(capture) };
+			}
+			[[nodiscard]] auto run_credentialed(const github_cli_process_request& aRequest, cli_transient_credential aCredential,
+												cli_credential_environment aEnvironment, std::stop_token aStop) -> github_cli_process_result override
+			{
+				if (!aCredential || (aEnvironment != cli_credential_environment::github && aEnvironment != cli_credential_environment::enterprise)) {
+					return std::unexpected{ github_cli_process_failure::invalid_request };
+				}
+				return dispatch(aRequest, aStop, { }, std::move(aCredential), aEnvironment);
+			}
+
+		private:
+			[[nodiscard]] auto dispatch(const github_cli_process_request& aRequest, std::stop_token aStop,
+										std::shared_ptr<cli_sensitive_bytes> aCapture = { }, cli_transient_credential aCredential = { },
+										cli_credential_environment aEnvironment = cli_credential_environment::github) -> github_cli_process_result
+			{
 				try {
 					process_worker* worker = nullptr;
 					{
@@ -1100,7 +1266,7 @@ namespace bpr::adapters::github::detail {
 						}
 						worker = Worker.get();
 					}
-					return worker->submit(aRequest, aStop);
+					return worker->submit(aRequest, aStop, std::move(aCapture), std::move(aCredential), aEnvironment);
 				} catch (...) {
 					return std::unexpected{
 						github_cli_process_failure::start_failure

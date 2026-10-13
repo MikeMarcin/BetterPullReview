@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -4076,6 +4077,22 @@ auto finish_background_reap(
                             + hostile_surface
                     },
                 )
+
+    def test_strict_cli_credential_exception_is_closed(self) -> None:
+        runner = "src/adapters/github/src/github_cli_process_runner.cpp"
+        source = (REPOSITORY_ROOT / runner).read_text(encoding="utf-8")
+        result = self.run_check({runner: source})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assert_failure("Forbidden credential, status-output, cache, or debug", {
+            runner: source + '\nconst char* arbitrary = "GH_TOKEN";\n'})
+        for fragment in ("equal_environment_names(entry.Name, aName)",
+                         "item->Credential = std::move(aCredential)",
+                         "capture->finish_credential()"):
+            with self.subTest(fragment=fragment):
+                pattern = re.escape(fragment).replace(r"\ ", r"\s+")
+                mutated, count = re.subn(pattern, "removed_sensitive_boundary", source)
+                self.assertEqual(count, 1)
+                self.assert_failure("GitHub CLI sensitive ownership contract missing", {runner: mutated})
 
     def test_cli_runner_restricts_every_windows_launch(self) -> None:
         # [[BPR-1114]] The runner's one process-creation modifier is the

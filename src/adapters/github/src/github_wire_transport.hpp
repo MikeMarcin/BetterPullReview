@@ -126,6 +126,9 @@ namespace bpr::adapters::github::detail {
 																 github_capability_probe_wire_error,
 																 github_capability_probe_wire_cancelled>;
 
+	class github_wire_transport_port;
+	using github_wire_operation = std::expected<std::shared_ptr<github_wire_transport_port>, application::github_provider_error>;
+
 	class github_wire_transport_port
 	{
 	public:
@@ -137,6 +140,10 @@ namespace bpr::adapters::github::detail {
 		auto operator=(github_wire_transport_port&&)
 			-> github_wire_transport_port&    = delete;
 		virtual ~github_wire_transport_port() = default;
+
+		/// \brief Fresh operation authority; a null owner means this transport has no scoped credential.
+		[[nodiscard]] virtual auto begin_operation(std::stop_token) -> github_wire_operation { return std::shared_ptr<github_wire_transport_port>{ }; }
+		[[nodiscard]] virtual auto strict_cli() const noexcept -> bool { return false; }
 
 		[[nodiscard]] virtual auto perform(const github_wire_request& aRequest,
 										   std::stop_token            aStop)

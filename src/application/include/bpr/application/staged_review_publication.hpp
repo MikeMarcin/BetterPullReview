@@ -64,6 +64,7 @@ namespace bpr::application {
 	{
 		staged_publication_state                 State = staged_publication_state::unavailable;
 		std::optional<staged_publication_record> Record;
+		std::optional<review_mutation_failure>   Failure = std::nullopt;
 	};
 	[[nodiscard]] auto staged_update_bodies(const staged_publication_record&) -> std::optional<core::tour_update_bodies>;
 	[[nodiscard]] auto staged_update_request(const staged_publication_record&) -> std::optional<staged_review_request>;

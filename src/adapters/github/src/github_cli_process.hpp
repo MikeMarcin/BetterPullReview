@@ -1,10 +1,13 @@
 #ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_CLI_PROCESS_HPP
 #define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_CLI_PROCESS_HPP
 
+#include "cli_sensitive_bytes.hpp"
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <stop_token>
 #include <string>
 #include <vector>
@@ -79,6 +82,11 @@ namespace bpr::adapters::github::detail {
 		github_cli_process_success,
 		github_cli_process_failure>;
 
+	enum class cli_credential_environment : std::uint8_t { github,
+														   enterprise };
+	using cli_transient_credential = std::shared_ptr<const cli_sensitive_bytes>;
+	using cli_sensitive_result     = std::expected<cli_transient_credential, github_cli_process_failure>;
+
 	class github_cli_process_port
 	{
 	public:
@@ -94,6 +102,18 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] virtual auto run(
 			const github_cli_process_request& aRequest,
 			std::stop_token                   aStop) -> github_cli_process_result = 0;
+
+		/// \brief Closed credential acquisition; output never enters generic result storage.
+		[[nodiscard]] virtual auto acquire_sensitive(const github_cli_process_request&, std::stop_token, std::shared_ptr<const void> = { }) -> cli_sensitive_result
+		{
+			return std::unexpected{ github_cli_process_failure::invalid_request };
+		}
+		/// \brief Supplies one operation-owned credential outside copyable generic requests.
+		[[nodiscard]] virtual auto run_credentialed(const github_cli_process_request&, cli_transient_credential,
+													cli_credential_environment, std::stop_token) -> github_cli_process_result
+		{
+			return std::unexpected{ github_cli_process_failure::invalid_request };
+		}
 	};
 }
 

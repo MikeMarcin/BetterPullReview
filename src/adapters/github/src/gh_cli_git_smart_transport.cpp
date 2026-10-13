@@ -261,12 +261,38 @@ namespace bpr::adapters::github::detail {
 					if (!process) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
-					gh_cli_transport identity{ Profile, Configuration, *process };
-					const auto       before = viewer(identity, stop.get_token());
+					auto credential = acquire_gh_cli_credential(*process, Configuration, stop.get_token());
+					if (!credential) {
+						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : failure::authentication } };
+					}
+					gh_cli_transport                    identity{ Profile, Configuration, *process, *credential };
+					const git_smart_exact_blobs_request batch{ .Context = aRequest.Context, .ExpectedBlobs = { aRequest.ExpectedBlob }, .MaximumBytes = std::min(aRequest.MaximumBytes, maximum_git_exact_blob_batch_bytes) };
+					if (const auto query = compile_gh_cli_exact_blobs_request(Configuration, Profile, batch)) {
+						const auto response = run_gh_cli(*process, Configuration, *query, stop.get_token(), *credential);
+						if (response && response->ExitCode == 0) {
+							auto named = verified_blobs(batch, response->StandardOutput);
+							if (named) {
+								if (named->Viewer.Account != Context.Authority.Account || named->Viewer.Login != Profile.cli_account_login()) {
+									revoke();
+									return std::unexpected{ git_smart_transport_error{ failure::authentication } };
+								}
+								if (named->Blobs.size() == 1U && named->Blobs.front()) {
+									if (const auto error = admission(aRequest.Context, stop.get_token())) {
+										return std::unexpected{ git_smart_transport_error{ *error } };
+									}
+									if (!identity.configuration_unchanged()) {
+										return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+									}
+									return std::move(*named->Blobs.front());
+								}
+							}
+						}
+					}
+					const auto before = viewer(identity, stop.get_token());
 					if (!before) {
 						return std::unexpected{ before.error() };
 					}
-					const auto response = run_gh_cli(*process, Configuration, *invocation, stop.get_token());
+					const auto response = run_gh_cli(*process, Configuration, *invocation, stop.get_token(), *credential);
 					if (!response) {
 						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
 					}
@@ -371,8 +397,12 @@ namespace bpr::adapters::github::detail {
 					}
 					// Constructed before the read so that its configuration
 					// baseline precedes it, as the observation's did.
-					gh_cli_transport identity{ Profile, Configuration, *process };
-					const auto       response = run_gh_cli(*process, Configuration, *invocation, stop.get_token());
+					auto credential = acquire_gh_cli_credential(*process, Configuration, stop.get_token());
+					if (!credential) {
+						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : failure::authentication } };
+					}
+					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+					const auto       response = run_gh_cli(*process, Configuration, *invocation, stop.get_token(), *credential);
 					if (!response) {
 						return std::unexpected{ git_smart_transport_error{ process_error(response.error()) } };
 					}
@@ -390,7 +420,7 @@ namespace bpr::adapters::github::detail {
 					if (!answer) {
 						return answer;
 					}
-					if (answer->Viewer.Account != Context.Authority.Account) {
+					if (answer->Viewer.Account != Context.Authority.Account || answer->Viewer.Login != Profile.cli_account_login()) {
 						revoke();
 						answer->Blobs.assign(aRequest.ExpectedBlobs.size(), std::nullopt);
 					}
@@ -540,7 +570,7 @@ namespace bpr::adapters::github::detail {
 				if (!observed) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				if (observed->Viewer.Account != Context.Authority.Account) {
+				if (observed->Viewer.Account != Context.Authority.Account || observed->Viewer.Login != Profile.cli_account_login()) {
 					revoke();
 					return std::unexpected{ git_smart_transport_error{ failure::authentication } };
 				}
@@ -620,7 +650,11 @@ namespace bpr::adapters::github::detail {
 						&& (!clone_option_available(capability->StandardOutput, "filter") || !clone_option_available(capability->StandardOutput, "depth")))) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				gh_cli_transport identity{ Profile, Configuration, *process };
+				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
+				if (!credential) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+				}
+				gh_cli_transport identity{ Profile, Configuration, *process, *credential };
 				aStep             = git_smart_transport_step::identity_before;
 				const auto before = viewer(identity, aStop);
 				if (!before) {
@@ -642,7 +676,7 @@ namespace bpr::adapters::github::detail {
 					}
 					// [[BPR-1373]]. Pinned, the clone and the credential helper it
 					// launches read the same private configuration.
-					const auto result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop);
+					const auto result = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
 					if (!result) {
 						return std::unexpected{ git_smart_transport_error{ process_error(result.error()) } };
 					}
@@ -777,6 +811,8 @@ namespace bpr::adapters::github::detail {
 	{
 		if (!application::valid(aContext) || aProfile.authentication_transport() != application::github_authentication_transport::github_cli
 			|| aContext.Authority.Profile != aProfile.profile() || aContext.Authority.ProfileRevision.value() != aProfile.revision().value()
+			|| !aConfiguration.pin() || aConfiguration.pin()->Hostname != aProfile.hostname()
+			|| aConfiguration.pin()->Login != aProfile.cli_account_login()
 			|| aContext.Authority.Host != aProfile.host() || aContext.Revision.Base.algorithm() != core::git_hash_algorithm::sha1
 			|| !observe_git(aGit) || !aConfigurationCurrent || !aConfigurationCurrent()) {
 			return std::unexpected{ application::git_smart_transport_error{ application::git_smart_transport_failure::unavailable } };

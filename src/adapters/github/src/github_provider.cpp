@@ -840,6 +840,16 @@ namespace bpr::adapters::github::detail {
 					-> application::git_smart_transport_result<std::vector<std::byte>> override
 				{
 					using failure = application::git_smart_transport_failure;
+					if (Owner->strict_cli()) {
+						if (aStop.stop_requested() || revoked()) {
+							return std::unexpected{ application::git_smart_transport_error{ application::git_smart_transport_failure::cancelled } };
+						}
+						auto result = Inner->read_exact_blob(aRequest, aStop);
+						if (!result && result.error().Failure == failure::authentication && Inner->revoked()) {
+							Owner->Mismatch.store(true);
+						}
+						return result;
+					}
 					if (auto* reader = dynamic_cast<viewer_named_blob_reader*>(Inner.get())) {
 						const application::git_smart_exact_blobs_request text{
 							.Context       = aRequest.Context,
@@ -928,11 +938,13 @@ namespace bpr::adapters::github::detail {
 					if (aStop.stop_requested() || revoked()) {
 						return application::git_smart_transport_error{ failure::cancelled };
 					}
-					if (const auto error = Owner->check(Owner->Viewer, aStop)) {
-						revoke();
-						return application::git_smart_transport_error{ aStop.stop_requested()                                                       ? failure::cancelled
-																		   : error->Failure == application::github_provider_failure::authentication ? failure::authentication
-																																					: failure::unavailable };
+					if (!Owner->strict_cli()) {
+						if (const auto error = Owner->check(Owner->Viewer, aStop)) {
+							revoke();
+							return application::git_smart_transport_error{ aStop.stop_requested()                                                       ? failure::cancelled
+																			   : error->Failure == application::github_provider_failure::authentication ? failure::authentication
+																																						: failure::unavailable };
+						}
 					}
 					return std::nullopt;
 				}
@@ -949,6 +961,28 @@ namespace bpr::adapters::github::detail {
 				, Account{ aAccount }
 				, Login{ std::move(aLogin) }
 			{ }
+
+			[[nodiscard]] auto strict_cli() const noexcept -> bool override { return Transport->strict_cli(); }
+			[[nodiscard]] auto begin_operation(std::stop_token aStop) -> github_wire_operation override
+			{
+				auto inner = Transport->begin_operation(aStop);
+				if (!inner || !*inner) {
+					return inner;
+				}
+				auto scope = std::make_shared<cli_observed_account_transport>(*inner, Viewer, Server, Account, Login);
+				if (auto error = scope->check(Viewer, aStop)) {
+					return std::unexpected{ *error };
+				}
+				return std::shared_ptr<github_wire_transport_port>{ std::move(scope) };
+			}
+			[[nodiscard]] auto begin_mutation_operation(std::stop_token aStop) -> github_mutation_operation override
+			{
+				auto scope = begin_operation(aStop);
+				if (!scope) {
+					return std::unexpected{ scope.error().CliCredentialUnavailable ? application::review_mutation_failure::credential_unavailable : application::review_mutation_failure::unavailable };
+				}
+				return std::dynamic_pointer_cast<github_mutation_wire_transport>(*scope);
+			}
 
 			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override
 			{
@@ -1876,6 +1910,12 @@ namespace bpr::adapters::github::detail {
 							});
 						};
 					try {
+						auto operation = accountTransport->Transport->begin_operation(job->Stop.get_token());
+						if (!operation) {
+							failed(operation.error());
+							return;
+						}
+						const auto transport = *operation ? *operation : accountTransport->Transport;
 						for (std::uint8_t part = 0U; part < capability_probe_part_count; ++part) {
 							if (job->Stop.stop_requested()) {
 								cancelled();
@@ -1897,7 +1937,7 @@ namespace bpr::adapters::github::detail {
 								},
 								.Wire = *compiled,
 							};
-							const auto terminal = accountTransport->Transport->perform_capability_probe(
+							const auto terminal = transport->perform_capability_probe(
 								wire, job->Stop.get_token());
 							if (terminal.valueless_by_exception()) {
 								failed(provider_error(
@@ -2297,6 +2337,14 @@ namespace bpr::adapters::github::detail {
 									response_limit));
 							return;
 						}
+						auto operation = readTransport->begin_operation(job->Stop.get_token());
+						if (!operation) {
+							failed(operation.error());
+							return;
+						}
+						if (*operation) {
+							readTransport = std::move(*operation);
+						}
 						auto result = perform_paged_github_read(*readTransport,
 																*profile,
 																aRequest,
@@ -2438,10 +2486,17 @@ namespace bpr::adapters::github::detail {
 		try {
 			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery]() mutable {
 				try {
-					auto       result = job->Stop.stop_requested()
+					auto operation = accountTransport->Transport->begin_operation(job->Stop.get_token());
+					if (!operation) {
+						finish_job(state, job);
+						delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = operation.error() });
+						return;
+					}
+					const auto transport = *operation ? *operation : accountTransport->Transport;
+					auto       result    = job->Stop.stop_requested()
 						? github_personal_discovery_read_result{ std::unexpected{ github_paged_read_failure{ github_paged_read_cancelled{ } } } }
-						: perform_personal_discovery_read(*accountTransport->Transport, *profile, aRequest, job->Stop.get_token());
-					const auto was    = finish_job(state, job);
+						: perform_personal_discovery_read(*transport, *profile, aRequest, job->Stop.get_token());
+					const auto was       = finish_job(state, job);
 					if (was || (!result.has_value() && std::holds_alternative<github_paged_read_cancelled>(result.error()))) {
 						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
 						return;

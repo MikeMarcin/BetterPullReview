@@ -43,9 +43,18 @@ the functional core or Qt presentation adapter.
   and read-only, holding `config.yml` and a `hosts.yml` naming only the pinned
   host and login. It removes the directory when the launch ends and refuses the
   launch if any step fails. Every `gh` launch of a pinned configuration goes
-  through `run_gh_cli`; local Git never does. No `GH_TOKEN`,
-  `GITHUB_TOKEN`, `GH_ENTERPRISE_TOKEN` or `GITHUB_ENTERPRISE_TOKEN` is set,
-  and `gh auth token` and `gh auth switch` are never run.
+  through `run_gh_cli`; local Git never does. RFC-BPR-0078 supersedes the
+  tokenless rule only for the selected macOS CLI account: the closed
+  `auth token --hostname HOST --user LOGIN` acquisition uses bounded sensitive
+  capture, and one operation-owned credential is passed separately from generic
+  request/environment/result records. Only the runner's exact four-name table
+  may name token variables; generic requests reject all four and the runner
+  selects one primary variable by stock-gh hostname classification. No parent
+  token, cross-operation cache, persistent credential or `gh auth switch` is
+  permitted. Keep the same bytes through API, gh-owned helper descendants and
+  GET-only recovery, holding sensitive/configuration owners through reap and
+  quarantine. Owned buffers are overwritten; Qt, OS and child memory copies
+  are not claimed precisely eraseable. Native qualification remains separate.
 - Compile only closed `gh api` argument shapes from revalidated canonical
   requests; a bounded local `gh --version` probe may precede opt-in use and
   carries no credential or request body, as do the closed local
@@ -59,7 +68,7 @@ the functional core or Qt presentation adapter.
 - For RFC-BPR-0015 Git-object reads only, the selected `gh` may perform a
   bounded exact-repository Git operation that internally launches Git and its
   own `gh auth git-credential` shell helper. BetterPullReview must not invoke
-  the helper or a shell directly, obtain helper output or token bytes, alter
+  the helper or a shell directly, obtain helper output, alter
   global Git/`gh` authentication, or fall back to native credentials. The
   macOS launch boundary may invoke `sandbox-exec` with a closed profile that
   denies file writes for every `gh` process, including version and REST calls;
@@ -67,9 +76,9 @@ the functional core or Qt presentation adapter.
   Refuse CLI availability when that boundary cannot be established. A
   before/after configuration check alone does not contain first-run `gh`
   migration of legacy configuration or symlinked targets. The helper's process,
-  executable/configuration and account-switch races remain
-  visible limitations; pre/post observations detect changes but do not close
-  the race. A GraphQL blob read instead selects `viewer { login databaseId }`
+  executable/configuration trust remains a visible limitation. RFC-BPR-0078
+  binds all helper launches to the acquired operation credential; pre/post
+  viewer checks continue to enforce the numeric account and chosen login. A GraphQL blob read instead selects `viewer { login databaseId }`
   in the same query and holds that account and login to the lease's bound
   account exactly as an observation is held, refusing the lease on a mismatch;
   only such a read may skip the observations, and a blob it cannot carry as
@@ -85,7 +94,8 @@ the functional core or Qt presentation adapter.
   credentialed `gh` use, write-denied local `gh api --help`,
   `gh repo clone --help` and `gh auth git-credential --help` probes (32 KiB,
   10 s, completed zero exit only, no standard error) must show every flag and
-  usage the path invokes; `gh_cli_help_topic` is the closed probe set. A failed
+  usage the path invokes; RFC-BPR-0078 adds the local `gh auth token --help`
+  hostname/user check. `gh_cli_help_topic` is the closed probe set. A failed
   check reports `cli_version` or `cli_capability_probe`, an unsupported tool
   `cli_qualification`; the host maps them to `gh_tool_probe_failed` and
   `gh_tool_unsupported`. Direct installed-tool evidence remains
@@ -101,11 +111,12 @@ the functional core or Qt presentation adapter.
   persisted `http_unix_socket` for `gh api`, and routed an authenticated
   request through an AF_UNIX sentinel. `gh api` has no per-invocation
   `--user`; `gh auth token --user` exposes the token and
-  `gh auth switch --user` mutates persisted active-account state. Neither is
-  used: a pinned profile selects its account through the per-call private
-  configuration above. `gh` falls back silently to the active token when the
-  pinned login has no keychain entry, so the [[BPR-1370]] viewer check, held to
-  the profile's login and first-observed account, is what refuses that. A fake
+  `gh auth switch --user` mutates persisted active-account state. The latter
+  remains forbidden. Historical tokenless private-config selection could fall
+  back to the active token if the pinned login had no Keychain entry.
+  RFC-BPR-0078 replaces it with explicit named acquisition and the sensitive
+  operation environment above, refusing unavailable credentials before API or
+  network Git. The [[BPR-1370]] viewer check still binds login and numeric ID. A fake
   child or native HTTPS evidence must never enable CLI mode.
 - Keep native HTTPS execution in `src/native_https_transport.cpp`; it is the
   only GitHub source permitted to use `QNetworkAccessManager`.

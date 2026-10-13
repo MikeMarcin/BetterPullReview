@@ -1004,6 +1004,7 @@ namespace bpr::qt {
 	{
 		++Members.Statistics.MutationUpdates;
 		switch (aFailure) {
+		case application::review_mutation_failure::credential_unavailable:
 		case application::review_mutation_failure::unavailable:
 			set_publication_status(QStringLiteral(
 				"Publication result is unavailable; retry is safe."));
