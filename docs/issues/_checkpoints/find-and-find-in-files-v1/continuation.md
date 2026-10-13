@@ -71,7 +71,9 @@ ReviewerDecisions/DiffEffects. It captures the accepted immutable diff and
 existing semantic index, invokes execute_source_pane_match, yields through
 EpochHost->yield_to_source_navigation, binds active tab and participates in
 application shutdown. Tab/document observation retires obsolete hits; authority
-reset clears query/options. Its one complete exact-scope/query/options cache
+reset clears query/options. The controller and captured application root, executors
+and source surface stay alive until is_quiescent(), before window destruction.
+Its one complete exact-scope/query/options cache
 shares bounded immutable records for closed-query Next without rescanning.
 
 `source_search_projection.hpp` is the narrow host-to-Qt record/coverage projection.
@@ -96,6 +98,9 @@ The shipped application course is `application_source_find` with 1.25/2.0 scale
 variants in build/find-corpus-git. It opens source-find-v1 through actual
 account/PR/Review/Files/epoch/cache/installed Git. 1000 traversals and closed Next
 leave matcher and endpoint counters unchanged while keeping exact records/diff/index.
+Instrumentation is diff_workbench_statistics.FindMatchingRuns, FindCachedRuns,
+FindEndpointConversions and FindHighlightsVisited; the controller publishes actual
+MatchingRuns/CachedRuns and exposes source_search_host_counters via counters().
 Native rasters are full actual windows. Supported minimum is 900 logical pixels
 (a 720 request clamps), physical narrow frames 900×640 / 1125×800 / 1800×1280.
 These are Qt offscreen macOS26.6.2/Qt6.11.2 observations, not physical display,
