@@ -4,7 +4,7 @@ title: "Evaluate and replace the hand-written SHA-1 and SHA-256"
 status: "In Progress"
 depends_on: []
 area: "BPR"
-metadata: {"mandate_revision":"hashing-replacement-r2","rfc_base_sha":"5620a9f15a391dde7750112294f7562f2f64a32f","source_draft":"RFC-DRAFT-0020","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"}}
+metadata: {"mandate_revision":"hashing-replacement-r3","rfc_base_sha":"5620a9f15a391dde7750112294f7562f2f64a32f","source_draft":"RFC-DRAFT-0020","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"}}
 ---
 
 # Evaluate and replace the hand-written SHA-1 and SHA-256
@@ -37,10 +37,21 @@ Q3 is not asked: the Linux backend has not been measured. The amendment
 changes the collision-input evaluation, the sha1dc decision rule and AC03,
 each marked below; the [amendment record](assets/hashing-replacement-v1/proposed-owner-amendment-2026-10-13.md)
 keeps the text before and after. Nothing else changes: in particular the
-throughput conditions, including the idle machine, still bind both adopt
-rules, and an Accept approves a library for core without being an adopt
+throughput conditions still bind both adopt rules (the idle machine was later
+waived for macOS; see the owner waiver below), and an Accept approves a library for core without being an adopt
 decision. Core's link allow-list and the `AGENTS.md` rule now name both
 libraries.
+
+## Owner waiver — 2026-10-13
+
+Mandate `hashing-replacement-r3`. The owner answered on 2026-10-13, as relayed
+by the coordinating session: **waive the idle-machine condition, Accept** —
+the loaded macOS speed measurements are accepted for the adopt rules. The
+waiver covers the macOS arm64 throughput rows [[BPR-1446]] measured on a loaded
+machine; it covers load, not missing rows, and it does not change the ratio
+thresholds, the Windows and Linux stations' conditions, or AC05's
+before-and-after rows. The [waiver record](assets/hashing-replacement-v1/proposed-owner-waiver-2026-10-13.md)
+keeps the text before and after.
 
 ## Progress, 2026-10-13
 
@@ -266,6 +277,8 @@ component: adopt, reject, or eligible pending an owner answer.
   Conditions follow BPR-1349 and BPR-1358 and the
   [RFC-BPR-0013 convention](RFC-BPR-0013-performance-resilience-resource-limits.md#performance-budgets):
   a Release `-O3` tests-on tree, an idle machine, `-j1`, and medians of 7.
+  (*Waived 2026-10-13 for the macOS arm64 rows: the owner accepted BPR-1446's
+  measurements on a loaded machine.*)
   Each run records the CPU, its SHA-extension flags (`hw.optional.arm.*`,
   `/proc/cpuinfo` `sha_ni`), the OS and the compiler. macOS arm64 is
   required. The Linux and Windows stations run when available, and a missing

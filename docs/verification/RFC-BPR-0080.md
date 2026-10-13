@@ -15,15 +15,16 @@ claims a result for them.
 | Which libraries may core link? | "Core may link only the owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries: glaze, utf8proc, zlib and fmt" (root `AGENTS.md`) | 2026-10-13 |
 | Q1: add sha1collisiondetection (MIT) to core's approved libraries? | Accept | 2026-10-13 |
 | Q2: add HACL*'s generated SHA-2 C (MIT) to core's approved libraries? | Accept | 2026-10-13 |
+| Waive the idle-machine condition for the macOS speed measurements | Accept ("the loaded macOS speed measurements are accepted for the adopt rules") | 2026-10-13 |
 | Amendment: the collision requirement is met by detection on raw byte streams plus the same library at every object-ID path, shown by inspection and test | Accept ("A Git-header collision vector is not required") | 2026-10-13 |
 | Q3: may the Linux build link the system libcrypto directly? | Not asked: the Linux backend has not been measured | — |
 
 ## Decisions
 
 The decisions below were made before the owner's answers. With Q1 and Q2
-accepted, "eligible pending Q1" and "eligible pending Q2" now wait only on the
-RFC's idle-machine throughput condition ([[BPR-1446]] AC4) and their adoption
-cards.
+accepted and the idle-machine condition waived for these macOS rows, both
+candidates meet their adopt rules on macOS; adoption is [[BPR-1450]] and
+[[BPR-1451]].
 
 | Component | Role | Decision | Rule result on macOS arm64 |
 |---|---|---|---|
@@ -54,8 +55,8 @@ core, arms interleaved within each run, one warm-up, and the median of 7. The
 wall-clock medians are in the raw file. Absolute rates are below the RFC's
 grounding table, which used Homebrew clang 23 and best-of-5 runs; the decisions
 rest on ratios measured side by side in two runs, and the narrowest margin is
-HACL*'s 1.18x against a 0.9x rule. An idle re-measurement on this Mac stays owed before any
-adoption card relies on an absolute rate.
+HACL*'s 1.18x against a 0.9x rule. On 2026-10-13 the owner waived the idle condition for these macOS rows and
+accepted the loaded measurements for the adopt rules.
 
 ## Correctness gate
 
