@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1429"
 title: "Present strict connection disclosure and typed publication failures"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0079"]
 depends_on: ["BPR-1428"]
 platforms: ["mac"]
