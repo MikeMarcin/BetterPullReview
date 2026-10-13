@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "file-change-navigation-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0076"
+    ],
+    "issues": [
+      "BPR-1417"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "review-navigation-entry",
+      "outcome": "All four existing PR file/change actions enter Review and navigate its exact active-tab context once, preserving bounds and retained work.",
+      "work": [
+        {
+          "issue": "BPR-1417"
+        },
+        {
+          "rfc": "RFC-BPR-0076"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01\u2013AC05 pass through real Qt actions, admitted physical shortcuts and the composed Git/cache review path, including bounds and older active-tab material.",
+        "Exact delayed restoration, supersession and unavailable material preserve active/sibling tab identity, drawer memory, drafts and visible focus.",
+        "Owning UX/tab architecture, baseline review, verification ledger and tracker state agree with the tested candidate; focused format, architecture and documentation gates pass."
+      ],
+      "boundary": "Full authorized follow-up implementation and acceptance. No human, native or independent criterion is inferred or added. Main integration waits for safe reconciliation with concurrent title-row work."
+    }
+  ],
+  "unplanned_work": []
+}

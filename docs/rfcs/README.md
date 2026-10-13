@@ -549,3 +549,5 @@ separate platform/release obligations retain their scope.
 | [RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) | Smooth diff touchpad panning without accidental vertical steps | Auto-Verified | RFC-BPR-0004, RFC-BPR-0005 |
 
 | [RFC-BPR-0074](RFC-BPR-0074-header-source-navigation.md) | Jump between a review’s header and source files | Auto-Verified | — |
+
+| [RFC-BPR-0076](RFC-BPR-0076-file-change-navigation-enters-review.md) | File and change navigation enters Review | In Progress | — |

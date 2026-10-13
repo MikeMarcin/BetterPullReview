@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1417"
+  ],
+  "reserve_for": "file-change-navigation-v1",
+  "purpose": "",
+  "created": "2026-10-13T05:27:38.552632+00:00",
+  "base": "d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1"
+}

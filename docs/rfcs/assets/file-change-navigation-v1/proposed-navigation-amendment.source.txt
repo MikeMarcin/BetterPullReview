@@ -1,0 +1,59 @@
+# Proposed amendment: file and change navigation enters Review
+
+This accompanies [RFC-DRAFT-0014](RFC-DRAFT-0014-file-change-navigation-enters-review.md).
+Live requirements, plans, terminal cards and historical verdicts remain
+unchanged during authoring.
+
+## Sources inspected
+
+These SHA-256 identities bind the adopted sources inspected on 2026-10-12.
+They record authoring provenance, not an implementation baseline or acceptance.
+Reconcile concurrent drift before adoption.
+
+| Source | SHA-256 |
+|---|---|
+| [Workbench specification](../../../ux/workbench-specification.md) | `6e53b11c175dd9477ae69d2dbc2357ea7adb330aa6e1959e686193ec9622f308` |
+| [RFC-BPR-0037](../../RFC-BPR-0037-first-pr-review-workflow.md) | `e9f1231c64eab9995bfa9edd61e35528c8f7aa8c653d31295baf978fdbfb10c1` |
+| [BPR-0924](../../../issues/60-done/BPR-0924-thread-body-clipping-and-slow-nested-scroll.md) | `2c19c9c3b45e78a58598a10cf3bb171a754ff06a4d18e95fedd54241c0afb0ed` |
+| [BPR-1328](../../../issues/60-done/BPR-1328-change-arrows-stay-enabled-and-bounded.md) | `8a516589b2f9982895b7ee2734aca629d117a226ecb708d2231f97588bac18ae` |
+| [BPR-1132](../../../issues/60-done/BPR-1132-the-document-tab-strip-in-the-comparisons-header.md) | `fa7f96e91a1327b95345aa9c6fce7a62743b82371f3ff050313f9f8c88622fc4` |
+| [BPR-1295](../../../issues/60-done/BPR-1295-merge-read-into-review-with-one-command-to-hide-and-restore-the-open-drawers.md) | `a517890551bead59fe0bdb9e91b13e08a7876f50833d8d63393995f5ad94a8a7` |
+
+## Before and after
+
+The workbench specification's bounded-navigation description currently says
+a bounded press sends no gesture and changes nothing. Refine that description:
+an active PR's file/change action also enters Review, even at a bound, while
+the source navigation remains a no-op with its existing message. Both directions
+share the new entry behavior. Keep the always-enabled arrows, exact keys,
+three-second status, no-wrap rule and editable-input exceptions from BPR-1328.
+Extend the specification's modality-entry description accordingly.
+
+BPR-0924's fourth acceptance result and the first-PR plan's
+[thread-reading integration evidence](../../plans/rfc-bpr-0037-first-pr-workflow/milestone-thread-reading-integration-evidence.md)
+record Previous/Next change preserving Discuss while moving retained code.
+Replace that runtime expectation for explicit file/change commands with Review
+entry, retaining conversation identity and unsent work for return. RFC-BPR-0037's
+thread-reading, PR-wide Discuss and explicit publication obligations remain;
+this follow-up does not withdraw its AC-07 or AC-09 or reopen the done card.
+
+Preserve BPR-1132's exact per-tab pair and reading-state contract and BPR-1295's
+remembered Review arrangement. Extend their entry paths rather than applying
+the explicit Review-button preset on each navigation. Update owning UX and
+navigation/tab architecture documentation during implementation.
+
+## Reconciliation and next action
+
+No existing milestone plan's scope or exit is amended. Register a narrow new
+follow-up under authorized implement-rfc execution, reconcile writers on the
+workbench actions, modality/tab restoration and composed navigation tests,
+and keep the historical source cards and acceptance records intact. Revise
+the existing Discuss-stays-visible regression and add distinguishing public
+path evidence for all four commands, bounds and an older active-tab pair.
+Earlier passing navigation evidence cannot certify the newly required entry.
+
+The owner's initial next-only request, explicit bound answer and subsequent
+previous-direction clarification are recorded in the draft. No further design
+choice is pending. Exact sequencing and focused test selection remain
+implementation work; no live board allocation or runtime acceptance is claimed
+by this authoring handoff.
