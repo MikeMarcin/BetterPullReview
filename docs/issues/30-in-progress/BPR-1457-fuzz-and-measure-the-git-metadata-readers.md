@@ -23,4 +23,7 @@ on macOS.
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done on `561604015` (macOS, Debug). Evidence in the
+[verification ledger](../../verification/RFC-BPR-0083.md#bpr-1457-fuzz-oracles-adversarial-timing-and-scale).
+The differential oracle against a reference matcher belongs to [[BPR-1459]].
+Candidates are compared with these K numbers only in the same build and run.
