@@ -68,7 +68,11 @@ namespace {
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
 				const tests::exit_on_failure inTheEventLoop;
-				expect(prompt->informativeText().contains(QStringLiteral("reused on later launches until you sign out or replace it")), "read consent explains durable reuse");
+				expect(prompt->text() == QStringLiteral("Use octo-reviewer’s GitHub CLI sign-in on github.com?"), "read consent names the chosen account and server");
+				expect(prompt->informativeText().contains(QStringLiteral("existing sign-in without saving its token")), "read consent explains existing sign-in without token storage");
+				expect(prompt->informativeText().contains(QStringLiteral("reused until you sign out or replace it")), "read consent explains durable reuse");
+				expect(prompt->informativeText().contains(QStringLiteral("Connecting for reads does not authorize publishing.")), "read consent grants no publication authority");
+				expect(prompt->detailedText().contains(QStringLiteral("Remembered metadata saves no token and is checked again before use.")), "read consent retains revalidation and token-free metadata disclosure");
 				const auto capture = qEnvironmentVariable("BPR_REMEMBERED_CONNECTION_CONSENT_CAPTURE");
 				if (!capture.isEmpty()) {
 					expect(prompt->grab().save(capture, "PNG"), "offscreen consent capture is written");
