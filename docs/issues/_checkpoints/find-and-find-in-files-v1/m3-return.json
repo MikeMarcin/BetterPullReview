@@ -34,10 +34,10 @@
         "id": "BPR-1421:*",
         "source": "BPR-1421",
         "selector": null,
-        "source_fingerprint": "sha256:5524636c5275b7f7c09888ef1398d2724e2575f61067422a428c63c0dd105dca"
+        "source_fingerprint": "sha256:7d366d8f5981aace99c28f62644f9ecb5eb133dd4874e90f5da64a1611c5920c"
       }
     ],
-    "obligation_fingerprint": "sha256:b2c61fb94396f08956c09b1ca82c9ccad0778f8202f7d0841875f4b379465890",
+    "obligation_fingerprint": "sha256:9b8a2f12feb2e5f7800ba2591a5306ca20c5c8bfce43f8026060558f3c248903",
     "exit_criteria": [
       {
         "id": "exact-pr-corpus:exit:1",
@@ -65,8 +65,7 @@
   },
   "milestone": "exact-pr-corpus",
   "disposition": "milestone-complete",
-  "candidate_revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
-  "tested_product_revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "candidate_revision": "7b27944eaf1a91f07d9ec076cde9f1483aea0792",
   "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
   "required_pending": [],
   "evidence_refs": [
@@ -79,7 +78,8 @@
     "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
     "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
     "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json",
-    "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json"
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-documentation.json"
   ],
   "acceptance_records": [
     {
@@ -95,7 +95,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-documentation.json"
       ]
     },
     {
@@ -111,7 +112,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-documentation.json"
       ]
     },
     {
@@ -127,7 +129,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-documentation.json"
       ]
     },
     {
@@ -143,7 +146,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-documentation.json"
       ]
     },
     {
@@ -159,7 +163,8 @@
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
         "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json",
-        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json"
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-documentation.json"
       ]
     }
   ],
@@ -167,7 +172,7 @@
     "intent": "fresh",
     "next_milestone": "pane-find",
     "reason": "integrated-boundary",
-    "detail": "Tested M3 product df4b42d6942d131caebc2343a6ed360c8023bc0d. Fresh M4 reads frontend-design before UX; original AC01-AC08 and retained broad-core failures remain Pending."
+    "detail": "M3 BPR-1421 accepted at 250825be1619378079c132a730eb896632329310; exact tested product df4b42d6942d131caebc2343a6ed360c8023bc0d; ready-successor/tracker revision 7b27944eaf1a91f07d9ec076cde9f1483aea0792. Fresh M4 reads frontend-design before UX, binds accepted M1/M2/M3 and claims Ready BPR-1422. Original AC01-AC08 and retained broad-core/tidy failures remain explicit. No native/UI/public-application performance acceptance inferred."
   },
-  "ownership": "active; completing guarded documentation and tracker upkeep"
+  "ownership": "quiescent"
 }
