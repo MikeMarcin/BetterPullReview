@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/core/sha256.hpp"
+#include <QByteArray>
 #include <algorithm>
 #include <tuple>
 namespace bpr::app {
@@ -33,14 +34,8 @@ namespace bpr::app {
 		for (auto byte : aTarget.Owner.HostAuthority.bytes()) {
 			key.push_back(static_cast<char>(byte));
 		}
-		const auto     digest = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(key.data()), key.size() });
-		constexpr char hex[]  = "0123456789abcdef";
-		std::string    result;
-		for (auto byte : digest) {
-			result.push_back(hex[byte >> 4U]);
-			result.push_back(hex[byte & 15U]);
-		}
-		return result;
+		const auto digest = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(key.data()), key.size() });
+		return QByteArray::fromRawData(reinterpret_cast<const char*>(digest.data()), static_cast<qsizetype>(digest.size())).toHex().toStdString();
 	}
 	auto load_local_tour(application::review_tour_store& aStore, std::string_view aDraft, const tour_store_lane& aLane) -> tour_cli_result<tour_local_snapshot>
 	{

@@ -1,4 +1,5 @@
 #include "bpr/core/review_cycle_json.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/utf8.hpp"
 
 #include <algorithm>
@@ -512,13 +513,7 @@ namespace bpr::core {
 
 	auto cycle_hex(const std::span<const std::uint8_t> aBytes) -> std::string
 	{
-		auto result = std::string{ };
-		result.reserve(aBytes.size() * 2U);
-		for (const auto byte : aBytes) {
-			result.push_back(hex_digits[byte >> 4U]);
-			result.push_back(hex_digits[byte & 0x0FU]);
-		}
-		return result;
+		return lower_hex(aBytes);
 	}
 
 	auto parse_cycle_sha256(const std::string_view aText) -> std::optional<std::array<std::uint8_t, 32>>

@@ -154,14 +154,7 @@ namespace bpr::adapters::git {
 		[[nodiscard]] auto lower_hex(
 			const std::span<const std::uint8_t> aBytes) -> std::string
 		{
-			constexpr std::string_view digits = "0123456789abcdef";
-			auto                       result = std::string{ };
-			result.reserve(aBytes.size() * 2U);
-			for (const auto byte : aBytes) {
-				result.push_back(digits[byte >> 4U]);
-				result.push_back(digits[byte & 0x0fU]);
-			}
-			return result;
+			return QByteArray::fromRawData(reinterpret_cast<const char*>(aBytes.data()), static_cast<qsizetype>(aBytes.size())).toHex().toStdString();
 		}
 
 		[[nodiscard]] auto hex_value(const char aValue) noexcept

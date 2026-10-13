@@ -2,6 +2,7 @@
 
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_wrapper.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/review_cycle_send.hpp"
 #include "bpr/core/utf8.hpp"
 
@@ -55,14 +56,7 @@ namespace bpr::application {
 		template <typename Identity>
 		[[nodiscard]] auto hex_identity(const Identity& aIdentity) -> std::string
 		{
-			constexpr std::string_view digits = "0123456789abcdef";
-			auto                       output = std::string{ };
-			output.reserve(aIdentity.bytes().size() * 2U);
-			for (const auto byte : aIdentity.bytes()) {
-				output.push_back(digits[byte >> 4U]);
-				output.push_back(digits[byte & 0x0FU]);
-			}
-			return output;
+			return core::lower_hex(aIdentity.bytes());
 		}
 
 		template <typename TSink>

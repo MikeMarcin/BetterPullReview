@@ -1,5 +1,6 @@
 #include "bpr/core/review_cycle_publication.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/review_cycle_material.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -324,17 +325,6 @@ namespace bpr::core {
 			link.BaseBranch = aIn.text(maximum_publication_branch_bytes);
 			link.Drifted    = aIn.flag();
 			return link;
-		}
-
-		[[nodiscard]] auto lower_hex(const std::array<std::uint8_t, 32>& aBytes) -> std::string
-		{
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			auto           text   = std::string{ };
-			for (const auto byte : aBytes) {
-				text += digits[byte >> 4U];
-				text += digits[byte & 15U];
-			}
-			return text;
 		}
 
 		[[nodiscard]] auto refuse(const publication_refusal aRefusal) -> std::unexpected<publication_refusal>

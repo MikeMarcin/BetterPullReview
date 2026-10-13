@@ -1,11 +1,13 @@
 #include "github_mutation_contract.hpp"
 
+#include "github_http_helpers.hpp"
 #include "github_json_preflight.hpp"
 #include "review_comment_permalink.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/core/sha256.hpp"
 
+#include <QByteArray>
 #include <QDateTime>
 #include <QString>
 #include <initializer_list>
@@ -49,26 +51,6 @@ namespace bpr::adapters::github::detail {
 				&& std::ranges::all_of(aText, [](const unsigned char aCharacter) {
 					   return aCharacter >= 0x20U && aCharacter != 0x7FU;
 				   });
-		}
-
-		[[nodiscard]] auto percent_encode(const std::string_view aValue) -> std::string
-		{
-			constexpr std::string_view hexadecimal = "0123456789ABCDEF";
-			std::string                encoded;
-			encoded.reserve(aValue.size());
-			for (const auto raw : aValue) {
-				const auto character  = static_cast<unsigned char>(raw);
-				const auto unreserved = std::isalnum(character) != 0 || character == '-'
-					|| character == '_' || character == '.' || character == '~';
-				if (unreserved) {
-					encoded.push_back(static_cast<char>(character));
-					continue;
-				}
-				encoded.push_back('%');
-				encoded.push_back(hexadecimal[(static_cast<unsigned>(character) >> 4U) & 0x0FU]);
-				encoded.push_back(hexadecimal[character & 0x0FU]);
-			}
-			return encoded;
 		}
 
 		[[nodiscard]] constexpr auto valid_server(
@@ -1724,25 +1706,24 @@ namespace bpr::adapters::github::detail {
 				if (seen || !aListed) {
 					return std::nullopt;
 				}
-				seen                               = true;
-				std::string_view         remaining = header.Value;
-				std::vector<std::string> relations;
-				while (!remaining.empty()) {
-					const auto comma = remaining.find(',');
-					auto       part  = remaining.substr(0, comma);
-					while (part.starts_with(' ')) {
-						part.remove_prefix(1);
-					}
-					const auto split = part.find(">; rel=\"");
-					if (!part.starts_with('<') || split == std::string_view::npos || !part.ends_with('"')) {
+				seen             = true;
+				const auto links = parse_link_header(header.Value);
+				if (!links) {
+					return std::nullopt;
+				}
+				std::vector<std::string_view> relations;
+				for (const auto& link : *links) {
+					// Exactly `<url>; rel="relation"`, one relation per link.
+					const auto names = link_relations(link);
+					if (link.Parameters.size() != 1 || !link.Parameters.front().Quoted || !names || names->size() != 1) {
 						return std::nullopt;
 					}
-					const auto url      = part.substr(1, split - 1);
-					const auto relation = part.substr(split + 8, part.size() - split - 9);
+					const auto url      = link.Target;
+					const auto relation = names->front();
 					if (std::ranges::find(relations, relation) != relations.end()) {
 						return std::nullopt;
 					}
-					relations.emplace_back(relation);
+					relations.push_back(relation);
 					const auto                   prefix = staged_api_origin(aTarget) + std::string{ aWirePath.substr(0, aWirePath.find('?')) };
 					std::optional<std::uint32_t> page;
 					for (std::uint32_t number = 1; number <= aMaximum; ++number) {
@@ -1774,13 +1755,6 @@ namespace bpr::adapters::github::detail {
 					} else {
 						return std::nullopt;
 					}
-					if (comma == std::string_view::npos) {
-						break;
-					}
-					if (comma + 1 == remaining.size()) {
-						return std::nullopt;
-					}
-					remaining.remove_prefix(comma + 1);
 				}
 			}
 			if (next && aPage >= aMaximum) {
@@ -2652,7 +2626,7 @@ namespace bpr::adapters::github::detail {
 			const auto type     = headers.find("content-type");
 			const auto resource = headers.find("x-ratelimit-resource");
 			const auto limit = number("x-ratelimit-limit"), remaining = number("x-ratelimit-remaining"), reset = number("x-ratelimit-reset");
-			return type != headers.end() && (type->second == "application/json" || type->second == "application/json; charset=utf-8")
+			return type != headers.end() && json_media_type(type->second)
 				&& resource != headers.end() && resource->second == "core"
 				&& limit && remaining && reset && *limit > 0U && *remaining > 0U && *remaining <= *limit && *reset > 0U;
 		}
@@ -3346,14 +3320,7 @@ namespace bpr::adapters::github::detail {
 		}
 		[[nodiscard]] auto digest_hex(const std::array<std::uint8_t, 32>& aDigest) -> std::string
 		{
-			constexpr std::string_view digits = "0123456789abcdef";
-			std::string                result;
-			result.reserve(64U);
-			for (const auto byte : aDigest) {
-				result.push_back(digits[byte >> 4U]);
-				result.push_back(digits[byte & 15U]);
-			}
-			return result;
+			return QByteArray::fromRawData(reinterpret_cast<const char*>(aDigest.data()), static_cast<qsizetype>(aDigest.size())).toHex().toStdString();
 		}
 		[[nodiscard]] auto capability_key(const live_review_mutation_configuration& aConfig, const application::review_mutation_request& aRequest) -> application::review_publication_capability_key
 		{

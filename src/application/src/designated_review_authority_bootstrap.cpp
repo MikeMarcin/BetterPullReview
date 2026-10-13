@@ -1,5 +1,6 @@
 #include "review_mutation_execution_authority.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -151,15 +152,7 @@ namespace bpr::application::detail {
 		[[nodiscard]] auto hex_digest(
 			const std::span<const std::uint8_t> aBytes) -> std::string
 		{
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			const auto     digest = core::sha256(aBytes);
-			auto           result = std::string{ };
-			result.reserve(64U);
-			for (const auto byte : digest) {
-				result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
-				result.push_back(digits[byte & 0x0fU]);
-			}
-			return result;
+			return core::lower_hex(core::sha256(aBytes));
 		}
 
 		[[nodiscard]] auto exact_target()

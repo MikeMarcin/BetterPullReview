@@ -4,6 +4,7 @@
 
 #include "storage_internal.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -63,15 +64,8 @@ namespace bpr::adapters::sqlite {
 		/// \brief Names the endpoint by a digest of the canonical root, so both launches agree.
 		auto endpoint_digest(std::span<const std::uint8_t> aNative) -> std::string
 		{
-			const auto                 digest = core::sha256(aNative);
-			constexpr std::string_view hex{ "0123456789abcdef" };
-			std::string                result;
-			for (std::size_t index = 0; index < 8U; ++index) {
-				const auto byte = static_cast<unsigned>(digest[index]);
-				result.push_back(hex[byte >> 4U]);
-				result.push_back(hex[byte & 15U]);
-			}
-			return result;
+			const auto digest = core::sha256(aNative);
+			return core::lower_hex(std::span{ digest }.first(8U));
 		}
 #if !defined(_WIN32)
 

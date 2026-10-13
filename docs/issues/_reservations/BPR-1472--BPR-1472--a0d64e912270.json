@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1472"
+  ],
+  "reserve_for": "reopen-stale-review",
+  "purpose": "Reopened review shows stale comments",
+  "created": "2026-10-13T20:08:38.568489+00:00",
+  "base": "78b03113f973c93642fa7b01b8c5c23e4ec6dc81"
+}

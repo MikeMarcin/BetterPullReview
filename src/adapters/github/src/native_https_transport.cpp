@@ -6,6 +6,7 @@
 #include "review_mutation_execution_authority.hpp"
 
 #include "github_anonymous_read_admission.hpp"
+#include "github_http_helpers.hpp"
 
 #include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
@@ -554,27 +555,6 @@ namespace bpr::adapters::github::detail {
 				|| (aValue >= '0' && aValue <= '9');
 		}
 
-		[[nodiscard]] constexpr auto ascii_fold(const char aValue) noexcept -> char
-		{
-			return aValue >= 'A' && aValue <= 'Z' ? static_cast<char>(aValue + ('a' - 'A'))
-												  : aValue;
-		}
-
-		[[nodiscard]] constexpr auto
-		ascii_equal_fold(const std::string_view aLeft,
-						 const std::string_view aRight) noexcept -> bool
-		{
-			if (aLeft.size() != aRight.size()) {
-				return false;
-			}
-			for (std::size_t index = 0U; index < aLeft.size(); ++index) {
-				if (ascii_fold(aLeft[index]) != ascii_fold(aRight[index])) {
-					return false;
-				}
-			}
-			return true;
-		}
-
 		[[nodiscard]] auto valid_bearer_material(
 			const application::github_credential_material& aMaterial) noexcept -> bool
 		{
@@ -1015,172 +995,6 @@ namespace bpr::adapters::github::detail {
 		}
 
 		[[nodiscard]] auto
-		supported_json_content_type(const std::string_view aValue) noexcept -> bool
-		{
-			const auto separator = aValue.find(';');
-			const auto media     = aValue.substr(0U, separator);
-			if (!ascii_equal_fold(media, "application/json")) {
-				return false;
-			}
-			if (separator == std::string_view::npos) {
-				return true;
-			}
-			auto parameter = aValue.substr(separator + 1U);
-			while (!parameter.empty() && parameter.front() == ' ') {
-				parameter.remove_prefix(1U);
-			}
-			return ascii_equal_fold(parameter, "charset=utf-8");
-		}
-
-		[[nodiscard]] auto
-		parse_link_completeness(const std::optional<std::string>& aLink) noexcept
-			-> std::optional<page_completeness>
-		{
-			if (!aLink.has_value()) {
-				return page_completeness::complete;
-			}
-			if (aLink->empty()) {
-				return std::nullopt;
-			}
-
-			const auto text           = std::string_view{ *aLink };
-			const auto tokenCharacter = [](const char aCharacter) noexcept {
-				const auto value = static_cast<unsigned char>(aCharacter);
-				return ascii_alpha_numeric(value) || aCharacter == '!'
-					|| aCharacter == '#' || aCharacter == '$' || aCharacter == '%'
-					|| aCharacter == '&' || aCharacter == '\'' || aCharacter == '*'
-					|| aCharacter == '+' || aCharacter == '-' || aCharacter == '.'
-					|| aCharacter == '^' || aCharacter == '_' || aCharacter == '`'
-					|| aCharacter == '|' || aCharacter == '~';
-			};
-			const auto skipWhitespace = [&text](std::size_t& aPosition) noexcept {
-				while (aPosition < text.size()
-					   && (text[aPosition] == ' ' || text[aPosition] == '\t')) {
-					++aPosition;
-				}
-			};
-			const auto validRelation = [](const std::string_view aValue,
-										  bool&                  aHasNext) noexcept {
-				if (aValue.empty()) {
-					return false;
-				}
-				std::size_t position = 0U;
-				while (position < aValue.size()) {
-					const auto separator = aValue.find(' ', position);
-					const auto relation  = aValue.substr(position, separator == std::string_view::npos ? aValue.size() - position : separator - position);
-					if (relation != "next" && relation != "prev" && relation != "first"
-						&& relation != "last") {
-						return false;
-					}
-					aHasNext = aHasNext || relation == "next";
-					if (separator == std::string_view::npos) {
-						break;
-					}
-					position = separator + 1U;
-					if (position == aValue.size() || aValue[position] == ' ') {
-						return false;
-					}
-				}
-				return true;
-			};
-
-			bool        hasNext  = false;
-			std::size_t position = 0U;
-			while (position < text.size()) {
-				skipWhitespace(position);
-				if (position == text.size() || text[position] != '<') {
-					return std::nullopt;
-				}
-				const auto targetEnd = text.find('>', position + 1U);
-				if (targetEnd == std::string_view::npos || targetEnd == position + 1U) {
-					return std::nullopt;
-				}
-				for (auto target = position + 1U; target < targetEnd; ++target) {
-					const auto value = static_cast<unsigned char>(text[target]);
-					if (value <= 0x20U || value >= 0x7fU || text[target] == '<'
-						|| text[target] == '"') {
-						return std::nullopt;
-					}
-				}
-				position = targetEnd + 1U;
-
-				bool relationSeen = false;
-				while (true) {
-					skipWhitespace(position);
-					if (position == text.size() || text[position] == ',') {
-						break;
-					}
-					if (text[position] != ';') {
-						return std::nullopt;
-					}
-					++position;
-					skipWhitespace(position);
-					const auto nameBegin = position;
-					while (position < text.size() && tokenCharacter(text[position])) {
-						++position;
-					}
-					if (nameBegin == position) {
-						return std::nullopt;
-					}
-					const auto name = text.substr(nameBegin, position - nameBegin);
-					skipWhitespace(position);
-					if (position == text.size() || text[position] != '=') {
-						return std::nullopt;
-					}
-					++position;
-					skipWhitespace(position);
-					const auto quoted = position < text.size() && text[position] == '"';
-					if (quoted) {
-						++position;
-					}
-					const auto valueBegin = position;
-					if (quoted) {
-						while (position < text.size() && text[position] != '"') {
-							const auto value = static_cast<unsigned char>(text[position]);
-							if (value < 0x20U || value == 0x7fU
-								|| text[position] == '\\') {
-								return std::nullopt;
-							}
-							++position;
-						}
-						if (position == text.size()) {
-							return std::nullopt;
-						}
-					} else {
-						while (position < text.size() && tokenCharacter(text[position])) {
-							++position;
-						}
-					}
-					if (valueBegin == position) {
-						return std::nullopt;
-					}
-					const auto value = text.substr(valueBegin, position - valueBegin);
-					if (quoted) {
-						++position;
-					}
-					if (name == "rel") {
-						if (relationSeen || !validRelation(value, hasNext)) {
-							return std::nullopt;
-						}
-						relationSeen = true;
-					}
-				}
-				if (!relationSeen) {
-					return std::nullopt;
-				}
-				if (position == text.size()) {
-					break;
-				}
-				++position;
-				if (position == text.size()) {
-					return std::nullopt;
-				}
-			}
-			return hasNext ? std::optional{ page_completeness::has_next_page }
-						   : std::optional{ page_completeness::complete };
-		}
-
-		[[nodiscard]] auto
 		parse_retry_after(const std::optional<std::string>& aValue) noexcept
 			-> std::optional<std::uint32_t>
 		{
@@ -1234,13 +1048,13 @@ namespace bpr::adapters::github::detail {
 			const auto retryAfter       = parse_retry_after(aState.RetryAfter);
 			const auto secondaryMessage = (aState.Status == 403 || aState.Status == 429)
 				&& aState.ContentType.has_value()
-				&& supported_json_content_type(*aState.ContentType)
+				&& json_media_type(*aState.ContentType)
 				&& github_error_body_is_secondary_rate_limit(
 											  aState.Body, native_https_maximum_error_response_body_bytes);
 			const auto structuredGraphqlRateLimit = aState.Status == 403
 				&& aState.Operation->Request.Surface != native_request_surface::rest_read
 				&& aState.ContentType.has_value()
-				&& supported_json_content_type(*aState.ContentType)
+				&& json_media_type(*aState.ContentType)
 				&& github_graphql_error_body_is_rate_limited(
 														aState.Body, native_https_maximum_error_response_body_bytes);
 			const auto secondary = secondaryMessage || structuredGraphqlRateLimit;
@@ -3892,7 +3706,7 @@ namespace bpr::adapters::github::detail {
 			}
 			if (
 				!state.ContentType.has_value()
-				|| !supported_json_content_type(*state.ContentType)) {
+				|| !json_media_type(*state.ContentType)) {
 				return capability_hop_error(aOperation->Request.Surface,
 											application::github_provider_failure::malformed_response, application::github_capability_diagnostic::transport_invalid_content_type);
 			}
@@ -3902,7 +3716,7 @@ namespace bpr::adapters::github::detail {
 				return capability_hop_error(aOperation->Request.Surface,
 											application::github_provider_failure::malformed_response, application::github_capability_diagnostic::transport_body_length);
 			}
-			const auto completeness = parse_link_completeness(state.Link);
+			const auto completeness = link_completeness(state.Link);
 			if (!completeness.has_value()) {
 				return capability_hop_error(aOperation->Request.Surface,
 											application::github_provider_failure::malformed_response, application::github_capability_diagnostic::transport_invalid_metadata);

@@ -1,5 +1,6 @@
 #include "bpr/core/pull_request_location.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -143,14 +144,6 @@ namespace bpr::core {
 		auto bytes = std::vector<std::uint8_t>{ };
 		bytes.reserve(aPath.size());
 		std::ranges::transform(aPath, std::back_inserter(bytes), [](const char aValue) { return static_cast<std::uint8_t>(aValue); });
-		const auto     digest = sha256(bytes);
-		constexpr auto hex    = std::string_view{ "0123456789abcdef" };
-		auto           result = std::string{ };
-		result.reserve(digest.size() * 2U);
-		for (const auto value : digest) {
-			result.push_back(hex[value >> 4U]);
-			result.push_back(hex[value & 0x0FU]);
-		}
-		return result;
+		return lower_hex(sha256(bytes));
 	}
 } // namespace bpr::core

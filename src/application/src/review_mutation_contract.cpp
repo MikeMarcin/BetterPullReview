@@ -1,6 +1,7 @@
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/application/review_mutation_recovery_port.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -200,13 +201,6 @@ namespace bpr::application {
 			reinterpret_cast<const std::uint8_t*>(material.data()),
 			material.size() });
 
-		constexpr auto nibbles = std::string_view{ "0123456789abcdef" };
-		auto           key     = std::string{ };
-		key.reserve(digest.size() * 2U);
-		for (const auto byte : digest) {
-			key += nibbles[byte >> 4U];
-			key += nibbles[byte & 0x0FU];
-		}
-		return key;
+		return core::lower_hex(digest);
 	}
 } // namespace bpr::application
