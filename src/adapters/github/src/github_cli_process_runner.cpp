@@ -1,4 +1,5 @@
 #include "github_cli_process_runner.hpp"
+#include "bpr/adapters/process_support/process_supervision.hpp"
 
 #include <QByteArray>
 #include <QDir>
@@ -12,7 +13,6 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <cstddef>
 #include <limits>
 #include <memory>
@@ -20,12 +20,10 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 
 #if defined(Q_OS_UNIX)
 	#include <cerrno>
-	#include <csignal>
 	#include <sys/resource.h>
 	#include <sys/types.h>
 	#include <unistd.h>
@@ -39,7 +37,11 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
-		using clock = std::chrono::steady_clock;
+		using clock = process_support::supervision_clock;
+		using process_support::kill_process_group;
+		using process_support::process_stream;
+		using process_support::resolve_process_group;
+		using process_support::wait_milliseconds;
 
 		[[nodiscard]] auto directory_within_limits(const github_cli_process_file_limits& aLimits) -> bool
 		{
@@ -77,8 +79,6 @@ namespace bpr::adapters::github::detail {
 			}
 			return !error;
 		}
-
-		inline constexpr auto wait_slice = std::chrono::milliseconds{ 10 };
 
 		[[nodiscard]] auto contains_nul(const std::string_view aValue) noexcept -> bool
 		{
@@ -382,96 +382,6 @@ namespace bpr::adapters::github::detail {
 			return true;
 		}
 
-		[[nodiscard]] auto wait_milliseconds(
-			const clock::time_point aDeadline) noexcept -> int
-		{
-			const auto remaining = aDeadline - clock::now();
-			if (remaining <= clock::duration::zero()) {
-				return 0;
-			}
-
-			const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(remaining);
-			if (milliseconds < std::chrono::milliseconds{ 1 }) {
-				return 1;
-			}
-			return static_cast<int>(std::min(milliseconds, wait_slice).count());
-		}
-
-		auto kill_process_group(const qint64 aProcessGroupId) noexcept -> void
-		{
-#if defined(Q_OS_UNIX)
-			if (
-				aProcessGroupId > 1
-				&& aProcessGroupId
-					<= static_cast<qint64>(
-						std::numeric_limits<pid_t>::max())) {
-				const auto processGroup = -static_cast<pid_t>(aProcessGroupId);
-				static_cast<void>(::kill(processGroup, SIGKILL));
-			}
-#else
-			static_cast<void>(aProcessGroupId);
-#endif
-		}
-
-		[[nodiscard]] auto resolve_process_group(
-			const QProcess& aProcess,
-			const qint64    aKnownProcessGroupId) noexcept -> qint64
-		{
-			if (aKnownProcessGroupId > 1) {
-				return aKnownProcessGroupId;
-			}
-			const auto processId = aProcess.processId();
-			return processId > 1 ? processId : 0;
-		}
-
-		[[nodiscard]] auto kill_process_group_and_reap(
-			QProcess&                       aProcess,
-			const qint64                    aKnownProcessGroupId,
-			const std::chrono::milliseconds aTimeout) -> bool
-		{
-			const auto deadline       = clock::now() + aTimeout;
-			auto       processGroupId = resolve_process_group(aProcess, aKnownProcessGroupId);
-			kill_process_group(processGroupId);
-			if (aProcess.state() != QProcess::NotRunning) {
-				aProcess.kill();
-			}
-
-			while (aProcess.state() != QProcess::NotRunning) {
-				const auto wait = wait_milliseconds(deadline);
-				if (wait == 0) {
-					return false;
-				}
-				static_cast<void>(aProcess.waitForFinished(wait));
-				if (aProcess.state() != QProcess::NotRunning) {
-					processGroupId = resolve_process_group(aProcess, processGroupId);
-					kill_process_group(processGroupId);
-					aProcess.kill();
-				}
-			}
-			kill_process_group(processGroupId);
-			return true;
-		}
-
-		auto finish_background_reap(
-			QProcess&    aProcess,
-			const qint64 aKnownProcessGroupId) -> void
-		{
-			auto processGroupId = resolve_process_group(aProcess, aKnownProcessGroupId);
-			while (aProcess.state() != QProcess::NotRunning) {
-				processGroupId = resolve_process_group(aProcess, processGroupId);
-				kill_process_group(processGroupId);
-				aProcess.kill();
-				static_cast<void>(aProcess.waitForFinished(
-					static_cast<int>(wait_slice.count())));
-			}
-			kill_process_group(processGroupId);
-		}
-
-		enum class process_stream : std::uint8_t {
-			standard_output,
-			standard_error,
-		};
-
 		// Withhold a possible credential prefix across read chunks. No complete
 		// credential reaches the generic response string, even when a child echoes it.
 
@@ -604,18 +514,33 @@ namespace bpr::adapters::github::detail {
 			qint64                    ProcessGroupId = 0;
 		};
 
+		/// \brief How this runner kills a launch's tree.
+		/// \details The test seam may stand in for a child that survives SIGKILL
+		/// ([[BPR-1436]]); production runners have no seam.
+		[[nodiscard]] auto tree_kill_for(
+			const std::shared_ptr<github_cli_process_runner_test_seam>& aTestSeam)
+			-> process_support::process_tree_kill
+		{
+			if (aTestSeam != nullptr && aTestSeam->child_survives_kill()) {
+				return [](QProcess&, qint64) { };
+			}
+			return &process_support::kill_process_tree;
+		}
+
 		[[nodiscard]] auto failed_execution(
-			std::unique_ptr<QProcess>&       aProcess,
-			const qint64                     aKnownProcessGroupId,
-			const std::chrono::milliseconds  aReapTimeout,
-			const github_cli_process_failure aFailure) -> process_execution
+			std::unique_ptr<QProcess>&                aProcess,
+			const qint64                              aKnownProcessGroupId,
+			const std::chrono::milliseconds           aReapTimeout,
+			const github_cli_process_failure          aFailure,
+			const process_support::process_tree_kill& aKillTree = process_support::process_tree_kill{ &process_support::kill_process_tree }) -> process_execution
 		{
 			const auto processGroupId = resolve_process_group(*aProcess, aKnownProcessGroupId);
 			if (
-				kill_process_group_and_reap(
+				process_support::kill_process_group_and_reap(
 					*aProcess,
 					processGroupId,
-					aReapTimeout)) {
+					aReapTimeout,
+					aKillTree)) {
 				return {
 					.Result         = std::unexpected{ aFailure },
 					.AwaitingReap   = nullptr,
@@ -686,6 +611,7 @@ namespace bpr::adapters::github::detail {
 #endif
 			auto       process        = std::make_unique<QProcess>();
 			const auto processGroupId = std::make_shared<qint64>(0);
+			const auto killTree       = tree_kill_for(aTestSeam);
 			try {
 				if ((aCapture || aCredential) && (!aFileLimits.StandardOutputFile.empty() || (aRequest.PreserveCompletedOutput && aCapture))) {
 					return failed_execution(process, 0, aRequest.ReapTimeout, github_cli_process_failure::invalid_request);
@@ -779,7 +705,8 @@ namespace bpr::adapters::github::detail {
 						process,
 						*processGroupId,
 						aRequest.ReapTimeout,
-						aFailure);
+						aFailure,
+						killTree);
 				};
 				const auto drainStreams =
 					[&]() -> std::optional<github_cli_process_failure> {
@@ -979,21 +906,74 @@ namespace bpr::adapters::github::detail {
 					process,
 					*processGroupId,
 					aRequest.ReapTimeout,
-					github_cli_process_failure::start_failure);
+					github_cli_process_failure::start_failure,
+					killTree);
 			}
 		}
 
 		struct process_work_item
+			: process_support::process_work_state<github_cli_process_result>
 		{
-			github_cli_process_request               Request;
-			std::shared_ptr<cli_sensitive_bytes>     Capture;
-			cli_transient_credential                 Credential;
-			cli_credential_environment               CredentialEnvironment = cli_credential_environment::github;
-			std::stop_token                          Stop;
-			clock::time_point                        Deadline;
-			std::mutex                               Mutex;
-			std::condition_variable                  Completed;
-			std::optional<github_cli_process_result> Result;
+			github_cli_process_request           Request;
+			std::shared_ptr<cli_sensitive_bytes> Capture;
+			cli_transient_credential             Credential;
+			cli_credential_environment           CredentialEnvironment = cli_credential_environment::github;
+		};
+
+		/// \brief What the shared lane runs for this runner ([[BPR-1436]]).
+		struct process_lane_traits
+		{
+			using item      = process_work_item;
+			using result    = github_cli_process_result;
+			using execution = process_execution;
+
+			[[nodiscard]] static auto failure(
+				const process_support::lane_failure aFailure) -> github_cli_process_result
+			{
+				switch (aFailure) {
+				case process_support::lane_failure::cancelled:
+					return std::unexpected{ github_cli_process_failure::cancelled };
+				case process_support::lane_failure::timeout:
+					return std::unexpected{ github_cli_process_failure::timeout };
+				case process_support::lane_failure::reap_failure:
+					return std::unexpected{ github_cli_process_failure::reap_failure };
+				case process_support::lane_failure::start_failure:
+					break;
+				}
+				return std::unexpected{ github_cli_process_failure::start_failure };
+			}
+
+			[[nodiscard]] auto execute(
+				process_work_item&      aItem,
+				const std::atomic_bool& aShutdownRequested) -> process_execution
+			{
+				if (TestSeam != nullptr) {
+					TestSeam->before_execute();
+				}
+				const auto failStandardHandleList = TestSeam != nullptr
+					&& TestSeam->fail_standard_handle_list();
+				return execute_process(
+					aItem.Request,
+					aItem.Stop,
+					aShutdownRequested,
+					aItem.Deadline, FileLimits, failStandardHandleList, aItem.Capture, aItem.Credential, aItem.CredentialEnvironment, TestSeam);
+			}
+
+			/// \brief The bounded last attempt on a child the launch could not reap.
+			/// \details Given the longest reap a request may ask for. Until
+			/// [[BPR-1436]] this loop had no deadline, so one child that never
+			/// exited held the worker, and destroying the runner never returned.
+			[[nodiscard]] auto finish_reap(process_execution& aExecution) const -> bool
+			{
+				return process_support::finish_background_reap(
+					*aExecution.AwaitingReap,
+					aExecution.ProcessGroupId,
+					github_cli_process_max_reap_timeout,
+					tree_kill_for(TestSeam));
+			}
+
+			std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+			github_cli_process_file_limits                       FileLimits;
 		};
 
 		class process_worker final
@@ -1002,24 +982,11 @@ namespace bpr::adapters::github::detail {
 			explicit process_worker(
 				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
 				github_cli_process_file_limits                       aFileLimits)
-				: TestSeam{ std::move(aTestSeam) }
-				, FileLimits{ std::move(aFileLimits) }
-				, Worker{ [this] {
-					worker_loop();
-				} }
+				: Lane{ process_lane_traits{
+					  .TestSeam   = std::move(aTestSeam),
+					  .FileLimits = std::move(aFileLimits),
+				  } }
 			{
-			}
-
-			process_worker(const process_worker&)                    = delete;
-			auto operator=(const process_worker&) -> process_worker& = delete;
-			~process_worker()
-			{
-				ShutdownRequested.store(true, std::memory_order_release);
-				WorkAvailable.notify_all();
-				SlotAvailable.notify_all();
-				if (Worker.joinable()) {
-					Worker.join();
-				}
 			}
 
 			[[nodiscard]] auto submit(
@@ -1053,156 +1020,11 @@ namespace bpr::adapters::github::detail {
 						github_cli_process_failure::start_failure
 					};
 				}
-
-				{
-					std::unique_lock lock{ Mutex };
-					if (ShutdownRequested.load(std::memory_order_acquire)) {
-						return std::unexpected{
-							github_cli_process_failure::cancelled
-						};
-					}
-					while (Busy) {
-						if (ShutdownRequested.load(std::memory_order_acquire)) {
-							return std::unexpected{
-								github_cli_process_failure::cancelled
-							};
-						}
-						if (Quarantined) {
-							return std::unexpected{
-								github_cli_process_failure::reap_failure
-							};
-						}
-						if (aStop.stop_requested()) {
-							return std::unexpected{
-								github_cli_process_failure::cancelled
-							};
-						}
-						if (clock::now() >= item->Deadline) {
-							return std::unexpected{
-								github_cli_process_failure::timeout
-							};
-						}
-						SlotAvailable.wait_for(lock, wait_slice);
-					}
-					Busy    = true;
-					Pending = item;
-				}
-				WorkAvailable.notify_one();
-
-				std::unique_lock resultLock{ item->Mutex };
-				const auto       completionDeadline = item->Deadline + aRequest.ReapTimeout + wait_slice;
-				if (
-					!item->Completed.wait_until(
-						resultLock,
-						completionDeadline,
-						[&] {
-							return item->Result.has_value();
-						})) {
-					{
-						std::lock_guard lock{ Mutex };
-						if (Busy) {
-							Quarantined = true;
-						}
-					}
-					SlotAvailable.notify_all();
-					return std::unexpected{
-						github_cli_process_failure::reap_failure
-					};
-				}
-				return std::move(*item->Result);
+				return Lane.submit(item, aRequest.ReapTimeout);
 			}
 
 		private:
-			auto publish(
-				const std::shared_ptr<process_work_item>& aItem,
-				github_cli_process_result                 aResult) -> void
-			{
-				{
-					std::lock_guard lock{ aItem->Mutex };
-					aItem->Result.emplace(std::move(aResult));
-				}
-				aItem->Completed.notify_one();
-			}
-
-			auto worker_loop() -> void
-			{
-				for (;;) {
-					std::shared_ptr<process_work_item> item;
-					{
-						std::unique_lock lock{ Mutex };
-						WorkAvailable.wait(
-							lock,
-							[&] {
-								return Pending != nullptr
-									|| ShutdownRequested.load(
-										std::memory_order_acquire);
-							});
-						if (Pending == nullptr) {
-							return;
-						}
-						item = std::move(Pending);
-					}
-
-					std::optional<process_execution> execution;
-					try {
-						if (TestSeam != nullptr) {
-							TestSeam->before_execute();
-						}
-						const auto failStandardHandleList = TestSeam != nullptr
-							&& TestSeam->fail_standard_handle_list();
-						execution.emplace(execute_process(
-							item->Request,
-							item->Stop,
-							ShutdownRequested,
-							item->Deadline, FileLimits, failStandardHandleList, item->Capture, item->Credential, item->CredentialEnvironment, TestSeam));
-					} catch (...) {
-						publish(
-							item,
-							std::unexpected{
-								github_cli_process_failure::start_failure });
-						{
-							std::lock_guard lock{ Mutex };
-							Quarantined = false;
-							Busy        = false;
-						}
-						SlotAvailable.notify_all();
-						continue;
-					}
-
-					if (execution->AwaitingReap != nullptr) {
-						{
-							std::lock_guard lock{ Mutex };
-							Quarantined = true;
-						}
-						SlotAvailable.notify_all();
-					}
-					publish(item, std::move(execution->Result));
-
-					if (execution->AwaitingReap != nullptr) {
-						finish_background_reap(
-							*execution->AwaitingReap,
-							execution->ProcessGroupId);
-						execution->AwaitingReap.reset();
-					}
-					{
-						std::lock_guard lock{ Mutex };
-						Quarantined = false;
-						Busy        = false;
-					}
-					SlotAvailable.notify_all();
-				}
-			}
-
-			std::mutex                                           Mutex;
-			std::condition_variable                              WorkAvailable;
-			std::condition_variable                              SlotAvailable;
-			std::shared_ptr<process_work_item>                   Pending;
-			bool                                                 Busy              = false;
-			bool                                                 Quarantined       = false;
-			std::atomic_bool                                     ShutdownRequested = false;
-			std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
-			github_cli_process_file_limits                       FileLimits;
-			std::thread                                          Worker;
+			process_support::serialized_process_lane<process_lane_traits> Lane;
 		};
 
 		class qprocess_github_cli_process_runner final

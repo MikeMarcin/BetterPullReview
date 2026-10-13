@@ -1,4 +1,5 @@
 add_subdirectory(logging)
+add_subdirectory(process_support)
 add_subdirectory(github)
 add_subdirectory(git)
 add_subdirectory(sqlite)

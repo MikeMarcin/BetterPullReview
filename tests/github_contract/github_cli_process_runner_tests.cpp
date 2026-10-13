@@ -302,6 +302,18 @@ namespace {
 			std::cerr << "synthetic-private-diagnostic";
 			return 1;
 		}
+#if defined(Q_OS_UNIX)
+		if (mode == QStringLiteral("pid-hang") && aArguments.size() == 4) {
+			QFile pidFile{ aArguments.at(3) };
+			if (!pidFile.open(QIODevice::WriteOnly | QIODevice::Truncate)
+				|| pidFile.write(QByteArray::number(static_cast<qlonglong>(::getpid()))) <= 0) {
+				return 114;
+			}
+			pidFile.close();
+			std::this_thread::sleep_for(30s);
+			return 0;
+		}
+#endif
 		if (mode == QStringLiteral("hang")) {
 			std::cout << "partial" << std::flush;
 			std::this_thread::sleep_for(10s);
@@ -1591,6 +1603,65 @@ namespace {
 	}
 #endif
 
+#if defined(Q_OS_UNIX)
+	class kill_surviving_test_seam final
+		: public github_cli_process_runner_test_seam
+	{
+	public:
+		auto               before_execute() -> void override { }
+		[[nodiscard]] auto child_survives_kill() -> bool override
+		{
+			return true;
+		}
+	};
+
+	/// [[BPR-1436]]. A child that outlives every kill is abandoned at the
+	/// background reap's deadline. Before, the background reap had no
+	/// deadline: the worker waited on the child for good, and destroying the
+	/// runner joined that worker and never returned.
+	auto test_unreapable_child_is_abandoned() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "unreapable-child course owns its root");
+		auto       runner   = make_github_cli_process_runner_for_test(std::make_shared<kill_surviving_test_seam>());
+		const auto pidFile  = directory.filePath(QStringLiteral("unreapable.pid"));
+		auto       request  = base_request(directory, { "--bpr-helper", "pid-hang", utf8(pidFile) });
+		request.Timeout     = 300ms;
+		request.ReapTimeout = 100ms;
+		const auto started  = std::chrono::steady_clock::now();
+		const auto first    = runner->run(request, { });
+		expect(!first.has_value() && first.error() == github_cli_process_failure::reap_failure,
+			   "a child the bounded reap cannot reap fails with reap_failure");
+		const auto pid = read_descendant_pid(pidFile);
+		expect(::kill(pid, 0) == 0, "the child outlives the runner's kill-and-reap");
+
+		std::this_thread::sleep_until(started + request.Timeout + request.ReapTimeout + github_cli_process_max_reap_timeout + 500ms);
+		const auto marker    = directory.filePath(QStringLiteral("after-abandonment.marker"));
+		const auto refusedAt = std::chrono::steady_clock::now();
+		const auto refused   = runner->run(base_request(directory, { "--bpr-helper", "touch", utf8(marker) }), { });
+		expect(!refused.has_value() && refused.error() == github_cli_process_failure::reap_failure
+				   && std::chrono::steady_clock::now() - refusedAt < 1s,
+			   "after abandonment a later request fails at once with reap_failure");
+		expect(!QFileInfo::exists(marker), "a request after abandonment never launches");
+
+		std::atomic_bool destroyed   = false;
+		auto             untilJoined = bpr::tests::exit_on_failure{ };
+		std::thread      destroyer{ [&] {
+			runner.reset();
+			destroyed.store(true);
+		} };
+		const auto destroyDeadline = std::chrono::steady_clock::now() + 2s;
+		while (!destroyed.load() && std::chrono::steady_clock::now() < destroyDeadline) {
+			std::this_thread::sleep_for(10ms);
+		}
+		const bool returned = destroyed.load();
+		static_cast<void>(::kill(pid, SIGKILL));
+		destroyer.join();
+		untilJoined.end();
+		expect(returned, "destroying the runner returns although its child never exited");
+	}
+#endif
+
 	auto test_watchdog_failure_quarantines_worker() -> void
 	{
 		QTemporaryDir directory;
@@ -1991,6 +2062,9 @@ try {
 	test_expired_queued_request_never_launches();
 #endif
 	test_watchdog_failure_quarantines_worker();
+#if defined(Q_OS_UNIX)
+	test_unreapable_child_is_abandoned();
+#endif
 	test_deadline_cancellation_and_startup();
 #if defined(_WIN32)
 	test_windows_launch_inherits_only_standard_handles();

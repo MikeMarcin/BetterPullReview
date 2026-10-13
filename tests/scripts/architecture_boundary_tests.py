@@ -151,6 +151,24 @@ GIT_PROCESS_RUNNER_SOURCE = (
     / "src"
     / "installed_git_process.cpp"
 ).read_text(encoding="utf-8")
+# [[BPR-1436]] The shared QProcess supervision, as the repository declares it.
+PROCESS_SUPPORT_CMAKE_RELATIVE = "src/adapters/process_support/CMakeLists.txt"
+PROCESS_SUPPORT_SOURCE_RELATIVE = (
+    "src/adapters/process_support/src/process_supervision.cpp"
+)
+PROCESS_SUPPORT_HEADER_RELATIVE = (
+    "src/adapters/process_support/include/bpr/adapters/process_support/"
+    "process_supervision.hpp"
+)
+PROCESS_SUPPORT_CMAKE = (REPOSITORY_ROOT / PROCESS_SUPPORT_CMAKE_RELATIVE).read_text(
+    encoding="utf-8"
+)
+PROCESS_SUPPORT_SOURCE = (
+    REPOSITORY_ROOT / PROCESS_SUPPORT_SOURCE_RELATIVE
+).read_text(encoding="utf-8")
+PROCESS_SUPPORT_HEADER = (
+    REPOSITORY_ROOT / PROCESS_SUPPORT_HEADER_RELATIVE
+).read_text(encoding="utf-8")
 GIT_PROCESS_PORT = (
     REPOSITORY_ROOT
     / "src"
@@ -377,6 +395,7 @@ auto make_github_cli_process_runner_for_test(
 
 GITHUB_CLI_PROCESS_RUNNER_SOURCE = """\
 #include "github_cli_process_runner.hpp"
+#include "bpr/adapters/process_support/process_supervision.hpp"
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <array>
@@ -552,59 +571,6 @@ bool validate_request(
 #endif
     validated.Environment = child_environment;
     return true;
-}
-
-void kill_process_group(const qint64 process_group_id) {
-#if defined(Q_OS_UNIX)
-    const auto process_group =
-        -static_cast<pid_t>(process_group_id);
-    static_cast<void>(::kill(process_group, SIGKILL));
-#endif
-}
-
-qint64 resolve_process_group(
-    const QProcess& process,
-    const qint64 known_process_group_id) noexcept {
-    if(known_process_group_id > 1) {
-        return known_process_group_id;
-    }
-    const auto process_id = process.processId();
-    return process_id > 1 ? process_id : 0;
-}
-
-bool kill_process_group_and_reap(
-    QProcess& process,
-    const qint64 known_process_group_id,
-    std::chrono::milliseconds timeout) {
-    auto process_group_id =
-        resolve_process_group(process, known_process_group_id);
-    kill_process_group(process_group_id);
-    process.kill();
-    while(process.state() != QProcess::NotRunning) {
-        const auto wait = timeout.count();
-        static_cast<void>(process.waitForFinished(wait));
-        if(process.state() != QProcess::NotRunning) {
-            process_group_id =
-                resolve_process_group(process, process_group_id);
-            kill_process_group(process_group_id);
-            process.kill();
-        }
-    }
-    return true;
-}
-
-auto finish_background_reap(
-    QProcess& process,
-    const qint64 known_process_group_id) -> void {
-    auto process_group_id =
-        resolve_process_group(process, known_process_group_id);
-    while(process.state() != QProcess::NotRunning) {
-        process_group_id =
-            resolve_process_group(process, process_group_id);
-        kill_process_group(process_group_id);
-        process.kill();
-        process.waitForFinished(10);
-    }
 }
 
 std::optional<github_cli_process_failure> drain_channel(
@@ -796,21 +762,48 @@ struct process_work_item {
     std::optional<github_cli_process_result> Result;
 };
 
+struct process_lane_traits {
+    static github_cli_process_result failure(
+        process_support::lane_failure lane_failure) {
+        switch(lane_failure) {
+        case process_support::lane_failure::reap_failure:
+            return std::unexpected{
+                github_cli_process_failure::reap_failure};
+        default:
+            return std::unexpected{
+                github_cli_process_failure::start_failure};
+        }
+    }
+
+    process_execution execute(
+        process_work_item& item,
+        const std::atomic_bool& shutdown_requested) {
+        if(TestSeam != nullptr) {
+            TestSeam->before_execute();
+        }
+        return execute_process(
+            item.Request,
+            item.Stop,
+            shutdown_requested,
+            item.Deadline);
+    }
+
+    bool finish_reap(process_execution& aExecution) const {
+        return process_support::finish_background_reap(
+            *aExecution.AwaitingReap,
+            aExecution.ProcessGroupId,
+            github_cli_process_max_reap_timeout,
+            tree_kill_for(TestSeam));
+    }
+
+    std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
+};
+
 class process_worker final {
 public:
     explicit process_worker(
         std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
-        : TestSeam{std::move(test_seam)},
-          Worker{[this] { worker_loop(); }} {}
-
-    ~process_worker() {
-        ShutdownRequested.store(true, std::memory_order_release);
-        WorkAvailable.notify_all();
-        SlotAvailable.notify_all();
-        if(Worker.joinable()) {
-            Worker.join();
-        }
-    }
+        : Lane{process_lane_traits{.TestSeam = std::move(test_seam)}} {}
 
     github_cli_process_result submit(
         const github_cli_process_request& request,
@@ -834,104 +827,11 @@ public:
             return std::unexpected{
                 github_cli_process_failure::start_failure};
         }
-        {
-            std::unique_lock lock{Mutex};
-            while(Busy) {
-                if(Quarantined) {
-                    return std::unexpected{
-                        github_cli_process_failure::reap_failure};
-                }
-                SlotAvailable.wait(lock);
-            }
-            Busy = true;
-            Pending = item;
-        }
-        WorkAvailable.notify_one();
-        std::unique_lock result_lock{item->Mutex};
-        const auto completion_deadline =
-            item->Deadline + request.ReapTimeout + wait_slice;
-        if(
-            !item->Completed.wait_until(
-                result_lock,
-                completion_deadline,
-                [&] {
-                    return item->Result.has_value();
-                })) {
-            {
-                std::lock_guard lock{Mutex};
-                if(Busy) {
-                    Quarantined = true;
-                }
-            }
-            SlotAvailable.notify_all();
-            return std::unexpected{
-                github_cli_process_failure::reap_failure};
-        }
-        return std::move(*item->Result);
+        return Lane.submit(item, request.ReapTimeout);
     }
 
 private:
-    void publish(
-        const std::shared_ptr<process_work_item>& item,
-        github_cli_process_result result) {}
-
-    void worker_loop() {
-        auto item = Pending;
-        std::optional<process_execution> execution;
-        try {
-            if(TestSeam != nullptr) {
-                TestSeam->before_execute();
-            }
-            execution.emplace(execute_process(
-                item->Request,
-                item->Stop,
-                ShutdownRequested,
-                item->Deadline));
-        }
-        catch(...) {
-            publish(
-                item,
-                std::unexpected{
-                    github_cli_process_failure::start_failure});
-            {
-                std::lock_guard lock{Mutex};
-                Quarantined = false;
-                Busy = false;
-            }
-            SlotAvailable.notify_all();
-            return;
-        }
-        if(execution->AwaitingReap != nullptr) {
-            {
-                std::lock_guard lock{Mutex};
-                Quarantined = true;
-            }
-            SlotAvailable.notify_all();
-        }
-        publish(item, std::move(execution->Result));
-        if(execution->AwaitingReap != nullptr) {
-            finish_background_reap(
-                *execution->AwaitingReap,
-                execution->ProcessGroupId);
-            execution->AwaitingReap.reset();
-        }
-        {
-            std::lock_guard lock{Mutex};
-            Quarantined = false;
-            Busy = false;
-        }
-        SlotAvailable.notify_all();
-    }
-
-    std::mutex Mutex;
-    std::condition_variable WorkAvailable;
-    std::condition_variable SlotAvailable;
-    std::shared_ptr<process_work_item> Pending;
-    bool Busy = false;
-    bool Quarantined = false;
-    std::atomic_bool ShutdownRequested = false;
-    std::shared_ptr<github_cli_process_runner_test_seam> TestSeam;
-    std::thread Worker;
+    process_support::serialized_process_lane<process_lane_traits> Lane;
 };
 
 class qprocess_github_cli_process_runner final {
@@ -1425,6 +1325,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         omit_process_runner_interface: bool = False,
         omit_process_runner: bool = False,
         omit_cli_transport: bool = False,
+        omit_paths: tuple[str, ...] = (),
     ) -> subprocess.CompletedProcess[str]:
         with contained_temporary_directory() as temporary_directory:
             root = Path(temporary_directory)
@@ -1442,6 +1343,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 "src/adapters/qt/CMakeLists.txt": "",
                 "src/adapters/git/src/installed_git_process.cpp":
                     GIT_PROCESS_RUNNER_SOURCE,
+                PROCESS_SUPPORT_CMAKE_RELATIVE: PROCESS_SUPPORT_CMAKE,
+                PROCESS_SUPPORT_SOURCE_RELATIVE: PROCESS_SUPPORT_SOURCE,
+                PROCESS_SUPPORT_HEADER_RELATIVE: PROCESS_SUPPORT_HEADER,
                 "src/application/include/bpr/application/"
                 "git_process_port.hpp": GIT_PROCESS_PORT,
                 "src/adapters/git/include/bpr/adapters/git/"
@@ -1498,6 +1402,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "src/adapters/github/src/linux_secret_service.cpp"
                 ] = LINUX_SECRET_SERVICE_SOURCE
             files.update(sources or {})
+            for omitted in omit_paths:
+                files.pop(omitted)
 
             for relative_path, contents in files.items():
                 path = root / relative_path
@@ -1992,6 +1898,214 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             ),
         )
 
+    def assert_process_support_failure(
+        self,
+        expected: str,
+        relative: str,
+        original: str,
+        mutation: str,
+    ) -> None:
+        contents = {
+            PROCESS_SUPPORT_CMAKE_RELATIVE: PROCESS_SUPPORT_CMAKE,
+            PROCESS_SUPPORT_SOURCE_RELATIVE: PROCESS_SUPPORT_SOURCE,
+            PROCESS_SUPPORT_HEADER_RELATIVE: PROCESS_SUPPORT_HEADER,
+        }[relative]
+        self.assertIn(original, contents)
+        self.assert_failure(
+            expected,
+            {relative: contents.replace(original, mutation, 1)},
+        )
+
+    def test_shared_process_supervision_contract(self) -> None:
+        # [[BPR-1436]] The gh and Git runners' containment rests on this one
+        # target, so losing any part of it is refused.
+        self.assertEqual(self.run_check().returncode, 0)
+        header = PROCESS_SUPPORT_HEADER_RELATIVE
+        source = PROCESS_SUPPORT_SOURCE_RELATIVE
+        cmake = PROCESS_SUPPORT_CMAKE_RELATIVE
+
+        for relative, expected in (
+            # Without its CMake file, no target owns the QProcess source.
+            (cmake, "is not owned by"),
+            (source, "Shared process supervision is missing"),
+            (header, "Shared process supervision is missing"),
+        ):
+            with self.subTest(missing=relative):
+                self.assert_failure(expected, omit_paths=(relative,))
+        retained = "must retain its process-group kill"
+        for relative, fragment in (
+            (header, "class serialized_process_lane final"),
+            (header, "~serialized_process_lane()"),
+            (header, "ShutdownRequested.store("),
+            (header, "Worker.join();"),
+            (header, "while (Busy)"),
+            (header, "WorkAvailable.notify_one();"),
+            (source, "-static_cast<pid_t>(aProcessGroupId)"),
+            (source, "::kill(processGroup, SIGKILL)"),
+            (source, "return processId > 1 ? processId : 0;"),
+            (source, "aProcess.kill();"),
+            (source, "aProcess.release()"),
+        ):
+            with self.subTest(retained=fragment):
+                self.assert_process_support_failure(
+                    retained, relative, fragment, "REMOVED_SHARED_SUPERVISION"
+                )
+
+        self.assert_process_support_failure(
+            "exactly one worker thread",
+            header,
+            "\t\tTTraits ",
+            "\t\tstd::thread Second;\n\t\tTTraits ",
+        )
+        self.assert_process_support_failure(
+            "Shared bounded reap must resolve",
+            source,
+            "\t\t\tstatic_cast<void>(aProcess.waitForFinished(wait));\n"
+            "\t\t\tprocessGroupId = resolve_process_group(aProcess, processGroupId);\n"
+            "\t\t\taKillTree(aProcess, processGroupId);\n",
+            "\t\t\tstatic_cast<void>(aProcess.waitForFinished(wait));\n"
+            "\t\t\taKillTree(aProcess, processGroupId);\n",
+        )
+        # The gh runner's background reap had no deadline before BPR-1436.
+        self.assert_process_support_failure(
+            "background reap must stop at its deadline",
+            source,
+            "\t\t\tconst auto wait = wait_milliseconds(deadline);\n"
+            "\t\t\tif (wait == 0) {\n"
+            "\t\t\t\treturn false;\n"
+            "\t\t\t}\n"
+            "\t\t\tprocessGroupId = resolve_process_group(aProcess, processGroupId);",
+            "\t\t\tconst auto wait = static_cast<int>(wait_slice.count());\n"
+            "\t\t\tprocessGroupId = resolve_process_group(aProcess, processGroupId);",
+        )
+        self.assert_process_support_failure(
+            "Shared process lane must publish",
+            header,
+            "Quarantined = !reaped;",
+            "Quarantined = false;",
+        )
+        self.assert_process_support_failure(
+            "Shared process lane must publish",
+            header,
+            "abandon_unreaped_process(execution->AwaitingReap);",
+            "execution->AwaitingReap.reset();",
+        )
+        publish = "\t\t\t\tpublish(item, std::move(execution->Result));\n"
+        quarantine = (
+            "\t\t\t\tif (execution->AwaitingReap != nullptr) {\n"
+            "\t\t\t\t\t{\n"
+            "\t\t\t\t\t\tstd::lock_guard lock{ Mutex };\n"
+            "\t\t\t\t\t\tQuarantined = true;\n"
+            "\t\t\t\t\t}\n"
+            "\t\t\t\t\tSlotAvailable.notify_all();\n"
+            "\t\t\t\t}\n"
+        )
+        self.assert_process_support_failure(
+            "Shared process lane must publish",
+            header,
+            quarantine + publish,
+            publish + quarantine,
+        )
+        self.assert_process_support_failure(
+            "refuse every submission while an abandoned",
+            header,
+            "\t\t\t\tif (Quarantined) {\n"
+            "\t\t\t\t\treturn TTraits::failure(lane_failure::reap_failure);\n"
+            "\t\t\t\t}\n"
+            "\t\t\t\tBusy    = true;",
+            "\t\t\t\tBusy    = true;",
+        )
+        self.assert_process_support_failure(
+            "completion watchdog must predicate-check",
+            header,
+            "return aItem->Result.has_value();",
+            "return true;",
+        )
+        self.assert_process_support_failure(
+            "completion watchdog must predicate-check",
+            header,
+            "\t\t\t\t\tif (Busy) {\n"
+            "\t\t\t\t\t\tQuarantined = true;\n"
+            "\t\t\t\t\t}\n",
+            "",
+        )
+        self.assert_process_support_failure(
+            "exception recovery must clear",
+            header,
+            "\t\t\t\t\t\tQuarantined = false;\n"
+            "\t\t\t\t\t\tBusy        = false;\n",
+            "\t\t\t\t\t\tBusy        = false;\n",
+        )
+        forbidden = "Forbidden launch, environment"
+        # The environment and Windows job surfaces are refused earlier still,
+        # by the effect-owner lists this target is not on.
+        for hostile, expected in (
+            ("\nvoid launch(QProcess& aProcess) { aProcess.start(); }\n", forbidden),
+            ("\nvoid name(QProcess& aProcess) { aProcess.setProgram({}); }\n", forbidden),
+            ("\nauto environment = QProcessEnvironment{};\n", "QProcessEnvironment ownership violation"),
+            ("\nvoid detach(std::thread& aWorker) { aWorker.detach(); }\n", forbidden),
+            ("\nauto job = CreateJobObjectW(nullptr, nullptr);\n", "containment API ownership violation"),
+        ):
+            with self.subTest(hostile_surface=hostile.strip()):
+                self.assert_process_support_failure(
+                    expected,
+                    source,
+                    "namespace bpr::adapters::process_support {\n",
+                    hostile + "namespace bpr::adapters::process_support {\n",
+                )
+        self.assert_process_support_failure(
+            "must not include a first-party layer",
+            source,
+            "#include <QObject>\n",
+            "#include <QObject>\n#include \"bpr/platform/windows_standard_handles.hpp\"\n",
+        )
+        for dependency in (
+            "BetterPullReview::Application",
+            "BetterPullReview::AdapterGitHub",
+            "Qt6::Network",
+        ):
+            with self.subTest(dependency=dependency):
+                self.assert_process_support_failure(
+                    "must depend on Qt Core only",
+                    cmake,
+                    "            Qt6::Core\n",
+                    "            Qt6::Core\n            " + dependency + "\n",
+                )
+        self.assert_process_support_failure(
+            "must be the static",
+            cmake,
+            "better_pull_review_process_support\n        STATIC",
+            "better_pull_review_process_support\n        SHARED",
+        )
+        self.assert_failure(
+            "through the shared serialized process lane",
+            {
+                "src/adapters/github/src/github_cli_process_runner.cpp":
+                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
+                        "process_support::serialized_process_lane<"
+                        "process_lane_traits> Lane;",
+                        "process_lane_traits Lane;",
+                    )
+            },
+        )
+        self.assert_failure(
+            "through the shared serialized process lane",
+            {
+                "src/adapters/git/src/installed_git_process.cpp":
+                    GIT_PROCESS_RUNNER_SOURCE.replace(
+                        '#include "bpr/adapters/process_support/process_supervision.hpp"\n',
+                        "",
+                    )
+            },
+        )
+        self.assert_failure(
+            "QProcess ownership violation",
+            {
+                "src/adapters/process_support/src/second_supervision.cpp":
+                    "void f(QProcess&);\n",
+            },
+        )
+
     def test_installed_git_runner_requires_closed_hardening_contract(
         self,
     ) -> None:
@@ -2000,7 +2114,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "QProcess::ManagedInputChannel",
             "QProcess::UnixProcessFlag::CreateNewSession",
             "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
-            "abandon_unreaped_process",
+            "process_support::finish_background_reap",
             "empty_private_directory",
             "class private_input_file final",
             "O_NOFOLLOW",
@@ -3281,8 +3395,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "process->closeWriteChannel",
             "process->waitForStarted",
             "process->waitForReadyRead",
-            "process.waitForFinished",
-            "process.kill",
             "std::make_unique<QProcess>()",
             "request.StandardInputLimit",
             "request.StandardOutputLimit",
@@ -3511,8 +3623,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "QProcess::UnixProcessFlag::DisableCoreDumps",
             "QProcess::UnixProcessFlag::ResetSignalHandlers",
             "QProcess::UnixProcessFlag::CreateNewSession",
-            "-static_cast<pid_t>(process_group_id)",
-            "::kill(process_group, SIGKILL)",
             "&QProcess::started",
             "process_pointer->processId();",
             "kill_process_group_and_reap(",
@@ -3533,11 +3643,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 )
 
         process_group_resolution_mutations = (
-            (
-                "    const auto process_id = process.processId();\n",
-                "    const auto process_id = 0;\n",
-                "must resolve the saved initial process group",
-            ),
             (
                 """\
     process->start();
@@ -3564,56 +3669,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             *process_group_id);
 """,
                 "must resolve the initial process group",
-            ),
-            (
-                """\
-    auto process_group_id =
-        resolve_process_group(process, known_process_group_id);
-    kill_process_group(process_group_id);
-""",
-                """\
-    auto process_group_id = known_process_group_id;
-    kill_process_group(process_group_id);
-""",
-                "bounded reap must resolve the initial process group",
-            ),
-            (
-                """\
-            process_group_id =
-                resolve_process_group(process, process_group_id);
-            kill_process_group(process_group_id);
-""",
-                "            kill_process_group(process_group_id);\n",
-                "bounded reap must resolve the initial process group",
-            ),
-            (
-                """\
-auto finish_background_reap(
-    QProcess& process,
-    const qint64 known_process_group_id) -> void {
-    auto process_group_id =
-        resolve_process_group(process, known_process_group_id);
-""",
-                """\
-auto finish_background_reap(
-    QProcess& process,
-    const qint64 known_process_group_id) -> void {
-    auto process_group_id = known_process_group_id;
-""",
-                "background reap must retain and refresh",
-            ),
-            (
-                """\
-    while(process.state() != QProcess::NotRunning) {
-        process_group_id =
-            resolve_process_group(process, process_group_id);
-        kill_process_group(process_group_id);
-""",
-                """\
-    while(process.state() != QProcess::NotRunning) {
-        kill_process_group(process_group_id);
-""",
-                "background reap must retain and refresh",
             ),
             (
                 """\
@@ -3747,13 +3802,7 @@ auto finish_background_reap(
 
         worker_fragments = (
             "class process_worker final",
-            "~process_worker()",
-            "ShutdownRequested.store(",
-            "Worker.join();",
-            "while(Busy)",
-            "Busy = true;",
-            "Pending = item;",
-            "WorkAvailable.notify_one();",
+            "Lane.submit(item, request.ReapTimeout)",
             "item->Deadline = clock::now() + request.Timeout;",
             "std::unique_ptr<process_worker> Worker;",
             "Worker = std::make_unique<process_worker>(",
@@ -3862,9 +3911,6 @@ auto finish_background_reap(
         reap_ownership_fragments = (
             "std::unique_ptr<QProcess> AwaitingReap;",
             ".AwaitingReap = std::move(process),",
-            "Quarantined = true;",
-            "execution->AwaitingReap.reset();",
-            "Quarantined = false;",
         )
         for fragment in reap_ownership_fragments:
             with self.subTest(reap_ownership=fragment):
@@ -3880,102 +3926,15 @@ auto finish_background_reap(
                     },
                 )
 
-        quarantined_publish = """\
-        if(execution->AwaitingReap != nullptr) {
-            {
-                std::lock_guard lock{Mutex};
-                Quarantined = true;
-            }
-            SlotAvailable.notify_all();
-        }
-        publish(item, std::move(execution->Result));
-"""
-        publish_before_quarantine = """\
-        publish(item, std::move(execution->Result));
-        if(execution->AwaitingReap != nullptr) {
-            {
-                std::lock_guard lock{Mutex};
-                Quarantined = true;
-            }
-            SlotAvailable.notify_all();
-        }
-"""
         self.assert_failure(
-            "must publish reap_failure only after quarantine",
+            "background reap must be the shared bounded reap",
             {
                 "src/adapters/github/src/github_cli_process_runner.cpp":
                     GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
-                        quarantined_publish,
-                        publish_before_quarantine,
-                )
-            },
-        )
-
-        watchdog_predicate = """\
-                [&] {
-                    return item->Result.has_value();
-                })) {
-"""
-        self.assert_failure(
-            "completion watchdog must predicate-check publication",
-            {
-                "src/adapters/github/src/github_cli_process_runner.cpp":
-                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
-                        watchdog_predicate,
-                        """\
-                [&] {
-                    return true;
-                })) {
-""",
-                    )
-            },
-        )
-
-        watchdog_quarantine = """\
-            {
-                std::lock_guard lock{Mutex};
-                if(Busy) {
-                    Quarantined = true;
-                }
-            }
-            SlotAvailable.notify_all();
-            return std::unexpected{
-                github_cli_process_failure::reap_failure};
-"""
-        self.assert_failure(
-            "completion watchdog must predicate-check publication",
-            {
-                "src/adapters/github/src/github_cli_process_runner.cpp":
-                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
-                        watchdog_quarantine,
-                        """\
-            return std::unexpected{
-                github_cli_process_failure::reap_failure};
-""",
-                    )
-            },
-        )
-
-        exception_recovery = """\
-            {
-                std::lock_guard lock{Mutex};
-                Quarantined = false;
-                Busy = false;
-            }
-            SlotAvailable.notify_all();
-            return;
-"""
-        self.assert_failure(
-            "exception recovery must clear any watchdog quarantine",
-            {
-                "src/adapters/github/src/github_cli_process_runner.cpp":
-                    GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(
-                        exception_recovery,
-                        exception_recovery.replace(
-                            "                Quarantined = false;\n",
-                            "",
-                        ),
-                        1,
+                        "github_cli_process_max_reap_timeout,\n"
+                        "            tree_kill_for(TestSeam));",
+                        "std::chrono::hours{24},\n"
+                        "            tree_kill_for(TestSeam));",
                     )
             },
         )
