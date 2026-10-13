@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1446"
 title: "Evaluate sha1dc, HACL* SHA-2 and platform crypto on macOS arm64"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0080"]
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"mandate_revision":"hashing-replacement-r1","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1446--BPR-1453--810e9a5c8803.json"}
+blocked_by: "idle-macos-station"
 ---
 
 # BPR-1446: Evaluate sha1dc, HACL* SHA-2 and platform crypto on macOS arm64
