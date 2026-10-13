@@ -3,7 +3,7 @@
   "milestone": "pane-find",
   "mandate_revision": "find-and-find-in-files-v1-r1",
   "product_candidate": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
-  "writer": "product writer quiescent; milestone bookkeeping completes before handoff",
+  "writer": "released at handoff; all M4 product writers and task-owned background commands quiescent",
   "active_commands": [],
   "background_descendants": [],
   "review_server": null,
@@ -15,7 +15,13 @@
     "architecture and negative boundary contract",
     "test network manifest",
     "fixture provenance and retained inventory failure",
-    "format22 and new/changed-TU tidy22"
+    "format22 and new/changed-TU tidy22",
+    "documentation gate and 67 regressions",
+    "guarded M4 finish dry-run and actual Done commit",
+    "Ready successor BPR-1423 and canonical M5 API/scope/lifetime continuation",
+    "final milestone binding and return upkeep",
+    "final Done/Ready documentation pass",
+    "quiescent milestone check returned fresh-context for pr-search"
   ],
   "changed_product_paths": [
     "scripts/build_source_find_fixture.py",
@@ -125,5 +131,7 @@
     "build/m4-tidy/line-filter.json",
     "build/m4-tidy/final-line-filter.json"
   ],
-  "next_action": "guarded M4 documentation/finish followed by fresh M5 binding/claim"
+  "next_action": "fresh M5 binds accepted M1-M4 and claims Ready BPR-1423; retain full criteria and baseline repair obligations",
+  "acceptance_commit": "4167e4abf191fc27240961f8cdf75cb1a89a0364",
+  "handoff_parent_revision": "dc2ff574fbddd40c31ddb5732b7afbc37d9aafae"
 }

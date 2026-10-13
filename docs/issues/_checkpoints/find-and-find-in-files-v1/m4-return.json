@@ -34,10 +34,10 @@
         "id": "BPR-1422:*",
         "source": "BPR-1422",
         "selector": null,
-        "source_fingerprint": "sha256:65bce2ac014c44a7d7203dc1a758d9fb4ac662897ac36fee814eea58b15e84bc"
+        "source_fingerprint": "sha256:dcbdfcef5e0617f65953214e44b771f43bd71fc2c9b0206c5fe5e64bf29559cf"
       }
     ],
-    "obligation_fingerprint": "sha256:8ac535f12fa02aab1be84c765eb8e7d149e9a814ac52439826bc9ff4c8c54bb2",
+    "obligation_fingerprint": "sha256:2e40ad191e9dac82055658ae447142564cd8371cf0b5c12edc0cbba9cbc6c25e",
     "exit_criteria": [
       {
         "id": "pane-find:exit:1",
@@ -60,21 +60,128 @@
     "diagnostics_truncated": false
   },
   "milestone": "pane-find",
-  "disposition": "continue-milestone",
-  "candidate_revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "disposition": "milestone-complete",
+  "candidate_revision": "dc2ff574fbddd40c31ddb5732b7afbc37d9aafae",
   "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
-  "required_pending": [
-    "documentation closeout and guarded finish/upkeep"
-  ],
+  "required_pending": [],
   "evidence_refs": [
-    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json"
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-command-state.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-inventory.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-integration-setup-failure.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-documentation.json"
   ],
-  "acceptance_records": [],
+  "acceptance_records": [
+    {
+      "id": "BPR-1422:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-inventory.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-integration-setup-failure.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-documentation.json"
+      ]
+    },
+    {
+      "id": "pane-find:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-inventory.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-integration-setup-failure.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-documentation.json"
+      ]
+    },
+    {
+      "id": "pane-find:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-inventory.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-integration-setup-failure.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-documentation.json"
+      ]
+    },
+    {
+      "id": "pane-find:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-command-state.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-inventory.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-integration-setup-failure.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-documentation.json"
+      ]
+    }
+  ],
   "continuation": {
-    "intent": "resume",
-    "next_milestone": "pane-find",
-    "reason": "bookkeeping-closeout",
-    "detail": "Product gates pass; documentation/guarded finish checkpoint work remains. This draft is overwritten before handoff."
+    "intent": "fresh",
+    "next_milestone": "pr-search",
+    "reason": "integrated-boundary",
+    "detail": "M4 BPR-1422 accepted at 4167e4abf191fc27240961f8cdf75cb1a89a0364; exact tested product a7fb9af0a2e0f0a21ab0de86c3a938a70af28626; Ready successor/tracker revision dc2ff574fbddd40c31ddb5732b7afbc37d9aafae. Fresh M5 binds accepted M1-M4 and claims Ready BPR-1423. Original AC01/AC02 pass, AC07 pane only; AC03-AC06/full AC07/AC08 and baseline format/inventory/LibArchive failures remain pending. No whole-RFC, VoiceOver/device/human acceptance inferred. Final merged composition may need legitimate merged-diff reseal."
   },
-  "ownership": "active"
+  "ownership": "quiescent"
 }

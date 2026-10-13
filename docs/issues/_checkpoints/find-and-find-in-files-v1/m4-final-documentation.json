@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 final Done/Ready documentation and durable handoff",
+  "outcome": "pass",
+  "revision": "dc2ff574fbddd40c31ddb5732b7afbc37d9aafae",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.968,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}
