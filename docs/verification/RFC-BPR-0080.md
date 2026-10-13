@@ -21,7 +21,7 @@ claims a result for them.
 
 | Component | Role | Decision | Rule result on macOS arm64 |
 |---|---|---|---|
-| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.06x to 3.03x the current core SHA-1 (rule: at least 1.0x), and 1.42x to 1.85x the control arm. The digest-using rows and the four refusal points belong to adoption; see the AC03 finding. |
+| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.06x to 3.03x the current core SHA-1 (rule: at least 1.0x), and 1.42x to 1.85x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector. |
 | HACL* `Hacl_Hash_SHA2` | Core SHA-256 | **Eligible pending Q2** | Gate: zero mismatches, including `main`'s whole history as SHA-256. W1 to W3: 1.32x to 1.71x the core SHA-256 (rule: at least 0.9x). The block-level wrapper allocates nothing. |
 | CommonCrypto behind a host port | Bulk SHA-256 the host already holds, on macOS | **Throughput condition passes; site decision pending [[BPR-1447]]** | Inputs of 1 MiB or more: 7.35x to 9.56x core (rule: at least 3x on a SHA-extension target). The site condition (10 ms less window-thread hashing at 10k, or none on the window thread) can be measured only with the port built. |
 | CNG `BCrypt*` behind the port | The same, on Windows | **Unmeasured** | Station missing ([[BPR-1448]]). |
@@ -89,8 +89,8 @@ a row):
 | SHA-mbles (`sha-mbles-1.bin`, `sha-mbles-2.bin`, 640 bytes each) | Both `8ac60ba76f1999a1ab70223f225aefdc78d4ddc0`: collides | Detected in both; digest equals plain SHA-1 | Different identities (`5a7c30e9…`, `fe391784…`); not detected |
 | `sha1_reducedsha_coll.bin` (128 bytes, a reduced-round collision) | — | Not detected as Git configures sha1dc; detected with reduced-round detection on | — |
 
-The repository sweeps below detected nothing: zero detections across 105,862
-objects.
+The repository sweep above detected nothing: zero sha1dc detections across
+all 106,013 objects.
 
 **Finding for AC03.** A Git identity hashes `<type> <size>\0` before the
 content, which moves the colliding blocks off their 64-byte boundaries and
@@ -104,7 +104,9 @@ stream and one-shot SHA-1 level. Demonstrating the four object-level points
 needs a collision built with a Git object header as its prefix, which no
 pinned archive supplies, or an amendment that accepts stream-level refusal
 plus proof that every identity path goes through the detecting stream. This
-is recorded for [[BPR-1450]]; it does not affect the evaluation decisions.
+is recorded for [[BPR-1450]]. It does not change what this evaluation
+measured, but it means a Q1 Accept alone cannot satisfy the RFC's sha1dc
+adopt rule as written: adoption also needs that amendment or such a vector.
 
 ## Throughput
 

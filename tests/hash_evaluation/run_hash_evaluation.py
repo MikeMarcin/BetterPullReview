@@ -63,6 +63,10 @@ def machine() -> dict:
             name: text(["sysctl", "-n", f"hw.optional.arm.{name}"]) for name in ("FEAT_SHA1", "FEAT_SHA256", "FEAT_SHA512", "FEAT_SHA3")
         }
         facts["logical_cpus"] = text(["sysctl", "-n", "hw.logicalcpu"])
+    elif os.name == "nt":
+        # No SHA-extension query from here; the Windows station records it (BPR-1448).
+        facts["cpu"] = os.environ.get("PROCESSOR_IDENTIFIER", platform.processor())
+        facts["logical_cpus"] = str(os.cpu_count())
     elif Path("/proc/cpuinfo").exists():
         cpuinfo = Path("/proc/cpuinfo").read_text()
         model = next((line.split(":", 1)[1].strip() for line in cpuinfo.splitlines() if line.startswith("model name")), "")
@@ -79,10 +83,15 @@ def build_facts(build: Path) -> dict:
             key, value = line.split("=", 1)
             cache[key.split(":", 1)[0]] = value
     compiler = cache.get("CMAKE_CXX_COMPILER", "")
+    banner = ""
+    if compiler:
+        # MSVC's cl prints its banner on standard error and exits nonzero.
+        version = run([compiler, "--version"], text=True)
+        banner = next(iter((version.stdout or version.stderr).splitlines()), "")
     return {
         "build_type": cache.get("CMAKE_BUILD_TYPE", ""),
         "cxx_compiler": compiler,
-        "cxx_compiler_version": text([compiler, "--version"]).splitlines()[0] if compiler else "",
+        "cxx_compiler_version": banner,
         "cxx_flags": cache.get("CMAKE_CXX_FLAGS", ""),
         "cxx_flags_release": cache.get("CMAKE_CXX_FLAGS_RELEASE", ""),
         "c_flags_release": cache.get("CMAKE_C_FLAGS_RELEASE", ""),
@@ -226,7 +235,13 @@ def main() -> int:
     if unknown:
         parser.error(f"unknown phases: {', '.join(unknown)}")
     build = options.build.resolve()
-    harness = build / "tests" / "hash_evaluation" / ("hash_evaluation.exe" if os.name == "nt" else "hash_evaluation")
+    name = "hash_evaluation.exe" if os.name == "nt" else "hash_evaluation"
+    # Single-configuration generators put it beside its CMakeLists; Visual
+    # Studio puts it in a configuration folder.
+    candidates = [build / "tests" / "hash_evaluation" / folder / name for folder in ("", "Release", "RelWithDebInfo")]
+    harness = next((candidate for candidate in candidates if candidate.exists()), None)
+    if harness is None:
+        parser.error(f"no {name} under {build / 'tests' / 'hash_evaluation'}")
     vectors = build / "_bpr" / "hash-evaluation"
     collisions = next(vectors.glob("sha1dc/sha1collisiondetection-*/test"))
     large = not options.no_large
@@ -268,7 +283,7 @@ def main() -> int:
                 failures.append(f"git-{object_format}")
     if "sweep" in phases:
         document["phases"]["sweep"] = sweep_phase(harness, options.repository.resolve())
-        if document["phases"]["sweep"]["sweep_exit"] != 0:
+        if document["phases"]["sweep"]["sweep_exit"] != 0 or document["phases"]["sweep"]["cat_file_exit"] != 0:
             failures.append("sweep")
     if "sweep256" in phases:
         scratch = Path(tempfile.mkdtemp(prefix="bpr-hash-evaluation-"))
@@ -276,7 +291,8 @@ def main() -> int:
             document["phases"]["sweep256"] = sweep256_phase(harness, options.repository.resolve(), scratch)
         finally:
             shutil.rmtree(scratch)
-        if document["phases"]["sweep256"]["sweep_exit"] != 0:
+        converted = document["phases"]["sweep256"]
+        if converted["sweep_exit"] != 0 or converted["fast_export_exit"] != 0 or converted["fast_import_exit"] != 0:
             failures.append("sweep256")
     if "throughput" in phases:
         document["machine"]["load_average_before_throughput"] = machine()["load_average"]

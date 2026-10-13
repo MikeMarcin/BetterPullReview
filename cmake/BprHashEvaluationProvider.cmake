@@ -113,6 +113,11 @@ function(bpr_acquire_hash_evaluation aVectors aCollisions)
 
     foreach(target IN ITEMS better_pull_review_eval_sha1dc better_pull_review_eval_hacl_sha2)
         set_target_properties("${target}" PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 11 C_STANDARD_REQUIRED ON)
+        # The core is built hardened, so the candidates are measured the same
+        # way. MSVC's /sdl is left to the Windows station to try.
+        if(NOT MSVC)
+            bpr_enable_hardening("${target}")
+        endif()
     endforeach()
     set(${aVectors} "${cavp_stage}/shabytetestvectors" PARENT_SCOPE)
     set(${aCollisions} "${sha1dc}/test" PARENT_SCOPE)
