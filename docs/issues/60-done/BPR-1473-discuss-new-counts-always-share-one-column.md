@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1473"
 title: "Discuss's new-post counts always share one column"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1471"]
 priority: "P3"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1473--BPR-1473--167da41ffd3a.json","origin":"owner request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7c9b24eb0","evidence":{"kind":"observation","detail":"The blue count follows the resolved slot and Your reply stands left of it; the alignment test asserts one count column across resolved, open and unsent-reply notes; 14 Discuss tests pass.","path":"docs/issues/60-done/BPR-1473-discuss-new-counts-always-share-one-column.md"}}]
 ---
 
 # Discuss's new-post counts always share one column
