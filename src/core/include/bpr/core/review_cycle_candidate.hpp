@@ -116,6 +116,9 @@ namespace bpr::core {
 		normalization,
 		/// Author, committer, times or message are not a valid commit.
 		metadata,
+		/// SHA-1 collision detection refused a tree or the commit; no
+		/// identity was made ([[BPR-1450]]).
+		collision_detected,
 	};
 	[[nodiscard]] auto name(candidate_limit aLimit) noexcept -> std::string_view;
 

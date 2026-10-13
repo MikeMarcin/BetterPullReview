@@ -84,7 +84,9 @@ namespace bpr::core {
 				return true;
 			}
 			if (aAlgorithm == git_hash_algorithm::sha1) {
-				return std::ranges::equal(sha1(body), trailer);
+				// A body collision detection refuses has no checksum to match.
+				const auto digest = sha1(body);
+				return digest && std::ranges::equal(*digest, trailer);
 			}
 			return std::ranges::equal(sha256(body), trailer);
 		}

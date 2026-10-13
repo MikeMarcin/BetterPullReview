@@ -44,17 +44,31 @@ namespace bpr::core {
 		commit,
 	};
 
+	/// \brief Why an object has no identity.
+	enum class git_object_refusal : std::uint8_t {
+		/// Neither SHA-1 nor SHA-256.
+		algorithm,
+		/// The delivered bytes do not add up to the declared size.
+		size,
+		/// SHA-1 collision detection found the object to be part of a
+		/// collision attack ([[BPR-1450]]). No identity is given.
+		collision_detected,
+	};
+	[[nodiscard]] auto name(git_object_refusal aRefusal) noexcept -> std::string_view;
+
+	using git_object_digest_result = std::expected<std::array<std::uint8_t, 32>, git_object_refusal>;
+
 	/// \brief Hashes one object's header and content, delivered in pieces.
 	/// \details The size is declared up front, as Git's header requires; the
-	/// digest is refused when the delivered bytes do not add up to it.
+	/// digest is refused when the delivered bytes do not add up to it, and a
+	/// SHA-1 object is refused when collision detection fires.
 	class git_object_hasher
 	{
 	public:
 		git_object_hasher(git_hash_algorithm aAlgorithm, git_object_type aType, std::uint64_t aSize) noexcept;
 		void update(std::span<const std::uint8_t> aBytes) noexcept;
-		/// \brief The identity, or nothing for an invalid algorithm or a size
-		/// that does not match what was delivered. Call once.
-		[[nodiscard]] auto finish() noexcept -> std::optional<std::array<std::uint8_t, 32>>;
+		/// \brief The identity, or why there is none. Call once.
+		[[nodiscard]] auto finish() noexcept -> git_object_digest_result;
 
 	private:
 		git_hash_algorithm Algorithm = git_hash_algorithm::invalid;
@@ -64,11 +78,10 @@ namespace bpr::core {
 		sha256_stream      Sha256;
 	};
 
-	/// \brief The identity of one whole object.
-	[[nodiscard]] auto git_object_digest(git_hash_algorithm aAlgorithm, git_object_type aType, std::span<const std::uint8_t> aContent)
-		-> std::optional<std::array<std::uint8_t, 32>>;
-	/// \brief The blob identity of exactly these bytes; invalid for an invalid algorithm.
-	[[nodiscard]] auto git_blob_identity(std::span<const std::uint8_t> aBytes, git_hash_algorithm aAlgorithm) -> git_blob_oid;
+	/// \brief The identity of one whole object, or why there is none.
+	[[nodiscard]] auto git_object_digest(git_hash_algorithm aAlgorithm, git_object_type aType, std::span<const std::uint8_t> aContent) -> git_object_digest_result;
+	/// \brief The blob identity of exactly these bytes, or why there is none.
+	[[nodiscard]] auto git_blob_identity(std::span<const std::uint8_t> aBytes, git_hash_algorithm aAlgorithm) -> std::expected<git_blob_oid, git_object_refusal>;
 
 	/// \brief One non-tree entry of a complete tree listing, by its full path.
 	struct git_tree_entry
@@ -110,6 +123,8 @@ namespace bpr::core {
 		file_directory_conflict,
 		/// More entries than a candidate admits.
 		bounds,
+		/// SHA-1 collision detection refused a tree object ([[BPR-1450]]).
+		collision_detected,
 	};
 
 	inline constexpr std::size_t maximum_git_tree_entries = 250'000U;
@@ -152,6 +167,9 @@ namespace bpr::core {
 		/// The message is empty, holds NUL, is not UTF-8 or does not end with
 		/// a line feed.
 		message,
+		/// SHA-1 collision detection refused the commit object
+		/// ([[BPR-1450]]).
+		collision_detected,
 	};
 
 	inline constexpr std::size_t maximum_git_signature_bytes = 256U;
@@ -160,9 +178,19 @@ namespace bpr::core {
 	[[nodiscard]] auto encode_git_commit(const git_commit_content& aCommit) -> std::expected<std::vector<std::uint8_t>, git_commit_error>;
 	[[nodiscard]] auto git_commit_identity(const git_commit_content& aCommit) -> std::expected<git_commit_oid, git_commit_error>;
 
+	enum class verified_commit_error : std::uint8_t {
+		/// The identity is invalid, or the object's bytes do not hash to it.
+		identity,
+		/// The object does not begin with a tree line of its format.
+		malformed,
+		/// SHA-1 collision detection refused the object ([[BPR-1450]]).
+		collision_detected,
+	};
+
 	/// \brief The tree a commit object names, when the object's bytes hash to
-	/// `aCommit`; nothing otherwise.
-	[[nodiscard]] auto verified_commit_tree(std::span<const std::uint8_t> aCommitObject, const git_commit_oid& aCommit) -> std::optional<git_tree_oid>;
+	/// `aCommit`; why not otherwise.
+	[[nodiscard]] auto verified_commit_tree(std::span<const std::uint8_t> aCommitObject, const git_commit_oid& aCommit)
+		-> std::expected<git_tree_oid, verified_commit_error>;
 
 	/// \brief The bytes with every CRLF pair made LF, or nothing when there
 	/// is no CRLF pair. A lone CR is kept. This is the only line-ending

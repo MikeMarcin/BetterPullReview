@@ -41,18 +41,31 @@ namespace bpr::hash_evaluation {
 			return result;
 		}
 
-		/// The current core SHA-1, the SHA-1 baseline.
+		/// The current core SHA-1, the SHA-1 baseline: sha1collisiondetection
+		/// since [[BPR-1450]]. A refused input has no digest (an empty one
+		/// here) and reports the detection.
 		class core_sha1 final : public hash_arm
 		{
 		public:
 			[[nodiscard]] auto name() const noexcept -> std::string_view override { return "core"; }
 			[[nodiscard]] auto algorithm() const noexcept -> hash_algorithm override { return hash_algorithm::sha1; }
-			void               reset() override { Stream = core::sha1_stream{ }; }
+			void               reset() override
+			{
+				Stream   = core::sha1_stream{ };
+				Detected = false;
+			}
 			void               update(std::span<const std::uint8_t> aBytes) override { Stream.update(aBytes); }
-			[[nodiscard]] auto finish() -> digest override { return to_digest(Stream.finish()); }
+			[[nodiscard]] auto finish() -> digest override
+			{
+				const auto result = Stream.finish();
+				Detected          = !result.has_value();
+				return result ? to_digest(*result) : digest{ };
+			}
+			[[nodiscard]] auto detected() const noexcept -> bool override { return Detected; }
 
 		private:
 			core::sha1_stream Stream;
+			bool              Detected = false;
 		};
 
 		/// The current core SHA-256, the SHA-256 baseline.
@@ -69,9 +82,11 @@ namespace bpr::hash_evaluation {
 			core::sha256_stream Stream;
 		};
 
-		/// The RFC's control arm: the core SHA-1's own compression function,
+		/// The RFC's control arm: the former core SHA-1's compression function,
 		/// hashing whole blocks straight from the input as BPR-1358 made the
-		/// core SHA-256 do. It exists only in this evaluation.
+		/// core SHA-256 do. It exists only in this evaluation, and since
+		/// [[BPR-1450]] it is also the plain-SHA-1 control the collision run
+		/// compares against.
 		class first_party_block_sha1 final : public hash_arm
 		{
 		public:
@@ -130,8 +145,9 @@ namespace bpr::hash_evaluation {
 		private:
 			static constexpr std::array<std::uint32_t, 5> initial_state{ 0x67452301U, 0xEFCDAB89U, 0x98BADCFEU, 0x10325476U, 0xC3D2E1F0U };
 
-			/// The core's transform (src/core/src/sha1.cpp), reading the block
-			/// it is given instead of the buffer.
+			/// The former core transform (src/core/src/sha1.cpp, deleted by
+			/// [[BPR-1450]]), reading the block it is given instead of the
+			/// buffer.
 			void transform(std::span<const std::uint8_t, 64> aBlock) noexcept
 			{
 				std::array<std::uint32_t, 80> words{ };
@@ -397,6 +413,11 @@ namespace bpr::hash_evaluation {
 	auto make_sha1dc(bool aDetectReducedRound) -> std::unique_ptr<hash_arm>
 	{
 		return std::make_unique<sha1dc>(aDetectReducedRound);
+	}
+
+	auto make_plain_sha1() -> std::unique_ptr<hash_arm>
+	{
+		return std::make_unique<first_party_block_sha1>();
 	}
 
 	auto make_platform_reference(hash_algorithm aAlgorithm) -> std::unique_ptr<hash_arm>

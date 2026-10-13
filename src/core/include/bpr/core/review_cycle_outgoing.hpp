@@ -266,6 +266,10 @@ namespace bpr::core {
 		/// An override names a path no row lists, or names one twice.
 		unknown_override,
 		bounds,
+		/// SHA-1 collision detection refused an object the plan needs an
+		/// identity for: P's tree, a commit object, or captured bytes
+		/// ([[BPR-1450]]).
+		collision_detected,
 	};
 	[[nodiscard]] auto name(outgoing_refusal aRefusal) noexcept -> std::string_view;
 	[[nodiscard]] auto name(outgoing_gap aGap) noexcept -> std::string_view;

@@ -107,7 +107,9 @@ namespace bpr::core {
 		auto exact_lines(const cycle_source_anchor& aAnchor, const publication_plan& aPlan, const candidate_blob& aBlob, const std::span<const std::uint8_t> aFile)
 			-> std::optional<tour_code_destination>
 		{
-			const auto identity = git_blob_identity(aFile, aPlan.Format);
+			// A refused identity, collision detection included, proves nothing.
+			const auto computed = git_blob_identity(aFile, aPlan.Format);
+			const auto identity = computed.value_or(git_blob_oid{ });
 			if (!identity.valid() || identity != retag<git_blob_oid_kind>(aBlob.Object) || aFile.size() != aBlob.Size || !verify_target(aAnchor, aFile)) {
 				return std::nullopt;
 			}

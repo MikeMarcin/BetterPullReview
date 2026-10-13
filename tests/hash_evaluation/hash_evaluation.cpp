@@ -631,6 +631,7 @@ namespace {
 			{ "SHA-mbles", "sha-mbles-1.bin", "sha-mbles-2.bin" },
 		} };
 		auto                               core      = std::move(make_arms(hash_algorithm::sha1).front());
+		auto                               plain     = make_plain_sha1();
 		auto                               detector  = make_sha1dc(false);
 		auto                               reduced   = make_sha1dc(true);
 		bool                               satisfied = true;
@@ -641,14 +642,21 @@ namespace {
 				std::printf("{\"command\":\"collision\",\"error\":%s}\n", json_text("unreadable " + std::string{ entry.Name }).c_str());
 				return 2;
 			}
-			const auto plainFirst     = core->hash(*first);
-			const auto plainSecond    = core->hash(*second);
-			const auto dcFirst        = detector->hash(*first);
-			const auto detectedFirst  = detector->detected();
-			const auto dcSecond       = detector->hash(*second);
-			const auto detectedSecond = detector->detected();
-			const auto blobFirst      = object_id(*core, "blob", *first);
-			const auto blobSecond     = object_id(*core, "blob", *second);
+			// [[BPR-1450]]: the core SHA-1 is sha1collisiondetection, so the
+			// plain control is the evaluation's non-detecting arm, and the core
+			// must refuse both members.
+			const auto plainFirst  = plain->hash(*first);
+			const auto plainSecond = plain->hash(*second);
+			static_cast<void>(core->hash(*first));
+			const auto coreRefusedFirst = core->detected();
+			static_cast<void>(core->hash(*second));
+			const auto coreRefusedSecond = core->detected();
+			const auto dcFirst           = detector->hash(*first);
+			const auto detectedFirst     = detector->detected();
+			const auto dcSecond          = detector->hash(*second);
+			const auto detectedSecond    = detector->detected();
+			const auto blobFirst         = object_id(*plain, "blob", *first);
+			const auto blobSecond        = object_id(*plain, "blob", *second);
 			static_cast<void>(object_id(*detector, "blob", *first));
 			const auto blobDetectedFirst = detector->detected();
 			static_cast<void>(object_id(*detector, "blob", *second));
@@ -657,12 +665,12 @@ namespace {
 			const bool plainCollides      = plainFirst == plainSecond;
 			const bool sameDigest         = dcFirst == plainFirst && dcSecond == plainSecond;
 			std::printf("{\"command\":\"collision\",\"input\":%s,\"bytes\":[%zu,%zu],\"contents_differ\":%s,\"plain_sha1\":[%s,%s],\"plain_collides\":%s,"
-						"\"sha1dc_detected\":[%s,%s],\"sha1dc_digest_equals_plain\":%s,\"blob_ids\":[%s,%s],\"blob_sha1dc_detected\":[%s,%s]}\n",
+						"\"sha1dc_detected\":[%s,%s],\"sha1dc_digest_equals_plain\":%s,\"blob_ids\":[%s,%s],\"blob_sha1dc_detected\":[%s,%s],\"core_refused\":[%s,%s]}\n",
 						json_text(entry.Name).c_str(), first->size(), second->size(), contentsDiffer ? "true" : "false", json_text(hex(plainFirst)).c_str(),
 						json_text(hex(plainSecond)).c_str(), plainCollides ? "true" : "false", detectedFirst ? "true" : "false", detectedSecond ? "true" : "false",
 						sameDigest ? "true" : "false", json_text(hex(blobFirst)).c_str(), json_text(hex(blobSecond)).c_str(), blobDetectedFirst ? "true" : "false",
-						blobDetectedSecond ? "true" : "false");
-			satisfied = satisfied && contentsDiffer && plainCollides && detectedFirst && detectedSecond && sameDigest;
+						blobDetectedSecond ? "true" : "false", coreRefusedFirst ? "true" : "false", coreRefusedSecond ? "true" : "false");
+			satisfied = satisfied && contentsDiffer && plainCollides && detectedFirst && detectedSecond && sameDigest && coreRefusedFirst && coreRefusedSecond;
 		}
 		const auto reducedInput = read_file(aDirectory + "/sha1_reducedsha_coll.bin");
 		if (!reducedInput) {

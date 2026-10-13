@@ -1538,6 +1538,31 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     "src/adapters/update/src/other.cpp": expression,
                 })
 
+    def test_sha1_identities_have_one_collision_detecting_owner(self) -> None:
+        # [[BPR-1450]]. Qt's plain SHA-1 serves only the pack checksum, and
+        # only the core's sha1collisiondetection wrapper names a SHA-1 API.
+        result = self.run_check({
+            "src/adapters/git/src/installed_git_cache.cpp":
+                "QCryptographicHash Hash{ QCryptographicHash::Sha1 };\n",
+            "src/core/src/sha1_collision_detecting.cpp":
+                "#include <sha1.h>\nSHA1_CTX context;\nSHA1DCInit(&context);\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/sha1_collision_detecting.cpp)\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression, diagnostic in (
+            ("src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+             "QCryptographicHash hash{ QCryptographicHash::Sha1 };\n", "plain Qt SHA-1"),
+            ("src/application/src/epoch_application_host.cpp",
+             "QCryptographicHash::hash(bytes, QCryptographicHash::Sha1);\n", "plain Qt SHA-1"),
+            ("src/core/src/other_sha1.cpp", "std::uint32_t h0 = 0x67452301U;\n", "SHA-1 implementation ownership violation"),
+            ("src/app/src/other.mm", "CC_SHA1_Init(&context);\n", "SHA-1 implementation ownership violation"),
+            ("src/adapters/git/src/other.cpp", "#include <sha1.h>\n", "SHA-1 implementation ownership violation"),
+            ("src/adapters/git/src/other.cpp", "SHA1DCUpdate(&context, data, size);\n", "SHA-1 implementation ownership violation"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure(diagnostic, {path: expression})
+
     def test_native_release_helper_launch_owner_is_exact(self) -> None:
         source = "posix_spawn(pid, path, actions, attr, argv, envp);\n"
         result = self.run_check({

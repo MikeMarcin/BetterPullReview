@@ -2,7 +2,7 @@
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
-#include "bpr/core/sha1.hpp"
+#include "bpr/core/git_objects.hpp"
 
 #include <algorithm>
 #include <array>
@@ -5019,7 +5019,8 @@ namespace bpr::application {
 									if (fetched) {
 										bytes.emplace(fetched->size());
 										std::ranges::transform(*fetched, bytes->begin(), [](std::byte aByte) { return std::to_integer<std::uint8_t>(aByte); });
-										if (!blob_matches(aWaiter->Blob, *bytes)) {
+										// A mismatch or a collision detection both end here, at failure.
+										if (blob_matches(aWaiter->Blob, *bytes) != blob_check::matches) {
 											bytes.reset();
 											material.Status = diff_blob_status::failure;
 										}
@@ -5346,7 +5347,7 @@ namespace bpr::application {
 					for (const auto byte : *answer) {
 						bytes.push_back(std::to_integer<std::uint8_t>(byte));
 					}
-					if (!blob_matches(request.ExpectedBlobs[index], bytes)) {
+					if (blob_matches(request.ExpectedBlobs[index], bytes) != blob_check::matches) {
 						continue;
 					}
 					retain_blob(*actor, request.ExpectedBlobs[index], bytes);
@@ -5355,24 +5356,32 @@ namespace bpr::application {
 			}
 		}
 
+		/// What the host's own blob check found. [[BPR-1450]]
+		enum class blob_check : std::uint8_t {
+			matches,
+			/// Not a SHA-1 blob, or the bytes are another object.
+			mismatch,
+			/// SHA-1 collision detection refused the bytes; no identity exists.
+			collision_detected,
+		};
+
 		/// The host's own check that bytes are the blob they claim to be,
-		/// beside the transport's. SHA-1 object IDs only; a SHA-256 blob is
-		/// not retained from a batch.
+		/// beside the transport's, through the core's collision-detecting
+		/// SHA-1. SHA-1 object IDs only; a SHA-256 blob is not retained from a
+		/// batch. Every caller ends anything but a match at a failure.
 		[[nodiscard]] static auto blob_matches(const core::git_blob_oid&        aBlob,
-											   const std::vector<std::uint8_t>& aBytes) noexcept -> bool
+											   const std::vector<std::uint8_t>& aBytes) noexcept -> blob_check
 		{
 			if (aBlob.algorithm() != core::git_hash_algorithm::sha1) {
-				return false;
+				return blob_check::mismatch;
 			}
-			auto       hash   = core::sha1_stream{ };
-			const auto header = "blob " + std::to_string(aBytes.size());
-			const auto prefix = std::span{ reinterpret_cast<const std::uint8_t*>(header.data()), header.size() };
-			hash.update(prefix);
-			const auto terminator = std::array<std::uint8_t, 1U>{ 0U };
-			hash.update(terminator);
+			auto hash = core::git_object_hasher{ core::git_hash_algorithm::sha1, core::git_object_type::blob, aBytes.size() };
 			hash.update(aBytes);
 			const auto digest = hash.finish();
-			return std::ranges::equal(digest, std::span{ aBlob.bytes() }.first(20U));
+			if (!digest) {
+				return digest.error() == core::git_object_refusal::collision_detected ? blob_check::collision_detected : blob_check::mismatch;
+			}
+			return std::ranges::equal(std::span{ *digest }.first(20U), std::span{ aBlob.bytes() }.first(20U)) ? blob_check::matches : blob_check::mismatch;
 		}
 
 		/// \brief The actor's part of a blob read, up to the network.

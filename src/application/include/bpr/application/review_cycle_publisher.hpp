@@ -43,6 +43,9 @@ namespace bpr::application {
 		/// A pull request for the new branch already exists and this plan
 		/// never asked for one: associating it is the reviewer's choice.
 		pull_request_exists,
+		/// SHA-1 collision detection refused the retained bytes of a planned
+		/// blob; nothing is uploaded ([[BPR-1450]]).
+		collision_detected,
 	};
 	[[nodiscard]] auto name(cycle_publish_limit aLimit) noexcept -> std::string_view;
 

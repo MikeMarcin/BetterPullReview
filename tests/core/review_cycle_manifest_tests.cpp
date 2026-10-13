@@ -157,7 +157,7 @@ namespace {
 		// [[BPR-1454]]. The trailer is verified; all zero is index.skipHash.
 		auto hashed = build_index(2, plain);
 		hashed.resize(hashed.size() - 20U);
-		const auto trailer = sha1(hashed);
+		const auto trailer = sha1(hashed).value();
 		hashed.insert(hashed.end(), trailer.begin(), trailer.end());
 		expect(parse_git_index(hashed, git_hash_algorithm::sha1, 10).has_value(), "a matching SHA-1 trailer");
 		hashed[20] ^= 1U;

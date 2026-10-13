@@ -56,7 +56,7 @@ namespace {
 	{
 		return { .Path     = std::string{ aPath },
 				 .Mode     = 0100644U,
-				 .Object   = retag<git_entry_oid_kind>(git_blob_identity(bytes(aText), git_hash_algorithm::sha1)),
+				 .Object   = retag<git_entry_oid_kind>(git_blob_identity(bytes(aText), git_hash_algorithm::sha1).value()),
 				 .Content  = cycle_material_digest{ sha256(bytes(aText)) },
 				 .Size     = aText.size(),
 				 .LineFeed = aLineFeed };
@@ -111,7 +111,7 @@ namespace {
 		const auto& source = promoted->Stop.Destination;
 		expect(source && source->Commit == commit(9) && source->Path == "src/parse.cpp" && source->Side == diff_side::right, "at the published commit, on its head side");
 		expect(source->FirstLine == 3U && source->LastLine == 4U, "lines 4 to 5, zero-based as a tour source counts them");
-		expect(source->Blob == git_blob_identity(bytes(published), git_hash_algorithm::sha1), "the object the plan wrote, proved by the bytes");
+		expect(source->Blob == git_blob_identity(bytes(published), git_hash_algorithm::sha1).value(), "the object the plan wrote, proved by the bytes");
 		expect(promoted->Stop.Body == "Check for an empty string too." && promoted->Stop.Title == "src/parse.cpp", "the note's words, unchanged; the file as its title");
 		expect(!promoted->Stop.Original && !promoted->Stop.Mapped && promoted->Stop.Preparation == tour_preparation::editing && !ready(promoted->Stop),
 			   "no comparison is fabricated: the stop waits for the reviewer to complete it");

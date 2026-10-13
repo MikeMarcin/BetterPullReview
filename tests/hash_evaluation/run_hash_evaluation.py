@@ -243,7 +243,8 @@ def main() -> int:
     if harness is None:
         parser.error(f"no {name} under {build / 'tests' / 'hash_evaluation'}")
     vectors = build / "_bpr" / "hash-evaluation"
-    collisions = next(vectors.glob("sha1dc/sha1collisiondetection-*/test"))
+    # [[BPR-1450]]: the product's sha1collisiondetection provider extracts it.
+    collisions = next((build / "_bpr" / "sha1dc").glob("sha1collisiondetection-*/test"))
     large = not options.no_large
 
     document: dict = {
