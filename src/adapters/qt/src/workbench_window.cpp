@@ -10858,12 +10858,10 @@ namespace bpr::qt {
 				aPullRequest.Owner + "/" + aPullRequest.RepositoryName,
 				static_cast<std::int64_t>(aPullRequest.Number.value()));
 		}
-		update_strip_identity();
-		// [[BPR-1338]]. An accepted publication brings Open on GitHub beside the
-		// name; the row is measured again with it.
-		if (OpenOnGithubButtonAction != nullptr && OpenOnGithubButtonAction->isVisible() != (IdentityAction->isVisible() && PageContext.has_value())) {
-			apply_strip_width();
-		}
+		// [[BPR-1418]]. Content changes invalidate the row even when both
+		// widgets were hidden during loading. Measure from the new identity
+		// and context rather than using the prior visibility as admission.
+		apply_strip_width();
 		// The gap BPR-0191 recorded closes here. In the two-window arrangement
 		// the anchor could only follow a conversation projection, because nothing
 		// observed a comparison context change. The shell composes both surfaces,
@@ -11150,10 +11148,7 @@ namespace bpr::qt {
 		if (RepositoriesTree != nullptr) {
 			RepositoriesTree->forget_open_pull_request();
 		}
-		update_strip_identity();
-		if (OpenOnGithubButtonAction != nullptr && OpenOnGithubButtonAction->isVisible()) {
-			apply_strip_width();
-		}
+		apply_strip_width();
 		update_rail_summaries();
 		PullRequestPanel->clear();
 		clear_overview();

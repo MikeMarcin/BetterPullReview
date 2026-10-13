@@ -13490,6 +13490,134 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1418]]. Content arriving after the loading surface settles the
+	/// title row at its current width; navigation and geometry are not repairs.
+	void test_title_row_settles_on_content_publication()
+	{
+		for (const auto viewportWidth : { 1'920, 1'280, 1'100, 900 }) {
+			qt::workbench_window window;
+			window.resize(std::max(viewportWidth, window.minimumWidth()), 820);
+			window.show();
+			process_events();
+			auto pages = std::vector<application::pull_request_page_intent>{ };
+			window.set_pull_request_page_dispatch([&](const application::pull_request_page_intent& aIntent) {
+				pages.push_back(aIntent);
+				return core::markdown_link_result::opened;
+			});
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } } });
+			window.publish(application::github_presentation_update{
+				.ReadProgress = application::github_read_progress{ .PagesReceived = 1U, .Sequence = 2U } });
+			window.publish(application::github_presentation_update{
+				.ReadProgress = application::github_read_progress{ .PagesReceived = 2U, .Sequence = 4U } });
+			const auto commands = core::project_workbench_commands(core::workbench_interaction_state{ });
+			window.publish(application::workbench_projection{ .Commands = commands });
+			process_events();
+			expect(!window.showing_home() && !window.identity_label()->isVisible() && !window.open_on_github_button()->isVisible(),
+				   "the first read has shown its loading review before any identity is accepted");
+			const auto fixedSize = window.size();
+			auto       accepted  = application::github_pull_request_projection{
+				.Repository      = core::repository_id{ 10U },
+				.PullRequest     = core::pull_request_id{ 11U },
+				.Owner           = "microsoft",
+				.RepositoryName  = "terminal",
+				.Number          = core::pull_request_number{ 20607U },
+				.Title           = "Fix the accepted title row without a corrective gesture",
+				.MarkdownContext = page_context(1U),
+			};
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{
+					.Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready } },
+				.PullRequest = accepted,
+			});
+			process_events();
+			const auto expectCurrent = [&] {
+				const auto name = window.identity_label()->geometry();
+				const auto page = window.open_on_github_button()->geometry();
+				expect(window.size() == fixedSize && window.identity_label()->isVisible()
+						   && window.identity_label()->text().contains(QStringLiteral("#%1").arg(accepted.Number.value()))
+						   && window.identity_label()->toolTip().endsWith(QString::fromStdString(accepted.Title)),
+					   "accepted content shows the current identity without resizing or a Home round trip");
+				expect(window.open_on_github_button()->isVisible() && window.open_on_github_action()->isEnabled()
+						   && page.left() >= name.right() && page.left() - name.right() <= 8,
+					   "accepted content places its browser button beside its name at the unchanged width");
+				const auto* const extension = window.primary_toolbar()->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+				expect(extension == nullptr || !extension->isVisible(), "content publication overflows no title-row control");
+				window.open_on_github_button()->click();
+				expect(!pages.empty() && std::get<core::markdown_context>(pages.back()) == *accepted.MarkdownContext,
+					   "the title-row gesture names only the latest accepted browser context");
+			};
+			expectCurrent();
+			save_open_on_github_render(*window.primary_toolbar(), QStringLiteral("accepted-%1").arg(viewportWidth));
+			auto selected = application::workbench_projection{
+				.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
+																  .File = core::file_identity_of("src/selected.cpp"), .Ordinal = 3U, .ActionableCount = 40U } },
+				.Commands  = commands,
+			};
+			window.publish(selected);
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			const auto position      = window.file_position_label()->text();
+			accepted.Title           = "Current title with a very different length";
+			accepted.MarkdownContext = page_context(2U);
+			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+			process_events();
+			expectCurrent();
+			expect(window.current_modality() == qt::review_modality::discuss && window.file_position_label()->text() == position,
+				   "same-PR content publication retains the chosen modality and selected-file position");
+			const auto stable = std::pair{ window.identity_label()->geometry(), window.open_on_github_button()->geometry() };
+			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+			process_events();
+			expectCurrent();
+			expect(stable == std::pair{ window.identity_label()->geometry(), window.open_on_github_button()->geometry() },
+				   "same-content republication does not oscillate the title row");
+			window.choose_home(true);
+			accepted.Title           = "Latest title accepted behind Home";
+			accepted.MarkdownContext = page_context(3U);
+			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+			process_events();
+			expect(window.showing_home() && !window.identity_label()->isVisible() && !window.open_on_github_button()->isVisible(),
+				   "a retained accepted update preserves Home and its title-row rules");
+			window.choose_home(false);
+			process_events();
+			expectCurrent();
+			window.show_local_cycle(QStringLiteral("A retained local cycle"));
+			accepted.Title           = "Updated behind the local cycle";
+			accepted.MarkdownContext = page_context(4U);
+			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+			process_events();
+			expect(window.identity_label()->isVisible() && window.identity_label()->text().contains(QStringLiteral("A retained local cycle"))
+					   && !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled(),
+				   "same-PR publication retains the local cycle and never offers its browser button");
+			window.leave_local_cycle();
+			process_events();
+			expectCurrent();
+			window.show_local_cycle(QStringLiteral("A cycle superseded by a new PR"));
+			accepted.Repository      = core::repository_id{ 20U };
+			accepted.PullRequest     = core::pull_request_id{ 21U };
+			accepted.Owner           = "new-owner";
+			accepted.RepositoryName  = "new-repository";
+			accepted.Number          = core::pull_request_number{ 42U };
+			accepted.Title           = "Replacement";
+			accepted.MarkdownContext = page_context(5U);
+			window.publish(application::github_presentation_update{ .PullRequest = accepted });
+			process_events();
+			expectCurrent();
+			accepted.MarkdownContext.reset();
+			window.publish(application::github_presentation_update{ .PullRequest = accepted });
+			process_events();
+			expect(window.identity_label()->isVisible() && !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled(),
+				   "removing the accepted browser context retains only the current identity");
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{ .PullRequest = core::pull_request_summary_delta{ } } });
+			process_events();
+			expect(window.identity_label()->text().isEmpty() && !window.identity_label()->isVisible()
+					   && !window.open_on_github_button()->isVisible() && !window.open_on_github_action()->isEnabled() && window.size() == fixedSize,
+				   "clearing accepted content leaves no old identity or browser target at the unchanged width");
+		}
+	}
+
 	/// [[BPR-1338]]. Open on GitHub from Home: a queue row's icon on hover, its
 	/// right-click menu, and the window's key on the row made current; a
 	/// Recently viewed row's menu. Each names the row, never an address.
@@ -14818,6 +14946,7 @@ auto main(int argc, char** argv) -> int
 	// directly past the epoch-row assertion [[BPR-0940]] owns.
 	// [[BPR-1338]]. Open on GitHub beside the title and from Home's rows.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--open-on-github"))) {
+		test_title_row_settles_on_content_publication();
 		test_open_on_github_beside_the_title();
 		test_open_on_github_from_home_rows();
 		std::cout << "workbench-open-on-github:pass\n";
@@ -14831,6 +14960,7 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
 		test_compact_icon_row_preserves_exact_order_and_edges();
+		test_title_row_settles_on_content_publication();
 		test_open_on_github_beside_the_title();
 		test_strip_identity_stays_at_every_width();
 		test_review_bar_geometry_is_stable_while_working();
@@ -14924,6 +15054,7 @@ auto main(int argc, char** argv) -> int
 	test_one_pane_places_threads_on_their_own_changed_rows();
 	test_collapsing_a_drawer_returns_space_to_the_centre();
 	test_strip_modalities_positions_and_account();
+	test_title_row_settles_on_content_publication();
 	test_strip_identity_stays_at_every_width();
 	test_review_bar_geometry_is_stable_while_working();
 	test_the_review_bar_yields_dates_then_words();

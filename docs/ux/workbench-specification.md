@@ -68,6 +68,13 @@ canonical page from the accepted hostname, owner, repository and number. The
 system browser opener still refuses anything but an absolute HTTP(S) address
 with a host and no userinfo.
 
+Accepted content settles the name, browser button and their width allocation
+from the current publication at the existing window width ([[BPR-1418]]).
+This includes first acceptance after a loading surface, replacement,
+republication and clear; neither a resize nor a Home round trip is required.
+A content update that preserves navigation keeps Home, the chosen modality
+and selected file; a retained local cycle keeps its own name without the button.
+
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
 Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
 modality rather than by position, and Threads on `Ctrl+4` (⌘4) since
