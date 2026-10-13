@@ -3529,6 +3529,25 @@ relations, the paged read and mutation readers require exactly one quoted
 relation per link, and the publication reader refuses any `next` or an
 unreadable header.
 
+## Core sha1collisiondetection
+
+[[BPR-1450]] builds sha1collisiondetection at pinned commit
+`a06f1adbe5522f3c939cd6a3f13d5ec7f4c1a988` for every SHA-1 Git object
+identity: `cmake/BprSha1dcProvider.cmake` checks archive SHA-256, size and
+license, honors the offline cache, re-extracts under `build/_bpr/sha1dc`, and
+compiles only `lib/sha1.c` and `lib/ubc_check.c` as Git configures them
+(`SHA1DC_NO_STANDARD_INCLUDES`, `SHA1DC_INIT_SAFE_HASH_DEFAULT=0`, the
+standard headers in `third_party/sha1collisiondetection/sha1dc_includes.h`).
+It is part of the Qt-free core graph and on the owner's core allow-list. The
+core SHA-1 (`bpr/core/sha1.hpp`) and every Git identity API refuse an input the
+library detects as a collision attack, with a reason named
+`collision_detected`; `core_git_objects` reads the committed pairs in
+`tests/fixtures/sha1-collisions`. `architecture_boundaries` leaves Qt's plain
+SHA-1 only to the pack checksum in `installed_git_cache.cpp` and refuses any
+other SHA-1 implementation outside `src/core/src/sha1_collision_detecting.cpp`.
+The hash evaluation (`-DBPR_HASH_EVALUATION=ON`) measures this same target.
+License and provenance are under `third_party/sha1collisiondetection/`.
+
 ## Source search regex engine
 
 [[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as

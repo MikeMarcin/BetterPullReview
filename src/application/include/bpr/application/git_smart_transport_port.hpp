@@ -88,6 +88,9 @@ namespace bpr::application {
 		response_limit,
 		malformed_response,
 		consumer_rejected,
+		/// SHA-1 collision detection refused a fetched object's bytes; they
+		/// are not returned ([[BPR-1450]]).
+		collision_detected,
 	};
 
 	/// \brief Closed diagnostic location within object acquisition; never grants authority or changes failure policy.

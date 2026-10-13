@@ -3,9 +3,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 # [[BPR-1446]]. RFC-BPR-0080's evaluation-only hash candidates. Nothing here is
 # part of the product: only tests/hash_evaluation includes this file, and only
-# when BPR_HASH_EVALUATION is ON. Core links none of these targets, and none of
-# them is in core's link allow-list (cmake/VerifyCoreBoundary.cmake) until the
-# owner answers the RFC's Q1 and Q2.
+# when BPR_HASH_EVALUATION is ON. Core links none of these targets.
 #
 # Each archive is pinned by SHA-256 and size, verified before use, and
 # extracted again from the verified archive into the build tree, so an edited
@@ -40,40 +38,18 @@ function(bpr_hash_evaluation_require_digest aFile aDigest)
     endif()
 endfunction()
 
-# Defines better_pull_review_eval_sha1dc and better_pull_review_eval_hacl_sha2,
-# and sets aVectors to the directory of the NIST CAVP byte-oriented SHA vectors
-# and aCollisions to sha1dc's collision test files.
+# Defines better_pull_review_eval_hacl_sha2, and sets aVectors to the
+# directory of the NIST CAVP byte-oriented SHA vectors and aCollisions to
+# sha1dc's collision test files. sha1collisiondetection itself is the
+# product's BetterPullReview::Sha1dc ([[BPR-1450]]): the core links it, so the
+# evaluation measures that same target instead of building a second copy.
 function(bpr_acquire_hash_evaluation aVectors aCollisions)
-    if(TARGET better_pull_review_eval_sha1dc OR TARGET better_pull_review_eval_hacl_sha2)
+    if(TARGET better_pull_review_eval_hacl_sha2)
         message(FATAL_ERROR "Hash evaluation targets must be owned by the pinned provider")
     endif()
-
-    # sha1collisiondetection master, 2026-10-13: Git's and GitHub's SHA-1.
-    set(sha1dc_revision "a06f1adbe5522f3c939cd6a3f13d5ec7f4c1a988")
-    bpr_hash_evaluation_archive(
-        sha1dc
-        "https://codeload.github.com/cr-marcstevens/sha1collisiondetection/tar.gz/${sha1dc_revision}"
-        "sha1collisiondetection-${sha1dc_revision}.tar.gz"
-        "b9c89e19a1b02cb623d81515b5a281781a8c3f2296a2548854f5e1455b1b1729"
-        787039
-        sha1dc_stage
-    )
-    set(sha1dc "${sha1dc_stage}/sha1collisiondetection-${sha1dc_revision}")
-    bpr_hash_evaluation_require_digest("${sha1dc}/LICENSE.txt" "9daac99c665ddc38fde6d7c91b9173c112d5e6c6e7e5f7d8bb8747c630efc83d")
-    add_library(better_pull_review_eval_sha1dc STATIC "${sha1dc}/lib/sha1.c" "${sha1dc}/lib/ubc_check.c")
-    target_include_directories(better_pull_review_eval_sha1dc SYSTEM PUBLIC "${sha1dc}/lib")
-    target_include_directories(better_pull_review_eval_sha1dc PRIVATE "${PROJECT_SOURCE_DIR}/tests/hash_evaluation")
-    # Configured as Git configures it: plain SHA-1 output (no safe-hash
-    # substitution), detection and unavoidable-bit-condition checks on, and
-    # no standard headers beyond the ones named in sha1dc_includes.h.
-    target_compile_definitions(
-        better_pull_review_eval_sha1dc
-        PRIVATE
-            SHA1DC_NO_STANDARD_INCLUDES
-            SHA1DC_INIT_SAFE_HASH_DEFAULT=0
-            "SHA1DC_CUSTOM_INCLUDE_SHA1_C=\"sha1dc_includes.h\""
-            "SHA1DC_CUSTOM_INCLUDE_UBC_CHECK_C=\"sha1dc_includes.h\""
-    )
+    if(NOT TARGET BetterPullReview::Sha1dc OR NOT BPR_SHA1DC_TEST_DIRECTORY)
+        message(FATAL_ERROR "The hash evaluation needs the product's sha1collisiondetection provider")
+    endif()
 
     # HACL* main, 2026-10-13: the generated portable C, in the distribution
     # HACL* generates for the compiler (dist/msvc-compatible for MSVC).
@@ -111,14 +87,12 @@ function(bpr_acquire_hash_evaluation aVectors aCollisions)
         cavp_stage
     )
 
-    foreach(target IN ITEMS better_pull_review_eval_sha1dc better_pull_review_eval_hacl_sha2)
-        set_target_properties("${target}" PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 11 C_STANDARD_REQUIRED ON)
-        # The core is built hardened, so the candidates are measured the same
-        # way. MSVC's /sdl is left to the Windows station to try.
-        if(NOT MSVC)
-            bpr_enable_hardening("${target}")
-        endif()
-    endforeach()
+    set_target_properties(better_pull_review_eval_hacl_sha2 PROPERTIES POSITION_INDEPENDENT_CODE ON C_STANDARD 11 C_STANDARD_REQUIRED ON)
+    # The core is built hardened, so the candidate is measured the same way.
+    # MSVC's /sdl is left to the Windows station to try.
+    if(NOT MSVC)
+        bpr_enable_hardening(better_pull_review_eval_hacl_sha2)
+    endif()
     set(${aVectors} "${cavp_stage}/shabytetestvectors" PARENT_SCOPE)
-    set(${aCollisions} "${sha1dc}/test" PARENT_SCOPE)
+    set(${aCollisions} "${BPR_SHA1DC_TEST_DIRECTORY}" PARENT_SCOPE)
 endfunction()

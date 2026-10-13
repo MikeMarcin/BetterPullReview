@@ -54,9 +54,16 @@ def cache_entry(build_directory: Path, name: str) -> str | None:
 
 def copy_core_archives(cache: Path) -> None:
     """The Qt-free core graph needs SQLite, zlib ([[BPR-1435]]), utf8proc
-    ([[BPR-1434]]), glaze ([[BPR-1433]]) and fmt ([[BPR-1439]])."""
+    ([[BPR-1434]]), glaze ([[BPR-1433]]), fmt ([[BPR-1439]]) and
+    sha1collisiondetection ([[BPR-1450]])."""
     cache.mkdir(parents=True, exist_ok=True)
-    for archive in ("zlib-1.3.2.tar.gz", "utf8proc-2.12.0.tar.gz", "glaze-v8.3.0.tar.gz", "fmt-12.2.0.zip"):
+    for archive in (
+        "zlib-1.3.2.tar.gz",
+        "utf8proc-2.12.0.tar.gz",
+        "glaze-v8.3.0.tar.gz",
+        "fmt-12.2.0.zip",
+        "sha1collisiondetection-a06f1adbe5522f3c939cd6a3f13d5ec7f4c1a988.tar.gz",
+    ):
         shutil.copy2(CPM_SOURCE_CACHE / archive, cache / archive)
 
 
@@ -530,6 +537,11 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         targets = {record.split("|", 2)[2] for record in records}
         self.assertIn("Threads::Threads", targets)
+        # [[BPR-1450]]. Every graph, Qt or not, builds the core's SHA-1.
+        self.assertIn(
+            "sha1collisiondetection|PINNED_ARCHIVE|BetterPullReview::Sha1dc",
+            records,
+        )
         if any(target.startswith("Qt6::") for target in targets):
             self.assertIn("Quill|PINNED_ARCHIVE|quill::quill", records)
             self.assertIn("Glaze|PINNED_ARCHIVE|glaze::glaze", records)

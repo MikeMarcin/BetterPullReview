@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8244918caf3dde2daf759c840f8dad2a29728b060019040f32dfe566fb8b2042"
+		"33fc265e38f6a7036fd91dcec648bc78d45a7dda7be0d24048a73a31eb54ad8f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5c7e0ec424d38fe727e2fb9ae9404e41a3f73e9a177cfae50fe82acd4c1bc48d"
+        "e6e69f402bd424b125179e620ca5824bb0842c7f3db5ea880cb3bbc3183d6812"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2394,5 +2394,19 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # next accepted read clears it. The start-review `finish` course gains a
 # reopen-from-Recent phase and evidence bit (main.cpp prints it;
 # github_application_fixture_access.hpp holds it). No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.
+
+# [[BPR-1475]] reseal, over main a05bf2623. github_application.cpp: every
+# reopen reads fresh (owner, 2026-10-13), so BPR-1472's reuse of the shown
+# read and its publication record are removed. After a review, comment, reply
+# or tour publishes (not on an unknown outcome) the window dispatches
+# the core's refresh of the shown pull request itself, once, after any read
+# in flight settles; a new comment being written is held again and reopened
+# in the drawer (core::resume_comment_after_refresh). The review submission
+# workflow gains a publication observer. The start-review `pending` course
+# waits for the single comment's reread; the `finish` course gains two
+# evidence bits (main.cpp prints them;
+# github_application_fixture_access.hpp holds them). No publication,
 # credential, grant, inventory or mutation-branch change; the full
 # application and production-manifest digests are refreshed.

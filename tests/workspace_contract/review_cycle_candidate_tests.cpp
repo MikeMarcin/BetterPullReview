@@ -214,7 +214,7 @@ namespace {
 		const auto logo      = std::ranges::find(candidate.Entries, std::string_view{ "assets/logo.bin" }, &core::git_tree_entry::Path);
 		const auto logoBytes = binary(2048, 3);
 		expect(logo != candidate.Entries.end()
-				   && logo->Object == core::retag<core::git_entry_oid_kind>(core::git_blob_identity(std::vector<std::uint8_t>(logoBytes.begin(), logoBytes.end()), candidate.Format)),
+				   && logo->Object == core::retag<core::git_entry_oid_kind>(core::git_blob_identity(std::vector<std::uint8_t>(logoBytes.begin(), logoBytes.end()), candidate.Format).value()),
 			   "binary bytes preserved exactly");
 		const auto model = std::ranges::find(candidate.Entries, std::string_view{ "models/model.bin" }, &core::git_tree_entry::Path);
 		expect(aGit.output(verify, { "cat-file", "blob", core::canonical_hex(model->Object).view() }, base / "model.txt") + "\n" == pointer, "the LFS pointer stays P's");

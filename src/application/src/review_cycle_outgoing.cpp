@@ -38,6 +38,13 @@ namespace bpr::application {
 			return { .Status = cycle_outgoing_status::material, .Material = aStatus };
 		}
 
+		/// [[BPR-1450]]. SHA-1 collision detection refused an object the plan
+		/// needs an identity for; nothing is substituted.
+		auto collision_refusal() -> cycle_outgoing_outcome
+		{
+			return { .Status = cycle_outgoing_status::refused, .Refusal = core::outgoing_refusal::collision_detected };
+		}
+
 		auto git_failure(publication_git_error aError) -> cycle_outgoing_outcome
 		{
 			if (aError.Failure == publication_git_failure::cancelled) {
@@ -120,7 +127,11 @@ namespace bpr::application {
 				return std::unexpected(git_failure(std::move(listing.error())));
 			}
 			// The listing is admitted only for the tree the commit's own bytes name.
-			if (core::verified_commit_tree(listing->CommitObject, aCommit) != listing->Tree) {
+			const auto tree = core::verified_commit_tree(listing->CommitObject, aCommit);
+			if (!tree && tree.error() == core::verified_commit_error::collision_detected) {
+				return std::unexpected(collision_refusal());
+			}
+			if (tree != listing->Tree) {
 				return std::unexpected(git_failure({ .Failure = publication_git_failure::malformed }));
 			}
 			return std::move(*listing);
@@ -174,10 +185,18 @@ namespace bpr::application {
 				if (bytes.Status != review_material_status::available) {
 					return materialStop(bytes.Status);
 				}
-				auto identity = core::outgoing_identity{ .Content = *entry.Content, .Raw = core::retag<core::git_entry_oid_kind>(core::git_blob_identity(bytes.Bytes, algorithm)) };
+				const auto raw = core::git_blob_identity(bytes.Bytes, algorithm);
+				if (!raw && raw.error() == core::git_object_refusal::collision_detected) {
+					return std::unexpected(collision_refusal());
+				}
+				auto identity = core::outgoing_identity{ .Content = *entry.Content, .Raw = core::retag<core::git_entry_oid_kind>(raw.value_or(core::git_blob_oid{ })) };
 				if (entry.Profile.text() && (entry.Profile.LineEndings == core::material_line_endings::crlf || entry.Profile.LineEndings == core::material_line_endings::mixed)) {
 					if (const auto normalized = core::line_feed_form(bytes.Bytes)) {
-						identity.LineFeed = core::retag<core::git_entry_oid_kind>(core::git_blob_identity(*normalized, algorithm));
+						const auto lineFeed = core::git_blob_identity(*normalized, algorithm);
+						if (!lineFeed && lineFeed.error() == core::git_object_refusal::collision_detected) {
+							return std::unexpected(collision_refusal());
+						}
+						identity.LineFeed = core::retag<core::git_entry_oid_kind>(lineFeed.value_or(core::git_blob_oid{ }));
 					}
 				}
 				request.Identities.push_back(identity);
@@ -241,7 +260,11 @@ namespace bpr::application {
 				bytes.Bytes = std::move(*normalized);
 			}
 			// The bytes must be the object the plan named before Git sees them.
-			if (core::retag<core::git_entry_oid_kind>(core::git_blob_identity(bytes.Bytes, aAssembled.Repository.Algorithm)) != blob.Object) {
+			const auto identity = core::git_blob_identity(bytes.Bytes, aAssembled.Repository.Algorithm);
+			if (!identity && identity.error() == core::git_object_refusal::collision_detected) {
+				return collision_refusal();
+			}
+			if (!identity || core::retag<core::git_entry_oid_kind>(*identity) != blob.Object) {
 				return material_failure(review_material_status::corrupt);
 			}
 			if (auto written = Git.write_blob(aAssembled.Repository, blob.Object, bytes.Bytes, aStop); !written) {

@@ -102,6 +102,14 @@ namespace bpr::core {
 	/// in-place reply.
 	[[nodiscard]] auto resume_reply_after_refresh(std::span<const review_comment_draft> aDrafts, review_draft_id aHeld, const reply_thread_observation& aThreads) -> std::optional<review_draft_id>;
 
+	/// \brief [[BPR-1475]]. The new comment the editor held before a
+	/// reread, to be held again after it.
+	/// \details The window rereads a pull request by itself after it
+	/// publishes, so a reread must not take away a note being written. The
+	/// same comment is held again while it is still being written; one sent,
+	/// discarded or turned into a reply in the meantime is not.
+	[[nodiscard]] auto resume_comment_after_refresh(std::span<const review_comment_draft> aDrafts, review_draft_id aHeld) -> std::optional<review_draft_id>;
+
 	/// \brief [[BPR-1374]]. Keeps a reply whose thread is gone as a new
 	/// comment on its line, with its words, at the revision given.
 	/// \returns The command, or none when the decision does not allow it.

@@ -88,7 +88,7 @@ namespace bpr::tests {
 			const auto trailer = core::sha256(out);
 			out.insert(out.end(), trailer.begin(), trailer.end());
 		} else {
-			const auto trailer = core::sha1(out);
+			const auto trailer = core::sha1(out).value();
 			out.insert(out.end(), trailer.begin(), trailer.end());
 		}
 		return out;

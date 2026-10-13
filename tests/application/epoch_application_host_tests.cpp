@@ -5591,7 +5591,7 @@ namespace {
 		const auto terminator = std::array<std::uint8_t, 1U>{ 0U };
 		hash.update(terminator);
 		hash.update(std::span{ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() });
-		const auto digest = hash.finish();
+		const auto digest = hash.finish().value();
 		auto       bytes  = std::array<std::uint8_t, 32U>{ };
 		std::ranges::copy(digest, bytes.begin());
 		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };

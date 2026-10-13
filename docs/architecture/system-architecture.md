@@ -855,7 +855,9 @@ three steps, each inside an existing bound:
   through `git_smart_transport_port::read_exact_blobs`, after the actor proves
   each endpoint durably sparse exactly as a single exact read must. The round
   trip runs on the preparing thread, never on the actor. The host checks every
-  answer's SHA-1 against its object ID before it keeps it. Verified bytes,
+  answer's SHA-1 against its object ID before it keeps it, through the core's
+  collision-detecting SHA-1 (sha1collisiondetection, [[BPR-1450]]), as the
+  transport does; a detected input is refused, never retained. Verified bytes,
   including those of single exact reads, are retained per actor (at most 256
   blobs and 16 MiB) and dropped on authority replacement or revocation, so the
   classifier's second read of a blob and a revisit do not cross the network

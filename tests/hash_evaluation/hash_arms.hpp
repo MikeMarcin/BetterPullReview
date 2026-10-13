@@ -67,6 +67,10 @@ namespace bpr::hash_evaluation {
 	/// detecting reduced-round collisions (its own test vector needs that).
 	[[nodiscard]] auto make_sha1dc(bool aDetectReducedRound) -> std::unique_ptr<hash_arm>;
 
+	/// \brief A SHA-1 without collision detection (the evaluation's
+	/// first-party block arm), the plain-SHA-1 control for collision inputs.
+	[[nodiscard]] auto make_plain_sha1() -> std::unique_ptr<hash_arm>;
+
 	/// \brief A platform reference of \p aAlgorithm (CommonCrypto on macOS), if
 	/// this build has one.
 	[[nodiscard]] auto make_platform_reference(hash_algorithm aAlgorithm) -> std::unique_ptr<hash_arm>;

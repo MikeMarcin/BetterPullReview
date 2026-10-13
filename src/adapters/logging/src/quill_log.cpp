@@ -87,6 +87,7 @@ namespace bpr::adapters::logging {
 			case application::git_smart_transport_failure::response_limit:     return "response_limit";
 			case application::git_smart_transport_failure::malformed_response: return "malformed_response";
 			case application::git_smart_transport_failure::consumer_rejected:  return "consumer_rejected";
+			case application::git_smart_transport_failure::collision_detected: return "collision_detected";
 			}
 			return "unknown";
 		}

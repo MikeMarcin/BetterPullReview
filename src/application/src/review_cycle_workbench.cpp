@@ -125,6 +125,8 @@ namespace bpr::application {
 			case core::candidate_limit::signing_required: return "This repository requires signed commits, which BetterPullReview does not make. Save a patch and commit it with your own Git tools.";
 			case core::candidate_limit::normalization:    return "Line endings can be changed only for selected text files with CRLF endings.";
 			case core::candidate_limit::metadata:         return "Give the commit a one-line title and an author name and email.";
+			case core::candidate_limit::collision_detected:
+				return "Git's SHA-1 collision detection refused an object of this commit, so it was not built. Nothing was substituted.";
 			}
 			return "The commit cannot be built as chosen.";
 		}
@@ -147,6 +149,9 @@ namespace bpr::application {
 			case cycle_outgoing_status::refused:
 				if (aOutcome.Refusal == core::outgoing_refusal::repository_required) {
 					return "This project is not a Git checkout. A pull request starts from a commit, so publish from a checkout of the repository.";
+				}
+				if (aOutcome.Refusal == core::outgoing_refusal::collision_detected) {
+					return "Git's SHA-1 collision detection refused content this plan needs, so nothing was planned or substituted.";
 				}
 				return "The outgoing content cannot be planned (" + std::string{ aOutcome.Refusal ? core::name(*aOutcome.Refusal) : "refused" } + ").";
 			case cycle_outgoing_status::limited:   return "Nothing differs from the base commit, so there is nothing to publish.";
@@ -189,6 +194,7 @@ namespace bpr::application {
 			case cycle_publish_limit::blob_too_large:       return "A file is over the 128 KiB upload bound. Save a patch instead." + nothing;
 			case cycle_publish_limit::material:             return "Retained material for this plan is missing or damaged." + nothing;
 			case cycle_publish_limit::pull_request_exists:  return "A pull request for " + destination.NewBranch + " already exists. If it is yours, link it. Nothing more was sent." + held_words(aJournal);
+			case cycle_publish_limit::collision_detected:   return "Git's SHA-1 collision detection refused a file of this plan, so it was not uploaded." + nothing;
 			}
 			return "Nothing was sent.";
 		}

@@ -4,8 +4,8 @@
 #include "github_viewer_named_blob_read.hpp"
 
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/core/git_objects.hpp"
 
-#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -14,9 +14,13 @@
 #include <array>
 #include <charconv>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <expected>
 #include <fstream>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <stdexcept>
 
 namespace bpr::adapters::github::detail {
@@ -29,6 +33,15 @@ namespace bpr::adapters::github::detail {
 			.LsRefs       = true,
 			.Fetch        = true,
 		};
+
+		/// [[BPR-1450]]. A fetched blob's identity through the core's
+		/// collision-detecting SHA-1, as the host checks it; never through
+		/// QCryptographicHash.
+		[[nodiscard]] auto blob_identity(const QByteArray& aBytes) -> std::expected<core::git_blob_oid, core::git_object_refusal>
+		{
+			const auto bytes = std::span{ reinterpret_cast<const std::uint8_t*>(aBytes.constData()), static_cast<std::size_t>(aBytes.size()) };
+			return core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		}
 
 		// Git 2.49 introduced clone --revision, which keeps acquisition on exact accepted IDs.
 		[[nodiscard]] auto supports_exact_revision_version(std::string_view aBanner) -> bool
@@ -340,12 +353,12 @@ namespace bpr::adapters::github::detail {
 					if (!decoded || decoded.decoded.toBase64() != encoded || static_cast<std::size_t>(decoded.decoded.size()) != count) {
 						return malformed;
 					}
-					QCryptographicHash hash{ QCryptographicHash::Sha1 };
-					auto               header = QByteArray{ "blob " } + QByteArray::number(static_cast<qulonglong>(count));
-					header.append('\0');
-					hash.addData(header);
-					hash.addData(decoded.decoded);
-					if (hash.result().toHex().toStdString() != core::canonical_hex(aRequest.ExpectedBlob).view()) {
+					// The core's collision-detecting SHA-1, the same check as the host's.
+					const auto blob = blob_identity(decoded.decoded);
+					if (!blob && blob.error() == core::git_object_refusal::collision_detected) {
+						return std::unexpected{ git_smart_transport_error{ failure::collision_detected, git_smart_transport_step::object_check } };
+					}
+					if (!blob || *blob != aRequest.ExpectedBlob) {
 						return malformed;
 					}
 					if (stop.stop_requested()) {
@@ -474,12 +487,9 @@ namespace bpr::adapters::github::detail {
 					if (static_cast<double>(text.size()) != size.toDouble()) {
 						continue;
 					}
-					QCryptographicHash hash{ QCryptographicHash::Sha1 };
-					auto               header = QByteArray{ "blob " } + QByteArray::number(static_cast<qulonglong>(text.size()));
-					header.append('\0');
-					hash.addData(header);
-					hash.addData(text);
-					if (hash.result().toHex().toStdString() != expected) {
+					// A mismatch or a collision detection leaves the answer absent.
+					const auto blob = blob_identity(text);
+					if (!blob || *blob != aRequest.ExpectedBlobs[index]) {
 						continue;
 					}
 					result[index] = bytes(std::string_view{ text.constData(), static_cast<std::size_t>(text.size()) });
