@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 explicit touched C++ format22",
+  "outcome": "pass",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/adapters/qt/include/bpr/qt/diff_workbench.hpp\", \"src/adapters/qt/include/bpr/qt/workbench_window.hpp\", \"src/adapters/qt/include/bpr/qt/source_find_bar.hpp\", \"src/adapters/qt/src/desktop_menu_bar.cpp\", \"src/adapters/qt/src/diff_workbench.cpp\", \"src/adapters/qt/src/workbench_window.cpp\", \"src/adapters/qt/src/source_find_bar.cpp\", \"src/app/src/github_application.cpp\", \"src/app/src/github_application_fixture_access.hpp\", \"src/app/src/github_public_path_fixture.cpp\", \"src/app/src/pane_find_controller.hpp\", \"src/app/src/pane_find_controller.cpp\", \"src/application/include/bpr/application/source_search_host.hpp\", \"src/application/include/bpr/application/source_search_projection.hpp\", \"src/core/include/bpr/core/source_search.hpp\", \"tests/adapters_qt/diff_workbench_tests.cpp\", \"tests/end_to_end/source_find_public_path_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.8,
+    "stdout_tail": "Checking 17 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/adapters/qt/include/bpr/qt/diff_workbench.hpp\nsrc/adapters/qt/include/bpr/qt/source_find_bar.hpp\nsrc/adapters/qt/include/bpr/qt/workbench_window.hpp\nsrc/adapters/qt/src/desktop_menu_bar.cpp\nsrc/adapters/qt/src/diff_workbench.cpp\nsrc/adapters/qt/src/source_find_bar.cpp\nsrc/adapters/qt/src/workbench_window.cpp\nsrc/app/src/github_application.cpp\nsrc/app/src/github_application_fixture_access.hpp\nsrc/app/src/github_public_path_fixture.cpp\nsrc/app/src/pane_find_controller.cpp\nsrc/app/src/pane_find_controller.hpp\nsrc/application/include/bpr/application/source_search_host.hpp\nsrc/application/include/bpr/application/source_search_projection.hpp\nsrc/core/include/bpr/core/source_search.hpp\ntests/adapters_qt/diff_workbench_tests.cpp\ntests/end_to_end/source_find_public_path_tests.cpp\n",
+    "stderr_tail": ""
+  }
+}

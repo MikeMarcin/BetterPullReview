@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 documentation closeout",
+  "outcome": "pass",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.301,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}

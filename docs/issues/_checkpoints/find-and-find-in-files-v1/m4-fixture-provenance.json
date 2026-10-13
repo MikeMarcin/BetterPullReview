@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 synthetic fixture provenance and exact served contract",
+  "outcome": "pass",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"tests/scripts/recorded_pull_request_fixture_tests.py\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.58,
+    "stdout_tail": "RECORDED_FIXTURE_OK\n",
+    "stderr_tail": ""
+  }
+}

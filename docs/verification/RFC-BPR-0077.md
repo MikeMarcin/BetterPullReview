@@ -190,20 +190,68 @@ shipped commands, decoration/reveal composition, native judgement and final warm
 public-path performance. The failed M1 269/272 full-core result remains retained;
 it was not rerun or replaced by a global passing claim.
 
+## M4 native pane Find
+
+[[BPR-1422]] accepts all three pane-find exits on exact product candidate
+`a7fb9af0a2e0f0a21ab0de86c3a938a70af28626`, under the unchanged mandate/run/segment. The
+[acceptance](../issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json)
+and [self-review](../issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json)
+bind the shipped source path. Original AC01/AC02 pass; AC07's pane slice passes.
+The required frontend-design skill was applied before UI work, retaining native
+palette roles, UI/source fonts and controls without QSS.
+
+The course opens a synthetic PR through the real application, account/PR/Review
+entry, exact epoch/cache loading and installed Git. Physical Find/F3/Shift-F3 and
+View actions reach both full split documents, including offscreen unchanged
+source. Unified Find searches unchanged rows once and actual removed/added
+versions; opposing visual rows cannot manufacture a multiline occurrence.
+Native caret/selection/escaped regex seeding, multiline/IME input, fixed original
+selection bounds, Unicode/CRLF and terminal EOF spans, match options/counts,
+invalid/unsupported patterns, input limits, wrap and focus are demonstrated.
+
+One thousand traversals preserve the same records, diff and semantic index with
+zero matcher calls and zero endpoint conversions. Closing and Next reuse a
+bounded complete exact-scope/query/options collection and cached original spans,
+then advance once. Qt has no source-read/diff/matcher effect capability. Shared
+selection/reveal uses actual-version fragments; explicit Copy yields original
+text around opposing unified rows. Painting indexes visible highlights and scroll
+track pixels without adding occurrence widgets or changing comparison geometry.
+The existing reader course still rejects a duplicate change-navigation presenter.
+
+Native full-window rasters were inspected at actual DPR 1.0, 1.25 and 2.0, with
+full-size physical frames 1280×860, 1600×1075 and 2560×1720. A requested 720-pixel
+window is constrained by the existing supported minimum to 900 logical pixels;
+narrow frames are 900×640, 1125×800 and 1800×1280. All bar controls remain visible
+and accessible, with native font/no QSS and inherited accepted dark palette.
+This is offscreen macOS/Qt evidence, not owner desktop, VoiceOver, physical
+scaling, Windows/Linux device or large-review performance evidence.
+
+Exact candidate evidence:
+
+- [Four native/public-reader courses](../issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json): all pass; 40.217 seconds. [Render identities and observations](../issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json).
+- [Five Qt-free source cases](../issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json), [architecture and network manifest](../issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json), and [fixture provenance](../issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json) pass.
+- [Seventeen-file format22](../issues/_checkpoints/find-and-find-in-files-v1/m4-format.json), [three new-TU tidy22](../issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json), [five changed-line composition TUs](../issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json) and [final source/reader-guard tidy22](../issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json) pass. No global/full-file tidy pass is claimed.
+- [Initial integration setup failure](../issues/_checkpoints/find-and-find-in-files-v1/m4-integration-setup-failure.json) retains the absent Qt-tree executables; their built core-only correction passes separately. Architecture negative contract passed in that initial run and is reused for unchanged boundaries.
+- [Fixture inventory](../issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-inventory.json) remains failed: only baseline header-source-v1/cpp-identifiers-v1 omissions. New source-find-v1 is explicitly registered and provenance-checked; no bypass or new omission is hidden.
+
+The M1 full 269/272 failure and M3 full-file tidy findings remain retained. Final
+pack integration must resolve baseline fixture registrations narrowly while
+preserving exact inventory and sanitization rejection. Documentation closeout
+receipts are recorded with the guarded milestone finish and canonical handoff.
+
 ## Whole-RFC acceptance remains pending
 
 | Criterion | State | Remaining evidence |
 |---|---|---|
-| AC01 | Pending | Real split/unified source matching, offscreen unchanged text and version-contiguous multiline semantics. |
-| AC02 | Pending | Shipped Find bar, seeding, options, selection bounds, exact Unicode/LF spans, focus and invalid-regex behavior. |
+| AC01 | Pass (M4) | Shipped split/unified native course proves both exact targets, offscreen source and actual-version multiline order. |
+| AC02 | Pass (M4) | Shipped native bar/course proves seeding/options/multiline/fixed bounds, exact Unicode/CRLF/EOF, admission, focus/wrap and invalid/unsupported syntax. |
 | AC03 | Pending | M3 foundation proves full exact/historical membership; shipped Search composition must demonstrate unopened, filtered, excluded and renamed files. |
 | AC04 | Pending | Real activation/F4 through exact tab/file/span/comparison reveal, filters and identity-proven deduplication. |
 | AC05 | Pending | Composed query/tab/epoch/authority races and pending-reveal cancellation. M1 session rejection alone is insufficient. |
 | AC06 | Pending | M3 foundation proves material/transport/cancellation/resource qualification and exact-authority retry; composed visible coverage remains. |
-| AC07 | Pending | Native command/key ownership, accessible layouts and rendered decoration coexistence through the application. |
+| AC07 | Partial (M4); pending full | Pane command/key ownership, accessible native bar and decoration coexistence pass; PR Search/F4 surface remains. |
 | AC08 | Pending | Large public-path warm/cold/cancellation/memory measurements, thresholds and usable navigation during cold scanning. Core-only foundation success alone is insufficient. |
 
-M1–M3 accept only their named engineering foundations. Qt commands/rendering,
-native, installed-package, human and whole-RFC acceptance remain pending.
-There is no human decision required for these bounded foundations, and no
-attended candidate or server is held.
+M1–M4 accept only their named milestone scope. Original AC03–AC06, complete
+AC07/AC08 and whole-RFC closeout remain pending. No human decision is required
+for M4; no attended candidate/server or owner desktop capture is held.

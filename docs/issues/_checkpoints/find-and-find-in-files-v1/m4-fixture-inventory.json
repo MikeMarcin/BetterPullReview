@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 exact fixture inventory retains inherited missing header-source/cpp-identifiers registrations",
+  "outcome": "fail",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"tests/scripts/github_contract_fixture_security_tests.py\"]",
+    "exit_code": 1,
+    "elapsed_seconds": 1.191,
+    "stdout_tail": "",
+    "stderr_tail": ".........F........\n======================================================================\nFAIL: test_fixture_tree_is_exact_and_every_byte_is_sanitized (__main__.GitHubContractFixtureSecurityTests.test_fixture_tree_is_exact_and_every_byte_is_sanitized)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/tests/scripts/github_contract_fixture_security_tests.py\", line 777, in test_fixture_tree_is_exact_and_every_byte_is_sanitized\n    self.assertEqual(actual_files, expected_files)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: Items in the first set but not the second:\n'header-source-v1/manifest.json'\n'header-source-v1/responses/commits.json'\n'cpp-identifiers-v1/responses/files.json'\n'header-source-v1/responses/search.json'\n'header-source-v1/responses/repository.json'\n'header-source-v1/responses/reviews.json'\n'header-source-v1/responses/pull_request.json'\n'cpp-identifiers-v1/responses/pull_request.json'\n'header-source-v1/responses/review_threads.json'\n'header-source-v1/responses/viewer.json'\n'cpp-identifiers-v1/responses/viewer.json'\n'cpp-identifiers-v1/manifest.json'\n'cpp-identifiers-v1/responses/issue_comments.json'\n'cpp-identifiers-v1/responses/repository.json'\n'header-source-v1/responses/issue_comments.json'\n'cpp-identifiers-v1/responses/reviews.json'\n'header-source-v1/responses/files.json'\n'header-source-v1/responses/checks.json'\n'cpp-identifiers-v1/responses/checks.json'\n'cpp-identifiers-v1/responses/commits.json'\n'cpp-identifiers-v1/responses/review_threads.json'\n'cpp-identifiers-v1/responses/search.json'\n\n----------------------------------------------------------------------\nRan 18 tests in 1.141s\n\nFAILED (failures=1)\n"
+  }
+}

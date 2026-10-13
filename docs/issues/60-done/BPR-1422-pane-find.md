@@ -1,0 +1,31 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-1422"
+title: "Native pane Find controls, decorations and exact reveal"
+status: "Done"
+rfcs: ["RFC-BPR-0077"]
+depends_on: ["BPR-1420"]
+metadata: {"milestone":"pane-find","source_id":"DRAFT-0018","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","mandate_revision":"find-and-find-in-files-v1-r1","milestone_plan":{"id":"find-and-find-in-files-v1","path":"docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a7fb9af0a2e0f0a21ab0de86c3a938a70af28626","evidence":{"kind":"observation","detail":"Whole original AC01/AC02 pass through shipped github_application split/unified source paths: full offscreen unchanged source, real caret/native selection/escaped regex seed, query and seed admission, IME/multiline options, fixed original selection, Unicode/CRLF/EOF exact span, invalid/unsupported patterns, counts/wrap/focus. No cross-version multiline fabrication.","references":["docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json"]}},{"criterion":"AC2","outcome":"pass","revision":"a7fb9af0a2e0f0a21ab0de86c3a938a70af28626","evidence":{"kind":"observation","detail":"View > Find has one action per physical shortcut with core-projected legality; Home/Overview/editor/modal guards pass. Required frontend-design applied to native bar. Inherited font/palette/no QSS and complete controls are objectively rendered at 1.0/1.25/2.0 DPR, 900 logical minimum. Existing reader guard still rejects any duplicate change presenter outside Find.","references":["docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json"]}},{"criterion":"AC3","outcome":"pass","revision":"a7fb9af0a2e0f0a21ab0de86c3a938a70af28626","evidence":{"kind":"observation","detail":"1000 traversals preserve diff/index/record identities with no matcher call or endpoint conversion. Closed-query Next reuses accepted bounded exact-result cache/mapped spans and advances once. Shared exact selection/reveal uses native fragments, visible-only washes/current outline and track-pixel marks; no additional read/diff/compile capability exists in Qt or navigation.","references":["docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json","docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json"]}}]
+---
+
+# BPR-1422: Native pane Find controls, decorations and exact reveal
+
+## Acceptance
+
+- **AC1:** AC01 and AC02 pass through the shipped focused split/unified source reader, including offscreen unchanged source, selection/caret seeding, multiline options, fixed selection, Unicode/line-ending exact selection, invalid regex and wrap/focus.
+- **AC2:** View > Find command availability, editor/modality ownership and native layouts use the required frontend-design skill; visible highlights and scroll-track markers do not alter source/diff geometry.
+- **AC3:** Match traversal/reveal through the shared controller performs no rescan/recompile/read/diff; palette, accessible counts/status and narrow-width rendering are verified.
+
+## Continuation
+
+Accepted under `find-and-find-in-files-v1-r1` on product candidate
+`a7fb9af0a2e0f0a21ab0de86c3a938a70af28626`. All three bounded M4 criteria pass; the
+[acceptance](../_checkpoints/find-and-find-in-files-v1/m4-acceptance.json),
+[native public path](../_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json)
+and [self-review](../_checkpoints/find-and-find-in-files-v1/m4-self-review.json) retain
+exact evidence and corrected development failures. Original AC01/AC02 pass;
+the complete RFC, PR Search and remaining AC03–AC08 still belong to M5/final closeout.
+No human criterion is outstanding for this milestone.
+The [import checkpoint](../_checkpoints/find-and-find-in-files-v1/import-r1.md) records
+scope, preserved work, verification and the next action.

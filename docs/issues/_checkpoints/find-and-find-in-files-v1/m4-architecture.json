@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 exact architecture and test-network boundary",
+  "outcome": "pass",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/find-corpus-git\", \"-R\", \"^(architecture_boundaries|test_network_isolation_manifest)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 11.749,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/find-corpus-git\n    Start  5: architecture_boundaries\n1/2 Test  #5: architecture_boundaries ...........   Passed   11.01 sec\n    Start 62: test_network_isolation_manifest\n2/2 Test #62: test_network_isolation_manifest ...   Passed    0.71 sec\n\n100% tests passed out of 2\n\nLabel Time Summary:\nbpr_network_isolated    =  11.72 sec*proc (2 tests)\n\nTotal Test time (real) =  11.74 sec\n",
+    "stderr_tail": ""
+  }
+}

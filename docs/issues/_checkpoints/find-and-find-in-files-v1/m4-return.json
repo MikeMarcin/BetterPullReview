@@ -1,0 +1,80 @@
+{
+  "run_id": "find-and-find-in-files-v1",
+  "segment_id": "coordinator-implementer-001",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "find-and-find-in-files-v1",
+    "plan_path": "docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+    "milestone_id": "pane-find",
+    "definition_fingerprint": "sha256:90d9330024767e6a86cb71ccaeb8425f8bd3cbad2566e0fa24212790a19b5014",
+    "obligations": [
+      {
+        "id": "BPR-1422:*",
+        "source": "BPR-1422",
+        "selector": null,
+        "source_fingerprint": "sha256:65bce2ac014c44a7d7203dc1a758d9fb4ac662897ac36fee814eea58b15e84bc"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8ac535f12fa02aab1be84c765eb8e7d149e9a814ac52439826bc9ff4c8c54bb2",
+    "exit_criteria": [
+      {
+        "id": "pane-find:exit:1",
+        "text": "AC01 and AC02 pass through the shipped focused split/unified source reader, including offscreen unchanged source, selection/caret seeding, multiline options, fixed selection, Unicode/line-ending exact selection, invalid regex and wrap/focus."
+      },
+      {
+        "id": "pane-find:exit:2",
+        "text": "View > Find command availability, editor/modality ownership and native layouts use the required frontend-design skill; visible highlights and scroll-track markers do not alter source/diff geometry."
+      },
+      {
+        "id": "pane-find:exit:3",
+        "text": "Match traversal/reveal through the shared controller performs no rescan/recompile/read/diff; palette, accessible counts/status and narrow-width rendering are verified."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:6a8a88f035b3414b4825bf681fe143f2557835d8f3a91c4e71bd50970b19fea7",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "pane-find",
+  "disposition": "continue-milestone",
+  "candidate_revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
+  "required_pending": [
+    "documentation closeout and guarded finish/upkeep"
+  ],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-acceptance.json"
+  ],
+  "acceptance_records": [],
+  "continuation": {
+    "intent": "resume",
+    "next_milestone": "pane-find",
+    "reason": "bookkeeping-closeout",
+    "detail": "Product gates pass; documentation/guarded finish checkpoint work remains. This draft is overwritten before handoff."
+  },
+  "ownership": "active"
+}

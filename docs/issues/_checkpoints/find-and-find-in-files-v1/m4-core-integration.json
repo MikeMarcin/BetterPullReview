@@ -1,0 +1,13 @@
+{
+  "criterion": "M4 five-case Qt-free session/matcher/host integration",
+  "outcome": "pass",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/core-only\", \"-R\", \"^(core_source_search_policy|core_source_matcher|core_source_matcher_reference|application_source_search_host|application_source_pr_search)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.815,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/core-only\n    Start 162: core_source_search_policy\n1/5 Test #162: core_source_search_policy ........   Passed    0.05 sec\n    Start 163: core_source_matcher\n2/5 Test #163: core_source_matcher ..............   Passed    0.18 sec\n    Start 164: core_source_matcher_reference\n3/5 Test #164: core_source_matcher_reference ....   Passed    0.14 sec\n    Start 216: application_source_search_host\n4/5 Test #216: application_source_search_host ...   Passed    0.06 sec\n    Start 228: application_source_pr_search\n5/5 Test #228: application_source_pr_search .....   Passed    0.36 sec\n\n100% tests passed out of 5\n\nLabel Time Summary:\nbpr_network_isolated    =   0.80 sec*proc (5 tests)\n\nTotal Test time (real) =   0.81 sec\n",
+    "stderr_tail": ""
+  }
+}

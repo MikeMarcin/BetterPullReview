@@ -1,0 +1,75 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Whole original AC01/AC02 pass through shipped github_application split/unified source paths: full offscreen unchanged source, real caret/native selection/escaped regex seed, query and seed admission, IME/multiline options, fixed original selection, Unicode/CRLF/EOF exact span, invalid/unsupported patterns, counts/wrap/focus. No cross-version multiline fabrication.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+      "evidence": {
+        "kind": "observation",
+        "detail": "View > Find has one action per physical shortcut with core-projected legality; Home/Overview/editor/modal guards pass. Required frontend-design applied to native bar. Inherited font/palette/no QSS and complete controls are objectively rendered at 1.0/1.25/2.0 DPR, 900 logical minimum. Existing reader guard still rejects any duplicate change presenter outside Find.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+      "evidence": {
+        "kind": "observation",
+        "detail": "1000 traversals preserve diff/index/record identities with no matcher call or endpoint conversion. Closed-query Next reuses accepted bounded exact-result cache/mapped spans and advances once. Shared exact selection/reveal uses native fragments, visible-only washes/current outline and track-pixel marks; no additional read/diff/compile capability exists in Qt or navigation.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-public-path.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-native-render.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-core-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-architecture.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-fixture-provenance.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-new-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-scoped-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-final-scoped-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m4-documentation-tests.json"
+        ]
+      }
+    }
+  ]
+}

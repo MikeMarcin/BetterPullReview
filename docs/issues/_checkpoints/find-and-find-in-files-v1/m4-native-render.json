@@ -1,0 +1,182 @@
+{
+  "schema": "bpr.find.native-render.v1",
+  "candidate_revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "skill": "/Users/jaeger/.claude/plugins/cache/claude-plugins-official/frontend-design/f359d43b4060/skills/frontend-design/SKILL.md",
+  "surface": "offscreen full shipped github_application window; committed source-find-v1 contract and installed Git",
+  "platform": "macOS 26.6.2 Apple Silicon; Qt 6.11.2 offscreen",
+  "requested_narrow_width": 720,
+  "observed_minimum_logical_width": 900,
+  "observations": [
+    "Two native rows keep all match toggles, query, navigation, close, scope and count visible at every measured DPR.",
+    "Query uses native UI font; control styleSheet is empty; configured source font remains unchanged.",
+    "Actual dark appearance host selects the inherited window palette; count, scope and current outline retain readable native contrast.",
+    "Find selects actual target source; unified opposite-version rows are excluded from multiline occurrence fragments.",
+    "Existing thread/semantic selection/syntax/source geometry remains under the shared reader; focused diff-reader suite passes."
+  ],
+  "artifacts": [
+    {
+      "path": "build/find-corpus-git/source-find-renders/01-split-offscreen.png",
+      "sha256": "3e9b7626ec2e6f4acd4aa0518a67ed4b2a5445a25b0fd7d0aca00e742996f063",
+      "dpr": 1.0,
+      "physical_pixels": [
+        1280,
+        860
+      ],
+      "logical_size": [
+        1280.0,
+        860.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/02-unified.png",
+      "sha256": "051e7b5f175c4d12d0c7b4361d0556c732fd4293d28fe6b505692ac649e18a6c",
+      "dpr": 1.0,
+      "physical_pixels": [
+        1280,
+        860
+      ],
+      "logical_size": [
+        1280.0,
+        860.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/03-narrow.png",
+      "sha256": "8ac2e4b0357e5a31cbac62dc397a56c591755fe831139d99dc49e6a1d4ca49bf",
+      "dpr": 1.0,
+      "physical_pixels": [
+        900,
+        640
+      ],
+      "logical_size": [
+        900.0,
+        640.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/04-dark-native-controls.png",
+      "sha256": "4cb887f7159e2a6cb1cf24411fcb85476252b133735be43eb2956999ad94abd3",
+      "dpr": 1.0,
+      "physical_pixels": [
+        900,
+        640
+      ],
+      "logical_size": [
+        900.0,
+        640.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/01-split-offscreen.png",
+      "sha256": "c8314d986558fdbc23776051446970602a3a4455ab45689dcb0dae2e95d6a696",
+      "dpr": 1.25,
+      "physical_pixels": [
+        1600,
+        1075
+      ],
+      "logical_size": [
+        1280.0,
+        860.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/02-unified.png",
+      "sha256": "74bc493ec9cd1c1062734b49ca71e458f9b60a84a0eb5e07d427f3985eabd2ab",
+      "dpr": 1.25,
+      "physical_pixels": [
+        1600,
+        1075
+      ],
+      "logical_size": [
+        1280.0,
+        860.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/03-narrow.png",
+      "sha256": "5d82b7f17efbc152f701e92713bf6e0e14abfc3cc22ba37009bd2cea61478fa4",
+      "dpr": 1.25,
+      "physical_pixels": [
+        1125,
+        800
+      ],
+      "logical_size": [
+        900.0,
+        640.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/04-dark-native-controls.png",
+      "sha256": "b0dd119a626303cbf5f35edf0926d8843ac22b542b8a994aadf8fc88e1e8ea6d",
+      "dpr": 1.25,
+      "physical_pixels": [
+        1125,
+        800
+      ],
+      "logical_size": [
+        900.0,
+        640.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/01-split-offscreen.png",
+      "sha256": "1719c384df5e7db00ff1d9f31c4d31b6e4361f1d3f46f0995028f5c8f97c700b",
+      "dpr": 2.0,
+      "physical_pixels": [
+        2560,
+        1720
+      ],
+      "logical_size": [
+        1280.0,
+        860.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/02-unified.png",
+      "sha256": "41af4de73c752fa301903176ec4371d423369e50ceee2a7e7bff9c4e3c0c5691",
+      "dpr": 2.0,
+      "physical_pixels": [
+        2560,
+        1720
+      ],
+      "logical_size": [
+        1280.0,
+        860.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/03-narrow.png",
+      "sha256": "4807562597cf8749b4f0a79ae3e223819e69810d2c88185d0808ad7289525248",
+      "dpr": 2.0,
+      "physical_pixels": [
+        1800,
+        1280
+      ],
+      "logical_size": [
+        900.0,
+        640.0
+      ]
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/04-dark-native-controls.png",
+      "sha256": "fbadac14365e3999e24b8c11ec68056e375442db92fc5ecbc6fb87028014e02a",
+      "dpr": 2.0,
+      "physical_pixels": [
+        1800,
+        1280
+      ],
+      "logical_size": [
+        900.0,
+        640.0
+      ]
+    }
+  ],
+  "claims_excluded": [
+    "owner desktop or personal application data",
+    "VoiceOver/physical display scaling",
+    "Windows/Linux native devices",
+    "large-review RSS/cold-scan thresholds",
+    "whole RFC acceptance"
+  ]
+}

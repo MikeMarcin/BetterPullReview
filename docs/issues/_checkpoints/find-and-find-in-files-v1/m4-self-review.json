@@ -1,0 +1,169 @@
+{
+  "schema": "bpr.find.self-review.v1",
+  "milestone": "pane-find",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "candidate_revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "independent_review": false,
+  "findings": [
+    {
+      "risk": "A Find action exists without real accepted source composition",
+      "disposition": "Earliest course opens the fixture through account/PR/Review, Files, actual epoch/cache and installed Git, then uses physical Find/F3/Shift-F3. Each key has one action owner. Home, Overview, modal and unrelated editor guards are exercised."
+    },
+    {
+      "risk": "Offscreen occurrence uses a second native scroll or stale geometry",
+      "disposition": "A bar resize initially raced shared reveal. Exact pending source reveals now wait for the shared controller geometry, remain bound to the current occurrence and clear on reading/document/query invalidation. Offscreen unchanged row is actually visible and only target source has native text selection."
+    },
+    {
+      "risk": "Find in Selection changes bounds during navigation",
+      "disposition": "Bridge initially omitted selected bounds; corrected worker entry uses complete scope.Selection. Twenty native traversals preserve fixed original side/span. Document replacement clears captured/fixed ranges; unified mixed-version ranges remain unavailable."
+    },
+    {
+      "risk": "Unicode/CRLF or unified visual adjacency fabricates a source span",
+      "disposition": "Source bytes map to native surrogate units without prefix allocations. Unicode multiline original CRLF spans pass; EOF without a decoded line has no invented comment anchor. Actual-version unified multiline fragments exclude opposite rows; explicit Copy returns exact original text."
+    },
+    {
+      "risk": "Oversized/invalid query or source seed leaves stale hits",
+      "disposition": "Typing clears hits synchronously before debounce; IME preedit runs no query. Native oversized query emits bounded invalid admission. Oversized source selection leaves retained query unchanged and keeps the inline limit through accepted publication. Literal punctuation seeds regex escaped; invalid/unsupported patterns leave no current old hits."
+    },
+    {
+      "risk": "Traversal recompiles/rescans/reloads or reopening advances incorrectly",
+      "disposition": "1000 traversals retain exact diff/index/record identities with unchanged matching-run and endpoint-conversion counters. One complete exact-scope/query/options cache shares bounded immutable records. Closed-query Next reuses both records/mapped endpoints and advances once from occurrence beginning, with wrap and restored focus."
+    },
+    {
+      "risk": "Native controls clip or fixed colors/fonts violate existing design",
+      "disposition": "Required frontend-design skill read before UI. Two native rows, inherited UI font/palette and no QSS pass full-window offscreen renders at actual DPR 1.0/1.25/2.0 and 900 logical minimum; dark palette is chosen by the actual appearance host. All controls remain visible/labeled, and counts/sides/errors/wrap have accessible wording."
+    },
+    {
+      "risk": "New Find buttons weaken existing comparison-navigation rejection",
+      "disposition": "Existing no-buttons guard initially rejected legitimate new native controls. It now allows only descendants of source_find_bar; any separate comparison change-navigation presenter still fails. Full existing reader course passes."
+    },
+    {
+      "risk": "Scope/lifetime authority changes keep old accepted pane data",
+      "disposition": "Exact scope includes session, PR authority, active tab, comparison, file/digest, blobs, options/query generation and fixed bounds. Tab observation retires old hits; document rebind retains query/options; PR/account reset clears them. Pane host participates in shutdown quiescence. Full composed epoch/reversed-completion PR races remain M5 AC05."
+    }
+  ],
+  "development_failures": [
+    {
+      "kind": "build",
+      "detail": "Initial API/type/include/target mismatches corrected before candidate; attempted format.py --paths refused without writes, retried positional paths with format22. A test build used an unknown diff-workbench target name, corrected to test_better_pull_review_qt_diff_workbench_tests."
+    },
+    {
+      "kind": "public-course",
+      "detail": "Initial fixture course lacked account/PR opening; added actual connect/open/Review entry. Corrected source reveal geometry race, omitted selection entry bounds and initially unavailable closed Next action."
+    },
+    {
+      "kind": "expanded-course",
+      "detail": "Initial palette check compared global QApplication with accepted per-window appearance; corrected to choose the actual appearance host. Added EOF, real caret/IME, literal regex/oversized seed and exact unified fragments. DPI course found closed Next origin at native selection end; corrected to selection beginning before one advance."
+    },
+    {
+      "kind": "reader-regression",
+      "detail": "Existing no-QToolButton assertion failed after legitimate native Find bar addition; narrow descendant guard corrected and the exact reader course passes."
+    },
+    {
+      "kind": "test-directory",
+      "detail": "First combined integration invocation selected five executables absent in the Qt build tree: No such file or directory, exit8; architecture, architecture contract and network manifest passed. Built and ran these five targets in the existing core-only tree; all pass. No passing claim replaces that initial failure."
+    },
+    {
+      "kind": "fixture-inventory",
+      "detail": "18-case security check retains one baseline exact-inventory failure for header-source-v1/cpp-identifiers-v1. New source-find-v1 is explicitly registered; no new source-find omission occurs. Sanitization/rejection remains enforced."
+    }
+  ],
+  "evidence_reuse": [
+    "M1/M2/M3 accepted deterministic policy/matcher/epoch/cache contracts remain unchanged except narrow projection extraction and bounded command observation.",
+    "Five existing composition TUs passed changed-line tidy22; final corrected source-origin/reader-guard subset is captured separately. Four unchanged composition TUs reuse exact passing bytes.",
+    "Architecture negative contract passed in the first integration run; boundary declarations unchanged by later cursor-origin/test-guard corrections. Exact final architecture boundaries and network manifest are separately captured."
+  ],
+  "retained_failures": [
+    "m4-fixture-inventory.json exact baseline inventory failure",
+    "m1-core-integration.json 269/272 full-suite failure, syntax fixtureformat/inventory/uncached LibArchive; not rerun or waived",
+    "M3 unchanged full-file tidy findings; no global/full-file tidy pass claimed"
+  ],
+  "scope_limits": [
+    "No whole-RFC acceptance inferred from M4",
+    "AC01/AC02 are proved by shipped pane course; AC07 pane slice only",
+    "AC03-AC06, complete AC07, AC08 full PR Search and public performance remain M5/final card",
+    "Offscreen macOS Qt rasters are not VoiceOver, physical display scaling or Windows/Linux native evidence",
+    "No human criterion remains for M4; no attended server or frozen build created",
+    "No owner live desktop, personal app data, remote mutation, push or main changes"
+  ],
+  "changed_product_paths": [
+    "scripts/build_source_find_fixture.py",
+    "scripts/verify_test_network_isolation.py",
+    "src/adapters/qt/CMakeLists.txt",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+    "src/adapters/qt/include/bpr/qt/source_find_bar.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/source_find_bar.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/CMakeLists.txt",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/app/src/pane_find_controller.cpp",
+    "src/app/src/pane_find_controller.hpp",
+    "src/application/include/bpr/application/source_search_host.hpp",
+    "src/application/include/bpr/application/source_search_projection.hpp",
+    "src/core/include/bpr/core/source_search.hpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/source_find_public_path_tests.cpp",
+    "tests/fixtures/github/contracts/v1/source-find-v1/manifest.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/checks.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/commits.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/files.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/issue_comments.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/pull_request.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/repository.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/review_threads.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/reviews.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/search.json",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/viewer.json",
+    "tests/fixtures/github/pull-requests/source-find-v1/README.md",
+    "tests/fixtures/github/pull-requests/source-find-v1/construction.json",
+    "tests/fixtures/github/pull-requests/source-find-v1/objects.pack",
+    "tests/scripts/github_contract_fixture_security_tests.py",
+    "tests/scripts/recorded_pull_request_fixture_tests.py"
+  ],
+  "source_path_sha256": {
+    "scripts/build_source_find_fixture.py": "01ddd2ef95cb09df962b77d1b1204367751ec1d34724e5fdc4e68b7acd2e8210",
+    "scripts/verify_test_network_isolation.py": "31d30fa7c2774ad43fa26dd6821fd9a4eb16f6a30f3ffcc3e810c8f39a8dfa1a",
+    "src/adapters/qt/CMakeLists.txt": "6fd82381b000e1958ac0677456c5bf8e1176db980e72bcd5b17aaad96b4023e3",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp": "0f3f6fdb691a8901c0950d169a10f573640713bbfc3d5fafd2ca32c208408392",
+    "src/adapters/qt/include/bpr/qt/source_find_bar.hpp": "f0879a21548947ef7aebb20f9c24935952da9a935c6faeae72eb4a84923697a8",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp": "eeffd45785e3f59d543979efcc2e5543864f98a44a36537d2f0553535102226c",
+    "src/adapters/qt/src/desktop_menu_bar.cpp": "15650dc622aaef9c494ff512d9b513a8900725c166b836798cf674292204420e",
+    "src/adapters/qt/src/diff_workbench.cpp": "6d1c2f5053f4f6a571888c1f0dd46db4303b599640183c4c8eae84fee6e2ac02",
+    "src/adapters/qt/src/source_find_bar.cpp": "ef15c9a7f94b48ef3953c3bd6bda78a0b9bc9e3e0f5726e29bfa9862f0a578b8",
+    "src/adapters/qt/src/workbench_window.cpp": "5b8d3abb8050d076dd9c03460d50afcd8488f8713fa0d289b8e06349693f29a0",
+    "src/app/CMakeLists.txt": "c0e91225f44cfce9ecefebc57d6a6dfb51060204d950817a3f83a10002d7c9c8",
+    "src/app/src/github_application.cpp": "5040633785c8000e5ae97fe371258c8d7582566134394908c1620eb2fea7ac09",
+    "src/app/src/github_application_fixture_access.hpp": "1913957c524cdfa834f5d3637389f0096ad87f1b837a7023bf7994e1b4a817c3",
+    "src/app/src/github_public_path_fixture.cpp": "9c7174f0f493a8a2dcc30fb2683501abe359d1347ffa42c624da8f1b1d82b6c2",
+    "src/app/src/pane_find_controller.cpp": "54716e41cbb330195427c4d716b34b5c9eb39e2aaf85830146dee55e5e77b936",
+    "src/app/src/pane_find_controller.hpp": "4038b0dd36c308cf709c1a7ea1ec25e6e0a2afdef0d69bc2c7a695338df9062b",
+    "src/application/include/bpr/application/source_search_host.hpp": "45144ecd5a80137f6e475d5238f5e543c9df78ead9e2c2ec60525151a7be9d54",
+    "src/application/include/bpr/application/source_search_projection.hpp": "919a69ad2137a2cb4c5c5f1da6741361f862b1a075810aaf39f40e4201cec614",
+    "src/core/include/bpr/core/source_search.hpp": "1ebe79f634c98e210ad07b53083d3cb825fd4d3f6c2797591c76054ee0439ba2",
+    "tests/adapters_qt/diff_workbench_tests.cpp": "943345ccd801d3b0faead7dfac979a2d485d1af129eaea2982b210b6f0607ce8",
+    "tests/end_to_end/CMakeLists.txt": "7cf0e20e71b97e1e9f4005aef5d6256d0c06af39e7bca8aa73f6940723eb77c3",
+    "tests/end_to_end/source_find_public_path_tests.cpp": "1dab12d15e55b9b96747c229af2c18ef00b2d4d4eaa6dc96d3aaf2cde3e2295f",
+    "tests/fixtures/github/contracts/v1/source-find-v1/manifest.json": "e029fef1b4f71f89ed046a5de4f9c6bad3ca992e1d1b7c07c80e2c41329b8563",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/checks.json": "aa31861eeafb1ffc7c85af0943281b1ce3555ccc3de0de9dde49afc6c335c726",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/commits.json": "ab9e820707eee4919d4c856aacb2db809592808c05737bf1fda04b615c347ea0",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/files.json": "04108b33c871df2ce4cc66517406d765352da1e792d6f15f8038bc8f19b27e92",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/issue_comments.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/pull_request.json": "afe1bfa03b9435f2ff795b1c4dca469e7c9d25930dbcb896360922f9d2e7984b",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/repository.json": "a86b9ad95be723d9c06022acbf493313ce404eee92b49e655a87434129a1e4e6",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/review_threads.json": "ab747765069113475bd405ee55ea225350422dbcc67eac2f00e4a4755ef71bc5",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/reviews.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/search.json": "1238e36b1ac7f064716a3f0c6b1f33e0b74a6cc4b8fedc96f74216a891ac5b5c",
+    "tests/fixtures/github/contracts/v1/source-find-v1/responses/viewer.json": "b97108e15012dadc9607606fffd7fbafe6c7095194a5b1105e914c2accda64bb",
+    "tests/fixtures/github/pull-requests/source-find-v1/README.md": "06fd5f4ef668f42ad3d95f14637a461f78e23d0113c6d999d32d55bf6d812aa8",
+    "tests/fixtures/github/pull-requests/source-find-v1/construction.json": "d256ffc10b248db81470cf725f1d8b62b09a950950e89692116ee5cdb2ce5a3d",
+    "tests/fixtures/github/pull-requests/source-find-v1/objects.pack": "3f457839495a6fd554b9432c98a7caf542e74b8c3d3c268b672a54b6ff195092",
+    "tests/scripts/github_contract_fixture_security_tests.py": "fe8b1f2576e2d14839acbd6e6eb1fd8fd4a49981004218932b3422c50c113167",
+    "tests/scripts/recorded_pull_request_fixture_tests.py": "953b2823d3925cb89e2c523130770b85da6607a0f12e294a995c50e59b0331e5"
+  }
+}

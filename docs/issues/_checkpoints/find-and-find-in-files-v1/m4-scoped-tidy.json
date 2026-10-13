@@ -1,0 +1,187 @@
+{
+  "criterion": "M4 five existing composition translation units changed-line tidy22",
+  "outcome": "pass",
+  "revision": "a7fb9af0a2e0f0a21ab0de86c3a938a70af28626",
+  "evidence": {
+    "kind": "observation",
+    "detail": "Observed python3 build/m4-tidy/scoped.py exit 0. Five TUs use clang-tidy22 with warnings as errors and the explicit changed-line filter; baseline warnings outside M4 are retained. Four unchanged TUs retain exact product bytes. The later corrected source-origin expression and reader guard have a separate final scoped receipt. No whole-file/global tidy pass is claimed.",
+    "command": [
+      "python3",
+      "build/m4-tidy/scoped.py"
+    ],
+    "exit_code": 0,
+    "log_sha256": "8aa6025ab6d062c2548b1d23018d66e34fa5408a5e495f470443cecf3a45ee3a",
+    "line_filter": [
+      {
+        "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/diff_workbench.cpp",
+        "lines": [
+          [
+            14,
+            14
+          ],
+          [
+            51,
+            51
+          ],
+          [
+            123,
+            128
+          ],
+          [
+            207,
+            207
+          ],
+          [
+            212,
+            224
+          ],
+          [
+            302,
+            302
+          ],
+          [
+            456,
+            457
+          ],
+          [
+            962,
+            984
+          ],
+          [
+            2172,
+            2761
+          ],
+          [
+            2881,
+            2881
+          ],
+          [
+            3308,
+            3308
+          ],
+          [
+            3321,
+            3321
+          ],
+          [
+            4083,
+            4116
+          ],
+          [
+            4418,
+            4430
+          ],
+          [
+            4873,
+            4873
+          ],
+          [
+            5057,
+            5057
+          ],
+          [
+            5441,
+            5441
+          ],
+          [
+            5852,
+            5855
+          ],
+          [
+            5892,
+            5892
+          ]
+        ]
+      },
+      {
+        "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/workbench_window.cpp",
+        "lines": [
+          [
+            1893,
+            1893
+          ],
+          [
+            10342,
+            10342
+          ],
+          [
+            10374,
+            10395
+          ],
+          [
+            14020,
+            14055
+          ],
+          [
+            14147,
+            14147
+          ],
+          [
+            14621,
+            14621
+          ],
+          [
+            15188,
+            15188
+          ]
+        ]
+      },
+      {
+        "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/desktop_menu_bar.cpp",
+        "lines": [
+          [
+            120,
+            135
+          ]
+        ]
+      },
+      {
+        "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_application.cpp",
+        "lines": [
+          [
+            18,
+            18
+          ],
+          [
+            1007,
+            1007
+          ],
+          [
+            6591,
+            6593
+          ],
+          [
+            8183,
+            8194
+          ],
+          [
+            13597,
+            13599
+          ],
+          [
+            17232,
+            17234
+          ],
+          [
+            17274,
+            17274
+          ],
+          [
+            18279,
+            18279
+          ]
+        ]
+      },
+      {
+        "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_public_path_fixture.cpp",
+        "lines": [
+          [
+            555,
+            574
+          ]
+        ]
+      }
+    ],
+    "stderr_tail": "ld/find-corpus-git\", \"--extra-arg=-Wno-error\", \"--extra-arg=-Wno-missing-designated-field-initializers\", \"--extra-arg=-isysroot\", \"--extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk\", \"--warnings-as-errors=*\", \"--line-filter=[{\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/diff_workbench.cpp\\\", \\\"lines\\\": [[14, 14], [51, 51], [123, 128], [207, 207], [212, 224], [302, 302], [456, 457], [962, 984], [2172, 2761], [2881, 2881], [3308, 3308], [3321, 3321], [4083, 4116], [4418, 4430], [4873, 4873], [5057, 5057], [5441, 5441], [5852, 5855], [5892, 5892]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/workbench_window.cpp\\\", \\\"lines\\\": [[1893, 1893], [10342, 10342], [10374, 10395], [14020, 14055], [14147, 14147], [14621, 14621], [15188, 15188]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/desktop_menu_bar.cpp\\\", \\\"lines\\\": [[120, 135]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_application.cpp\\\", \\\"lines\\\": [[18, 18], [1007, 1007], [6591, 6593], [8183, 8194], [13597, 13599], [17232, 17234], [17274, 17274], [18279, 18279]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_public_path_fixture.cpp\\\", \\\"lines\\\": [[555, 574]]}]\"]\n172 warnings generated.\nSuppressed 174 warnings (158 in non-user code, 14 due to line filter, 2 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n[\"/opt/homebrew/opt/llvm@22/bin/clang-tidy\", \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_public_path_fixture.cpp\", \"-p\", \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/find-corpus-git\", \"--extra-arg=-Wno-error\", \"--extra-arg=-Wno-missing-designated-field-initializers\", \"--extra-arg=-isysroot\", \"--extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk\", \"--warnings-as-errors=*\", \"--line-filter=[{\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/diff_workbench.cpp\\\", \\\"lines\\\": [[14, 14], [51, 51], [123, 128], [207, 207], [212, 224], [302, 302], [456, 457], [962, 984], [2172, 2761], [2881, 2881], [3308, 3308], [3321, 3321], [4083, 4116], [4418, 4430], [4873, 4873], [5057, 5057], [5441, 5441], [5852, 5855], [5892, 5892]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/workbench_window.cpp\\\", \\\"lines\\\": [[1893, 1893], [10342, 10342], [10374, 10395], [14020, 14055], [14147, 14147], [14621, 14621], [15188, 15188]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/desktop_menu_bar.cpp\\\", \\\"lines\\\": [[120, 135]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_application.cpp\\\", \\\"lines\\\": [[18, 18], [1007, 1007], [6591, 6593], [8183, 8194], [13597, 13599], [17232, 17234], [17274, 17274], [18279, 18279]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_public_path_fixture.cpp\\\", \\\"lines\\\": [[555, 574]]}]\"]\n152 warnings generated.\nSuppressed 155 warnings (152 in non-user code, 3 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n"
+  }
+}

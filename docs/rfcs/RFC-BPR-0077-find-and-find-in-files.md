@@ -14,13 +14,14 @@ Mandate `find-and-find-in-files-v1-r1` preserves the settled Q1/Q2 decisions.
 Immutable RFC_BASE_SHA: `aa3d71fe470627e1e78488eb51a9114a788f33bd`.
 The [retained packet and live mapping](assets/find-and-find-in-files-v1.LIVE_IMPORT.md) and
 [authored five-milestone plan](plans/find-and-find-in-files-v1/milestone-plan.json) define live work.
-The M1 session/host foundation, M2 shared matcher and M3 exact retained-comparison
-corpus are accepted on [[BPR-1419]], [[BPR-1420]] and [[BPR-1421]], with exact
-scoped evidence and retained unrelated integration failures in the
-[verification ledger](../verification/RFC-BPR-0077.md). [[BPR-1422]] owns the next
-native pane Find composition. Shipped commands, native rendering/reveal and all
-eight full-RFC criteria remain pending; [[BPR-1424]] retains their complete text
-for closeout.
+The M1 session/host foundation, M2 shared matcher, M3 exact retained-comparison
+corpus and M4 native pane Find are accepted on [[BPR-1419]], [[BPR-1420]],
+[[BPR-1421]] and [[BPR-1422]]. Exact scoped evidence and retained unrelated
+integration failures are in the [verification ledger](../verification/RFC-BPR-0077.md).
+Original AC01/AC02 pass through the shipped pane composition; the pane slice of
+AC07 is verified with native offscreen renders. [[BPR-1423]] owns PR Search and
+its activation/invalidation paths. AC03–AC06, complete AC07 and AC08 performance
+remain pending; [[BPR-1424]] retains all eight original criteria for final closeout.
 
 ## Problem and grounded current behavior
 
