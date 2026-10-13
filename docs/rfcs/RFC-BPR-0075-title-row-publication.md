@@ -90,7 +90,7 @@ No material product choice remains open. This proposal does not adopt a new
 visual design. Any visual implementation or owner-facing candidate follows
 the repository's required frontend-design skill workflow.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** A first read that exposes its loading surface before acceptance,
   with normally offered workbench commands retained, shows the accepted
