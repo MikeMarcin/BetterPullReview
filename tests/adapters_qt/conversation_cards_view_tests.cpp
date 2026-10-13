@@ -1753,6 +1753,49 @@ namespace {
 	/// identities. Each identity is longer than a short-string buffer, so the
 	/// replaced forest's strings are freed. MSVC's clear() then re-hashes every
 	/// key, because the smaller forests leave few keys in many buckets;
+	/// \brief [[BPR-1471]]. In Discuss the closed notes' blue new-post
+	/// counts stand in one column whether or not a note carries the green
+	/// resolved check. `BPR_DISCUSS_ALIGNMENT_PNG` names an offscreen render.
+	void test_discuss_new_counts_share_one_column()
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 700);
+		view.show();
+		QApplication::processEvents();
+		auto fixture = std::vector<conversation>{ };
+		auto state   = std::vector<qt::thread_read_state>{ };
+		for (const auto& [id, resolved] : std::array<std::pair<const char*, bool>, 4U>{
+				 { { "t-open-a", false }, { "t-resolved-a", true }, { "t-open-b", false }, { "t-resolved-b", true } } }) {
+			const auto line = static_cast<std::uint32_t>(10U + (10U * fixture.size()));
+			fixture.push_back(thread(id, "src/a.cpp", line, true, resolved));
+			fixture.push_back(reply(std::string{ id } + "-r", id, "author", resolved ? "Resolved, with a new reply." : "Open, with a new reply."));
+			fixture.push_back(reply(std::string{ id } + "-c", id, "someone", "a remark"));
+			state.push_back(qt::thread_read_state{ .Thread = id, .UnreadPosts = { std::string{ id } + "-c" } });
+		}
+		view.set_viewer_login(QStringLiteral("reviewer-one"));
+		view.adopt(fixture);
+		view.set_read_state(state);
+		view.set_feed(true);
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		QApplication::processEvents();
+		if (const auto* const path = std::getenv("BPR_DISCUSS_ALIGNMENT_PNG"); path != nullptr) {
+			expect(view.grab().save(QString::fromLocal8Bit(path)), "the Discuss alignment render is written");
+		}
+		expect(view.cards().size() == 4U && std::ranges::count_if(view.cards(), &qt::thread_card::Resolved) == 2,
+			   "two notes are resolved and two are not, each with a new reply");
+		const auto first = view.closed_meta(view.cards().front());
+		expect(!first.NewCount.isEmpty(), "a note with a new reply draws its blue count");
+		for (const auto& card : view.cards()) {
+			const auto meta = view.closed_meta(card);
+			expect(meta.Resolved.isEmpty() != card.Resolved, "only a resolved note draws the green check");
+			expect(meta.NewCount == first.NewCount.translated(0.0, meta.NewCount.top() - first.NewCount.top()),
+				   "the blue count stands in one column whether or not the note is resolved");
+			expect(meta.Replies == first.Replies, "the reply count and faces stand in one column too");
+			expect(!card.Resolved || (meta.Resolved.right() <= view.note_rect(card.Id).right() && meta.Resolved.left() > meta.NewCount.right()),
+				   "the green check keeps its slot right of the blue count");
+		}
+	}
+
 	/// a key that viewed a replaced string crashed the third adopt.
 	void test_replacing_a_forest_never_reads_the_last_one()
 	{
@@ -1782,6 +1825,11 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (argc > 1 && std::string_view{ argv[1] } == "--discuss-alignment") {
+		test_discuss_new_counts_share_one_column();
+		std::cout << "discuss-alignment:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
 		test_wrapped_publication_status_is_fully_visible();
 		std::cout << "publication-status-geometry:pass\n";
@@ -1810,6 +1858,7 @@ auto main(int argc, char** argv) -> int
 	test_the_excerpt_follows_the_supplied_code_font();
 	test_cached_geometry_matches_a_fresh_view();
 	test_a_dispatch_that_relays_out_still_names_the_pressed_thread();
+	test_discuss_new_counts_share_one_column();
 	std::cout << "conversation-cards-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }
