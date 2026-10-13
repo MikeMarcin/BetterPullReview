@@ -79,3 +79,62 @@ repository-format keys without them too, but an include can set
 version 0, is refused; `extensions.compatObjectFormat`, which Git accepts, is
 refused as an extension these readers do not read. The differential harness
 ([[BPR-1455]]) classifies these with every other divergence.
+
+## BPR-1457: fuzz oracles, adversarial timing and scale
+
+[[BPR-1457]] measures K, the fixed first-party readers, on macOS. All timings
+come from the dev preset (Debug, `-O0 -g0`, Apple clang) on an M-series Mac that
+was building other trees at the same time, so they bound K's cost rather than
+benchmark it; a candidate is compared with K only in the same build and run.
+
+**Fuzz oracles.** `fuzz_git_output` (selectors 0, 1 and 3) now asserts more
+than the absence of a crash. Selector 1: every index it parses, written back by
+the test-only `tests/support/git_metadata_writers.hpp` with a zero trailer and
+with the repository hash, parses to the same version, entries and flags.
+Selector 0: every config it parses, written back canonically, parses to the
+same entries. Selector 3: a fully escaped path matches exactly itself, `**`
+matches every path and `*` exactly the paths without `/`. The same round trips
+run on fixed inputs in `core_review_cycle_manifest`. New seeds:
+`index-v4-sha1`, `index-v3-split-sha1`, `ignore-classes-folded`,
+`attributes-macros` and `names-config-syntax`. The differential oracle against
+a reference matcher (V) is [[BPR-1459]]'s, compiled into a test-only target.
+
+**H6 (one reader call each, `bench_review_cycle_scale --adversarial`).**
+
+| Case | ms |
+|---|---|
+| BPR-0970 shape: 6 KB of `*a` then `b` against a 4,095-byte name | 0.52 |
+| the same, folded | 0.46 |
+| 2,000 `**/` then `x` against a 2,047-segment path | 0.16 |
+| 1,200 `**/a*` then `b` against the same path | 70 |
+| 2,000 `*/` then `*b` against the same path | 0.11 |
+| 400 `[[:alpha:]a-z]*` then `!`, folded | 0.17 |
+| a 1 MiB `.gitignore` (60,000 star rules): load | 135 |
+| that file against one path | 1.3 (1,963 before the byte prefilter) |
+| 100,000 rules whose bytes all occur in the path: load | 174 |
+| those rules against one path (no rule skipped) | 450 |
+| a 50,001-link attribute macro chain: load and evaluate | 594 |
+| a config of 65,535 entries | 230 |
+
+Every case is under H6's 1 s bound for K. The one that was not, one path against
+a 1 MiB rule file at 1.96 s, led to a sound prefilter in `review_cycle_ignore.cpp`:
+a rule is skipped when the subject lacks a byte its literals require (literals
+before the first bracket, folded under `core.ignoreCase`, escaped bytes as
+written). The worst case the prefilter cannot skip is the 450 ms row.
+
+**Scale (`--git --git-index-entries 250000`).** A 250,000-entry SHA-1 index
+(21.2 MB) that `/usr/bin/git ls-files` reads: index parse median of five 787 ms
+with the trailer checked and 174 ms under `index.skipHash` (a first, more
+loaded run gave 1,619 ms); an ignore walk of all 250,000 paths against a
+20-rule representative `.gitignore`, each directory once and then each file,
+median of five 358 ms (55,699 ignored); peak resident memory 135 MB. These are
+recorded for rule 3, not asserted; the ctest row `review_cycle_git_reader_scale`
+runs the same code at 2,000 entries with the adversarial cases.
+
+**Fuzz runs.** `fuzz_git_output_corpus` replays the 31 seeds clean, and a
+campaign (`-seed=1457 -max_total_time=600 -max_len=65536 -timeout=10`, Apple
+clang with LLVM 23's libFuzzer runtime, ASan and UBSan, `BPR_BUILD_QT=OFF
+BPR_BUILD_TOUR_CLI=ON`) ran 5,284,057 inputs at about 8,800 a second with no
+crash, sanitizer report, oracle failure or timeout; its slowest unit took under
+a second and its peak RSS was 721 MB. The campaign wrote only to a scratch copy
+of the corpus.
