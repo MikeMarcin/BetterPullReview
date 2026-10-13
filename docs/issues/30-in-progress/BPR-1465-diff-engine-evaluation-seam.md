@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1465"
 title: "Let the diff engine take supplied primary matches and evaluation components"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0082"]
 depends_on: []
 priority: "P2"
