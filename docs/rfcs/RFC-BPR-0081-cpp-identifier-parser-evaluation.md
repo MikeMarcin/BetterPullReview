@@ -25,8 +25,18 @@ retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labell
 [BPR-1444](../issues/10-backlog/BPR-1444-measure-the-parser-evaluation-on-linux.md)
 (Linux x64 and the Linux fuzz campaign) and
 [BPR-1445](../issues/10-backlog/BPR-1445-close-rfc-0081.md) (closeout).
-Q1 is open: the owner has not said whether an untagged tree-sitter-cpp commit
-may be pinned. No result is claimed yet.
+**Outcome on macOS (2026-10-13): extend.** Candidate T fails the Contract,
+Bounded-work and Memory gates at both pins, so it is rejected. The Contract
+failure comes from the grammar: tree-sitter-cpp accepts no attribute on an
+enumerator. The gap suite confirms H1-H8 on the shipped heuristic.
+[BPR-1474](../issues/10-backlog/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
+fixes those classes.
+
+The [report](../verification/RFC-BPR-0081.md) records every gate, its
+measurements and the conditions for running the evaluation again. Q1 (may an
+untagged tree-sitter-cpp commit be pinned?) is still unanswered, and moot,
+because `master` fails the same gates. The Windows and Linux measurements
+(AC03) are still owed to BPR-1443 and BPR-1444; they cannot change the outcome.
 
 ## Problem and grounded current behavior
 

@@ -1,0 +1,468 @@
+{
+ "host": {
+  "system": "Darwin",
+  "release": "25.6.0",
+  "machine": "arm64",
+  "python": "3.14.7",
+  "machdep.cpu.brand_string": "Apple M4 Pro",
+  "hw.ncpu": "14",
+  "hw.memsize": "51539607552",
+  "load_average": [
+   17.28515625,
+   28.42626953125,
+   43.27880859375
+  ]
+ },
+ "build": "build/eval-release",
+ "corpus": "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+ "runs": [
+  {
+   "pin": "v0_23_4",
+   "class": "contract",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "contract",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/contract.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/contract.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 2.1,
+   "load_average_after": [
+    17.28515625,
+    28.42626953125,
+    43.27880859375
+   ]
+  },
+  {
+   "pin": "v0_23_4",
+   "class": "first-party",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "first-party",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/first-party.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/first-party.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 109.4,
+   "load_average_after": [
+    13.2666015625,
+    23.69384765625,
+    39.61962890625
+   ]
+  },
+  {
+   "pin": "v0_23_4",
+   "class": "third-party",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "third-party",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/third-party.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/third-party.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 32.7,
+   "load_average_after": [
+    12.96142578125,
+    22.50048828125,
+    38.5439453125
+   ]
+  },
+  {
+   "pin": "v0_23_4",
+   "class": "gap",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "gap",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/gap.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/gap.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 0.0,
+   "load_average_after": [
+    12.96142578125,
+    22.50048828125,
+    38.5439453125
+   ]
+  },
+  {
+   "pin": "v0_23_4",
+   "class": "fragments",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "fragments",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/fragments.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/fragments.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 0.8,
+   "load_average_after": [
+    12.96142578125,
+    22.50048828125,
+    38.5439453125
+   ]
+  },
+  {
+   "pin": "v0_23_4",
+   "class": "malformed",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "malformed",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/malformed.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/malformed.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 214.2,
+   "load_average_after": [
+    11.94482421875,
+    17.0595703125,
+    32.60302734375
+   ]
+  },
+  {
+   "pin": "v0_23_4",
+   "class": "composer",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_v0_23_4",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "composer",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/composer.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/v0_23_4/composer.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 12.3,
+   "load_average_after": [
+    12.673828125,
+    17.04150390625,
+    32.41455078125
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "contract",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "contract",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/contract.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/contract.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 2.4,
+   "load_average_after": [
+    12.77978515625,
+    16.99072265625,
+    32.306640625
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "first-party",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "first-party",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/first-party.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/first-party.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 164.7,
+   "load_average_after": [
+    45.6279296875,
+    31.353515625,
+    35.59130859375
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "third-party",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "third-party",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/third-party.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/third-party.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 31.8,
+   "load_average_after": [
+    29.66455078125,
+    28.93017578125,
+    34.53515625
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "gap",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "gap",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/gap.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/gap.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 0.0,
+   "load_average_after": [
+    29.66455078125,
+    28.93017578125,
+    34.53515625
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "fragments",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "fragments",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/fragments.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/fragments.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 0.8,
+   "load_average_after": [
+    29.66455078125,
+    28.93017578125,
+    34.53515625
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "malformed",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "malformed",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/malformed.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/malformed.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 404.5,
+   "load_average_after": [
+    14.56591796875,
+    26.421875,
+    32.013671875
+   ]
+  },
+  {
+   "pin": "master",
+   "class": "composer",
+   "command": [
+    "build/eval-release/tests/syntax_evaluation/syntax_evaluation_master",
+    "--root",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus",
+    "--index",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/corpus-work/corpus/index.json",
+    "--classes",
+    "composer",
+    "--rounds",
+    "3",
+    "--metrics",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/composer.metrics.jsonl",
+    "--spans",
+    "/private/tmp/claude-501/-Users-jaeger-Documents-GitHub-BetterPullReview/157da5a3-885a-49d5-9b7b-206336e05b15/scratchpad/results/timing/master/composer.spans.jsonl",
+    "--stop-trials",
+    "20",
+    "--stop-classes",
+    "L,pathological",
+    "--seed",
+    "1442"
+   ],
+   "exit": 0,
+   "elapsed_s": 10.4,
+   "load_average_after": [
+    14.10400390625,
+    25.93017578125,
+    31.7734375
+   ]
+  }
+ ]
+}

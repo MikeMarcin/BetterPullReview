@@ -1384,6 +1384,12 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+# [[BPR-1442]]. Last among the suites, so the evaluation's candidate twins
+# see every target they mirror.
+if(BPR_BUILD_SYNTAX_EVALUATION)
+    add_subdirectory(syntax_evaluation)
+endif()
+
 add_subdirectory(logging)
 
 bpr_add_network_isolated_test(NAME test_suite_runner_contract

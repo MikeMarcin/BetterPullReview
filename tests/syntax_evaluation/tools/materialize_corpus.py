@@ -23,9 +23,10 @@ import re
 import subprocess
 import sys
 import tarfile
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+from contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 MANIFEST_RELATIVE = Path("tests/syntax_evaluation/corpus/manifest.json")
 SUPPORT_SUFFIXES = {".inc", ".def"}
@@ -165,7 +166,7 @@ def run_git(arguments: list[str], cwd: Path | None = None, data: bytes | None = 
 
 def pack_blobs(pack: Path, extensions: list[str]) -> list[tuple[str, str, bytes]]:
     """(blob id, path, bytes) for every C++ path of every commit in a pack."""
-    with tempfile.TemporaryDirectory(prefix="bpr-corpus-pack-") as scratch:
+    with contained_temporary_directory(prefix="bpr-corpus-pack-") as scratch:
         repository = Path(scratch) / "pack.git"
         run_git(["init", "--bare", "--quiet", str(repository)])
         target = repository / "objects" / "pack" / "fixture.pack"
