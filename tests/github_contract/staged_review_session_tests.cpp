@@ -718,7 +718,7 @@ namespace {
 				const auto                result   = restarted.publish_tour(input, { }, [](const auto&) { return true; });
 				const auto                expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
 					: failure == github_cli_process_failure::cancelled                                   ? application::review_mutation_failure::cancelled
-																										 : application::review_mutation_failure::unavailable;
+																										 : application::review_mutation_failure::credential_tool_failed;
 				expect(result.State == (stopAfterPost ? publication_state::outcome_unknown : publication_state::published)
 						   && result.Failure == expected && result.Record && result.Record->Plan == input && result.Record->PossiblyTransmitted == stopAfterPost
 						   && process.ApiCalls == calls && process.Writes == (stopAfterPost ? 1U : 5U),

@@ -64,7 +64,11 @@ sign-in starts the code flow directly; the code and browser action remain
 reachable while waiting. Cancel discards that setup request. Manual token entry
 remains available, including for enterprise servers whose device flow is
 unavailable. GitHub CLI access, where supported, requires its own explicit trust
-choice. A pending PR destination resumes only after its exact host accepts
+choice naming the selected account and host. BPR uses its existing gh sign-in
+transiently and saves no token; remembered reuse lasts until sign out or replacement.
+The existing details disclose executable, certificate, redirect and helper trust.
+Ordinary review/comment/tour publishing requires its own exact one-use authority,
+with no additional CLI warning. A pending PR destination resumes only after its exact host accepts
 authentication; cancelling setup keeps the existing review usable.
 
 Add enterprise server validates and remembers the hostname and optional account

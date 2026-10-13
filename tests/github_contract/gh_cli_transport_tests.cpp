@@ -1592,7 +1592,7 @@ namespace {
 			const auto              refused  = session.submit(request);
 			const auto              expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
 				: failure == github_cli_process_failure::cancelled                                 ? application::review_mutation_failure::cancelled
-																								   : application::review_mutation_failure::unavailable;
+																								   : application::review_mutation_failure::credential_tool_failed;
 			expect(!refused && refused.error() == expected && process.Calls == 0U, "inline strict acquisition distinguishes cancellation, credential refusal and tool failure with zero API launches");
 		}
 		for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::timeout,

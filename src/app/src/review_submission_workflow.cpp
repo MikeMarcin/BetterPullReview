@@ -1,5 +1,7 @@
 #include "review_submission_workflow.hpp"
+
 #include "bpr/core/review_tour_reconciliation.hpp"
+#include "bpr/qt/github_cli_consent.hpp"
 #include "tour_publication_plan.hpp"
 
 #include "bpr/application/review_submission_recovery_port.hpp"
@@ -463,7 +465,10 @@ namespace bpr::app {
 					const auto confirmedBinding = *DraftBinding;
 					const auto admission        = AdmitPublication(confirmedBinding);
 					if (!admission) {
-						Status = QStringLiteral("Not published. The current connection cannot publish this review. Your draft is kept.");
+						Status = qt::github_cli_publication_failure_text(admission.error(), QString::fromStdString(confirmedBinding.ActingIdentity.Login), QString::fromStdString(std::string{ confirmedBinding.Target.Hostname.value() }));
+						if (Status.isEmpty()) {
+							Status = QStringLiteral("Not published. The current account or pull request changed. Your draft is kept.");
+						}
 						present();
 						return;
 					}
@@ -555,7 +560,7 @@ namespace bpr::app {
 			complete(command_kind::fail_submit);
 			Pending.reset();
 			answer(aRequest, application::review_submission_publication::definitely_not_published);
-			Status = QStringLiteral("Not published. The current connection cannot publish this review. Your draft is kept.");
+			Status = QStringLiteral("Not published. The current account or pull request changed. Your draft is kept.");
 			return;
 		}
 		Context = Host ? Host->submit(aRequest, IssueGrant(Current->Authority.ApplicationSession, Generation, aRequest)) : std::nullopt;
@@ -664,9 +669,15 @@ namespace bpr::app {
 				complete(command_kind::fail_submit);
 				std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
 				Pending.reset();
-				Status = refused.Proposal.Comments.empty()
+				Status                 = refused.Proposal.Comments.empty()
 					? QStringLiteral("Review was not published. Your summary is retained.")
 					: QStringLiteral("Review was not published. Your summary and its pending comments are kept; check them and submit again.");
+				const auto failureText = refused.LiveBinding ? qt::github_cli_publication_failure_text(result->Failure,
+																									   QString::fromStdString(refused.LiveBinding->ActingIdentity.Login), QString::fromStdString(std::string{ refused.LiveBinding->Target.Hostname.value() }))
+															 : QString{ };
+				if (!failureText.isEmpty()) {
+					Status = failureText;
+				}
 				answer(refused, application::review_submission_publication::definitely_not_published);
 			} else {
 				Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
@@ -818,10 +829,16 @@ namespace bpr::app {
 		if (Record && (State == application::staged_publication_state::outcome_unknown || State == application::staged_publication_state::conflict || State == application::staged_publication_state::published)) {
 			return;
 		}
-		if (AdmitPublication && !AdmitPublication(*Binding)) {
-			Status = "Not published. The current connection cannot publish this tour. Your draft is kept.";
-			present();
-			return;
+		if (AdmitPublication) {
+			const auto admission = AdmitPublication(*Binding);
+			if (!admission) {
+				Status = qt::github_cli_publication_failure_text(admission.error(), QString::fromStdString(Binding->ActingIdentity.Login), QString::fromStdString(std::string{ Binding->Target.Hostname.value() }), Record.has_value()).toStdString();
+				if (Status.empty()) {
+					Status = "Publication refused: the current account or pull request changed. Your draft is kept.";
+				}
+				present();
+				return;
+			}
 		}
 		const auto grant = IssueGrant ? IssueGrant(Authority.ApplicationSession, Generation, *Plan) : application::review_submission_execution_grant{ };
 		Context          = Host->publish_tour(*Plan, grant);
@@ -857,11 +874,21 @@ namespace bpr::app {
 				Status = "Saved locally. Prepare a publication preview.";
 			}
 		} else if (const auto* result = std::get_if<application::staged_publication_result>(&aTerminal.Outcome)) {
-			Record = result->Record;
+			const auto preflightRefusal = !result->Record && result->Failure
+				&& (*result->Failure == application::review_mutation_failure::credential_unavailable
+					|| *result->Failure == application::review_mutation_failure::credential_tool_failed
+					|| *result->Failure == application::review_mutation_failure::cancelled);
+			const auto retainedOutcome = !result->Record && result->Failure && Record
+				&& (preflightRefusal || State == application::staged_publication_state::outcome_unknown || Record->Published);
+			if (result->Record || !result->Failure) {
+				Record = result->Record;
+			}
 			if (Record && Record->Published && ReceiptSink) {
 				ReceiptSink(*Record);
 			}
-			State       = result->State;
+			if (!retainedOutcome) {
+				State = result->State;
+			}
 			Previewed   = false;
 			using state = application::staged_publication_state;
 			if (Record && Record->Published && State != state::published) {
@@ -876,6 +903,12 @@ namespace bpr::app {
 				case state::conflict:              Status = "Publication conflict. The pending review, body, actor or head changed. No further writes are authorized."; break;
 				case state::description_attention: Status = "Tour published; description update needs attention."; break;
 				case state::unavailable:           Status = "Publication is unavailable. The private draft is retained."; break;
+				}
+			}
+			if (result->Failure && Binding && State != state::outcome_unknown && !(Record && Record->Published)) {
+				const auto status = qt::github_cli_publication_failure_text(*result->Failure, QString::fromStdString(Binding->ActingIdentity.Login), QString::fromStdString(std::string{ Binding->Target.Hostname.value() }), Record.has_value());
+				if (!status.isEmpty()) {
+					Status = status.toStdString();
 				}
 			}
 		}

@@ -493,7 +493,7 @@ namespace bpr::adapters::github::detail {
 			}
 			github_mutation_operation_scope operation{ Transport, aStop };
 			if (!operation.valid()) {
-				return { .State   = current.PossiblyTransmitted ? state::outcome_unknown : (current.Published ? status(current) : state::unavailable),
+				return { .State   = current.PossiblyTransmitted ? state::outcome_unknown : (*loaded ? status(current) : state::unavailable),
 						 .Record  = *loaded ? std::optional{ current } : std::nullopt,
 						 .Failure = operation.failure() };
 			}

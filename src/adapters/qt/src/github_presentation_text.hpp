@@ -92,17 +92,16 @@ namespace bpr::qt::detail {
 	[[nodiscard]] inline auto cli_trust_warning_text() -> QString
 	{
 		return QStringLiteral(
-			"Connect opts in to reading on this server using your existing gh sign-in. "
-			"The current account is observed after Connect; its permissions may differ from your native profile. "
-			"You trust this machine's CLI executable, configuration (including socket routing), "
-			"CA certificates and redirects. Executable/configuration/CA replacement and child-process risks remain. "
-			"Only gh's default home-directory configuration is used; custom CLI environment overrides are ignored. "
-			"Concurrent account switching can change the account used by a request; there is no exact account guarantee. "
-			"On macOS, CLI file writes are denied; an older gh configuration that needs migration will be refused. "
-			"Full diffs may run Git and gh's own shell credential helper as child processes; their executable, configuration and account-switch races remain. "
-			"Full comparison requires gh 2.96 or later and Git 2.49 or later, each checked locally for the commands it runs, with a 32 MiB per-file Git limit and supervised temporary-store cutoff. "
-			"Publishing a review or inline comment requires a separate exact-target confirmation for each write. "
-			"Read opt-in does not authorize publishing.");
+			"Connect uses the chosen account's existing gh sign-in on this server without saving its token. "
+			"Each operation retrieves a transient credential and validates that exact account; changing gh's active account does not redirect it. "
+			"This connection is reused until you sign out or replace it. "
+			"You trust the configured CLI executable, CA certificates, redirects and child-process behavior. "
+			"Calls use private account configuration, excluding ambient socket routing and CLI environment overrides. "
+			"On macOS, CLI file writes are denied except for an owned temporary object store. "
+			"Full diffs may run Git and gh's shell credential helper with the same operation credential. "
+			"They require gh 2.96 or later and Git 2.49 or later, checked locally, with a 32 MiB per-file limit and supervised temporary-store cutoff. "
+			"Owned token buffers are cleared after children finish; system/child memory, swap and crash dumps remain outside exact erasure guarantees. "
+			"Read trust does not authorize publishing; ordinary review, comment and tour gestures supply exact-operation authority.");
 	}
 
 	[[nodiscard]] inline auto github_status_text(

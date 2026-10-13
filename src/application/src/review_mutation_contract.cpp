@@ -135,6 +135,8 @@ namespace bpr::application {
 		switch (aFailure) {
 		case review_mutation_failure::credential_unavailable:
 			return "credential_unavailable";
+		case review_mutation_failure::credential_tool_failed:
+			return "credential_tool_failed";
 		case review_mutation_failure::unavailable:
 			return "unavailable";
 		case review_mutation_failure::refused_by_server:

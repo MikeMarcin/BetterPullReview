@@ -12053,6 +12053,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingReviewMutation = context;
+			PublishingBinding     = InlineReviewBinding;
 			Window->review_editor()->allow_publication_retry(false);
 			editor->present_publication_started();
 		}
@@ -12301,6 +12302,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingReviewMutation.reset();
+			const auto failedBinding = std::exchange(PublishingBinding, std::nullopt);
 			refresh_review_projection(aTerminal);
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
@@ -12363,7 +12365,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					});
 				}
 			} else {
-				editor->present(aTerminal.Result.error());
+				const auto status = failedBinding ? qt::github_cli_publication_failure_text(aTerminal.Result.error(),
+																							QString::fromStdString(failedBinding->ActingIdentity.Login), QString::fromStdString(std::string{ failedBinding->Target.Hostname.value() }))
+												  : QString{ };
+				if (!status.isEmpty()) {
+					editor->present_publication_refusal(status);
+				} else {
+					editor->present(aTerminal.Result.error());
+				}
 			}
 		}
 
@@ -14383,17 +14392,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						// with the same consequence if it had been left
 						// behind: this build offers the row labelled "uses
 						// your gh sign-in", so it owes the reviewer the
-						// trust warning that says what accepting it means.
+						// connection question that says what accepting it means.
 						// A run inside the boundary composes no factory that
 						// can serve a CLI read, so it never reaches here.
 #if defined(__APPLE__)
+							if (profile->cli_account_login().empty()) {
+								discover_github_cli_accounts(true);
+								return;
+							}
 							const auto remembered = Profile->selected_connection(profile->hostname());
 							if (Profile->cli_read_offered_here() && !Profile->CliConsent.contains(aValue.Profile) && (!remembered || remembered->Profile != aValue.Profile)) {
 								// [[BPR-0933]]. A short decision; the full
 								// residual-risk list is behind Show Details.
 								const auto consent = qt::ask_github_cli_read_consent(
 									Window.get(), QStringLiteral("Use configured GitHub CLI"),
-									QString::fromStdString(std::string{ profile->hostname() }));
+									QString::fromStdString(std::string{ profile->hostname() }), QString::fromStdString(std::string{ profile->cli_account_login() }));
 								if (!consent) {
 									return;
 								}
@@ -18053,6 +18066,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																	  ReviewMutationHost;
 		decltype(github_profile_runtime::LiveReviewMutationGrant)&    LiveReviewMutationGrant = Profile->LiveReviewMutationGrant;
 		std::optional<designated_review_mutation_selection>           InlineReviewBinding;
+		std::optional<designated_review_mutation_selection>           PublishingBinding;
 		decltype(github_profile_runtime::AttendedReviewMutationMode)& AttendedReviewMutationMode = Profile->AttendedReviewMutationMode;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
 		/// [[BPR-0657]]. The thread resolution in flight and what came of them.

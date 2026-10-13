@@ -1639,7 +1639,7 @@ namespace bpr::adapters::github::detail {
 			if (scope.error().Failure == github_cli_process_failure::cancelled) {
 				return std::unexpected{ application::review_mutation_failure::cancelled };
 			}
-			return std::unexpected{ scope.error().CredentialUnavailable ? application::review_mutation_failure::credential_unavailable : application::review_mutation_failure::unavailable };
+			return std::unexpected{ scope.error().CredentialUnavailable ? application::review_mutation_failure::credential_unavailable : application::review_mutation_failure::credential_tool_failed };
 		}
 		return *scope;
 	}

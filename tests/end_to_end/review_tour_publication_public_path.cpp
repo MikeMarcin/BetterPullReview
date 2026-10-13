@@ -194,6 +194,25 @@ auto main(int argc, char** argv) -> int
 			expect(server->StagedWrites == 0U && status->text().contains(QStringLiteral("draft is kept")), "missing strict capability refuses tour without a popup or a write");
 			cli.Strict->store(true);
 		}
+		if (cliMode) {
+			for (const auto failure : { application::review_mutation_failure::credential_unavailable, application::review_mutation_failure::credential_tool_failed, application::review_mutation_failure::cancelled }) {
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure = failure;
+				}
+				button("tourPublish")->click();
+				wait([&] { return !button("tourStop")->isEnabled() && status->text().contains(QStringLiteral("draft is kept")); }, "typed tour acquisition refusal retains private draft");
+				expect(server->StagedWrites == 0U && editor.problem_editor()->toPlainText() == QStringLiteral("Avoid losing the original explanation."), "tour acquisition failure performs zero writes and keeps prose");
+				if (failure != application::review_mutation_failure::cancelled) {
+					expect(status->text().contains(QStringLiteral("octo-reviewer")) && status->text().contains(QStringLiteral("github.com")), "tour failure names its captured account and host");
+				}
+				button("tourPreparePublication")->click();
+			}
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->CliAcquisitionFailure.reset();
+			}
+		}
 		button("tourPublish")->click();
 		if (mode == "stop") {
 			wait([&] {std::scoped_lock lock{server->Mutex};return server->StagedBlocked; }, "production session reaches first durable staged effect");
@@ -220,6 +239,21 @@ auto main(int argc, char** argv) -> int
 			prepare->click();
 			auto* resume = restored.findChild<QPushButton*>(QStringLiteral("tourResume"));
 			expect(resume->isEnabled(), "captured-plan preview authorizes explicit Resume control");
+			if (cliMode) {
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure = application::review_mutation_failure::credential_unavailable;
+				}
+				resume->click();
+				wait([&] { return restoredStatus->text().startsWith(QStringLiteral("No further publication.")); }, "partial tour retains prior staged work when credential becomes unavailable");
+				expect(server->StagedWrites == before && static_cast<bool>(restored.shown().Draft), "partial resume refusal performs zero new writes and retains draft");
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure.reset();
+				}
+				prepare->click();
+				expect(resume->isEnabled(), "the retained original partial plan still permits explicit Resume after repreview");
+			}
 			resume->click();
 			wait([&] { return restoredStatus->text().startsWith(QStringLiteral("Published:")); }, "Resume completes the original pending review");
 		} else if (mode == "conflict") {
