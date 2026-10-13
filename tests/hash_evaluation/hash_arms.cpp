@@ -68,7 +68,10 @@ namespace bpr::hash_evaluation {
 			bool              Detected = false;
 		};
 
-		/// The current core SHA-256, the SHA-256 baseline.
+		/// The product's SHA-256, bpr/core/sha256.hpp. Since [[BPR-1451]] it is
+		/// HACL*'s SHA-2 behind the core wrapper, so this arm measures the
+		/// product path and the "hacl" arm below the library called directly;
+		/// the two must agree everywhere, and their gap is the wrapper's cost.
 		class core_sha256 final : public hash_arm
 		{
 		public:
@@ -237,8 +240,10 @@ namespace bpr::hash_evaluation {
 			bool     Detected           = false;
 		};
 
-		/// HACL*'s generated SHA-256 through its block-level calls, so a stream
-		/// allocates nothing: the shape a core wrapper would take.
+		/// HACL*'s generated SHA-256 called directly through its block-level
+		/// calls, so a stream allocates nothing. The core wrapper
+		/// ([[BPR-1451]]) has the same shape; this arm is its library-only
+		/// reference.
 		class hacl_sha256 final : public hash_arm
 		{
 		public:

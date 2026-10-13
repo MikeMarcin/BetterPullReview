@@ -1563,6 +1563,27 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure(diagnostic, {path: expression})
 
+    def test_sha256_has_one_hacl_owner(self) -> None:
+        # [[BPR-1451]]. Only the core wrapper calls HACL*, and no first-party
+        # SHA-2 constants return anywhere else.
+        result = self.run_check({
+            "src/core/src/sha256_hacl.cpp":
+                "#include <internal/Hacl_Hash_SHA2.h>\nHacl_Hash_SHA2_sha256_init(state);\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/sha256_hacl.cpp)\n",
+            "src/adapters/sqlite/src/other.cpp":
+                "QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/other_sha256.cpp", "#include <internal/Hacl_Hash_SHA2.h>\n"),
+            ("src/application/src/other.cpp", "Hacl_Hash_SHA2_sha256_update_nblocks(64U, block, state);\n"),
+            ("src/core/src/other_sha256.cpp", "std::uint32_t h0 = 0x6a09e667U;\n"),
+            ("src/adapters/git/src/other.cpp", "constexpr auto k0 = 0x428A2F98U;\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("SHA-256 implementation ownership violation", {path: expression})
+
     def test_native_release_helper_launch_owner_is_exact(self) -> None:
         source = "posix_spawn(pid, path, actions, attr, argv, envp);\n"
         result = self.run_check({

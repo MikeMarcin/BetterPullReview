@@ -1414,10 +1414,11 @@ holds the inventory of entry points and the campaigns run so far.
 
 [[BPR-1446]]. `BPR_HASH_EVALUATION=ON` builds RFC-BPR-0080's evaluation
 harness, `bench_hash_evaluation`, in `tests/hash_evaluation`. It acquires
-sha1collisiondetection, HACL*'s generated SHA-2 and the NIST CAVP SHA vectors
-as pinned, verified archives (`cmake/BprHashEvaluationProvider.cmake`) and
-compares them with the core hashes, the platform hashes and
-`QCryptographicHash`. The product links none of it; with the option off,
+the NIST CAVP SHA vectors as a pinned, verified archive
+(`cmake/BprHashEvaluationProvider.cmake`) and uses the product's own
+sha1collisiondetection ([[BPR-1450]]) and HACL* SHA-2 ([[BPR-1451]]) targets,
+comparing them with the core hashes, the platform hashes and
+`QCryptographicHash`. The product links none of the harness; with the option off,
 nothing is acquired. Measure in an optimized tree of its own, one row at a time,
 on a machine that is otherwise idle:
 
@@ -3547,6 +3548,26 @@ SHA-1 only to the pack checksum in `installed_git_cache.cpp` and refuses any
 other SHA-1 implementation outside `src/core/src/sha1_collision_detecting.cpp`.
 The hash evaluation (`-DBPR_HASH_EVALUATION=ON`) measures this same target.
 License and provenance are under `third_party/sha1collisiondetection/`.
+
+## Core HACL* SHA-2
+
+[[BPR-1451]] builds HACL*'s generated, formally verified SHA-2 C at pinned
+commit `504c2987452f87fe44bce9b9f12e19d6e051761f` for every SHA-256 the core
+computes, Git identities in the SHA-256 object format included:
+`cmake/BprHaclSha2Provider.cmake` checks archive SHA-256, size and the MIT
+license of the generated distribution (`dist/LICENSE.txt`), honors the offline
+cache, re-extracts only `dist/` under `build/_bpr/hacl-sha2`, and compiles only
+`Hacl_Hash_SHA2.c` from `dist/gcc-compatible` (`dist/msvc-compatible` under
+MSVC). It is part of the Qt-free core graph and on the owner's core allow-list
+as `BetterPullReview::HaclSha2`. `bpr/core/sha256.hpp` keeps its API; its
+implementation, `src/core/src/sha256_hacl.cpp`, calls only HACL*'s block-level
+init, update, last-block and finish functions, so a stream allocates nothing,
+and the first-party SHA-256 is gone. Digests are byte-identical, so stored
+digests still match. `architecture_boundaries` refuses any HACL* symbol or
+header, or a first-party SHA-2 constant, outside that file. The hash
+evaluation measures this same target: its `core` arm is the product wrapper and
+its `hacl` arm the library called directly. License and provenance are under
+`third_party/hacl-star/`.
 
 ## Source search regex engine
 

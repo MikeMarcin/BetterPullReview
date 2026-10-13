@@ -58,7 +58,7 @@ class CoreBoundaryTests(unittest.TestCase):
         # sha1collisiondetection and HACL* SHA-2 (RFC-BPR-0080 Q1 and Q2).
         approved = self.run_check(
             "struct identity {};\n",
-            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc)\n",
+            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2)\n",
         )
         self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
         for library in ("re2::re2", "Qt6::Core", "BetterPullReview::SQLite3", "Threads::Threads"):

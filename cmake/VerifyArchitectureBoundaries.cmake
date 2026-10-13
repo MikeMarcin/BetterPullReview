@@ -1872,6 +1872,16 @@ verify_effect_owner(
     "SHA-1 implementation"
     "src/core/src/sha1_collision_detecting.cpp"
 )
+# [[BPR-1451]]. The core's SHA-256 is HACL*'s generated SHA-2, called only by
+# the core wrapper (RFC-BPR-0080 AC03): no other source names a HACL* symbol
+# or header, and no first-party SHA-2 (its initial hash or first round
+# constant) comes back. Platform and Qt SHA-256 outside the core are not
+# identities and are left alone.
+verify_effect_owner(
+    "(Hacl_|0x6a09e667|0x6A09E667|0x428a2f98|0x428A2F98)"
+    "SHA-256 implementation"
+    "src/core/src/sha256_hacl.cpp"
+)
 verify_effect_owner(
     "QNetworkAccessManager"
     "QNetworkAccessManager"

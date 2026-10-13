@@ -10,7 +10,7 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::Core
         BetterPullReview::Sha1dc
-        better_pull_review_eval_hacl_sha2
+        BetterPullReview::HaclSha2
 )
 if(TARGET Qt6::Core)
     target_link_libraries(bench_hash_evaluation PRIVATE Qt6::Core)
