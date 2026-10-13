@@ -1410,6 +1410,32 @@ the artifact prefix. Fix the cause, then add the input to the corpus as a
 regression seed. [docs/verification/BPR-0970-parser-fuzzing.md](../verification/BPR-0970-parser-fuzzing.md)
 holds the inventory of entry points and the campaigns run so far.
 
+## Hash evaluation
+
+[[BPR-1446]]. `BPR_HASH_EVALUATION=ON` builds RFC-BPR-0080's evaluation
+harness, `bench_hash_evaluation`, in `tests/hash_evaluation`. It acquires
+sha1collisiondetection, HACL*'s generated SHA-2 and the NIST CAVP SHA vectors
+as pinned, verified archives (`cmake/BprHashEvaluationProvider.cmake`) and
+compares them with the core hashes, the platform hashes and
+`QCryptographicHash`. The product links none of it; with the option off,
+nothing is acquired. Measure in an optimized tree of its own, one row at a time,
+on a machine that is otherwise idle:
+
+```sh
+cmake --preset dev -B build/hash-evaluation -DCMAKE_BUILD_TYPE=Release -DBPR_HASH_EVALUATION=ON
+cmake --build build/hash-evaluation --target bench_hash_evaluation test_better_pull_review_feedback_counter_costs
+ctest --test-dir build/hash-evaluation -R '^hash_evaluation_' --output-on-failure
+python3 tests/hash_evaluation/run_hash_evaluation.py --build build/hash-evaluation \
+  --repository . --output /absolute/path/to/hash-evaluation.json
+```
+
+The driver runs the known answers, chunking, seeded differential inputs up to
+256 MiB, Git identities in both object formats, this repository's object store
+and its `main` history converted to SHA-256, the collision inputs, the W1 to W3
+throughput workloads and the window-thread baseline, and writes one JSON
+document. `--phases` selects some of them. The
+[report](../verification/RFC-BPR-0080.md) records each station's results.
+
 ## Focused evidence
 
 ```sh

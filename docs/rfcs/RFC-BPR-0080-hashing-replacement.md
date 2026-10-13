@@ -22,6 +22,20 @@ and fmt). Q1, Q2 and Q3 below are unanswered. Their dependent adoption cards
 stay blocked, and no candidate enters core's link allow-list
 (`cmake/VerifyCoreBoundary.cmake`) until the owner answers.
 
+## Progress, 2026-10-13
+
+The macOS arm64 evaluation ([[BPR-1446]]) is recorded in the
+[hash evaluation report](../verification/RFC-BPR-0080.md): sha1dc is eligible
+pending Q1, HACL* SHA-2 eligible pending Q2, CommonCrypto passes the host
+port's throughput condition with the site decision left to [[BPR-1447]], and
+`QCryptographicHash` stays rejected for identities. The Mac was shared with
+other builds, so the throughput was measured in thread CPU time rather than on
+an idle machine; [[BPR-1446]] stays blocked until an idle re-measurement. The
+public collision pairs neither collide nor are detected when hashed as Git
+objects, so AC03's four object-level refusal points need an amendment or a
+Git-framed collision vector before [[BPR-1450]] can meet the sha1dc rule.
+Windows and Linux have not run. Nothing is adopted.
+
 ## Problem and grounded current behavior
 
 On 2026-10-13 the owner asked to "identify a suitable replacement and author a
