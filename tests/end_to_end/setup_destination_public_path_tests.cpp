@@ -1274,7 +1274,8 @@ namespace {
 	/// composed window over the two-file recorded pull request: each exact
 	/// location is placed through the ordinary gesture paths, each location
 	/// that cannot be placed opens the pull request and says why, and a link
-	/// to the pull request the window already shows reads nothing again.
+	/// to the pull request the window already shows reads it fresh
+	/// ([[BPR-1475]], owner 2026-10-13; BPR-0987 read nothing again).
 	void run_link_location_course()
 	{
 		auto temporary = QTemporaryDir{ };
@@ -1318,19 +1319,21 @@ namespace {
 				 "a file link with a head-side line selects exactly that file and line");
 		expect(!window.showing_home() && window.current_modality() == qt::review_modality::review, "a file location is shown in Review");
 		expect(!window.statusBar()->currentMessage().contains(QStringLiteral("unavailable")), "an exact location says nothing");
-		const auto opened = reads();
+		auto opened = reads();
 
-		// The same pull request again, another file: navigated, not read again.
+		// [[BPR-1475]]. The same pull request again, another file: read fresh
+		// (owner, 2026-10-13), then moved to that file.
 		submit(window, base + QStringLiteral("#diff-") + digest("review.cpp"));
-		wait_for([&] { return surface->current_context() && surface->current_context()->Key.File == review; }, "a link to the open pull request moves to its file");
-		expect(reads() == opened && window.session_panel()->status() == core::github_status::pull_request_ready, "a link to the pull request the window shows reads nothing again");
+		wait_for([&] { return surface->current_context() && surface->current_context()->Key.File == review && reads() > opened
+						   && window.session_panel()->status() == core::github_status::pull_request_ready; },
+				 "a link to the pull request the window shows reads it fresh and moves to its file");
+		opened = reads();
 
-		// A review the read identified is revealed in Discuss.
+		// A review the read identified is revealed in Discuss, after a fresh read.
 		submit(window, base + QStringLiteral("#pullrequestreview-4001"));
-		wait_for([&] { return window.current_modality() == qt::review_modality::discuss
+		wait_for([&] { return window.current_modality() == qt::review_modality::discuss && reads() > opened
 						   && window.conversation_view()->currentIndex().data(qt::github_conversation_model::identity_role).toString().startsWith(QStringLiteral("review:")); },
-				 "a review link reveals that review");
-		expect(reads() == opened, "revealing a review reads nothing again");
+				 "a review link reads the pull request fresh and reveals that review");
 
 		// Locations that cannot be placed open the pull request and say why.
 		submit(window, base + QStringLiteral("#discussion_r123456"));
@@ -1344,10 +1347,11 @@ namespace {
 		wait_for([&] { return said(QStringLiteral("A single commit is not shown")); }, "a commit page is explained, not mapped to another revision");
 		submit(window, base + QStringLiteral("/files#diff-") + digest("absent.cpp"));
 		wait_for([&] { return said(QStringLiteral("No changed file")); }, "a digest naming no changed file substitutes nothing");
+		opened = reads();
 		submit(window, base + QStringLiteral("#issuecomment-99"));
-		wait_for([&] { return said(QStringLiteral("discussion comment")); }, "a discussion comment link is explained");
-		expect(reads() == opened && surface->current_context() && surface->current_context()->Key.File == secondary,
-			   "no explained location reads again or moves the review");
+		wait_for([&] { return said(QStringLiteral("discussion comment")) && reads() > opened && window.session_panel()->status() == core::github_status::pull_request_ready; },
+				 "a discussion comment link reads the pull request fresh and is explained");
+		opened = reads();
 
 		// A repository commit link names no pull request: nothing is guessed.
 		submit(window, QStringLiteral("https://github.com/octo-org/review-repository/commit/0123456789abcdef"));

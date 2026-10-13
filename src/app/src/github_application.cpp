@@ -6457,18 +6457,9 @@ namespace bpr::app {
 			const auto& destination = recent[index].Destination;
 			retire_setup_effects();
 			cancel_restoration(true);
-			// [[BPR-0987]]. The row's pull request is already shown here under
-			// the same session: it lands on Overview as a row does, without
-			// being read again.
-			const auto& session = Host != nullptr ? Host->accepted_session() : std::optional<application::github_session_read_model>{ };
-			const auto* profile = session ? find_profile(session->Profile) : nullptr;
-			if (profile != nullptr && session->Mode == destination.Mode && profile->hostname() == destination.Hostname
-				&& WindowRead->state().ActiveProfile == session->Profile
-				&& reuses_shown({ .Hostname = destination.Hostname, .Repository = destination.Repository, .Number = destination.Number })) {
-				Window->choose_home(false);
-				Window->choose_modality(qt::review_modality::overview);
-				return;
-			}
+			// [[BPR-1475]]. Even the pull request this window already shows is
+			// read fresh: the owner chose a read per reopen over a stale view
+			// (2026-10-13), replacing BPR-0987's reuse here.
 			SetupDestination->submit("https://" + destination.Hostname + "/" + destination.Repository.Owner + "/" + destination.Repository.Name + "/pull/" + std::to_string(destination.Number.value()));
 		}
 		std::optional<core::request_id>                    RestorationReadRequest;
@@ -7240,6 +7231,14 @@ namespace bpr::app {
 			WindowRead = std::make_shared<application::github_window_read_host>(DraftWindow, WindowSession, *Provider, *ReadDecision, [this, weak](const application::github_window_read_update& aUpdate) {
 					if (weak.expired() || Closing || aUpdate.Window != DraftWindow || !Profile->current_window(DraftWindow)){ return;
 }
+// [[BPR-1475]]. Whether a note was open in the drawer as this read began:
+// the read's conversations close the drawer before its composition is retired.
+if (DraftReadRequest != WindowRead->state().PendingPullRequest) {
+	DraftReadRequest = WindowRead->state().PendingPullRequest;
+	if (DraftReadRequest) {
+		DraftOpenAtRead = Window->conversation_panel() != nullptr && Window->conversation_panel()->cards() != nullptr && Window->conversation_panel()->cards()->writing_draft();
+	}
+}
 if (QueueHost && WindowRead->state().PendingPullRequest && QueueFactRequest != WindowRead->state().PendingPullRequest) {
     QueueFactRequest = WindowRead->state().PendingPullRequest; QueueFactRevision = QueueHost->begin_observation();
 }
@@ -7257,7 +7256,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
-					schedule_link_location(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission);
+					schedule_link_location();
+					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission);
 			Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
 				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 					WindowRead->read_cached_source(aPath.toStdString());
@@ -7492,6 +7492,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 #endif
 			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); }, [this](const application::staged_publication_record& aRecord) {
+                // [[BPR-1475]]. A published tour is a review on GitHub: read it.
+                reread_after_publication();
                 if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
                 if(!draft){return;}
                 if(auto published=application::published_tour(aRecord,*draft)){TourHost->observe_publication(std::move(*published));} });
@@ -7507,6 +7509,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					settle_review_comments(aKey, aPublication, aRequest);
 				},
 				[this] { discard_review_comments(); });
+			ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
@@ -10979,6 +10982,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// Refresh keeps it on screen without choosing it again.
 		void resume_reply()
 		{
+			resume_comment();
 			if (Closing || !ResumeReply || !SharedDrafts || Window == nullptr || PendingReviewMutation || !SelectedDiffPublication) {
 				return;
 			}
@@ -11003,6 +11007,64 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			static_cast<void>(surface->select_conversation_line(reply->Anchor.Side, reply->Anchor.Line));
+		}
+
+		/// \brief [[BPR-1475]]. The new comment a reread retired is held again
+		/// once the reread comparison is shown, as the core decides, while its
+		/// line is still the selected one. A reviewer who has moved on keeps
+		/// the place they moved to.
+		void resume_comment()
+		{
+			if (Closing || !ResumeComment || !SharedDrafts || Window == nullptr || PendingReviewMutation || !SelectedDiffPublication) {
+				return;
+			}
+			const auto drafts = saved_draft_values();
+			const auto again  = core::resume_comment_after_refresh(drafts, *ResumeComment);
+			if (!again) {
+				ResumeComment.reset();
+				return;
+			}
+			const auto comment = std::ranges::find(drafts, *again, &core::review_comment_draft::Id);
+			if (comment == drafts.end() || core::comparison_digest(SelectedDiffPublication->Key) != comment->Anchor.Comparison) {
+				return;
+			}
+			const auto selection = Window->comparison_surface()->selection();
+			if (!selection || selection->PreferredLine != comment->Anchor) {
+				ResumeComment.reset();
+				return;
+			}
+			if (SelectedSemanticSelection == selection) {
+				present_review_draft(*selection);
+			} else {
+				observe_review_selection(selection);
+			}
+		}
+
+		/// \brief [[BPR-1475]]. Choosing the held comment's line holds it again.
+		auto resume_comment_at(const core::source_line_ref& aLine) -> bool
+		{
+			if (!ResumeComment || !SharedDrafts || PendingReviewMutation) {
+				return false;
+			}
+			const auto drafts  = saved_draft_values();
+			const auto again   = core::resume_comment_after_refresh(drafts, *ResumeComment);
+			const auto comment = again ? std::ranges::find(drafts, *again, &core::review_comment_draft::Id) : drafts.end();
+			if (comment == drafts.end() || comment->Anchor != aLine) {
+				ResumeComment.reset();
+				return false;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, *again);
+			ResumeComment.reset();
+			if (!read.Accepted) {
+				return false;
+			}
+			accept_shared_draft(*read.Accepted);
+			refresh_agent_private_context_choices();
+			// Open in the drawer again if it was open there.
+			if (std::exchange(ResumeCommentOpen, false) && Window != nullptr) {
+				static_cast<void>(Window->begin_new_comment());
+			}
+			return true;
 		}
 
 		/// \brief [[BPR-1374]]. A kept reply's note: its words become a new
@@ -11200,10 +11262,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void settle_review_comments(const std::string& aKey, const application::review_submission_publication aPublication,
 									const std::optional<application::review_submission_request>& aRequest)
 		{
-			// [[BPR-1472]]. A review that may be on GitHub is not in the shown read.
-			if (!Closing && aPublication != application::review_submission_publication::definitely_not_published) {
-				note_publication();
-			}
 			if (Closing || !SharedDrafts || aPublication == application::review_submission_publication::indeterminate) {
 				return;
 			}
@@ -11377,9 +11435,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto publishing = std::exchange(PublishingDraft, std::nullopt);
-			if (aSuccess) {
-				note_publication();
-			}
 			if (PrivateReview && PrivateDraftsReady) {
 				const auto owner    = SharedDrafts;
 				auto       complete = [this, owner, publishing, after = std::move(aAfter)](auto aCommit) {
@@ -11555,7 +11610,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// left it saved but shown nowhere.
 			if (ReviewDraft) {
 				ResumeReply = ReviewDraft->ReplyToThread && ReviewDraft->State == core::review_draft_state::drafting ? std::optional{ ReviewDraft->Id } : std::nullopt;
+				// [[BPR-1475]]. So is a new comment being written: the window
+				// rereads by itself after publishing, and that takes no note away.
+				ResumeComment     = !ReviewDraft->ReplyToThread && ReviewDraft->State == core::review_draft_state::drafting ? std::optional{ ReviewDraft->Id } : std::nullopt;
+				ResumeCommentOpen = ResumeComment && DraftOpenAtRead;
 			}
+			DraftOpenAtRead = false;
 			ReviewDraft.reset();
 			ReviewDraftRevision = 0U;
 			SelectedSemanticSelection.reset();
@@ -12119,7 +12179,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
 		/// [[BPR-1374]]. The reply the editor held when a Refresh retired it.
 		std::optional<core::review_draft_id> ResumeReply;
-		void                                 finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome, core::review_publication_outcome aPriorOutcome)
+		/// [[BPR-1475]]. The new comment the editor held when a reread retired it.
+		std::optional<core::review_draft_id> ResumeComment;
+		bool                                 ResumeCommentOpen = false;
+		/// [[BPR-1475]]. The read in flight, and whether the drawer held a note
+		/// being written when it began.
+		std::optional<core::pull_request_request_context> DraftReadRequest;
+		bool                                              DraftOpenAtRead = false;
+		void                                              finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome, core::review_publication_outcome aPriorOutcome)
 		{
 			const auto& aCommand = aRevisionedCommand.Command;
 
@@ -12347,7 +12414,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				observe_base_numbering();
 				return;
 			}
-			if (resume_reply_at(aSelection.PreferredLine)) {
+			if (resume_reply_at(aSelection.PreferredLine) || resume_comment_at(aSelection.PreferredLine)) {
 				return;
 			}
 			if (ReviewDraft.has_value()
@@ -12469,6 +12536,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingReviewMutation.reset();
+			// [[BPR-1475]]. A comment or reply on GitHub: the pull request is
+			// read again, whatever the editor shows now. An unknown outcome is
+			// not reread: the draft stays held for its retry, and a reread
+			// retires the composition that retry is bound to.
+			if (aTerminal.Result.has_value()) {
+				reread_after_publication();
+			}
 			const auto failedBinding = std::exchange(PublishingBinding, std::nullopt);
 			refresh_review_projection(aTerminal);
 			const auto deferred = std::move(DeferredReviewSelection);
@@ -12520,14 +12594,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						.Target = InlineReviewBinding->Target, .Actor = InlineReviewBinding->ActingIdentity, .Anchor = ReviewDraft->Anchor, .Comment = aTerminal.Result->ServerCommentId
 					};
 					// The accepted server snapshot supplies the thread identity,
-					// raw body and placement. A receipt never fabricates a post.
-					QTimer::singleShot(0, Window.get(), [this] {
-						if (!Closing && Window && PendingPublishedConversation) {
-							if (auto* refresh = Window->github_refresh_action(); refresh && refresh->isEnabled()) {
-								refresh->trigger();
-							}
-						}
-					});
+					// raw body and placement. A receipt never fabricates a post:
+					// the reread above brings it ([[BPR-1475]]).
 				}
 			} else {
 				present_inline_publication_failure(aTerminal.Result.error(), aPublicationOutcome, failedBinding);
@@ -14312,18 +14380,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!previewing && !authenticated) {
 				return application::setup_destination_opening::reading;
 			}
-			// [[BPR-0987]]. A link to the pull request this window already
-			// shows under this session reads nothing again: the window keeps
-			// its review and goes to the location. Anything else opens here
-			// and goes to the location once this window accepts it.
-			const auto shown = reuses_shown(aDestination) && WindowRead->state().ActiveProfile == aProfile;
-			if (shown || aDestination.Target.Kind != core::pull_request_location_kind::pull_request) {
+			// [[BPR-0987]]. The link opens here and goes to the location once
+			// this window accepts it. [[BPR-1475]]. That holds for the pull
+			// request this window already shows too: it is read fresh (owner,
+			// 2026-10-13), not reused.
+			if (aDestination.Target.Kind != core::pull_request_location_kind::pull_request) {
 				PendingLinkLocation = link_location{ .Destination = aDestination };
-			}
-			if (shown) {
-				Window->choose_home(false);
-				schedule_link_location();
-				return application::setup_destination_opening::navigated;
 			}
 			WindowRead->dispatch(core::open_pull_request_intent{ .Repository = aDestination.Repository, .Number = aDestination.Number });
 			return application::setup_destination_opening::reading;
@@ -14356,21 +14418,53 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& same_name(snapshot->Repository.Owner, aDestination.Repository.Owner)
 				&& same_name(snapshot->Repository.Name, aDestination.Repository.Name);
 		}
-		/// [[BPR-1472]]. The shown read is reused only while it is still the
-		/// latest this window knows of: once this window has published to the
-		/// pull request over it, GitHub holds comments that read lacks, so
-		/// reopening reads it again. A new accepted read clears this by itself.
-		std::optional<core::provider_snapshot_id> PublishedOverSnapshot;
-		void                                      note_publication()
+		/// [[BPR-1475]]. After this window publishes to the pull request (a
+		/// review, a comment or a reply), or may have, it reads the pull
+		/// request again, as Refresh does, so what was posted shows without
+		/// a manual refresh (owner, 2026-10-13). One reread is owed at most: a
+		/// read already in flight may predate the publication, so the reread
+		/// waits for it to settle rather than being dropped or stacked.
+		bool RereadOwed   = false;
+		bool RereadQueued = false;
+		void reread_after_publication()
 		{
-			if (WindowRead && WindowRead->accepted_snapshot()) {
-				PublishedOverSnapshot = WindowRead->accepted_snapshot()->Snapshot;
+			if (Closing) {
+				return;
 			}
+			RereadOwed = true;
+			schedule_publication_reread();
 		}
-		[[nodiscard]] auto reuses_shown(const core::setup_destination& aDestination) const -> bool
+		void schedule_publication_reread()
 		{
-			return shows_destination(aDestination)
-				&& PublishedOverSnapshot != std::optional{ WindowRead->accepted_snapshot()->Snapshot };
+			if (Closing || !RereadOwed || RereadQueued || Window == nullptr) {
+				return;
+			}
+			RereadQueued = true;
+			QTimer::singleShot(0, Window.get(), [this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+				if (weak.expired()) {
+					return;
+				}
+				RereadQueued = false;
+				pay_publication_reread();
+			});
+		}
+		void pay_publication_reread()
+		{
+			if (Closing || !RereadOwed || Window == nullptr || !WindowRead) {
+				return;
+			}
+			if (WindowRead->state().PendingPullRequest.has_value()) {
+				// Paid when that read settles: its update schedules this again.
+				return;
+			}
+			RereadOwed = false;
+			// The core's refresh of the shown pull request, as Refresh reads it,
+			// but not as a gesture: nothing the reviewer is doing (a pasted
+			// link waiting on sign-in, a restoration, the status line) is
+			// retired by a read the window makes for itself.
+			if (WindowRead->accepted_snapshot()) {
+				WindowRead->dispatch(core::github_window_read_event{ core::refresh_pull_request_intent{ } });
+			}
 		}
 		void schedule_link_location()
 		{
@@ -18074,6 +18168,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_restored,
 				awaiting_finish_page,
 				awaiting_submitted,
+				// [[BPR-1475]]. The reread a submission makes by itself, then a
+				// note held open across a reread.
+				awaiting_publication_reread,
+				awaiting_note_line,
+				awaiting_note_text,
+				awaiting_note_reread,
 				// [[BPR-1472]]. Home, then the pull request's Recently viewed row.
 				awaiting_recent_open,
 				awaiting_recent_read,
@@ -18116,6 +18216,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			/// [[BPR-1472]]. The reads and the shown read before the reopen.
 			int                                       ReadsBefore = 0;
 			std::optional<core::provider_snapshot_id> ShownBefore;
+			/// [[BPR-1475]]. The reviewer's place before the submission.
+			std::optional<core::semantic_selection> SelectionBefore;
 		};
 		std::optional<start_review_probe_state> StartReviewProbe;
 		// [[BPR-1331]]. The private progress course across a push.
@@ -29395,6 +29497,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				server.RefuseNextReview = aCourse == course::refused;
 				server.LoseNextReview   = aCourse == course::uncertain;
 			}
+			// [[BPR-1475]]. What the submission's own reread is measured from.
+			probe.ReadsBefore     = implementation->Fixture->evidence().AccountReadCount;
+			probe.ShownBefore     = implementation->WindowRead->accepted_snapshot() ? std::optional{ implementation->WindowRead->accepted_snapshot()->Snapshot } : std::nullopt;
+			probe.SelectionBefore = window->comparison_surface()->selection();
 			summary->disposition_button(core::review_disposition::comment)->click();
 			QCoreApplication::processEvents();
 			probe.Waited = 0U;
@@ -29431,7 +29537,77 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& window->statusBar()->currentMessage() == QStringLiteral("Review submitted with 2 comments") && summary->confirmed_submissions() == 1U
 				&& summary->shown_draft().has_value() && summary->shown_draft()->State == core::review_submission_state::drafting && summary->shown_draft()->Comments.empty();
 			if (!probe.Evidence.SubmittedExact || !probe.Evidence.MarkedPublished) {
+				note("modality=" + std::to_string(static_cast<int>(window->current_modality())) + " message=" + window->statusBar()->currentMessage().toStdString() + " confirmed=" + std::to_string(summary->confirmed_submissions()) + " finish=" + std::to_string(finishPage() != nullptr ? 1 : 0));
 				return fail("submitted-not-exact");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_publication_reread;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_publication_reread: {
+			// [[BPR-1475]]. Nothing here presses Refresh: the submission's own
+			// reread brings a new snapshot, and the reviewer's place stays.
+			const auto& snapshot  = implementation->WindowRead->accepted_snapshot();
+			const auto  reads     = implementation->Fixture->evidence().AccountReadCount;
+			const auto& context   = window->comparison_surface()->current_context();
+			const auto  shownFile = context.has_value() && context->Key.File == core::file_identity_of(path);
+			note("reads=" + std::to_string(reads) + " before=" + std::to_string(probe.ReadsBefore) + " ready=" + std::to_string(ready() ? 1 : 0) + " file=" + std::to_string(shownFile ? 1 : 0)
+				 + " selection=" + std::to_string(window->comparison_surface()->selection() == probe.SelectionBefore ? 1 : 0));
+			if (reads == probe.ReadsBefore || !snapshot || std::optional{ snapshot->Snapshot } == probe.ShownBefore || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("no-reread-after-publish");
+			}
+			probe.Evidence.RereadAfterPublish = !window->showing_home() && window->current_modality() == qt::review_modality::review && shownFile
+				&& probe.SelectionBefore.has_value() && window->comparison_surface()->selection() == probe.SelectionBefore && finishPage() == nullptr;
+			if (!probe.Evidence.RereadAfterPublish) {
+				return fail("reread-moved-the-reviewer");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_note_line;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_note_line: {
+			// A new note, written and left open in the drawer.
+			const auto line = pick();
+			note("line=" + std::to_string(line.value_or(0U)));
+			if (!line || !ready() || !write(words[2])) {
+				return ++probe.Waited < 400U ? result::pending : fail("no-note-to-hold-open");
+			}
+			probe.Third  = line;
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_note_text;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_note_text: {
+			note("written=" + std::to_string(written(words[2]) ? 1 : 0) + " writing=" + std::to_string(cards->writing_draft() ? 1 : 0));
+			if (!written(words[2]) || !cards->writing_draft()) {
+				return ++probe.Waited < 400U ? result::pending : fail("note-not-written");
+			}
+			// The reread a publication owes, by the same path, with the note
+			// open: this window has nothing else to publish here.
+			probe.ReadsBefore     = implementation->Fixture->evidence().AccountReadCount;
+			probe.ShownBefore     = implementation->WindowRead->accepted_snapshot()->Snapshot;
+			probe.SelectionBefore = window->comparison_surface()->selection();
+			implementation->reread_after_publication();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_note_reread;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_note_reread: {
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
+			const auto  reads    = implementation->Fixture->evidence().AccountReadCount;
+			auto* const field    = cards->draft_editor();
+			note("reads=" + std::to_string(reads) + " before=" + std::to_string(probe.ReadsBefore) + " ready=" + std::to_string(ready() ? 1 : 0)
+				 + " writing=" + std::to_string(cards->writing_draft() ? 1 : 0) + " field=" + std::to_string(field != nullptr ? 1 : 0) + " written=" + std::to_string(written(words[2]) ? 1 : 0)
+				 + " open=" + std::to_string(cards->open_card() != nullptr ? 1 : 0) + " selection=" + std::to_string(window->comparison_surface()->selection() == probe.SelectionBefore ? 1 : 0)
+				 + " modality=" + std::to_string(static_cast<int>(window->current_modality())) + " draft=" + (implementation->ReviewDraft ? std::to_string(implementation->ReviewDraft->Id.value()) + ":" + implementation->ReviewDraft->Body.substr(0, 8) : std::string{ "none" })
+				 + " resume=" + std::to_string(implementation->ResumeComment ? 1 : 0) + " waited=" + std::to_string(probe.Waited));
+			if (reads == probe.ReadsBefore || !snapshot || std::optional{ snapshot->Snapshot } == probe.ShownBefore || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("no-reread-with-the-note-open");
+			}
+			probe.Evidence.NoteKept = cards->writing_draft() && field != nullptr && field->toPlainText() == words[2] && written(words[2])
+				&& window->current_modality() == qt::review_modality::review && window->comparison_surface()->selection() == probe.SelectionBefore;
+			if (!probe.Evidence.NoteKept) {
+				return ++probe.Waited < 400U ? result::pending : fail("reread-closed-the-note");
 			}
 			probe.Waited = 0U;
 			probe.Phase  = state_type::phase::awaiting_recent_open;

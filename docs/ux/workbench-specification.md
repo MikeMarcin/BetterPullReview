@@ -519,9 +519,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   It has focus when Home appears — on arrival only, so a later projection
   cannot take focus from wherever the reviewer has since moved it.
 - **What a link names** ([[BPR-0987]], RFC-BPR-0026 AC-07/AC-08). A link to
-  the pull request the window already shows reads nothing again: the window
-  returns to its review and keeps its view, and a Recently viewed row of that
-  pull request lands on Overview the same way. `/files` and `/commits` are
+  the pull request the window already shows reads it fresh from GitHub, then
+  goes to the location, and a Recently viewed row of that pull request reads
+  it fresh and lands on Overview ([[BPR-1475]], the owner, 2026-10-13: a read
+  per reopen over a stale view; BPR-0987 read nothing again). `/files` and `/commits` are
   views of the whole pull request and say nothing. A file fragment
   (`#diff-<SHA-256 of the path>`) selects exactly that changed file in Review;
   its `R<n>` line is selected when the comparison on screen ends at the pull
@@ -687,8 +688,18 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   opens another window, even when this or another window shows that pull
   request: an explicit New Window always creates one, and two windows of one
   profile may show the same pull request at different positions
-  (RFC-BPR-0024). Open Review in this window keeps [[BPR-0987]]: a window
-  already showing it returns to it without reading again.
+  (RFC-BPR-0024). Open Review in this window reads it fresh even when the
+  window already shows it ([[BPR-1475]]; [[BPR-0987]] returned to it without
+  reading again).
+- **After publishing** ([[BPR-1475]], the owner, 2026-10-13). When this
+  window publishes a review, a comment or a reply, it reads the pull request
+  again by itself, as Refresh does, so what was posted shows without a manual
+  refresh. A review whose outcome is unknown is reread too, which shows
+  whether it landed; a comment or reply whose outcome is unknown is not, since
+  its draft stays held for a retry bound to the shown read. The reviewer's place stays: the
+  modality, the selected file and line, the status line, and a note being
+  written, which is held again and reopened in the drawer. A read already in
+  flight is not doubled: the reread waits for it to settle.
 - **While a row opens** ([[BPR-1357]], the owner, 2026-10-09: "There's no
   obvious immediate indication you actually tried to open a review if there
   is real network latency on the action."). A first read stays on Home until

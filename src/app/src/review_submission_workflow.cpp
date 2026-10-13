@@ -195,6 +195,8 @@ namespace bpr::app {
 		DiscardReview = std::move(aDiscard);
 	}
 
+	void review_submission_workflow::set_publication_observer(publication_observer aObserver) { PublicationObserved = std::move(aObserver); }
+
 	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments)
 	{
 		if (Closing || aComments == Comments) {
@@ -621,6 +623,9 @@ namespace bpr::app {
 			if (result->Request == *recovered
 				&& (result->Publication != application::review_submission_publication::published || (result->Receipt && application::valid(*result->Receipt, *recovered)))) {
 				answer(*recovered, result->Publication);
+				if (result->Publication != application::review_submission_publication::definitely_not_published && PublicationObserved) {
+					PublicationObserved();
+				}
 			}
 			next_lookup();
 			present();
@@ -657,6 +662,9 @@ namespace bpr::app {
 				std::erase_if(Unresolved, [this](const auto& aRequest) { return aRequest.IdempotencyKey == Pending->IdempotencyKey; });
 				Pending.reset();
 				answer(submitted, application::review_submission_publication::published);
+				if (PublicationObserved) {
+					PublicationObserved();
+				}
 				// [[BPR-1345]] v003. Confirmed: the page closes and the window
 				// says so (owner, finish-page v002: "once the review is
 				// submitted I just want it to close and return to the PR
@@ -681,6 +689,10 @@ namespace bpr::app {
 				answer(refused, application::review_submission_publication::definitely_not_published);
 			} else {
 				Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
+				// [[BPR-1475]]. It may be on GitHub; a fresh read shows whether.
+				if (PublicationObserved) {
+					PublicationObserved();
+				}
 			}
 		}
 		if (!Context) {

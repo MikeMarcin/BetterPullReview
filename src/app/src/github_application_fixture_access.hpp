@@ -906,8 +906,15 @@ namespace bpr::app::detail {
 		/// On GitHub's acceptance each draft was marked published, and the
 		/// review bar's chip went.
 		bool MarkedPublished = false;
+		/// [[BPR-1475]]. Right after the submission the window read the pull
+		/// request again by itself, and Review, the file and its selected line
+		/// stayed where they were.
+		bool RereadAfterPublish = false;
+		/// [[BPR-1475]]. A note being written survived that reread: still
+		/// open in the drawer, with its words.
+		bool NoteKept = false;
 		/// [[BPR-1472]]. Home, then the pull request's Recently viewed row,
-		/// read it again: the window had published over its shown read.
+		/// read it again (BPR-1475: every reopen reads fresh).
 		bool ReopenedFresh = false;
 		// `refused`.
 		/// A refused review left its draft pending, with its text.

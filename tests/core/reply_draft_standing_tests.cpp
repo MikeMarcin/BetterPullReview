@@ -189,6 +189,23 @@ namespace {
 		expect(!discard_unsent_reply(saved(comment(5U))).has_value(), "Discard here is only for an unsent reply");
 		expect(name(reply_draft_standing::thread_deleted) == "thread_deleted", "standings have stable names");
 	}
+
+	/// [[BPR-1475]]. A reread after publishing holds the note being written
+	/// again; one that was sent, discarded or is a reply is not.
+	void a_reread_holds_the_comment_being_written_again()
+	{
+		auto written = comment(5U);
+		written.Body = "A note still being written.";
+		expect(resume_comment_after_refresh(std::vector{ written, reply() }, review_draft_id{ 5U }) == std::optional{ review_draft_id{ 5U } }, "the comment being written is held again");
+		auto sent  = written;
+		sent.State = review_draft_state::published;
+		expect(!resume_comment_after_refresh(std::vector{ sent }, review_draft_id{ 5U }).has_value(), "a published comment is not held again");
+		auto gone  = written;
+		gone.State = review_draft_state::discarded;
+		expect(!resume_comment_after_refresh(std::vector{ gone }, review_draft_id{ 5U }).has_value(), "a discarded comment is not held again");
+		expect(!resume_comment_after_refresh(std::vector{ reply() }, review_draft_id{ 7U }).has_value(), "a reply is held again by its own rule");
+		expect(!resume_comment_after_refresh(std::vector{ written }, review_draft_id{ 6U }).has_value(), "a comment no longer saved is not held again");
+	}
 }
 
 int main()
@@ -204,6 +221,7 @@ int main()
 	run("thread list unread", an_unread_thread_list_never_calls_a_thread_deleted);
 	run("thread resolved", a_resolved_thread_keeps_the_reply_flagged_and_sendable);
 	run("no standing", only_an_unsent_reply_with_words_has_a_standing);
+	run("reread holds the comment", a_reread_holds_the_comment_being_written_again);
 	if (Failures != 0) {
 		std::cerr << Failures << " expectations failed\n";
 		return EXIT_FAILURE;

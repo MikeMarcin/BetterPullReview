@@ -54,6 +54,11 @@ namespace bpr::app {
 		/// this workflow is not already settling is looked up, and its answer
 		/// settles its drafts.
 		void resolve_held(std::vector<std::string> aKeys);
+		/// [[BPR-1475]]. A review that is, or may be, on GitHub: published, or
+		/// with an unknown outcome. Called whether or not it carried comments,
+		/// so the window can read the pull request again (owner, 2026-10-13).
+		using publication_observer = std::function<void()>;
+		void set_publication_observer(publication_observer);
 
 	private:
 		using preflight_key = std::pair<std::uint64_t, application::review_submission_live_binding>;
@@ -116,6 +121,7 @@ namespace bpr::app {
 		std::vector<std::string>                              LookedUp;
 		std::optional<std::string>                            LookupKey;
 		std::optional<application::review_submission_request> Recovering;
+		publication_observer                                  PublicationObserved;
 	};
 	/// Tour composition reuses the summary host, exact grants and journal session.
 	class review_tour_publication_workflow final : public application::review_submission_projection_port

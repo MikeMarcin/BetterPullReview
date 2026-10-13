@@ -806,8 +806,9 @@ auto main(int aArgc, char** aArgv) -> int
 			   "the listed row states exactly what its resume action offers");
 		open_recent(*owner, firstContext, 17);
 		accepted(*owner, firstContext, 17);
-		// [[BPR-0987]]. The row of the pull request the window already shows
-		// lands on Overview, as a row does, and reads nothing again.
+		// [[BPR-1475]]. The row of the pull request the window already shows
+		// reads it fresh (owner, 2026-10-13; BPR-0987 read nothing again) and
+		// lands on Overview, as a row does.
 		wait_for([&] { return first->session_panel()->status() == core::github_status::pull_request_ready && !first->showing_home(); }, "the opened row settles on its review");
 		const auto shownReads   = github_application_fixture_access::evidence(*owner).AccountReadCount;
 		const auto shownPreview = owner->status().PublicPreviewRequests;
@@ -818,9 +819,10 @@ auto main(int aArgc, char** aArgv) -> int
 		first->home_action()->trigger();
 		wait_for([&] { return first->showing_home(); }, "Home shows over the open review");
 		open_recent(*owner, firstContext, 17);
-		wait_for([&] { return !first->showing_home() && first->current_modality() == qt::review_modality::overview; }, "a row of the shown pull request returns to it on Overview");
-		expect(github_application_fixture_access::evidence(*owner).AccountReadCount == shownReads && owner->status().PublicPreviewRequests == shownPreview,
-			   "a row of the shown pull request reads nothing again");
+		wait_for([&] { return !first->showing_home() && first->current_modality() == qt::review_modality::overview
+						   && first->session_panel()->status() == core::github_status::pull_request_ready
+						   && (github_application_fixture_access::evidence(*owner).AccountReadCount > shownReads || owner->status().PublicPreviewRequests > shownPreview); },
+				 "a row of the shown pull request reads it fresh and returns to it on Overview");
 	} else {
 		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
 		home_lists_recent(*owner, firstContext, { 18, 17 });
