@@ -50,4 +50,51 @@ library.
 
 ## Evidence
 
-Pending.
+Implementation commit `8172a3a63`.
+
+- AC1: `src/adapters/github/src/github_http_helpers.{hpp,cpp}` holds the one
+  `Link` tokenizer (`parse_link_header`, `link_relations`). The gh response
+  reader and native transport share `link_completeness` (the verbatim copy in
+  `native_https_transport.cpp` is gone); the paged read keeps its four-link,
+  one-quoted-relation, unique-relation policy and `page_number_from_url`; the
+  mutation reader keeps its exact-URL page check; the publication reader
+  refuses any `next` relation, quoted or not, alone or among several, and an
+  unreadable header or a link without `rel`. Tests:
+  `github_paged_read` (`test_shared_http_helpers`) and
+  `github_publication_contract` (unquoted `rel=next`, `rel="next last"`,
+  `next` in a second link, malformed values; a `prev first` last page reads).
+- AC2: `percent_encode(bytes, keep)` wraps the byte form of
+  `QByteArray::toPercentEncoding`; read, mutation, publication (branch keeps
+  `/`), device form and permalink (keeps `/`, segment validation unchanged)
+  use it. The existing contract outputs (`octo-org%3Abpr%2Fharden`, search
+  queries, permalinks) pass unchanged; invalid UTF-8 and NUL are tested byte
+  for byte.
+- AC3: `json_media_type` serves the paged read, native transport, capability
+  probe, mutation and device checks; bounded at 256 bytes; tested accepting
+  case and spacing variants and refusing `application/jsonx`, other charsets,
+  extra or empty parameters. The release-update media types are unchanged.
+- AC4: `QByteArray::toBase64` and `fmt::format` (pinned fmt 12.2.0, SHA-256
+  `a2f4a8d51178f954e4c339007f77edd76ba0cb2e36f87a48e5a5403d9be5878f`, size
+  1486029, `cmake/BprFmtProvider.cmake`, header-only `BetterPullReview::Fmt`,
+  `third_party/fmt/`, `packaging/dependencies.json`, notices, offline-cache
+  test). The pinned `Z` and `+01:30` dates pass; a year before 1000 is now
+  zero-padded to four digits (tested).
+- AC5: `bpr/core/hex.hpp` replaces the copies in `review_cycle`,
+  `review_cycle_promotion`, `review_cycle_publication`, `review_cycle_json`
+  (`cycle_hex`), `pull_request_location`, `theme_exchange`, five application
+  sources, the MCP helper and four SQLite sources (the SQLite adapter does not
+  link Qt). The Git adapter, `github_mutation_contract`, `tour_owner_service`
+  and `github_application` use `QByteArray::toHex`. Integer, pkt-line,
+  uppercase-escape and JSON-escape renderings are untouched. Test:
+  `core_theme_exchange`.
+- AC6: `github_paged_read` refuses a header name or value with a NUL
+  (`header_breaks` carries its length); `github_device_authorization_contract`
+  refuses userinfo (including an empty one), ports 443 and 8443 and a
+  fragment.
+
+Verification on macOS (dev preset, targeted build): 23 focused suites, the
+dependency, architecture, core-boundary, package, release-security and
+binary-audit gates pass; core-only builds and passes 269 of 272 (the three
+documentation and allocation suites need the MASK `.agents` scripts absent
+from the worktree); `coding-format-check` and changed-line clang-tidy are
+clean; the documentation gate passes.
