@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1475"
 title: "Reread a pull request on every reopen and after publishing to it"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1472"]
 priority: "P1"
