@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"0c7395681b44e437bc3c2981389613119846fcaddded49dd652129f6d3ccd31e"
+		"9ad653dbe578af82811ef4ec02ed81847fb798aab6654574ef298de9041668c8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1672,7 +1672,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ae05f7446f62da07a8a0cfe0620ab2d712375358790c4778db22cc57afe450ce"
+        "1cfb1e645e8aeb2f5eee8d32d10c2bfae3ab4440b9d68ed15e431755d72e9312"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2333,3 +2333,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # request, failure or publication behavior changes. Self-review and focused
 # post-correction checks bind this successor; older unrelated naming findings
 # are retained separately rather than described as a whole-file tidy pass.
+
+# RFC0079 main integration reseal: combined 411f05111d6a425934f20e7cf20e474cfd54b2c8
+# against independently accepted 34b6a43458659747648e4039a99ca52407d14624.
+# The only additional app source is the already-landed cpp_identifiers_v1
+# fixture enum/descriptor and shared fixture server-selection case. M4 bounded
+# review confirms no publication, credential, grant or inventory changes.
+# Refresh the full application and production-manifest digests only; the
+# 42-file inventory and production mutation-branch pin remain unchanged.
