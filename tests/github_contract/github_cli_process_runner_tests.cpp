@@ -1452,7 +1452,23 @@ namespace {
 		: public github_cli_process_runner_test_seam
 	{
 	public:
+		explicit blocking_process_runner_test_seam(bool aAfterStarted = false)
+			: AfterStarted{ aAfterStarted }
+		{
+		}
 		auto before_execute() -> void override
+		{
+			if (!AfterStarted) {
+				block();
+			}
+		}
+		auto after_started() -> void override
+		{
+			if (AfterStarted) {
+				block();
+			}
+		}
+		auto block() -> void
 		{
 			std::unique_lock lock{ Mutex };
 			Entered = true;
@@ -1485,6 +1501,7 @@ namespace {
 		}
 
 	private:
+		bool                    AfterStarted = false;
 		std::mutex              Mutex;
 		std::condition_variable StateChanged;
 		bool                    Entered  = false;
@@ -1492,6 +1509,45 @@ namespace {
 	};
 
 #if defined(Q_OS_UNIX)
+	auto test_live_credentialed_quarantine() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "live quarantine course owns its root");
+		const auto seam              = std::make_shared<blocking_process_runner_test_seam>(true);
+		auto       runner            = make_github_cli_process_runner_for_test(seam);
+		auto       acquisitionRunner = make_github_cli_process_runner();
+		auto       lookup            = base_request(directory, { "--bpr-helper", "sensitive" });
+		lookup.StandardOutputLimit   = cli_sensitive_bytes::capacity;
+		auto acquired                = acquisitionRunner->acquire_sensitive(lookup, { });
+		expect(acquired.has_value(), "live quarantine uses production sensitive capture");
+		const std::weak_ptr<const cli_sensitive_bytes> lifetime = *acquired;
+		const auto                                     pidFile  = directory.filePath(QStringLiteral("live-quarantine.pid"));
+		auto                                           request  = base_request(directory, { "--bpr-helper", "credential-descendant", utf8(pidFile) });
+		request.Timeout                                         = 500ms;
+		request.ReapTimeout                                     = 1ms;
+		std::optional<github_cli_process_result> result;
+		auto                                     untilJoined = bpr::tests::exit_on_failure{ };
+		std::thread                              caller{ [&, credential = std::move(*acquired)] {
+			result = runner->run_credentialed(request, credential, cli_credential_environment::github, { });
+		} };
+		expect(seam->wait_until_entered(), "worker stalls after actual credentialed launch");
+		const auto deadline = std::chrono::steady_clock::now() + 400ms;
+		while (std::chrono::steady_clock::now() < deadline && (!QFileInfo{ pidFile + QStringLiteral(".verified") }.exists() || QFileInfo{ pidFile }.size() == 0)) {
+			std::this_thread::sleep_for(10ms);
+		}
+		expect(QFileInfo{ pidFile + QStringLiteral(".verified") }.exists() && QFileInfo{ pidFile }.size() > 0,
+			   "actual descendant verified inherited credential before watchdog failure");
+		caller.join();
+		untilJoined.end();
+		const auto pid = read_descendant_pid(pidFile);
+		expect(result && !*result && result->error() == github_cli_process_failure::reap_failure
+				   && !lifetime.expired() && ::kill(pid, 0) == 0,
+			   "reap failure retains sensitive owner while actual descendant remains alive");
+		seam->release();
+		runner.reset();
+		expect(wait_until_process_is_gone(pid) && lifetime.expired(), "quarantine drains actual descendant before releasing sensitive owner");
+	}
+
 	auto test_credentialed_descendant_lifetime() -> void
 	{
 		for (const bool cancel : { false, true }) {
@@ -1923,6 +1979,7 @@ try {
 	test_sensitive_execution();
 #if defined(Q_OS_UNIX)
 	test_credentialed_descendant_lifetime();
+	test_live_credentialed_quarantine();
 #endif
 	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)

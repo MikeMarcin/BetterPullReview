@@ -1248,6 +1248,13 @@ if(WIN32)
 endif()
 
 if(APPLE)
+    # Explicit RFC-0078 native qualification, requiring stock gh and deliberate
+    # synthetic Keychain or designated BPR-Test input. Never a routine CTest.
+    bpr_add_executable(test_better_pull_review_strict_cli_native_probe strict_cli_native_probe.cpp)
+    target_link_libraries(test_better_pull_review_strict_cli_native_probe PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::Application Qt6::Core)
+    target_include_directories(test_better_pull_review_strict_cli_native_probe PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    bpr_enable_hardening(test_better_pull_review_strict_cli_native_probe)
+    bpr_enable_warnings(test_better_pull_review_strict_cli_native_probe)
     bpr_add_executable(test_better_pull_review_gh_cli_git_smart_transport_tests gh_cli_git_smart_transport_tests.cpp)
     target_link_libraries(test_better_pull_review_gh_cli_git_smart_transport_tests PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::Application Qt6::Core)
     target_include_directories(test_better_pull_review_gh_cli_git_smart_transport_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")

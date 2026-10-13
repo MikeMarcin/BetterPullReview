@@ -33,6 +33,11 @@ namespace bpr::adapters::github::detail {
 
 		virtual auto before_execute() -> void = 0;
 
+		/// \brief Stalls a test worker after its real child has started.
+		/// \details Production factories never supply a seam. This exercises
+		/// watchdog quarantine while credential-bearing descendants are alive.
+		virtual auto after_started() -> void { }
+
 		/// \brief Windows only: makes the next launch's standard-handle list
 		/// fail to build.
 		/// \details [[BPR-1114]]. The launch's standard error handle is
