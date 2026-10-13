@@ -1,5 +1,8 @@
 #include "bpr/qt/desktop_menu_bar.hpp"
 
+#include <array>
+#include <utility>
+
 #include <QAction>
 #include <QKeySequence>
 #include <QList>
@@ -116,6 +119,18 @@ namespace bpr::qt {
 		ViewMenu->setAccessibleName(QStringLiteral("View"));
 		ViewMenu->setAccessibleDescription(
 			QStringLiteral("Presentation options for the comparison surface, unavailable while no window is open"));
+		const auto navigation = std::array{
+			std::pair{ QStringLiteral("Previous file"), QStringLiteral("Ctrl+Alt+Up") },
+			std::pair{ QStringLiteral("Next file"), QStringLiteral("Ctrl+Alt+Down") },
+			std::pair{ QStringLiteral("Previous change"), QStringLiteral("Alt+Up") },
+			std::pair{ QStringLiteral("Next change"), QStringLiteral("Alt+Down") },
+		};
+		for (const auto& [name, key] : navigation) {
+			auto* const action = ViewMenu->addAction(name);
+			action->setShortcut(QKeySequence{ key });
+			action->setEnabled(false);
+		}
+		ViewMenu->addSeparator();
 		auto* const counterpart = ViewMenu->addAction(QStringLiteral("Go to header/source"));
 		counterpart->setObjectName(QStringLiteral("desktopGoToHeaderSourceAction"));
 		counterpart->setShortcut(QKeySequence{ QStringLiteral("Alt+O") });

@@ -1010,15 +1010,31 @@ Previous or Next file does nothing. A press with no comparison open, or in a
 comparison with no changes, does nothing too. The core decides it: each
 navigation command's projection is enabled with a `Bound` (`at_first_change`,
 `at_last_change`, `at_first_file`, `at_last_file`, `no_open_comparison`,
-`no_changes`, `no_actionable_files`), and the window sends no gesture while a
-command is bounded. Only an inactive workbench disables them. The arrows keep
-their size and place; nothing in the layout changes. A press at a bound shows
+`no_changes`, `no_actionable_files`). RFC-BPR-0076 extends all four commands:
+from Overview, Discuss or Threads, a toolbar, View-menu or admitted shortcut
+press enters Review through its normal remembered-drawer entry, even at a bound.
+The command resolves the active tab's exact file, pair and reading before taking
+one ordinary step or showing its exact bound; it never steps the other page's
+window comparison and then restores a different tab over it. A bounded command
+sends no source-navigation gesture and leaves that source position unchanged.
+Inside Review, navigation preserves the current drawer arrangement. Only an
+inactive workbench disables the arrows. Their size and place stay fixed. A press at a bound shows
 its reason in the status bar for three seconds ("Last change in this file.",
 "First change in this file.", "Last file in this pull request.", "First file
 in this pull request."). Each arrow's tooltip names it and its first key in the
 platform's notation ("Next change (⌥↓)", "Previous file (⌥⌘↑)"); a second line
 names the bound, and the status tip carries that line. The stop-versus-wrap
 wrap policy, used only by a fixture probe, still wraps inside the comparison.
+
+An exact tab view that must load retains at most the latest navigation press,
+bound to that PR, active tab and exact pair. Review shows immediately. The step
+runs once after that view returns; a later file, tab, comparison, modality, Home
+or composer gesture cancels it. Unavailable material retains its normal reason
+without borrowing a newer pair. Sibling tabs, discussion reading/filter state
+and unsent work survive entry. With no tab, navigation uses its ordinary file
+order/bounds and entry alone opens nothing. Keyboard entry focuses the visible
+comparison when present or the originating arrow when empty/unavailable;
+editable multi-line input keeps its native shortcut handling.
 
 Every tooltip in the application shows directly below the control it names,
 left edges aligned and four pixels apart, or directly above it where below

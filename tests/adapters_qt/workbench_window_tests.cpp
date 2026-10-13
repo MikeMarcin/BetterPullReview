@@ -8411,11 +8411,12 @@ namespace {
 		expect(navigatedChanges
 					   == std::vector{ core::change_navigation_direction::next,
 									   core::change_navigation_direction::previous }
-				   && window.current_modality() == qt::review_modality::discuss
-				   && window.conversation_model()->id_for_index(
-						  window.conversation_view()->currentIndex())
-					   == "review-thread:late",
-			   "previous and next change navigation beneath Discuss preserve the selected conversation");
+				   && window.current_modality() == qt::review_modality::review,
+			   "previous and next change navigation enter Review and step the selected source");
+		window.choose_modality(qt::review_modality::discuss);
+		process_events();
+		expect(window.conversation_model()->id_for_index(window.conversation_view()->currentIndex()) == "review-thread:late",
+			   "returning to Discuss retains the selected conversation after source navigation");
 		const auto& cards    = window.conversation_panel()->cards()->cards();
 		const auto  sameFile = std::ranges::find(cards, std::string{ "review-thread:late" },
 												 &qt::thread_card::Id);
@@ -9535,6 +9536,10 @@ namespace {
 				   && file_direction(log.Workbench[log.Workbench.size() - 2U]) == core::change_navigation_direction::next
 				   && file_direction(log.Workbench.back()) == core::change_navigation_direction::previous,
 			   "in the Updates control, with its history live, Option-Command-Down and Up are Next and Previous file");
+		expect(window.comparison_surface()->isAncestorOf(QApplication::focusWidget()),
+			   "file navigation returns the keyboard from Updates to Review source");
+		line->setFocus(Qt::OtherFocusReason);
+		process_events();
 		deliver_key(window, Qt::Key_PageDown, Qt::ControlModifier | Qt::AltModifier);
 		deliver_key(window, Qt::Key_PageUp, Qt::ControlModifier | Qt::AltModifier);
 		expect(loads == 1 && returns == 1 && files() == filesBefore + 2,

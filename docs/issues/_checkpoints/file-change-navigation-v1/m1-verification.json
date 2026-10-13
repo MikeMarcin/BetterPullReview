@@ -1,0 +1,118 @@
+{
+  "mandate_revision": "file-change-navigation-r1",
+  "rfc_base_sha": "d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1",
+  "milestone": "review-navigation-entry",
+  "source_hashes": {
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp": "79cea7c3674f4ed5d4866ed90d1a7e75a9c971d3a9de8295e153aff57a794897",
+    "src/adapters/qt/src/workbench_window.cpp": "119c1c9523e8d75d387e69bc44a8013836f00a40f21718802786f0ee2efaa8da",
+    "src/adapters/qt/src/desktop_menu_bar.cpp": "8cb36601aafc00df7bda49ee708166448373d7e31e55e20b1d30dae4462a61d4",
+    "src/app/src/github_application.cpp": "44c3924dc169bf97e132423e59816856840a22b26633143ad23ec75fabfc21ed",
+    "tests/adapters_qt/workbench_window_tests.cpp": "7656f7912a6ce19d06d256330c5a0f8ecf7879422a3873377af1a21ab2fcf72d",
+    "tests/end_to_end/review_navigation_entry_public_path_tests.cpp": "f06d5f4d0f1046c33e093a0a35e4fecd3ac89e96e0f2585c805e14cbf20a3672",
+    "tests/end_to_end/CMakeLists.txt": "d5f9de8bcd6649025e4fde0805aabdca4151148d1dd9dcdd23d935c38c996b01",
+    "scripts/verify_test_network_isolation.py": "298a00fe110facdabd51cfaa1d9b3e8a90561ed8e316faf1ec97f548fea1f19d",
+    "docs/architecture/system-architecture.md": "147c741f2f06ff6e7af67f436bf671858f147559d3d4639cfe8abda21eba3982",
+    "docs/ux/workbench-specification.md": "fe90c3efe3f5f36c5dd94f6b6e9d428542222ec6ee926ac71da7872a89f10c4d",
+    "docs/rfcs/RFC-BPR-0076-file-change-navigation-enters-review.md": "1114277b99a08aa61a604c9233052703c553efc46b4834edf906c5732b22ca8b"
+  },
+  "platform": {
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "architecture": "arm64",
+    "qt": "6.11.2",
+    "qpa": "offscreen",
+    "scale": "1.0",
+    "render_size": "1280x860",
+    "input": "actual window-system key events, retained QActions and toolbar clicks"
+  },
+  "checks": [
+    {
+      "command": "cmake --preset dev -DCPM_SOURCE_CACHE=/Users/jaeger/Documents/GitHub/BetterPullReview/build/.cpm-cache",
+      "result": "pass"
+    },
+    {
+      "command": "focused dev build of real composition course, Qt window/diff and manifest-required gh_cli_git target",
+      "result": "pass"
+    },
+    {
+      "command": "ctest --preset dev -R '^application_review_navigation_entry$' --output-on-failure",
+      "result": "pass",
+      "seconds": 27.42,
+      "detail": "All 36 entries; empty source, first-file entry, bounds/lifetime, hidden drawers, older/reverse pairs, delayed file/change, unavailable material, later command/tab/file/Whole PR/Home cancellation, editor keys/summary retention and shutdown."
+    },
+    {
+      "command": "ctest --preset dev -R '^qt_workbench_window_scale_100$' --output-on-failure",
+      "result": "pass",
+      "seconds": 25.78,
+      "detail": "Discuss selection/reading/filter/reply/editor regressions and current navigation keys. Updates receives focus explicitly after navigation now returns focus to source."
+    },
+    {
+      "command": "qt_diff_workbench_scale_100 and qt_shared_snapshot_navigation",
+      "result": "pass",
+      "seconds": [
+        12.92,
+        0.98
+      ]
+    },
+    {
+      "command": "architecture_boundaries; architecture_boundary_contract; test_network_isolation_manifest",
+      "result": "pass",
+      "seconds": [
+        10.94,
+        111.81,
+        0.8
+      ]
+    },
+    {
+      "command": "Python3 documentation verifier and 67 verifier tests",
+      "result": "pass",
+      "detail": "Worktree uses PYTHONPATH=/Users/jaeger/.agents/skills/implement-rfc/scripts for the externally deployed skill."
+    },
+    {
+      "command": "clang-format 22.1.8, touched-file dry run and git diff --check",
+      "result": "pass"
+    },
+    {
+      "command": "tidy window/resident menu/new course",
+      "result": "pass"
+    },
+    {
+      "command": "full composition/Qt test TU tidy",
+      "result": "qualified baseline failure",
+      "detail": "14 composition naming and 6 existing Qt test diagnostics are unchanged at RFC_BASE_SHA; no whole-TU clean verdict."
+    }
+  ],
+  "negative_control": {
+    "change": "Temporarily remove only Window.set_review_navigation_dispatch composition binding.",
+    "command": "network-isolated real course --cancellation-only",
+    "result": "expected failure",
+    "detail": "FAILED: delayed change performs exactly one step on reverse active-tab material; child exit -6. Exact final source restored and task-owned backups removed."
+  },
+  "diagnosis": [
+    {
+      "finding": "Asynchronous file completion left focus on navigation fallback.",
+      "correction": "Exact ready tab completion applies a cancellable authority/generation-bound source-focus continuation."
+    },
+    {
+      "finding": "A test carried the newer pair after a later file/comparison gesture.",
+      "correction": "Every cancellation setup explicitly reselects active base/base and restores the sibling newer window default. Proposed extra epoch sequencing passes its removal control and is excluded."
+    },
+    {
+      "finding": "Network manifest initially failed on an absent required executable in the focused new worktree.",
+      "correction": "Built its gh_cli_git_smart_transport target; manifest passes."
+    }
+  ],
+  "self_review": [
+    "No core or provider API/effect/persistence change. Core supplies legality/bounds and normal Review drawer entry; host restores exact tab context before Qt applies the existing command.",
+    "PR authority, accepted catalogue generation, active tab and exact pair/file bind pending work; all public replacement gestures clear it before late source can step.",
+    "Sibling tabs and source position preserved at bounds; Discussion selection/reading/filter and editor drafts retain their existing lifecycle.",
+    "No per-gesture full-review scan/model reset; active-tab lookup remains bounded at 16 tabs.",
+    "Existing four QActions are reused by View and toolbar; disabled resident mirrors preserve labels/keys.",
+    "Frontend-design plugin loaded; existing native palettes, font, controls and layout are the design basis. Full-window offscreen render of older base/base source visually inspected."
+  ],
+  "limits": [
+    "No explicit human/native/independent acceptance exists in this draft. No such verdict inferred.",
+    "Windows-uncontained new course retains the existing dos-volume-name restriction; unmeasured (registered on win).",
+    "Offscreen render does not establish native system appearance or installed-package behavior.",
+    "No live mutation, desktop capture, browser personal data access or push."
+  ]
+}

@@ -201,6 +201,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_line_draft_contract": "dos-volume-name",
     "application_diff_zoom_public_path": "dos-volume-name",
     "application_line_details_public_path": "dos-volume-name",
+    "application_review_navigation_entry": "dos-volume-name",
     "application_header_source_navigation": "dos-volume-name",
     "application_header_source_navigation_large": "dos-volume-name",
     # [[BPR-1327]], [[BPR-1340]]. Measured on bpr-main-win 2026-10-08 at

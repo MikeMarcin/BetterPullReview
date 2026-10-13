@@ -6638,6 +6638,82 @@ namespace bpr::app {
 			TabDriver.emplace(aRequest.View);
 			schedule_tab_presentation();
 		}
+		/// \brief One file/change press bound to the PR and exact active tab that entered Review.
+		struct pending_review_navigation
+		{
+			core::workbench_command_id                    Command;
+			application::workbench_pull_request_authority Authority;
+			core::request_generation                      Generation;
+			std::optional<core::document_tab_id>          Tab;
+			std::optional<core::window_review_position>   View;
+		};
+		std::optional<pending_review_navigation> PendingReviewNavigation;
+		std::optional<pending_review_navigation> ReviewNavigationFocus;
+		void                                     cancel_review_navigation()
+		{
+			PendingReviewNavigation.reset();
+			ReviewNavigationFocus.reset();
+		}
+		void finish_review_navigation_focus()
+		{
+			const auto focus = std::exchange(ReviewNavigationFocus, std::nullopt);
+			if (focus && !Closing && LastAcceptedHandoff && WorkbenchHost
+				&& workbench_authority(*LastAcceptedHandoff) == focus->Authority
+				&& WorkbenchHost->generation() == focus->Generation) {
+				Window->focus_review_navigation(focus->Command);
+			}
+		}
+
+		void continue_review_navigation()
+		{
+			if (!PendingReviewNavigation) {
+				return;
+			}
+			const auto& pending = *PendingReviewNavigation;
+			const auto* active  = TabHost && TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
+			if (Closing || !LastAcceptedHandoff || !TabHost || !WorkbenchHost
+				|| Window->showing_home() || Window->showing_local_cycle()
+				|| WorkbenchHost->state().Modality != core::workbench_modality::review
+				|| workbench_authority(*LastAcceptedHandoff) != pending.Authority
+				|| WorkbenchHost->generation() != pending.Generation || TabHost->state().Active != pending.Tab
+				|| (active != nullptr) != pending.View.has_value()
+				|| (active && (active->View.File != pending.View->File || active->View.Comparison != pending.View->Comparison))) {
+				cancel_review_navigation();
+				return;
+			}
+			if (TabLoad || TabDriver || TabModality != core::workbench_modality::review || EpochHost->state().PendingComparison) {
+				return;
+			}
+			if (active && !tab_view_presented(*pending.View)) {
+				// An unavailable exact view keeps its normal explanation and never
+				// lends another comparison to the retained navigation command.
+				if (active->State == core::document_tab_view_state::unavailable) {
+					const auto command = pending.Command;
+					PendingReviewNavigation.reset();
+					Window->focus_review_navigation(command);
+				}
+				return;
+			}
+			const auto focus = pending;
+			PendingReviewNavigation.reset();
+			Window->perform_review_navigation(focus.Command);
+			if (focus.Command == core::workbench_command_id::previous_file || focus.Command == core::workbench_command_id::next_file) {
+				ReviewNavigationFocus = focus;
+			}
+		}
+		void request_review_navigation(const std::optional<core::workbench_command_id> aCommand)
+		{
+			cancel_review_navigation();
+			if (!aCommand || Closing || !TabHost || !WorkbenchHost || !EpochHost || !LastAcceptedHandoff) {
+				return;
+			}
+			const auto* active      = TabHost->state().Active ? core::find_tab(TabHost->state(), *TabHost->state().Active) : nullptr;
+			PendingReviewNavigation = pending_review_navigation{ *aCommand, workbench_authority(*LastAcceptedHandoff), WorkbenchHost->generation(), TabHost->state().Active, active ? std::optional{ active->View } : std::nullopt };
+			// Start the ordinary modality/tab driver before interpreting the
+			// command. Its completion resumes only the bound exact view.
+			advance_tab_presentation();
+			continue_review_navigation();
+		}
 		void finish_tab_load(const core::document_tab_view_outcome aOutcome)
 		{
 			const auto request = std::exchange(TabLoad, std::nullopt);
@@ -6648,9 +6724,18 @@ namespace bpr::app {
 			}
 			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
 			TabHost->complete(request->Request, aOutcome);
+			if (aOutcome == core::document_tab_view_outcome::unavailable) {
+				const auto command = PendingReviewNavigation ? std::optional{ PendingReviewNavigation->Command } : std::nullopt;
+				cancel_review_navigation();
+				if (command) {
+					Window->focus_review_navigation(*command);
+				}
+			}
 			if (aOutcome == core::document_tab_view_outcome::ready) {
+				finish_review_navigation_focus();
 				resume_reply();
 			}
+			continue_review_navigation();
 		}
 		/// \brief A reviewer's gesture during a load: the load in force is
 		/// left, and the gesture is what the active tab takes next.
@@ -6712,6 +6797,7 @@ namespace bpr::app {
 				return;
 			}
 			observe_tab_changes();
+			continue_review_navigation();
 		}
 		void drive_tab()
 		{
@@ -7217,6 +7303,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				aConfig.DifCatalog);
 			Window->private_notes()->set_dispatch([this](qt::private_note_intent aIntent) { dispatch_private_note(aIntent); });
 			Window->set_header_source_dispatch([this] { dispatch_header_source(); });
+			Window->set_review_navigation_dispatch([this](const auto aCommand) { request_review_navigation(aCommand); });
 			Window->tour_editor()->set_dispatch([this](core::tour_command aCommand) {
 				if (!Closing && TourHost && current(DraftWindow)) {
 					aCommand.Attention = current_tour_attention();
@@ -8211,6 +8298,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (Closing || TabHost == nullptr) {
 					return;
 				}
+				cancel_review_navigation();
 				observe_tab_reading();
 				DecisionLane.post([this, weak = std::weak_ptr<const int>{ WindowLifetime }, intent = aIntent] {
 					if (weak.expired() || Closing || TabHost == nullptr) {
@@ -8995,6 +9083,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			if (std::holds_alternative<core::select_workbench_file_intent>(aIntent) || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent)) {
+				cancel_review_navigation();
 				cancel_restoration(false, true);
 				abandon_tab_load();
 				// A file gesture immediately after returning from Discuss wins
@@ -14459,6 +14548,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::holds_alternative<core::select_named_comparison_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchors_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchor_intent>(aIntent)) {
+				cancel_review_navigation();
 				cancel_restoration(false, true);
 				abandon_tab_load();
 				clear_diff_selection();

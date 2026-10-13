@@ -99,7 +99,10 @@ core owns legal transitions and bounds; the host coordinates exact tab context,
 loading and stale-result admission; Qt translates gestures and presents the
 selected modality, focus and status. Reuse bounded projections and selected-file
 loading without a full-review scan or model reset. Internal sequencing is an
-implementation choice subject to these observable guarantees.
+implementation choice subject to these observable guarantees. Focused public-path verification owns
+`tests/end_to_end/review_navigation_entry_public_path_tests.cpp`, its CMake
+registration and the corresponding `scripts/verify_test_network_isolation.py`
+manifest entry.
 
 The [proposed amendment](assets/file-change-navigation-v1/proposed-navigation-amendment.source.txt) identifies the
 adopted contracts and historical evidence to reconcile during implementation.

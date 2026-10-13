@@ -4253,3 +4253,16 @@ bpr_add_network_isolated_test(NAME application_header_source_navigation_large WI
 set_tests_properties(application_header_source_navigation_large PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_HEADER_SOURCE_RENDER_ROOT=${PROJECT_BINARY_DIR}/header-source-renders"
     TIMEOUT 120 PASS_REGULAR_EXPRESSION "HEADER_SOURCE_LARGE_OK")
+
+# RFC-BPR-0076: entry, exact tab restoration, bounds and actual window-system keys.
+bpr_add_executable(test_review_navigation_entry_public_path review_navigation_entry_public_path_tests.cpp)
+target_link_libraries(test_review_navigation_entry_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_review_navigation_entry_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_review_navigation_entry_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_review_navigation_entry_public_path)
+bpr_enable_warnings(test_review_navigation_entry_public_path)
+bpr_add_network_isolated_test(NAME application_review_navigation_entry WINDOWS_UNCONTAINED
+    COMMAND test_review_navigation_entry_public_path)
+set_tests_properties(application_review_navigation_entry PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_NAVIGATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/review-navigation-renders"
+    TIMEOUT 180 PASS_REGULAR_EXPRESSION "REVIEW_NAVIGATION_ENTRY_OK")

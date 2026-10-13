@@ -905,7 +905,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto header_source_action() const noexcept -> QAction*;
 		void               set_header_source_dispatch(std::function<void()> aDispatch);
 		/// \brief Presents one command result, announcing no-op reasons or focusing the source.
-		void               present_header_source_result(core::header_source_resolution aResult);
+		void present_header_source_result(core::header_source_resolution aResult);
+		/// \brief Routes a navigation press through exact Review restoration; empty cancels retained entry work.
+		void set_review_navigation_dispatch(std::function<void(std::optional<core::workbench_command_id>)> aDispatch);
+		/// \brief Applies one navigation command after the host has restored Review's exact context.
+		void perform_review_navigation(core::workbench_command_id aCommand);
+		/// \brief Focuses visible Review content or the originating navigation control.
+		void               focus_review_navigation(core::workbench_command_id aCommand);
 		[[nodiscard]] auto previous_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto next_change_action() const noexcept -> QAction*;
 		[[nodiscard]] auto seen_action() const noexcept -> QAction*;
@@ -1959,6 +1965,8 @@ namespace bpr::qt {
 		std::optional<core::code_font_settings>   CodeZoom;
 		void                                      dispatch_code_zoom(core::code_zoom_step aStep);
 		void                                      apply_code_zoom();
+
+		std::function<void(std::optional<core::workbench_command_id>)> ReviewNavigationDispatch;
 		/// [[BPR-1334]]. View > Line Details.
 		QAction* LineDetailsAction = nullptr;
 		/// [[BPR-1295]]. Hide Drawers, and the filter by which an editable

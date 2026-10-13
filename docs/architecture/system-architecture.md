@@ -278,6 +278,18 @@ header, menus and older-pair notice. Tabs persist through the existing
 restoration host, and shutdown drains their posted terminals on the decision
 lane before releasing the window.
 
+RFC-BPR-0076 routes the four existing file/change QAction presses through normal
+Review entry before interpreting source navigation. Core still projects legal
+commands and exact bounds and decides the remembered drawer transition. The
+composition keeps one latest continuation bound to the accepted PR authority,
+workbench generation, active tab and exact file/pair. Its ordinary tab driver
+restores that view before Qt applies the existing command projection and sends
+its file/change intent. Completion consumes the continuation once; later
+file/tab/comparison/modality/Home/composer gestures cancel it synchronously,
+and identity replacement is refused by the bound context. Unavailable tabs
+retain their ordinary explanation without newer-pair fallback. No source tab
+is created by entry alone and no full-review scan/model reset is introduced.
+
 ## Diagnostic logging boundary
 
 BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition constructs

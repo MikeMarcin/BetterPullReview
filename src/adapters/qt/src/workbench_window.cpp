@@ -1380,12 +1380,15 @@ namespace bpr::qt {
 							 QStringLiteral("Select the next semantic change."),
 							 { next_change_key(), QKeySequence{ QStringLiteral("Alt+PgDown") } });
 
+		// The native menu and toolbar share each retained navigation action.
 		for (std::size_t index = 0U; index < Navigation.size(); ++index) {
+			ViewMenu->insertAction(HeaderSourceAction, Navigation[index].Action);
 			connect(Navigation[index].Action,
 					&QAction::triggered,
 					this,
 					[this, index] { dispatch_navigation(index); });
 		}
+		ViewMenu->insertSeparator(HeaderSourceAction);
 		// [[BPR-1287]]. Open first file is Next file's gesture, so it is
 		// offered exactly when Next file is.
 		connect(Navigation[1].Action, &QAction::changed, this, [this] {
@@ -6736,6 +6739,9 @@ namespace bpr::qt {
 
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
+		if (ReviewNavigationDispatch) {
+			ReviewNavigationDispatch(std::nullopt);
+		}
 		CompositionPage = nullptr;
 		// [[BPR-1293]]. Threads goes back where it was entered from.
 		if (Modality != nullptr && aModality == review_modality::threads && Modality->current() != review_modality::threads) {
@@ -7983,6 +7989,9 @@ namespace bpr::qt {
 
 	void workbench_window::open_review_composition(const bool aInline)
 	{
+		if (ReviewNavigationDispatch) {
+			ReviewNavigationDispatch(std::nullopt);
+		}
 		// [[BPR-1212]]. The draft on the selected line is written in the
 		// drawer at its line while the code shows; the full composer, and
 		// the whole-review summary (owner's Q3: "A: move to Discuss"), are
@@ -9813,6 +9822,9 @@ namespace bpr::qt {
 
 	void workbench_window::choose_home(const bool aHome)
 	{
+		if (ReviewNavigationDispatch) {
+			ReviewNavigationDispatch(std::nullopt);
+		}
 		// Asked for, Home shows over an open review until a modality or a
 		// pull request brings the review back; with nothing open Home is
 		// simply where the window is, and cannot be left.
@@ -9846,6 +9858,9 @@ namespace bpr::qt {
 
 	void workbench_window::show_local_cycle(const QString& aTitle)
 	{
+		if (ReviewNavigationDispatch) {
+			ReviewNavigationDispatch(std::nullopt);
+		}
 		LocalCycleTitle = aTitle;
 		LocalCycleShown = true;
 		HomeRequested   = false;
@@ -13784,32 +13799,74 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::set_review_navigation_dispatch(std::function<void(std::optional<core::workbench_command_id>)> aDispatch)
+	{
+		ReviewNavigationDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::dispatch_navigation(const std::size_t aIndex)
 	{
-		// [[BPR-1328]]. The owner: "Just let it be a bounded prev and next
-		// that you can always use." The arrows and their keys stay enabled; at
-		// the bound the core names (the first or last file or change, no
-		// comparison, no changes) a press sends nothing, moves nothing, and
-		// says why in the status bar for a moment.
-		if (const auto offered = command(static_cast<core::workbench_command_id>(aIndex));
-			!offered || !offered->Enabled || offered->Bound != core::workbench_reason_code::none) {
-			if (offered && offered->Enabled) {
-				statusBar()->showMessage(aIndex < file_navigation_entries ? reason_text(offered->Bound) : change_reason_text(offered->Bound),
-										 bounded_navigation_message_ms);
-			}
+		if (showing_home() || showing_local_cycle()) {
 			return;
 		}
-		if (aIndex < file_navigation_entries) {
+		const auto id = static_cast<core::workbench_command_id>(aIndex);
+		if (const auto offered = command(id); !offered || !offered->Enabled) {
+			return;
+		}
+		// The core's normal entry restores Review's saved drawers. Bounds are
+		// evaluated only after its active tab's exact source has returned.
+		if (current_modality() != review_modality::review) {
+			choose_modality(review_modality::review);
+		}
+		focus_review_navigation(id);
+		if (ReviewNavigationDispatch) {
+			ReviewNavigationDispatch(id);
+		} else {
+			perform_review_navigation(id);
+		}
+	}
+
+	void workbench_window::focus_review_navigation(const core::workbench_command_id aCommand)
+	{
+		if (showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+			return;
+		}
+		if (ComparisonSurface->current_result() && ComparisonSurface->isVisible()) {
+			ComparisonSurface->focus_source();
+		} else if (const auto index = static_cast<std::size_t>(aCommand); index < Navigation.size()) {
+			if (auto* const control = ReviewBar->widgetForAction(Navigation[index].Action); control != nullptr && control->isVisible()) {
+				control->setFocus(Qt::ShortcutFocusReason);
+			}
+		}
+	}
+
+	void workbench_window::perform_review_navigation(const core::workbench_command_id aCommand)
+	{
+		const auto index = static_cast<std::size_t>(aCommand);
+		if (index >= Navigation.size() || showing_home() || showing_local_cycle() || current_modality() != review_modality::review) {
+			return;
+		}
+		if (const auto offered = command(aCommand);
+			!offered || !offered->Enabled || offered->Bound != core::workbench_reason_code::none) {
+			if (offered && offered->Enabled) {
+				statusBar()->showMessage(index < file_navigation_entries ? reason_text(offered->Bound) : change_reason_text(offered->Bound),
+										 bounded_navigation_message_ms);
+			}
+			focus_review_navigation(aCommand);
+			return;
+		}
+		if (index < file_navigation_entries) {
 			if (Dispatch) {
 				Dispatch(core::navigate_workbench_file_intent{
-					.Direction = aIndex == 0U
+					.Direction = index == 0U
 						? core::change_navigation_direction::previous
 						: core::change_navigation_direction::next,
 				});
 			}
+			focus_review_navigation(aCommand);
 			return;
 		}
-		const auto direction = aIndex == file_navigation_entries
+		const auto direction = index == file_navigation_entries
 			? core::change_navigation_direction::previous
 			: core::change_navigation_direction::next;
 		if (!ChangeDispatch) {
@@ -13822,6 +13879,7 @@ namespace bpr::qt {
 			.Direction = direction,
 			.Policy    = Commands.Policy,
 		});
+		focus_review_navigation(aCommand);
 	}
 
 	/// \brief Builds the window's menu bar and its View menu.
