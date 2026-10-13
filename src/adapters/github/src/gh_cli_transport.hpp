@@ -243,8 +243,9 @@ namespace bpr::adapters::github::detail {
 	/// host and login, makes both files 0400 and the directory 0500, and adds
 	/// `GH_CONFIG_DIR` to this child's environment alone. It runs the child and
 	/// then removes the directory. A launch whose directory cannot be made is
-	/// refused as `start_failure` without running. No token variable is ever
-	/// set, and an existing `GH_CONFIG_DIR` entry refuses the launch.
+	/// refused as `start_failure` without running. Generic requests are token-free;
+	/// an operation credential uses the separate sensitive environment port.
+	/// An existing `GH_CONFIG_DIR` entry refuses the launch.
 	[[nodiscard]] auto run_gh_cli(
 		github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
 		github_cli_process_request aRequest, std::stop_token aStop, cli_transient_credential aCredential = { }) -> github_cli_process_result;

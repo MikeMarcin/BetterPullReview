@@ -30,6 +30,18 @@ This document turns the deterministic-functional-core / imperative-host / Qt-pre
 | ARCH-H4 | Caches remain subordinate to authority | Invalidation/reconciliation tests | Cache value overrides GitHub or durable ledger fact |
 | ARCH-H5 | Lifecycle and shutdown are explicit | Pending-work shutdown tests | Callback reaches destroyed UI; process or DB teardown races |
 
+## Strict CLI transient credential checks (RFC-BPR-0078)
+
+The architecture gate permits only the runner's closed four-name token table and
+adapter-owned sensitive acquisition/environment ports. Generic requests cannot
+carry a token variable; no application/core/Qt projection or persistent store
+owns credential bytes. Mutation tests reject expanded tables, misplaced token
+names and removal of ownership gates. Native qualification is separate from
+structural permission: [the strict ledger](RFC-BPR-0078.md) binds actual stock-gh
+lookup/helper outcomes, persistence negatives and descendant lifetime evidence.
+Production runner factories supply no test seam; the explicit post-start seam
+only forces a stalled worker while its real credential-bearing child is alive.
+
 ## RFC-BPR-0003 epoch checks
 
 | ID | Requirement | Direct proof | Failure examples |

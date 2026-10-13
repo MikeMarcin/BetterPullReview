@@ -11,6 +11,32 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/p
 
 # RFC-BPR-0015: Opt-in GitHub CLI Account Profile
 
+## Owner strict-credential amendment — 2026-10-13
+
+The adopted `strict-cli-publication-r2` mandate and
+[RFC-BPR-0078](RFC-BPR-0078-strict-cli-account-credentials.md) supersede the
+historical blanket tokenless rule for the chosen macOS CLI account only. A closed
+stock `auth token --hostname HOST --user LOGIN` lookup under write denial/private
+token-free configuration supplies one bounded adapter-owned transient credential.
+It reaches only same-operation identity checks, API and gh-owned Git/helper
+children through the dedicated sensitive process path. No parent token,
+cross-operation cache, persistent BPR copy, global account mutation, fork or direct
+production Keychain reader is permitted. An unchosen account or failed named
+lookup refuses before network work; missing and inaccessible lookup share
+`credential_unavailable`. Tool failures and attempted-write uncertainty remain
+separate. Numeric account/login validation, exact mutation admission,
+GET-only recovery, process confinement and current platform eligibility remain.
+
+Stock-gh native qualification and memory/persistence limits are recorded in
+[the strict ledger](../verification/RFC-BPR-0078.md). Source-owned buffers are
+cleared only after queued work and descendants drain; Qt/OS/stock-child copies,
+swap/crash capture and process escape remain outside perfect-erasure claims.
+[The companion](RFC-BPR-0079-remove-cli-publication-warning.md) owns removal of
+the additional publication warning after strict qualification; that UI work is
+not part of this amendment's evidence. Earlier amendments, imported plans,
+qualification records and BPR-1373's pending owner judgment retain their exact
+historical candidates and obligations.
+
 ## Product-owner amendment, 2026-09-13
 
 The owner requests an account profile using an already configured official

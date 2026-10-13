@@ -54,7 +54,11 @@ the functional core or Qt presentation adapter.
   permitted. Keep the same bytes through API, gh-owned helper descendants and
   GET-only recovery, holding sensitive/configuration owners through reap and
   quarantine. Owned buffers are overwritten; Qt, OS and child memory copies
-  are not claimed precisely eraseable. Native qualification remains separate.
+  are not claimed precisely eraseable. The [RFC-0078 native ledger](../../../docs/verification/RFC-BPR-0078.md)
+  binds stock-gh named absence, selected API identity and an authentication-dependent
+  gh-owned helper negative separately from help/version or fixture admission.
+  Missing and inaccessible named lookups share `credential_unavailable`; tool
+  failure and an attempted indeterminate write must remain distinct.
 - Compile only closed `gh api` argument shapes from revalidated canonical
   requests; a bounded local `gh --version` probe may precede opt-in use and
   carries no credential or request body, as do the closed local

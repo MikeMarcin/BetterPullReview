@@ -1,0 +1,170 @@
+{
+  "schema": "bpr.strict-cli-qualification.v1",
+  "mandate_revision": "strict-cli-publication-r2",
+  "plan": "strict-cli-account-publication-v1",
+  "milestone": "strict-credential-qualification",
+  "issue": "BPR-1427",
+  "source_revision": "pending engineering freeze",
+  "m1_repaired_product": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+  "baseline": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "native": {
+    "gh_sha256": "db2578e119b888fa9ed294fbc9db7f25133954078529aed06e8c9d6ada11a8bc",
+    "gh_version": "gh version 2.101.0 (2026-09-15)",
+    "platform": "25.6.0",
+    "local": [
+      {
+        "host_class": "enterprise",
+        "mode": "clone",
+        "observations": {
+          "api": 1,
+          "challenge": 1,
+          "selected_helper": 2,
+          "fallback_rejected": 0,
+          "violations": 0
+        }
+      },
+      {
+        "host_class": "enterprise",
+        "mode": "clone-negative",
+        "observations": {
+          "api": 1,
+          "challenge": 1,
+          "selected_helper": 0,
+          "fallback_rejected": 1,
+          "violations": 0
+        }
+      },
+      {
+        "host_class": "github.localhost",
+        "mode": "clone",
+        "observations": {
+          "api": 1,
+          "challenge": 1,
+          "selected_helper": 2,
+          "fallback_rejected": 0,
+          "violations": 0
+        }
+      },
+      {
+        "host_class": "github.localhost",
+        "mode": "clone-negative",
+        "observations": {
+          "api": 1,
+          "challenge": 1,
+          "selected_helper": 0,
+          "fallback_rejected": 1,
+          "violations": 0
+        }
+      },
+      {
+        "host_class": "ghe.com",
+        "mode": "clone",
+        "observations": {
+          "api": 1,
+          "challenge": 1,
+          "selected_helper": 2,
+          "fallback_rejected": 0,
+          "violations": 0
+        }
+      },
+      {
+        "host_class": "ghe.com",
+        "mode": "clone-negative",
+        "observations": {
+          "api": 1,
+          "challenge": 1,
+          "selected_helper": 0,
+          "fallback_rejected": 1,
+          "violations": 0
+        }
+      }
+    ],
+    "synthetic_named_missing": "pass",
+    "native_persistence": "pass",
+    "routing": "test-owned gh private config Unix socket for metadata; test-only Git http.sslCAInfo; loopback CONNECT/TLS; production macOS trust policy unchanged",
+    "helper": "stock gh -> stock Git -> stock gh auth git-credential; Basic x-access-token accepted; unnamed fallback rejected",
+    "live": [
+      "native-api:pass login=MikeMarcin account=7605339 rate_remaining= 4999\r\nnative-transience:pass",
+      "native-api:pass login=MikeMarcinTest account=340367457 rate_remaining= 4997\r\nnative-transience:pass"
+    ],
+    "global_active_unchanged": "MikeMarcin",
+    "synthetic_exact_cleanup": "pass"
+  },
+  "global_configuration_metadata_unchanged": true,
+  "homebrew_provenance": {
+    "tap": "homebrew/core",
+    "stable": "2.101.0",
+    "built_as_bottle": true,
+    "poured_from_bottle": true
+  },
+  "git_version": "2.50.1 (Apple Git-155)",
+  "qt": "6.11.2",
+  "probe_binary_sha256": "4404fbc1bd9c431fa34efb02f30a1c262a8232b146291ef60c76c3a889430156",
+  "logs": [
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-native-frozen.log",
+      "sha256": "d0876f20ebac40e8ce6444210f219d54f0811eeade3219672a0f2b710ef2f59b"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-native-frozen.json",
+      "sha256": "5888c55c80bab5a8f0eff2a1ffdeb8d828cef344efc1623f1c1c4c5c577a9b2c"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-integration.log",
+      "sha256": "6a592c0e70018d8012338ccc1d55aa00aeb45cf4fb33d6812e52e744f0f4d561"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-final-runner-architecture.log",
+      "sha256": "df5cb00927633f6737d5edabc87eb21afa5daca4cfd9eaae9fe8844ac167773f"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-format-frozen.log",
+      "sha256": "be336276b54d42f9dabcba3f85c316de8e57bb28d09fb13575cf120f39a4ae52"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-tidy.log",
+      "sha256": "4b88012c15b9aae8d4a16e286377d164c5e378ded2cd10007fedd9d9888985fa"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-tidy-runner-final.log",
+      "sha256": "712f539e199dd2718f9c09dbf64ff02a933ff69e8b5ba3fab47c8ca9bb3efb57"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-docs-prefreeze.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-docs-contract.log",
+      "sha256": "75860d7d7673b20ddf8476803f217a473530f2c681c5bbeb5ca0dd1fe408c88d"
+    }
+  ],
+  "verification": {
+    "native": "pass; three missing courses, three stock HTTPS helper positives and three auth-dependent negatives, two exact selected live /user identities, exact cleanup and unchanged global state",
+    "integration": "initial six-test pass 5/6; architecture refused raw seam pointer. Replaced with existing shared ownership, focused architecture + runner 2/2 pass; other four unchanged passing tests reused",
+    "format": "pass exact clang-format 22 on five touched C++ paths",
+    "tidy": "pass three changed TUs; final runner recheck pass",
+    "documentation": "pass DOCUMENTATION_OK; 67 contract tests pass",
+    "lifetime": "real credential-bearing descendant alive at watchdog reap_failure; sensitive owner held until descendant drained. Actual kernel SIGKILL-failure/uninterruptible/escaped descendant not forced or claimed"
+  },
+  "prior_required_independent_review": {
+    "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+    "path": "/tmp/bpr-strict-cli-run/critical-m1-recheck.md",
+    "outcome": "supplied; prior P1/P2 fixed; no blocker"
+  },
+  "pending": [
+    "independent bounded recheck of final M2 lifecycle seam/native harness if required by coordinator, then RFC/card bookkeeping closeout",
+    "fresh M3 ordinary CLI publication owner; no popup removal yet",
+    "historical BPR-1373 human criterion for original candidate unchanged"
+  ],
+  "failures_retained": [
+    "initial native build namespace/provenance typo corrected",
+    "isolated HOME made stock lookup unavailable; typed actual HOME with private GH_CONFIG_DIR used",
+    "Python-created ACL caused bounded synthetic lookup timeout; exact test item cleanup completed; stock security stdin setup used thereafter",
+    "production macOS rejected supplied certificate facts, intentionally retained; test-owned socket/Git CA instrumentation only",
+    "wrong-family negative initially still had chosen named item; corrected exact post-acquisition deletion",
+    "architecture refused raw seam pointer; corrected to existing shared seam ownership, no rule weakened"
+  ],
+  "commands_quiescent": true,
+  "owner": "/root/strict_cli_native_qualification",
+  "permission_scope": "no real global auth switch, credential edit, owner configuration content/desktop/browser read, global Keychain settings/trust/ACL change, live repo content or remote mutation, main/index/counter allocation"
+}

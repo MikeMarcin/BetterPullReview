@@ -641,7 +641,8 @@ namespace bpr::adapters::github::detail {
 			const github_cli_process_file_limits&       aFileLimits,
 			[[maybe_unused]] const bool                 aFailStandardHandleList,
 			const std::shared_ptr<cli_sensitive_bytes>& aCapture,
-			const cli_transient_credential& aCredential, cli_credential_environment aCredentialEnvironment) -> process_execution
+			const cli_transient_credential& aCredential, cli_credential_environment aCredentialEnvironment,
+			const std::shared_ptr<github_cli_process_runner_test_seam>& aTestSeam) -> process_execution
 		{
 			validated_process_request validated;
 			try {
@@ -881,6 +882,9 @@ namespace bpr::adapters::github::detail {
 				}
 #endif
 
+				if (aTestSeam != nullptr) {
+					aTestSeam->after_started();
+				}
 				std::size_t inputOffset = 0;
 				while (inputOffset < aRequest.StandardInput.size()) {
 					const auto remaining = aRequest.StandardInput.size() - inputOffset;
@@ -1150,7 +1154,7 @@ namespace bpr::adapters::github::detail {
 							item->Request,
 							item->Stop,
 							ShutdownRequested,
-							item->Deadline, FileLimits, failStandardHandleList, item->Capture, item->Credential, item->CredentialEnvironment));
+							item->Deadline, FileLimits, failStandardHandleList, item->Capture, item->Credential, item->CredentialEnvironment, TestSeam));
 					} catch (...) {
 						publish(
 							item,

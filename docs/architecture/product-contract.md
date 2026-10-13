@@ -224,8 +224,8 @@ or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
 a separate exact-host/account/PR/operation confirmation for each ordinary write, and
-server reconciliation. The configured gh account may still change between
-checks; an ambiguous attempted write is not posted twice. Fixture actions
+server reconciliation. The acquired credential stays fixed across checks and dispatch; an ambiguous
+attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
 unavailable. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
 Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
@@ -241,13 +241,30 @@ and needs an explicit preview and Resume. Compatibility comments are explicitly
 non-atomic, and an optional description edit is a separately named operation.
 These Tour operations remain unavailable on an unqualified host/transport.
 
-BetterPullReview does not extract or copy CLI tokens or change global CLI
-authentication. Opt-in trusts the machine's configured executable, configuration,
-socket routing, CA and redirect behavior, active account and helper processes.
-Pre/post observations can detect some account changes but cannot bind a credential
-generation or prevent a concurrent account switch. Executable/configuration/CA
-replacement and process escape remain uncontained risks. Read opt-in grants no
-publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
+RFC-BPR-0078's `strict-cli-publication-r2` amendment permits one transient
+credential inside the GitHub adapter for each chosen-account operation. Stock
+`gh auth token --hostname HOST --user LOGIN` runs under write denial and a private,
+token-free configuration; its bounded sensitive output never enters a generic
+process result. Missing or inaccessible named credentials share the fixed
+`credential_unavailable` refusal before any API or network Git launch. Tool
+failure remains distinct, and a possibly transmitted write remains indeterminate.
+One immutable owner supplies `GH_TOKEN` or `GH_ENTERPRISE_TOKEN`, selected by
+stock-gh hostname classification, to that operation's identity validation, API
+calls and gh-owned Git/helper descendants. Subsequent operations acquire afresh;
+there is no ambient-account or native-transport fallback. Login and retained
+numeric account checks still refuse a misbound credential before a write.
+
+BPR creates no durable credential copy: no token enters arguments, retained
+outputs, SQLite, private configuration, object stores, recovery records or a BPR
+vault. Owned buffers are overwritten after queued work and descendants drain,
+including quarantine. Qt, OS and stock-child copies, swap and crash dumps are
+outside precise-erasure claims. Removing the named item after acquisition cannot
+replace bytes already held; server revocation may still reject them. Global gh
+account/configuration is unchanged. The configured executable, system trust,
+redirect behavior and helper processes remain trusted surfaces; private per-call
+configuration excludes the owner's ambient socket/configuration settings.
+[Strict qualification](../verification/RFC-BPR-0078.md) records native scope and
+negative controls. Read opt-in grants no publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
 endpoint. A larger reported total is accepted only when that endpoint
 returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that
