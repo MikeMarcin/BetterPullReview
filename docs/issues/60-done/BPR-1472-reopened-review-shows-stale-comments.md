@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1472"
 title: "Reopening a pull request from Recently viewed shows comments published since"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1472--BPR-1472--a0d64e912270.json","origin":"owner report 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3db9927d4","evidence":{"kind":"observation","detail":"Reopening the shown pull request from Recently viewed after a submitted review rereads it: finish course phase=18 reads=19 before=10, landing on Overview; reuses_shown is false once note_publication recorded the shown snapshot.","path":"docs/issues/60-done/BPR-1472-reopened-review-shows-stale-comments.md"}},{"criterion":"AC2","outcome":"pass","revision":"3db9927d4","evidence":{"kind":"observation","detail":"application_start_review_contract finish course submits two comments, goes Home and opens the Recently viewed row: START_REVIEW_FINISH_EVIDENCE 111111; with the two call sites reverted it fails reopen-reused-the-stale-read (reads=10 before=10, 111110).","path":"docs/issues/60-done/BPR-1472-reopened-review-shows-stale-comments.md"}},{"criterion":"AC3","outcome":"pass","revision":"3db9927d4","evidence":{"kind":"observation","detail":"With nothing published the shown read is reused: application_profile_window_review_restoration_public_path and application_setup_destination_public_path pass, as do reply_draft, attended_recent_replay, home_open_feedback and the composition contract after reseal.","path":"docs/issues/60-done/BPR-1472-reopened-review-shows-stale-comments.md"}}]
 ---
 
 # Reopening a pull request from Recently viewed shows comments published since
