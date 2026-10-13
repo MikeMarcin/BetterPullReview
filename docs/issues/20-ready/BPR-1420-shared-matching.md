@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1420"
 title: "Shared Unicode source matcher and repository path filters"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0077"]
 depends_on: ["BPR-1419"]
 metadata: {"milestone":"shared-matching","source_id":"DRAFT-0016","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","mandate_revision":"find-and-find-in-files-v1-r1","milestone_plan":{"id":"find-and-find-in-files-v1","path":"docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json"}}

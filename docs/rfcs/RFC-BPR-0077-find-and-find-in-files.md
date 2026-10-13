@@ -14,8 +14,11 @@ Mandate `find-and-find-in-files-v1-r1` preserves the settled Q1/Q2 decisions.
 Immutable RFC_BASE_SHA: `aa3d71fe470627e1e78488eb51a9114a788f33bd`.
 The [retained packet and live mapping](assets/find-and-find-in-files-v1.LIVE_IMPORT.md) and
 [authored five-milestone plan](plans/find-and-find-in-files-v1/milestone-plan.json) define live work.
-Import supplies no implementation or acceptance evidence. [[BPR-1419]] is Ready;
-[[BPR-1424]] retains all eight whole-RFC criteria for closeout.
+The M1 session and host-lifecycle foundation is accepted on [[BPR-1419]], with
+its exact scoped evidence and unrelated integration failures in the
+[verification ledger](../verification/RFC-BPR-0077.md). [[BPR-1420]] is Ready
+for the shared matcher. No shipped Find command, corpus or full-RFC criterion
+is accepted by that foundation; [[BPR-1424]] retains all eight criteria for closeout.
 
 ## Problem and grounded current behavior
 
