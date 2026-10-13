@@ -144,7 +144,7 @@ RFC status supplies neither a new server observation nor a new native verdict.
 RFC-BPR-0015's amended first read milestone has a qualified macOS fixture
 path. Native HTTPS remains the default. The tests-disabled macOS composition
 has explicit
-CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+CLI read opt-in on the selected GitHub.com or GHES host, with a chosen-account connection question,
 observed `/user` identity, pre/post-request account checks and a read-only lease.
 It invokes the configured `gh` directly with bounded arguments, input, output
 and time; account discovery and API use require `gh` 2.96 or later
@@ -180,7 +180,8 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each ordinary write, and
+strict exact-account/head/content admission and one-use grants from the ordinary
+review/comment gesture, plus
 server reconciliation. The acquired credential stays fixed across checks and dispatch; an ambiguous
 attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
@@ -221,9 +222,11 @@ Owned buffers are cleared after descendants drain; Qt, OS and stock-child copies
 swap and crash dumps remain outside perfect-erasure claims. Configured executable,
 system trust, redirects and helper processes remain trusted surfaces.
 [Native qualification](docs/verification/RFC-BPR-0078.md) records exact stock-gh
-helper negatives and selected API evidence. The existing extra CLI publication
-confirmation remains until the separately ordered RFC-BPR-0079 companion; read
-opt-in grants no publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
+helper negatives and selected API evidence. Qualified CLI Comment, Approve, Request changes and inline Publish now use their
+ordinary deliberate gestures without another CLI popup. Tour Publish and Resume
+retain the explicit immutable preview and separate description choice. Runtime
+strict capability and one-use exact-operation grants remain mandatory. Read
+trust grants no publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
 endpoint. A larger reported total is accepted only when that endpoint
 returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that

@@ -1458,7 +1458,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"4014605ad3e8f8e6b4951b8597d6297a582c8b39eb9a466ea615a7aaba651775"
+		"2e04f25d859479d8abf6ae974878874cf8de86ae055503fca6d44b66a3e48638"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1662,7 +1662,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e58af72709573382efc7e5bf25ec239c4e7233d8a13c7bf47eeb0e26bb1a4ae2"
+        "36cdacfc6c15cd70057fde67043ffb81ed41ff04ebc5fdf5bce3e3b541051ae6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2308,3 +2308,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # branch are unchanged. Self-review checks scope/default refusal/lease lifetime;
 # six focused architecture/provider/ordinary composed CLI courses pass.
 # Independent final critical acceptance remains a separately recorded M4 obligation.
+
+# BPR-1429 reseal over BPR-1428 a8d6cfdc3. New pinned changes name the chosen
+# login in first-use trust, retain the originating inline failure binding,
+# present typed acquisition failures in existing whole/tour surfaces, and keep
+# prior partial/unknown/confirmed tour outcome precedence on fresh refusal.
+# The one-use grant issuers and production mutation-branch digest are unchanged.
+# Self-review covers failed/current identity separation and receipt truth;
+# final independent critical acceptance is owed at M4, not self-certified here.

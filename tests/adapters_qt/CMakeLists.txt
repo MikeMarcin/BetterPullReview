@@ -183,7 +183,7 @@ bpr_add_network_isolated_test(
 set_tests_properties(
     qt_composed_cli_read_consent
     PROPERTIES
-        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_QT_RENDER_PATH=${CMAKE_CURRENT_BINARY_DIR}/strict-cli-consent.png"
         PASS_REGULAR_EXPRESSION "cli-read-consent:pass"
         TIMEOUT 30
 )

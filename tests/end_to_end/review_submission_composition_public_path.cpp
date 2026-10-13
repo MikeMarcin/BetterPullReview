@@ -147,6 +147,9 @@ auto main(int argc, char** argv) -> int
 		expect(!window.review_editor()->shown_draft(), "whole review needs no source-line draft");
 		expect(editor.target_editor()->toPlainText().contains(QStringLiteral("github.com")) && editor.target_editor()->toPlainText().contains(QStringLiteral("octo-reviewer")), "host and actual actor shown");
 		if (cliMode) {
+			if (argc > 2) {
+				expect(window.grab().save(QString::fromLocal8Bit(argv[2]) + "-review-ready.png"), "full ordinary CLI review presentation renders");
+			}
 			expect(server->Submissions == 0U && server->StagedWrites == 0U, "startup, discovery and connection trust grant no write");
 			for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
 				window.open_review_composition();
@@ -154,10 +157,11 @@ auto main(int argc, char** argv) -> int
 				editor.body_editor()->setPlainText(disposition == core::review_disposition::approve ? QString{ } : QStringLiteral("Ordinary chosen-account review."));
 				expect(editor.target_editor()->toPlainText().contains(QStringLiteral("octo-reviewer")) && editor.target_editor()->toPlainText().contains(QStringLiteral("github.com")), "ordinary review names actual actor and server");
 				editor.body_editor()->setFocus();
-				const auto before = server->Submissions;
+				const auto before       = server->Submissions;
+				const auto acquisitions = server->CliAcquisitions;
 				editor.submit_action()->trigger();
 				submitted(editor);
-				expect(server->Submissions == before + 1U, "one ordinary review gesture dispatches exactly one POST");
+				expect(server->Submissions == before + 1U && server->CliAcquisitions == acquisitions + 1U, "one ordinary review gesture reacquires and dispatches exactly one POST");
 				expect(QApplication::activeModalWidget() == nullptr, "ordinary review opens no modal");
 			}
 			window.open_review_composition();
@@ -173,6 +177,45 @@ auto main(int argc, char** argv) -> int
 			editor.present(shown);
 			editor.submit_action()->trigger();
 			expect(server->Submissions == before && editor.status_label()->text().contains(QStringLiteral("summary changed")), "changed frozen content refuses original ordinary gesture");
+			for (const auto failure : { application::review_mutation_failure::credential_unavailable, application::review_mutation_failure::credential_tool_failed, application::review_mutation_failure::cancelled }) {
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure = failure;
+				}
+				window.activateWindow();
+				QApplication::processEvents();
+				editor.body_editor()->setFocus();
+				QApplication::processEvents();
+				const auto priorFocus = QApplication::focusWidget();
+				expect(priorFocus && editor.isAncestorOf(priorFocus), "failure course establishes actual editor focus before Submit");
+				std::cout << "CLI_FAILURE_FOCUS before=" << (priorFocus ? priorFocus->objectName().toStdString() : "none") << " visible=" << editor.body_editor()->isVisible() << "\n";
+				editor.submit_action()->trigger();
+				wait([&] { return editor.submit_action()->isEnabled() && editor.status_label()->text().contains(QStringLiteral("draft is kept")); }, "typed acquisition failure returns editable draft");
+				expect(server->Submissions == before && editor.body_editor()->toPlainText() == QStringLiteral("Revised strict-capability draft."), "acquisition failure performs zero POST and retains exact summary");
+				if (failure != application::review_mutation_failure::cancelled) {
+					expect(editor.status_label()->text().contains(QStringLiteral("octo-reviewer")) && editor.status_label()->text().contains(QStringLiteral("github.com")), "failure binds the failed operation's chosen account and host");
+				}
+				std::cout << "CLI_FAILURE_FOCUS after=" << (QApplication::focusWidget() ? QApplication::focusWidget()->objectName().toStdString() : "none") << "\n";
+				expect(QApplication::focusWidget() == priorFocus && QApplication::activeModalWidget() == nullptr, "failure preserves existing keyboard focus without a new modal");
+				if (argc > 2) {
+					expect(window.grab().save(QString::fromLocal8Bit(argv[2]) + "-review-" + QString::fromUtf8(application::name(failure).data(), static_cast<qsizetype>(application::name(failure).size())) + ".png"), "typed CLI review refusal renders in its existing surface");
+				}
+			}
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->CliAcquisitionFailure.reset();
+				server->LoseNextReview = true;
+			}
+			editor.submit_action()->trigger();
+			wait([&] { return editor.status_label()->text().contains(QStringLiteral("unknown")); }, "attempted unknown write has honest status");
+			expect(server->Submissions == before + 1U && !editor.submit_action()->isEnabled(), "unknown attempt cannot issue a second POST");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->HideReviewReads = false;
+			}
+			editor.reconcile_action()->trigger();
+			submitted(editor);
+			expect(server->Submissions == before + 1U, "unknown attempt reconciles GET-only to its existing review");
 			cli.check();
 			shutdown(*application);
 			std::cout << "review-submission-composition:pass CLI dispositions and exact refusal\n";

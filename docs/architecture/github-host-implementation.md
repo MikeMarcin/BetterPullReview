@@ -557,7 +557,7 @@ the macOS opt-in read composition is described below.
 RFC-BPR-0015's amended first read milestone has a qualified macOS fixture
 path. Native HTTPS remains the default. The tests-disabled macOS composition
 has explicit
-CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+CLI read opt-in on the selected GitHub.com or GHES host, with a chosen-account connection question,
 observed `/user` identity, pre/post-request account checks and a read-only lease.
 It invokes the configured `gh` directly with bounded arguments, input, output
 and time; account discovery and API use require `gh` 2.96 or later
@@ -595,7 +595,8 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each ordinary write, and
+strict exact-account/head/content admission and one-use grants from the ordinary
+review/comment gesture, plus
 server reconciliation. The acquired credential stays fixed across checks and dispatch; an ambiguous
 attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain

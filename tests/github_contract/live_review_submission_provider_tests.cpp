@@ -611,7 +611,7 @@ namespace {
 			const auto                result   = session.submit_and_reconcile(original);
 			const auto                expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
 				: failure == github_cli_process_failure::cancelled                                   ? application::review_mutation_failure::cancelled
-																									 : application::review_mutation_failure::unavailable;
+																									 : application::review_mutation_failure::credential_tool_failed;
 			expect(result.Request == original && result.Publication == application::review_submission_publication::definitely_not_published
 					   && result.Failure == expected && process.ApiCalls == 0U && !*storage(root.Path)->load(original.IdempotencyKey),
 				   "new whole-review refusal keeps the draft and typed cause before any API or journaled attempt");

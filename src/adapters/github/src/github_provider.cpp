@@ -982,11 +982,25 @@ namespace bpr::adapters::github::detail {
 			}
 			[[nodiscard]] auto begin_mutation_operation(std::stop_token aStop) -> github_mutation_operation override
 			{
-				auto scope = begin_operation(aStop);
-				if (!scope) {
-					return std::unexpected{ scope.error().CliCredentialUnavailable ? application::review_mutation_failure::credential_unavailable : application::review_mutation_failure::unavailable };
+				auto* mutation = dynamic_cast<github_mutation_wire_transport*>(Transport.get());
+				if (!mutation || !Transport->strict_cli()) {
+					return std::unexpected(application::review_mutation_failure::unsupported);
 				}
-				return std::dynamic_pointer_cast<github_mutation_wire_transport>(*scope);
+				auto acquired = mutation->begin_mutation_operation(aStop);
+				if (!acquired) {
+					return std::unexpected(acquired.error());
+				}
+				auto wire = std::dynamic_pointer_cast<github_wire_transport_port>(*acquired);
+				if (!wire) {
+					return std::unexpected(application::review_mutation_failure::unsupported);
+				}
+				auto scope = std::make_shared<cli_observed_account_transport>(std::move(wire), Viewer, Server, Account, Login);
+				if (auto error = scope->check(Viewer, aStop)) {
+					return std::unexpected(aStop.stop_requested()                                                       ? application::review_mutation_failure::cancelled
+											   : error->Failure == application::github_provider_failure::authentication ? application::review_mutation_failure::undesignated_target
+																														: application::review_mutation_failure::unavailable);
+				}
+				return std::shared_ptr<github_mutation_wire_transport>{ std::move(scope) };
 			}
 
 			[[nodiscard]] auto supports_sparse_commit_trees() const noexcept -> bool override

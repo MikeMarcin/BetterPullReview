@@ -3,6 +3,7 @@
 // No live GitHub, gh process or credential. The designated fixture grants
 // stay unavailable outside this fixture composition.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -92,6 +93,9 @@ namespace {
 		published,
 		lost_then_retried,
 		unsupported,
+		credential_unavailable,
+		tool_failed,
+		cancelled,
 	};
 
 	void run(const course aCourse)
@@ -103,6 +107,7 @@ namespace {
 		expect(temporary.isValid(), "private temporary application root");
 		auto options                          = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot           = e2e::private_data_root(temporary);
+		options.ReviewSubmissionServer        = std::make_shared<app::detail::review_submission_fixture_state>();
 		options.PublicPreviewEnabledCourse    = true;
 		options.IndependentWindowReads        = true;
 		options.LoseFirstReviewMutationResult = aCourse == course::lost_then_retried;
@@ -196,16 +201,28 @@ namespace {
 			options.GithubCliStrictCapability->store(false);
 		}
 		const auto text = QString::fromStdString(body);
-		if (aCourse == course::unsupported) {
+		if (aCourse == course::credential_unavailable || aCourse == course::tool_failed || aCourse == course::cancelled) {
+			options.ReviewSubmissionServer->CliAcquisitionFailure = aCourse == course::credential_unavailable ? application::review_mutation_failure::credential_unavailable
+				: aCourse == course::tool_failed                                                              ? application::review_mutation_failure::credential_tool_failed
+																											  : application::review_mutation_failure::cancelled;
+		}
+		if (aCourse == course::unsupported || options.ReviewSubmissionServer->CliAcquisitionFailure) {
 			send_single(*cards);
-			const auto said = wait_until([&] { return draft_status(*cards).contains(QStringLiteral("unavailable")); }, 5000);
+			const auto said = wait_until([&] { return aCourse == course::unsupported ? draft_status(*cards).contains(QStringLiteral("unavailable")) : draft_status(*cards).contains(QStringLiteral("draft is kept")); }, 5000);
 			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(said, "the draft says publication is unavailable and keeps its text");
+			if (const auto render = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !render.isEmpty()) {
+				expect(window.grab().save(render + "-inline-" + QString::number(static_cast<unsigned int>(aCourse)) + ".png"), "full inline CLI failure presentation renders");
+			}
+			if (aCourse == course::credential_unavailable || aCourse == course::tool_failed) {
+				expect(draft_status(*cards).contains(QStringLiteral("octo-reviewer")) && draft_status(*cards).contains(QStringLiteral("github.com")), "inline failure uses its failed operation's chosen account and server");
+			}
+
 			const auto after = github_application_fixture_access::review_mutation_evidence(*application);
-			expect(publishAsks == 0U && after.Submissions == before.Submissions && after.StoredComments == 0U, "unsupported strict capability sends nothing");
+			expect(publishAsks == 0U && after.NativePosts == before.NativePosts && after.StoredComments == 0U, "unsupported strict capability sends nothing");
 			publish = draft_publish(*cards);
 			expect(draft_card(*cards) != nullptr && publish != nullptr && single_offered(*cards) && publish->isEnabled()
-					   && publish->text() == QStringLiteral("Add single comment"),
+					   && (publish->text() == QStringLiteral("Add single comment") || (aCourse == course::cancelled && publish->text() == QStringLiteral("Retry"))),
 				   "the draft stays, and Add single comment is still offered");
 			std::cout << "BPR_1329:" << name << ":pass\n";
 			consent.stop();
@@ -284,7 +301,10 @@ try {
 	const auto only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
 	for (const auto& [course, name] : { std::pair{ course::published, std::string_view{ "published" } },
 										std::pair{ course::lost_then_retried, std::string_view{ "lost-then-retried" } },
-										std::pair{ course::unsupported, std::string_view{ "unsupported" } } }) {
+										std::pair{ course::unsupported, std::string_view{ "unsupported" } },
+										std::pair{ course::credential_unavailable, std::string_view{ "credential-unavailable" } },
+										std::pair{ course::tool_failed, std::string_view{ "tool-failed" } },
+										std::pair{ course::cancelled, std::string_view{ "cancelled" } } }) {
 		if (only.empty() || only == name) {
 			run(course);
 		}
