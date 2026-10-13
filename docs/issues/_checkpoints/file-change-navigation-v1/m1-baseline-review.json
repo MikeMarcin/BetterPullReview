@@ -1,0 +1,49 @@
+{
+  "mandate_revision": "file-change-navigation-r1",
+  "rfc_base_sha": "d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1",
+  "candidate": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "navigation_product": "40639f2f606aec92aaf8f651f4e72735c8429357",
+  "sibling_reading_test": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "integrated_title_checkpoint": "a1d43c7972d5b1aaf95b139b2bf9178bd95d0347",
+  "owned_paths": [
+    "docs/architecture/system-architecture.md",
+    "docs/issues/_checkpoints/file-change-navigation-v1/continuation.md",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-binding.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+    "docs/rfcs/RFC-BPR-0076-file-change-navigation-enters-review.md",
+    "docs/ux/workbench-specification.md",
+    "scripts/verify_test_network_isolation.py",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/adapters_qt/workbench_window_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/review_navigation_entry_public_path_tests.cpp"
+  ],
+  "preserved_historical_cards": [
+    "BPR-0924",
+    "BPR-1132",
+    "BPR-1295",
+    "BPR-1328"
+  ],
+  "amendment_disposition": "Adopted only bounded navigation entry and normal Review context restoration; RFC0037 acceptance/terminal historical cards and plans are unchanged.",
+  "criteria": "All five original authored criteria retained. No added or waived human/native/independent gate.",
+  "source_hashes": {
+    "docs/architecture/system-architecture.md": "147c741f2f06ff6e7af67f436bf671858f147559d3d4639cfe8abda21eba3982",
+    "docs/issues/_checkpoints/file-change-navigation-v1/continuation.md": "ebb7aade65bfd408b5652b6704d7a5add8cfded2d6513f1e33ca96f231a33fbf",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-binding.json": "67b5e955495ebf28ee0d2bc843c2a81cceac0002df18af436d282cf4529f4d3c",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json": "be709d27e6d3894c0cd68183a7741a2d1b560b424c1aa53494b6482f0439280f",
+    "docs/rfcs/RFC-BPR-0076-file-change-navigation-enters-review.md": "1114277b99a08aa61a604c9233052703c553efc46b4834edf906c5732b22ca8b",
+    "docs/ux/workbench-specification.md": "9eb7881164774c2e7530f81dfe0039de7ed57905c1fe638336437122db2afab9",
+    "scripts/verify_test_network_isolation.py": "298a00fe110facdabd51cfaa1d9b3e8a90561ed8e316faf1ec97f548fea1f19d",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp": "79cea7c3674f4ed5d4866ed90d1a7e75a9c971d3a9de8295e153aff57a794897",
+    "src/adapters/qt/src/desktop_menu_bar.cpp": "8cb36601aafc00df7bda49ee708166448373d7e31e55e20b1d30dae4462a61d4",
+    "src/adapters/qt/src/workbench_window.cpp": "55ce8b62eb305a9fbccd1fc8a11294f744e0ae55b81e5d0a657a45a2926b9e99",
+    "src/app/src/github_application.cpp": "44c3924dc169bf97e132423e59816856840a22b26633143ad23ec75fabfc21ed",
+    "tests/adapters_qt/workbench_window_tests.cpp": "8eb26e6f8a23f2789fd60902b6c0b39d21476b0b5f83bdfbd496d42db3fabdf5",
+    "tests/end_to_end/CMakeLists.txt": "d5f9de8bcd6649025e4fde0805aabdca4151148d1dd9dcdd23d935c38c996b01",
+    "tests/end_to_end/review_navigation_entry_public_path_tests.cpp": "c1befb357cf90e9d38c612ef9eb3164ac0ced327368a9ce57574898651e527fc"
+  },
+  "shared_path_disposition": "Baseline-to-main diffs of workbench_window.cpp/test include the independently landed RFC0075 title-row publication changes. Its a1d43c797 checkpoint is preserved; navigation rebase applied cleanly and combined source checks are recorded separately."
+}
