@@ -181,7 +181,12 @@ set, staged modes and object identities, conflict stages, sparse entries and
 intent-to-add come from parsing the index (versions 2-4) as data; untracked
 files are included unless the checkout's own `.gitignore` files or
 `info/exclude` exclude them (the reviewer's global excludes file is not read,
-so what only it ignores stays visible); tracked paths absent from the working
+so what only it ignores stays visible). The shared config is read with Git's
+own syntax first: a format version above 1, an extension the readers do not
+read, a reftable reference store, or an index that fails its checksum or names
+a required extension is refused with a named reason, by capture and by
+outgoing resolution alike, and `core.ignoreCase` folds ignore and `filter`
+matching as Git's wildmatch does (BPR-1454). Tracked paths absent from the working
 tree are explicit deletions, sparse entries are visible but unread, and nested
 repositories and submodules are boundaries. Folder roots use a disclosed
 default set (version-control and tool state, regenerable caches, common

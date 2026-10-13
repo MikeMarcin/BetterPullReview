@@ -20,6 +20,9 @@ namespace bpr::application {
 	[[nodiscard]] auto cycle_store_words(const cycle_store_error& aError) -> std::string;
 	[[nodiscard]] auto cycle_workspace_words(workspace_failure aFailure) -> std::string;
 	[[nodiscard]] auto cycle_capture_words(const cycle_capture_outcome& aOutcome) -> std::string;
+	/// \brief [[BPR-1454]]. Why a checkout's Git metadata is not read, naming
+	/// the setting or index part concerned. Nothing was read from it.
+	[[nodiscard]] auto cycle_repository_words(const core::git_repository_problem& aProblem) -> std::string;
 	[[nodiscard]] auto cycle_response_words(const cycle_response_result& aResult) -> std::string;
 	[[nodiscard]] auto cycle_export_words(cycle_export_failure aFailure) -> std::string;
 	/// \brief [[BPR-1279]]. Whether a refused capture's way forward is an
