@@ -26,8 +26,11 @@ The established native UI is preserved. The earlier missing-skill blocker is res
 
 The selected draft and proposed amendment remain untouched. Immutable imported
 copies, provenance and the adopted plan live under `docs/rfcs/assets/` and
-`docs/rfcs/plans/smooth-diff-touchpad-panning/`. The plan/requirement binding is
-[m1-binding.json](m1-binding.json); the import and claim commits are
+`docs/rfcs/plans/smooth-diff-touchpad-panning/`. The initial plan/requirement binding is
+[m1-binding.json](m1-binding.json). The final observation uses
+[m1-review-binding.json](m1-review-binding.json), renewed after the RFC execution
+note and card evidence/lane transition changed whole-source fingerprints. The
+plan, eight acceptance criteria and all exit texts are unchanged. the import and claim commits are
 `c86b4b0af` and `7afbd357e`. The initial blocker checkpoint is `f5ba6df49`.
 
 ## Attended review preparation

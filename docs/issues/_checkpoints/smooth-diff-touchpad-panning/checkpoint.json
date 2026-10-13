@@ -89,5 +89,8 @@
     "pending_decisions": [
       "AC07 Accept/Reject with change note"
     ]
-  }
+  },
+  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m1-review-binding.json",
+  "segment_id": "ready-human-review",
+  "binding_renewal": "Whole-source fingerprints changed with RFC execution evidence and card finish/parking. Plan definition, eight criteria and exit texts unchanged."
 }
