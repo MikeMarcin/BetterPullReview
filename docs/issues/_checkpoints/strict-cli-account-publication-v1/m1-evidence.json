@@ -1,0 +1,58 @@
+{
+  "schema": "bpr.strict-cli.m1-evidence.v1",
+  "mandate_revision": "strict-cli-publication-r2",
+  "source_candidate": "29b4002e509991da38522a209d8a7f6e7be7765e",
+  "platform": "mac",
+  "host_load": "not_verified",
+  "artifacts": [
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-final-focused.log",
+      "sha256": "997b125a36cd0b9ca566203ebac40d77944c4d83a831cb4877c17b186753d387"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-final-credentials.log",
+      "sha256": "cd4a33235494e238d475ca17e423e55753ac97faa17b47efe5c1aa0bbeecdb39"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-public-tests1.log",
+      "sha256": "9b874bff3e5f3c1a851d6b8a3c8ed788b0749c28daf987304a90467f8b77cead"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-architecture-contract.log",
+      "sha256": "1901acfa9e25620af95b600efb85bb8d469d7539c082a2f8ebec91cf4b90a3b8"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-architecture-sensitive.log",
+      "sha256": "017abf1c96a053d0d044c802d80141a3f8da9aee6a7eff79a78aeeaf6c779282"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-documentation.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-documentation-contract.log",
+      "sha256": "18b05c6a836d0472f73c260f1c2a5e2c3529515a8ea8195cdf495c74ad414447"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-touched-format-final.log",
+      "sha256": "8d300109c640c7eb1fc97375647fa4eef45606b532313d57744b34c400677697"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-tidy2.log",
+      "sha256": "a286d173af1aa41d52c1056c3e605d0d202cf9390307a4fc797f94c578f855be"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-tidy-tests.log",
+      "sha256": "60e48bd08f41a74b01b42e76f96dec74b7319735ae90b0b9dfbb797d2c2bed78"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-baseline-gates.json",
+      "sha256": "084d0fc34eb568eeeb9cf68f628e5f126d0af4bc62463499ae4416fc6ac56ff0"
+    }
+  ],
+  "gate_limits": {
+    "repository_format": "baseline syntax fixture unchanged, not passed",
+    "changed_tu_tidy": "14 unchanged naming diagnostics in github_application.cpp, not passed globally",
+    "new_or_changed_diagnostics": "none; remaining Git/transport test warnings corrected and targeted tidy passed"
+  }
+}
