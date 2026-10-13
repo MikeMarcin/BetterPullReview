@@ -1276,6 +1276,13 @@ if(BPR_BUILD_QT)
     add_subdirectory(end_to_end)
 endif()
 
+# [[RFC-BPR-0082]] The opt-in diff-engine evaluation; never part of a shipping
+# configuration.
+option(BPR_DIFF_ENGINE_EVALUATION "Build the opt-in diff-engine evaluation harness and candidates" OFF)
+if(BPR_DIFF_ENGINE_EVALUATION)
+    add_subdirectory(evaluation/diff_engine)
+endif()
+
 # Deliberately last: every `bpr_add_executable` call in the tree must already
 # have run, or the manifest describes a subset of the binaries and the
 # isolation guard passes by not looking. The list is smaller under `core-only`
