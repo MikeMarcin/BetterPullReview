@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1434"
 title: "Fold paths and decode UTF-8 with utf8proc instead of hand-written tables"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1435"]
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c87cc77de","evidence":{"kind":"observation","detail":"Core links pinned utf8proc 2.12.0 via bpr/core/utf8.hpp; inventory, notice, packaging and dependency contracts pass.","path":"docs/issues/60-done/BPR-1434-unicode-with-utf8proc.md"}},{"criterion":"AC2","outcome":"pass","revision":"c87cc77de","evidence":{"kind":"observation","detail":"Path folding 1,589 -> 93 lines; workspace tests pin F5 80 80, kana, Hangul, sigma, Kelvin, mark order and sharp s; bundle, workspace_source and capture pass.","path":"docs/issues/60-done/BPR-1434-unicode-with-utf8proc.md"}},{"criterion":"AC3","outcome":"pass","revision":"c87cc77de","evidence":{"kind":"observation","detail":"Eight core helpers and two agent-stream helpers share utf8::decode/append; 103 core suites and application_agent_launch pass.","path":"docs/issues/60-done/BPR-1434-unicode-with-utf8proc.md"}},{"criterion":"AC4","outcome":"pass","revision":"c87cc77de","evidence":{"kind":"observation","detail":"MCP helper refuses a lone low surrogate as invalid_request; observer fixture passes with shared encoder and raw-byte check.","path":"docs/issues/60-done/BPR-1434-unicode-with-utf8proc.md"}}]
 ---
 
 # Fold paths and decode UTF-8 with utf8proc instead of hand-written tables
