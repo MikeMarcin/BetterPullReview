@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1413"
 title: "Verify and close RFC-BPR-0073"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0073"]
 depends_on: []
 closeout_for: ["RFC-BPR-0073"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"smooth-diff-touchpad-panning","path":"docs/rfcs/plans/smooth-diff-touchpad-panning/milestone-plan.json"}}
-parked_on: "human-review"
 acceptance: [{"criterion":"AC01","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC01 direct composed evidence; m1-verification.json exact command results"}},{"criterion":"AC02","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC02 direct composed evidence; m1-verification.json exact command results"}},{"criterion":"AC03","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC03 direct composed evidence; m1-verification.json exact command results"}},{"criterion":"AC04","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC04 direct composed evidence; m1-verification.json exact command results"}},{"criterion":"AC05","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC05 direct composed evidence; m1-verification.json exact command results"}},{"criterion":"AC06","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC06 direct composed evidence; m1-verification.json exact command results"}},{"criterion":"AC07","outcome":"pending","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/issues/_checkpoints/smooth-diff-touchpad-panning/README.md: fresh frozen-build attended session; actual owner verdict pending"}},{"criterion":"AC08","outcome":"pass","revision":"60aa863613259ce3e4cad77f5517582187353492","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md: AC08 direct composed evidence; m1-verification.json exact command results"}}]
 ---
 
