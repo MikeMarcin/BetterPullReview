@@ -13,7 +13,7 @@ metadata: {"mandate_revision":"diff-engine-evaluation-r1"}
 # BPR-1466: Build the opt-in diff-engine evaluation harness, candidates and corpus
 
 Part of [RFC-BPR-0082](../../rfcs/RFC-BPR-0082-diff-engine-evaluation.md). Builds on the seam of
-[BPR-1465](../30-in-progress/BPR-1465-diff-engine-evaluation-seam.md). The harness and
+[BPR-1465](../60-done/BPR-1465-diff-engine-evaluation-seam.md). The harness and
 its candidates live in a non-shipping target that is off by default. The macOS
 station builds it first; the Linux and Windows cards run it there.
 
