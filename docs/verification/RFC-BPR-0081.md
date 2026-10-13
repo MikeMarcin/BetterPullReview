@@ -33,9 +33,9 @@ fixes those classes in the heuristic. It may not take
   false negatives fall below the baseline's.
 
 **What is still owed.** Windows x64
-([BPR-1443](../issues/10-backlog/BPR-1443-measure-the-parser-evaluation-on-windows.md))
+([BPR-1443](../issues/20-ready/BPR-1443-measure-the-parser-evaluation-on-windows.md))
 and Linux x64
-([BPR-1444](../issues/10-backlog/BPR-1444-measure-the-parser-evaluation-on-linux.md))
+([BPR-1444](../issues/20-ready/BPR-1444-measure-the-parser-evaluation-on-linux.md))
 have not been measured. AC03 requires their numbers, but they cannot change
 the outcome: a gate that fails on one platform rejects T whatever the others
 show. Nothing below claims a Windows or Linux result.

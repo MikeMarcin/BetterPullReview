@@ -1,31 +1,30 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-1444"
-title: "Measure the C++ parser evaluation on Linux x64 and run its Linux fuzz campaign"
-status: "Backlog"
+id: "BPR-1443"
+title: "Measure the C++ parser evaluation on Windows x64"
+status: "Ready"
 rfcs: ["RFC-BPR-0081"]
 depends_on: ["BPR-1442"]
 priority: "P2"
-platforms: ["linux"]
+platforms: ["win"]
 metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_plan":{"id":"cpp-identifier-parser-evaluation-v1","path":"docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json"}}
 ---
 
-# BPR-1444: Measure the C++ parser evaluation on Linux x64 and run its Linux fuzz campaign
+# BPR-1443: Measure the C++ parser evaluation on Windows x64
 
-Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `linux-measurement`. Runs the harness that
-[BPR-1442](../60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Linux x64
-station, with the thresholds unchanged.
+Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `windows-measurement`. Runs the harness that
+[BPR-1442](../60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Windows
+x64 station, with the thresholds unchanged.
 
 ## Acceptance
 
-- **AC1:** Linux x64 results for every size class and every item under the RFC's
-  "Measurements" are committed beside the macOS results, with the baseline in the
-  same runs and the hardware recorded.
-- **AC2:** The syntax fuzz target runs for 4 CPU-hours per candidate on Linux,
-  and the corpus runs under AddressSanitizer and UndefinedBehaviorSanitizer.
-- **AC3:** The Linux executable size added per candidate, the clean build cost
+- **AC1:** Windows x64 results for every size class and every item under the
+  RFC's "Measurements" that applies to Windows are committed beside the macOS
+  results, with the baseline in the same runs and the hardware recorded.
+  libFuzzer does not run on Windows; the corpus still runs.
+- **AC2:** The Windows executable size added per candidate, the clean build cost
   and the span comparison against the macOS results for determinism are recorded,
-  and the report's gate table is updated with the Linux results.
+  and the report's gate table is updated with the Windows results.
 
 ## How to run it
 
@@ -53,12 +52,11 @@ The outcome is already fixed: T fails the Contract gate in its grammar, and
 fails Bounded work and Memory on macOS. This station's numbers complete AC03;
 they cannot change the outcome.
 
-Linux notes:
-- The fuzz graph links `-fsanitize=fuzzer` itself.
-- Run `fuzz_syntax`, `fuzz_syntax_v0_23_4` and `fuzz_syntax_master` for
-  4 CPU-hours each, as macOS did with `-jobs=3 -workers=3
-  -max_total_time=4800`.
-- If Qt's caches trip LeakSanitizer, reuse
-  `tests/fuzz/markdown_view_lsan.supp`.
-- `measure_size.py` is written for macOS slices. On Linux, compare the linked
-  twins' sizes (`size`) instead.
+Windows notes:
+- The twins of `application_cpp_identifier_appearance` and
+  `application_large_review_benchmark` are registered without
+  `WINDOWS_UNCONTAINED`. Mark them as the originals are, and add their
+  `WINDOWS_UNCONTAINED_TESTS` entries, in the same commit.
+- `measure_size.py` is written for macOS slices (`size -m`, `-arch`). On
+  Windows, compare the linked twins' executable sizes instead.
+- libFuzzer is not built on Windows.

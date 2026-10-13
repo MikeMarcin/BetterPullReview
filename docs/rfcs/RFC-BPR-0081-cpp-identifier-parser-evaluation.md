@@ -20,9 +20,9 @@ retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labell
 (cancellation test and syntax fuzz target),
 [BPR-1442](../issues/60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md)
 (harness, pins and macOS measurements),
-[BPR-1443](../issues/10-backlog/BPR-1443-measure-the-parser-evaluation-on-windows.md)
+[BPR-1443](../issues/20-ready/BPR-1443-measure-the-parser-evaluation-on-windows.md)
 (Windows x64),
-[BPR-1444](../issues/10-backlog/BPR-1444-measure-the-parser-evaluation-on-linux.md)
+[BPR-1444](../issues/20-ready/BPR-1444-measure-the-parser-evaluation-on-linux.md)
 (Linux x64 and the Linux fuzz campaign) and
 [BPR-1445](../issues/10-backlog/BPR-1445-close-rfc-0081.md) (closeout).
 **Outcome on macOS (2026-10-13): extend.** Candidate T fails the Contract,
