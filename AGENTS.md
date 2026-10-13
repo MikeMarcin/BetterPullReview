@@ -96,6 +96,17 @@ network, or process effects.
   surfaces the owner will look at) loads the `frontend-design:frontend-design`
   skill first and says so in its report. The owner asked on 2026-10-06 after
   several design rounds ran without it.
+- Before implementing a major general-purpose system by hand in `src/core/`
+  (a parser or serializer, codec, compressor, hash, regex or diff engine,
+  Unicode tables, protocol, or similar infrastructure), ask the owner whether
+  a suitable library should be allowed instead. Name the candidate, its
+  licence, the layer it would live in, and why it fits or does not; do not
+  hand-roll it while that question is open. Core may link only the
+  owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries:
+  glaze, utf8proc, zlib and fmt (owner, 2026-10-13). RE2 stays in an adapter
+  because Abseil uses threads. The 2026-10-13 audit found a hand-written regex
+  engine with a correctness bug, eight JSON implementations, a DEFLATE
+  inflater and hand-written hashes that libraries should have supplied.
 - Never use `git stash` in a worktree: the stash list is shared by every
   worktree of the checkout, so `stash pop` can take another agent's work
   (BPR-1332's bisect swapped BPR-1327's uncommitted files). Use WIP commits on
