@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1436"
 title: "Share one QProcess supervision between the gh and Git runners, and bound gh's background reap"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
