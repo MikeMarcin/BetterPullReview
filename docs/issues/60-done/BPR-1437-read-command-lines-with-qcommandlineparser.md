@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1437"
 title: "Read every command line with QCommandLineParser"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit (item 10: replace with Qt)"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"57e8d8eed","evidence":{"kind":"observation","detail":"command_line wraps QCommandLineParser and refuses unknown options (single-dash, --name=value, --), missing or option-valued values and repeats; exercised through the tour, cycle and desktop refusal cases.","path":"docs/issues/60-done/BPR-1437-read-command-lines-with-qcommandlineparser.md"}},{"criterion":"AC2","outcome":"pass","revision":"57e8d8eed","evidence":{"kind":"observation","detail":"bpr tour and bpr cycle read through the shared reader with unchanged allow-lists and codes; 10 tour and cycle CLI tests pass, including new refusal cases; the cycle --file --json case fails on the old reader.","path":"docs/issues/60-done/BPR-1437-read-command-lines-with-qcommandlineparser.md"}},{"criterion":"AC3","outcome":"pass","revision":"57e8d8eed","evidence":{"kind":"observation","detail":"The desktop parses once after QApplication with tests-only options gated; LAUNCH_ARGUMENTS_INVALID and PROFILE_LAUNCH_ARGUMENTS_INVALID observed offscreen; profile activation passes with new cases; 67 of 71 launching tests pass, and the 4 failures reproduce with the previous main.cpp.","path":"docs/issues/60-done/BPR-1437-read-command-lines-with-qcommandlineparser.md"}}]
 ---
 
 # Read every command line with QCommandLineParser
