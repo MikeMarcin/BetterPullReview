@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1461"
 title: "Refuse a reftable checkout under the owner's Q2 answer"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054", "RFC-BPR-0083"]
 depends_on: ["BPR-1454"]
 priority: "P1"
