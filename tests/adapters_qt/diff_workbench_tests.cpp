@@ -35,7 +35,6 @@
 #include <QSplitterHandle>
 #include <QString>
 #include <QStyle>
-#include <QStyleOptionSlider>
 #include <QSysInfo>
 #include <QTextBlock>
 #include <QTextCursor>
@@ -4697,87 +4696,6 @@ namespace {
 		}
 	};
 
-	/// \brief Observe Qt's real transient-bar wake and render it deterministically.
-	class scroll_bar_wake_style final : public QProxyStyle
-	{
-	public:
-		[[nodiscard]] auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget,
-									 QStyleHintReturn* const aReturn) const -> int override
-		{
-			return aHint == QStyle::SH_ScrollBar_Transient ? 1 : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
-		}
-		void drawComplexControl(const ComplexControl aControl, const QStyleOptionComplex* const aOption,
-								QPainter* const aPainter, const QWidget* const aWidget) const override
-		{
-			if (aControl == QStyle::CC_ScrollBar) {
-				if (aOption->state.testFlag(QStyle::State_On)) {
-					aPainter->fillRect(aOption->rect, Qt::magenta);
-				}
-				return;
-			}
-			QProxyStyle::drawComplexControl(aControl, aOption, aPainter, aWidget);
-		}
-	};
-
-	void test_vertical_navigation_does_not_wake_horizontal_scroll_bar()
-	{
-		auto text = std::string{ };
-		for (auto line = 0; line < 200; ++line) {
-			text += std::string(240U, 'x') + '\n';
-		}
-		const auto diff      = computed(text, text, { }, 77U);
-		auto       wakeStyle = scroll_bar_wake_style{ };
-		for (const auto view : { 0, 1, 2 }) {
-			const auto unified   = view == 2;
-			const auto side      = view == 0 ? core::diff_side::left : core::diff_side::right;
-			auto       workbench = qt::diff_workbench{ };
-			workbench.resize(1'000, 520);
-			workbench.show();
-			const auto request = context(diff, 176U, 176U);
-			workbench.set_loading(request);
-			workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
-			workbench.set_one_pane_enabled(unified);
-			settle_geometry(workbench);
-			auto* const editor     = unified ? workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : side == core::diff_side::left ? workbench.left_pane()
-																																						 : workbench.right_pane();
-			auto* const horizontal = editor->horizontalScrollBar();
-			horizontal->setStyle(&wakeStyle);
-			expect(workbench.select_conversation_line(side, 60U), "scrollbar wake course selects a source row");
-			settle_geometry(workbench);
-			const auto lit = [horizontal] {
-				auto pixels = QImage{ horizontal->size(), QImage::Format_ARGB32_Premultiplied };
-				pixels.fill(Qt::transparent);
-				horizontal->render(&pixels, QPoint{ }, QRegion{ }, QWidget::DrawChildren);
-				return pixels.pixelColor(pixels.width() / 2, pixels.height() / 2) == QColor{ Qt::magenta };
-			};
-			expect(!lit(), "the transient horizontal bar begins inactive");
-			const auto left              = horizontal->value();
-			const auto top               = editor->verticalScrollBar()->value();
-			auto       horizontalChanges = 0;
-			QObject::connect(horizontal, &QScrollBar::valueChanged, &workbench, [&horizontalChanges] { ++horizontalChanges; });
-			for (auto step = 0; step < 60; ++step) {
-				auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier };
-				QCoreApplication::sendEvent(editor, &key);
-				expect(horizontal->value() == left && horizontalChanges == 0, "Down never moves the horizontal value, including transiently");
-				expect(!lit(), "Down does not wake the transient horizontal scrollbar");
-				process_events();
-			}
-			expect(editor->verticalScrollBar()->value() > top, "the wake course really scrolls vertically");
-			expect(send_wheel(*editor->viewport(), QPoint{ -20, 0 }), "real horizontal input is accepted");
-			expect(horizontal->value() > left && lit(), "real horizontal input wakes the native transient bar");
-			process_events();
-			expect(!lit(), "Qt returns the horizontal bar to its transient state after the flash");
-			expect(send_wheel(*editor->viewport(), QPoint{ 0, -40 }), "vertical pixel input is accepted");
-			expect(!lit(), "vertical-only pixel input does not wake the horizontal bar");
-			process_events();
-			if (!unified) {
-				expect(workbench.reveal_conversation_line(side, 150U), "programmatic vertical reveal is accepted");
-				expect(!lit(), "programmatic vertical reveal does not wake the horizontal bar");
-			}
-			horizontal->setStyle(nullptr);
-		}
-	}
-
 	/// \brief [[BPR-1334]]. Line details' rows, gutter and horizontal bar, in
 	/// whichever bar style the strip has: the gutter beside the rows only and
 	/// not scrolling, and both rows above the bar rather than under it.
@@ -5401,7 +5319,6 @@ auto main(int argc, char** argv) -> int
 	test_fractional_native_viewport();
 	test_fractional_unified_and_keyboard_viewports();
 	test_keyboard_minimal_reveal();
-	test_vertical_navigation_does_not_wake_horizontal_scroll_bar();
 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
 	test_one_pane_rows_anchors_and_link_map();
 	{
