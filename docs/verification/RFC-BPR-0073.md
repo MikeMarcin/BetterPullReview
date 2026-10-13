@@ -6,14 +6,14 @@ is `268b87049592ca4643e5303ab77114e116e7b5f3`; its plan and import provenance ar
 [the adopted plan](../rfcs/plans/smooth-diff-touchpad-panning/MILESTONES.md) and
 [live import](../rfcs/assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md).
 
-Candidate v001 was rejected by the owner: keyboard reveal moved too far and
-wrong-axis motion remained too sensitive. The owner accepted AC07 on v002 and
-rejected its one-row-early keyboard reveal. Candidate v003 passes direct
-deterministic checks for AC01–AC06 and AC08 with a discriminating rendered
-regression course. Only the separate AC08 minimum-reveal judgment remains
-pending on the exact frozen build recorded in the
-[continuation](../issues/_checkpoints/smooth-diff-touchpad-panning/README.md).
-Fixture success does not establish physical touchpad feel.
+The owner accepted AC07 touchpad behavior on v002 and rejected the keyboard
+reveals on v001, v002 and v003. The latest explicit correction requires the
+selected row bottom flush with the actual displayed bottom after Down scrolls.
+This replaces top-source-boundary rounding for reveals; page and endpoint
+behavior remain unchanged. The v004 correction and exact candidate are recorded
+in the [continuation](../issues/_checkpoints/smooth-diff-touchpad-panning/README.md).
+The separate keyboard judgment remains pending. Fixture success does not
+establish a human verdict or physical touchpad feel.
 
 ## Implementation and design review
 
@@ -46,13 +46,14 @@ the diagnostic below; they do not claim to reproduce Sublime's algorithm and
 were accepted by the owner under AC07 on v002.
 
 Keyboard cursor/selection movement retains the fraction while the target is in
-view. A clipped keyboard target is fully revealed at the nearest edge, with only
-the further distance required to align the receiving presentation to a source
-line boundary. It captures the displayed viewport region and target geometry
-before selection projection; the overscan mask can retain an older, shorter
-extent and is not the reveal boundary. The shared comparison authority projects the other pane
-normally through unequal replacements. Unified scrolling uses its native row
-authority. Page and endpoint behavior is retained.
+view. A clipped target meets the actual displayed bottom (or top for Up) within
+one device pixel. The region is captured before selection projection and
+intersects the native viewport mask: Qt's `visibleRegion()` alone includes
+overscan behind the horizontal scrollbar. No extra source-boundary rounding is
+applied. Subsequent reveals scroll one source row per arrow, while the split
+comparison authority still projects the other pane through unequal replacements.
+Unified scrolling retains the required native row and within-row residual.
+Page destinations remain line-aligned and Home/End retain exact endpoints.
 
 The refinement pass kept the shared origin, cached measurements and native
 geometry together. Two optional assignments and six local test identifiers were
@@ -69,7 +70,7 @@ also made consistent with the static gate; those changes preserve behavior.
 | AC05 | Pass | Existing controller/workbench/link-map checks retain insertion pinning, unequal replacements, Home/End, scroll-past-end, pane handoff, angle/Shift-wheel, modified zoom, reveals and reading-anchor restoration. Range sweeps now observe real rendered origins rather than aliased integer line-bar values; the exact endpoint remains asserted. One-pixel reversal from End is explicit. |
 | AC06 | Pass | The composed 2,000-line course sends 1,000 accepted pixel inputs and observes 1,000 pixels of actual native source travel within one pixel. Counters require no semantic query/index adoption, geometry rebuild or pane scan; 1,000 frames coalesce to one repaint delivery. Link work stays within near-visible candidates and retained buffers do not grow. Existing publication, resize and input timing bounds remain active. |
 | AC07 | Owner accepted v002 | Session `c595e5c955c2cd527f9f4a351d3ab175`, candidate `BPR-1413-AC07-v002`, decision `0a0ba98a-3e76-4cb8-b404-fb0196dbd48c`. The adaptive axis implementation is unchanged in v003. |
-| AC08 | Agent pass; owner v003 judgment pending | The production appearance font and a boundary-height viewport expose early reveal. Ninety Down and ninety Up steps alternate Shift, assert exact source identity, retain the actual rectangle of every fully visible target, and check whole-row visibility with strictly less than one row of edge slack for clipped targets. Each direction asserts more than ten clipped reveals, in both split panes, a 4:7 replacement and unified view. Existing repeat/page/endpoint and fractional continuation checks pass. |
+| AC08 | Agent pass; owner v004 judgment pending | The production font and a nonintegral-row-height viewport exercise ninety Down and ninety Up events with repeat and alternating Shift. Every clipped target must meet the actual displayed edge within one device pixel; consecutive Down reveals move exactly one row. An independent check requires the source bottom to meet the native horizontal scrollbar top, excluding overscan. Fully visible targets retain their rectangles. Both split panes, a 4:7 replacement and unified view are covered, with shared ribbon geometry and subsequent one-pixel touchpad continuation. |
 
 ## Commands and actual results
 
@@ -128,6 +129,43 @@ Ninja dependency log; `ninja -C build/dev -t recompact` repaired it before final
 checks. No unrelated output was deleted. The official v003 freeze builds the
 committed source inside its own root and validates its launcher before handoff.
 
+## Post-v003 exact-flush correction
+
+The owner supplied two before/after screenshots and explicitly required the
+selected row's bottom to meet the view bottom. The preceding “less than one row
+of slack” assertion could pass the rejected result; the new course requires flush
+alignment after real key events to one device pixel. The unchanged v003 code
+fails that assertion (CTest exit 8).
+
+Removing source-boundary rounding alone also failed. A diagnostic measured row
+bottom 374, `visibleRegion` bottom 380, actual mask bottom 364 and horizontal
+scrollbar top 365. Qt's region included overscan behind the scrollbar, so the
+v003 claim that this alone represented the displayed content was false. The
+corrected captures intersect the region with the viewport mask. Regression
+checks independently compare its mapped bottom with the native scrollbar top
+minus one before requiring row-edge equality. Diagnostic instrumentation was
+removed before final verification. The adaptive axis discriminator, native
+fractional placement and accepted touchpad policy are unchanged.
+
+Candidate `d97c8d105dcb57bbff49a1a5d948abf7f4012417` passes all seven
+workbench/link-map/architecture checks on its exact frozen source/build at 100%,
+125% and 200% in 48.23 seconds. The freeze included the application and both
+affected test targets; its own launcher reaches the intended fixture file.
+Because the candidate is read-only, CTest's generated registrations are copied
+to an external writable control tree, changing only image output destinations.
+The test commands, source, executable, fixture, scales, assertions and network
+isolation remain frozen. The private `m4_exact_ctest.py` and
+`m4-ctest-control.json` record that mechanical output relocation.
+
+Format22, both scoped tidy units and the final documentation structure gate
+pass. Unchanged controller and documentation-verifier evidence reuses M2.
+An attempted stronger old-source negative rerun and main rebuild both failed
+on unrelated concurrent dirty header/source-navigation code; those compile
+failures are retained and are not regression proof. Candidate source was
+restored before its explicit commit and isolated freeze. The fresh v004
+attended session asks only for the remaining exact-flush keyboard judgment.
+
+
 ## Failure discrimination and diagnosis
 
 The original M1 essential-dependency negative control forced `apply_frame`’s native
@@ -180,6 +218,6 @@ reproduce the recorded trajectory, so replay fidelity and physical touchpad
 equivalence are unproven. Original traces remain private outside Git. The
 listen-only event tap, numeric viewport probe and wizard server are stopped.
 
-The remaining uncertainty is the owner’s revised minimum keyboard reveal judgment. Other
+The remaining uncertainty is the owner’s exact-flush keyboard reveal judgment. Other
 operating systems and devices were not exercised as part of this bounded
 milestone, and no native-device acceptance is inferred from synthetic input.

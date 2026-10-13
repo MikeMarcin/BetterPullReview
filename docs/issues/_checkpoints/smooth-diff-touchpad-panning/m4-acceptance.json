@@ -1,0 +1,78 @@
+{
+  "approved": true,
+  "decision": "human-pending",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2"
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2"
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2"
+      }
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pass",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2"
+      }
+    },
+    {
+      "criterion": "AC05",
+      "outcome": "pass",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2"
+      }
+    },
+    {
+      "criterion": "AC06",
+      "outcome": "pass",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2"
+      }
+    },
+    {
+      "criterion": "AC07",
+      "outcome": "pass",
+      "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner accepted BPR-1413-AC07-v002 in session c595e5c955c2cd527f9f4a351d3ab175, decision 0a0ba98a-3e76-4cb8-b404-fb0196dbd48c; unchanged axis implementation retained."
+      }
+    },
+    {
+      "criterion": "AC08",
+      "outcome": "pending",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "docs/verification/RFC-BPR-0073.md; m4-verification.json: seven affected checks pass on exact frozen candidate at100/125/200%, format22 and two-unit tidy pass; unchanged adaptive-axis evidence reused from M2; owner rejected v003 and amended reveal to exact displayed-edge flush. Separate v004 keyboard judgment pending."
+      }
+    }
+  ]
+}

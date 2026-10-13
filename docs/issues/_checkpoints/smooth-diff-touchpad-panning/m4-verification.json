@@ -1,0 +1,107 @@
+{
+  "schema": "bpr.smooth-diff-panning.verification.v1",
+  "candidate_revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+  "environment": {
+    "platform": "macOS arm64",
+    "qt": "6.11.2",
+    "scales": [
+      100,
+      125,
+      200
+    ]
+  },
+  "changed_paths": [
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp"
+  ],
+  "commands": [
+    {
+      "command": "ctest --preset dev -R '^qt_diff_workbench_scale_100$' --output-on-failure",
+      "exit_code": 0,
+      "elapsed_seconds": 15.16,
+      "result": "Strict scrollbar-aware flush course passes at100%, before unrelated dirty app changes blocked rebuild."
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp",
+      "exit_code": 0,
+      "clang_format": "22.1.8"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --paths src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp --warnings-as-errors",
+      "exit_code": 0,
+      "translation_units": 2
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 /Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012/m4_exact_ctest.py",
+      "exit_code": 0,
+      "tests_passed": 7,
+      "elapsed_seconds": 48.23,
+      "selection": "workbench and link-map at100/125/200% plus architecture",
+      "binding": "Generated CTest registrations copied to external writable control tree; only image output paths change. Source, binaries, fixtures, network wrapper, scales and assertions remain frozen. Details: m4-ctest-control.json in private state."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK; rerun after final upkeep"
+    }
+  ],
+  "negative_controls": [
+    {
+      "source": "unchanged v003 with initial exact-flush test",
+      "command": "ctest --preset dev -R '^qt_diff_workbench_scale_100$' --output-on-failure",
+      "exit_code": 8,
+      "assertion": "Down places the selected row bottom flush with the actual visible bottom within one device pixel",
+      "limitation": "This initial test still used visibleRegion alone; final course additionally intersects mask and independently checks scrollbar edge."
+    },
+    {
+      "source": "raw wanted origin without mask intersection",
+      "exit_code": 8,
+      "assertion": "repeated arrows that scroll keep the selected row flush with the displayed bottom",
+      "diagnosis": {
+        "row_bottom": 374,
+        "visible_region_bottom": 380,
+        "mask_bottom": 364,
+        "horizontal_scrollbar_top": 365
+      },
+      "disposition": "Corrected region capture, diagnostic instrumentation removed."
+    }
+  ],
+  "attempted_verification_not_counted": [
+    {
+      "command": "Strongest original-v003 negative rebuild, then final main rebuild",
+      "exit_code": 1,
+      "reason": "Unrelated concurrent dirty RFC0074 header_source_index.hpp and workbench_application_host.cpp lacked File initializers. Candidate source restored byte-for-byte in finally; rerun in exact committed frozen tree. This is compile failure, not regression proof."
+    }
+  ],
+  "reused_evidence": {
+    "artifact": "m2-verification.json",
+    "scope": "Unchanged adaptive-axis controller courses at3scales and67 documentation verifier tests; affected workbench/link-map/architecture rerun on frozen candidate."
+  },
+  "accepted_ac07": {
+    "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+    "session": "c595e5c955c2cd527f9f4a351d3ab175",
+    "candidate": "BPR-1413-AC07-v002",
+    "fingerprint": "def1bc09d1cf931783cd1059720d1593954933c7b1ff317a314e0afb75e0234b",
+    "decision_id": "0a0ba98a-3e76-4cb8-b404-fb0196dbd48c",
+    "outcome": "accept"
+  },
+  "pending": [
+    "AC08 owner exact-flush keyboard judgment on v004"
+  ],
+  "private_logs": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012",
+  "limitations": [
+    "Human keyboard judgment remains required. Other operating systems/devices not exercised."
+  ],
+  "freeze": {
+    "root": "/Users/jaeger/bpr-1413-smooth-panning-v004.5_4cr5ir",
+    "source_revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+    "executable_sha256": "9245818af6c3d45a5bd9f382263b8cd1239b248e5b3ad4617fa603d142de6a1f",
+    "exit_code": 0,
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832",
+    "command": "python3 scripts/freeze_attended_build.py freeze --name bpr-1413-smooth-panning-v004 --commit d97c8d105dcb57bbff49a1a5d948abf7f4012417 --fixture inline-drawer-v1 --open-file src/ui/conversation_cards_view.cpp --title \"BPR-1413 keyboard reveal flush with source edges\" --parent /Users/jaeger --target test_better_pull_review_qt_diff_workbench_tests --target test_better_pull_review_qt_diff_link_map_tests"
+  }
+}

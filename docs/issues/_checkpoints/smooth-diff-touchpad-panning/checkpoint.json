@@ -1,7 +1,7 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
   "state": "human-pending",
-  "assignment": "/root/smooth_panning_keyboard_v3",
+  "assignment": "/root/smooth_panning_flush_reveal",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
   "mandate_revision": "b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d",
@@ -24,7 +24,7 @@
   "live_cards": [
     "BPR-1413"
   ],
-  "candidate_revision": "a9af17c712f2fc3e7dc4c4718689ff482af8fed7",
+  "candidate_revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
   "product_changes": [
     "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
     "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
@@ -33,23 +33,27 @@
     "tests/adapters_qt/diff_workbench_tests.cpp"
   ],
   "pending_criteria": [
-    "AC08-owner-minimal-reveal-amendment"
+    "AC08-owner-exact-flush-amendment"
   ],
   "blocker": null,
   "commands": {
     "background": [],
     "review_server": {
-      "pid": 46999,
-      "command_session": 21007,
-      "port": 56292,
-      "session": "12930e4afcde5660e890f36745df8f70",
-      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012",
-      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012/handoff.json"
+      "pid": 93561,
+      "command_session": 32588,
+      "port": 58371,
+      "session": "a300291de66a8fb8963c182932d117d4",
+      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012",
+      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012/handoff.json"
     },
     "writers_released": true
   },
-  "next_action": "After owner Finish and hand back and manual resume, coordinator reads events after3, verifies candidate fingerprint/source/executable, persists consumed cursor, then dispatches next engineering leaf. Only AC08 verdict remains.",
+  "next_action": "After owner Finish and hand back and manual Resume the attended review, coordinator reads events after3, verifies session/fingerprint/source/executable and persists cursor before new leaf. AC08 acceptance permits closeout using retained AC07 accept; rejected/unanswered criterion remains open.",
   "verification": [
+    {
+      "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m4-verification.json",
+      "result": "Seven exact-frozen affected integration tests pass in48.23s, format22 and both tidy units pass; official freeze and own launcher check pass."
+    },
     {
       "artifact": "docs/verification/RFC-BPR-0073.md",
       "result": "AC01\u2013AC06 agent pass; AC07 actual owner accept on v002; AC08 v003 rendered agent checks pass and separate owner judgment pending"
@@ -68,14 +72,14 @@
     }
   ],
   "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
-  "last_finding": "Displayed viewport region is365px while overscan mask is343px; old code moves an already visible target up15px. Strengthened test fails on v002 and passes v003 at100/125/200%. Axis implementation unchanged; AC07 acceptance retained.",
+  "last_finding": "Exact masked viewport edge + raw shared wanted origin passes strict real-key courses at100/125/200%, independently anchored to horizontal-scrollbar top. All7 affected checks pass on exact frozen source/build. AC07 adaptive axis unchanged.",
   "active_commands": [
-    "Handed-off loopback attended-review server only, PID46999/session21007"
+    "Handed-off loopback attended-review server PID93561/session32588 only. All build, test, tidy, freeze and launcher-check commands finished."
   ],
   "milestone": "smooth-comparison-panning",
-  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m3-binding.json",
-  "segment_id": "rejected-ac08-v002",
-  "binding_renewal": "Renew after owner amendment and card parking change whole-source fingerprints. Adopted plan definition, eight criteria and exit texts remain unchanged. Original m1 binding retained.",
+  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m4-binding.json",
+  "segment_id": "rejected-ac08-v003-flush",
+  "binding_renewal": "Renew m4 after exact-flush owner amendment and final card parking. Plan grouping/scope/exits unchanged; receiving-presentation alignment now explicitly means exact edge alignment under latest owner amendment. Historical bindings retained.",
   "diagnostic": {
     "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-sublime-recording-v001-20261012",
     "session": "b9b49823-7485-49dc-946e-085797973c94",
@@ -101,26 +105,6 @@
     "decision": "reject",
     "frozen_root_removed": true,
     "original_executable_hash_verified_before_removal": true
-  },
-  "review": {
-    "session": "12930e4afcde5660e890f36745df8f70",
-    "cursor": 3,
-    "candidates": [
-      {
-        "id": "BPR-1413-AC08-v003",
-        "fingerprint": "d0fbf577e3862a33df5b65614549a83ac12b3e98474ab00de7e3afcc69428ec2"
-      }
-    ],
-    "manifest": "attended-manifest-v003.json",
-    "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012",
-    "registry": "/Users/jaeger/.mask/attended-review-resources",
-    "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_",
-    "executable_sha256": "bc9ba159aba61791d37ef68765ea1b49cdbf79859dca256cc430bf13e5e81072",
-    "wait_owner": "coordinator /root",
-    "wait_qualification": "unqualified; manual resume required",
-    "pending_decisions": [
-      "AC08 Accept/Reject with change note"
-    ]
   },
   "accepted_ac07": {
     "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
@@ -160,5 +144,67 @@
     "server_stopped": true,
     "frozen_root_removed": true,
     "original_executable_hash_verified_before_removal": true
+  },
+  "owner_amendment_v003": {
+    "session": "12930e4afcde5660e890f36745df8f70",
+    "candidate": "BPR-1413-AC08-v003",
+    "decision_id": "8751a593-c7dc-45cd-a5a1-92a32375a048",
+    "consumed_cursor": 4,
+    "outcome": "reject",
+    "note": "The bottom of the selected row should be flush with the bottom of the view area.",
+    "chat_handback": true,
+    "session_handed_back": null,
+    "source_requirement": "Exact displayed row edge, within one device pixel; supersedes top-source-boundary rounding for reveals. Retain discrete next rows, in-view stability, pages/endpoints and shared axis."
+  },
+  "previous_review_v003": {
+    "session": "12930e4afcde5660e890f36745df8f70",
+    "cursor": 5,
+    "candidates": [
+      {
+        "id": "BPR-1413-AC08-v003",
+        "fingerprint": "d0fbf577e3862a33df5b65614549a83ac12b3e98474ab00de7e3afcc69428ec2"
+      }
+    ],
+    "manifest": "attended-manifest-v003.json",
+    "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_",
+    "executable_sha256": "bc9ba159aba61791d37ef68765ea1b49cdbf79859dca256cc430bf13e5e81072",
+    "wait_owner": "coordinator /root",
+    "wait_qualification": "unqualified; manual resume required",
+    "pending_decisions": [
+      "AC08 Accept/Reject with change note"
+    ],
+    "protections_released": true,
+    "server_stopped": true,
+    "frozen_root_removed": true,
+    "original_executable_hash_verified_before_removal": true
+  },
+  "review": {
+    "session": "a300291de66a8fb8963c182932d117d4",
+    "cursor": 3,
+    "candidates": [
+      {
+        "id": "BPR-1413-AC08-v004",
+        "fingerprint": "3b0c1d5a789dfb53ca620e2415ea0c393005d800caeb86f9b7f93cc6f5312642"
+      }
+    ],
+    "manifest": "attended-manifest-v004.json",
+    "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v004.5_4cr5ir",
+    "executable_sha256": "9245818af6c3d45a5bd9f382263b8cd1239b248e5b3ad4617fa603d142de6a1f",
+    "wait_owner": "coordinator /root",
+    "wait_qualification": "unqualified; manual resume required",
+    "pending_decisions": [
+      "AC08 Accept/Reject: selected row bottom flush with actual source view bottom"
+    ]
+  },
+  "unrelated_build_failure": {
+    "command_session": 51901,
+    "completed": true,
+    "candidate_restored": true,
+    "reason": "Concurrent dirty RFC0074 application header lacked File initializers; both negative and final main rebuild failed compilation, not regression evidence.",
+    "private_logs": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012/m4-negative-build.log,m4-final-build.log"
   }
 }
