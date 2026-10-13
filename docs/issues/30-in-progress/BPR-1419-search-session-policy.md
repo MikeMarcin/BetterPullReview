@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1419"
 title: "Search session identity and bounded host lifecycle"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0077"]
 depends_on: []
 metadata: {"milestone":"search-session-policy","source_id":"DRAFT-0015","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","mandate_revision":"find-and-find-in-files-v1-r1","milestone_plan":{"id":"find-and-find-in-files-v1","path":"docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json"}}
