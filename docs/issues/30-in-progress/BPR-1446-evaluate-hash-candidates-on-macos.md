@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1446"
 title: "Evaluate sha1dc, HACL* SHA-2 and platform crypto on macOS arm64"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0080"]
 depends_on: []
 priority: "P2"
