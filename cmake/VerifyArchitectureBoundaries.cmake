@@ -95,6 +95,19 @@ set(
     git_process_runner_relative
     "src/adapters/git/src/installed_git_process.cpp"
 )
+# [[BPR-1436]]. The QProcess supervision the gh and Git runners share: one
+# serialized lane with its quarantine, and the process-group wait, kill,
+# resolution, kill-and-reap, background reap and abandonment. It is a
+# designated QProcess owner of its own because neither runner may depend on the
+# other's adapter.
+set(
+    process_support_source_relative
+    "src/adapters/process_support/src/process_supervision.cpp"
+)
+set(
+    process_support_header_relative
+    "src/adapters/process_support/include/bpr/adapters/process_support/process_supervision.hpp"
+)
 # Core names the safe environment vocabulary in immutable agent profiles. It
 # decides which names may cross; it still owns no environment or process API.
 set(
@@ -1734,6 +1747,12 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
             # wrong answer. src/app/CMakeLists.txt declares it for both.
             set(effect_owner_cmake "${app_cmake_contents}")
             set(effect_owner_target "app_better_pull_review")
+        elseif(current_allowed_relative MATCHES "^src/adapters/process_support/")
+            set(effect_owner_cmake "")
+            if(EXISTS "${BPR_ROOT}/src/adapters/process_support/CMakeLists.txt")
+                file(READ "${BPR_ROOT}/src/adapters/process_support/CMakeLists.txt" effect_owner_cmake)
+            endif()
+            set(effect_owner_target "better_pull_review_process_support")
         elseif(current_allowed_relative MATCHES "^src/adapters/git/")
             set(effect_owner_cmake "${git_cmake_contents}")
             set(effect_owner_target "better_pull_review_adapter_git")
@@ -1779,6 +1798,8 @@ verify_effect_owner(
     "src/app/src/tour_editor.cpp"
     "${github_process_runner_relative}"
     "${git_process_runner_relative}"
+    "${process_support_source_relative}"
+    "${process_support_header_relative}"
     "${agent_process_runner_relative}"
     "src/adapters/update/src/macos_release_update.cpp"
 )
@@ -3028,6 +3049,226 @@ get_filename_component(
     ABSOLUTE
 )
 
+# [[BPR-1436]]. The shared QProcess supervision. It is its own Qt Core static
+# target that depends on no first-party layer, so neither runner gains an
+# adapter-to-adapter edge. It launches nothing, reads no environment and builds
+# no Windows descriptor, handle list or job: those stay with each runner and
+# the platform header. What it does own is pinned here, because both runners'
+# containment now rests on it: the process-group kill, the bounded kill-and-
+# reap and background reap, abandonment, and the serialized lane's quarantine,
+# watchdog and joined worker.
+set(process_support_cmake "${BPR_ROOT}/src/adapters/process_support/CMakeLists.txt")
+foreach(
+    required_process_support_file
+    IN ITEMS
+        "${process_support_cmake}"
+        "${BPR_ROOT}/${process_support_source_relative}"
+        "${BPR_ROOT}/${process_support_header_relative}"
+)
+    if(NOT EXISTS "${required_process_support_file}")
+        message(
+            FATAL_ERROR
+            "Shared process supervision is missing: "
+            "${required_process_support_file}"
+        )
+    endif()
+endforeach()
+file(READ "${process_support_cmake}" process_support_cmake_contents)
+if(
+    NOT process_support_cmake_contents
+        MATCHES "add_library\\([ \t\r\n]*better_pull_review_process_support[ \t\r\n]+STATIC"
+    OR NOT process_support_cmake_contents
+        MATCHES "add_library\\([ \t\r\n]*BetterPullReview::ProcessSupport[ \t\r\n]+ALIAS[ \t\r\n]+better_pull_review_process_support[ \t\r\n]*\\)"
+)
+    message(
+        FATAL_ERROR
+        "Shared process supervision must be the static "
+        "better_pull_review_process_support target"
+    )
+endif()
+string(
+    REPLACE
+    "BetterPullReview::ProcessSupport"
+    ""
+    process_support_cmake_dependencies
+    "${process_support_cmake_contents}"
+)
+if(
+    process_support_cmake_dependencies
+        MATCHES "(BetterPullReview::|better_pull_review_(core|application|adapter|platform)|Qt6::(Network|Gui|Widgets)|glaze|quill|sqlite)"
+)
+    message(
+        FATAL_ERROR
+        "Shared process supervision must depend on Qt Core only, not on a "
+        "first-party layer, an adapter or a provider"
+    )
+endif()
+file(READ "${BPR_ROOT}/${process_support_source_relative}" process_support_source_contents)
+file(READ "${BPR_ROOT}/${process_support_header_relative}" process_support_header_contents)
+set(
+    process_support_contents
+    "${process_support_header_contents}\n${process_support_source_contents}"
+)
+string(
+    REGEX REPLACE
+    "[ \t\r\n]+"
+    " "
+    process_support_compact
+    "${process_support_contents}"
+)
+if(
+    process_support_contents
+        MATCHES "#[ \t]*include[ \t]*[<\"](bpr/(core|application|app)/|bpr/adapters/(github|git|agent|sqlite|qt|mcp|workspace|update)/|bpr/platform/)"
+)
+    message(
+        FATAL_ERROR
+        "Shared process supervision must not include a first-party layer, an "
+        "adapter or the platform target"
+    )
+endif()
+if(
+    process_support_contents
+        MATCHES "(setProgram|setArguments|setProcessEnvironment|QProcessEnvironment|setCreateProcessArgumentsModifier|setChildProcessModifier|setUnixProcessParameters|startDetached|QProcess::execute|(->|\\.)start[ \t\r\n]*\\(|CreateJobObject|PROC_THREAD_ATTRIBUTE_HANDLE_LIST|InitializeAcl|qgetenv|qEnvironmentVariable|getenv|\\.detach[ \t\r\n]*\\(|Worker\\.release[ \t\r\n]*\\(|new[ \t\r\n]+serialized_process_lane)"
+)
+    message(
+        FATAL_ERROR
+        "Forbidden launch, environment, Windows containment-construction, or "
+        "detached-worker surface in shared process supervision"
+    )
+endif()
+set(
+    required_process_support_patterns
+    "class[ \t]+serialized_process_lane[ \t]+final"
+    "~serialized_process_lane[ \t\r\n]*\\("
+    "ShutdownRequested\\.store[ \t\r\n]*\\("
+    "Worker\\.join[ \t\r\n]*\\("
+    "while[ \t\r\n]*\\([ \t\r\n]*Busy[ \t\r\n]*\\)"
+    "Busy[ \t\r\n]*=[ \t\r\n]*true"
+    "Pending[ \t\r\n]*=[ \t\r\n]*aItem"
+    "WorkAvailable\\.notify_one[ \t\r\n]*\\("
+    "const[ \t]+auto[ \t]+processGroup[ \t\r\n]*=[ \t\r\n]*-[ \t]*static_cast<pid_t>[ \t\r\n]*\\([ \t\r\n]*aProcessGroupId[ \t\r\n]*\\)"
+    "::kill[ \t\r\n]*\\([ \t\r\n]*processGroup[ \t\r\n]*,[ \t\r\n]*SIGKILL[ \t\r\n]*\\)"
+    "resolve_process_group[ \t\r\n]*\\([ \t\r\n]*const[ \t]+QProcess&[ \t\r\n]+aProcess[ \t\r\n]*,[ \t\r\n]*const[ \t]+qint64[ \t\r\n]+aKnownProcessGroupId[ \t\r\n]*\\)"
+    "const[ \t]+auto[ \t]+processId[ \t\r\n]*=[ \t\r\n]*aProcess\\.processId[ \t\r\n]*\\([ \t]*\\)"
+    "processId[ \t\r\n]*>[ \t\r\n]*1[ \t\r\n]*\\?[ \t\r\n]*processId[ \t\r\n]*:[ \t\r\n]*0"
+    "aProcess\\.waitForFinished[ \t\r\n]*\\([ \t\r\n]*wait[ \t\r\n]*\\)"
+    "aProcess\\.kill[ \t\r\n]*\\("
+    "aProcess\\.release[ \t\r\n]*\\("
+)
+foreach(required_process_support_pattern IN LISTS required_process_support_patterns)
+    if(NOT process_support_contents MATCHES "${required_process_support_pattern}")
+        message(
+            FATAL_ERROR
+            "Shared process supervision must retain its process-group kill, "
+            "group resolution, bounded reap and joined serialized worker: "
+            "${required_process_support_pattern}"
+        )
+    endif()
+endforeach()
+string(
+    REGEX MATCHALL
+    "std::thread[ \t\r\n]+[A-Za-z_][A-Za-z0-9_]*"
+    process_support_threads
+    "${process_support_contents}"
+)
+list(LENGTH process_support_threads process_support_thread_count)
+if(NOT process_support_thread_count EQUAL 1)
+    message(
+        FATAL_ERROR
+        "Shared process supervision must own exactly one worker thread per lane"
+    )
+endif()
+if(
+    NOT process_support_compact
+        MATCHES
+            "auto kill_process_tree\\(QProcess& aProcess, const qint64 aProcessGroupId\\) -> void \\{ kill_process_group\\(aProcessGroupId\\); if \\(aProcess\\.state\\(\\) != QProcess::NotRunning\\) \\{ aProcess\\.kill\\(\\); \\} \\}"
+    OR NOT process_support_compact
+        MATCHES
+            "auto processGroupId = resolve_process_group\\(aProcess, aKnownProcessGroupId\\); aKillTree\\(aProcess, processGroupId\\); while \\(aProcess\\.state\\(\\) != QProcess::NotRunning\\) \\{ const auto wait = wait_milliseconds\\(deadline\\); if \\(wait == 0\\) \\{ return false; \\} static_cast<void>\\(aProcess\\.waitForFinished\\(wait\\)\\); processGroupId = resolve_process_group\\(aProcess, processGroupId\\); aKillTree\\(aProcess, processGroupId\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "Shared bounded reap must resolve the initial process group before "
+        "initial and repeated kill attempts"
+    )
+endif()
+if(
+    NOT process_support_compact
+        MATCHES
+            "auto finish_background_reap\\( QProcess& aProcess, const qint64 aKnownProcessGroupId, const std::chrono::milliseconds aTimeout, const process_tree_kill& aKillTree\\) -> bool \\{ const auto deadline = supervision_clock::now\\(\\) \\+ aTimeout; auto processGroupId = resolve_process_group\\(aProcess, aKnownProcessGroupId\\); while \\(aProcess\\.state\\(\\) != QProcess::NotRunning\\) \\{ const auto wait = wait_milliseconds\\(deadline\\); if \\(wait == 0\\) \\{ return false; \\} processGroupId = resolve_process_group\\(aProcess, processGroupId\\); aKillTree\\(aProcess, processGroupId\\);"
+)
+    message(
+        FATAL_ERROR
+        "Shared background reap must stop at its deadline and retain and "
+        "refresh resolved process-group ownership throughout cleanup"
+    )
+endif()
+if(
+    NOT process_support_compact
+        MATCHES
+            "if \\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{ Mutex \\}; Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item, std::move\\(execution->Result\\)\\);"
+    OR NOT process_support_compact
+        MATCHES
+            "reaped = reap_in_background\\(\\*execution\\); if \\(reaped\\) \\{ execution->AwaitingReap\\.reset\\(\\); \\} else \\{ abandon_unreaped_process\\(execution->AwaitingReap\\); \\} \\} \\{ std::lock_guard lock\\{ Mutex \\}; Quarantined = !reaped; Busy = false; \\}"
+)
+    message(
+        FATAL_ERROR
+        "Shared process lane must publish reap_failure only after quarantine "
+        "owns the process, then release the slot only after reap, and stay "
+        "quarantined after abandoning a child"
+    )
+endif()
+if(
+    NOT process_support_compact
+        MATCHES
+            "if \\(Quarantined\\) \\{ return TTraits::failure\\(lane_failure::reap_failure\\); \\} Busy = true; Pending = aItem;"
+)
+    message(
+        FATAL_ERROR
+        "Shared process lane must refuse every submission while an abandoned "
+        "child keeps it quarantined"
+    )
+endif()
+if(
+    NOT process_support_compact
+        MATCHES
+            "if \\( !aItem->Completed\\.wait_until\\( resultLock, completionDeadline, \\[&\\] \\{ return aItem->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{ Mutex \\}; if \\(Busy\\) \\{ Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return TTraits::failure\\(lane_failure::reap_failure\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "Shared process lane completion watchdog must predicate-check "
+        "publication and quarantine the busy worker before returning reap_failure"
+    )
+endif()
+if(
+    NOT process_support_compact
+        MATCHES
+            "catch \\(\\.\\.\\.\\) \\{ publish\\( item, TTraits::failure\\(lane_failure::start_failure\\)\\); \\{ std::lock_guard lock\\{ Mutex \\}; Quarantined = false; Busy = false; \\} SlotAvailable\\.notify_all\\(\\); continue; \\}"
+)
+    message(
+        FATAL_ERROR
+        "Shared process lane exception recovery must clear any watchdog "
+        "quarantine before reopening the serialized slot"
+    )
+endif()
+foreach(process_support_runner_relative IN ITEMS "${github_process_runner_relative}" "${git_process_runner_relative}")
+    if(EXISTS "${BPR_ROOT}/${process_support_runner_relative}")
+        file(READ "${BPR_ROOT}/${process_support_runner_relative}" process_support_runner_contents)
+        if(
+            NOT process_support_runner_contents
+                MATCHES "#[ \t]*include[ \t]*\"bpr/adapters/process_support/process_supervision\\.hpp\""
+            OR NOT process_support_runner_contents
+                MATCHES "process_support::serialized_process_lane<process_lane_traits>[ \t\r\n]+Lane;"
+        )
+            message(
+                FATAL_ERROR
+                "${process_support_runner_relative} must run its launches "
+                "through the shared serialized process lane"
+            )
+        endif()
+    endif()
+endforeach()
+
 file(READ "${git_process_runner_file}" git_process_runner_contents)
 file(READ "${git_process_port_file}" git_process_port_contents)
 file(READ "${git_process_factory_file}" git_process_factory_contents)
@@ -3041,9 +3282,11 @@ set(
     "QProcess::UnixProcessFlag::CreateNewSession"
     "JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE"
     "class[ \t]+process_worker[ \t]+final"
-    "Quarantined[ \t\r\n]*=[ \t\r\n]*true"
-    "finish_background_reap"
-    "abandon_unreaped_process"
+    # [[BPR-1436]]. The lane's quarantine and abandonment are the shared
+    # supervision's, pinned with it above; this runner's bounded background
+    # reap hands its child to them.
+    "process_support::serialized_process_lane<process_lane_traits>[ \t\r\n]+Lane"
+    "process_support::finish_background_reap"
     "empty_private_directory"
     # Both spellings, as every other cancellation pattern in this file already
     # accepts. Until BPR-0155 this one required the bare `stop.`, and the only
@@ -3470,8 +3713,6 @@ set(
     "read[ \t\r\n]*\\("
     "waitForStarted[ \t\r\n]*\\("
     "waitForReadyRead[ \t\r\n]*\\("
-    "waitForFinished[ \t\r\n]*\\("
-    "(process|aProcess)\\.kill[ \t\r\n]*\\("
     "std::make_unique<QProcess>[ \t\r\n]*\\("
     "(^|[^A-Za-z0-9_])StandardInputLimit([^A-Za-z0-9_]|$)"
     "(^|[^A-Za-z0-9_])StandardOutputLimit([^A-Za-z0-9_]|$)"
@@ -3524,8 +3765,6 @@ set(
     "QProcess::UnixProcessFlag::DisableCoreDumps"
     "QProcess::UnixProcessFlag::ResetSignalHandlers"
     "QProcess::UnixProcessFlag::CreateNewSession"
-    "const[ \t]+auto[ \t]+(process_group|processGroup)[ \t\r\n]*=[ \t\r\n]*-[ \t]*static_cast<pid_t>[ \t\r\n]*\\([ \t\r\n]*(process_group_id|aProcessGroupId)[ \t\r\n]*\\)"
-    "::kill[ \t\r\n]*\\([ \t\r\n]*(process_group|processGroup)[ \t\r\n]*,[ \t\r\n]*SIGKILL[ \t\r\n]*\\)"
     "QProcess::started"
     "(process_pointer|processPointer)->processId[ \t\r\n]*\\("
     "kill_process_group_and_reap[ \t\r\n]*\\("
@@ -3548,29 +3787,8 @@ foreach(
     endif()
 endforeach()
 
-set(
-    required_process_group_resolution_patterns
-    "resolve_process_group[ \t\r\n]*\\([ \t\r\n]*const[ \t]+QProcess&[ \t\r\n]+(process|aProcess)[ \t\r\n]*,[ \t\r\n]*const[ \t]+qint64[ \t\r\n]+(known_process_group_id|aKnownProcessGroupId)[ \t\r\n]*\\)"
-    "const[ \t]+auto[ \t]+(process_id|processId)[ \t\r\n]*=[ \t\r\n]*(process|aProcess)\\.processId[ \t\r\n]*\\([ \t]*\\)"
-    "(process_id|processId)[ \t\r\n]*>[ \t\r\n]*1[ \t\r\n]*\\?[ \t\r\n]*(process_id|processId)[ \t\r\n]*:[ \t\r\n]*0"
-)
-foreach(
-    required_group_resolution_pattern
-    IN LISTS required_process_group_resolution_patterns
-)
-    if(
-        NOT github_process_runner_contents
-            MATCHES "${required_group_resolution_pattern}"
-    )
-        message(
-            FATAL_ERROR
-            "GitHub CLI process runner must resolve the saved initial process "
-            "group from QProcess::processId when the signal has not supplied "
-            "it: ${required_group_resolution_pattern}"
-        )
-    endif()
-endforeach()
-
+# [[BPR-1436]]. resolve_process_group, the bounded kill-and-reap and the
+# background reap are the shared supervision's now, pinned with it.
 set(
     required_process_group_start_resolution
     "process->start\\(\\); \\*(process_group_id|processGroupId) = resolve_process_group\\( \\*process, \\*(process_group_id|processGroupId)\\); for[ ]*\\(;;\\) \\{ \\*(process_group_id|processGroupId) = resolve_process_group\\( \\*process, \\*(process_group_id|processGroupId)\\); if[ ]*\\(const auto failure = (terminal_failure|terminalFailure)\\(\\); failure\\.has_value\\(\\)\\)"
@@ -3589,34 +3807,19 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "auto (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); kill_process_group\\((process_group_id|processGroupId)\\);"
-    OR NOT github_process_runner_compact
-        MATCHES
-            "(process|aProcess)\\.waitForFinished\\(wait\\)\\); if[ ]*\\((process|aProcess)\\.state\\(\\) != QProcess::NotRunning\\) \\{ (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (process_group_id|processGroupId)\\); kill_process_group\\((process_group_id|processGroupId)\\);"
+            "process_support::finish_background_reap\\( \\*aExecution\\.AwaitingReap, aExecution\\.ProcessGroupId, github_cli_process_max_reap_timeout, tree_kill_for\\(TestSeam\\)\\);"
 )
     message(
         FATAL_ERROR
-        "GitHub CLI bounded reap must resolve the initial process group "
-        "before initial and repeated kill attempts"
+        "GitHub CLI background reap must be the shared bounded reap, given "
+        "the longest reap a request may ask for"
     )
 endif()
 
 if(
     NOT github_process_runner_compact
         MATCHES
-            "auto finish_background_reap\\( QProcess& (process|aProcess), const qint64 (known_process_group_id|aKnownProcessGroupId)\\) -> void \\{ auto (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); while[ ]*\\((process|aProcess)\\.state\\(\\) != QProcess::NotRunning\\) \\{ (process_group_id|processGroupId) = resolve_process_group\\((process|aProcess), (process_group_id|processGroupId)\\); kill_process_group\\((process_group_id|processGroupId)\\);"
-)
-    message(
-        FATAL_ERROR
-        "GitHub CLI background reap must retain and refresh resolved initial "
-        "process-group ownership throughout cleanup"
-    )
-endif()
-
-if(
-    NOT github_process_runner_compact
-        MATCHES
-            "const auto (process_group_id|processGroupId) = resolve_process_group\\(\\*(process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); if[ ]*\\( kill_process_group_and_reap\\( \\*(process|aProcess), (process_group_id|processGroupId), (reap_timeout|aReapTimeout)\\)\\)"
+            "const auto (process_group_id|processGroupId) = resolve_process_group\\(\\*(process|aProcess), (known_process_group_id|aKnownProcessGroupId)\\); if[ ]*\\( (process_support::)?kill_process_group_and_reap\\( \\*(process|aProcess), (process_group_id|processGroupId), (reap_timeout|aReapTimeout)(, (kill_tree|aKillTree))?\\)\\)"
 )
     message(
         FATAL_ERROR
@@ -3690,13 +3893,11 @@ endif()
 set(
     required_github_process_worker_patterns
     "class[ \t]+process_worker[ \t]+final"
-    "~process_worker[ \t\r\n]*\\("
-    "ShutdownRequested\\.store[ \t\r\n]*\\("
-    "Worker\\.join[ \t\r\n]*\\("
-    "while[ \t\r\n]*\\([ \t\r\n]*Busy[ \t\r\n]*\\)"
-    "Busy[ \t\r\n]*=[ \t\r\n]*true"
-    "Pending[ \t\r\n]*=[ \t\r\n]*item"
-    "WorkAvailable\\.notify_one[ \t\r\n]*\\("
+    # [[BPR-1436]]. The joined worker, its slot and its quarantine are the
+    # shared lane's, pinned with it; this worker owns one lane and submits the
+    # item it built.
+    "process_support::serialized_process_lane<process_lane_traits>[ \t\r\n]+Lane;"
+    "Lane\\.submit[ \t\r\n]*\\([ \t\r\n]*item[ \t\r\n]*,[ \t\r\n]*(request|aRequest)\\.ReapTimeout[ \t\r\n]*\\)"
     "item->Deadline[ \t\r\n]*=[ \t\r\n]*clock::now[ \t\r\n]*\\([ \t]*\\)[ \t\r\n]*\\+[ \t\r\n]*(request|aRequest)\\.Timeout"
     "std::unique_ptr<process_worker>[ \t\r\n]+Worker"
     "Worker[ \t\r\n]*=[ \t\r\n]*std::make_unique<process_worker>[ \t\r\n]*\\("
@@ -3816,7 +4017,8 @@ endif()
 if(
     NOT github_process_worker_owner_count EQUAL 1
     OR NOT github_process_worker_construction_count EQUAL 1
-    OR NOT github_process_worker_thread_count EQUAL 1
+    # [[BPR-1436]]. The worker thread is the shared lane's.
+    OR NOT github_process_worker_thread_count EQUAL 0
     # [[BPR-0807]] RFC-BPR-0015's file limits are a value the runner hands its
     # worker. They own no worker, so the runner stays the only owner.
     OR NOT github_process_runner_compact
@@ -3860,12 +4062,7 @@ set(
     required_github_process_reap_ownership_patterns
     "std::unique_ptr<QProcess>[ \t\r\n]+AwaitingReap"
     "\\.AwaitingReap[ \t\r\n]*=[ \t\r\n]*std::move[ \t\r\n]*\\([ \t\r\n]*(process|aProcess)[ \t\r\n]*\\)"
-    "Quarantined[ \t\r\n]*=[ \t\r\n]*true"
-    "publish[ \t\r\n]*\\([ \t\r\n]*item"
-    "finish_background_reap[ \t\r\n]*\\([ \t\r\n]*\\*execution->AwaitingReap"
-    "execution->AwaitingReap\\.reset[ \t\r\n]*\\("
-    "Quarantined[ \t\r\n]*=[ \t\r\n]*false"
-    "Busy[ \t\r\n]*=[ \t\r\n]*false"
+    "process_support::finish_background_reap[ \t\r\n]*\\([ \t\r\n]*\\*aExecution\\.AwaitingReap"
 )
 foreach(
     required_reap_ownership_pattern
@@ -3883,45 +4080,9 @@ foreach(
         )
     endif()
 endforeach()
-if(
-    NOT github_process_runner_compact
-        MATCHES
-            "if[ ]*\\(execution->AwaitingReap != nullptr\\) \\{ \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; Quarantined = true; \\} SlotAvailable\\.notify_all\\(\\); \\} publish\\(item,"
-    OR NOT github_process_runner_compact
-        MATCHES
-            "finish_background_reap\\( \\*execution->AwaitingReap, execution->ProcessGroupId\\); execution->AwaitingReap\\.reset\\(\\); \\} \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; Quarantined = false; Busy = false;"
-)
-    message(
-        FATAL_ERROR
-        "GitHub CLI process runner must publish reap_failure only after "
-        "quarantine owns the process, then release the slot only after reap"
-    )
-endif()
-
-if(
-    NOT github_process_runner_compact
-        MATCHES
-            "if[ ]*\\( !item->Completed\\.wait_until\\( (result_lock|resultLock), (completion_deadline|completionDeadline), \\[&\\] \\{ return item->Result\\.has_value\\(\\); \\}\\)\\) \\{ \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; if[ ]*\\(Busy\\) \\{ Quarantined = true; \\} \\} SlotAvailable\\.notify_all\\(\\); return std::unexpected\\{ github_cli_process_failure::reap_failure[ ]*\\}; \\}"
-)
-    message(
-        FATAL_ERROR
-        "GitHub CLI completion watchdog must predicate-check publication and "
-        "quarantine the busy worker before returning reap_failure"
-    )
-endif()
-
-if(
-    NOT github_process_runner_compact
-        MATCHES
-            "catch[ ]*\\(\\.\\.\\.\\) \\{ publish\\( item, std::unexpected\\{ github_cli_process_failure::start_failure[ ]*\\}\\); \\{ std::lock_guard lock\\{[ ]*Mutex[ ]*\\}; Quarantined = false; Busy = false; \\} SlotAvailable\\.notify_all\\(\\); (continue|return); \\}"
-)
-    message(
-        FATAL_ERROR
-        "GitHub CLI worker exception recovery must clear any watchdog "
-        "quarantine before reopening the serialized slot"
-    )
-endif()
-
+# [[BPR-1436]]. Quarantine before publication, release after reap, the
+# completion watchdog and exception recovery are the shared lane's, pinned
+# with it.
 string(
     REGEX MATCHALL
     "github_cli_process_failure::reap_failure"
@@ -3933,11 +4094,11 @@ list(
     github_process_reap_failure_sites
     github_process_reap_failure_site_count
 )
-if(NOT github_process_reap_failure_site_count EQUAL 3)
+if(NOT github_process_reap_failure_site_count EQUAL 2)
     message(
         FATAL_ERROR
-        "GitHub CLI process runner must retain exactly the bounded-reap, "
-        "already-quarantined, and watchdog-quarantine reap_failure sites"
+        "GitHub CLI process runner must retain exactly the bounded-reap and "
+        "shared-lane reap_failure sites"
     )
 endif()
 

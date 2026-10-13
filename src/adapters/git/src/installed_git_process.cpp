@@ -1,6 +1,7 @@
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
+#include "bpr/adapters/process_support/process_supervision.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_process_output.hpp"
 #include <glaze/json.hpp>
@@ -81,9 +82,13 @@ namespace bpr::adapters::git {
 		using application::git_process_failure;
 		using application::git_process_result;
 		using application::git_tree_id;
-		using clock = std::chrono::steady_clock;
+		using clock = process_support::supervision_clock;
+		using process_support::kill_process_group;
+		using process_support::process_stream;
+		using process_support::resolve_process_group;
+		using process_support::wait_milliseconds;
+		using process_support::wait_slice;
 
-		inline constexpr auto             wait_slice                  = std::chrono::milliseconds{ 10 };
 		inline constexpr auto             process_timeout             = std::chrono::seconds{ 30 };
 		inline constexpr auto             pack_process_timeout        = std::chrono::minutes{ 5 };
 		inline constexpr auto             reap_timeout                = std::chrono::seconds{ 2 };
@@ -1263,49 +1268,6 @@ namespace bpr::adapters::git {
 				aRef);
 		}
 
-		[[nodiscard]] auto wait_milliseconds(
-			const clock::time_point aDeadline) noexcept -> int
-		{
-			const auto remaining = aDeadline - clock::now();
-			if (remaining <= clock::duration::zero()) {
-				return 0;
-			}
-			const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(remaining);
-			if (milliseconds < std::chrono::milliseconds{ 1 }) {
-				return 1;
-			}
-			return static_cast<int>(
-				std::min(milliseconds, wait_slice).count());
-		}
-
-		auto kill_process_group(const qint64 aProcessGroupId) noexcept -> void
-		{
-#if defined(Q_OS_UNIX)
-			if (
-				aProcessGroupId > 1
-				&& aProcessGroupId
-					<= static_cast<qint64>(
-						std::numeric_limits<pid_t>::max())) {
-				static_cast<void>(::kill(
-					-static_cast<pid_t>(aProcessGroupId),
-					SIGKILL));
-			}
-#else
-			static_cast<void>(aProcessGroupId);
-#endif
-		}
-
-		[[nodiscard]] auto resolve_process_group(
-			const QProcess& aProcess,
-			const qint64    aKnownProcessGroupId) noexcept -> qint64
-		{
-			if (aKnownProcessGroupId > 1) {
-				return aKnownProcessGroupId;
-			}
-			const auto processId = aProcess.processId();
-			return processId > 1 ? processId : 0;
-		}
-
 		class windows_job final
 		{
 		public:
@@ -1403,11 +1365,6 @@ namespace bpr::adapters::git {
 #if defined(Q_OS_WIN)
 			HANDLE Handle = nullptr;
 #endif
-		};
-
-		enum class process_stream : std::uint8_t {
-			standard_output,
-			standard_error,
 		};
 
 		[[nodiscard]] auto drain_channel(
@@ -2172,73 +2129,20 @@ namespace bpr::adapters::git {
 			bool                      Supervised     = false;
 		};
 
+		/// \brief Kills Git's tree, its Windows job first, and reaps it.
 		[[nodiscard]] auto kill_and_reap(
 			QProcess&    aProcess,
 			windows_job& aJob,
 			qint64       aProcessGroupId) -> bool
 		{
-			const auto deadline = clock::now() + reap_timeout;
-			aProcessGroupId     = resolve_process_group(aProcess, aProcessGroupId);
-			aJob.terminate();
-			kill_process_group(aProcessGroupId);
-			if (aProcess.state() != QProcess::NotRunning) {
-				aProcess.kill();
-			}
-			while (aProcess.state() != QProcess::NotRunning) {
-				const auto wait = wait_milliseconds(deadline);
-				if (wait == 0) {
-					return false;
-				}
-				static_cast<void>(aProcess.waitForFinished(wait));
-				aJob.terminate();
-				aProcessGroupId = resolve_process_group(aProcess, aProcessGroupId);
-				kill_process_group(aProcessGroupId);
-				if (aProcess.state() != QProcess::NotRunning) {
-					aProcess.kill();
-				}
-			}
-			kill_process_group(aProcessGroupId);
-			return true;
-		}
-
-		[[nodiscard]] auto finish_background_reap(
-			QProcess&    aProcess,
-			const qint64 aKnownProcessGroupId,
-			const bool   aSupervised) -> bool
-		{
-			if (aSupervised) {
-				return await_supervisor(aProcess);
-			}
-			const auto deadline       = clock::now() + reap_timeout;
-			auto       processGroupId = resolve_process_group(aProcess, aKnownProcessGroupId);
-			while (aProcess.state() != QProcess::NotRunning) {
-				const auto wait = wait_milliseconds(deadline);
-				if (wait == 0) {
-					return false;
-				}
-				kill_process_group(processGroupId);
-				aProcess.kill();
-				static_cast<void>(aProcess.waitForFinished(
-					wait));
-				processGroupId = resolve_process_group(aProcess, processGroupId);
-			}
-			kill_process_group(processGroupId);
-			return true;
-		}
-
-		auto abandon_unreaped_process(
-			std::unique_ptr<QProcess>& aProcess) noexcept -> void
-		{
-			static_cast<void>(
-				QObject::disconnect(
-					aProcess.get(),
-					nullptr,
-					aProcess.get(),
-					nullptr));
-			// Destruction of a still-running QProcess may wait. The worker is already
-			// permanently quarantined, so retain this one catastrophic wrapper until
-			// operating-system process cleanup rather than make shutdown unbounded.
-			static_cast<void>(aProcess.release());
+			return process_support::kill_process_group_and_reap(
+				aProcess,
+				aProcessGroupId,
+				reap_timeout,
+				[&aJob](QProcess& aChild, const qint64 aGroup) {
+					aJob.terminate();
+					process_support::kill_process_tree(aChild, aGroup);
+				});
 		}
 
 		struct runner_configuration
@@ -2778,37 +2682,69 @@ namespace bpr::adapters::git {
 		}
 
 		struct process_work_item
+			: process_support::process_work_state<process_result>
 		{
-			process_request               Request;
-			std::stop_token               Stop;
-			clock::time_point             Deadline;
-			std::mutex                    Mutex;
-			std::condition_variable       Completed;
-			std::optional<process_result> Result;
+			process_request Request;
+		};
+
+		/// \brief What the shared lane runs for this runner ([[BPR-1436]]).
+		struct process_lane_traits
+		{
+			using item      = process_work_item;
+			using result    = process_result;
+			using execution = process_execution;
+
+			[[nodiscard]] static auto failure(
+				const process_support::lane_failure aFailure) -> process_result
+			{
+				switch (aFailure) {
+				case process_support::lane_failure::cancelled:
+					return std::unexpected{ git_process_failure::cancelled };
+				case process_support::lane_failure::timeout:
+					return std::unexpected{ git_process_failure::timeout };
+				case process_support::lane_failure::reap_failure:
+					return std::unexpected{ git_process_failure::reap_failure };
+				case process_support::lane_failure::start_failure:
+					break;
+				}
+				return std::unexpected{ git_process_failure::process_start };
+			}
+
+			[[nodiscard]] auto execute(
+				process_work_item&      aItem,
+				const std::atomic_bool& aShutdownRequested) const -> process_execution
+			{
+				return execute_process(
+					Configuration,
+					aItem.Request,
+					aItem.Stop,
+					aShutdownRequested,
+					aItem.Deadline);
+			}
+
+			/// \brief The bounded last attempt on a Git the launch could not reap.
+			/// \details A supervised Git's helper is never killed: it keeps its
+			/// exclusion until it has stopped and reaped Git itself.
+			[[nodiscard]] static auto finish_reap(process_execution& aExecution) -> bool
+			{
+				if (aExecution.Supervised) {
+					return await_supervisor(*aExecution.AwaitingReap);
+				}
+				return process_support::finish_background_reap(
+					*aExecution.AwaitingReap,
+					aExecution.ProcessGroupId,
+					reap_timeout);
+			}
+
+			runner_configuration Configuration;
 		};
 
 		class process_worker final
 		{
 		public:
 			explicit process_worker(runner_configuration aConfiguration)
-				: Configuration{ std::move(aConfiguration) }
-				, Worker{ [this] {
-					worker_loop();
-				} }
+				: Lane{ process_lane_traits{ .Configuration = std::move(aConfiguration) } }
 			{
-			}
-
-			process_worker(const process_worker&)                    = delete;
-			auto operator=(const process_worker&) -> process_worker& = delete;
-
-			~process_worker()
-			{
-				ShutdownRequested.store(true, std::memory_order_release);
-				WorkAvailable.notify_all();
-				SlotAvailable.notify_all();
-				if (Worker.joinable()) {
-					Worker.join();
-				}
 			}
 
 			[[nodiscard]] auto submit(
@@ -2829,140 +2765,13 @@ namespace bpr::adapters::git {
 						git_process_failure::process_start
 					};
 				}
-
-				{
-					std::unique_lock lock{ Mutex };
-					while (Busy) {
-						if (
-							ShutdownRequested.load(std::memory_order_acquire)
-							|| aStop.stop_requested()) {
-							return std::unexpected{
-								git_process_failure::cancelled
-							};
-						}
-						if (Quarantined) {
-							return std::unexpected{
-								git_process_failure::reap_failure
-							};
-						}
-						if (clock::now() >= item->Deadline) {
-							return std::unexpected{
-								git_process_failure::timeout
-							};
-						}
-						SlotAvailable.wait_for(lock, wait_slice);
-					}
-					if (Quarantined) {
-						return std::unexpected{
-							git_process_failure::reap_failure
-						};
-					}
-					if (ShutdownRequested.load(std::memory_order_acquire)) {
-						return std::unexpected{
-							git_process_failure::cancelled
-						};
-					}
-					Busy    = true;
-					Pending = item;
-				}
-				WorkAvailable.notify_one();
-
-				std::unique_lock resultLock{ item->Mutex };
-				const auto       completionDeadline = item->Deadline + reap_timeout + wait_slice;
-				if (
-					!item->Completed.wait_until(
-						resultLock,
-						completionDeadline,
-						[&] {
-							return item->Result.has_value();
-						})) {
-					{
-						std::lock_guard lock{ Mutex };
-						Quarantined = true;
-					}
-					SlotAvailable.notify_all();
-					return std::unexpected{
-						git_process_failure::reap_failure
-					};
-				}
-				return std::move(*item->Result);
+				return Lane.submit(
+					item,
+					std::chrono::duration_cast<std::chrono::milliseconds>(reap_timeout));
 			}
 
 		private:
-			auto publish(
-				const std::shared_ptr<process_work_item>& aItem,
-				process_result                            aResult) -> void
-			{
-				{
-					std::lock_guard lock{ aItem->Mutex };
-					aItem->Result.emplace(std::move(aResult));
-				}
-				aItem->Completed.notify_one();
-			}
-
-			auto worker_loop() -> void
-			{
-				for (;;) {
-					std::shared_ptr<process_work_item> item;
-					{
-						std::unique_lock lock{ Mutex };
-						WorkAvailable.wait(
-							lock,
-							[&] {
-								return Pending != nullptr
-									|| ShutdownRequested.load(
-										std::memory_order_acquire);
-							});
-						if (Pending == nullptr) {
-							return;
-						}
-						item = std::move(Pending);
-					}
-
-					auto execution = execute_process(
-						Configuration,
-						item->Request,
-						item->Stop,
-						ShutdownRequested,
-						item->Deadline);
-					if (execution.AwaitingReap != nullptr) {
-						{
-							std::lock_guard lock{ Mutex };
-							Quarantined = true;
-						}
-						SlotAvailable.notify_all();
-					}
-					publish(item, std::move(execution.Result));
-					bool reaped = true;
-					if (execution.AwaitingReap != nullptr) {
-						reaped = finish_background_reap(
-							*execution.AwaitingReap,
-							execution.ProcessGroupId, execution.Supervised);
-						if (reaped) {
-							execution.AwaitingReap.reset();
-						} else {
-							abandon_unreaped_process(
-								execution.AwaitingReap);
-						}
-					}
-					{
-						std::lock_guard lock{ Mutex };
-						Busy        = false;
-						Quarantined = !reaped;
-					}
-					SlotAvailable.notify_all();
-				}
-			}
-
-			runner_configuration               Configuration;
-			std::mutex                         Mutex;
-			std::condition_variable            WorkAvailable;
-			std::condition_variable            SlotAvailable;
-			std::shared_ptr<process_work_item> Pending;
-			bool                               Busy              = false;
-			bool                               Quarantined       = false;
-			std::atomic_bool                   ShutdownRequested = false;
-			std::thread                        Worker;
+			process_support::serialized_process_lane<process_lane_traits> Lane;
 		};
 
 		[[nodiscard]] auto repository_config(

@@ -48,6 +48,16 @@ namespace bpr::adapters::github::detail {
 		{
 			return false;
 		}
+
+		/// \brief Stands in for a child that survives SIGKILL.
+		/// \details [[BPR-1436]]. The runner's kill-and-reap and background
+		/// reap send no signal, so the child outlives both bounds and the
+		/// runner must abandon it. Consulted at each kill. The test kills the
+		/// child itself afterwards.
+		[[nodiscard]] virtual auto child_survives_kill() -> bool
+		{
+			return false;
+		}
 	};
 
 	[[nodiscard]] auto make_github_cli_process_runner()

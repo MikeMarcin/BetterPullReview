@@ -59,4 +59,46 @@ header-only without Qt, so the shared code needs a target of its own.
 
 ## Evidence
 
-Recorded at finish.
+- AC1: [process_supervision.hpp](../../../src/adapters/process_support/include/bpr/adapters/process_support/process_supervision.hpp)
+  and [process_supervision.cpp](../../../src/adapters/process_support/src/process_supervision.cpp)
+  hold `serialized_process_lane` and the group wait, kill, resolution,
+  kill-and-reap, background reap and abandonment. Each runner keeps a small
+  `process_lane_traits` (its execute, typed failure mapping and bounded
+  background reap) and a `process_worker` that validates, builds its item and
+  submits it. The gh runner went from 1,330 to 1,152 lines and the Git runner
+  from 7,575 to 7,384, with 277 and 265 lines removed. The shared target is
+  426 lines, most of them documentation. The architecture document's target
+  list and dependency rules and the root `AGENTS.md` table record the shared
+  adapter support target.
+- AC2: gh's background reap is now `process_support::finish_background_reap`
+  under `github_cli_process_max_reap_timeout`. Git's 2-second reap is
+  unchanged. `github_cli_process_runner` adds
+  `test_unreapable_child_is_abandoned`, which uses a new seam call,
+  `child_survives_kill`, to stand in for a child that outlives SIGKILL. The
+  first request fails with `reap_failure`. After the background deadline a
+  later request fails at once with `reap_failure` and never launches.
+  Destroying the runner returns within 2 seconds. With the old unbounded loop
+  temporarily restored, the suite failed with "destroying the runner returns
+  although its child never exited". With the bounded reap it passes.
+- AC3: `VerifyArchitectureBoundaries.cmake` makes the support source and
+  header designated QProcess owners. It requires a static target that links
+  Qt Core only and includes no first-party layer, adapter or platform header.
+  It refuses launch, environment, Windows job, descriptor and handle-list
+  surfaces there, and pins the group kill, the bounded reaps, quarantine
+  before publication, permanent quarantine after abandonment, the watchdog,
+  exception recovery and one joined worker thread. Both runners must submit
+  through the lane. `architecture_boundary_tests.py` adds
+  `test_shared_process_supervision_contract` and retargets the gh lifecycle
+  mutations; all 152 tests pass. The descriptor-builder and handle-list owner
+  lists are unchanged.
+- AC4: The Windows blocks in both runners are textually unchanged: the
+  launch restriction, the `restricted()` check, the Git job's `create`,
+  `holds` and `place_in_job`. Git's kill-and-reap still terminates its job on
+  every kill attempt, through the shared reap's tree-kill parameter. Nothing
+  was compiled for Windows here.
+- Gates: `core_boundary_contract`, `architecture_boundaries`,
+  `architecture_boundary_contract`, `github_cli_process_runner`,
+  `gh_cli_transport`, `gh_cli_git_smart_transport`, `github_capability_probe`,
+  `git_process_contract`, `git_cache_contract`, `git_sparse_cache_contract`,
+  `git_pristine_remount_recovery` and `fsck_severity_fixture_contract` pass on
+  macOS. clang-format 22 was applied, and the documentation gate passes.

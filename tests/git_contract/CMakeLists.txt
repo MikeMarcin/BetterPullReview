@@ -477,3 +477,17 @@ if(UNIX)
         endif()
     endforeach()
 endif()
+# [[BPR-1436]]. They also carry the QProcess supervision the Git runner shares
+# with the gh runner.
+foreach(
+    bpr_git_source_target
+    IN ITEMS
+        test_better_pull_review_git_process_contract_tests
+        test_better_pull_review_git_cache_contract_tests
+        test_better_pull_review_git_anonymous_public_read_tests
+        test_better_pull_review_agent_workspace_ownership_tests
+)
+    if(TARGET ${bpr_git_source_target})
+        target_link_libraries(${bpr_git_source_target} PRIVATE BetterPullReview::ProcessSupport)
+    endif()
+endforeach()

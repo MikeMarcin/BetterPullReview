@@ -92,6 +92,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
         PUBLIC
             BetterPullReview::Application
         PRIVATE
+            BetterPullReview::ProcessSupport
             Qt6::Core
             Qt6::Network
             glaze::glaze

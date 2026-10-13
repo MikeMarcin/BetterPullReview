@@ -413,6 +413,14 @@ better_pull_review_platform
     runners take, BPR-1115 and BPR-1114)
     depends on nothing first-party
 
+better_pull_review_process_support
+    shared adapter support: the QProcess supervision the gh and Git runners
+    share (one serialized lane with its quarantine, and the process-group
+    wait, kill, resolution, bounded kill-and-reap, background reap and
+    abandonment, BPR-1436)
+    depends on Qt Core only, nothing first-party; decides nothing about what
+    a process runs
+
 better_pull_review_adapter_github
 better_pull_review_adapter_git
 better_pull_review_adapter_sqlite
@@ -456,6 +464,13 @@ The live repository may use different target names, but it must enforce these ru
   header-only platform target rather than behind an adapter-to-adapter edge.
   Only its header builds the Windows owner-private descriptor; the storage
   roots and the agent and Git workspace objects all use it ([[BPR-0825]]).
+- Code two adapters must share that needs Qt, and that neither owns, lives in
+  a shared adapter support target rather than behind an adapter-to-adapter
+  edge. `better_pull_review_process_support` is the one such target: the gh
+  and Git runners supervise their children through its serialized lane and
+  bounded reap ([[BPR-1436]]). It links Qt Core only, launches nothing, reads
+  no environment and builds no Windows descriptor, handle list or job; those
+  stay with each runner and the platform header.
 - The composition root is the only place that knows all concrete pieces.
 - In-process communication uses typed C++ calls and records. JSON/RPC is added only at a real process boundary such as an agent protocol.
 
