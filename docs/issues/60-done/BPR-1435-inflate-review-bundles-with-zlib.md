@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1435"
 title: "Inflate review bundles with zlib and enforce the core library allow-list"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"396f23f95","evidence":{"kind":"observation","detail":"Core links pinned zlib 1.3.2 (Z_PREFIX, raw-inflate/checksum only, confined to review_cycle_zip_codec.cpp); hand-written inflater and CRC removed; inventory, notice and packaging contracts pass.","path":"docs/issues/60-done/BPR-1435-inflate-review-bundles-with-zlib.md"}},{"criterion":"AC2","outcome":"pass","revision":"396f23f95","evidence":{"kind":"observation","detail":"core_review_cycle_bundle adds truncated, empty, trailing-bytes and oversize cases; pack oracle reads real bundles; all 103 core suites pass.","path":"docs/issues/60-done/BPR-1435-inflate-review-bundles-with-zlib.md"}},{"criterion":"AC3","outcome":"pass","revision":"396f23f95","evidence":{"kind":"observation","detail":"VerifyCoreBoundary refuses core links outside glaze/utf8proc/zlib/fmt; core_boundary_contract pins accepted and refused cases; docs and AGENTS state the list.","path":"docs/issues/60-done/BPR-1435-inflate-review-bundles-with-zlib.md"}},{"criterion":"AC4","outcome":"pass","revision":"396f23f95","evidence":{"kind":"observation","detail":"dependency_modernization_contract configures the Qt-free graph offline with SQLite and zlib and still refuses it without SQLite.","path":"docs/issues/60-done/BPR-1435-inflate-review-bundles-with-zlib.md"}}]
 ---
 
 # Inflate review bundles with zlib and enforce the core library allow-list
