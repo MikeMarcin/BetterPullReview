@@ -1,0 +1,17 @@
+{
+  "schema": "find-rfc.source-inventory.v1",
+  "files": {
+    "DRAFT-0015-search-session-policy.md": "829a27879cdac925cd7e16aaa2bf279fd5620e65aa0e548766a7d3a9875c336f",
+    "DRAFT-0016-shared-matching.md": "17d5b92fc9d0ae151cc3213697d7725a63836f27c7d252462e94e2d2e655aa41",
+    "DRAFT-0017-exact-pr-corpus.md": "ddb097761c4ff99f6021cac91831248060079117da5e9f711d31a4f87827d21f",
+    "DRAFT-0018-pane-find.md": "926e0f49b64d08eaad4a17f22b3a3d687913bd3b1e6c9cd95304f83b98b7655a",
+    "DRAFT-0019-pr-search.md": "a21df5ece293dd82f09af73580ccfa82bd171297795a0c97b68325baa0381165",
+    "DRAFT-0020-qualification-closeout.md": "1f7580e7f6e4af49deadcc9f0aedf53c56f348cefc2af4135b30d3e85275cbc9",
+    "IMPLEMENTATION_PROMPT.md": "c8598b0f6190a389037aa1b6e269a86a3397c19ccce8a160c9b6e3cb2d5a1478",
+    "MILESTONES.md": "c26ff88491afb5a9b9fd37fa498fdc5dfcca0138ccccff2543a8f0a0740b09f4",
+    "README.md": "96c98334bfcae1c59dcc3089b9aee56ecd9f7d39dbc3a6948e9c8df6bd642d96",
+    "RFC-DRAFT-0015-find-and-find-in-files.md": "c591af3f7f75299fa2196b09ef1c9c31fcc01e3495a945c743c916053e79f9be",
+    "milestone-plan.json": "7866c46a183c74126d995fb93c19b84ec3eab7047eedc1271a0280d4ca2d90c4"
+  },
+  "supplied_manifest": false
+}

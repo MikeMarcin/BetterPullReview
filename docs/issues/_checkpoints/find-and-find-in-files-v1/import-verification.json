@@ -1,0 +1,36 @@
+{
+  "schema": "find-rfc.import-verification.v1",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "product_candidate": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "original_files_identical": 11,
+  "all_six_card_requirements_identical": true,
+  "all_eight_rfc_criteria_identical": true,
+  "typed_plan_remap_identical": true,
+  "generated_view_identical": true,
+  "source_receipt_matches": true,
+  "unrelated_owner_files_preserved": true,
+  "external_cpp_record_changes": [],
+  "checks": [
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "pass: DOCUMENTATION_OK"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "pass: 67 tests"
+    },
+    {
+      "command": "milestone_plan.py discover --target RFC-BPR-0077 and check --target BPR-1419",
+      "result": "pass: live linkage and structural validity; semantic acceptance unknown"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    }
+  ],
+  "pending": "All five milestone exits and original whole-RFC AC01–AC08; no product implementation or acceptance supplied",
+  "commands": {
+    "running": [],
+    "review_server": null
+  }
+}

@@ -553,3 +553,11 @@ separate platform/release obligations retain their scope.
 | [RFC-BPR-0076](RFC-BPR-0076-file-change-navigation-enters-review.md) | File and change navigation enters Review | In Progress | — |
 
 | [RFC-BPR-0075](RFC-BPR-0075-title-row-publication.md) | Refresh the review title row when accepted content arrives | Auto-Verified | — |
+
+## Find and Find in Files
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0077](RFC-BPR-0077-find-and-find-in-files.md) | Find in the current pane and across a pull request | Proposed | — |
+
+Imported under `find-and-find-in-files-v1-r1`; [source and mapping](assets/find-and-find-in-files-v1.LIVE_IMPORT.md) and [authored five-milestone plan](plans/find-and-find-in-files-v1/milestone-plan.json). [[BPR-1419]] is Ready; [[BPR-1424]] owns the complete original AC01–AC08 closeout. Import supplies no implementation or acceptance evidence.

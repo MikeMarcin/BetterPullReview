@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1419",
+    "BPR-1420",
+    "BPR-1421",
+    "BPR-1422",
+    "BPR-1423",
+    "BPR-1424"
+  ],
+  "reserve_for": "find-and-find-in-files-v1",
+  "purpose": "Import prepared Find RFC cards",
+  "created": "2026-10-13T07:05:27.823611+00:00",
+  "base": "aa3d71fe470627e1e78488eb51a9114a788f33bd"
+}

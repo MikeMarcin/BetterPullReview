@@ -1,0 +1,14 @@
+{
+  "mapping": {
+    "DRAFT-0015": "BPR-1419",
+    "DRAFT-0016": "BPR-1420",
+    "DRAFT-0017": "BPR-1421",
+    "DRAFT-0018": "BPR-1422",
+    "DRAFT-0019": "BPR-1423",
+    "DRAFT-0020": "BPR-1424",
+    "RFC-DRAFT-0015": "RFC-BPR-0077"
+  },
+  "plan_path": "docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "7866c46a183c74126d995fb93c19b84ec3eab7047eedc1271a0280d4ca2d90c4"
+}
