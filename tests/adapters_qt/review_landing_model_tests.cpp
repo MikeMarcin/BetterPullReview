@@ -643,8 +643,8 @@ namespace {
 
 		auto requested  = item(1, bucket::initial_review_requested, core::queue_membership{ .Role = core::github_role::requested_reviewer });
 		requested.Facts = core::queue_item_facts{ .Title = "Parse faster", .Author = "octocat", .UnseenComments = 1U };
-		expect(qt::home_why_sentence(requested) == QStringLiteral("Opened by octocat; my review is requested; 1 new comment."),
-			   "a requested review names its author and what I have not read");
+		expect(qt::home_why_sentence(requested) == QStringLiteral("My review is requested; 1 new comment."),
+			   "a requested review says what I have not read");
 		auto changed                 = item(2, bucket::changed_since_my_review);
 		changed.Facts.UnseenComments = 3U;
 		expect(qt::home_why_sentence(changed) == QStringLiteral("The code moved since my last review; 3 new comments."),
@@ -659,21 +659,37 @@ namespace {
 				   == QStringLiteral("New activity on a pull request I follow; I watch %1 src/parser.")
 						  .arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
 			   "a row here only because of a rule names the rule");
-		// [[BPR-1406]]. Every row of someone else's leads with its author; mine never names me.
+		// [[BPR-1414]]. The author is no clause of the sentence: the row names
+		// it beside the number, and its description leads with it, for every
+		// row, mine included.
 		auto byAuthor = [](auto aItem) {
 			aItem.Facts.Author = "octocat";
 			return qt::home_why_sentence(aItem);
 		};
-		expect(byAuthor(changed) == QStringLiteral("Opened by octocat; the code moved since my last review; 3 new comments.")
-				   && byAuthor(replied) == QStringLiteral("Opened by octocat; 2 new comments I have not read.")
-				   && byAuthor(item(5, bucket::fixes_awaiting_verification)) == QStringLiteral("Opened by octocat; a defect I filed is marked fixed; I have not checked it.")
-				   && byAuthor(item(6, bucket::quiet)) == QStringLiteral("Opened by octocat; nothing here is waiting on anyone."),
-			   "someone else's row names its author first, and the reason continues the sentence");
-		expect(byAuthor(watched) == QStringLiteral("Opened by octocat; new activity on a pull request I follow; I watch %1 src/parser.").arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
-			   "a followed row names its author before its rule");
+		expect(byAuthor(changed) == QStringLiteral("The code moved since my last review; 3 new comments.")
+				   && byAuthor(replied) == QStringLiteral("2 new comments I have not read.")
+				   && byAuthor(item(5, bucket::fixes_awaiting_verification)) == QStringLiteral("A defect I filed is marked fixed; I have not checked it.")
+				   && byAuthor(item(6, bucket::quiet)) == QStringLiteral("Nothing here is waiting on anyone."),
+			   "the sentence is the reason alone, whoever opened the pull request");
+		expect(byAuthor(watched) == QStringLiteral("New activity on a pull request I follow; I watch %1 src/parser.").arg(QString::fromUtf8(core::name(core::observer_rule_kind::path).data())),
+			   "a followed row names its rule");
 		expect(byAuthor(item(7, bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true })) == QStringLiteral("My pull request waits on reviewers.")
 				   && byAuthor(item(8, bucket::detail_unknown, core::queue_membership{ .Authored = true })) == QStringLiteral("My pull request; nothing about it has been read yet."),
-			   "my own row does not name me");
+			   "my own row's sentence is about my pull request");
+		{
+			auto mine         = item(9, bucket::authored_awaiting_reviewer_action, core::queue_membership{ .Authored = true });
+			mine.Facts.Author = "octo-reviewer";
+			auto source       = qt::review_landing_model{ };
+			source.apply(std::vector{ requested, mine });
+			const auto first  = source.index(0, 0);
+			const auto second = source.index(1, 0);
+			expect(first.data(qt::home_row_role::author).toString() == QStringLiteral("octocat")
+					   && second.data(qt::home_row_role::author).toString() == QStringLiteral("octo-reviewer"),
+				   "every row carries its author, my own pull request and one waiting on reviewers included");
+			expect(first.data(Qt::AccessibleDescriptionRole).toString().startsWith(QStringLiteral("Opened by octocat. "))
+					   && second.data(Qt::AccessibleDescriptionRole).toString().startsWith(QStringLiteral("Opened by octo-reviewer. ")),
+				   "every row's description says who opened it");
+		}
 		const auto verify = item(5, bucket::fixes_awaiting_verification);
 		const auto quiet  = item(6, bucket::quiet);
 		expect(qt::home_state_summary(qt::home_group::needs_you, std::array{ requested, changed, replied, verify })
@@ -724,7 +740,7 @@ namespace {
 				   && row.data(qt::home_row_role::account_chip).toString().isEmpty()
 				   && row.data(qt::home_row_role::row_action).toString().isEmpty(),
 			   "the queue model answers Home's row roles and invents no time, progress, chip or action");
-		expect(row.data(Qt::AccessibleDescriptionRole).toString() == qt::home_why_sentence(requested) + QStringLiteral(" Requested"),
+		expect(row.data(Qt::AccessibleDescriptionRole).toString() == QStringLiteral("Opened by octocat. ") + qt::home_why_sentence(requested) + QStringLiteral(" Requested"),
 			   "a row describes itself as it is drawn");
 	}
 	void test_waiting_blockers_and_quiet_filters()
@@ -771,7 +787,7 @@ namespace {
 		auto blockedOnly         = others;
 		blockedOnly.Bucket       = core::attention_bucket::quiet;
 		blockedOnly.Facts.Author = "octocat";
-		expect(qt::home_why_sentence(blockedOnly) == QStringLiteral("Opened by octocat; Branch Freshness failed."), "a check's name after the author keeps its own case");
+		expect(qt::home_why_sentence(blockedOnly) == QStringLiteral("Branch Freshness failed."), "a check's name keeps its own case");
 		auto blocked                         = waiting;
 		blocked.Ref.Number                   = 32;
 		blocked.Bucket                       = core::attention_bucket::quiet;

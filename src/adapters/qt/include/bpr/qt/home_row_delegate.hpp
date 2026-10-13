@@ -69,6 +69,10 @@ namespace bpr::qt {
 			/// ("name#123" under an owner, "#123" under a repository). Absent
 			/// means `identity`.
 			shown_identity,
+			/// [[BPR-1414]]. The login that opened the pull request, drawn
+			/// after the identity on every row, the reviewer's own included;
+			/// empty where unknown.
+			author,
 		};
 	} // namespace home_row_role
 

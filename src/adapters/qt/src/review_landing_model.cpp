@@ -165,16 +165,12 @@ namespace bpr::qt {
 	auto home_why_sentence(const core::queue_item& aItem) -> QString
 	{
 		const auto unseen  = static_cast<std::uint64_t>(aItem.Facts.UnseenComments);
-		const auto author  = text(aItem.Facts.Author);
 		auto       clauses = QStringList{ };
 		if (aItem.Membership.authored() && aItem.Bucket != core::attention_bucket::authored_awaiting_reviewer_action) {
 			clauses.push_back(QStringLiteral("My pull request"));
 		}
-		// [[BPR-1406]]. Someone else's pull request leads with who opened it,
-		// so every such row names its author in the same place.
-		if (!aItem.Membership.authored() && !author.isEmpty()) {
-			clauses.push_back(QStringLiteral("Opened by %1").arg(author));
-		}
+		// [[BPR-1406]] [[BPR-1414]]. The author is not a clause here: every row
+		// names it in one place of its own, beside the number, whoever it is.
 		// A clause after a leading one continues its sentence.
 		const auto lead = [&clauses](QString aClause) {
 			if (!clauses.isEmpty()) {
@@ -479,6 +475,10 @@ namespace bpr::qt {
 		}
 		case Qt::AccessibleDescriptionRole: {
 			auto why = QStringLiteral("%1 %2").arg(home_why_sentence(*item), item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket));
+			// [[BPR-1414]]. Every row says who opened it, as it is drawn.
+			if (!item->Facts.Author.empty()) {
+				why = QStringLiteral("Opened by %1. %2").arg(text(item->Facts.Author), why);
+			}
 			// [[BPR-1407]]. The facts drawn at the row's right, in words.
 			if (const auto change = home_change_sentence(item->Facts.Change, Now); !change.isEmpty()) {
 				why += QStringLiteral(". %1").arg(change);
@@ -525,6 +525,8 @@ namespace bpr::qt {
 			return text(item->Facts.Title);
 		case home_row_role::why:
 			return home_why_sentence(*item);
+		case home_row_role::author:
+			return text(item->Facts.Author);
 		case home_row_role::reason_word:
 			return item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket);
 		case home_row_role::state:

@@ -432,7 +432,7 @@ namespace bpr::qt {
 		void set_recent_review_dispatch(
 			std::function<void(application::recent_review_intent)> aDispatch);
 		/// \brief Where a recently viewed row's Remove goes.
-		void set_recent_removal_dispatch(std::function<void(application::recent_review_row)> aDispatch);
+		void               set_recent_removal_dispatch(std::function<void(application::recent_review_row)> aDispatch);
 		void               clear_overview();
 		[[nodiscard]] auto overview_page() const noexcept -> pull_request_overview_page*;
 		/// \brief Whether the centre shows the overview rather than the comparison.

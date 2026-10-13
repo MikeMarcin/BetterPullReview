@@ -180,7 +180,7 @@ namespace bpr::qt {
 		{
 		public:
 			row_layout(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex, const bool aMarks, const QColor& aReasonInk,
-					   const home_row_open* const aOpen = nullptr)
+					   const home_row_open* const aOpen = nullptr, const QColor& aAuthorInk = QColor{ })
 			{
 				const auto identity = aIndex.data(home_row_role::identity).toString();
 				const auto title    = aIndex.data(home_row_role::title).toString();
@@ -208,12 +208,24 @@ namespace bpr::qt {
 				// The title leads: it is what a reviewer reads a row by. The
 				// repository and number follow at the head of the quieter second
 				// line, unless there is no title for them to follow.
+				// [[BPR-1414]]. The author follows in the line's full ink, on every
+				// row, so a login is always found in the same place.
 				const auto shownData = aIndex.data(home_row_role::shown_identity);
 				const auto shown     = shownData.isValid() ? shownData.toString() : identity;
+				const auto author    = aIndex.data(home_row_role::author).toString();
 				First                = title.isEmpty() ? identity : title;
 				Second               = open != nullptr ? open->Line : why;
-				if (!Opening && !title.isEmpty() && !shown.isEmpty()) {
-					Second = Second.isEmpty() ? shown : shown + identity_separator + Second;
+				auto byline          = title.isEmpty() ? QString{ } : shown;
+				auto authorStart     = -1;
+				if (!author.isEmpty()) {
+					byline += byline.isEmpty() ? QStringLiteral("by ") : QStringLiteral(" by ");
+					authorStart = static_cast<int>(byline.size());
+					byline += author;
+				}
+				if (!Opening && !byline.isEmpty()) {
+					Second = Second.isEmpty() ? byline : byline + identity_separator + Second;
+				} else {
+					authorStart = -1;
 				}
 				if (!reason.isEmpty() && !Opening) {
 					if (!Second.isEmpty()) {
@@ -278,6 +290,13 @@ namespace bpr::qt {
 				FirstHeight = std::max(DraftHeight, lay_out(FirstLayout, First, aOption.font, std::max(1, TextWidth - FirstIndent), { leadFormat }));
 
 				auto secondFormats = QList<QTextLayout::FormatRange>{ };
+				if (authorStart >= 0 && aAuthorInk.isValid()) {
+					auto authorFormat   = QTextLayout::FormatRange{ };
+					authorFormat.start  = authorStart;
+					authorFormat.length = static_cast<int>(author.size());
+					authorFormat.format.setForeground(aAuthorInk);
+					secondFormats.push_back(authorFormat);
+				}
 				if (ReasonStart >= 0) {
 					auto reasonFormat   = QTextLayout::FormatRange{ };
 					reasonFormat.start  = ReasonStart;
@@ -632,7 +651,8 @@ namespace bpr::qt {
 		const auto&      colours   = option.palette;
 		const auto       tone      = state_colour(aIndex);
 		const auto       reasonInk = selected ? colours.color(group, QPalette::HighlightedText) : tone;
-		const row_layout layout{ option, aIndex, Marks, reasonInk, &Open };
+		const auto       authorInk = colours.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
+		const row_layout layout{ option, aIndex, Marks, reasonInk, &Open, authorInk };
 
 		// [[BPR-1365]]. The open review's quiet ground, under the style's: the
 		// theme's current-line tint, never its selection. A selected row is the

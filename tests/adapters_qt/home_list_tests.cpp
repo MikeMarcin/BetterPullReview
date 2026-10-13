@@ -344,7 +344,7 @@ namespace {
 		expect(first.data(qt::home_row_role::identity).toString() == QStringLiteral("octo/app#1")
 				   && first.data(qt::home_row_role::title).toString() == QStringLiteral("A title")
 				   && first.data(qt::home_row_role::reason_word).toString() == QStringLiteral("Requested")
-				   && first.data(qt::home_row_role::why).toString() == QStringLiteral("Opened by octocat; my review is requested; 1 new comment.")
+				   && first.data(qt::home_row_role::why).toString() == QStringLiteral("My review is requested; 1 new comment.")
 				   && first.data(qt::home_row_role::state).toInt() == static_cast<int>(qt::home_group::needs_you)
 				   && first.data(qt::home_row_role::time).toString().isEmpty()
 				   && first.data(qt::home_row_role::progress).toString().isEmpty(),
@@ -448,7 +448,7 @@ namespace {
 		const auto  option   = option_for(*view, index);
 		const auto  lines    = delegate->line_texts(option, index);
 		// The title leads; the repository and number head the second line.
-		const auto  expected = QString::fromStdString(title) + QStringLiteral("octo/app#1  ")
+		const auto expected = QString::fromStdString(title) + QStringLiteral("octo/app#1 by octocat  ")
 			+ index.data(qt::home_row_role::why).toString() + QStringLiteral(" Changed");
 		expect(lines.join(QString{ }) == expected, "the laid-out lines are the whole literal text");
 		expect(lines.size() > 3, "a long title wraps onto more lines");
@@ -1653,8 +1653,8 @@ namespace {
 		home.List.show();
 		settle(300);
 		const auto shown = [&home] {
-			const auto panels = home.List.group_panels();
-			auto* const view  = panels.empty() ? home.List.flat_view() : home.List.rows_view(*panels.front());
+			const auto  panels = home.List.group_panels();
+			auto* const view   = panels.empty() ? home.List.flat_view() : home.List.rows_view(*panels.front());
 			return view->model()->index(0, 0).data(qt::home_row_role::shown_identity);
 		};
 		const auto none = shown();

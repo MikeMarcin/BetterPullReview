@@ -917,6 +917,37 @@ try {
 				   || aOperation == "ListReviewThreads" || aOperation == "ListIssueComments";
 		   }),
 		   "restored Home metadata never opens the snapshot, diff, history or conversation path");
+	// Recently viewed: Remove takes a row off the restored list through the
+	// profile's restoration host, and Delete takes the rest; GitHub is asked
+	// for nothing.
+	{
+		auto* const recentRows = windowA->home_recent_list();
+		const auto  listed     = recentRows->count();
+		expect(listed >= 1, "the restored profile lists what it viewed");
+		const auto removed = recentRows->item(0)->data(qt::home_row_role::identity).toString();
+		recentRows->setFocus(Qt::OtherFocusReason);
+		recentRows->setCurrentRow(0);
+		QApplication::processEvents();
+		windowA->home_recent_remove_action()->trigger();
+		wait_for([&] {
+			for (auto index = 0; index < recentRows->count(); ++index) {
+				if (recentRows->item(index)->data(qt::home_row_role::identity).toString() == removed) {
+					return false;
+				}
+			}
+			return recentRows->count() == listed - 1;
+		},
+				 "Remove from Recently Viewed takes the row off the list", diagnose);
+		while (recentRows->count() > 0) {
+			const auto remaining = recentRows->count();
+			recentRows->setFocus(Qt::OtherFocusReason);
+			recentRows->setCurrentRow(0);
+			auto deleteKey = QKeyEvent{ QEvent::KeyPress, Qt::Key_Delete, Qt::NoModifier };
+			QApplication::sendEvent(recentRows, &deleteKey);
+			wait_for([&] { return recentRows->count() == remaining - 1; }, "Delete takes the current Recently viewed row off", diagnose);
+		}
+		expect(!windowA->home_recent_panel()->isVisible(), "an emptied Recently viewed is not shown");
+	}
 	// Settings › Repositories removes through the existing saved-repository
 	// intent and store; the last removal brings back the first-run call to action.
 	windowA->settings_action()->trigger();
