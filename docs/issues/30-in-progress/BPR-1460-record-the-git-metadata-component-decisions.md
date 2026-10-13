@@ -23,4 +23,7 @@ Verdicts that need Windows or Linux evidence (H2, H5) or an open owner answer
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done on `f965a7693`: the [decision record](../../verification/RFC-BPR-0083-decision.md)
+keeps K for C1–C6 and records what could change a verdict. K's Windows and
+Linux H2 and H5 cells are pending [[BPR-1462]] and [[BPR-1463]]; a failure
+there is a K defect to fix, since no other candidate is eligible.
