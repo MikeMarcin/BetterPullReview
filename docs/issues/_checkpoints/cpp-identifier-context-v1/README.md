@@ -1,9 +1,18 @@
 # C++ identifier context checkpoint
 
-Milestone **cpp-lexical-context complete**; BPR-1411 is Done. Sole engineering
-leaf `/root/cpp_context_m1`, mandate `cpp-identifier-context-r1`, main tracker
-authority. Stop at this boundary; the coordinator starts a fresh leaf for
-`cpp-colours-and-closeout` and claims ready BPR-1412. Full RFC scope remains.
+Milestone **cpp-colours-and-closeout in progress**; BPR-1412 is claimed by
+sole engineering leaf `/root/cpp_context_m2`, mandate `cpp-identifier-context-r1`,
+main tracker authority. M1 remains accepted; the bound M2 obligations and exits
+are in [m2-binding.json](m2-binding.json).
+
+Current candidate adds a dedicated real Git-backed fixture and composed course.
+Both pane token layouts and pixels pass Light/Dark; all 374 contrast pairs pass
+in four variants. Legacy-load qualification identified asynchronous restore and
+now waits for its non-default saved tab width. Old import exposed an additive
+sentinel admission defect; the host now defers only omitted default-on-import
+foregrounds and retains explicit low-contrast rejection. Final fresh-process
+exchange/restart checks, exact-candidate integration, self-review and closeout
+remain in flight. No human review is required or inferred.
 
 ## Binding and candidate
 

@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0072"
 title: "Context-aware C++ namespace and enum highlighting"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: ["RFC-BPR-0006", "RFC-BPR-0034"]
 area: "BPR"
 metadata: {"mandate_revision":"cpp-identifier-context-r1","rfc_base_sha":"6ebd33e57479a24aed91b930624bab030a436045","milestone_plan":{"id":"cpp-identifier-context-v1","path":"docs/rfcs/plans/cpp-identifier-context-v1/milestone-plan.json"}}
@@ -12,6 +12,18 @@ metadata: {"mandate_revision":"cpp-identifier-context-r1","rfc_base_sha":"6ebd33
 ## Adoption
 
 Adopted on 2026-10-12 under mandate `cpp-identifier-context-r1` with the supplied syntax amendment. Immutable RFC_BASE_SHA: `6ebd33e57479a24aed91b930624bab030a436045`. The [live import](assets/cpp-identifier-context-v1.LIVE_IMPORT.md) retains the original proposal and all eight criteria. Historical palette verdicts remain separate.
+
+## Closeout, 2026-10-13
+
+All eight criteria are accepted through [[BPR-1411]] and [[BPR-1412]]. Product
+candidates `c58bdebdac18da64a3b7629c0499d200f36007ae` and
+`bc4b4aafe6f51020aa469c519e936d616e124e89` carry the lexical refinement,
+additive colors and older-theme admission correction. The
+[qualification ledger](../verification/RFC-BPR-0072.md) binds complete-blob,
+composed both-pane Light/Dark pixels, all-variant contrast and independent
+four-variant customization through fresh-process restart and exchange.
+No native, installed, human or independent verdict is inferred. Historical
+palette obligations and the documented external-symbol limits remain intact.
 
 ## Problem and grounded current behavior
 

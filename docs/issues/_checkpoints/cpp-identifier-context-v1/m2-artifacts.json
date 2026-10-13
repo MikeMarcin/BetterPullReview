@@ -1,0 +1,27 @@
+{
+  "source_revision": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+  "artifacts": [
+    {
+      "variant": "light",
+      "path": "/Users/jaeger/.codex/visualizations/2026/10/12/01a1323a-54e4-7842-bf32-14374322cfa1/cpp-identifiers-m2/light.png",
+      "sha256": "5f67ba35312beb62f00a082988bf4d6928860b52709b472e7a01ff8edaf0ae76",
+      "dimensions": [
+        1440,
+        1100
+      ],
+      "surface": "complete composed workbench, both Git-backed panes",
+      "scale": 1
+    },
+    {
+      "variant": "dark",
+      "path": "/Users/jaeger/.codex/visualizations/2026/10/12/01a1323a-54e4-7842-bf32-14374322cfa1/cpp-identifiers-m2/dark.png",
+      "sha256": "5aa86fab6bc5dd77182ea16a7f48040373d1131908ff0499a94d3088bee1b54c",
+      "dimensions": [
+        1440,
+        1100
+      ],
+      "surface": "complete composed workbench, both Git-backed panes",
+      "scale": 1
+    }
+  ]
+}

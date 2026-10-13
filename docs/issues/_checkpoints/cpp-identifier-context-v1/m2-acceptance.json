@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact Git-backed composed comparison passes 14 declaration/use/macro sites in each pane, Light/Dark formats plus visible raster pixels. All 374 published contrast pairs pass in four built-ins. See m2-focused.json and docs/verification/RFC-BPR-0072.md."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Five fresh OS processes pass legacy stored flags/values, independent namespace/member picker edits in four variants, old/new theme exchange and two restarts. Host defers omitted additive sentinels; explicit unreadable namespace remains rejected. m2-focused.json and m2-core-host.json bind exact candidate."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M1 inputs unchanged, all AC01-AC08 reconciled against immutable RFC_BASE_SHA. Owning appearance/architecture contracts and RFC/index updated; focused integration, format22, tidy and final documentation gate pass. m2-verification.json and m2-documentation.json retain results and scoped broader font-test limitation."
+      }
+    }
+  ]
+}
