@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1450"
 title: "Adopt sha1collisiondetection for every SHA-1 Git identity"
-status: "Blocked"
+status: "Backlog"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"hashing-replacement-r1","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1446--BPR-1453--810e9a5c8803.json"}
-blocked_by: "owner-core-library-approval"
 ---
 
 # BPR-1450: Adopt sha1collisiondetection for every SHA-1 Git identity
