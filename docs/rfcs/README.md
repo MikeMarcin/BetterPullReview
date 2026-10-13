@@ -553,3 +553,12 @@ separate platform/release obligations retain their scope.
 | [RFC-BPR-0076](RFC-BPR-0076-file-change-navigation-enters-review.md) | File and change navigation enters Review | In Progress | — |
 
 | [RFC-BPR-0075](RFC-BPR-0075-title-row-publication.md) | Refresh the review title row when accepted content arrives | Auto-Verified | — |
+
+## Strict CLI account credentials and ordinary publication
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0078](RFC-BPR-0078-strict-cli-account-credentials.md) | Use the chosen GitHub CLI account without credential fallback | Proposed | None |
+| [RFC-BPR-0079](RFC-BPR-0079-remove-cli-publication-warning.md) | Publish through the chosen CLI account without a second warning popup | Proposed | RFC-BPR-0078 |
+
+Owner mandate `strict-cli-publication-r1` selects this order. [Import and provenance](assets/strict-cli-account-publication-v1.LIVE_IMPORT.md); [plan](plans/strict-cli-account-publication-v1/milestone-plan.json). Historical tokenless and per-write-warning evidence retains its original scope.
