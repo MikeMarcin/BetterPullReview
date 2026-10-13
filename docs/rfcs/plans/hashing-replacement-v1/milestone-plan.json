@@ -1,0 +1,125 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "hashing-replacement-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0080"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "hash-evaluation-macos",
+      "outcome": "An opt-in evaluation target measures sha1dc, HACL* SHA-2, CommonCrypto and QCryptographicHash against the core hashes on macOS arm64, and a committed report applies the decision rules per component.",
+      "work": [
+        {
+          "issue": "BPR-1446"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "RFC AC01 for macOS: committed report with raw results, hardware, SHA-extension flags, builds and one adopt, reject or pending decision per component; Q1-Q3 recorded as unanswered.",
+        "RFC AC02 gate and AC03 detection evidence before adoption: CAVP vectors, chunking, seeded differential up to 256 MiB, git hash-object in both formats, trees and commits, the repository sweep and the collision inputs.",
+        "RFC AC04 for macOS: W1-W3 medians of 7 under the RFC conditions, and the window-thread baseline rows.",
+        "Candidates come only from pinned verified archives behind an evaluation-only option; dev, core-only, architecture and documentation checks pass."
+      ],
+      "boundary": "Evaluation only: nothing enters core, third_party, dependencies.json or a package, and no candidate is added to the core link allow-list."
+    },
+    {
+      "id": "host-digest-port-macos",
+      "outcome": "Feedback body digests come from platform crypto behind a host port, off the window thread, on macOS, if the per-site rule passes; otherwise the rejection is recorded.",
+      "work": [
+        {
+          "issue": "BPR-1447"
+        }
+      ],
+      "depends_on": [
+        "hash-evaluation-macos"
+      ],
+      "exit_criteria": [
+        "RFC AC02, AC05 and AC06 for the feedback-body site on macOS, with before-and-after window-thread rows and counters.",
+        "The report records the site's adopt or reject decision."
+      ],
+      "boundary": "One site and one platform backend; other platforms keep the core digest until their station cards measure."
+    },
+    {
+      "id": "station-evaluations",
+      "outcome": "The evaluation runs on the Windows and Linux stations with their platform crypto arms, and the report gains their rows.",
+      "work": [
+        {
+          "issue": "BPR-1448"
+        },
+        {
+          "issue": "BPR-1449"
+        }
+      ],
+      "depends_on": [
+        "hash-evaluation-macos"
+      ],
+      "exit_criteria": [
+        "RFC AC02-AC04 rows for each available station; a missing station is recorded, never inferred.",
+        "Q3 goes to the owner only if the Linux backend passes its rule."
+      ],
+      "boundary": "Native station evidence only; no result is claimed for an unmeasured target."
+    },
+    {
+      "id": "adopt-sha1dc",
+      "outcome": "The owner's Q1 answer is carried out: on Accept every SHA-1 Git identity and fetched-byte verification uses sha1dc and refuses collision inputs; on Reject core keeps first-party SHA-1, hashed block-wise, and the report states the remaining gap.",
+      "work": [
+        {
+          "issue": "BPR-1450"
+        },
+        {
+          "issue": "BPR-1452"
+        }
+      ],
+      "depends_on": [
+        "hash-evaluation-macos"
+      ],
+      "exit_criteria": [
+        "Q1 Accept: RFC AC02, AC03, AC06 and AC07 for sha1dc (BPR-1450).",
+        "Q1 Reject: the RFC's fallback with the remaining gap stated, and the first-party control arm hashing block-wise (BPR-1452)."
+      ],
+      "boundary": "Starts only after the owner answers Q1; only the card matching the answer runs."
+    },
+    {
+      "id": "adopt-hacl-sha2",
+      "outcome": "With Q2 accepted, the core SHA-256 is HACL* generated SHA-2 behind the unchanged stream contract.",
+      "work": [
+        {
+          "issue": "BPR-1451"
+        }
+      ],
+      "depends_on": [
+        "hash-evaluation-macos"
+      ],
+      "exit_criteria": [
+        "RFC AC02, AC06 and AC07 for HACL* SHA-2."
+      ],
+      "boundary": "Starts only after the owner answers Q2 Accept."
+    },
+    {
+      "id": "hashing-closeout",
+      "outcome": "Every RFC criterion is reconciled against the baseline with the owner's answers recorded verbatim.",
+      "work": [
+        {
+          "issue": "BPR-1453"
+        },
+        {
+          "rfc": "RFC-BPR-0080"
+        }
+      ],
+      "depends_on": [
+        "host-digest-port-macos",
+        "station-evaluations",
+        "adopt-sha1dc",
+        "adopt-hacl-sha2"
+      ],
+      "exit_criteria": [
+        "All seven RFC criteria have direct evidence against RFC_BASE_SHA or a recorded owner answer; tracker and architecture text agree."
+      ],
+      "boundary": "Full RFC acceptance; no native, owner or package verdict is inferred."
+    }
+  ],
+  "unplanned_work": []
+}
