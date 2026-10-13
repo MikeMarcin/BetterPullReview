@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1436"
 title: "Share one QProcess supervision between the gh and Git runners, and bound gh's background reap"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"051a17367","evidence":{"kind":"observation","detail":"better_pull_review_process_support (Qt Core only) holds serialized_process_lane and the group wait, kill, resolution, kill-and-reap, background reap and abandonment. The gh runner (1330 to 1152 lines) and the Git runner (7575 to 7384) use it. The architecture document and AGENTS.md record the shared adapter support target.","path":"docs/issues/60-done/BPR-1436-share-qprocess-supervision.md"}},{"criterion":"AC2","outcome":"pass","revision":"051a17367","evidence":{"kind":"observation","detail":"gh background reap is bounded by github_cli_process_max_reap_timeout, then abandons the child and stays quarantined. github_cli_process_runner test_unreapable_child_is_abandoned failed against the restored unbounded loop (destroying the runner did not return) and passes now.","path":"docs/issues/60-done/BPR-1436-share-qprocess-supervision.md"}},{"criterion":"AC3","outcome":"pass","revision":"051a17367","evidence":{"kind":"observation","detail":"The boundary gate designates the support sources as QProcess owners, refuses other layers, launch, environment and Windows containment surfaces there, and pins the lane's quarantine, watchdog and bounded reap. architecture_boundary_contract passes 152 tests, including test_shared_process_supervision_contract. The descriptor and handle-list owner lists are unchanged.","path":"docs/issues/60-done/BPR-1436-share-qprocess-supervision.md"}},{"criterion":"AC4","outcome":"pass","revision":"051a17367","evidence":{"kind":"observation","detail":"Windows blocks in both runners are textually unchanged, and Git's job terminate is kept through the tree-kill parameter. The gh Job Object and windows_agent_process consolidation are listed as follow-ups for the Windows lane. Nothing was compiled for Windows.","path":"docs/issues/60-done/BPR-1436-share-qprocess-supervision.md"}}]
 ---
 
 # Share one QProcess supervision between the gh and Git runners, and bound gh's background reap
