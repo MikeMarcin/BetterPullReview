@@ -1,0 +1,368 @@
+{
+  "schema": "bpr.milestone-engineering-evidence.v1",
+  "run_id": "strict-cli-account-publication-v1",
+  "segment_id": "m3-ordinary",
+  "mandate_revision": "strict-cli-publication-r2",
+  "milestone": "ordinary-cli-publication",
+  "source_root": "/Users/jaeger/.codex/worktrees/22e7/BetterPullReview",
+  "branch": "codex/strict-cli-account-publication",
+  "starting_revision": "4ae67d6b59db79e83bc59eb0550cf7c5f8c9efb0",
+  "product_candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+  "accepted_strict_product": "2793606c5a7785d0b671b81a31f016b401cab1b5",
+  "baseline": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "disposition": "continue-milestone",
+  "card_states": {
+    "BPR-1428": "Done",
+    "BPR-1429": "In Progress"
+  },
+  "commits": [
+    {
+      "revision": "d5401acc08b0d45b1c94be7684a8134c9fb304b3",
+      "subject": "Ready ordinary CLI publication milestone (BPR-1428)"
+    },
+    {
+      "revision": "c1160d36da79653cb05d48b86e8e4b85a8786fce",
+      "subject": "Claim BPR-1428"
+    },
+    {
+      "revision": "a8d6cfdc3fdb99d63fc1bc26552e070cb38f4a70",
+      "subject": "Use ordinary CLI publication with strict exact-operation admission (BPR-1428)"
+    },
+    {
+      "revision": "f74787c110681d11b646046046206be0cc4e0be0",
+      "subject": "Finish BPR-1428"
+    },
+    {
+      "revision": "17180c3de821506f89f62701bd3a9ee7bf1704c9",
+      "subject": "Ready strict CLI connection and failure presentation (BPR-1429)"
+    },
+    {
+      "revision": "62c77773294ee76c67d3af3eb4d1866f2cf871a5",
+      "subject": "Claim BPR-1429"
+    },
+    {
+      "revision": "f4ba6409db94e8fb951483f3d1a2f336ff6e0619",
+      "subject": "Present strict CLI connection and truthful publication failures (BPR-1429)"
+    },
+    {
+      "revision": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "subject": "Conform touched publication callbacks to coding rules"
+    }
+  ],
+  "changed_paths": [
+    "README.md",
+    "docs/architecture/github-host-implementation.md",
+    "docs/architecture/github-provider-contract.md",
+    "docs/architecture/product-contract.md",
+    "docs/architecture/review-round-trip.md",
+    "docs/architecture/security-threat-model.md",
+    "docs/architecture/system-architecture.md",
+    "docs/development/settings.md",
+    "docs/issues/10-backlog/BPR-1428-ordinary-cli-publication-admission.md",
+    "docs/issues/30-in-progress/BPR-1429-strict-cli-connection-and-failure-text.md",
+    "docs/issues/60-done/BPR-1428-ordinary-cli-publication-admission.md",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m3-handoff.md",
+    "docs/verification/RFC-BPR-0079.md",
+    "src/adapters/github/src/gh_cli_transport.cpp",
+    "src/adapters/github/src/github_provider.cpp",
+    "src/adapters/github/src/github_provider.hpp",
+    "src/adapters/github/src/review_mutation_provider_admission.cpp",
+    "src/adapters/github/src/staged_review_session.cpp",
+    "src/adapters/qt/include/bpr/qt/github_cli_consent.hpp",
+    "src/adapters/qt/src/github_cli_consent.cpp",
+    "src/adapters/qt/src/github_presentation_text.hpp",
+    "src/adapters/qt/src/review_draft_editor.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/app/src/review_submission_fixture.cpp",
+    "src/app/src/review_submission_fixture.hpp",
+    "src/app/src/review_submission_workflow.cpp",
+    "src/app/src/review_submission_workflow.hpp",
+    "src/application/include/bpr/application/review_mutation_port.hpp",
+    "src/application/src/review_mutation_contract.cpp",
+    "tests/adapters_qt/CMakeLists.txt",
+    "tests/adapters_qt/composed_github_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/application_review_round_trip_composition_contract.cmake",
+    "tests/end_to_end/cli_publication_course.hpp",
+    "tests/end_to_end/inline_publish_cli_consent_tests.cpp",
+    "tests/end_to_end/review_submission_composition_public_path.cpp",
+    "tests/end_to_end/review_tour_publication_public_path.cpp",
+    "tests/github_contract/gh_cli_transport_tests.cpp",
+    "tests/github_contract/live_review_mutation_provider_tests.cpp",
+    "tests/github_contract/live_review_submission_provider_tests.cpp",
+    "tests/github_contract/staged_review_session_tests.cpp"
+  ],
+  "commands": [
+    {
+      "name": "M3 admission slice focused composition",
+      "candidate": "a8d6cfdc3fdb99d63fc1bc26552e070cb38f4a70",
+      "exit_code": 0,
+      "tests_passed": 6,
+      "duration_seconds": 24.51,
+      "log": "/tmp/bpr-strict-cli-run/m3-slice1-exact.log",
+      "log_sha256": "8f7f626046d74016ea06dd2c946ffda97c0fb8802ce22d57361752389e9794d8"
+    },
+    {
+      "name": "M3 frozen focused integration",
+      "candidate": "f4ba6409db94e8fb951483f3d1a2f336ff6e0619",
+      "exit_code": 0,
+      "tests_passed": 14,
+      "duration_seconds": 52.59,
+      "log": "/tmp/bpr-strict-cli-run/m3-frozen-integration.log",
+      "log_sha256": "e0fd29e3bd70ff17aa866559037a9a0b797a2f47b514b4f0047d9700761e2937"
+    },
+    {
+      "name": "M3 final post-style composed successor",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "tests_passed": 5,
+      "duration_seconds": 26.36,
+      "log": "/tmp/bpr-strict-cli-run/m3-final-successor-composed.log",
+      "log_sha256": "9b9965735b1bc11e1cad1579dfe043b5443a6053c8cf4d777e95cfc58faf2693"
+    },
+    {
+      "name": "M3 final focused build",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-final-successor-build.log",
+      "log_sha256": "3c6bb1fb01dcf9c8e8e035f7972410a045580de33e9b7119f932d76769ad4947"
+    },
+    {
+      "name": "M3 exact clang-format22 touched files",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "files": 27,
+      "log": "/tmp/bpr-strict-cli-run/m3-format-final.log",
+      "log_sha256": "c5a55717e593e51ddcb4766f66237c58dd19045c98c21c423fa92bfd21a01942"
+    },
+    {
+      "name": "Documentation structure",
+      "candidate": "f4ba6409db94e8fb951483f3d1a2f336ff6e0619",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-frozen-docs.log",
+      "log_sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "name": "Documentation verifier contracts",
+      "candidate": "f4ba6409db94e8fb951483f3d1a2f336ff6e0619",
+      "exit_code": 0,
+      "tests_passed": 67,
+      "log": "/tmp/bpr-strict-cli-run/m3-frozen-doc-contracts.log",
+      "log_sha256": "d5cf9d74893a109f11f1ac0233b2438a01f37563f92a79719e7c8fec077db6cf"
+    },
+    {
+      "name": "M3 final offscreen trust",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-render-trust.log",
+      "log_sha256": "f26e0a2b9f9f3a0e0f0a5a13ad7f96b00af37a592b89104f730d85d73ca9353f"
+    },
+    {
+      "name": "M3 final offscreen review",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-render-review.log",
+      "log_sha256": "016c20b20ea13eecf39e957d8239fb391fafe5e9f91e70559686ac26ab8f8662"
+    },
+    {
+      "name": "M3 final offscreen inline",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-render-inline.log",
+      "log_sha256": "97f03ce7981bdb7a839ed0be9c70e5ca9db64fcf740491a8c1525b4b81a9f5ba"
+    },
+    {
+      "name": "M3 final offscreen tour",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-render-tour.log",
+      "log_sha256": "8730fe022d6ac123d36f2181e470839803d34092ae4ca466e4fa46ce61555b48"
+    },
+    {
+      "name": "Initial unfiltered targeted tidy",
+      "candidate": "f4ba6409db94e8fb951483f3d1a2f336ff6e0619",
+      "exit_code": 1,
+      "log": "/tmp/bpr-strict-cli-run/m3-tidy.log",
+      "scope": "Own callback names and duplicate fixture branch fixed by 611c; unrelated pre-existing app/test naming retained.",
+      "log_sha256": "3fab0639f7d8a2345febcc82fc07bf1ebf7e6a6ad38056165686d9eed12118cb"
+    },
+    {
+      "name": "Initial direct changed-line tidy without SDK",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "exit_code": 1,
+      "log": "/tmp/bpr-strict-cli-run/m3-tidy-touched.log",
+      "scope": "Invocation missing macOS SDK; compare/cstddef/atomic lookup failed. Superseded by host-extra-args invocation.",
+      "log_sha256": "105b350c121f170dbe68b89b8bb9b3640716cf5552806d81f5e6fed279c38e7b"
+    },
+    {
+      "name": "Final changed-line tidy with repository host SDK arguments",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "log": "/tmp/bpr-strict-cli-run/m3-tidy-final.log",
+      "result": "/tmp/bpr-strict-cli-run/m3-tidy-final-result.json",
+      "scope": "Changed-line filters for27 touched C++ paths over19 changed translation units; does not claim whole-file tidy acceptance.",
+      "log_sha256": "b19bd863e036ad82e0f79b19319069b5897bc24893e0195fc81c0393e8423d51",
+      "exit_code": 0,
+      "translation_units_passed": 19,
+      "result_sha256": "b96446f4e951f91856f94c590f3509f99e809bdf0634199baa558e220f0ccfea"
+    },
+    {
+      "name": "Final partial handoff documentation structure",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9 plus explicit tracker handoff files",
+      "exit_code": 0,
+      "log": "/tmp/bpr-strict-cli-run/m3-partial-docs-final.log",
+      "log_sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    }
+  ],
+  "offscreen_images": [
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-cli-read-consent-closed.png",
+      "sha256": "5db606dd9146003301a29e50e8ccba5b7fbcdae2874059886ae22e7cb50e97fd",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-cli-read-consent-details.png",
+      "sha256": "1b55a0e6192e783f6737311e7cda1314a47afdba57ad58582f0c11310a6877d5",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-inline-3.png",
+      "sha256": "5922c04bc4eb97c0b74f36faca2c168ee49ade48729d2421e05fb138a9cebc8a",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-review-cancelled.png",
+      "sha256": "b57cac567d665e768183cc4818e25116a3b53af6020151e9ff92b48faae45ffc",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-review-credential_tool_failed.png",
+      "sha256": "28977e68f8338159c337f3c0dcfc71b3ff2c88d742c983aad6ed8e53e4053e13",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-review-credential_unavailable.png",
+      "sha256": "657d90e31e9e1593da7bc21130c8a5ba24aa3c162df75aa4a29e8e224b2e4f0d",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-review-ready.png",
+      "sha256": "a8f037a948452b28ee96baefa98c67cd35fa90b003c94441a31870c91437dd1b",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "generated; same full composition course"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-screen-tour-preview.png",
+      "sha256": "828a4a3debb3d948470ad93a886bda9a87b92cc43401ebdd06af63939af91a5c",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Qt offscreen fixture composition",
+      "inspection": "locally inspected"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-reviewer-settled-inline-3.png",
+      "original": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-critical-inline-106iv40n/settled-inline-3.png",
+      "sha256": "18ada3d3720fa08a359fddc7d3de56430823db2f21562570276229664425b768",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Independent reviewer actual composed probe after900ms event settle",
+      "inspection": "locally inspected; full status readable"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m3-reviewer-settled-unknown-missing.png",
+      "original": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-critical-inline-106iv40n/settled-unknown-missing.png",
+      "sha256": "ee71509e319ace9cc90f2e775eb752d501b65fa075b05042de8783fe6340cdb7",
+      "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+      "source": "Independent reviewer actual composed probe after900ms event settle",
+      "inspection": "locally inspected; full status readable"
+    }
+  ],
+  "review_findings": [
+    {
+      "id": "inline-unknown-acquisition-refusal",
+      "state": "confirmed blocking P1; final critical receipt consumed; repair and recheck required",
+      "source": "Coordinator conveyed independent source proof at frozen611c on2026-10-13",
+      "description": "At frozen611c independent reviewer reproduces: ambiguous/lost inline POST posts1/stored1; named credential_unavailable then Retry yields Not published, drafting/editable1/retry0; restoring credential and Add single comment yields posts2/stored2. Preflight refuses before loading recovery, and M3 definite failure classification clears unknown/editable state. Fix the earlier coordinator path plus session precedence, preserving exact ambiguous publication identity/draft and GET-only reconciliation across refusal. Session-only correction is insufficient. Existing lost_then_retried keeps acquisition successful and fresh failure tests do not cover this transition."
+    },
+    {
+      "id": "inline-actionable-status-clipping",
+      "state": "nonblocking evidence timing; settled images supplied and inspected; no layout defect proven",
+      "source": "m3-screen-inline-3.png offscreen inspection and coordinator",
+      "description": "Initial image was premature; reviewer waited900ms with events then captured full readable status. Supplied settled-inline-3.png and settled-unknown-missing.png now bound, copied to /tmp/bpr-strict-cli-run/m3-reviewer-* and inspected. No speculative layout rewrite is required."
+    }
+  ],
+  "acceptance_scope": {
+    "passed_engineering": [
+      "Ordinary CLI whole review dispositions, inline and tour gesture courses show zero extra publication modal.",
+      "Runtime non-strict capability and frozen summary controls refuse writes; native/default fixture regression rows remain passing.",
+      "Fresh unavailable/tool/cancel statuses retain drafts and bind exact failed account/host; whole unknown uses GET-only recovery.",
+      "Partial tour unavailable Resume preserves prior staged work and requires a new preview; successful writes are not reposted.",
+      "Neutral chosen account/server question, no-choice Connect refusal, details and focused Qt mechanics pass."
+    ],
+    "required_pending": [
+      "BPR-1429 AC02 preserve inline unknown outcome across named acquisition refusal and prevent second POST",
+      "BPR-1429 AC03 preserve the ambiguous inline draft identity/editability/retry state across that same refusal",
+      "ordinary-cli-publication exit3 acceptance",
+      "Blocking P1 repair on new candidate and independent recheck; final critical receipt supplied at611c",
+      "Fresh M3 repair owner and affected composed regression on new immutable candidate",
+      "M4/BPR-1430 companion full AC01-AC05 qualification and any required owner judgment"
+    ]
+  },
+  "limits": [
+    "Fixtures use designated closed grant/capability/acquisition seams; tests-on production grants remain denied.",
+    "No new stock-gh full-Qt native publication, live token call or GitHub mutation. Reuse unchanged M2 native/identity/lifetime evidence with its original limits.",
+    "Offscreen demonstrates fixture layout/mechanics, not Cocoa appearance, VoiceOver or owner acceptance.",
+    "CLI tour native attribution-after-completed-restart fixture course was not claimed; separate unchanged native row passes.",
+    "Unfiltered whole-file tidy had unrelated pre-existing naming diagnostics; final scoped gate does not certify those older lines."
+  ],
+  "main": {
+    "landed_strict_revision": "fd01bc16afb37798162587e254bcbdb9f1fef596",
+    "terminal_metadata_revision": "15a06fa2fbcacee6f28e00c15f5627a891f0cf7a",
+    "landing_receipt": "/tmp/bpr-strict-main-landing.json",
+    "preservation_receipt": "/tmp/bpr-strict-cli-run/m3-main-status-preservation.json",
+    "protected_hashes_unchanged": 42,
+    "writer_window": "released",
+    "popup_integration": "not ready; no M3 import"
+  },
+  "ownership": {
+    "product": "released for fresh post-review M3 repair owner; immutable611c preserved",
+    "card_BPR_1429": "released In Progress with all AC02/AC03 obligations retained",
+    "commands": "quiescent; all task-owned build/test/render/app/tidy commands terminal",
+    "review_server": null,
+    "next": "Fresh post-review M3 repair owner; critical P1 correction and affected composition, then new independent recheck and M4 qualification."
+  },
+  "review_receipt": {
+    "path": "/tmp/bpr-strict-cli-run/critical-m3-review.md",
+    "sha256": "1be29f8f9f88a89884a8d4acc04c1b3981b5ac8e85f0d19e054c56c831df5295",
+    "candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+    "outcome": "one reproduced blocking P1 RFC0079 AC03; popup acceptance pending repair/recheck",
+    "probe_root": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-critical-inline-106iv40n",
+    "probe_source_sha256": "9f2c422130232dde9b0006ba47235d3a66f9d1b53c7c210e170d8a6d75901f64",
+    "probe_artifacts": [
+      {
+        "path": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-critical-inline-106iv40n/probe.cpp",
+        "sha256": "9f2c422130232dde9b0006ba47235d3a66f9d1b53c7c210e170d8a6d75901f64"
+      },
+      {
+        "path": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-critical-inline-106iv40n/binding.json",
+        "sha256": "be90210b47bb8498f00582cb41926a1b94ccf63e70445a0488ecba2cdec2b48e"
+      },
+      {
+        "path": "/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-critical-inline-106iv40n/lost-then-retried.log",
+        "sha256": "bc8b1278dd0db06e1512a194e15ca90104cf4968daaa4858224c827349f33df6"
+      }
+    ]
+  }
+}
