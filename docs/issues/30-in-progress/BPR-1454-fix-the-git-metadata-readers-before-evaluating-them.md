@@ -17,17 +17,17 @@ Immediate fixes 1–7 of [RFC-BPR-0083](../../rfcs/RFC-BPR-0083-git-metadata-rea
 and not gated by the evaluation. They restore RFC-BPR-0054's "truthful handling
 rather than a lossy fallback" for the divergences observed on 2026-10-13.
 
-**Excluded, waiting for the owner's Q2:** the reftable part of fix 1. A checkout
-with `extensions.refStorage = reftable` is detected and named by the reader, but
-its handling (refuse, refuse indefinitely, or capture with a marker) is not
-chosen here; [[BPR-1461]] owns it.
+**Reftable:** the owner answered Q2 with option (a) on 2026-10-13, so fix 1
+refuses a checkout with `extensions.refStorage = reftable` with its own named
+reason. Whether to read reftable is C3's evaluation; [[BPR-1461]] records AC07's
+refusal evidence.
 
 Platforms: the change is portable and its tests run in every preset. This card is
 verified on macOS; [[BPR-1462]] and [[BPR-1463]] record the Windows and Linux runs.
 
 ## Acceptance criteria
 
-- **BPR-1454:AC1:** Capture and reference resolution read `core.repositoryformatversion` and every `extensions.*` key with Git's rules and refuse as `unsupported`, with a named reason, a version above 1, an unknown extension in a version-1 repository, a version-1-only extension in a version-0 repository, and an unrecognised `objectFormat` or `refStorage` value. The allowlist is confirmed against Git's documentation and setup code; `refStorage = reftable` is reported, not refused, pending Q2.
+- **BPR-1454:AC1:** Capture and reference resolution read `core.repositoryformatversion` and every `extensions.*` key with Git's rules and refuse as `unsupported`, with a named reason, a version above 1, an unknown extension in a version-1 repository, a version-1-only extension in a version-0 repository, an unrecognised `objectFormat` or `refStorage` value, and `refStorage = reftable` (owner's Q2 answer (a), 2026-10-13). The allowlist is confirmed against Git's documentation and setup code.
 - **BPR-1454:AC2:** The keys the readers use are parsed with Git's config syntax: sections, subsections, case rules, quotes, escapes, inline `#` and `;` comments and continuation lines; a config Git refuses to read is refused. Includes stay unread.
 - **BPR-1454:AC3:** `core.ignoreCase` from the repository config (and `config.worktree` under `extensions.worktreeConfig`) folds case in ignore and `filter` attribute matching the way Git's wildmatch does.
 - **BPR-1454:AC4:** The twelve POSIX bracket classes match as in Git, and an unknown class or unterminated bracket makes the pattern match nothing.

@@ -19,14 +19,14 @@ groups the cards:
 
 | Card | Scope |
 |---|---|
-| [[BPR-1454]] | Immediate fixes 1–7 against RFC-BPR-0054, except the reftable part of fix 1 |
+| [[BPR-1454]] | Immediate fixes 1–7 against RFC-BPR-0054 |
 | [[BPR-1455]] | Differential harness against an isolated Git oracle (AC01, AC02 for K) |
 | [[BPR-1456]] | Extended canary and containment course on macOS (AC03) |
 | [[BPR-1457]] | Fuzz oracles, adversarial timing and the 250,000-entry bench (AC04) |
 | [[BPR-1458]] | libgit2 (L) behind an evaluation-only option, on macOS (AC02, AC03, AC05) |
 | [[BPR-1459]] | Vendored pieces (V) and gitoxide (G) desk checks and cost records (AC05) |
 | [[BPR-1460]] | The decision record (AC06) |
-| [[BPR-1461]] | A reftable checkout as the owner decides under Q2 (AC07) |
+| [[BPR-1461]] | A reftable checkout refused under the owner's Q2 answer (AC07) |
 | [[BPR-1462]] | Windows harness, canary and cost measurements |
 | [[BPR-1463]] | Linux harness, canary and cost measurements |
 | [[BPR-1464]] | Verify and close this RFC |
@@ -35,10 +35,11 @@ groups the cards:
 owner-approved pinned pure libraries glaze, utf8proc, zlib and fmt, and any other
 third-party code vendored into core needs the owner's explicit approval for that
 code ([AGENTS.md](../../AGENTS.md)). A vendored matcher or reftable reader in core
-is therefore eligible only pending that approval. Q2 (how a reftable checkout is
-handled) and Q3 (a GPL-2.0 dependency with a linking exception) are open. The
-reftable part of fix 1, C3's reftable capability and AC07 wait for Q2; nothing in
-this RFC picks a Q2 option.
+is therefore eligible only pending that approval. **Q2 was answered on
+2026-10-13: option (a).** A reftable checkout is refused now under fix 1, with
+its own named reason, and whether to read reftable is decided later under C3 by
+this evaluation. Q3 (a GPL-2.0 dependency with a linking exception) is open and
+is asked only if L passes H1–H3, H5 and H6 for some component.
 
 ## Problem and grounded current behavior
 
@@ -340,7 +341,8 @@ workspace adapter's description.
   ([BPR-1431](../issues/_reservations/BPR-1431--BPR-1431--e2ce4383ccc3.json))
   meets the same boundary. Until Q1 is answered, vendored code may only be
   measured as a test-only oracle or behind an adapter port.
-- **Q2: how should a reftable checkout be handled?**
+- **Q2: how should a reftable checkout be handled?** *Answered by the owner on
+  2026-10-13: (a).*
   - (a) Refuse it now under fix 1 and decide whether to read it under C3.
     Recommended: it needs no manifest change, and reading reftable becomes
     necessary as Git 3.0 approaches.

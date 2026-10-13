@@ -599,4 +599,4 @@ Mandate `diff-engine-evaluation-r1` adopts RFC-DRAFT-0018. [Import and provenanc
 |---|---|---|---|
 | [RFC-BPR-0083](RFC-BPR-0083-git-metadata-readers.md) | Evaluate replacements for the hand-written Git metadata readers | In Progress | RFC-BPR-0054 |
 
-Mandate `git-metadata-readers-r1` adopts RFC-DRAFT-0019. [Import and provenance](assets/git-metadata-readers-v1.LIVE_IMPORT.md); [plan](plans/git-metadata-readers-v1/milestone-plan.json). Q2 and Q3 are unanswered owner questions.
+Mandate `git-metadata-readers-r1` adopts RFC-DRAFT-0019. [Import and provenance](assets/git-metadata-readers-v1.LIVE_IMPORT.md); [plan](plans/git-metadata-readers-v1/milestone-plan.json). The owner answered Q2 (a) on 2026-10-13; Q3 is unanswered.
