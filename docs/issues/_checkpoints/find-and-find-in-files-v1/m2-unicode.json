@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-Unicode-provenance",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"build/m2_unicode_verify.py\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.214,
+    "stdout_tail": "Unicode 17 archive inputs verified; generated/formatted tables byte-identical; altered input refused; temporary copies removed\n",
+    "stderr_tail": ""
+  }
+}

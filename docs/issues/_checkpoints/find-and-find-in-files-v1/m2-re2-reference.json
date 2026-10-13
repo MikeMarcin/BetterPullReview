@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-RE2-reference",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"env\", \"PYTHONPATH=build/m2-re2-reference\", \"python3\", \"tests/scripts/source_matcher_reference_tests.py\", \"build/core-only/tests/core/source_matcher\", \"--re2\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.158,
+    "stdout_tail": "source matcher re2 reference: 4891 exact span comparisons passed\n",
+    "stderr_tail": ""
+  }
+}

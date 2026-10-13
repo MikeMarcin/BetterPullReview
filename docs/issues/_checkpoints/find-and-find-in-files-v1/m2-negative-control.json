@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-span-negative-control",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"build/m2_negative_control.py\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.164,
+    "stdout_tail": "CRLF mapping negative control: rejected (exit 1)\nspan mismatch for a\nb: 0,3 4,7 8,11\nDisposable mutant source, object and executable removed; candidate unchanged\n",
+    "stderr_tail": ""
+  }
+}

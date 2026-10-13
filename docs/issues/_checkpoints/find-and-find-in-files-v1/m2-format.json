@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-format",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/core/include/bpr/core/source_search.hpp\", \"src/core/include/bpr/core/source_matcher.hpp\", \"src/core/src/source_search.cpp\", \"src/core/src/source_match_compile.cpp\", \"src/core/src/source_match_scan.cpp\", \"src/core/src/source_match_entry.cpp\", \"src/core/src/source_path_filter.cpp\", \"src/core/src/source_matcher_internal.hpp\", \"src/core/src/source_search_unicode_data.hpp\", \"src/application/include/bpr/application/source_search_host.hpp\", \"src/application/src/source_search_host.cpp\", \"src/application/src/source_match_execution.cpp\", \"tests/core/source_matcher_tests.cpp\", \"tests/application/source_search_host_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.575,
+    "stdout_tail": "Checking 14 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/application/include/bpr/application/source_search_host.hpp\nsrc/application/src/source_match_execution.cpp\nsrc/application/src/source_search_host.cpp\nsrc/core/include/bpr/core/source_matcher.hpp\nsrc/core/include/bpr/core/source_search.hpp\nsrc/core/src/source_match_compile.cpp\nsrc/core/src/source_match_entry.cpp\nsrc/core/src/source_match_scan.cpp\nsrc/core/src/source_matcher_internal.hpp\nsrc/core/src/source_path_filter.cpp\nsrc/core/src/source_search.cpp\nsrc/core/src/source_search_unicode_data.hpp\ntests/application/source_search_host_tests.cpp\ntests/core/source_matcher_tests.cpp\n",
+    "stderr_tail": ""
+  }
+}

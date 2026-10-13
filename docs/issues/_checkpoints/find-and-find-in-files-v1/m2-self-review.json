@@ -1,0 +1,71 @@
+{
+  "schema": "bpr.find.self-review.v1",
+  "milestone": "shared-matching",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "candidate_revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "independent_review": false,
+  "findings": [
+    {
+      "risk": "Prioritized epsilon closure and nullable repeat preference",
+      "disposition": "Corrected separate closure generations and nullable-star optional-plus compilation; 4891 exact span cases pass actual RE2."
+    },
+    {
+      "risk": "Whitespace-equal unified rows display right source only",
+      "disposition": "Build actual left contiguous represented ranges; hidden left whitespace and multiline crossing it are refused. Source versions are never concatenated."
+    },
+    {
+      "risk": "Logical LF vs original CRLF span identity",
+      "disposition": "Boundary map and scalar guards tested; removing original mapping in a disposable source/object makes exact spans fail, exit 1."
+    },
+    {
+      "risk": "Result data publication and selection identity",
+      "disposition": "Stale records clear synchronously; malformed/oversized/wrong-blob payloads refused off-lane; fixed selection is part of exact request scope and never moves during traversal."
+    },
+    {
+      "risk": "Resource admission and long-line navigation",
+      "disposition": "Compile/scan/preview/result capacities and counted work explicit; sparse scalar checkpoints bound columns; stops tested before compile and during regex execution after source preparation."
+    }
+  ],
+  "development_failures": [
+    {
+      "kind": "fixture",
+      "detail": "First whole-word fixture expected 29:32; correct source bytes are 27:30; fixed expectation."
+    },
+    {
+      "kind": "fixture",
+      "detail": "CRLF-only changes are changed rows in existing diff policy; unified expectation now separates unchanged dedup from line-ending span mapping."
+    },
+    {
+      "kind": "reference",
+      "detail": "Nullable-repeat priority mismatch corrected against actual RE2; Python differs after consuming an empty-capable loop, so those cases use RE2."
+    },
+    {
+      "kind": "build",
+      "detail": "Temporary scan overload ambiguity while adding internal ranges corrected before candidate commit."
+    },
+    {
+      "kind": "tidy",
+      "detail": "Duplicate conditional branch combined; touched nine-TU final tidy passes."
+    },
+    {
+      "kind": "tool",
+      "detail": "Initial obsolete Unicode zipped URL returned 404; exact 17.0.0/ucd/UCD.zip fetched and checked against both generator inputs."
+    }
+  ],
+  "negative_control_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-negative-control.json",
+  "unicode_notice_sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+  "re2_reference": {
+    "package": "google-re2",
+    "version": "1.1.20251105",
+    "platform": "macOS arm64 cp314",
+    "use": "disposable test oracle only, never product dependency",
+    "module_sha256": {
+      "_re2.cpython-314-darwin.so": "88f8974f31d2b97d025767debece9731f16ec0c655131495a8b2da2a6719b9f1"
+    }
+  },
+  "scope_limits": [
+    "No shipped Find action, corpus/acquisition, native UI, installed-package, human or whole-RFC acceptance.",
+    "M1 full core-only failed 269/272 remains retained; not rerun or hidden.",
+    "Full PR aggregate cache/result budgets, batching/progress and warm/cold performance remain later milestones."
+  ]
+}

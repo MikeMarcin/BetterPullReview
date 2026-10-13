@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-structural-measurement",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/core-only/tests/core/source_matcher\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.134,
+    "stdout_tail": "source_matcher: state_bytes=1592 large_bytes=1048582 steps=3145833 peak_owned_bound=34781751\n",
+    "stderr_tail": ""
+  }
+}

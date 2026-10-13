@@ -1,0 +1,136 @@
+{
+  "run_id": "find-and-find-in-files-v1",
+  "segment_id": "coordinator-implementer-001",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "shared-matching",
+  "binding": {
+    "plan_id": "find-and-find-in-files-v1",
+    "plan_path": "docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+    "milestone_id": "shared-matching",
+    "definition_fingerprint": "sha256:004c7ff85ddea1291923b262161b1d56f5fe5a0fc119225f657fbf57ef418bec",
+    "obligations": [
+      {
+        "id": "BPR-1420:*",
+        "source": "BPR-1420",
+        "selector": null,
+        "source_fingerprint": "sha256:cfc055661bd500aa46cbb68d8e454c9bad5f876e5b976cf6dfb9a23b7ebb61cc"
+      }
+    ],
+    "obligation_fingerprint": "sha256:cbacd6f4479637c5cc858ef7b456b141b69796d1b5fdb0c7fa93ee3f25c1d8e8",
+    "exit_criteria": [
+      {
+        "id": "shared-matching:exit:1",
+        "text": "Both commands share deterministic literal and bounded RE2-subset semantics: Unicode simple fold, Unicode word characters, nonoverlap, zero-width progress, multiline LF view and exact original UTF-8 spans."
+      },
+      {
+        "id": "shared-matching:exit:2",
+        "text": "Include/exclude glob parsing follows comma/braces/classes/escaping and either-side include/exclude-wins rules; invalid patterns are refused before reads."
+      },
+      {
+        "id": "shared-matching:exit:3",
+        "text": "Unified scanning follows actual version-contiguous source ranges, removes duplicate unchanged hits and cannot fabricate cross-version multiline matches; identical-blob same-entry deduplication is exact."
+      },
+      {
+        "id": "shared-matching:exit:4",
+        "text": "Compile, scan, preview and result memory have explicit ceilings and cancellable bounded work; source-span tests need no QApplication."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:b60ad359dde0edb7401a80967ee66f9bfcbd26453bdfc87fb96c0be3a127c7ff",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "continue-milestone",
+  "candidate_revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1420:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+      ]
+    },
+    {
+      "id": "shared-matching:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+      ]
+    },
+    {
+      "id": "shared-matching:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+      ]
+    },
+    {
+      "id": "shared-matching:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+      ]
+    },
+    {
+      "id": "shared-matching:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "continue",
+    "next_milestone": "shared-matching",
+    "reason": "engineering-progress",
+    "detail": "All product exits verified at c88131c9d; final acceptance/board upkeep is in progress."
+  },
+  "ownership": "active"
+}

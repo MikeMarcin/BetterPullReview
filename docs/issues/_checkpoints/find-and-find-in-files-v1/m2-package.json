@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-package-notices",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"tests/scripts/package_runtime_tests.py\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.185,
+    "stdout_tail": "",
+    "stderr_tail": ".....s.............\n======================================================================\n1 case was not checked (CTEST_FULL_OUTPUT keeps this list in CTest's report):\nSKIPPED: package_runtime_tests.PackageRuntimeTests.test_linux_cpack_default_matches_native_baseline: the Linux CPack definition requires its native producer; run on Linux\n----------------------------------------------------------------------\nRan 19 tests in 0.052s\n\nOK (skipped=1)\n"
+  }
+}

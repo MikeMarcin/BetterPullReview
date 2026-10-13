@@ -19,6 +19,7 @@ header and acquire no Unicode dependency.
 
 The complete [Unicode-3.0 notice](LICENSE.txt) was obtained from
 [Unicode's license](https://www.unicode.org/license.txt) on 2026-10-13 and is
-included in `package_runtime.NOTICE_FILES`. The release dependency inventory
+included in `package_runtime.NOTICE_FILES`. Its retained SHA-256 is
+`e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96`. The release dependency inventory
 binds the pinned UCD archive for SPDX and the separate corresponding-source asset.
 This upkeep does not qualify or publish a release.

@@ -67,6 +67,69 @@ The required frontend-design skill was located and read at
 M1 changes no native UI. Later UI work must retain the RFC's inherited palette,
 native UI font, configured source font and native control constraints.
 
+## M2 candidate and scope
+
+[[BPR-1420]] supplies the shared core matcher, path filters, actual-version
+unified plan and exact-record pane/host completion. Product/ownership-document
+candidate is `c88131c9d0ca331da95eab1d701de718ef557f9e` under the unchanged
+run/segment/mandate. The [source-search contract](../architecture/source-search.md)
+documents the deliberately supported RE2 subset and its Unicode 17 provenance.
+No new runtime dependency or source-cache acquisition is added to core-only.
+
+The compact state is 1,592 bytes, including fixed single-side selection bounds.
+The matcher has a 64 MiB owned-storage reservation and 16 MiB result/preview
+ceiling, 8,192 instructions, 64 nesting levels, 1,000 counted repetitions,
+1,048,576 compile steps and 134,217,728 entry-scan steps. Callers may tighten
+limits only. Initial/1,024-step stop polling covers compilation, preparation,
+regex execution and result assembly. A public 1,048,582-byte long-line fixture
+uses 3,145,833 counted steps with a conservative 34,781,751-byte owned bound.
+This is capacity/work evidence, not RSS, cold acquisition or full AC08 timing.
+
+Exact source tests cover Unicode simple folding without normalization or
+multi-scalar expansion, Unicode Whole Word, LF-to-original CRLF spans, nonoverlap,
+terminal scalar progress, greedy/lazy/group/alternation/class/flag semantics,
+invalid/unsupported input and fixed selection. A disposable official RE2
+`google-re2` 1.1.20251105 oracle passes 4,891 exact span comparisons. The portable
+Python subset excludes nullable-loop priority cases on which Python and RE2
+differ; those cases are checked against RE2 itself. No external regex engine is
+linked into BPR. [Self-review](../issues/_checkpoints/find-and-find-in-files-v1/m2-self-review.json)
+retains the corrected priority and source-plan findings, actual development
+failures and reference-module/notice fingerprints.
+
+Path tests cover nested braces, commas inside classes, literal escaping,
+Unicode wildcards, basename/root anchoring, globstar zero/multiple directories,
+either rename side and exclude wins. Path evaluation retains resource refusal
+as a typed decision. Unified tests use the existing validated semantic index,
+keep actual versions separate, merge exact unchanged occurrences and omit
+left text hidden by whitespace-equal right rows. Different PR blobs remain
+separate; identical same-entry blobs/bytes scan once and retain both locations.
+
+The public pane worker/host path accepts exact original records only through
+its serialized current completion. Invalid regex, wrong blobs, oversized or
+location-free payloads and stale generations cannot retain current records.
+1,000 traversals share the same collection and call no matcher. Fixed selection
+remains in exact request identity. The CRLF negative control removes the span
+mapping in a disposable compiled object; the public test then fails with a
+span mismatch and exit 1. The candidate source is unchanged and the mutant is
+removed. [Unicode regeneration](../issues/_checkpoints/find-and-find-in-files-v1/m2-unicode.json)
+is byte-identical after format 22, verifies both inputs against the pinned UCD
+archive, and rejects altered input.
+
+Candidate evidence:
+
+- [Core-only build](../issues/_checkpoints/find-and-find-in-files-v1/m2-core-build.json).
+- [Scoped core/host and both architecture checks](../issues/_checkpoints/find-and-find-in-files-v1/m2-scoped-integration.json).
+- [Format 22](../issues/_checkpoints/find-and-find-in-files-v1/m2-format.json) and [nine-TU tidy 22](../issues/_checkpoints/find-and-find-in-files-v1/m2-tidy.json).
+- [Actual RE2 reference](../issues/_checkpoints/find-and-find-in-files-v1/m2-re2-reference.json), [negative control](../issues/_checkpoints/find-and-find-in-files-v1/m2-negative-control.json) and [structural measurement](../issues/_checkpoints/find-and-find-in-files-v1/m2-measurement.json).
+- [Package notice/inventory regression](../issues/_checkpoints/find-and-find-in-files-v1/m2-package.json): 19 tests, one explicitly skipped native-Linux CPack case; no release/native qualification follows.
+- [Documentation gate](../issues/_checkpoints/find-and-find-in-files-v1/m2-documentation.json) and [67 documentation regressions](../issues/_checkpoints/find-and-find-in-files-v1/m2-documentation-tests.json).
+
+M2 changes no UX or rendering, requires no attended decision and holds no review
+server/candidate. Full source acquisition, aggregate corpus/cache/result budgets,
+batched progress, command/UI/reveal composition and warm/cold public-path performance
+remain later milestones. The failed M1 269/272 full-core result remains retained
+above; the exhaustive suite was not rerun and no broad passing claim replaces it.
+
 ## Whole-RFC acceptance remains pending
 
 | Criterion | State | Remaining evidence |

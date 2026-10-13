@@ -1,0 +1,20 @@
+{
+  "milestone": "shared-matching",
+  "candidate": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "writer": "M2 leaf; product work stopped, bookkeeping active",
+  "active_commands": [],
+  "background_descendants": [],
+  "review_server": null,
+  "protected_candidates": [],
+  "completed": [
+    "core-only build",
+    "six-case scoped integration",
+    "touched format/tidy 22",
+    "RE2 reference",
+    "Unicode regeneration/tamper refusal",
+    "CRLF mutation negative control",
+    "package notices",
+    "documentation gate and regressions"
+  ],
+  "cleanup": "Disposable mutant removed; task oracle/UCD/scripts pending cleanup before final handoff"
+}

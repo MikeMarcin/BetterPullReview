@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-scoped-integration",
+  "outcome": "pass",
+  "revision": "c88131c9d0ca331da95eab1d701de718ef557f9e",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"core-only\", \"-R\", \"^(core_source_matcher.*|core_source_search_policy|application_source_search_host|architecture_boundaries|architecture_boundary_contract)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 117.591,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/core-only\n    Start   4: architecture_boundaries\n1/6 Test   #4: architecture_boundaries ..........   Passed   10.49 sec\n    Start   5: architecture_boundary_contract\n2/6 Test   #5: architecture_boundary_contract ...   Passed  106.35 sec\n    Start 162: core_source_search_policy\n3/6 Test #162: core_source_search_policy ........   Passed    0.36 sec\n    Start 163: core_source_matcher\n4/6 Test #163: core_source_matcher ..............   Passed    0.19 sec\n    Start 164: core_source_matcher_reference\n5/6 Test #164: core_source_matcher_reference ....   Passed    0.13 sec\n    Start 216: application_source_search_host\n6/6 Test #216: application_source_search_host ...   Passed    0.05 sec\n\n100% tests passed out of 6\n\nLabel Time Summary:\nbpr_network_isolated    = 117.57 sec*proc (6 tests)\n\nTotal Test time (real) = 117.58 sec\n",
+    "stderr_tail": ""
+  }
+}

@@ -49,25 +49,32 @@ provider test. The first two reproduce on an exact main export; failing inputs
 are byte-identical to adopted main. No external repairs or global passing claim
 were made. The scoped four-case result is separate from that full-suite result.
 
-## Next engineering owner
+## Accepted M2 and next engineering owner
 
-Start fresh on `shared-matching`, [[BPR-1420]], now Ready; bind with accepted
-milestone `search-session-policy` and claim before editing. Follow the
-[whole-pack plan](../../../rfcs/plans/find-and-find-in-files-v1/milestone-plan.json).
-The remaining outcomes are shared matching, exact PR corpus, pane Find, then
-composed PR Search plus qualification/closeout. All original AC01–AC08 remain
-Pending. The final card retains their complete text.
+`shared-matching`, [[BPR-1420]], completes on product/ownership-document candidate
+`c88131c9d0ca331da95eab1d701de718ef557f9e`; the acceptance/finish commit is recorded
+in [m2-return.json](m2-return.json). [Acceptance](m2-acceptance.json),
+[scoped integration](m2-scoped-integration.json), [self-review](m2-self-review.json)
+and the [ledger](../../../verification/RFC-BPR-0077.md) bind the unchanged mandate.
+All four M2 exits pass. Core state is 1,592 bytes after fixed selection identity;
+text, programs and results remain outside it. Exact pane records reach the
+serialized acceptance boundary; traversal shares the same immutable collection.
 
-Read [source-search ownership](../../../architecture/source-search.md). The
-execution port currently returns terminal coverage/count facts. M2 must add
-real exact records, matcher execution and appropriate progress while retaining
-compact core state, generation acceptance and exactly-one terminal accounting.
-Current input inspection checks byte size and UTF-8 only; it implements no
-literal/regex matching, word/fold rules, LF-to-original span mapping, path glob,
-unified source plan or deduplication. Scope has exact pane blobs/digest but no
-Find-in-Selection range yet. Those are engineering work inside M2's acceptance.
-M3 still owns catalogue acquisition, exact epoch actors and aggregate resource
-budgets; the application has no Find action or native UI from M1.
+Start a fresh owner on `exact-pr-corpus`, [[BPR-1421]], bind accepted milestones
+`search-session-policy` and `shared-matching`, and claim before editing. Follow
+[the authored plan](../../../rfcs/plans/find-and-find-in-files-v1/milestone-plan.json).
+All original AC01–AC08 remain Pending. The final card retains their complete text.
+
+The core public API is `source_matcher.hpp`: compile once, evaluate path filters
+before acquisition, stream exact ordered entries through `match_source_entry`,
+and preserve its qualified limits. A PR execution returns `source_search_execution`
+with exact records/counts, under the existing request identity. M3 still owns exact
+historical catalogue membership, epoch actors/acquisition, immutable read coalescing,
+aggregate corpus/cache/results admission, 128-result batching, coalesced progress
+and navigation priority. M2's 64 MiB per-entry reservation is not proof of that
+complete aggregate. Existing source/diff caches were not enlarged. No source
+acquisition, shipped Find action, Qt command/highlight/reveal, cold measurement or
+native/human acceptance is inferred from M2. Review interpretation is not pending.
 
 The required frontend-design skill is available at
 `/Users/jaeger/.claude/plugins/cache/claude-plugins-official/frontend-design/f359d43b4060/skills/frontend-design/SKILL.md`.
@@ -92,19 +99,12 @@ The M1 engineering writer is released at handoff. Any final checkpoint-only
 commit changes no tested product bytes; candidate identity and later tracker
 revision are kept distinct in the return record.
 
-## M2 engineering frontier
+## M2 final ownership and command state
 
-`shared-matching`, [[BPR-1420]], is claimed at `945562593` in this same lane.
-[m2-binding.json](m2-binding.json) binds the preserved run/segment/mandate and
-accepted M1. The M2 engineering writer owns this worktree exclusively and has no
-agent descendants. No main checkout, live desktop, remote repository or source
-tracker counter was changed.
-
-The shared core compiler/scanner, Unicode 17 tables, path policy, actual-version
-unified plan and application exact-record completion are implemented. Public
-matcher/host and reference checks pass. Self-review corrected nullable repetition
-priority against actual RE2 and suppressed left text hidden by whitespace-equal
-right rows. A CRLF mapping negative control fails the same exact-span assertion.
-The next action is final candidate integration/gates, acceptance and explicit-path
-card finish, then release the writer at the M2 boundary. Original AC01–AC08 stay
-Pending; the corpus/cache, UI and full qualification work is unchanged.
+The M2 writer is released at handoff. [Command state](m2-command-state.json) lists
+completed build, scoped integration, format/tidy, reference, mutation and documentation
+commands. No descendants, protected/frozen candidates, review server, live desktop,
+main writes, remote mutation or push exist. Task-owned oracle/UCD copies and diagnostic
+scripts were removed after receipts; the shared core-only build is retained for M3.
+Any final checkpoint-only commit changes no tested product bytes. Product identity
+and later tracker revision are kept distinct in the return record.
