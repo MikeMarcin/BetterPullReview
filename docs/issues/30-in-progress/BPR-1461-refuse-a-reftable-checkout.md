@@ -29,4 +29,6 @@ then succeeded with an empty `HeadCommit` that looked like an unborn branch.
 
 ## Continuation
 
-Unblocked 2026-10-13 by the owner's Q2 answer (a).
+Done on `ae60c0250` (macOS, Git 2.50.1) with [[BPR-1454]]; evidence in the
+[verification ledger](../../verification/RFC-BPR-0083.md). Reading reftable stays
+with C3's evaluation in [[BPR-1460]].
