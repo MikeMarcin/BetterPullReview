@@ -79,6 +79,10 @@ namespace bpr::app {
 		{
 		}
 
+		[[nodiscard]] auto strict_cli() const noexcept -> bool override { return true; }
+		[[nodiscard]] auto begin_operation(std::stop_token aStop) -> adapters::github::detail::github_wire_operation override { return Transport.begin_operation(aStop); }
+		[[nodiscard]] auto begin_mutation_operation(std::stop_token aStop) -> adapters::github::detail::github_mutation_operation override { return Transport.begin_mutation_operation(aStop); }
+
 		auto acquire(const application::git_smart_request_context& aContext)
 			-> application::git_smart_transport_result<application::git_smart_transport> override
 		{
@@ -175,7 +179,8 @@ namespace bpr::app {
 				} };
 			};
 			if (aProfile.authentication_transport()
-				!= application::github_authentication_transport::github_cli) {
+					!= application::github_authentication_transport::github_cli
+				|| aProfile.cli_account_login().empty()) {
 				return unavailable();
 			}
 			try {

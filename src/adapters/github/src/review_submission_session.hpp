@@ -54,7 +54,7 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto verify_staged(const application::staged_publication_record& aRecord, std::stop_token aStop) -> bool;
 		[[nodiscard]] auto execute_tour(const application::staged_review_plan& aPlan, std::stop_token aStop, bool aWrite, application::staged_child_authorizer aAuthorize = { }) -> application::staged_publication_result;
 
-		github_mutation_wire_transport&                               Transport;
+		github_mutation_wire_transport*                               Transport;
 		const live_review_mutation_configuration                      Configuration;
 		application::review_mutation_transport                        Lease;
 		std::unique_ptr<application::review_submission_recovery_port> Recovery;

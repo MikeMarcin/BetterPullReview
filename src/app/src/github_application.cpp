@@ -4642,6 +4642,7 @@ namespace bpr::app {
 			GithubCliDiscoveryAccounts = aFixture.has_value()
 				? aFixtureOptions.GithubCliDiscoveryAccounts
 				: std::nullopt;
+			GithubCliInventoryChecks   = aFixture.has_value() ? aFixtureOptions.GithubCliInventoryChecks : nullptr;
 			DiffComputeLimits          = aFixture.has_value()
 				? aFixtureOptions.DiffComputeLimits
 				: core::diff_compute_limits{ };
@@ -5876,7 +5877,8 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		bool NetworkDenied = false;
 		std::optional<std::vector<detail::github_public_path_fixture_options::github_cli_discovery_account>>
-			GithubCliDiscoveryAccounts;
+											GithubCliDiscoveryAccounts;
+		std::shared_ptr<std::atomic_size_t> GithubCliInventoryChecks;
 #endif
 		/// [[BPR-1373]]. gh's full inventory from the last check, and whether
 		/// gh has been checked in this run.
@@ -13862,7 +13864,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (status == core::github_status::session_failed && profile != nullptr && !profile->cli_account_login().empty()
 				&& GithubCliRecheckedFor != failed && Profile->cli_read_offered_here()) {
 				GithubCliRecheckedFor = failed;
-				discover_github_cli_accounts(false);
+				// Strict acquisition refusal never starts ambient account verification.
 			}
 		}
 
@@ -13888,6 +13890,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto        fixtureAccounts = std::optional<std::vector<
 				adapters::github::detail::gh_cli_inventory_account>>{ };
 	#if defined(BPR_BUILD_TESTING)
+			if (Profile->GithubCliInventoryChecks) {
+				++*Profile->GithubCliInventoryChecks;
+			}
 			if (Profile->GithubCliDiscoveryAccounts.has_value()) {
 				fixtureAccounts.emplace();
 				fixtureAccounts->reserve(Profile->GithubCliDiscoveryAccounts->size());

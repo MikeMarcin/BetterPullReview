@@ -3238,8 +3238,12 @@ namespace bpr::adapters::github::detail {
 		-> std::expected<core::review_mutation_target, application::review_mutation_failure>
 	{
 		try {
-			std::scoped_lock lock{ Mutex };
-			const auto       targetRequest = compile_target_observation_request(
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
+			const auto targetRequest = compile_target_observation_request(
 				Configuration.Target,
 				Configuration.CredentialContext.Authority.ServerContract);
 			if (!targetRequest.has_value()) {
@@ -3287,7 +3291,11 @@ namespace bpr::adapters::github::detail {
 		-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>
 	{
 		try {
-			std::scoped_lock lock{ Mutex };
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
 			if (aStop.stop_requested()) {
 				return std::unexpected(application::review_mutation_failure::cancelled);
 			}
@@ -3705,7 +3713,11 @@ namespace bpr::adapters::github::detail {
 	auto review_mutation_session::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
 	{
 		try {
-			std::scoped_lock lock{ Mutex };
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return publication_failure(operation.failure());
+			}
 			if (!Recovery || !Lease || !Lease->active() || aRequest.Representation != core::review_publication_representation::native_line || !aRequest.Source || !aRequest.LiveBinding || !application::valid(*aRequest.LiveBinding) || aRequest.LiveBinding->Target != Configuration.Target || aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity || aRequest.Proposal.ReplyToThread || !compile_review_comment_request(aRequest, Configuration.Target.ServerContract)) {
 				return publication_failure();
 			}
@@ -3722,7 +3734,11 @@ namespace bpr::adapters::github::detail {
 	void review_mutation_session::repair_pending_publications(const std::stop_token aStop)
 	{
 		try {
-			std::scoped_lock lock{ Mutex };
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return;
+			}
 			if (!Lineage || !Recovery || !Lease || !Lease->active() || !valid(Configuration) || aStop.stop_requested()) {
 				return;
 			}
@@ -3816,7 +3832,11 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 		try {
-			std::scoped_lock lock{ Mutex };
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return publication_failure(operation.failure());
+			}
 			if (aStop.stop_requested()) {
 				return failure(application::review_mutation_failure::cancelled);
 			}

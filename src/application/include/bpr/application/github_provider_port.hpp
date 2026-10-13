@@ -111,6 +111,8 @@ namespace bpr::application {
 		/// stored credential answered `/user` as an account other than the one
 		/// it is bound to. Only an `authentication` failure carries it.
 		bool AccountMismatch = false;
+		/// The selected CLI credential could not be acquired; no downstream request was launched.
+		bool CliCredentialUnavailable = false;
 
 		auto operator<=>(const github_provider_error&) const = default;
 	};
@@ -124,7 +126,7 @@ namespace bpr::application {
 		if (!valid(aError.Failure)) {
 			return false;
 		}
-		if (aError.AccountMismatch && aError.Failure != github_provider_failure::authentication) {
+		if ((aError.AccountMismatch || aError.CliCredentialUnavailable) && aError.Failure != github_provider_failure::authentication) {
 			return false;
 		}
 		if (aError.HttpStatus != 0U && (aError.HttpStatus < 100U || aError.HttpStatus > 599U)) {

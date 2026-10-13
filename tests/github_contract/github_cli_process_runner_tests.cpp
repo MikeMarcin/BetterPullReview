@@ -174,6 +174,30 @@ namespace {
 		}
 
 		const auto& mode = aArguments.at(2);
+		if (mode == QStringLiteral("sensitive")) {
+			const auto size = aArguments.size() > 3 ? parse_count(aArguments.at(3)) : 32U;
+			std::cout << std::string(size, 'q') << '\n';
+			return 0;
+		}
+		if (mode == QStringLiteral("credential-check") || mode == QStringLiteral("credential-echo") || mode == QStringLiteral("credential-prefix") || mode == QStringLiteral("credential-split")) {
+			const auto secret = qEnvironmentVariable("GH_TOKEN");
+			if (secret != QString(32, QChar{ 'q' }) || !qEnvironmentVariable("GITHUB_TOKEN").isEmpty()) {
+				return 94;
+			}
+			if (mode == QStringLiteral("credential-echo")) {
+				std::cout << secret.toStdString();
+			} else if (mode == QStringLiteral("credential-prefix")) {
+				std::cout << std::string(31U, 'q') << 'x';
+			} else if (mode == QStringLiteral("credential-split")) {
+				std::cout << std::string(16U, 'q') << std::flush;
+				std::this_thread::sleep_for(20ms);
+				std::cout << std::string(16U, 'q');
+			} else {
+				std::cout << "verified";
+			}
+			return 0;
+		}
+
 		if (mode == QStringLiteral("exact")) {
 #if defined(_WIN32)
 			constexpr auto exactArgumentCount = 8;
@@ -946,6 +970,48 @@ namespace {
 			"crash exposes no partial stdout");
 	}
 
+	/// One owned credential never crosses the generic request/result seam.
+	auto test_sensitive_execution() -> void
+	{
+		QTemporaryDir directory;
+		expect(directory.isValid(), "sensitive course owns its temporary directory");
+		auto runner                 = make_github_cli_process_runner();
+		auto request                = base_request(directory, { "--bpr-helper", "sensitive" });
+		request.StandardOutputLimit = cli_sensitive_bytes::capacity;
+		auto credential             = runner->acquire_sensitive(request, { });
+		expect(credential && (*credential)->view().size() == 32U, "sensitive stdout is acquired without generic result output");
+		const std::weak_ptr<const cli_sensitive_bytes> lifetime = *credential;
+		auto                                           check    = base_request(directory, { "--bpr-helper", "credential-check" });
+		const auto                                     result   = runner->run_credentialed(check, *credential, cli_credential_environment::github, { });
+		expect(result && result->StandardOutput == "verified" && check.Environment.size() == request.Environment.size(), "only the child receives the credential, while generic request and result remain token-free");
+		check.Arguments.back() = "credential-echo";
+		const auto echoed      = runner->run_credentialed(check, *credential, cli_credential_environment::github, { });
+		expect(!echoed, "a child echoing its credential cannot expose generic output");
+		check.Arguments.back() = "credential-split";
+		expect(!runner->run_credentialed(check, *credential, cli_credential_environment::github, { }), "a credential split across channel reads cannot reach generic output");
+		check.Arguments.back() = "credential-prefix";
+		const auto prefix      = runner->run_credentialed(check, *credential, cli_credential_environment::github, { });
+		expect(prefix && prefix->StandardOutput == std::string(31U, 'q') + 'x', "overlapping partial matches preserve ordinary output without copying a complete credential");
+		check.Environment.push_back({ "GITHUB_TOKEN", "other" });
+		expect(!runner->run_credentialed(check, *credential, cli_credential_environment::github, { }), "conflicting generic credential variables refuse before launch");
+		for (const auto count : { 0U, 8192U, 8193U }) {
+			request.Arguments = { "--bpr-helper", "sensitive", std::to_string(count) };
+			auto answer       = runner->acquire_sensitive(request, { });
+			expect(answer.has_value() == (count == 8192U), "empty and oversized sensitive results refuse; exact eight-KiB value is admitted");
+		}
+		std::stop_source stop;
+		stop.request_stop();
+		expect(!runner->acquire_sensitive(request, stop.get_token()), "pre-cancelled acquisition launches no child");
+		credential = std::unexpected{ github_cli_process_failure::cancelled };
+		runner.reset();
+		expect(lifetime.expired(), "runner drain releases the operation credential");
+		alignas(cli_sensitive_bytes) std::array<std::byte, sizeof(cli_sensitive_bytes)> storage{ };
+		auto*                                                                           bytes = std::construct_at(reinterpret_cast<cli_sensitive_bytes*>(storage.data()));
+		expect(bytes->append("runtime-canary"), "canary enters owned sensitive storage");
+		std::destroy_at(bytes);
+		expect(std::ranges::all_of(storage, [](std::byte aByte) { return aByte == std::byte{ }; }), "destruction overwrites complete sensitive storage");
+	}
+
 	auto test_completed_output_opt_in() -> void
 	{
 		QTemporaryDir directory;
@@ -1434,11 +1500,14 @@ namespace {
 		// joinable thread, so a failure in this window exits, as it always did.
 		auto untilJoined = bpr::tests::exit_on_failure{ };
 
-		std::optional<github_cli_process_result> blockedResult;
-		std::thread                              blockedCaller{
-			[&] {
+		auto secret = std::make_shared<cli_sensitive_bytes>();
+		expect(secret->append("quarantined-synthetic-credential\n") && secret->finish_credential(), "quarantine canary is valid");
+		const std::weak_ptr<const cli_sensitive_bytes> secretLifetime = secret;
+		std::optional<github_cli_process_result>       blockedResult;
+		std::thread                                    blockedCaller{
+			[&, credential = std::move(secret)] {
 				blockedResult.emplace(
-					runner->run(blockedRequest, { }));
+					runner->run_credentialed(blockedRequest, credential, cli_credential_environment::github, { }));
 			}
 		};
 		const bool workerStalled = testSeam->wait_until_entered();
@@ -1453,6 +1522,7 @@ namespace {
 				&& blockedResult->error()
 					== github_cli_process_failure::reap_failure,
 			"completion watchdog returns a fixed reap failure");
+		expect(!secretLifetime.expired(), "watchdog refusal holds sensitive ownership while its worker is quarantined");
 		expect(
 			!QFileInfo{ blockedMarker }.exists(),
 			"watchdog-expired request has not launched");
@@ -1505,6 +1575,7 @@ namespace {
 			recovered.has_value()
 				&& QFileInfo{ recoveredMarker }.exists(),
 			"worker reopens only after the stalled execution reaches terminal");
+		expect(secretLifetime.expired(), "sensitive ownership is released only after the quarantined worker reaches terminal");
 	}
 
 	auto test_deadline_cancellation_and_startup() -> void
@@ -1792,6 +1863,7 @@ try {
 	test_git_acquisition_factory_refuses_unbounded_stores();
 	test_git_acquisition_store_sampling();
 	test_stream_limits_and_redaction();
+	test_sensitive_execution();
 	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)
 	test_unix_process_hardening();

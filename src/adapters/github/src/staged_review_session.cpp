@@ -63,7 +63,7 @@ namespace bpr::adapters::github::detail {
 			if (aExpected.Index) {
 				owned.push_back(*aExpected.Index);
 			}
-			return std::ranges::all_of(owned, [&](const auto& wanted) {const auto found=std::ranges::find(aObserved,wanted.Id,&application::staged_review_comment::Id);return found!=aObserved.end() && *found==wanted; });
+			return std::ranges::all_of(owned, [&](const auto& aWanted) {const auto found=std::ranges::find(aObserved,aWanted.Id,&application::staged_review_comment::Id);return found!=aObserved.end() && *found==aWanted; });
 		}
 		auto initial_comments(const application::staged_review_plan& aPlan, application::review_database_id aReview, const std::vector<application::staged_review_comment>& aObserved, const bool aLines) -> std::optional<std::vector<application::staged_review_comment>>
 		{
@@ -85,7 +85,7 @@ namespace bpr::adapters::github::detail {
 						match->Source = line.Source;
 					}
 				}
-				if (!match || std::ranges::any_of(result, [&](const auto& r) { return r.Id == match->Id; })) {
+				if (!match || std::ranges::any_of(result, [&](const auto& aRow) { return aRow.Id == match->Id; })) {
 					return std::nullopt;
 				}
 				result.push_back(*match);
@@ -117,13 +117,13 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected(parsed.error());
 			}
 			for (auto& review : parsed->Reviews) {
-				if (std::ranges::any_of(result.Reviews, [&](const auto& r) { return r.Id == review.Id || r.NodeId == review.NodeId; })) {
+				if (std::ranges::any_of(result.Reviews, [&](const auto& aRow) { return aRow.Id == review.Id || aRow.NodeId == review.NodeId; })) {
 					return std::unexpected(review_mutation_contract_failure::identity_mismatch);
 				}
 				result.Reviews.push_back(std::move(review));
 			}
 			for (auto& comment : parsed->Comments) {
-				if (std::ranges::any_of(result.Comments, [&](const auto& c) { return c.Id == comment.Id || c.NodeId == comment.NodeId; })) {
+				if (std::ranges::any_of(result.Comments, [&](const auto& aComment) { return aComment.Id == comment.Id || aComment.NodeId == comment.NodeId; })) {
 					return std::unexpected(review_mutation_contract_failure::identity_mismatch);
 				}
 				result.Comments.push_back(std::move(comment));
@@ -170,15 +170,15 @@ namespace bpr::adapters::github::detail {
 		if (aRecord.Updated && !bodies) {
 			return false;
 		}
-		const auto expected = [&](const core::tour_remote_binding& remote, const std::string& baseline) {
+		const auto expected = [&](const core::tour_remote_binding& aRemote, const std::string& aBaseline) {
 			if (bodies) {
 				for (std::size_t i = 0; i < aRecord.Updated; ++i) {
-					if (bodies->Edits[i].Remote.Entity == remote.Entity) {
+					if (bodies->Edits[i].Remote.Entity == aRemote.Entity) {
 						return bodies->Edits[i].Desired;
 					}
 				}
 			}
-			return baseline;
+			return aBaseline;
 		};
 		const auto reviews = observe_staged(request(aRecord, operation::list_reviews), aStop);
 		if (!reviews) {
@@ -199,7 +199,7 @@ namespace bpr::adapters::github::detail {
 			if (review.State == application::staged_review_state::pending && (!aRecord.Review || review.Id != aRecord.Review->Id)) {
 				return false;
 			}
-			const bool needed = std::ranges::any_of(stops, [&](const auto* stop) { return stop->Remote->Kind != core::tour_remote_kind::conversation_comment && (stop->Remote->Review == review.NodeId || stop->Remote->Review == std::to_string(review.Id.value())); });
+			const bool needed = std::ranges::any_of(stops, [&](const auto* aStopEntry) { return aStopEntry->Remote->Kind != core::tour_remote_kind::conversation_comment && (aStopEntry->Remote->Review == review.NodeId || aStopEntry->Remote->Review == std::to_string(review.Id.value())); });
 			if (!needed) {
 				continue;
 			}
@@ -209,14 +209,14 @@ namespace bpr::adapters::github::detail {
 			}
 			comments.insert(comments.end(), observed->Comments.begin(), observed->Comments.end());
 		}
-		if (draft.Remote->Kind == core::tour_remote_kind::conversation_comment || std::ranges::any_of(stops, [](const auto* stop) { return stop->Remote->Kind == core::tour_remote_kind::conversation_comment; })) {
+		if (draft.Remote->Kind == core::tour_remote_kind::conversation_comment || std::ranges::any_of(stops, [](const auto* aStopEntry) { return aStopEntry->Remote->Kind == core::tour_remote_kind::conversation_comment; })) {
 			const auto observed = observe_staged(request(aRecord, operation::list_issue_comments), aStop);
 			if (!observed) {
 				return false;
 			}
 			comments.insert(comments.end(), observed->Comments.begin(), observed->Comments.end());
 		}
-		const auto matches = [&](const auto& observed, const core::tour_remote_binding& remote) { return observed.NodeId == remote.Entity && observed.WebUrl == remote.WebUrl && observed.Actor == actor(aRecord.Plan) && remote.Own && remote.Actor == observed.Actor.Login; };
+		const auto matches = [&](const auto& aObserved, const core::tour_remote_binding& aRemote) { return aObserved.NodeId == aRemote.Entity && aObserved.WebUrl == aRemote.WebUrl && aObserved.Actor == actor(aRecord.Plan) && aRemote.Own && aRemote.Actor == aObserved.Actor.Login; };
 		if (draft.Remote->Kind == core::tour_remote_kind::review) {
 			const auto found = std::ranges::find(reviews->Reviews, application::review_database_id{ draft.Remote->DatabaseId }, &application::staged_review_entity::Id);
 			if (found == reviews->Reviews.end() || !matches(*found, *draft.Remote) || found->State == application::staged_review_state::pending || found->Body != expected(*draft.Remote, draft.IndexBaseline->Raw)) {
@@ -476,6 +476,10 @@ namespace bpr::adapters::github::detail {
 	{
 		std::scoped_lock lock{ Mutex };
 		try {
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return { .State = application::staged_publication_state::unavailable, .Failure = operation.failure() };
+			}
 			if ((aWrite && !aAuthorize) || !application::valid(aPlan) || !Recovery || !Lease || !Lease->active() || !valid(Configuration)
 				|| !application::same_review_submission_identity(*aPlan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
 				return { };
