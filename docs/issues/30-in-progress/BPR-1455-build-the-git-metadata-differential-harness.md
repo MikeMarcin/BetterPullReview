@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1455"
 title: "Build the differential harness that checks the Git metadata readers against Git"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1454"]
 priority: "P1"
