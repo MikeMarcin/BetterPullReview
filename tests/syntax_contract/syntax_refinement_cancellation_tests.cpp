@@ -6,9 +6,9 @@
 // from inside the refinement. This executable replaces the global allocation
 // functions to watch the classifying thread: the refinement's first act is to
 // allocate one role byte per source byte, and the blob's length is chosen so
-// that no earlier allocation has that size. The refinement is only entered
-// after the grammar pass has returned `available`, so a stop requested at or
-// after that allocation cannot be seen by the grammar pass.
+// that no earlier allocation has that size (see `role_buffer`). The refinement
+// is only entered after the grammar pass has returned `available`, so a stop
+// requested at or after that allocation cannot be seen by the grammar pass.
 //
 // An uncancelled pass counts the allocations the refinement makes. The
 // cancelled pass then requests the stop at the middle one, so it lands partway
@@ -30,6 +30,7 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <thread>
 #include <utility>
 
 namespace {
@@ -39,13 +40,26 @@ namespace {
 
 	using bpr::tests::expect;
 
-	/// The blob length. It is not a multiple of 16, so the classifier's own
-	/// copy of the blob, a string of one more byte rounded up by the standard
-	/// library, never allocates exactly this many bytes.
-	constexpr auto BlobBytes = std::size_t{ 300'007U };
+	/// The blob length, a multiple of 16 that no geometric growth of a 16-byte
+	/// span vector reaches exactly.
+	constexpr auto BlobBytes = std::size_t{ 299'952U };
 
-	/// Watches the allocations of the classifying thread. Plain atomics: the
-	/// allocation functions may run before `main` and on any thread.
+	/// Whether one global `operator new` request is the refinement's role
+	/// buffer of `BlobBytes` bytes. libc++ and libstdc++ ask for exactly that.
+	/// MSVC's standard library pads any request of 4,096 bytes or more for its
+	/// own 32-byte alignment: one pointer plus 31 bytes in Release, two pointers
+	/// plus 31 in Debug ([[BPR-1124]] met the same allocator path). The
+	/// classifier's own copy of the blob is a string of one more byte, whose
+	/// request rounds to `BlobBytes + 16` (libc++, MSVC, then padded) or is
+	/// `BlobBytes + 1` (libstdc++), so it never matches.
+	[[nodiscard]] constexpr auto role_buffer(const std::size_t aBytes) noexcept -> bool
+	{
+		return aBytes == BlobBytes || aBytes == BlobBytes + sizeof(void*) + 31U || aBytes == BlobBytes + 2U * sizeof(void*) + 31U;
+	}
+
+	/// Watches the allocations of the thread that armed it, which is the
+	/// classifying thread. Plain atomics: the allocation functions may run
+	/// before `main` and on any thread.
 	struct allocation_probe
 	{
 		std::atomic<bool>              Armed{ false };
@@ -54,9 +68,11 @@ namespace {
 		std::atomic<std::size_t>       StopAt{ 0U };
 		std::atomic<std::stop_source*> Stopper{ nullptr };
 		std::atomic<bool>              Stopped{ false };
+		std::atomic<std::thread::id>   Thread{ };
 
 		void arm(const std::size_t aStopAt, std::stop_source* aStopper) noexcept
 		{
+			Thread.store(std::this_thread::get_id());
 			Refining.store(false);
 			Allocations.store(0U);
 			Stopped.store(false);
@@ -73,10 +89,10 @@ namespace {
 
 		void observe(const std::size_t aBytes) noexcept
 		{
-			if (!Armed.load(std::memory_order_relaxed)) {
+			if (!Armed.load(std::memory_order_relaxed) || std::this_thread::get_id() != Thread.load()) {
 				return;
 			}
-			if (!Refining.load() && aBytes == BlobBytes) {
+			if (!Refining.load() && role_buffer(aBytes)) {
 				Refining.store(true);
 			}
 			if (!Refining.load()) {

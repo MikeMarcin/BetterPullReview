@@ -52,3 +52,23 @@ Candidate `cad32aa0a`, macOS (Apple M4 Pro, Apple clang, `dev` Debug and the
   did not add (`application_source_pr_*`, `gh_cli_git_smart_transport`).
 - Windows: the cancellation test is a plain contract row; libFuzzer is not
   built on Windows. Neither has run on Windows or Linux from this lane.
+
+## Correction, 2026-10-13 (after independent review)
+
+- **The negative control first recorded above was not valid.** The patched
+  refinement did not compile (unused parameter), so the command chain stopped
+  before the test ran.
+- **The control was redone properly** with the refinement handed a default stop
+  token. The test then fails with "FAILED: a stop during the refinement is
+  reported as cancelled", having confirmed that the stop was requested while
+  the refinement ran.
+- **The test now also identifies the role buffer under MSVC.** The review
+  found that MSVC's standard library pads allocations of 4,096 bytes or more,
+  so the original exact-size signature could not match on Windows. The test now
+  accepts the three request sizes the three standard libraries make, with a
+  blob length that no string copy or span-vector growth reaches, and it watches
+  only the classifying thread.
+- **macOS passes again,** with the baseline and both candidate twins. It is
+  still unrun on Windows and Linux.
+
+See the commit that carries this note.

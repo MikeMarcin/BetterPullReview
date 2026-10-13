@@ -50,7 +50,7 @@ was measured on macOS. T means the candidate at the pin named.
 | Contract | **Fail** | **Fail** | `syntax_classification_contract@ts-*` fails "nested initializers and attributes preserve enumerator boundaries". Neither grammar accepts an attribute on an enumerator (`enumerator: name (= value)?` in both `grammar.json` files), so `FIFTH [[deprecated(...)]] = …` closes the enum with a MISSING `}` and `LAST` is lost. The twins of `syntax_refinement_cancellation`, `qt_syntax_pane_composition` and `application_cpp_identifier_appearance` pass. `application_appearance_host` does not link the syntax adapter. |
 | No new errors | Pass | Pass | No category gains a false positive (table below). The set of 617 `macro_keep` misses is the same for the baseline and for T. |
 | Bounded work | **Fail** | **Fail** | Measured from a stop requested at a uniform point of the refinement. On L inputs, T's p95 is 7.3 ms at v0.23.4 and 12.1 ms at `master`; with the span limit raised it is 35.1 ms and 28.5 ms. On pathological inputs the worst case is 233 ms and 608 ms, from 8 MiB of `{`. No stop published a partial answer. The slowest single input took 7.2 s. Sanitizers and fuzzing reported nothing. Deep nesting completes. |
-| Memory | **Fail** | **Fail** | Peak refinement heap is 2.2 to 2.75 times the baseline in S, M and L. 8 MiB of `{` takes 2.24 GB, over the 512 MiB cap. |
+| Memory | **Fail** | **Fail** | Peak refinement heap is 2.68 times the baseline in S, 2.23 times in M, and 2.72 to 2.75 times in L at the product's span limit (2.36 to 2.40 with the limit raised). 8 MiB of `{` takes 2.24 GB, over the 512 MiB cap. The baseline also passes 512 MiB on that input (2.02 GB, H8); only the twice-the-baseline part separates the two. |
 | Determinism | Pass on macOS | Pass on macOS | Three rounds gave identical spans, and the Release and ASan/UBSan builds gave identical spans for all 10,536 file and engine results. The comparison across platforms is owed to BPR-1443 and BPR-1444. |
 | Placement | Pass | Pass | The candidate's objects are the only tree-sitter link input outside `tests/syntax_evaluation`. The adapter archive has no `ts_` symbol. `core-only`, `architecture_boundaries` and `architecture_boundary_contract` pass. |
 | Supply | Pass | Open (Q1) | The runtime and grammar are MIT and pinned by SHA-256, size and licence digest. `master` is an untagged commit. |
@@ -270,6 +270,8 @@ tolerance and is excluded.
 | L, refinement | T | 7.32 | 11.5 | 12.13 | 12.2 |
 | L (limit raised), refinement | baseline | 0.75 | 0.81 | 0.59 | 1.03 |
 | L (limit raised), refinement | T | 35.1 | 39.2 | 28.5 | 37.7 |
+| L, whole call | baseline | 5.72 | 6.28 | 35.7 | 98.3 |
+| L, whole call | T | 6.63 | 36.7 | 38.6 | 75.3 |
 | pathological, refinement | baseline | 0.30 | 33.8 | 1.94 | 559 |
 | pathological, refinement | T | 7.20 | 233 | 8.80 | 608 |
 | pathological, whole call | baseline | 28.1 | 288 | 39.7 | 758 |
@@ -277,6 +279,12 @@ tolerance and is excluded.
 
 **T's worst cases are all 8 MiB of `{`.** The per-input median there is 58 ms
 at v0.23.4 and 122 ms at `master`.
+
+**The absolute caps alone do not separate the engines.** Under load the
+baseline also misses them: its whole-call worst cases are 288 ms and 758 ms,
+and its L whole-call p95 in the `master` run is 35.7 ms. T's refinement-stage
+figures are consistently higher than the baseline's, but the rejection does
+not depend on this gate: Contract alone rejects T.
 
 **The baseline exceeds 50 ms on the same input in one run.** Its worst values
 vary from 34 ms to 559 ms between runs, which points at load as well as the
