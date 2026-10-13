@@ -42,6 +42,7 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QStyleOptionViewItem>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
@@ -410,6 +411,26 @@ try {
 			windowA->home_action()->trigger();
 			windowA->resize(aWidth, 760);
 			QApplication::processEvents();
+			wait_for([&] {
+				for (auto* const view : windowA->home_list()->row_views()) {
+					if (!view->isVisible()) {
+						continue;
+					}
+					for (auto row = 0; row < view->model()->rowCount(); ++row) {
+						const auto index  = view->model()->index(row, 0);
+						auto       option = QStyleOptionViewItem{ };
+						option.initFrom(view);
+						option.widget = view;
+						option.rect   = view->visualRect(index);
+						if (option.rect.height() < windowA->home_list()->row_delegate()->sizeHint(option, index).height()
+							|| option.rect.bottom() >= view->viewport()->height()) {
+							return false;
+						}
+					}
+				}
+				return true;
+			},
+					 "resized Home fits every wrapped row before rendering");
 			expect(windowA->grab().save(aPath), "real Home render saved");
 		};
 		const auto page = [&](const QString& aPath, const int aWidth) {
