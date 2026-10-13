@@ -25158,9 +25158,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 													  << " opened=" << opened << " refolded=" << refolded << '\n';
 			return false;
 		}
+		// [[BPR-1413]]. A pane moves its viewport up by the within-line
+		// offset and makes it a line taller, masked to the pane's content
+		// area. The pane the reviewer sees is that mask, as BPR-1413's own
+		// tests read it; the widget itself reaches past the comparison.
+		const auto visiblePane = [&inWindow, window](const QWidget& aViewport) {
+			const auto mask = aViewport.mask();
+			if (mask.isEmpty()) {
+				return inWindow(aViewport);
+			}
+			const auto area = mask.boundingRect();
+			return QRect{ aViewport.mapTo(window, area.topLeft()), area.size() };
+		};
 		const auto comparisonRect = inWindow(*comparisonSurface);
-		const auto leftPaneRect   = inWindow(*workbench->left_pane()->viewport());
-		const auto rightPaneRect  = inWindow(*workbench->right_pane()->viewport());
+		const auto leftPaneRect   = visiblePane(*workbench->left_pane()->viewport());
+		const auto rightPaneRect  = visiblePane(*workbench->right_pane()->viewport());
 		const auto gutterRect     = inWindow(*linkMap);
 		const auto widthRatio     = (1'000 * comparisonRect.width())
 			/ std::max(1, window->width());
