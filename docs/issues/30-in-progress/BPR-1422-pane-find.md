@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1422"
 title: "Native pane Find controls, decorations and exact reveal"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0077"]
 depends_on: ["BPR-1420"]
 metadata: {"milestone":"pane-find","source_id":"DRAFT-0018","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","mandate_revision":"find-and-find-in-files-v1-r1","milestone_plan":{"id":"find-and-find-in-files-v1","path":"docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json"}}
