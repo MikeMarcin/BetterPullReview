@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1432"
 title: "Count source lines as Git does, so a lone CR stays inside its line"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3dc0cdb86","evidence":{"kind":"observation","detail":"core_diff_compute pins a\\r\\nb\\rc\\n as two lines with b\\rc content; text_line_ending::cr removed and refused by validation.","path":"docs/issues/60-done/BPR-1432-count-lines-as-git-does.md"}},{"criterion":"AC2","outcome":"pass","revision":"3dc0cdb86","evidence":{"kind":"observation","detail":"core_suggestion_text_editing, core_review_cycle_feedback, core_review_cycle_share and core_review_cycle_suggestion pin the LF-only count.","path":"docs/issues/60-done/BPR-1432-count-lines-as-git-does.md"}},{"criterion":"AC3","outcome":"pass","revision":"3dc0cdb86","evidence":{"kind":"observation","detail":"qt_diff_workbench_scale_100/125/200 test_a_lone_cr_is_shown_inside_its_line: one block per decoded line, line two reads two U+240D three; qt_suggestion_editor_1_0/2_0 pass.","path":"docs/issues/60-done/BPR-1432-count-lines-as-git-does.md"}},{"criterion":"AC4","outcome":"pass","revision":"3dc0cdb86","evidence":{"kind":"observation","detail":"core_source_matcher: a\\nb no longer matches across a lone CR, a\\rb matches literally, CRLF query matches LF; boundary, documentation, format and changed-line tidy gates pass.","path":"docs/issues/60-done/BPR-1432-count-lines-as-git-does.md"}}]
 ---
 
 # Count source lines as Git does, so a lone CR stays inside its line
