@@ -48,3 +48,14 @@ ownership are released for fresh post-review M3 repair. Existing lost-result
 success-acquisition and fresh failure courses are not substituted for this seam.
 Coordinator requires a fresh post-review M3 repair owner; no terminal acceptance
 or popup main integration is asserted.
+
+## Post-critical-review repair ownership — 2026-10-13
+
+Fresh sole M3 repair owner `inline_recovery_publication_repair` adopts the released
+In Progress card at `33a77bcc117ea6ff36459b5b16445351e2b7e3e8`, under mandate
+`strict-cli-publication-r2`. Existing acceptance/history is preserved. The exact
+composed probe independently reproduced posts1/stored1 → acquisition refusal →
+editable draft → posts2/stored2. The repair must preserve the original ambiguous
+publication and durable draft identity through early admission and coordinator
+refusals; recovery after credentials return must be GET-only. Required independent
+recheck remains pending until supplied. M4/BPR-1430 is outside this assignment.
