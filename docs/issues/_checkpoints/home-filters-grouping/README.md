@@ -29,3 +29,11 @@ Observed before correction:
 
 Verification and final evidence are recorded on BPR-1414. Local build logs and
 offscreen rasters stay under the worktree's ignored `build` directory.
+
+Candidate `3eebd2d82` includes the contemporary main changes and passes the
+six-test integration course. The composed CLI restart now awaits remembered
+sign-in instead of clicking Connect again: its exact-one transport assertion
+and zero native-vault accesses pass. Recently viewed removal survives a second
+restart for both native and CLI account courses. Full Home renders have been
+inspected, with the capture waiting for every wrapped row to fit after resize.
+No desktop capture, live provider write, or human-only criterion was required.
