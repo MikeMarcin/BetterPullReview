@@ -265,6 +265,12 @@ def check(expected: dict) -> None:
 # to the same bytes and its blobs diffing to the counts it claims.
 CONSTRUCTIONS = (
     {
+        "Directory": "source-find-v1",
+        "Generator": "scripts/build_source_find_fixture.py",
+        "Files": 2,
+        "Folders": 1,
+    },
+    {
         "Directory": "nested-folders-v1",
         "Generator": "scripts/build_nested_folders_fixture.py",
         "Files": 17,

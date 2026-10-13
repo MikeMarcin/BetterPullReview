@@ -1,0 +1,36 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_source-find",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "src/find.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/other.cpp",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/source-find:77:files",
+						"hasNextPage": false
+					},
+					"totalCount": 2
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_77",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

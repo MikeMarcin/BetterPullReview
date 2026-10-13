@@ -1962,6 +1962,8 @@ namespace bpr::qt {
 		std::function<void(core::code_zoom_step)> CodeZoomDispatch;
 		std::function<void()>                     HeaderSourceDispatch;
 		QAction*                                  HeaderSourceAction = nullptr;
+		std::array<QAction*, 3>                   SourceFindActions{ };
+		void                                      update_source_find_actions();
 		std::optional<core::code_font_settings>   CodeZoom;
 		void                                      dispatch_code_zoom(core::code_zoom_step aStep);
 		void                                      apply_code_zoom();

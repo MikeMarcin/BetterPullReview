@@ -7,6 +7,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
+#include "bpr/qt/source_find_bar.hpp"
 #include <QColor>
 #include <QList>
 #include <QRect>
@@ -92,6 +93,11 @@ namespace bpr::qt {
 	struct diff_workbench_statistics
 	{
 		std::uint64_t Publications = 0U;
+		/// Find converts exact endpoints at result adoption, never during traversal.
+		std::uint64_t FindMatchingRuns        = 0U;
+		std::uint64_t FindCachedRuns          = 0U;
+		std::uint64_t FindEndpointConversions = 0U;
+		std::uint64_t FindHighlightsVisited   = 0U;
 		/// [[BPR-1264]]. Publications whose source documents were filled over
 		/// several bounded GUI turns, the turns spent filling them, and the
 		/// staged fills a newer request superseded before adoption.
@@ -364,7 +370,22 @@ namespace bpr::qt {
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
 		/// \brief Focuses the visible source editor in split or unified presentation.
-		void               focus_source();
+		void focus_source();
+		/// \brief Composes pane search gestures and exact-current result decorations.
+		void set_source_find_dispatch(std::function<void(const source_find_intent&)> aDispatch);
+		void set_source_find_changed(std::function<void()> aChanged);
+		void open_source_find();
+		void navigate_source_find(core::change_navigation_direction aDirection);
+		void close_source_find();
+		void retarget_source_find();
+		void present_source_find(const application::source_search_projection& aProjection);
+		/// \brief Actual worker matching/cache activity without query or source content.
+		void               observe_source_find_execution(std::uint64_t aMatching, std::uint64_t aCached);
+		[[nodiscard]] auto source_find() const -> source_find_bar*;
+		[[nodiscard]] auto source_find_available() const -> bool;
+		[[nodiscard]] auto source_find_navigable() const -> bool;
+		/// \brief Selects original UTF-8 spans only on the accepted exact blob.
+		[[nodiscard]] auto reveal_source_match(const core::source_match_location& aLocation) -> bool;
 		[[nodiscard]] auto detail_pane() const noexcept -> QPlainTextEdit*;
 		/// \brief [[BPR-1334]]. Line details, the strip under the comparison;
 		/// the same widget as `detail_pane`.
@@ -588,8 +609,18 @@ namespace bpr::qt {
 		void               clear_projection(QString aStatus);
 		void               set_idle(bool aIdle);
 
-		QLabel* Status      = nullptr;
-		bool    StatusShown = true;
+		QLabel* Status = nullptr;
+		struct find_presentation;
+		std::unique_ptr<find_presentation> Find;
+		void                               initialize_source_find();
+		void                               dispatch_source_find(source_find_gesture aGesture);
+		void                               clear_source_find_document();
+		void                               append_find_selections(QPlainTextEdit& aPane, QList<QTextEdit::ExtraSelection>& aSelections);
+		void                               refresh_find_ticks();
+		[[nodiscard]] auto                 source_byte_at(QPlainTextEdit& aPane, int aPosition) const -> std::optional<std::pair<core::diff_side, std::size_t>>;
+		[[nodiscard]] auto                 source_text_position(core::diff_side aSide, std::size_t aByte) -> std::optional<int>;
+		[[nodiscard]] auto                 source_match_fragments(const core::source_match_location& aLocation) -> const std::vector<std::pair<int, int>>&;
+		bool                               StatusShown = true;
 		// [[BPR-1287]]. The direction shown in place of the panes while idle.
 		QWidget*                  IdlePage      = nullptr;
 		QWidget*                  PanesTop      = nullptr;

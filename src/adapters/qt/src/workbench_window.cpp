@@ -1890,6 +1890,7 @@ namespace bpr::qt {
 		// documents, so the centre gains no second mapping, no regrouping, no
 		// follower-scroll coupling, and no synthetic alignment rows.
 		ComparisonSurface = new diff_workbench{ CentreSurface };
+		ComparisonSurface->set_source_find_changed([this] { update_source_find_actions(); });
 		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
 			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
@@ -10338,6 +10339,7 @@ namespace bpr::qt {
 	{
 		HeaderSourceDispatch = std::move(aDispatch);
 		update_header_source_action();
+		update_source_find_actions();
 	}
 
 	void workbench_window::present_header_source_result(const core::header_source_resolution aResult)
@@ -10367,6 +10369,28 @@ namespace bpr::qt {
 		QAccessibleAnnouncementEvent announcement{ this, message };
 		announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 		QAccessible::updateAccessibility(&announcement);
+	}
+
+	void workbench_window::update_source_find_actions()
+	{
+		if (!SourceFindActions[0] || !ComparisonSurface) {
+			return;
+		}
+		auto*      focused     = QApplication::focusWidget();
+		const bool sourceFocus = focused == ComparisonSurface->left_pane() || focused == ComparisonSurface->right_pane()
+			|| (focused && focused->objectName() == QStringLiteral("diffUnifiedSource"));
+		const bool queryFocus = focused && ComparisonSurface->source_find()->isAncestorOf(focused);
+		const bool textFocus  = qobject_cast<QLineEdit*>(focused) || qobject_cast<QPlainTextEdit*>(focused) || qobject_cast<QTextEdit*>(focused);
+
+		const auto commands = core::project_source_find_commands({ .Reader         = !showing_home() && !LocalCycleShown && !CompositionPage && current_modality() == review_modality::review,
+																   .Material       = ComparisonSurface->source_find_available(),
+																   .EditorOwnsFind = textFocus && !sourceFocus && !queryFocus,
+																   .Modal          = QApplication::activeModalWidget() != nullptr,
+																   .Query          = !ComparisonSurface->source_find()->query().empty(),
+																   .Hits           = ComparisonSurface->source_find_navigable() });
+		for (std::size_t index = 0; index < SourceFindActions.size(); ++index) {
+			describe_action(SourceFindActions[index], commands[index], index == 0U ? tr("Find in the focused source pane") : tr("Traverse source matches"), tr("Focus an available source reader in Review"));
+		}
 	}
 
 	void workbench_window::update_header_source_action()
@@ -13993,6 +14017,42 @@ namespace bpr::qt {
 		ViewMenu = PrimaryMenuBar->addMenu(QStringLiteral("&View"));
 		ViewMenu->setObjectName(QStringLiteral("workbenchViewMenu"));
 		ViewMenu->setAccessibleName(QStringLiteral("View"));
+		auto* findMenu = ViewMenu->addMenu(tr("&Find"));
+		findMenu->setObjectName(QStringLiteral("sourceFindMenu"));
+		const auto findTitles = std::array{ tr("Find"), tr("Next pane match"), tr("Previous pane match") };
+		const auto findNames  = std::array{ QStringLiteral("sourceFindAction"), QStringLiteral("sourceFindNextAction"), QStringLiteral("sourceFindPreviousAction") };
+		for (std::size_t index = 0; index < SourceFindActions.size(); ++index) {
+			auto* action = new QAction{ findTitles[index], this };
+			action->setObjectName(findNames[index]);
+			action->setShortcutContext(Qt::WindowShortcut);
+			if (index == 0U) {
+				action->setShortcut(QKeySequence::Find);
+			} else {
+				QList<QKeySequence> keys{ QKeySequence{ index == 1U ? QStringLiteral("F3") : QStringLiteral("Shift+F3") } };
+#if defined(Q_OS_MACOS)
+				keys.push_back(QKeySequence{ index == 1U ? QStringLiteral("Ctrl+G") : QStringLiteral("Ctrl+Shift+G") });
+#endif
+				action->setShortcuts(keys);
+			}
+			SourceFindActions[index] = action;
+			action->setEnabled(false);
+			addAction(action);
+			findMenu->addAction(action);
+			connect(action, &QAction::triggered, this, [this, index] {
+				update_source_find_actions();
+				if (!SourceFindActions[index]->isEnabled()) {
+					return;
+				}
+				if (index == 0U) {
+					ComparisonSurface->open_source_find();
+				} else {
+					ComparisonSurface->navigate_source_find(index == 1U ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
+				}
+			});
+		}
+		connect(findMenu, &QMenu::aboutToShow, this, [this] { update_source_find_actions(); });
+		connect(qApp, &QApplication::focusChanged, this, [this](QWidget*, QWidget*) { update_source_find_actions(); });
+
 		ViewMenu->setAccessibleDescription(
 			QStringLiteral("Presentation options for the comparison surface"));
 		HeaderSourceAction = new QAction{ tr("Go to header/source"), this };
@@ -14084,6 +14144,7 @@ namespace bpr::qt {
 		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
 			update_header_source_action();
+			update_source_find_actions();
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);
 			}
@@ -14557,6 +14618,7 @@ namespace bpr::qt {
 	void workbench_window::apply_drawers_toggle()
 	{
 		update_header_source_action();
+		update_source_find_actions();
 		if (ToggleDrawersAction == nullptr) {
 			return;
 		}
@@ -15123,6 +15185,7 @@ namespace bpr::qt {
 	void workbench_window::update_action_state()
 	{
 		update_header_source_action();
+		update_source_find_actions();
 		// One projection for all four primary actions. Entry `i` of the core's
 		// delta decides action `i`; the window adds no legality of its own and
 		// keeps no second carrier for the change actions.

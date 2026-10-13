@@ -203,6 +203,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_line_details_public_path": "dos-volume-name",
     "application_review_navigation_entry": "dos-volume-name",
     "application_header_source_navigation": "dos-volume-name",
+    "application_source_find": "unmeasured (registered on macOS)",
+    "application_source_find_scale_1_25": "unmeasured (registered on macOS)",
+    "application_source_find_scale_2_0": "unmeasured (registered on macOS)",
     "application_header_source_navigation_large": "dos-volume-name",
     "application_cpp_identifier_appearance": "unmeasured (registered on macOS)",
     # [[BPR-1327]], [[BPR-1340]]. Measured on bpr-main-win 2026-10-08 at

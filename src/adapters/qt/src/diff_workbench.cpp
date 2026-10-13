@@ -11,6 +11,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QApplication>
+#include <QClipboard>
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEnterEvent>
@@ -47,6 +48,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWheelEvent>
+#include <map>
 
 #include <algorithm>
 #include <cmath>
@@ -118,6 +120,12 @@ namespace bpr::qt {
 			QColor                                              Thread{ 0xD2, 0x99, 0x22 };
 			QColor                                              New{ 0x09, 0x69, 0xDA };
 
+			void set_find_ticks(std::vector<qreal> aFractions)
+			{
+				FindFractions = std::move(aFractions);
+				std::ranges::sort(FindFractions);
+				update();
+			}
 			void set_ticks(std::vector<diff_thread_tick> aTicks)
 			{
 				if (Ticks == aTicks) {
@@ -196,12 +204,24 @@ namespace bpr::qt {
 			void paintEvent(QPaintEvent* const aEvent) override
 			{
 				QScrollBar::paintEvent(aEvent);
-				if (Ticks.empty()) {
+				if (Ticks.empty() && FindFractions.empty()) {
 					return;
 				}
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto faint = palette().color(QPalette::Active, QPalette::PlaceholderText);
+				const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
+				auto       option = QStyleOptionSlider{ };
+				initStyleOption(&option);
+				const auto groove = style()->subControlRect(QStyle::CC_ScrollBar, &option, QStyle::SC_ScrollBarGroove, this);
+				painter.setPen(palette().color(QPalette::Highlight));
+				// One binary lookup per track pixel, irrespective of occurrence count.
+				for (int y = 0; y < groove.height(); ++y) {
+					const auto from = static_cast<qreal>(y) / std::max(1, groove.height());
+					const auto at   = std::ranges::lower_bound(FindFractions, from);
+					if (at != FindFractions.end() && *at < static_cast<qreal>(y + 1) / std::max(1, groove.height())) {
+						painter.drawLine(groove.left(), groove.top() + y, groove.left() + 2, groove.top() + y);
+					}
+				}
 				for (const auto& tick : Ticks) {
 					const auto rect = QRectF{ tick_rect(tick) };
 					painter.setOpacity(tick.Resolved && !tick.Open ? 0.45 : 1.0);
@@ -279,6 +299,7 @@ namespace bpr::qt {
 			}
 
 		private:
+			std::vector<qreal>                                       FindFractions;
 			std::vector<diff_thread_tick>                            Ticks;
 			std::optional<QPoint>                                    Pointer;
 			std::optional<std::pair<core::diff_side, std::uint32_t>> Target;
@@ -432,7 +453,8 @@ namespace bpr::qt {
 		{
 		public:
 			explicit source_pane(QWidget* aParent = nullptr);
-			void set_unified_rows(const std::vector<unified_source_row>* aRows)
+			QList<QTextCursor> FindOutlines;
+			void               set_unified_rows(const std::vector<unified_source_row>* aRows)
 			{
 				UnifiedRows = aRows;
 				refresh_gutter_width();
@@ -937,6 +959,29 @@ namespace bpr::qt {
 			void paintEvent(QPaintEvent* const aEvent) override
 			{
 				paint_text(aEvent);
+				for (const auto& outlineCursor : FindOutlines) {
+					auto outlinePainter = QPainter{ viewport() };
+					outlinePainter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
+					const auto first = outlineCursor.selectionStart();
+					const auto last  = outlineCursor.selectionEnd();
+					for (auto visible = firstVisibleBlock(); visible.isValid(); visible = visible.next()) {
+						const auto rowBox = blockBoundingGeometry(visible).translated(contentOffset());
+						if (rowBox.top() > viewport()->height()) {
+							break;
+						}
+						if (visible.position() + visible.length() <= first || visible.position() > last) {
+							continue;
+						}
+						auto beginCursor = QTextCursor{ visible };
+						beginCursor.setPosition(std::max(first, visible.position()));
+						auto endCursor = QTextCursor{ visible };
+						endCursor.setPosition(std::min(last, visible.position() + visible.length() - 1));
+						const auto beginRect = cursorRect(beginCursor);
+						const auto endRect   = cursorRect(endCursor);
+						const auto spanBox   = QRect{ beginRect.left(), beginRect.top(), std::max(2, endRect.left() - beginRect.left()), beginRect.height() };
+						outlinePainter.drawRect(spanBox.adjusted(0, 0, 0, -1));
+					}
+				}
 				auto block = firstVisibleBlock();
 				if (!block.isValid()) {
 					return;
@@ -2124,6 +2169,596 @@ namespace bpr::qt {
 		std::vector<group_rows>         Groups;
 	};
 
+	struct diff_workbench::find_presentation
+	{
+		struct decoration
+		{
+			int           Begin     = 0;
+			int           End       = 0;
+			int           PrefixEnd = 0;
+			std::uint32_t Match     = 0U;
+		};
+		source_find_bar*                                                                        Bar = nullptr;
+		QPointer<QPlainTextEdit>                                                                Recent;
+		QPointer<QPlainTextEdit>                                                                Target;
+		std::array<bool, 3>                                                                     RealCaret{ };
+		std::optional<core::source_search_range>                                                Capture;
+		std::optional<core::source_search_range>                                                Fixed;
+		source_find_intent                                                                      Intent;
+		std::function<void(const source_find_intent&)>                                          Dispatch;
+		std::function<void()>                                                                   Changed;
+		std::array<std::vector<decoration>, 3>                                                  Decorations;
+		std::shared_ptr<const std::vector<application::source_search_match>>                    Records;
+		std::weak_ptr<const std::vector<application::source_search_match>>                      MappedRecords;
+		std::optional<std::uint32_t>                                                            Current;
+		bool                                                                                    Rebind          = false;
+		bool                                                                                    ClosedNavigable = false;
+		bool                                                                                    Recall          = false;
+		bool                                                                                    Navigating      = false;
+		std::optional<core::change_navigation_direction>                                        ReopenDirection;
+		std::optional<core::source_match_location>                                              PendingReveal;
+		std::optional<core::source_match_location>                                              CopyMatch;
+		QTextCursor                                                                             CopyCursor;
+		std::map<std::pair<core::diff_side, core::byte_span>, std::vector<std::pair<int, int>>> Fragments;
+		std::vector<std::pair<int, int>>                                                        EmptyFragments;
+		std::array<std::map<std::size_t, int>, 2>                                               Positions;
+	};
+
+	void diff_workbench::initialize_source_find()
+	{
+		Find         = std::make_unique<find_presentation>();
+		Find->Bar    = new source_find_bar{ this };
+		Find->Recent = Right;
+		static_cast<QVBoxLayout*>(layout())->insertWidget(1, Find->Bar);
+		Find->Bar->Dispatch = [this](const source_find_gesture aGesture) { dispatch_source_find(aGesture); };
+	}
+	void diff_workbench::set_source_find_dispatch(std::function<void(const source_find_intent&)> aDispatch) { Find->Dispatch = std::move(aDispatch); }
+	void diff_workbench::set_source_find_changed(std::function<void()> aChanged) { Find->Changed = std::move(aChanged); }
+	auto diff_workbench::source_find() const -> source_find_bar* { return Find->Bar; }
+	auto diff_workbench::source_find_available() const -> bool
+	{
+		if (!CurrentResult || !SemanticIndex || !isVisible()) {
+			return false;
+		}
+		if (!OnePaneEnabled) {
+			const auto* focus = QApplication::focusWidget();
+			if (focus == Left) {
+				return CurrentResult->LeftDocument.has_value();
+			}
+			if (focus == Right) {
+				return CurrentResult->RightDocument.has_value();
+			}
+		}
+		return CurrentResult->LeftDocument || CurrentResult->RightDocument;
+	}
+	auto diff_workbench::source_find_navigable() const -> bool { return Find->Current.has_value() || Find->ClosedNavigable; }
+
+	auto diff_workbench::source_byte_at(QPlainTextEdit& aPane, const int aPosition) const -> std::optional<std::pair<core::diff_side, std::size_t>>
+	{
+		if (!CurrentResult) {
+			return std::nullopt;
+		}
+		const auto block = aPane.document()->findBlock(aPosition);
+		if (!block.isValid()) {
+			return std::nullopt;
+		}
+		auto side = &aPane == Left ? core::diff_side::left : core::diff_side::right;
+		auto line = static_cast<std::uint32_t>(block.blockNumber());
+		if (&aPane == Unified) {
+			if (line >= UnifiedPresentation->Rows.size()) {
+				return std::nullopt;
+			}
+			const auto& row = UnifiedPresentation->Rows[line];
+			side            = row.Head ? core::diff_side::right : core::diff_side::left;
+			line            = row.Head.value_or(row.Base.value_or(0U));
+		}
+		const auto& document = side == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+		if (!document) {
+			return std::nullopt;
+		}
+		if (line == document->Lines.size() && aPosition == aPane.document()->characterCount() - 1) {
+			return std::pair{ side, document->Bytes.size() };
+		}
+		if (line >= document->Lines.size()) {
+			return std::nullopt;
+		}
+		auto      offset = static_cast<std::size_t>(document->Lines[line].Content.Begin);
+		int       units  = 0;
+		const int wanted = aPosition - block.position();
+		while (units < wanted && offset < document->Lines[line].Content.End) {
+			const auto lead  = document->Bytes[offset];
+			const auto count = (lead & 0xF8U) == 0xF0U ? 4U : (lead & 0xF0U) == 0xE0U ? 3U
+				: (lead & 0xE0U) == 0xC0U                                             ? 2U
+																					  : 1U;
+			offset += count;
+			units += count == 4U ? 2 : 1;
+		}
+		return units == wanted ? std::optional{ std::pair{ side, offset } } : std::nullopt;
+	}
+	auto diff_workbench::source_text_position(const core::diff_side aSide, const std::size_t aByte) -> std::optional<int>
+	{
+		if (!CurrentResult) {
+			return std::nullopt;
+		}
+		auto& positions = Find->Positions[aSide == core::diff_side::left ? 0U : 1U];
+		if (const auto saved = positions.find(aByte); saved != positions.end()) {
+			return saved->second;
+		}
+		const auto& document = aSide == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+		if (!document || aByte > document->Bytes.size()) {
+			return std::nullopt;
+		}
+		auto* editor = OnePaneEnabled ? Unified : aSide == core::diff_side::left ? Left
+																				 : Right;
+		if (aByte == document->Bytes.size() && (document->Bytes.empty() || document->HasFinalNewline)) {
+			const auto end = editor->document()->characterCount() - 1;
+			positions.emplace(aByte, end);
+			return end;
+		}
+
+		if (document->Lines.empty()) {
+			return aByte == 0U ? std::optional{ 0 } : std::nullopt;
+		}
+		const auto  after = std::ranges::upper_bound(document->Lines, aByte, { }, [](const core::decoded_text_line& aLine) { return aLine.Content.Begin; });
+		const auto  index = after == document->Lines.begin() ? 0U : static_cast<std::size_t>(after - document->Lines.begin() - 1);
+		const auto& line  = document->Lines[index];
+		const auto  row   = OnePaneEnabled ? unified_row_for(aSide, static_cast<std::uint32_t>(index)) : std::optional{ static_cast<std::uint32_t>(index) };
+		if (!row) {
+			return std::nullopt;
+		}
+		const auto block = editor->document()->findBlockByNumber(static_cast<int>(*row));
+		if (!block.isValid()) {
+			return std::nullopt;
+		}
+		auto begin     = static_cast<std::size_t>(line.Content.Begin);
+		auto native    = block.position();
+		auto preceding = positions.upper_bound(aByte);
+		if (preceding != positions.begin()) {
+			--preceding;
+			if (preceding->first >= line.Content.Begin && preceding->first <= line.Content.End) {
+				begin  = preceding->first;
+				native = preceding->second;
+			}
+		}
+		const auto end = std::min<std::uint64_t>(aByte, line.Content.End);
+		++Statistics.FindEndpointConversions;
+		for (auto offset = begin; offset < end;) {
+			const auto lead  = document->Bytes[offset];
+			const auto count = (lead & 0xF8U) == 0xF0U ? 4U : (lead & 0xF0U) == 0xE0U ? 3U
+				: (lead & 0xE0U) == 0xC0U                                             ? 2U
+																					  : 1U;
+			offset += count;
+			if (offset > end) {
+				return std::nullopt;
+			}
+			native += count == 4U ? 2 : 1;
+		}
+		positions.emplace(aByte, native);
+		return native;
+	}
+
+	auto diff_workbench::source_match_fragments(const core::source_match_location& aLocation) -> const std::vector<std::pair<int, int>>&
+	{
+		const auto key = std::pair{ aLocation.Side, aLocation.Span };
+		if (const auto saved = Find->Fragments.find(key); saved != Find->Fragments.end()) {
+			return saved->second;
+		}
+		const auto first = source_text_position(aLocation.Side, aLocation.Span.Begin);
+		const auto last  = source_text_position(aLocation.Side, aLocation.Span.End);
+		if (!first || !last) {
+			return Find->EmptyFragments;
+		}
+		if (!OnePaneEnabled || aLocation.Span.empty()) {
+			return Find->Fragments.emplace(key, std::vector<std::pair<int, int>>{ { *first, *last } }).first->second;
+		}
+		const auto& document = aLocation.Side == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+		if (!document) {
+			return Find->EmptyFragments;
+		}
+		auto pieces = std::vector<std::pair<int, int>>{ };
+		auto line   = std::ranges::upper_bound(document->Lines, aLocation.Span.Begin, { }, [](const core::decoded_text_line& aLine) { return aLine.Content.Begin; });
+		if (line != document->Lines.begin()) {
+			--line;
+		}
+		for (; line != document->Lines.end() && line->Content.Begin < aLocation.Span.End; ++line) {
+			const auto from = source_text_position(aLocation.Side, std::max(line->Content.Begin, aLocation.Span.Begin));
+			const auto to   = source_text_position(aLocation.Side, std::min(line->Content.End, aLocation.Span.End));
+			if (!from || !to) {
+				return Find->EmptyFragments;
+			}
+			auto end = *to;
+			if (aLocation.Span.End >= line->Terminator.End && line->Terminator.End > line->Content.End) {
+				end = std::min(end + 1, Unified->document()->characterCount() - 1);
+			}
+			if (!pieces.empty() && pieces.back().second == *from) {
+				pieces.back().second = end;
+			} else {
+				pieces.emplace_back(*from, end);
+			}
+		}
+		return Find->Fragments.emplace(key, std::move(pieces)).first->second;
+	}
+	void diff_workbench::open_source_find()
+	{
+		if (!source_find_available()) {
+			return;
+		}
+		auto* target = OnePaneEnabled ? Unified : Find->Recent && Find->Recent->isVisible() && ((Find->Recent == Left && CurrentResult->LeftDocument) || (Find->Recent == Right && CurrentResult->RightDocument)) ? Find->Recent.data()
+			: CurrentResult->RightDocument                                                                                                                                                                        ? Right
+																																																				  : Left;
+		if (auto* focused = QApplication::focusWidget(); focused == Left || focused == Right || focused == Unified) {
+			target = static_cast<QPlainTextEdit*>(focused);
+		}
+		const bool rebind   = Find->Rebind;
+		const bool retarget = rebind || Find->Target != target || Find->Bar->isHidden();
+		Find->Rebind        = false;
+		if (!retarget) {
+			Find->Bar->seed({ }, false);
+			return;
+		}
+		Find->Target = target;
+		Find->Fixed.reset();
+		Find->Capture.reset();
+		Find->Bar->clear_selection();
+		auto& intent          = Find->Intent;
+		intent.Target         = target == Unified ? core::source_search_target::unified : target == Left ? core::source_search_target::left
+																										 : core::source_search_target::right;
+		auto       cursor     = target->textCursor();
+		const auto first      = source_byte_at(*target, cursor.selectionStart());
+		const auto last       = source_byte_at(*target, cursor.selectionEnd());
+		bool       contiguous = first && last && first->first == last->first;
+		if (contiguous && target == Unified) {
+			const auto beginRow = target->document()->findBlock(cursor.selectionStart()).blockNumber();
+			const auto endRow   = target->document()->findBlock(std::max(cursor.selectionStart(), cursor.selectionEnd() - 1)).blockNumber();
+			auto       previous = std::optional<std::uint32_t>{ };
+			for (int row = beginRow; row <= endRow && contiguous; ++row) {
+				const auto& identity = UnifiedPresentation->Rows[static_cast<std::size_t>(row)];
+				const auto  actual   = first->first == core::diff_side::left ? identity.Base : identity.Head;
+				contiguous           = actual && (!previous || *actual == *previous + 1U);
+				previous             = actual;
+			}
+		}
+		if (cursor.hasSelection() && contiguous && last->second > first->second) {
+			Find->Capture = core::source_search_range{ first->first, { first->second, last->second } };
+		}
+		const auto caretIndex = target == Left ? 0U : target == Right ? 1U
+																	  : 2U;
+		const bool largeSeed  = cursor.hasSelection() && cursor.selectionEnd() - cursor.selectionStart() > static_cast<int>(core::maximum_source_search_query_bytes);
+		auto       seed       = largeSeed ? QString{ static_cast<qsizetype>(core::maximum_source_search_query_bytes + 1U), QLatin1Char(' ') } : cursor.hasSelection() ? cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'))
+																																									  : QString{ };
+		if (seed.isEmpty() && Find->RealCaret[caretIndex]) {
+			cursor.select(QTextCursor::WordUnderCursor);
+			seed = cursor.selectedText();
+		}
+		auto origin = source_byte_at(*target, Find->Recall ? target->textCursor().selectionStart() : target->textCursor().position());
+		if (!Find->RealCaret[caretIndex] && !target->textCursor().hasSelection() && Interaction.Selection) {
+			const auto  side     = Interaction.Selection->PreferredLine.Side;
+			const auto& document = side == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+			if (document && Interaction.Selection->PreferredLine.Line < document->Lines.size()) {
+				origin = std::pair{ side, document->Lines[Interaction.Selection->PreferredLine.Line].Content.Begin };
+			}
+		}
+		intent.OriginSide = origin ? origin->first : target == Left ? core::diff_side::left
+																	: core::diff_side::right;
+		intent.OriginByte = origin ? origin->second : 0U;
+		intent.OriginRow  = static_cast<std::uint32_t>(std::max(0, target->textCursor().blockNumber()));
+		Find->Bar->set_scope(intent.Target, Find->Capture.has_value(), target == Unified ? QStringLiteral("Select a contiguous range from one actual source version") : QStringLiteral("Select source text first"));
+		Find->Bar->show();
+		Find->Bar->seed(Find->Recall || rebind ? QString{ } : seed, true);
+		Find->Recall = false;
+		dispatch_source_find(source_find_gesture::edit);
+		if (Find->Changed) {
+			Find->Changed();
+		}
+	}
+	void diff_workbench::dispatch_source_find(const source_find_gesture aGesture)
+	{
+		if (aGesture == source_find_gesture::close && !Find->Bar->isHidden()) {
+			close_source_find();
+			return;
+		}
+		auto intent    = Find->Intent;
+		intent.Gesture = aGesture;
+		intent.Query   = Find->Bar->query();
+		intent.Options = Find->Bar->options();
+		if (aGesture == source_find_gesture::selection) {
+			Find->Fixed = Find->Bar->in_selection() ? Find->Capture : std::nullopt;
+		}
+		intent.Selection = Find->Fixed;
+		if (aGesture == source_find_gesture::next || aGesture == source_find_gesture::previous) {
+			Find->Navigating = true;
+		}
+		if (aGesture == source_find_gesture::query_dirty) {
+			Find->ClosedNavigable = false;
+			Find->Records.reset();
+			Find->PendingReveal.reset();
+			Find->Current.reset();
+			for (auto& list : Find->Decorations) {
+				list.clear();
+			}
+			update_diff_paint();
+			refresh_find_ticks();
+		}
+		if (Find->Dispatch) {
+			Find->Dispatch(intent);
+		}
+	}
+	void diff_workbench::navigate_source_find(const core::change_navigation_direction aDirection)
+	{
+		if (Find->Bar->isHidden()) {
+			Find->ReopenDirection = aDirection;
+			Find->Recall          = true;
+			open_source_find();
+			return;
+		}
+		dispatch_source_find(aDirection == core::change_navigation_direction::next ? source_find_gesture::next : source_find_gesture::previous);
+	}
+	void diff_workbench::close_source_find()
+	{
+		Find->ReopenDirection.reset();
+		Find->ClosedNavigable = Find->Current.has_value();
+		Find->PendingReveal.reset();
+		Find->Bar->hide();
+		dispatch_source_find(source_find_gesture::close);
+		Find->Records.reset();
+		Find->Current.reset();
+		for (auto& list : Find->Decorations) {
+			list.clear();
+		}
+		update_diff_paint();
+		refresh_find_ticks();
+		if (Find->Target && Find->Target->isVisible()) {
+			Find->Target->setFocus(Qt::ShortcutFocusReason);
+		}
+		if (Find->Changed) {
+			Find->Changed();
+		}
+	}
+	void diff_workbench::retarget_source_find()
+	{
+		clear_source_find_document();
+		if (Find->Rebind) {
+			QTimer::singleShot(0, this, [this] {
+				if (Find->Rebind && !Find->Bar->isHidden() && source_find_available()) {
+					open_source_find();
+				}
+			});
+		}
+	}
+	void diff_workbench::clear_source_find_document()
+	{
+		if (!Find) {
+			return;
+		}
+		Find->CopyMatch.reset();
+		Find->ReopenDirection.reset();
+		Find->MappedRecords.reset();
+		Find->ClosedNavigable = false;
+		Find->Rebind          = !Find->Bar->isHidden();
+		Find->PendingReveal.reset();
+		Find->Fragments.clear();
+		for (auto& positions : Find->Positions) {
+			positions.clear();
+		}
+		Find->Capture.reset();
+		Find->Fixed.reset();
+		Find->Records.reset();
+		Find->Current.reset();
+		Find->RealCaret = { };
+		Find->Bar->clear_selection();
+		for (auto& list : Find->Decorations) {
+			list.clear();
+		}
+		dispatch_source_find(source_find_gesture::document_changed);
+		refresh_find_ticks();
+		if (Find->Changed) {
+			Find->Changed();
+		}
+	}
+	auto diff_workbench::reveal_source_match(const core::source_match_location& aLocation) -> bool
+	{
+		if (!CurrentContext || !CurrentResult || !SemanticIndex || geometry_pending()) {
+			return false;
+		}
+		const auto blob = aLocation.Side == core::diff_side::left ? CurrentContext->Key.LeftBlob : CurrentContext->Key.RightBlob;
+		if (blob != std::optional{ aLocation.Blob }) {
+			return false;
+		}
+		const auto& pieces = source_match_fragments(aLocation);
+		if (pieces.empty()) {
+			return false;
+		}
+		const auto first = std::optional{ pieces.front().first };
+		const auto last  = std::optional{ pieces.front().second };
+		if (!first || !last || *last < *first) {
+			return false;
+		}
+		const auto  line     = core::source_line_ref{ CurrentResult->Alignment.Digest, aLocation.Side, aLocation.Line };
+		const auto& document = aLocation.Side == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+		const bool  terminal = document && aLocation.Span.empty() && aLocation.Span.Begin == document->Bytes.size() && aLocation.Line == document->Lines.size();
+		const auto  selected = core::select_line(*SemanticIndex, line);
+		if (!selected && !terminal) {
+			return false;
+		}
+		// Qt's cursor may scroll its own pane: restore the comparison position,
+		// then perform the only vertical reveal through the existing controller.
+		const auto shared = Controller->position();
+		auto*      editor = OnePaneEnabled ? Unified : aLocation.Side == core::diff_side::left ? Left
+																							   : Right;
+		auto       cursor = QTextCursor{ editor->document() };
+		cursor.setPosition(*first);
+		cursor.setPosition(*last, QTextCursor::KeepAnchor);
+		editor->setTextCursor(cursor);
+		Find->CopyMatch  = aLocation;
+		Find->CopyCursor = cursor;
+		if (!OnePaneEnabled) {
+			static_cast<void>(Controller->set_position(shared));
+		}
+		Interaction.Selection = selected;
+		if (selected) {
+			static_cast<void>(reveal_exact_line(*selected, line));
+		} else if (OnePaneEnabled) {
+			reveal_unified_row(static_cast<std::uint32_t>(std::max(0, editor->document()->findBlock(*first).blockNumber())));
+		} else {
+			Controller->end();
+		}
+		auto beginCursor = cursor;
+		beginCursor.setPosition(*first);
+		const auto native = editor->cursorRect(beginCursor);
+		if (native.left() < 0) {
+			editor->horizontalScrollBar()->setValue(editor->horizontalScrollBar()->value() + native.left());
+		} else if (native.right() > editor->viewport()->width()) {
+			editor->horizontalScrollBar()->setValue(editor->horizontalScrollBar()->value() + native.right() - editor->viewport()->width());
+		}
+		update_detail();
+		update_diff_paint();
+		emit_selection();
+		return true;
+	}
+	void diff_workbench::observe_source_find_execution(const std::uint64_t aMatching, const std::uint64_t aCached)
+	{
+		Statistics.FindMatchingRuns = aMatching;
+		Statistics.FindCachedRuns   = aCached;
+	}
+	void diff_workbench::present_source_find(const application::source_search_projection& aProjection)
+	{
+		if (aProjection.Scope && (!CurrentContext || !CurrentResult || aProjection.Scope->Document != std::optional{ core::source_search_document{ CurrentContext->Key.File, CurrentResult->Alignment.Digest, CurrentContext->Key.LeftBlob, CurrentContext->Key.RightBlob } })) {
+			return;
+		}
+		const bool recordsChanged = Find->Records != aProjection.Matches;
+		if (recordsChanged) {
+			if (aProjection.Matches && Find->MappedRecords.lock() != aProjection.Matches) {
+				Find->Fragments.clear();
+				for (auto& positions : Find->Positions) {
+					positions.clear();
+				}
+				Find->MappedRecords = aProjection.Matches;
+			}
+			Find->Records = aProjection.Matches;
+			for (auto& list : Find->Decorations) {
+				list.clear();
+			}
+			if (aProjection.Matches && aProjection.Scope) {
+				const auto target    = aProjection.Scope->Target;
+				const auto paneIndex = target == core::source_search_target::left ? 0U : target == core::source_search_target::right ? 1U
+																																	 : 2U;
+				auto&      list      = Find->Decorations[paneIndex];
+				for (std::size_t index = 0U; index < aProjection.Matches->size(); ++index) {
+					const auto& record   = (*aProjection.Matches)[index].Match;
+					const auto& location = target == core::source_search_target::left ? record.Locations[0] : record.Locations[1] ? record.Locations[1]
+																																  : record.Locations[0];
+					if (!location) {
+						continue;
+					}
+					for (const auto& [begin, end] : source_match_fragments(*location)) {
+						list.push_back({ begin, end, 0, static_cast<std::uint32_t>(index) });
+					}
+				}
+				std::ranges::sort(list, { }, &find_presentation::decoration::Begin);
+				int maximum = 0;
+				for (auto& item : list) {
+					maximum        = std::max(maximum, item.End);
+					item.PrefixEnd = maximum;
+				}
+			}
+		}
+		if (aProjection.CurrentMatch && Find->ReopenDirection) {
+			const auto direction = *Find->ReopenDirection;
+			Find->ReopenDirection.reset();
+			dispatch_source_find(direction == core::change_navigation_direction::next ? source_find_gesture::next : source_find_gesture::previous);
+			return;
+		}
+		const bool reveal = aProjection.CurrentMatch && (Find->Navigating || Find->Current != aProjection.CurrentMatch || Find->Bar->projection().Matches != aProjection.Matches);
+		Find->Current     = aProjection.CurrentMatch;
+		Find->Bar->present(aProjection);
+		if (reveal && aProjection.Matches && *aProjection.CurrentMatch < aProjection.Matches->size()) {
+			const auto& record   = (*aProjection.Matches)[*aProjection.CurrentMatch].Match;
+			const auto& location = aProjection.Scope && aProjection.Scope->Target == core::source_search_target::left ? record.Locations[0] : record.Locations[1] ? record.Locations[1]
+																																								  : record.Locations[0];
+			if (location) {
+				if (Find->Navigating) {
+					Find->Intent.OriginSide = location->Side;
+					Find->Intent.OriginByte = location->Span.Begin;
+					Find->Intent.OriginRow  = record.UnifiedRow;
+				}
+				Find->PendingReveal = *location;
+				if (reveal_source_match(*location)) {
+					Find->PendingReveal.reset();
+				}
+			}
+		}
+		Find->Navigating = false;
+		update_diff_paint();
+		if (recordsChanged) {
+			refresh_find_ticks();
+		}
+		if (Find->Changed) {
+			Find->Changed();
+		}
+	}
+	void diff_workbench::append_find_selections(QPlainTextEdit& aPane, QList<QTextEdit::ExtraSelection>& aSelections)
+	{
+		if (!Find) {
+			return;
+		}
+		pane(&aPane)->FindOutlines.clear();
+		if (Find->Bar->isHidden()) {
+			return;
+		}
+		const auto& records = Find->Decorations[&aPane == Left ? 0U : &aPane == Right ? 1U
+																					  : 2U];
+		const auto  visible = paintable_line_bounds(aPane);
+		const auto  start   = aPane.document()->findBlockByNumber(static_cast<int>(visible.Begin));
+		const auto  finish  = aPane.document()->findBlockByNumber(static_cast<int>(visible.End));
+		const auto  begin   = start.isValid() ? start.position() : 0;
+		const auto  end     = finish.isValid() ? finish.position() : aPane.document()->characterCount();
+		auto        at      = std::ranges::lower_bound(records, begin, { }, &find_presentation::decoration::PrefixEnd);
+		for (; at != records.end() && at->Begin < end; ++at) {
+			if (at->End < begin) {
+				continue;
+			}
+			++Statistics.FindHighlightsVisited;
+			auto selection   = QTextEdit::ExtraSelection{ };
+			selection.cursor = QTextCursor{ aPane.document() };
+			selection.cursor.setPosition(at->Begin);
+			selection.cursor.setPosition(at->End, QTextCursor::KeepAnchor);
+			auto color = aPane.palette().color(QPalette::Highlight);
+			color.setAlpha(40);
+			selection.format.setBackground(color);
+			aSelections.push_back(selection);
+			if (Find->Current == std::optional{ at->Match }) {
+				pane(&aPane)->FindOutlines.push_back(selection.cursor);
+			}
+		}
+	}
+	void diff_workbench::refresh_find_ticks()
+	{
+		if (!Find) {
+			return;
+		}
+		auto shared  = std::vector<qreal>{ };
+		auto unified = std::vector<qreal>{ };
+		if (Find->Records && !Find->Bar->isHidden()) {
+			for (const auto& record : *Find->Records) {
+				const auto& location = Find->Intent.Target == core::source_search_target::left ? record.Match.Locations[0] : record.Match.Locations[1] ? record.Match.Locations[1]
+																																					   : record.Match.Locations[0];
+				if (!location) {
+					continue;
+				}
+				if (const auto fraction = Controller->scrollbar_fraction(location->Side, location->Line)) {
+					shared.push_back(*fraction);
+				} else if (location->Span.empty()) {
+					shared.push_back(1.0);
+				}
+				if (const auto row = unified_row_for(location->Side, location->Line)) {
+					unified.push_back(static_cast<qreal>(*row) / std::max(1, Unified->document()->blockCount() - 1));
+				}
+			}
+		}
+		static_cast<thread_tick_scroll_bar*>(SharedScroll)->set_find_ticks(std::move(shared));
+		static_cast<thread_tick_scroll_bar*>(Unified->verticalScrollBar())->set_find_ticks(std::move(unified));
+	}
+
 	diff_workbench::diff_workbench(QWidget* const aParent)
 		: QWidget{ aParent }
 		, UnifiedPresentation{ std::make_unique<unified_presentation>() }
@@ -2243,6 +2878,7 @@ namespace bpr::qt {
 			seam->setObjectName(QStringLiteral("lineDetailsResize"));
 		}
 		root->addWidget(Vertical, 1);
+		initialize_source_find();
 		for (auto* const source : { Left, Right, Unified }) {
 			connect(source, &QPlainTextEdit::selectionChanged, this, [this] { queue_line_details(); });
 		}
@@ -2669,6 +3305,7 @@ namespace bpr::qt {
 			update_unified_paint();
 		}
 		refresh_thread_ticks();
+		refresh_find_ticks();
 	}
 
 	void diff_workbench::set_thread_markers(const bool aEnabled)
@@ -2681,6 +3318,7 @@ namespace bpr::qt {
 			pane(source)->set_marker_column(aEnabled);
 		}
 		refresh_thread_ticks();
+		refresh_find_ticks();
 	}
 
 	auto diff_workbench::thread_markers() const noexcept -> bool
@@ -3442,6 +4080,40 @@ namespace bpr::qt {
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)
 		-> bool
 	{
+		if (Find && (aWatched == Left || aWatched == Right || aWatched == Unified) && aEvent->type() == QEvent::FocusIn) {
+			Find->Recent = static_cast<QPlainTextEdit*>(aWatched);
+			if (Find->Changed) {
+				Find->Changed();
+			}
+		}
+		if (Find && aEvent->type() == QEvent::MouseButtonPress) {
+			if (aWatched == Left->viewport()) {
+				Find->RealCaret[0] = true;
+			}
+			if (aWatched == Right->viewport()) {
+				Find->RealCaret[1] = true;
+			}
+			if (aWatched == Unified->viewport()) {
+				Find->RealCaret[2] = true;
+			}
+		}
+
+		if (Find && Find->CopyMatch && (aWatched == Left || aWatched == Right || aWatched == Unified)
+			&& (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress)) {
+			auto* editor = static_cast<QPlainTextEdit*>(aWatched);
+			auto* key    = static_cast<QKeyEvent*>(aEvent);
+			if (key->matches(QKeySequence::Copy) && editor->textCursor() == Find->CopyCursor && CurrentResult) {
+				aEvent->accept();
+				if (aEvent->type() == QEvent::KeyPress) {
+					const auto& match    = *Find->CopyMatch;
+					const auto& document = match.Side == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
+					if (document && match.Span.End <= document->Bytes.size()) {
+						QApplication::clipboard()->setText(QString::fromUtf8(reinterpret_cast<const char*>(document->Bytes.data() + match.Span.Begin), static_cast<qsizetype>(match.Span.End - match.Span.Begin)));
+					}
+				}
+				return true;
+			}
+		}
 		if ((aEvent->type() == QEvent::Wheel || aEvent->type() == QEvent::NativeGesture)
 			&& (aWatched == Left->viewport() || aWatched == Right->viewport() || aWatched == Unified->viewport()
 				|| aWatched == LinkMap || aWatched == UnifiedMap)
@@ -3743,6 +4415,19 @@ namespace bpr::qt {
 		LinkMap->set_geometry(axis, CurrentResult->Alignment.Moves);
 		Controller->set_axis(axis);
 		refresh_thread_ticks();
+		refresh_find_ticks();
+		if (Find && Find->Changed) {
+			Find->Changed();
+		}
+		if (Find && Find->Rebind && !Find->Bar->isHidden()) {
+			QTimer::singleShot(0, this, [this] {if(Find->Rebind && !Find->Bar->isHidden() && source_find_available()){open_source_find();
+} });
+		}
+		if (Find && Find->PendingReveal) {
+			const auto target = *Find->PendingReveal;
+			QTimer::singleShot(0, this, [this, target] {if(Find->PendingReveal==std::optional{target} && reveal_source_match(target)){Find->PendingReveal.reset();
+} });
+		}
 		++Statistics.GeometryRebuilds;
 		if (Statistics.GeometryRebuildHistorySize
 			< Statistics.GeometryRebuildHistory.size()) {
@@ -4185,6 +4870,7 @@ namespace bpr::qt {
 			pane(source)->reset_pixel_gesture();
 			pane(source)->set_within_line_offset(0.0);
 		}
+		clear_source_find_document();
 		OnePaneEnabled = aEnabled;
 		rebuild_unified_document();
 		Comparison->setVisible(!aEnabled);
@@ -4368,6 +5054,7 @@ namespace bpr::qt {
 			append_intraline_emphasis(selections, *Unified, core::diff_side::left, base, selectedBase);
 			append_intraline_emphasis(selections, *Unified, core::diff_side::right, head, selectedHead);
 		}
+		append_find_selections(*Unified, selections);
 		Unified->setExtraSelections(selections);
 		pane(Unified)->set_unified_selection(selectedBase, selectedHead);
 		pane(Unified)->set_row_colors(Colors.Removed, Colors.Added);
@@ -4751,6 +5438,7 @@ namespace bpr::qt {
 					selections, aPane, aSide, paintable, washed);
 			}
 
+			append_find_selections(aPane, selections);
 			aPane.setExtraSelections(selections);
 		};
 
@@ -5161,6 +5849,10 @@ namespace bpr::qt {
 
 	void diff_workbench::emit_reading_gesture() noexcept
 	{
+		if (Find) {
+			Find->CopyMatch.reset();
+			Find->PendingReveal.reset();
+		}
 		RestoredReadingLine.reset();
 		if (ReadingGestureSink) {
 			try {
@@ -5197,6 +5889,7 @@ namespace bpr::qt {
 
 	void diff_workbench::clear_projection(QString aStatus)
 	{
+		clear_source_find_document();
 		HeldLine.reset();
 		RestoredReadingLine.reset();
 		PresentationReadingLine.reset();

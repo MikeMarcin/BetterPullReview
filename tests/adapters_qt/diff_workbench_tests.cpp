@@ -1262,8 +1262,10 @@ namespace {
 		expect(
 			workbench.selection()->Group != firstGroup,
 			"semantic navigation changes the one retained selection");
-		expect(workbench.findChildren<QToolButton*>().isEmpty(),
-			   "the comparison surface contains no duplicate change-navigation presenter");
+		for (const auto* control : workbench.findChildren<QToolButton*>()) {
+			expect(workbench.source_find()->isAncestorOf(control),
+				   "native Find owns its buttons; comparison still has no duplicate change-navigation presenter");
+		}
 		workbench.left_pane()->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(

@@ -552,6 +552,26 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "cpp-identifiers-v1/objects.pack" },
 				};
+			case github_public_path_fixture::source_find_v1:
+				return {
+					.ContractDirectory   = "source-find-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 77U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "source-find",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "3de354820bebc4e2644112d994d20d6d88ae13fd",
+					.HeadOneOid          = "755992e699b42939e3bff7abbdd1d66827ce439f",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "source-find-v1/objects.pack" },
+				};
 			case github_public_path_fixture::header_source_v1:
 				return {
 					.ContractDirectory   = "header-source-v1",

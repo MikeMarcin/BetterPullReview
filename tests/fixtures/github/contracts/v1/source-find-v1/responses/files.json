@@ -1,0 +1,20 @@
+[
+	{
+		"additions": 2,
+		"changes": 4,
+		"deletions": 2,
+		"filename": "src/find.cpp",
+		"patch": "@@ -1,5 +1,5 @@\n-earlier only\n-removed bridge\n+later only\n+added bridge\n // unchanged source row 0000\n // unchanged source row 0001\n // unchanged source row 0002",
+		"sha": "fda10921dcc4224606ae83cfa23494f7070d230e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "src/other.cpp",
+		"patch": "@@ -1 +1 @@\n-old\n+new",
+		"sha": "3e757656cf36eca53338e520d134963a44f793f8",
+		"status": "modified"
+	}
+]

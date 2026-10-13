@@ -2,9 +2,10 @@
 
 [RFC-BPR-0077](../rfcs/RFC-BPR-0077-find-and-find-in-files.md) owns the complete
 Find and Find in Files behavior. Its first milestone, [[BPR-1419]], supplies
-the deterministic session and Qt-free effect lifecycle. M2 supplies the shared matcher and M3 the exact epoch corpus. Native commands,
-source decorations and result reveal are subsequent milestones; this foundation does not make a source Find command
-available in the application.
+the deterministic session and Qt-free effect lifecycle. M2 supplies the shared
+matcher and M3 the exact epoch corpus. M4 ([[BPR-1422]]) composes native pane
+Find in the shipped source reader. PR Search, result activation and the complete
+performance course remain M5 work.
 
 ## Core policy
 
@@ -91,8 +92,8 @@ host through separate manual effect/decision executors: independent queries,
 rapid coalescing, invalid input, cancellation, reentrant feedback/shutdown,
 projection/worker/submission failures and observable quiescence. Its 1,000-step
 traversal leaves the execution count unchanged. These checks prove session/record acceptance. The M2 checks below prove
-matching; M3 checks source membership below. Pixels and installed UI behavior
-remain later work.
+matching; M3 checks source membership below. The M4 course below exercises
+native pane controls through the installed application composition.
 
 ## Shared matching and source plans
 
@@ -254,5 +255,58 @@ public search host/worker with the real epoch host and fake narrow capabilities:
 historical-only membership, retained read reuse, in-flight replacement, sparse
 blob validation, priority cancellation and authority shutdown need no QApplication.
 `git_process_contract` and `git_cache_contract` exercise the installed Git seam.
-These foundation checks do not supply the pending native Search drawer, exact UI
-activation, full application performance course or original AC01–AC08 acceptance.
+These foundation checks do not supply the pending native Search drawer, exact PR
+result activation or full application performance course.
+
+## Native pane composition
+
+`app::pane_find_controller` owns the independent pane host on the existing
+serialized reviewer lane and diff effect executor. It captures only the accepted
+immutable diff, existing semantic index, original reading origin and complete
+scope. Work calls `execute_source_pane_match` on the effect lane. No Qt widget
+reads a blob, runs a process, computes a diff or implements matching policy.
+Admission yields to the epoch host's existing selected-source priority seam.
+Tab/document invalidation retires old hits immediately; a visible bar retains
+its query/options and rebinds after accepted source geometry is ready. PR/account
+authority invalidation resets the query and options. Shutdown waits for the
+pane host's exact terminal before destroying ports or the window.
+
+Core projects Find/Next/Previous legality from bounded reader, material, editor,
+modal, query and hit observations. Qt supplies those observations, one set of
+View > Find actions and their physical shortcuts. The native bar owns focus,
+150 ms typing debounce, IME commit handling and literal source seeding. Obsolete
+decorations clear before debounce; oversized native input is refused before
+copying it into an effect packet. Escape restores the target source. Captured
+original selection bounds never move with match navigation.
+
+Qt caches original UTF-8 endpoint conversions and actual-version visual
+fragments when accepting a collection. The mapping walks validated source bytes
+without allocating prefix strings, preserving scalar/surrogate and CRLF spans.
+Unified multiline occurrences split around opposing-version visual rows. Their
+wash/outline covers only actual source fragments; explicit Copy of the current
+occurrence yields its original source bytes. An EOF hit with no actual line
+never invents a comment anchor. Semantic selection and visibility use the
+existing shared controller, with deferred reveals bound to the still-current
+match and cancelled by later reading gestures.
+
+The native model indexes decorations by document position with prefix ends;
+painting visits visible candidates. Scroll-track painting uses sorted fractions
+and at most one binary lookup per track pixel. No occurrence widget or second
+link map is introduced. Nonoverlapping accepted spans, the 200,000-line source
+ceiling and 10,000-record ceiling bound endpoint/fragment caches. Complete
+results can retain one exact-scope/query/options cache entry, sharing the
+existing <=16 MiB immutable records. Closing clears active decorations and work;
+Next/Previous reopening can reuse that collection and cached endpoints. Query,
+document, tab, comparison and authority identity still govern acceptance. These
+are structural capacity facts; whole-application RSS remains AC08 work.
+
+`application_source_find` uses a committed synthetic PR through the real window,
+account/PR opening, epoch/cache host and installed Git. It proves both split
+targets, offscreen unchanged source, actual unified multiline ordering, native
+selection/caret/regex seeding, input admission, IME/multiline options, fixed
+selection, Unicode/CRLF/EOF exact spans, wrapping, focus and editor/modality
+guards. One thousand traversals and closed-query Next call no matcher, perform
+no endpoint conversion and retain the same diff/index/record identities. Native
+full-window renders run offscreen at 1.0x, 1.25x and 2.0x; they do not constitute
+owner desktop, VoiceOver or other-platform device evidence. The complete AC07
+and AC08 still include the pending PR Search surface.

@@ -1112,6 +1112,9 @@ never invents enabled state.
 | Previous file ([[BPR-1328]]) | `Ctrl+Alt+Up` (⌥⌘↑) |
 | Next file ([[BPR-1328]]) | `Ctrl+Alt+Down` (⌥⌘↓) |
 | View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
+| View > Find > Find ([[BPR-1422]]) | `Ctrl+F` (⌘F) |
+| View > Find > Next / Previous Match ([[BPR-1422]]) | `F3` / `Shift+F3`; macOS also ⌘G / ⌘⇧G |
+| In the pane Find query ([[BPR-1422]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
 | Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
@@ -1160,6 +1163,31 @@ and composers disable the native menu equivalent while they have focus, keeping
 their ordinary Option/Alt input. Home, local Review Cycles, Overview, Discuss
 and Threads cannot navigate a hidden retained source. The resident desktop menu
 mirrors the item disabled when no window is open.
+
+View > Find searches the complete accepted source in PR Review. Focused split
+source chooses Earlier or Later; Review chrome recalls the most recently focused
+available source, initially Later or the sole available side. Unified Find
+uses actual versions in the displayed order. Find focuses a native multiline
+query above the reader. A second row keeps Match case, Whole word, Regular
+expression, Find in Selection and status visible at the supported minimum
+window width. Native UI font and inherited palette roles supply the bar.
+
+Selected source text seeds the query, then a word at a real text caret, then
+the retained query. A semantic line cursor supplies only the reading origin.
+Regex seeding escapes literal punctuation; an oversized selection retains the
+query and reports the 4 KiB input limit. The captured original selection remains
+fixed when Find in Selection is enabled. Unified ranges crossing versions are
+unavailable with an explanation. Counts, scope, invalid/unsupported patterns,
+incomplete coverage and wrapping have accessible wording.
+
+Quiet visible occurrence washes, a current outline and marks on the existing
+scroll tracks accompany exact source selection through the shared reveal
+controller. Match traversal uses the accepted immutable record collection.
+Escape clears decorations and restores target source focus; Next can reopen
+and advance the retained query without another scan. Unrelated editors, modal
+dialogs, Home and other modalities retain their keys. The resident desktop menu
+mirrors Find commands disabled. PR Find in Files and F4 result navigation remain
+the next milestone of [RFC-BPR-0077](../rfcs/RFC-BPR-0077-find-and-find-in-files.md).
 
 The command opens the unique closest same-basename opposite-family file through
 ordinary exact file selection, replacing the active tab's file and retaining its

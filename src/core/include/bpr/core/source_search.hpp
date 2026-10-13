@@ -4,6 +4,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/document_tabs.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -59,6 +60,24 @@ namespace bpr::core {
 		bool RegularExpression                                      = false;
 		auto operator==(const source_search_options&) const -> bool = default;
 	};
+
+	/// \brief Bounded native focus/modality observations for the one pane command projection.
+	struct source_find_command_observation
+	{
+		bool Reader         = false;
+		bool Material       = false;
+		bool EditorOwnsFind = false;
+		bool Modal          = false;
+		bool Query          = false;
+		bool Hits           = false;
+	};
+	/// \brief Find and traversal legality; Qt supplies focus facts, never a hidden-pane fallback.
+	[[nodiscard]] constexpr auto project_source_find_commands(const source_find_command_observation aObservation) -> std::array<bool, 3>
+	{
+		const bool find     = aObservation.Reader && aObservation.Material && !aObservation.EditorOwnsFind && !aObservation.Modal;
+		const bool traverse = find && aObservation.Query && aObservation.Hits;
+		return { find, traverse, traverse };
+	}
 
 	enum class source_search_input : std::uint8_t { empty,
 													ready,

@@ -15,6 +15,7 @@
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_release_update.hpp"
+#include "pane_find_controller.hpp"
 #include "platform_credential_vault.hpp"
 #include "profile_window_layout_port.hpp"
 #include "terminal_diagnostics.hpp"
@@ -1003,6 +1004,7 @@ namespace bpr::app {
 				};
 			case detail::github_public_path_fixture::cpp_identifiers_v1:
 			case detail::github_public_path_fixture::header_source_v1:
+			case detail::github_public_path_fixture::source_find_v1:
 			case detail::github_public_path_fixture::nested_folders_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
@@ -6586,6 +6588,9 @@ namespace bpr::app {
 			void publish(const application::document_tabs_projection& aProjection) override
 			{
 				if (!Owner.Closing && Owner.Window != nullptr) {
+					if (Owner.PaneFind) {
+						Owner.PaneFind->observe_scope();
+					}
 					Owner.Window->publish(aProjection);
 				}
 			}
@@ -8175,6 +8180,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				application::diff_host_limits{ }, Profile->DiffComputeLimits
 #endif
 			);
+			PaneFind = std::make_unique<pane_find_controller>(*Window->comparison_surface(), ReviewerDecisions, DiffEffects, [this]() -> std::optional<core::source_search_scope> {
+                    const auto* surface = Window->comparison_surface();
+                    if(Closing || !SelectedDiffPublication || !surface->current_context() || !surface->current_result()
+                        || SelectedDiffPublication->Key != surface->current_context()->Key){ return std::nullopt;
+}
+                    auto scope = core::source_search_scope{};
+                    scope.Session=WindowSession;
+                    scope.Authority=SelectedDiffPublication->Key.Authority;
+                    scope.Comparison=SelectedDiffPublication->Request.Diff.Comparison;
+                    scope.CatalogueGeneration=1U;
+                    scope.Tab=TabHost ? TabHost->state().Active : std::nullopt;
+                    return scope; }, [this] { EpochHost->yield_to_source_navigation(); });
 
 			// The workbench observes the review's files through the read model
 			// the provider already produces. The supplier is read at call time
@@ -13577,6 +13594,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReadingRestoration && RestorationReadAccepted) {
 				finish_reading_restoration(false);
 			}
+			if (PaneFind) {
+				PaneFind->reset();
+			}
 			const auto closed = ReadingDestination.has_value();
 			ReadingDestination.reset();
 			AcceptedReadingPosition.reset();
@@ -17209,6 +17229,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (auto& host : RetiredReviewMutationHosts) {
 				host->shutdown();
 			}
+			if (PaneFind) {
+				PaneFind->shutdown();
+			}
 			DiffHost->shutdown();
 			EpochHost->shutdown();
 		}
@@ -17248,7 +17271,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			begin_other_shutdown();
 			if (
-				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || ReadingAdvanceQueued
+				!DiffHost->is_quiescent() || !EpochHost->is_quiescent() || (PaneFind && !PaneFind->is_quiescent()) || ReadingAdvanceQueued
 				|| TourSourceReadsInFlight.load(std::memory_order_acquire) != 0U
 				|| PreparationsInFlight.load(std::memory_order_acquire) != 0U
 				|| (WindowRead && !WindowRead->is_quiescent())
@@ -18253,6 +18276,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                         FrozenSnapshotWrites     = 0U;
 		std::unique_ptr<composition_diff_projection>        DiffProjections;
 		std::unique_ptr<application::diff_application_host> DiffHost;
+		std::unique_ptr<pane_find_controller>               PaneFind;
 		/// [[BPR-1327]]. The window being prepared, its cancellation and the
 		/// preparations whose completion has not yet returned to the lane.
 		std::vector<application::workbench_selected_diff_request> PreparedWindow;

@@ -4279,3 +4279,22 @@ bpr_add_network_isolated_test(NAME application_review_navigation_entry WINDOWS_U
 set_tests_properties(application_review_navigation_entry PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_NAVIGATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/review-navigation-renders"
     TIMEOUT 180 PASS_REGULAR_EXPRESSION "REVIEW_NAVIGATION_ENTRY_OK")
+
+# RFC-BPR-0077: native Find through the shipped window, epoch actor and installed Git.
+bpr_add_executable(test_source_find_public_path source_find_public_path_tests.cpp)
+target_link_libraries(test_source_find_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_source_find_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_source_find_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_source_find_public_path)
+bpr_enable_warnings(test_source_find_public_path)
+bpr_add_network_isolated_test(NAME application_source_find WINDOWS_UNCONTAINED COMMAND test_source_find_public_path)
+set_tests_properties(application_source_find PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-find-renders"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
+foreach(bpr_find_scale IN ITEMS 1.25 2.0)
+    string(REPLACE "." "_" bpr_find_scale_name "${bpr_find_scale}")
+    bpr_add_network_isolated_test(NAME application_source_find_scale_${bpr_find_scale_name} WINDOWS_UNCONTAINED COMMAND test_source_find_public_path)
+    set_tests_properties(application_source_find_scale_${bpr_find_scale_name} PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${bpr_find_scale};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-find-renders-${bpr_find_scale_name}"
+        TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_FIND_PUBLIC_PATH_OK")
+endforeach()
