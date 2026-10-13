@@ -1,0 +1,300 @@
+{
+  "schema": "bpr.milestone-engineering-evidence.v1",
+  "assignment": "publication_closeout",
+  "run_id": "strict-cli-account-publication-v1",
+  "segment_id": "m4-qualification",
+  "mandate_revision": "strict-cli-publication-r2",
+  "milestone": "publication-qualification-closeout",
+  "source_root": "/Users/jaeger/.codex/worktrees/22e7/BetterPullReview",
+  "tracker_root": "/Users/jaeger/.codex/worktrees/22e7/BetterPullReview",
+  "branch": "codex/strict-cli-account-publication",
+  "baseline": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "starting_revision": "18e71f9e01963eafca5a1d9c6cd9dcdd907dea92",
+  "candidate_revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+  "accepted_product": "34b6a43458659747648e4039a99ca52407d14624",
+  "production_delta_from_accepted_product": [],
+  "disposition": "qualification accepted; authorized main landing and terminal RFC/index pair remain coordinator-owned",
+  "criteria": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": "Ordinary Comment/Approve/Request changes, inline Publish and immutable-plan tour Publish/Stop pass composed courses; accepted M3 render/focus/exact-actor/content evidence and no-extra-modal guards unchanged."
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": "Retained M3 zero-write trust/discovery/startup/preview, strict capability, current actor/head/target/content and exact one-use-grant controls. M4 current disclosure and actual QProcess restart phases retain prompt counts, account77/78 selection, login/numeric mismatch, choice preservation, no inventory/fallback/private-content controls. Read courses themselves do not count POSTs."
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": "Unchanged accepted M3 fresh strict failures preserve editable drafts; prior unknown inline remains locked through unavailable/tool/cancel/capability refusals and restores GET-only onePOST/onecomment. P1/P2 independent final recheck accepted34b6; missing/inaccessible share owner-approved credential_unavailable, distinct from tool/attempted-unknown."
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": "Exact chosen login/host question, existing sign-in/no token saving, reuse until sign-out/replacement, read-only trust and current token-free metadata revalidation asserted in real composed courses. M3 residual executable/certificate/redirect/helper details and no ambient-account/socket claims remain unchanged."
+    },
+    {
+      "criterion": "AC05",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": "Focused integration9 passing rows plus successor affected2/2, original M3 full offscreen geometry/focus/accessibility at1/1.25/2 and final independent P1/P2 recheck; exact format22 and touched full-TU tidy pass. Documentation commands recorded after final upkeep."
+    }
+  ],
+  "commands": [
+    {
+      "name": "Initial inherited binaries (not exact-candidate evidence)",
+      "revision": "inherited binaries; rebuild overlapped final fresh-process phase",
+      "exit_code": 8,
+      "passing_rows": null,
+      "elapsed_seconds": 51.12,
+      "scope": "Not acceptance; first public path passed with inherited binary, later restart failed.",
+      "path": "/tmp/bpr-strict-cli-run/m4-remembered-baseline.log",
+      "sha256": "dbd73ede6616279ca254be300fd7f3df2b7c0bba1c79d277303551825391dc43"
+    },
+    {
+      "name": "Exact unchanged baseline rebuild",
+      "revision": "18e71f9e01963eafca5a1d9c6cd9dcdd907dea92",
+      "exit_code": 0,
+      "passing_rows": null,
+      "elapsed_seconds": null,
+      "scope": "Rebuilt the two courses before exact baseline replay.",
+      "path": "/tmp/bpr-strict-cli-run/m4-remembered-baseline-build.log",
+      "sha256": "354c4d8e34a5d4ca038b322498de1473bcddff47769f69ffb6fc7a5dc8ae5484"
+    },
+    {
+      "name": "Rebuilt baseline discrimination",
+      "revision": "18e71f9e01963eafca5a1d9c6cd9dcdd907dea92",
+      "exit_code": 8,
+      "passing_rows": 0,
+      "elapsed_seconds": 2.91,
+      "scope": "Both courses fail on obsolete reused-on-later-launches assertions.",
+      "path": "/tmp/bpr-strict-cli-run/m4-remembered-rebuilt-baseline.log",
+      "sha256": "6cf17736f24396425e79fff7f99f5b34155898f8b245137977870847b5d6f8a5",
+      "command": "ctest --preset dev -R '^application_remembered_connection_(public_path|restart)$' --output-on-failure"
+    },
+    {
+      "name": "Initial exact format",
+      "revision": "86cd test patch before format",
+      "exit_code": 1,
+      "passing_rows": null,
+      "elapsed_seconds": null,
+      "scope": "One alignment changed with edited assertion; corrected by canonical formatter22.",
+      "path": "/tmp/bpr-strict-cli-run/m4-format.log",
+      "sha256": "eed6dbd6e49179f64c03c0b5cc97df1a6d3d020c976320cf6d512bb4d3650d54"
+    },
+    {
+      "name": "Pinned build",
+      "revision": "86cdbe7cbea19db00ad700f675fee3451ff1fbcb",
+      "exit_code": 0,
+      "passing_rows": null,
+      "elapsed_seconds": null,
+      "scope": "Two remembered course targets built.",
+      "path": "/tmp/bpr-strict-cli-run/m4-build-pinned.log",
+      "sha256": "8a9f01136e0b4720f746a5958a53890cf748911243e5608d24179900cead215b"
+    },
+    {
+      "name": "Focused integration",
+      "revision": "86cdbe7cbea19db00ad700f675fee3451ff1fbcb",
+      "exit_code": 8,
+      "passing_rows": 9,
+      "elapsed_seconds": 86.53,
+      "scope": "9/10 pass. Newly exact-login check fails cancel-first expectation77; course selects active78. No product failure.",
+      "path": "/tmp/bpr-strict-cli-run/m4-focused-integration.log",
+      "sha256": "0899f09b474ea8b58caeee91ff44146852563261e0fda195ec2c7da4dbdee718",
+      "command": "ctest --preset dev -R '^(application_remembered_connection_public_path|application_remembered_connection_restart|application_inline_publish_cli_consent|application_review_submission_cli_ordinary|application_review_tour_cli_ordinary_native|application_review_tour_cli_ordinary_stop|qt_github_cli_consent|qt_review_draft_editor|qt_conversation_cards_view|architecture_boundaries|test_network_isolation_manifest)$' --output-on-failure"
+    },
+    {
+      "name": "Exact two-path format",
+      "revision": "86cdbe7cbea19db00ad700f675fee3451ff1fbcb",
+      "exit_code": 0,
+      "passing_rows": null,
+      "elapsed_seconds": null,
+      "scope": "clang-format22.1.8, two touched C++ paths.",
+      "path": "/tmp/bpr-strict-cli-run/m4-format-final.log",
+      "sha256": "32e6dae7c6b1e5b3ce520b0a037eb3e9e9ff703ea92054a15b8993b3ee8e99b5"
+    },
+    {
+      "name": "Two-path full-TU tidy",
+      "revision": "86cdbe7cbea19db00ad700f675fee3451ff1fbcb",
+      "exit_code": 0,
+      "passing_rows": 2,
+      "elapsed_seconds": null,
+      "scope": "Both touched translation units pass warnings-as-errors with repository SDK arguments; no global tidy claim.",
+      "path": "/tmp/bpr-strict-cli-run/m4-tidy.log",
+      "sha256": "503a3378647aa8085a75fc457826dc0cc95e83c34debd60c05380f5f6380d1a2",
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths tests/end_to_end/remembered_connection_public_path_tests.cpp tests/end_to_end/remembered_connection_restart_tests.cpp"
+    },
+    {
+      "name": "Successor exact format",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "exit_code": 0,
+      "passing_rows": null,
+      "elapsed_seconds": null,
+      "scope": "Both touched paths pass exact clang-format22.",
+      "path": "/tmp/bpr-strict-cli-run/m4-format-successor.log",
+      "sha256": "32e6dae7c6b1e5b3ce520b0a037eb3e9e9ff703ea92054a15b8993b3ee8e99b5",
+      "command": "python3 _coding-standard/scripts/format.py --dry-run tests/end_to_end/remembered_connection_public_path_tests.cpp tests/end_to_end/remembered_connection_restart_tests.cpp"
+    },
+    {
+      "name": "Successor build",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "exit_code": 0,
+      "passing_rows": null,
+      "elapsed_seconds": null,
+      "scope": "Only affected restart target rebuilt.",
+      "path": "/tmp/bpr-strict-cli-run/m4-successor-build.log",
+      "sha256": "8a9f01136e0b4720f746a5958a53890cf748911243e5608d24179900cead215b"
+    },
+    {
+      "name": "Successor affected public checks",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "exit_code": 0,
+      "passing_rows": 2,
+      "elapsed_seconds": 30.62,
+      "scope": "Fresh-process restart and qt_composed_cli_read_consent pass. Other9 passing integration rows are unchanged and reused.",
+      "path": "/tmp/bpr-strict-cli-run/m4-successor-focused.log",
+      "sha256": "ffa673ff43c82b53549a44d3f10982fcf9372ec950b559705891867581610988",
+      "command": "ctest --preset dev -R '^(application_remembered_connection_restart|qt_composed_cli_read_consent)$' --output-on-failure"
+    },
+    {
+      "name": "Successor full-TU tidy",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "exit_code": 0,
+      "passing_rows": 1,
+      "elapsed_seconds": null,
+      "scope": "Affected restart translation unit passes warnings-as-errors.",
+      "path": "/tmp/bpr-strict-cli-run/m4-tidy-successor.log",
+      "sha256": "ebc85ef4189dbe2b2feb2a7a1e08085a77e733019fa68f0c06108b6c7782e8bf",
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths tests/end_to_end/remembered_connection_restart_tests.cpp"
+    },
+    {
+      "name": "Documentation structure/upkeep",
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54 plus explicit M4 upkeep files",
+      "exit_code": 0,
+      "passing_rows": null,
+      "path": "/tmp/bpr-strict-cli-run/m4-docs-upkeep.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    },
+    {
+      "name": "Documentation verifier contracts",
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54 plus explicit M4 upkeep files",
+      "exit_code": 0,
+      "passing_rows": 67,
+      "path": "/tmp/bpr-strict-cli-run/m4-docs-contracts.log",
+      "sha256": "bec3f39ae065706e34f7795369b04e66b4807af3bd5b9e31dc6e882176e16ee8"
+    }
+  ],
+  "independent_review": [
+    {
+      "path": "/tmp/bpr-strict-cli-run/critical-m4-test-review.md",
+      "sha256": "54019a39e1aef23e5b549735d504c27e3fddda403c19270975bca6d7124408c3",
+      "candidates": [
+        "86cdbe7cbea19db00ad700f675fee3451ff1fbcb",
+        "ff1143b5b3dd8d312e247eb37cc23237a8539b54"
+      ],
+      "outcome": "No blocking or nonblocking findings; tests-only source review and successor recheck; commands terminal."
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/critical-m3-final-recheck.md",
+      "sha256": "f928dc64cefca4b83590c597cf1364d51b7a15a3dc625f16d2e639a626ab0dc5",
+      "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+      "outcome": "Both P1 duplicate POST and P2 clipping clear."
+    }
+  ],
+  "reused_evidence": [
+    {
+      "path": "docs/issues/_checkpoints/strict-cli-account-publication-v1/m3-evidence.json",
+      "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+      "scope": "Accepted ordinary publication, zero-write and actor/head/target/content controls, whole/inline/tour failure recovery, focus/accessibility/offscreen geometry and original limits."
+    },
+    {
+      "path": "docs/issues/_checkpoints/strict-cli-account-publication-v1/m2-evidence.json",
+      "candidate": "2793606c5a7785d0b671b81a31f016b401cab1b5",
+      "scope": "Unchanged stock-gh chosen credential absence/API/helper/hostname negatives, lifetime and exact cleanup; original instrumentation, descendant, memory and platform limits."
+    }
+  ],
+  "main_integration": {
+    "strict_rfc_terminal_main": "15a06fa2fbcacee6f28e00c15f5627a891f0cf7a",
+    "status": "Monitor-owned pending final landing; no M4 main mutation.",
+    "observed_prequalification_candidate": "411f05111d6a425934f20e7cf20e474cfd54b2c8",
+    "initial_focused": {
+      "path": "/tmp/bpr-companion-main-focused.log",
+      "sha256": "e1e45619f6b3ff37dbfa9f24bd1087ca33854cfb0d53bf648b6474c91e637dc4"
+    },
+    "initial_composition": {
+      "path": "/tmp/bpr-companion-main-composition.log",
+      "sha256": "8660e7c675af123e82db18909dcc6fe2952deb0c5c4531b861be19951ef01e43"
+    },
+    "integration_only_reseal": "86eb3cee4 (monitor temporary checkout; no lane reseal)",
+    "source_delta_review": "One cpp_identifiers_v1 fixture selector case in github_application.cpp, fixture enum and descriptor. Production manifest inventory42 and mutation branch pin unchanged.",
+    "authorized_full_lf_digest": "9ad653dbe578af82811ef4ec02ed81847fb798aab6654574ef298de9041668c8",
+    "authorized_production_manifest_digest": "1cfb1e645e8aeb2f5eee8d32d10c2bfae3ab4440b9d68ed15e431755d72e9312",
+    "recovered_counterexamples": {
+      "path": "/tmp/bpr-companion-main-composition-recovered.log",
+      "sha256": "0cee60f6954e8cd5dea66431144f6f81808f910d2043d5aa1754e16a33850a96",
+      "outcome": "8/8 internal counterexamples; CTest1/1 pass38.23s, supplied monitor receipt; before successor tests landed."
+    }
+  },
+  "limits": [
+    "macOS arm64 Qt6.11.2 offscreen network-denied composition; no new native full-Qt live publication claim.",
+    "No Cocoa appearance, VoiceOver or owner desktop verdict; existing conditional AC05 introduces no additional human criterion.",
+    "M2 native credential/lifetime bounds unchanged; Qt/OS/child copies, swap/crash dumps and escaped/kernel-uninterruptible descendants outside exact erasure/cleanup claims.",
+    "Windows/Linux CLI unavailable; no release, push, installed-app replacement or permission to widen authority.",
+    "Historical BPR-1373 human look remains pending for its original candidate and outside this assignment."
+  ],
+  "documentation": {
+    "status": "DOCUMENTATION_OK; verifier contract tests67/67 pass",
+    "scope": "M4 tests/evidence changes have no additional product/security/operator behavior; accepted M3 semantic documentation unchanged. RFC0079/index Proposed pair remains synchronized until actual monitor landing."
+  },
+  "required_pending_engineering": [],
+  "pending_coordinator_actions": [
+    "Verify and integrate exact ordered companion commits on main; retain narrow integration-only reseal and final combined checks.",
+    "Set RFC0079 and index terminal metadata together only after accepted actual landing."
+  ],
+  "ownership": {
+    "source": "released after final explicit tracker commit",
+    "card": "BPR-1430 released after terminal bookkeeping",
+    "commands": "All task-owned build/test/tidy/format/documentation commands terminal. No server or descendants handed off.",
+    "review_server": null,
+    "main_monitor": "separate owner; no mutation/stopping by M4"
+  },
+  "attended_review": {
+    "required": false,
+    "session": null,
+    "url": null,
+    "cursor": null,
+    "server": null
+  },
+  "ordered_commits_private": "/tmp/bpr-strict-cli-run/m4-ordered-commits.txt",
+  "baseline_diff_private": "/tmp/bpr-strict-cli-run/m4-final-baseline-paths.txt",
+  "changed_paths": [
+    "tests/end_to_end/remembered_connection_public_path_tests.cpp",
+    "tests/end_to_end/remembered_connection_restart_tests.cpp",
+    "docs/issues/10-backlog/BPR-1430-close-rfc-0079.md",
+    "docs/issues/60-done/BPR-1430-close-rfc-0079.md",
+    "docs/rfcs/RFC-BPR-0079-remove-cli-publication-warning.md",
+    "docs/verification/RFC-BPR-0079.md",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m4-acceptance.json",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m4-binding.json",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m4-evidence.json",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m4-handoff.md"
+  ],
+  "source_commits": [
+    {
+      "revision": "86cdbe7cbea19db00ad700f675fee3451ff1fbcb",
+      "subject": "Qualify remembered CLI reuse against strict connection disclosure"
+    },
+    {
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "subject": "Bind cancelled first CLI choice to its active fixture account"
+    }
+  ]
+}

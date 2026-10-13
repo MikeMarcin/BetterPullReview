@@ -132,3 +132,23 @@ historical per-write-warning requirements this changes.
 ## Owner outcome amendment — 2026-10-13
 
 Mandate `strict-cli-publication-r2`: the owner answered “Yes, use credential unavailable” after the critical plan review established that stock gh does not expose missing versus denied named-Keychain failure. Use one honest chosen-account credential-unavailable outcome for missing or inaccessible credentials, preserve the draft, and direct the reviewer to check gh sign-in and credential access. Keep tool failure and an attempted indeterminate write distinct. No raw errors or fallback authority are permitted. This amendment changes that narrow status requirement only and supplies no implementation evidence.
+
+
+## Qualification disposition — 2026-10-13
+
+All AC01–AC05 are qualified on the lane candidate
+`ff1143b5b3dd8d312e247eb37cc23237a8539b54`, whose production bytes are unchanged
+from independently accepted M3 `34b6a43458659747648e4039a99ca52407d14624`.
+[The criterion ledger](../verification/RFC-BPR-0079.md) and
+[durable M4 evidence](../issues/_checkpoints/strict-cli-account-publication-v1/m4-evidence.json)
+bind ordinary gestures, exact admission, strict failure and unknown-result
+recovery, current disclosure, offscreen focus/accessibility, native predecessor
+limits and the documentation gate. The tests-only remembered-disclosure repair
+and its exact cancellation-account successor have independent no-finding receipts.
+Historical failed P1/P2, native limits and BPR-1373 owner look remain intact.
+
+This is lane qualification, not a claim that the final companion has landed on
+main. The coordinator/main monitor owns the actual ordered integration and the
+synchronized terminal RFC/index metadata update. This lane retains their current
+Proposed/Proposed pair until that action. No new human acceptance, remote push,
+release or installed-app replacement is implied.

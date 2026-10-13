@@ -1,3 +1,55 @@
+# RFC-BPR-0079 final publication qualification
+
+M4 assignment `publication_closeout`, milestone
+`strict-cli-account-publication-v1/publication-qualification-closeout`, mandate
+`strict-cli-publication-r2`, is qualified on exact lane candidate
+`ff1143b5b3dd8d312e247eb37cc23237a8539b54`. Production bytes are identical to
+accepted M3 `34b6a43458659747648e4039a99ca52407d14624`.
+[The revision-bound M4 evidence](../issues/_checkpoints/strict-cli-account-publication-v1/m4-evidence.json)
+and [handoff](../issues/_checkpoints/strict-cli-account-publication-v1/m4-handoff.md)
+reconcile all five criteria, actual failed runs, independent dispositions and
+command ownership. Local main landing and its RFC/index terminal status pair
+remain the coordinator/main monitor's separate final action. The lane's
+Proposed/Proposed pair is intentionally unchanged until that landing occurs.
+
+| Criterion | Final qualification |
+|---|---|
+| AC01 | Pass: ordinary CLI Comment, Approve, Request changes, inline Publish and explicit immutable-plan tour Publish/Stop; zero extra CLI modal. Visible actor/target/content and focus/status evidence from accepted M3 is unchanged. |
+| AC02 | Pass: existing M3 zero-write trust/discovery/startup/preview and exact actor/head/target/content/one-use controls. M4 passes chosen account/server disclosure and every actual QProcess restart phase, including saved-choice absence, viewer/numeric mismatch, active/inactive replacement, cancelled first choice, no fallback/private content, store refusal, exact host/siblings and Forget. These read courses do not themselves count publication POSTs. |
+| AC03 | Pass: accepted M3 fresh strict-failure drafts and prior-unknown locked recovery, independently cleared at34b6, retain one POST/one comment after GET-only reconciliation. The current inline course remains passing. Missing/inaccessible share the owner's one credential-unavailable outcome; tool failure and attempted unknown stay distinct. |
+| AC04 | Pass: real composed trust checks require exact chosen login/server, existing sign-in without BPR token saving, reuse until sign out/replacement, no read-to-publication authority, and current token-free remembered-metadata revalidation. Existing transient/executable/CA/redirect/helper disclosure is unchanged. |
+| AC05 | Pass: nine unchanged passing final integration rows plus affected successor2/2, accepted M3 constrained full-composition scales1/1.25/2/focus/accessibility, touched clang-format22 and full-TU tidy, documentation gate. Offscreen is not Cocoa appearance or VoiceOver. No new required owner judgment follows; historical BPR-1373 remains separate. |
+
+The combined-main monitor's first focused run exposed two obsolete read-consent
+checks. An exact rebuilt lane baseline failed both. Tests-only `86cdbe7cbea19db00ad700f675fee3451ff1fbcb`
+replaces the old “on later launches” requirement with the actual strict/reuse
+disclosure and stronger exact-account guards. Its first integration passed9/10;
+the new guard revealed a fixture expectation error in `cancel-first`, which
+chooses active account78 rather than explicitly named77. Successor
+`ff1143b5b3dd8d312e247eb37cc23237a8539b54` corrects that expectation only,
+and affected restart/Qt checks pass2/2 in30.62s. Independent source review and
+successor recheck find no blocking or nonblocking finding; their exact receipt
+is `/tmp/bpr-strict-cli-run/critical-m4-test-review.md`. No production behavior,
+wording, layout, authority guard or network-isolation declaration changes in M4.
+
+The monitor's separately composed main prefix differs in one test-only
+`cpp_identifiers_v1` application fixture selector, with its enum/fixture data.
+Bounded inspection justified refreshing the contract's full-source and unchanged
+42-member production manifest hashes only in the integration checkout; the
+production mutation pin and all hostile source/inventory/digest/allowdirty guards
+remain. The monitor supplies recovered composition8/8 internal checks, CTest1/1
+in38.23s. That temporary reseal and final landing are monitor-owned; no lane or
+main mutation is performed for it here.
+
+Unchanged M2 stock-gh named lookup, hostname, selected API, helper descendants,
+lifetime and cleanup evidence retains its original instrumentation/platform
+limits. No new full-Qt stock-gh live publication, native Cocoa/VoiceOver verdict,
+perfect memory erasure, Windows/Linux CLI support, release, remote push or
+installed-app replacement is claimed. `frontend-design` was loaded before the
+accepted M3 UX work; M4 changes tests and qualification records only.
+
+---
+
 # RFC-BPR-0079 ordinary CLI publication implementation
 
 Mandate `strict-cli-publication-r2`; immutable baseline
