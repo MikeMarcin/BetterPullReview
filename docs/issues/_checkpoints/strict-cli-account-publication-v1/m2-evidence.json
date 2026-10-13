@@ -4,7 +4,7 @@
   "plan": "strict-cli-account-publication-v1",
   "milestone": "strict-credential-qualification",
   "issue": "BPR-1427",
-  "source_revision": "pending engineering freeze",
+  "source_revision": "2793606c5a7785d0b671b81a31f016b401cab1b5",
   "m1_repaired_product": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
   "baseline": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
   "native": {
@@ -136,6 +136,10 @@
     {
       "path": "/tmp/bpr-strict-cli-run/m2-docs-contract.log",
       "sha256": "75860d7d7673b20ddf8476803f217a473530f2c681c5bbeb5ca0dd1fe408c88d"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m2-docs-freeze.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
     }
   ],
   "verification": {
@@ -152,7 +156,7 @@
     "outcome": "supplied; prior P1/P2 fixed; no blocker"
   },
   "pending": [
-    "independent bounded recheck of final M2 lifecycle seam/native harness if required by coordinator, then RFC/card bookkeeping closeout",
+    "required bounded independent critical recheck of final M2 lifecycle seam/native harness, then RFC/card bookkeeping closeout",
     "fresh M3 ordinary CLI publication owner; no popup removal yet",
     "historical BPR-1373 human criterion for original candidate unchanged"
   ],
@@ -166,5 +170,30 @@
   ],
   "commands_quiescent": true,
   "owner": "/root/strict_cli_native_qualification",
-  "permission_scope": "no real global auth switch, credential edit, owner configuration content/desktop/browser read, global Keychain settings/trust/ACL change, live repo content or remote mutation, main/index/counter allocation"
+  "permission_scope": "no real global auth switch, credential edit, owner configuration content/desktop/browser read, global Keychain settings/trust/ACL change, live repo content or remote mutation, main/index/counter allocation",
+  "changed_paths": [
+    "README.md",
+    "docs/architecture/github-host-implementation.md",
+    "docs/architecture/github-provider-contract.md",
+    "docs/architecture/product-contract.md",
+    "docs/architecture/security-threat-model.md",
+    "docs/architecture/system-architecture.md",
+    "docs/development/build-and-test.md",
+    "docs/issues/30-in-progress/BPR-1427-close-rfc-0078.md",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m2-evidence.json",
+    "docs/issues/_checkpoints/strict-cli-account-publication-v1/m2-handoff.md",
+    "docs/rfcs/RFC-BPR-0015-github-cli-production-enablement.md",
+    "docs/security/corporate-security-overview.md",
+    "docs/security/foundation-security.md",
+    "docs/verification/RFC-BPR-0078.md",
+    "docs/verification/architecture-conformance.md",
+    "src/adapters/github/AGENTS.md",
+    "src/adapters/github/src/gh_cli_transport.hpp",
+    "src/adapters/github/src/github_cli_process_runner.cpp",
+    "src/adapters/github/src/github_cli_process_runner.hpp",
+    "tests/github_contract/CMakeLists.txt",
+    "tests/github_contract/github_cli_process_runner_tests.cpp",
+    "tests/github_contract/qualify_strict_cli_native.py",
+    "tests/github_contract/strict_cli_native_probe.cpp"
+  ]
 }
