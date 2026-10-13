@@ -431,6 +431,7 @@ namespace {
 
 		if (
 			mode == QStringLiteral("descendant")
+			|| mode == QStringLiteral("credential-descendant")
 			|| mode == QStringLiteral("success-descendant")
 			|| mode == QStringLiteral("failure-descendant")
 			|| mode == QStringLiteral("escaped-group-descendant")) {
@@ -440,11 +441,23 @@ namespace {
 			const bool cleanSuccess = mode == QStringLiteral("success-descendant");
 			const bool fixedFailure = mode == QStringLiteral("failure-descendant");
 			const bool escapedGroup = mode == QStringLiteral("escaped-group-descendant");
-			const auto descendant   = ::fork();
+			const bool credentialed = mode == QStringLiteral("credential-descendant");
+			if (credentialed && qEnvironmentVariable("GH_TOKEN") != QString(32, QChar{ 'q' })) {
+				return 94;
+			}
+			const auto descendant = ::fork();
 			if (descendant < 0) {
 				return 99;
 			}
 			if (descendant == 0) {
+				if (credentialed) {
+					QFile verified{ aArguments.at(3) + QStringLiteral(".verified") };
+					if (qEnvironmentVariable("GH_TOKEN") != QString(32, QChar{ 'q' })
+						|| !verified.open(QIODevice::WriteOnly) || verified.write("verified") != 8) {
+						return 94;
+					}
+					verified.close();
+				}
 				if (escapedGroup && ::setpgid(0, 0) != 0) {
 					return 110;
 				}
@@ -1478,6 +1491,50 @@ namespace {
 		bool                    Released = false;
 	};
 
+#if defined(Q_OS_UNIX)
+	auto test_credentialed_descendant_lifetime() -> void
+	{
+		for (const bool cancel : { false, true }) {
+			QTemporaryDir directory;
+			expect(directory.isValid(), "credential descendant course owns its root");
+			auto runner                = make_github_cli_process_runner();
+			auto lookup                = base_request(directory, { "--bpr-helper", "sensitive" });
+			lookup.StandardOutputLimit = cli_sensitive_bytes::capacity;
+			auto acquired              = runner->acquire_sensitive(lookup, { });
+			expect(acquired.has_value(), "descendant course acquires through production sensitive capture");
+			const std::weak_ptr<const cli_sensitive_bytes> lifetime = *acquired;
+			const auto                                     pidFile  = directory.filePath(QStringLiteral("credential-descendant.pid"));
+			auto                                           request  = base_request(directory, { "--bpr-helper", "credential-descendant", utf8(pidFile) });
+			request.Timeout                                         = 1s;
+			std::stop_source                         stop;
+			std::optional<github_cli_process_result> result;
+			auto                                     untilJoined = bpr::tests::exit_on_failure{ };
+			std::thread                              caller{ [&, credential = std::move(*acquired)] {
+				result = runner->run_credentialed(request, credential, cli_credential_environment::github, stop.get_token());
+			} };
+			const auto deadline = std::chrono::steady_clock::now() + 800ms;
+			while (std::chrono::steady_clock::now() < deadline && (!QFileInfo{ pidFile + QStringLiteral(".verified") }.exists() || QFileInfo{ pidFile }.size() == 0)) {
+				std::this_thread::sleep_for(10ms);
+			}
+			const bool executed = QFileInfo{ pidFile + QStringLiteral(".verified") }.exists() && QFileInfo{ pidFile }.size() > 0;
+			expect(executed && !lifetime.expired(), "an actual live descendant verifies the inherited credential while its sensitive owner remains held");
+			if (cancel) {
+				stop.request_stop();
+			}
+			caller.join();
+			untilJoined.end();
+			expect(result && !*result && result->error() == (cancel ? github_cli_process_failure::cancelled : github_cli_process_failure::timeout), "credential-bearing process and descendant terminate with exact cancellation/timeout");
+			const auto pid  = read_descendant_pid(pidFile);
+			const bool gone = wait_until_process_is_gone(pid);
+			if (!gone) {
+				static_cast<void>(::kill(pid, SIGKILL));
+			}
+			runner.reset();
+			expect(gone && lifetime.expired(), "production runner drains the actual credential-bearing descendant before releasing its owned sensitive buffer");
+		}
+	}
+#endif
+
 	auto test_watchdog_failure_quarantines_worker() -> void
 	{
 		QTemporaryDir directory;
@@ -1864,6 +1921,9 @@ try {
 	test_git_acquisition_store_sampling();
 	test_stream_limits_and_redaction();
 	test_sensitive_execution();
+#if defined(Q_OS_UNIX)
+	test_credentialed_descendant_lifetime();
+#endif
 	test_completed_output_opt_in();
 #if defined(Q_OS_UNIX)
 	test_unix_process_hardening();

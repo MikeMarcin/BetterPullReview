@@ -263,7 +263,7 @@ namespace bpr::adapters::github::detail {
 					}
 					auto credential = acquire_gh_cli_credential(*process, Configuration, stop.get_token());
 					if (!credential) {
-						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : failure::authentication } };
+						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 					}
 					gh_cli_transport                    identity{ Profile, Configuration, *process, *credential };
 					const git_smart_exact_blobs_request batch{ .Context = aRequest.Context, .ExpectedBlobs = { aRequest.ExpectedBlob }, .MaximumBytes = std::min(aRequest.MaximumBytes, maximum_git_exact_blob_batch_bytes) };
@@ -399,7 +399,7 @@ namespace bpr::adapters::github::detail {
 					// baseline precedes it, as the observation's did.
 					auto credential = acquire_gh_cli_credential(*process, Configuration, stop.get_token());
 					if (!credential) {
-						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : failure::authentication } };
+						return std::unexpected{ git_smart_transport_error{ stop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 					}
 					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
 					const auto       response = run_gh_cli(*process, Configuration, *invocation, stop.get_token(), *credential);
@@ -652,7 +652,7 @@ namespace bpr::adapters::github::detail {
 				}
 				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
 				if (!credential) {
-					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
 				}
 				gh_cli_transport identity{ Profile, Configuration, *process, *credential };
 				aStep             = git_smart_transport_step::identity_before;

@@ -521,6 +521,9 @@ namespace {
 			const std::stop_token             aStop) -> github_cli_process_result override
 		{
 			const auto arguments = gh_arguments(aRequest);
+			if (EnableAcquisition && ProbeFailure && (arguments == std::vector<std::string>{ "--version" } || (!arguments.empty() && arguments.back() == "--help"))) {
+				return std::unexpected{ *ProbeFailure };
+			}
 			if (EnableAcquisition && arguments == std::vector<std::string>{ "--version" }) {
 				return github_cli_process_success{ .StandardOutput = "gh version 2.101.0 (fixture)\n" };
 			}
@@ -545,7 +548,10 @@ namespace {
 			++Acquisitions;
 			expect(gh_arguments(aRequest) == std::vector<std::string>{ "auth", "token", "--hostname", "github.com", "--user", "fixture-reviewer" }, "recovery operation acquires only its exact named credential");
 			if (MissingCredential || aStop.stop_requested()) {
-				return std::unexpected{ github_cli_process_failure::nonzero_exit };
+				return std::unexpected{ aStop.stop_requested() ? github_cli_process_failure::cancelled : github_cli_process_failure::nonzero_exit };
+			}
+			if (AcquisitionFailure) {
+				return std::unexpected{ *AcquisitionFailure };
 			}
 			auto credential    = synthetic_operation_credential();
 			AcquiredCredential = credential;
@@ -565,6 +571,8 @@ namespace {
 		bool                                      EnableAcquisition = false;
 		std::size_t                               Acquisitions      = 0U;
 		bool                                      MissingCredential = false;
+		std::optional<github_cli_process_failure> AcquisitionFailure;
+		std::optional<github_cli_process_failure> ProbeFailure;
 		std::weak_ptr<const cli_sensitive_bytes>  AcquiredCredential;
 		github_cli_process_result                 Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n{}" };
 		std::function<void()>                     OnRun;
@@ -1554,6 +1562,53 @@ namespace {
 	class fixture_mutation_lease final : public application::review_mutation_transport_lease
 	{ };
 
+	void test_strict_acquisition_failures()
+	{
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		auto             candidate     = cloud_candidate();
+		candidate.CliAccountLogin      = "fixture-reviewer";
+		const auto profile             = validate_github_host_profile(candidate);
+		const auto pinned              = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
+		for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::timeout,
+									github_cli_process_failure::process_crash, github_cli_process_failure::reap_failure,
+									github_cli_process_failure::cancelled, github_cli_process_failure::start_failure,
+									github_cli_process_failure::standard_output_limit, github_cli_process_failure::invalid_request }) {
+			successful_counting_process process;
+			process.EnableAcquisition  = true;
+			process.AcquisitionFailure = failure;
+			gh_cli_transport transport{ *profile, *pinned, process };
+			const auto       read  = transport.perform(wire_request_for(*profile, read_operation::get_repository), { });
+			const auto*      error = std::get_if<github_wire_error>(&read);
+			expect(error != nullptr && error->Error.CliCredentialUnavailable == (failure == github_cli_process_failure::nonzero_exit), "only completed named lookup refusal reports credential unavailable on reads");
+			expect((error->Error.Failure == application::github_provider_failure::authentication) == error->Error.CliCredentialUnavailable, "timeout, crash, reap, cancellation and malformed acquisition are tool failures, never authentication");
+			if (failure == github_cli_process_failure::timeout) {
+				expect(error->Error.Failure == application::github_provider_failure::timeout, "read acquisition keeps typed timeout");
+			}
+			const auto              wire    = mutation_request_for(*profile);
+			const auto              request = std::get<application::review_mutation_request>(wire.Wire.Semantic);
+			const auto              binding = *request.LiveBinding;
+			review_mutation_session session{ transport, { .CredentialContext = wire.Context, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity }, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(std::make_shared<fake_recovery_state>()) };
+			const auto              refused  = session.submit(request);
+			const auto              expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
+				: failure == github_cli_process_failure::cancelled                                 ? application::review_mutation_failure::cancelled
+																								   : application::review_mutation_failure::unavailable;
+			expect(!refused && refused.error() == expected && process.Calls == 0U, "inline strict acquisition distinguishes cancellation, credential refusal and tool failure with zero API launches");
+		}
+		for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::timeout,
+									github_cli_process_failure::process_crash, github_cli_process_failure::reap_failure, github_cli_process_failure::cancelled }) {
+			successful_counting_process process;
+			process.EnableAcquisition = true;
+			process.ProbeFailure      = failure;
+			gh_cli_transport transport{ *profile, *pinned, process };
+			const auto       read  = transport.perform(wire_request_for(*profile, read_operation::get_repository), { });
+			const auto*      error = std::get_if<github_wire_error>(&read);
+			expect(error && !error->Error.CliCredentialUnavailable && error->Error.Failure != application::github_provider_failure::authentication
+					   && process.Acquisitions == 0U && process.Calls == 0U,
+				   "a failed local capability probe never pretends that a named credential is missing");
+		}
+	}
+
 	void test_cli_mutation_session_recovery()
 	{
 		for (const bool mismatch : { false, true }) {
@@ -2057,6 +2112,7 @@ namespace {
 
 auto main() -> int
 try {
+	test_strict_acquisition_failures();
 	test_cli_mutation_session_recovery();
 	test_mutation_closed_shapes_and_ambiguous_results();
 	test_staged_cli_catalog();

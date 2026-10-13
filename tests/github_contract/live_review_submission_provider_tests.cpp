@@ -3,6 +3,10 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
+#if defined(__APPLE__)
+	#include "../support/strict_cli_fixture.hpp"
+#endif
+#include <QCoreApplication>
 
 #include <algorithm>
 #include <array>
@@ -536,6 +540,84 @@ namespace {
 			expect(session.submit_and_reconcile(wire.Request, stop.get_token()).Publication == application::review_submission_publication::definitely_not_published && wire.Posts == 0U, "pre-send actor/head/cancellation/pagination failures publish nothing");
 		}
 	}
+#if defined(__APPLE__)
+	void test_strict_sqlite_recovery()
+	{
+		for (const bool confirmed : { false, true }) {
+			temporary_directory root;
+			transport           remote;
+			remote.NewCount = confirmed ? 1U : 0U;
+			std::stop_source          stop;
+			tests::strict_cli_fixture process{ root.Path };
+			process.Respond   = [&](const auto& aWire) { return remote.perform_review_mutation(aWire, { }, [] { return true; }); };
+			process.Completed = [&](const auto& aWire) {
+				if (aWire.Wire.Method == http_method::post) {
+					process.available(false);
+					stop.request_stop();
+				}
+			};
+			const auto profile = tests::strict_cli_profile(credential_context());
+			const auto base    = process.configuration();
+			expect(profile && base, "strict fixture profile and actual child configuration are admitted");
+			const auto pinned = pin_gh_cli_configuration(*base, "github.com", identity().Login);
+			expect(pinned.has_value(), "strict fixture pins its exact selected login");
+			gh_cli_transport        strict{ *profile, *pinned, process };
+			tests::strict_cli_relay relay{ strict, process };
+			{
+				review_submission_session initial{ relay, configuration(), std::make_shared<lease>(), storage(root.Path) };
+				const auto                result = initial.submit_and_reconcile(remote.Request, stop.get_token());
+				std::cerr << "strict review: publication=" << static_cast<unsigned>(result.Publication) << " failure=" << static_cast<unsigned>(result.Failure) << " probes=" << process.Probes << " acquisitions=" << process.Acquisitions << " api=" << process.ApiCalls << " writes=" << process.Writes << '\n';
+				expect(result.Publication == (confirmed ? application::review_submission_publication::published : application::review_submission_publication::indeterminate), "whole-review strict POST cancellation reconciles with the acquired credential despite removed lookup");
+				expect(process.Acquisitions == 1U && process.Writes == 1U && remote.Posts == 1U, "whole review selects strict acquisition once through witness, POST and GET reconciliation");
+			}
+			expect(process.Credential.expired(), "whole review retains no credential after operation drain");
+			const auto calls = process.ApiCalls;
+			for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::cancelled,
+										github_cli_process_failure::timeout, github_cli_process_failure::process_crash, github_cli_process_failure::reap_failure }) {
+				process.AcquisitionFailure = failure == github_cli_process_failure::nonzero_exit ? std::nullopt : std::optional{ failure };
+				review_submission_session restarted{ relay, configuration(), std::make_shared<lease>(), storage(root.Path) };
+				const auto                result = restarted.submit_and_reconcile(remote.Request);
+				expect(result.Request == remote.Request && result.Publication == (confirmed ? application::review_submission_publication::published : application::review_submission_publication::indeterminate)
+						   && process.ApiCalls == calls && process.Writes == 1U,
+					   "same-key SQLite publication truth outranks credential refusal/cancellation/tool errors and never repeats POST");
+				const auto record = storage(root.Path)->load(remote.Request.IdempotencyKey);
+				expect(record && *record && (**record).Request == remote.Request && (**record).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted
+						   && (**record).Receipt.has_value() == confirmed,
+					   "exact SQLite draft and attempted/confirmed state survive reacquisition failure");
+				const auto pending = restarted.pending();
+				expect(pending && pending->size() == (confirmed ? 0U : 1U), "unknown attempts remain reconciliation obligations; confirmed receipts stay complete");
+			}
+			process.AcquisitionFailure.reset();
+			process.available(true);
+			process.Completed = { };
+			remote.Reviews    = { review(remote.Request) };
+			review_submission_session recovered{ relay, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			expect(recovered.reconcile(remote.Request).Publication == application::review_submission_publication::published && process.Writes == 1U, "restored strict lookup reconciles same-key unknown read-only without a second POST");
+			process.verify_persistence();
+		}
+		for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::cancelled, github_cli_process_failure::timeout }) {
+			temporary_directory       root;
+			tests::strict_cli_fixture process{ root.Path };
+			process.AcquisitionFailure = failure == github_cli_process_failure::nonzero_exit ? std::nullopt : std::optional{ failure };
+			process.available(false);
+			const auto profile = tests::strict_cli_profile(credential_context());
+			const auto base    = process.configuration();
+			expect(profile && base, "new review strict fixture is admitted");
+			const auto pinned = pin_gh_cli_configuration(*base, "github.com", identity().Login);
+			expect(pinned.has_value(), "new review strict fixture login is pinned");
+			gh_cli_transport          strict{ *profile, *pinned, process };
+			review_submission_session session{ strict, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                original = request();
+			const auto                result   = session.submit_and_reconcile(original);
+			const auto                expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
+				: failure == github_cli_process_failure::cancelled                                   ? application::review_mutation_failure::cancelled
+																									 : application::review_mutation_failure::unavailable;
+			expect(result.Request == original && result.Publication == application::review_submission_publication::definitely_not_published
+					   && result.Failure == expected && process.ApiCalls == 0U && !*storage(root.Path)->load(original.IdempotencyKey),
+				   "new whole-review refusal keeps the draft and typed cause before any API or journaled attempt");
+		}
+	}
+#endif
 	void test_historical_recovery()
 	{
 		for (const auto mode : { 0, 1, 2, 3 }) {
@@ -1075,6 +1157,19 @@ namespace {
 }
 auto main(int aArgc, char** aArgv) -> int
 try {
+	QCoreApplication application{ aArgc, aArgv };
+#if defined(__APPLE__)
+	if (std::filesystem::path{ aArgv[0] }.filename() == "gh") {
+		return tests::strict_cli_child(QCoreApplication::arguments());
+	}
+	// macOS refuses nested sandbox initialization. Like gh_cli_git_smart_transport,
+	// this explicit selector runs only the closed same-executable local fixture.
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--strict-cli-fixture") {
+		test_strict_sqlite_recovery();
+		std::cout << "strict-sqlite-recovery:pass\n";
+		return EXIT_SUCCESS;
+	}
+#endif
 	static_assert(std::is_base_of_v<application::review_submission_port, bpr::adapters::github::live_review_submission_provider>);
 	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--list") {
 		for (const auto& selected : rows) {

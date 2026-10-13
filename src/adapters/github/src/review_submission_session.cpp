@@ -211,11 +211,7 @@ namespace bpr::adapters::github::detail {
 	{
 		using publication = application::review_submission_publication;
 		try {
-			std::scoped_lock                lock{ Mutex };
-			github_mutation_operation_scope operation{ Transport, aStop };
-			if (!operation.valid()) {
-				return result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, operation.failure());
-			}
+			std::scoped_lock lock{ Mutex };
 			if (!application::valid(aRequest) || !aRequest.LiveBinding || !application::same_review_submission_identity(*aRequest.LiveBinding, { .Target = Configuration.Target, .ActingIdentity = Configuration.ActingIdentity })) {
 				return result(aRequest, aAllowNew ? publication::definitely_not_published : publication::indeterminate, application::review_mutation_failure::undesignated_target);
 			}
@@ -232,6 +228,8 @@ namespace bpr::adapters::github::detail {
 			if (!loaded) {
 				return result(aRequest);
 			}
+			// A later credential refusal cannot erase an earlier durable write.
+			// Confirmed and unwitnessed records need no provider operation at all.
 			if (*loaded) {
 				const auto& known = **loaded;
 				if (!application::valid(known) || known.Request != aRequest || known.RequestFingerprint != fingerprint || known.AuthorityFingerprint != authority) {
@@ -240,14 +238,20 @@ namespace bpr::adapters::github::detail {
 				if (known.Receipt || known.Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
 					return finish_known(known, aStop, true);
 				}
+			} else if (!aAllowNew) {
+				// A missing local row is not proof that the original review was never sent.
+				return result(aRequest);
+			}
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return result(aRequest, *loaded ? publication::indeterminate : publication::definitely_not_published, operation.failure());
+			}
+			if (*loaded) {
+				const auto& known = **loaded;
 				if (aStop.stop_requested() || !observe_exact(aStop, true)) {
 					return result(aRequest);
 				}
 				return finish_known(known, aStop, true);
-			}
-			if (!aAllowNew) {
-				// A missing local row is not proof that the original review was never sent.
-				return result(aRequest);
 			}
 			if (aRequest.LiveBinding->Target != Configuration.Target || aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return result(aRequest, publication::definitely_not_published, application::review_mutation_failure::stale_head);
