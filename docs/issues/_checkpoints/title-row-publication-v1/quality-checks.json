@@ -1,0 +1,20 @@
+{
+  "candidate_product": "ca21f6f5f911b68a2dc608dd0d67f0bd5dc034e7",
+  "format": {
+    "tool": "clang-format 22.1.8",
+    "command": "python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/src/workbench_window.cpp tests/adapters_qt/workbench_window_tests.cpp",
+    "outcome": "pass"
+  },
+  "source_tidy": {
+    "command": "/opt/homebrew/opt/llvm@22/bin/clang-tidy src/adapters/qt/src/workbench_window.cpp -p build/dev --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --line-filter='[{\"name\":\"src/adapters/qt/src/workbench_window.cpp\",\"lines\":[[10861,10864],[11151,11151]]}]' --warnings-as-errors='*'",
+    "exit_code": 0,
+    "outcome": "pass",
+    "detail": "No changed-line diagnostics. 48 non-user-code warnings suppressed. This is a bounded source check, not application-wide tidy acceptance."
+  },
+  "initial_tooling_failures": [
+    "The first new test build used an integer for a fixed-identity file; corrected to file_identity_of before runtime checks.",
+    "An integration build named a nonexistent target; corrected to test_better_pull_review_qt_github_tests.",
+    "Render output directory was missing; created it and all three render rows passed without code changes.",
+    "Direct Homebrew clang-tidy lacked the macOS SDK and could not find compare; reran with explicit SDK successfully."
+  ]
+}

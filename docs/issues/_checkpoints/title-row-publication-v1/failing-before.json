@@ -1,0 +1,13 @@
+{
+  "criterion": "AC01-failing-before",
+  "outcome": "fail",
+  "revision": "9b0456d9ae4ad086e1ae45c12a895c82712a4ace",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"-R\", \"^qt_workbench_open_on_github_scale_100$\", \"--output-on-failure\"]",
+    "exit_code": 8,
+    "elapsed_seconds": 1.063,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 371: qt_workbench_open_on_github_scale_100\n1/1 Test #371: qt_workbench_open_on_github_scale_100 ...***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]  1.00 sec\nqt.qpa.fonts: Populating font family aliases took 60 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nFAILED: accepted content shows the current identity without resizing or a Home round trip\nTEST_RUNNER_CHILD_EXIT:1\nTEST_RUNNER_CHILD_EXIT_FAILED:1\n\n\n0% tests passed, 1 tests failed out of 1\n\nLabel Time Summary:\nbpr_network_isolated    =   1.00 sec*proc (1 test)\nbpr_serial_gui          =   1.00 sec*proc (1 test)\n\nTotal Test time (real) =   1.03 sec\n\nThe following tests FAILED:\n\t371 - qt_workbench_open_on_github_scale_100 (Failed)    bpr_network_isolated bpr_serial_gui\n",
+    "stderr_tail": "Errors while running CTest\n"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "0f039e775900153001b4c7cce04431a5d4278d86",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Real public workbench_window publication enters loading with two received-page observations and normal core commands before accepting content. Identity and adjacent browser button appear at unchanged 1920/1280/1100/900 widths, before resize/Home gestures. New assertion fails against unchanged baseline product; existing direct-acceptance control passes.",
+        "refs": [
+          "docs/issues/_checkpoints/title-row-publication-v1/final-title-row.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/candidate-verification.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/render-observation.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/quality-checks.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "0f039e775900153001b4c7cce04431a5d4278d86",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Same-PR title/context replacement, identical republication, new-authority PR replacement, removal of browser context and clear settle at unchanged width. Click dispatch names only the latest accepted markdown context; clear hides and empties identity and withdraws the browser action.",
+        "refs": [
+          "docs/issues/_checkpoints/title-row-publication-v1/final-title-row.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/candidate-verification.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/render-observation.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/quality-checks.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "0f039e775900153001b4c7cce04431a5d4278d86",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Preserved content keeps Home, Discuss and the actual selected Files index/identity plus position. A retained local cycle keeps its own identity without browser action; return shows the updated PR row immediately, and a new PR replaces the cycle normally. Existing composed personal-discovery and Markdown/browser paths pass on unchanged product source.",
+        "refs": [
+          "docs/issues/_checkpoints/title-row-publication-v1/final-title-row.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/candidate-verification.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/render-observation.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/quality-checks.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pass",
+      "revision": "0f039e775900153001b4c7cce04431a5d4278d86",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Registered 100/125/200 scale title-row courses pass, including exact order, accessibility, adjacent button, roomy/compact/macOS 900-point floor and pixel-by-pixel width yield sweep without overflow. Repeated same-content publication has identical geometry. Offscreen accepted-row captures generated at four widths per scale and inspected at roomy/floor sizes.",
+        "refs": [
+          "docs/issues/_checkpoints/title-row-publication-v1/final-title-row.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/candidate-verification.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/render-observation.json",
+          "docs/issues/_checkpoints/title-row-publication-v1/quality-checks.json"
+        ]
+      }
+    }
+  ]
+}

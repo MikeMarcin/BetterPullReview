@@ -552,4 +552,4 @@ separate platform/release obligations retain their scope.
 
 | [RFC-BPR-0076](RFC-BPR-0076-file-change-navigation-enters-review.md) | File and change navigation enters Review | In Progress | — |
 
-| [RFC-BPR-0075](RFC-BPR-0075-title-row-publication.md) | Refresh the review title row when accepted content arrives | In Progress | — |
+| [RFC-BPR-0075](RFC-BPR-0075-title-row-publication.md) | Refresh the review title row when accepted content arrives | Auto-Verified | — |

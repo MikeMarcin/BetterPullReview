@@ -1,0 +1,21 @@
+{
+  "criterion": "unrelated-composed-github-baseline-control",
+  "outcome": "fail",
+  "revision": "ca21f6f5f911b68a2dc608dd0d67f0bd5dc034e7",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"-R\", \"^qt_composed_github_scale_100$\", \"--output-on-failure\"]",
+    "exit_code": 8,
+    "elapsed_seconds": 0.848,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 291: qt_composed_github_scale_100\n1/1 Test #291: qt_composed_github_scale_100 .....***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]  0.81 sec\nqt.qpa.fonts: Populating font family aliases took 62 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nFAILED: the decision before the disclosure reads in one breath, at most 70 words, not the former paragraph of every risk\nTEST_RUNNER_CHILD_EXIT:1\nTEST_RUNNER_CHILD_EXIT_FAILED:1\n\n\n0% tests passed, 1 tests failed out of 1\n\nLabel Time Summary:\nbpr_network_isolated    =   0.81 sec*proc (1 test)\nbpr_serial_gui          =   0.81 sec*proc (1 test)\n\nTotal Test time (real) =   0.84 sec\n\nThe following tests FAILED:\n\t291 - qt_composed_github_scale_100 (Failed)             bpr_network_isolated bpr_serial_gui\n",
+    "stderr_tail": "Errors while running CTest\n"
+  },
+  "product_control": {
+    "baseline_revision": "d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1",
+    "override_path": "src/adapters/qt/src/workbench_window.cpp",
+    "baseline_sha256": "b05fc138420f9685d6afbb8d30e5e0241ea87df9e970d5505157bbe20e3402ca",
+    "candidate_sha256": "52fc4e80c0fcedb2e53f3a89282b4f8af53c17dbe14ac6ce6580332e024468fa",
+    "procedure": "Replaced only the changed product source with its baseline bytes, rebuilt the composed-GitHub target, reproduced the same <=70-word warning failure, restored candidate byte-for-byte and rebuilt focused binaries. All other product source and the composed-GitHub test are unchanged from baseline.",
+    "restore_verified": "git diff --exit-code -- src/adapters/qt/src/workbench_window.cpp returned zero."
+  }
+}

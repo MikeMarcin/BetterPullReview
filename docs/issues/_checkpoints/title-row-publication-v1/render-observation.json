@@ -1,0 +1,79 @@
+{
+  "candidate": "ca21f6f5f911b68a2dc608dd0d67f0bd5dc034e7",
+  "images": [
+    {
+      "scale": 100,
+      "width": 900,
+      "sha256": "2b9fc124aff2f8d419c2b0046c684f0cf877582a8baf82b8aa44394749dd7587",
+      "local_path": "/tmp/bpr1418-render-100/accepted-900.png"
+    },
+    {
+      "scale": 100,
+      "width": 1100,
+      "sha256": "f3df4145fd1ddc0d03d39818a2db1c14705a3ef7f228c92591c6bb15822dc1bd",
+      "local_path": "/tmp/bpr1418-render-100/accepted-1100.png"
+    },
+    {
+      "scale": 100,
+      "width": 1280,
+      "sha256": "e66d3d76719ff01aeb48c68da060286859537484983d2c376dda7840bd6f33a4",
+      "local_path": "/tmp/bpr1418-render-100/accepted-1280.png"
+    },
+    {
+      "scale": 100,
+      "width": 1920,
+      "sha256": "47fe534380e6fda7240d2a7536d8a2ab1ae0b52c0c357e4443051307b81fdbbd",
+      "local_path": "/tmp/bpr1418-render-100/accepted-1920.png"
+    },
+    {
+      "scale": 125,
+      "width": 900,
+      "sha256": "293ec1f683473844a1f4baeab379da3c8e7e66ae99e760ea774ad8de608d32b7",
+      "local_path": "/tmp/bpr1418-render-125/accepted-900.png"
+    },
+    {
+      "scale": 125,
+      "width": 1100,
+      "sha256": "da9890484e68065495c4e3797e406dadeaea4166c8943496723556934c39abfa",
+      "local_path": "/tmp/bpr1418-render-125/accepted-1100.png"
+    },
+    {
+      "scale": 125,
+      "width": 1280,
+      "sha256": "45b8299a557b7af902af16b2d9c22b5d9270faddf7d0c162bad7a859c9f65c4c",
+      "local_path": "/tmp/bpr1418-render-125/accepted-1280.png"
+    },
+    {
+      "scale": 125,
+      "width": 1920,
+      "sha256": "6236210ad6b689093376731cfe237996d8131be707d094fd7f6fb2bfcb616b6a",
+      "local_path": "/tmp/bpr1418-render-125/accepted-1920.png"
+    },
+    {
+      "scale": 200,
+      "width": 900,
+      "sha256": "1b5ea1aec0a63125ab311cc8ff36708569d5513e88f595a11113a88f99e900f0",
+      "local_path": "/tmp/bpr1418-render-200/accepted-900.png"
+    },
+    {
+      "scale": 200,
+      "width": 1100,
+      "sha256": "53ac14b1793c1f2316a6640ab223969e2e0f6a4962c07ec7e04d67e493c1d516",
+      "local_path": "/tmp/bpr1418-render-200/accepted-1100.png"
+    },
+    {
+      "scale": 200,
+      "width": 1280,
+      "sha256": "069d81025f7443b460cdbaaec093539688d7c7d94adbe4e44b0f8e95ecc055a4",
+      "local_path": "/tmp/bpr1418-render-200/accepted-1280.png"
+    },
+    {
+      "scale": 200,
+      "width": 1920,
+      "sha256": "d5a22718ea64905bf842e599b5c6a01ef31d9d9d8192abf3df5d686bedc06359",
+      "local_path": "/tmp/bpr1418-render-200/accepted-1920.png"
+    }
+  ],
+  "inspection": "Viewed offscreen accepted toolbar at 100%/1280, 125%/900 and 200%/900. Identity, adjacent browser glyph and all modality/control edges are visible; compact rows retain the number and no overflow. The automated rows assert every capture width and registered scale.",
+  "limitations": "Qt offscreen deterministic rendering, not native system appearance or installed-owner-binary evidence. Images are consumed temporary inspection artifacts and are removed at closeout."
+}

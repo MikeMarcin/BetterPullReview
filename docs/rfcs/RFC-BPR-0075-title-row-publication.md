@@ -1,12 +1,24 @@
 ---
 id: "RFC-BPR-0075"
 title: "Refresh the review title row when accepted content arrives"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"rfc_base_sha":"d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1","mandate_revision":"title-row-publication-r1","milestone_plan":{"id":"title-row-publication-v1","path":"docs/rfcs/plans/title-row-publication-v1/milestone-plan.json"}}
 ---
 
 # Refresh the review title row when accepted content arrives
+
+## Execution status
+
+Mandate `title-row-publication-r1` adopts the original proposal. Immutable
+RFC_BASE_SHA: `d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1`.
+The [live import](assets/title-row-publication-v1.LIVE_IMPORT.md) and
+[single-milestone plan](plans/title-row-publication-v1/milestone-plan.json)
+retain its scope. AC01–AC04 pass on `0f039e775`: accepted content and
+clear settle the existing title row without corrective resize/navigation.
+The [verification ledger](../verification/RFC-BPR-0075.md) records the failing-before
+control, public-window/composed/render evidence and unrelated baseline failures.
+No new human/native acceptance is required or inferred.
 
 ## Problem and grounded current behavior
 

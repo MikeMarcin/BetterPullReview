@@ -1,0 +1,13 @@
+{
+  "criterion": "render-after-acceptance-scale-125",
+  "outcome": "pass",
+  "revision": "ca21f6f5f911b68a2dc608dd0d67f0bd5dc034e7",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"env\", \"BPR_OPEN_ON_GITHUB_RENDER_DIR=/tmp/bpr1418-render-125\", \"ctest\", \"--preset\", \"dev\", \"-R\", \"^qt_workbench_open_on_github_scale_125$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.026,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 372: qt_workbench_open_on_github_scale_125\n1/1 Test #372: qt_workbench_open_on_github_scale_125 ...   Passed    1.00 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated    =   1.00 sec*proc (1 test)\nbpr_serial_gui          =   1.00 sec*proc (1 test)\n\nTotal Test time (real) =   1.02 sec\n",
+    "stderr_tail": ""
+  }
+}

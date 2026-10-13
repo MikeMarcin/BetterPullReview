@@ -1,0 +1,13 @@
+{
+  "criterion": "final-title-row-AC01-AC04",
+  "outcome": "pass",
+  "revision": "0f039e775900153001b4c7cce04431a5d4278d86",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"-R\", \"^qt_workbench_(open_on_github|title_row)_scale_(100|125|200)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 13.813,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 365: qt_workbench_title_row_scale_100\n1/6 Test #365: qt_workbench_title_row_scale_100 ........   Passed    3.28 sec\n    Start 366: qt_workbench_title_row_scale_125\n2/6 Test #366: qt_workbench_title_row_scale_125 ........   Passed    3.61 sec\n    Start 367: qt_workbench_title_row_scale_200\n3/6 Test #367: qt_workbench_title_row_scale_200 ........   Passed    4.58 sec\n    Start 371: qt_workbench_open_on_github_scale_100\n4/6 Test #371: qt_workbench_open_on_github_scale_100 ...   Passed    0.77 sec\n    Start 372: qt_workbench_open_on_github_scale_125\n5/6 Test #372: qt_workbench_open_on_github_scale_125 ...   Passed    0.76 sec\n    Start 373: qt_workbench_open_on_github_scale_200\n6/6 Test #373: qt_workbench_open_on_github_scale_200 ...   Passed    0.79 sec\n\n100% tests passed out of 6\n\nLabel Time Summary:\nbpr_network_isolated    =  13.79 sec*proc (6 tests)\nbpr_serial_gui          =  13.79 sec*proc (6 tests)\n\nTotal Test time (real) =  13.81 sec\n",
+    "stderr_tail": ""
+  }
+}
