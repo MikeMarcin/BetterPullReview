@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1438"
 title: "Step, measure and paint the suggestion editor by grapheme cluster and display width"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1434"]
 priority: "P2"
