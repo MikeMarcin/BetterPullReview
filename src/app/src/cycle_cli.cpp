@@ -1,5 +1,6 @@
 #include "cycle_cli.hpp"
 #include "bpr/adapters/sqlite/tour_owner_channel.hpp"
+#include "bpr/app/command_line.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/review_cycle_words.hpp"
 #include "bpr/core/private_thread_lineage.hpp"
@@ -22,8 +23,10 @@
 #include <algorithm>
 #include <future>
 #include <iostream>
+#include <span>
 #include <thread>
 #include <utility>
+#include <vector>
 namespace bpr::app {
 	namespace {
 		/// The result envelope every `--json` call writes, exactly once, to standard output.
@@ -83,49 +86,48 @@ namespace bpr::app {
 			return QDir::cleanPath(QDir::current().absoluteFilePath(aPath));
 		}
 
+		/// [[BPR-1437]]. Every option a cycle command may take, from core's
+		/// catalogue; each command's own list below narrows it.
+		auto cycle_options() -> std::span<const command_line_option>
+		{
+			static const auto options = [] {
+				auto       known = std::vector<command_line_option>{ };
+				const auto add   = [&known](const std::string_view aOption) {
+					const auto name = aOption.substr(2U);
+					if (std::ranges::none_of(known, [name](const command_line_option& aKnown) { return aKnown.Name == name; })) {
+						known.push_back({ .Name = name, .TakesValue = !core::cycle_option_is_flag(aOption) });
+					}
+				};
+				std::ranges::for_each(core::common_cycle_options(), add);
+				for (const auto command : core::typed_cycle_commands()) {
+					std::ranges::for_each(core::cycle_command_options(command), add);
+				}
+				return known;
+			}();
+			return options;
+		}
+
 		auto parse(const QStringList& aArguments) -> result<command>
 		{
 			if (aArguments.size() > 64) {
 				return fail("invalid_input", "Too many command arguments.");
 			}
-			auto        result = command{ };
-			auto        values = QMap<QString, QString>{ };
-			QStringList words;
-			const auto  known = [](const QString& aOption) {
-				const auto option = utf8(aOption);
-				if (std::ranges::find(core::common_cycle_options(), std::string_view{ option }) != core::common_cycle_options().end()) {
-					return true;
-				}
-				for (const auto command : core::typed_cycle_commands()) {
-					const auto options = core::cycle_command_options(command);
-					if (std::ranges::find(options, std::string_view{ option }) != options.end()) {
-						return true;
-					}
-				}
-				return false;
-			};
-			for (qsizetype index = 0; index < aArguments.size(); ++index) {
-				const auto& argument = aArguments[index];
+			for (const auto& argument : aArguments) {
 				if (argument.size() > 8192) {
 					return fail("invalid_input", "A command argument exceeds the bound.");
 				}
-				if (!argument.startsWith("--")) {
-					words.push_back(argument);
-					continue;
-				}
-				if (values.contains(argument)) {
+			}
+			// No generic --yes or --force: authority is never a flag.
+			const auto line = command_line::parse(aArguments, cycle_options());
+			if (!line) {
+				if (line.error().Refusal == command_line_refusal::repeated_option) {
 					return fail("invalid_input", "An option was repeated.");
 				}
-				if (core::cycle_option_is_flag(utf8(argument))) {
-					values.insert(argument, "true");
-					continue;
-				}
-				// No generic --yes or --force: authority is never a flag.
-				if (!known(argument) || index + 1 == aArguments.size()) {
-					return fail("unsupported_option", "Unknown option or missing option value: " + utf8(argument.left(64)) + ".", "bpr cycle capabilities");
-				}
-				values.insert(argument, aArguments[++index]);
+				return fail("unsupported_option", "Unknown option or missing option value: " + utf8(line.error().Option.left(64)) + ".", "bpr cycle capabilities");
 			}
+			auto result        = command{ };
+			auto values        = line->options();
+			auto words         = line->words();
 			result.Json        = values.contains("--json");
 			result.Interactive = interactive_terminal() && !result.Json && !values.contains("--non-interactive");
 			if (values.contains("--schema-version") && values["--schema-version"] != "1") {

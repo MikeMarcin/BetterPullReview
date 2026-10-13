@@ -1,4 +1,5 @@
 #include "tour_cli.hpp"
+#include "bpr/app/command_line.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/review_tour_destination.hpp"
@@ -16,6 +17,7 @@
 #include <QUrl>
 #include <QUuid>
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <iostream>
 #include <limits>
@@ -90,36 +92,74 @@ namespace bpr::app {
 			return result;
 		}
 
+		/// [[BPR-1437]]. Every option a tour command may take; each command's
+		/// own allow-list below narrows it.
+		constexpr auto tour_options = std::array{
+			command_line_option{ .Name = "json" },
+			command_line_option{ .Name = "non-interactive" },
+			command_line_option{ .Name = "no-color" },
+			command_line_option{ .Name = "offline" },
+			command_line_option{ .Name = "source" },
+			command_line_option{ .Name = "refresh" },
+			command_line_option{ .Name = "compatibility" },
+			command_line_option{ .Name = "description" },
+			command_line_option{ .Name = "published" },
+			command_line_option{ .Name = "profile", .TakesValue = true },
+			command_line_option{ .Name = "draft", .TakesValue = true },
+			command_line_option{ .Name = "root", .TakesValue = true },
+			command_line_option{ .Name = "repo", .TakesValue = true },
+			command_line_option{ .Name = "host", .TakesValue = true },
+			command_line_option{ .Name = "transport", .TakesValue = true },
+			command_line_option{ .Name = "data-root", .TakesValue = true },
+			command_line_option{ .Name = "schema-version", .TakesValue = true },
+			command_line_option{ .Name = "cursor", .TakesValue = true },
+			command_line_option{ .Name = "file", .TakesValue = true },
+			command_line_option{ .Name = "expected-revision", .TakesValue = true },
+			command_line_option{ .Name = "before", .TakesValue = true },
+			command_line_option{ .Name = "after", .TakesValue = true },
+			command_line_option{ .Name = "side", .TakesValue = true },
+			command_line_option{ .Name = "commit", .TakesValue = true },
+			command_line_option{ .Name = "path", .TakesValue = true },
+			command_line_option{ .Name = "lines", .TakesValue = true },
+			command_line_option{ .Name = "resume", .TakesValue = true },
+			command_line_option{ .Name = "attempt", .TakesValue = true },
+			command_line_option{ .Name = "request-id", .TakesValue = true },
+			command_line_option{ .Name = "hook", .TakesValue = true },
+			command_line_option{ .Name = "field", .TakesValue = true },
+			command_line_option{ .Name = "range-bytes", .TakesValue = true },
+			command_line_option{ .Name = "quote", .TakesValue = true },
+			command_line_option{ .Name = "sources", .TakesValue = true },
+			command_line_option{ .Name = "session", .TakesValue = true },
+			command_line_option{ .Name = "ticket", .TakesValue = true },
+			command_line_option{ .Name = "result", .TakesValue = true },
+			command_line_option{ .Name = "indices", .TakesValue = true },
+			command_line_option{ .Name = "label", .TakesValue = true },
+			command_line_option{ .Name = "expectation", .TakesValue = true },
+			command_line_option{ .Name = "decoration", .TakesValue = true },
+			command_line_option{ .Name = "remove-decoration", .TakesValue = true },
+			command_line_option{ .Name = "columns", .TakesValue = true },
+			command_line_option{ .Name = "mode", .TakesValue = true },
+		};
+
 		auto parse(const QStringList& aArguments) -> tour_cli_result<command_options>
 		{
 			command_options result;
 			if (aArguments.size() > 80) {
 				return refuse("input_too_large", "Too many command arguments.");
 			}
-			const QStringList flags{ "--json", "--non-interactive", "--no-color", "--offline", "--source", "--refresh", "--compatibility", "--description", "--published" };
-			const QStringList options{ "--profile", "--draft", "--root", "--repo", "--host", "--transport", "--data-root", "--schema-version", "--cursor", "--file", "--expected-revision", "--before", "--after", "--side", "--commit", "--path", "--lines", "--resume", "--attempt", "--request-id", "--hook", "--field", "--range-bytes", "--quote", "--sources", "--session", "--ticket", "--result", "--indices", "--label", "--expectation", "--decoration", "--remove-decoration", "--columns", "--mode" };
-			QStringList       words;
-			for (qsizetype i = 0; i < aArguments.size(); ++i) {
-				const auto& value = aArguments[i];
+			for (const auto& value : aArguments) {
 				if (value.size() > 8192) {
 					return refuse("input_too_large", "Command arguments exceed the bound.");
 				}
-				if (!value.startsWith("--")) {
-					words.push_back(value);
-					continue;
-				}
-				if (result.Values.contains(value)) {
-					return refuse("invalid_input", "An option was repeated.");
-				}
-				if (flags.contains(value)) {
-					result.Values.insert(value, "true");
-					continue;
-				}
-				if (!options.contains(value) || i + 1 == aArguments.size() || aArguments[i + 1].startsWith("--")) {
-					return refuse("unsupported_option", "Unknown option or missing option value.");
-				}
-				result.Values.insert(value, aArguments[++i]);
 			}
+			const auto line = command_line::parse(aArguments, tour_options);
+			if (!line) {
+				return line.error().Refusal == command_line_refusal::repeated_option
+					? refuse("invalid_input", "An option was repeated.")
+					: refuse("unsupported_option", "Unknown option or missing option value.");
+			}
+			result.Values      = line->options();
+			const auto& words  = line->words();
 			result.Json        = result.Values.contains("--json");
 			result.Interactive = interactive_terminal() && !result.Json && !result.Values.contains("--non-interactive");
 			if (result.Values.contains("--schema-version") && result.Values["--schema-version"] != "1") {

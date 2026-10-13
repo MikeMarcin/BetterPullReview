@@ -1,4 +1,5 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/app/command_line.hpp"
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -137,43 +138,189 @@ namespace {
 		});
 	}
 
+	/// \brief Every option the desktop application reads ([[BPR-1437]]).
+	///
+	/// \details Read once by the shared reader, after QApplication has taken
+	/// its own options (`-platform` and the rest). An option nothing here
+	/// reads is refused at startup instead of being ignored, and a value is
+	/// never another option, so `--ghes-host --new-window` names no host.
+	/// Tests-only options exist only in a tests-enabled build, so a released
+	/// binary carries none of their names; the attended designated-live
+	/// options exist only where that path is compiled.
+	constexpr auto shipped_launch_options = std::array{
+		bpr::app::command_line_option{ .Name = "new-window" },
+		bpr::app::command_line_option{ .Name = "bpr-profile", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "ghes-host", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "self-test" },
+		bpr::app::command_line_option{ .Name = "render-evidence", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "render-evidence-collapse-files" },
+		bpr::app::command_line_option{ .Name = "automated-run-budget-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "device-authorization-probe" },
+		bpr::app::command_line_option{ .Name = "public-preview-probe" },
+	};
+#if defined(BPR_BUILD_TESTING)
+	constexpr auto testing_launch_options = std::array{
+		bpr::app::command_line_option{ .Name = "github-fixture", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "test-application-data-root", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "code-font-probe" },
+		bpr::app::command_line_option{ .Name = "application-icon-probe" },
+		bpr::app::command_line_option{ .Name = "network-isolation-probe" },
+		bpr::app::command_line_option{ .Name = "network-denied" },
+		bpr::app::command_line_option{ .Name = "device-authorization-registered-course" },
+		bpr::app::command_line_option{ .Name = "device-authorization-refresh-course" },
+		bpr::app::command_line_option{ .Name = "device-authorization-orphan-course" },
+		bpr::app::command_line_option{ .Name = "threaded-reply-probe" },
+		bpr::app::command_line_option{ .Name = "attended-launch" },
+		bpr::app::command_line_option{ .Name = "public-preview-enabled-course" },
+		bpr::app::command_line_option{ .Name = "public-preview-ghes-course" },
+		bpr::app::command_line_option{ .Name = "public-preview-history-course", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "public-preview-empty-timeline-course" },
+		bpr::app::command_line_option{ .Name = "public-preview-unfetchable-first-head-course" },
+		bpr::app::command_line_option{ .Name = "label-authoring-probe" },
+		bpr::app::command_line_option{ .Name = "label-helper" },
+		bpr::app::command_line_option{ .Name = "review-progress-push-probe", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "published-file-switch-probe" },
+		bpr::app::command_line_option{ .Name = "published-file-switch-timing", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "start-review-course", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "reply-draft-course", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "device-authorization-browser-absent" },
+		bpr::app::command_line_option{ .Name = "device-authorization-panel-absent" },
+		bpr::app::command_line_option{ .Name = "epoch-fixture-root", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "epoch-fixture-phase", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "epoch-maintenance-probe", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "device-authorization-browser-probe" },
+		bpr::app::command_line_option{ .Name = "composition-capability-probe" },
+		bpr::app::command_line_option{ .Name = "device-authorization-panel-course" },
+		bpr::app::command_line_option{ .Name = "device-authorization-ghes-course" },
+		bpr::app::command_line_option{ .Name = "public-preview-historical-course" },
+		bpr::app::command_line_option{ .Name = "public-preview-handle-drag-course" },
+		bpr::app::command_line_option{ .Name = "public-preview-live-candidate-dry-run" },
+		bpr::app::command_line_option{ .Name = "public-preview-live-candidate", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "public-preview-selection-enabled-probe" },
+		bpr::app::command_line_option{ .Name = "automated-stall-probe" },
+		bpr::app::command_line_option{ .Name = "native-appearance-probe" },
+		bpr::app::command_line_option{ .Name = "native-appearance-cut-selection-wire" },
+		bpr::app::command_line_option{ .Name = "native-notification-probe" },
+		bpr::app::command_line_option{ .Name = "native-notification-attended" },
+		bpr::app::command_line_option{ .Name = "native-notification-cut-request-wire" },
+		bpr::app::command_line_option{ .Name = "native-notification-cut-activation-wire" },
+		bpr::app::command_line_option{ .Name = "native-notification-cut-signal-observation" },
+		bpr::app::command_line_option{ .Name = "diff-workbench-probe" },
+		bpr::app::command_line_option{ .Name = "diff-workbench-shutdown-probe" },
+		bpr::app::command_line_option{ .Name = "workbench-composition-probe" },
+		bpr::app::command_line_option{ .Name = "workbench-composition-cut-selection-wire" },
+		bpr::app::command_line_option{ .Name = "uiforetw-selected-diff-evidence", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "uiforetw-selected-diff-cut-selection-wire" },
+		bpr::app::command_line_option{ .Name = "review-ledger-composition-probe", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "private-review-course", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "private-review-representation", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "private-review-agent", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "review-round-trip-composition-probe" },
+		bpr::app::command_line_option{ .Name = "defect-composition-probe", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "private-review-lose-first-result" },
+		bpr::app::command_line_option{ .Name = "appearance-gesture-probe" },
+		bpr::app::command_line_option{ .Name = "overview-since-review" },
+		bpr::app::command_line_option{ .Name = "review-behaviour" },
+		bpr::app::command_line_option{ .Name = "saved-server" },
+		bpr::app::command_line_option{ .Name = "appearance-theme-customization-probe", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "diff-evidence-appearance", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "diff-interaction-evidence", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "changed-render-evidence", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-open-file", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-open-pull-request" },
+		bpr::app::command_line_option{ .Name = "attended-open-on-github" },
+		bpr::app::command_line_option{ .Name = "attended-open-settings" },
+		bpr::app::command_line_option{ .Name = "attended-preflight-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-read-state" },
+		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
+		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-home-look" },
+		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "label-authoring-evidence", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "line-draft-course" },
+		bpr::app::command_line_option{ .Name = "cancel-first-base-numbering" },
+	};
+#else
+	constexpr auto attended_launch_options = std::array{
+		bpr::app::command_line_option{ .Name = "initialize-or-reset-designated-live-replay-state" },
+		bpr::app::command_line_option{ .Name = "attended-designated-live-approval", .TakesValue = true },
+	#if defined(__APPLE__)
+		bpr::app::command_line_option{ .Name = "attended-designated-live-inventory-sha256", .TakesValue = true },
+	#endif
+	};
+#endif
+
+	[[nodiscard]] auto launch_options() -> std::vector<bpr::app::command_line_option>
+	{
+		auto options = std::vector<bpr::app::command_line_option>{ shipped_launch_options.begin(), shipped_launch_options.end() };
+#if defined(BPR_BUILD_TESTING)
+		options.insert(options.end(), testing_launch_options.begin(), testing_launch_options.end());
+#else
+		options.insert(options.end(), attended_launch_options.begin(), attended_launch_options.end());
+#endif
+#if defined(__APPLE__)
+		// [[BPR-0983]]. Read by the profile desktop when an update relaunches it.
+		options.push_back({ .Name = "bpr-update-transaction", .TakesValue = true });
+#endif
+		return options;
+	}
+
+	/// \brief The launch options as UTF-8, kept for the whole run so the
+	/// readers below may hold views of them.
+	class launch_arguments
+	{
+	public:
+		explicit launch_arguments(const bpr::app::command_line& aLine)
+		{
+			for (auto option = aLine.options().cbegin(); option != aLine.options().cend(); ++option) {
+				Values.emplace(option.key().toStdString(), option.value().toStdString());
+			}
+		}
+
+		[[nodiscard]] auto has(const std::string_view aOption) const -> bool
+		{
+			return Values.contains(aOption);
+		}
+
+		[[nodiscard]] auto value(const std::string_view aOption) const -> std::optional<std::string_view>
+		{
+			const auto found = Values.find(aOption);
+			return found == Values.end() ? std::nullopt : std::optional<std::string_view>{ found->second };
+		}
+
+	private:
+		std::map<std::string, std::string, std::less<>> Values;
+	};
+
+	/// \brief The two profile options are refused under the profile marker.
+	[[nodiscard]] auto profile_launch_option(const QString& aOption) -> bool
+	{
+		return aOption == QStringLiteral("--bpr-profile") || aOption == QStringLiteral("--new-window");
+	}
+
 	struct profile_launch_arguments
 	{
 		bpr::core::bpr_profile_id        Profile = bpr::core::default_bpr_profile_id;
 		bpr::core::profile_launch_intent Intent  = bpr::core::profile_launch_intent::activate;
 	};
 
-	[[nodiscard]] auto parse_profile_launch_arguments(int aArgc, char** aArgv) -> std::optional<profile_launch_arguments>
+	[[nodiscard]] auto profile_launch_from(const launch_arguments& aLaunch) -> std::optional<profile_launch_arguments>
 	{
-		auto result      = profile_launch_arguments{ };
-		bool profileSeen = false;
-		bool windowSeen  = false;
-		for (int index = 1; index < aArgc; ++index) {
-			const auto argument = std::string_view{ aArgv[index] };
-			if (argument == "--new-window") {
-				if (windowSeen) {
-					return std::nullopt;
-				}
-				windowSeen    = true;
-				result.Intent = bpr::core::profile_launch_intent::new_window;
-			} else if (argument == "--bpr-profile") {
-				if (profileSeen || ++index == aArgc) {
-					return std::nullopt;
-				}
-				profileSeen      = true;
-				const auto value = std::string_view{ aArgv[index] };
-				auto       id    = std::uint64_t{ };
-				if (value.empty() || !std::ranges::all_of(value, [](char aDigit) { return aDigit >= '0' && aDigit <= '9'; })) {
-					return std::nullopt;
-				}
-				const auto parsed = std::from_chars(value.data(), value.data() + value.size(), id);
-				if (parsed.ec != std::errc{ } || parsed.ptr != value.data() + value.size() || id == 0) {
-					return std::nullopt;
-				}
-				result.Profile = bpr::core::bpr_profile_id{ id };
-			} else if (argument.starts_with("--bpr-profile=") || argument.starts_with("--new-window=")) {
+		auto result = profile_launch_arguments{ };
+		if (aLaunch.has("--new-window")) {
+			result.Intent = bpr::core::profile_launch_intent::new_window;
+		}
+		if (const auto value = aLaunch.value("--bpr-profile"); value.has_value()) {
+			auto id = std::uint64_t{ };
+			if (value->empty() || !std::ranges::all_of(*value, [](char aDigit) { return aDigit >= '0' && aDigit <= '9'; })) {
 				return std::nullopt;
 			}
+			const auto parsed = std::from_chars(value->data(), value->data() + value->size(), id);
+			if (parsed.ec != std::errc{ } || parsed.ptr != value->data() + value->size() || id == 0) {
+				return std::nullopt;
+			}
+			result.Profile = bpr::core::bpr_profile_id{ id };
 		}
 		return result;
 	}
@@ -345,7 +492,13 @@ namespace {
 		return icon;
 	}
 
-	auto has_argument(
+#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
+	/// \brief Whether `aExpected` is present, read before QApplication exists.
+	///
+	/// \details [[BPR-1437]]. Only the provenance check needs this: it must
+	/// settle who launched the process before QApplication exists, so it cannot
+	/// use the launch reader. Everything else reads `launch_arguments`.
+	auto raw_has_argument(
 		const int              aArgc,
 		char* const* const     aArgv,
 		const std::string_view aExpected) -> bool
@@ -355,19 +508,7 @@ namespace {
 			aArgv + aArgc,
 			[aExpected](const char* const aArgument) { return std::string_view{ aArgument } == aExpected; });
 	}
-
-	auto argument_value(
-		const int              aArgc,
-		char* const* const     aArgv,
-		const std::string_view aExpected) -> std::optional<std::string_view>
-	{
-		for (auto index = 1; index + 1 < aArgc; ++index) {
-			if (std::string_view{ aArgv[index] } == aExpected) {
-				return std::string_view{ aArgv[index + 1] };
-			}
-		}
-		return std::nullopt;
-	}
+#endif
 
 	/// \brief Whether this launch is an automated run that composes its own
 	/// private temporary profile rather than the default application data root.
@@ -385,53 +526,19 @@ namespace {
 	/// and `--test-application-data-root` is the persistent root a restart
 	/// contract chooses. A tests-disabled attended approval deliberately uses
 	/// the default root, which is where its replay state lives.
-	[[nodiscard]] auto automated_run_uses_private_profile(
-		const int          aArgc,
-		char* const* const aArgv) -> bool
+	[[nodiscard]] auto automated_run_uses_private_profile(const launch_arguments& aLaunch) -> bool
 	{
-		if (!has_argument(aArgc, aArgv, "--self-test")
-			&& !has_argument(aArgc, aArgv, "--render-evidence")) {
+		if (!aLaunch.has("--self-test")
+			&& !aLaunch.has("--render-evidence")) {
 			return false;
 		}
 #if defined(BPR_BUILD_TESTING)
-		return !has_argument(aArgc, aArgv, "--github-fixture")
-			&& !has_argument(aArgc, aArgv, "--test-application-data-root");
+		return !aLaunch.has("--github-fixture")
+			&& !aLaunch.has("--test-application-data-root");
 #else
-		return !has_argument(aArgc, aArgv, "--attended-designated-live-approval");
+		return !aLaunch.has("--attended-designated-live-approval");
 #endif
 	}
-
-#if defined(BPR_BUILD_TESTING)
-	/// \brief Reads a fixed run of values that follow one flag.
-	///
-	/// \details [[BPR-0316]]'s live candidate names an owner, a repository and
-	/// a number in one place, so the three are read together or not at all: a
-	/// partial run is no candidate rather than a candidate with a default in
-	/// it.
-	auto argument_values(
-		const int              aArgc,
-		char* const* const     aArgv,
-		const std::string_view aExpected,
-		const int              aCount)
-		-> std::optional<std::vector<std::string_view>>
-	{
-		for (auto index = 1; index < aArgc; ++index) {
-			if (std::string_view{ aArgv[index] } != aExpected) {
-				continue;
-			}
-			if (index + aCount >= aArgc) {
-				return std::nullopt;
-			}
-			auto values = std::vector<std::string_view>{ };
-			values.reserve(static_cast<std::size_t>(aCount));
-			for (auto offset = 1; offset <= aCount; ++offset) {
-				values.emplace_back(aArgv[index + offset]);
-			}
-			return values;
-		}
-		return std::nullopt;
-	}
-#endif
 
 	/// \brief Saves the evidence render, optionally with the files drawer shut.
 	///
@@ -8429,11 +8536,6 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	bpr::app::detail::terminal_diagnostics terminalDiagnostics;
-	const auto                             profileLaunch = parse_profile_launch_arguments(argc, argv);
-	if (!profileLaunch) {
-		QTextStream{ stdout } << "PROFILE_LAUNCH_ARGUMENTS_INVALID\n";
-		return EXIT_FAILURE;
-	}
 #if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)
 	if (const auto preflight = run_designated_live_preflight_probe(argc, argv);
 		preflight.has_value()) {
@@ -8449,7 +8551,7 @@ auto main(int argc, char** argv) -> int
 	// well-formed is settled further down, because a malformed approval and an
 	// unauthenticated parent are different refusals and answering the second
 	// first is what keeps a direct launch from learning anything.
-	if (has_argument(argc, argv, "--attended-designated-live-approval")) {
+	if (raw_has_argument(argc, argv, "--attended-designated-live-approval")) {
 		const auto image      = bpr::app::designated_live_provenance::running_executable_path();
 		const auto supervisor = image.has_value()
 			? bpr::app::designated_live_provenance::supervisor_image_for(*image)
@@ -8485,6 +8587,18 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	QApplication qtApplication{ argc, argv };
+	// [[BPR-1437]]. Read once, now that QApplication has taken its own options.
+	const auto launchLine = bpr::app::command_line::parse(QCoreApplication::arguments().mid(1), launch_options());
+	if (!launchLine || !launchLine->words().isEmpty()) {
+		QTextStream{ stdout } << (launchLine || !profile_launch_option(launchLine.error().Option) ? "LAUNCH_ARGUMENTS_INVALID\n" : "PROFILE_LAUNCH_ARGUMENTS_INVALID\n");
+		return EXIT_FAILURE;
+	}
+	const auto launch        = launch_arguments{ *launchLine };
+	const auto profileLaunch = profile_launch_from(launch);
+	if (!profileLaunch) {
+		QTextStream{ stdout } << "PROFILE_LAUNCH_ARGUMENTS_INVALID\n";
+		return EXIT_FAILURE;
+	}
 #if defined(__linux__)
 	// [[BPR-1024]]. Keys go to the window the X server focused, not to one
 	// whose activation the window manager may have refused.
@@ -8504,7 +8618,7 @@ auto main(int argc, char** argv) -> int
 	[[maybe_unused]] const auto bundledCodeFont = bpr::qt::register_bundled_code_font();
 
 #if defined(BPR_BUILD_TESTING)
-	if (has_argument(argc, argv, "--code-font-probe")) {
+	if (launch.has("--code-font-probe")) {
 		// The fresh profile's code font as the composition would apply it,
 		// resolved by this process's font database.
 		const auto defaults = bpr::qt::default_typography_settings();
@@ -8521,7 +8635,7 @@ auto main(int argc, char** argv) -> int
 			<< (valid ? "CODE_FONT_OK\n" : "CODE_FONT_INVALID\n");
 		return valid ? EXIT_SUCCESS : EXIT_FAILURE;
 	}
-	if (has_argument(argc, argv, "--application-icon-probe")) {
+	if (launch.has("--application-icon-probe")) {
 		const auto icon  = QApplication::windowIcon();
 		const auto valid = !icon.isNull()
 			&& !icon.pixmap(QSize{ 16, 16 }).isNull()
@@ -8544,7 +8658,7 @@ auto main(int argc, char** argv) -> int
 		// by this scope and outlives `desktop`, which is declared after it.
 		auto automatedData        = std::unique_ptr<QTemporaryDir>{ };
 		auto automatedProfileRoot = std::optional<std::filesystem::path>{ };
-		if (automated_run_uses_private_profile(argc, argv)) {
+		if (automated_run_uses_private_profile(launch)) {
 			automatedData = std::make_unique<QTemporaryDir>(
 				QDir::temp().filePath(QStringLiteral("bpr-automated-profile-XXXXXX")));
 			if (!automatedData->isValid()) {
@@ -8569,33 +8683,19 @@ auto main(int argc, char** argv) -> int
 		}
 		config.Profile             = profileLaunch->Profile;
 		config.ProfileLaunchIntent = profileLaunch->Intent;
-		auto attendedApprovalCount = std::size_t{ 0U };
-		auto replayResetCount      = std::size_t{ 0U };
-		for (auto index = 1; index < argc; ++index) {
-			if (std::string_view{ argv[index] }
-				== "--attended-designated-live-approval") {
-				++attendedApprovalCount;
-			}
-			if (std::string_view{ argv[index] }
-				== "--initialize-or-reset-designated-live-replay-state") {
-				++replayResetCount;
-			}
-		}
-#if defined(BPR_BUILD_TESTING)
-		if (attendedApprovalCount != 0U || replayResetCount != 0U) {
-			QTextStream{ stdout } << "STARTUP_FAILED\n";
-			return EXIT_FAILURE;
-		}
-#else
-		if (attendedApprovalCount > 1U || replayResetCount > 1U
-			|| (attendedApprovalCount != 0U && replayResetCount != 0U)) {
+#if !defined(BPR_BUILD_TESTING)
+		// The launch reader refuses a repeated option. A tests-enabled build
+		// declares neither of these, so it refuses both as unknown options.
+		const auto attendedApproval = launch.has("--attended-designated-live-approval");
+		const auto replayReset      = launch.has("--initialize-or-reset-designated-live-replay-state");
+		if (attendedApproval && replayReset) {
 			QTextStream{ stdout } << "STARTUP_FAILED\n";
 			return EXIT_FAILURE;
 		}
 		const auto applicationDataRoot = native_filesystem_path(
 											 QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
 											 .lexically_normal();
-		if (replayResetCount == 1U) {
+		if (replayReset) {
 			if (argc != 2
 				|| !bpr::app::initialize_or_reset_designated_live_replay_state(
 					applicationDataRoot)) {
@@ -8605,9 +8705,8 @@ auto main(int argc, char** argv) -> int
 			QTextStream{ stdout } << "DESIGNATED_LIVE_REPLAY_STATE_READY\n";
 			return EXIT_SUCCESS;
 		}
-		if (attendedApprovalCount == 1U) {
-			const auto approval = argument_value(
-				argc, argv, "--attended-designated-live-approval");
+		if (attendedApproval) {
+			const auto approval = launch.value("--attended-designated-live-approval");
 			if (!approval.has_value()) {
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
 				return EXIT_FAILURE;
@@ -8664,8 +8763,7 @@ auto main(int argc, char** argv) -> int
 			// inside it, so this one is supplied by the supervisor that
 			// verified it. A wrong value renders a subject the operator never
 			// approved, which refuses; it cannot make a bad capsule pass.
-			const auto inventoryDigest = argument_value(
-				argc, argv, "--attended-designated-live-inventory-sha256");
+			const auto inventoryDigest = launch.value("--attended-designated-live-inventory-sha256");
 			if (!inventoryDigest.has_value()) {
 				QTextStream{ stdout } << "STARTUP_FAILED\n";
 				return EXIT_FAILURE;
@@ -8674,14 +8772,14 @@ auto main(int argc, char** argv) -> int
 	#endif
 		}
 #endif
-		if (const auto host = argument_value(argc, argv, "--ghes-host");
+		if (const auto host = launch.value("--ghes-host");
 			host.has_value()) {
 			config.EnterpriseHostname = std::string{ *host };
 		}
 		auto enterpriseHostname = config.EnterpriseHostname;
 
 #if defined(BPR_BUILD_TESTING)
-		if (has_argument(argc, argv, "--network-isolation-probe")) {
+		if (launch.has("--network-isolation-probe")) {
 			const auto denied = bpr::app::detail::
 				github_application_fixture_access::network_isolation_probe();
 			QTextStream{ stdout }
@@ -8703,9 +8801,8 @@ auto main(int argc, char** argv) -> int
 		// github.com. With this the denial is the application's own, on every
 		// platform, and the expectation is the local `failed` macOS and Linux
 		// already recorded.
-		config.NetworkDenied               = has_argument(argc, argv, "--network-denied");
-		const auto testApplicationDataRoot = argument_value(
-			argc, argv, "--test-application-data-root");
+		config.NetworkDenied               = launch.has("--network-denied");
+		const auto testApplicationDataRoot = launch.value("--test-application-data-root");
 		if (testApplicationDataRoot.has_value()) {
 			config.ApplicationDataRoot = std::filesystem::path{
 				std::string{ *testApplicationDataRoot }
@@ -8721,35 +8818,26 @@ auto main(int argc, char** argv) -> int
 		fixtureOptions.ProfileLaunchIntent = profileLaunch->Intent;
 		// Read here rather than beside the other device flag further down,
 		// because the fixture options are assembled before that point.
-		fixtureOptions.RegisteredDeviceCourse = has_argument(
-			argc,
-			argv,
-			"--device-authorization-registered-course");
+		fixtureOptions.RegisteredDeviceCourse = launch.has("--device-authorization-registered-course");
 		// [[BPR-0536]]. The renewal course composes the registered grant and
 		// two more seams: a real second vault slot and the documented renewal
 		// answer. Read here for the same reason as the line above it.
-		fixtureOptions.DeviceRefreshCourse = has_argument(
-			argc,
-			argv,
-			"--device-authorization-refresh-course");
+		fixtureOptions.DeviceRefreshCourse = launch.has("--device-authorization-refresh-course");
 		// [[BPR-0540]]. The orphan course composes the renewal course's graph
 		// -- the registered capability and the second vault slot -- and adds
 		// the one thing no run of this process could produce: material already
 		// in that slot when the run starts. Read here with the two above it
 		// because the fixture options are assembled before the run flags.
-		fixtureOptions.SeedOrphanedRefreshMaterial = has_argument(
-			argc,
-			argv,
-			"--device-authorization-orphan-course");
-		fixtureOptions.DeviceRefreshCourse = fixtureOptions.DeviceRefreshCourse
+		fixtureOptions.SeedOrphanedRefreshMaterial = launch.has("--device-authorization-orphan-course");
+		fixtureOptions.DeviceRefreshCourse         = fixtureOptions.DeviceRefreshCourse
 			|| fixtureOptions.SeedOrphanedRefreshMaterial;
 		// [[BPR-0657]]. The threaded-reply course refreshes the pull request
 		// after publishing, so the fixture replays its read script.
-		fixtureOptions.ResolvesThreads = has_argument(argc, argv, "--threaded-reply-probe");
+		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe");
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.
 		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads
-			|| has_argument(argc, argv, "--attended-launch");
+			|| launch.has("--attended-launch");
 		// The renewal course is the registered course plus a renewal, so it
 		// composes the registered capability rather than a second one. Every
 		// stage up to the vault store is the same graph, which is what makes
@@ -8761,31 +8849,31 @@ auto main(int argc, char** argv) -> int
 		// browser capability, which is what every build had before
 		// [[BPR-0516]] composed one.
 		fixtureOptions.PublicPreviewEnabledCourse
-			= has_argument(argc, argv, "--public-preview-enabled-course");
+			= launch.has("--public-preview-enabled-course");
 		fixtureOptions.PublicPreviewGhesCourse
-			= has_argument(argc, argv, "--public-preview-ghes-course");
-		fixtureOptions.TimelineCourse = argument_value(argc, argv, "--public-preview-history-course").value_or("");
+			= launch.has("--public-preview-ghes-course");
+		fixtureOptions.TimelineCourse = launch.value("--public-preview-history-course").value_or("");
 		fixtureOptions.EmptyHistoricalTimeline
-			= has_argument(argc, argv, "--public-preview-empty-timeline-course");
+			= launch.has("--public-preview-empty-timeline-course");
 		fixtureOptions.UnfetchableFirstHistoricalHead
-			= has_argument(argc, argv, "--public-preview-unfetchable-first-head-course");
+			= launch.has("--public-preview-unfetchable-first-head-course");
 		// [[BPR-1083]]. The label-authoring course types `:qu:`, so it needs
 		// the helper, and reads the pull request again after publishing.
-		const auto labelAuthoringProbe    = has_argument(argc, argv, "--label-authoring-probe");
-		fixtureOptions.LabelHelper        = has_argument(argc, argv, "--label-helper") || labelAuthoringProbe;
+		const auto labelAuthoringProbe    = launch.has("--label-authoring-probe");
+		fixtureOptions.LabelHelper        = launch.has("--label-helper") || labelAuthoringProbe;
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || labelAuthoringProbe;
 		// [[BPR-1331]]. The private progress course across a push: `before`
 		// on the first head, `after` on the pushed one, over one data root.
-		const auto reviewProgressPushProbe = argument_value(argc, argv, "--review-progress-push-probe");
+		const auto reviewProgressPushProbe = launch.value("--review-progress-push-probe");
 		// [[BPR-1326]]. The file-switch course reads again after publishing.
-		const auto publishedFileSwitchProbe  = has_argument(argc, argv, "--published-file-switch-probe");
-		const auto publishedFileSwitchTiming = argument_value(argc, argv, "--published-file-switch-timing");
+		const auto publishedFileSwitchProbe  = launch.has("--published-file-switch-probe");
+		const auto publishedFileSwitchTiming = launch.value("--published-file-switch-timing");
 		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || publishedFileSwitchProbe;
 		// [[BPR-1345]]. The start-a-review course reads again after publishing.
-		const auto startReviewCourse      = argument_value(argc, argv, "--start-review-course");
+		const auto startReviewCourse      = launch.value("--start-review-course");
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
 		// [[BPR-1374]]. The unsent-reply course reads again on its Refresh.
-		const auto replyDraftCourseName = argument_value(argc, argv, "--reply-draft-course");
+		const auto replyDraftCourseName = launch.value("--reply-draft-course");
 		const auto replyDraftCourse     = [&]() -> std::optional<bpr::app::detail::reply_draft_course> {
 			using course = bpr::app::detail::reply_draft_course;
 			for (const auto& [name, value] : std::array{ std::pair{ std::string_view{ "refresh" }, course::refresh }, std::pair{ std::string_view{ "edited" }, course::edited },
@@ -8799,19 +8887,13 @@ auto main(int argc, char** argv) -> int
 			return std::nullopt;
 		}();
 		fixtureOptions.RepeatReadSessions    = fixtureOptions.RepeatReadSessions || replyDraftCourse.has_value();
-		fixtureOptions.SuppressDeviceBrowser = has_argument(
-			argc,
-			argv,
-			"--device-authorization-browser-absent");
+		fixtureOptions.SuppressDeviceBrowser = launch.has("--device-authorization-browser-absent");
 		// [[BPR-0526]] construction cut. The window still mounts the device
 		// sign-in panel; composition adopts neither of its edges, so it is
 		// drawn and inert while the flow stays reachable through this
 		// self-test.
-		fixtureOptions.DisableDeviceAuthorizationPanelComposition = has_argument(
-			argc,
-			argv,
-			"--device-authorization-panel-absent");
-		if (const auto fixture = argument_value(argc, argv, "--github-fixture");
+		fixtureOptions.DisableDeviceAuthorizationPanelComposition = launch.has("--device-authorization-panel-absent");
+		if (const auto fixture = launch.value("--github-fixture");
 			fixture.has_value()) {
 			if (*fixture == "github-com") {
 				selectedFixture        = bpr::app::detail::github_public_path_fixture::github_com;
@@ -8947,9 +9029,9 @@ auto main(int argc, char** argv) -> int
 				return EXIT_FAILURE;
 			}
 		}
-		const auto epochFixtureRoot      = argument_value(argc, argv, "--epoch-fixture-root");
-		const auto epochFixturePhase     = argument_value(argc, argv, "--epoch-fixture-phase");
-		const auto epochMaintenanceProbe = argument_value(argc, argv, "--epoch-maintenance-probe");
+		const auto epochFixtureRoot      = launch.value("--epoch-fixture-root");
+		const auto epochFixturePhase     = launch.value("--epoch-fixture-phase");
+		const auto epochMaintenanceProbe = launch.value("--epoch-maintenance-probe");
 		if (epochFixtureRoot.has_value() != epochFixturePhase.has_value()
 			|| (epochFixtureRoot.has_value()
 				&& !selectedFixture.has_value())) {
@@ -9016,9 +9098,9 @@ auto main(int argc, char** argv) -> int
 		}
 #endif
 
-		const auto selfTest = has_argument(argc, argv, "--self-test");
+		const auto selfTest = launch.has("--self-test");
 		const auto deviceProbe
-			= has_argument(argc, argv, "--device-authorization-probe");
+			= launch.has("--device-authorization-probe");
 		// [[BPR-0537]]. Tests-enabled only, like the browser probe below.
 		// In a released image this flag suppressed the device probe's own
 		// cancel, so `--self-test --device-authorization-probe
@@ -9030,7 +9112,7 @@ auto main(int argc, char** argv) -> int
 		// merely inert.
 		const auto registeredDeviceCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--device-authorization-registered-course");
+			launch.has("--device-authorization-registered-course");
 #else
 			false;
 #endif
@@ -9041,7 +9123,7 @@ auto main(int argc, char** argv) -> int
 		// RFC-BPR-0016 inventory scan reads.
 		const auto deviceRefreshCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--device-authorization-refresh-course");
+			launch.has("--device-authorization-refresh-course");
 #else
 			false;
 #endif
@@ -9053,7 +9135,7 @@ auto main(int argc, char** argv) -> int
 		// inventory scan reads.
 		const auto deviceOrphanCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--device-authorization-orphan-course");
+			launch.has("--device-authorization-orphan-course");
 #else
 			false;
 #endif
@@ -9065,7 +9147,7 @@ auto main(int argc, char** argv) -> int
 		// construction instead.
 		const auto deviceBrowserProbe =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--device-authorization-browser-probe");
+			launch.has("--device-authorization-browser-probe");
 #else
 			false;
 #endif
@@ -9076,7 +9158,7 @@ auto main(int argc, char** argv) -> int
 		// boundary to take away.
 		const auto capabilityProbe =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--composition-capability-probe");
+			launch.has("--composition-capability-probe");
 #else
 			false;
 #endif
@@ -9086,7 +9168,7 @@ auto main(int argc, char** argv) -> int
 		// tests-enabled only for the same reason ([[BPR-0537]]).
 		const auto devicePanelCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--device-authorization-panel-course");
+			launch.has("--device-authorization-panel-course");
 #else
 			false;
 #endif
@@ -9096,7 +9178,7 @@ auto main(int argc, char** argv) -> int
 		// binary offers it from the window and from no command line.
 		const auto deviceGhesCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--device-authorization-ghes-course");
+			launch.has("--device-authorization-ghes-course");
 #else
 			false;
 #endif
@@ -9105,31 +9187,31 @@ auto main(int argc, char** argv) -> int
 		// nothing merely by activating it. A flag that
 		// existed only in a tests-enabled build could not make it.
 		const auto publicPreviewProbe
-			= has_argument(argc, argv, "--public-preview-probe");
+			= launch.has("--public-preview-probe");
 		// The two forced courses are tests-enabled only. They override the
 		// shipped selection, which is the one thing a released binary must
 		// never be able to do from a command line.
 		const auto publicPreviewEnabledCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--public-preview-enabled-course");
+			launch.has("--public-preview-enabled-course");
 #else
 			false;
 #endif
 		const auto publicPreviewHistoricalCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--public-preview-historical-course");
+			launch.has("--public-preview-historical-course");
 #else
 			false;
 #endif
 		const auto publicPreviewDragCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--public-preview-handle-drag-course");
+			launch.has("--public-preview-handle-drag-course");
 #else
 			false;
 #endif
 		const auto publicPreviewGhesCourse =
 #if defined(BPR_BUILD_TESTING)
-			has_argument(argc, argv, "--public-preview-ghes-course");
+			launch.has("--public-preview-ghes-course");
 #else
 			false;
 #endif
@@ -9145,17 +9227,17 @@ auto main(int argc, char** argv) -> int
 		auto publicPreviewLiveCandidate   = false;
 		auto publicPreviewLiveDryRun      = false;
 #if defined(BPR_BUILD_TESTING)
-		publicPreviewLiveDryRun = has_argument(
-			argc, argv, "--public-preview-live-candidate-dry-run");
-		if (const auto candidate = argument_values(
-				argc, argv, "--public-preview-live-candidate", 3);
+		publicPreviewLiveDryRun = launch.has("--public-preview-live-candidate-dry-run");
+		// [[BPR-1437]]. One value, OWNER/REPOSITORY/NUMBER: the launch reader
+		// takes one word per option.
+		if (const auto candidate = launch.value("--public-preview-live-candidate");
 			candidate.has_value()) {
-			auto              number = 0;
-			const auto* const first  = (*candidate)[2U].data();
-			const auto* const last   = first + (*candidate)[2U].size();
-			const auto        parsed = std::from_chars(first, last, number);
-			if (parsed.ec != std::errc{ } || parsed.ptr != last || number <= 0
-				|| (*candidate)[0U].empty() || (*candidate)[1U].empty()) {
+			const auto parts  = QString::fromUtf8(candidate->data(), static_cast<qsizetype>(candidate->size())).split(u'/');
+			auto       number = 0;
+			const auto digits = parts.size() == 3 ? parts[2].toStdString() : std::string{ };
+			const auto parsed = std::from_chars(digits.data(), digits.data() + digits.size(), number);
+			if (parts.size() != 3 || parsed.ec != std::errc{ } || parsed.ptr != digits.data() + digits.size() || number <= 0
+				|| parts[0].isEmpty() || parts[1].isEmpty()) {
 				QTextStream{ stdout }
 					<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
 				return EXIT_FAILURE;
@@ -9164,9 +9246,9 @@ auto main(int argc, char** argv) -> int
 			// The same three fields the fixture courses drive the session
 			// panel from, so the live candidate opens through the shipped
 			// control rather than through a path of its own.
-			fixtureExpectations.Owner.assign((*candidate)[0U]);
-			fixtureExpectations.Repository.assign((*candidate)[1U]);
-			fixtureExpectations.Number = number;
+			fixtureExpectations.Owner      = parts[0].toStdString();
+			fixtureExpectations.Repository = parts[1].toStdString();
+			fixtureExpectations.Number     = number;
 		}
 		if (publicPreviewLiveDryRun && !publicPreviewLiveCandidate) {
 			QTextStream{ stdout }
@@ -9174,8 +9256,7 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		publicPreviewSelectionForced = publicPreviewLiveCandidate
-			|| has_argument(
-										   argc, argv, "--public-preview-selection-enabled-probe");
+			|| launch.has("--public-preview-selection-enabled-probe");
 		// Refused here, before a graph exists and so before anything could be
 		// sent. A profile that is not GitHub.com has no anonymous read
 		// authority at all; a fixture would replace the production factories
@@ -9187,15 +9268,14 @@ auto main(int argc, char** argv) -> int
 				|| enterpriseHostname.has_value() || publicPreviewEnabledCourse
 				|| publicPreviewGhesCourse || deviceProbe
 				|| registeredDeviceCourse
-				|| !has_argument(argc, argv, "--automated-run-budget-ms"))) {
+				|| !launch.has("--automated-run-budget-ms"))) {
 			QTextStream{ stdout }
 				<< "PUBLIC_PREVIEW_LIVE_CANDIDATE_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 #endif
-		const auto renderPath                 = argument_value(argc, argv, "--render-evidence");
-		const auto renderCollapsesFilesDrawer = has_argument(
-			argc, argv, "--render-evidence-collapse-files");
+		const auto renderPath                 = launch.value("--render-evidence");
+		const auto renderCollapsesFilesDrawer = launch.has("--render-evidence-collapse-files");
 
 #if defined(BPR_BUILD_TESTING)
 		// An explicit root without a fixture. Restart contracts pass it with
@@ -9220,7 +9300,7 @@ auto main(int argc, char** argv) -> int
 		// is a timeout with nothing reported — the failure this exists to end.
 		auto automatedRunBudget = default_automated_run_budget;
 		if (const auto budget
-			= argument_value(argc, argv, "--automated-run-budget-ms");
+			= launch.value("--automated-run-budget-ms");
 			budget.has_value()) {
 			auto              milliseconds = 0LL;
 			const auto* const first        = budget->data();
@@ -9235,27 +9315,20 @@ auto main(int argc, char** argv) -> int
 			automatedRunBudget = std::chrono::milliseconds{ milliseconds };
 		}
 #if defined(BPR_BUILD_TESTING)
-		const auto automatedStallProbe = has_argument(
-			argc, argv, "--automated-stall-probe");
-		const auto nativeAppearanceProbe            = has_argument(argc, argv, "--native-appearance-probe");
-		const auto nativeAppearanceCutSelectionWire = has_argument(
-			argc, argv, "--native-appearance-cut-selection-wire");
-		const auto attendedLaunch = has_argument(argc, argv, "--attended-launch");
+		const auto automatedStallProbe              = launch.has("--automated-stall-probe");
+		const auto nativeAppearanceProbe            = launch.has("--native-appearance-probe");
+		const auto nativeAppearanceCutSelectionWire = launch.has("--native-appearance-cut-selection-wire");
+		const auto attendedLaunch                   = launch.has("--attended-launch");
 		// [[BPR-1338]]. A person is watching an attended look, so the window's
 		// own opens reach their default browser. Never inside the automated
 		// test boundary: a CTest row that passes `--attended-launch` keeps the
 		// recorder.
-		fixtureOptions.AttendedWindowBrowser = attendedLaunch && !bpr::app::inside_automated_test_boundary();
-		const auto nativeNotificationProbe   = has_argument(
-			argc, argv, "--native-notification-probe");
-		const auto nativeNotificationAttended = has_argument(
-			argc, argv, "--native-notification-attended");
-		const auto nativeNotificationRequestCut = has_argument(
-			argc, argv, "--native-notification-cut-request-wire");
-		const auto nativeNotificationActivationCut = has_argument(
-			argc, argv, "--native-notification-cut-activation-wire");
-		const auto nativeNotificationSignalObservationCut = has_argument(
-			argc, argv, "--native-notification-cut-signal-observation");
+		fixtureOptions.AttendedWindowBrowser              = attendedLaunch && !bpr::app::inside_automated_test_boundary();
+		const auto nativeNotificationProbe                = launch.has("--native-notification-probe");
+		const auto nativeNotificationAttended             = launch.has("--native-notification-attended");
+		const auto nativeNotificationRequestCut           = launch.has("--native-notification-cut-request-wire");
+		const auto nativeNotificationActivationCut        = launch.has("--native-notification-cut-activation-wire");
+		const auto nativeNotificationSignalObservationCut = launch.has("--native-notification-cut-signal-observation");
 		const auto nativeNotificationCourse
 			= nativeNotificationProbe || nativeNotificationAttended;
 		fixtureOptions.CaptureSystemNotificationDisplay
@@ -9264,26 +9337,20 @@ auto main(int argc, char** argv) -> int
 			= nativeNotificationRequestCut;
 		fixtureOptions.DisableNotificationSelectionWire
 			= nativeNotificationActivationCut;
-		const auto diffWorkbenchProbe         = has_argument(argc, argv, "--diff-workbench-probe");
-		const auto diffWorkbenchShutdownProbe = has_argument(
-			argc, argv, "--diff-workbench-shutdown-probe");
-		const auto workbenchCompositionProbe = has_argument(
-			argc, argv, "--workbench-composition-probe");
-		const auto workbenchCompositionCutSelectionWire = has_argument(
-			argc, argv, "--workbench-composition-cut-selection-wire");
-		const auto uiforetwSelectedDiffDirectory = argument_value(
-			argc, argv, "--uiforetw-selected-diff-evidence");
+		const auto diffWorkbenchProbe                   = launch.has("--diff-workbench-probe");
+		const auto diffWorkbenchShutdownProbe           = launch.has("--diff-workbench-shutdown-probe");
+		const auto workbenchCompositionProbe            = launch.has("--workbench-composition-probe");
+		const auto workbenchCompositionCutSelectionWire = launch.has("--workbench-composition-cut-selection-wire");
+		const auto uiforetwSelectedDiffDirectory        = launch.value("--uiforetw-selected-diff-evidence");
 		const auto uiforetwSelectedDiffProbe
 			= uiforetwSelectedDiffDirectory.has_value();
-		const auto uiforetwSelectedDiffCutSelectionWire = has_argument(
-			argc, argv, "--uiforetw-selected-diff-cut-selection-wire");
+		const auto uiforetwSelectedDiffCutSelectionWire = launch.has("--uiforetw-selected-diff-cut-selection-wire");
 		fixtureOptions.DisableWorkbenchSelectionWire
 			= workbenchCompositionCutSelectionWire
 			|| uiforetwSelectedDiffCutSelectionWire
 			|| nativeAppearanceCutSelectionWire;
-		const auto reviewLedgerCompositionProbeName = argument_value(
-			argc, argv, "--review-ledger-composition-probe");
-		auto reviewLedgerCompositionProbe = std::optional<
+		const auto reviewLedgerCompositionProbeName = launch.value("--review-ledger-composition-probe");
+		auto       reviewLedgerCompositionProbe     = std::optional<
 			bpr::app::detail::review_ledger_composition_probe>{ };
 		if (reviewLedgerCompositionProbeName == "seed") {
 			reviewLedgerCompositionProbe
@@ -9299,22 +9366,20 @@ auto main(int argc, char** argv) -> int
 				<< "REVIEW_LEDGER_COMPOSITION_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
-		const auto privateReviewCourse         = argument_value(argc, argv, "--private-review-course");
-		const auto privateReviewRepresentation = argument_value(argc, argv, "--private-review-representation").value_or("native");
+		const auto privateReviewCourse         = launch.value("--private-review-course");
+		const auto privateReviewRepresentation = launch.value("--private-review-representation").value_or("native");
 		if (privateReviewCourse) {
-			const auto agent = argument_value(argc, argv, "--private-review-agent");
+			const auto agent = launch.value("--private-review-agent");
 			if (!selectedFixture || !agent || (*privateReviewCourse != "seed" && *privateReviewCourse != "compose" && *privateReviewCourse != "publish") || (privateReviewRepresentation != "native" && privateReviewRepresentation != "file")) {
 				return EXIT_FAILURE;
 			}
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *agent } };
 			fixtureOptions.RepeatReadSessions   = true;
 		}
-		const auto reviewRoundTripCompositionProbe = has_argument(
-			argc, argv, "--review-round-trip-composition-probe");
-		const auto threadedReplyProbe         = has_argument(argc, argv, "--threaded-reply-probe");
-		const auto defectCompositionProbeName = argument_value(
-			argc, argv, "--defect-composition-probe");
-		auto defectCompositionProbe
+		const auto reviewRoundTripCompositionProbe = launch.has("--review-round-trip-composition-probe");
+		const auto threadedReplyProbe              = launch.has("--threaded-reply-probe");
+		const auto defectCompositionProbeName      = launch.value("--defect-composition-probe");
+		auto       defectCompositionProbe
 			= std::optional<bpr::app::detail::defect_composition_probe>{ };
 		if (defectCompositionProbeName == "seed") {
 			defectCompositionProbe = bpr::app::detail::defect_composition_probe::seed;
@@ -9325,17 +9390,13 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		fixtureOptions.LoseFirstReviewMutationResult
-			= reviewRoundTripCompositionProbe || (privateReviewCourse && has_argument(argc, argv, "--private-review-lose-first-result"));
-		const auto appearanceGestureProbe = has_argument(
-			argc, argv, "--appearance-gesture-probe");
-		const auto overviewSinceReview = has_argument(
-			argc, argv, "--overview-since-review");
-		const auto reviewBehaviour                  = has_argument(argc, argv, "--review-behaviour");
-		const auto savedServerCourse                = has_argument(argc, argv, "--saved-server");
-		const auto appearanceThemeCustomizationPath = argument_value(
-			argc, argv, "--appearance-theme-customization-probe");
-		const auto diffEvidenceAppearanceName = argument_value(
-			argc, argv, "--diff-evidence-appearance");
+			= reviewRoundTripCompositionProbe || (privateReviewCourse && launch.has("--private-review-lose-first-result"));
+		const auto appearanceGestureProbe           = launch.has("--appearance-gesture-probe");
+		const auto overviewSinceReview              = launch.has("--overview-since-review");
+		const auto reviewBehaviour                  = launch.has("--review-behaviour");
+		const auto savedServerCourse                = launch.has("--saved-server");
+		const auto appearanceThemeCustomizationPath = launch.value("--appearance-theme-customization-probe");
+		const auto diffEvidenceAppearanceName       = launch.value("--diff-evidence-appearance");
 		// Named rather than boolean, so adding a scheme later is a new name and
 		// not a new flag. An unrecognised name is refused rather than ignored:
 		// a capture silently taken under the wrong appearance is exactly the
@@ -9372,9 +9433,8 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 
-		const auto diffEvidenceDirectory = argument_value(
-			argc, argv, "--diff-interaction-evidence");
-		const auto changedRenderPath     = argument_value(argc, argv, "--changed-render-evidence");
+		const auto diffEvidenceDirectory = launch.value("--diff-interaction-evidence");
+		const auto changedRenderPath     = launch.value("--changed-render-evidence");
 		auto       nativeAppearancePaths = std::optional<native_appearance_evidence_paths>{ };
 		if (nativeAppearanceProbe) {
 			nativeAppearancePaths = resolve_native_appearance_evidence_paths(
@@ -9432,26 +9492,26 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1083]]. An attended look that should start on a file, signed in
 		// with the fixture's account: without it the window opens on Home,
 		// where the Home bar's public-preview reading is read-only.
-		const auto attendedOpenFile = argument_value(argc, argv, "--attended-open-file");
+		const auto attendedOpenFile = launch.value("--attended-open-file");
 		// [[BPR-1287]]. The same, stopping at the pull request's own opening
 		// page, so a person can go to Review with no file chosen.
-		const auto attendedOpenPullRequest = has_argument(argc, argv, "--attended-open-pull-request");
+		const auto attendedOpenPullRequest = launch.has("--attended-open-pull-request");
 		// [[BPR-1338]]. Once the pull request is open, press its title row's
 		// Open on GitHub once, so one native check needs no hand on the desktop.
-		const auto attendedOpenOnGithub = has_argument(argc, argv, "--attended-open-on-github");
+		const auto attendedOpenOnGithub = launch.has("--attended-open-on-github");
 		// [[BPR-1289]]. Or opening Settings over Home, for a look at Settings.
-		const auto attendedOpenSettings = has_argument(argc, argv, "--attended-open-settings");
+		const auto attendedOpenSettings = launch.has("--attended-open-settings");
 		// [[BPR-1084]] and [[BPR-1085]]. Or, on conventional-comments-v1 after
 		// the file, a seeded suggestion draft and, for `review`, the preflight.
-		const auto attendedPreflightLook = argument_value(argc, argv, "--attended-preflight-look");
+		const auto attendedPreflightLook = launch.value("--attended-preflight-look");
 		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
-		const auto attendedReadState = has_argument(argc, argv, "--attended-read-state");
+		const auto attendedReadState = launch.has("--attended-read-state");
 		// [[BPR-1086]]. On conventional-comments-v1 after the file, renderer.cpp's
 		// line 12 thread as a published tour stop whose narrative is labelled.
-		const auto attendedTourStop = has_argument(argc, argv, "--attended-tour-stop");
+		const auto attendedTourStop = launch.has("--attended-tour-stop");
 		// [[BPR-1091]]. After the file, a workshop proposal from the fixture
 		// agent named here, with its candidate line.
-		const auto attendedWorkshopAgent = argument_value(argc, argv, "--attended-workshop-agent");
+		const auto attendedWorkshopAgent = launch.value("--attended-workshop-agent");
 		if (attendedWorkshopAgent.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedWorkshopAgent } };
 			fixtureOptions.LabelHelper          = true;
@@ -9459,7 +9519,7 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1357]]. A slow network for a pull request's first answers, and
 		// a pull request whose reads fail after it; with `--attended-home-look`
 		// it is armed only once Home is ready for the person.
-		const auto attendedHomeLook = has_argument(argc, argv, "--attended-home-look");
+		const auto attendedHomeLook = launch.has("--attended-home-look");
 		const auto parse_count      = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
 			if (!aText.has_value()) {
 				return std::nullopt;
@@ -9468,8 +9528,8 @@ auto main(int argc, char** argv) -> int
 			const auto parsed = std::from_chars(aText->data(), aText->data() + aText->size(), value);
 			return parsed.ec == std::errc{ } && parsed.ptr == aText->data() + aText->size() ? std::optional{ value } : std::nullopt;
 		};
-		const auto readDelayText    = argument_value(argc, argv, "--fixture-read-delay-ms");
-		const auto readFailText     = argument_value(argc, argv, "--fixture-read-fail-number");
+		const auto readDelayText    = launch.value("--fixture-read-delay-ms");
+		const auto readFailText     = launch.value("--fixture-read-fail-number");
 		const auto readDelay        = parse_count(readDelayText);
 		const auto readFailNumber   = parse_count(readFailText);
 		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
@@ -9513,9 +9573,9 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		const auto attendedPullRequest      = QStringLiteral("%1/%2#%3").arg(QString::fromStdString(fixtureExpectations.Owner), QString::fromStdString(fixtureExpectations.Repository), QString::number(fixtureExpectations.Number));
-		const auto labelAuthoringEvidence   = argument_value(argc, argv, "--label-authoring-evidence");
-		const auto lineDraftCourse          = has_argument(argc, argv, "--line-draft-course");
-		const auto cancelFirstBaseNumbering = has_argument(argc, argv, "--cancel-first-base-numbering");
+		const auto labelAuthoringEvidence   = launch.value("--label-authoring-evidence");
+		const auto lineDraftCourse          = launch.has("--line-draft-course");
+		const auto cancelFirstBaseNumbering = launch.has("--cancel-first-base-numbering");
 		if ((labelAuthoringProbe && (fixtureName != "conventional-comments-v1" || attendedLaunch || selfTest || renderPath.has_value()))
 			|| (labelAuthoringEvidence.has_value() && !labelAuthoringProbe) || (lineDraftCourse && !labelAuthoringProbe)
 			|| (cancelFirstBaseNumbering && !lineDraftCourse)) {
