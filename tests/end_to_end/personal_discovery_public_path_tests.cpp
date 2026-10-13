@@ -932,19 +932,19 @@ try {
 	windowA = owner->window(owner->windows().front());
 	wait_for([&] { return savedCount() == 4; }, "all successful records survive profile restart", [&] { std::cerr << "restart: status=" << static_cast<int>(windowA->session_panel()->status()) << " list=" << savedCount()
 																												  << " destination=" << windowA->settings()->findChild<QLabel*>(QStringLiteral("repositoriesDestination"))->text().toStdString() << '\n'; });
-	// Signed out after restart, the page lists every kept record with its exact
-	// account and host and offers no removal; signing in lists that account's.
-	expect(windowA->saved_repository_list()->item(0)->text().contains(QStringLiteral("(@octo-reviewer on github.com)")) && !windowA->remove_saved_repository_action()->isEnabled(),
-		   "signed out, kept records name their account and host and cannot be removed");
+	// Native fixture sign-in is explicit. CLI consent is remembered, so its
+	// restart revalidates the account without another Home sign-in action.
 	const auto beforeReconnect = evidence().AccountReadOperations.size();
-	connect();
+	if (!cliCourse) {
+		expect(windowA->saved_repository_list()->item(0)->text().contains(QStringLiteral("(@octo-reviewer on github.com)")) && !windowA->remove_saved_repository_action()->isEnabled(),
+			   "signed out, kept records name their account and host and cannot be removed");
+		connect();
+	}
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && savedCount() == 4
 					   && !windowA->saved_repository_list()->item(0)->text().contains(QLatin1Char('@')); },
 			 "signing in again lists the account's own records", diagnose);
 	if (cliCourse) {
 		const auto transport = evidence();
-		std::cerr << "restarted transport=" << transport.AccountTransportSelected << " vault-store=" << transport.VaultStoreAttempts
-				  << " vault-retrieve=" << transport.VaultRetrieveAttempts << " profile=" << windowA->account_action()->text().toStdString() << '\n';
 		expect(transport.AccountTransportSelected && transport.VaultStoreAttempts == 0U && transport.VaultRetrieveAttempts == 0U,
 			   "restored Home metadata uses the CLI account lease without a native credential");
 	}
@@ -1037,7 +1037,9 @@ try {
 	wait_for([&] { return terminal && owner != nullptr && !owner->windows().empty(); }, "profile restarts after recent removal");
 	owner->show();
 	windowA = owner->window(owner->windows().front());
-	connect();
+	if (!cliCourse) {
+		connect();
+	}
 	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && savedCount() == 0; }, "same account returns after recent removal");
 	expect(windowA->home_recent_list()->count() == 0, "SQLite restart does not resurrect removed recent entries");
 	owner->begin_shutdown();
