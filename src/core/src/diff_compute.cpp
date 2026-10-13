@@ -1,5 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
 
+#include "bpr/core/diff_compute_components.hpp"
 #include "diff_step_meter.hpp"
 
 #include <algorithm>
@@ -173,6 +174,47 @@ namespace bpr::core {
 				return true;
 			}
 		};
+
+		/// [[BPR-1465]] A component's steps, counted by the engine's meter.
+		class component_meter final : public diff_component_meter
+		{
+		public:
+			explicit component_meter(diff_step_meter& aMeter) noexcept
+				: Meter{ &aMeter }
+			{
+			}
+
+			void tick(const std::uint64_t aSteps) override
+			{
+				Meter->tick(aSteps);
+			}
+
+		private:
+			diff_step_meter* Meter = nullptr;
+		};
+
+		/// [[BPR-1465]] Thrown when a component supplies a value the engine's
+		/// rules refuse; the computation ends refused.
+		struct invalid_component_result
+		{ };
+
+		/// [[BPR-1465]] Whether supplied matches are strictly increasing on both
+		/// sides, in range, and join equal values.
+		[[nodiscard]] auto valid_supplied_matches(const std::span<const diff_match>    aMatches,
+												  const std::span<const std::uint32_t> aLeft,
+												  const std::span<const std::uint32_t> aRight) noexcept -> bool
+		{
+			for (std::size_t index = 0U; index < aMatches.size(); ++index) {
+				const auto& match = aMatches[index];
+				if (match.Left >= aLeft.size() || match.Right >= aRight.size() || aLeft[match.Left] != aRight[match.Right]) {
+					return false;
+				}
+				if (index != 0U && (match.Left <= aMatches[index - 1U].Left || match.Right <= aMatches[index - 1U].Right)) {
+					return false;
+				}
+			}
+			return true;
+		}
 
 		[[nodiscard]] auto valid_utf8(const std::span<const std::uint8_t> aBytes,
 									  std::vector<unicode_scalar>*        aOutput = nullptr)
@@ -540,13 +582,63 @@ namespace bpr::core {
 			return static_cast<std::uint16_t>(numerator / denominator);
 		}
 
+		/// [[BPR-1465]] A component's scores for one replacement. The budget is
+		/// charged pair by pair exactly as `similarity` charges it, so a limit
+		/// stops at the same pair and leaves the same consumption behind.
+		[[nodiscard]] auto component_scores(const prepared_document& aLeft,
+											const prepared_document& aRight,
+											const line_span          aLeftSpan,
+											const line_span          aRightSpan,
+											const diff_options&      aOptions,
+											matrix_budget&           aBudget,
+											diff_step_meter&         aMeter,
+											diff_components&         aComponents)
+			-> std::optional<std::optional<std::vector<std::uint16_t>>>
+		{
+			const auto leftCount  = static_cast<std::size_t>(aLeftSpan.extent());
+			const auto rightCount = static_cast<std::size_t>(aRightSpan.extent());
+			for (std::size_t leftIndex = 0U; leftIndex < leftCount; ++leftIndex) {
+				const auto& left = aLeft.Normalized[static_cast<std::size_t>(aLeftSpan.Begin) + leftIndex];
+				for (std::size_t rightIndex = 0U; rightIndex < rightCount; ++rightIndex) {
+					const auto& right = aRight.Normalized[static_cast<std::size_t>(aRightSpan.Begin) + rightIndex];
+					aMeter.tick(1U);
+					if (left.Values.empty() || right.Values.empty() || left == right) {
+						continue;
+					}
+					if (!aBudget.consume(left.Values.size() + 1U, right.Values.size() + 1U)) {
+						return std::nullopt;
+					}
+				}
+			}
+			auto leftLines  = std::vector<std::span<const std::uint32_t>>{ };
+			auto rightLines = std::vector<std::span<const std::uint32_t>>{ };
+			leftLines.reserve(leftCount);
+			rightLines.reserve(rightCount);
+			for (std::size_t index = 0U; index < leftCount; ++index) {
+				leftLines.emplace_back(aLeft.Normalized[static_cast<std::size_t>(aLeftSpan.Begin) + index].Values);
+			}
+			for (std::size_t index = 0U; index < rightCount; ++index) {
+				rightLines.emplace_back(aRight.Normalized[static_cast<std::size_t>(aRightSpan.Begin) + index].Values);
+			}
+			auto meter  = component_meter{ aMeter };
+			auto scores = aComponents.pair_scores(
+				diff_pairing_request{ .Left = leftLines, .Right = rightLines, .ThresholdPermille = aOptions.SimilarityThresholdPermille }, meter);
+			if (scores.has_value()
+				&& (scores->size() != leftCount * rightCount
+					|| std::ranges::any_of(*scores, [](const std::uint16_t aScore) { return aScore > maximum_similarity_threshold_permille; }))) {
+				throw invalid_component_result{ };
+			}
+			return scores;
+		}
+
 		[[nodiscard]] auto secondary_pairs(const prepared_document& aLeft,
 										   const prepared_document& aRight,
 										   const line_span          aLeftSpan,
 										   const line_span          aRightSpan,
 										   const diff_options&      aOptions,
 										   matrix_budget&           aBudget,
-										   diff_step_meter&         aMeter)
+										   diff_step_meter&         aMeter,
+										   diff_components* const   aComponents = nullptr)
 			-> std::optional<std::vector<accepted_pair>>
 		{
 			if (aOptions.Pairing == pairing_policy::disabled) {
@@ -569,7 +661,21 @@ namespace bpr::core {
 			auto scores              = zeroed_table<std::uint16_t>(cells, aMeter);
 			auto table               = zeroed_table<std::uint64_t>(rows * columns, aMeter);
 			auto uncountedSimilarity = std::uint64_t{ 0U };
-			for (std::size_t leftIndex = 0U; leftIndex < leftCount; ++leftIndex) {
+			auto supplied            = false;
+			if (aComponents != nullptr) {
+				auto budget = aBudget;
+				auto found  = component_scores(aLeft, aRight, aLeftSpan, aRightSpan, aOptions, budget, aMeter, *aComponents);
+				if (!found.has_value()) {
+					aBudget = budget;
+					return std::nullopt;
+				}
+				if (found->has_value()) {
+					aBudget  = budget;
+					scores   = std::move(**found);
+					supplied = true;
+				}
+			}
+			for (std::size_t leftIndex = 0U; !supplied && leftIndex < leftCount; ++leftIndex) {
 				for (std::size_t rightIndex = 0U; rightIndex < rightCount;
 					 ++rightIndex) {
 					const auto score = similarity(
@@ -1222,7 +1328,8 @@ namespace bpr::core {
 											const std::uint32_t          aLeftLine,
 											const std::uint32_t          aRightLine,
 											matrix_budget&               aBudget,
-											diff_step_meter&             aMeter)
+											diff_step_meter&             aMeter,
+											diff_components* const       aComponents = nullptr)
 			-> std::optional<std::vector<std::pair<byte_span, byte_span>>>
 		{
 			auto leftScalars  = std::vector<unicode_scalar>{ };
@@ -1230,12 +1337,41 @@ namespace bpr::core {
 			static_cast<void>(valid_utf8(line_bytes(aLeft, aLeftLine), &leftScalars));
 			static_cast<void>(
 				valid_utf8(line_bytes(aRight, aRightLine), &rightScalars));
-			const auto matches = lcs_matches(
-				leftScalars,
-				rightScalars,
-				[](const unicode_scalar& aLhs, const unicode_scalar& aRhs) { return aLhs.Value == aRhs.Value; },
-				aBudget,
-				aMeter);
+			auto matches = std::optional<std::vector<std::pair<std::size_t, std::size_t>>>{ };
+			if (aComponents != nullptr) {
+				// [[BPR-1465]] A component's matched scalars, checked before use.
+				const auto values = [](const std::vector<unicode_scalar>& aScalars) {
+					auto result = std::vector<std::uint32_t>{ };
+					result.reserve(aScalars.size());
+					for (const auto& scalar : aScalars) {
+						result.push_back(scalar.Value);
+					}
+					return result;
+				};
+				const auto leftValues  = values(leftScalars);
+				const auto rightValues = values(rightScalars);
+				aMeter.tick(leftValues.size() + rightValues.size());
+				auto       meter    = component_meter{ aMeter };
+				const auto supplied = aComponents->intraline_matches(leftValues, rightValues, meter);
+				if (supplied.has_value()) {
+					if (!valid_supplied_matches(*supplied, leftValues, rightValues)) {
+						throw invalid_component_result{ };
+					}
+					matches.emplace();
+					matches->reserve(supplied->size());
+					for (const auto& match : *supplied) {
+						matches->emplace_back(match.Left, match.Right);
+					}
+				}
+			}
+			if (!matches.has_value()) {
+				matches = lcs_matches(
+					leftScalars,
+					rightScalars,
+					[](const unicode_scalar& aLhs, const unicode_scalar& aRhs) { return aLhs.Value == aRhs.Value; },
+					aBudget,
+					aMeter);
+			}
 			if (!matches.has_value()) {
 				return std::nullopt;
 			}
@@ -1628,6 +1764,13 @@ namespace bpr::core {
 		// Validate.
 		std::variant<std::monostate, computed_file_diff, computed_material_diff> Result;
 		detail::validation_cursor                                                Validation;
+
+		// [[BPR-1465]] Candidate components, not owned, and the line classes
+		// their requests carry; null for the engine's own algorithms.
+		diff_components*           Components     = nullptr;
+		bool                       PrimaryOffered = false;
+		std::vector<std::uint32_t> LeftClasses;
+		std::vector<std::uint32_t> RightClasses;
 	};
 
 	/// The engine's access to a paused state's progress.
@@ -1681,6 +1824,8 @@ namespace bpr::core {
 			add_capacity(total, aProgress.Pairs);
 			add_capacity(total, aProgress.Moves);
 			add_capacity(total, aProgress.Intraline);
+			add_capacity(total, aProgress.LeftClasses);
+			add_capacity(total, aProgress.RightClasses);
 			std::visit(
 				[&total](const auto& aResult) {
 					if constexpr (!std::is_same_v<std::decay_t<decltype(aResult)>, std::monostate>) {
@@ -1723,11 +1868,12 @@ namespace bpr::core {
 		/// the same comparison key (blobs, options digest and algorithm
 		/// revision), options and limits, and the same bytes on both sides.
 		template <typename TComparison>
-		[[nodiscard]] auto resumes(const diff_compute_progress& aProgress, const typename TComparison::input& aInput) -> bool
+		[[nodiscard]] auto resumes(const diff_compute_progress& aProgress, const typename TComparison::input& aInput,
+								   const diff_components* const aComponents) -> bool
 		{
 			using key_type  = std::remove_cvref_t<decltype(aInput.Key)>;
 			const auto* key = std::get_if<key_type>(&aProgress.Key);
-			if (key == nullptr || *key != aInput.Key || aProgress.Options != aInput.Options || aProgress.Limits != aInput.Limits) {
+			if (key == nullptr || *key != aInput.Key || aProgress.Options != aInput.Options || aProgress.Limits != aInput.Limits || aProgress.Components != aComponents) {
 				return false;
 			}
 			const auto sides = std::array{ aInput.LeftBytes, aInput.RightBytes };
@@ -1775,6 +1921,53 @@ namespace bpr::core {
 			progress->Sides[0U].Document.Bytes.assign(leftBytes.begin(), leftBytes.end());
 			progress->Sides[1U].Document.Bytes.assign(rightBytes.begin(), rightBytes.end());
 			return progress;
+		}
+
+		/// [[BPR-1465]] One class per line of both sides: equal normalized lines
+		/// share a class. Classes are numbered in order of first appearance,
+		/// left side first, so they are the same in every run.
+		auto assign_line_classes(diff_compute_progress& aProgress, diff_step_meter& aMeter) -> void
+		{
+			auto classes = std::map<const normalized_line*, std::uint32_t, normalized_line_pointer_less>{ };
+			for (std::size_t side = 0U; side < aProgress.Sides.size(); ++side) {
+				auto& target = side == 0U ? aProgress.LeftClasses : aProgress.RightClasses;
+				target.clear();
+				target.reserve(aProgress.Sides[side].Normalized.size());
+				for (const auto& line : aProgress.Sides[side].Normalized) {
+					aMeter.tick(indexed_probe_work(classes.size(), line.Values.size()));
+					const auto [entry, inserted] = classes.try_emplace(&line, static_cast<std::uint32_t>(classes.size()));
+					static_cast<void>(inserted);
+					target.push_back(entry->second);
+				}
+			}
+		}
+
+		[[nodiscard]] auto primary_request(const diff_compute_progress& aProgress, const diff_options& aOptions)
+			-> diff_primary_request
+		{
+			return {
+				.Left         = &aProgress.Sides[0U].Document,
+				.Right        = &aProgress.Sides[1U].Document,
+				.LeftClasses  = aProgress.LeftClasses,
+				.RightClasses = aProgress.RightClasses,
+				.Options      = aOptions,
+			};
+		}
+
+		/// [[BPR-1465]] Supplied matches as the engine's match list, refused
+		/// unless they keep the primary rules.
+		[[nodiscard]] auto checked_matches(const diff_compute_progress& aProgress, const std::vector<diff_match>& aMatches)
+			-> match_list
+		{
+			if (!valid_supplied_matches(aMatches, aProgress.LeftClasses, aProgress.RightClasses)) {
+				throw invalid_component_result{ };
+			}
+			auto result = match_list{ };
+			result.reserve(aMatches.size());
+			for (const auto& match : aMatches) {
+				result.emplace_back(match.Left, match.Right);
+			}
+			return result;
 		}
 
 		/// The primary segments of a sorted match list: equal runs and the
@@ -2032,6 +2225,21 @@ namespace bpr::core {
 					progress.Step                                                               = engine_step::primary;
 					break;
 				case engine_step::primary:
+					if (progress.Components != nullptr && !progress.PrimaryOffered && (progress.Components->parts().Primary || progress.Components->parts().Slide)) {
+						// [[BPR-1465]] One restart unit: the classes and the
+						// component's matches, or its refusal to supply any.
+						assign_line_classes(progress, aMeter);
+						auto       meter    = component_meter{ aMeter };
+						const auto supplied = progress.Components->parts().Primary
+							? progress.Components->primary_matches(primary_request(progress, aInput.Options), meter)
+							: std::nullopt;
+						if (supplied.has_value()) {
+							progress.Matches = checked_matches(progress, *supplied);
+							progress.Pending.clear();
+						}
+						progress.PrimaryOffered = true;
+						aMeter.commit();
+					}
 					while (!progress.Pending.empty()) {
 						advance_region(progress, line_view{ left.Normalized }, line_view{ right.Normalized }, aMeter);
 					}
@@ -2039,6 +2247,23 @@ namespace bpr::core {
 					break;
 				case engine_step::sort_matches:
 					std::ranges::sort(progress.Matches);
+					if (progress.Components != nullptr && progress.Components->parts().Slide) {
+						// [[BPR-1465]] A post-pass over the sorted matches, as
+						// one restart unit.
+						if (progress.LeftClasses.size() != left.Normalized.size()) {
+							assign_line_classes(progress, aMeter);
+						}
+						auto sorted = std::vector<diff_match>{ };
+						sorted.reserve(progress.Matches.size());
+						for (const auto& [leftLine, rightLine] : progress.Matches) {
+							sorted.push_back({ .Left = static_cast<std::uint32_t>(leftLine), .Right = static_cast<std::uint32_t>(rightLine) });
+						}
+						auto       meter = component_meter{ aMeter };
+						const auto slid  = progress.Components->slide_matches(primary_request(progress, aInput.Options), sorted, meter);
+						if (slid.has_value()) {
+							progress.Matches = checked_matches(progress, *slid);
+						}
+					}
 					progress.Step = engine_step::primary_shapes;
 					aMeter.tick_kept(progress.Matches.size());
 					break;
@@ -2048,6 +2273,8 @@ namespace bpr::core {
 																												static_cast<std::uint32_t>(right.Normalized.size()),
 																												aMeter);
 					progress.Matches                                                           = { };
+					progress.LeftClasses                                                       = { };
+					progress.RightClasses                                                      = { };
 					progress.Cursor                                                            = 0U;
 					progress.PhaseStarts[static_cast<std::size_t>(diff_compute_phase::refine)] = aMeter.steps();
 					progress.Step                                                              = engine_step::refine;
@@ -2064,7 +2291,8 @@ namespace bpr::core {
 						}
 						auto       budget = progress.Budget;
 						const auto pairs  = secondary_pairs(
-							left, right, segment.Left, segment.Right, aInput.Options, budget, aMeter);
+							left, right, segment.Left, segment.Right, aInput.Options, budget, aMeter,
+							progress.Components != nullptr && progress.Components->parts().Pairing ? progress.Components : nullptr);
 						progress.Budget = budget;
 						if (!pairs.has_value()) {
 							// [[BPR-0719]]: an unpairable replacement stays a plain
@@ -2243,7 +2471,8 @@ namespace bpr::core {
 																 pair.LeftLine,
 																 pair.RightLine,
 																 budget,
-																 aMeter);
+																 aMeter,
+																 progress.Components != nullptr && progress.Components->parts().Intraline ? progress.Components : nullptr);
 							progress.Budget   = budget;
 							progress.Pairs.push_back(pair);
 							if (!ranges.has_value()) {
@@ -2342,11 +2571,16 @@ namespace bpr::core {
 		/// it was given when that state continues exactly this computation.
 		template <typename TComparison, typename TSlice>
 		auto compute_slice(const typename TComparison::input& aInput, const diff_compute_control& aControl,
-						   paused_diff_compute aResume) -> TSlice
+						   paused_diff_compute aResume, diff_components* aComponents) -> TSlice
 		{
+#if defined(BPR_DIFF_ENGINE_EVALUATION)
+			if (aComponents == nullptr) {
+				aComponents = detail::evaluation_components();
+			}
+#endif
 			auto slice    = TSlice{ };
 			auto progress = diff_compute_progress_access::take(aResume);
-			if (progress && !resumes<TComparison>(*progress, aInput)) {
+			if (progress && !resumes<TComparison>(*progress, aInput, aComponents)) {
 				progress.reset();
 			}
 			slice.Statistics.Resumed = progress != nullptr;
@@ -2358,13 +2592,18 @@ namespace bpr::core {
 					slice.Statistics.Phase  = diff_compute_phase::finished;
 					return slice;
 				}
-				progress = std::move(std::get<std::unique_ptr<diff_compute_progress>>(started));
+				progress             = std::move(std::get<std::unique_ptr<diff_compute_progress>>(started));
+				progress->Components = aComponents;
 			}
 			auto meter = diff_step_meter{ aControl.Stop, aControl.CheckInterval, progress->Steps };
 			try {
 				slice.Outcome = run_engine<TComparison>(aInput, *progress, meter);
 			} catch (const detail::diff_compute_paused&) {
 				slice.Outcome.reset();
+			} catch (const invalid_component_result&) {
+				// [[BPR-1465]] A component supplied what the engine's rules
+				// refuse: the comparison is refused, never published.
+				slice.Outcome = typename TComparison::outcome{ .Reason = diff_reason_code::invalid_alignment };
 			}
 			progress->WorkSteps += meter.slice_steps();
 			progress->LargestUnit      = std::max(progress->LargestUnit, meter.largest_unit());
@@ -2422,24 +2661,118 @@ namespace bpr::core {
 
 	auto compute_file_diff(const diff_compute_input& aInput) -> diff_compute_outcome
 	{
-		return *compute_slice<pull_request_comparison, file_diff_compute_slice>(aInput, { }, { }).Outcome;
+		return *compute_slice<pull_request_comparison, file_diff_compute_slice>(aInput, { }, { }, nullptr).Outcome;
 	}
 
 	auto compute_file_diff(const diff_compute_input& aInput, const diff_compute_control& aControl,
 						   paused_diff_compute aResume) -> file_diff_compute_slice
 	{
-		return compute_slice<pull_request_comparison, file_diff_compute_slice>(aInput, aControl, std::move(aResume));
+		return compute_slice<pull_request_comparison, file_diff_compute_slice>(aInput, aControl, std::move(aResume), nullptr);
 	}
 
 	auto compute_material_diff(const material_diff_input& aInput) -> material_diff_outcome
 	{
-		return *compute_slice<material_comparison, material_diff_compute_slice>(aInput, { }, { }).Outcome;
+		return *compute_slice<material_comparison, material_diff_compute_slice>(aInput, { }, { }, nullptr).Outcome;
 	}
 
 	auto compute_material_diff(const material_diff_input& aInput, const diff_compute_control& aControl,
 							   paused_diff_compute aResume) -> material_diff_compute_slice
 	{
-		return compute_slice<material_comparison, material_diff_compute_slice>(aInput, aControl, std::move(aResume));
+		return compute_slice<material_comparison, material_diff_compute_slice>(aInput, aControl, std::move(aResume), nullptr);
+	}
+
+	// [[BPR-1465]] The evaluation seam.
+
+	auto diff_components::parts() const noexcept -> diff_component_parts
+	{
+		return { };
+	}
+
+	auto diff_components::primary_matches(const diff_primary_request& /*aRequest*/, diff_component_meter& /*aMeter*/)
+		-> std::optional<std::vector<diff_match>>
+	{
+		return std::nullopt;
+	}
+
+	auto diff_components::slide_matches(const diff_primary_request& /*aRequest*/, std::span<const diff_match> /*aMatches*/,
+										diff_component_meter& /*aMeter*/) -> std::optional<std::vector<diff_match>>
+	{
+		return std::nullopt;
+	}
+
+	auto diff_components::pair_scores(const diff_pairing_request& /*aRequest*/, diff_component_meter& /*aMeter*/)
+		-> std::optional<std::vector<std::uint16_t>>
+	{
+		return std::nullopt;
+	}
+
+	auto diff_components::intraline_matches(std::span<const std::uint32_t> /*aLeft*/, std::span<const std::uint32_t> /*aRight*/,
+											diff_component_meter& /*aMeter*/) -> std::optional<std::vector<diff_match>>
+	{
+		return std::nullopt;
+	}
+
+	namespace {
+		/// [[BPR-1465]] Observed primary matches, offered as a component.
+		class observed_primary final : public diff_components
+		{
+		public:
+			explicit observed_primary(const diff_primary_observation& aObservation) noexcept
+				: Observation{ &aObservation }
+			{
+			}
+
+			[[nodiscard]] auto parts() const noexcept -> diff_component_parts override
+			{
+				return { .Primary = true };
+			}
+
+			[[nodiscard]] auto primary_matches(const diff_primary_request& /*aRequest*/, diff_component_meter& aMeter)
+				-> std::optional<std::vector<diff_match>> override
+			{
+				aMeter.tick(Observation->Matches.size());
+				return Observation->Matches;
+			}
+
+		private:
+			const diff_primary_observation* Observation = nullptr;
+		};
+	} // namespace
+
+	auto compute_file_diff(const diff_compute_input& aInput, diff_components& aComponents) -> diff_compute_outcome
+	{
+		return *compute_slice<pull_request_comparison, file_diff_compute_slice>(aInput, { }, { }, &aComponents).Outcome;
+	}
+
+	auto compute_file_diff(const diff_compute_input& aInput, const diff_compute_control& aControl,
+						   diff_components& aComponents, paused_diff_compute aResume) -> file_diff_compute_slice
+	{
+		return compute_slice<pull_request_comparison, file_diff_compute_slice>(aInput, aControl, std::move(aResume), &aComponents);
+	}
+
+	auto compute_file_diff(const diff_compute_input& aInput, const diff_primary_observation& aObservation)
+		-> diff_compute_outcome
+	{
+		auto components = observed_primary{ aObservation };
+		return compute_file_diff(aInput, components);
+	}
+
+	auto compute_material_diff(const material_diff_input& aInput, diff_components& aComponents) -> material_diff_outcome
+	{
+		return *compute_slice<material_comparison, material_diff_compute_slice>(aInput, { }, { }, &aComponents).Outcome;
+	}
+
+	auto compute_material_diff(const material_diff_input& aInput, const diff_compute_control& aControl,
+							   diff_components& aComponents, paused_diff_compute aResume) -> material_diff_compute_slice
+	{
+		return compute_slice<material_comparison, material_diff_compute_slice>(aInput, aControl, std::move(aResume), &aComponents);
+	}
+
+	auto compute_material_diff(const material_diff_input& aInput, const diff_primary_observation& aObservation)
+		-> material_diff_outcome
+	{
+		auto components = observed_primary{ aObservation };
+		return compute_material_diff(aInput, components);
 	}
 
 } // namespace bpr::core
