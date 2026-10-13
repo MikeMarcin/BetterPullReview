@@ -14,7 +14,7 @@ Mandate `cpp-identifier-parser-evaluation-r1` adopts the original proposal
 unchanged. Immutable RFC_BASE_SHA: `530d92eaff1578413c0e669f476e740387441152`. The
 [live import](assets/cpp-identifier-parser-evaluation-v1.LIVE_IMPORT.md) and the
 [milestone plan](plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json)
-retain its scope. Cards: [BPR-1440](../issues/20-ready/BPR-1440-commit-the-labelled-cpp-identifier-corpus.md)
+retain its scope. Cards: [BPR-1440](../issues/30-in-progress/BPR-1440-commit-the-labelled-cpp-identifier-corpus.md)
 (labelled corpus and gap suite),
 [BPR-1441](../issues/30-in-progress/BPR-1441-stop-the-cpp-refinement-partway-and-fuzz-the-classifier.md)
 (cancellation test and syntax fuzz target),

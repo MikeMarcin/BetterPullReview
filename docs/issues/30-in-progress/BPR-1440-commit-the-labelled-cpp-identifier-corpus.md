@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1440"
 title: "Commit the labelled C++ identifier corpus and gap suite"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0081"]
 depends_on: []
 priority: "P2"
