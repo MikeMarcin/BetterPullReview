@@ -4,7 +4,7 @@ id: "BPR-1458"
 title: "Evaluate libgit2 for the Git metadata components behind an evaluation-only option on macOS"
 status: "Backlog"
 rfcs: ["RFC-BPR-0083"]
-depends_on: ["BPR-1455", "BPR-1456"]
+depends_on: ["BPR-1454"]
 priority: "P2"
 platforms: ["mac"]
 metadata: {"milestone_plan": {"id": "git-metadata-readers-v1", "path": "docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"}, "mandate_revision": "git-metadata-readers-r1", "rfc_base_sha": "9a4f61976bba23727acd77d10c23c041f87208f0", "reservation": "docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json"}
@@ -17,6 +17,8 @@ the verified-archive pattern (SHA-256, size, licence digest, re-extraction under
 `build/_bpr`) behind an option that is off by default, so the shipping
 configuration acquires nothing new. It is built without HTTPS, SSH, NTLM or its
 CLI. No libgit2 type crosses its port.
+
+Its provider and adapter need only [[BPR-1454]]; AC2 runs through the harness of [[BPR-1455]] and the canary course of [[BPR-1456]] once they land.
 
 ## Acceptance criteria
 

@@ -3,6 +3,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -11,7 +13,7 @@
 
 /// \file
 /// \brief Which untracked paths a capture leaves out by default
-/// (RFC-BPR-0054).
+/// (RFC-BPR-0054, RFC-BPR-0083).
 /// \details Git roots follow the checkout's own `.gitignore` files and
 /// `info/exclude`; the reviewer's global excludes file is not read, so a path
 /// only it ignores stays visible as an untracked candidate rather than being
@@ -20,23 +22,36 @@
 namespace bpr::core {
 	inline constexpr std::size_t maximum_ignore_rules = 100'000U;
 
-	/// \brief Git-style wildcard match: `*` and `?` stop at `/`, `[...]`
-	/// matches one byte (with `!` or `^` negation and ranges), a `**` segment
-	/// matches any number of directories and `\` escapes. POSIX character
-	/// classes are not supported and match nothing.
-	[[nodiscard]] auto wildcard_match(std::string_view aPattern, std::string_view aPath) -> bool;
+	/// \brief Git's `wildmatch` with `WM_PATHNAME`: `*` and `?` stop at `/`,
+	/// a `**` segment matches any number of directories, `\` escapes, and
+	/// `[...]` matches one byte with `!` or `^` negation, ranges and the
+	/// twelve POSIX classes. An unterminated bracket, an unknown class or a
+	/// trailing `\` makes the pattern match nothing.
+	/// \details `aCaseFold` is `WM_CASEFOLD`, which `core.ignoreCase` sets.
+	/// It folds ASCII case exactly as Git does, including Git's quirks: an
+	/// escaped character and a single character inside brackets keep their
+	/// case, while ranges, `[:upper:]` and `[:lower:]` fold.
+	[[nodiscard]] auto wildcard_match(std::string_view aPattern, std::string_view aPath, bool aCaseFold = false) -> bool;
 
 	/// \brief The ignore rules seen so far, lowest precedence first.
 	class workspace_ignore_rules
 	{
 	public:
-		/// \brief Adds one exclude file's rules. `aBase` is the root-relative
-		/// directory holding it (empty for the root and for `info/exclude`).
-		/// Files must be added parents before children.
+		/// \param aIgnoreCase The repository's `core.ignoreCase`.
+		explicit workspace_ignore_rules(bool aIgnoreCase = false) noexcept
+			: IgnoreCase{ aIgnoreCase }
+		{
+		}
+
+		/// \brief Adds one exclude file's rules, read as Git reads them. `aBase`
+		/// is the root-relative directory holding it (empty for the root and
+		/// for `info/exclude`). Files must be added parents before children.
 		/// \returns False when the rule bound would be exceeded; nothing is
 		/// added then.
 		auto add(std::string_view aBase, std::string_view aContents) -> bool;
-		/// \brief True when the last rule matching the path excludes it.
+		/// \brief True when the last rule matching the path excludes it. Rules
+		/// that excluded a parent directory are not consulted; the caller
+		/// walks parents first, as Git does.
 		[[nodiscard]] auto ignored(std::string_view aPath, bool aDirectory) const -> bool;
 		[[nodiscard]] auto size() const noexcept -> std::size_t
 		{
@@ -50,38 +65,87 @@ namespace bpr::core {
 			std::string Pattern;
 			bool        Negated       = false;
 			bool        DirectoryOnly = false;
-			/// The pattern has a `/`: it matches the path below its base, not
-			/// just the last segment.
+			/// The pattern has a `/` before its end: it matches the path below
+			/// its base, not just the last segment.
 			bool Anchored = false;
 		};
 		std::vector<rule> Rules;
+		bool              IgnoreCase = false;
 	};
 
-	/// \brief The `filter` attribute from `.gitattributes` files, lowest
-	/// precedence first. Other attributes are not interpreted.
+	/// \brief An attribute's state for one path, as `git check-attr` reports it.
+	struct git_attribute_state
+	{
+		enum class kind : std::uint8_t {
+			unspecified,
+			/// Set without a value (`attr`).
+			set,
+			/// Unset (`-attr`).
+			unset,
+			/// Set to `Value` (`attr=value`).
+			value,
+		};
+		kind        Kind = kind::unspecified;
+		std::string Value;
+		auto        operator<=>(const git_attribute_state&) const = default;
+	};
+
+	/// \brief The `filter` attribute from `.gitattributes` files and
+	/// `info/attributes`, with Git's precedence and macros. Other attributes
+	/// are interpreted only as far as a macro needs them.
 	/// \details A filtered path's Git object is a transformation of its
 	/// working bytes (LFS, for example); capture records that fact and never
 	/// runs the filter.
 	class workspace_attribute_rules
 	{
 	public:
-		/// \brief Adds one attributes file's `filter` settings. `aBase` is the
-		/// root-relative directory holding it. Files must be added parents
-		/// before children. \returns False when the rule bound would be exceeded.
+		/// \param aIgnoreCase The repository's `core.ignoreCase`.
+		explicit workspace_attribute_rules(bool aIgnoreCase = false) noexcept
+			: IgnoreCase{ aIgnoreCase }
+		{
+		}
+
+		/// \brief Adds one `.gitattributes` file. `aBase` is the root-relative
+		/// directory holding it; only the root file (empty base) may define
+		/// macros. Files must be added parents before children.
+		/// \returns False when the rule bound would be exceeded.
 		auto add(std::string_view aBase, std::string_view aContents) -> bool;
-		/// \brief Whether the last rule naming `filter` for the path sets it
-		/// (true) or unsets it (false); nothing when no rule names it.
-		[[nodiscard]] auto filter(std::string_view aPath) const -> std::optional<bool>;
+		/// \brief Adds `info/attributes`, which outranks every `.gitattributes`
+		/// file and may define macros.
+		auto add_info(std::string_view aContents) -> bool;
+		/// \brief The path's `filter` attribute.
+		[[nodiscard]] auto filter(std::string_view aPath) const -> git_attribute_state;
 
 	private:
+		struct assignment
+		{
+			std::string         Name;
+			git_attribute_state State;
+		};
 		struct rule
 		{
-			std::string Base;
-			std::string Pattern;
-			bool        Anchored = false;
-			bool        Set      = false;
+			std::string             Base;
+			std::string             Pattern;
+			bool                    Anchored      = false;
+			bool                    DirectoryOnly = false;
+			std::vector<assignment> Assignments;
 		};
+		/// Attribute names to their states, for one path's evaluation.
+		using assigned_states = std::map<std::string_view, const git_attribute_state*, std::less<>>;
+		/// Macro names to their definitions; a later definition replaces one.
+		using macro_table = std::map<std::string, std::vector<assignment>, std::less<>>;
+		auto parse(std::string_view aBase, std::string_view aContents, bool aMacros, std::vector<rule>& aRules, std::vector<std::pair<std::string, std::vector<assignment>>>& aDefinitions) const
+			-> bool;
+		void               fill(const std::vector<assignment>& aAssignments, assigned_states& aAssigned) const;
+		[[nodiscard]] auto definition(std::string_view aName) const -> const std::vector<assignment>*;
+		[[nodiscard]] auto matches(const rule& aRule, std::string_view aPath) const -> bool;
+
 		std::vector<rule> Rules;
+		std::vector<rule> InfoRules;
+		macro_table       RootMacros;
+		macro_table       InfoMacros;
+		std::size_t       Assignments = 0;
+		bool              IgnoreCase  = false;
 	};
 
 	enum class workspace_exclusion_reason : std::uint8_t {
