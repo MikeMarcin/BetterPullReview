@@ -34,13 +34,29 @@ The existing original verification and exact final integrated command are reused
 no product source or unchanged full tests are rerun. Recovery runs the two
 repository documentation commands and explicit-path issue-board finish.
 
-## Ownership and next action
+## Acceptance closeout
 
-No inherited navigation command or review server is running. The clean owned
-`codex/file-change-navigation` worktree remains at the exact verified candidate;
-it will be archived after accepted closeout. No other worktree/process is owned.
-Unrelated ignore/MASK files, draft contents, C++ source/fixtures and Find import
-are preserved and excluded from all commits. There are no pending human/native/
-independent decisions or additional milestones. Finish the documentation receipts,
-acceptance commit and final binding/observation, archive the consumed worktree,
-then return command quiescence to the coordinator. No push is authorized.
+Acceptance commit `b4e546cd116314554640e85713109d2d680968e4` moves BPR-1417
+to Done and synchronizes RFC-BPR-0076/index to Auto-Verified. The
+[closeout binding](m1-closeout-binding.json) and [completion observation](m1-closeout-observation.json)
+cover both complete source obligations and all three exits. Their
+[consistency check](m1-closeout-check.json) is evaluated at the acceptance commit;
+the subsequent checkpoint-record commit changes only documentation/evidence.
+The [final documentation receipt](m1-final-documentation.json) covers the
+moved card and final checkpoint links. The original gate and all 67 verifier tests
+pass in their retained receipts; unchanged product checks are reused.
+
+## Ownership and continuation
+
+The clean managed `codex/file-change-navigation` worktree at `aa3d71fe4` is
+archived. [Recovery state](m1-closeout-recovery.json) records its exact identity,
+the accepted committed candidate, preservation checks and command accounting.
+No task-owned background command, writer, descendant or review server remains.
+No other worktree/process is owned. All 45 recovery-start hashes for unrelated
+ignore/MASK files, dirty C++ source and the entire draft tree are unchanged;
+concurrent additional C++ documentation/fixture/test paths are untouched and
+excluded from commits. The Find import remains integrated.
+
+All five criteria and all three exits are accepted; no human/native/independent
+verdict, manual procedure or successor milestone remains in this assignment.
+Return the completed milestone to the coordinator and stop. No push occurred.

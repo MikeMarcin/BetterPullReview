@@ -1,0 +1,37 @@
+{
+  "mandate_revision": "file-change-navigation-r1",
+  "milestone": "review-navigation-entry",
+  "recovery_leaf": "/root/navigation_closeout",
+  "source_candidate": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "acceptance_commit": "b4e546cd116314554640e85713109d2d680968e4",
+  "newer_main_import": "e4dd160d6d7015d76a840d246ab96255b4633c2a",
+  "archive": {
+    "identity": "/Users/jaeger/.codex/worktrees/file-change-navigation/BetterPullReview",
+    "state": "archived_worktree",
+    "artifact_id": "01a13421-6257-7141-9a55-178bbd0faa58",
+    "branch": "codex/file-change-navigation",
+    "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd"
+  },
+  "preservation": {
+    "checked_files": 45,
+    "changed": [],
+    "scope": "Recovery-start unrelated ignore/MASK/dirty C++ files and entire draft tree; additional concurrently edited paths excluded from all closeout commits."
+  },
+  "commands": {
+    "inherited_navigation_commands": [],
+    "recovery_background_commands": [],
+    "review_servers": [],
+    "stopped_other_commands": false,
+    "product_tests_rerun": false,
+    "executed": [
+      "documentation verifier",
+      "67 documentation verifier tests",
+      "guarded issue-board finish",
+      "milestone checkpoint bind/check",
+      "final documentation verifier",
+      "explicit-path checkpoint commit"
+    ]
+  },
+  "required_pending": [],
+  "source_claim": "Tests bind the exact aa3d71fe candidate, not concurrent uncommitted product edits. Acceptance and checkpoint-record commits change documentation/evidence only."
+}
