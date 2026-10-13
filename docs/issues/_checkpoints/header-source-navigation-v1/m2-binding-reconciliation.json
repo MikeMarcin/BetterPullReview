@@ -1,0 +1,11 @@
+{
+  "schema": "bpr.header-source-navigation.binding-reconciliation.v1",
+  "mandate_revision": "header-source-navigation-r4",
+  "old_binding": "m2-binding.json",
+  "current_binding": "m2-binding-renewed.json",
+  "old_obligation_fingerprint": "sha256:98f0666055723f5eb3e2a65b8b48edd5e594d2690e00c6bc899f20b33b608184",
+  "current_obligation_fingerprint": "sha256:ae8b04cbccde1645b0c3a187494b2e01c004f6f17ddec17de8506924413c278b",
+  "milestone_definition_unchanged": true,
+  "prerequisites_unchanged": true,
+  "reason": "Canonical closeout filename/title/closeout_for conversion and exact Acceptance criteria heading required by repository documentation gate. Card mutable evidence is separated after Verification and execution record. All six criterion texts and milestone exits remain verbatim; no requirement or human/native obligation removed."
+}

@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-format",
+  "outcome": "pass",
+  "revision": "eea173a8a942bfd3c5808d4844e1375ea73001ca",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format_check.py\", \"src/adapters/qt/include/bpr/qt/diff_workbench.hpp\", \"src/adapters/qt/include/bpr/qt/workbench_window.hpp\", \"src/adapters/qt/src/desktop_menu_bar.cpp\", \"src/adapters/qt/src/diff_workbench.cpp\", \"src/adapters/qt/src/workbench_window.cpp\", \"src/app/src/github_application.cpp\", \"src/app/src/github_application_fixture_access.hpp\", \"src/app/src/github_public_path_fixture.cpp\", \"src/application/src/workbench_application_host.cpp\", \"src/core/include/bpr/core/workbench_interaction.hpp\", \"src/core/src/workbench_interaction.cpp\", \"tests/application/workbench_application_host_tests.cpp\", \"tests/core/workbench_interaction_tests.cpp\", \"tests/end_to_end/header_source_navigation_public_path_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 2.621,
+    "stdout_tail": "Checking 14 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nFormatting check passed.\n",
+    "stderr_tail": ""
+  }
+}

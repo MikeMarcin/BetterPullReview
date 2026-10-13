@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-final-courses",
+  "outcome": "pass",
+  "revision": "53988db27a909baebf1af4546132610ff7e59052",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^application_header_source_navigation(_large)?$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 13.471,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 690: application_header_source_navigation\n1/2 Test #690: application_header_source_navigation .........   Passed    8.72 sec\n    Start 691: application_header_source_navigation_large\n2/2 Test #691: application_header_source_navigation_large ...   Passed    4.73 sec\n\n100% tests passed out of 2\n\nLabel Time Summary:\nbpr_network_isolated                    =  13.45 sec*proc (2 tests)\nbpr_serial_gui                          =  13.45 sec*proc (2 tests)\nbpr_windows_uncontained_registration    =  13.45 sec*proc (2 tests)\n\nTotal Test time (real) =  13.46 sec\n",
+    "stderr_tail": ""
+  }
+}

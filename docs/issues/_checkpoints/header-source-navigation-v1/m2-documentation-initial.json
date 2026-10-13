@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-documentation",
+  "outcome": "fail",
+  "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 1,
+    "elapsed_seconds": 1.168,
+    "stdout_tail": "",
+    "stderr_tail": "ERROR: broken relative link in /Users/jaeger/Documents/GitHub/BetterPullReview/docs/verification/RFC-BPR-0073.md: ../issues/_checkpoints/smooth-diff-touchpad-panning/m6-verification.json\n"
+  }
+}

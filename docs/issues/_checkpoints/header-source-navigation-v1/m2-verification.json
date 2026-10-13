@@ -1,0 +1,214 @@
+{
+  "schema": "bpr.header-source-navigation.verification.v1",
+  "assignment": "/root/header_source_m2",
+  "mandate_revision": "header-source-navigation-r4",
+  "milestone": "composed-counterpart-command",
+  "issue": "BPR-1416",
+  "rfc": "RFC-BPR-0074",
+  "rfc_base_sha": "6a310fc57ae2d52360bfec252cf25aa1350d8aa2",
+  "product_candidate": "720c52c69a123c5c2ce643922625c2a7b48ede06",
+  "final_candidate": "53988db27a909baebf1af4546132610ff7e59052",
+  "claim_commit": "443d3d80f15c2245612807fe5b49cd4398268a85",
+  "source_paths": [
+    "docs/architecture/header-source-navigation.md",
+    "docs/ux/workbench-specification.md",
+    "docs/verification/fixture-catalog.md",
+    "scripts/build_header_source_fixture.py",
+    "scripts/verify_test_network_isolation.py",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/src/workbench_application_host.cpp",
+    "src/core/include/bpr/core/workbench_interaction.hpp",
+    "src/core/src/workbench_interaction.cpp",
+    "tests/application/workbench_application_host_tests.cpp",
+    "tests/core/workbench_interaction_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/header_source_navigation_public_path_tests.cpp",
+    "tests/fixtures/github/contracts/v1/header-source-v1/manifest.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/checks.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/commits.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/files.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/issue_comments.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/pull_request.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/repository.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/review_threads.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/reviews.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/search.json",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/viewer.json",
+    "tests/fixtures/github/pull-requests/header-source-v1/construction.json",
+    "tests/fixtures/github/pull-requests/header-source-v1/objects.pack"
+  ],
+  "source_sha256": {
+    "docs/architecture/header-source-navigation.md": "b96da3375f03b2b4ff2921102999eb894f0c3e78678d82b95a8c0378db279ba1",
+    "docs/ux/workbench-specification.md": "6e53b11c175dd9477ae69d2dbc2357ea7adb330aa6e1959e686193ec9622f308",
+    "docs/verification/fixture-catalog.md": "5cf3dd978166b9aba668caa5c04706ec22d19142a13437822721dc8cbbb1e67d",
+    "scripts/build_header_source_fixture.py": "9efbb9bc79292d8a8dcdb8ce44680bed2b93e2cd1ca2a71198450292930c8a38",
+    "scripts/verify_test_network_isolation.py": "ab3fa1f85db7a5ee273bf663131014df28b9230d6bc55359e78abb29996822c7",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp": "22ea5c81364a908afca4b6f579e98ac73037c3039b8cce0fb3b4d8a38e5dbb83",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp": "4a4c9129a5934af2572d751e3a81f12e1675f30bdc2a95a10229fd88ca001f37",
+    "src/adapters/qt/src/desktop_menu_bar.cpp": "3d98a898398fc774d35ea05aab124848cf11db49e486b89b255551de29fcd44a",
+    "src/adapters/qt/src/diff_workbench.cpp": "22d58bd9e4a68b211099c661a23ea143dfa8b65570f13c5b106724e8429c1cec",
+    "src/adapters/qt/src/workbench_window.cpp": "b05fc138420f9685d6afbb8d30e5e0241ea87df9e970d5505157bbe20e3402ca",
+    "src/app/src/github_application.cpp": "439fc1259b00ef3090cb987e642478740c974bdb591460333d7db82bd443762b",
+    "src/app/src/github_application_fixture_access.hpp": "6f40ba9462f35baca63b020a106360d48ee5a864a9626f6e977851e9408c4952",
+    "src/app/src/github_public_path_fixture.cpp": "b91ad79b520f3cd1c7b8588dc7e23eaf4183249aaa7b7921029f979f939395fd",
+    "src/application/src/workbench_application_host.cpp": "fbb4fd7c111cc4b513abb035a248092409331f47f7e6b57eb3eae621f400715a",
+    "src/core/include/bpr/core/workbench_interaction.hpp": "a248da7dfaa27d4a8bb8bfebd11fe8f030d77ccb98c5e55bf8773055ec2acc0f",
+    "src/core/src/workbench_interaction.cpp": "df371d27ea9079ece4102ec83187bc4662fe216d0998656b99b656c716ca2cd0",
+    "tests/application/workbench_application_host_tests.cpp": "9217a68146a63fb4567df99beff10da9781db9af979c66b3d5af3f7e8da5bd2f",
+    "tests/core/workbench_interaction_tests.cpp": "0187356262d7da37cdf88d947080429a038ab61988c4db717cc4ddb1d4b13868",
+    "tests/end_to_end/CMakeLists.txt": "1ba8d4bd354ee9c8f7ae1d1b093f7a6711e6162ef819fe73ab2f3d2f630609ca",
+    "tests/end_to_end/header_source_navigation_public_path_tests.cpp": "36f0f42607d4d42fd90786e6ae7d4e72f049f452437b20d276d4327e92d5688f",
+    "tests/fixtures/github/contracts/v1/header-source-v1/manifest.json": "3e9a49d16f104c3a0984c8e87a3b27065837d709e94ce008c1feedc9849f1a8f",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/checks.json": "aa31861eeafb1ffc7c85af0943281b1ce3555ccc3de0de9dde49afc6c335c726",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/commits.json": "4596226c744c3940adba7ab049d84ec49e4b6e17000439038780b2fd4a689beb",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/files.json": "0f2da3c4a9ed98c5bfdf585665ec846632563338858c1b349422cb19d1df6b94",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/issue_comments.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/pull_request.json": "efb93af6538f2d282064965a184d8359eae1629ae4811a3e0c7974c21c5cb5ca",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/repository.json": "8db1e0f770c3d26fbbdc18ea5474f9bd114812866cc74288a96b03cfcba64e8e",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/review_threads.json": "39a76a147cef2b4bcaf77a981ea8941f395af49296a44f05ee814b0e53b1d443",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/reviews.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/search.json": "1238e36b1ac7f064716a3f0c6b1f33e0b74a6cc4b8fedc96f74216a891ac5b5c",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/viewer.json": "b97108e15012dadc9607606fffd7fbafe6c7095194a5b1105e914c2accda64bb",
+    "tests/fixtures/github/pull-requests/header-source-v1/construction.json": "17ace02df4ef11fc6480e648d79309952a732a81da0ab1fce386bd3508d85b19",
+    "tests/fixtures/github/pull-requests/header-source-v1/objects.pack": "b6e0116c632119222359105565f69a9f83f7a4f64a99bc88612fa35e28e747e2"
+  },
+  "context": {
+    "platform": "Darwin",
+    "release": "25.6.0",
+    "architecture": "arm64",
+    "qt": "6.11.2",
+    "qpa": "offscreen",
+    "style": "Windows (forced deterministic fixture style)",
+    "scale": 1.0,
+    "input": "Qt window-system key injection and actual QAction, installed-Git/cache actor, sanitized accepted provider fixture",
+    "fixture_files": {
+      "header-source-v1": 16,
+      "large-review-v1": 515
+    }
+  },
+  "acceptance": {
+    "AC01": "Real window-system Alt/Option+O and View QAction jump src/widget.cpp \u2194 inc/widget.h through installed Git/cache-selected diffs in split and unified mode. Actual source blob text and source focus are asserted. Core/host checks cover all eight suffixes, ASCII extension folding, exact case-sensitive stems, membership and rename-alias exclusion.",
+    "AC02": "Real QAction opens inc/project/a/b/c/closest.h over inc/a/b/d/closest.h; src/local/pair.cc selects same-directory pair.HPP. Equal-best ambiguous.cpp leaves the exact active-tab view/result unchanged and explains ambiguity. Pure core/public host validate r4 examples and zero-overlap.",
+    "AC03": "Private Exclude withholds inc/widget.h from actionable order; shortcut still loads it and leaves its receipt/order unchanged. Files filter remains exact while hidden target opens. Source/header no-match and unsupported/no-selection/refused catalogue states have distinct messages or disabled reasons.",
+    "AC04": "Counterpart replaces active tab even when already in sibling, retaining sibling identity/file/pair. Active base/base comparison distinct from newer window default reads earlier blobs; added missing.h reports absent from both revisions without newer fallback. Pending file/tab/comparison/Home/accepted-authority-catalogue generation changes reject the queued old resolution. Existing exact-authority/generation superseded-host and late Qt publication regressions pass.",
+    "AC05": "One assembled window QAction with Alt+O, real physical events from code/Files/tab strip, native resident-menu disabled mirror and accessible menu/status wording. Editable Files field and real review-summary composer receive \u00f8; code receives no inserted text. Overview/Discuss/Threads/Home keys do not navigate hidden source. Successful jump focuses visible split/unified source. Status emits polite QAccessibleAnnouncementEvent.",
+    "AC06": "515-file composed review runs 100 real no-match actions with 100 directory lookups, zero additional helper blob reads, zero index rebuild/file-projection/model resets. Core/public host 32/4096 same-basename fixtures preserve 400 directory lookups for 100 commands, and routine selection scaling is 194/416 comparisons. Pure core, Qt diff/window, architecture boundary/negative contract and network manifest checks pass."
+  },
+  "checks": [
+    {
+      "evidence_ref": "m2-final-courses.json",
+      "outcome": "pass",
+      "candidate": "53988db27a909baebf1af4546132610ff7e59052"
+    },
+    {
+      "evidence_ref": "m2-integration.json",
+      "outcome": "pass",
+      "detail": "6/6 committed-product integration; only subsequent course assertions/log newline changed. Product source bytes remain identical to 720c52c69."
+    },
+    {
+      "evidence_ref": "m2-core.json",
+      "outcome": "pass",
+      "detail": "Pure core matching/command legality and public host; unchanged product source."
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "--output-on-failure",
+        "-R",
+        "^(core_workbench_interaction|core_header_source_navigation|application_workbench_host|architecture_boundaries|architecture_boundary_contract)$"
+      ],
+      "outcome": "pass",
+      "elapsed_seconds": 136.98,
+      "detail": "5/5 on final product implementation: boundaries 18.89s, negative boundary contract 117.70s, core matching/legality and host."
+    },
+    {
+      "evidence_ref": "m2-format-final.json",
+      "outcome": "pass"
+    },
+    {
+      "evidence_ref": "m2-course-tidy-final.json",
+      "outcome": "pass"
+    },
+    {
+      "evidence_ref": "m2-composition-naming.json",
+      "outcome": "pass"
+    },
+    {
+      "evidence_ref": "m2-tidy-review.json",
+      "outcome": "qualified",
+      "detail": "Eight touched translation units pass all configured rules. Full composition analysis emits only 14 unchanged baseline naming errors; changed-line naming passes. Two new course endl diagnostics corrected and final full-rule course tidy passes."
+    },
+    {
+      "command": [
+        "python3",
+        "tests/scripts/verify_documentation_tests.py"
+      ],
+      "outcome": "pass",
+      "detail": "67 tests, 2.241 seconds."
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "evidence_ref": "m2-fixture-regeneration.json",
+      "outcome": "pass",
+      "detail": "Construction, every contract response/manifest and installed-Git pack reproduce committed bytes in a private disposable temporary root; root removed."
+    },
+    {
+      "evidence_ref": "m2-documentation-final.json",
+      "outcome": "pass"
+    }
+  ],
+  "reused_M1": "m1-verification.json and unchanged pure matching/index source evidence; public host rerun after availability extension. No terminal M1 record rewritten.",
+  "renders": {
+    "root": "build/dev/header-source-renders",
+    "full_window_pixels": [
+      1280,
+      860
+    ],
+    "files": {
+      "04-large-no-match.png": "aaad67d8133b75a1c808d4d9a6816843a4411510d1b407e2c4e27afb27e9bdef",
+      "01-split-header.png": "06a15ae796a6af31c083d077dc8f067828042028c9911e10c86ad80b71f3fcef",
+      "02-unified-header.png": "cef3b5cacfeb0e6e11e0d083716cf620abbaddf55b1d1eb3500f140931bf91ef",
+      "03-ambiguous.png": "9a253a1568347eb81150a7fdf3265541363ce2fee5e6854388f2914459b43d57"
+    },
+    "inspection": "Split/unified full windows show exact synthetic inc/widget.h blobs; ambiguity remains on selected source with status. Renders are local transient evidence, excluded from commits."
+  },
+  "failures_and_corrections": [
+    "Initial broad Qt test crashed during child-settings destruction after actions were deleted. LLDB traced new focus callback; disconnected focusChanged before child teardown. Full Qt window test then passes.",
+    "Initial unified key course focused hidden split pane. Added focus_source selecting visible split/unified editor.",
+    "Initial context capture included semantic reading selection; ordinary queued reading observation caused benign no-op. Revalidation now binds file/comparison/source request and active tab, excluding line reading changes.",
+    "Initial availability publication repeated catalogue lookup, violating retained-selection scaling bound. Reused selected_file; host 32/4096 counters return to 194/416.",
+    "Existing host assertion expected selection-only projection; now checks the new bounded counterpart-availability command delta too.",
+    "New course reused sticky fixture reveal helper for same path; repeated opens now select the real Files row.",
+    "Course assumptions about changing default comparison and both-missing text were corrected against existing tab/menu/failure contracts.",
+    "Course-owned parented QMenu survived application teardown under unique_ptr and double-deleted; released menu immediately after its action.",
+    "Full tidy failed on 14 preexisting composition naming errors and two course std::endl diagnostics. Baseline exact lines are retained in m2-tidy-review; own course diagnostics corrected and rerun.",
+    "Canonical closeout filename/title, baseline-marker sentence, Acceptance criteria and Closeout checklist headings required documentation normalization. Renewed binding preserves all six criteria and exits.",
+    "One resumed course build referenced a nonexistent back_to_review_action; used existing Home toggle; rebuilt and both final courses pass.",
+    "First final global documentation attempt saw a concurrent RFC-BPR-0073 link before its owner wrote m6-verification.json. Preserved failure; waited for that owner, without editing unrelated files. Evidence helper refuses overwriting an existing record; retry uses a new final receipt."
+  ],
+  "self_review": "Bounded review checked one command identity/order, core legality without Qt, complete-catalogue indexed lookup, no effects in Qt, exact queued revalidation/membership, tab/sibling/comparison retention, sourceRequest lifecycle, disabled AppKit equivalent during editing, teardown lifetime and no added provider mutation/settings/pairing persistence. No known critical changed-surface defect remains.",
+  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "limits": [
+    "Offscreen fixture input/render evidence does not certify physical native keyboard/device or system appearance. No explicit native/human/independent criterion is required by this RFC.",
+    "Full composition tidy remains baseline-qualified for 14 unchanged naming violations. No whole-TU clean verdict is claimed.",
+    "New WINDOWS_UNCONTAINED test registrations retain existing dos-volume-name root limitation; native Windows containment is unmeasured.",
+    "No push, external mutation, attended candidate or review server."
+  ],
+  "commands": "All completed or reaped before final handoff; final bookkeeping/documentation gate results added separately."
+}

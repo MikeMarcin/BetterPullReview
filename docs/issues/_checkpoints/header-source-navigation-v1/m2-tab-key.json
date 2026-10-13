@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-tab-key",
+  "outcome": "pass",
+  "revision": "eea173a8a942bfd3c5808d4844e1375ea73001ca",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^application_header_source_navigation$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 8.888,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 690: application_header_source_navigation\n1/1 Test #690: application_header_source_navigation ...   Passed    8.86 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated                    =   8.86 sec*proc (1 test)\nbpr_serial_gui                          =   8.86 sec*proc (1 test)\nbpr_windows_uncontained_registration    =   8.86 sec*proc (1 test)\n\nTotal Test time (real) =   8.88 sec\n",
+    "stderr_tail": ""
+  }
+}

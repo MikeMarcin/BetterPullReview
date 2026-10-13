@@ -45,3 +45,33 @@ scrolling-documentation paths after the M1 candidate. Its remaining tracker
 work plus preexisting .gitignore, .mask.json, .mask.lock.json and untracked draft
 intake are unrelated and preserved. They are outside M1 writer quiescence.
 Never revert or include them in M1 commits.
+
+## M2 accepted engineering outcome
+
+Owner `/root/header_source_m2`, assignment `composed-counterpart-command`,
+mandate `header-source-navigation-r4`. Product commit `720c52c69`; final
+key/input course commit `53988db27a909baebf1af4546132610ff7e59052`.
+[M2 verification](m2-verification.json), [acceptance](m2-acceptance.json),
+[renewed binding](m2-binding-renewed.json), [binding reconciliation](m2-binding-reconciliation.json)
+and [scoped baseline review](m2-baseline-review.json) preserve all six amended
+criteria and both exits. [Final courses](m2-final-courses.json) pass 2/2 on the
+exact candidate; [integration](m2-integration.json) passes 6/6 with unchanged
+product bytes. Pure core/host, both architecture checks, format22 and final
+course tidy pass. The [tidy disposition](m2-tidy-review.json) explicitly retains
+14 unchanged baseline composition naming violations; scoped changed naming passes.
+
+View > Go to header/source and Alt/Option+O now use ordinary exact selection.
+The active tab keeps its comparison and siblings, including an older pair;
+no-match/tie changes no reading state; receipt/filter-hidden targets remain
+reachable. Physical Qt window-system keys from code, Files and tab strip and
+editable Option input are exercised. Home/Overview/Discuss/Threads cannot
+navigate hidden source. Queued context replacement and ordinary absent-target
+failure are verified. Full offscreen window renders are local build evidence,
+with hashes/context recorded, and no live desktop was driven or captured.
+
+No human/independent/native criterion remains under this RFC. No review server,
+protected candidate, external mutation or push exists. All engineering commands
+are finished; final bookkeeping/documentation commands are reaped before handoff.
+Unrelated config/drafts and concurrent smooth-panning work are preserved. Final
+RFC/card upkeep and command reconciliation are recorded by the M2 observation
+and handoff receipt below.

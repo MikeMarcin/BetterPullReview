@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-core",
+  "outcome": "pass",
+  "revision": "eea173a8a942bfd3c5808d4844e1375ea73001ca",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"core-only\", \"--output-on-failure\", \"-R\", \"^(core_workbench_interaction|core_header_source_navigation|application_workbench_host)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.147,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/core-only\n    Start  75: core_workbench_interaction\n1/3 Test  #75: core_workbench_interaction .......   Passed    0.38 sec\n    Start 161: core_header_source_navigation\n2/3 Test #161: core_header_source_navigation ....   Passed    0.06 sec\n    Start 178: application_workbench_host\n3/3 Test #178: application_workbench_host .......   Passed    0.69 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated    =   1.13 sec*proc (3 tests)\n\nTotal Test time (real) =   1.14 sec\n",
+    "stderr_tail": ""
+  }
+}

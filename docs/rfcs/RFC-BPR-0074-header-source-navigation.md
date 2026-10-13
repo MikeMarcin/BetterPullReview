@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0074"
 title: "Jump between a review's header and source files"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"rfc_base_sha":"6a310fc57ae2d52360bfec252cf25aa1350d8aa2","mandate_revision":"header-source-navigation-r4","milestone_plan":{"id":"header-source-navigation-v1","path":"docs/rfcs/plans/header-source-navigation-v1/milestone-plan.json"}}
 ---
@@ -14,8 +14,11 @@ Mandate `header-source-navigation-r4` adopts the original draft and owner Q1
 amendments; immutable RFC_BASE_SHA: `6a310fc57ae2d52360bfec252cf25aa1350d8aa2`.
 The [live import](assets/header-source-navigation-v1.LIVE_IMPORT.md) preserves
 original bytes and the [two-milestone plan](plans/header-source-navigation-v1/milestone-plan.json).
-The first milestone supplies indexed core/host resolution. The command and
-full composed RFC acceptance remain in the second milestone. The
+Both milestones are accepted. Indexed core/host resolution and the native
+View command with Alt/Option+O traverse ordinary exact selection, retain active
+tab comparisons and preserve editor input. All six amended criteria pass on
+`53988db27`; [the verification ledger](../verification/RFC-BPR-0074.md) records
+command/core/render evidence and explicit baseline tidy/native limits. The
 [navigation architecture](../architecture/header-source-navigation.md) records
 the implemented boundary.
 
@@ -146,7 +149,7 @@ reading-state persistence; it grants no provider mutation authority and adds
 no persistent pairing preference. Implementation updates the owning command
 map and navigation architecture documentation.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** In the composed PR review, the shortcut jumps from
   `src/widget.cpp` to the sole `inc/widget.h` counterpart and back, with both

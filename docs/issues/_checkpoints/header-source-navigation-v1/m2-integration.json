@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-integration",
+  "outcome": "pass",
+  "revision": "eea173a8a942bfd3c5808d4844e1375ea73001ca",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^(application_header_source_navigation(_large)?|qt_workbench_window_scale_100|qt_diff_workbench_scale_100|test_network_isolation_manifest|architecture_boundaries)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 97.848,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start   5: architecture_boundaries\n1/6 Test   #5: architecture_boundaries ......................   Passed   20.14 sec\n    Start  62: test_network_isolation_manifest\n2/6 Test  #62: test_network_isolation_manifest ..............   Passed    5.69 sec\n    Start 353: qt_diff_workbench_scale_100\n3/6 Test #353: qt_diff_workbench_scale_100 ..................   Passed   26.40 sec\n    Start 381: qt_workbench_window_scale_100\n4/6 Test #381: qt_workbench_window_scale_100 ................   Passed   32.26 sec\n    Start 690: application_header_source_navigation\n5/6 Test #690: application_header_source_navigation .........   Passed    8.20 sec\n    Start 691: application_header_source_navigation_large\n6/6 Test #691: application_header_source_navigation_large ...   Passed    5.12 sec\n\n100% tests passed out of 6\n\nLabel Time Summary:\nbpr_network_isolated                    =  97.81 sec*proc (6 tests)\nbpr_serial_gui                          =  71.98 sec*proc (4 tests)\nbpr_windows_uncontained_registration    =  13.32 sec*proc (2 tests)\n\nTotal Test time (real) =  97.84 sec\n",
+    "stderr_tail": ""
+  }
+}

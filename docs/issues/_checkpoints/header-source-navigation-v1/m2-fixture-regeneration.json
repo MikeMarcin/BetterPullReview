@@ -1,0 +1,31 @@
+{
+  "schema": "bpr.header-source-navigation.fixture-regeneration.v1",
+  "candidate": "53988db27a909baebf1af4546132610ff7e59052",
+  "outcome": "pass",
+  "commands": [
+    "python3 scripts/build_header_source_fixture.py <private-temp>/construction.json",
+    "python3 scripts/build_recorded_pull_request_contract.py <private-temp>/construction.json <private-temp>/contract",
+    "python3 scripts/build_recorded_pull_request_pack.py <private-temp>/construction.json <private-temp>/objects.pack"
+  ],
+  "observations": [
+    "CONSTRUCTION_OK:16",
+    "CONTRACT_OK:bpr-fixtures/header-source#74:16",
+    "PACK_OK:71dc98a8939742f51fa98dd44936ba727c3e5796:24537f5b9f51511d4ee94c420192f04a972e7548:4126"
+  ],
+  "exact_byte_comparisons": [
+    "construction.json",
+    "objects.pack",
+    "manifest.json",
+    "responses/checks.json",
+    "responses/commits.json",
+    "responses/files.json",
+    "responses/issue_comments.json",
+    "responses/pull_request.json",
+    "responses/repository.json",
+    "responses/review_threads.json",
+    "responses/reviews.json",
+    "responses/search.json",
+    "responses/viewer.json"
+  ],
+  "private_temporary_root_removed": true
+}

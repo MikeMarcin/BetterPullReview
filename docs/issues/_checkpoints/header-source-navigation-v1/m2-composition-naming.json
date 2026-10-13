@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-changed-composition-naming",
+  "outcome": "pass",
+  "revision": "eea173a8a942bfd3c5808d4844e1375ea73001ca",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"/opt/homebrew/opt/llvm@22/bin/clang-tidy\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/src/app/src/github_application.cpp\", \"-p\", \"/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\", \"--extra-arg=-Wno-error\", \"--extra-arg=-Wno-missing-designated-field-initializers\", \"--extra-arg=-isysroot\", \"--extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk\", \"--warnings-as-errors=*\", \"--checks=-*,readability-identifier-naming\", \"--line-filter=[{\\\"name\\\":\\\"/Users/jaeger/Documents/GitHub/BetterPullReview/src/app/src/github_application.cpp\\\",\\\"lines\\\":[[1005,1005],[7205,7205],[8926,8975]]}]\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 16.443,
+    "stdout_tail": "",
+    "stderr_tail": "55 warnings generated.\nSuppressed 57 warnings (41 in non-user code, 14 due to line filter, 2 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n"
+  }
+}

@@ -63,6 +63,6 @@ replaces the active tab and retains its comparison, including an earlier pair;
 sibling views are untouched. Ordinary selected-diff admission rejects late results
 and reports targets absent from the retained comparison without newer fallback.
 
-The [BPR-1416 closeout](../issues/30-in-progress/BPR-1416-close-rfc-0074.md)
+The [BPR-1416 closeout](../issues/60-done/BPR-1416-close-rfc-0074.md)
 and [verification ledger](../verification/RFC-BPR-0074.md) bind the composed command,
 physical-key, render and indexed-work evidence to the implemented candidate.

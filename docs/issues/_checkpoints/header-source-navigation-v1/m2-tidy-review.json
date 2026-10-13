@@ -1,0 +1,129 @@
+{
+  "schema": "bpr.header-source-navigation.tidy-review.v1",
+  "product_candidate": "53988db27a909baebf1af4546132610ff7e59052",
+  "full_run_outcome": "fail",
+  "command": [
+    "python3",
+    "_coding-standard/scripts/tidy.py",
+    "--build-dir",
+    "build/dev",
+    "--clang-tidy",
+    "/opt/homebrew/opt/llvm@22/bin/clang-tidy",
+    "--paths",
+    "src/core/src/workbench_interaction.cpp",
+    "src/application/src/workbench_application_host.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "tests/core/workbench_interaction_tests.cpp",
+    "tests/application/workbench_application_host_tests.cpp",
+    "tests/end_to_end/header_source_navigation_public_path_tests.cpp",
+    "--warnings-as-errors"
+  ],
+  "baseline_revision": "443d3d80f15c2245612807fe5b49cd4398268a85",
+  "baseline_composition_diagnostics": [
+    {
+      "line": 7309,
+      "identifier": "session",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 7309,
+      "identifier": "generation",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 7309,
+      "identifier": "plan",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 7317,
+      "identifier": "binding",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 7317,
+      "identifier": "record",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 8173,
+      "identifier": "hook",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 8173,
+      "identifier": "captured",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 9439,
+      "identifier": "maximum_cancellations",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 10211,
+      "identifier": "id",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 10211,
+      "identifier": "text",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 10211,
+      "identifier": "limit",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 28703,
+      "identifier": "count_published",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 28712,
+      "identifier": "count_held",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    },
+    {
+      "line": 28889,
+      "identifier": "start_one",
+      "check": "readability-identifier-naming,-warnings-as-errors",
+      "baseline_contains_exact_line": true
+    }
+  ],
+  "passing_translation_units": [
+    "src/core/src/workbench_interaction.cpp",
+    "src/application/src/workbench_application_host.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "src/adapters/qt/src/desktop_menu_bar.cpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "tests/core/workbench_interaction_tests.cpp",
+    "tests/application/workbench_application_host_tests.cpp"
+  ],
+  "course_correction": "Two performance-avoid-endl diagnostics corrected to newline; focused full-rule course tidy rerun. Final inactive-modality test extension receives another final tidy check.",
+  "composition_disposition": "All full-rule composition errors were unchanged baseline naming. Changed-line naming rerun passes (m2-composition-naming.json). No other composition rule emitted a first-party diagnostic. No unrelated naming migration performed.",
+  "evidence_refs": [
+    "m2-composition-naming.json",
+    "m2-course-tidy.json",
+    "m2-course-tidy-final.json"
+  ]
+}

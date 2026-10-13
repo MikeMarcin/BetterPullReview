@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-course-tidy-final",
+  "outcome": "pass",
+  "revision": "53988db27a909baebf1af4546132610ff7e59052",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/tidy.py\", \"--build-dir\", \"build/dev\", \"--clang-tidy\", \"/opt/homebrew/opt/llvm@22/bin/clang-tidy\", \"--paths\", \"tests/end_to_end/header_source_navigation_public_path_tests.cpp\", \"--warnings-as-errors\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 11.72,
+    "stdout_tail": "Running clang-tidy on 1 translation unit(s)\nCompilation database: /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/compile_commands.json\n+ /opt/homebrew/opt/llvm@22/bin/clang-tidy /Users/jaeger/Documents/GitHub/BetterPullReview/tests/end_to_end/header_source_navigation_public_path_tests.cpp -p /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev --extra-arg=-Wno-error --extra-arg=-Wno-missing-designated-field-initializers --extra-arg=-isysroot --extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk --warnings-as-errors=*\nclang-tidy passed.\n",
+    "stderr_tail": "42 warnings generated.\nSuppressed 43 warnings (42 in non-user code, 1 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n"
+  }
+}
