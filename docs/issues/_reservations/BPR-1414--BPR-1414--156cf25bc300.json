@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1414"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home role filter, row emphasis and Recently viewed removal",
+  "created": "2026-10-13T03:07:40.209027+00:00",
+  "base": "a6100f29d1500dd659d7e58f22c8a7244c0f4ecc"
+}
