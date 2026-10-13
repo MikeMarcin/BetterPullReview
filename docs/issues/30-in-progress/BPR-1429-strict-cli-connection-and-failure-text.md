@@ -21,4 +21,30 @@ RFC baseline: `aa3d71fe470627e1e78488eb51a9114a788f33bd`. Reservation: `docs/iss
 - **AC02:** Missing/inaccessible/tool/unknown outcome distinctions without guesses.
 - **AC03:** Draft retention, native focus and accessible status.
 
-Critical plan review finds missing versus denied Keychain access unobservable through stock gh. That criterion stays pending unless a supported observable or explicit owner amendment supplies it.
+Critical plan review finds missing versus denied Keychain access unobservable through stock gh. Mandate `strict-cli-publication-r2` supplies the explicit owner amendment: one honest `credential_unavailable` outcome covers missing and inaccessible credentials; tool failure and attempted unknown publication stay distinct.
+
+## Engineering checkpoint (M3 partial)
+
+Product candidate `611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9` implements the neutral
+chosen-account/server question, existing sign-in/transient/no-storage/reuse details
+and typed fresh unavailable/tool/cancel text bound to the failed actor/host.
+Focused integration14/14, post-style composed5/5, Qt/offscreen courses and exact
+format22 pass; [durable handoff](../_checkpoints/strict-cli-account-publication-v1/m3-handoff.md)
+and [evidence](../_checkpoints/strict-cli-account-publication-v1/m3-evidence.json)
+bind the actual scope and private receipts.
+
+Acceptance remains open. Independent review at frozen611c identifies an inline
+unknown-result retry/reconciliation followed by credential refusal that can fail
+before loading recovery. Composed reproduction confirms a second POST after
+restoring credentials. The initial inline capture was premature; independent
+review reports fully readable status after900ms settle, so no layout repair is
+required from that image. AC02 needs journal/unknown precedence and no-second-POST proof across that
+transition, including the earlier coordinator path. AC03 needs the ambiguous inline draft identity, editability and retry state
+preserved through credential refusal, with focus/accessibility/deduplication.
+Settled inline captures now show full readable status; the initial image was
+premature and no layout defect is claimed. The final critical receipt confirms
+one blocking P1, with all reviewer commands terminal. Source and this card
+ownership are released for fresh post-review M3 repair. Existing lost-result
+success-acquisition and fresh failure courses are not substituted for this seam.
+Coordinator requires a fresh post-review M3 repair owner; no terminal acceptance
+or popup main integration is asserted.
