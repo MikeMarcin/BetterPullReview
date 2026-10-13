@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1428"
 title: "Replace CLI publication popup with strict exact-operation admission"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0079"]
 depends_on: ["BPR-1427"]
 platforms: ["mac"]
