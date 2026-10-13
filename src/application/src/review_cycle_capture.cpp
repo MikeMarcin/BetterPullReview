@@ -218,8 +218,13 @@ namespace bpr::application {
 				if (Git != nullptr) {
 					Ignore     = core::workspace_ignore_rules{ Git->IgnoreCase };
 					Attributes = core::workspace_attribute_rules{ Git->IgnoreCase };
-					static_cast<void>(Ignore.add("", Git->InfoExclude));
-					static_cast<void>(Attributes.add_info(Git->InfoAttributes));
+					// [[BPR-1455]]. Like a checkout's own rule files, an info file past
+					// the rule bound refuses the capture rather than being dropped.
+					if (!Ignore.add("", Git->InfoExclude)) {
+						rule_bound(".git/info", "exclude");
+					} else if (!Attributes.add_info(Git->InfoAttributes)) {
+						rule_bound(".git/info", "attributes");
+					}
 				}
 				if (Session.observation().Kind == core::workspace_root_kind::file) {
 					observe_file_root();

@@ -115,7 +115,6 @@ namespace {
 			}
 		}
 		// C3 (BPR-1454 review leftovers).
-		entries.push_back({ "K", "C3", "head-symbolic-two-levels", "", "deliberate", "one level of symbolic reference is followed, as fix 7 specifies; a second level resolves to no commit" });
 		entries.push_back({ "K", "C3", "reference-directory", "refs/heads/feature", "refusal",
 							"a loose reference that is a directory is reported as unreadable rather than falling back to packed-refs, as fix 7 reports any loose failure but missing" });
 		// C4.
@@ -706,6 +705,19 @@ namespace {
 							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/alias1", "refs/heads/main" });
 							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/alias2", "refs/heads/alias1" });
 							  aContext.Git(aSetup.Root, { "symbolic-ref", "HEAD", "refs/heads/alias2" });
+							  return std::nullopt;
+						  } });
+		// Git reads a name and its symbolic targets at most five times.
+		cases.push_back({ .Name  = "head-symbolic-too-deep",
+						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
+							  standard_repository(aContext, aSetup);
+							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/deep1", "refs/heads/main" });
+							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/deep2", "refs/heads/deep1" });
+							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/deep3", "refs/heads/deep2" });
+							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/deep4", "refs/heads/deep3" });
+							  aContext.Git(aSetup.Root, { "symbolic-ref", "refs/heads/deep5", "refs/heads/deep4" });
+							  aContext.Git(aSetup.Root, { "symbolic-ref", "HEAD", "refs/heads/deep4" });
+							  aSetup.ExtraReferences = { "refs/heads/deep4", "refs/heads/deep5" };
 							  return std::nullopt;
 						  } });
 		cases.push_back({ .Name  = "head-detached",
