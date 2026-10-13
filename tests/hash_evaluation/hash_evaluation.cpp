@@ -20,6 +20,13 @@
 #if defined(_WIN32)
 	#include <fcntl.h>
 	#include <io.h>
+#else
+	#include <time.h>
+#endif
+
+#if defined(__APPLE__)
+	#include <pthread.h>
+	#include <sys/qos.h>
 #endif
 
 /// \file
@@ -684,18 +691,77 @@ namespace {
 		bool Bodies = false;
 	};
 
-	auto elapsed_nanoseconds(auto&& aWork) -> std::uint64_t
+	/// Wall time and, off Windows, the CPU time of this thread: on a busy
+	/// machine the second excludes the time the thread spent descheduled.
+	struct timing
 	{
-		const auto start = std::chrono::steady_clock::now();
+		std::uint64_t Wall = 0U;
+		std::uint64_t Cpu  = 0U;
+	};
+
+	auto thread_cpu_nanoseconds() -> std::uint64_t
+	{
+#if defined(_WIN32)
+		return 0U;
+#else
+		timespec now{ };
+		clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
+		return static_cast<std::uint64_t>(now.tv_sec) * 1000000000ULL + static_cast<std::uint64_t>(now.tv_nsec);
+#endif
+	}
+
+	auto measure(auto&& aWork) -> timing
+	{
+		const auto cpuStart = thread_cpu_nanoseconds();
+		const auto start    = std::chrono::steady_clock::now();
 		aWork();
-		const auto stop = std::chrono::steady_clock::now();
-		return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count());
+		const auto stop    = std::chrono::steady_clock::now();
+		const auto cpuStop = thread_cpu_nanoseconds();
+		timing     result;
+		result.Wall = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(stop - start).count());
+		result.Cpu  = cpuStop == 0U ? result.Wall : cpuStop - cpuStart;
+		return result;
+	}
+
+	struct run_summary
+	{
+		std::string   List;
+		std::uint64_t Median = 0U;
+		std::uint64_t Least  = 0U;
+		std::uint64_t Most   = 0U;
+	};
+
+	auto summarize(std::vector<std::uint64_t> aRuns) -> run_summary
+	{
+		run_summary result;
+		for (const auto value : aRuns) {
+			result.List += (result.List.empty() ? "" : ",") + std::to_string(value);
+		}
+		std::ranges::sort(aRuns);
+		result.Median = aRuns[aRuns.size() / 2U];
+		result.Least  = aRuns.front();
+		result.Most   = aRuns.back();
+		return result;
 	}
 
 	/// W1, W2 and W3 for every arm of both algorithms: \p aRuns timed runs
-	/// after one untimed warm-up, arms interleaved within each run.
+	/// after one untimed warm-up, arms interleaved within each run. On macOS
+	/// the thread asks for user-interactive QoS, so a busy machine keeps it on
+	/// a performance core.
 	auto run_throughput(std::size_t aRuns, std::uint64_t aSeed) -> int
 	{
+#if defined(__APPLE__)
+		const bool interactive = pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) == 0;
+#else
+		const bool interactive = false;
+#endif
+#if defined(_WIN32)
+		constexpr std::string_view cpuClock = "wall";
+#else
+		constexpr std::string_view cpuClock = "thread";
+#endif
+		std::printf("{\"command\":\"throughput-setup\",\"runs\":%zu,\"cpu_clock\":%s,\"qos\":%s}\n", aRuns, json_text(cpuClock).c_str(),
+					json_text(interactive ? "user-interactive" : "default").c_str());
 		constexpr std::size_t         bodyCount = 20015U;
 		constexpr std::size_t         bodySize  = 400U;
 		const std::array<workload, 5> workloads{ {
@@ -727,27 +793,27 @@ namespace {
 					}
 					sink = sink ^ aArm.finish().Bytes[0];
 				};
-				std::vector<std::vector<std::uint64_t>> runs(arms.size());
+				std::vector<std::vector<std::uint64_t>> wall(arms.size());
+				std::vector<std::vector<std::uint64_t>> cpu(arms.size());
 				for (std::size_t run = 0U; run <= aRuns; ++run) {
 					for (std::size_t index = 0U; index < arms.size(); ++index) {
-						const auto nanoseconds = elapsed_nanoseconds([&] { once(*arms[index]); });
+						const auto taken = measure([&] { once(*arms[index]); });
 						if (run != 0U) {
-							runs[index].push_back(nanoseconds);
+							wall[index].push_back(taken.Wall);
+							cpu[index].push_back(taken.Cpu);
 						}
 					}
 				}
 				for (std::size_t index = 0U; index < arms.size(); ++index) {
-					auto sorted = runs[index];
-					std::ranges::sort(sorted);
-					const auto  median = sorted[sorted.size() / 2U];
-					std::string list;
-					for (const auto value : runs[index]) {
-						list += (list.empty() ? "" : ",") + std::to_string(value);
-					}
-					std::printf("{\"command\":\"throughput\",\"group\":%s,\"workload\":%s,\"arm\":%s,\"bytes\":%zu,\"runs_ns\":[%s],\"median_ns\":%llu,\"min_ns\":%llu,\"max_ns\":%llu,\"median_mb_per_s\":%.1f}\n",
-								json_text(algorithm_name(algorithm)).c_str(), json_text(work.Name).c_str(), json_text(arms[index]->name()).c_str(), work.Bytes, list.c_str(),
-								static_cast<unsigned long long>(median), static_cast<unsigned long long>(sorted.front()), static_cast<unsigned long long>(sorted.back()),
-								static_cast<double>(work.Bytes) * 1000.0 / static_cast<double>(median));
+					const auto wallRuns = summarize(wall[index]);
+					const auto cpuRuns  = summarize(cpu[index]);
+					std::printf("{\"command\":\"throughput\",\"group\":%s,\"workload\":%s,\"arm\":%s,\"bytes\":%zu,\"runs_ns\":[%s],\"median_ns\":%llu,\"min_ns\":%llu,\"max_ns\":%llu,"
+								"\"median_mb_per_s\":%.1f,\"cpu_runs_ns\":[%s],\"cpu_median_ns\":%llu,\"cpu_min_ns\":%llu,\"cpu_max_ns\":%llu,\"cpu_median_mb_per_s\":%.1f}\n",
+								json_text(algorithm_name(algorithm)).c_str(), json_text(work.Name).c_str(), json_text(arms[index]->name()).c_str(), work.Bytes, wallRuns.List.c_str(),
+								static_cast<unsigned long long>(wallRuns.Median), static_cast<unsigned long long>(wallRuns.Least), static_cast<unsigned long long>(wallRuns.Most),
+								static_cast<double>(work.Bytes) * 1000.0 / static_cast<double>(wallRuns.Median), cpuRuns.List.c_str(), static_cast<unsigned long long>(cpuRuns.Median),
+								static_cast<unsigned long long>(cpuRuns.Least), static_cast<unsigned long long>(cpuRuns.Most),
+								static_cast<double>(work.Bytes) * 1000.0 / static_cast<double>(cpuRuns.Median));
 					std::fflush(stdout);
 				}
 			}
