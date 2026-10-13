@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1471"
+  ],
+  "reserve_for": "discuss-alignment",
+  "purpose": "Align Discuss tab circles",
+  "created": "2026-10-13T19:42:49.728731+00:00",
+  "base": "133bd4a2e820f7754bd81775c9b3b86845fe97e0"
+}

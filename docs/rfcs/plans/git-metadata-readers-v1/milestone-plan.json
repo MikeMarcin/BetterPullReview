@@ -1,0 +1,170 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "git-metadata-readers-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0083"
+    ],
+    "issues": [
+      "BPR-1454",
+      "BPR-1455",
+      "BPR-1456",
+      "BPR-1457",
+      "BPR-1458",
+      "BPR-1459",
+      "BPR-1460",
+      "BPR-1461",
+      "BPR-1462",
+      "BPR-1463",
+      "BPR-1464"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "reader-fixes",
+      "outcome": "The first-party Git metadata readers refuse unreadable repository formats with a named reason and match Git's config syntax, ignore-case folding, POSIX classes, index trailer and extension rules and HEAD resolution, each shown by a real-Git contract test that fails on the base readers.",
+      "work": [
+        {
+          "issue": "BPR-1454"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Fixes 1-7 pass their real-Git workspace contract tests on macOS, each shown failing on the readers at RFC base 9a4f61976; a reftable checkout is refused under the owner's Q2 answer (a) of 2026-10-13.",
+        "Core unit tests, the core-only preset, both architecture-boundary checks, format, changed-line tidy and the documentation gate pass."
+      ],
+      "boundary": "Q2 was answered (a) on 2026-10-13; reading reftable stays with C3. Windows and Linux runs belong to their station cards."
+    },
+    {
+      "id": "differential-baseline",
+      "outcome": "The differential harness compares the fixed readers with an isolated Git oracle over the whole corpus on macOS, with the canary course, fuzz oracles, adversarial timing and the 250,000-entry bench recorded for K.",
+      "work": [
+        {
+          "issue": "BPR-1455"
+        },
+        {
+          "issue": "BPR-1456"
+        },
+        {
+          "issue": "BPR-1457"
+        }
+      ],
+      "depends_on": [
+        "reader-fixes"
+      ],
+      "exit_criteria": [
+        "Agreement per component and case is reported, missing Git features are skipped with the version found, every K divergence is classified, and a one-fix-reverted negative control turns the harness red.",
+        "Containment, no-execution and no-write results for K on macOS, fuzz targets with oracles, H6 timings and the scale-bench medians and peak memory are recorded."
+      ],
+      "boundary": "macOS only; no candidate library is acquired."
+    },
+    {
+      "id": "candidate-evaluation",
+      "outcome": "libgit2 is evaluated per component through the same harness and canary course behind an evaluation-only option, and V and G have desk checks and cost records, on macOS.",
+      "work": [
+        {
+          "issue": "BPR-1458"
+        },
+        {
+          "issue": "BPR-1459"
+        }
+      ],
+      "depends_on": [
+        "differential-baseline"
+      ],
+      "exit_criteria": [
+        "With the option off nothing new is acquired or linked; with it on the pinned archive is verified and every L divergence and canary result is classified per component.",
+        "Cost records for L, V and G are committed with measured macOS deltas and no unmeasured platform claim."
+      ],
+      "boundary": "The shipping configuration and packages are unchanged. Adopting L would wait for Q3; vendoring into core would wait for the owner's approval."
+    },
+    {
+      "id": "windows-measurement",
+      "outcome": "A native Windows station runs the contract tests, harness, canary course and libgit2 cost measurements.",
+      "work": [
+        {
+          "issue": "BPR-1462"
+        }
+      ],
+      "depends_on": [
+        "candidate-evaluation"
+      ],
+      "exit_criteria": [
+        "Windows results for H2 and H5 and the Windows cost deltas are recorded in the decision record."
+      ],
+      "boundary": "Native Windows evidence only."
+    },
+    {
+      "id": "linux-measurement",
+      "outcome": "A native Linux station runs the contract tests, harness, canary course and libgit2 cost measurements.",
+      "work": [
+        {
+          "issue": "BPR-1463"
+        }
+      ],
+      "depends_on": [
+        "candidate-evaluation"
+      ],
+      "exit_criteria": [
+        "Linux results for H2 and H5 and the Linux cost deltas are recorded in the decision record."
+      ],
+      "boundary": "Native Linux evidence only."
+    },
+    {
+      "id": "decision",
+      "outcome": "Each component C1-C6 has a verdict under the decision rules in a committed decision record, with pending verdicts tied to the evidence or owner answer they wait for.",
+      "work": [
+        {
+          "issue": "BPR-1460"
+        }
+      ],
+      "depends_on": [
+        "candidate-evaluation"
+      ],
+      "exit_criteria": [
+        "The decision record names each verdict, the gate or rule, the evidence links and every question answer it relies on; architecture docs move only if a component moves."
+      ],
+      "boundary": "Verdicts that need Windows, Linux or an open owner answer stay pending."
+    },
+    {
+      "id": "reftable-handling",
+      "outcome": "A reftable checkout is handled as the owner decides under Q2.",
+      "work": [
+        {
+          "issue": "BPR-1461"
+        }
+      ],
+      "depends_on": [
+        "reader-fixes"
+      ],
+      "exit_criteria": [
+        "A reftable checkout yields Git's HEAD commit or the chosen refusal or marker, never an empty HeadCommit, shown by a real-Git contract test."
+      ],
+      "boundary": "The owner answered Q2 (a) on 2026-10-13: refuse now; whether to read reftable is C3's verdict in the decision record."
+    },
+    {
+      "id": "closeout",
+      "outcome": "RFC-BPR-0083 is verified against its baseline and closed.",
+      "work": [
+        {
+          "issue": "BPR-1464"
+        },
+        {
+          "rfc": "RFC-BPR-0083"
+        }
+      ],
+      "depends_on": [
+        "windows-measurement",
+        "linux-measurement",
+        "decision",
+        "reftable-handling"
+      ],
+      "exit_criteria": [
+        "AC01-AC07 pass with their evidence, the RFC and index agree, and the documentation gate passes."
+      ],
+      "boundary": "No required native or owner criterion is inferred."
+    }
+  ],
+  "unplanned_work": []
+}
