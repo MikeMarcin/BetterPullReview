@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1475"
+  ],
+  "reserve_for": "reread-on-open",
+  "purpose": "Reread pull requests on reopen and after publishing",
+  "created": "2026-10-13T21:47:32.943675+00:00",
+  "base": "fd46063c969843c7d2d980c9718b21371a734651"
+}
