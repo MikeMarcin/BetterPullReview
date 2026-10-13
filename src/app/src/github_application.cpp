@@ -7406,18 +7406,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																				return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity);
 																			});
 #if defined(BPR_BUILD_TESTING)
-			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
-				return Fixture ? application::make_review_submission_testing_grant(session, generation, plan) : application::review_submission_execution_grant{ };
+			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
+				return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aPlan) : application::review_submission_execution_grant{ };
 			};
 #else
-			review_tour_publication_workflow::grant_factory issueTourGrant = [](auto session, auto generation, const application::staged_review_plan& plan) {
-				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
+			review_tour_publication_workflow::grant_factory issueTourGrant = [](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
+				return application::detail::review_submission_user_authority_issuer::issue(aSession, aGeneration, aPlan);
 			};
 #endif
-			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding) { return admit_cli_publication(binding.Target, binding.ActingIdentity); }, [this](const application::staged_publication_record& record) {
+			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); }, [this](const application::staged_publication_record& aRecord) {
                 if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
                 if(!draft){return;}
-                if(auto published=application::published_tour(record,*draft)){TourHost->observe_publication(std::move(*published));} });
+                if(auto published=application::published_tour(aRecord,*draft)){TourHost->observe_publication(std::move(*published));} });
 			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 				if (!Closing && ReviewSubmission) {
 					ReviewSubmission->dispatch(std::move(aIntent));
