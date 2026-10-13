@@ -128,6 +128,10 @@ namespace {
 				.Status     = Status,
 				.Actionable = std::move(files),
 			};
+			if (Entries) {
+				observation.Actionable = *Entries;
+			}
+			observation.Withheld = Withheld;
 			if (MismatchAuthority) {
 				observation.Authority.Number = core::pull_request_number{ 999U };
 			}
@@ -148,7 +152,9 @@ namespace {
 			return observation;
 		}
 
-		std::vector<core::workbench_file_id> Files;
+		std::optional<std::vector<application::workbench_file_observation_entry>> Entries;
+		std::vector<application::workbench_file_observation_entry>                Withheld;
+		std::vector<core::workbench_file_id>                                      Files;
 		/// [[BPR-1327]]. Files observed as binary.
 		std::vector<core::workbench_file_id>                    Binary;
 		application::workbench_observation_status               Status            = application::workbench_observation_status::available;
@@ -2321,10 +2327,138 @@ namespace {
 		}
 	}
 
+	[[nodiscard]] auto counterpart_entry(const std::string& aPath) -> application::workbench_file_observation_entry
+	{
+		return { .File = core::file_identity_of(aPath), .PresentationPath = aPath, .CurrentPath = std::filesystem::path{ std::u8string{ aPath.begin(), aPath.end() } }, .Change = application::workbench_file_change_kind::modified, .ContentKind = application::workbench_file_content_kind::text };
+	}
+
+	void test_header_source_accepted_catalogue_resolution()
+	{
+		auto       value            = selected_harness{ };
+		const auto source           = counterpart_entry("src/a/b/c/file.cpp");
+		const auto header           = counterpart_entry("inc/project/a/b/c/file.H");
+		const auto distant          = counterpart_entry("inc/a/b/d/file.hpp");
+		const auto renamed          = counterpart_entry("inc/other.h");
+		auto       renamedEntry     = renamed;
+		renamedEntry.Change         = application::workbench_file_change_kind::renamed;
+		renamedEntry.PreviousPath   = std::filesystem::path{ "src/a/b/c/file.h" };
+		value.Observations.Entries  = std::vector{ source, distant, renamedEntry, counterpart_entry("src/a/b/c/File.h"), counterpart_entry("src/a/b/c/file.txt") };
+		value.Observations.Withheld = { header, header };
+		expect(value.Host.header_source_target().Status == core::header_source_status::unavailable_catalogue, "unobserved catalogue is unavailable");
+		value.Host.observe(authority());
+		value.settle();
+		expect(value.Host.header_source_target().Status == core::header_source_status::no_selection, "accepted catalogue with no selection is distinct");
+		value.Host.apply(core::select_workbench_file_intent{ source.File });
+		value.settle();
+		const auto order = std::vector<core::workbench_file_id>{ value.Host.actionable().begin(), value.Host.actionable().end() };
+		auto       match = value.Host.header_source_target();
+		expect(match.Status == core::header_source_status::matched && match.File == header.File, "owner example prefers longest trailing directory match including a withheld duplicate");
+		expect(value.Host.contains_file(header.File) && value.Host.file_observation(header.File) == header, "withheld file retains accepted membership and exact path");
+		value.Host.apply(core::select_workbench_file_intent{ header.File });
+		value.settle();
+		expect(value.SelectedDiffs.Requests.back().File == header && value.Host.header_source_target().File == source.File,
+			   "ordinary exact selection loads a withheld counterpart and resolves back without altering the receipt");
+		expect(std::vector<core::workbench_file_id>{ value.Host.actionable().begin(), value.Host.actionable().end() } == order, "hidden selection does not change actionable order");
+		value.Host.apply(core::select_workbench_file_intent{ renamed.File });
+		expect(value.Host.header_source_target().Status == core::header_source_status::no_match, "a renamed previous path is not a matching alias");
+		value.Host.apply(core::select_workbench_file_intent{ core::file_identity_of("src/a/b/c/file.txt") });
+		expect(value.Host.header_source_target().Status == core::header_source_status::unsupported_file, "unsupported selection is explicit");
+		value.Host.invalidate(authority());
+		expect(value.Host.header_source_target().Status == core::header_source_status::unavailable_catalogue && !value.Host.contains_file(header.File), "invalidation clears both visible and withheld counterpart membership");
+		value.Host.observe(authority(18U));
+		value.Observations.Status = application::workbench_observation_status::unavailable;
+		value.settle();
+		expect(value.Host.header_source_target().Status == core::header_source_status::unavailable_catalogue, "refused replacement never reports no match");
+	}
+
+	void test_header_source_preference_ambiguity_and_refresh()
+	{
+		auto       value           = harness{ };
+		const auto source          = counterpart_entry("src/a/b/c/file.cpp");
+		const auto one             = counterpart_entry("inc/a/b/c/file.h");
+		const auto two             = counterpart_entry("inc/project/a/b/c/file.hpp");
+		value.Observations.Entries = std::vector{ source, one, two };
+		value.Host.observe(authority());
+		value.settle();
+		value.Host.apply(core::select_workbench_file_intent{ source.File });
+		const auto before = value.Host.state();
+		expect(value.Host.header_source_target().Status == core::header_source_status::ambiguous && value.Host.state() == before,
+			   "equal best suffix groups are a read-only ambiguous result");
+		const auto same = counterpart_entry("src/a/b/c/file.hxx");
+		value.Observations.Entries->push_back(same);
+		value.Host.refresh_actionability();
+		value.settle();
+		expect(value.Host.header_source_target().File == same.File, "exact same-directory target takes precedence after catalogue refresh");
+		value.Observations.Entries->push_back(counterpart_entry("src/a/b/c/file.hh"));
+		value.Host.refresh_actionability();
+		value.settle();
+		expect(value.Host.header_source_target().Status == core::header_source_status::ambiguous, "multiple same-directory targets do not choose by extension");
+		value.Observations.Entries = std::vector{ source };
+		value.Host.refresh_actionability();
+		value.settle();
+		expect(value.Host.header_source_target().Status == core::header_source_status::no_match, "replacement removes retired counterpart candidates");
+	}
+
+	void test_header_source_removed_unicode_and_zero_overlap_paths()
+	{
+		auto       value           = harness{ };
+		const auto source          = counterpart_entry("src/a/Wídget.cpp");
+		auto       removed         = counterpart_entry("old/b/Wídget.HXX");
+		removed.Change             = application::workbench_file_change_kind::removed;
+		value.Observations.Entries = std::vector{ source, removed };
+		value.Host.observe(authority());
+		value.settle();
+		value.Host.apply(core::select_workbench_file_intent{ source.File });
+		expect(value.Host.header_source_target().File == removed.File, "sole zero-overlap candidate uses its reported removed path and preserves UTF-8 basename bytes");
+		value.Host.apply(core::select_workbench_file_intent{ removed.File });
+		expect(value.Host.header_source_target().File == source.File, "removed headers resolve bidirectionally from their accepted path");
+		value.Observations.Entries = std::vector{ source, counterpart_entry("inc/a/Wídget.h") };
+		value.Host.refresh_actionability();
+		value.settle();
+		value.Host.apply(core::select_workbench_file_intent{ source.File });
+		expect(value.Host.header_source_target().File == core::file_identity_of("inc/a/Wídget.h"), "refreshed Unicode counterpart follows current accepted catalogue");
+	}
+
+	void test_header_source_queries_are_indexed_even_with_one_shared_basename()
+	{
+		for (const auto count : { 32U, 4096U }) {
+			auto value = selected_harness{ };
+			value.Observations.Entries.emplace();
+			const auto source   = counterpart_entry("src/a/b/c/file.cpp");
+			const auto expected = counterpart_entry("inc/a/b/c/file.h");
+			value.Observations.Entries->push_back(source);
+			value.Observations.Entries->push_back(expected);
+			for (auto index = 2U; index < count; ++index) {
+				value.Observations.Entries->push_back(counterpart_entry("inc/other/" + std::to_string(index) + "/file.h"));
+			}
+			value.Host.observe(authority());
+			value.settle();
+			value.Host.apply(core::select_workbench_file_intent{ source.File });
+			value.settle();
+			const auto before      = value.Host.work_statistics();
+			const auto reads       = value.SelectedDiffs.Requests.size();
+			const auto projections = value.Projections.Published.size();
+			for (auto gesture = 0U; gesture < 100U; ++gesture) {
+				expect(value.Host.header_source_target().File == expected.File, "indexed query selects the unique closest counterpart");
+			}
+			const auto after = value.Host.work_statistics();
+			expect(after.CounterpartDirectoryLookups - before.CounterpartDirectoryLookups == 400U,
+				   "one hundred queries visit four directory components each regardless of catalogue size");
+			expect(after.CounterpartIndexedRows == before.CounterpartIndexedRows && after.FileProjectionRows == before.FileProjectionRows
+					   && value.SelectedDiffs.Requests.size() == reads && value.Projections.Published.size() == projections,
+				   "queries neither reindex, read blobs nor publish file rows");
+			std::cout << "header-source-index files=" << count << " queries=100 directory_lookups=" << after.CounterpartDirectoryLookups - before.CounterpartDirectoryLookups << '\n';
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_header_source_accepted_catalogue_resolution();
+	test_header_source_removed_unicode_and_zero_overlap_paths();
+	test_header_source_preference_ambiguity_and_refresh();
+	test_header_source_queries_are_indexed_even_with_one_shared_basename();
 	test_routine_selection_visits_only_the_retained_index();
 	test_retained_actionability_moves_files_in_place();
 	test_orderly_shutdown_flushes_latest_layout_serially();

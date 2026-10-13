@@ -1,0 +1,13 @@
+{
+  "criterion": "M1",
+  "outcome": "pass",
+  "revision": "9492bef2f732703779c59fa40190af95f7e695ce",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format_check.py\", \"src/core/include/bpr/core/header_source_navigation.hpp\", \"src/core/src/header_source_navigation.cpp\", \"src/application/include/bpr/application/workbench_application_host.hpp\", \"src/application/src/header_source_index.hpp\", \"src/application/src/workbench_application_host.cpp\", \"tests/core/header_source_navigation_tests.cpp\", \"tests/application/workbench_application_host_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.402,
+    "stdout_tail": "Checking 7 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nFormatting check passed.\n",
+    "stderr_tail": ""
+  }
+}

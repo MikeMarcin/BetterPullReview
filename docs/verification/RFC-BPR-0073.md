@@ -6,8 +6,12 @@ is `268b87049592ca4643e5303ab77114e116e7b5f3`; its plan and import provenance ar
 [the adopted plan](../rfcs/plans/smooth-diff-touchpad-panning/MILESTONES.md) and
 [live import](../rfcs/assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md).
 
-Deterministic acceptance is complete for AC01–AC06 and AC08. AC07 remains pending
-the owner’s verdict on the exact frozen build recorded in the
+Candidate v001 was rejected by the owner: keyboard reveal moved too far and
+wrong-axis motion remained too sensitive. The owner accepted AC07 on v002 and
+rejected its one-row-early keyboard reveal. Candidate v003 passes direct
+deterministic checks for AC01–AC06 and AC08 with a discriminating rendered
+regression course. Only the separate AC08 minimum-reveal judgment remains
+pending on the exact frozen build recorded in the
 [continuation](../issues/_checkpoints/smooth-diff-touchpad-panning/README.md).
 Fixture success does not establish physical touchpad feel.
 
@@ -28,18 +32,27 @@ second text layout or painter-only translation is involved. An explicit scroll
 observation publishes a frame even when the line scrollbar value is unchanged.
 
 The Qt-local gesture discriminator uses delivered deltas before horizontal
-clamping. A horizontal component at least four times the vertical component
-suppresses vertical noise. One isolated small vertical perturbation stays
-suppressed; two consecutive non-dominant events, or a vertical event of at least
-eight pixels, release it. Discarded motion is never accumulated. Begin/end,
+clamping. A component at least twice the other establishes its predominant
+axis and suppresses perpendicular noise. A signed 12-pixel perpendicular
+intent threshold releases or changes that preference when recent input becomes
+comparable or points along the other axis. Alternating wobble cancels that
+evidence; renewed predominant motion clears it. Momentum retains the established
+preference. The evidence threshold never becomes scroll distance: discarded
+motion is not applied later. Begin/end,
 device and comparison/presentation changes reset context; an unphased event
 after 250 ms also resets it. Forwarding preserves device, phase, source,
-inversion and timestamp. These bounded constants remain subject to AC07.
+inversion and timestamp. These constants are implementation tuning, informed by
+the diagnostic below; they do not claim to reproduce Sublime's algorithm and
+were accepted by the owner under AC07 on v002.
 
 Keyboard cursor/selection movement retains the fraction while the target is in
-view. A keyboard reveal or page movement aligns the receiving pane through the
-shared comparison authority. The other pane uses its normal projection through
-unequal replacements. Unified scrolling uses its existing native row authority.
+view. A clipped keyboard target is fully revealed at the nearest edge, with only
+the further distance required to align the receiving presentation to a source
+line boundary. It captures the displayed viewport region and target geometry
+before selection projection; the overscan mask can retain an older, shorter
+extent and is not the reveal boundary. The shared comparison authority projects the other pane
+normally through unequal replacements. Unified scrolling uses its native row
+authority. Page and endpoint behavior is retained.
 
 The refinement pass kept the shared origin, cached measurements and native
 geometry together. Two optional assignments and six local test identifiers were
@@ -50,13 +63,13 @@ also made consistent with the static gate; those changes preserve behavior.
 | Criterion | Result | Direct evidence |
 |---|---|---|
 | AC01 | Pass | `test_fractional_native_viewport` and `test_fractional_unified_and_keyboard_viewports` send sub-line pixel motion to real source viewports. Native cursor rectangles and captured viewport pixels move before the line scrollbar advances, hold the residual and retrace accepted reversal. |
-| AC02 | Pass | Controller course sends repeated horizontal deltas of about 20 pixels with ±1 vertical noise, starts at the horizontal edge, reverses direction, changes receiving pane and includes momentum/end. The shared vertical origin stays fixed. The unified composed course observes the actual source-row placement during horizontal motion. |
-| AC03 | Pass | Small vertical-only input, sustained diagonal input and within-gesture reorientation are tested. Explicit device, phase, idle-unphased, comparison and presentation resets are covered. A viewport event observer verifies forwarded pointing device, phases and timestamp. |
+| AC02 | Pass | Controller course strengthens repeated 20-pixel horizontal deltas to ±7 vertical noise, starts at the horizontal edge, reverses direction, changes receiving pane and includes momentum/end. Shared vertical origin stays fixed. Separate tests cover isolated and alternating perpendicular wobble. The unified composed course observes actual source-row placement during horizontal motion. |
+| AC03 | Pass | Small vertical-only input, sustained comparable-axis diagonal input and within-gesture reorientation are tested, including a turn after 1,000 horizontal inputs so old travel cannot prevent release. Explicit device, phase, idle-unphased, comparison and presentation resets are covered. A viewport observer verifies forwarded pointing device, phases and timestamp. |
 | AC04 | Pass | Composed native geometry checks compare ribbon endpoints with source boundaries at fractional origins, verify actual partially clipped row identity and selection, and observe conversation-marker movement with the source. The same course runs at 100%, 125% and 200%, then repeats fractional ribbon checks after 150% code zoom. Existing gutter/mark and ribbon negative-control checks remain active. |
 | AC05 | Pass | Existing controller/workbench/link-map checks retain insertion pinning, unequal replacements, Home/End, scroll-past-end, pane handoff, angle/Shift-wheel, modified zoom, reveals and reading-anchor restoration. Range sweeps now observe real rendered origins rather than aliased integer line-bar values; the exact endpoint remains asserted. One-pixel reversal from End is explicit. |
 | AC06 | Pass | The composed 2,000-line course sends 1,000 accepted pixel inputs and observes 1,000 pixels of actual native source travel within one pixel. Counters require no semantic query/index adoption, geometry rebuild or pane scan; 1,000 frames coalesce to one repaint delivery. Link work stays within near-visible candidates and retained buffers do not grow. Existing publication, resize and input timing bounds remain active. |
-| AC07 | Pending owner | One fresh short attended session presents the exact self-contained frozen build and the required Accept/Reject question. No implementer desktop driving or capture supplies this verdict. |
-| AC08 | Pass | Both presentations retain an in-view fractional origin through Down and Shift-Down. Repeated arrows causing a reveal, page keys and endpoints align the receiving viewport; the next pixel starts at that origin. The controller separately verifies receiving-pane alignment through a 4:7 replacement without independently rounding its follower. |
+| AC07 | Owner accepted v002 | Session `c595e5c955c2cd527f9f4a351d3ab175`, candidate `BPR-1413-AC07-v002`, decision `0a0ba98a-3e76-4cb8-b404-fb0196dbd48c`. The adaptive axis implementation is unchanged in v003. |
+| AC08 | Agent pass; owner v003 judgment pending | The production appearance font and a boundary-height viewport expose early reveal. Ninety Down and ninety Up steps alternate Shift, assert exact source identity, retain the actual rectangle of every fully visible target, and check whole-row visibility with strictly less than one row of edge slack for clipped targets. Each direction asserts more than ten clipped reveals, in both split panes, a 4:7 replacement and unified view. Existing repeat/page/endpoint and fractional continuation checks pass. |
 
 ## Commands and actual results
 
@@ -68,34 +81,62 @@ cmake --build --preset dev --target test_better_pull_review_qt_diff_workbench_te
 ctest --preset dev -R '^(qt_diff_workbench_scale_(100|125|200)|qt_comparison_scroll_controller_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200)|architecture_boundaries)$' --output-on-failure
 ```
 
-Build exited 0. All 10 integration tests passed, including the architecture
-boundary check (50.83 seconds total). After the static-gate corrections and
-negative control, the restored candidate was rebuilt and the nine rendered
-integration tests were rerun successfully. The unchanged architecture result
-is reused.
+The revised official build exited 0. All 10 integration tests passed, including
+architecture, in 136.07 seconds. These run the stricter current courses at all
+three scales. Historical M1 results remain in `m1-verification.json`; the current
+revision and results are recorded in `m2-verification.json` in the continuation.
 
 ```sh
-python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp src/adapters/qt/include/bpr/qt/comparison_scroll_controller.hpp src/adapters/qt/src/comparison_scroll_controller.cpp src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/comparison_scroll_controller_tests.cpp tests/adapters_qt/diff_workbench_tests.cpp
+python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp src/adapters/qt/include/bpr/qt/diff_workbench.hpp src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/comparison_scroll_controller_tests.cpp tests/adapters_qt/diff_workbench_tests.cpp
 python3 _coding-standard/scripts/tidy.py --build-dir build/dev --paths src/adapters/qt/src/diff_workbench.cpp src/adapters/qt/src/comparison_scroll_controller.cpp tests/adapters_qt/diff_workbench_tests.cpp tests/adapters_qt/comparison_scroll_controller_tests.cpp --warnings-as-errors
 python3 scripts/verify_documentation.py --root .
 python3 tests/scripts/verify_documentation_tests.py
 git diff --check
 ```
 
-Formatting uses clang-format 22.1.8. The four scoped translation units pass tidy
-(the affected two were rerun after corrections; the unchanged two reuse their
-passing results). Documentation reports `DOCUMENTATION_OK`; all 67
+Formatting uses clang-format 22.1.8. All four scoped translation units pass tidy.
+Documentation reports `DOCUMENTATION_OK`; all 67
 documentation verifier tests pass. Whitespace checks pass.
+
+## Post-v002 keyboard correction
+
+Candidate `a9af17c712f2fc3e7dc4c4718689ff482af8fed7` changes only the two
+keyboard reveal boundary captures and their rendered regression course. AC07's
+accepted adaptive axis policy and fractional native placement are unchanged.
+The owner screenshot was inspected privately, without desktop capture. A
+reproduction with the production font found target line 150 at y367–381,
+fully inside the displayed y22–386 area. Down nevertheless moved it upward by
+15 pixels; the fixed mask measured only 343 pixels while the displayed region
+measured 365. The new test fails on unchanged v002 at “Down leaves a fully
+visible target at its existing position” (CTest exit 8). A proposed resize-event
+ordering change failed the same assertion and was reverted. Capturing the actual
+displayed region before selection repairs the failure without changing boundary
+rounding or weakening full-row requirements.
+
+```sh
+cmake --build --preset dev --target test_better_pull_review_qt_diff_workbench_tests test_better_pull_review_qt_diff_link_map_tests -j4
+ctest --preset dev -R '^(qt_diff_workbench_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200)|architecture_boundaries)$' --output-on-failure
+python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp
+python3 _coding-standard/scripts/tidy.py --build-dir build/dev --paths src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp --warnings-as-errors
+```
+
+Build, format22 and both scoped tidy units pass. All seven affected integration
+tests pass in 71.13 seconds on macOS with Qt 6.11.2. The unchanged controller
+courses and 67 documentation verifier tests retain M2 evidence; the current
+documentation structure gate is rerun after upkeep. Prior ENOSPC left a truncated
+Ninja dependency log; `ninja -C build/dev -t recompact` repaired it before final
+checks. No unrelated output was deleted. The official v003 freeze builds the
+committed source inside its own root and validates its launcher before handoff.
 
 ## Failure discrimination and diagnosis
 
-The essential-dependency negative control forces `apply_frame`’s native
+The original M1 essential-dependency negative control forced `apply_frame`’s native
 within-line displacement to zero while retaining the controller’s fractional
 position. The official 100% workbench test then exits 8 at:
 
 > sub-line input visibly moves the real source row before a line step
 
-The original source was restored byte-for-byte (SHA-256
+The original M1 source was restored byte-for-byte (SHA-256
 `eb5af751f0579fb0cc2ff235e54b4dcaf55fbd64c35c9a0528f1f1a7b04c1ee5`)
 and rebuilt before the passing integration rerun. This rules out a controller
 position-only false success.
@@ -109,6 +150,36 @@ events. Earlier integer-line scrollbar sweeps aliased fractional travel; the
 revised sweeps inspect actual rendered origins and still assert exact endpoints
 and ribbon agreement. These failures were corrected and the final courses pass.
 
-The remaining uncertainty is the owner’s physical touchpad judgment. Other
+The new keyboard course was run against the previous reveal behavior and failed
+at “Down fully reveals even a partially clipped source row” (CTest exit 8).
+During M2 correction it also caught an extra line of reveal: a transient
+`visibleRegion` reported nine pixels of clipping where the stable content area
+had five. Capturing the fixed mask before selection made that course pass, but
+did not establish the actual displayed extent. The v002 owner rejection and new
+fully-visible-target assertion falsified that conclusion; v003 replaces the
+mask capture as described above. The axis negative control
+applies the same 20:7 event to the original and revised discriminator: the original
+returns `(-20,-7)` and fails, while the revised returns `(-20,0)` and passes.
+
+## Scoped native diagnostic
+
+The owner explicitly authorized computer use and input recording on their
+prepared Sublime Text long-line document. A completed, stopped wizard captured
+5,596 precise wheel events and 4,113 numeric viewport samples over 37.44 seconds.
+An interior horizontal course delivered 353 vertical pixels with fixed viewport
+Y. At another turn, movement resumed with recent 30 ms absolute travel around
+18 Y versus 14 X, while gesture-to-date totals were 225 Y versus 801 X. This
+supports recent directional evidence rather than whole-gesture accumulated parity.
+Sampling and delivery delays leave the exact threshold uncertain; reversal alone
+did not consistently release preference. These are observed trajectories with an
+inferred policy, not closed-source algorithm identification.
+
+The cardinal computer-use scroll API cannot reproduce precise simultaneous axes
+or native phases. Scoped native event replay delivered movement but did not
+reproduce the recorded trajectory, so replay fidelity and physical touchpad
+equivalence are unproven. Original traces remain private outside Git. The
+listen-only event tap, numeric viewport probe and wizard server are stopped.
+
+The remaining uncertainty is the owner’s revised minimum keyboard reveal judgment. Other
 operating systems and devices were not exercised as part of this bounded
 milestone, and no native-device acceptance is inferred from synthetic input.

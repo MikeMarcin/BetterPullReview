@@ -1,0 +1,94 @@
+{
+  "schema": "bpr.smooth-diff-panning.verification.v1",
+  "candidate_revision": "a9af17c712f2fc3e7dc4c4718689ff482af8fed7",
+  "environment": {
+    "platform": "macOS",
+    "qt": "6.11.2",
+    "scales": [
+      100,
+      125,
+      200
+    ]
+  },
+  "changed_paths": [
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp"
+  ],
+  "commands": [
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_qt_diff_workbench_tests test_better_pull_review_qt_diff_link_map_tests -j4",
+      "exit_code": 0
+    },
+    {
+      "command": "ctest --preset dev -R '^(qt_diff_workbench_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200)|architecture_boundaries)$' --output-on-failure",
+      "exit_code": 0,
+      "tests_passed": 7,
+      "elapsed_seconds": 71.13
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp",
+      "exit_code": 0,
+      "clang_format": "22.1.8"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --paths src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp --warnings-as-errors",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK"
+    }
+  ],
+  "negative_controls": [
+    {
+      "source": "v002 unchanged keyboard reveal with strengthened rendered course",
+      "command": "ctest --preset dev -R '^qt_diff_workbench_scale_100$' --output-on-failure",
+      "exit_code": 8,
+      "assertion": "Down leaves a fully visible target at its existing position"
+    },
+    {
+      "source": "trial resize-event ordering correction",
+      "exit_code": 8,
+      "assertion": "same early-reveal assertion",
+      "disposition": "reverted before final repair"
+    }
+  ],
+  "reused_evidence": {
+    "artifact": "m2-verification.json",
+    "scope": "Unchanged adaptive-axis controller courses at three scales and67 documentation verifier tests; M3 reruns workbench, link-map and architecture."
+  },
+  "freeze": {
+    "root": "/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_",
+    "source_revision": "a9af17c712f2fc3e7dc4c4718689ff482af8fed7",
+    "executable_sha256": "bc9ba159aba61791d37ef68765ea1b49cdbf79859dca256cc430bf13e5e81072",
+    "check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832",
+    "exit_code": 0
+  },
+  "accepted_ac07": {
+    "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+    "session": "c595e5c955c2cd527f9f4a351d3ab175",
+    "candidate": "BPR-1413-AC07-v002",
+    "fingerprint": "def1bc09d1cf931783cd1059720d1593954933c7b1ff317a314e0afb75e0234b",
+    "decision_id": "0a0ba98a-3e76-4cb8-b404-fb0196dbd48c",
+    "outcome": "accept"
+  },
+  "pending": [
+    "AC08 owner minimum keyboard reveal judgment on v003"
+  ],
+  "private_logs": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v002-20261012/m3-*.log",
+  "failures_accounted": [
+    "Initial html invocation omitted required --output; corrected invocation exited0.",
+    "Prior ENOSPC truncated Ninja deps log; official ninja recompact succeeded before final checks.",
+    "First binding publication omitted redirected JSON; documentation gate reported missing m3-binding.json; published valid binding and gate passed.",
+    "Initial binding attempt rejected duplicate AC07 prose in mutable adoption paragraph; removed duplicate selector label, all eight criterion definitions unchanged; bind resolved."
+  ],
+  "limitations": [
+    "No new physical keyboard acceptance inferred from synthetic input.",
+    "Other operating systems/devices not exercised in this bounded round."
+  ]
+}

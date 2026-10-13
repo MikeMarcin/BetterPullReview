@@ -1,0 +1,13 @@
+{
+  "criterion": "M1",
+  "outcome": "pass",
+  "revision": "9492bef2f732703779c59fa40190af95f7e695ce",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"core-only\", \"--output-on-failure\", \"-R\", \"^(core_header_source_navigation|application_workbench_host|core_dependency_boundary|core_boundary_contract|architecture_boundaries)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 19.374,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/core-only\n    Start   2: core_dependency_boundary\n1/5 Test   #2: core_dependency_boundary .........   Passed    0.65 sec\n    Start   3: core_boundary_contract\n2/5 Test   #3: core_boundary_contract ...........   Passed    0.39 sec\n    Start   4: architecture_boundaries\n3/5 Test   #4: architecture_boundaries ..........   Passed   18.01 sec\n    Start 161: core_header_source_navigation\n4/5 Test #161: core_header_source_navigation ....   Passed    0.07 sec\n    Start 178: application_workbench_host\n5/5 Test #178: application_workbench_host .......   Passed    0.23 sec\n\n100% tests passed out of 5\n\nLabel Time Summary:\nbpr_network_isolated    =  19.36 sec*proc (5 tests)\n\nTotal Test time (real) =  19.37 sec\n",
+    "stderr_tail": ""
+  }
+}

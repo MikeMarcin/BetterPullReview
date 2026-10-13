@@ -3150,18 +3150,14 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
-		const auto beforePosition = Controller->position();
+		const auto row     = pane(aPane)->line_row_rect(next);
+		const auto visible = aPane->viewport()->visibleRegion().intersected(aPane->viewport()->mask()).boundingRect();
 		if (!select_line(side, next, true)) {
 			return false;
 		}
 		// The cursor keeps itself in view through the linked scroll, never by
 		// scrolling one pane on its own.
-		if (!source_line_visible(side, next) && Interaction.Selection) {
-			static_cast<void>(reveal_exact_line(*Interaction.Selection, Interaction.Selection->PreferredLine));
-		}
-		if (Controller->position() != beforePosition) {
-			Controller->align_pane_origin(side);
-		}
+		reveal_keyboard_row(aPane, row, visible);
 		const auto first = document->findBlockByNumber(static_cast<int>(*anchor));
 		const auto last  = document->findBlockByNumber(static_cast<int>(next));
 		if (first.isValid() && last.isValid()) {
@@ -3230,6 +3226,8 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
+		const auto  row      = pane(Unified)->line_row_rect(next);
+		const auto  visible  = Unified->viewport()->visibleRegion().intersected(Unified->viewport()->mask()).boundingRect();
 		const auto& identity = rows[next];
 		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
 			return false;
@@ -3255,11 +3253,49 @@ namespace bpr::qt {
 			Unified->verticalScrollBar()->setValue(top);
 			pane(Unified)->set_within_line_offset(offset);
 		}
-		if (!source_line_visible(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)))) {
-			reveal_unified_row(next);
-		}
+		reveal_keyboard_row(Unified, row, visible);
 		announce_line_selection();
 		return true;
+	}
+
+	void diff_workbench::reveal_keyboard_row(QPlainTextEdit* const aPane, const QRect& aRow, const QRect& aVisible)
+	{
+		// The caller captures the displayed content before selection changes it.
+		// visibleRegion alone includes overscan behind the native scrollbar;
+		// intersect the viewport mask so reveal uses the actual source edge.
+		const auto& row     = aRow;
+		const auto& visible = aVisible;
+		if (row.isEmpty() || visible.isEmpty()) {
+			return;
+		}
+		const auto delta = row.top() < visible.top() ? row.top() - visible.top()
+													 : std::max(0, row.bottom() - visible.bottom());
+		if (delta == 0) {
+			return;
+		}
+		if (aPane == Unified) {
+			auto* const vertical = aPane->verticalScrollBar();
+			const auto  height   = pane(aPane)->line_row_rect(0U).height();
+			const auto  wanted   = std::clamp(vertical->value() * height + pane(aPane)->within_line_position() + delta, 0.0, static_cast<qreal>(vertical->maximum() * height));
+			const auto  line     = static_cast<int>(std::floor(wanted / height));
+			vertical->setValue(line);
+			pane(aPane)->set_within_line_offset(wanted - line * height);
+			update_unified_paint();
+			if (FrameObserver) {
+				FrameObserver();
+			}
+			return;
+		}
+		const auto* const axis  = AxisCache.axis();
+		const auto        frame = Controller->current_frame();
+		if (axis == nullptr || !frame) {
+			return;
+		}
+		const auto side    = aPane == Left ? core::diff_side::left : core::diff_side::right;
+		const auto current = measured_document_origin(*pane(aPane), *axis, side, side == core::diff_side::left ? frame->Left.DocumentOriginY : frame->Right.DocumentOriginY);
+		// Reveal exactly to the displayed edge. Rounding to a top-line
+		// boundary leaves slack below the selected row at most view heights.
+		static_cast<void>(Controller->reveal_pane_origin(side, current + delta));
 	}
 
 	/// \brief [[BPR-1212]]. Says the selected line or lines, once a move.

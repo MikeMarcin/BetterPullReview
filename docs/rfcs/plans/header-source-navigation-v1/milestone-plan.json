@@ -1,0 +1,53 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "header-source-navigation-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0074"
+    ],
+    "issues": [
+      "BPR-1415",
+      "BPR-1416"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "indexed-counterpart-resolution",
+      "outcome": "The core and workbench host resolve the unique closest same-basename counterpart from the complete accepted catalogue without scanning it per gesture.",
+      "work": [
+        {
+          "issue": "BPR-1415"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Pure core checks cover supported suffixes, exact basename spelling, same-directory preference, trailing-directory proximity and ambiguous-best no-op.",
+        "The public workbench host resolves visible and withheld accepted entries, deduplicates stable identity, excludes old rename aliases and refuses unavailable catalogues.",
+        "Large-catalogue repeated resolution performs indexed work without blob reads or whole-file projections; focused core/host, architecture, format and documentation checks pass."
+      ],
+      "boundary": "Matching and accepted-catalogue resolution only. Native QAction, physical keyboard, active-tab navigation and full RFC acceptance belong to the next milestone."
+    },
+    {
+      "id": "composed-counterpart-command",
+      "outcome": "View > Go to header/source and Alt/Option+O navigate the active review tab through the ordinary exact comparison path, with rendered and key-event acceptance.",
+      "work": [
+        {
+          "issue": "BPR-1416"
+        },
+        {
+          "rfc": "RFC-BPR-0074"
+        }
+      ],
+      "depends_on": [
+        "indexed-counterpart-resolution"
+      ],
+      "exit_criteria": [
+        "All six amended RFC acceptance criteria pass through the real command and composed review, including hidden targets, exact older comparisons, stale work, focus, editor input and inactive modalities.",
+        "Command-map and navigation architecture documentation, RFC baseline comparison, verification ledger and terminal tracker state agree with the actual tested candidate."
+      ],
+      "boundary": "Full authorized RFC acceptance and upkeep. No human or native evidence is inferred; only explicit remaining human criteria require attendance."
+    }
+  ],
+  "unplanned_work": []
+}

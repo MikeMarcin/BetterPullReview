@@ -1,5 +1,7 @@
 #include "bpr/application/workbench_application_host.hpp"
 
+#include "header_source_index.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
@@ -194,6 +196,12 @@ namespace bpr::application {
 			cursor.PreviousAvailable = cursor.Ordinal > 1U;
 			cursor.NextAvailable     = cursor.Ordinal < cursor.ActionableCount;
 			return cursor;
+		}
+
+		[[nodiscard]] auto header_source_repository_path(const std::filesystem::path& aPath) -> std::string
+		{
+			const auto utf8 = aPath.generic_u8string();
+			return { utf8.begin(), utf8.end() };
 		}
 
 		/// \brief Resolves one core navigation decision against the retained order.
@@ -683,6 +691,46 @@ namespace bpr::application {
 			std::ranges::sort(FileIndex);
 		}
 
+		[[nodiscard]] auto catalogue_file(const core::workbench_file_id aFile) const noexcept -> const workbench_file_observation_entry*
+		{
+			const auto position = file_position(aFile);
+			if (position) {
+				return &Files[*position];
+			}
+			const auto withheld = Withheld.find(aFile);
+			return withheld == Withheld.end() ? nullptr : &withheld->second;
+		}
+
+		[[nodiscard]] auto header_source_target() const -> core::header_source_resolution
+		{
+			if (Closing || !CatalogueAvailable) {
+				return { .Status = core::header_source_status::unavailable_catalogue };
+			}
+			if (!Selected) {
+				return { .Status = core::header_source_status::no_selection };
+			}
+			const auto* selected = catalogue_file(*Selected);
+			if (selected == nullptr) {
+				return { .Status = core::header_source_status::no_selection };
+			}
+			return Counterparts.resolve(header_source_repository_path(selected->CurrentPath), WorkStatistics.CounterpartDirectoryLookups);
+		}
+
+		[[nodiscard]] auto index_counterparts(const workbench_file_observation& aObservation) -> header_source_index
+		{
+			auto       index      = header_source_index{ };
+			auto       identities = std::set<core::workbench_file_id>{ };
+			const auto include    = [&](const workbench_file_observation_entry& aEntry) {
+				if (identities.insert(aEntry.File).second) {
+					index.insert(aEntry.File, header_source_repository_path(aEntry.CurrentPath));
+					++WorkStatistics.CounterpartIndexedRows;
+				}
+			};
+			std::ranges::for_each(aObservation.Actionable, include);
+			std::ranges::for_each(aObservation.Withheld, include);
+			return index;
+		}
+
 		[[nodiscard]] auto selected_file() const noexcept
 			-> const workbench_file_observation_entry*
 		{
@@ -1012,7 +1060,9 @@ namespace bpr::application {
 			Files.clear();
 			FileIndex.clear();
 			Withheld.clear();
-			Numbered = false;
+			Counterparts       = header_source_index{ };
+			CatalogueAvailable = false;
+			Numbered           = false;
 			PendingFilesDelta.reset();
 			FilesDirty = true;
 			Selected.reset();
@@ -1165,7 +1215,9 @@ namespace bpr::application {
 			Files.clear();
 			FileIndex.clear();
 			Withheld.clear();
-			Numbered = false;
+			Counterparts       = header_source_index{ };
+			CatalogueAvailable = false;
+			Numbered           = false;
 			PendingFilesDelta.reset();
 			FilesDirty = true;
 			Selected.reset();
@@ -1210,9 +1262,9 @@ namespace bpr::application {
 				LastReason = core::workbench_reason_code::no_actionable_files;
 				return;
 			}
-			Selected            = target;
-			const auto position = file_position(*target);
-			SelectedFile        = position ? std::optional{ Files[*position] } : std::nullopt;
+			Selected          = target;
+			const auto* entry = catalogue_file(*target);
+			SelectedFile      = entry ? std::optional{ *entry } : std::nullopt;
 			observe_cursor();
 		}
 
@@ -1563,6 +1615,9 @@ namespace bpr::application {
 								workbench_host_failure::observation_limit);
 				return;
 			}
+			auto counterparts  = index_counterparts(aObservation);
+			Counterparts       = std::move(counterparts);
+			CatalogueAvailable = true;
 			WorkStatistics.AcceptedObservationRows += aObservation.Actionable.size();
 			Files = std::move(aObservation.Actionable);
 			Withheld.clear();
@@ -2036,6 +2091,9 @@ namespace bpr::application {
 		std::shared_ptr<completion_gate>             Gate;
 
 		mutable workbench_work_statistics WorkStatistics;
+		/// Counterpart lookup includes both visible and withheld catalogue entries.
+		header_source_index Counterparts;
+		bool                CatalogueAvailable = false;
 		/// [[BPR-0972]]. Catalogue files withheld from the order, by file, and
 		/// whether the order's catalogue positions are strictly increasing.
 		std::map<core::workbench_file_id, workbench_file_observation_entry> Withheld;
@@ -2247,13 +2305,18 @@ namespace bpr::application {
 
 	auto workbench_application_host::file_observation(const core::workbench_file_id aFile) const -> std::optional<workbench_file_observation_entry>
 	{
-		const auto position = Implementation->file_position(aFile);
-		return position ? std::optional{ Implementation->Files[*position] } : std::nullopt;
+		const auto* entry = Implementation->catalogue_file(aFile);
+		return entry ? std::optional{ *entry } : std::nullopt;
+	}
+
+	auto workbench_application_host::header_source_target() const -> core::header_source_resolution
+	{
+		return Implementation->header_source_target();
 	}
 
 	auto workbench_application_host::contains_file(const core::workbench_file_id aFile) const noexcept -> bool
 	{
-		return Implementation->file_position(aFile).has_value();
+		return Implementation->catalogue_file(aFile) != nullptr;
 	}
 
 	auto workbench_application_host::actionable() const noexcept

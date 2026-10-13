@@ -5,6 +5,7 @@
 #include "bpr/application/workbench_preferences_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/comparison_preparation.hpp"
+#include "bpr/core/header_source_navigation.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,8 @@ namespace bpr::application {
 		std::uint64_t FileProjectionRows            = 0U;
 		std::uint64_t FileProjectionCapacityGrowths = 0U;
 		std::uint64_t AcceptedObservationRows       = 0U;
+		std::uint64_t CounterpartIndexedRows        = 0U;
+		std::uint64_t CounterpartDirectoryLookups   = 0U;
 		/// [[BPR-0972]]. Retained-receipt changes applied to the order in place,
 		/// the files they moved, and those that had to observe again instead.
 		std::uint64_t TargetedActionabilityUpdates = 0U;
@@ -131,6 +134,11 @@ namespace bpr::application {
 			-> const workbench_layout_settings&;
 		/// \brief Returns an accepted changed-file entry through the retained identity index.
 		[[nodiscard]] auto file_observation(core::workbench_file_id aFile) const -> std::optional<workbench_file_observation_entry>;
+
+		/// \brief Resolves the current selection against the complete accepted catalogue.
+		/// \details Decision-lane confined, with no effects or navigation. Same-directory wins;
+		/// otherwise the longest shared trailing directory sequence must have a unique target.
+		[[nodiscard]] auto header_source_target() const -> core::header_source_resolution;
 
 		[[nodiscard]] auto contains_file(core::workbench_file_id aFile) const noexcept -> bool;
 		[[nodiscard]] auto actionable() const noexcept

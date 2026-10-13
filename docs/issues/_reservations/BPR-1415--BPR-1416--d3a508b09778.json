@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1415",
+    "BPR-1416"
+  ],
+  "reserve_for": "header-source-navigation",
+  "purpose": "Header/source navigation RFC, indexed foundation and composed command",
+  "created": "2026-10-13T03:41:26.534058+00:00",
+  "base": "6a310fc57ae2d52360bfec252cf25aa1350d8aa2"
+}

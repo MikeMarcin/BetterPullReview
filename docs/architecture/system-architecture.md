@@ -1226,10 +1226,14 @@ pixels as one origin: the native viewport is placed and clipped, so its text,
 selection and pointer coordinates move together. The fixed overscan is bounded
 by font metrics; fractional events do not resize the viewport or remeasure the
 file. Static gutters and link-map bands use that same applied origin. Qt-local
-pixel-gesture state suppresses incidental vertical drift during horizontal
-panning before scrollbar clamping, with phase/device/idle and comparison resets.
-Keyboard viewport movement aligns the receiving source boundary through its
-existing authority, while in-view cursor navigation retains fractional placement.
+pixel-gesture state suppresses perpendicular drift on the predominant axis before
+scrollbar clamping. Recent directional evidence can release or change that
+preference; discarded motion is never banked, and momentum retains the established
+axis. Phase/device/idle and comparison resets clear context. Keyboard reveals
+place a clipped row flush with the nearest displayed edge within one device
+pixel through the receiving pane's existing authority. Subsequent reveals scroll
+one source row per arrow; the flush origin may retain a fraction. Page destinations
+remain line-aligned. In-view cursor navigation retains fractional placement.
 The center map is the sole wide `QSplitterHandle`: it retains ordered changed
 interval geometry, derives cached visible paths from both pane origins, rejects
 frames for a different comparison digest, and resolves pointer hits back to
