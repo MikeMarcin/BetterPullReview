@@ -263,6 +263,8 @@ int main(int aArgc, char** aArgv)
 
 	// An older active tab and newer sibling/window are deliberately distinct.
 	open(*application, longFile);
+	settle();
+	const auto siblingReading = window.comparison_surface()->selection();
 	window.document_tabs()->new_tab_button()->click();
 	wait_for([&] { return window.document_tabs()->tabs().size() == 2 && !access::epoch_refresh_identity(*application).TabPending; }, "sibling tab opens");
 	const auto sibling  = window.document_tabs()->tabs().front();
@@ -359,6 +361,7 @@ int main(int aArgc, char** aArgv)
 	window.document_tabs()->tab_bar()->setCurrentIndex(0);
 	wait_for([&] { return window.document_tabs()->tabs().front().Active && !access::epoch_refresh_identity(*application).TabPending; }, "tab replacement cancels old command");
 	expect(window.document_tabs()->tabs().back().Path == originPath, "late command did not replace former active file");
+	expect(window.comparison_surface()->selection() == siblingReading, "sibling tab restores its unchanged semantic reading position");
 
 	// Other replacement gestures cancel before the old restoration completes.
 	window.document_tabs()->tab_bar()->setCurrentIndex(1);
