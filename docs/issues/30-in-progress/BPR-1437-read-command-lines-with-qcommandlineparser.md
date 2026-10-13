@@ -39,4 +39,38 @@ Qt's parser.
 
 ## Evidence
 
-Pending.
+- AC1: `src/app/src/command_line.cpp` (`bpr/app/command_line.hpp`) wraps
+  `QCommandLineParser`. It refuses `--` and `--name=value` before Qt parses,
+  reports Qt's unknown options (so `-j` is unknown), treats a value option
+  given last as a missing value, refuses a value that starts with `--`, and
+  refuses any name `optionNames()` lists twice.
+- AC2: `tour_cli.cpp` and `cycle_cli.cpp` read through it; the cycle table
+  comes from core's option catalogue. `tour_cli_public_entry` and
+  `cycle_cli_public_path` gain cases for a value that is an option,
+  `--name=value`, `--`, a single-dash word and a repeat. The cycle
+  `note RC-1 --file --json` case fails on the old reader, which took `--json`
+  as the file and answered in human text. All 10 `tour_cli_*`, `cycle_cli_*`
+  and `skill_pr_tour_package` tests pass.
+- AC3: `main.cpp` parses `QCoreApplication::arguments()` after QApplication
+  against `shipped_launch_options`, plus `testing_launch_options` or the
+  attended options. Values are kept as UTF-8 for the run. Offscreen runs
+  print `LAUNCH_ARGUMENTS_INVALID` for `--ghes-host --new-window`, `--bogus`,
+  `stray`, a repeated `--self-test` and `--github-fixture` with no value, and
+  `PROFILE_LAUNCH_ARGUMENTS_INVALID` for the profile cases.
+  `-platform offscreen --application-icon-probe` passes, so Qt's own options
+  are removed first. `application_profile_activation_public_path` passes with
+  six new refusal cases. The live-candidate seam takes
+  `octocat/Hello-World/1`. `raw_has_argument` remains only for the macOS
+  tests-off provenance check before QApplication.
+- Desktop tests: 67 of the 71 tests that launch the application pass after
+  missing helpers were built. `application_review_round_trip_composition_contract`
+  passes after the inventory, manifest and digest reseal, which also covers
+  BPR-1431's earlier `github_application.cpp` change.
+  `application_uiforetw_selected_diff_contract`,
+  `application_workbench_composition_contract`,
+  `application_start_review_contract` and
+  `application_appearance_theme_customization_contract` fail the same way
+  with the previous `main.cpp` rebuilt (`presentation=0`, a theme probe
+  stage), so this change does not cause them.
+- Gates: changed-line clang-tidy 22 reports no findings, and the format check
+  and `verify_documentation.py` pass.
