@@ -1767,13 +1767,22 @@ namespace {
 		exercise(application::git_hash_algorithm::sha256, '2');
 	}
 
+	[[nodiscard]] auto raw_change(std::string_view aModes, std::string_view aLeft, std::string_view aRight, std::string_view aStatus, std::initializer_list<std::string_view> aPaths) -> std::string
+	{
+		auto raw = std::string{ ":" };
+		raw.append(aModes).append(" ").append(aLeft).append(" ").append(aRight).append(" ").append(aStatus).push_back('\0');
+		for (const auto path : aPaths) {
+			raw.append(path).push_back('\0');
+		}
+		return raw;
+	}
 	auto run_changed_catalogue_parser_contract() -> void
 	{
 		const auto blob   = std::string(40U, 'a');
-		const auto raw    = std::string{ ":100644 100644 " } + blob + " " + blob + " R100" + '\0' + "old/path" + '\0' + "new/path" + '\0';
+		const auto raw    = raw_change("100644 100644", blob, blob, "R100", { "old/path", "new/path" });
 		const auto parsed = git_adapter::detail::parse_changed_entries(raw, application::git_hash_algorithm::sha1);
 		require(parsed && parsed->size() == 1U && parsed->at(0U).Left->Path == "old/path" && parsed->at(0U).Right->Path == "new/path", "raw exact rename parser preserves both paths");
-		for (const auto& bad : { raw.substr(0U, raw.size() - 1U), std::string{ ":100644 100644 " } + blob + " " + std::string(40U, 'b') + " R100" + '\0' + "old" + '\0' + "new" + '\0', std::string{ ":000000 100644 " } + blob + " " + blob + " A" + '\0' + "path" + '\0', std::string{ ":100644 100644 " } + blob + " " + blob + " M" + '\0' + "../escape" + '\0' }) {
+		for (const auto& bad : { raw.substr(0U, raw.size() - 1U), raw_change("100644 100644", blob, std::string(40U, 'b'), "R100", { "old", "new" }), raw_change("000000 100644", blob, blob, "A", { "path" }), raw_change("100644 100644", blob, blob, "M", { "../escape" }) }) {
 			require(!git_adapter::detail::parse_changed_entries(bad, application::git_hash_algorithm::sha1), "malformed/truncated/unproven/escaping raw catalogue is refused atomically");
 		}
 		require(!git_adapter::detail::parse_changed_entries(std::string(application::maximum_git_changed_catalogue_bytes + 1U, 'x'), application::git_hash_algorithm::sha1), "raw catalogue output bound refuses before membership");
@@ -1901,6 +1910,15 @@ namespace {
 			catalogue.Entries.clear();
 			const auto absent = adapter->changed_entries({ repository, object<application::git_commit_id>(std::string(aAlgorithm == application::git_hash_algorithm::sha1 ? 40U : 64U, 'f'), aAlgorithm), chain.HeadTwo }, catalogue, { });
 			expect(!absent && catalogue.Entries.empty(), "missing exact historical commit cannot report an empty successful catalogue");
+			const auto copySource      = run_fixture_git(repository, { "hash-object", "-w", "--stdin" }, "rename chain\n");
+			const auto modifiedSource  = run_fixture_git(repository, { "hash-object", "-w", "--stdin" }, "modified source\n");
+			auto       copiedTreeInput = std::string{ "100644 blob " };
+			copiedTreeInput.append(modifiedSource).append("\ta.cpp\n100644 blob ").append(copySource).append("\tcopy.cpp\n");
+			const auto copiedTree   = run_fixture_git(repository, { "mktree" }, copiedTreeInput);
+			const auto copiedCommit = run_fixture_git(repository, { "commit-tree", copiedTree }, "copied\n");
+			catalogue.Entries.clear();
+			const auto copied = adapter->changed_entries({ repository, chain.Base, object<application::git_commit_id>(copiedCommit, aAlgorithm) }, catalogue, { });
+			expect(copied && catalogue.Entries.size() == 2U && std::ranges::any_of(catalogue.Entries, [](const auto& aEntry) { return aEntry.Change == 'C' && aEntry.Left && aEntry.Right && aEntry.Left->Path == "a.cpp" && aEntry.Right->Path == "copy.cpp" && aEntry.Left->Object == aEntry.Right->Object; }), "installed Git copies retain their evidenced source path and exact blob on both sides");
 			const auto forward = adapter->find_rename_pairs(
 				{
 					.Repository   = repository,

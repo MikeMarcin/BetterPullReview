@@ -25,17 +25,15 @@ namespace bpr::application {
 		{
 			return { reinterpret_cast<const char*>(aMaterial.Bytes->data()), aMaterial.Bytes->size() };
 		}
-		auto logical_line_breaks(std::string_view aBytes) -> std::size_t
+		auto source_line_count(std::string_view aBytes) -> std::size_t
 		{
 			auto count = std::size_t{ 0U };
 			for (auto i = std::size_t{ 0U }; i < aBytes.size(); ++i) {
-				if (aBytes[i] == '\r') {
-					++count;
-				} else if (aBytes[i] == '\n' && (i == 0U || aBytes[i - 1U] != '\r')) {
+				if (aBytes[i] == '\r' || (aBytes[i] == '\n' && (i == 0U || aBytes[i - 1U] != '\r'))) {
 					++count;
 				}
 			}
-			return count;
+			return count + (!aBytes.empty() && aBytes.back() != '\n' && aBytes.back() != '\r' ? 1U : 0U);
 		}
 		auto qualification(const source_corpus_material& aMaterial, const core::source_match_limits& aLimits) -> diff_blob_status
 		{
@@ -43,7 +41,7 @@ namespace bpr::application {
 				return aMaterial.Status == diff_blob_status::available ? diff_blob_status::failure : aMaterial.Status;
 			}
 			const auto bytes = text(aMaterial);
-			if (bytes.size() > aLimits.MaximumBytes || logical_line_breaks(bytes) > aLimits.MaximumLines) {
+			if (bytes.size() > aLimits.MaximumBytes || source_line_count(bytes) > aLimits.MaximumLines) {
 				return diff_blob_status::materialization_limit;
 			}
 			if (bytes.find('\0') != std::string_view::npos) {
@@ -130,6 +128,7 @@ namespace bpr::application {
 			const auto observation = Corpus.catalogue(aWork.Request.Scope, aStop);
 			output.Terminal.Status = observation.Status;
 			if (!observation.Corpus || observation.Corpus->Scope != aWork.Request.Scope) {
+				output.RetryAvailable = observation.Status == core::source_search_status::unavailable || observation.Status == core::source_search_status::failure;
 				return output;
 			}
 			const auto corpus = observation.Corpus;

@@ -9062,8 +9062,8 @@ namespace {
 namespace {
 	// [[BPR-1327]]. `--live-single-blob-ms=N --live-batch-ms=N` replace the
 	// stand-in round trips with measured ones.
-	constinit std::chrono::milliseconds LiveSingleBlob{ 20 };
-	constinit std::chrono::milliseconds LiveBatch{ 25 };
+	constinit std::chrono::milliseconds LiveSingleBlob{ 20 }; // NOLINT(bugprone-throwing-static-initialization): constinit forbids dynamic initialization; libc++ omits noexcept.
+	constinit std::chrono::milliseconds LiveBatch{ 25 }; // NOLINT(bugprone-throwing-static-initialization): constinit forbids dynamic initialization; libc++ omits noexcept.
 
 	void parse_live_latencies(const int aCount, char** aArguments)
 	{

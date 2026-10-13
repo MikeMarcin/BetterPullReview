@@ -239,6 +239,13 @@ namespace {
 		source_pr_search_execution bounded{ fixture, limits };
 		const auto                 refused = bounded.execute(work, { });
 		search_expect(refused.Terminal.Status == core::source_search_status::resource_limit, "matcher resource refusal stays distinct");
+		corpus_fixture lines;
+		lines.add(lines.add_side("a", "needle\rneedle", 0U), lines.add_side("a", "needle", 1U));
+		core::source_match_limits lineLimits;
+		lineLimits.MaximumLines = 1U;
+		source_pr_search_execution lineBounded{ lines, lineLimits };
+		const auto                 qualified = lineBounded.execute(lines.work(), { });
+		search_expect(qualified.Terminal.Status == core::source_search_status::partial && qualified.Terminal.Summary.Matches == 1U && qualified.Terminal.Summary.SkippedSides == 1U && qualified.Skipped->at(0U).Reason == diff_blob_status::materialization_limit, "CR-only line ceiling qualifies one side and preserves searchable opposite side");
 	}
 }
 int main()
