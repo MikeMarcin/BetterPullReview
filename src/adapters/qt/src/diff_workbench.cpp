@@ -421,6 +421,33 @@ namespace bpr::qt {
 			QString Size;
 		};
 
+		/// \brief Keep native transient feedback on the axis that actually moved.
+		class source_horizontal_scroll_bar final : public QScrollBar
+		{
+		public:
+			explicit source_horizontal_scroll_bar(QWidget* const aParent)
+				: QScrollBar{ Qt::Horizontal, aParent }
+			{
+			}
+			void set_scroll_direction(const bool aHorizontal) { HorizontalScroll = aHorizontal; }
+
+		protected:
+			void initStyleOption(QStyleOptionSlider* const aOption) const override
+			{
+				QScrollBar::initStyleOption(aOption);
+				// QAbstractScrollArea flashes both bars after either value changes.
+				// The hidden vertical bar positions source rows; it must not wake
+				// the horizontal overlay. Native hover/drag/focus still owns feedback.
+				if (!HorizontalScroll && !aOption->state.testFlag(QStyle::State_MouseOver)
+					&& !aOption->state.testFlag(QStyle::State_Sunken) && !hasFocus()) {
+					aOption->state &= ~QStyle::State_On;
+				}
+			}
+
+		private:
+			bool HorizontalScroll = true;
+		};
+
 		/// \brief Reserves the gutter each pane numbers its own lines in.
 		///
 		/// \details `code_gutter_background` and `code_line_number_text` have been
@@ -875,6 +902,9 @@ namespace bpr::qt {
 		protected:
 			void scrollContentsBy(const int aDx, const int aDy) override
 			{
+				if (aDx != 0 || aDy != 0) {
+					static_cast<source_horizontal_scroll_bar*>(horizontalScrollBar())->set_scroll_direction(aDx != 0);
+				}
 				if (aDy != 0 && !ApplyingPixelWheel) {
 					set_within_line_offset(0.0);
 				}
@@ -1447,6 +1477,7 @@ namespace bpr::qt {
 		source_pane::source_pane(QWidget* const aParent)
 			: QPlainTextEdit{ aParent }
 		{
+			setHorizontalScrollBar(new source_horizontal_scroll_bar{ this });
 			Gutter    = new gutter_area{ this };
 			AddButton = new add_button{ this };
 			// [[BPR-1335]]. The pointer in the "+" column over the code, not
