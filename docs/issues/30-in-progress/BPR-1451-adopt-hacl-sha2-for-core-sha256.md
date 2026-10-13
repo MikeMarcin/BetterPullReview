@@ -19,9 +19,8 @@ RFC: [RFC-BPR-0080](../../rfcs/RFC-BPR-0080-hashing-replacement.md), milestone
 
 Q2 answered **Accept** on 2026-10-13: HACL*'s generated SHA-2 joins core's
 approved libraries (`BetterPullReview::HaclSha2` in
-`cmake/VerifyCoreBoundary.cmake`). This card still depends on [[BPR-1446]]:
-the RFC's HACL* adopt rule needs W1 to W3 under the RFC's throughput
-conditions, including an idle machine, which BPR-1446's AC4 has not yet met.
+`cmake/VerifyCoreBoundary.cmake`). The owner waived the idle-machine
+condition for the macOS measurements the same day; [[BPR-1446]] is done.
 
 ## Acceptance
 
@@ -36,3 +35,42 @@ conditions, including an idle machine, which BPR-1446's AC4 has not yet met.
 - **AC4 (RFC AC07):** Packaging as for any adopted library (provenance,
   licence, `dependencies.json`, notices, SPDX, corresponding source, offline
   configure, macOS package audit).
+
+## Built and verified (macOS arm64, 2026-10-13)
+
+Implementation `9a7235228` on main `94fcc9e5b`.
+
+**Library.** [`BprHaclSha2Provider.cmake`](../../../cmake/BprHaclSha2Provider.cmake)
+acquires HACL* `504c2987` (archive SHA-256 `e32f7add…c52c`, 10,228,408 bytes;
+`dist/LICENSE.txt` digest checked; offline honoured; only `dist/` re-extracted)
+and builds `better_pull_review_hacl_sha2` / `BetterPullReview::HaclSha2` from
+`Hacl_Hash_SHA2.c` (`gcc-compatible`, `msvc-compatible` under MSVC). Core links
+it privately. `src/core/src/sha256.cpp` is deleted; `sha256_hacl.cpp`
+implements the unchanged `bpr/core/sha256.hpp` API through
+`Hacl_Hash_SHA2_sha256_init`, `_update_nblocks` (at most 1 GiB per call),
+`_update_last` and `_finish`: eight state words, one block, a byte count, no
+allocation, `noexcept`. No HACL* header reaches core's public headers.
+`architecture_boundaries` keeps `Hacl_` symbols and the SHA-256 constants to
+that file; its contract test covers the rule. `third_party/hacl-star` holds
+the MIT `dist` licence and provenance (the top-level Apache-2.0 licence covers
+only the F* sources, none compiled).
+
+**Checks.** 144 digest-using rows pass, including every `core_*` row,
+`application_feedback_counter_costs`, the epoch host, review cycle and
+review-mutation rows, every `sqlite_*` row, `workspace_source`,
+`github_mutation_contract` and `github_publication_contract`, plus
+`application_review_round_trip_composition_contract` (no sealed file changed),
+the tour CLI ordinary rows and `application_release_maintenance`. Rows that pin
+stored digests pass unchanged: `core_sha256` (22 digests), `core_git_objects`,
+`core_review_cycle_retrieval`, `_round`, `_material`, `_bundle`,
+`sqlite_review_mutation_recovery_storage`,
+`sqlite_epoch_catalog_storage_contract`, `github_mutation_contract`,
+`review_cycle_capture`, `review_cycle_candidate`,
+`application_writing_delivery`. Contracts: `core_dependency_boundary`,
+`core_boundary_contract`, `architecture_boundaries`,
+`architecture_boundary_contract`, `dependency_modernization_contract` (offline
+configure), `package_runtime_contract`, `release_security_audit_contract`,
+`binary_dependency_audit_contract`, the three `hash_evaluation_*` rows. The
+evaluation driver (correctness, Git in both formats, `main` as SHA-256) reports
+zero mismatches. `core-only` configures and builds; format and changed-line
+clang-tidy are clean. MSVC (`/sdl` on the generated C) is untested here.
