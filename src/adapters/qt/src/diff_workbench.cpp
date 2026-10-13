@@ -3151,7 +3151,7 @@ namespace bpr::qt {
 			anchor = next;
 		}
 		const auto row     = pane(aPane)->line_row_rect(next);
-		const auto visible = aPane->viewport()->mask().boundingRect();
+		const auto visible = aPane->viewport()->visibleRegion().boundingRect();
 		if (!select_line(side, next, true)) {
 			return false;
 		}
@@ -3227,7 +3227,7 @@ namespace bpr::qt {
 			anchor = next;
 		}
 		const auto  row      = pane(Unified)->line_row_rect(next);
-		const auto  visible  = Unified->viewport()->mask().boundingRect();
+		const auto  visible  = Unified->viewport()->visibleRegion().boundingRect();
 		const auto& identity = rows[next];
 		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
 			return false;
@@ -3260,8 +3260,8 @@ namespace bpr::qt {
 
 	void diff_workbench::reveal_keyboard_row(QPlainTextEdit* const aPane, const QRect& aRow, const QRect& aVisible)
 	{
-		// The mask is the fixed content area; visibleRegion may briefly shrink
-		// during layout. Keep the geometry from before selection projection.
+		// Capture the displayed content area before selection projection can
+		// change layout. The overscan mask can retain an older, shorter extent.
 		const auto& row     = aRow;
 		const auto& visible = aVisible;
 		if (row.isEmpty() || visible.isEmpty()) {

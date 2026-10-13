@@ -2223,6 +2223,9 @@ namespace {
 				for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 					auto workbench = qt::diff_workbench{ };
 					workbench.resize(1'000, 520);
+					auto profile = qt::appearance_profile{ };
+					workbench.adopt_appearance(profile);
+					profile.apply_comparison_code_font_to(workbench);
 					workbench.show();
 					const auto request = context(diff, 175U, 175U);
 					workbench.set_loading(request);
@@ -2232,6 +2235,12 @@ namespace {
 					settle_geometry(workbench);
 					auto* const editor = unified ? workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : side == core::diff_side::left ? workbench.left_pane()
 																																							 : workbench.right_pane();
+					// Exercise a bottom edge one pixel beyond a whole number of rows.
+					// Both a clipped target and a fully visible bottom row must be tested.
+					const auto rowHeight      = workbench.line_rect(side, 60U).height();
+					const auto viewportHeight = editor->viewport()->mask().boundingRect().height();
+					workbench.resize(workbench.width(), workbench.height() + (rowHeight - viewportHeight % rowHeight) % rowHeight + 1);
+					settle_geometry(workbench);
 					expect(workbench.reveal_conversation_line(side, 60U), "minimal keyboard reveal starts at a known source line");
 					settle_geometry(workbench);
 					expect(send_wheel(*editor->viewport(), QPoint{ 0, -5 }), "minimal reveal starts from a fractional origin");
@@ -2240,7 +2249,8 @@ namespace {
 						const auto area = editor->viewport()->visibleRegion().boundingRect();
 						return QRect{ editor->viewport()->mapTo(&workbench, area.topLeft()), area.size() };
 					};
-					for (auto step = 0; step < 45; ++step) {
+					auto reveals = 0;
+					for (auto step = 0; step < 90; ++step) {
 						const auto next    = workbench.selection()->PreferredLine.Line + 1U;
 						const auto before  = workbench.line_rect(side, next);
 						const auto clipped = before.bottom() > visible().bottom();
@@ -2248,26 +2258,36 @@ namespace {
 						QCoreApplication::sendEvent(editor, &key);
 						process_events();
 						const auto after = workbench.line_rect(side, next);
+						expect(workbench.selection()->PreferredLine.Line == next, "each arrow navigates exactly one source line");
 						expect(after.top() >= visible().top() && after.bottom() <= visible().bottom(), "Down fully reveals even a partially clipped source row");
 						if (clipped) {
-
-							expect(visible().bottom() - after.bottom() < after.height() + 1 && before.top() - after.top() <= 2 * after.height(),
+							++reveals;
+							expect(visible().bottom() - after.bottom() < after.height() && before.top() - after.top() <= 2 * after.height(),
 								   "Down reveals at the lower edge with at most the boundary-alignment remainder, never at the center or top");
+						} else {
+							expect(after == before, "Down leaves a fully visible target at its existing position");
 						}
 					}
-					for (auto step = 0; step < 45; ++step) {
+					expect(reveals > 10, "minimum-reveal course exercises the lower clipped-row branch");
+					reveals = 0;
+					for (auto step = 0; step < 90; ++step) {
 						const auto next    = workbench.selection()->PreferredLine.Line - 1U;
 						const auto before  = workbench.line_rect(side, next);
 						const auto clipped = before.top() < visible().top();
 						send_key(*editor, Qt::Key_Up);
 						process_events();
 						const auto after = workbench.line_rect(side, next);
+						expect(workbench.selection()->PreferredLine.Line == next, "each arrow navigates exactly one source line");
 						expect(after.top() >= visible().top() && after.bottom() <= visible().bottom(), "Up fully reveals the selected source row");
 						if (clipped) {
-							expect(after.top() - visible().top() < after.height() + 1 && after.top() - before.top() <= 2 * after.height(),
+							++reveals;
+							expect(after.top() - visible().top() < after.height() && after.top() - before.top() <= 2 * after.height(),
 								   "Up reveals at the upper edge without centering");
+						} else {
+							expect(after == before, "Up leaves a fully visible target at its existing position");
 						}
 					}
+					expect(reveals > 10, "minimum-reveal course exercises the upper clipped-row branch");
 				}
 			}
 		}
