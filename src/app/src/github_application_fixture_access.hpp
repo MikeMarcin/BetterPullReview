@@ -906,6 +906,9 @@ namespace bpr::app::detail {
 		/// On GitHub's acceptance each draft was marked published, and the
 		/// review bar's chip went.
 		bool MarkedPublished = false;
+		/// [[BPR-1472]]. Home, then the pull request's Recently viewed row,
+		/// read it again: the window had published over its shown read.
+		bool ReopenedFresh = false;
 		// `refused`.
 		/// A refused review left its draft pending, with its text.
 		bool RefusedKept = false;
