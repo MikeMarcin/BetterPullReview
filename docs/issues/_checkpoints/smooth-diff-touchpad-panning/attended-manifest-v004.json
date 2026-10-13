@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-1413-AC08-v004",
+      "title": "Keep the keyboard reveal flush with the source edge?",
+      "revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417 / executable 9245818af6c3d45a5bd9f382263b8cd1239b248e5b3ad4617fa603d142de6a1f",
+      "criteria": [
+        "After Down scrolls, is the bottom of the selected row flush with the bottom of the source view?"
+      ],
+      "content": "Launch the frozen build below. Select a source line around lines 500\u2013600 and use Down or hold Down until navigation scrolls. The selected row should meet the bottom edge directly above the horizontal scrollbar, with no extra row or gap below it. Continue Down and Shift-Down: each scrolling step should move exactly one row. An already fully visible target should stay put. Try Up at the top edge and split/unified view as part of this same edge-reveal judgment. The top of the viewport may retain a partial row so the selected row fits the bottom exactly. Accept to keep this reveal, or Reject and describe the change in the note. After saving, use Finish and hand back.",
+      "paths": [
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "tests/adapters_qt/diff_workbench_tests.cpp"
+      ],
+      "resources": [
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v004.5_4cr5ir"
+      ],
+      "resource_versions": {
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v004.5_4cr5ir": "sha256:9245818af6c3d45a5bd9f382263b8cd1239b248e5b3ad4617fa603d142de6a1f"
+      },
+      "launch": {
+        "label": "Launch the frozen keyboard comparison",
+        "command": "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v004.5_4cr5ir/launch.py"
+      },
+      "metadata": {
+        "rfc": "RFC-BPR-0073",
+        "criterion": "AC08",
+        "source_revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+        "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v004.5_4cr5ir",
+        "freeze_check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832",
+        "owner_amendment": "v003 decision8751a593-c7dc-45cd-a5a1-92a32375a048 supersedes top-source-line-boundary rounding for reveals; AC07 accepted on v002 and unchanged."
+      }
+    }
+  ]
+}
