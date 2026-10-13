@@ -121,17 +121,17 @@ dispatch. Keyboard scrolling, shared-bar actions and programmatic reveals
 continue through their current authority.
 
 The owner's follow-up on 2026-10-12 explicitly keeps Up/Down keyboard
-navigation line-by-line. A keyboard action that actually scrolls a
-fractionally positioned view finishes on a line boundary; subsequent
-Up/Down steps retain discrete line behavior. A keypress that only moves the
+navigation line-by-line. A keyboard reveal scrolls a clipped selected row flush with the nearest
+displayed edge; subsequent Up/Down reveals move in discrete one-row steps.
+The edge-flush destination may retain a within-line origin, as amended below. A keypress that only moves the
 line cursor or extends an in-view selection does not realign the viewport.
 This applies in both source presentations, including key repeat and
-keyboard-triggered reveals. In split view the boundary belongs to the pane
+keyboard-triggered reveals. In split view the reveal edge belongs to the pane
 receiving the key; obtain the corresponding shared comparison position and
 project the other pane normally. Unequal replacements must not make the
 other pane an independently rounded follower. Page scrolling retains its
 page-sized movement with a boundary-aligned destination, and Home/End retain
-their exact endpoints. Touchpad input resumes smoothly from the aligned
+their exact endpoints. Touchpad input resumes smoothly from the applied
 position without restoring an earlier fractional residual.
 
 Keep [BPR-1291's range and scroll-past-end behavior](../issues/60-done/BPR-1291-the-shared-diff-scroll-bar-moves-while-the-panes-stand-still-and-there-is-no-scroll-past-end.md):
@@ -185,12 +185,42 @@ In session `c595e5c955c2cd527f9f4a351d3ab175`, the owner accepted AC07
 touchpad behavior (decision `0a0ba98a-3e76-4cb8-b404-fb0196dbd48c`) and
 rejected AC08 keyboard reveal (decision `02e54a5d-56d8-439a-b158-ed1bf27b9c9b`):
 the highlighted line should have been the bottom line. The accepted adaptive
-axis implementation is retained. A rendered reproduction found keyboard reveal
-scrolling a fully visible target upward by one row because the overscan mask
-was shorter than the displayed content area. Reveal now captures the displayed
-area before selection projection. Fully visible targets stay put; clipped
-targets keep the existing nearest-edge, line-aligned destination. The fresh
-review asks only for the remaining keyboard judgment.
+axis implementation is retained. Candidate v003 diagnosed the mask as shorter than the displayed content and
+used `visibleRegion()` before selection projection. Its agent checks passed,
+but the owner rejected it. The subsequent diagnostic below falsifies that
+region-only interpretation; historical v003 evidence is retained as such.
+
+## Owner amendment after candidate v003
+
+The owner rejected candidate `BPR-1413-AC08-v003` in session
+`12930e4afcde5660e890f36745df8f70`, decision
+`8751a593-c7dc-45cd-a5a1-92a32375a048`, with before/after screenshots:
+“The bottom of the selected row should be flush with the bottom of the view area.”
+The chat explicitly handed this correction back for implementation. The durable
+verdict was consumed at cursor 4 even though the session hand-back field was null.
+
+A direct diagnostic also found `visibleRegion()` includes overscan behind the
+horizontal scrollbar. Reveal must intersect the native viewport mask and use
+the actual source edge. Tests independently check that bottom against the
+native horizontal scrollbar.
+
+This replaces the prior requirement to round every keyboard reveal to a top
+source-line boundary. When the viewport height is not an integer number of rows,
+that rounding leaves unwanted space below the selected row. A clipped target
+must instead meet the actual displayed bottom (or top when moving upward), within
+one device pixel. Fully visible targets stay put. Consecutive arrows still
+advance exactly one source line and, once revealing at an edge, scroll one row
+per step; Shift and repeat retain their behavior. The receiving pane obtains
+that exact origin through the shared comparison authority, and the other pane
+projects normally through unequal replacements. Unified view uses its existing
+native row authority. Page destinations remain line-aligned and Home/End retain
+exact endpoints. Subsequent touchpad input starts at the applied edge-flush
+origin. The accepted touchpad discriminator and its acceptance are retained.
+
+The adopted plan's discrete-navigation and receiving-presentation alignment exit
+is interpreted as edge alignment under this explicit amendment. Its scope,
+grouping and all other exits are unchanged; imported draft bytes and historical
+evidence remain intact.
 
 ## Acceptance criteria
 
@@ -226,18 +256,18 @@ review asks only for the remaining keyboard judgment.
   vertical reading position despite minor finger wobble?” Use Accept/Reject
   with a change note; no desktop driving or capture by the implementer.
 - **AC08:** From a fractional origin, Up and Down still navigate one source
-  line per step and retain Shift selection behavior. Whenever keyboard input
-  moves the viewport, the receiving source presentation ends on a line
-  boundary, including repeated arrows, page keys and keyboard reveals;
-  an in-view cursor/selection move leaves the fractional origin unchanged.
-  Subsequent touchpad movement starts at that aligned origin. Verify split
+  line per step and retain Shift selection behavior. Keyboard reveals place a clipped selected row flush with the actual nearest
+  displayed edge within one device pixel, retaining discrete one-row subsequent
+  steps, repeat and Shift selection. An in-view cursor/selection move leaves the
+  fractional origin unchanged. Page destinations remain line-aligned and Home/End
+  retain exact endpoints. Subsequent touchpad movement starts at the applied origin. Verify split
   and unified views, including an unequal replacement in split view.
 
 No material product choice remains open. Exact filtering constants and the
 native-control technique remain implementation decisions. The owner's v002
-touchpad acceptance is retained; the revised minimum keyboard reveal still
+touchpad acceptance is retained; the revised edge-flush keyboard reveal still
 requires its separate attended judgment.
 
 ## Adoption and execution
 
-Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002; BPR-1413 remains open only for the separate minimum keyboard reveal judgment on v003. No human acceptance is inferred from automated checks or the scoped diagnostic.
+Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002; BPR-1413 remains open only for the separate edge-flush keyboard reveal judgment on v004. No human acceptance is inferred from automated checks or the scoped diagnostic.

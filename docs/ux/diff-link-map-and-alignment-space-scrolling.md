@@ -98,12 +98,12 @@ The scrollbar must reach all content on both sides. When one document ends earli
   scrollbar clamps. Discarded motion never reappears later. Small vertical-only
   input, diagonal panning and deliberate reorientation remain responsive.
 - Up/Down move the source-line cursor one line at a time; Shift extends selection.
-  In-view cursor moves retain fractional placement. Keyboard scrolling aligns the
-  receiving source pane to a line boundary through its existing authority, with
-  a clipped target fully visible at the nearest displayed edge. A fully visible
+  In-view cursor moves retain fractional placement. Keyboard reveals place a
+  clipped selected row flush with the nearest displayed edge through the existing
+  authority, within one device pixel; subsequent reveals scroll one row per step. A fully visible
   target stays put, including at the bottom edge. Page Up/Down retain page-sized
-  movement and Home/End retain exact endpoints. Touchpad motion resumes
-  smoothly from that boundary. See [RFC-BPR-0073](../rfcs/RFC-BPR-0073-smooth-diff-touchpad-panning.md).
+  movement and line-aligned destinations; Home/End retain exact endpoints.
+  Touchpad motion resumes smoothly from the applied origin. See [RFC-BPR-0073](../rfcs/RFC-BPR-0073-smooth-diff-touchpad-panning.md).
 - Traditional wheel notches use platform scroll settings.
 - Natural-scroll inversion follows Qt/platform semantics.
 - Page Up, Page Down, Home, End, and scrollbar drag use the same comparison controller.

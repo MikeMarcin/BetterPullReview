@@ -534,11 +534,12 @@ banking it; small intentional vertical motion, diagonal motion and deliberate
 reorientation remain available. Forwarding preserves device identity and phases.
 
 Up/Down remain source-line cursor navigation, including Shift selection. An
-in-view cursor move preserves the fractional origin. A keyboard action that
-actually moves the viewport aligns the receiving pane to a source-line boundary
-through the shared controller; the other pane retains its normal projection.
-Page destinations align, Home/End keep their exact endpoints, and subsequent
-pixel input starts from that aligned origin. The amendment's acceptance is tracked
+in-view cursor move preserves the fractional origin. Under RFC-BPR-0073's v003 owner amendment,
+a keyboard reveal places a clipped selected row flush with the nearest displayed
+edge through the shared controller; the other pane retains its normal projection.
+This may retain a fractional top origin; consecutive reveals still scroll one
+source row per arrow. Page destinations align to source-line boundaries, Home/End
+keep their exact endpoints, and subsequent pixel input starts from the applied origin. The amendment's acceptance is tracked
 by RFC-BPR-0073 without replacing this RFC's historical verification.
 
 Copying `verticalScrollBar()->value()` between panes is nonconforming.

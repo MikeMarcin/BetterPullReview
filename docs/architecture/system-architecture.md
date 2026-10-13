@@ -1230,9 +1230,10 @@ pixel-gesture state suppresses perpendicular drift on the predominant axis befor
 scrollbar clamping. Recent directional evidence can release or change that
 preference; discarded motion is never banked, and momentum retains the established
 axis. Phase/device/idle and comparison resets clear context. Keyboard reveals
-fully expose a clipped row at the nearest edge and align the receiving source
-boundary through its existing authority. In-view cursor navigation retains
-fractional placement.
+place a clipped row flush with the nearest displayed edge within one device
+pixel through the receiving pane's existing authority. Subsequent reveals scroll
+one source row per arrow; the flush origin may retain a fraction. Page destinations
+remain line-aligned. In-view cursor navigation retains fractional placement.
 The center map is the sole wide `QSplitterHandle`: it retains ordered changed
 interval geometry, derives cached visible paths from both pane origins, rejects
 frames for a different comparison digest, and resolves pointer hits back to

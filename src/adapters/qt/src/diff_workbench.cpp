@@ -3151,7 +3151,7 @@ namespace bpr::qt {
 			anchor = next;
 		}
 		const auto row     = pane(aPane)->line_row_rect(next);
-		const auto visible = aPane->viewport()->visibleRegion().boundingRect();
+		const auto visible = aPane->viewport()->visibleRegion().intersected(aPane->viewport()->mask()).boundingRect();
 		if (!select_line(side, next, true)) {
 			return false;
 		}
@@ -3227,7 +3227,7 @@ namespace bpr::qt {
 			anchor = next;
 		}
 		const auto  row      = pane(Unified)->line_row_rect(next);
-		const auto  visible  = Unified->viewport()->visibleRegion().boundingRect();
+		const auto  visible  = Unified->viewport()->visibleRegion().intersected(Unified->viewport()->mask()).boundingRect();
 		const auto& identity = rows[next];
 		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
 			return false;
@@ -3260,8 +3260,9 @@ namespace bpr::qt {
 
 	void diff_workbench::reveal_keyboard_row(QPlainTextEdit* const aPane, const QRect& aRow, const QRect& aVisible)
 	{
-		// Capture the displayed content area before selection projection can
-		// change layout. The overscan mask can retain an older, shorter extent.
+		// The caller captures the displayed content before selection changes it.
+		// visibleRegion alone includes overscan behind the native scrollbar;
+		// intersect the viewport mask so reveal uses the actual source edge.
 		const auto& row     = aRow;
 		const auto& visible = aVisible;
 		if (row.isEmpty() || visible.isEmpty()) {
@@ -3273,9 +3274,16 @@ namespace bpr::qt {
 			return;
 		}
 		if (aPane == Unified) {
-			const auto height = pane(aPane)->line_row_rect(0U).height();
-			const auto wanted = aPane->verticalScrollBar()->value() + (pane(aPane)->within_line_position() + delta) / height;
-			reveal_unified_row(static_cast<std::uint32_t>(std::max(0, delta > 0 ? qCeil(wanted) : qFloor(wanted))));
+			auto* const vertical = aPane->verticalScrollBar();
+			const auto  height   = pane(aPane)->line_row_rect(0U).height();
+			const auto  wanted   = std::clamp(vertical->value() * height + pane(aPane)->within_line_position() + delta, 0.0, static_cast<qreal>(vertical->maximum() * height));
+			const auto  line     = static_cast<int>(std::floor(wanted / height));
+			vertical->setValue(line);
+			pane(aPane)->set_within_line_offset(wanted - line * height);
+			update_unified_paint();
+			if (FrameObserver) {
+				FrameObserver();
+			}
 			return;
 		}
 		const auto* const axis  = AxisCache.axis();
@@ -3285,23 +3293,9 @@ namespace bpr::qt {
 		}
 		const auto side    = aPane == Left ? core::diff_side::left : core::diff_side::right;
 		const auto current = measured_document_origin(*pane(aPane), *axis, side, side == core::diff_side::left ? frame->Left.DocumentOriginY : frame->Right.DocumentOriginY);
-		const auto wanted  = current + delta;
-		auto       line    = axis->top_line_for_origin(side, wanted);
-		const auto origin  = [axis, side](const std::size_t aLine) {
-			return aLine == 0U ? std::optional<qreal>{ 0.0 } : side == core::diff_side::left ? axis->left_line_origin(aLine)
-																							 : axis->right_line_origin(aLine);
-		};
-		auto aligned = origin(line);
-		// At the lower edge round forward: flooring would leave the target
-		// clipped. The other pane remains a normal shared-axis projection.
-		if (delta > 0 && aligned && *aligned < wanted - 0.001) {
-			aligned = origin(++line);
-		} else if (delta < 0 && line > 0U && aligned && *aligned > wanted + 0.001) {
-			aligned = origin(--line);
-		}
-		if (aligned) {
-			static_cast<void>(Controller->reveal_pane_origin(side, *aligned));
-		}
+		// Reveal exactly to the displayed edge. Rounding to a top-line
+		// boundary leaves slack below the selected row at most view heights.
+		static_cast<void>(Controller->reveal_pane_origin(side, current + delta));
 	}
 
 	/// \brief [[BPR-1212]]. Says the selected line or lines, once a move.

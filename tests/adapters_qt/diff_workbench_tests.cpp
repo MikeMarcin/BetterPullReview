@@ -2174,11 +2174,13 @@ namespace {
 				send_key(*editor, Qt::Key_Down);
 			}
 			process_events();
-			expect(workbench.selection()->PreferredLine.Line == 112U && editor->viewport()->mask().boundingRect().top() == 0,
-				   "repeated arrows that scroll finish at a source-line boundary");
+			const auto visibleBottom = editor->viewport()->mapTo(&workbench, editor->viewport()->visibleRegion().intersected(editor->viewport()->mask()).boundingRect().bottomLeft()).y();
+			expect(workbench.selection()->PreferredLine.Line == 112U && workbench.line_rect(core::diff_side::right, 112U).bottom() == visibleBottom,
+				   "repeated arrows that scroll keep the selected row flush with the displayed bottom");
+			const auto keyboardRow = workbench.line_rect(core::diff_side::right, 112U);
 			expect(send_wheel(*editor->viewport(), QPoint{ 0, -1 }), "touchpad resumes after keyboard scrolling");
 			process_events();
-			expect(editor->viewport()->mask().boundingRect().top() == 1, "touchpad resumes from the aligned origin without restoring an old residual");
+			expect(workbench.line_rect(core::diff_side::right, 112U).top() == keyboardRow.top() - 1, "touchpad resumes from the applied flush origin without restoring an old residual");
 			send_key(*editor, Qt::Key_PageDown);
 			process_events();
 			expect(editor->viewport()->mask().boundingRect().top() == 0, "page scrolling ends on a source-line boundary");
@@ -2246,15 +2248,20 @@ namespace {
 					expect(send_wheel(*editor->viewport(), QPoint{ 0, -5 }), "minimal reveal starts from a fractional origin");
 					process_events();
 					const auto visible = [&] {
-						const auto area = editor->viewport()->visibleRegion().boundingRect();
-						return QRect{ editor->viewport()->mapTo(&workbench, area.topLeft()), area.size() };
+						const auto area      = editor->viewport()->visibleRegion().intersected(editor->viewport()->mask()).boundingRect();
+						const auto displayed = QRect{ editor->viewport()->mapTo(&workbench, area.topLeft()), area.size() };
+						expect(editor->horizontalScrollBar()->isVisible() && displayed.bottom() == editor->horizontalScrollBar()->mapTo(&workbench, QPoint{ }).y() - 1,
+							   "actual source bottom meets the native horizontal scrollbar, excluding overscan");
+						return displayed;
 					};
-					auto reveals = 0;
+					const auto tolerance      = 1.0 / editor->devicePixelRatioF();
+					auto       reveals        = 0;
+					auto       previousReveal = false;
 					for (auto step = 0; step < 90; ++step) {
 						const auto next    = workbench.selection()->PreferredLine.Line + 1U;
 						const auto before  = workbench.line_rect(side, next);
 						const auto clipped = before.bottom() > visible().bottom();
-						auto       key     = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, step % 2 == 0 ? Qt::ShiftModifier : Qt::NoModifier };
+						auto       key     = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, step % 2 == 0 ? Qt::ShiftModifier : Qt::NoModifier, QString{ }, step > 0, 1 };
 						QCoreApplication::sendEvent(editor, &key);
 						process_events();
 						const auto after = workbench.line_rect(side, next);
@@ -2262,27 +2269,36 @@ namespace {
 						expect(after.top() >= visible().top() && after.bottom() <= visible().bottom(), "Down fully reveals even a partially clipped source row");
 						if (clipped) {
 							++reveals;
-							expect(visible().bottom() - after.bottom() < after.height() && before.top() - after.top() <= 2 * after.height(),
-								   "Down reveals at the lower edge with at most the boundary-alignment remainder, never at the center or top");
+							expect(std::abs(visible().bottom() - after.bottom()) <= tolerance,
+								   "Down places the selected row bottom flush with the actual visible bottom within one device pixel");
+							if (previousReveal) {
+								expect(std::abs(before.top() - after.top() - after.height()) <= tolerance,
+									   "consecutive Down reveals scroll exactly one source row");
+							}
 						} else {
 							expect(after == before, "Down leaves a fully visible target at its existing position");
 						}
+						previousReveal = clipped;
 					}
 					expect(reveals > 10, "minimum-reveal course exercises the lower clipped-row branch");
+					if (!unified) {
+						expect(check_ribbons(workbench, diff).Mismatched == 0U, "edge-flush keyboard reveal preserves shared-axis ribbon geometry");
+					}
 					reveals = 0;
 					for (auto step = 0; step < 90; ++step) {
 						const auto next    = workbench.selection()->PreferredLine.Line - 1U;
 						const auto before  = workbench.line_rect(side, next);
 						const auto clipped = before.top() < visible().top();
-						send_key(*editor, Qt::Key_Up);
+						auto       key     = QKeyEvent{ QEvent::KeyPress, Qt::Key_Up, step % 2 == 0 ? Qt::ShiftModifier : Qt::NoModifier, QString{ }, step > 0, 1 };
+						QCoreApplication::sendEvent(editor, &key);
 						process_events();
 						const auto after = workbench.line_rect(side, next);
 						expect(workbench.selection()->PreferredLine.Line == next, "each arrow navigates exactly one source line");
 						expect(after.top() >= visible().top() && after.bottom() <= visible().bottom(), "Up fully reveals the selected source row");
 						if (clipped) {
 							++reveals;
-							expect(after.top() - visible().top() < after.height() && after.top() - before.top() <= 2 * after.height(),
-								   "Up reveals at the upper edge without centering");
+							expect(std::abs(after.top() - visible().top()) <= tolerance,
+								   "Up places the selected row top flush with the actual visible top within one device pixel");
 						} else {
 							expect(after == before, "Up leaves a fully visible target at its existing position");
 						}
@@ -2310,7 +2326,7 @@ namespace {
 		expect(measurements.has_value(), "native fractional course measures its source boundaries");
 		expect(controller->reveal_pane_origin(core::diff_side::right, measurements->Boundaries[60U] + 5.0), "native fractional course starts inside a known row");
 		settle_geometry(workbench);
-		const auto row      = static_cast<std::uint32_t>(editor->cursorForPosition(editor->viewport()->visibleRegion().boundingRect().topLeft()).blockNumber());
+		const auto row      = static_cast<std::uint32_t>(editor->cursorForPosition(editor->viewport()->visibleRegion().intersected(editor->viewport()->mask()).boundingRect().topLeft()).blockNumber());
 		const auto before   = workbench.line_rect(core::diff_side::right, row);
 		const auto bar      = editor->verticalScrollBar()->value();
 		const auto rebuilds = workbench.statistics().GeometryRebuilds;
@@ -2324,7 +2340,7 @@ namespace {
 		expect(ribbons.Checked > 0U && ribbons.Mismatched == 0U, "fractional ribbons meet the actual native source boundaries");
 		expect(editor->verticalScrollBar()->value() == bar, "sub-line placement retains the containing native row");
 		expect(workbench.statistics().GeometryRebuilds == rebuilds, "fractional placement does not rebuild measured geometry");
-		const auto point = editor->viewport()->visibleRegion().boundingRect().topLeft() + QPoint{ 40, 1 };
+		const auto point = editor->viewport()->visibleRegion().intersected(editor->viewport()->mask()).boundingRect().topLeft() + QPoint{ 40, 1 };
 		const auto hit   = editor->cursorForPosition(point).blockNumber();
 		send_click(*editor->viewport(), point);
 		expect(workbench.selection() && workbench.selection()->PreferredLine.Line == static_cast<std::uint32_t>(hit), "native hit testing and composed source selection share the clipped viewport");
