@@ -11,6 +11,7 @@
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/profile_epoch_actor_registry.hpp"
+#include "bpr/application/source_corpus_port.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/agent_session.hpp"
 #include "bpr/core/epoch_transition.hpp"
@@ -36,7 +37,8 @@ namespace bpr::application {
 		  public cached_review_source_port,
 		  public diff_blob_port,
 		  public workbench_selected_diff_port,
-		  public agent_workspace_port
+		  public agent_workspace_port,
+		  public source_corpus_port
 	{
 	public:
 		// Semantic ingress and state/quiescence inspection are confined to the
@@ -178,7 +180,14 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_github_base_numbering(
 			github_base_numbering_request    aRequest,
 			github_base_numbering_completion aCompletion) -> bool;
-		void shutdown();
+		/// \brief Mints one exact search scope beside the selected-file grant, including older pairs.
+		[[nodiscard]] auto bind_source_search(const workbench_pull_request_authority& aAuthority, const core::comparison_pair& aComparison, std::optional<core::document_tab_id> aTab = { }) -> std::optional<core::source_search_scope>;
+		[[nodiscard]] auto catalogue(const core::source_search_scope& aScope, std::stop_token aStop) -> source_corpus_observation override;
+		[[nodiscard]] auto read(const std::shared_ptr<const source_corpus>& aCorpus, std::size_t aEntry, core::diff_side aSide, std::stop_token aStop, source_corpus_read_needed aStillNeeded) -> source_corpus_material override;
+		void               demand_changed() override;
+		void               yield_to_source_navigation() override;
+		[[nodiscard]] auto scan_stop_token(const core::source_search_scope& aScope) -> std::stop_token override;
+		void               shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::epoch_state&;
 		[[nodiscard]] auto is_closing() const noexcept -> bool;

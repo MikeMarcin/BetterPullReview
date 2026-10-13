@@ -1,6 +1,7 @@
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/application/source_pr_search_execution.hpp"
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/sha1.hpp"
@@ -324,18 +325,21 @@ namespace {
 						  RecoveryAbortRequests;
 		std::vector<bool> RecoveryAbortStopRequested;
 		std::vector<application::git_operation_recovery_request>
-																RecoveryCompletionRequests;
-		std::vector<application::git_cache_open_request>        CacheOpenRequests;
-		std::function<void()>                                   DuringCacheDestruction;
-		std::vector<application::git_cache_blob_request>        BlobRequests;
-		std::optional<std::vector<std::uint8_t>>                CachedBlobOverride;
-		bool                                                    CachedBlobMissing          = false;
-		bool                                                    SparseObjects              = false;
-		bool                                                    SparseTreeMismatch         = false;
-		bool                                                    SparseCatalogMarkerMissing = false;
-		bool                                                    SupportsSparse             = false;
-		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
-		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
+																	RecoveryCompletionRequests;
+		std::vector<application::git_cache_open_request>            CacheOpenRequests;
+		std::function<void()>                                       DuringCacheDestruction;
+		std::vector<application::git_cache_blob_request>            BlobRequests;
+		std::vector<application::git_cache_changed_entries_request> CatalogueRequests;
+		std::vector<application::git_cache_changed_entry>           CatalogueEntries;
+		std::optional<application::git_cache_failure>               CatalogueFailure;
+		std::optional<std::vector<std::uint8_t>>                    CachedBlobOverride;
+		bool                                                        CachedBlobMissing          = false;
+		bool                                                        SparseObjects              = false;
+		bool                                                        SparseTreeMismatch         = false;
+		bool                                                        SparseCatalogMarkerMissing = false;
+		bool                                                        SupportsSparse             = false;
+		std::vector<application::git_smart_exact_blob_request>      ExactBlobRequests;
+		std::optional<application::git_smart_transport_failure>     ExactBlobFailure;
 		/// [[BPR-1327]]. Batched reads, what a batch answers, and the
 		/// simulated round trips of the single and batched reads.
 		std::vector<application::git_smart_exact_blobs_request> ExactBlobBatches;
@@ -1811,6 +1815,18 @@ namespace {
 				return std::unexpected{ application::git_cache_failure::object_mismatch };
 			}
 			return State.CachedBlobOverride.value_or(std::vector<std::uint8_t>{ 'b', 'l', 'o', 'b', '\n' });
+		}
+
+		[[nodiscard]] auto changed_entries(const application::git_cache_changed_entries_request& aRequest, std::stop_token aStop) -> application::git_cache_result<std::vector<application::git_cache_changed_entry>> override
+		{
+			State.CatalogueRequests.push_back(aRequest);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (State.CatalogueFailure) {
+				return std::unexpected{ *State.CatalogueFailure };
+			}
+			return State.CatalogueEntries;
 		}
 
 		[[nodiscard]] auto find_blob_at_path(
@@ -5674,7 +5690,7 @@ namespace {
 		for (const auto* name : { "a", "b", "c" }) {
 			for (const auto* side : { "left ", "right " }) {
 				const auto text = std::string{ side } + name + "\n";
-				aValue.State.TreeEntryResults.push_back(sha1_blob(text));
+				aValue.State.TreeEntryResults.emplace_back(sha1_blob(text));
 				aValue.State.BatchContents.emplace_back(sha1_blob(text), text);
 			}
 		}
@@ -9046,8 +9062,8 @@ namespace {
 namespace {
 	// [[BPR-1327]]. `--live-single-blob-ms=N --live-batch-ms=N` replace the
 	// stand-in round trips with measured ones.
-	std::chrono::milliseconds LiveSingleBlob{ 20 };
-	std::chrono::milliseconds LiveBatch{ 25 };
+	constinit std::chrono::milliseconds LiveSingleBlob{ 20 };
+	constinit std::chrono::milliseconds LiveBatch{ 25 };
 
 	void parse_live_latencies(const int aCount, char** aArguments)
 	{
@@ -9066,11 +9082,148 @@ namespace {
 			}
 		}
 	}
+
+	void corpus_sparse_read_coalesces_replacement_and_yields_to_navigation()
+	{
+		fixture value;
+		establish_sparse_three_files(value);
+		value.State.TreeEntryResults.clear();
+		const auto selected = selected_diff_request_for(value);
+		const auto scope    = value.Host->bind_source_search(selected.WorkbenchAuthority, selected.Diff.Comparison);
+		expect(scope.has_value(), "sparse search scope minted without selected-file grant");
+		auto entry   = application::git_cache_changed_entry{ };
+		entry.Right  = application::git_cache_changed_side{ "unopened.cpp", sha1_blob("exact selected blob"), 0100644U };
+		entry.Change = 'A';
+		value.State.CatalogueEntries.push_back(std::move(entry));
+		auto catalogue = application::source_corpus_observation{ };
+		auto caller    = std::jthread{ [&] { catalogue = value.Host->catalogue(*scope, { }); } };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		caller.join();
+		expect(catalogue.Corpus && catalogue.Corpus->Entries.size() == 1U, "complete exact sparse catalogue available");
+		value.State.ExactBlobLatency             = std::chrono::milliseconds{ 100 };
+		value.State.ExactBlobLatencyObservesStop = true;
+		auto oldStop                             = std::stop_source{ };
+		auto first                               = application::source_corpus_material{ };
+		auto replacement                         = application::source_corpus_material{ };
+		caller                                   = std::jthread{ [&] { first = value.Host->read(catalogue.Corpus, 0U, core::diff_side::right, oldStop.get_token(), [] { return true; }); } };
+		value.Effects.wait_for_pending();
+		auto actor = std::jthread{ [&] { value.Effects.run_next(); } };
+		while (value.State.ExactBlobReadsInFlight.load() == 0U) {
+			std::this_thread::yield();
+		}
+		oldStop.request_stop();
+		caller.join();
+		expect(first.Status == application::diff_blob_status::cancelled, "old query returns its cancelled terminal while material remains needed");
+		caller = std::jthread{ [&] { replacement = value.Host->read(catalogue.Corpus, 0U, core::diff_side::right, { }, [] { return true; }); } };
+		actor.join();
+		caller.join();
+		expect(replacement.Status == application::diff_blob_status::available && value.State.ExactBlobRequests.size() == 1U && value.State.BlobRequests.size() == 1U, "replacement joins one immutable in-flight acquisition, independent of query generation");
+		expect(value.Host->outstanding_jobs() == 0U, "coalesced callers retire one actor job");
+		const auto nextScope = value.Host->bind_source_search(selected.WorkbenchAuthority, selected.Diff.Comparison, core::document_tab_id{ 2U });
+		caller               = std::jthread{ [&] { catalogue = value.Host->catalogue(*nextScope, { }); } };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		caller.join();
+		// Use a new exact blob, so the next read must reach the transport.
+		auto other                      = value.State.CatalogueEntries[0];
+		other.Right->Object             = sha1_blob("different unserved blob");
+		value.State.CatalogueEntries[0] = other;
+		const auto priorityScope        = value.Host->bind_source_search(selected.WorkbenchAuthority, selected.Diff.Comparison, core::document_tab_id{ 3U });
+		caller                          = std::jthread{ [&] { catalogue = value.Host->catalogue(*priorityScope, { }); } };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		caller.join();
+		caller = std::jthread{ [&] { first = value.Host->read(catalogue.Corpus, 0U, core::diff_side::right, { }, [] { return true; }); } };
+		value.Effects.wait_for_pending();
+		actor = std::jthread{ [&] { value.Effects.run_next(); } };
+		while (value.State.ExactBlobReadsInFlight.load() == 0U) {
+			std::this_thread::yield();
+		}
+		const auto scanStop = value.Host->scan_stop_token(*priorityScope);
+		value.Host->yield_to_source_navigation();
+		actor.join();
+		caller.join();
+		expect(first.Status == application::diff_blob_status::cancelled && first.Yielded && scanStop.stop_requested() && value.State.ExactBlobStopsObserved.load() == 1U, "pane Find/navigation priority stops a background network read and matching slice without invalidating exact scope");
+		value.State.CatalogueFailure = application::git_cache_failure::object_mismatch;
+		const auto unavailableScope  = value.Host->bind_source_search(selected.WorkbenchAuthority, selected.Diff.Comparison, core::document_tab_id{ 4U });
+		caller                       = std::jthread{ [&] { catalogue = value.Host->catalogue(*unavailableScope, { }); } };
+		value.Effects.wait_for_pending();
+		value.Effects.run_next();
+		caller.join();
+		expect(catalogue.Status == core::source_search_status::unavailable && !catalogue.Corpus, "missing retained trees are unavailable rather than empty or today's intersection");
+		value.Host->shutdown();
+		drain(value);
+		expect(value.Host->is_quiescent(), "all source calls and background actor jobs quiesce");
+	}
+
+	void exact_historical_corpus_uses_its_pair_and_host_path()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto historical = *value.Host->state().AcceptedComparison;
+		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+		drain(value);
+		const auto latest = *value.Host->state().AcceptedComparison;
+		expect(historical.Right.Commit != value.Host->state().AcceptedRevision->Head, "historical fixture distinguishes latest head");
+		const auto scope = value.Host->bind_source_search(workbench_authority_for(value.Host->state()), historical, core::document_tab_id{ 71U });
+		expect(scope.has_value(), "epoch host mints exact historical search scope");
+		auto entry  = application::git_cache_changed_entry{ };
+		entry.Left  = application::git_cache_changed_side{ "historical-only.cpp", oid<core::git_blob_oid>(31U), 0100644U };
+		entry.Right = application::git_cache_changed_side{ "historical-only.cpp", oid<core::git_blob_oid>(32U), 0100644U };
+		value.State.CatalogueEntries.push_back(std::move(entry));
+		const auto content             = std::string{ "unchanged context\nneedle outside provider hunk\n" };
+		value.State.CachedBlobOverride = std::vector<std::uint8_t>{ content.begin(), content.end() };
+		struct projection final : application::source_search_projection_port
+		{
+			application::source_search_projection Last;
+			void                                  publish(const application::source_search_projection& aProjection) override { Last = aProjection; }
+		} published;
+		queued_executor                         searchEffects{ false };
+		application::source_pr_search_execution execution{ *value.Host };
+		application::source_search_host         search{ value.Decisions, searchEffects, execution, published };
+		expect(search.set_scope(scope) && search.set_query("needle"), "historical query admitted through public host");
+		auto worker = std::jthread{ [&] { searchEffects.run_next(); } };
+		for (auto i = 0U; i < 3U; ++i) {
+			value.Effects.wait_for_pending();
+			value.Effects.run_next();
+		}
+		worker.join();
+		while (value.Decisions.pending() != 0U) {
+			value.Decisions.run_next();
+		}
+		expect(search.state().Status == core::source_search_status::complete && published.Last.Matches && published.Last.Matches->size() == 2U, "full historical both-side records accepted on decision lane");
+		expect(value.State.CatalogueRequests.size() == 1U && value.State.CatalogueRequests[0].Left == historical.Left.Commit && value.State.CatalogueRequests[0].Right == historical.Right.Commit, "catalogue is exact historical pair, never today's membership");
+		expect(published.Last.Corpus && published.Last.Corpus->Entries[0].path() == "historical-only.cpp" && value.Host->state().AcceptedComparison == latest, "search preserves latest comparison while scanning historical-only path");
+		const auto reads = value.State.BlobRequests.size();
+		expect(search.set_query("context"), "replacement query admitted");
+		worker = std::jthread{ [&] { searchEffects.run_next(); } };
+		for (auto i = 0U; i < 2U; ++i) {
+			value.Effects.wait_for_pending();
+			value.Effects.run_next();
+		}
+		worker.join();
+		while (value.Decisions.pending() != 0U) {
+			value.Decisions.run_next();
+		}
+		expect(value.State.CatalogueRequests.size() == 1U && value.State.BlobRequests.size() == reads, "replacement reuses immutable catalogue and exact reads without query keys");
+		for (auto i = 0U; i < 1000U; ++i) {
+			static_cast<void>(search.navigate(core::change_navigation_direction::next));
+		}
+		expect(value.State.BlobRequests.size() == reads && searchEffects.pending() == 0U, "PR cursor traversal performs no source acquisition or scan");
+		search.shutdown();
+		expect(search.is_quiescent(), "historical public search quiesces");
+		value.Host->invalidate(matching_invalidation());
+		drain(value);
+		expect(value.Host->catalogue(*scope, { }).Status == core::source_search_status::unavailable, "revoked search corpus cannot be reused");
+	}
 } // namespace
 
 int main(int argc, char** argv)
 {
 	parse_live_latencies(argc, argv);
+	exact_historical_corpus_uses_its_pair_and_host_path();
+	corpus_sparse_read_coalesces_replacement_and_yields_to_navigation();
 	historical_source_does_not_accept_live_authority();
 	local_clock_skew_cannot_associate_old_provider_event_with_new_transition();
 	intervening_provider_update_excludes_old_event_despite_observation_interval();

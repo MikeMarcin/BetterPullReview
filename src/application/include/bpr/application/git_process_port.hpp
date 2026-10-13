@@ -217,6 +217,37 @@ namespace bpr::application {
 		auto operator<=>(const git_tree_entry_request&) const = default;
 	};
 
+	inline constexpr std::size_t maximum_git_changed_entries         = 10000U;
+	inline constexpr std::size_t maximum_git_changed_catalogue_bytes = 8U * 1024U * 1024U;
+
+	/// \brief One exact changed tree entry; unsupported modes remain explicit.
+	struct git_changed_side
+	{
+		std::filesystem::path Path;
+		git_blob_id           Object;
+		std::uint32_t         Mode = 0U;
+	};
+	struct git_changed_entry
+	{
+		std::optional<git_changed_side> Left;
+		std::optional<git_changed_side> Right;
+		char                            Change = 'M';
+	};
+	/// \brief Receives bounded domain records, with no process arguments or provider facts.
+	class git_changed_entry_sink
+	{
+	public:
+		virtual ~git_changed_entry_sink()                                          = default;
+		[[nodiscard]] virtual auto accept(const git_changed_entry& aEntry) -> bool = 0;
+	};
+	/// \brief Enumerates only this exact pair, with hard record/output bounds.
+	struct git_changed_entries_request
+	{
+		std::filesystem::path Repository;
+		git_commit_id         Left;
+		git_commit_id         Right;
+	};
+
 	/// \brief Describes one exact selected-commit rename query.
 	struct git_rename_pair_request
 	{
@@ -468,6 +499,15 @@ namespace bpr::application {
 			const git_tree_entry_request& aRequest,
 			std::stop_token               aStop)
 			-> git_process_result<std::optional<git_blob_id>> = 0;
+		/// \brief Complete exact-tree catalogue, or an explicit refusal; no partial membership.
+		[[nodiscard]] virtual auto changed_entries(const git_changed_entries_request& aRequest, git_changed_entry_sink& aSink, std::stop_token aStop)
+			-> git_process_result<void>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aSink);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_process_failure::invalid_request };
+		}
 		[[nodiscard]] virtual auto find_rename_pairs(
 			const git_rename_pair_request& aRequest,
 			std::stop_token                aStop)

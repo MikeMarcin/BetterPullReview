@@ -3126,6 +3126,10 @@ namespace {
 				.Path   = treePath + ".bpr-absent",
 			},
 			{ });
+		const auto unchangedCatalogue = (*primary)->changed_entries({ *commit, *commit }, { });
+		require(unchangedCatalogue && unchangedCatalogue->empty(), "installed cache forwards complete exact-tree catalogue through its retained session");
+		const auto missingCatalogue = (*primary)->changed_entries({ *core::parse_git_commit_oid(std::string(40U, 'f')), *commit }, { });
+		require(!missingCatalogue, "installed cache retains missing historical trees as failure, never empty membership");
 		const auto unchangedRenames = (*primary)->find_rename_pairs(
 			{
 				.Left         = *commit,

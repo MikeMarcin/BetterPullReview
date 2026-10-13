@@ -108,6 +108,25 @@ namespace bpr::application {
 		auto operator<=>(const git_cache_tree_entry_request&) const = default;
 	};
 
+	/// \brief Changed entries under the already retained lifetime-exclusive cache.
+	struct git_cache_changed_side
+	{
+		std::string        Path;
+		core::git_blob_oid Object;
+		std::uint32_t      Mode = 0U;
+	};
+	struct git_cache_changed_entry
+	{
+		std::optional<git_cache_changed_side> Left;
+		std::optional<git_cache_changed_side> Right;
+		char                                  Change = 'M';
+	};
+	struct git_cache_changed_entries_request
+	{
+		core::git_commit_oid Left;
+		core::git_commit_oid Right;
+	};
+
 	/// \brief Describes one selected-commit rename query under an owned cache.
 	struct git_cache_rename_pair_request
 	{
@@ -898,6 +917,15 @@ namespace bpr::application {
 			const git_cache_tree_entry_request& aRequest,
 			std::stop_token                     aStop)
 			-> git_cache_result<std::optional<core::git_blob_oid>> = 0;
+
+		/// \brief Complete exact retained-tree membership; missing trees never mean empty.
+		[[nodiscard]] virtual auto changed_entries(const git_cache_changed_entries_request& aRequest, std::stop_token aStop)
+			-> git_cache_result<std::vector<git_cache_changed_entry>>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected{ git_cache_failure::invalid_request };
+		}
 
 		/// \brief Finds bounded rename records without opening another session.
 		[[nodiscard]] virtual auto find_rename_pairs(

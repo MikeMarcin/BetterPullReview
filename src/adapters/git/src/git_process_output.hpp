@@ -176,6 +176,90 @@ namespace bpr::adapters::git::detail {
 		return blob;
 	}
 
+	/// \brief Reads bounded raw NUL-delimited exact changes, including proven R/C records.
+	[[nodiscard]] inline auto parse_changed_entries(std::string_view aOutput, application::git_hash_algorithm aAlgorithm)
+		-> application::git_process_result<std::vector<application::git_changed_entry>>
+	{
+		using application::git_process_failure;
+		if (aOutput.size() > application::maximum_git_changed_catalogue_bytes) {
+			return std::unexpected{ git_process_failure::standard_output_limit };
+		}
+		auto       entries = std::vector<application::git_changed_entry>{ };
+		const auto field   = [&]() -> std::optional<std::string_view> {
+			const auto end = aOutput.find('\0');
+			if (end == std::string_view::npos) {
+				return { };
+			}
+			const auto value = aOutput.substr(0U, end);
+			aOutput.remove_prefix(end + 1U);
+			return value;
+		};
+		while (!aOutput.empty()) {
+			if (entries.size() == application::maximum_git_changed_entries) {
+				return std::unexpected{ git_process_failure::standard_output_limit };
+			}
+			const auto header = field();
+			auto       fields = std::array<std::string_view, 5U>{ };
+			if (!header || header->empty() || header->front() != ':') {
+				return std::unexpected{ git_process_failure::malformed_output };
+			}
+			auto remaining = header->substr(1U);
+			for (auto& part : fields) {
+				const auto space = remaining.find(' ');
+				part             = remaining.substr(0U, space);
+				remaining        = space == std::string_view::npos ? std::string_view{ } : remaining.substr(space + 1U);
+			}
+			if (!remaining.empty()) {
+				return std::unexpected{ git_process_failure::malformed_output };
+			}
+			auto modes = std::array<std::uint32_t, 2U>{ };
+			for (auto i = std::size_t{ 0U }; i < modes.size(); ++i) {
+				const auto parsed = std::from_chars(fields[i].data(), fields[i].data() + fields[i].size(), modes[i], 8);
+				if (fields[i].size() != 6U || parsed.ec != std::errc{ } || parsed.ptr != fields[i].data() + fields[i].size()
+					|| (modes[i] != 0U && modes[i] != 0100644U && modes[i] != 0100755U && modes[i] != 0120000U && modes[i] != 0160000U)) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+			}
+			const auto status = fields[4];
+			const auto paired = status == "R100" || status == "C100";
+			if ((!paired && status != "A" && status != "D" && status != "M" && status != "T")
+				|| (status == "A" ? modes[0] != 0U || modes[1] == 0U : status == "D" ? modes[1] != 0U || modes[0] == 0U
+																					 : modes[0] == 0U || modes[1] == 0U)) {
+				return std::unexpected{ git_process_failure::malformed_output };
+			}
+			const auto first  = field();
+			const auto second = paired ? field() : first;
+			if (!first || !second || !valid_tree_entry_path(tree_entry_path(*first)) || !valid_tree_entry_path(tree_entry_path(*second)) || tree_entry_path_text(tree_entry_path(*first)) != *first || tree_entry_path_text(tree_entry_path(*second)) != *second) {
+				return std::unexpected{ git_process_failure::malformed_output };
+			}
+			auto entry   = application::git_changed_entry{ };
+			entry.Change = status.front();
+			for (auto i = std::size_t{ 0U }; i < modes.size(); ++i) {
+				if (modes[i] == 0U) {
+					const auto width = aAlgorithm == application::git_hash_algorithm::sha1 ? 40U : 64U;
+					if (fields[i + 2U].size() != width || fields[i + 2U].find_first_not_of('0') != std::string_view::npos) {
+						return std::unexpected{ git_process_failure::malformed_output };
+					}
+					continue;
+				}
+				const auto object = parse_object<application::git_blob_id>(fields[i + 2U], aAlgorithm);
+				if (!object) {
+					return std::unexpected{ git_process_failure::malformed_output };
+				}
+				auto side                            = application::git_changed_side{ };
+				side.Path                            = tree_entry_path(i == 0U ? *first : *second);
+				side.Object                          = *object;
+				side.Mode                            = modes[i];
+				(i == 0U ? entry.Left : entry.Right) = std::move(side);
+			}
+			if (paired && entry.Left->Object != entry.Right->Object) {
+				return std::unexpected{ git_process_failure::malformed_output };
+			}
+			entries.push_back(std::move(entry));
+		}
+		return entries;
+	}
+
 	/// \brief `git diff-tree -r -z --name-status --diff-filter=R`: rename
 	/// records of status, left and right path, kept when either side is the
 	/// current or the previous path. Scanning and keeping are both bounded.

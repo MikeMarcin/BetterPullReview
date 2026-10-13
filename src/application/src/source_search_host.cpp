@@ -1,13 +1,35 @@
 #include "bpr/application/source_search_host.hpp"
 
+#include <atomic>
+#include <chrono>
 #include <deque>
 #include <functional>
+#include <map>
+#include <mutex>
 #include <utility>
 
 namespace bpr::application {
 	namespace {
+		auto path_input(std::string_view aInclude, std::string_view aExclude) -> core::source_search_input
+		{
+			const auto include = core::inspect_source_search_query(aInclude);
+			const auto exclude = core::inspect_source_search_query(aExclude);
+			if (include == core::source_search_input::invalid_utf8 || exclude == core::source_search_input::invalid_utf8) {
+				return core::source_search_input::invalid_utf8;
+			}
+			if (aInclude.size() > core::maximum_source_search_query_bytes || aExclude.size() > core::maximum_source_search_query_bytes - aInclude.size()) {
+				return core::source_search_input::input_limit;
+			}
+			return core::source_search_input::ready;
+		}
 		auto valid_match_payload(const source_search_execution& aExecution, std::stop_token aStop) -> bool
 		{
+			if (aExecution.Corpus && (aExecution.Corpus->Scope != aExecution.Terminal.Request.Scope || aExecution.Corpus->Entries.size() > maximum_git_changed_entries || aExecution.Corpus->OwnedBytes > maximum_git_changed_catalogue_bytes)) {
+				return false;
+			}
+			if (aExecution.Skipped && aExecution.Skipped->size() != aExecution.Terminal.Summary.SkippedSides) {
+				return false;
+			}
 			if (!aExecution.Matches) {
 				return true;
 			}
@@ -15,8 +37,16 @@ namespace bpr::application {
 			if (records.size() != aExecution.Terminal.Summary.Matches || records.size() > core::maximum_source_search_matches) {
 				return false;
 			}
-			auto        bytes = records.capacity() * sizeof(source_search_match);
-			const auto& scope = aExecution.Terminal.Request.Scope;
+			auto        bytes   = records.capacity() * sizeof(source_search_match);
+			const auto& scope   = aExecution.Terminal.Request.Scope;
+			auto        entries = std::map<core::file_identity, const source_corpus_entry*>{ };
+			if (aExecution.Corpus) {
+				for (const auto& entry : aExecution.Corpus->Entries) {
+					if (!entries.emplace(entry.File, &entry).second) {
+						return false;
+					}
+				}
+			}
 			for (const auto& record : records) {
 				if (aStop.stop_requested() || !record.File.valid() || record.Match.Preview.size() > 960U || core::inspect_source_search_query(record.Match.Preview) == core::source_search_input::invalid_utf8) {
 					return false;
@@ -40,6 +70,16 @@ namespace bpr::application {
 						|| location->Side != (index == 0U ? core::diff_side::left : core::diff_side::right)) {
 						return false;
 					}
+					if (aExecution.Corpus) {
+						const auto found = entries.find(record.File);
+						if (found == entries.end()) {
+							return false;
+						}
+						const auto& side = index == 0U ? found->second->Left : found->second->Right;
+						if (!side || side->Object != location->Blob || (side->Mode != 0100644U && side->Mode != 0100755U)) {
+							return false;
+						}
+					}
 					if (scope.Document && location->Blob != (index == 0U ? scope.Document->LeftBlob : scope.Document->RightBlob)) {
 						return false;
 					}
@@ -54,7 +94,8 @@ namespace bpr::application {
 
 	struct source_search_host::implementation : std::enable_shared_from_this<implementation>
 	{
-		enum class command_kind : std::uint8_t { scope,
+		enum class command_kind : std::uint8_t { paths,
+												 scope,
 												 query,
 												 open,
 												 close,
@@ -68,11 +109,20 @@ namespace bpr::application {
 			std::string                              Query;
 			core::source_search_input                Input = core::source_search_input::empty;
 			core::source_search_options              Options;
+			std::string                              Include;
+			std::string                              Exclude;
 		};
 		struct job
 		{
-			source_search_work Work;
-			std::stop_source   Stop;
+			source_search_work                    Work;
+			std::stop_source                      Stop;
+			std::mutex                            ProgressMutex;
+			std::vector<source_search_match>      Progress;
+			core::source_search_summary           ProgressSummary;
+			std::shared_ptr<const source_corpus>  Corpus;
+			std::chrono::steady_clock::time_point LastProgress{ };
+			bool                                  Posted      = false;
+			bool                                  BadProgress = false;
 		};
 
 		implementation(decision_executor& aDecisions, effect_executor& aEffects, source_search_execution_port& aExecution, source_search_projection_port& aProjection)
@@ -83,38 +133,49 @@ namespace bpr::application {
 		{
 		}
 
-		decision_executor&                                      Decisions;
-		effect_executor&                                        Effects;
-		source_search_execution_port&                           Execution;
-		source_search_projection_port&                          Projection;
-		core::source_search_state                               State;
-		std::string                                             Query;
-		std::shared_ptr<const std::vector<source_search_match>> Matches;
-		std::shared_ptr<job>                                    Active;
-		std::shared_ptr<job>                                    Queued;
-		std::deque<command>                                     Ingress;
-		source_search_host_counters                             Counters;
-		core::source_search_reason                              Reason          = core::source_search_reason::none;
-		bool                                                    Wrapped         = false;
-		bool                                                    Turning         = false;
-		bool                                                    Closed          = false;
-		bool                                                    ShutdownPending = false;
+		decision_executor&                                             Decisions;
+		effect_executor&                                               Effects;
+		source_search_execution_port&                                  Execution;
+		source_search_projection_port&                                 Projection;
+		core::source_search_state                                      State;
+		std::string                                                    Query;
+		std::string                                                    Include;
+		std::string                                                    Exclude;
+		std::shared_ptr<const source_corpus>                           Corpus;
+		std::shared_ptr<const std::vector<source_search_skipped_side>> Skipped;
+		bool                                                           RetryAvailable = false;
+		std::shared_ptr<const std::vector<source_search_match>>        Matches;
+		std::shared_ptr<job>                                           Active;
+		std::shared_ptr<job>                                           Queued;
+		std::deque<command>                                            Ingress;
+		source_search_host_counters                                    Counters;
+		core::source_search_reason                                     Reason          = core::source_search_reason::none;
+		bool                                                           Wrapped         = false;
+		std::atomic_size_t                                             PendingProgress = 0U;
+		bool                                                           Turning         = false;
+		bool                                                           Closed          = false;
+		bool                                                           ShutdownPending = false;
 
 		auto projection() const -> source_search_projection
 		{
-			auto output         = source_search_projection{ };
-			output.Scope        = State.Scope;
-			output.Query        = Query;
-			output.Options      = State.Options;
-			output.Input        = State.Input;
-			output.Status       = State.Status;
-			output.Summary      = State.Summary;
-			output.Matches      = Matches;
-			output.CurrentMatch = State.CurrentMatch;
-			output.Reason       = Reason;
-			output.Open         = State.Open;
-			output.Wrapped      = Wrapped;
-			output.NoResults    = core::source_search_no_results(State);
+			auto output           = source_search_projection{ };
+			output.Scope          = State.Scope;
+			output.Query          = Query;
+			output.Include        = Include;
+			output.Exclude        = Exclude;
+			output.Corpus         = Corpus;
+			output.Skipped        = Skipped;
+			output.RetryAvailable = RetryAvailable;
+			output.Options        = State.Options;
+			output.Input          = State.Input;
+			output.Status         = State.Status;
+			output.Summary        = State.Summary;
+			output.Matches        = Matches;
+			output.CurrentMatch   = State.CurrentMatch;
+			output.Reason         = Reason;
+			output.Open           = State.Open;
+			output.Wrapped        = Wrapped;
+			output.NoResults      = core::source_search_no_results(State);
 			return output;
 		}
 
@@ -144,6 +205,21 @@ namespace bpr::application {
 			if (aOutput.Reason == core::source_search_reason::stale_completion) {
 				return;
 			}
+			if (aOutput.Work || aOutput.Cancel || aOutput.ClearQuery) {
+				auto demand = std::optional<source_search_work>{ };
+				if (aOutput.Work && !Closed) {
+					demand.emplace();
+					demand->Request = *aOutput.Work;
+					demand->Query   = Query;
+					demand->Include = Include;
+					demand->Exclude = Exclude;
+				}
+				try {
+					Execution.update_demand(std::move(demand));
+				} catch (...) {
+					++Counters.IngressRefusals;
+				}
+			}
 			if (aOutput.Cancel) {
 				if (Active && Active->Work.Request == *aOutput.Cancel) {
 					Active->Stop.request_stop();
@@ -154,9 +230,14 @@ namespace bpr::application {
 			}
 			if (aOutput.Work || aOutput.Cancel || aOutput.ClearQuery || (aOutput.Changed && State.Summary.Matches == 0U && !aOutput.Accepted)) {
 				Matches.reset();
+				Corpus.reset();
+				Skipped.reset();
+				RetryAvailable = false;
 			}
 			if (aOutput.ClearQuery) {
 				Query.clear();
+				Include.clear();
+				Exclude.clear();
 			}
 			Reason  = aOutput.Reason;
 			Wrapped = aOutput.Wrapped;
@@ -165,6 +246,8 @@ namespace bpr::application {
 				auto pending          = std::make_shared<job>();
 				pending->Work.Request = *aOutput.Work;
 				pending->Work.Query   = Query;
+				pending->Work.Include = Include;
+				pending->Work.Exclude = Exclude;
 				Queued                = std::move(pending);
 				++Counters.Admitted;
 			}
@@ -176,6 +259,15 @@ namespace bpr::application {
 		void apply(command aCommand)
 		{
 			switch (aCommand.Kind) {
+			case command_kind::paths:
+				if (aCommand.Input == core::source_search_input::ready || aCommand.Input == core::source_search_input::empty) {
+					Include = std::move(aCommand.Include);
+					Exclude = std::move(aCommand.Exclude);
+					perform(core::edit_source_search_query(State, core::inspect_source_search_query(Query), State.Options));
+				} else {
+					perform(core::edit_source_search_query(State, aCommand.Input, State.Options));
+				}
+				break;
 			case command_kind::scope:
 				perform(core::set_source_search_scope(State, aCommand.Scope));
 				break;
@@ -210,15 +302,105 @@ namespace bpr::application {
 			}
 			const auto output = core::complete_source_search(State, aTerminal);
 			if (output.Accepted) {
-				Matches = std::move(aExecution.Matches);
+				Matches        = std::move(aExecution.Matches);
+				Corpus         = std::move(aExecution.Corpus);
+				Skipped        = std::move(aExecution.Skipped);
+				RetryAvailable = aExecution.RetryAvailable;
 			}
 			if (output.Reason == core::source_search_reason::stale_completion) {
 				++Counters.StaleTerminals;
 			}
 			Active.reset();
+			if (!State.Pending) {
+				try {
+					Execution.update_demand({ });
+				} catch (...) {
+					++Counters.IngressRefusals;
+				}
+			}
 			perform(output);
 			Turning = false;
 			drain();
+		}
+
+		void deliver_progress(const std::shared_ptr<job>& aJob)
+		{
+			--PendingProgress;
+			auto summary = core::source_search_summary{ };
+			auto records = std::shared_ptr<const std::vector<source_search_match>>{ };
+			auto corpus  = std::shared_ptr<const source_corpus>{ };
+			{
+				std::scoped_lock lock{ aJob->ProgressMutex };
+				aJob->Posted = false;
+				if (aJob->BadProgress) {
+					return;
+				}
+				summary = aJob->ProgressSummary;
+				records = std::make_shared<const std::vector<source_search_match>>(aJob->Progress);
+				corpus  = aJob->Corpus;
+			}
+			Turning           = true;
+			const auto output = core::progress_source_search(State, aJob->Work.Request, summary);
+			if (output.Accepted) {
+				Matches = std::move(records);
+				Corpus  = std::move(corpus);
+			}
+			perform(output);
+			Turning = false;
+			drain();
+		}
+		void receive_batch(const std::shared_ptr<job>& aJob, source_search_batch aBatch)
+		{
+			if (aJob->Stop.stop_requested()) {
+				return;
+			}
+			auto post = false;
+			{
+				std::scoped_lock lock{ aJob->ProgressMutex };
+				if (aJob->BadProgress) {
+					return;
+				}
+				if (aBatch.Request != aJob->Work.Request || aBatch.Matches.size() > 128U || aBatch.Begin != aJob->Progress.size()
+					|| aBatch.Summary.Matches != aBatch.Begin + aBatch.Matches.size() || aBatch.Summary.Matches > core::maximum_source_search_matches
+					|| !aBatch.Corpus || aBatch.Corpus->Scope != aBatch.Request.Scope) {
+					aJob->BadProgress = true;
+					return;
+				}
+				auto progress    = core::source_search_state{ };
+				progress.Pending = aJob->Work.Request;
+				progress.Summary = aJob->ProgressSummary;
+				if (!core::progress_source_search(progress, aBatch.Request, aBatch.Summary).Accepted) {
+					aJob->BadProgress = true;
+					return;
+				}
+				auto packet                     = source_search_execution{ core::source_search_terminal{ aBatch.Request, core::source_search_status::partial, aBatch.Summary } };
+				packet.Terminal.Summary.Matches = static_cast<std::uint32_t>(aBatch.Matches.size());
+				packet.Matches                  = std::make_shared<const std::vector<source_search_match>>(std::move(aBatch.Matches));
+				packet.Corpus                   = aBatch.Corpus;
+				if (!valid_match_payload(packet, aJob->Stop.get_token())) {
+					aJob->BadProgress = true;
+					return;
+				}
+				aJob->Progress.insert(aJob->Progress.end(), packet.Matches->begin(), packet.Matches->end());
+				aJob->ProgressSummary = aBatch.Summary;
+				aJob->Corpus          = std::move(aBatch.Corpus);
+				const auto now        = std::chrono::steady_clock::now();
+				if (!aJob->Posted && now - aJob->LastProgress >= std::chrono::milliseconds{ 100 }) {
+					aJob->Posted       = true;
+					aJob->LastProgress = now;
+					post               = true;
+				}
+			}
+			if (post) {
+				const auto self = shared_from_this();
+				++PendingProgress;
+				try {
+					Decisions.post([self, aJob] { self->deliver_progress(aJob); });
+				} catch (...) {
+					--PendingProgress;
+					throw;
+				}
+			}
 		}
 
 		void start_queued()
@@ -234,7 +416,13 @@ namespace bpr::application {
 					auto terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
 					if (!current->Stop.stop_requested()) {
 						try {
-							terminal = host->Execution.execute(current->Work, current->Stop.get_token());
+							terminal = host->Execution.execute(current->Work, current->Stop.get_token(), [host, current](source_search_batch aBatch) { host->receive_batch(current, std::move(aBatch)); });
+							{
+								std::scoped_lock lock{ current->ProgressMutex };
+								if (current->BadProgress) {
+									terminal = core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } };
+								}
+							}
 							if (!valid_match_payload(terminal, current->Stop.get_token())) {
 								terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, current->Stop.stop_requested() ? core::source_search_status::cancelled : core::source_search_status::failure, { } } };
 							}
@@ -326,13 +514,26 @@ namespace bpr::application {
 		return Implementation->enqueue(std::move(command));
 	}
 
-	auto source_search_host::open() -> bool { return Implementation->enqueue({ implementation::command_kind::open, { }, { }, core::source_search_input::empty, { } }); }
-	auto source_search_host::close() -> bool { return Implementation->enqueue({ implementation::command_kind::close, { }, { }, core::source_search_input::empty, { } }); }
+	auto source_search_host::set_paths(std::string_view aInclude, std::string_view aExclude) -> bool
+	{
+		auto command  = implementation::command{ };
+		command.Kind  = implementation::command_kind::paths;
+		command.Input = path_input(aInclude, aExclude);
+		if (command.Input == core::source_search_input::ready) {
+			command.Include = aInclude;
+			command.Exclude = aExclude;
+		}
+		return Implementation->enqueue(std::move(command));
+	}
+	auto source_search_host::retry() -> bool { return set_query(Implementation->Query, Implementation->State.Options); }
+
+	auto source_search_host::open() -> bool { return Implementation->enqueue({ implementation::command_kind::open, { }, { }, core::source_search_input::empty, { }, { }, { } }); }
+	auto source_search_host::close() -> bool { return Implementation->enqueue({ implementation::command_kind::close, { }, { }, core::source_search_input::empty, { }, { }, { } }); }
 	auto source_search_host::clear() -> bool { return set_query({ }, Implementation->State.Options); }
-	auto source_search_host::reset() -> bool { return Implementation->enqueue({ implementation::command_kind::reset, { }, { }, core::source_search_input::empty, { } }); }
+	auto source_search_host::reset() -> bool { return Implementation->enqueue({ implementation::command_kind::reset, { }, { }, core::source_search_input::empty, { }, { }, { } }); }
 	auto source_search_host::navigate(const core::change_navigation_direction aDirection) -> bool
 	{
-		return Implementation->enqueue({ aDirection == core::change_navigation_direction::next ? implementation::command_kind::next : implementation::command_kind::previous, { }, { }, core::source_search_input::empty, { } });
+		return Implementation->enqueue({ aDirection == core::change_navigation_direction::next ? implementation::command_kind::next : implementation::command_kind::previous, { }, { }, core::source_search_input::empty, { }, { }, { } });
 	}
 	void source_search_host::shutdown() { Implementation->shutdown(); }
 	auto source_search_host::projection() const -> source_search_projection { return Implementation->projection(); }
@@ -341,6 +542,6 @@ namespace bpr::application {
 	auto source_search_host::retained_work_packets() const noexcept -> std::size_t { return (Implementation->Active ? 1U : 0U) + (Implementation->Queued ? 1U : 0U); }
 	auto source_search_host::is_quiescent() const noexcept -> bool
 	{
-		return !Implementation->Active && !Implementation->Queued && Implementation->Ingress.empty() && !Implementation->Turning && !Implementation->ShutdownPending;
+		return !Implementation->Active && !Implementation->Queued && Implementation->Ingress.empty() && !Implementation->Turning && !Implementation->ShutdownPending && Implementation->PendingProgress.load() == 0U;
 	}
 }

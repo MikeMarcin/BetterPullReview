@@ -4848,6 +4848,36 @@ namespace bpr::adapters::git {
 				return detail::parse_ls_tree_blob(listed->StandardOutput, requestedPath, aRequest.Commit.Algorithm);
 			}
 
+			[[nodiscard]] auto changed_entries(const application::git_changed_entries_request& aRequest, application::git_changed_entry_sink& aSink, const std::stop_token aStop)
+				-> git_process_result<void> override
+			{
+				if (!application::valid(aRequest.Left) || !application::valid(aRequest.Right) || aRequest.Left.Algorithm != aRequest.Right.Algorithm) {
+					return std::unexpected{ git_process_failure::invalid_request };
+				}
+				if (!valid_repository(aRequest.Repository, aRequest.Left.Algorithm)) {
+					return std::unexpected{ git_process_failure::invalid_repository };
+				}
+				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+				append_arguments(arguments, "diff-tree", "-r", "-z", "--raw", "--no-abbrev", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--find-renames=100%", "--find-copies=100%", "-l10000", object_text(aRequest.Left), object_text(aRequest.Right), "--");
+				const auto listed = submit(process_request{ .Arguments = std::move(arguments), .StandardOutputLimit = application::maximum_git_changed_catalogue_bytes }, aStop);
+				if (!listed) {
+					return std::unexpected{ listed.error() };
+				}
+				const auto parsed = detail::parse_changed_entries(listed->StandardOutput, aRequest.Left.Algorithm);
+				if (!parsed) {
+					return std::unexpected{ parsed.error() };
+				}
+				for (const auto& entry : *parsed) {
+					if (aStop.stop_requested()) {
+						return std::unexpected{ git_process_failure::cancelled };
+					}
+					if (!aSink.accept(entry)) {
+						return std::unexpected{ git_process_failure::standard_output_limit };
+					}
+				}
+				return { };
+			}
+
 			[[nodiscard]] auto find_rename_pairs(
 				const application::git_rename_pair_request& aRequest,
 				const std::stop_token                       aStop)

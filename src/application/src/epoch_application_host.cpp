@@ -18,6 +18,7 @@
 #include <span>
 #include <stdexcept>
 #include <stop_token>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -1114,10 +1115,32 @@ namespace bpr::application {
 		{
 			core::git_blob_oid        Blob;
 			std::vector<std::uint8_t> Bytes;
+			bool                      Background = false;
 		};
 
 		static constexpr std::size_t   maximum_retained_sparse_blobs      = 256U;
 		static constexpr std::uint64_t maximum_retained_sparse_blob_bytes = 16U * 1024U * 1024U;
+
+		[[nodiscard]] static auto still_needed(const source_corpus_read_needed& aNeeded) noexcept -> bool
+		{
+			try {
+				return aNeeded && aNeeded();
+			} catch (...) {
+				return false;
+			}
+		}
+
+		struct corpus_read_waiter
+		{
+			std::mutex                         Mutex;
+			std::condition_variable            Changed;
+			source_corpus_material             Material;
+			bool                               Done = false;
+			std::stop_source                   Stop;
+			source_corpus_read_needed          Needed;
+			core::git_blob_oid                 Blob;
+			std::weak_ptr<const source_corpus> Corpus;
+		};
 
 		struct authority_effect_actor final
 		{
@@ -1125,12 +1148,17 @@ namespace bpr::application {
 				: Shared{ std::move(aShared) }
 				, Cache{ Shared->cache() }
 			{ }
-			std::shared_ptr<profile_epoch_actor>   Shared;
-			std::unique_ptr<git_cache_session>&    Cache;
-			std::mutex                             BlobAuthorityMutex;
-			std::optional<blob_authority>          BlobAuthority;
-			std::weak_ptr<authority_context>       BlobContext;
-			std::optional<selected_diff_authority> SelectedDiffAuthority;
+			std::shared_ptr<profile_epoch_actor>     Shared;
+			std::unique_ptr<git_cache_session>&      Cache;
+			std::mutex                               BlobAuthorityMutex;
+			std::optional<core::source_search_scope> SearchScope;
+			std::shared_ptr<const source_corpus>     SearchCorpus;
+			std::shared_ptr<corpus_read_waiter>      SearchRead;
+			std::uint64_t                            SearchGeneration = 0U;
+			std::stop_source                         SearchScanStop;
+			std::optional<blob_authority>            BlobAuthority;
+			std::weak_ptr<authority_context>         BlobContext;
+			std::optional<selected_diff_authority>   SelectedDiffAuthority;
 			/// BPR-0532. The one older pair a continued turn may re-align,
 			/// held beside the workbench's own authorization rather than in
 			/// place of it: a re-alignment and the reviewer's own selection
@@ -1186,6 +1214,10 @@ namespace bpr::application {
 			{
 				std::scoped_lock lock{ Actor->BlobAuthorityMutex };
 				++Actor->ReviewerWork;
+				Actor->SearchScanStop.request_stop();
+				if (Actor->SearchRead) {
+					Actor->SearchRead->Stop.request_stop();
+				}
 				if (Actor->PreparedRead) {
 					static_cast<void>(Actor->PreparedRead->request_stop());
 				}
@@ -1195,6 +1227,9 @@ namespace bpr::application {
 			{
 				std::scoped_lock lock{ Actor->BlobAuthorityMutex };
 				--Actor->ReviewerWork;
+				if (Actor->ReviewerWork == 0U) {
+					Actor->SearchScanStop = std::stop_source{ };
+				}
 			}
 
 			reviewer_work(const reviewer_work&)                    = delete;
@@ -1215,11 +1250,11 @@ namespace bpr::application {
 		class prepared_read_registration final
 		{
 		public:
-			prepared_read_registration(authority_effect_actor& aActor, const std::stop_source& aStop)
+			prepared_read_registration(authority_effect_actor& aActor, const std::stop_source& aStop, const bool aHonorSuspension = true)
 				: Actor{ aActor }
 			{
 				std::scoped_lock lock{ Actor.BlobAuthorityMutex };
-				Suspended = Actor.PreparedReadsSuspended;
+				Suspended = aHonorSuspension && Actor.PreparedReadsSuspended;
 				Admitted  = !Suspended && Actor.ReviewerWork == 0U;
 				if (Admitted) {
 					Actor.PreparedRead = aStop;
@@ -1265,20 +1300,33 @@ namespace bpr::application {
 		/// Retains verified bytes within the actor's bound, oldest first out.
 		/// Called under BlobAuthorityMutex.
 		static void retain_blob(authority_effect_actor& aActor, const core::git_blob_oid& aBlob,
-								const std::vector<std::uint8_t>& aBytes)
+								const std::vector<std::uint8_t>& aBytes, const bool aBackground = false)
 		{
-			if (aBytes.size() > maximum_retained_sparse_blob_bytes
-				|| std::ranges::find(aActor.RetainedBlobs, aBlob, &retained_sparse_blob::Blob)
-					!= aActor.RetainedBlobs.end()) {
+			if (aBytes.size() > maximum_retained_sparse_blob_bytes) {
+				return;
+			}
+			const auto retained = std::ranges::find(aActor.RetainedBlobs, aBlob, &retained_sparse_blob::Blob);
+			if (retained != aActor.RetainedBlobs.end()) {
+				if (!aBackground) {
+					retained->Background = false;
+				}
 				return;
 			}
 			while (!aActor.RetainedBlobs.empty()
 				   && (aActor.RetainedBlobs.size() >= maximum_retained_sparse_blobs
 					   || aActor.RetainedBlobBytes > maximum_retained_sparse_blob_bytes - aBytes.size())) {
-				aActor.RetainedBlobBytes -= aActor.RetainedBlobs.front().Bytes.size();
-				aActor.RetainedBlobs.pop_front();
+				const auto victim = std::ranges::find(aActor.RetainedBlobs, true, &retained_sparse_blob::Background);
+				if (victim != aActor.RetainedBlobs.end()) {
+					aActor.RetainedBlobBytes -= victim->Bytes.size();
+					aActor.RetainedBlobs.erase(victim);
+				} else if (aBackground) {
+					return;
+				} else {
+					aActor.RetainedBlobBytes -= aActor.RetainedBlobs.front().Bytes.size();
+					aActor.RetainedBlobs.pop_front();
+				}
 			}
-			aActor.RetainedBlobs.push_back(retained_sparse_blob{ .Blob = aBlob, .Bytes = aBytes });
+			aActor.RetainedBlobs.push_back(retained_sparse_blob{ .Blob = aBlob, .Bytes = aBytes, .Background = aBackground });
 			aActor.RetainedBlobBytes += aBytes.size();
 		}
 
@@ -1634,6 +1682,11 @@ namespace bpr::application {
 		{
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 			++aActor->BlobAuthorityGeneration;
+			aActor->SearchScope.reset();
+			aActor->SearchCorpus.reset();
+			if (aActor->SearchRead) {
+				aActor->SearchRead->Stop.request_stop();
+			}
 			aActor->BlobAuthority = aAuthority;
 			aActor->BlobContext   = aContext;
 			aActor->SelectedDiffAuthority.reset();
@@ -1681,6 +1734,11 @@ namespace bpr::application {
 		{
 			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
 			if (aActor->BlobAuthority == std::optional{ aAuthority }) {
+				aActor->SearchScope.reset();
+				aActor->SearchCorpus.reset();
+				if (aActor->SearchRead) {
+					aActor->SearchRead->Stop.request_stop();
+				}
 				aActor->BlobAuthority.reset();
 				aActor->BlobContext.reset();
 				aActor->SelectedBlobGrant.reset();
@@ -3705,7 +3763,7 @@ namespace bpr::application {
 		/// re-alignment of a revision whose objects are gone should get.
 		[[nodiscard]] auto authorized_selected_diff_context(
 			const workbench_pull_request_authority&            aAuthority,
-			const std::optional<core::agent_revision_binding>& aBinding) const
+			const std::optional<core::agent_revision_binding>& aBinding, const bool aGrant = true) const
 			-> std::optional<workbench_selected_diff_context>
 		{
 			if (!Consumer->current() || !application::valid(aAuthority)
@@ -3775,10 +3833,12 @@ namespace bpr::application {
 				.Workbench = aAuthority,
 				.Diff      = context,
 			};
-			if (aBinding.has_value()) {
-				authorize_realignment(Active->Actor, granted);
-			} else {
-				authorize_selected_diff(Active->Actor, granted);
+			if (aGrant) {
+				if (aBinding.has_value()) {
+					authorize_realignment(Active->Actor, granted);
+				} else {
+					authorize_selected_diff(Active->Actor, granted);
+				}
 			}
 			return context;
 		}
@@ -4733,6 +4793,374 @@ namespace bpr::application {
 			return waiter->Done ? std::move(waiter->Value) : std::nullopt;
 		}
 
+		[[nodiscard]] auto search_actor(const core::source_search_scope& aScope) const -> std::shared_ptr<authority_effect_actor>
+		{
+			std::scoped_lock actorsLock{ CacheActorsMutex };
+			for (const auto& [key, actor] : CacheActors) {
+				static_cast<void>(key);
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->SearchScope == aScope && actor->BlobAuthority == blob_authority{ aScope.Session, aScope.Authority }) {
+					return actor;
+				}
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto bind_source_search(const workbench_pull_request_authority& aAuthority, const core::comparison_pair& aComparison, std::optional<core::document_tab_id> aTab) -> std::optional<core::source_search_scope>
+		{
+			if (!authorized_selected_diff_context(aAuthority, { }, false) || !core::valid_exact_pair(aComparison) || !Active
+				|| aComparison.Left.Identity.Authority != Active->Authority.Scope || aComparison.Right.Identity.Authority != Active->Authority.Scope
+				|| aComparison.Left.Identity.Incarnation != State.AcceptedComparison->Left.Identity.Incarnation
+				|| aComparison.Right.Identity.Incarnation != State.AcceptedComparison->Right.Identity.Incarnation) {
+				return { };
+			}
+			auto scope             = core::source_search_scope{ };
+			scope.Session          = State.ApplicationSession;
+			scope.Authority        = Active->Authority;
+			scope.Comparison       = aComparison;
+			scope.Tab              = aTab;
+			scope.Target           = core::source_search_target::files;
+			auto             actor = Active->Actor;
+			std::scoped_lock lock{ actor->BlobAuthorityMutex };
+			if (actor->SearchScope && actor->SearchScope->Comparison == aComparison && actor->SearchScope->Tab == aTab) {
+				return actor->SearchScope;
+			}
+			if (actor->SearchGeneration == std::numeric_limits<std::uint64_t>::max()) {
+				return { };
+			}
+			scope.CatalogueGeneration = ++actor->SearchGeneration;
+			if (!core::valid(scope)) {
+				return { };
+			}
+			actor->SearchScope = scope;
+			actor->SearchCorpus.reset();
+			if (actor->SearchRead) {
+				actor->SearchRead->Stop.request_stop();
+			}
+			return scope;
+		}
+
+		[[nodiscard]] static auto exact_search_anchors(authority_context& aContext, const core::comparison_pair& aPair, std::stop_token aStop) -> bool
+		{
+			const auto snapshot = aContext.Catalog->snapshot(aStop);
+			if (!snapshot) {
+				return false;
+			}
+			const auto anchors = aContext.Catalog->exact_anchors({ snapshot->Binding.Catalog, { aPair.Left.Identity, aPair.Right.Identity } }, aStop);
+			return anchors && anchors->Catalog == snapshot->Binding.Catalog && anchors->Anchors.size() == 2U
+				&& anchors->Anchors[0] == aPair.Left && anchors->Anchors[1] == aPair.Right;
+		}
+
+		[[nodiscard]] static auto build_source_corpus(const std::shared_ptr<authority_effect_actor>& aActor, const std::shared_ptr<authority_context>& aContext, const core::source_search_scope& aScope, std::stop_token aWorkStop) -> source_corpus_observation
+		{
+			if (!exact_search_anchors(*aContext, aScope.Comparison, aWorkStop)) {
+				return { };
+			}
+			auto changes = aActor->Cache->changed_entries({ aScope.Comparison.Left.Commit, aScope.Comparison.Right.Commit }, aWorkStop);
+			if (!changes) {
+				return { changes.error() == git_cache_failure::quota_exceeded ? core::source_search_status::resource_limit : aWorkStop.stop_requested() ? core::source_search_status::cancelled
+																																						: core::source_search_status::unavailable,
+						 { } };
+			}
+			if (changes->size() > maximum_git_changed_entries) {
+				return { core::source_search_status::resource_limit, { } };
+			}
+			auto corpus   = std::make_shared<source_corpus>();
+			corpus->Scope = aScope;
+			corpus->Entries.reserve(changes->size());
+			corpus->OwnedBytes = sizeof(source_corpus) + changes->size() * sizeof(source_corpus_entry);
+			for (auto& change : *changes) {
+				if (aWorkStop.stop_requested()) {
+					return { core::source_search_status::cancelled, { } };
+				}
+				if (!change.Left && !change.Right) {
+					return { };
+				}
+				for (const auto& side : { change.Left, change.Right }) {
+					if (!side) {
+						continue;
+					}
+					if (side->Path.empty() || side->Path.size() > maximum_git_tree_entry_path_bytes || !side->Object.valid()
+						|| side->Object.algorithm() != aScope.Comparison.Left.Commit.algorithm()
+						|| core::inspect_source_search_query(side->Path) == core::source_search_input::invalid_utf8) {
+						return { };
+					}
+					corpus->OwnedBytes += side->Path.capacity() + 1U;
+				}
+				if (corpus->OwnedBytes > maximum_git_changed_catalogue_bytes) {
+					return { core::source_search_status::resource_limit, { } };
+				}
+				auto entry   = source_corpus_entry{ };
+				entry.Left   = std::move(change.Left);
+				entry.Right  = std::move(change.Right);
+				entry.Change = change.Change;
+				entry.File   = core::file_identity_of(entry.path());
+				corpus->Entries.push_back(std::move(entry));
+			}
+			std::ranges::sort(corpus->Entries, { }, &source_corpus_entry::path);
+			for (auto i = std::size_t{ 1U }; i < corpus->Entries.size(); ++i) {
+				if (corpus->Entries[i - 1U].path() == corpus->Entries[i].path()) {
+					return { };
+				}
+			}
+			std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+			if (aActor->SearchScope != aScope || !aActor->BlobAuthority || aWorkStop.stop_requested()) {
+				return { };
+			}
+			aActor->SearchCorpus = corpus;
+			return { core::source_search_status::complete, std::move(corpus) };
+		}
+
+		[[nodiscard]] static auto search_catalogue_turn(const std::shared_ptr<authority_effect_actor>& aActor, const std::shared_ptr<authority_context>& aContext, const core::source_search_scope& aScope, std::stop_token aStop) -> source_corpus_observation
+		{
+			auto stop     = std::stop_source{ };
+			auto forward  = std::stop_callback{ aStop, [&] { stop.request_stop(); } };
+			auto priority = prepared_read_registration{ *aActor, stop, false };
+			if (!priority.admitted()) {
+				return { core::source_search_status::searching, { } };
+			}
+			auto result = build_source_corpus(aActor, aContext, aScope, stop.get_token());
+			if (stop.stop_requested() && !aStop.stop_requested()) {
+				return { core::source_search_status::searching, { } };
+			}
+			return result;
+		}
+		[[nodiscard]] auto catalogue(const core::source_search_scope& aScope, std::stop_token aStop) -> source_corpus_observation
+		{
+			if (aStop.stop_requested()) {
+				return { core::source_search_status::cancelled, { } };
+			}
+			if (!begin_blob_call()) {
+				return { };
+			}
+			struct call_guard
+			{
+				implementation& Host;
+				~call_guard() { Host.finish_blob_call(); }
+			} call{ *this };
+			const auto actor = search_actor(aScope);
+			if (!actor) {
+				return { };
+			}
+			auto context = std::shared_ptr<authority_context>{ };
+			{
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->SearchCorpus) {
+					return { core::source_search_status::complete, actor->SearchCorpus };
+				}
+				context = actor->BlobContext.lock();
+			}
+			if (!context) {
+				return { };
+			}
+			while (!aStop.stop_requested()) {
+				if (search_actor(aScope) != actor) {
+					return { };
+				}
+				const auto result = run_on_actor<source_corpus_observation>(actor, { .ApplicationSession = aScope.Session, .Authority = aScope.Authority, .ObjectFormat = aScope.Comparison.Left.Commit.algorithm() }, [actor, context, aScope](std::stop_token aWorkStop) { return search_catalogue_turn(actor, context, aScope, aWorkStop); }, aStop);
+				if (!result) {
+					return { aStop.stop_requested() ? core::source_search_status::cancelled : core::source_search_status::unavailable, { } };
+				}
+				if (result->Status != core::source_search_status::searching) {
+					return *result;
+				}
+				std::this_thread::yield();
+			}
+			return { core::source_search_status::cancelled, { } };
+		}
+
+		[[nodiscard]] auto acquire_source_corpus_material(const std::shared_ptr<authority_effect_actor>& aActor, const std::shared_ptr<authority_context>& aContext, const std::shared_ptr<const source_corpus>& aCorpus, core::diff_side aSide, const std::shared_ptr<corpus_read_waiter>& aWaiter, const std::shared_ptr<job_control>& aControl) -> source_corpus_material
+		{
+			auto material = source_corpus_material{ };
+			try {
+				auto forwardJobStop = std::stop_callback{ aControl->Stop.get_token(), [aWaiter] { aWaiter->Stop.request_stop(); } };
+				auto priority       = prepared_read_registration{ *aActor, aWaiter->Stop, false };
+				if (!priority.admitted()) {
+					return { diff_blob_status::cancelled, true, { } };
+				}
+				const auto workStop   = aWaiter->Stop.get_token();
+				const auto scope      = aCorpus->Scope;
+				auto       validGrant = false;
+				{
+					std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+					validGrant = aActor->SearchCorpus == aCorpus && aActor->SearchScope == scope;
+				}
+				if (validGrant && !workStop.stop_requested() && Consumer->active() && !BlobIngressClosing.load(std::memory_order_acquire)
+					&& open_actor_cache(*aActor, Caches, { .ApplicationSession = scope.Session, .Authority = scope.Authority, .ObjectFormat = aWaiter->Blob.algorithm() }, workStop)) {
+					auto bytes = std::optional<std::vector<std::uint8_t>>{ };
+					{
+						std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+						bytes = retained_blob(*aActor, aWaiter->Blob);
+					}
+					auto cached = bytes ? git_cache_result<std::vector<std::uint8_t>>{ std::move(*bytes) } : aActor->Cache->materialize_blob({ aWaiter->Blob, maximum_git_cache_blob_materialization_bytes }, workStop);
+					if (cached) {
+						bytes = std::move(*cached);
+					} else {
+						bytes.reset();
+						material.Status    = cached.error() == git_cache_failure::quota_exceeded ? diff_blob_status::materialization_limit : diff_blob_status::missing;
+						const auto& anchor = aSide == core::diff_side::left ? scope.Comparison.Left : scope.Comparison.Right;
+						if (cached.error() == git_cache_failure::object_mismatch && aContext->Handoff.SmartGit && aContext->Handoff.SmartGit->supports_sparse_commit_trees()
+							&& durably_sparse_anchor(*aActor, *aContext, anchor, workStop)) {
+							if (priority.admitted()) {
+								auto smart               = git_smart_request_context{ };
+								smart.ApplicationSession = aContext->Handoff.ApplicationSession;
+								smart.Authority          = aContext->Authority;
+								smart.Revision           = aContext->Revision;
+								smart.Repository         = aContext->Handoff.Locator;
+								smart.BaseRef            = aContext->Handoff.BaseRef;
+								const auto transport     = aContext->Handoff.SmartGit->acquire(smart);
+								if (transport && *transport) {
+									const auto fetched = (*transport)->read_exact_blob({ smart, aWaiter->Blob, maximum_git_cache_blob_materialization_bytes }, workStop);
+									if (fetched) {
+										bytes.emplace(fetched->size());
+										std::ranges::transform(*fetched, bytes->begin(), [](std::byte aByte) { return std::to_integer<std::uint8_t>(aByte); });
+										if (!blob_matches(aWaiter->Blob, *bytes)) {
+											bytes.reset();
+											material.Status = diff_blob_status::failure;
+										}
+									} else {
+										material.Status = fetched.error().Failure == git_smart_transport_failure::response_limit ? diff_blob_status::materialization_limit : diff_blob_status::failure;
+									}
+								}
+							}
+						}
+					}
+					std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+					if (bytes && aActor->SearchCorpus == aCorpus && aActor->SearchScope == scope && !workStop.stop_requested()) {
+						if (bytes->size() > maximum_git_cache_blob_materialization_bytes) {
+							material.Status = diff_blob_status::materialization_limit;
+						} else {
+							retain_blob(*aActor, aWaiter->Blob, *bytes, true);
+							material.Bytes  = std::make_shared<const std::vector<std::uint8_t>>(std::move(*bytes));
+							material.Status = diff_blob_status::available;
+						}
+					}
+				}
+				if (workStop.stop_requested()) {
+					material.Status = diff_blob_status::cancelled;
+					std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+					material.Yielded = !aControl->Stop.stop_requested() && aActor->SearchCorpus == aCorpus && still_needed(aWaiter->Needed);
+				}
+			} catch (...) {
+				material = { };
+			}
+			return material;
+		}
+
+		[[nodiscard]] auto read_source_corpus(const std::shared_ptr<const source_corpus>& aCorpus, std::size_t aEntry, core::diff_side aSide, std::stop_token aStop, source_corpus_read_needed aNeeded) -> source_corpus_material
+		{
+			if (aStop.stop_requested()) {
+				return { diff_blob_status::cancelled, false, { } };
+			}
+			if (aSide != core::diff_side::left && aSide != core::diff_side::right) {
+				return { };
+			}
+			if (!aCorpus || aEntry >= aCorpus->Entries.size() || !begin_blob_call()) {
+				return { };
+			}
+			struct call_guard
+			{
+				implementation& Host;
+				~call_guard() { Host.finish_blob_call(); }
+			} call{ *this };
+			const auto actor = search_actor(aCorpus->Scope);
+			if (!actor) {
+				return { };
+			}
+			const auto& side = aSide == core::diff_side::left ? aCorpus->Entries[aEntry].Left : aCorpus->Entries[aEntry].Right;
+			if (!side) {
+				return { diff_blob_status::missing, false, { } };
+			}
+			if (side->Mode != 0100644U && side->Mode != 0100755U) {
+				return { diff_blob_status::generated_file_unsupported, false, { } };
+			}
+			auto context   = std::shared_ptr<authority_context>{ };
+			auto waiter    = std::shared_ptr<corpus_read_waiter>{ };
+			auto coalesced = false;
+			{
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->SearchCorpus != aCorpus) {
+					return { };
+				}
+				context = actor->BlobContext.lock();
+				if (actor->SearchRead) {
+					if (actor->SearchRead->Blob != side->Object || actor->SearchRead->Corpus.lock() != aCorpus) {
+						return { diff_blob_status::cancelled, true, { } };
+					}
+					waiter         = actor->SearchRead;
+					waiter->Needed = std::move(aNeeded);
+					coalesced      = true;
+				} else {
+					waiter            = std::make_shared<corpus_read_waiter>();
+					waiter->Blob      = side->Object;
+					waiter->Corpus    = aCorpus;
+					waiter->Needed    = std::move(aNeeded);
+					actor->SearchRead = waiter;
+				}
+			}
+			if (!context) {
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				if (actor->SearchRead == waiter && !coalesced) {
+					actor->SearchRead.reset();
+				}
+				return { };
+			}
+			if (!coalesced) {
+				auto admitted = admit_job({ }, { }, { }, { }, false, false, true);
+				if (!admitted) {
+					std::scoped_lock lock{ actor->BlobAuthorityMutex };
+					if (actor->SearchRead == waiter) {
+						actor->SearchRead.reset();
+					}
+					return { };
+				}
+				auto control = std::move(*admitted);
+				try {
+					enqueue_actor_work(actor, [this, actor, context, corpus = aCorpus, aSide, waiter, control] {
+                        auto material = acquire_source_corpus_material(actor,context,corpus,aSide,waiter,control);
+
+                        {
+                            std::scoped_lock lock{actor->BlobAuthorityMutex};
+                            if (actor->SearchRead == waiter) { actor->SearchRead.reset(); }
+                        }
+                        {
+                            std::scoped_lock lock{waiter->Mutex};
+                            waiter->Material = std::move(material);
+                            waiter->Done = true;
+                        }
+                        const auto reserved = retire_actor_job(control);
+                        waiter->Changed.notify_all();
+                        release_actor_job_reservation(reserved,control->Preparation); }, profile_epoch_actor_priority::preparation);
+				} catch (...) {
+					finish_job(control);
+					std::scoped_lock lock{ actor->BlobAuthorityMutex };
+					if (actor->SearchRead == waiter) {
+						actor->SearchRead.reset();
+					}
+					return { };
+				}
+			}
+			auto wake = std::stop_callback{ aStop, [waiter, actor] {
+											   {
+												   std::scoped_lock lock{ actor->BlobAuthorityMutex };
+												   if (!still_needed(waiter->Needed)) {
+													   waiter->Stop.request_stop();
+												   }
+											   }
+											   waiter->Changed.notify_all();
+										   } };
+			std::unique_lock lock{ waiter->Mutex };
+			const auto       done = waiter->Changed.wait_for(lock, Limits.BlobWait, [&] { return waiter->Done || aStop.stop_requested(); });
+			if (aStop.stop_requested()) {
+				return { diff_blob_status::cancelled, false, { } };
+			}
+			if (!done) {
+				waiter->Stop.request_stop();
+				return { };
+			}
+			return waiter->Material;
+		}
+
 		/// \brief Prepares the files the reviewer is about to open. [[BPR-1327]]
 		[[nodiscard]] auto prepare_selected_diffs(
 			const std::vector<workbench_selected_diff_request>& aRequests,
@@ -5133,6 +5561,9 @@ namespace bpr::application {
 						} catch (...) {
 							// Retention is an optimization; the read stands.
 						}
+					}
+					if (aRead.SelectedGrantSequence) {
+						retain_blob(*aActor, request.Blob, *aRead.Bytes);
 					}
 					aRead.Observation.Status = diff_blob_status::available;
 					aRead.Observation.Bytes  = std::move(*aRead.Bytes);
@@ -9196,6 +9627,59 @@ namespace bpr::application {
 		github_base_numbering_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_github_base_numbering(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::bind_source_search(const workbench_pull_request_authority& aAuthority, const core::comparison_pair& aComparison, std::optional<core::document_tab_id> aTab) -> std::optional<core::source_search_scope>
+	{
+		return Implementation->bind_source_search(aAuthority, aComparison, aTab);
+	}
+	auto epoch_application_host::catalogue(const core::source_search_scope& aScope, std::stop_token aStop) -> source_corpus_observation
+	{
+		return Implementation->catalogue(aScope, aStop);
+	}
+	auto epoch_application_host::read(const std::shared_ptr<const source_corpus>& aCorpus, std::size_t aEntry, core::diff_side aSide, std::stop_token aStop, source_corpus_read_needed aStillNeeded) -> source_corpus_material
+	{
+		return Implementation->read_source_corpus(aCorpus, aEntry, aSide, aStop, std::move(aStillNeeded));
+	}
+	void epoch_application_host::demand_changed()
+	{
+		std::scoped_lock actorsLock{ Implementation->CacheActorsMutex };
+		for (const auto& [key, actor] : Implementation->CacheActors) {
+			static_cast<void>(key);
+			std::scoped_lock lock{ actor->BlobAuthorityMutex };
+			if (actor->SearchRead && !implementation::still_needed(actor->SearchRead->Needed)) {
+				actor->SearchRead->Stop.request_stop();
+			}
+		}
+	}
+	void epoch_application_host::yield_to_source_navigation()
+	{
+		std::scoped_lock actorsLock{ Implementation->CacheActorsMutex };
+		for (const auto& [key, actor] : Implementation->CacheActors) {
+			static_cast<void>(key);
+			std::scoped_lock lock{ actor->BlobAuthorityMutex };
+			actor->SearchScanStop.request_stop();
+			if (actor->PreparedRead) {
+				actor->PreparedRead->request_stop();
+			}
+			if (actor->SearchRead) {
+				actor->SearchRead->Stop.request_stop();
+			}
+			if (actor->ReviewerWork == 0U) {
+				actor->SearchScanStop = std::stop_source{ };
+			}
+		}
+	}
+	auto epoch_application_host::scan_stop_token(const core::source_search_scope& aScope) -> std::stop_token
+	{
+		const auto actor = Implementation->search_actor(aScope);
+		if (!actor) {
+			auto stop = std::stop_source{ };
+			stop.request_stop();
+			return stop.get_token();
+		}
+		std::scoped_lock lock{ actor->BlobAuthorityMutex };
+		return actor->SearchScanStop.get_token();
 	}
 
 	void epoch_application_host::shutdown()

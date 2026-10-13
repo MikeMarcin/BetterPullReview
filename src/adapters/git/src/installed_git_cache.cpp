@@ -4887,6 +4887,61 @@ namespace bpr::adapters::git {
 					: std::optional<core::git_blob_oid>{ };
 			}
 
+			[[nodiscard]] auto changed_entries(const application::git_cache_changed_entries_request& aRequest, const std::stop_token aStop)
+				-> application::git_cache_result<std::vector<application::git_cache_changed_entry>> override
+			{
+				std::lock_guard operationGuard{ State->OperationMutex };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ application::git_cache_failure::cancelled };
+				}
+				const auto left  = process_commit(aRequest.Left);
+				const auto right = process_commit(aRequest.Right);
+				if (!left || !right || aRequest.Left.algorithm() != State->Request.ObjectFormat || aRequest.Right.algorithm() != State->Request.ObjectFormat) {
+					return std::unexpected{ application::git_cache_failure::invalid_request };
+				}
+				const auto inventory = State->validated_inventory(aStop, false);
+				if (!inventory) {
+					return std::unexpected{ inventory.error() };
+				}
+				if (!State->active_boundary_still_owned()) {
+					return std::unexpected{ application::git_cache_failure::invalid_repository };
+				}
+				struct collector final : application::git_changed_entry_sink
+				{
+					std::vector<application::git_cache_changed_entry> Entries;
+					auto                                              accept(const application::git_changed_entry& aEntry) -> bool override
+					{
+						if (Entries.size() == application::maximum_git_changed_entries) {
+							return false;
+						}
+						auto changed       = application::git_cache_changed_entry{ };
+						changed.Change     = aEntry.Change;
+						const auto convert = [](const std::optional<application::git_changed_side>& aSide) -> std::optional<application::git_cache_changed_side> {
+							if (!aSide) {
+								return { };
+							}
+							const auto path = aSide->Path.generic_u8string();
+							return application::git_cache_changed_side{ std::string{ reinterpret_cast<const char*>(path.data()), path.size() }, core_blob(aSide->Object), aSide->Mode };
+						};
+						changed.Left  = convert(aEntry.Left);
+						changed.Right = convert(aEntry.Right);
+						Entries.push_back(std::move(changed));
+						return true;
+					}
+				} output;
+				const auto found = State->Process->changed_entries({ State->Repository, *left, *right }, output, aStop);
+				if (!State->active_boundary_still_owned()) {
+					if (!found && found.error() == application::git_process_failure::reap_failure) {
+						static_cast<void>(State->process_failure(found.error()));
+					}
+					return std::unexpected{ application::git_cache_failure::repair_required };
+				}
+				if (!found) {
+					return std::unexpected{ found.error() == application::git_process_failure::standard_output_limit ? application::git_cache_failure::quota_exceeded : State->process_failure(found.error()) };
+				}
+				return std::move(output.Entries);
+			}
+
 			[[nodiscard]] auto find_rename_pairs(
 				const application::git_cache_rename_pair_request& aRequest,
 				const std::stop_token                             aStop)

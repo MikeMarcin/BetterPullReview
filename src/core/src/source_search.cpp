@@ -201,7 +201,27 @@ namespace bpr::core {
 		if (aState.Status == source_search_status::complete && (aState.Summary.SearchedFiles != aState.Summary.EligibleFiles || aState.Summary.SkippedSides != 0U)) {
 			aState.Status = source_search_status::partial;
 		}
-		aState.CurrentMatch = aState.Summary.Matches == 0U ? std::nullopt : std::optional{ aState.Summary.InitialMatch.value_or(0U) };
+		aState.CurrentMatch = aState.Summary.Matches == 0U ? std::nullopt : std::optional{ aState.CurrentMatch && *aState.CurrentMatch < aState.Summary.Matches ? *aState.CurrentMatch : aState.Summary.InitialMatch.value_or(0U) };
+		return output;
+	}
+
+	auto progress_source_search(source_search_state& aState, const source_search_request& aRequest, const source_search_summary aSummary) -> source_search_output
+	{
+		auto output = source_search_output{ };
+		if (!aState.Pending || *aState.Pending != aRequest) {
+			output.Reason = source_search_reason::stale_completion;
+			return output;
+		}
+		if (!valid_terminal({ aRequest, source_search_status::partial, aSummary }) || aSummary.Matches < aState.Summary.Matches || aSummary.SearchedFiles < aState.Summary.SearchedFiles || aSummary.SkippedSides < aState.Summary.SkippedSides) {
+			output.Reason = source_search_reason::invalid_completion;
+			return output;
+		}
+		aState.Summary = aSummary;
+		if (aSummary.Matches != 0U && !aState.CurrentMatch) {
+			aState.CurrentMatch = 0U;
+		}
+		output.Accepted = true;
+		output.Changed  = true;
 		return output;
 	}
 

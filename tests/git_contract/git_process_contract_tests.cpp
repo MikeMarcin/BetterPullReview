@@ -1,3 +1,4 @@
+#include "../../src/adapters/git/src/git_process_output.hpp"
 #include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
@@ -1766,6 +1767,18 @@ namespace {
 		exercise(application::git_hash_algorithm::sha256, '2');
 	}
 
+	auto run_changed_catalogue_parser_contract() -> void
+	{
+		const auto blob   = std::string(40U, 'a');
+		const auto raw    = std::string{ ":100644 100644 " } + blob + " " + blob + " R100" + '\0' + "old/path" + '\0' + "new/path" + '\0';
+		const auto parsed = git_adapter::detail::parse_changed_entries(raw, application::git_hash_algorithm::sha1);
+		require(parsed && parsed->size() == 1U && parsed->at(0U).Left->Path == "old/path" && parsed->at(0U).Right->Path == "new/path", "raw exact rename parser preserves both paths");
+		for (const auto& bad : { raw.substr(0U, raw.size() - 1U), std::string{ ":100644 100644 " } + blob + " " + std::string(40U, 'b') + " R100" + '\0' + "old" + '\0' + "new" + '\0', std::string{ ":000000 100644 " } + blob + " " + blob + " A" + '\0' + "path" + '\0', std::string{ ":100644 100644 " } + blob + " " + blob + " M" + '\0' + "../escape" + '\0' }) {
+			require(!git_adapter::detail::parse_changed_entries(bad, application::git_hash_algorithm::sha1), "malformed/truncated/unproven/escaping raw catalogue is refused atomically");
+		}
+		require(!git_adapter::detail::parse_changed_entries(std::string(application::maximum_git_changed_catalogue_bytes + 1U, 'x'), application::git_hash_algorithm::sha1), "raw catalogue output bound refuses before membership");
+	}
+
 	auto run_connectivity_contract() -> void
 	{
 		temporary_root root{ "git-connectivity" };
@@ -1867,7 +1880,27 @@ namespace {
 						== application::git_process_failure::cancelled,
 				"pre-cancelled lookup never reaches Git");
 
-			const auto chain   = make_rename_chain_fixture(repository, aAlgorithm);
+			const auto chain = make_rename_chain_fixture(repository, aAlgorithm);
+			struct catalogue_sink final : application::git_changed_entry_sink
+			{
+				std::vector<application::git_changed_entry> Entries;
+				auto                                        accept(const application::git_changed_entry& aEntry) -> bool override
+				{
+					Entries.push_back(aEntry);
+					return true;
+				}
+			} catalogue;
+			const auto changed = adapter->changed_entries({ repository, chain.HeadOne, chain.HeadTwo }, catalogue, { });
+			expect(changed.has_value() && catalogue.Entries.size() == 1U && catalogue.Entries[0].Change == 'R'
+					   && catalogue.Entries[0].Left && catalogue.Entries[0].Right && catalogue.Entries[0].Left->Path == "b.cpp" && catalogue.Entries[0].Right->Path == "c.cpp"
+					   && catalogue.Entries[0].Left->Object == catalogue.Entries[0].Right->Object,
+				   "installed Git exact pair emits complete pure-rename catalogue with both exact paths and blob proof");
+			catalogue.Entries.clear();
+			const auto historical = adapter->changed_entries({ repository, chain.Base, chain.HeadOne }, catalogue, { });
+			expect(historical.has_value() && catalogue.Entries.size() == 1U && catalogue.Entries[0].Left->Path == "a.cpp" && catalogue.Entries[0].Right->Path == "b.cpp", "historical exact-tree catalogue differs from today's c.cpp path");
+			catalogue.Entries.clear();
+			const auto absent = adapter->changed_entries({ repository, object<application::git_commit_id>(std::string(aAlgorithm == application::git_hash_algorithm::sha1 ? 40U : 64U, 'f'), aAlgorithm), chain.HeadTwo }, catalogue, { });
+			expect(!absent && catalogue.Entries.empty(), "missing exact historical commit cannot report an empty successful catalogue");
 			const auto forward = adapter->find_rename_pairs(
 				{
 					.Repository   = repository,
@@ -4249,6 +4282,7 @@ try {
 	run_comparison_base_contract();
 	run_comparison_parser_contract();
 	run_connectivity_contract();
+	run_changed_catalogue_parser_contract();
 	run_rename_parser_contract();
 	run_real_hostile_canary_contract();
 	run_hostile_process_contract();

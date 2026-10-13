@@ -2,9 +2,8 @@
 
 [RFC-BPR-0077](../rfcs/RFC-BPR-0077-find-and-find-in-files.md) owns the complete
 Find and Find in Files behavior. Its first milestone, [[BPR-1419]], supplies
-the deterministic session and Qt-free effect lifecycle. The shared matcher,
-exact epoch corpus, native commands, source decorations and result reveal are
-subsequent milestones; this foundation does not make a source Find command
+the deterministic session and Qt-free effect lifecycle. M2 supplies the shared matcher and M3 the exact epoch corpus. Native commands,
+source decorations and result reveal are subsequent milestones; this foundation does not make a source Find command
 available in the application.
 
 ## Core policy
@@ -57,7 +56,7 @@ admits query input before copying, at 4 KiB, and passes an immutable work packet
 to `source_search_execution_port` on a separate effect executor. The execution
 port returns a typed terminal and an optional immutable exact record collection.
 The pane matcher supplies records through `execute_source_pane_match`; the PR
-corpus will add streamed records/batches under the same identity. Payload size,
+corpus supplies streamed records/batches under the same identity. Payload size,
 preview and location admission runs on the effect lane. Only the serialized
 exact-current completion publishes its collection, and query/scope invalidation
 clears it synchronously. Constant-work traversal shares that immutable collection.
@@ -78,10 +77,9 @@ ingress and requests stop, retires queued work and remains nonquiescent until
 the active effect's decision terminal is consumed. The execution/projection
 ports and both executors must stay alive through `is_quiescent()`.
 
-No persistence, source cache, Find pasteboard, logging of content, acquisition
-or review mutation capability is introduced. The M2 limits below bound one matcher/entry execution. M3 still owes aggregate
-corpus/cache/result admission, streamed progress and selected-reader priority;
-M2 does not pin or acquire source. The complete RFC criteria remain
+No persistence, Find pasteboard, logging of content or review mutation capability
+is introduced. The M2 limits below bound one matcher/entry execution. M3 adds
+epoch-owned acquisition and aggregate admission as described below. The complete RFC criteria remain
 open until the composed application and its performance fixture prove them.
 
 ## Verification surface
@@ -93,7 +91,8 @@ host through separate manual effect/decision executors: independent queries,
 rapid coalescing, invalid input, cancellation, reentrant feedback/shutdown,
 projection/worker/submission failures and observable quiescence. Its 1,000-step
 traversal leaves the execution count unchanged. These checks prove session/record acceptance. The M2 checks below prove
-matching; source membership, pixels and installed UI behavior remain later work.
+matching; M3 checks source membership below. Pixels and installed UI behavior
+remain later work.
 
 ## Shared matching and source plans
 
@@ -162,8 +161,8 @@ and any already assembled usable prefix. `AdditionalMatchObserved` is set only
 after observing another occurrence beyond the record cap. Borrowed immutable
 source/diff material remains under its existing owner/cache limits. The pane
 bridge reserves its transfer vector separately inside the same ceiling. These
-are capacity/work bounds, not RSS or universal latency measurements; full PR
-aggregate memory and warm/cold public-path thresholds remain M3/M5 obligations.
+are capacity/work bounds, not RSS or universal latency measurements; M3 supplies the full PR admission envelope below. RSS, warm/cold timing and
+public application thresholds remain M5 obligations.
 
 `core_source_matcher` exercises Unicode/LF spans, unsupported syntax, glob policy,
 real unified plans, selection, deduplication and resource/cancellation limits.
@@ -172,3 +171,88 @@ oracle. An additional disposable official RE2 oracle checks nullable loops and
 all 4,891 reference spans; Python differs on that priority rule. The public host
 fixture also proves exact record acceptance, invalid-pattern clearing, wrong-blob
 refusal and 1,000 traversals without a matcher call. No QApplication is involved.
+
+## Exact PR corpus and acquisition
+
+M3 ([[BPR-1421]]) adds `epoch_application_host::bind_source_search` beside the
+selected-file grant. It binds one exact available retained pair and active tab
+under the live workbench authority, with a monotonic catalogue generation. It
+neither selects a comparison nor replaces a selected file grant. Catalogue
+construction verifies both exact durable anchors and asks the already held Git
+session for that pair's complete raw tree changes. No accepted provider file
+list, Files view, receipt or opened-file state is used.
+
+Installed Git runs bounded `diff-tree -r -z --raw --no-abbrev` over the two
+immutable commits, with external diff/text conversion disabled. Exact 100%
+rename/copy records carry both original paths and identical object proof;
+changes without that association stay as separate old/new entries. The closed
+Git process port sends domain records through a bounded sink. A malformed,
+missing, unrepresentable or oversized catalogue refuses atomically. Missing
+historical trees never become an empty list or today's intersection. Modes
+remain explicit: symlinks and gitlinks are skipped without opening their text
+as local paths. The host sorts by the exact right path, or left path when absent.
+
+Each catalogue has at most 10,000 changed entries and 8 MiB of owned metadata.
+The worker compiles the query and path filter before material acquisition,
+evaluates every exact pair of paths, then streams one entry's full documents.
+Invalid input starts no source work. Both valid sides use the shared core matcher;
+identical blobs within an entry share a read and preserve both locations.
+Different blobs and different entries retain their separate occurrences. No
+syntax classification, semantic diff, checkout, search executable or persistent
+content index is created.
+
+Exact reads enter the same epoch actor, call gate and job ledger as selected
+source loading. A missing sparse blob can cross the existing transport only
+with the exact catalogue and durable sparse-anchor proof; received bytes are
+checked against their blob ID. One background read is retained per search actor,
+with immutable blob and catalogue identity, independent of query generation.
+Latest demand is installed before stopping the old matcher, so a replacement
+which still needs that blob joins its in-flight read. Clear, close, changed
+filters, scope retirement and shutdown stop material that is no longer needed.
+Every admitted actor job retires even when its caller stops waiting.
+
+Catalogue work, local reads, network reads and matcher slices yield to selected
+navigation. `yield_to_source_navigation` is also the public composition seam
+for pane Find; M4/M5 must invoke it when admitting that selected-source work.
+Search uses the existing 256-entry / 16 MiB actor material cache. Background
+retention can replace only other background entries; it cannot displace a blob
+retained for the reviewer. A selected read promotes reused background material.
+The diff cache and its selected/prepared capacities are unchanged.
+
+## PR progress, limits and retry
+
+The worker emits ordered batches of at most 128 records, including empty progress
+updates for coverage. The host owns one pending progress mailbox, coalesces
+projection posts to at most ten per second, and accepts only exact current
+monotonic prefixes through core policy. Terminal updates are immediate. A late
+progress closure cannot restore obsolete results and remains part of host
+quiescence. Source cursor traversal uses the same immutable records and performs
+no compilation, scan or acquisition. A cursor chosen during progress survives
+the terminal.
+
+The 192 MiB conservative per-search admission envelope is checked before record
+allocation and entry reads. It covers a 64 MiB matcher reservation, two 16 MiB
+source sides, the existing 16 MiB actor cache, catalogue/conversion reservations,
+and bounded result/mailbox/projection copies. Results and previews stay within
+16 MiB per collection, with at most 10,000 records. This is a capacity bound,
+not measured process RSS or a universal latency threshold.
+
+Every skipped present side retains file, side and typed reason: binary,
+undecodable, unsupported mode, file limit, missing material, transport failure
+or cancellation. Absent added/removed sides are not counted as skipped. Eligible,
+searched and skipped counts qualify partial hits; only complete empty coverage
+is No results. At the record cap, the worker stops with a defined ordered prefix.
+An observed further hit permits `AdditionalMatchObserved`; exactly 10,000 hits
+alone do not. Resource exhaustion and cancellation keep their distinct terminal.
+Retry issues a new query generation under the same bound scope, preserving the
+original comparison/authority and retrying unavailable material.
+
+`application_source_pr_search` exercises both-side full documents, path filters,
+exact deduplication, skipped reasons, partial-prefix retry, batches, capped counts,
+reordered progress and no-read traversal. `application_epoch_host` composes the
+public search host/worker with the real epoch host and fake narrow capabilities:
+historical-only membership, retained read reuse, in-flight replacement, sparse
+blob validation, priority cancellation and authority shutdown need no QApplication.
+`git_process_contract` and `git_cache_contract` exercise the installed Git seam.
+These foundation checks do not supply the pending native Search drawer, exact UI
+activation, full application performance course or original AC01–AC08 acceptance.

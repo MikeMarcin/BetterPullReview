@@ -15,6 +15,7 @@ add_library(
     STATIC
         src/source_search_host.cpp
         src/source_match_execution.cpp
+        src/source_pr_search_execution.cpp
         src/remembered_connection_host.cpp
         src/writing_hooks.cpp
         src/review_tour_import.cpp

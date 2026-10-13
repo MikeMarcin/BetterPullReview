@@ -168,6 +168,8 @@ namespace bpr::core {
 	[[nodiscard]] auto reset_source_search(source_search_state& aState) -> source_search_output;
 	/// \brief Accepts only the exact current request, once; incomplete empty stays qualified.
 	[[nodiscard]] auto complete_source_search(source_search_state& aState, const source_search_terminal& aTerminal) -> source_search_output;
+	/// \brief Accepts monotonic prefix coverage only for the pending exact request.
+	[[nodiscard]] auto progress_source_search(source_search_state& aState, const source_search_request& aRequest, source_search_summary aSummary) -> source_search_output;
 	/// \brief Traverses accepted counts in constant work, without matching or source access.
 	[[nodiscard]] auto navigate_source_search(source_search_state& aState, change_navigation_direction aDirection) -> source_search_output;
 	/// \brief True only for an unqualified, completely searched, empty corpus.

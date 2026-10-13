@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SOURCE_SEARCH_HOST_HPP
 
 #include "bpr/application/port.hpp"
+#include "bpr/application/source_corpus_port.hpp"
 #include "bpr/core/source_matcher.hpp"
 #include "bpr/core/source_search.hpp"
 
@@ -17,6 +18,8 @@ namespace bpr::application {
 	{
 		core::source_search_request Request;
 		std::string                 Query;
+		std::string                 Include;
+		std::string                 Exclude;
 	};
 
 	/// \brief One exact source occurrence; locations retain both proven sides.
@@ -25,10 +28,31 @@ namespace bpr::application {
 		core::file_identity       File;
 		core::source_match_record Match;
 	};
+	/// \brief Honest per-side qualification; absent sides are not skipped material.
+	struct source_search_skipped_side
+	{
+		core::file_identity File;
+		core::diff_side     Side   = core::diff_side::left;
+		diff_blob_status    Reason = diff_blob_status::failure;
+	};
+	/// \brief One ordered publication batch, never over 128 records.
+	struct source_search_batch
+	{
+		core::source_search_request          Request;
+		core::source_search_summary          Summary;
+		std::vector<source_search_match>     Matches;
+		std::shared_ptr<const source_corpus> Corpus;
+		std::uint32_t                        Begin = 0U;
+	};
+	using source_search_batch_sink = std::function<void(source_search_batch)>;
 	struct source_search_execution
 	{
-		core::source_search_terminal                            Terminal;
-		std::shared_ptr<const std::vector<source_search_match>> Matches;
+		core::source_search_terminal                                   Terminal;
+		std::shared_ptr<const std::vector<source_search_match>>        Matches;
+		std::shared_ptr<const source_corpus>                           Corpus;
+		std::shared_ptr<const std::vector<source_search_skipped_side>> Skipped;
+		bool                                                           RetryAvailable = false;
+		std::size_t                                                    PeakOwnedBound = 0U;
 		source_search_execution(core::source_search_terminal aTerminal)
 			: Terminal(std::move(aTerminal))
 		{ }
@@ -46,23 +70,36 @@ namespace bpr::application {
 	public:
 		virtual ~source_search_execution_port()                                                                               = default;
 		[[nodiscard]] virtual auto execute(const source_search_work& aWork, std::stop_token aStop) -> source_search_execution = 0;
+		/// \brief Optional streaming seam; the default preserves ordinary pane workers.
+		[[nodiscard]] virtual auto execute(const source_search_work& aWork, std::stop_token aStop, const source_search_batch_sink& aPublish) -> source_search_execution
+		{
+			static_cast<void>(aPublish);
+			return execute(aWork, aStop);
+		}
+		/// \brief Latest demand is installed before cancelling a replaced matcher.
+		virtual void update_demand(std::optional<source_search_work> aWork) { static_cast<void>(aWork); }
 	};
 
 	/// \brief Runtime-only search presentation, with explicit empty/partial/error coverage.
 	struct source_search_projection
 	{
-		std::optional<core::source_search_scope>                Scope;
-		std::string                                             Query;
-		core::source_search_options                             Options;
-		core::source_search_input                               Input  = core::source_search_input::empty;
-		core::source_search_status                              Status = core::source_search_status::idle;
-		core::source_search_summary                             Summary;
-		std::shared_ptr<const std::vector<source_search_match>> Matches;
-		std::optional<std::uint32_t>                            CurrentMatch;
-		core::source_search_reason                              Reason    = core::source_search_reason::none;
-		bool                                                    Open      = false;
-		bool                                                    Wrapped   = false;
-		bool                                                    NoResults = false;
+		std::optional<core::source_search_scope>                       Scope;
+		std::string                                                    Query;
+		std::string                                                    Include;
+		std::string                                                    Exclude;
+		core::source_search_options                                    Options;
+		core::source_search_input                                      Input  = core::source_search_input::empty;
+		core::source_search_status                                     Status = core::source_search_status::idle;
+		core::source_search_summary                                    Summary;
+		std::shared_ptr<const std::vector<source_search_match>>        Matches;
+		std::optional<std::uint32_t>                                   CurrentMatch;
+		std::shared_ptr<const source_corpus>                           Corpus;
+		std::shared_ptr<const std::vector<source_search_skipped_side>> Skipped;
+		bool                                                           RetryAvailable = false;
+		core::source_search_reason                                     Reason         = core::source_search_reason::none;
+		bool                                                           Open           = false;
+		bool                                                           Wrapped        = false;
+		bool                                                           NoResults      = false;
 	};
 
 	class source_search_projection_port
@@ -102,6 +139,8 @@ namespace bpr::application {
 		auto set_scope(std::optional<core::source_search_scope> aScope) -> bool;
 		/// \brief Opens/edits the query; invalid input clears hits and submits no effect.
 		auto set_query(std::string_view aQuery, core::source_search_options aOptions = { }) -> bool;
+		auto set_paths(std::string_view aInclude, std::string_view aExclude) -> bool;
+		auto retry() -> bool;
 		auto open() -> bool;
 		auto close() -> bool;
 		auto clear() -> bool;

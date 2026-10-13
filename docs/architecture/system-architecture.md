@@ -1631,8 +1631,10 @@ RFC-BPR-0077's [source search session foundation](source-search.md) follows
 the same allocation: compact core scope/generation/count/cursor policy, bounded
 host-owned query packets, off-lane effects and serialized typed terminals.
 The shared domain matcher, source plans, path filters and exact record acceptance
-are supplied by M2; epoch-backed corpus and Qt Find surfaces remain later
-milestones. These foundations add no shipped Find action or source cache.
+are supplied by M2; M3 adds exact retained-tree membership, epoch-actor
+acquisition, immutable read reuse and bounded progress. Qt Find surfaces remain
+later milestones. These foundations add no shipped Find action; search shares
+the existing actor material cache without enlarging it.
 
 Routine work must scale approximately with:
 
