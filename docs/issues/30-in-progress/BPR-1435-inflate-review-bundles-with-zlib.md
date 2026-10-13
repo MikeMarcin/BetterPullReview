@@ -34,4 +34,26 @@ utf8proc, zlib, fmt) instead of hand-writing such systems.
 
 ## Evidence
 
-Pending.
+- AC1: `cmake/BprZlibProvider.cmake` builds zlib 1.3.2 (SHA-256, size and
+  license checked; offline cache honoured) from adler32, crc32, inffast,
+  inflate, inftrees and zutil with `Z_PREFIX ZLIB_CONST`; core links it
+  privately. `review_cycle_zip_codec.cpp` is the only file that includes
+  `zlib.h`, so its renaming macros never reach other code.
+  `review_cycle_zip.cpp` falls from 587 to 336 lines. `third_party/zlib`,
+  `packaging/dependencies.json` and `NOTICE_FILES` carry it;
+  `package_runtime_contract`, `release_security_audit_contract` and
+  `binary_dependency_audit_contract` pass.
+- AC2: `core_review_cycle_bundle` keeps the declared-size, corrupt-stream,
+  fixed-Huffman and stored-block cases and adds a stream without a final block,
+  an empty final block, bytes after the final block, and output beyond the
+  expected size; `core_review_cycle_bundle_pack_oracle` reads the real example
+  bundles. All 103 `core_*` suites pass with zlib linked.
+- AC3: `cmake/VerifyCoreBoundary.cmake` refuses any `better_pull_review_core`
+  link outside glaze, utf8proc, zlib and fmt; `core_boundary_contract` adds
+  accepted and refused cases (RE2, Qt, SQLite, Threads). The architecture
+  document, root `AGENTS.md` and `src/core/AGENTS.md` state the list.
+- AC4: `dependency_modernization_contract` configures the Qt-free graph offline
+  with SQLite and zlib cached, and still refuses it without SQLite.
+- Gates: `core_dependency_boundary`, `architecture_boundaries`,
+  `architecture_boundary_contract` and the documentation gate pass;
+  clang-format 22 applied; clang-tidy 22 reports no finding on changed lines.

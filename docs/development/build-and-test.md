@@ -3406,6 +3406,16 @@ exposes only headers; it does not execute upstream build or install rules.
 License and provenance are under `third_party/glaze/`. Core-only builds do not
 acquire Glaze. Existing GitHub Qt JSON parsers are unchanged in this slice.
 
+## Core zlib
+
+[[BPR-1435]] builds pinned zlib 1.3.2 for the functional core's review-bundle
+reader: `cmake/BprZlibProvider.cmake` checks archive SHA-256, size and license,
+honors the offline cache, and compiles only the raw-inflate and checksum
+sources with `Z_PREFIX` (so its symbols are `z_*`). Unlike Glaze and RE2 it is
+part of the Qt-free core graph, which now needs SQLite and zlib. zlib is on the
+owner's core allow-list, which `cmake/VerifyCoreBoundary.cmake` enforces.
+License and provenance are under `third_party/zlib/`.
+
 ## Source search regex engine
 
 [[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as

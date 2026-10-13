@@ -294,6 +294,24 @@ namespace {
 									 3U)
 				   == "abc",
 			   "stored deflate block");
+		// [[BPR-1435]]. zlib keeps the hand-written inflater's contract.
+		expect(!inflate_cycle_deflate(bytes(std::string{ "\x00\x03\x00\xFC\xFF"
+														 "abc",
+														 8U }),
+									  3U),
+			   "a stream that never reaches its final block is refused");
+		expect(inflate_cycle_deflate(bytes(std::string{ "\x03\x00", 2U }), 0U) == std::string{ }, "an empty final block inflates to nothing");
+		expect(inflate_cycle_deflate(bytes(std::string{ "\x01\x03\x00\xFC\xFF"
+														"abcjunk",
+														12U }),
+									 3U)
+				   == "abc",
+			   "bytes after the final block are ignored");
+		expect(!inflate_cycle_deflate(bytes(std::string{ "\x01\x03\x00\xFC\xFF"
+														 "abc",
+														 8U }),
+									  2U),
+			   "output beyond the expected size is refused");
 		const auto counted = read_cycle_zip(bytes(valid), { .Entries = 3U });
 		expect(!counted && counted.error() == cycle_zip_problem::count, "more entries than admitted");
 		const auto total = read_cycle_zip(bytes(valid), { .DecodedBytes = 1024U });

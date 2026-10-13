@@ -299,7 +299,8 @@ installers, signing or the GUI round trip a person drives.
 `packaging/package_runtime.py` creates a closed runtime inventory and hashes
 deployed bytes after relocation (and after final macOS sealing/stapling). It
 joins the selected Qt producer's SPDX graph with statically compiled SQLite,
-KSyntaxHighlighting, Quill/fmt, Glaze, RE2 with its Abseil LTS ([[BPR-1431]]),
+KSyntaxHighlighting, Quill/fmt, Glaze, zlib ([[BPR-1435]]), RE2 with its Abseil
+LTS ([[BPR-1431]]),
 the macOS-only LibArchive input and the embedded JetBrains Mono NL faces
 ([[BPR-1270]]).
 `packaging/dependencies.json` pins their complete source archives; cached or

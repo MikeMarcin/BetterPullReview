@@ -4,6 +4,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprQtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprQuillProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprGlazeProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprRe2Provider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprZlibProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
@@ -84,6 +85,11 @@ function(bpr_configure_dependencies)
     bpr_include_builtin_find_module(Threads)
     bpr_require_dependency_target(Threads::Threads Threads)
     list(APPEND records "Threads|TOOLCHAIN|Threads::Threads")
+
+    # [[BPR-1435]]. The core's review-bundle reader inflates with pinned zlib.
+    bpr_acquire_zlib()
+    bpr_require_dependency_target(BetterPullReview::ZLib zlib)
+    list(APPEND records "zlib|PINNED_ARCHIVE|BetterPullReview::ZLib")
 
     if(
         BUILD_TESTING
