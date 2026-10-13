@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-current-main-composition",
+  "outcome": "pass",
+  "revision": "75e172acc0a08ebc165de51a0b052acc5db2d93b",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"--output-on-failure\", \"-R\", \"^(application_header_source_navigation|application_header_source_navigation_large|qt_diff_workbench_scale_100)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 29.954,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start 353: qt_diff_workbench_scale_100\n1/3 Test #353: qt_diff_workbench_scale_100 ..................   Passed   13.62 sec\n    Start 690: application_header_source_navigation\n2/3 Test #690: application_header_source_navigation .........   Passed   10.84 sec\n    Start 691: application_header_source_navigation_large\n3/3 Test #691: application_header_source_navigation_large ...   Passed    5.43 sec\n\n100% tests passed out of 3\n\nLabel Time Summary:\nbpr_network_isolated                    =  29.89 sec*proc (3 tests)\nbpr_serial_gui                          =  29.89 sec*proc (3 tests)\nbpr_windows_uncontained_registration    =  16.27 sec*proc (2 tests)\n\nTotal Test time (real) =  29.93 sec\n",
+    "stderr_tail": ""
+  }
+}

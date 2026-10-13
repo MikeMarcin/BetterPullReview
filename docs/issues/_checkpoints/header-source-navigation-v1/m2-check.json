@@ -1,0 +1,5 @@
+{
+  "action": "report-closeout",
+  "detail": "Both authored milestones and all six amended RFC criteria are accepted. BPR-1415/BPR-1416 are Done; RFC-BPR-0074 is Auto-Verified. No required human/native/independent obligation or engineering work remains.",
+  "engineering_acceptance": "not-evaluated"
+}

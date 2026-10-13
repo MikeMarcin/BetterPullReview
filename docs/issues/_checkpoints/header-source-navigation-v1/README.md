@@ -75,3 +75,24 @@ are finished; final bookkeeping/documentation commands are reaped before handoff
 Unrelated config/drafts and concurrent smooth-panning work are preserved. Final
 RFC/card upkeep and command reconciliation are recorded by the M2 observation
 and handoff receipt below.
+
+## Final M2 closeout receipt
+
+BPR-1416 is Done and RFC-BPR-0074 is Auto-Verified in acceptance commit
+`75e172acc0a08ebc165de51a0b052acc5db2d93b`. The [finish receipt](m2-finish-receipt.json),
+[final observation](m2-observation.json), [milestone check](m2-check.json) and
+[ownership handoff](m2-handoff.json) bind the completed assignment and preserve
+all pending/command state. There is no next milestone or required attendance.
+
+The [current-main supplement](m2-current-main-composition.json) passes both
+counterpart courses and Qt diff scale100 (3/3) at `75e172acc`, after concurrent
+Home integration and native-scrollbar restoration. The [terminal documentation
+gate](m2-final-state-documentation.json) passes, scoped board validation is valid
+and its queue has two Done cards with no next item. Historical source hashes
+and the accepted integrated hashes remain distinct in M2 verification.
+
+All task-owned commands have finished or been reaped; no review server or
+protected candidate exists. Shared build trees and local rendered evidence are
+retained. Unrelated `.gitignore`, `.mask.json`, `.mask.lock.json` changes and
+untracked draft intake remain outside the task. Final bookkeeping commits
+contain only this RFC’s explicit paths and change no tested source bytes.

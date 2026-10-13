@@ -1,0 +1,13 @@
+{
+  "criterion": "M2-handoff-documentation",
+  "outcome": "pass",
+  "revision": "75e172acc0a08ebc165de51a0b052acc5db2d93b",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.199,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}

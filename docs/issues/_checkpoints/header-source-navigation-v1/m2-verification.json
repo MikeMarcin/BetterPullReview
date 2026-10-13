@@ -171,6 +171,21 @@
     {
       "evidence_ref": "m2-documentation-final.json",
       "outcome": "pass"
+    },
+    {
+      "evidence_ref": "m2-current-main-composition.json",
+      "outcome": "pass",
+      "candidate": "75e172acc0a08ebc165de51a0b052acc5db2d93b",
+      "detail": "Rebuilt counterpart and Qt diff executables after concurrent Home/scrollbar integration, then ran both counterpart courses and Qt diff scale100."
+    },
+    {
+      "evidence_ref": "m2-final-state-documentation.json",
+      "outcome": "pass",
+      "candidate": "75e172acc0a08ebc165de51a0b052acc5db2d93b"
+    },
+    {
+      "evidence_ref": "m2-handoff-documentation.json",
+      "outcome": "pass"
     }
   ],
   "reused_M1": "m1-verification.json and unchanged pure matching/index source evidence; public host rerun after availability extension. No terminal M1 record rewritten.",
@@ -186,7 +201,14 @@
       "02-unified-header.png": "cef3b5cacfeb0e6e11e0d083716cf620abbaddf55b1d1eb3500f140931bf91ef",
       "03-ambiguous.png": "9a253a1568347eb81150a7fdf3265541363ce2fee5e6854388f2914459b43d57"
     },
-    "inspection": "Split/unified full windows show exact synthetic inc/widget.h blobs; ambiguity remains on selected source with status. Renders are local transient evidence, excluded from commits."
+    "inspection": "Split/unified full windows show exact synthetic inc/widget.h blobs; ambiguity remains on selected source with status. Renders are local transient evidence, excluded from commits.",
+    "current_main_files": {
+      "01-split-header.png": "06a15ae796a6af31c083d077dc8f067828042028c9911e10c86ad80b71f3fcef",
+      "02-unified-header.png": "cef3b5cacfeb0e6e11e0d083716cf620abbaddf55b1d1eb3500f140931bf91ef",
+      "03-ambiguous.png": "9a253a1568347eb81150a7fdf3265541363ce2fee5e6854388f2914459b43d57",
+      "04-large-no-match.png": "aaad67d8133b75a1c808d4d9a6816843a4411510d1b407e2c4e27afb27e9bdef"
+    },
+    "current_main_candidate": "75e172acc0a08ebc165de51a0b052acc5db2d93b"
   },
   "failures_and_corrections": [
     "Initial broad Qt test crashed during child-settings destruction after actions were deleted. LLDB traced new focus callback; disconnected focusChanged before child teardown. Full Qt window test then passes.",
@@ -200,7 +222,8 @@
     "Full tidy failed on 14 preexisting composition naming errors and two course std::endl diagnostics. Baseline exact lines are retained in m2-tidy-review; own course diagnostics corrected and rerun.",
     "Canonical closeout filename/title, baseline-marker sentence, Acceptance criteria and Closeout checklist headings required documentation normalization. Renewed binding preserves all six criteria and exits.",
     "One resumed course build referenced a nonexistent back_to_review_action; used existing Home toggle; rebuilt and both final courses pass.",
-    "First final global documentation attempt saw a concurrent RFC-BPR-0073 link before its owner wrote m6-verification.json. Preserved failure; waited for that owner, without editing unrelated files. Evidence helper refuses overwriting an existing record; retry uses a new final receipt."
+    "First final global documentation attempt saw a concurrent RFC-BPR-0073 link before its owner wrote m6-verification.json. Preserved failure; waited for that owner, without editing unrelated files. Evidence helper refuses overwriting an existing record; retry uses a new final receipt.",
+    "Closeout rebuild first used a nonexistent target spelling, which Ninja rejected without writes; located exact CMake targets and successfully rebuilt test_header_source_public_path and test_better_pull_review_qt_diff_workbench_tests."
   ],
   "self_review": "Bounded review checked one command identity/order, core legality without Qt, complete-catalogue indexed lookup, no effects in Qt, exact queued revalidation/membership, tab/sibling/comparison retention, sourceRequest lifecycle, disabled AppKit equivalent during editing, teardown lifetime and no added provider mutation/settings/pairing persistence. No known critical changed-surface defect remains.",
   "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
@@ -210,5 +233,48 @@
     "New WINDOWS_UNCONTAINED test registrations retain existing dos-volume-name root limitation; native Windows containment is unmeasured.",
     "No push, external mutation, attended candidate or review server."
   ],
-  "commands": "All completed or reaped before final handoff; final bookkeeping/documentation gate results added separately."
+  "commands": "All engineering, build/test, format/tidy, fixture, bookkeeping and documentation commands completed or were reaped before handoff. m2-handoff.json records recovered command state; no task-owned background command remains.",
+  "integrated_candidate": "75e172acc0a08ebc165de51a0b052acc5db2d93b",
+  "integration_reconciliation": {
+    "earlier_integration_revision": "eea173a8a942bfd3c5808d4844e1375ea73001ca",
+    "earlier_integration_bytes": "All product source/fixture/script paths identical to product 720c52c69 at that revision.",
+    "final_input_revision": "53988db27a909baebf1af4546132610ff7e59052",
+    "intervening_changes": "Concurrent Home filter work changed workbench_window.hpp/.cpp and github_application.cpp before the final two courses passed at 53988db27. Concurrent RFC-BPR-0073 removed its source_horizontal_scroll_bar subclass afterward in a6b40da50. The M2 command/focus paths remain unchanged; current-main composed/Qt diff checks supplement historical evidence.",
+    "unrelated_changes_preserved": true
+  },
+  "integrated_source_sha256": {
+    "docs/architecture/header-source-navigation.md": "6a533c48ace8308f3aafb416f704fdbc9449f7ddd6d12e995cf6af1d691548c4",
+    "docs/ux/workbench-specification.md": "6e53b11c175dd9477ae69d2dbc2357ea7adb330aa6e1959e686193ec9622f308",
+    "docs/verification/fixture-catalog.md": "5cf3dd978166b9aba668caa5c04706ec22d19142a13437822721dc8cbbb1e67d",
+    "scripts/build_header_source_fixture.py": "9efbb9bc79292d8a8dcdb8ce44680bed2b93e2cd1ca2a71198450292930c8a38",
+    "scripts/verify_test_network_isolation.py": "ab3fa1f85db7a5ee273bf663131014df28b9230d6bc55359e78abb29996822c7",
+    "src/adapters/qt/include/bpr/qt/diff_workbench.hpp": "22ea5c81364a908afca4b6f579e98ac73037c3039b8cce0fb3b4d8a38e5dbb83",
+    "src/adapters/qt/include/bpr/qt/workbench_window.hpp": "4a4c9129a5934af2572d751e3a81f12e1675f30bdc2a95a10229fd88ca001f37",
+    "src/adapters/qt/src/desktop_menu_bar.cpp": "3d98a898398fc774d35ea05aab124848cf11db49e486b89b255551de29fcd44a",
+    "src/adapters/qt/src/diff_workbench.cpp": "5e7908c00e1bfd4e2269e6b733510eeb3325e01715f4d628998bc91d78b79ac9",
+    "src/adapters/qt/src/workbench_window.cpp": "b05fc138420f9685d6afbb8d30e5e0241ea87df9e970d5505157bbe20e3402ca",
+    "src/app/src/github_application.cpp": "439fc1259b00ef3090cb987e642478740c974bdb591460333d7db82bd443762b",
+    "src/app/src/github_application_fixture_access.hpp": "6f40ba9462f35baca63b020a106360d48ee5a864a9626f6e977851e9408c4952",
+    "src/app/src/github_public_path_fixture.cpp": "b91ad79b520f3cd1c7b8588dc7e23eaf4183249aaa7b7921029f979f939395fd",
+    "src/application/src/workbench_application_host.cpp": "fbb4fd7c111cc4b513abb035a248092409331f47f7e6b57eb3eae621f400715a",
+    "src/core/include/bpr/core/workbench_interaction.hpp": "a248da7dfaa27d4a8bb8bfebd11fe8f030d77ccb98c5e55bf8773055ec2acc0f",
+    "src/core/src/workbench_interaction.cpp": "df371d27ea9079ece4102ec83187bc4662fe216d0998656b99b656c716ca2cd0",
+    "tests/application/workbench_application_host_tests.cpp": "9217a68146a63fb4567df99beff10da9781db9af979c66b3d5af3f7e8da5bd2f",
+    "tests/core/workbench_interaction_tests.cpp": "0187356262d7da37cdf88d947080429a038ab61988c4db717cc4ddb1d4b13868",
+    "tests/end_to_end/CMakeLists.txt": "1ba8d4bd354ee9c8f7ae1d1b093f7a6711e6162ef819fe73ab2f3d2f630609ca",
+    "tests/end_to_end/header_source_navigation_public_path_tests.cpp": "36f0f42607d4d42fd90786e6ae7d4e72f049f452437b20d276d4327e92d5688f",
+    "tests/fixtures/github/contracts/v1/header-source-v1/manifest.json": "3e9a49d16f104c3a0984c8e87a3b27065837d709e94ce008c1feedc9849f1a8f",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/checks.json": "aa31861eeafb1ffc7c85af0943281b1ce3555ccc3de0de9dde49afc6c335c726",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/commits.json": "4596226c744c3940adba7ab049d84ec49e4b6e17000439038780b2fd4a689beb",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/files.json": "0f2da3c4a9ed98c5bfdf585665ec846632563338858c1b349422cb19d1df6b94",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/issue_comments.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/pull_request.json": "efb93af6538f2d282064965a184d8359eae1629ae4811a3e0c7974c21c5cb5ca",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/repository.json": "8db1e0f770c3d26fbbdc18ea5474f9bd114812866cc74288a96b03cfcba64e8e",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/review_threads.json": "39a76a147cef2b4bcaf77a981ea8941f395af49296a44f05ee814b0e53b1d443",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/reviews.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/search.json": "1238e36b1ac7f064716a3f0c6b1f33e0b74a6cc4b8fedc96f74216a891ac5b5c",
+    "tests/fixtures/github/contracts/v1/header-source-v1/responses/viewer.json": "b97108e15012dadc9607606fffd7fbafe6c7095194a5b1105e914c2accda64bb",
+    "tests/fixtures/github/pull-requests/header-source-v1/construction.json": "17ace02df4ef11fc6480e648d79309952a732a81da0ab1fce386bd3508d85b19",
+    "tests/fixtures/github/pull-requests/header-source-v1/objects.pack": "b6e0116c632119222359105565f69a9f83f7a4f64a99bc88612fa35e28e747e2"
+  }
 }

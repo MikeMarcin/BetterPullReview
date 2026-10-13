@@ -1,0 +1,72 @@
+{
+  "schema": "bpr.header-source-navigation.handoff.v1",
+  "assignment": "/root/header_source_m2",
+  "mandate_revision": "header-source-navigation-r4",
+  "milestone": "composed-counterpart-command",
+  "branch": "main",
+  "rfc_base_sha": "6a310fc57ae2d52360bfec252cf25aa1350d8aa2",
+  "product_candidate": "720c52c69a123c5c2ce643922625c2a7b48ede06",
+  "final_input_candidate": "53988db27a909baebf1af4546132610ff7e59052",
+  "accepted_integrated_candidate": "75e172acc0a08ebc165de51a0b052acc5db2d93b",
+  "normalization_commit": "5f9da634c",
+  "acceptance_commit": "75e172acc0a08ebc165de51a0b052acc5db2d93b",
+  "tracker": {
+    "BPR-1415": "Done",
+    "BPR-1416": "Done",
+    "RFC-BPR-0074": "Auto-Verified",
+    "queue_next": null,
+    "scoped_validation": "valid"
+  },
+  "pending_obligations": [],
+  "next_action": "No further milestone; coordinator reports the completed RFC and exact evidence limits.",
+  "review": {
+    "server": null,
+    "protected_candidate": null,
+    "explicit_human_or_native_requirement": false
+  },
+  "ownership": {
+    "task_owned_writers": "quiescent",
+    "task_owned_commands": "all finished/reaped",
+    "temporary_fixture_root": "removed after deterministic regeneration",
+    "local_render_evidence": "build/dev/header-source-renders retained as transient evidence, not committed",
+    "shared_builds": "dev and core-only retained",
+    "unrelated_writers": "Concurrent RFC-0073 and Home work already integrated, preserves the shared repository. Config changes and untracked drafts remain unrelated.",
+    "stopped_processes": []
+  },
+  "command_recovery": {
+    "reaped_exit_0": [
+      2294,
+      91124,
+      76072
+    ],
+    "reaped_exit_1": [
+      26667
+    ],
+    "already_closed": [
+      84764,
+      63691,
+      33209,
+      87255,
+      23030
+    ],
+    "final_build_session": {
+      "id": 45930,
+      "exit": 0
+    },
+    "current_main_tests_session": {
+      "id": 97409,
+      "exit": 0
+    },
+    "detail": "Earlier failed attempts are preserved with their corrections. Final exact-candidate courses/tidy/format and current-main supplement pass; no recovered command remains running."
+  },
+  "uncertainties": [
+    "Offscreen fixture input/render evidence does not certify physical native keyboard/device or system appearance. No explicit native/human/independent criterion is required by this RFC.",
+    "Full composition tidy remains baseline-qualified for 14 unchanged naming violations. No whole-TU clean verdict is claimed.",
+    "New WINDOWS_UNCONTAINED test registrations retain existing dos-volume-name root limitation; native Windows containment is unmeasured.",
+    "No push, external mutation, attended candidate or review server."
+  ],
+  "frontend_design_skill_loaded": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "final_structure_gate": "m2-handoff-documentation.json",
+  "milestone_check": "m2-check.json",
+  "milestone_check_action": "report-closeout"
+}

@@ -31,8 +31,10 @@ The [final composed courses](../issues/_checkpoints/header-source-navigation-v1/
 pass 2/2 on the final candidate (8.72s and 4.73s). A preceding
 [integration pass](../issues/_checkpoints/header-source-navigation-v1/m2-integration.json)
 passes 6/6: real counterpart courses, Qt diff/window, architecture boundaries and
-network isolation manifest. Subsequent changes extend only the course’s tab/input
-assertions and remove `std::endl`; product bytes are unchanged. The
+network isolation manifest. The integration revision’s product bytes match `720c52c69`. The final
+`53988db27` course also contains the concurrent Home integration; later native
+scrollbar restoration is covered by the supplementary current-main courses
+and Qt diff check in M2 verification. The
 [pure core/public-host pass](../issues/_checkpoints/header-source-navigation-v1/m2-core.json)
 passes 3/3. The core graph’s boundary and negative-contract pass is also recorded
 in M2 verification (5/5, 136.98s). No required platform test is replaced by these
