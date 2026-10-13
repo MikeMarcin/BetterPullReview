@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1437"
 title: "Read every command line with QCommandLineParser"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
