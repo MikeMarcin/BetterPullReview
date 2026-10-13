@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1434"
 title: "Fold paths and decode UTF-8 with utf8proc instead of hand-written tables"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1435"]
 priority: "P1"
