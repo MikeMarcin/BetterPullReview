@@ -1,0 +1,112 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "cpp-identifier-parser-evaluation-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0081"
+    ],
+    "issues": [
+      "BPR-1440",
+      "BPR-1441",
+      "BPR-1442",
+      "BPR-1443",
+      "BPR-1444",
+      "BPR-1445"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "evaluation-ground",
+      "outcome": "The labelled corpus and gap suite are committed before any candidate result exists, and the shipped classifier gains the two tests that stay whatever the outcome: a stop partway through the refinement and a syntax fuzz target.",
+      "work": [
+        {
+          "issue": "BPR-1440"
+        },
+        {
+          "issue": "BPR-1441"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Labels for every corpus class and category are committed in a revision that contains no candidate result; third-party sources are named by archive digest and nothing third-party is committed.",
+        "A test stops the refinement after the grammar pass has completed and observes cancelled with no spans through the public classifier; a negative control shows the same blob is available without the stop.",
+        "The syntax fuzz target builds in the fuzz graph, replays its corpus under AddressSanitizer and UndefinedBehaviorSanitizer, and asserts classifier properties beyond the absence of a crash.",
+        "Shipping spans are unchanged and the focused syntax, format, tidy and documentation checks pass."
+      ],
+      "boundary": "No candidate parser is acquired or run in this milestone. The shipped refinement is not changed."
+    },
+    {
+      "id": "macos-evaluation",
+      "outcome": "With BPR_BUILD_SYNTAX_EVALUATION on, the harness runs the baseline and both tree-sitter-cpp pins through the unchanged public classifier over the whole corpus on macOS, and the committed report records every gate, the macOS measurements and the outcome that follows from the decision rules.",
+      "work": [
+        {
+          "issue": "BPR-1442"
+        }
+      ],
+      "depends_on": [
+        "evaluation-ground"
+      ],
+      "exit_criteria": [
+        "With the option off no target acquires or links tree-sitter, shown by the configure log and a link-dependency check; with it on the pinned archives are verified by SHA-256, size and licence digest.",
+        "The contract gate rows run against each candidate compiled in; accuracy, gap-hypothesis, timing, memory, stop latency, sanitizer, fuzz, determinism, size and build-cost results are committed with commands and raw data for macOS.",
+        "The report applies the fixed decision rules mechanically and records the outcome, or the gates still waiting on the Windows and Linux stations, without claiming any unmeasured platform."
+      ],
+      "boundary": "No shipped target, package or release script acquires a candidate. Contract expectations are not changed; any change goes to the owner as one Accept or Reject question."
+    },
+    {
+      "id": "windows-measurement",
+      "outcome": "The Windows x64 station runs the same harness and records every measurement with the baseline in the same runs.",
+      "work": [
+        {
+          "issue": "BPR-1443"
+        }
+      ],
+      "depends_on": [
+        "macos-evaluation"
+      ],
+      "exit_criteria": [
+        "Windows x64 results for every size class and measurement are committed beside the macOS ones, measured on the Windows station."
+      ],
+      "boundary": "Measurement only; the decision rules and thresholds are unchanged."
+    },
+    {
+      "id": "linux-measurement",
+      "outcome": "The Linux x64 station runs the same harness and the Linux fuzz campaign and records every measurement with the baseline in the same runs.",
+      "work": [
+        {
+          "issue": "BPR-1444"
+        }
+      ],
+      "depends_on": [
+        "macos-evaluation"
+      ],
+      "exit_criteria": [
+        "Linux x64 results for every size class and measurement, and a 4 CPU-hour fuzz campaign per candidate, are committed beside the macOS ones, measured on the Linux station."
+      ],
+      "boundary": "Measurement only; the decision rules and thresholds are unchanged."
+    },
+    {
+      "id": "evaluation-closeout",
+      "outcome": "The report's outcome follows from all three platforms' measurements, cites the conditions for running the evaluation again, and RFC-DRAFT-0021 closes against its original baseline.",
+      "work": [
+        {
+          "issue": "BPR-1445"
+        },
+        {
+          "rfc": "RFC-BPR-0081"
+        }
+      ],
+      "depends_on": [
+        "windows-measurement",
+        "linux-measurement"
+      ],
+      "exit_criteria": [
+        "AC01-AC07 each have direct evidence on the exact candidate; spans on the shipping configuration are byte-identical to the revision before the evaluation over the corpus.",
+        "Any follow-up card the outcome requires cites the report; the RFC ledger, index and closeout card agree."
+      ],
+      "boundary": "Production replacement, the identifier revision bump and admitting the dependency belong to a follow-up card, not this RFC."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
