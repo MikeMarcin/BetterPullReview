@@ -56,6 +56,8 @@ namespace bpr::application {
 		case core::git_repository_refusal::index_format:    return "This checkout's Git index is in a form BetterPullReview does not read; nothing was read from the checkout.";
 		case core::git_repository_refusal::index_checksum:  return "This checkout's Git index is damaged: its checksum does not match; nothing was read from the checkout.";
 		case core::git_repository_refusal::index_extension: return "This checkout's Git index uses a required extension BetterPullReview does not read; nothing was read from the checkout.";
+		case core::git_repository_refusal::rule_file_bound:
+			return "This checkout's ignore or attributes file" + key + " is larger than BetterPullReview reads (1 MiB or 100,000 rules), so paths it ignores could be captured; nothing was recorded.";
 		}
 		return "This checkout's Git repository is one BetterPullReview does not read; nothing was read from the checkout.";
 	}
