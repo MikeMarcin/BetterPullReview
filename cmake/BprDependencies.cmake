@@ -3,6 +3,7 @@ include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/BprQtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprQuillProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprGlazeProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprRe2Provider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
@@ -261,6 +262,12 @@ function(bpr_configure_dependencies)
             bpr_acquire_quill()
             bpr_require_dependency_target(quill::quill Quill)
             list(APPEND records "Quill|PINNED_ARCHIVE|quill::quill")
+
+            # [[BPR-1431]]. Source search's regex engine. Like Glaze, it stays
+            # out of the Qt-free core graph, which needs only SQLite.
+            bpr_acquire_re2()
+            bpr_require_dependency_target(BetterPullReview::RE2 RE2)
+            list(APPEND records "RE2|PINNED_ARCHIVE|BetterPullReview::RE2")
 
             bpr_acquire_syntax_highlighting()
 

@@ -13,7 +13,7 @@ namespace bpr::application {
 	class source_pr_search_execution final : public source_search_execution_port
 	{
 	public:
-		explicit source_pr_search_execution(source_corpus_port& aCorpus, core::source_match_limits aLimits = { });
+		source_pr_search_execution(source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, core::source_match_limits aLimits = { });
 		~source_pr_search_execution() override;
 		[[nodiscard]] auto execute(const source_search_work& aWork, std::stop_token aStop) -> source_search_execution override;
 		[[nodiscard]] auto execute(const source_search_work& aWork, std::stop_token aStop, const source_search_batch_sink& aPublish) -> source_search_execution override;

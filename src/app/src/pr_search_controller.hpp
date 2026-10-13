@@ -13,7 +13,7 @@ namespace bpr::app {
 		using open_file        = std::function<std::optional<core::document_tab_id>(const core::source_search_scope&, const application::source_corpus_entry&)>;
 		using tab_supplier     = std::function<std::optional<core::document_tab_id>()>;
 		using reveal_validator = std::function<bool(const core::source_search_scope&, core::file_identity, const std::string&, const core::source_match_location&)>;
-		pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab);
+		pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab);
 		~pr_search_controller() override;
 		void               open();
 		void               dispatch(qt::source_find_gesture aGesture);

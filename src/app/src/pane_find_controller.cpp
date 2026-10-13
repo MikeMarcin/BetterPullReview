@@ -2,8 +2,9 @@
 #include <algorithm>
 
 namespace bpr::app {
-	pane_find_controller::pane_find_controller(qt::diff_workbench& aSurface, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, std::function<void()> aYield)
+	pane_find_controller::pane_find_controller(qt::diff_workbench& aSurface, const core::source_regex_engine& aEngine, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, std::function<void()> aYield)
 		: Surface{ aSurface }
+		, Engine{ aEngine }
 		, Scope{ std::move(aScope) }
 		, Yield{ std::move(aYield) }
 		, Host{ aDecisions, aEffects, *this, *this }
@@ -94,7 +95,7 @@ namespace bpr::app {
 			CachedRuns.fetch_add(1U, std::memory_order_relaxed);
 		} else {
 			MatchingRuns.fetch_add(1U, std::memory_order_relaxed);
-			result          = application::execute_source_pane_match(aWork, entry, aStop);
+			result          = application::execute_source_pane_match(Engine, aWork, entry, aStop);
 			const auto lock = std::lock_guard{ MaterialMutex };
 			if (!Stopping && Material && Material->Scope == aWork.Request.Scope && result.Terminal.Status == core::source_search_status::complete) {
 				Cache.emplace(aWork, result);

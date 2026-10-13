@@ -98,25 +98,34 @@ native pane controls through the installed application composition.
 ## Shared matching and source plans
 
 `compile_source_match` compiles once and returns an immutable host-owned program.
-Literal matching uses scalar KMP; regex uses a prioritized Thompson VM with
-no recursive backtracking. Both use Unicode 17 simple C/S case folding and
-L/M/N plus underscore for Whole Word. No locale, accent removal, normalization
-or multi-scalar fold is used. The [Unicode provenance](../../third_party/unicode/PROVENANCE.md)
-binds generated tables, hashes, notice and corresponding source.
+Matching runs on [Google RE2](../../third_party/re2/PROVENANCE.md) ([[BPR-1431]]),
+which replaced a hand-written engine after the 2026-10-13 review found it
+silently missed Whole Word regex matches. Core owns the rules and links no
+library: it reaches RE2 through the `source_regex_engine` interface, which the
+`regex` adapter implements and the composition root supplies. RE2 runs in linear
+time with no backtracking; literal queries use its literal mode. Case-insensitive
+matching uses RE2's Unicode simple case folding, with no locale, accent removal,
+normalization or multi-scalar fold. Whole Word treats Unicode letters, marks,
+numbers and underscore (`[\p{L}\p{M}\p{N}_]`) as word scalars.
 
-The supported [RE2 subset](https://github.com/google/re2/wiki/Syntax) is literals,
-groups/`(?:...)`, alternation, ranges/classes, `* + ? {n} {n,m} {n,}` with greedy
-or lazy preference, `i/m/s/U` flags (global or scoped), `^ $ \A \z \b \B`,
-ASCII `d/s/w` classes and their complements, Unicode general categories
-(`\p{L}`, `\p{Lu}`, `\P{N}`, etc.), escaped punctuation, `a/f/t/n/r` and
-hex escapes. Line-anchor mode defaults on, dot-all off; flags can override both.
-Named captures, Unicode scripts, POSIX classes, class-union complements,
-octal/byte/quoted escapes, lookaround and backreferences return unsupported
-syntax. Malformed patterns return invalid syntax; diagnostics retain only code
-and offset. Groups do not publish captures. Nullable repeats retain RE2 priority.
+Regular expressions use [RE2 syntax](https://github.com/google/re2/wiki/Syntax):
+groups, named groups, alternation, classes (including POSIX classes and Unicode
+categories and scripts), `* + ? {n} {n,m} {n,}` with greedy or lazy preference,
+`i/m/s/U` flags (global or scoped), `^ $ \A \z \b \B` (with ASCII `\b`, as in
+RE2), Perl classes and escapes, and `\Q...\E`. Line-anchor mode defaults on and
+dot-all off; flags can override both. Lookaround and backreferences return
+unsupported syntax, as does `\C`, which would match one byte and could split a
+UTF-8 scalar; class and `\Q...\E` contents are not mistaken for them. Malformed
+patterns return invalid syntax; diagnostics retain only code and offset, the
+offset being where RE2 stopped. Groups do not publish captures.
 
-The scanner builds one logical LF view, normalizing CR and CRLF while retaining
-original byte boundaries. Results are nonoverlapping exact original UTF-8 spans;
+Whole Word checks each match's actual neighbours. A refused match resumes the
+search at the next start whose previous scalar is not a word scalar, so a refused
+earlier start never hides a later whole word. A refused end does not try a
+shorter end at the same start.
+
+The scanner builds one logical LF view, reading CRLF as LF and keeping a lone CR
+as content ([[BPR-1432]]), while retaining original byte boundaries. Results are nonoverlapping exact original UTF-8 spans;
 a zero-width result advances one scalar, with the terminal position emitted once.
 Whole Word and anchors inspect actual document context, including outside fixed
 selection bounds. Columns are zero-based scalar offsets. Sparse column checkpoints
@@ -149,15 +158,17 @@ Callers may tighten these hard defaults; enlargement is refused:
 |---|---|
 | Query / combined path-filter input | 4 KiB UTF-8 |
 | Source side | 16 MiB / 200,000 lines |
-| Compiled instructions / nesting / counted repetition | 8,192 / 64 / 1,000 |
-| Compile / entry scan work | 1,048,576 / 134,217,728 counted steps |
-| Stop polling | Initially, then within 1,024 counted steps |
+| Engine memory per compiled query (program and DFA caches) | 8 MiB, plus 1 MiB per Whole Word class |
+| Counted repetition | 1,000, including nested repetition (RE2's limit) |
+| Query admission / entry composition work | 1,048,576 / 134,217,728 counted steps |
+| Stop polling | Initially, before each engine search, then within 1,024 counted steps |
 | Matcher/entry owned storage | 64 MiB conservative capacity reservation |
 | Result records plus previews | 16 MiB / at most 10,000 records |
 | Preview | 240 scalars / at most 960 UTF-8 bytes |
 
-Compile scratch, VM lists, logical text, indexes, source plans and result capacity
-are admitted before allocation. Resource exhaustion returns a qualified terminal
+Engine memory, logical text, indexes, source plans and result capacity are
+admitted before allocation. One engine search cannot be interrupted, but it is
+linear in a side that is itself bounded at 16 MiB. Resource exhaustion returns a qualified terminal
 and any already assembled usable prefix. `AdditionalMatchObserved` is set only
 after observing another occurrence beyond the record cap. Borrowed immutable
 source/diff material remains under its existing owner/cache limits. The pane
@@ -165,10 +176,10 @@ bridge reserves its transfer vector separately inside the same ceiling. These
 are capacity/work bounds, not RSS or universal latency measurements; M3 supplies the full PR admission envelope below. RSS and warm/cold timing are measured by the public application course below.
 
 `core_source_matcher` exercises Unicode/LF spans, unsupported syntax, glob policy,
-real unified plans, selection, deduplication and resource/cancellation limits.
+real unified plans, selection, deduplication, Whole Word regex regressions and
+resource/cancellation limits on the product's RE2 engine.
 `core_source_matcher_reference` compares a portable subset with a bounded Python
-oracle. An additional disposable official RE2 oracle checks nullable loops and
-all 4,891 reference spans; Python differs on that priority rule. The public host
+oracle. The public host
 fixture also proves exact record acceptance, invalid-pattern clearing, wrong-blob
 refusal and 1,000 traversals without a matcher call. No QApplication is involved.
 

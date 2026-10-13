@@ -14,7 +14,7 @@ namespace bpr::application {
 			std::stop_token Stop;
 		};
 	}
-	auto execute_source_pane_match(const source_search_work& aWork, const core::source_match_entry& aEntry, std::stop_token aStop, core::source_match_limits aLimits) -> source_search_execution
+	auto execute_source_pane_match(const core::source_regex_engine& aEngine, const source_search_work& aWork, const core::source_match_entry& aEntry, std::stop_token aStop, core::source_match_limits aLimits) -> source_search_execution
 	{
 		auto        output = source_search_execution{ core::source_search_terminal{ aWork.Request, core::source_search_status::unavailable, { } } };
 		const auto& scope  = aWork.Request.Scope;
@@ -44,7 +44,7 @@ namespace bpr::application {
 		}
 		aLimits.MaximumOwnedBytes -= transferBytes;
 		auto       stop        = matcher_stop{ aStop };
-		const auto compiled    = core::compile_source_match(aWork.Query, aWork.Request.Options, aLimits, &stop);
+		const auto compiled    = core::compile_source_match(aEngine, aWork.Query, aWork.Request.Options, aLimits, &stop);
 		output.Terminal.Status = compiled.Status;
 		if (!compiled.Program) {
 			return output;

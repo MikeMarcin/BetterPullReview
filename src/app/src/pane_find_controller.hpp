@@ -12,7 +12,7 @@ namespace bpr::app {
 	{
 	public:
 		using scope_supplier = std::function<std::optional<core::source_search_scope>()>;
-		pane_find_controller(qt::diff_workbench& aSurface, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, std::function<void()> aYield);
+		pane_find_controller(qt::diff_workbench& aSurface, const core::source_regex_engine& aEngine, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, std::function<void()> aYield);
 		~pane_find_controller() override;
 		void               dispatch(const qt::source_find_intent& aIntent);
 		void               shutdown();
@@ -31,11 +31,12 @@ namespace bpr::app {
 			std::shared_ptr<const core::diff_semantic_index> Index;
 			qt::source_find_intent                           Origin;
 		};
-		qt::diff_workbench&             Surface;
-		scope_supplier                  Scope;
-		std::function<void()>           Yield;
-		std::mutex                      MaterialMutex;
-		std::shared_ptr<const material> Material;
+		qt::diff_workbench&              Surface;
+		const core::source_regex_engine& Engine;
+		scope_supplier                   Scope;
+		std::function<void()>            Yield;
+		std::mutex                       MaterialMutex;
+		std::shared_ptr<const material>  Material;
 		struct cached_match
 		{
 			core::source_search_scope            Scope;

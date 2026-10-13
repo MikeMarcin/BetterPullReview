@@ -47,7 +47,7 @@ namespace bpr::application {
 	/// \brief Execute the shared matcher for an exact, already accepted pane material.
 	/// \details This performs no reads. A PR corpus execution compiles once and
 	/// calls the same core entry matcher across its exact ordered catalogue.
-	[[nodiscard]] auto execute_source_pane_match(const source_search_work& aWork, const core::source_match_entry& aEntry, std::stop_token aStop, core::source_match_limits aLimits = { }) -> source_search_execution;
+	[[nodiscard]] auto execute_source_pane_match(const core::source_regex_engine& aEngine, const source_search_work& aWork, const core::source_match_entry& aEntry, std::stop_token aStop, core::source_match_limits aLimits = { }) -> source_search_execution;
 
 	/// \brief Executes one exact request off the decision lane, with advisory cancellation.
 	/// \details M2 supplies the shared matcher and M3 its epoch-backed corpus.

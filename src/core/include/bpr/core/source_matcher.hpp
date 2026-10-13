@@ -4,29 +4,78 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/source_search.hpp"
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 namespace bpr::core {
 
 	/// \brief Hard upper bounds; callers may choose stricter limits only.
 	struct source_match_limits
 	{
-		std::size_t   MaximumBytes        = 16U * 1024U * 1024U;
-		std::size_t   MaximumLines        = 200000U;
-		std::size_t   MaximumInstructions = 8192U;
-		std::size_t   MaximumOwnedBytes   = 64U * 1024U * 1024U;
-		std::size_t   MaximumResultBytes  = 16U * 1024U * 1024U;
-		std::uint32_t MaximumMatches      = maximum_source_search_matches;
+		std::size_t   MaximumBytes       = 16U * 1024U * 1024U;
+		std::size_t   MaximumLines       = 200000U;
+		std::size_t   MaximumOwnedBytes  = 64U * 1024U * 1024U;
+		std::size_t   MaximumResultBytes = 16U * 1024U * 1024U;
+		std::uint32_t MaximumMatches     = maximum_source_search_matches;
+		/// The regex engine's memory for one compiled query, program and caches.
+		std::size_t   MaximumProgramBytes = 8U * 1024U * 1024U;
 		std::uint64_t MaximumCompileSteps = 1024U * 1024U;
 		std::uint64_t MaximumScanSteps    = 128U * 1024U * 1024U;
 	};
 
+	/// \brief One compiled RE2-syntax pattern supplied by the host's regex engine.
+	/// \details [[BPR-1431]]. The engine is a mature library (RE2) behind this
+	/// interface; core keeps the matching rules. Implementations are immutable
+	/// and safe to call from several threads.
+	class source_regex
+	{
+	public:
+		source_regex()                                       = default;
+		source_regex(const source_regex&)                    = delete;
+		auto operator=(const source_regex&) -> source_regex& = delete;
+		virtual ~source_regex()                              = default;
+		/// \brief The leftmost-first match beginning at or after `aBegin` and
+		/// ending at or before `aEnd`, or one beginning exactly at `aBegin` when
+		/// anchored. Text outside the range is context for `^`, `$` and `\b` only.
+		[[nodiscard]] virtual auto find(std::string_view aText, std::size_t aBegin, std::size_t aEnd, bool aAnchored) const -> std::optional<byte_span> = 0;
+	};
+	/// \brief How the engine reads a pattern; the pattern's own flags still apply.
+	struct source_regex_syntax
+	{
+		bool        Literal       = false;
+		bool        CaseSensitive = true;
+		std::size_t MaximumMemory = 8U * 1024U * 1024U;
+	};
+	/// \brief A compiled pattern or a refusal; offsets index the supplied pattern.
+	struct source_regex_compile
+	{
+		source_search_status                Status      = source_search_status::invalid_pattern;
+		std::size_t                         ErrorOffset = 0U;
+		std::shared_ptr<const source_regex> Regex;
+		std::size_t                         RetainedBytes = 0U;
+	};
+	/// \brief The host's regex engine, injected so core links no library.
+	class source_regex_engine
+	{
+	public:
+		source_regex_engine()                                                                                                    = default;
+		source_regex_engine(const source_regex_engine&)                                                                          = delete;
+		auto operator=(const source_regex_engine&) -> source_regex_engine&                                                       = delete;
+		virtual ~source_regex_engine()                                                                                           = default;
+		[[nodiscard]] virtual auto compile(std::string_view aPattern, source_regex_syntax aSyntax) const -> source_regex_compile = 0;
+	};
+
 	/// \brief Immutable compiled query, owned by the host and reusable across documents.
-	/// \details Domain-only Thompson VM, never recursive backtracking. Supports
-	/// groups, alternation, classes, greedy/lazy repetitions (counts <=1000),
-	/// i/m/s/U flags, anchors, ASCII Perl classes and Unicode general categories.
-	/// Lookaround, backreferences and unsupported escapes are refused explicitly.
+	/// \details Literal and regular-expression queries both run on the injected
+	/// engine (RE2 syntax, linear time, no backtracking). Lookaround,
+	/// backreferences and `\C` are refused explicitly before compilation.
 	class source_match_program
 	{
 	public:
@@ -49,7 +98,7 @@ namespace bpr::core {
 	};
 
 	/// \brief Compile once before any source reads; empty input compiles no work.
-	[[nodiscard]] auto compile_source_match(std::string_view aQuery, source_search_options aOptions = { }, source_match_limits aLimits = { }, diff_compute_stop* aStop = nullptr) -> source_match_compile;
+	[[nodiscard]] auto compile_source_match(const source_regex_engine& aEngine, std::string_view aQuery, source_search_options aOptions = { }, source_match_limits aLimits = { }, diff_compute_stop* aStop = nullptr) -> source_match_compile;
 
 	/// \brief Exact original UTF-8 byte spans in nonoverlapping source order.
 	struct source_match_scan
@@ -64,7 +113,8 @@ namespace bpr::core {
 	/// \brief Scan one immutable UTF-8 side in a logical LF view.
 	/// \details Optional bounds are fixed original byte boundaries. Anchors and
 	/// Whole Word inspect the actual document, not invented selection edges.
-	/// Cancellation is polled initially and within 1024 counted steps.
+	/// Cancellation is polled before each engine search and within 1024 counted
+	/// steps; one engine search is linear in the side's bounded size.
 	[[nodiscard]] auto scan_source_match(const source_match_program& aProgram, std::string_view aSource, std::optional<byte_span> aBounds = { }, diff_compute_stop* aStop = nullptr) -> source_match_scan;
 
 	/// \brief Bounded preview, up to 240 Unicode scalars around the occurrence.
@@ -98,7 +148,7 @@ namespace bpr::core {
 		std::optional<source_path_filter> Filter;
 	};
 	/// \brief Parse commas, braces, classes and escaping before material acquisition.
-	[[nodiscard]] auto compile_source_paths(std::string_view aInclude, std::string_view aExclude, source_match_limits aLimits = { }, diff_compute_stop* aStop = nullptr) -> source_path_compile;
+	[[nodiscard]] auto compile_source_paths(const source_regex_engine& aEngine, std::string_view aInclude, std::string_view aExclude, source_match_limits aLimits = { }, diff_compute_stop* aStop = nullptr) -> source_path_compile;
 
 	/// \brief Exact material supplied by its host owner, never a filesystem path.
 	struct source_match_side

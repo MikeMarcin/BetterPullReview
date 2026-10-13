@@ -333,3 +333,26 @@ fixture submission passes 3.73 s. Coordinator additionally reports independent
 protected control/draft hashes unchanged. No live credential qualification,
 remote mutation, owner's desktop/personal data, publication or main write occurred.
 Main landing is the coordinator's next normal fast-forward step.
+
+## Post-closeout engine replacement (BPR-1431, 2026-10-13)
+
+A three-way critical review after closeout found that the hand-written regex
+engine silently missed Whole Word matches: `a.*` with Whole Word over `ba a`
+returned a complete empty result instead of `[3,4)`, because a start refused by
+Whole Word kept its thread alive and displaced a valid later start. The owner
+chose to replace the engine with a library, and [[BPR-1431]] moved matching
+onto pinned Google RE2 behind core's `source_regex_engine` interface. Core keeps
+the RFC's matching rules (LF view, Whole Word, zero-width advance, limits,
+unified and identity merging); the KMP literal path, the Thompson VM and the
+generated Unicode 17 tables were removed. Whole Word now resumes a refused match
+at the next start whose previous scalar is not a word scalar. The RE2 syntax
+admitted is a superset of the earlier subset; lookaround, backreferences and
+`\C` remain refused. [[BPR-1432]] separately made lone CR content, as Git counts
+lines.
+
+On the same `source-pr-search-large-v1` public course and Debug arm64 station
+class, warm matching fell from 1,568,828 µs to 348,163 µs and warm final from
+1,649 ms to 436 ms; cancellation stayed at 3 ms and peak RSS was 208,257,024
+bytes. Cold totals remain dominated by acquisition. The committed regression
+thresholds are unchanged and pass. AC02 and AC08 evidence above is superseded
+for the engine only; the original records remain as they were taken.

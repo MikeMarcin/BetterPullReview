@@ -87,6 +87,7 @@
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
+#include "bpr/adapters/regex/re2_source_regex_engine.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -8253,7 +8254,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				application::diff_host_limits{ }, Profile->DiffComputeLimits
 #endif
 			);
-			PaneFind = std::make_unique<pane_find_controller>(*Window->comparison_surface(), ReviewerDecisions, DiffEffects, [this]() -> std::optional<core::source_search_scope> {
+			PaneFind = std::make_unique<pane_find_controller>(*Window->comparison_surface(), SourceRegex, ReviewerDecisions, DiffEffects, [this]() -> std::optional<core::source_search_scope> {
                     const auto* surface = Window->comparison_surface();
                     if(Closing || !SelectedDiffPublication || !surface->current_context() || !surface->current_result()
                         || SelectedDiffPublication->Key != surface->current_context()->Key){ return std::nullopt;
@@ -8385,7 +8386,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TabHost  = std::make_unique<application::document_tab_host>(
 				DecisionLane, *TabPorts, *TabPorts,
 				[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
-			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry) -> std::optional<core::document_tab_id> {
+			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry) -> std::optional<core::document_tab_id> {
                 if(pr_search_scope()!=std::optional{aScope}){return {};}
                 cancel_review_navigation();cancel_restoration(false);abandon_tab_load();
                 SearchOpenFile=std::pair{aScope,aEntry};static_cast<void>(register_search_open());
@@ -18372,16 +18373,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// turn started to answer it, spent by that turn's outcome and by no
 		/// other. Absent is the ordinary state, and it is what makes a
 		/// promoted finding a proposal nobody workshopped.
-		std::optional<pending_comment_workshop>                                               PendingWorkshopOperation;
-		std::optional<core::agent_session>                                                    LatestAgentSession;
-		std::size_t                                                                           FindingRefusalsPresented = 0U;
-		std::size_t                                                                           SideChatIntents          = 0U;
-		std::size_t                                                                           SideChatPresentations    = 0U;
-		std::size_t                                                                           SideChatTurns            = 0U;
-		std::size_t                                                                           SideChatRefusals         = 0U;
-		std::size_t                                                                           FrozenSnapshotWrites     = 0U;
-		std::unique_ptr<composition_diff_projection>                                          DiffProjections;
-		std::unique_ptr<application::diff_application_host>                                   DiffHost;
+		std::optional<pending_comment_workshop>             PendingWorkshopOperation;
+		std::optional<core::agent_session>                  LatestAgentSession;
+		std::size_t                                         FindingRefusalsPresented = 0U;
+		std::size_t                                         SideChatIntents          = 0U;
+		std::size_t                                         SideChatPresentations    = 0U;
+		std::size_t                                         SideChatTurns            = 0U;
+		std::size_t                                         SideChatRefusals         = 0U;
+		std::size_t                                         FrozenSnapshotWrites     = 0U;
+		std::unique_ptr<composition_diff_projection>        DiffProjections;
+		std::unique_ptr<application::diff_application_host> DiffHost;
+		/// [[BPR-1431]]. Source search's RE2 engine, declared before both finders so it outlives them.
+		adapters::regex::re2_source_regex_engine                                              SourceRegex;
 		std::unique_ptr<pane_find_controller>                                                 PaneFind;
 		std::unique_ptr<pr_search_controller>                                                 PrFind;
 		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;

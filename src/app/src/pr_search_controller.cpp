@@ -3,14 +3,14 @@
 #include <algorithm>
 #include <limits>
 namespace bpr::app {
-	pr_search_controller::pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab)
+	pr_search_controller::pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab)
 		: Panel{ aPanel }
 		, Surface{ aSurface }
 		, Scope{ std::move(aScope) }
 		, OpenFile{ std::move(aOpen) }
 		, Validate{ std::move(aValidate) }
 		, Tab{ std::move(aTab) }
-		, Execution{ aCorpus }
+		, Execution{ aCorpus, aEngine }
 		, Host{ aDecisions, aEffects, Execution, *this }
 	{
 		Panel.Activate = [this](auto aIndex) { activate(aIndex); };

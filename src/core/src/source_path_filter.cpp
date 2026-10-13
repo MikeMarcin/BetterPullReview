@@ -5,8 +5,9 @@
 namespace bpr::core {
 	struct source_path_filter::implementation
 	{
-		std::optional<source_match_program> Include;
-		std::optional<source_match_program> Exclude;
+		std::shared_ptr<const source_regex> Include;
+		std::shared_ptr<const source_regex> Exclude;
+		std::uint64_t                       MaximumSteps = 0U;
 	};
 	namespace {
 		using namespace source_matching;
@@ -170,12 +171,12 @@ namespace bpr::core {
 			output += ')';
 			return output;
 		}
-		auto compile_filter(std::string_view aFilter, source_match_limits aLimits, budget& aWork) -> source_match_compile
+		/// Engine memory for one compiled include or exclude list.
+		constexpr std::size_t path_program_memory = 2U * 1024U * 1024U;
+		auto                  compile_filter(const source_regex_engine& aEngine, std::string_view aFilter, budget& aWork) -> source_regex_compile
 		{
 			if (aFilter.empty()) {
-				auto result   = source_match_compile{ };
-				result.Status = source_search_status::idle;
-				return result;
+				return { .Status = source_search_status::idle };
 			}
 			const auto alternatives = split_globs(aFilter, aWork);
 			auto       pattern      = std::string{ "\\A(?:" };
@@ -189,18 +190,15 @@ namespace bpr::core {
 				}
 			}
 			pattern += ")\\z";
-			// Share the total compile budget across glob translation and both programs.
-			if (aWork.Steps >= aLimits.MaximumCompileSteps) {
-				throw stopped{ source_search_status::resource_limit };
+			aWork.poll();
+			auto compiled = aEngine.compile(pattern, { .Literal = false, .CaseSensitive = true, .MaximumMemory = path_program_memory });
+			if (compiled.Status != source_search_status::complete || !compiled.Regex) {
+				// Translation already validated the glob, so a refusal here is a resource one.
+				throw stopped{ compiled.Status == source_search_status::resource_limit ? source_search_status::resource_limit : source_search_status::invalid_pattern };
 			}
-			aLimits.MaximumCompileSteps -= aWork.Steps;
-			aLimits.MaximumMatches = 1U;
-			aLimits.MaximumLines   = std::min(aLimits.MaximumLines, std::size_t{ 4097U });
-			auto result            = compile_pattern(pattern, { .MatchCase = true, .RegularExpression = true }, aLimits, aWork.Stop, true);
-			aWork.Steps += result.Steps;
-			return result;
+			return compiled;
 		}
-		auto path_matches(const std::optional<source_match_program>& aProgram, std::optional<std::string_view> aPath) -> source_path_decision
+		auto path_matches(const std::shared_ptr<const source_regex>& aProgram, std::uint64_t aMaximumSteps, std::optional<std::string_view> aPath) -> source_path_decision
 		{
 			if (!aPath) {
 				return { };
@@ -211,16 +209,25 @@ namespace bpr::core {
 			if (!aProgram) {
 				return { source_search_status::complete, true };
 			}
-			const auto scanned = scan_source_match(*aProgram, *aPath);
-			return { scanned.Status, !scanned.Matches.empty() };
+			try {
+				// One counted step per scalar validates the path and bounds its work.
+				auto work = budget{ aMaximumSteps, nullptr };
+				for (auto offset = std::size_t{ 0U }; offset < aPath->size();) {
+					work.tick();
+					(void)scalar(*aPath, offset);
+				}
+			} catch (const stopped& stop) {
+				return { stop.Status, false };
+			}
+			return { source_search_status::complete, aProgram->find(*aPath, 0U, aPath->size(), true).has_value() };
 		}
-		auto either_path(const std::optional<source_match_program>& aProgram, std::optional<std::string_view> aLeft, std::optional<std::string_view> aRight) -> source_path_decision
+		auto either_path(const std::shared_ptr<const source_regex>& aProgram, std::uint64_t aMaximumSteps, std::optional<std::string_view> aLeft, std::optional<std::string_view> aRight) -> source_path_decision
 		{
-			const auto left = path_matches(aProgram, aLeft);
+			const auto left = path_matches(aProgram, aMaximumSteps, aLeft);
 			if (left.Status != source_search_status::complete) {
 				return left;
 			}
-			const auto right = path_matches(aProgram, aRight);
+			const auto right = path_matches(aProgram, aMaximumSteps, aRight);
 			if (right.Status != source_search_status::complete) {
 				return right;
 			}
@@ -236,7 +243,7 @@ namespace bpr::core {
 			return { source_search_status::unavailable, false };
 		}
 		if (Filter->Exclude) {
-			const auto excluded = either_path(Filter->Exclude, aLeft, aRight);
+			const auto excluded = either_path(Filter->Exclude, Filter->MaximumSteps, aLeft, aRight);
 			if (excluded.Status != source_search_status::complete) {
 				return excluded;
 			}
@@ -244,39 +251,30 @@ namespace bpr::core {
 				return { };
 			}
 		}
-		return either_path(Filter->Include, aLeft, aRight);
+		return either_path(Filter->Include, Filter->MaximumSteps, aLeft, aRight);
 	}
 	auto source_path_filter::includes(std::optional<std::string_view> aLeft, std::optional<std::string_view> aRight) const -> bool
 	{
 		const auto decision = evaluate(aLeft, aRight);
 		return decision.Status == source_search_status::complete && decision.Included;
 	}
-	auto compile_source_paths(std::string_view aInclude, std::string_view aExclude, source_match_limits aLimits, diff_compute_stop* aStop) -> source_path_compile
+	auto compile_source_paths(const source_regex_engine& aEngine, std::string_view aInclude, std::string_view aExclude, source_match_limits aLimits, diff_compute_stop* aStop) -> source_path_compile
 	{
 		auto result = source_path_compile{ };
 		try {
 			if (!limits_valid(aLimits) || aInclude.size() + aExclude.size() > maximum_source_search_query_bytes) {
 				throw stopped{ source_search_status::resource_limit };
 			}
-			auto work     = budget{ aLimits.MaximumCompileSteps, aStop };
-			auto included = compile_filter(aInclude, aLimits, work);
-			if (included.Status != source_search_status::complete && included.Status != source_search_status::idle) {
-				result.Status      = included.Status;
-				result.ErrorOffset = included.ErrorOffset;
-				return result;
-			}
-			auto excluded = compile_filter(aExclude, aLimits, work);
-			if (excluded.Status != source_search_status::complete && excluded.Status != source_search_status::idle) {
-				result.Status      = excluded.Status;
-				result.ErrorOffset = excluded.ErrorOffset;
-				return result;
-			}
-			if ((included.Program ? included.Program->retained_bytes() : 0U) + (excluded.Program ? excluded.Program->retained_bytes() : 0U) > aLimits.MaximumOwnedBytes) {
+			if (2U * path_program_memory > aLimits.MaximumOwnedBytes) {
 				throw stopped{ source_search_status::resource_limit };
 			}
-			auto filter     = std::make_shared<source_path_filter::implementation>();
-			filter->Include = std::move(included.Program);
-			filter->Exclude = std::move(excluded.Program);
+			auto work            = budget{ aLimits.MaximumCompileSteps, aStop };
+			auto included        = compile_filter(aEngine, aInclude, work);
+			auto excluded        = compile_filter(aEngine, aExclude, work);
+			auto filter          = std::make_shared<source_path_filter::implementation>();
+			filter->Include      = std::move(included.Regex);
+			filter->Exclude      = std::move(excluded.Regex);
+			filter->MaximumSteps = aLimits.MaximumScanSteps;
 			result.Filter.emplace(std::move(filter));
 			result.Status = source_search_status::complete;
 		} catch (const stopped& stop) {

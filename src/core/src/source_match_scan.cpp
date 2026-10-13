@@ -64,141 +64,54 @@ namespace bpr::core::source_matching {
 			}
 			return result;
 		}
-		auto in_class(const character_class& aClass, char32_t aValue, budget& aWork) -> bool
-		{
-			const auto contains = [&](char32_t aScalar) {
-				aWork.tick();
-				if ((aClass.Categories & (1U << category(aScalar))) != 0U) {
-					return true;
-				}
-				for (const auto& range : aClass.Ranges) {
-					aWork.tick();
-					if (aScalar >= range.Begin && aScalar <= range.End) {
-						return true;
-					}
-				}
-				return false;
-			};
-			auto matched = contains(aValue);
-			if (aClass.Fold && !matched) {
-				const auto folded = fold(aValue);
-				matched           = contains(folded);
-				auto it           = std::ranges::lower_bound(source_unicode::reverse_folds, folded, { }, &source_unicode::fold_pair::From);
-				while (!matched && it != source_unicode::reverse_folds.end() && it->From == folded) {
-					matched = contains(it->To);
-					++it;
-				}
-			}
-			return matched != aClass.Negated;
-		}
-		struct vm_thread
-		{
-			std::uint32_t Pc;
-			std::uint64_t Begin;
-		};
-		class machine
+		/// \brief Whole Word over the actual document: Unicode letters, marks,
+		/// numbers and underscore are word scalars; neighbours outside fixed
+		/// bounds still count.
+		class word_rule
 		{
 		public:
-			machine(const source_match_program::implementation& aProgram, std::string_view aText, budget& aWork)
+			word_rule(const source_match_program::implementation& aProgram, std::string_view aText, budget& aWork)
 				: Program(aProgram)
 				, Text(aText)
 				, Work(aWork)
+			{ }
+			[[nodiscard]] auto word_at(std::size_t aOffset) const -> bool
 			{
-				Current.reserve(Program.Code.size());
-				Next.reserve(Program.Code.size());
-				Stack.reserve(Program.Code.size() * 2U);
-				Seen.resize(Program.Code.size());
-			}
-			auto next(std::size_t aBegin, std::size_t aEnd) -> std::optional<byte_span>
-			{
-				Current.clear();
-				auto candidate = std::optional<byte_span>{ };
-				for (auto position = aBegin;;) {
-					++Generation;
-					for (const auto& thread : Current) {
-						Seen[thread.Pc] = Generation;
-					}
-					if (!candidate) {
-						add(Current, { Program.Start, position }, position);
-					}
-					Next.clear();
-					++Generation;
-					auto       after = position;
-					const auto value = position < aEnd ? scalar(Text, after) : char32_t{ 0U };
-					for (const auto& thread : Current) {
-						Work.tick();
-						const auto& item = Program.Code[thread.Pc];
-						if (item.Op == opcode::accept) {
-							const auto span = byte_span{ thread.Begin, position };
-							if (!Program.Options.WholeWord || whole_word(Text, span)) {
-								candidate = span;
-								break;
-							}
-							continue;
-						}
-						if (position == aEnd) {
-							continue;
-						}
-						const auto matches = item.Op == opcode::character ? (item.Flag ? fold(value) : value) == item.Value
-							: item.Op == opcode::any                      ? (item.Flag || value != U'\n')
-																		  : item.Op == opcode::character_class && in_class(Program.Classes[static_cast<std::size_t>(item.Value)], value, Work);
-						if (matches) {
-							add(Next, { item.Next, thread.Begin }, after);
-						}
-					}
-					if (candidate && Next.empty()) {
-						return candidate;
-					}
-					if (position == aEnd) {
-						return candidate;
-					}
-					Current.swap(Next);
-					position = after;
+				if (aOffset >= Text.size()) {
+					return false;
 				}
+				auto end = aOffset;
+				(void)scalar(Text, end);
+				Work.poll();
+				return Program.Word->find(Text, aOffset, end, true).has_value();
+			}
+			[[nodiscard]] auto word_before(std::size_t aOffset) const -> bool { return aOffset != 0U && word_at(previous_start(Text, aOffset)); }
+			[[nodiscard]] auto whole(byte_span aSpan) const -> bool { return !word_before(static_cast<std::size_t>(aSpan.Begin)) && !word_at(static_cast<std::size_t>(aSpan.End)); }
+			/// \brief The first start after `aStart`, by `aEnd`, whose previous scalar is not a word scalar.
+			[[nodiscard]] auto next_start(std::size_t aStart, std::size_t aEnd) const -> std::optional<std::size_t>
+			{
+				if (aStart >= aEnd) {
+					return std::nullopt;
+				}
+				auto after = aStart;
+				(void)scalar(Text, after);
+				if (!word_at(aStart)) {
+					return after;
+				}
+				Work.poll();
+				const auto other = Program.NonWord->find(Text, after, aEnd, false);
+				if (!other) {
+					return std::nullopt;
+				}
+				auto next = static_cast<std::size_t>(other->Begin);
+				(void)scalar(Text, next);
+				return next;
 			}
 
 		private:
 			const source_match_program::implementation& Program;
 			std::string_view                            Text;
 			budget&                                     Work;
-			std::vector<vm_thread>                      Current, Next, Stack;
-			std::vector<std::uint64_t>                  Seen;
-			std::uint64_t                               Generation = 0U;
-			auto                                        assertion(const instruction& aItem, std::size_t aPosition) const -> bool
-			{
-				switch (aItem.Op) {
-				case opcode::text_begin:   return aPosition == 0U;
-				case opcode::text_end:     return aPosition == Text.size();
-				case opcode::begin:        return aPosition == 0U || (aItem.Flag && previous(Text, aPosition) == U'\n');
-				case opcode::end:          return aPosition == Text.size() || (aItem.Flag && following(Text, aPosition) == U'\n');
-				case opcode::boundary:     return ascii_word(previous(Text, aPosition)) != ascii_word(following(Text, aPosition));
-				case opcode::not_boundary: return ascii_word(previous(Text, aPosition)) == ascii_word(following(Text, aPosition));
-				default:                   return false;
-				}
-			}
-			void add(std::vector<vm_thread>& aList, vm_thread aThread, std::size_t aPosition)
-			{
-				Stack.clear();
-				Stack.push_back(aThread);
-				while (!Stack.empty()) {
-					Work.tick();
-					const auto thread = Stack.back();
-					Stack.pop_back();
-					if (Seen[thread.Pc] == Generation) {
-						continue;
-					}
-					Seen[thread.Pc]  = Generation;
-					const auto& item = Program.Code[thread.Pc];
-					if (item.Op == opcode::split) {
-						Stack.push_back({ item.Other, thread.Begin });
-						Stack.push_back({ item.Next, thread.Begin });
-					} else if (item.Op == opcode::character || item.Op == opcode::any || item.Op == opcode::character_class || item.Op == opcode::accept) {
-						aList.push_back(thread);
-					} else if (assertion(item, aPosition)) {
-						Stack.push_back({ item.Next, thread.Begin });
-					}
-				}
-			}
 		};
 		auto append(source_match_scan& aResult, byte_span aLogical, const logical_document& aDocument, const source_match_limits& aLimits) -> bool
 		{
@@ -214,51 +127,37 @@ namespace bpr::core::source_matching {
 			aResult.Matches.push_back({ aDocument.original(aLogical.Begin), aDocument.original(aLogical.End) });
 			return true;
 		}
-		void literal_scan(const source_match_program::implementation& aProgram, const logical_document& aDocument, byte_span aBounds, source_match_scan& aResult, budget& aWork)
+		/// \brief Nonoverlapping leftmost-first matches; a zero-width match
+		/// advances one scalar, and the range's end is a terminal only once.
+		/// \details [[BPR-1431]]. Whole Word filters each engine match by its
+		/// actual neighbours. A refused match resumes the search at the next
+		/// start whose previous scalar is not a word scalar, so a refused earlier
+		/// start can never hide a later whole word.
+		void scan_range(const source_match_program::implementation& aProgram, const logical_document& aDocument, byte_span aBounds, source_match_scan& aResult, budget& aWork, bool aIncludeEnd)
 		{
-			auto prefix    = std::size_t{ 0U };
-			auto ordinal   = std::size_t{ 0U };
-			auto positions = std::vector<std::size_t>(aProgram.Literal.size(), 0U);
-			for (auto offset = static_cast<std::size_t>(aBounds.Begin); offset < aBounds.End;) {
-				const auto begin                      = offset;
-				const auto value                      = scalar(aDocument.Text, offset);
-				const auto folded                     = aProgram.Options.MatchCase ? value : fold(value);
-				positions[ordinal % positions.size()] = begin;
-				++ordinal;
-				while (prefix > 0U && folded != aProgram.Literal[prefix]) {
-					aWork.tick();
-					prefix = aProgram.Prefix[prefix - 1U];
+			const auto end    = static_cast<std::size_t>(aBounds.End);
+			const auto words  = word_rule{ aProgram, aDocument.Text, aWork };
+			auto       cursor = static_cast<std::size_t>(aBounds.Begin);
+			while (cursor <= end) {
+				aWork.poll();
+				const auto match = aProgram.Query->find(aDocument.Text, cursor, end, false);
+				if (!match || match->Begin < cursor || match->End > end || !boundary(aDocument.Text, match->Begin) || !boundary(aDocument.Text, match->End)) {
+					return;
 				}
-				aWork.tick();
-				if (folded == aProgram.Literal[prefix]) {
-					++prefix;
-				}
-				if (prefix != aProgram.Literal.size()) {
-					continue;
-				}
-				const auto span = byte_span{ positions[(ordinal - prefix) % positions.size()], offset };
-				if (!aProgram.Options.WholeWord || whole_word(aDocument.Text, span)) {
-					if (!append(aResult, span, aDocument, aProgram.Limits)) {
+				if (aProgram.Options.WholeWord && !words.whole(*match)) {
+					const auto next = words.next_start(static_cast<std::size_t>(match->Begin), end);
+					if (!next) {
 						return;
 					}
-					prefix = 0U;
-				} else {
-					prefix = aProgram.Prefix[prefix - 1U];
+					cursor = *next;
+					continue;
 				}
-			}
-		}
-		void regex_scan(const source_match_program::implementation& aProgram, const logical_document& aDocument, byte_span aBounds, source_match_scan& aResult, budget& aWork, bool aIncludeEnd)
-		{
-			auto vm     = machine{ aProgram, aDocument.Text, aWork };
-			auto cursor = static_cast<std::size_t>(aBounds.Begin);
-			while (cursor <= aBounds.End) {
-				const auto match = vm.next(cursor, static_cast<std::size_t>(aBounds.End));
-				if (!match || (match->empty() && match->End == aBounds.End && !aIncludeEnd) || !append(aResult, *match, aDocument, aProgram.Limits)) {
+				if ((match->empty() && match->End == end && !aIncludeEnd) || !append(aResult, *match, aDocument, aProgram.Limits)) {
 					return;
 				}
 				cursor = static_cast<std::size_t>(match->End);
 				if (match->empty()) {
-					if (cursor == aBounds.End) {
+					if (cursor == end) {
 						return;
 					}
 					(void)scalar(aDocument.Text, cursor);
@@ -278,7 +177,7 @@ namespace bpr::core::source_matching {
 			}
 			const auto capacity    = std::min(static_cast<std::size_t>(program.Limits.MaximumMatches), program.Limits.MaximumResultBytes / sizeof(byte_span));
 			const auto resultBytes = capacity * sizeof(byte_span);
-			const auto owned       = program.OwnedBytes + aSource.size() + 1U + program.Limits.MaximumLines * sizeof(newline_extra) + resultBytes + program.Limits.MaximumInstructions * 128U;
+			const auto owned       = program.OwnedBytes + aSource.size() + 1U + program.Limits.MaximumLines * sizeof(newline_extra) + resultBytes;
 			if (owned > program.Limits.MaximumOwnedBytes || resultBytes > program.Limits.MaximumResultBytes) {
 				throw stopped{ source_search_status::resource_limit };
 			}
@@ -294,12 +193,7 @@ namespace bpr::core::source_matching {
 				if (aRange.Begin > aRange.End) {
 					return;
 				}
-				const auto logical = byte_span{ document.logical(aRange.Begin), document.logical(aRange.End) };
-				if (program.Options.RegularExpression) {
-					regex_scan(program, document, logical, result, aWork, aRange.End == bounds.End);
-				} else {
-					literal_scan(program, document, logical, result, aWork);
-				}
+				scan_range(program, document, byte_span{ document.logical(aRange.Begin), document.logical(aRange.End) }, result, aWork, aRange.End == bounds.End);
 			};
 			if (aRanges.empty()) {
 				scan(bounds);
@@ -348,10 +242,7 @@ namespace bpr::core {
 				if (aSource[begin - 1U] == '\n') {
 					break;
 				}
-				--begin;
-				while ((static_cast<unsigned char>(aSource[begin]) & 0xC0U) == 0x80U) {
-					--begin;
-				}
+				begin = source_matching::previous_start(aSource, begin);
 			}
 			auto end = begin;
 			for (auto count = 0U; count < 240U && end < aSource.size(); ++count) {

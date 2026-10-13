@@ -1,3 +1,4 @@
+#include "../support/source_regex_engine_fixture.hpp"
 #include "../support/source_search_fixture.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/source_pr_search_execution.hpp"
@@ -119,7 +120,7 @@ namespace {
 		missing.Path   = "i-missing";
 		missing.Object = *core::parse_git_blob_oid(std::string(40U, 'f'));
 		fixture.add({ }, missing, 'A');
-		source_pr_search_execution execution{ fixture };
+		source_pr_search_execution execution{ fixture, search_engine() };
 		const auto                 work = fixture.work();
 		execution.update_demand(work);
 		auto       batches = std::vector<source_search_batch>{ };
@@ -138,7 +139,7 @@ namespace {
 		auto           right = left;
 		right.Path           = "new/name.cpp";
 		fixture.add(left, right, 'R');
-		source_pr_search_execution execution{ fixture };
+		source_pr_search_execution execution{ fixture, search_engine() };
 		auto                       work = fixture.work();
 		work.Include                    = "old/**";
 		execution.update_demand(work);
@@ -168,7 +169,7 @@ namespace {
 		for (const auto occurrences : { 10000U, 10001U }) {
 			corpus_fixture fixture;
 			fixture.add({ }, fixture.add_side("a", std::string(occurrences, 'x'), 0U), 'A');
-			source_pr_search_execution execution{ fixture };
+			source_pr_search_execution execution{ fixture, search_engine() };
 			manual_executor            effects;
 			manual_executor            decisions;
 			projections                projection;
@@ -202,7 +203,7 @@ namespace {
 		auto unavailable = fixture.add_side("b", "needle", 1U);
 		fixture.Contents.erase(unavailable.Object);
 		fixture.add({ }, unavailable, 'A');
-		source_pr_search_execution execution{ fixture };
+		source_pr_search_execution execution{ fixture, search_engine() };
 		manual_executor            effects;
 		manual_executor            decisions;
 		projections                projection;
@@ -226,7 +227,7 @@ namespace {
 	{
 		corpus_fixture fixture;
 		fixture.add({ }, fixture.add_side("a", "needle", 0U), 'A');
-		source_pr_search_execution execution{ fixture };
+		source_pr_search_execution execution{ fixture, search_engine() };
 		auto                       work = fixture.work();
 		execution.update_demand(work);
 		std::stop_source stop;
@@ -236,14 +237,14 @@ namespace {
 		fixture.OnRead = { };
 		core::source_match_limits limits;
 		limits.MaximumOwnedBytes = 1024U;
-		source_pr_search_execution bounded{ fixture, limits };
+		source_pr_search_execution bounded{ fixture, search_engine(), limits };
 		const auto                 refused = bounded.execute(work, { });
 		search_expect(refused.Terminal.Status == core::source_search_status::resource_limit, "matcher resource refusal stays distinct");
 		corpus_fixture lines;
 		lines.add(lines.add_side("a", "needle\rneedle", 0U), lines.add_side("a", "needle", 1U));
 		core::source_match_limits lineLimits;
 		lineLimits.MaximumLines = 1U;
-		source_pr_search_execution lineBounded{ lines, lineLimits };
+		source_pr_search_execution lineBounded{ lines, search_engine(), lineLimits };
 		const auto                 qualified = lineBounded.execute(lines.work(), { });
 		search_expect(qualified.Terminal.Status == core::source_search_status::partial && qualified.Terminal.Summary.Matches == 1U && qualified.Terminal.Summary.SkippedSides == 1U && qualified.Skipped->at(0U).Reason == diff_blob_status::materialization_limit, "CR-only line ceiling qualifies one side and preserves searchable opposite side");
 	}

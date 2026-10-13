@@ -3406,6 +3406,19 @@ exposes only headers; it does not execute upstream build or install rules.
 License and provenance are under `third_party/glaze/`. Core-only builds do not
 acquire Glaze. Existing GitHub Qt JSON parsers are unchanged in this slice.
 
+## Source search regex engine
+
+[[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as
+static libraries through `cmake/BprRe2Provider.cmake`, which checks each
+archive's SHA-256, size and license digest, honors the offline dependency cache,
+and turns off upstream tests, benchmarks, install rules, ICU and PCRE. Abseil
+requires one language standard for every library that uses it, so the provider
+builds both as C++23. Only the `regex` adapter links them; core reaches RE2
+through its `source_regex_engine` interface. Licenses and provenance are under
+`third_party/re2/` and `third_party/abseil/`. `core_source_matcher`,
+`application_source_pr_search` and the `application_source_find*` and
+`application_source_pr_*` courses exercise the engine.
+
 ## Bundled code font
 
 [[BPR-1270]]. Qt graphs embed four faces of JetBrains Mono NL (Regular, Bold,

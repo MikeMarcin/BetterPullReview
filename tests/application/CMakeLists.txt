@@ -273,6 +273,11 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::Application
 )
+# [[BPR-1431]]. The PR search case needs the RE2 engine, built only with Qt.
+if(TARGET BetterPullReview::AdapterRegex)
+    target_link_libraries(test_better_pull_review_application_epoch_host_tests PRIVATE BetterPullReview::AdapterRegex)
+    target_compile_definitions(test_better_pull_review_application_epoch_host_tests PRIVATE BPR_SOURCE_REGEX_AVAILABLE=1)
+endif()
 target_compile_definitions(
     test_better_pull_review_application_epoch_host_tests
     PRIVATE BPR_APPLICATION_TESTING=1
@@ -931,11 +936,13 @@ bpr_enable_warnings(test_better_pull_review_document_tab_host_tests)
 bpr_add_network_isolated_test(NAME application_document_tab_host COMMAND test_better_pull_review_document_tab_host_tests)
 set_tests_properties(application_document_tab_host PROPERTIES TIMEOUT 60)
 
-bpr_add_executable(test_source_search_host source_search_host_tests.cpp)
-target_link_libraries(test_source_search_host PRIVATE BetterPullReview::Application)
-bpr_enable_hardening(test_source_search_host)
-bpr_enable_warnings(test_source_search_host)
-bpr_add_network_isolated_test(NAME application_source_search_host COMMAND test_source_search_host)
+if(TARGET BetterPullReview::AdapterRegex)
+    bpr_add_executable(test_source_search_host source_search_host_tests.cpp)
+    target_link_libraries(test_source_search_host PRIVATE BetterPullReview::Application BetterPullReview::AdapterRegex)
+    bpr_enable_hardening(test_source_search_host)
+    bpr_enable_warnings(test_source_search_host)
+    bpr_add_network_isolated_test(NAME application_source_search_host COMMAND test_source_search_host)
+endif()
 
 bpr_add_executable(test_release_maintenance_host release_maintenance_host_tests.cpp)
 target_link_libraries(test_release_maintenance_host PRIVATE BetterPullReview::Application)
@@ -1023,8 +1030,10 @@ bpr_enable_hardening(test_remembered_connection_host)
 bpr_enable_warnings(test_remembered_connection_host)
 bpr_add_network_isolated_test(NAME application_remembered_connection_host COMMAND test_remembered_connection_host)
 
-bpr_add_executable(test_source_pr_search source_pr_search_tests.cpp)
-target_link_libraries(test_source_pr_search PRIVATE BetterPullReview::Application)
-bpr_enable_hardening(test_source_pr_search)
-bpr_enable_warnings(test_source_pr_search)
-bpr_add_network_isolated_test(NAME application_source_pr_search COMMAND test_source_pr_search)
+if(TARGET BetterPullReview::AdapterRegex)
+    bpr_add_executable(test_source_pr_search source_pr_search_tests.cpp)
+    target_link_libraries(test_source_pr_search PRIVATE BetterPullReview::Application BetterPullReview::AdapterRegex)
+    bpr_enable_hardening(test_source_pr_search)
+    bpr_enable_warnings(test_source_pr_search)
+    bpr_add_network_isolated_test(NAME application_source_pr_search COMMAND test_source_pr_search)
+endif()

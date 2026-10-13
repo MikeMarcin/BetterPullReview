@@ -42,7 +42,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "Unicode-Data", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "extra-cmake-modules"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")

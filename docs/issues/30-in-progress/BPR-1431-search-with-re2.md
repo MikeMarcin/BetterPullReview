@@ -35,4 +35,30 @@ remove the hand-written code.
 
 ## Evidence
 
-Pending.
+- AC1: `src/adapters/regex` implements `core::source_regex_engine` with RE2
+  2025-11-05 and Abseil LTS 20250814.2 from `cmake/BprRe2Provider.cmake`
+  (SHA-256, size and license digests checked; offline cache honoured; tests,
+  install rules, ICU and PCRE off; C++23 as Abseil requires). Both are acquired
+  only in the Qt graph, like Glaze, so the Qt-free core graph still needs only
+  SQLite (`dependency_modernization_contract`). `third_party/re2`,
+  `third_party/abseil`, `packaging/dependencies.json` and `NOTICE_FILES`
+  carry the notices; `package_runtime_contract`, `release_security_audit_contract`,
+  `binary_dependency_audit_contract` and `binary_dependency_surface` pass.
+- AC2: `source_search_unicode_data.hpp` (6,460 lines), its generator and
+  `third_party/unicode` are deleted; the VM and KMP code are gone from core.
+- AC3: `core_source_matcher` pins `a.*` over `ba a` as `[3,4)`, `TODO.*` after a
+  refused `xTODO`, and `aa` in `aaa aa`; lookaround, backreferences and `\C`
+  (outside `[...]` and `\Q...\E` quoting) refuse as unsupported.
+- AC4: `core_source_matcher`, `core_source_matcher_reference`,
+  `core_source_search_policy`, `application_source_search_host`,
+  `application_source_pr_search`, `application_epoch_host`,
+  `application_source_find` (1x, 1.25x, 2x), `application_source_pr_find`
+  (1x, 1.25x, 2x), `application_source_pr_search_scope`,
+  `application_source_pr_search_retry` and
+  `application_source_pr_search_performance` pass. On the large public course,
+  warm matching fell from 1,568,828 µs to 348,163 µs (warm final 1,649 ms to
+  436 ms), cancellation stayed 3 ms, peak RSS 208,257,024 bytes; thresholds hold.
+- Gates: `core_dependency_boundary`, `core_boundary_contract`,
+  `architecture_boundaries`, `architecture_boundary_contract` and the
+  documentation gate pass; clang-format 22 applied; clang-tidy 22 reports no
+  finding on changed lines.

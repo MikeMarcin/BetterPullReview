@@ -1,3 +1,4 @@
+#include "../support/source_regex_engine_fixture.hpp"
 #include "../support/source_search_fixture.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/source_search_host.hpp"
@@ -229,7 +230,7 @@ namespace {
 		entry.File         = scope.Document->File;
 		entry.Target       = core::source_search_target::right;
 		entry.Right        = core::source_match_side{ *scope.Document->RightBlob, "café\r\ncafé" };
-		f.Execution.Answer = [&entry](const auto& aWork, std::stop_token aStop) { return execute_source_pane_match(aWork, entry, aStop); };
+		f.Execution.Answer = [&entry](const auto& aWork, std::stop_token aStop) { return execute_source_pane_match(search_engine(), aWork, entry, aStop); };
 		search_expect(f.Host.set_query("CAFÉ"), "real matcher query admitted");
 		f.Effects.drain();
 		search_expect(!f.Host.projection().Matches, "worker records not published before decision");

@@ -56,11 +56,13 @@ namespace bpr::application {
 	}
 	struct source_pr_search_execution::implementation : std::enable_shared_from_this<implementation>
 	{
-		implementation(source_corpus_port& aCorpus, core::source_match_limits aLimits)
+		implementation(source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, core::source_match_limits aLimits)
 			: Corpus(aCorpus)
+			, Engine(aEngine)
 			, Limits(aLimits)
 		{ }
 		source_corpus_port&               Corpus;
+		const core::source_regex_engine&  Engine;
 		core::source_match_limits         Limits;
 		std::mutex                        Mutex;
 		std::optional<source_search_work> Demand;
@@ -128,12 +130,12 @@ namespace bpr::application {
 			}
 			auto stop = search_stop{ aStop };
 			Compilations.fetch_add(1U, std::memory_order_relaxed);
-			const auto compiled    = core::compile_source_match(aWork.Query, aWork.Request.Options, Limits, &stop);
+			const auto compiled    = core::compile_source_match(Engine, aWork.Query, aWork.Request.Options, Limits, &stop);
 			output.Terminal.Status = compiled.Status;
 			if (!compiled.Program) {
 				return output;
 			}
-			const auto paths       = core::compile_source_paths(aWork.Include, aWork.Exclude, Limits, &stop);
+			const auto paths       = core::compile_source_paths(Engine, aWork.Include, aWork.Exclude, Limits, &stop);
 			output.Terminal.Status = paths.Status;
 			if (!paths.Filter) {
 				return output;
@@ -278,8 +280,8 @@ namespace bpr::application {
 			return output;
 		}
 	};
-	source_pr_search_execution::source_pr_search_execution(source_corpus_port& aCorpus, core::source_match_limits aLimits)
-		: Implementation(std::make_shared<implementation>(aCorpus, aLimits))
+	source_pr_search_execution::source_pr_search_execution(source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, core::source_match_limits aLimits)
+		: Implementation(std::make_shared<implementation>(aCorpus, aEngine, aLimits))
 	{ }
 	auto source_pr_search_execution::statistics() const -> source_search_statistics
 	{

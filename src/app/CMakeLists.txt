@@ -122,6 +122,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterExport
             BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
+            BetterPullReview::AdapterRegex
             BetterPullReview::AdapterQt
             BetterPullReview::AdapterUpdate
             Threads::Threads

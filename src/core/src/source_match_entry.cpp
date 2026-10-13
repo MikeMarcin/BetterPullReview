@@ -279,7 +279,7 @@ namespace bpr::core {
 					+ (limits.MaximumLines + 1U) * (2U * sizeof(std::size_t) + 4U * sizeof(std::uint32_t) + 2U * sizeof(const alignment_segment*) + sizeof(byte_span))
 					+ limits.MaximumMatches * (2U * sizeof(byte_span) + 1U)
 					+ 2U * (limits.MaximumBytes / 256U + 1U) * sizeof(line_index::column_checkpoint);
-				const auto worst = extra + aProgram.retained_bytes() + limits.MaximumBytes + 1U + limits.MaximumLines * 2U * sizeof(std::size_t) + limits.MaximumInstructions * 128U;
+				const auto worst = extra + aProgram.retained_bytes() + limits.MaximumBytes + 1U + limits.MaximumLines * 2U * sizeof(std::size_t);
 				if (worst > limits.MaximumOwnedBytes) {
 					throw stopped{ source_search_status::resource_limit };
 				}

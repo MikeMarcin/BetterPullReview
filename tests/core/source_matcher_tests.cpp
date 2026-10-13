@@ -1,3 +1,4 @@
+#include "../support/source_regex_engine_fixture.hpp"
 #include "../support/source_search_fixture.hpp"
 #include "bpr/core/source_matcher.hpp"
 #include <cstdlib>
@@ -8,7 +9,7 @@ using namespace std::string_view_literals;
 namespace {
 	auto program(std::string_view aQuery, source_search_options aOptions = { }, source_match_limits aLimits = { }) -> source_match_program
 	{
-		auto compiled = compile_source_match(aQuery, aOptions, aLimits);
+		auto compiled = compile_source_match(search_engine(), aQuery, aOptions, aLimits);
 		search_expect(compiled.Status == source_search_status::complete && compiled.Program.has_value(), "public query compile");
 		return *compiled.Program;
 	}
@@ -35,6 +36,11 @@ namespace {
 		expect_spans("a\rb", "a\r\nb a\rb", { { 5U, 8U } });
 		expect_spans("aba", "ababa", { { 0U, 3U } });
 		expect_spans("cat", "cat 猫cat cat́ cat_ cat2 cat", { { 0U, 3U }, { 27U, 30U } }, { .WholeWord = true });
+		// [[BPR-1431]]. A refused earlier start must not hide a later whole word
+		// (the hand-written engine returned no match here).
+		expect_spans("a.*", "ba a", { { 3U, 4U } }, { .WholeWord = true, .RegularExpression = true });
+		expect_spans("TODO.*", "xTODO; TODO fix", { { 7U, 15U } }, { .WholeWord = true, .RegularExpression = true });
+		expect_spans("aa", "aaa aa", { { 4U, 6U } }, { .WholeWord = true });
 		const auto regex = source_search_options{ .RegularExpression = true };
 		expect_spans("a+", "baaaacaa", { { 1U, 5U }, { 6U, 8U } }, regex);
 		expect_spans("a+?", "aaa", { { 0U, 1U }, { 1U, 2U }, { 2U, 3U } }, regex);
@@ -67,15 +73,22 @@ namespace {
 	void test_limits_and_invalid_input()
 	{
 		const auto regex = source_search_options{ .RegularExpression = true };
-		for (const auto query : { "[", "(a", "a{1001}", "[z-a]", "a++" }) {
-			search_expect(compile_source_match(query, regex).Status == source_search_status::invalid_pattern, "invalid syntax refused");
+		for (const auto query : { "[", "(a", "a{1001}", "[z-a]", "a++", "\\q", "(?:a{100}){100}" }) {
+			search_expect(compile_source_match(search_engine(), query, regex).Status == source_search_status::invalid_pattern, "invalid syntax refused");
 		}
-		for (const auto query : { "(?=x)", "(?<=x)", "(x)\\1", "\\q", "\\p{Greek}", "[[:alpha:]]" }) {
-			search_expect(compile_source_match(query, regex).Status == source_search_status::unsupported_pattern, "unsupported syntax refused");
+		// [[BPR-1431]]. Lookaround, backreferences and the single-byte \C stay
+		// refused before RE2 sees them; brackets and \Q...\E quote them.
+		for (const auto query : { "(?=x)", "(?!x)", "(?<=x)", "(?<!x)", "(x)\\1", "a\\Cb", "[\\C]" }) {
+			search_expect(compile_source_match(search_engine(), query, regex).Status == source_search_status::unsupported_pattern, "unsupported syntax refused");
 		}
-		search_expect(compile_source_match("").Status == source_search_status::idle, "empty compiles no program");
-		search_expect(compile_source_match(std::string(4097U, 'x')).Status == source_search_status::invalid_input, "4 KiB query ceiling");
-		search_expect(compile_source_match("\xC0\xAF").Status == source_search_status::invalid_input, "invalid query scalar");
+		search_expect(compile_source_match(search_engine(), "x(?", regex).ErrorOffset == 1U, "error offset names the query, not the line-anchor prefix");
+		expect_spans("[(?=]", "(?=", { { 0U, 1U }, { 1U, 2U }, { 2U, 3U } }, regex);
+		expect_spans("\\Q(?=\\E", "a(?=b", { { 1U, 4U } }, regex);
+		expect_spans("\\p{Greek}+", "abc \u03B1\u03B2\u03B3", { { 4U, 10U } }, regex);
+		expect_spans("[[:alpha:]]+", "ab1", { { 0U, 2U } }, regex);
+		search_expect(compile_source_match(search_engine(), "").Status == source_search_status::idle, "empty compiles no program");
+		search_expect(compile_source_match(search_engine(), std::string(4097U, 'x')).Status == source_search_status::invalid_input, "4 KiB query ceiling");
+		search_expect(compile_source_match(search_engine(), "\xC0\xAF").Status == source_search_status::invalid_input, "invalid query scalar");
 		expect_spans("a\r\nb", "a\nb", { { 0U, 3U } }, regex);
 		expect_spans("a\r\nb", "a\rb", { });
 		expect_spans("(?i:K)(?-i:k)", "Kk Kk kk KK", { { 0U, 4U }, { 5U, 7U }, { 8U, 10U } }, regex);
@@ -87,18 +100,19 @@ namespace {
 		search_expect(scan_source_match(program("x"), "a\r\nx", byte_span{ 2U, 4U }).Status == source_search_status::invalid_input, "split CRLF bounds refused");
 		search_expect(scan_source_match(program("x"), "x\0x"sv).Status == source_search_status::invalid_input, "binary source refused");
 		auto limits                = source_match_limits{ };
-		limits.MaximumInstructions = 10U;
-		search_expect(compile_source_match("(?:a|b){100}", regex, limits).Status == source_search_status::resource_limit, "expanded program bounded");
+		limits.MaximumProgramBytes = 64U * 1024U;
+		search_expect(compile_source_match(search_engine(), "(?:abcdefghij){1000}", regex, limits).Status == source_search_status::resource_limit, "engine program memory bounded");
 		limits                     = { };
 		limits.MaximumCompileSteps = 20U;
-		search_expect(compile_source_match("(a|aa)*b", regex, limits).Status == source_search_status::resource_limit, "compile work bounded");
+		search_expect(compile_source_match(search_engine(), std::string(30U, 'x'), { }, limits).Status == source_search_status::resource_limit, "query admission work bounded");
+		const auto adversarial = scan_source_match(program("(a|aa)*b", regex), std::string(100000U, 'a'));
+		search_expect(adversarial.Status == source_search_status::complete && adversarial.Matches.empty(), "ambiguous regex runs in linear time without backtracking");
 		limits                  = { };
-		limits.MaximumScanSteps = 4000U;
-		const auto adversarial  = scan_source_match(program("(a|aa)*b", regex, limits), std::string(1500U, 'a'));
-		search_expect(adversarial.Status == source_search_status::resource_limit && adversarial.Steps == 4000U, "ambiguous regex refuses at exact deterministic budget");
+		limits.MaximumScanSteps = 100U;
+		search_expect(scan_source_match(program("x", { }, limits), std::string(1500U, 'a')).Status == source_search_status::resource_limit, "scan work bounded");
 		limits                   = { };
 		limits.MaximumOwnedBytes = 32U;
-		search_expect(compile_source_match("x", { }, limits).Status == source_search_status::resource_limit, "compile memory reserved before allocation");
+		search_expect(compile_source_match(search_engine(), "x", { }, limits).Status == source_search_status::resource_limit, "compile memory reserved before allocation");
 		limits              = { };
 		limits.MaximumBytes = 10U;
 		search_expect(scan_source_match(program("x", { }, limits), std::string(11U, 'x')).Status == source_search_status::resource_limit, "file bytes ceiling");
@@ -114,15 +128,13 @@ namespace {
 		counted_stop stop;
 		auto         cancelled = scan_source_match(program("needle"), std::string(10000U, 'a'), { }, &stop);
 		search_expect(cancelled.Status == source_search_status::cancelled && cancelled.Steps == 1024U && stop.Last == 1024U, "scan cancellation within counted interval");
-		stop.At                   = 3072U;
+		stop.At                   = 1501U;
 		const auto cancelledRegex = scan_source_match(program("(a|aa)*b", regex), std::string(1500U, 'a'), { }, &stop);
-		search_expect(cancelledRegex.Status == source_search_status::cancelled && cancelledRegex.Steps == 3072U, "regex VM cancellation after preparation is bounded");
+		search_expect(cancelledRegex.Status == source_search_status::cancelled && cancelledRegex.Steps == 1501U, "each engine search polls cancellation first");
 		stop.At = 0U;
-		search_expect(compile_source_match("x", { }, { }, &stop).Status == source_search_status::cancelled, "compile initial cancellation");
+		search_expect(compile_source_match(search_engine(), "x", { }, { }, &stop).Status == source_search_status::cancelled, "compile initial cancellation");
 		stop.At = 1024U;
-		search_expect(compile_source_match(std::string(3000U, 'x'), { }, { }, &stop).Status == source_search_status::cancelled, "compile cancellation counted");
-		auto deep = std::string(65U, '(') + "a" + std::string(65U, ')');
-		search_expect(compile_source_match(deep, regex).Status == source_search_status::resource_limit, "compile nesting bounded");
+		search_expect(compile_source_match(search_engine(), std::string(3000U, 'x'), { }, { }, &stop).Status == source_search_status::cancelled, "compile cancellation counted");
 		const auto preview = source_match_preview(std::string(1000U, 'a'), { 500U, 501U });
 		search_expect(preview.size() == 240U, "preview scalar ceiling");
 		auto astral = std::string{ };
@@ -133,7 +145,7 @@ namespace {
 	}
 	void test_globs()
 	{
-		const auto filter = compile_source_paths("*.{cpp,h},src/[a,b]?.txt,./root\\,file", "**/generated/**,*.tmp");
+		const auto filter = compile_source_paths(search_engine(), "*.{cpp,h},src/[a,b]?.txt,./root\\,file", "**/generated/**,*.tmp");
 		search_expect(filter.Status == source_search_status::complete && filter.Filter, "glob parses braces classes commas and escape");
 		search_expect(filter.Filter->includes("deep/name.cpp", { }), "slashless basename at depth");
 		search_expect(filter.Filter->includes("old/name.c", "new/name.h"), "either rename side included");
@@ -143,16 +155,16 @@ namespace {
 		search_expect(filter.Filter->includes("root,file", { }), "escaped comma is literal root name");
 		search_expect(!filter.Filter->includes("sub/root,file", { }), "dot slash anchors root");
 		search_expect(!filter.Filter->includes("deep/name.CPP", { }), "paths case-sensitive");
-		search_expect(compile_source_paths("**/a?.{h,{c,cpp}}", "").Filter->includes("a猫.cpp", { }), "nested brace and Unicode wildcard");
-		search_expect(compile_source_paths("", "").Filter->includes({ }, "unopened/anything"), "empty filters include all");
-		search_expect(!compile_source_paths("src/*.h", "").Filter->includes("src/deep/a.h", { }), "star never crosses slash");
-		search_expect(compile_source_paths("src/**/a.h", "").Filter->includes("src/a.h", { }), "globstar zero directory");
+		search_expect(compile_source_paths(search_engine(), "**/a?.{h,{c,cpp}}", "").Filter->includes("a猫.cpp", { }), "nested brace and Unicode wildcard");
+		search_expect(compile_source_paths(search_engine(), "", "").Filter->includes({ }, "unopened/anything"), "empty filters include all");
+		search_expect(!compile_source_paths(search_engine(), "src/*.h", "").Filter->includes("src/deep/a.h", { }), "star never crosses slash");
+		search_expect(compile_source_paths(search_engine(), "src/**/a.h", "").Filter->includes("src/a.h", { }), "globstar zero directory");
 		auto pathLimits             = source_match_limits{ };
 		pathLimits.MaximumScanSteps = 8U;
-		const auto pathLimited      = compile_source_paths("*.cpp", "", pathLimits);
+		const auto pathLimited      = compile_source_paths(search_engine(), "*.cpp", "", pathLimits);
 		search_expect(pathLimited.Filter && pathLimited.Filter->evaluate("long-directory/name.cpp", { }).Status == source_search_status::resource_limit, "path work refusal stays explicit for corpus coverage");
 		for (const auto text : { "a,", "{a,}", "[a", "{a,b", "a\\", "[z-a]", "a,,b" }) {
-			search_expect(compile_source_paths(text, "").Status == source_search_status::invalid_pattern, "invalid glob refused before reads");
+			search_expect(compile_source_paths(search_engine(), text, "").Status == source_search_status::invalid_pattern, "invalid glob refused before reads");
 		}
 	}
 	auto unified(std::string_view aLeft, std::string_view aRight, diff_options aOptions = { }) -> diff_semantic_index

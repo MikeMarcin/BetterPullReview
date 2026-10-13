@@ -418,10 +418,14 @@ better_pull_review_adapter_git
 better_pull_review_adapter_sqlite
 better_pull_review_adapter_logging
 better_pull_review_adapter_ai
+better_pull_review_adapter_regex
     implement application-host ports
 
     the GitHub adapter may depend on Qt Core and Network for its designated
     process, HTTPS, and native-integration effects, but never on Qt Widgets
+
+    the regex adapter implements core's source_regex_engine interface with
+    pinned RE2 and Abseil (BPR-1431) and links only core
 
 better_pull_review_adapter_qt
     Qt presentation adapter

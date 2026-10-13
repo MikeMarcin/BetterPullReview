@@ -1,3 +1,6 @@
+#if defined(BPR_SOURCE_REGEX_AVAILABLE)
+	#include "../support/source_regex_engine_fixture.hpp"
+#endif
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
@@ -9157,6 +9160,7 @@ namespace {
 		expect(value.Host->is_quiescent(), "all source calls and background actor jobs quiesce");
 	}
 
+#if defined(BPR_SOURCE_REGEX_AVAILABLE)
 	void exact_historical_corpus_uses_its_pair_and_host_path()
 	{
 		fixture value;
@@ -9180,7 +9184,7 @@ namespace {
 			void                                  publish(const application::source_search_projection& aProjection) override { Last = aProjection; }
 		} published;
 		queued_executor                         searchEffects{ false };
-		application::source_pr_search_execution execution{ *value.Host };
+		application::source_pr_search_execution execution{ *value.Host, bpr::tests::search_engine() };
 		application::source_search_host         search{ value.Decisions, searchEffects, execution, published };
 		expect(search.set_scope(scope) && search.set_query("needle"), "historical query admitted through public host");
 		auto worker = std::jthread{ [&] { searchEffects.run_next(); } };
@@ -9217,12 +9221,15 @@ namespace {
 		drain(value);
 		expect(value.Host->catalogue(*scope, { }).Status == core::source_search_status::unavailable, "revoked search corpus cannot be reused");
 	}
+#endif
 } // namespace
 
 int main(int argc, char** argv)
 {
 	parse_live_latencies(argc, argv);
+#if defined(BPR_SOURCE_REGEX_AVAILABLE)
 	exact_historical_corpus_uses_its_pair_and_host_path();
+#endif
 	corpus_sparse_read_coalesces_replacement_and_yields_to_navigation();
 	historical_source_does_not_accept_live_authority();
 	local_clock_skew_cannot_associate_old_provider_event_with_new_transition();
