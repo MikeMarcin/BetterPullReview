@@ -19,7 +19,7 @@ stays open and is now moot.
 
 **The outcome is "extend".** The gap suite confirms seven failures of the
 shipped heuristic inside RFC-BPR-0072's scope (H1 to H7), and H8 is confirmed
-as well. [BPR-1474](../issues/10-backlog/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
+as well. [BPR-1474](../issues/20-ready/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
 fixes those classes in the heuristic. It may not take
 `cpp_identifier_context.cpp` past 800 lines or add a pass over the whole blob.
 

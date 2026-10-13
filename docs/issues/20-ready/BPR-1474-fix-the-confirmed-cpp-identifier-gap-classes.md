@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1474"
 title: "Fix the confirmed C++ identifier gap classes in the heuristic"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0081"]
 depends_on: []
 priority: "P2"

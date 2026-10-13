@@ -85,7 +85,7 @@ raw results: [tests/syntax_evaluation/results/macos/](../../../tests/syntax_eval
   changes adoption would need are recorded.
 - **AC6, outcome.** Rejected on Contract, Bounded work and Memory at both
   pins, so the outcome is **extend**:
-  [BPR-1474](../10-backlog/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md).
+  [BPR-1474](../20-ready/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md).
   Windows and Linux are named as owed (BPR-1443, BPR-1444) and are not claimed.
   `core-only` passes except five rows, all from other work: three
   documentation/issue-graph rows (tree drift), `msvc_secure_crt_contract`
