@@ -22,4 +22,7 @@ Windows and Linux runs are [[BPR-1462]] and [[BPR-1463]].
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done for K on macOS on `9a8cde4f5`; evidence in the
+[verification ledger](../../verification/RFC-BPR-0083.md#bpr-1455-and-bpr-1456-the-differential-harness-and-canary-course).
+L's results from the same course are [[BPR-1458]]'s. Windows and Linux runs are
+[[BPR-1462]] and [[BPR-1463]].
