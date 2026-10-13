@@ -9,7 +9,7 @@
 #include <cmath>
 
 namespace bpr::qt {
-	/// \brief Discards incidental vertical motion without banking it for later.
+	/// \brief Discards motion on the unintended axis without banking it for later.
 	/// \details Qt-local input state shared by the split and unified readers.
 	/// Dominance is assessed on delivered motion, before any scrollbar clamp.
 	class pixel_scroll_gesture
@@ -17,8 +17,8 @@ namespace bpr::qt {
 	public:
 		void reset() noexcept
 		{
-			Horizontal    = false;
-			ReleaseEvents = 0;
+			Axis          = direction::undecided;
+			ReleaseTravel = 0.0;
 			Device        = nullptr;
 			LastInput.invalidate();
 		}
@@ -31,20 +31,29 @@ namespace bpr::qt {
 			}
 			Device = aEvent.pointingDevice();
 			LastInput.start();
-			auto       delta = aEvent.pixelDelta();
-			const auto x     = std::abs(static_cast<qreal>(delta.x()));
-			const auto y     = std::abs(static_cast<qreal>(delta.y()));
-			if (x >= 4.0 * std::max(1.0, y)) {
-				Horizontal    = true;
-				ReleaseEvents = 0;
-				delta.setY(0);
-			} else if (Horizontal && y > 0) {
-				if (y >= 8 || ++ReleaseEvents >= 2) {
-					Horizontal    = false;
-					ReleaseEvents = 0;
-				} else {
-					delta.setY(0);
+			auto       delta       = aEvent.pixelDelta();
+			const auto x           = std::abs(static_cast<qreal>(delta.x()));
+			const auto y           = std::abs(static_cast<qreal>(delta.y()));
+			const auto predominant = x > 0.0 && x >= 2.0 * y ? direction::horizontal
+				: y > 0.0 && y >= 2.0 * x                    ? direction::vertical
+															 : direction::undecided;
+			if (Axis == direction::undecided) {
+				Axis = predominant;
+			} else if (predominant == Axis) {
+				ReleaseTravel = 0.0;
+			} else if (!delta.isNull() && aEvent.phase() != Qt::ScrollMomentum) {
+				// Evidence changes intent, never the eventual scroll distance.
+				// Opposing wobble cancels; two tiny events cannot unlock an axis.
+				ReleaseTravel += Axis == direction::horizontal ? delta.y() : delta.x();
+				if (std::abs(ReleaseTravel) >= 12.0) {
+					Axis          = predominant;
+					ReleaseTravel = 0.0;
 				}
+			}
+			if (Axis == direction::horizontal) {
+				delta.setY(0);
+			} else if (Axis == direction::vertical) {
+				delta.setX(0);
 			}
 			if (aEvent.phase() == Qt::ScrollEnd) {
 				reset();
@@ -53,10 +62,13 @@ namespace bpr::qt {
 		}
 
 	private:
+		enum class direction { undecided,
+							   horizontal,
+							   vertical };
 		const QPointingDevice* Device = nullptr;
 		QElapsedTimer          LastInput;
-		bool                   Horizontal    = false;
-		int                    ReleaseEvents = 0;
+		direction              Axis          = direction::undecided;
+		qreal                  ReleaseTravel = 0.0;
 	};
 } // namespace bpr::qt
 

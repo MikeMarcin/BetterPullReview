@@ -466,7 +466,7 @@ namespace {
 		const auto start = harness.Controller.position();
 		harness.LeftHorizontal.setValue(harness.LeftHorizontal.maximum());
 		for (auto event = 0; event < 20; ++event) {
-			expect(send_wheel(harness.Left, QPoint{ event < 10 ? -20 : 20, event % 2 == 0 ? 1 : -1 }, { }, Qt::NoModifier,
+			expect(send_wheel(harness.Left, QPoint{ event < 10 ? -20 : 20, event % 2 == 0 ? 7 : -7 }, { }, Qt::NoModifier,
 							  event == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate),
 				   "horizontal wobble events are consumed");
 			expect(close(harness.Controller.position(), start), "horizontal wobble never displaces the vertical authority, including at an edge and reversal");
@@ -484,11 +484,13 @@ namespace {
 		expect(send_wheel(harness.Left, QPoint{ 0, -1 }, { }, Qt::NoModifier, Qt::ScrollUpdate)
 				   && close(harness.Controller.position(), start + 1.0),
 			   "one minor perturbation does not release horizontal intent");
-		expect(send_wheel(harness.Left, QPoint{ 0, -1 }, { }, Qt::NoModifier, Qt::ScrollUpdate)
-				   && close(harness.Controller.position(), start + 2.0),
+		for (auto event = 0; event < 11; ++event) {
+			static_cast<void>(send_wheel(harness.Left, QPoint{ 0, -1 }, { }, Qt::NoModifier, Qt::ScrollUpdate));
+		}
+		expect(close(harness.Controller.position(), start + 2.0),
 			   "sustained small vertical input reorients without a lift or banked jump");
 		const auto horizontal = harness.LeftHorizontal.value();
-		expect(send_wheel(harness.Left, QPoint{ -8, -8 }, { }, Qt::NoModifier, Qt::ScrollUpdate)
+		expect(send_wheel(harness.Left, QPoint{ -8, -8 }, { }, Qt::NoModifier, Qt::ScrollBegin)
 				   && close(harness.Controller.position(), start + 10.0) && harness.LeftHorizontal.value() > horizontal,
 			   "comparable diagonal motion moves both available axes");
 		expect(send_wheel(harness.Left, QPoint{ -20, 1 }), "unphased gesture establishes horizontal intent");
@@ -509,6 +511,47 @@ namespace {
 		harness.Controller.set_axis(build_axis("alpha\ncharlie\ndelta\n", "alpha\nbravo-one\nbravo-two\ncharlie\ndelta\n", { 0.0, 10.0, 20.0, 30.0 }, { 0.0, 10.0, 25.0, 40.0, 50.0, 60.0 }, 12.0, 12.0, 9U));
 		harness.Controller.set_position(20.0);
 		expect(send_wheel(harness.Left, QPoint{ 0, -1 }) && close(harness.Controller.position(), 21.0), "a different comparison does not inherit suppression");
+	}
+
+	auto test_predominant_axis_wobble() -> void
+	{
+		auto       gesture = qt::pixel_scroll_gesture{ };
+		const auto consume = [&gesture](const QPoint aDelta, const Qt::ScrollPhase aPhase = Qt::ScrollUpdate) {
+			auto event = QWheelEvent{ { }, { }, aDelta, { }, Qt::NoButton, Qt::NoModifier, aPhase, false };
+			return gesture.consume(event);
+		};
+		expect(consume({ -20, -7 }, Qt::ScrollBegin) == QPoint(-20, 0), "moderately horizontal input suppresses the unwanted axis from its first event");
+		for (auto event = 0; event < 20; ++event) {
+			expect(consume({ event % 2 == 0 ? 20 : -20, event % 2 == 0 ? 7 : -7 }) == QPoint(event % 2 == 0 ? 20 : -20, 0), "horizontal reversal and stronger finger wobble preserve the reading position");
+		}
+		expect(consume({ 0, 1 }) == QPoint(0, 0) && consume({ 0, 1 }) == QPoint(0, 0), "two tiny perpendicular samples do not release established intent");
+		for (auto event = 0; event < 20; ++event) {
+			expect(consume({ 0, event % 2 == 0 ? -2 : 2 }) == QPoint(0, 0), "alternating perpendicular noise cannot build a false reorientation");
+		}
+		for (auto event = 0; event < 20; ++event) {
+			expect(consume({ -2, -6 }, Qt::ScrollMomentum).y() == 0, "momentum tail noise cannot change a finger-established axis");
+		}
+		static_cast<void>(consume({ }, Qt::ScrollEnd));
+		expect(consume({ 0, -1 }, Qt::ScrollBegin) == QPoint(0, -1), "a new small vertical-only gesture responds immediately");
+		expect(consume({ 7, -20 }) == QPoint(0, -20), "vertical scrolling also suppresses minor horizontal wander");
+		static_cast<void>(consume({ }, Qt::ScrollEnd));
+		expect(consume({ -8, -8 }, Qt::ScrollBegin) == QPoint(-8, -8), "a new comparable-axis gesture pans diagonally");
+		static_cast<void>(consume({ -20, 0 }, Qt::ScrollBegin));
+		for (auto event = 0; event < 11; ++event) {
+			expect(consume({ 0, -1 }) == QPoint(0, 0), "slow within-gesture reorientation needs sustained direction evidence");
+		}
+		expect(consume({ 0, -1 }) == QPoint(0, -1), "sustained tiny vertical movement reorients without banking discarded motion");
+		for (auto event = 0; event < 3; ++event) {
+			static_cast<void>(consume({ -8, -8 }));
+		}
+		expect(consume({ -8, -8 }) == QPoint(-8, -8), "sustained diagonal movement releases an existing axis preference");
+		static_cast<void>(consume({ -20, -7 }, Qt::ScrollBegin));
+		for (auto event = 0; event < 1'000; ++event) {
+			expect(consume({ -20, -7 }).y() == 0, "long horizontal history suppresses sustained subordinate input");
+		}
+		static_cast<void>(consume({ -8, -8 }));
+		static_cast<void>(consume({ -8, -8 }));
+		expect(consume({ -8, -8 }) == QPoint(-8, -8), "recent comparable input releases preference regardless of whole-gesture horizontal travel");
 	}
 
 	auto test_precision_wheel_phases_and_coalescing() -> void
@@ -1127,6 +1170,7 @@ auto main(int argc, char** argv) -> int
 	test_surface_role_rebinding();
 	test_pinning_proportional_motion_and_no_dead_travel();
 	test_horizontal_drift_and_reorientation();
+	test_predominant_axis_wobble();
 	test_precision_wheel_phases_and_coalescing();
 	test_navigation_reveal_feedback_and_horizontal_isolation();
 	test_same_comparison_remeasurement_and_reentrant_sinks();

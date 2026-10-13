@@ -2197,6 +2197,82 @@ namespace {
 		}
 	}
 
+	void test_keyboard_minimal_reveal()
+	{
+		auto text = std::string{ };
+		for (auto line = 0; line < 200; ++line) {
+			text += std::to_string(line) + std::string(240U, 'x') + "\n";
+		}
+		auto unequal = std::string{ };
+		for (auto line = 0; line < 200; ++line) {
+			if (line == 72) {
+				for (auto replacement = 0; replacement < 7; ++replacement) {
+					unequal += "replacement" + std::to_string(replacement) + std::string(240U, 'y') + "\n";
+				}
+			} else if (line < 73 || line > 75) {
+				unequal += std::to_string(line) + std::string(240U, 'x') + "\n";
+			}
+		}
+		const auto comparisons = std::array{ computed(text, text, { }, 75U), computed(text, unequal, { }, 76U) };
+		for (std::size_t comparison = 0U; comparison < comparisons.size(); ++comparison) {
+			const auto& diff = comparisons[comparison];
+			for (const auto unified : { false, true }) {
+				if (comparison != 0U && unified) {
+					continue;
+				}
+				for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+					auto workbench = qt::diff_workbench{ };
+					workbench.resize(1'000, 520);
+					workbench.show();
+					const auto request = context(diff, 175U, 175U);
+					workbench.set_loading(request);
+					workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+					settle_geometry(workbench);
+					workbench.set_one_pane_enabled(unified);
+					settle_geometry(workbench);
+					auto* const editor = unified ? workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : side == core::diff_side::left ? workbench.left_pane()
+																																							 : workbench.right_pane();
+					expect(workbench.reveal_conversation_line(side, 60U), "minimal keyboard reveal starts at a known source line");
+					settle_geometry(workbench);
+					expect(send_wheel(*editor->viewport(), QPoint{ 0, -5 }), "minimal reveal starts from a fractional origin");
+					process_events();
+					const auto visible = [&] {
+						const auto area = editor->viewport()->visibleRegion().boundingRect();
+						return QRect{ editor->viewport()->mapTo(&workbench, area.topLeft()), area.size() };
+					};
+					for (auto step = 0; step < 45; ++step) {
+						const auto next    = workbench.selection()->PreferredLine.Line + 1U;
+						const auto before  = workbench.line_rect(side, next);
+						const auto clipped = before.bottom() > visible().bottom();
+						auto       key     = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, step % 2 == 0 ? Qt::ShiftModifier : Qt::NoModifier };
+						QCoreApplication::sendEvent(editor, &key);
+						process_events();
+						const auto after = workbench.line_rect(side, next);
+						expect(after.top() >= visible().top() && after.bottom() <= visible().bottom(), "Down fully reveals even a partially clipped source row");
+						if (clipped) {
+
+							expect(visible().bottom() - after.bottom() < after.height() + 1 && before.top() - after.top() <= 2 * after.height(),
+								   "Down reveals at the lower edge with at most the boundary-alignment remainder, never at the center or top");
+						}
+					}
+					for (auto step = 0; step < 45; ++step) {
+						const auto next    = workbench.selection()->PreferredLine.Line - 1U;
+						const auto before  = workbench.line_rect(side, next);
+						const auto clipped = before.top() < visible().top();
+						send_key(*editor, Qt::Key_Up);
+						process_events();
+						const auto after = workbench.line_rect(side, next);
+						expect(after.top() >= visible().top() && after.bottom() <= visible().bottom(), "Up fully reveals the selected source row");
+						if (clipped) {
+							expect(after.top() - visible().top() < after.height() + 1 && after.top() - before.top() <= 2 * after.height(),
+								   "Up reveals at the upper edge without centering");
+						}
+					}
+				}
+			}
+		}
+	}
+
 	void test_fractional_native_viewport()
 	{
 		const auto [leftText, rightText] = large_comparison_text(200U, 8U);
@@ -5206,6 +5282,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
 	test_fractional_native_viewport();
 	test_fractional_unified_and_keyboard_viewports();
+	test_keyboard_minimal_reveal();
 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
 	test_one_pane_rows_anchors_and_link_map();
 	{

@@ -562,6 +562,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto reveal_exact_line(
 			const core::semantic_selection& aSelection,
 			const core::source_line_ref& aLine, bool aAtTop = false) -> bool;
+		/// \brief Fully reveals a keyboard-selected row at the nearest edge.
+		void reveal_keyboard_row(QPlainTextEdit* aPane, const QRect& aRow, const QRect& aVisible);
 		void apply_interaction(bool aReveal, bool aAnnounceSelection);
 		void update_detail();
 		/// \brief [[BPR-1334]]. Projects the current line, or the panes'

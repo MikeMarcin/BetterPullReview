@@ -149,6 +149,36 @@ their existing forwarded input, without redesigning other readers or editors.
 The interaction design keeps the existing native surface with direct,
 predictable motion.
 
+## Owner correction after candidate v001
+
+On 2026-10-12 the owner rejected the first frozen candidate in session
+`e64e44acf84114c0994623f552e9cab1` (decision
+`71379576-4036-4951-8090-6d2de4b52ac1`). Keyboard navigation must fully reveal a
+partially clipped selected line with the smallest movement compatible with the
+existing line-boundary amendment, keeping it at the nearest viewport edge.
+Moving it to the center or top as a general keyboard reveal is unacceptable.
+The owner also reported excessive movement on the unintended axis and requested
+inspection of a prepared Sublime Text long-line document. That scoped inspection
+is explicitly authorized; the general prohibition on driving other live desktop
+surfaces remains in effect. Stronger axis discrimination must preserve small
+vertical-only input, intentional diagonal input and within-gesture reorientation.
+This correction refines AC03/AC08 and the required AC07 feel judgment; it does
+not waive any acceptance criterion. The new review asks separately about keyboard
+reveals and touchpad drift so each correction receives its own answer.
+
+The owner subsequently authorized a scoped native recording and replay diagnostic
+in that prepared Sublime window. The completed private wizard recorded 5,596
+precise scroll events and 4,113 numeric viewport samples over 37.44 seconds.
+One interior horizontal course delivered 353 vertical pixels while viewport Y
+remained fixed. In a continuous turn, vertical motion resumed when recent
+perpendicular travel became comparable to horizontal travel, although total
+perpendicular travel since gesture begin remained much smaller. This supports
+recent directional evidence and hysteresis; it does not establish a strict
+per-event threshold or Sublime's closed-source algorithm. Reversal alone did
+not consistently release preference. Synthetic replay delivered movement but
+failed to reproduce the trajectory, so no physical replay equivalence is claimed.
+The original trace remains private outside Git; capture has stopped.
+
 ## Acceptance criteria
 
 - **AC01:** In rendered split and unified comparisons, successive vertical
@@ -197,4 +227,4 @@ implementation acceptance.
 
 ## Adoption and execution
 
-Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). BPR-1413 remains open for the required owner touchpad verdict on its frozen candidate; no human acceptance is inferred from automated checks.
+Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Candidate v001 was rejected; BPR-1413 remains open for the required touchpad verdict and the separate minimum keyboard reveal judgment on its revised frozen candidate. No human acceptance is inferred from automated checks or the scoped diagnostic.
