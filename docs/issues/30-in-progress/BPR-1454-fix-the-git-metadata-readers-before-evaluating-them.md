@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1454"
 title: "Fix the Git metadata readers: repository format, config syntax, ignore case, POSIX classes, index checks and HEAD"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0054", "RFC-BPR-0083"]
 depends_on: []
 priority: "P1"
