@@ -12,7 +12,8 @@ selected row bottom flush with the actual displayed bottom after Down scrolls.
 This replaces top-source-boundary rounding for reveals; page and endpoint
 behavior remain unchanged. The v004 correction and exact candidate are recorded
 in the [continuation](../issues/_checkpoints/smooth-diff-touchpad-panning/README.md).
-The separate keyboard judgment remains pending. Fixture success does not
+The owner subsequently observed v004 alignment fixed but rejected its horizontal
+scrollbar wake. The separate native scrollbar judgment remains pending. Fixture success does not
 establish a human verdict or physical touchpad feel.
 
 ## Implementation and design review
@@ -70,7 +71,7 @@ also made consistent with the static gate; those changes preserve behavior.
 | AC05 | Pass | Existing controller/workbench/link-map checks retain insertion pinning, unequal replacements, Home/End, scroll-past-end, pane handoff, angle/Shift-wheel, modified zoom, reveals and reading-anchor restoration. Range sweeps now observe real rendered origins rather than aliased integer line-bar values; the exact endpoint remains asserted. One-pixel reversal from End is explicit. |
 | AC06 | Pass | The composed 2,000-line course sends 1,000 accepted pixel inputs and observes 1,000 pixels of actual native source travel within one pixel. Counters require no semantic query/index adoption, geometry rebuild or pane scan; 1,000 frames coalesce to one repaint delivery. Link work stays within near-visible candidates and retained buffers do not grow. Existing publication, resize and input timing bounds remain active. |
 | AC07 | Owner accepted v002 | Session `c595e5c955c2cd527f9f4a351d3ab175`, candidate `BPR-1413-AC07-v002`, decision `0a0ba98a-3e76-4cb8-b404-fb0196dbd48c`. The adaptive axis implementation is unchanged in v003. |
-| AC08 | Agent pass; owner v004 judgment pending | The production font and a nonintegral-row-height viewport exercise ninety Down and ninety Up events with repeat and alternating Shift. Every clipped target must meet the actual displayed edge within one device pixel; consecutive Down reveals move exactly one row. An independent check requires the source bottom to meet the native horizontal scrollbar top, excluding overscan. Fully visible targets retain their rectangles. Both split panes, a 4:7 replacement and unified view are covered, with shared ribbon geometry and subsequent one-pixel touchpad continuation. |
+| AC08 | Agent pass; owner v005 scrollbar judgment pending | The production font and a nonintegral-row-height viewport exercise ninety Down and ninety Up events with repeat and alternating Shift. Every clipped target must meet the actual displayed edge within one device pixel; consecutive Down reveals move exactly one row. An independent check requires the source bottom to meet the native horizontal scrollbar top, excluding overscan. Fully visible targets retain their rectangles. Both split panes, a 4:7 replacement and unified view are covered, with shared ribbon geometry and subsequent one-pixel touchpad continuation. |
 
 ## Commands and actual results
 
@@ -221,3 +222,39 @@ listen-only event tap, numeric viewport probe and wizard server are stopped.
 The remaining uncertainty is the owner’s exact-flush keyboard reveal judgment. Other
 operating systems and devices were not exercised as part of this bounded
 milestone, and no native-device acceptance is inferred from synthetic input.
+
+## Post-v004 horizontal scrollbar correction
+
+The recorded v004 verdict is **Reject**: “The alignment/scroll looks fixed now.
+But why does scrolling by tapping the down key bring up the horizontal scroll bar?”
+The owner's observation does not override that verdict. The exact-flush geometry
+and accepted adaptive touchpad discriminator are unchanged.
+
+Qt 6.11.2's native [vertical value-change slot](https://github.com/qt/qtbase/blob/v6.11.2/src/widgets/widgets/qabstractscrollarea.cpp#L1376)
+calls `flashScrollBars()`, which flashes both bars. BPR updates the hidden native
+vertical bar to position source rows, so a Down reveal wakes the horizontal bar
+even while its value remains unchanged. This is not a horizontal key dispatch.
+The [native macOS style](https://github.com/qt/qtbase/blob/v6.11.2/src/plugins/styles/mac/qmacstyle_mac.mm#L5563)
+uses `State_On` to keep a transient bar active.
+
+Candidate `c66845fb99909b78a39e8d8d65c480ab77949ee0` retains the native
+`QScrollBar` and its public `initStyleOption` hook. The source reports which axis
+actually moved; only an unrelated `State_On` horizontal wake is suppressed.
+Native hover, dragging and focus remain eligible. No private Qt API, forced
+product style, scrollbar policy, origin, axis filter or timer is added.
+
+The new test sends real Down events, renders the actual native scrollbar under
+a deterministic transient probe style, and observes its value-change signals.
+It requires no horizontal wake or value change during vertical navigation,
+a visible wake after real horizontal wheel input, and Qt's return to transient
+state. Both split panes and unified view, vertical pixel input and programmatic
+vertical reveal are covered. The unchanged product fails the new assertion
+(CTest exit 8, 7.09 seconds); the initial repair course passes (15.78 seconds).
+The final exact frozen verification is in [M5 evidence](../issues/_checkpoints/smooth-diff-touchpad-panning/m5-verification.json).
+
+A separate offscreen diagnostic loaded the actual macOS style plugin. Its
+native pixel samples did not expose opacity changes after vertical input or a
+1.7-second fade in either old or repaired control. Those samples are retained
+privately and are **not** passing native visibility/fade evidence. The rendered
+probe verifies Qt's real wake routing; only the owner can supply the remaining
+native appearance judgment. No live desktop was driven or captured.

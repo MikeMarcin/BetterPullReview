@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "id": "BPR-1413-AC08-v005",
+      "title": "Keep the horizontal scrollbar quiet during Down navigation?",
+      "revision": "c66845fb99909b78a39e8d8d65c480ab77949ee0 / executable 5c4abb4dc3473c850baf158e69222cb6687240ba974bfd4555164178e17247fa",
+      "criteria": [
+        "Does Down scroll vertically without bringing up the horizontal scrollbar?"
+      ],
+      "content": "Launch the frozen build below. Select a source line around lines 500\u2013600. Let any horizontal scrollbar fade, then tap or hold Down until the source view scrolls vertically. The horizontal scrollbar should stay faded during that vertical navigation. Horizontal panning or hovering its area should still show the native bar normally. Try split and unified views as part of this same scrollbar judgment. The row alignment and accepted touchpad axis behavior are retained. Accept to keep this scrollbar behavior, or Reject and describe the change in the note. Save, then use Finish and hand back.",
+      "paths": [],
+      "resources": [
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v005.gk3kp476"
+      ],
+      "resource_versions": {
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v005.gk3kp476": "sha256:5c4abb4dc3473c850baf158e69222cb6687240ba974bfd4555164178e17247fa"
+      },
+      "launch": {
+        "label": "Launch the frozen scrollbar comparison",
+        "command": "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v005.gk3kp476/launch.py"
+      },
+      "metadata": {
+        "rfc": "RFC-BPR-0073",
+        "criterion": "AC08",
+        "source_revision": "c66845fb99909b78a39e8d8d65c480ab77949ee0",
+        "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v005.gk3kp476",
+        "freeze_check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head89df5e592e5db97a526a05a445735733395e4832",
+        "source_paths": [
+          "src/adapters/qt/src/diff_workbench.cpp",
+          "tests/adapters_qt/diff_workbench_tests.cpp"
+        ],
+        "protection_scope": "Exact read-only frozen root/source/build. Shared main has unrelated concurrent focus_source edits, which cannot mutate these frozen bytes.",
+        "prior_verdict": "v004 Reject retained; owner observed alignment/scroll fixed and questioned unrelated horizontal wake. AC07 accepted on v002."
+      }
+    }
+  ]
+}

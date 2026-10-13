@@ -1,7 +1,7 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
   "state": "human-pending",
-  "assignment": "/root/smooth_panning_flush_reveal",
+  "assignment": "/root/smooth_panning_scrollbar_v5",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
   "mandate_revision": "b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d",
@@ -24,7 +24,7 @@
   "live_cards": [
     "BPR-1413"
   ],
-  "candidate_revision": "d97c8d105dcb57bbff49a1a5d948abf7f4012417",
+  "candidate_revision": "c66845fb99909b78a39e8d8d65c480ab77949ee0",
   "product_changes": [
     "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
     "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
@@ -33,23 +33,27 @@
     "tests/adapters_qt/diff_workbench_tests.cpp"
   ],
   "pending_criteria": [
-    "AC08-owner-exact-flush-amendment"
+    "AC08-owner-native-scrollbar-judgment"
   ],
   "blocker": null,
   "commands": {
     "background": [],
     "review_server": {
-      "pid": 93561,
-      "command_session": 32588,
-      "port": 58371,
-      "session": "a300291de66a8fb8963c182932d117d4",
-      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012",
-      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012/handoff.json"
+      "pid": 31671,
+      "command_session": 45236,
+      "port": 59519,
+      "session": "ab24efc9ef4a0f4714e0edb79a4e6977",
+      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v005-20261012",
+      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v005-20261012/handoff.json"
     },
     "writers_released": true
   },
-  "next_action": "After owner Finish and hand back and manual Resume the attended review, coordinator reads events after3, verifies session/fingerprint/source/executable and persists cursor before new leaf. AC08 acceptance permits closeout using retained AC07 accept; rejected/unanswered criterion remains open.",
+  "next_action": "Coordinator reads only events after4 after owner Finish and hand back and manual Resume the attended review. Verify session/fingerprint/source/executable and persist consumed cursor before a fresh engineering leaf. Accept permits closeout using retained AC07; reject/unanswered remains open.",
   "verification": [
+    {
+      "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m5-verification.json",
+      "result": "Seven exact-frozen affected integration checks pass in51.09s; format22, two-unit tidy, official freeze and own launcher check pass. Native appearance remains human pending."
+    },
     {
       "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m4-verification.json",
       "result": "Seven exact-frozen affected integration tests pass in48.23s, format22 and both tidy units pass; official freeze and own launcher check pass."
@@ -72,14 +76,14 @@
     }
   ],
   "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
-  "last_finding": "Exact masked viewport edge + raw shared wanted origin passes strict real-key courses at100/125/200%, independently anchored to horizontal-scrollbar top. All7 affected checks pass on exact frozen source/build. AC07 adaptive axis unchanged.",
+  "last_finding": "Qt6.11.2 _q_vslide flashes both bars. Public native style-option gate suppresses unrelated horizontal State_On; deterministic real-key/native-bar raster negative fails old product and repair passes. Actual macOS offscreen fade not measurable.",
   "active_commands": [
-    "Handed-off loopback attended-review server PID93561/session32588 only. All build, test, tidy, freeze and launcher-check commands finished."
+    "Handed-off loopback review server PID31671/session45236 only. Build, test, tidy, freeze, launcher checks and native probes finished."
   ],
   "milestone": "smooth-comparison-panning",
-  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m4-binding.json",
-  "segment_id": "rejected-ac08-v003-flush",
-  "binding_renewal": "Renew m4 after exact-flush owner amendment and final card parking. Plan grouping/scope/exits unchanged; receiving-presentation alignment now explicitly means exact edge alignment under latest owner amendment. Historical bindings retained.",
+  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m5-binding.json",
+  "segment_id": "rejected-ac08-v004-scrollbar",
+  "binding_renewal": "Renew M5 after final v004-handback documentation and card parking; unchanged plan grouping/scope/exits. Historical bindings and verdicts retained.",
   "diagnostic": {
     "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-sublime-recording-v001-20261012",
     "session": "b9b49823-7485-49dc-946e-085797973c94",
@@ -180,9 +184,16 @@
     "frozen_root_removed": true,
     "original_executable_hash_verified_before_removal": true
   },
-  "review": {
+  "unrelated_build_failure": {
+    "command_session": 51901,
+    "completed": true,
+    "candidate_restored": true,
+    "reason": "Concurrent dirty RFC0074 application header lacked File initializers; both negative and final main rebuild failed compilation, not regression evidence.",
+    "private_logs": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012/m4-negative-build.log,m4-final-build.log"
+  },
+  "previous_review_v004": {
     "session": "a300291de66a8fb8963c182932d117d4",
-    "cursor": 3,
+    "cursor": 6,
     "candidates": [
       {
         "id": "BPR-1413-AC08-v004",
@@ -196,15 +207,35 @@
     "executable_sha256": "9245818af6c3d45a5bd9f382263b8cd1239b248e5b3ad4617fa603d142de6a1f",
     "wait_owner": "coordinator /root",
     "wait_qualification": "unqualified; manual resume required",
-    "pending_decisions": [
-      "AC08 Accept/Reject: selected row bottom flush with actual source view bottom"
-    ]
+    "pending_decisions": [],
+    "consumed_cursor": 5,
+    "outcome": "reject",
+    "note": "The alignment/scroll looks fixed now.\nBut why does scrolling by tapping the down key bring up the horizontal scroll bar?",
+    "protections_released": true,
+    "server_stopped": true,
+    "frozen_root_removed": true,
+    "original_executable_hash_verified_before_removal": true
   },
-  "unrelated_build_failure": {
-    "command_session": 51901,
-    "completed": true,
-    "candidate_restored": true,
-    "reason": "Concurrent dirty RFC0074 application header lacked File initializers; both negative and final main rebuild failed compilation, not regression evidence.",
-    "private_logs": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v004-20261012/m4-negative-build.log,m4-final-build.log"
+  "unrelated_edits": "Preserve all RFC0074 dirty files and focus_source hunk in diff_workbench.cpp; product commit stages own hunks only, frozen source excludes that hunk.",
+  "review": {
+    "session": "ab24efc9ef4a0f4714e0edb79a4e6977",
+    "cursor": 4,
+    "candidates": [
+      {
+        "id": "BPR-1413-AC08-v005",
+        "fingerprint": "d5776e620d71d3c866e7fe38a79391aa0fbb6cc92ff187b7a8ecfe926bb61de2"
+      }
+    ],
+    "manifest": "attended-manifest-v005.json",
+    "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v005-20261012",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v005.gk3kp476",
+    "executable_sha256": "5c4abb4dc3473c850baf158e69222cb6687240ba974bfd4555164178e17247fa",
+    "wait_owner": "coordinator /root",
+    "wait_qualification": "unqualified; manual resume required",
+    "pending_decisions": [
+      "AC08 Accept/Reject: Does Down scroll vertically without bringing up the horizontal scrollbar?"
+    ],
+    "protection": "read-only exact frozen root resource; unrelated main source edits cannot change reviewed bytes"
   }
 }
