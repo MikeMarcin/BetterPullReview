@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1431"
 title: "Search with RE2 instead of a hand-written regex engine"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1432"]
 priority: "P1"
