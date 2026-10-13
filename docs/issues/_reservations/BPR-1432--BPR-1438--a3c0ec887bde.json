@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1432",
+    "BPR-1433",
+    "BPR-1434",
+    "BPR-1435",
+    "BPR-1436",
+    "BPR-1437",
+    "BPR-1438"
+  ],
+  "reserve_for": "library-replacements",
+  "purpose": "Library replacements from the 2026-10-13 hand-rolled infrastructure audit",
+  "created": "2026-10-13T16:54:37.564694+00:00",
+  "base": "78741b2f7e03a285bdd93ace7d2bd44717f0497c"
+}
