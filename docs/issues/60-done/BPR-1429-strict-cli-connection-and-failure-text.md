@@ -2,18 +2,40 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1429"
 title: "Present strict connection disclosure and typed publication failures"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0079"]
 depends_on: ["BPR-1428"]
 platforms: ["mac"]
 metadata: {"mandate_revision":"strict-cli-publication-r2","milestone_plan":{"id":"strict-cli-account-publication-v1","path":"docs/rfcs/plans/strict-cli-account-publication-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC01","outcome":"pass","revision":"34b6a43458659747648e4039a99ca52407d14624","evidence":{"kind":"command","detail":"Neutral account/server and no-choice disclosure from unchanged611c; final34b6 qt_composed_cli_read_consent passes in /tmp/bpr-strict-cli-run/m3-p2-final-public.log. Frontend-design/native controls preserved; M2 limits retained."}},{"criterion":"AC02","outcome":"pass","revision":"34b6a43458659747648e4039a99ca52407d14624","evidence":{"kind":"command","detail":"/tmp/bpr-strict-cli-run/critical-m3-final-recheck.md: P1 clear; original Publish QAction and visible Retry retain unknown through five early refusals; restore GET-only1POST1comment. R2 unavailable collapses missing/denied honestly; fresh/tool/cancel distinct. Actual composition and tripcounterexample gates pass."}},{"criterion":"AC03","outcome":"pass","revision":"34b6a43458659747648e4039a99ca52407d14624","evidence":{"kind":"command","detail":"/tmp/bpr-strict-cli-run/critical-m3-final-recheck.md: P2 clear; exact original locked draft/focus/card/editor preserved, credential65/65/65 tool52/52/52 fresh39/39/39. m3-p2-scales.log6/6 narrow-width representative scales and full visibleRegion pass; no Cocoa/VoiceOver claim."}}]
 ---
 
 # BPR-1429: Present strict connection disclosure and typed publication failures
 
-Imported under `strict-cli-publication-r2`; current acceptance remains open.
+Imported under `strict-cli-publication-r2`; M3 acceptance is complete at product
+`34b6a43458659747648e4039a99ca52407d14624` after independent repair recheck.
 
 RFC baseline: `aa3d71fe470627e1e78488eb51a9114a788f33bd`. Reservation: `docs/issues/_reservations/BPR-1425--BPR-1430--c807b6b9a5ec.json`.
+
+## Current accepted engineering result — 2026-10-13
+
+AC01–AC03 pass at `34b6a43458659747648e4039a99ca52407d14624`. Core typed prior/current
+outcome retention keeps the exact unknown inline draft locked through early
+admission/coordinator refusal; restored credentials reconcile GET-only with one
+POST/one comment. Fresh refusal keeps an editable draft. Native wrapped status
+uses actual preferred height without rebuilding the card/model or moving focus.
+Independent final receipt `/tmp/bpr-strict-cli-run/critical-m3-final-recheck.md`
+clears both P1 and P2 on that exact product. Actual allocated/required/visible
+heights are65/65/65 credential,52/52/52 tool and39/39/39 fresh. Focus/accessibility,
+failed account/host, one-use grants and strict capability remain preserved.
+
+All five M3 exits pass; no M3 required pending remains. Full RFC0079 qualification
+and closeout stay with M4/BPR-1430. The checkpoints after the Acceptance section
+below preserve historical failed candidates and repair ownership; their pending
+statements are superseded by this current result. BPR-1428 Done/history is intact.
+[Handoff](../_checkpoints/strict-cli-account-publication-v1/m3-handoff.md) and
+[evidence](../_checkpoints/strict-cli-account-publication-v1/m3-evidence.json)
+bind final checks, limitations, independent receipts and quiescent release.
 
 ## Acceptance
 
