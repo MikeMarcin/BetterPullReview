@@ -1234,10 +1234,11 @@ place a clipped row flush with the nearest displayed edge within one device
 pixel through the receiving pane's existing authority. Subsequent reveals scroll
 one source row per arrow; the flush origin may retain a fraction. Page destinations
 remain line-aligned. In-view cursor navigation retains fractional placement.
-Source horizontal bars retain native styling and transient feedback. Their public
-style-option hook suppresses the unrelated horizontal wake Qt requests when the
-native vertical row value changes; actual horizontal movement and native
-hover, dragging and focus retain feedback. No scrollbar policy or origin changes.
+Source horizontal bars use Qt's ordinary native controls and transient feedback,
+including Qt's normal flash after a vertical row value changes. The owner withdrew
+the request to suppress that flash; no custom style-option or axis-notification
+hook remains. The platform style owns visibility and fading. No scrollbar policy
+or origin changes.
 The center map is the sole wide `QSplitterHandle`: it retains ordered changed
 interval geometry, derives cached visible paths from both pane origins, rejects
 frames for a different comparison digest, and resolves pointer hits back to

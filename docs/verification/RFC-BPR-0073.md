@@ -13,8 +13,10 @@ This replaces top-source-boundary rounding for reveals; page and endpoint
 behavior remain unchanged. The v004 correction and exact candidate are recorded
 in the [continuation](../issues/_checkpoints/smooth-diff-touchpad-panning/README.md).
 The owner subsequently observed v004 alignment fixed but rejected its horizontal
-scrollbar wake. The separate native scrollbar judgment remains pending. Fixture success does not
-establish a human verdict or physical touchpad feel.
+scrollbar wake. The owner later withdrew that objection and requested the
+ordinary native behavior from v004. The original geometry/navigation checks
+remain required. Prior Reject verdicts remain recorded; fixture success does
+not establish a human verdict or physical touchpad feel.
 
 ## Implementation and design review
 
@@ -71,7 +73,7 @@ also made consistent with the static gate; those changes preserve behavior.
 | AC05 | Pass | Existing controller/workbench/link-map checks retain insertion pinning, unequal replacements, Home/End, scroll-past-end, pane handoff, angle/Shift-wheel, modified zoom, reveals and reading-anchor restoration. Range sweeps now observe real rendered origins rather than aliased integer line-bar values; the exact endpoint remains asserted. One-pixel reversal from End is explicit. |
 | AC06 | Pass | The composed 2,000-line course sends 1,000 accepted pixel inputs and observes 1,000 pixels of actual native source travel within one pixel. Counters require no semantic query/index adoption, geometry rebuild or pane scan; 1,000 frames coalesce to one repaint delivery. Link work stays within near-visible candidates and retained buffers do not grow. Existing publication, resize and input timing bounds remain active. |
 | AC07 | Owner accepted v002 | Session `c595e5c955c2cd527f9f4a351d3ab175`, candidate `BPR-1413-AC07-v002`, decision `0a0ba98a-3e76-4cb8-b404-fb0196dbd48c`. The adaptive axis implementation is unchanged in v003. |
-| AC08 | Agent pass; owner v005 scrollbar judgment pending | The production font and a nonintegral-row-height viewport exercise ninety Down and ninety Up events with repeat and alternating Shift. Every clipped target must meet the actual displayed edge within one device pixel; consecutive Down reveals move exactly one row. An independent check requires the source bottom to meet the native horizontal scrollbar top, excluding overscan. Fully visible targets retain their rectangles. Both split panes, a 4:7 replacement and unified view are covered, with shared ribbon geometry and subsequent one-pixel touchpad continuation. |
+| AC08 | Pass under explicit owner withdrawal | The production font and a nonintegral-row-height viewport exercise ninety Down and ninety Up events with repeat and alternating Shift. Every clipped target must meet the actual displayed edge within one device pixel; consecutive Down reveals move exactly one row. An independent check requires the source bottom to meet the native horizontal scrollbar top, excluding overscan. Fully visible targets retain their rectangles. Both split panes, a 4:7 replacement and unified view are covered, with shared ribbon geometry and subsequent one-pixel touchpad continuation. |
 
 ## Commands and actual results
 
@@ -219,9 +221,10 @@ reproduce the recorded trajectory, so replay fidelity and physical touchpad
 equivalence are unproven. Original traces remain private outside Git. The
 listen-only event tap, numeric viewport probe and wizard server are stopped.
 
-The remaining uncertainty is the owner’s exact-flush keyboard reveal judgment. Other
-operating systems and devices were not exercised as part of this bounded
-milestone, and no native-device acceptance is inferred from synthetic input.
+The subsequent owner observation and withdrawal below resolve the remaining
+keyboard/scrollbar concern. Other operating systems and devices were not
+exercised as part of this bounded milestone, and no native-device acceptance is
+inferred from synthetic input.
 
 ## Post-v004 horizontal scrollbar correction
 
@@ -252,9 +255,34 @@ vertical reveal are covered. The unchanged product fails the new assertion
 (CTest exit 8, 7.09 seconds); the initial repair course passes (15.78 seconds).
 The final exact frozen verification is in [M5 evidence](../issues/_checkpoints/smooth-diff-touchpad-panning/m5-verification.json).
 
-A separate offscreen diagnostic loaded the actual macOS style plugin. Its
+A separate offscreen diagnostic loaded the macOS style plugin, but its default
+proxy base was not bound to that style; a later explicit macOS-base probe also
+did not measure native fade. Its
 native pixel samples did not expose opacity changes after vertical input or a
 1.7-second fade in either old or repaired control. Those samples are retained
 privately and are **not** passing native visibility/fade evidence. The rendered
 probe verifies Qt's real wake routing; only the owner can supply the remaining
 native appearance judgment. No live desktop was driven or captured.
+
+## Owner-selected restoration and closeout
+
+The owner rejected v005 at consumed cursor 6 with “Instead of a flash it's just
+staying on permanently now.” The exact verdict, fingerprint and rejection are
+retained in the checkpoint. The v005 test proves the `State_On` flash routing
+only, and did not discriminate actual native visibility/fading. Native opacity
+animation was not verified offscreen. No live desktop was driven or captured.
+
+The owner explicitly withdrew the scrollbar objection and requested the normal
+behavior from before that complaint. Commit `a6b40da50` reverses exactly the
+31 product lines and 83 test lines introduced by `c66845fb`, retaining all v004
+edge-flush geometry and v002's accepted adaptive axis behavior. Source horizontal
+bars again use Qt's original control and native lifecycle. The test translation
+unit is byte-identical to v004; unrelated RFC0074 source-focus changes remain.
+No new fade implementation or native fade acceptance is claimed.
+
+The owner's v004 alignment-fixed observation together with the explicit
+withdrawal resolves the remaining owner concern. AC07 keeps its actual v002
+Accept; v004/v005 remain Reject in the history. The original eight criteria,
+plan grouping and dependency requirements are retained. Focused restoration
+checks and the final documentation gate are recorded in
+[M6 evidence](../issues/_checkpoints/smooth-diff-touchpad-panning/m6-verification.json).

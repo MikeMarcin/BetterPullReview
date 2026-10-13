@@ -1,0 +1,95 @@
+{
+  "schema": "bpr.smooth-diff-panning.verification.v1",
+  "candidate_revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+  "environment": {
+    "platform": "macOS arm64",
+    "qt": "6.11.2",
+    "scales": [
+      100,
+      125,
+      200
+    ]
+  },
+  "changed_paths": [
+    "src/adapters/qt/src/diff_workbench.cpp",
+    "tests/adapters_qt/diff_workbench_tests.cpp"
+  ],
+  "action": "Exact inverse of c66845fb scrollbar product/test patch at explicit owner request; v004 row-edge geometry and accepted v002 discriminator retained. Test source byte-identical to v004, source only has separate RFC0074 focus_source() delta.",
+  "commands": [
+    {
+      "command": "cmake --build --preset dev --target test_better_pull_review_qt_diff_workbench_tests test_better_pull_review_qt_diff_link_map_tests -j4",
+      "exit_code": 0,
+      "command_session": 21448
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format.py --dry-run src/adapters/qt/src/diff_workbench.cpp tests/adapters_qt/diff_workbench_tests.cpp",
+      "exit_code": 0,
+      "record": "m6-format.json",
+      "clang_format": "22.1.8"
+    },
+    {
+      "command": "ctest --preset dev -R ^(qt_diff_workbench_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200)|architecture_boundaries)$ --output-on-failure",
+      "exit_code": 0,
+      "tests_passed": 7,
+      "elapsed_seconds": 60.68,
+      "record": "m6-integration.json",
+      "binding": "record_evidence stamped exact product commit a6b40da50; both task paths clean during checks; all rendered courses network-isolated, serial/offscreen"
+    },
+    {
+      "command": "cmake --build --preset dev --target app_better_pull_review -j4",
+      "exit_code": 0,
+      "command_session": 11034,
+      "result": "Local native app rebuilt and linked; not installed or frozen acceptance evidence."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK; terminal closeout rerun follows."
+    }
+  ],
+  "integration_status": "pass:7tests,60.68seconds",
+  "native_diagnosis_limit": "No fade was verified offscreen; explicit macOS QProxyStyle base diagnostic also did not measure fade. Diagnosis stopped under owner reversal before any lifecycle repair. No owner live desktop driven or captured.",
+  "owner_amendment": "Okay I take it back, showing the scroll bar seems to be a normal app behavior, just return it to what it was before i complained",
+  "prior_verdicts": "v004/v005 Reject retained; v004 observed alignment fixed; AC07 actual v002 Accept retained. New withdrawal resolves remaining scrollbar concern without synthesizing a historical Accept.",
+  "reused_evidence": [
+    {
+      "artifact": "m2-verification.json",
+      "scope": "Unchanged accepted adaptive axis, public course, controller 3scales, four scoped tidy units and67 documentation-verifier tests"
+    },
+    {
+      "artifact": "m4-verification.json",
+      "scope": "Exact v004 geometry and workbench regression source restored; official self-contained native candidate looked at by owner"
+    }
+  ],
+  "pending": [],
+  "review_state": {
+    "v005_session": "ab24efc9ef4a0f4714e0edb79a4e6977",
+    "consumed_cursor": 6,
+    "released_cursor": 7,
+    "v005_protection_released": true,
+    "v005_server_stopped": true,
+    "v006_session_created": false
+  },
+  "documentation_history": [
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 1,
+      "cause": "m6-verification.json link added before artifact written; artifact now present"
+    }
+  ],
+  "self_review": {
+    "product_patch": "exact reverse c66845fb checked by git apply --reverse --check; no added implementation",
+    "test_source": "byte-identical to d97c8d105 v004, native geometry/repeat/Shift/unequal-replacement courses retained",
+    "source_since_v004": "only unrelated committed RFC0074 focus_source() addition remains",
+    "dependencies": "RFC-BPR-0004 and RFC-BPR-0005 are Auto-Verified; one planned milestone and8originalcriteria reconciled",
+    "documentation_impact": "System architecture allocation updated to Qt ordinary controls/lifecycle. No core/host/provider/persistence/authority/input-filter change."
+  },
+  "path_digests": {
+    "src/adapters/qt/src/diff_workbench.cpp": "5e7908c00e1bfd4e2269e6b733510eeb3325e01715f4d628998bc91d78b79ac9",
+    "tests/adapters_qt/diff_workbench_tests.cpp": "2465b14182e750c5b8a55f31e5c12c2a247dc509c986f08975ccc4df851e68c8"
+  },
+  "local_app": {
+    "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/dev/src/app/better_pull_review.app/Contents/MacOS/better_pull_review",
+    "sha256": "8d0300601dca8fa8b78323260d762a32e08cb8bca5fa7fba6ed0d2fe20faca43"
+  }
+}

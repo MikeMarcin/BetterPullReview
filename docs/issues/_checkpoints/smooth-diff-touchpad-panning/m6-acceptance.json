@@ -1,0 +1,78 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json."
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json."
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json."
+      }
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json."
+      }
+    },
+    {
+      "criterion": "AC05",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json."
+      }
+    },
+    {
+      "criterion": "AC06",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json."
+      }
+    },
+    {
+      "criterion": "AC07",
+      "outcome": "pass",
+      "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner accepted BPR-1413-AC07-v002 in session c595e5c955c2cd527f9f4a351d3ab175, decision 0a0ba98a-3e76-4cb8-b404-fb0196dbd48c; unchanged axis implementation retained."
+      }
+    },
+    {
+      "criterion": "AC08",
+      "outcome": "pass",
+      "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "M6 restoration: exact inverse c66845fb scrollbar patch; v004 test source byte-identical. Seven workbench/link-map/architecture checks pass100/125/200% in60.68s; format22 pass; unchanged adaptive-axis/controller/tidy/public-path evidence reused M2/M4. docs/verification/RFC-BPR-0073.md and m6-verification.json. Owner observed v004 alignment/scroll fixed, then explicitly withdrew scrollbar objection and requested ordinary v004 native behavior. This amendment resolves remaining owner concern; original v004/v005 Reject verdicts retained, no synthetic Accept."
+      }
+    }
+  ]
+}

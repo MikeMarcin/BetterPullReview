@@ -1,0 +1,13 @@
+{
+  "criterion": "AC08",
+  "outcome": "pass",
+  "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"dev\", \"-R\", \"^(qt_diff_workbench_scale_(100|125|200)|qt_diff_link_map_scale_(100|125|200)|architecture_boundaries)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 60.707,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/dev\n    Start   5: architecture_boundaries\n1/7 Test   #5: architecture_boundaries ..........   Passed   17.74 sec\n    Start 333: qt_diff_link_map_scale_100\n2/7 Test #333: qt_diff_link_map_scale_100 .......   Passed    0.61 sec\n    Start 334: qt_diff_link_map_scale_125\n3/7 Test #334: qt_diff_link_map_scale_125 .......   Passed    0.27 sec\n    Start 335: qt_diff_link_map_scale_200\n4/7 Test #335: qt_diff_link_map_scale_200 .......   Passed    0.28 sec\n    Start 353: qt_diff_workbench_scale_100\n5/7 Test #353: qt_diff_workbench_scale_100 ......   Passed   13.56 sec\n    Start 354: qt_diff_workbench_scale_125\n6/7 Test #354: qt_diff_workbench_scale_125 ......   Passed   13.31 sec\n    Start 355: qt_diff_workbench_scale_200\n7/7 Test #355: qt_diff_workbench_scale_200 ......   Passed   14.89 sec\n\n100% tests passed out of 7\n\nLabel Time Summary:\nbpr_network_isolated    =  60.65 sec*proc (7 tests)\nbpr_serial_gui          =  42.91 sec*proc (6 tests)\n\nTotal Test time (real) =  60.68 sec\n",
+    "stderr_tail": ""
+  }
+}

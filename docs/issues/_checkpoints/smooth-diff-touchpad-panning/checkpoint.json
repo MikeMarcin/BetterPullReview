@@ -1,7 +1,7 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
-  "state": "human-pending",
-  "assignment": "/root/smooth_panning_scrollbar_v5",
+  "state": "verification-complete",
+  "assignment": "/root/smooth_panning_transient_v6",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
   "mandate_revision": "b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d",
@@ -24,7 +24,7 @@
   "live_cards": [
     "BPR-1413"
   ],
-  "candidate_revision": "c66845fb99909b78a39e8d8d65c480ab77949ee0",
+  "candidate_revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
   "product_changes": [
     "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
     "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
@@ -32,24 +32,19 @@
     "tests/adapters_qt/comparison_scroll_controller_tests.cpp",
     "tests/adapters_qt/diff_workbench_tests.cpp"
   ],
-  "pending_criteria": [
-    "AC08-owner-native-scrollbar-judgment"
-  ],
+  "pending_criteria": [],
   "blocker": null,
   "commands": {
     "background": [],
-    "review_server": {
-      "pid": 31671,
-      "command_session": 45236,
-      "port": 59519,
-      "session": "ab24efc9ef4a0f4714e0edb79a4e6977",
-      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v005-20261012",
-      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v005-20261012/handoff.json"
-    },
-    "writers_released": true
+    "review_server": null,
+    "writers_released": false
   },
-  "next_action": "Coordinator reads only events after4 after owner Finish and hand back and manual Resume the attended review. Verify session/fingerprint/source/executable and persist consumed cursor before a fresh engineering leaf. Accept permits closeout using retained AC07; reject/unanswered remains open.",
+  "next_action": "Finish approved card and RFC closeout, rerun terminal doc gate, then release writer ownership.",
   "verification": [
+    {
+      "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m6-verification.json",
+      "result": "7workbench/link-map/architecture checks pass100/125/200% in60.68s; format22, local app and doc gate pass. Unchanged M2/M4 evidence reused."
+    },
     {
       "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m5-verification.json",
       "result": "Seven exact-frozen affected integration checks pass in51.09s; format22, two-unit tidy, official freeze and own launcher check pass. Native appearance remains human pending."
@@ -76,14 +71,12 @@
     }
   ],
   "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
-  "last_finding": "Qt6.11.2 _q_vslide flashes both bars. Public native style-option gate suppresses unrelated horizontal State_On; deterministic real-key/native-bar raster negative fails old product and repair passes. Actual macOS offscreen fade not measurable.",
-  "active_commands": [
-    "Handed-off loopback review server PID31671/session45236 only. Build, test, tidy, freeze, launcher checks and native probes finished."
-  ],
+  "last_finding": "Owner withdrew native scrollbar objection; exact c66845fb reverse restores v004 normal native bars while retaining flush geometry and accepted adaptive axis.7focusedchecks and format22 pass; local app rebuilt.",
+  "active_commands": [],
   "milestone": "smooth-comparison-panning",
-  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m5-binding.json",
-  "segment_id": "rejected-ac08-v004-scrollbar",
-  "binding_renewal": "Renew M5 after final v004-handback documentation and card parking; unchanged plan grouping/scope/exits. Historical bindings and verdicts retained.",
+  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m6-binding.json",
+  "segment_id": "owner-withdrawn-scrollbar-objection",
+  "binding_renewal": "M6 bound after explicit owner withdrawal; plan grouping/scope/exits unchanged, pending scrollbar concern removed only by human amendment.",
   "diagnostic": {
     "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-sublime-recording-v001-20261012",
     "session": "b9b49823-7485-49dc-946e-085797973c94",
@@ -217,7 +210,13 @@
     "original_executable_hash_verified_before_removal": true
   },
   "unrelated_edits": "Preserve all RFC0074 dirty files and focus_source hunk in diff_workbench.cpp; product commit stages own hunks only, frozen source excludes that hunk.",
-  "review": {
+  "owner_amendment_v006": {
+    "quote": "Okay I take it back, showing the scroll bar seems to be a normal app behavior, just return it to what it was before i complained",
+    "kind": "explicit user withdrawal; no synthetic v005 acceptance",
+    "action": "Reverse only c66845fb scrollbar product/test changes; retain v004 flush geometry and accepted AC07",
+    "received_via": "coordinator /root"
+  },
+  "previous_review_v005": {
     "session": "ab24efc9ef4a0f4714e0edb79a4e6977",
     "cursor": 4,
     "candidates": [
@@ -236,6 +235,11 @@
     "pending_decisions": [
       "AC08 Accept/Reject: Does Down scroll vertically without bringing up the horizontal scrollbar?"
     ],
-    "protection": "read-only exact frozen root resource; unrelated main source edits cannot change reviewed bytes"
+    "protection": "read-only exact frozen root resource; unrelated main source edits cannot change reviewed bytes",
+    "outcome": "reject",
+    "note": "Instead of a flash it's just staying on permanently now.",
+    "consumed_cursor": 6,
+    "protections_released": true,
+    "server_stopped": true
   }
 }

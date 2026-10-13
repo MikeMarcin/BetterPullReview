@@ -1,0 +1,13 @@
+{
+  "criterion": "AC08",
+  "outcome": "pass",
+  "revision": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/adapters/qt/src/diff_workbench.cpp\", \"tests/adapters_qt/diff_workbench_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.357,
+    "stdout_tail": "Checking 2 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/adapters/qt/src/diff_workbench.cpp\ntests/adapters_qt/diff_workbench_tests.cpp\n",
+    "stderr_tail": ""
+  }
+}

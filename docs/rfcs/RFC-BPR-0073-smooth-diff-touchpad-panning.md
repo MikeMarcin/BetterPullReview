@@ -229,9 +229,29 @@ The owner rejected `BPR-1413-AC08-v004` in session
 “The alignment/scroll looks fixed now. But why does scrolling by tapping the down key bring up the horizontal scroll bar?”
 This is an observation that alignment is fixed and a remaining scrollbar concern,
 not an acceptance verdict. AC07 remains accepted on v002. Preserve the exact-flush
-geometry while preventing vertical navigation from unnecessarily waking the native
-horizontal overlay; actual horizontal input and native hover remain available.
-The remaining attended question concerns that scrollbar behavior alone.
+geometry. At that time the remaining attended question concerned preventing
+vertical navigation from waking the native horizontal overlay.
+
+## Owner withdrawal after candidate v005
+
+Candidate `BPR-1413-AC08-v005` was rejected in session
+`ab24efc9ef4a0f4714e0edb79a4e6977`, decision
+`f1590089-458c-4363-ae7c-04cb1933f91d`, consumed cursor 6:
+“Instead of a flash it's just staying on permanently now.” That verdict remains
+Reject for its exact candidate.
+
+The owner then explicitly withdrew the scrollbar objection: “Okay I take it
+back, showing the scroll bar seems to be a normal app behavior, just return it
+to what it was before i complained”. This amendment restores the ordinary
+native scrollbar behavior from v004, removing only v005's flash-suppression
+subclass, axis notification and dedicated suppression test. It retains v004's
+edge-flush alignment and the accepted v002 touchpad discriminator.
+
+The separate scrollbar judgment is no longer required. The original AC08
+geometry and navigation checks still apply; the owner's v004 observation that
+alignment/scroll is fixed and this explicit withdrawal resolve the remaining
+owner concern. Neither rejected candidate is relabeled Accept. AC07 retains
+its actual v002 Accept. No new native fade guarantee is introduced.
 
 ## Acceptance criteria
 
@@ -276,9 +296,9 @@ The remaining attended question concerns that scrollbar behavior alone.
 
 No material product choice remains open. Exact filtering constants and the
 native-control technique remain implementation decisions. The owner's v002
-touchpad acceptance is retained; the revised native scrollbar behavior still
-requires its separate attended judgment.
+touchpad acceptance is retained. The explicit withdrawal above removes the
+separate scrollbar judgment; all original deterministic criteria still apply.
 
 ## Adoption and execution
 
-Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002; BPR-1413 remains open for the native horizontal-scrollbar judgment on v005 after the owner observed v004 alignment fixed but rejected the scrollbar wake. No human acceptance is inferred from automated checks or the scoped diagnostic.
+Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002. The owner observed v004 alignment fixed and subsequently withdrew the sole remaining scrollbar objection, requesting restoration of the ordinary native behavior. The restoration and closeout retain all earlier Reject verdicts; no human acceptance is inferred from automated checks or the scoped diagnostic.
