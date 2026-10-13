@@ -9,8 +9,10 @@
 #include <QPlainTextEdit>
 #include <QPoint>
 #include <QPointF>
+#include <QPointingDevice>
 #include <QScrollBar>
 #include <QStyleHints>
+#include <QThread>
 #include <QWheelEvent>
 #include <QWidget>
 
@@ -405,6 +407,18 @@ namespace {
 					   35.0),
 			   "4:7 replacement motion preserves proportional progress");
 
+		harness.Controller.align_pane_origin(core::diff_side::right);
+		const auto rightAligned = *harness.Controller.current_frame();
+		expect(close(rightAligned.Right.DocumentOriginY, 30.0)
+				   && !close(std::fmod(rightAligned.Left.DocumentOriginY, 10.0), 0.0)
+				   && close(rightAligned.Left.ProjectedDocumentY, rightAligned.Right.ProjectedDocumentY * 4.0 / 7.0),
+			   "keyboard alignment belongs to the receiving side of an unequal replacement, with normal fractional projection on the other side");
+		harness.Controller.align_pane_origin(core::diff_side::left);
+		const auto leftAligned = *harness.Controller.current_frame();
+		expect(close(std::fmod(leftAligned.Left.DocumentOriginY, 10.0), 0.0)
+				   && close(leftAligned.Left.ProjectedDocumentY, leftAligned.Right.ProjectedDocumentY * 4.0 / 7.0),
+			   "left-side keyboard alignment also preserves the shared proportional authority");
+
 		auto sevenToFour = build_axis(
 			"left-a\nleft-b\nleft-c\nleft-d\nleft-e\nleft-f\nleft-g\n",
 			"right-a\nright-b\nright-c\nright-d\n",
@@ -442,6 +456,59 @@ namespace {
 				   "each positive comparison sample moves at least one pane");
 			previous = current;
 		}
+	}
+
+	auto test_horizontal_drift_and_reorientation() -> void
+	{
+		auto harness = controller_harness{ };
+		harness.Controller.set_axis(insertion_axis());
+		harness.Controller.set_position(25.25);
+		const auto start = harness.Controller.position();
+		harness.LeftHorizontal.setValue(harness.LeftHorizontal.maximum());
+		for (auto event = 0; event < 20; ++event) {
+			expect(send_wheel(harness.Left, QPoint{ event < 10 ? -20 : 20, event % 2 == 0 ? 1 : -1 }, { }, Qt::NoModifier,
+							  event == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate),
+				   "horizontal wobble events are consumed");
+			expect(close(harness.Controller.position(), start), "horizontal wobble never displaces the vertical authority, including at an edge and reversal");
+		}
+		expect(send_wheel(harness.Right, QPoint{ -20, -1 }, { }, Qt::NoModifier, Qt::ScrollMomentum)
+				   && close(harness.Controller.position(), start),
+			   "momentum and pane handoff retain drift suppression");
+		expect(send_wheel(harness.Right, { }, { }, Qt::NoModifier, Qt::ScrollEnd)
+				   && close(harness.Controller.position(), start),
+			   "ending a horizontal gesture releases no discarded motion");
+		expect(send_wheel(harness.Left, QPoint{ 0, -1 }, { }, Qt::NoModifier, Qt::ScrollBegin)
+				   && close(harness.Controller.position(), start + 1.0),
+			   "small vertical-only motion responds immediately in a new gesture");
+		expect(send_wheel(harness.Left, QPoint{ -20, -1 }, { }, Qt::NoModifier, Qt::ScrollBegin), "reorientation course starts horizontally");
+		expect(send_wheel(harness.Left, QPoint{ 0, -1 }, { }, Qt::NoModifier, Qt::ScrollUpdate)
+				   && close(harness.Controller.position(), start + 1.0),
+			   "one minor perturbation does not release horizontal intent");
+		expect(send_wheel(harness.Left, QPoint{ 0, -1 }, { }, Qt::NoModifier, Qt::ScrollUpdate)
+				   && close(harness.Controller.position(), start + 2.0),
+			   "sustained small vertical input reorients without a lift or banked jump");
+		const auto horizontal = harness.LeftHorizontal.value();
+		expect(send_wheel(harness.Left, QPoint{ -8, -8 }, { }, Qt::NoModifier, Qt::ScrollUpdate)
+				   && close(harness.Controller.position(), start + 10.0) && harness.LeftHorizontal.value() > horizontal,
+			   "comparable diagonal motion moves both available axes");
+		expect(send_wheel(harness.Left, QPoint{ -20, 1 }), "unphased gesture establishes horizontal intent");
+		harness.Controller.reset_pixel_gesture();
+		const auto resetStart = harness.Controller.position();
+		expect(send_wheel(harness.Left, QPoint{ 0, -1 }) && close(harness.Controller.position(), resetStart + 1.0), "presentation reset discards stale suppression for unphased input");
+		expect(send_wheel(harness.Left, QPoint{ -20, 1 }), "unphased idle course establishes horizontal intent");
+		QThread::msleep(260);
+		const auto idleStart = harness.Controller.position();
+		expect(send_wheel(harness.Left, QPoint{ 0, -1 }) && close(harness.Controller.position(), idleStart + 1.0), "unphased input starts afresh after idle without depending on an absent end event");
+		auto firstDevice     = QPointingDevice{ };
+		auto secondDevice    = QPointingDevice{ };
+		auto horizontalEvent = QWheelEvent{ { }, { }, QPoint{ -20, 1 }, { }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false, Qt::MouseEventNotSynthesized, &firstDevice };
+		auto verticalEvent   = QWheelEvent{ { }, { }, QPoint{ 0, -1 }, { }, Qt::NoButton, Qt::NoModifier, Qt::ScrollUpdate, false, Qt::MouseEventNotSynthesized, &secondDevice };
+		auto gesture         = qt::pixel_scroll_gesture{ };
+		expect(gesture.consume(horizontalEvent).y() == 0 && gesture.consume(verticalEvent).y() == -1, "changing pointing devices discards stale horizontal suppression");
+		expect(send_wheel(harness.Left, QPoint{ -20, 1 }), "replacement course establishes horizontal intent");
+		harness.Controller.set_axis(build_axis("alpha\ncharlie\ndelta\n", "alpha\nbravo-one\nbravo-two\ncharlie\ndelta\n", { 0.0, 10.0, 20.0, 30.0 }, { 0.0, 10.0, 25.0, 40.0, 50.0, 60.0 }, 12.0, 12.0, 9U));
+		harness.Controller.set_position(20.0);
+		expect(send_wheel(harness.Left, QPoint{ 0, -1 }) && close(harness.Controller.position(), 21.0), "a different comparison does not inherit suppression");
 	}
 
 	auto test_precision_wheel_phases_and_coalescing() -> void
@@ -1059,6 +1126,7 @@ auto main(int argc, char** argv) -> int
 	test_receiver_equivalence_and_handoff();
 	test_surface_role_rebinding();
 	test_pinning_proportional_motion_and_no_dead_travel();
+	test_horizontal_drift_and_reorientation();
 	test_precision_wheel_phases_and_coalescing();
 	test_navigation_reveal_feedback_and_horizontal_isolation();
 	test_same_comparison_remeasurement_and_reentrant_sinks();

@@ -146,6 +146,9 @@ namespace bpr::qt {
 
 		const auto sameComparison = Axis.has_value()
 			&& Axis->comparison() == aAxis.comparison();
+		if (!sameComparison) {
+			reset_pixel_gesture();
+		}
 		const auto anchor           = sameComparison ? retained_anchor() : std::nullopt;
 		const auto previousPosition = Q;
 		// [[BPR-1291]]. A remeasurement keeps the line on the rail where it
@@ -188,6 +191,7 @@ namespace bpr::qt {
 
 	void comparison_scroll_controller::clear_axis()
 	{
+		reset_pixel_gesture();
 		if (ApplyingFrame) {
 			PendingAxis.reset();
 			ClearAxisPending = true;
@@ -222,6 +226,22 @@ namespace bpr::qt {
 			return;
 		}
 		apply_position(Q + aDelta, false);
+	}
+
+	void comparison_scroll_controller::reset_pixel_gesture() noexcept
+	{
+		PixelGesture.reset();
+	}
+
+	void comparison_scroll_controller::align_pane_origin(const core::diff_side aSide)
+	{
+		if (!Axis || !CurrentFrame) {
+			return;
+		}
+		const auto origin  = aSide == core::diff_side::left ? CurrentFrame->Left.DocumentOriginY : CurrentFrame->Right.DocumentOriginY;
+		const auto line    = Axis->top_line_for_origin(aSide, origin);
+		const auto aligned = line == 0U ? 0.0 : (aSide == core::diff_side::left ? Axis->left_line_origin(line) : Axis->right_line_origin(line)).value_or(origin);
+		static_cast<void>(reveal_pane_origin(aSide, aligned));
 	}
 
 	void comparison_scroll_controller::page_up()
@@ -336,7 +356,11 @@ namespace bpr::qt {
 			if (!receiver.has_value()) {
 				return QObject::eventFilter(aWatched, aEvent);
 			}
-			return handle_key_event(*static_cast<QKeyEvent*>(aEvent));
+			const auto handled = handle_key_event(*static_cast<QKeyEvent*>(aEvent));
+			if (handled && (static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_PageUp || static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_PageDown)) {
+				align_pane_origin(*receiver == comparison_scroll_receiver::left_pane ? core::diff_side::left : core::diff_side::right);
+			}
+			return handled;
 		}
 		return QObject::eventFilter(aWatched, aEvent);
 	}
@@ -707,16 +731,17 @@ namespace bpr::qt {
 		}
 		++Statistics.WheelEvents;
 		auto* const binding        = &InputBindings[receiver_index(aReceiver)];
-		const auto  pixel          = aEvent.pixelDelta();
+		const auto  pixel          = PixelGesture.consume(aEvent);
 		const auto  angle          = aEvent.angleDelta();
 		const auto  horizontalOnly = aEvent.modifiers().testFlag(Qt::ShiftModifier)
 			&& pixel.x() == 0 && angle.x() == 0;
 		auto handled = false;
 
-		if (!pixel.isNull()) {
+		if (!aEvent.pixelDelta().isNull()) {
+			handled = !horizontalOnly && aEvent.pixelDelta().y() != 0;
 			++Statistics.PixelWheelEvents;
 			const auto horizontal = horizontalOnly
-				? static_cast<qreal>(pixel.y())
+				? static_cast<qreal>(aEvent.pixelDelta().y())
 				: static_cast<qreal>(pixel.x());
 			if (horizontal != 0.0) {
 				handled = apply_horizontal_delta(*binding, -horizontal)

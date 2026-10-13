@@ -531,6 +531,8 @@ namespace {
 		// the two gutters agree. That is not a renumbering; it is what
 		// independent numbering looks like before anything one-sided has
 		// gone past.
+		workbench.scroll_controller()->home();
+		process_events();
 		const auto leftAtTop  = gutter_of(workbench.left_pane())->grab().toImage();
 		const auto rightAtTop = gutter_of(workbench.right_pane())->grab().toImage();
 		expect(leftAtTop.size() == rightAtTop.size(),
@@ -901,18 +903,18 @@ namespace {
 			expect(gutter->width() == expected_gutter(*code, static_cast<std::uint32_t>(code->blockCount()))
 					   && gutter_of(base)->width() == expected_gutter(*base, static_cast<std::uint32_t>(base->blockCount())),
 				   name + ": with threads shown, both gutters are their numbers only, with no column");
-			const auto gutter_y = [&](const core::diff_side aSide, const std::uint32_t aLine) {
+			const auto gutterY = [&](const core::diff_side aSide, const std::uint32_t aLine) {
 				auto* const pane = aSide == core::diff_side::left ? base : code;
 				return gutter_of(pane)->mapFrom(&workbench, workbench.line_rect(aSide, aLine).center()).y();
 			};
-			const auto code_point = [&](const std::uint32_t aLine, const int aX) {
+			const auto codePoint = [&](const std::uint32_t aLine, const int aX) {
 				return QPoint{ aX, code->viewport()->mapFrom(&workbench, workbench.line_rect(core::diff_side::right, aLine).center()).y() };
 			};
 			// [[BPR-1335]] v002. The "+" column: the strip the button is
 			// drawn in, across the boundary of the number and the code. Four
 			// pixels into the code is inside it; the gutter's last pixel is.
-			const auto column_point = [&](const std::uint32_t aLine) { return code_point(aLine, 4); };
-			const auto pixel        = [](const QImage& aImage, const QPoint aLogical) {
+			const auto columnPoint = [&](const std::uint32_t aLine) { return codePoint(aLine, 4); };
+			const auto pixel       = [](const QImage& aImage, const QPoint aLogical) {
 				const auto ratio = aImage.devicePixelRatio();
 				return QColor{ aImage.pixel(std::min(aImage.width() - 1, static_cast<int>(aLogical.x() * ratio)),
 											std::min(aImage.height() - 1, static_cast<int>(aLogical.y() * ratio))) };
@@ -945,30 +947,30 @@ namespace {
 			// A thread's number keeps its place; its cell is tinted amber, a
 			// new one's blue, and a line without one is not tinted.
 			const auto still     = gutter->grab().toImage();
-			const auto plainCell = pixel(still, QPoint{ 1, gutter_y(core::diff_side::right, 1U) });
-			const auto amberCell = pixel(still, QPoint{ 1, gutter_y(core::diff_side::right, 3U) });
-			const auto blueCell  = pixel(still, QPoint{ 1, gutter_y(core::diff_side::right, 7U) });
+			const auto plainCell = pixel(still, QPoint{ 1, gutterY(core::diff_side::right, 1U) });
+			const auto amberCell = pixel(still, QPoint{ 1, gutterY(core::diff_side::right, 3U) });
+			const auto blueCell  = pixel(still, QPoint{ 1, gutterY(core::diff_side::right, 7U) });
 			std::cout << "bpr-1335 tint " << name << " plain=" << plainCell.name().toStdString() << " thread=" << amberCell.name().toStdString()
 					  << " new=" << blueCell.name().toStdString() << '\n';
 			expect(amberCell != plainCell && amberCell.red() > amberCell.blue() + 20 && blueCell.blue() > blueCell.red() + 20,
 				   name + ": a thread's number cell is tinted amber, a new one's blue, and a line without one is not");
-			const auto row_height = workbench.line_rect(core::diff_side::right, 3U).height();
-			const auto threadBand = band(still, QRect{ 0, gutter_y(core::diff_side::right, 3U) - row_height / 2, gutter->width(), row_height });
+			const auto rowHeight  = workbench.line_rect(core::diff_side::right, 3U).height();
+			const auto threadBand = band(still, QRect{ 0, gutterY(core::diff_side::right, 3U) - rowHeight / 2, gutter->width(), rowHeight });
 			expect(inked(threadBand, amberCell) > 0, name + ": the tinted cell still shows its line number");
 
 			// The tinted cell opens its thread, anywhere on it, in either pane.
-			const auto press_gutter = [&](QWidget* const aGutter, const QPoint aPoint) {
+			const auto pressGutter = [&](QWidget* const aGutter, const QPoint aPoint) {
 				pressed.clear();
 				QMouseEvent press{ QEvent::MouseButtonPress, QPointF{ aPoint }, QPointF{ aGutter->mapToGlobal(aPoint) }, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 				QApplication::sendEvent(aGutter, &press);
 			};
-			press_gutter(gutter, QPoint{ 2, gutter_y(core::diff_side::right, 3U) });
+			pressGutter(gutter, QPoint{ 2, gutterY(core::diff_side::right, 3U) });
 			expect(pressed.size() == 1U && pressed.front() == std::pair{ core::diff_side::right, 3U }, name + ": the left end of line 4's tinted number opens its thread");
-			press_gutter(gutter, QPoint{ gutter->width() - 2, gutter_y(core::diff_side::right, 7U) });
+			pressGutter(gutter, QPoint{ gutter->width() - 2, gutterY(core::diff_side::right, 7U) });
 			expect(pressed.size() == 1U && pressed.front() == std::pair{ core::diff_side::right, 7U }, name + ": the right end of line 8's opens its thread");
-			press_gutter(gutter_of(base), QPoint{ gutter_of(base)->width() / 2, gutter_y(core::diff_side::left, 5U) });
+			pressGutter(gutter_of(base), QPoint{ gutter_of(base)->width() / 2, gutterY(core::diff_side::left, 5U) });
 			expect(pressed.size() == 1U && pressed.front() == std::pair{ core::diff_side::left, 5U }, name + ": the base side's tinted number opens its thread");
-			press_gutter(gutter, QPoint{ 2, gutter_y(core::diff_side::right, 1U) });
+			pressGutter(gutter, QPoint{ 2, gutterY(core::diff_side::right, 1U) });
 			expect(pressed.empty() && added.empty(), name + ": a number without a thread opens nothing and adds nothing");
 
 			// The pointer in line 2's "+" column shows its "+": a blue button
@@ -979,11 +981,11 @@ namespace {
 			// line's code or on its digits nothing is drawn.
 			auto* const button = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
 			expect(button != nullptr && button->isHidden() && workbench.line_add_rect().isEmpty(), name + ": the \"+\" button waits, hidden");
-			move(code->viewport(), code_point(1U, 160));
+			move(code->viewport(), codePoint(1U, 160));
 			expect(button->isHidden() && workbench.line_add_rect().isEmpty(), name + ": the pointer on line 2's code, away from the \"+\" column, draws no \"+\"");
-			move(gutter, QPoint{ 2, gutter_y(core::diff_side::right, 1U) });
+			move(gutter, QPoint{ 2, gutterY(core::diff_side::right, 1U) });
 			expect(button->isHidden(), name + ": the pointer on line 2's digits draws no \"+\"");
-			move(code->viewport(), column_point(1U));
+			move(code->viewport(), columnPoint(1U));
 			const auto boundary = code->viewport()->geometry().left();
 			const auto place    = button->geometry();
 			const auto row      = workbench.line_rect(core::diff_side::right, 1U);
@@ -1025,7 +1027,7 @@ namespace {
 				qt::hide_anchored_tooltip();
 			}
 			const auto hovered    = gutter->grab().toImage();
-			const auto numberBand = QRect{ 0, gutter_y(core::diff_side::right, 1U) - row_height / 2, gutter->width(), row_height };
+			const auto numberBand = QRect{ 0, gutterY(core::diff_side::right, 1U) - rowHeight / 2, gutter->width(), rowHeight };
 			expect(band(hovered, numberBand) == band(still, numberBand), name + ": line 2's number is painted exactly as before; the \"+\" never replaces it");
 			const auto drawn = code->grab().toImage();
 			// The cross is sampled at the button's true centre, QRectF's, and
@@ -1057,13 +1059,13 @@ namespace {
 			// A line with a thread offers no "+"; the column's part in the
 			// number's padding offers it as its part over the code does;
 			// moving on into the code, or leaving, hides it.
-			move(code->viewport(), column_point(3U));
+			move(code->viewport(), columnPoint(3U));
 			expect(button->isHidden(), name + ": line 4, which has a thread, offers no \"+\"");
-			move(gutter, QPoint{ gutter->width() - 1, gutter_y(core::diff_side::right, 1U) });
+			move(gutter, QPoint{ gutter->width() - 1, gutterY(core::diff_side::right, 1U) });
 			expect(!button->isHidden() && button->geometry() == place, name + ": the column's part in line 2's number padding shows the same \"+\"");
-			move(code->viewport(), code_point(1U, place.right() - boundary + 3));
+			move(code->viewport(), codePoint(1U, place.right() - boundary + 3));
 			expect(button->isHidden(), name + ": just past the button, on the code, the \"+\" goes");
-			move(code->viewport(), column_point(1U));
+			move(code->viewport(), columnPoint(1U));
 			expect(!button->isHidden(), name + ": back in the column it comes back");
 			QEvent leave{ QEvent::Leave };
 			QApplication::sendEvent(code->viewport(), &leave);
@@ -1091,21 +1093,21 @@ namespace {
 					}
 					expect(sheet.save(QStringLiteral("%1/%2-%3.png").arg(directory, QString::fromStdString(name), aState), "PNG"), "the render is written");
 				};
-				move(code->viewport(), code_point(1U, 160));
+				move(code->viewport(), codePoint(1U, 160));
 				render(QStringLiteral("code"));
-				move(code->viewport(), column_point(1U));
+				move(code->viewport(), columnPoint(1U));
 				render(QStringLiteral("hover"));
 				mouse(button, QEvent::MouseButtonPress, button->rect().center(), button->mapToGlobal(button->rect().center()));
-				move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(code_point(5U, 160))), Qt::LeftButton);
+				move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(codePoint(5U, 160))), Qt::LeftButton);
 				render(QStringLiteral("drag"));
-				mouse(button, QEvent::MouseButtonRelease, button->rect().center(), code->viewport()->mapToGlobal(code_point(5U, 160)));
+				mouse(button, QEvent::MouseButtonRelease, button->rect().center(), code->viewport()->mapToGlobal(codePoint(5U, 160)));
 				added.clear();
 			}
 
 			// A click comments on its line, and the press never reaches the
 			// code: no text selection, no change of the selected line.
 			const auto before = workbench.selection();
-			move(code->viewport(), column_point(1U));
+			move(code->viewport(), columnPoint(1U));
 			const auto centre = button->rect().center();
 			mouse(button, QEvent::MouseButtonPress, centre, button->mapToGlobal(centre));
 			mouse(button, QEvent::MouseButtonRelease, centre, button->mapToGlobal(centre));
@@ -1114,28 +1116,28 @@ namespace {
 
 			// A drag on the "+" covers the lines from where it started to the
 			// one under the pointer, washed while it lasts, in either direction.
-			const auto washAt   = code_point(3U, code->viewport()->width() - 12);
+			const auto washAt   = codePoint(3U, code->viewport()->width() - 12);
 			const auto unwashed = pixel(code->viewport()->grab().toImage(), washAt);
-			move(code->viewport(), column_point(1U));
+			move(code->viewport(), columnPoint(1U));
 			mouse(button, QEvent::MouseButtonPress, centre, button->mapToGlobal(centre));
-			move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(code_point(5U, 160))), Qt::LeftButton);
+			move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(codePoint(5U, 160))), Qt::LeftButton);
 			const auto washed = pixel(code->viewport()->grab().toImage(), washAt);
 			expect(!button->isHidden(), name + ": a drag keeps its \"+\" while the pointer is out on the code");
-			mouse(button, QEvent::MouseButtonRelease, centre, code->viewport()->mapToGlobal(code_point(5U, 160)));
+			mouse(button, QEvent::MouseButtonRelease, centre, code->viewport()->mapToGlobal(codePoint(5U, 160)));
 			expect(washed != unwashed, name + ": the lines a drag covers are washed while it lasts");
 			expect(added.size() == 2U && added.back() == std::pair{ 1U, 5U }, name + ": dragging the \"+\" from line 2 to line 6 adds a comment on lines 2 to 6");
 			expect(pixel(code->viewport()->grab().toImage(), washAt) == unwashed, name + ": the wash goes when the drag ends");
-			move(code->viewport(), column_point(5U));
+			move(code->viewport(), columnPoint(5U));
 			mouse(button, QEvent::MouseButtonPress, centre, button->mapToGlobal(centre));
-			move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(code_point(2U, 160))), Qt::LeftButton);
-			mouse(button, QEvent::MouseButtonRelease, centre, code->viewport()->mapToGlobal(code_point(2U, 160)));
+			move(button, button->mapFromGlobal(code->viewport()->mapToGlobal(codePoint(2U, 160))), Qt::LeftButton);
+			mouse(button, QEvent::MouseButtonRelease, centre, code->viewport()->mapToGlobal(codePoint(2U, 160)));
 			expect(added.size() == 3U && added.back() == std::pair{ 2U, 5U }, name + ": dragging it upward from line 6 to line 3 covers lines 3 to 6, in order");
 
 			// A press and a drag in the code are the text's: they select text,
 			// and the "+" stays out of the way while they last.
-			move(code->viewport(), code_point(1U, 160));
-			const auto from = code_point(1U, 200);
-			const auto to   = code_point(2U, 260);
+			move(code->viewport(), codePoint(1U, 160));
+			const auto from = codePoint(1U, 200);
+			const auto to   = codePoint(2U, 260);
 			mouse(code->viewport(), QEvent::MouseButtonPress, from, code->viewport()->mapToGlobal(from));
 			move(code->viewport(), to, Qt::LeftButton);
 			expect(button->isHidden(), name + ": the \"+\" hides while text is being selected");
@@ -2076,6 +2078,180 @@ namespace {
 		process_events();
 	}
 
+	/// \brief Reads the visible native row and its actual placement, including clipping.
+	[[nodiscard]] auto rendered_origin(QPlainTextEdit& aPane) -> int
+	{
+		const auto block = aPane.cursorForPosition(aPane.viewport()->mask().boundingRect().topLeft()).block();
+		const auto y     = aPane.viewport()->mapTo(&aPane, aPane.cursorRect(QTextCursor{ block }).topLeft()).y() - aPane.contentsRect().top();
+		return block.blockNumber() * aPane.fontMetrics().lineSpacing() - y;
+	}
+
+	struct ribbon_check
+	{
+		std::size_t Checked    = 0U;
+		std::size_t Mismatched = 0U;
+	};
+
+	[[nodiscard]] auto check_ribbons(qt::diff_workbench& aWorkbench, const core::computed_file_diff& aDiff) -> ribbon_check;
+
+	void test_fractional_unified_and_keyboard_viewports()
+	{
+		auto text = std::string{ };
+		for (auto line = 0; line < 200; ++line) {
+			text += std::to_string(line) + std::string(240U, 'x') + "\n";
+		}
+		const auto diff = computed(text, text, { }, 74U);
+		for (const auto unified : { false, true }) {
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(1'000, 520);
+			workbench.show();
+			const auto request = context(diff, 174U, 174U);
+			workbench.set_loading(request);
+			workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			settle_geometry(workbench);
+			workbench.set_one_pane_enabled(unified);
+			settle_geometry(workbench);
+			auto* const editor = unified ? workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : workbench.right_pane();
+			expect(workbench.reveal_conversation_line(core::diff_side::right, 60U), "fractional keyboard course reveals a known line");
+			settle_geometry(workbench);
+			expect(send_wheel(*editor->viewport(), QPoint{ 0, -5 }), "both presentations accept a within-line movement");
+			process_events();
+			class wheel_observer final : public QObject
+			{
+			public:
+				const QPointingDevice* Device    = nullptr;
+				Qt::ScrollPhase        Phase     = Qt::NoScrollPhase;
+				quint64                Timestamp = 0U;
+				bool                   eventFilter(QObject*, QEvent* aEvent) override
+				{
+					if (aEvent->type() == QEvent::Wheel) {
+						const auto& wheel = *static_cast<QWheelEvent*>(aEvent);
+						Device            = wheel.pointingDevice();
+						Phase             = wheel.phase();
+						Timestamp         = wheel.timestamp();
+					}
+					return false;
+				}
+			} observer;
+			editor->viewport()->installEventFilter(&observer);
+			auto device = QPointingDevice{ };
+			for (const auto phase : { Qt::ScrollBegin, Qt::ScrollUpdate, Qt::ScrollMomentum, Qt::ScrollEnd }) {
+				auto wheel = QWheelEvent{ { }, { }, QPoint{ -20, -1 }, { }, Qt::NoButton, Qt::NoModifier, phase, false, Qt::MouseEventSynthesizedBySystem, &device };
+				wheel.setTimestamp(123U);
+				const auto before = workbench.line_rect(core::diff_side::right, 60U);
+				static_cast<void>(workbench.scroll_by_wheel(wheel));
+				expect(observer.Device == &device && observer.Phase == phase && observer.Timestamp == 123U, "forwarded wheel input preserves device, phase and timestamp");
+				expect(workbench.line_rect(core::diff_side::right, 60U).top() == before.top(), "forwarded horizontal input including momentum and ending never releases vertical wobble");
+			}
+			const auto rowBefore    = workbench.line_rect(core::diff_side::right, 60U);
+			const auto pixels       = workbench.grab().toImage();
+			const auto top          = editor->verticalScrollBar()->value();
+			const auto rebuilds     = workbench.statistics().GeometryRebuilds;
+			const auto anchorBefore = editor->viewport()->mapTo(&workbench, workbench.conversation_anchor_marker_rect(core::diff_side::right).topLeft());
+			expect(send_wheel(*editor->viewport(), QPoint{ 0, -3 }), "both presentations accept successive small motion");
+			process_events();
+			expect(workbench.line_rect(core::diff_side::right, 60U).top() == rowBefore.top() - 3
+					   && editor->verticalScrollBar()->value() == top && workbench.grab().toImage() != pixels,
+				   "unified and split rendered source rows visibly move inside one native row");
+			const auto anchorAfter = editor->viewport()->mapTo(&workbench, workbench.conversation_anchor_marker_rect(core::diff_side::right).topLeft());
+			expect(anchorAfter.y() == anchorBefore.y() - 3, "conversation anchors share fractional source placement");
+			expect(workbench.statistics().GeometryRebuilds == rebuilds, "both presentations retain cached geometry during fractional motion");
+			expect(send_wheel(*editor->viewport(), QPoint{ 0, 3 }), "both presentations accept reversal");
+			process_events();
+			expect(workbench.line_rect(core::diff_side::right, 60U) == rowBefore, "both presentations retrace the source geometry without drift");
+			const auto fractionalTop = editor->viewport()->mask().boundingRect().top();
+			expect(fractionalTop > 0, "keyboard course begins fractionally positioned");
+			send_key(*editor, Qt::Key_Down);
+			process_events();
+			expect(workbench.selection()->PreferredLine.Line == 61U && editor->viewport()->mask().boundingRect().top() == fractionalTop,
+				   "in-view Down advances one source line without realigning the viewport");
+			auto shift = QKeyEvent{ QEvent::KeyPress, Qt::Key_Down, Qt::ShiftModifier };
+			QCoreApplication::sendEvent(editor, &shift);
+			expect(workbench.selection()->PreferredLine.Line == 62U && editor->textCursor().hasSelection()
+					   && editor->viewport()->mask().boundingRect().top() == fractionalTop,
+				   "in-view Shift+Down extends the native selection without realignment");
+			for (auto step = 0; step < 50; ++step) {
+				send_key(*editor, Qt::Key_Down);
+			}
+			process_events();
+			expect(workbench.selection()->PreferredLine.Line == 112U && editor->viewport()->mask().boundingRect().top() == 0,
+				   "repeated arrows that scroll finish at a source-line boundary");
+			expect(send_wheel(*editor->viewport(), QPoint{ 0, -1 }), "touchpad resumes after keyboard scrolling");
+			process_events();
+			expect(editor->viewport()->mask().boundingRect().top() == 1, "touchpad resumes from the aligned origin without restoring an old residual");
+			send_key(*editor, Qt::Key_PageDown);
+			process_events();
+			expect(editor->viewport()->mask().boundingRect().top() == 0, "page scrolling ends on a source-line boundary");
+			send_key(*editor, Qt::Key_End);
+			process_events();
+			const auto endRow = workbench.line_rect(core::diff_side::right, 199U).top();
+			expect(send_wheel(*editor->viewport(), QPoint{ 0, 1 }), "reversal from End accepts a single pixel");
+			process_events();
+			expect(workbench.line_rect(core::diff_side::right, 199U).top() == endRow + 1, "the terminal document margin does not change the pixel stride when reversing from End");
+			expect(send_wheel(*editor->viewport(), QPoint{ -20, 1 }), "presentation-reset course establishes horizontal intent");
+			workbench.set_one_pane_enabled(!unified);
+			settle_geometry(workbench);
+			workbench.set_one_pane_enabled(unified);
+			settle_geometry(workbench);
+			expect(send_wheel(*editor->viewport(), QPoint{ 0, -1 }), "presentation replacement accepts small vertical input");
+		}
+	}
+
+	void test_fractional_native_viewport()
+	{
+		const auto [leftText, rightText] = large_comparison_text(200U, 8U);
+		const auto diff                  = computed(leftText, rightText, { }, 73U);
+		auto       workbench             = qt::diff_workbench{ };
+		workbench.resize(1'200, 760);
+		workbench.show();
+		const auto selectedContext = context(diff, 173U, 173U);
+		workbench.set_loading(selectedContext);
+		workbench.publish(bpr::qt::test::prepare_publication({ .Context = selectedContext, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+		settle_geometry(workbench);
+		auto* const controller   = workbench.scroll_controller();
+		auto* const editor       = workbench.right_pane();
+		const auto  measurements = qt::measure_plain_text_pane(*editor, diff.Alignment.RightLineCount);
+		expect(measurements.has_value(), "native fractional course measures its source boundaries");
+		expect(controller->reveal_pane_origin(core::diff_side::right, measurements->Boundaries[60U] + 5.0), "native fractional course starts inside a known row");
+		settle_geometry(workbench);
+		const auto row      = static_cast<std::uint32_t>(editor->cursorForPosition(editor->viewport()->visibleRegion().boundingRect().topLeft()).blockNumber());
+		const auto before   = workbench.line_rect(core::diff_side::right, row);
+		const auto bar      = editor->verticalScrollBar()->value();
+		const auto rebuilds = workbench.statistics().GeometryRebuilds;
+		const auto pixels   = workbench.grab().toImage();
+		expect(send_wheel(*editor->viewport(), QPoint{ 0, -3 }), "fractional native motion accepts a sub-line pixel event");
+		process_events();
+		const auto after = workbench.line_rect(core::diff_side::right, row);
+		expect(after.top() < before.top() && before.top() - after.top() <= 4, "sub-line input visibly moves the real source row before a line step");
+		expect(workbench.grab().toImage() != pixels, "composed rendered pixels change within a row");
+		const auto ribbons = check_ribbons(workbench, diff);
+		expect(ribbons.Checked > 0U && ribbons.Mismatched == 0U, "fractional ribbons meet the actual native source boundaries");
+		expect(editor->verticalScrollBar()->value() == bar, "sub-line placement retains the containing native row");
+		expect(workbench.statistics().GeometryRebuilds == rebuilds, "fractional placement does not rebuild measured geometry");
+		const auto point = editor->viewport()->visibleRegion().boundingRect().topLeft() + QPoint{ 40, 1 };
+		const auto hit   = editor->cursorForPosition(point).blockNumber();
+		send_click(*editor->viewport(), point);
+		expect(workbench.selection() && workbench.selection()->PreferredLine.Line == static_cast<std::uint32_t>(hit), "native hit testing and composed source selection share the clipped viewport");
+		expect(send_wheel(*editor->viewport(), QPoint{ 0, 3 }), "fractional reverse input accepted");
+		process_events();
+		expect(workbench.line_rect(core::diff_side::right, row).top() == before.top(), "fractional reversal retraces the rendered source origin");
+		auto profile     = qt::appearance_profile{ };
+		auto code        = profile.typography().Code;
+		code.ZoomPercent = 150U;
+		static_cast<void>(profile.select_code_font(code));
+		profile.apply_comparison_code_font_to(workbench);
+		settle_geometry(workbench);
+		const auto zoomedMeasurements = qt::measure_plain_text_pane(*editor, diff.Alignment.RightLineCount);
+		expect(zoomedMeasurements && controller->reveal_pane_origin(core::diff_side::right, zoomedMeasurements->Boundaries[60U] + 5.0), "zoomed fractional course starts inside a measured row");
+		settle_geometry(workbench);
+		const auto zoomedBefore = workbench.line_rect(core::diff_side::right, 60U).top();
+		expect(send_wheel(*editor->viewport(), QPoint{ 0, -3 }), "zoomed reader accepts fractional movement");
+		process_events();
+		const auto zoomedRibbons = check_ribbons(workbench, diff);
+		expect(workbench.line_rect(core::diff_side::right, 60U).top() == zoomedBefore - 3 && zoomedRibbons.Checked > 0U && zoomedRibbons.Mismatched == 0U,
+			   "after code zoom, fractional text and ribbons retain their exact common origin");
+	}
+
 	void test_scale_and_high_frequency_evidence()
 	{
 		const auto [leftText, rightText] = large_comparison_text(2'000U, 8U);
@@ -2121,6 +2297,15 @@ namespace {
 		controller->set_position(start);
 		settle_geometry(workbench);
 
+		const auto measuredSource = qt::measure_plain_text_pane(*workbench.right_pane(), diff.Alignment.RightLineCount);
+		expect(measuredSource.has_value(), "large-file course has native measured boundaries");
+		const auto renderedOrigin = [&] {
+			auto&      editor = *workbench.right_pane();
+			const auto row    = editor.cursorForPosition(editor.viewport()->mask().boundingRect().topLeft()).block();
+			const auto y      = editor.viewport()->mapTo(&editor, editor.cursorRect(QTextCursor{ row }).topLeft()).y() - editor.contentsRect().top();
+			return measuredSource->Boundaries[static_cast<std::size_t>(row.blockNumber())] - y;
+		};
+		const auto renderedBefore   = renderedOrigin();
 		const auto workbenchBefore  = workbench.statistics();
 		const auto controllerBefore = controller->statistics();
 		const auto linkBefore       = linkMap->statistics();
@@ -2143,10 +2328,11 @@ namespace {
 		timer.restart();
 		settle_geometry(workbench);
 		const auto eventDrainMilliseconds = timer.elapsed();
-		const auto workbenchAfter         = workbench.statistics();
-		const auto controllerAfter        = controller->statistics();
-		const auto linkAfter              = linkMap->statistics();
-		const auto visibilityQueries      = linkAfter.VisibilityQueries
+		expect(std::abs(renderedOrigin() - renderedBefore - 1'000.0) <= 1.0, "large-file course moves the real rendered source origin by its accepted pixel travel");
+		const auto workbenchAfter    = workbench.statistics();
+		const auto controllerAfter   = controller->statistics();
+		const auto linkAfter         = linkMap->statistics();
+		const auto visibilityQueries = linkAfter.VisibilityQueries
 			- linkBefore.VisibilityQueries;
 		const auto paintEvents = linkAfter.PaintEvents - linkBefore.PaintEvents;
 		expect(
@@ -4118,14 +4304,9 @@ namespace {
 	/// \brief The viewport y of a pane's last line.
 	[[nodiscard]] auto last_line_y(QPlainTextEdit& aPane) -> int
 	{
-		return aPane.cursorRect(QTextCursor{ aPane.document()->lastBlock() }).top();
+		return aPane.cursorRect(QTextCursor{ aPane.document()->lastBlock() }).top()
+			+ aPane.viewport()->y() - aPane.contentsRect().top();
 	}
-
-	struct ribbon_check
-	{
-		std::size_t Checked    = 0U;
-		std::size_t Mismatched = 0U;
-	};
 
 	/// \brief Whether each visible ribbon edge meets the pane at the top of the
 	/// line it names, on both sides. Exact, as in
@@ -4207,32 +4388,33 @@ namespace {
 		expect(top_line(left) == lastLeft && top_line(right) == lastRight && last_line_y(left) <= 0 && last_line_y(right) <= 0,
 			   "the bar's maximum puts each side's last line at the top, as VS Code does");
 
-		// The right side leaves its top first and moves one to one with the
+		// Observe rendered travel: a native row number alone aliases distinct
+		// fractional positions. The right side leaves its top first and moves one to one with the
 		// position, so one line of travel is one line of the right pane.
 		const auto lineHeight = static_cast<qreal>(right.cursorRect(QTextCursor{ right.document()->findBlockByNumber(2) }).top()
 												   - right.cursorRect(QTextCursor{ right.document()->findBlockByNumber(1) }).top());
 		const auto span       = controller->maximum_position() - controller->minimum_position();
 		expect(lineHeight > 0.0 && span > lineHeight * (lastRight - 1), "the travel is the right file's height less its last line");
-		auto previous = std::pair{ -1, -1 };
+		auto previous = std::pair{ std::numeric_limits<int>::lowest(), std::numeric_limits<int>::lowest() };
 		auto level    = 0;
 		auto ribbons  = std::size_t{ 0U };
-		for (auto step = 0; step <= lastRight; ++step) {
+		for (auto step = 0; step <= lastRight + 1; ++step) {
 			const auto value = static_cast<int>(std::llround(std::min(1.0, static_cast<qreal>(step) * lineHeight / span) * bar->maximum()));
 			bar->setValue(value);
 			process_events();
-			const auto tops = std::pair{ top_line(left), top_line(right) };
+			const auto tops = std::pair{ rendered_origin(left), rendered_origin(right) };
 			expect(tops.first >= previous.first && tops.second >= previous.second && tops != previous,
 				   "each line of bar travel moves a pane, and neither pane moves back");
 			const auto check = check_ribbons(workbench, diff);
 			expect(check.Mismatched == 0U, "every visible ribbon meets both panes at the lines it names");
 			ribbons += check.Checked;
-			if (tops.first > 0) {
+			if (top_line(left) > 0) {
 				expect(last_line_y(left) == last_line_y(right), "once both panes move, the two files' last lines are level");
 				++level;
 			}
 			previous = tops;
 		}
-		expect(previous == std::pair{ lastLeft, lastRight } && level > 2 && ribbons > 10U,
+		expect(top_line(left) == lastLeft && top_line(right) == lastRight && level > 2 && ribbons > 10U,
 			   "the sweep reached the end, past both files' ends, with ribbons in view");
 
 		// Negative control: a pane moved behind the bar's back. The same checks
@@ -4285,11 +4467,11 @@ namespace {
 		send_key(right, Qt::Key_Home);
 		process_events();
 		expect(top_line(left) == 0 && top_line(right) == 0, "Home returns a long file to its first line");
-		previous = { -1, -1 };
+		previous = { std::numeric_limits<int>::lowest(), std::numeric_limits<int>::lowest() };
 		for (auto step = 0; step <= 50; ++step) {
 			bar->setValue(bar->maximum() * step / 50);
 			process_events();
-			const auto tops = std::pair{ top_line(left), top_line(right) };
+			const auto tops = std::pair{ rendered_origin(left), rendered_origin(right) };
 			expect(tops.first > previous.first && tops.second > previous.second,
 				   "each fiftieth of the bar moves a long file's panes together");
 			expect(check_ribbons(workbench, longDiff).Mismatched == 0U, "a long file's ribbons meet both panes");
@@ -4480,14 +4662,14 @@ namespace {
 			   "a line wider than the strip stays one line, and the strip gains a horizontal bar");
 		// The first changed character is in view on open: the change is 'alpha'
 		// against 'omega', near the end of a line several screens wide.
-		const auto column_x = [strip](const int aBlock, const int aColumn) {
+		const auto columnX = [strip](const int aBlock, const int aColumn) {
 			auto at = QTextCursor{ strip->document()->findBlockByNumber(aBlock) };
 			at.setPosition(at.block().position() + aColumn);
 			return strip->cursorRect(at).left();
 		};
 		const auto changeColumn = static_cast<int>(longRight.find("omega"));
-		expect(bar->value() > 0 && column_x(1, changeColumn) >= 0
-				   && column_x(1, changeColumn) < strip->viewport()->width(),
+		expect(bar->value() > 0 && columnX(1, changeColumn) >= 0
+				   && columnX(1, changeColumn) < strip->viewport()->width(),
 			   "the strip opens scrolled so the first changed character is in view");
 		// One bar for both rows: a column sits at one x on both, before and
 		// after a scroll, and the scroll moves both by the same distance.
@@ -4496,12 +4678,12 @@ namespace {
 		const auto  gutterBefore = gutter->grab().toImage();
 		const auto  viewBefore   = strip->viewport()->grab().toImage();
 		const auto  scrolledTo   = bar->value();
-		const auto  aligned      = column_x(0, changeColumn);
-		expect(aligned == column_x(1, changeColumn), "a column sits at the same x on the base row and the head row");
+		const auto  aligned      = columnX(0, changeColumn);
+		expect(aligned == columnX(1, changeColumn), "a column sits at the same x on the base row and the head row");
 		bar->setValue(0);
 		process_events();
-		expect(column_x(0, changeColumn) == column_x(1, changeColumn)
-				   && column_x(0, changeColumn) - aligned == scrolledTo && column_x(1, 0) == column_x(0, 0),
+		expect(columnX(0, changeColumn) == columnX(1, changeColumn)
+				   && columnX(0, changeColumn) - aligned == scrolledTo && columnX(1, 0) == columnX(0, 0),
 			   "the two rows scroll together under one bar, so their columns stay aligned");
 		// The gutter stays put: its place and its painting are the same
 		// scrolled and unscrolled, while the code under the bar moves.
@@ -5022,6 +5204,8 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(QStringLiteral("BetterPullReviewDiffWorkbenchTests"));
+	test_fractional_native_viewport();
+	test_fractional_unified_and_keyboard_viewports();
 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
 	test_one_pane_rows_anchors_and_link_map();
 	{

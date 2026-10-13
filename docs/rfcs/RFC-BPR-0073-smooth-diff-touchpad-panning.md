@@ -197,4 +197,4 @@ implementation acceptance.
 
 ## Adoption and execution
 
-Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. Implementation and AC07 owner acceptance are pending on BPR-1413.
+Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). BPR-1413 remains open for the required owner touchpad verdict on its frozen candidate; no human acceptance is inferred from automated checks.

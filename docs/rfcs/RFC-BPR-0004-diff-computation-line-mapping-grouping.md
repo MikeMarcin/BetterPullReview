@@ -525,6 +525,22 @@ The Qt adapter must:
 - prevent recursive pane-scrollbar feedback;
 - keep horizontal scrolling pane-local.
 
+[RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) adds visible
+within-line placement in split and unified source readers. Retained fractional
+origins must reach native text, selection, hit testing, gutters, marks and ribbon
+geometry together, including a partially clipped first row. Clearly horizontal
+pixel motion discards minor vertical drift before scrollbar clamping, without
+banking it; small intentional vertical motion, diagonal motion and deliberate
+reorientation remain available. Forwarding preserves device identity and phases.
+
+Up/Down remain source-line cursor navigation, including Shift selection. An
+in-view cursor move preserves the fractional origin. A keyboard action that
+actually moves the viewport aligns the receiving pane to a source-line boundary
+through the shared controller; the other pane retains its normal projection.
+Page destinations align, Home/End keep their exact endpoints, and subsequent
+pixel input starts from that aligned origin. The amendment's acceptance is tracked
+by RFC-BPR-0073 without replacing this RFC's historical verification.
+
 Copying `verticalScrollBar()->value()` between panes is nonconforming.
 
 ### 14.4 Shared scrollbar

@@ -31,6 +31,7 @@
 #include <QPen>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegion>
 #include <QResizeEvent>
 #include <QScrollBar>
 #include <QShowEvent>
@@ -824,7 +825,7 @@ namespace bpr::qt {
 				}
 				return std::pair{
 					static_cast<std::size_t>(block.blockNumber()),
-					contentOffset().y(),
+					contentOffset().y() - AppliedOffset,
 				};
 			}
 
@@ -839,6 +840,84 @@ namespace bpr::qt {
 				if (bar != nullptr) {
 					bar->setValue(static_cast<int>(std::min<std::size_t>(aLine, std::numeric_limits<int>::max())));
 				}
+			}
+
+			/// \brief Places the native viewport, including native selection and hits.
+			/// \details The scrollbar still chooses the first block. The remaining
+			/// pixels move the viewport widget itself, clipped to its original
+			/// content area. No painter-only transform or second text layout is used.
+			void set_within_line_offset(const qreal aOffset)
+			{
+				RetainedOffset       = std::max(0.0, aOffset);
+				const auto offset    = std::max(0, qRound(RetainedOffset));
+				const auto area      = ViewportArea.isValid() ? ViewportArea : viewport()->geometry();
+				const auto placement = QRect{ area.x(), area.y() - offset, area.width(), area.height() + qCeil(QFontMetricsF{ font() }.lineSpacing() + 2.0 * document()->documentMargin()) };
+				if (offset == AppliedOffset && viewport()->geometry() == placement) {
+					return;
+				}
+				PlacingOrigin = true;
+				ViewportArea  = area;
+				AppliedOffset = offset;
+				viewport()->setGeometry(placement);
+				viewport()->setMask(QRegion{ QRect{ 0, offset, area.width(), area.height() } });
+				viewport()->update();
+				update_gutter();
+				PlacingOrigin = false;
+			}
+			[[nodiscard]] auto within_line_offset() const noexcept -> int { return AppliedOffset; }
+			[[nodiscard]] auto placing_origin() const noexcept -> bool { return PlacingOrigin; }
+			[[nodiscard]] auto changes_viewport_extent(const QSize aSize) const noexcept -> bool { return !ViewportArea.isValid() || aSize != ViewportArea.size(); }
+			[[nodiscard]] auto viewport_extent() const noexcept -> int { return ViewportArea.isValid() ? ViewportArea.height() : viewport()->height(); }
+			[[nodiscard]] auto within_line_position() const noexcept -> qreal { return RetainedOffset; }
+			void               reset_pixel_gesture() { PixelGesture.reset(); }
+			void               set_scroll_observer(std::function<void()> aObserver) { ScrollObserver = std::move(aObserver); }
+
+		protected:
+			void scrollContentsBy(const int aDx, const int aDy) override
+			{
+				if (aDy != 0 && !ApplyingPixelWheel) {
+					set_within_line_offset(0.0);
+				}
+				QPlainTextEdit::scrollContentsBy(aDx, aDy);
+			}
+
+			void wheelEvent(QWheelEvent* const aEvent) override
+			{
+				if (UnifiedRows == nullptr || aEvent->modifiers().testFlag(Qt::ControlModifier)) {
+					QPlainTextEdit::wheelEvent(aEvent);
+					return;
+				}
+				const auto delta = PixelGesture.consume(*aEvent);
+				if (aEvent->pixelDelta().isNull()) {
+					if (aEvent->angleDelta().isNull() && aEvent->phase() != Qt::NoScrollPhase) {
+						aEvent->accept();
+						return;
+					}
+					set_within_line_offset(0.0);
+					QPlainTextEdit::wheelEvent(aEvent);
+					return;
+				}
+				const auto  shift      = aEvent->modifiers().testFlag(Qt::ShiftModifier) && aEvent->pixelDelta().x() == 0;
+				auto* const horizontal = horizontalScrollBar();
+				horizontal->setValue(horizontal->value() - (shift ? aEvent->pixelDelta().y() : delta.x()));
+				if (!shift && delta.y() != 0) {
+					auto* const vertical = verticalScrollBar();
+					// The terminal native block includes the bottom document margin;
+					// it must not change the row stride when reversing from End.
+					const auto height = blockBoundingRect(document()->firstBlock()).height();
+					if (height > 0.0) {
+						const auto origin  = std::clamp(vertical->value() * height + RetainedOffset - delta.y(), 0.0, vertical->maximum() * height);
+						const auto line    = static_cast<int>(std::floor(origin / height));
+						ApplyingPixelWheel = true;
+						vertical->setValue(line);
+						set_within_line_offset(origin - line * height);
+						ApplyingPixelWheel = false;
+						if (ScrollObserver) {
+							ScrollObserver();
+						}
+					}
+				}
+				aEvent->accept();
 			}
 
 		protected:
@@ -1030,7 +1109,7 @@ namespace bpr::qt {
 				if (!block.isValid() || !block.isVisible()) {
 					return std::nullopt;
 				}
-				return blockBoundingGeometry(block).translated(contentOffset()).top();
+				return blockBoundingGeometry(block).translated(contentOffset()).top() - AppliedOffset;
 			}
 
 		private:
@@ -1038,6 +1117,13 @@ namespace bpr::qt {
 			void                                   place_gutter();
 			[[nodiscard]] auto                     measured_gutter_width() const -> int;
 			void                                   restore_viewport_fill();
+			QRect                                  ViewportArea;
+			qreal                                  RetainedOffset = 0.0;
+			pixel_scroll_gesture                   PixelGesture;
+			std::function<void()>                  ScrollObserver;
+			bool                                   ApplyingPixelWheel = false;
+			int                                    AppliedOffset      = 0;
+			bool                                   PlacingOrigin      = false;
 			bool                                   LineNumbersVisible = true;
 			int                                    GutterWidth        = 0;
 			const std::vector<unified_source_row>* UnifiedRows        = nullptr;
@@ -1480,7 +1566,13 @@ namespace bpr::qt {
 
 		void source_pane::resizeEvent(QResizeEvent* const aEvent)
 		{
+			if (!PlacingOrigin) {
+				ViewportArea = viewport()->geometry();
+			}
 			QPlainTextEdit::resizeEvent(aEvent);
+			if (!PlacingOrigin) {
+				set_within_line_offset(RetainedOffset);
+			}
 			const auto area = contentsRect();
 			Gutter->setGeometry(
 				QRect{ area.left(), area.top(), gutter_width(), area.height() });
@@ -1632,7 +1724,7 @@ namespace bpr::qt {
 			auto top = blockBoundingGeometry(block)
 						   .translated(contentOffset())
 						   .top()
-				+ headerHeight;
+				+ headerHeight - AppliedOffset;
 			const auto limit = static_cast<qreal>(aEvent->rect().bottom());
 			const auto right = numbers - GutterPadding;
 			// Only the blocks the exposed rect can show, so the work follows the
@@ -2258,6 +2350,12 @@ namespace bpr::qt {
 		for (auto* const source : { Left, Right, Unified }) {
 			pane(source)->set_font_observer([this, source] { hold_reading_position(*source); });
 		}
+		pane(Unified)->set_scroll_observer([this] {
+			update_unified_paint();
+			if (FrameObserver) {
+				FrameObserver();
+			}
+		});
 		ZoomIndicator      = new zoom_pill{ this };
 		ZoomIndicatorTimer = new QTimer{ this };
 		ZoomIndicatorTimer->setSingleShot(true);
@@ -2319,6 +2417,10 @@ namespace bpr::qt {
 	{
 		const auto previousSelection = Interaction.Selection;
 		HeldLine.reset();
+		for (auto* source : { Left, Right, Unified }) {
+			pane(source)->reset_pixel_gesture();
+			pane(source)->set_within_line_offset(0.0);
+		}
 		CurrentResult = aPublication.Result;
 		SemanticIndex = aPublication.Index;
 		// Built once here rather than searched per segment per repaint. The
@@ -2675,11 +2777,12 @@ namespace bpr::qt {
 		auto* const target = OnePaneEnabled ? Unified->viewport() : Right->viewport();
 		const auto  centre = QPointF{ target->rect().center() };
 		auto        wheel  = QWheelEvent{ centre, target->mapToGlobal(centre), aEvent.pixelDelta(), aEvent.angleDelta(),
-										  aEvent.buttons(), aEvent.modifiers(), aEvent.phase(), aEvent.inverted(), aEvent.source() };
+										  aEvent.buttons(), aEvent.modifiers(), aEvent.phase(), aEvent.inverted(), aEvent.source(), aEvent.pointingDevice() };
+		wheel.setTimestamp(aEvent.timestamp());
 		if (OnePaneEnabled) {
-			const auto before = Unified->verticalScrollBar()->value();
+			const auto before = std::pair{ Unified->verticalScrollBar()->value(), pane(Unified)->within_line_position() };
 			QCoreApplication::sendEvent(target, &wheel);
-			return Unified->verticalScrollBar()->value() != before;
+			return std::pair{ Unified->verticalScrollBar()->value(), pane(Unified)->within_line_position() } != before;
 		}
 		const auto before = Controller->position();
 		QCoreApplication::sendEvent(target, &wheel);
@@ -2822,10 +2925,10 @@ namespace bpr::qt {
 		}
 		const auto mapTop = LinkMap->mapTo(parent, QPoint{ 0, 0 }).y();
 		const auto paneTop
-			= Left->viewport()->mapTo(parent, QPoint{ 0, 0 }).y();
+			= Left->viewport()->mapTo(parent, QPoint{ 0, pane(Left)->within_line_offset() }).y();
 		LinkMap->set_viewport_band(
 			static_cast<qreal>(paneTop - mapTop),
-			static_cast<qreal>(Left->viewport()->height()));
+			static_cast<qreal>(pane(Left)->viewport_extent()));
 	}
 
 	auto diff_workbench::link_map() const noexcept -> diff_link_map*
@@ -3047,6 +3150,7 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
+		const auto beforePosition = Controller->position();
 		if (!select_line(side, next, true)) {
 			return false;
 		}
@@ -3054,6 +3158,9 @@ namespace bpr::qt {
 		// scrolling one pane on its own.
 		if (!source_line_visible(side, next) && Interaction.Selection) {
 			static_cast<void>(reveal_exact_line(*Interaction.Selection, Interaction.Selection->PreferredLine));
+		}
+		if (Controller->position() != beforePosition) {
+			Controller->align_pane_origin(side);
 		}
 		const auto first = document->findBlockByNumber(static_cast<int>(*anchor));
 		const auto last  = document->findBlockByNumber(static_cast<int>(next));
@@ -3072,9 +3179,11 @@ namespace bpr::qt {
 			auto* const horizontal = aPane->horizontalScrollBar();
 			const auto  top        = vertical->value();
 			const auto  left       = horizontal->value();
+			const auto  offset     = pane(aPane)->within_line_position();
 			aPane->setTextCursor(cursor);
 			vertical->setValue(top);
 			horizontal->setValue(left);
+			pane(aPane)->set_within_line_offset(offset);
 		}
 		announce_line_selection();
 		return true;
@@ -3095,8 +3204,8 @@ namespace bpr::qt {
 		auto       anchor = std::optional<std::uint32_t>{ };
 		if (Interaction.Selection) {
 			if (const auto row = unified_row_for(Interaction.Selection->PreferredLine.Side, Interaction.Selection->PreferredLine.Line)) {
-				moving            = *row;
-				anchor            = *row;
+				moving            = row;
+				anchor            = row;
 				const auto cursor = Unified->textCursor();
 				if (cursor.hasSelection()) {
 					const auto from = rowOf(cursor.anchor());
@@ -3138,11 +3247,13 @@ namespace bpr::qt {
 				cursor.setPosition(first.position() + first.length() - 1);
 				cursor.setPosition(last.position(), QTextCursor::KeepAnchor);
 			}
-			const auto left = Unified->horizontalScrollBar()->value();
-			const auto top  = Unified->verticalScrollBar()->value();
+			const auto left   = Unified->horizontalScrollBar()->value();
+			const auto top    = Unified->verticalScrollBar()->value();
+			const auto offset = pane(Unified)->within_line_position();
 			Unified->setTextCursor(cursor);
 			Unified->horizontalScrollBar()->setValue(left);
 			Unified->verticalScrollBar()->setValue(top);
+			pane(Unified)->set_within_line_offset(offset);
 		}
 		if (!source_line_visible(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)))) {
 			reveal_unified_row(next);
@@ -3309,13 +3420,20 @@ namespace bpr::qt {
 		// platform's document start and end go to the top and bottom.
 		if (Unified != nullptr && aWatched == Unified && aEvent->type() == QEvent::KeyPress) {
 			if (const auto edge = comparison_scroll_edge_for(*static_cast<QKeyEvent*>(aEvent)); edge.has_value()) {
+				pane(Unified)->set_within_line_offset(0.0);
 				Unified->verticalScrollBar()->triggerAction(*edge == comparison_scroll_edge::top ? QAbstractSlider::SliderToMinimum : QAbstractSlider::SliderToMaximum);
 				aEvent->accept();
 				return true;
 			}
 		}
+		if (OnePaneEnabled && aWatched == Unified && aEvent->type() == QEvent::KeyPress) {
+			const auto key = static_cast<QKeyEvent*>(aEvent)->key();
+			if (key == Qt::Key_PageUp || key == Qt::Key_PageDown || key == Qt::Key_Home || key == Qt::Key_End) {
+				pane(Unified)->set_within_line_offset(0.0);
+			}
+		}
 		if (Unified != nullptr && aWatched == Unified->viewport()) {
-			if (aEvent->type() == QEvent::Resize && OnePaneEnabled) {
+			if (aEvent->type() == QEvent::Resize && OnePaneEnabled && !pane(Unified)->placing_origin()) {
 				QTimer::singleShot(0, this, [this] {
 					update_unified_paint();
 					if (FrameObserver) {
@@ -3335,7 +3453,9 @@ namespace bpr::qt {
 		}
 		const auto sourceViewport = aWatched == Left->viewport()
 			|| aWatched == Right->viewport();
-		if (sourceViewport && aEvent->type() == QEvent::Resize) {
+		if (sourceViewport && aEvent->type() == QEvent::Resize
+			&& !pane(aWatched == Left->viewport() ? Left : Right)->placing_origin()
+			&& pane(aWatched == Left->viewport() ? Left : Right)->changes_viewport_extent(static_cast<QResizeEvent*>(aEvent)->size())) {
 			schedule_geometry_rebuild(
 				measured_geometry_change::viewport_or_divider,
 				diff_geometry_rebuild_trigger::pane_viewport_resize);
@@ -3481,6 +3601,9 @@ namespace bpr::qt {
 			return;
 		}
 		if (!PendingMeasurement) {
+			for (auto* source : { Left, Right }) {
+				pane(source)->set_within_line_offset(0.0);
+			}
 			PendingMeasurement = std::make_shared<geometry_measurement>(geometry_measurement{
 				.Result = CurrentResult,
 				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount, LeftHeights },
@@ -3551,9 +3674,13 @@ namespace bpr::qt {
 			return;
 		}
 		Statistics.MeasurementLinesReused += measurement->Left.reused_lines() + measurement->Right.reused_lines();
-		const auto changes  = AxisCache.pending_changes();
-		const auto triggers = PendingGeometryTriggers;
-		if (AxisCache.rebuild(CurrentResult->Alignment, *leftResult, *rightResult)
+		auto leftMeasurements            = *leftResult;
+		auto rightMeasurements           = *rightResult;
+		leftMeasurements.ViewportExtent  = pane(Left)->viewport_extent();
+		rightMeasurements.ViewportExtent = pane(Right)->viewport_extent();
+		const auto changes               = AxisCache.pending_changes();
+		const auto triggers              = PendingGeometryTriggers;
+		if (AxisCache.rebuild(CurrentResult->Alignment, leftMeasurements, rightMeasurements)
 				!= measured_alignment_error::none
 			|| AxisCache.axis() == nullptr) {
 			++Statistics.GeometryFailures;
@@ -3609,15 +3736,21 @@ namespace bpr::qt {
 		const auto* const axis = AxisCache.axis();
 		if (axis != nullptr && axis->comparison() == aFrame.Comparison) {
 			auto rendered = aFrame;
-			// Put the line nearest the frame's origin at the top, then read the
-			// origin back off the same per-line measurement the ribbon
-			// endpoints are built from, so the two cannot drift apart
-			// (BPR-0208). The pane scrolls by whole lines.
+			// The containing row and its remaining pixels share one measured
+			// origin with the ribbons; the actual native viewport moves with it.
 			const auto place = [axis](source_pane& aPane, const core::diff_side aSide, const qreal aOrigin) {
-				const auto line = axis->top_line_for_origin(aSide, aOrigin);
+				auto       line   = axis->top_line_for_origin(aSide, aOrigin);
+				const auto origin = [axis, aSide](const std::size_t aLine) {
+					return aLine == 0U ? 0.0 : (aSide == core::diff_side::left ? axis->left_line_origin(aLine) : axis->right_line_origin(aLine)).value_or(0.0);
+				};
+				// Projection can land a floating-point epsilon below an exact
+				// boundary, particularly at End. Keep that boundary exact.
+				if (line > 0U && origin(line) - aOrigin > 0.000'001) {
+					--line;
+				}
 				aPane.set_top_line(line);
-				const auto top = aSide == core::diff_side::left ? axis->left_line_origin(line) : axis->right_line_origin(line);
-				return line == 0U ? 0.0 : top.value_or(aOrigin);
+				aPane.set_within_line_offset(aOrigin - origin(line));
+				return origin(line) + aPane.within_line_offset();
 			};
 			const auto leftEstimate  = place(*pane(Left), core::diff_side::left, aFrame.Left.DocumentOriginY);
 			const auto rightEstimate = place(*pane(Right), core::diff_side::right, aFrame.Right.DocumentOriginY);
@@ -4006,6 +4139,11 @@ namespace bpr::qt {
 				PresentationReadingSide = ownSide;
 			}
 		}
+		Controller->reset_pixel_gesture();
+		for (auto* source : { Left, Right, Unified }) {
+			pane(source)->reset_pixel_gesture();
+			pane(source)->set_within_line_offset(0.0);
+		}
 		OnePaneEnabled = aEnabled;
 		rebuild_unified_document();
 		Comparison->setVisible(!aEnabled);
@@ -4103,6 +4241,7 @@ namespace bpr::qt {
 
 	void diff_workbench::reveal_unified_row(const std::uint32_t aRow)
 	{
+		pane(Unified)->set_within_line_offset(0.0);
 		Unified->verticalScrollBar()->setValue(static_cast<int>(aRow));
 		update_unified_paint();
 		if (FrameObserver) {
@@ -4115,8 +4254,8 @@ namespace bpr::qt {
 		if (!OnePaneEnabled || !CurrentResult) {
 			return;
 		}
-		const auto top      = Unified->viewport()->mapTo(this, QPoint{ }).y() - UnifiedMap->mapTo(this, QPoint{ }).y();
-		const auto viewport = QRectF{ 0.0, static_cast<qreal>(top), static_cast<qreal>(UnifiedMap->width()), static_cast<qreal>(Unified->viewport()->height()) };
+		const auto top      = Unified->viewport()->mapTo(this, QPoint{ 0, pane(Unified)->within_line_offset() }).y() - UnifiedMap->mapTo(this, QPoint{ }).y();
+		const auto viewport = QRectF{ 0.0, static_cast<qreal>(top), static_cast<qreal>(UnifiedMap->width()), static_cast<qreal>(pane(Unified)->viewport_extent()) };
 		const auto visible  = core::line_span{
 			static_cast<std::uint32_t>(std::max(0, Unified->cursorForPosition(QPoint{ 0, 0 }).blockNumber())),
 			static_cast<std::uint32_t>(std::max(0, Unified->cursorForPosition(QPoint{ 0, Unified->viewport()->height() }).blockNumber()) + 1),
@@ -4313,7 +4452,7 @@ namespace bpr::qt {
 			? Left
 			: Right;
 		const auto  previous  = pane(reference)->row_height();
-		const auto  height    = static_cast<qreal>(reference->viewport()->height());
+		const auto  height    = static_cast<qreal>(pane(reference)->viewport_extent());
 		if (previous <= 0.0 || height <= 0.0) {
 			return;
 		}

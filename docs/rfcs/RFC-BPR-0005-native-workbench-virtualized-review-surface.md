@@ -65,6 +65,11 @@ Custom diff views derive from `QAbstractScrollArea` and paint only visible rows 
 - Selecting a connector, hunk, line, or conversation synchronizes the top panes and lower detail pane.
 - Wheel/trackpad input over either pane or the center divider and every
   programmatic reveal continue through the one comparison-space controller.
+- Split and unified source readers visibly retain fractional touchpad offsets.
+  Up/Down remain line cursor navigation, with Shift selection; only actual
+  keyboard viewport movement aligns to the receiving source-line boundary.
+  [RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) owns the amendment's
+  drift suppression, native placement and acceptance evidence.
 - Lower pane resize/collapse and context adjustment.
 - Split/unified top-view options may exist, but the default is side-by-side plus lower line-over-line detail.
 

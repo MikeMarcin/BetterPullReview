@@ -91,7 +91,17 @@ The scrollbar must reach all content on both sides. When one document ends earli
 
 ### 3.7 Input details
 
-- Smooth trackpad deltas remain smooth.
+- Smooth trackpad deltas visibly retain within-line positions in split and
+  unified source readers, including after a gesture stops. Native text,
+  selection, hit testing, gutters, marks and connectors share the applied origin.
+- Clearly horizontal pixel motion suppresses minor vertical drift before either
+  scrollbar clamps. Discarded motion never reappears later. Small vertical-only
+  input, diagonal panning and deliberate reorientation remain responsive.
+- Up/Down move the source-line cursor one line at a time; Shift extends selection.
+  In-view cursor moves retain fractional placement. Keyboard scrolling aligns the
+  receiving source pane to a line boundary through its existing authority, with
+  page-sized Page Up/Down and exact Home/End endpoints. Touchpad motion resumes
+  smoothly from that boundary. See [RFC-BPR-0073](../rfcs/RFC-BPR-0073-smooth-diff-touchpad-panning.md).
 - Traditional wheel notches use platform scroll settings.
 - Natural-scroll inversion follows Qt/platform semantics.
 - Page Up, Page Down, Home, End, and scrollbar drag use the same comparison controller.

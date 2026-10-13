@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_COMPARISON_SCROLL_CONTROLLER_HPP
 
 #include "bpr/qt/measured_alignment_axis.hpp"
+#include "bpr/qt/pixel_scroll_gesture.hpp"
 
 #include <QObject>
 #include <QPointer>
@@ -140,6 +141,10 @@ namespace bpr::qt {
 		void set_position(qreal aPosition);
 		/// \brief Applies a signed comparison-space delta without integer round-trip.
 		void scroll_by(qreal aDelta);
+		/// \brief Clears transient touchpad discrimination after a presentation change.
+		void reset_pixel_gesture() noexcept;
+		/// \brief Aligns the receiving pane through the shared measured authority.
+		void align_pane_origin(core::diff_side aSide);
 		void page_up();
 		void page_down();
 		void home();
@@ -257,6 +262,7 @@ namespace bpr::qt {
 		bool                                              ClearAxisPending    = false;
 		bool                                              DrainingAxisChange  = false;
 		bool                                              AxisChangeScheduled = false;
+		pixel_scroll_gesture                              PixelGesture;
 		comparison_scroll_statistics                      Statistics;
 	};
 } // namespace bpr::qt
