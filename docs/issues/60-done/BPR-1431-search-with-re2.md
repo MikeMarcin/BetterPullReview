@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1431"
 title: "Search with RE2 instead of a hand-written regex engine"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1432"]
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1431--BPR-1431--e2ce4383ccc3.json","origin":"owner request 2026-10-13 after the RFC-0077 critical review","follows":"RFC-BPR-0077"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"32ccfd8ad","evidence":{"kind":"observation","detail":"regex adapter implements core::source_regex_engine with pinned RE2 2025-11-05 and Abseil 20250814.2 (hash/size/license verified, Qt graph only); package_runtime, release_security_audit, binary_dependency_audit, binary_dependency_surface and dependency_modernization contracts pass.","path":"docs/issues/60-done/BPR-1431-search-with-re2.md"}},{"criterion":"AC2","outcome":"pass","revision":"32ccfd8ad","evidence":{"kind":"observation","detail":"Thompson VM, KMP path, 6,460-line Unicode tables, generator and third_party/unicode removed.","path":"docs/issues/60-done/BPR-1431-search-with-re2.md"}},{"criterion":"AC3","outcome":"pass","revision":"32ccfd8ad","evidence":{"kind":"observation","detail":"core_source_matcher pins a.* over 'ba a' as [3,4), TODO.* after refused xTODO, aa in 'aaa aa'; lookaround, backreferences and \\\\C refuse as unsupported.","path":"docs/issues/60-done/BPR-1431-search-with-re2.md"}},{"criterion":"AC4","outcome":"pass","revision":"32ccfd8ad","evidence":{"kind":"observation","detail":"15 core/host/public-path/performance search suites pass; warm matching 1,568,828 -> 348,163 us, cancel 3 ms, thresholds hold; boundary, docs, format and changed-line tidy gates pass.","path":"docs/issues/60-done/BPR-1431-search-with-re2.md"}}]
 ---
 
 # Search with RE2 instead of a hand-written regex engine
