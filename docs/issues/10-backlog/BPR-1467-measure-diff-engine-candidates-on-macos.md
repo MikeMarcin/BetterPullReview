@@ -13,7 +13,7 @@ metadata: {"mandate_revision":"diff-engine-evaluation-r1"}
 # BPR-1467: Measure the diff-engine candidates on macOS and record each decision
 
 Part of [RFC-BPR-0082](../../rfcs/RFC-BPR-0082-diff-engine-evaluation.md). Runs the harness of
-[BPR-1466](BPR-1466-opt-in-diff-engine-evaluation-harness.md) on the macOS
+[BPR-1466](../20-ready/BPR-1466-opt-in-diff-engine-evaluation-harness.md) on the macOS
 station, with the thresholds fixed by the RFC, and commits the report with its
 raw results.
 

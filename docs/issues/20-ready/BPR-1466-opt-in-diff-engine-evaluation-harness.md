@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1466"
 title: "Build the opt-in diff-engine evaluation harness, candidates and corpus"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1465"]
 priority: "P2"
