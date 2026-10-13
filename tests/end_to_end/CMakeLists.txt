@@ -902,9 +902,7 @@ bpr_add_network_isolated_test(
         $<TARGET_FILE:app_better_pull_review>
         --self-test
         --public-preview-live-candidate
-        octocat
-        Hello-World
-        1
+        octocat/Hello-World/1
         --public-preview-live-candidate-dry-run
         --automated-run-budget-ms
         ${bpr_self_test_budget_ms}

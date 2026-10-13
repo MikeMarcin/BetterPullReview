@@ -136,6 +136,17 @@ def main():
     refused = subprocess.run([binary, "tour", "capabilities", "--yes", "--json"],
                              env=environment, capture_output=True, text=True, timeout=15)
     assert refused.returncode == 2 and json.loads(refused.stdout)["status"] == "error"
+    # [[BPR-1437]] One strict reader: a value is never another option, and
+    # `--name=value`, `--`, a single-dash word and a repeated option are refused.
+    for words, code in ((["--data-root", "--json"], "unsupported_option"),
+                        (["--data-root=/x", "--json"], "unsupported_option"),
+                        (["--", "--json"], "unsupported_option"),
+                        (["-j", "--json"], "unsupported_option"),
+                        (["--json", "--json"], "invalid_input")):
+        refused = subprocess.run([binary, "tour", "capabilities", *words],
+                                 env=environment, capture_output=True, text=True, timeout=15)
+        assert refused.returncode == 2, (words, refused.returncode, refused.stdout, refused.stderr)
+        assert json.loads(refused.stdout)["error"]["code"] == code, (words, refused.stdout)
     if sys.platform.startswith("linux"):
         linux_headless_sign_in(binary)
     print("tour-cli-public-entry:pass")
