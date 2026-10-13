@@ -165,7 +165,7 @@ namespace bpr::application {
 			}
 			auto& summary         = output.Terminal.Summary;
 			summary.EligibleFiles = static_cast<std::uint32_t>(selected.size());
-			const auto bound      = 16U * 1024U * 1024U + 2U * Limits.MaximumBytes + 2U * maximum_git_changed_catalogue_bytes + Limits.MaximumOwnedBytes + 3U * Limits.MaximumResultBytes + selected.size() * 2U * sizeof(source_search_skipped_side) + selected.capacity() * sizeof(std::size_t);
+			const auto bound      = source_pr_search_projection_reserve + 16U * 1024U * 1024U + 2U * Limits.MaximumBytes + 2U * maximum_git_changed_catalogue_bytes + Limits.MaximumOwnedBytes + 3U * Limits.MaximumResultBytes + selected.size() * 2U * sizeof(source_search_skipped_side) + selected.capacity() * sizeof(std::size_t);
 			output.PeakOwnedBound = bound;
 			PeakOwnedBound.store(std::max(PeakOwnedBound.load(std::memory_order_relaxed), static_cast<std::uint64_t>(bound)), std::memory_order_relaxed);
 			if (bound > maximum_source_pr_search_owned_bytes) {

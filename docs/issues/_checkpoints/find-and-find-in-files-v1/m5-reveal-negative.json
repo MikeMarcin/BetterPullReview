@@ -1,0 +1,13 @@
+{
+  "schema": "bpr.source-search.negative-control.v1",
+  "mutation": "remove only later ordinary reading/file gesture PR reveal cancellation",
+  "original_source_sha256": "7b40643bb848dd13bc80d5b38e719514f240ee61e03fd6a729474379a75b837b",
+  "expected_refusal": "cancelled reveal cannot revive after returning to its old file",
+  "restore_required": false,
+  "mutant_build_exit": 0,
+  "mutant_test_exit": 8,
+  "detected_expected_refusal": true,
+  "output": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/find-corpus-git\n    Start 645: application_source_pr_find\n1/1 Test #645: application_source_pr_find .......***Failed  Error regular expression found in output. Regex=[TEST_RUNNER_CHILD_EXIT_FAILED]  4.97 sec\nqt.qpa.fonts: Populating font family aliases took 52 ms. Replace uses of missing font family \"Sans Serif\" with one that exists to avoid this cost. \nREVEAL_RACE before=1:0 after=0:1102\nFAILED: cancelled reveal cannot revive after returning to its old file\nlibc++abi: terminating due to uncaught exception of type bpr::tests::expectation_failed\nTEST_RUNNER_CHILD_EXIT:-6\nTEST_RUNNER_CHILD_EXIT_FAILED:-6\n\n\n0% tests passed, 1 tests failed out of 1\n\nLabel Time Summary:\nbpr_network_isolated                    =   4.97 sec*proc (1 test)\nbpr_serial_gui                          =   4.97 sec*proc (1 test)\nbpr_windows_uncontained_registration    =   4.97 sec*proc (1 test)\n\nTotal Test time (real) =   4.98 sec\n\nThe following tests FAILED:\n\t645 - application_source_pr_find (Failed)               bpr_network_isolated bpr_serial_gui bpr_windows_uncontained_registration\n",
+  "source_restored": true,
+  "restored_build_exit": 0
+}

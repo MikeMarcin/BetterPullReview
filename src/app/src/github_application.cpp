@@ -6645,6 +6645,14 @@ namespace bpr::app {
 			const auto& tabs   = TabHost->state();
 			const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
 			const auto  pair   = active ? active->View.Comparison : tabs.WindowComparison.value_or(*EpochHost->state().AcceptedComparison);
+			// A reviewer's comparison gesture retires hits before its asynchronous
+			// exact pair is reflected into the tab. Ordinary file loads do not.
+			if (SearchComparisonGesture) {
+				if (EpochHost->state().PendingComparison || pair != *EpochHost->state().AcceptedComparison) {
+					return { };
+				}
+				SearchComparisonGesture = false;
+			}
 			if (SearchCreatedTab && (tabs.Active != SearchCreatedTab || !SearchCreatedComparison || *SearchCreatedComparison != pair)) {
 				SearchCreatedTab.reset();
 				SearchCreatedComparison.reset();
@@ -8379,7 +8387,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
 			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry) -> std::optional<core::document_tab_id> {
                 if(pr_search_scope()!=std::optional{aScope}){return {};}
-                cancel_review_navigation();cancel_restoration(false,true);abandon_tab_load();
+                cancel_review_navigation();cancel_restoration(false);abandon_tab_load();
                 SearchOpenFile=std::pair{aScope,aEntry};static_cast<void>(register_search_open());
                 observe_tab_reading();SearchOpeningNoTab=!TabHost->state().Active;TabHost->apply(core::open_in_active_tab_intent{.File=aEntry.File});
                 if(SearchOpeningNoTab){SearchCreatedTab=TabHost->state().Active;SearchCreatedComparison=aScope.Comparison;}SearchOpeningNoTab=false;return TabHost->state().Active; }, [this](const core::source_search_scope& aScope, core::file_identity aFile, const std::string& aPath, const core::source_match_location& aLocation) {
@@ -8392,12 +8400,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 				if (aGesture == qt::source_find_gesture::document_changed) {
-					const auto scope = pr_search_scope();
-					if (scope && LastAcceptedHandoff) {
-						const auto left  = core::canonical_hex(scope->Comparison.Left.Commit);
-						const auto right = core::canonical_hex(scope->Comparison.Right.Commit);
-						Window->pr_search()->set_scope_labels(QStringLiteral("PR #%1  %2 → %3").arg(LastAcceptedHandoff->Number.value()).arg(QString::fromUtf8(left.view().data(), 8), QString::fromUtf8(right.view().data(), 8)), QStringLiteral("Left %1\nRight %2").arg(QString::fromUtf8(left.view().data(), static_cast<qsizetype>(left.view().size())), QString::fromUtf8(right.view().data(), static_cast<qsizetype>(right.view().size()))));
-					}
 					PrFind->open();
 				} else if (aGesture == qt::source_find_gesture::next || aGesture == qt::source_find_gesture::previous) {
 					PrFind->navigate(aGesture == qt::source_find_gesture::next ? core::change_navigation_direction::next : core::change_navigation_direction::previous);
@@ -13677,6 +13679,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (PrFind) {
 				PrFind->reset();
+				SearchComparisonGesture = false;
 				SearchOpenFile.reset();
 				SearchCreatedTab.reset();
 				SearchCreatedComparison.reset();
@@ -14663,6 +14666,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				std::holds_alternative<core::select_named_comparison_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchors_intent>(aIntent)
 				|| std::holds_alternative<core::select_comparison_anchor_intent>(aIntent)) {
+				SearchComparisonGesture = WorkbenchHost && tab_modality(WorkbenchHost->state().Modality);
 				cancel_review_navigation();
 				cancel_restoration(false, true);
 				abandon_tab_load();
@@ -18381,7 +18385,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<pane_find_controller>                                                 PaneFind;
 		std::unique_ptr<pr_search_controller>                                                 PrFind;
 		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;
-		bool                                                                                  SearchOpeningNoTab = false;
+		bool                                                                                  SearchOpeningNoTab      = false;
+		bool                                                                                  SearchComparisonGesture = false;
 		std::optional<core::document_tab_id>                                                  SearchCreatedTab;
 		std::optional<core::comparison_pair>                                                  SearchCreatedComparison;
 		/// [[BPR-1327]]. The window being prepared, its cancellation and the
@@ -19511,6 +19516,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return {
 			.Closing                       = this->Closing,
 			.ShutdownComplete              = this->ShutdownComplete,
+			.SourceSearchQuiescent         = !PrFind || PrFind->is_quiescent(),
+			.SourceSearchScans             = PrFind ? PrFind->statistics().Scans : 0U,
 			.ShutdownCleanupFailed         = this->ShutdownCleanupFailed,
 			.AgentWorkspaceCleanupFailed   = this->AgentWorkspaceCleanupFailed,
 			.AgentWorkspaceRecoveryRefused = this->Profile->AgentWorkspaceRecoveryRefused,

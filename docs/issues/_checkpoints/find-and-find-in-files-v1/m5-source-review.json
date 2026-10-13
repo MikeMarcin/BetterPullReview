@@ -1,0 +1,39 @@
+{
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "milestone": "pr-search",
+  "reviewed_base_main": "31ab8129f9b8529423d0ca4a5d637b0443eedabb",
+  "lane_merge": "a4dc59cea",
+  "reviewed_source_commits": [
+    "a7fb9af0a",
+    "0220258f4"
+  ],
+  "candidate": "final M5 working source over a4dc59cea; exact product commit will bind final acceptance",
+  "scope": "all own source deltas from adopted main, preserving accepted CLI/navigation/C++ programs",
+  "findings": [
+    "One exact accepted active-tab pair binds corpus under epoch actor authority, full catalogue and query generation. No provider list/filter/receipt intersects membership.",
+    "Own result open preserves intent; every external reading gesture increments monotonic cancellation. Full scope and selected path/side/blob/span validate again before reveal. A-to-B-to-A cancellation-removal mutant fails.",
+    "Own Search effects independent of selected diff executor. Navigation yields/retries corpus reads; measured same-generation full coverage proves no abandoned remaining search.",
+    "Qt models borrow immutable records, own only numeric indexes and append deterministic batches; source mapping and semantic diff remain existing owners.",
+    "Pane decorations retain own query while explicit external occurrence selection persists. Exact selected side receives focus.",
+    "Query/filter and results runtime-only; PR/account authority reset and profile shutdown drain host/actor work. No mutation/grant or credential edge added.",
+    "Adopted main CLI/navigation/C++ composition kept. Inherited tests-on agent-disabled workshop referenced unimplemented agent helpers; entire fixture body uses existing compile guard, agent-on body unchanged, agent-off reports unavailable."
+  ],
+  "seals": {
+    "full_application": "5901bcc00aa90cb44b3b33b6996523ea5fbe8eb18a0af0884d48e0c60be194c6",
+    "production_app_manifest": "8fe8e590e993b7561797234562f978a378e8ad5b7757576d50a1c631aa6d3c50",
+    "production_mutation_branch": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df"
+  },
+  "inventory_additions": [
+    "src/pane_find_controller.cpp",
+    "src/pane_find_controller.hpp",
+    "src/pr_search_controller.cpp",
+    "src/pr_search_controller.hpp"
+  ],
+  "negative_controls": "all existing composition_contract_tests controls retained; qualification pending",
+  "baseline_repairs": [
+    "syntax fixture clang-format22 only",
+    "exact fixture registry adds omitted header-source-v1 and cpp-identifiers-v1; source-find-v1 already registered",
+    "core-only dependency test uses supported populated offline CPM cache",
+    "adopted strict CLI native qualifier uses supported contained_temporary_directory; no native qualifier run"
+  ]
+}

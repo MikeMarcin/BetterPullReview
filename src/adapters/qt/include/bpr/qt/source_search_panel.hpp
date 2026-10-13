@@ -44,6 +44,7 @@ namespace bpr::qt {
 		source_search_result_model*           Model;
 		QTimer*                               Debounce;
 		application::source_search_projection Projection;
+		QString                               LastAnnouncement;
 		void                                  append_results(const application::source_search_projection& aProjection);
 	};
 }

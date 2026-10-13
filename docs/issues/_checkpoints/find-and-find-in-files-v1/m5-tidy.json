@@ -1,0 +1,629 @@
+{
+  "tool": "clang-tidy22",
+  "baseline": "32d1909d2; accepted main source also included in changed ranges",
+  "candidate": "product sources prepared for commit over a4dc59cea",
+  "scope": "11 changed-line TUs; existing M3 whole-file findings retained, no global tidy-clean claim",
+  "filters": [
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/core/src/source_search.cpp",
+      "lines": [
+        [
+          246,
+          253
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/application/src/source_search_host.cpp",
+      "lines": [
+        [
+          104,
+          105
+        ],
+        [
+          115,
+          115
+        ],
+        [
+          175,
+          175
+        ],
+        [
+          288,
+          288
+        ],
+        [
+          542,
+          548
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/application/src/workbench_application_host.cpp",
+      "lines": [
+        [
+          696,
+          706
+        ],
+        [
+          1069,
+          1072
+        ],
+        [
+          1228,
+          1228
+        ],
+        [
+          2121,
+          2134
+        ],
+        [
+          2329,
+          2343
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/application/src/epoch_application_host.cpp",
+      "lines": [
+        [
+          4849,
+          4855
+        ],
+        [
+          4999,
+          5000
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/application/src/source_pr_search_execution.cpp",
+      "lines": [
+        [
+          5,
+          5
+        ],
+        [
+          67,
+          67
+        ],
+        [
+          87,
+          88
+        ],
+        [
+          90,
+          97
+        ],
+        [
+          129,
+          130
+        ],
+        [
+          168,
+          168
+        ],
+        [
+          170,
+          170
+        ],
+        [
+          224,
+          227
+        ],
+        [
+          284,
+          288
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/diff_workbench.cpp",
+      "lines": [
+        [
+          2194,
+          2198
+        ],
+        [
+          2382,
+          2398
+        ],
+        [
+          2487,
+          2488
+        ],
+        [
+          2491,
+          2492
+        ],
+        [
+          2578,
+          2578
+        ],
+        [
+          2587,
+          2590
+        ],
+        [
+          2695,
+          2695
+        ],
+        [
+          3518,
+          3523
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/source_find_bar.cpp",
+      "lines": [
+        [
+          15,
+          15
+        ],
+        [
+          17,
+          17
+        ],
+        [
+          88,
+          97
+        ],
+        [
+          129,
+          129
+        ],
+        [
+          151,
+          153
+        ],
+        [
+          155,
+          155
+        ],
+        [
+          168,
+          170
+        ],
+        [
+          172,
+          172
+        ],
+        [
+          183,
+          183
+        ],
+        [
+          256,
+          256
+        ],
+        [
+          270,
+          270
+        ],
+        [
+          291,
+          295
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/qt/src/workbench_window.cpp",
+      "lines": [
+        [
+          3557,
+          3564
+        ],
+        [
+          10381,
+          10388
+        ],
+        [
+          10400,
+          10405
+        ],
+        [
+          14074,
+          14087
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_application.cpp",
+      "lines": [
+        [
+          20,
+          20
+        ],
+        [
+          1009,
+          1010
+        ],
+        [
+          3937,
+          3937
+        ],
+        [
+          4458,
+          4458
+        ],
+        [
+          4518,
+          4518
+        ],
+        [
+          4652,
+          4652
+        ],
+        [
+          5887,
+          5888
+        ],
+        [
+          6601,
+          6603
+        ],
+        [
+          6640,
+          6700
+        ],
+        [
+          6783,
+          6785
+        ],
+        [
+          6884,
+          6884
+        ],
+        [
+          7096,
+          7098
+        ],
+        [
+          7486,
+          7487
+        ],
+        [
+          7490,
+          7491
+        ],
+        [
+          7494,
+          7495
+        ],
+        [
+          7498,
+          7498
+        ],
+        [
+          7501,
+          7501
+        ],
+        [
+          8388,
+          8409
+        ],
+        [
+          8415,
+          8419
+        ],
+        [
+          9833,
+          9833
+        ],
+        [
+          9839,
+          9847
+        ],
+        [
+          9850,
+          9850
+        ],
+        [
+          9852,
+          9855
+        ],
+        [
+          9857,
+          9858
+        ],
+        [
+          9860,
+          9876
+        ],
+        [
+          11402,
+          11403
+        ],
+        [
+          11961,
+          11980
+        ],
+        [
+          12007,
+          12011
+        ],
+        [
+          12014,
+          12014
+        ],
+        [
+          12016,
+          12020
+        ],
+        [
+          12024,
+          12027
+        ],
+        [
+          12075,
+          12075
+        ],
+        [
+          12089,
+          12089
+        ],
+        [
+          12106,
+          12106
+        ],
+        [
+          12113,
+          12113
+        ],
+        [
+          12119,
+          12119
+        ],
+        [
+          12137,
+          12138
+        ],
+        [
+          12164,
+          12164
+        ],
+        [
+          12169,
+          12169
+        ],
+        [
+          12176,
+          12183
+        ],
+        [
+          12200,
+          12200
+        ],
+        [
+          12202,
+          12202
+        ],
+        [
+          12206,
+          12206
+        ],
+        [
+          12437,
+          12450
+        ],
+        [
+          12455,
+          12456
+        ],
+        [
+          12459,
+          12459
+        ],
+        [
+          12461,
+          12461
+        ],
+        [
+          12469,
+          12469
+        ],
+        [
+          12481,
+          12481
+        ],
+        [
+          12489,
+          12489
+        ],
+        [
+          12530,
+          12530
+        ],
+        [
+          13680,
+          13686
+        ],
+        [
+          13975,
+          13975
+        ],
+        [
+          14001,
+          14003
+        ],
+        [
+          14560,
+          14560
+        ],
+        [
+          14564,
+          14567
+        ],
+        [
+          14574,
+          14574
+        ],
+        [
+          14669,
+          14669
+        ],
+        [
+          16245,
+          16247
+        ],
+        [
+          17333,
+          17335
+        ],
+        [
+          17378,
+          17378
+        ],
+        [
+          18244,
+          18245
+        ],
+        [
+          18375,
+          18391
+        ],
+        [
+          19519,
+          19520
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/src/github_public_path_fixture.cpp",
+      "lines": [
+        [
+          279,
+          279
+        ],
+        [
+          556,
+          597
+        ],
+        [
+          1034,
+          1036
+        ],
+        [
+          1700,
+          1702
+        ],
+        [
+          2385,
+          2390
+        ],
+        [
+          4088,
+          4105
+        ],
+        [
+          4115,
+          4125
+        ],
+        [
+          4307,
+          4313
+        ],
+        [
+          4317,
+          4319
+        ],
+        [
+          4444,
+          4444
+        ],
+        [
+          4467,
+          4470
+        ],
+        [
+          4484,
+          4484
+        ],
+        [
+          4598,
+          4598
+        ]
+      ]
+    },
+    {
+      "name": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/app/main.cpp",
+      "lines": [
+        [
+          5586,
+          5586
+        ],
+        [
+          5710,
+          5713
+        ]
+      ]
+    }
+  ],
+  "results": [
+    {
+      "path": "src/core/src/source_search.cpp",
+      "exit": 0,
+      "source_sha256": "76b088b9598bc6a9645403a7ba5c90b4b54f56daa7db0aadb2a755bffc6e2817"
+    },
+    {
+      "path": "src/application/src/source_search_host.cpp",
+      "exit": 0,
+      "source_sha256": "457242d7295f80762a10dec88e8d344c3372a6e75298bab33fd664f106701650"
+    },
+    {
+      "path": "src/application/src/workbench_application_host.cpp",
+      "exit": 0,
+      "source_sha256": "8b177898e0237495481657bce610d48bc4d3bdab47ca79992037bf1ce5c18cb4"
+    },
+    {
+      "path": "src/application/src/epoch_application_host.cpp",
+      "exit": 0,
+      "source_sha256": "9fa7e98ddfcdf86f7ea9fff3450e6175bc5b83cb9cbce621882421c52421a3d7"
+    },
+    {
+      "path": "src/application/src/source_pr_search_execution.cpp",
+      "exit": 0,
+      "source_sha256": "d5502131bf25c1f3d5c859af46f8ab084b1545cbf9cd6c8b7e753fc5390184d2"
+    },
+    {
+      "path": "src/adapters/qt/src/diff_workbench.cpp",
+      "exit": 0,
+      "source_sha256": "1470541039abf74d52bbb1e70054d80b0ed0f1b45e66cac8051af1fe72f34e22"
+    },
+    {
+      "path": "src/adapters/qt/src/source_find_bar.cpp",
+      "exit": 0,
+      "source_sha256": "e4373f7777ff4f98e02840fe133ae7e90e4c6d2768d58266251f4d8f773074b2"
+    },
+    {
+      "path": "src/adapters/qt/src/workbench_window.cpp",
+      "exit": 0,
+      "source_sha256": "14ab9dc4c91c914caf5130b76527dfe2c3fa48fdf8a21407ddb25d1f423e8fff"
+    },
+    {
+      "path": "src/app/src/github_application.cpp",
+      "exit": 0,
+      "source_sha256": "5901bcc00aa90cb44b3b33b6996523ea5fbe8eb18a0af0884d48e0c60be194c6"
+    },
+    {
+      "path": "src/app/src/github_public_path_fixture.cpp",
+      "exit": 0,
+      "source_sha256": "7905f5789051ac04f4957b2b33d9e17a4bce7568cffdeeab8b6de0fac8b51ed0"
+    },
+    {
+      "path": "src/app/main.cpp",
+      "exit": 0,
+      "source_sha256": "e2332702ecbb7775b62e77904e4f6cf0fdd5221d58c15373ae523e61c728d4a0"
+    }
+  ],
+  "new_tus": [
+    "src/adapters/qt/src/source_search_panel.cpp",
+    "src/app/src/pr_search_controller.cpp",
+    "tests/end_to_end/source_pr_find_public_path_tests.cpp",
+    "tests/end_to_end/source_pr_search_scope_path_tests.cpp",
+    "tests/end_to_end/source_pr_search_performance_tests.cpp"
+  ],
+  "new_tu_result": "all pass with warnings as errors; scope course final static arguments call and unsupported mode check rerun passes",
+  "initial_failures": "m5-new-tidy.log retains explicit short OID string-view size, endl, argument name and static call failures; corrected before acceptance"
+}

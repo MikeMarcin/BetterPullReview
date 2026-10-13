@@ -4,10 +4,12 @@
 
 namespace bpr::application {
 	inline constexpr std::size_t maximum_source_pr_search_owned_bytes = 192U * 1024U * 1024U;
+	inline constexpr std::size_t source_pr_search_projection_reserve  = 8U * 1024U * 1024U;
 	/// \brief Compiles once and streams exact full-file documents through the epoch port.
 	/// \details A 192 MiB conservative admission envelope covers matcher, two
 	/// documents, existing 16 MiB actor cache, catalogue, records and coalesced
-	/// publication copies. No whole corpus, syntax, diff or independent cache is built.
+	/// publication copies, plus an 8 MiB reserve for bounded numeric presentation
+	/// indexes and active-tab metadata. No whole corpus, syntax, diff or independent cache is built.
 	class source_pr_search_execution final : public source_search_execution_port
 	{
 	public:

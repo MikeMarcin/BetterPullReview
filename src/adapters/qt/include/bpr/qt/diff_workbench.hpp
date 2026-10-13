@@ -371,6 +371,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
 		/// \brief Focuses the visible source editor in split or unified presentation.
 		void focus_source();
+		/// \brief Returns source focus to the exact side selected by an external occurrence.
+		void focus_source(core::diff_side aSide);
 		/// \brief Composes pane search gestures and exact-current result decorations.
 		void set_source_find_dispatch(std::function<void(const source_find_intent&)> aDispatch);
 		void set_source_find_changed(std::function<void()> aChanged);

@@ -71,5 +71,14 @@
 		"patch": "@@ -0,0 +1 @@\n+catalogue token\ufffd",
 		"sha": "514897d0c9fc1ed5f231c81395037e42b325c71d",
 		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "unsupported/symlink",
+		"patch": "@@ -0,0 +1 @@\n+local-target",
+		"sha": "ef69d95e0abb4fe10cbe50d745dd955d5ef8aa1e",
+		"status": "added"
 	}
 ]

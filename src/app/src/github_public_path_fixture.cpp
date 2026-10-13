@@ -276,6 +276,7 @@ namespace bpr::app::detail {
 		struct fixture_descriptor
 		{
 			std::string_view ContractDirectory;
+			std::string_view LaterRecordingDirectory;
 			std::string_view CapabilityDirectory;
 			/// Optional recorded-wire source when the semantic descriptor overlays
 			/// another contract. Empty means `ContractDirectory`.
@@ -554,43 +555,45 @@ namespace bpr::app::detail {
 				};
 			case github_public_path_fixture::source_pr_search_large_v1:
 				return {
-					.ContractDirectory   = "source-pr-search-large-v1",
-					.CapabilityDirectory = "github-com",
-					.Server              = server_contract::github_com,
-					.AccountId           = core::github_account_id{ 1U },
-					.RepositoryId        = core::repository_id{ 2U },
-					.PullRequestId       = core::pull_request_id{ 3U },
-					.Number              = core::pull_request_number{ 78U },
-					.Owner               = "bpr-fixtures",
-					.Name                = "source-pr-search-large",
-					.BaseRef             = "refs/heads/main",
-					.BaseOid             = "bf800d840cd764e38517f06d348194b513c09fb5",
-					.HeadOneOid          = "1bc7774584fc5c9b8001358c837ac956db6c5498",
-					.HeadTwoOid          = "f573297f4533006cdd4055c1cd26fcbd6c8f0072",
-					.BaseBlob            = "",
-					.HeadOneBlob         = "",
-					.HeadTwoBlob         = "",
-					.Packs               = { .File = "source-pr-search-large-v1/objects.pack", .SecondFile = "source-pr-search-large-v1/objects.pack" },
+					.ContractDirectory       = "source-pr-search-large-v1",
+					.LaterRecordingDirectory = "source-pr-search-large-later-v1",
+					.CapabilityDirectory     = "github-com",
+					.Server                  = server_contract::github_com,
+					.AccountId               = core::github_account_id{ 1U },
+					.RepositoryId            = core::repository_id{ 2U },
+					.PullRequestId           = core::pull_request_id{ 3U },
+					.Number                  = core::pull_request_number{ 78U },
+					.Owner                   = "bpr-fixtures",
+					.Name                    = "source-pr-search-large",
+					.BaseRef                 = "refs/heads/main",
+					.BaseOid                 = "bf800d840cd764e38517f06d348194b513c09fb5",
+					.HeadOneOid              = "1bc7774584fc5c9b8001358c837ac956db6c5498",
+					.HeadTwoOid              = "f573297f4533006cdd4055c1cd26fcbd6c8f0072",
+					.BaseBlob                = "",
+					.HeadOneBlob             = "",
+					.HeadTwoBlob             = "",
+					.Packs                   = { .File = "source-pr-search-large-v1/objects.pack", .SecondFile = "source-pr-search-large-v1/objects.pack" },
 				};
 			case github_public_path_fixture::source_pr_search_v1:
 				return {
-					.ContractDirectory   = "source-pr-search-v1",
-					.CapabilityDirectory = "github-com",
-					.Server              = server_contract::github_com,
-					.AccountId           = core::github_account_id{ 1U },
-					.RepositoryId        = core::repository_id{ 2U },
-					.PullRequestId       = core::pull_request_id{ 3U },
-					.Number              = core::pull_request_number{ 78U },
-					.Owner               = "bpr-fixtures",
-					.Name                = "source-pr-search",
-					.BaseRef             = "refs/heads/main",
-					.BaseOid             = "2d1b33154f67e9a649702eec6afc4ec319cbdfe6",
-					.HeadOneOid          = "c267305cee342652dfa77ddb0746a7edac33d82e",
-					.HeadTwoOid          = "5ec304e3d85110a0e41e6178d6fe8bebb381fd99",
-					.BaseBlob            = "",
-					.HeadOneBlob         = "",
-					.HeadTwoBlob         = "",
-					.Packs               = { .File = "source-pr-search-v1/objects.pack", .SecondFile = "source-pr-search-v1/objects.pack" },
+					.ContractDirectory       = "source-pr-search-v1",
+					.LaterRecordingDirectory = "source-pr-search-later-v1",
+					.CapabilityDirectory     = "github-com",
+					.Server                  = server_contract::github_com,
+					.AccountId               = core::github_account_id{ 1U },
+					.RepositoryId            = core::repository_id{ 2U },
+					.PullRequestId           = core::pull_request_id{ 3U },
+					.Number                  = core::pull_request_number{ 78U },
+					.Owner                   = "bpr-fixtures",
+					.Name                    = "source-pr-search",
+					.BaseRef                 = "refs/heads/main",
+					.BaseOid                 = "2d1b33154f67e9a649702eec6afc4ec319cbdfe6",
+					.HeadOneOid              = "4ee2d050fd427ccadc7f23e6bd630cd1f81953fd",
+					.HeadTwoOid              = "f7de4366ea00c840b15ece6b445eae7a320ef363",
+					.BaseBlob                = "",
+					.HeadOneBlob             = "",
+					.HeadTwoBlob             = "",
+					.Packs                   = { .File = "source-pr-search-v1/objects.pack", .SecondFile = "source-pr-search-v1/objects.pack" },
 				};
 			case github_public_path_fixture::source_find_v1:
 				return {
@@ -1028,7 +1031,9 @@ namespace bpr::app::detail {
 				order_snapshot_reads(exchanges);
 				return exchanges;
 			}
-			const auto recordingDirectory = aDescriptor.RecordingDirectory.empty()
+			const auto recordingDirectory = aHead == aDescriptor.HeadTwoOid && !aDescriptor.LaterRecordingDirectory.empty()
+				? aDescriptor.LaterRecordingDirectory
+				: aDescriptor.RecordingDirectory.empty()
 				? aDescriptor.ContractDirectory
 				: aDescriptor.RecordingDirectory;
 			const auto root               = std::filesystem::path{ BPR_GITHUB_CONTRACT_FIXTURE_ROOT }

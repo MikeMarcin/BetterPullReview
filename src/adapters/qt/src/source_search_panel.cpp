@@ -19,46 +19,46 @@ namespace bpr::qt {
 	class source_search_result_model final : public QAbstractItemModel
 	{
 	public:
-		explicit source_search_result_model(QObject* parent)
-			: QAbstractItemModel{ parent }
+		explicit source_search_result_model(QObject* aParent)
+			: QAbstractItemModel{ aParent }
 		{ }
-		auto index(int row, int column, const QModelIndex& parent = { }) const -> QModelIndex override
+		auto index(int aRow, int aColumn, const QModelIndex& aParent = { }) const -> QModelIndex override
 		{
-			if (row < 0 || column != 0 || row >= rowCount(parent)) {
+			if (aRow < 0 || aColumn != 0 || aRow >= rowCount(aParent)) {
 				return { };
 			}
-			return createIndex(row, column, parent.isValid() ? static_cast<quintptr>(parent.row() + 1) : 0);
+			return createIndex(aRow, aColumn, aParent.isValid() ? static_cast<quintptr>(aParent.row() + 1) : 0);
 		}
-		auto parent(const QModelIndex& child) const -> QModelIndex override
+		auto parent(const QModelIndex& aChild) const -> QModelIndex override
 		{
-			return child.isValid() && child.internalId() != 0 ? createIndex(static_cast<int>(child.internalId() - 1), 0, quintptr{ 0 }) : QModelIndex{ };
+			return aChild.isValid() && aChild.internalId() != 0 ? createIndex(static_cast<int>(aChild.internalId() - 1), 0, quintptr{ 0 }) : QModelIndex{ };
 		}
-		auto rowCount(const QModelIndex& parent = { }) const -> int override
+		auto rowCount(const QModelIndex& aParent = { }) const -> int override
 		{
-			if (!parent.isValid()) {
+			if (!aParent.isValid()) {
 				return static_cast<int>(Groups.size());
 			}
-			return parent.internalId() == 0 && parent.row() < static_cast<int>(Groups.size()) ? static_cast<int>(Groups[static_cast<std::size_t>(parent.row())].Count) : 0;
+			return aParent.internalId() == 0 && aParent.row() < static_cast<int>(Groups.size()) ? static_cast<int>(Groups[static_cast<std::size_t>(aParent.row())].Count) : 0;
 		}
 		auto columnCount(const QModelIndex& = { }) const -> int override { return 1; }
-		auto data(const QModelIndex& index, int role = Qt::DisplayRole) const -> QVariant override
+		auto data(const QModelIndex& aIndex, int aRole = Qt::DisplayRole) const -> QVariant override
 		{
-			if (!index.isValid()) {
+			if (!aIndex.isValid()) {
 				return { };
 			}
-			const auto leaf  = index.internalId() != 0;
-			const auto group = leaf ? index.internalId() - 1 : static_cast<std::size_t>(index.row());
+			const auto leaf  = aIndex.internalId() != 0;
+			const auto group = leaf ? aIndex.internalId() - 1 : static_cast<std::size_t>(aIndex.row());
 			if (group >= Groups.size() || !Corpus) {
 				return { };
 			}
 			const auto& g = Groups[group];
-			if (role == Qt::UserRole) {
-				return leaf ? QVariant{ static_cast<unsigned>(g.Begin + static_cast<std::size_t>(index.row()) + 1) } : QVariant{ };
+			if (aRole == Qt::UserRole) {
+				return leaf ? QVariant{ static_cast<unsigned>(g.Begin + static_cast<std::size_t>(aIndex.row()) + 1) } : QVariant{ };
 			}
-			if (role == Qt::FontRole) {
+			if (aRole == Qt::FontRole) {
 				return leaf ? QVariant{ SnippetFont } : QVariant{ };
 			}
-			if (role != Qt::DisplayRole && role != Qt::ToolTipRole && role != Qt::AccessibleTextRole) {
+			if (aRole != Qt::DisplayRole && aRole != Qt::ToolTipRole && aRole != Qt::AccessibleTextRole) {
 				return { };
 			}
 			if (!leaf) {
@@ -69,10 +69,10 @@ namespace bpr::qt {
 				}
 				return path + QStringLiteral("  (%1)").arg(g.Count);
 			}
-			if (!Matches || g.Begin + static_cast<std::size_t>(index.row()) >= Matches->size()) {
+			if (!Matches || g.Begin + static_cast<std::size_t>(aIndex.row()) >= Matches->size()) {
 				return { };
 			}
-			const auto& hit      = (*Matches)[g.Begin + static_cast<std::size_t>(index.row())];
+			const auto& hit      = (*Matches)[g.Begin + static_cast<std::size_t>(aIndex.row())];
 			const auto& left     = hit.Match.Locations[0];
 			const auto& right    = hit.Match.Locations[1];
 			const auto& location = left ? left : right;
@@ -85,9 +85,9 @@ namespace bpr::qt {
 			}
 			return QStringLiteral("%1 %2:%3  %4").arg(left ? tr("Left") : tr("Right")).arg(location->Line + 1U).arg(location->Column + 1U).arg(preview);
 		}
-		void present(const application::source_search_projection& p, bool clear)
+		void present(const application::source_search_projection& aProjection, bool aClear)
 		{
-			if (clear || !p.Matches || p.Matches->size() < Count) {
+			if (aClear || !aProjection.Matches || aProjection.Matches->size() < Count) {
 				if (!Groups.empty()) {
 					beginRemoveRows({ }, 0, static_cast<int>(Groups.size() - 1));
 					Groups.clear();
@@ -95,8 +95,8 @@ namespace bpr::qt {
 					endRemoveRows();
 				}
 			}
-			if (Corpus != p.Corpus) {
-				Corpus = p.Corpus;
+			if (Corpus != aProjection.Corpus) {
+				Corpus = aProjection.Corpus;
 				Entries.clear();
 				if (Corpus) {
 					for (std::size_t i = 0; i < Corpus->Entries.size(); ++i) {
@@ -104,7 +104,7 @@ namespace bpr::qt {
 					}
 				}
 			}
-			Matches = p.Matches;
+			Matches = aProjection.Matches;
 			if (!Matches || !Corpus) {
 				return;
 			}
@@ -133,27 +133,27 @@ namespace bpr::qt {
 				emit dataChanged(parent, parent);
 			}
 		}
-		auto match_index(std::uint32_t match) const -> QModelIndex
+		auto match_index(std::uint32_t aMatch) const -> QModelIndex
 		{
-			if (match >= Count) {
+			if (aMatch >= Count) {
 				return { };
 			}
-			const auto next  = std::upper_bound(Groups.begin(), Groups.end(), match, [](auto value, const group& g) { return value < g.Begin; });
+			const auto next  = std::upper_bound(Groups.begin(), Groups.end(), aMatch, [](auto aValue, const group& aGroup) { return aValue < aGroup.Begin; });
 			const auto found = next - 1;
 			const auto row   = static_cast<int>(found - Groups.begin());
-			return index(static_cast<int>(match - found->Begin), 0, index(row, 0));
+			return index(static_cast<int>(aMatch - found->Begin), 0, index(row, 0));
 		}
-		auto path(core::file_identity file) const -> QString
+		auto path(core::file_identity aFile) const -> QString
 		{
-			const auto found = Entries.find(file);
+			const auto found = Entries.find(aFile);
 			return found == Entries.end() || !Corpus ? QString{ } : QString::fromStdString(std::string{ Corpus->Entries[found->second].path() });
 		}
-		void set_snippet_font(const QFont& font)
+		void set_snippet_font(const QFont& aFont)
 		{
-			if (SnippetFont == font) {
+			if (SnippetFont == aFont) {
 				return;
 			}
-			SnippetFont = font;
+			SnippetFont = aFont;
 			for (int i = 0; i < static_cast<int>(Groups.size()); ++i) {
 				const auto p = index(i, 0);
 				if (Groups[static_cast<std::size_t>(i)].Count) {
@@ -190,6 +190,7 @@ namespace bpr::qt {
 		column->addWidget(Bar);
 		Bar->Dispatch = [this](auto aGesture) {if(Dispatch){Dispatch(aGesture);} };
 		Scope         = new QLabel{ this };
+		Scope->setAccessibleName(tr("Pull request and exact comparison"));
 		Scope->setTextFormat(Qt::PlainText);
 		Scope->setWordWrap(true);
 		column->addWidget(Scope);
@@ -203,6 +204,7 @@ namespace bpr::qt {
 		auto* fields = new QVBoxLayout{ body };
 		fields->setContentsMargins(0, 0, 0, 0);
 		Identity = new QLabel{ body };
+		Identity->setAccessibleName(tr("Exact source commit identities"));
 		Identity->setTextFormat(Qt::PlainText);
 		Identity->setWordWrap(true);
 		Identity->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -305,9 +307,12 @@ namespace bpr::qt {
 		if (aProjection.Wrapped) {
 			words += tr("; wrapped within shown results");
 		}
-		if (Coverage->text() != words) {
-			Coverage->setText(words);
-			auto announcement = QAccessibleAnnouncementEvent{ Coverage, Scope->text() + QStringLiteral(". ") + Bar->status_text() + QStringLiteral(". ") + words };
+		Coverage->setText(words);
+		const auto description = Scope->text() + QStringLiteral(". ") + Bar->status_text() + QStringLiteral(". ") + words;
+		Coverage->setAccessibleDescription(description);
+		if (LastAnnouncement != description) {
+			LastAnnouncement  = description;
+			auto announcement = QAccessibleAnnouncementEvent{ Coverage, description };
 			announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 			QAccessible::updateAccessibility(&announcement);
 		}

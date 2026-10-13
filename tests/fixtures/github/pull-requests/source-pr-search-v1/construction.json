@@ -9,7 +9,7 @@
 			"parents": [
 				"2d1b33154f67e9a649702eec6afc4ec319cbdfe6"
 			],
-			"sha": "c267305cee342652dfa77ddb0746a7edac33d82e"
+			"sha": "4ee2d050fd427ccadc7f23e6bd630cd1f81953fd"
 		}
 	],
 	"constructed": "Synthetic RFC-BPR-0077 exact PR Search course; no remote data",
@@ -97,10 +97,20 @@
 			"patch": "@@ -0,0 +1 @@\n+catalogue token\ufffd",
 			"sha": "514897d0c9fc1ed5f231c81395037e42b325c71d",
 			"status": "added"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "unsupported/symlink",
+			"head_content_base64": "bG9jYWwtdGFyZ2V0Cg==",
+			"patch": "@@ -0,0 +1 @@\n+local-target",
+			"sha": "ef69d95e0abb4fe10cbe50d745dd955d5ef8aa1e",
+			"status": "added"
 		}
 	],
 	"pull_request": {
-		"additions": 6,
+		"additions": 7,
 		"author": {
 			"login": "fixture-author"
 		},
@@ -109,12 +119,12 @@
 			"sha": "2d1b33154f67e9a649702eec6afc4ec319cbdfe6"
 		},
 		"body": "Synthetic full-file historical search course.\n",
-		"changed_files": 8,
+		"changed_files": 9,
 		"commits": 1,
 		"deletions": 3,
 		"head": {
 			"ref": "nested-folders",
-			"sha": "c267305cee342652dfa77ddb0746a7edac33d82e"
+			"sha": "4ee2d050fd427ccadc7f23e6bd630cd1f81953fd"
 		},
 		"number": 78,
 		"state": "open",
@@ -126,9 +136,9 @@
 	},
 	"search_fixture": {
 		"bulk_files": 2,
-		"files": 8,
-		"head_two": "5ec304e3d85110a0e41e6178d6fe8bebb381fd99",
-		"source_bytes": 5782,
+		"files": 9,
+		"head_two": "f7de4366ea00c840b15ece6b445eae7a320ef363",
+		"source_bytes": 5795,
 		"source_rows_per_bulk_side": 30
 	}
 }

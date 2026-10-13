@@ -1,0 +1,64 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_source-pr-search",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "bulk/000.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "bulk/001.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/added.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/removed.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/renamed.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "today/only.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "unsupported/binary.bin",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "unsupported/invalid.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "unsupported/symlink",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/source-pr-search:78:files",
+						"hasNextPage": false
+					},
+					"totalCount": 9
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_78",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

@@ -36,13 +36,17 @@
 						{
 							"path": "unsupported/invalid.cpp",
 							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "unsupported/symlink",
+							"viewerViewedState": "UNVIEWED"
 						}
 					],
 					"pageInfo": {
 						"endCursor": "cursor:bpr-fixtures/source-pr-search:78:files",
 						"hasNextPage": false
 					},
-					"totalCount": 8
+					"totalCount": 9
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_78",

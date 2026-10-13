@@ -25,6 +25,7 @@ namespace bpr::app {
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		[[nodiscard]] auto counters() const -> application::source_search_host_counters;
+		[[nodiscard]] auto statistics() const -> application::source_search_statistics;
 		void               publish(const application::source_search_projection& aProjection) override;
 
 	private:
@@ -41,12 +42,14 @@ namespace bpr::app {
 			core::source_search_scope            Scope;
 			std::optional<core::document_tab_id> Tab;
 			std::uint64_t                        Generation;
+			std::uint64_t                        ReadingGeneration;
 			core::file_identity                  File;
 			std::string                          Path;
 			core::source_match_location          Location;
 		};
 		std::optional<reveal> Pending;
 		QTimer                RevealTimer;
+		std::uint64_t         ReadingGeneration = 0U;
 		void                  try_reveal();
 	};
 }

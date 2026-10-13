@@ -1632,9 +1632,14 @@ the same allocation: compact core scope/generation/count/cursor policy, bounded
 host-owned query packets, off-lane effects and serialized typed terminals.
 The shared domain matcher, source plans, path filters and exact record acceptance
 are supplied by M2; M3 adds exact retained-tree membership, epoch-actor
-acquisition, immutable read reuse and bounded progress. Qt Find surfaces remain
-later milestones. These foundations add no shipped Find action; search shares
-the existing actor material cache without enlarging it.
+acquisition, immutable read reuse and bounded progress. The independent native pane and PR controllers compose View > Find actions,
+selection/reveal and the incremental Files/Search drawer through these same
+ports. Exact scope/query and monotonic reading identities reject late results
+and reveals. Search has its own profile effect lane so selected navigation can
+yield background acquisition, then resume the original full corpus. Search
+shares the existing actor material cache without enlarging it; native models
+borrow immutable records and own bounded numeric indexes. Public performance
+records distinguish acquisition, matching, process RSS and component admission.
 
 Routine work must scale approximately with:
 

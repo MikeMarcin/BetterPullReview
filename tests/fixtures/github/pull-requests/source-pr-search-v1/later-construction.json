@@ -1,0 +1,144 @@
+{
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "Search full retained source",
+			"parents": [
+				"4ee2d050fd427ccadc7f23e6bd630cd1f81953fd"
+			],
+			"sha": "f7de4366ea00c840b15ece6b445eae7a320ef363"
+		}
+	],
+	"constructed": "Synthetic RFC-BPR-0077 exact PR Search course; no remote data",
+	"files": [
+		{
+			"additions": 1,
+			"base_content_base64": "ZWFybGllcgovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDAKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDAxCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwMgovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDMKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA0Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwNQovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDYKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA3Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwOAovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDkKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDEwCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxMQovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTIKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDEzCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxNAovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTUKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE2Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxNwovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTgKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE5Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyMAovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjEKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDIyCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyMwovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjQKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI1Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyNgovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjcKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI4Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyOQpjYXRhbG9ndWUgdG9rZW4gMDAwCg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "bulk/000.cpp",
+			"head_content_base64": "bGF0ZXIKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDAwCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwMQovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDIKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDAzCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwNAovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDUKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA2Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwNwovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDgKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA5Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxMAovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTEKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDEyCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxMwovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTQKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE1Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxNgovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTcKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE4Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxOQovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjAKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDIxCi8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyMgovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjMKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI0Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyNQovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjYKLy8gZml4dHVyZSAwMDAgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI3Ci8vIGZpeHR1cmUgMDAwIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyOAovLyBmaXh0dXJlIDAwMCBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjkKY2F0YWxvZ3VlIHRva2VuIDAwMAo=",
+			"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 000 full unchanged source row 0000\n // fixture 000 full unchanged source row 0001\n // fixture 000 full unchanged source row 0002",
+			"sha": "340d8ec32808dca4b9166428f9df79d41ef7b2e4",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"base_content_base64": "ZWFybGllcgovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDAKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDAxCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwMgovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDMKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA0Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwNQovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDYKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA3Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwOAovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDkKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDEwCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxMQovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTIKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDEzCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxNAovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTUKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE2Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxNwovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTgKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE5Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyMAovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjEKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDIyCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyMwovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjQKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI1Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyNgovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjcKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI4Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyOQpjYXRhbG9ndWUgdG9rZW4gMDAxCg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "bulk/001.cpp",
+			"head_content_base64": "bGF0ZXIKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDAwCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwMQovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDIKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDAzCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwNAovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDUKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA2Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAwNwovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMDgKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDA5Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxMAovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTEKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDEyCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxMwovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTQKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE1Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxNgovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMTcKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDE4Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAxOQovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjAKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDIxCi8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyMgovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjMKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI0Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyNQovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjYKLy8gZml4dHVyZSAwMDEgZnVsbCB1bmNoYW5nZWQgc291cmNlIHJvdyAwMDI3Ci8vIGZpeHR1cmUgMDAxIGZ1bGwgdW5jaGFuZ2VkIHNvdXJjZSByb3cgMDAyOAovLyBmaXh0dXJlIDAwMSBmdWxsIHVuY2hhbmdlZCBzb3VyY2Ugcm93IDAwMjkKY2F0YWxvZ3VlIHRva2VuIDAwMQo=",
+			"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 001 full unchanged source row 0000\n // fixture 001 full unchanged source row 0001\n // fixture 001 full unchanged source row 0002",
+			"sha": "454c0457648b1d8ae752607343429cb01ef98ced",
+			"status": "modified"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "src/added.cpp",
+			"head_content_base64": "YWRkZWQgY2F0YWxvZ3VlIHRva2VuCg==",
+			"patch": "@@ -0,0 +1 @@\n+added catalogue token",
+			"sha": "5bcb8823c3d698d73cdda3860f05a2a6b84bef9c",
+			"status": "added"
+		},
+		{
+			"additions": 0,
+			"base_content_base64": "cmVtb3ZlZCBjYXRhbG9ndWUgdG9rZW4K",
+			"changes": 1,
+			"deletions": 1,
+			"filename": "src/removed.cpp",
+			"patch": "@@ -1 +0,0 @@\n-removed catalogue token",
+			"sha": "23110d1bea20c7c9ac4ef74b0ef20714dd9ce8f3",
+			"status": "removed"
+		},
+		{
+			"additions": 0,
+			"base_content_base64": "cmVuYW1lZCBjYXRhbG9ndWUgdG9rZW4K",
+			"changes": 0,
+			"deletions": 0,
+			"filename": "src/renamed.cpp",
+			"head_content_base64": "cmVuYW1lZCBjYXRhbG9ndWUgdG9rZW4K",
+			"patch": "",
+			"previous_filename": "old/name.cpp",
+			"sha": "30f7bdf256329fcba451c722d9b815c6c1421cd1",
+			"status": "renamed"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "today/only.cpp",
+			"head_content_base64": "dG9kYXktb25seSB0b2tlbgo=",
+			"patch": "@@ -0,0 +1 @@\n+today-only token",
+			"sha": "67dab4324b3e23272b4c96e36bc286ef932ab4f8",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "unsupported/binary.bin",
+			"head_content_base64": "Y2F0YWxvZ3VlIHRva2VuAGJpbmFyeQ==",
+			"patch": "@@ -0,0 +1 @@\n+catalogue token\u0000binary",
+			"sha": "a2417abf1bac4f7cbcc7fc551b2d516f6b394aa4",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "unsupported/invalid.cpp",
+			"head_content_base64": "Y2F0YWxvZ3VlIHRva2Vu/w==",
+			"patch": "@@ -0,0 +1 @@\n+catalogue token\ufffd",
+			"sha": "514897d0c9fc1ed5f231c81395037e42b325c71d",
+			"status": "added"
+		},
+		{
+			"additions": 1,
+			"changes": 1,
+			"deletions": 0,
+			"filename": "unsupported/symlink",
+			"head_content_base64": "bG9jYWwtdGFyZ2V0Cg==",
+			"patch": "@@ -0,0 +1 @@\n+local-target",
+			"sha": "ef69d95e0abb4fe10cbe50d745dd955d5ef8aa1e",
+			"status": "added"
+		}
+	],
+	"pull_request": {
+		"additions": 7,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "main",
+			"sha": "2d1b33154f67e9a649702eec6afc4ec319cbdfe6"
+		},
+		"body": "Synthetic full-file historical search course.\n",
+		"changed_files": 9,
+		"commits": 1,
+		"deletions": 3,
+		"head": {
+			"ref": "nested-folders",
+			"sha": "f7de4366ea00c840b15ece6b445eae7a320ef363"
+		},
+		"number": 78,
+		"state": "open",
+		"title": "Search full retained source"
+	},
+	"repository": {
+		"name": "source-pr-search",
+		"owner": "bpr-fixtures"
+	},
+	"search_fixture": {
+		"bulk_files": 2,
+		"files": 9,
+		"head_two": "f7de4366ea00c840b15ece6b445eae7a320ef363",
+		"source_bytes": 5795,
+		"source_rows_per_bulk_side": 30
+	}
+}

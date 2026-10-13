@@ -443,7 +443,47 @@ def check_pack(name: str) -> None:
         )
 
 
+def check_search_construction(large: bool) -> None:
+    """Regenerate both served epochs and resolve each committed exact source."""
+    name = "source-pr-search-large-v1" if large else "source-pr-search-v1"
+    committed = ROOT / "tests/fixtures/github"
+    with contained_temporary_directory(prefix="bpr-search-provenance-") as scratch:
+        output = Path(scratch) / "regenerated"
+        command = [sys.executable, str(ROOT / "scripts/build_source_pr_search_fixture.py"), "--output-root", str(output)]
+        if large:
+            command.append("--large")
+        generated = subprocess.run(command, capture_output=True, text=True)
+        expect(generated.returncode == 0, f"{name}: generator resolves exact source and R100 rename: {generated.stderr}")
+        for relative in (Path("pull-requests") / name / "construction.json", Path("pull-requests") / name / "later-construction.json"):
+            expect((committed / relative).read_bytes() == (output / relative).read_bytes(), f"{relative}: deterministic construction")
+        for contract in (name, name.replace("-v1", "-later-v1")):
+            relative = Path("contracts/v1") / contract
+            expected = {p.relative_to(committed / relative): p.read_bytes() for p in (committed / relative).rglob("*") if p.is_file()}
+            actual = {p.relative_to(output / relative): p.read_bytes() for p in (output / relative).rglob("*") if p.is_file()}
+            expect(expected == actual, f"{contract}: exact served files and bytes regenerate")
+        repository = Path(scratch) / "objects"
+        subprocess.run(["git", "init", "--bare", "-q", str(repository)], check=True)
+        packed = (committed / "pull-requests" / name / "objects.pack").read_bytes()
+        imported = subprocess.run(["git", "-C", str(repository), "index-pack", "--stdin"], input=packed, capture_output=True)
+        expect(imported.returncode == 0, f"{name}: committed pack validates")
+        for source in ("construction.json", "later-construction.json"):
+            construction = json.loads((committed / "pull-requests" / name / source).read_text())
+            expect(bool(construction.get("constructed")) and "recorded_from" not in construction, f"{name}: synthetic provenance")
+            for file in construction["files"]:
+                for side in ("base", "head"):
+                    content = file.get(f"{side}_content_base64")
+                    path = file.get("previous_filename", file["filename"]) if side == "base" else file["filename"]
+                    oid = construction["pull_request"][side]["sha"]
+                    resolved = subprocess.run(["git", "-C", str(repository), "show", f"{oid}:{path}"], capture_output=True)
+                    if content is None:
+                        expect(resolved.returncode != 0, f"{name}/{source}: absent {side} source stays absent: {path}")
+                    else:
+                        expect(resolved.returncode == 0 and resolved.stdout == base64.b64decode(content, validate=True), f"{name}/{source}: exact {side} full source: {path}")
+
+
 def main() -> int:
+    check_search_construction(False)
+    check_search_construction(True)
     for expected in RECORDINGS:
         check(expected)
         check_generated_contract_matches(expected["Directory"])

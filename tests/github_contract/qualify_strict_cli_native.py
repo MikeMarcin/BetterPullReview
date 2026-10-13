@@ -20,9 +20,11 @@ import socketserver
 import ssl
 import subprocess
 import sys
-import tempfile
 import threading
 from urllib.parse import urlsplit
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 
 def require(condition: bool, reason: str) -> None:
@@ -272,7 +274,7 @@ def main() -> int:
     arguments.gh = arguments.gh.resolve(strict=True)
     require(sys.platform == "darwin", "macOS-only")
     items = SyntheticItems()
-    with tempfile.TemporaryDirectory(prefix="bpr-native-strict-", dir="/private/tmp") as name:
+    with contained_temporary_directory(prefix="bpr-native-strict-", parent="/private/tmp") as name:
         root = Path(name)
         active_before = run([str(arguments.gh), "config", "get", "user", "--host", "github.com"], cwd=root)
         require(active_before.returncode == 0, "global-active-observation")

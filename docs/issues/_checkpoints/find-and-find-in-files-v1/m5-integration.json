@@ -1,0 +1,32 @@
+{
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "full_core_only": {
+    "command": "ctest --preset core-only --output-on-failure",
+    "result": "274/275 pass; exit8",
+    "duration_seconds": 709.23,
+    "sole_failure": "contained_temporary_usage_contract: inherited tests/github_contract/qualify_strict_cli_native.py tempfile.TemporaryDirectory",
+    "log_sha256": "50f8feeb5233ee898299edc2776aecdfb355f76b8f335256349093efe4920ba4"
+  },
+  "correction": {
+    "scope": "strict CLI qualifier imports supported contained_temporary_directory and keeps exact prefix /private/tmp parent; no native qualifier executed",
+    "command": "ctest --preset core-only -R '^contained_temporary_usage_contract$' --output-on-failure",
+    "result": "1/1 pass",
+    "duration_seconds": 2.95
+  },
+  "reconciliation": "all 275 integration cases covered by original274 passing cases plus corrected formerly failing case; no second broad run or false full command pass",
+  "original_m1": "m1-core-integration.json retains failed269/272 receipt",
+  "baseline_repairs": [
+    "syntax fixture formatted withclang22 exactly",
+    "exact fixture inventory adds two omitted existing fixtures plus four new Find epochs, rejects unexpected fixtures",
+    "supported populated CPM cache + BPR_DEPENDENCY_OFFLINE=ON resolves dependency modernization test without network"
+  ],
+  "architecture": {
+    "boundaries": "pass11.77s",
+    "negative_contract": "pass110.69s",
+    "network_manifest": "pass0.54s",
+    "whole_format22": "pass37.04s"
+  },
+  "fixture": "deterministic committed source/epochs/packs verified;18 exact field/security tests pass1.287s; extra unexpected fixture rejected in disposed copied tree",
+  "documentation": "DOCUMENTATION_OK and67 tests pass2.104s",
+  "scope_limit": "M3 global tidy failures remain explicit; changed-line/new TU gate is green"
+}

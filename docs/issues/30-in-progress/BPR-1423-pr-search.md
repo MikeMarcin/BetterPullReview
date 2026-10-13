@@ -21,3 +21,17 @@ metadata: {"milestone":"pr-search","source_id":"DRAFT-0019","rfc_base_sha":"aa3d
 Import only under `find-and-find-in-files-v1-r1`; implementation and acceptance remain pending.
 The [import checkpoint](../_checkpoints/find-and-find-in-files-v1/import-r1.md) records
 scope, preserved work, verification and the next action.
+
+
+## Combined source review
+
+The complete Find source delta over accepted main `31ab8129f9` and merge
+`a4dc59cea` is reviewed in [m5-source-review.json](../_checkpoints/find-and-find-in-files-v1/m5-source-review.json).
+It includes pane product `a7fb9af0a`, PR WIP `0220258f4` and final M5 corrections.
+Both controller pairs enter the explicit production manifest and exact tree
+inventory. Authority/query/endpoint/reading seals, host lifetime, epoch priority,
+ordinary tab opening and bounded native projection retain existing ownership.
+The production mutation-branch digest is byte-identical; all source and language
+negative controls remain required. The inherited agent-disabled workshop fixture
+now uses the existing compile guard and reports unavailable rather than failing
+linkage. Main CLI/navigation/C++ source and unrelated records are preserved.

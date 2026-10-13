@@ -4,8 +4,8 @@
 Find and Find in Files behavior. Its first milestone, [[BPR-1419]], supplies
 the deterministic session and Qt-free effect lifecycle. M2 supplies the shared
 matcher and M3 the exact epoch corpus. M4 ([[BPR-1422]]) composes native pane
-Find in the shipped source reader. PR Search, result activation and the complete
-performance course remain M5 work.
+Find in the shipped source reader. M5 ([[BPR-1423]]) composes PR Search, exact
+result activation and the large public performance course.
 
 ## Core policy
 
@@ -162,8 +162,7 @@ and any already assembled usable prefix. `AdditionalMatchObserved` is set only
 after observing another occurrence beyond the record cap. Borrowed immutable
 source/diff material remains under its existing owner/cache limits. The pane
 bridge reserves its transfer vector separately inside the same ceiling. These
-are capacity/work bounds, not RSS or universal latency measurements; M3 supplies the full PR admission envelope below. RSS, warm/cold timing and
-public application thresholds remain M5 obligations.
+are capacity/work bounds, not RSS or universal latency measurements; M3 supplies the full PR admission envelope below. RSS and warm/cold timing are measured by the public application course below.
 
 `core_source_matcher` exercises Unicode/LF spans, unsupported syntax, glob policy,
 real unified plans, selection, deduplication and resource/cancellation limits.
@@ -214,7 +213,7 @@ Every admitted actor job retires even when its caller stops waiting.
 
 Catalogue work, local reads, network reads and matcher slices yield to selected
 navigation. `yield_to_source_navigation` is also the public composition seam
-for pane Find; M4/M5 must invoke it when admitting that selected-source work.
+for pane Find; the pane controller invokes it when admitting that work.
 Search uses the existing 256-entry / 16 MiB actor material cache. Background
 retention can replace only other background entries; it cannot displace a blob
 retained for the reviewer. A selected read promotes reused background material.
@@ -255,8 +254,8 @@ public search host/worker with the real epoch host and fake narrow capabilities:
 historical-only membership, retained read reuse, in-flight replacement, sparse
 blob validation, priority cancellation and authority shutdown need no QApplication.
 `git_process_contract` and `git_cache_contract` exercise the installed Git seam.
-These foundation checks do not supply the pending native Search drawer, exact PR
-result activation or full application performance course.
+The public Qt courses below exercise these foundations through the native drawer,
+ordinary active-tab result activation and full application performance course.
 
 ## Native pane composition
 
@@ -298,7 +297,7 @@ results can retain one exact-scope/query/options cache entry, sharing the
 existing <=16 MiB immutable records. Closing clears active decorations and work;
 Next/Previous reopening can reuse that collection and cached endpoints. Query,
 document, tab, comparison and authority identity still govern acceptance. These
-are structural capacity facts; whole-application RSS remains AC08 work.
+are structural capacity facts; whole-application RSS is measured separately.
 
 `application_source_find` uses a committed synthetic PR through the real window,
 account/PR opening, epoch/cache host and installed Git. It proves both split
@@ -308,5 +307,88 @@ selection, Unicode/CRLF/EOF exact spans, wrapping, focus and editor/modality
 guards. One thousand traversals and closed-query Next call no matcher, perform
 no endpoint conversion and retain the same diff/index/record identities. Native
 full-window renders run offscreen at 1.0x, 1.25x and 2.0x; they do not constitute
-owner desktop, VoiceOver or other-platform device evidence. The complete AC07
-and AC08 still include the pending PR Search surface.
+owner desktop, VoiceOver or other-platform device evidence. The PR courses below extend this verification to the Search surface.
+
+
+## Native PR Search composition
+
+`app::pr_search_controller` owns a separate source-search host and profile-owned
+search effect executor. It binds the accepted active tab's exact comparison,
+including a retained pair after remote refresh. Explicit comparison/tab gestures
+retire obsolete hits immediately. Initial activation may create the first
+ordinary tab without restarting the unchanged corpus query. Query and options
+remain independent of pane Find. Account, PR and application authority retirement
+clears sensitive query/filter text and records; shutdown drains every admitted
+host/epoch terminal before destroying their ports.
+
+The Files drawer contains native Files and Search tabs. View > Find in Files
+enters PR Review, expands the drawer and focuses its independent two-row query.
+Search Details discloses include/exclude filters, full comparison OIDs and skipped
+side reasons. The normal surface shows short OIDs, match count and exact coverage;
+unavailable reads offer Retry under the same scope. Typing never opens a file.
+Return/click or F4/Shift+F4 explicitly activates an accepted occurrence. Escape
+returns source focus while retaining PR results and any already scheduled query;
+Close cancels both debounces and host work, restoring the previous drawer state.
+
+`source_search_result_model` borrows immutable corpus/record collections and owns
+only numeric file-group indexes. Ordered progress uses bounded row insertions;
+it never resets the model or copies all preview/path strings. Data conversion
+is lazy and preview-bounded. A selected/focused result row survives later batches.
+File rows use native UI font; occurrence previews use configured source font.
+Scope, status, limits, skipped sides and wrap share one accessible description
+and polite announcement. Palette roles and native style remain inherited.
+
+Result activation validates complete authority, catalogue, comparison, actual
+active tab, file identity, exact path, side, blob, query generation and original
+span. It uses ordinary workbench file loading and the existing source selection
+and reveal controller. A separate monotonically newer reading-gesture generation
+cancels pending intent even on A→B→A navigation. Endpoint validation runs again
+before reveal; keyboard focus follows the chosen exact side. Supplementary
+historical catalogue metadata is bounded to the live tab set (at most 16 tabs
+plus the incoming target). Sibling tabs, review drafts, Files filters, excluded
+receipts and comparison choices remain under their existing owners. A visible
+pane Find keeps its decorations/query while an external PR occurrence owns the
+exact selection until another explicit pane or reading gesture.
+
+The PR admission includes an 8 MiB projection/supplemental-tab reserve inside the
+existing 192 MiB ceiling. Neither the 256-blob/16 MiB actor cache nor any matcher,
+source, record or preview limit is enlarged. Execution exposes only numeric
+compile/read/cache-hit/acquired-byte/scan/acquisition-time/matching-time/capacity
+counters; queries, source content and credentials are never persisted or logged.
+
+`application_source_pr_find` exercises unopened/filtered/excluded full-file hits,
+exact side focus/F4, independent pane decorations, A→B→A cancellation, editor and
+modal ownership, Close/Escape and accessible native layouts. Its 1.25x and 2.0x
+variants render the complete offscreen window at supported widths.
+`application_source_pr_search_scope` uses an actual two-head fixture/public Refresh
+to distinguish historical-only membership from today's catalogue, preserve a
+pinned pair, prove added/removed/rename deduplication and filters, retain sibling
+state, and retire rapid query/tab/comparison/authority results.
+`application_source_pr_search_retry` refuses one exact blob through an installed
+Git capability wrapper, then restores it and clicks the public Retry button;
+the successful retry retains the original scope and changes only query generation.
+It represents unavailable material, without claiming a live network outage.
+
+## Public performance regression course
+
+`application_source_pr_search_performance` opens a deterministic 70-entry,
+11,779,610-byte synthetic PR through normal account/PR/Review/Files/epoch/cache
+and installed-Git paths. Sixty-four modified bulk files have 2,000 unchanged rows
+per side. The fresh private profile/actor starts the cold matching/acquisition
+phase with ordinary selected/prepared cache entries permitted and reported.
+The OS page cache is neither flushed nor claimed cold. A case-changed warm query
+then proves immutable-read reuse. Cold navigation changes the selected file
+without abandoning the original nonempty query: yielded reads retry and all 68
+eligible files reach their truthful terminal. The course also proves stable
+focused rows during batches, a visible 10,000-record prefix/narrowing prompt,
+1,000 cursor moves with no compile/scan/read/diff/index rebuild, actual in-flight
+matcher cancellation, and complete shutdown.
+
+Committed engineering thresholds are in
+`tests/fixtures/source-search/regression-v1.json`. They bind time to first/final
+results, navigation, clear-to-quiescence and process peak RSS. The separate
+conservative owned-capacity envelope remains 192 MiB; process RSS includes the
+rest of the application and is not that capacity bound. Measurement receipts
+record Debug/native offscreen platform, hardware, actual concurrent load, cache
+hits and acquisition versus matching time. They are regression observations,
+not universal device latency promises or VoiceOver/other-platform judgments.

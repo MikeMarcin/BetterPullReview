@@ -157,6 +157,8 @@ FIXTURES = {
     "source-pr-search-large-v1": {
         "host": HOSTS["github-com"], "identity": Identity("bpr-fixtures", "source-pr-search-large", 78), "mirrors": None,
     },
+    "source-pr-search-later-v1": {"host": HOSTS["github-com"], "identity": Identity("bpr-fixtures", "source-pr-search", 78), "mirrors": None},
+    "source-pr-search-large-later-v1": {"host": HOSTS["github-com"], "identity": Identity("bpr-fixtures", "source-pr-search-large", 78), "mirrors": None},
     "header-source-v1": {"host": HOSTS["github-com"], "identity": Identity("bpr-fixtures", "header-source", 74), "mirrors": None},
     "cpp-identifiers-v1": {"host": HOSTS["github-com"], "identity": Identity("bpr-fixtures", "cpp-identifiers", 72), "mirrors": None},
     "source-find-v1": {
@@ -1194,7 +1196,7 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                         if fixture.get("response_fields", {}).get(operation) == "synthetic"
                         else RECORDED_RESPONSE_FIELDS[operation]
                     )
-                    if fixture_name in {"source-pr-search-v1", "source-pr-search-large-v1"} and operation == "ListPullRequestFiles":
+                    if fixture_name in {"source-pr-search-v1", "source-pr-search-large-v1", "source-pr-search-later-v1", "source-pr-search-large-later-v1"} and operation == "ListPullRequestFiles":
                         expected = expected | {"previous_filename"}
                     self.assertEqual(json_fields(response), expected)
                     self.assertEqual(

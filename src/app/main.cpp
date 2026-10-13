@@ -5583,6 +5583,7 @@ namespace {
 	// the person looks. Nothing reaches GitHub; one line says where it got.
 	void schedule_attended_workshop_look(bpr::app::github_application& aApplication)
 	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
 		enum class step : std::uint8_t {
 			draft,
 			guidance,
@@ -5706,6 +5707,10 @@ namespace {
 			}
 		});
 		timer->start();
+	#else
+		static_cast<void>(aApplication);
+		QTextStream{ stdout } << "ATTENDED_WORKSHOP_FAILED:agent-integrations-disabled\n";
+	#endif
 	}
 
 	// [[BPR-1083]]. One tick of the label-authoring course; ends the run when

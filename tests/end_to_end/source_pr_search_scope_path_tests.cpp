@@ -9,6 +9,7 @@
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/server_card.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -19,6 +20,8 @@
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
@@ -29,7 +32,9 @@
 #include <QPainter>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollBar>
+#include <QStandardPaths>
 #include <QSysInfo>
 #include <QTabBar>
 #include <QTemporaryDir>
@@ -53,7 +58,8 @@ namespace {
 			QThread::msleep(1);
 		}
 		if (!aCondition()) {
-			std::cerr << "WAIT_FAILED " << aMessage << std::endl;
+			std::cerr << "WAIT_FAILED " << aMessage << '\n'
+					  << std::flush;
 		}
 		expect(aCondition(), aMessage);
 	}
@@ -91,6 +97,22 @@ int main(int aArgc, char** aArgv)
 	auto          options       = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot = e2e::private_data_root(temporary);
 	options.EpochPhase          = app::detail::github_epoch_fixture_phase::seed;
+	const auto failureCourse    = QCoreApplication::arguments().contains(QStringLiteral("--read-failure"));
+	QByteArray forwardingScript;
+	if (failureCourse) {
+		const auto git = QStandardPaths::findExecutable(QStringLiteral("git"));
+		expect(!git.isEmpty(), "installed Git available for refusing capability course");
+		const auto quote = [](QString aText) { return QStringLiteral("'") + aText.replace(QStringLiteral("'"), QStringLiteral("'\"'\"'")) + QStringLiteral("'"); };
+		QFile      wrapper{ temporary.path() + QStringLiteral("/git") };
+		expect(wrapper.open(QIODevice::WriteOnly), "owned Git gate created");
+		const auto bootstrapScript = QStringLiteral("#!/bin/sh\nif [ \"$1\" = --exec-path ]; then printf '%s\\n' %1; exit 0; fi\n").arg(quote(QFileInfo{ temporary.path() }.canonicalFilePath())).toUtf8();
+		const auto script          = bootstrapScript + QStringLiteral("for arg in \"$@\"; do\n if [ \"$arg\" = 93319e112da37a058791f8578d41040449945b90 ]; then exit 1; fi\ndone\nexec %1 \"$@\"\n").arg(quote(git)).toUtf8();
+		forwardingScript           = bootstrapScript + QStringLiteral("exec %1 \"$@\"\n").arg(quote(git)).toUtf8();
+		expect(wrapper.write(script) == script.size(), "exact local read gate written");
+		wrapper.close();
+		expect(wrapper.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner), "owner private executable gate");
+		options.GitExecutable = std::filesystem::path{ wrapper.fileName().toStdString() };
+	}
 	expect(options.ApplicationDataRoot.has_value(), "private data root");
 	std::unique_ptr<app::github_application> application;
 	bool                                     ready   = false;
@@ -113,13 +135,35 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return searchAction->isEnabled(); }, "accepted PR enables Search command");
 	searchAction->trigger();
 	settle();
-	std::cout << "SEARCH_ENTRY enabled=" << searchAction->isEnabled() << " visible=" << window.pr_search()->isVisible() << " files=" << window.files_drawer()->contents()->rowCount() << " facts=" << access::course_modality_facts(*application).toStdString() << std::endl;
+	std::cout << "SEARCH_ENTRY enabled=" << searchAction->isEnabled() << " visible=" << window.pr_search()->isVisible() << " files=" << window.files_drawer()->contents()->rowCount() << " facts=" << access::course_modality_facts(*application).toStdString() << '\n'
+			  << std::flush;
 	auto* panel   = window.pr_search();
 	auto* surface = window.comparison_surface();
 	wait_for([&] { return panel->isVisible() && window.files_drawer()->contents()->rowCount() > 0; }, "Review Search entry without source tab");
+	if (failureCourse) {
+		query(*panel->bar(), QStringLiteral("historical-only token"));
+		wait_for([&] { return panel->projection().Status == core::source_search_status::partial && application->status().SourceSearchQuiescent; }, "unavailable read publishes qualified terminal");
+		std::cout << "RETRY_FACTS matches=" << panel->projection().Summary.Matches << " skipped=" << panel->projection().Summary.SkippedSides << " retry=" << panel->projection().RetryAvailable << " cached=" << panel->projection().Statistics.CacheHits << "\n"
+				  << std::flush;
+		const auto failedScope      = panel->projection().Scope;
+		const auto failedGeneration = panel->projection().Generation;
+		auto*      retry            = panel->findChild<QToolButton*>(QStringLiteral("sourceSearchRetry"));
+		expect(panel->projection().Summary.Matches == 0U && panel->projection().Summary.SkippedSides == 4U && !panel->projection().NoResults && retry->isVisible(), "missing material and unsupported bytes visibly qualify empty result with Retry");
+		QFile restored{ QString::fromStdString(options.GitExecutable->string()) };
+		expect(restored.open(QIODevice::WriteOnly) && restored.write(forwardingScript) == forwardingScript.size(), "restore exact immutable blob capability");
+		restored.close();
+		retry->click();
+		wait_for([&] { return panel->projection().Status == core::source_search_status::partial && panel->projection().Summary.Matches == 1U && application->status().SourceSearchQuiescent; }, "public Retry reads the same exact missing source");
+		expect(panel->projection().Scope == failedScope && panel->projection().Generation > failedGeneration && panel->projection().Summary.SkippedSides == 3U, "Retry changes only query generation under identical authority catalogue and anchors");
+		application->begin_shutdown();
+		wait_for([&] { return application->status().ShutdownComplete; }, "Retry course shutdown quiescent");
+		std::cout << "SOURCE_PR_FIND_RETRY_PATH_OK\n";
+		return 0;
+	}
 	query(*panel->bar(), QStringLiteral("historical-only token"));
 	wait_for([&] { return panel->projection().Status == core::source_search_status::partial; }, "qualified terminal");
-	expect(panel->projection().Summary.Matches == 1U && panel->projection().Summary.SkippedSides == 2U && !panel->projection().NoResults, "binary and undecodable sides keep truthful coverage");
+	expect(panel->projection().Summary.Matches == 1U && panel->projection().Summary.SkippedSides == 3U && !panel->projection().NoResults, "binary, undecodable and unsupported mode sides keep truthful coverage");
+	expect(std::ranges::any_of(panel->findChildren<QLabel*>(), [](const auto* aLabel) { return aLabel->text().contains(QStringLiteral("Unsupported source mode")); }), "native Search Details explains unsupported exact-tree side mode");
 	const auto scope      = panel->projection().Scope;
 	const auto generation = panel->projection().Generation;
 	expect(scope && !scope->Tab && !surface->current_result(), "opening Search did not create tab or source reads for empty query");
@@ -191,8 +235,10 @@ int main(int aArgc, char** aArgv)
 	}
 	expect(baseRow >= 0 && headRow >= 0, "exact retained anchors selectable");
 	controls->right_selector()->setCurrentIndex(baseRow);
+	expect(!panel->projection().Matches, "comparison gesture clears obsolete hits before asynchronous restoration");
 	settle();
-	std::cout << "BASE_SCOPE status=" << static_cast<int>(panel->projection().Status) << " query=" << panel->projection().Query << " has=" << bool(panel->projection().Scope) << " pair=" << (panel->projection().Scope && panel->projection().Scope->Comparison.Right.Commit == priorPair.Left.Commit) << " epoch=" << static_cast<int>(application->status().EpochStatus) << " compare=" << controls->comparison_text().toStdString() << std::endl;
+	std::cout << "BASE_SCOPE status=" << static_cast<int>(panel->projection().Status) << " query=" << panel->projection().Query << " has=" << bool(panel->projection().Scope) << " pair=" << (panel->projection().Scope && panel->projection().Scope->Comparison.Right.Commit == priorPair.Left.Commit) << " epoch=" << static_cast<int>(application->status().EpochStatus) << " compare=" << controls->comparison_text().toStdString() << '\n'
+			  << std::flush;
 	wait_for([&] { return panel->projection().Scope && panel->projection().Scope->Comparison.Right.Commit == priorPair.Left.Commit && panel->projection().Status == core::source_search_status::complete; }, "explicit base selection settles");
 	controls->right_selector()->setCurrentIndex(headRow);
 	wait_for([&] { return panel->projection().Scope && panel->projection().Scope->Comparison.Right.Commit == priorPair.Right.Commit && panel->projection().Status == core::source_search_status::complete; }, "active tab explicitly pins retained epoch");
@@ -202,7 +248,8 @@ int main(int aArgc, char** aArgv)
 	window.github_refresh_action()->trigger();
 	wait_for([&] { return window.epoch_selectors()->history_model()->epoch_count() > priorEpochs && application->status().EpochStatus == core::epoch_status::ready && !access::epoch_refresh_identity(*application).ComparisonPending && access::epoch_refresh_identity(*application).ActiveTab.has_value(); }, "epoch and active tab settle");
 	settle();
-	std::cout << "PINNED_TEST same=" << (access::epoch_refresh_identity(*application).ActiveTab->View.Comparison == pinned) << " status=" << static_cast<int>(panel->projection().Status) << std::endl;
+	std::cout << "PINNED_TEST same=" << (access::epoch_refresh_identity(*application).ActiveTab->View.Comparison == pinned) << " status=" << static_cast<int>(panel->projection().Status) << '\n'
+			  << std::flush;
 	expect(access::epoch_refresh_identity(*application).ActiveTab->View.Comparison == pinned, "new remote head cannot silently move active retained comparison");
 	wait_for([&] { return panel->projection().Status == core::source_search_status::complete && panel->projection().Summary.Matches == 1U; }, "historical-only source remains in visible exact search");
 	expect(panel->projection().Scope->Comparison == pinned, "Search follows active retained pair after new epoch");
@@ -219,7 +266,30 @@ int main(int aArgc, char** aArgv)
 	panel->bar()->flush();
 	wait_for([&] { return panel->projection().Status == core::source_search_status::complete && panel->projection().Query == "today-only token"; }, "rapid reversed query demand accepts only latest");
 	expect(panel->projection().Summary.Matches == 1U, "obsolete query matches cannot return");
+	const auto targetTab = strip->tabs().back().Id;
+	panel->tree()->setCurrentIndex(panel->tree()->model()->index(0, 0, panel->tree()->model()->index(0, 0)));
+	QApplication::sendEvent(panel->tree(), &enter);
+	const auto openedTarget = access::epoch_refresh_identity(*application).ActiveTab->View.File;
+	strip->tab_bar()->setCurrentIndex(0);
+	strip->tab_bar()->setCurrentIndex(1);
+	wait_for([&] {const auto active=access::epoch_refresh_identity(*application).ActiveTab;return active && active->Id==targetTab && !access::epoch_refresh_identity(*application).TabPending && panel->projection().Status==core::source_search_status::complete && panel->projection().Summary.Matches==1U; }, "rapid tab reversals settle only active exact corpus");
+	expect(access::epoch_refresh_identity(*application).ActiveTab->View.File == openedTarget && surface->right_pane()->textCursor().selectedText() != QStringLiteral("today-only token"), "later tab gestures defeat pending exact span even after returning to same tab");
 	render(window, QStringLiteral("pr-search-complete-course"));
+	panel->bar()->query_editor()->setPlainText(QStringLiteral("catalogue token"));
+	panel->bar()->flush();
+	auto* signOut = static_cast<QPushButton*>(nullptr);
+	for (auto* card : window.server_cards()) {
+		if (card->signed_in()) {
+			signOut = card->sign_out_button();
+			break;
+		}
+	}
+	expect(signOut && signOut->isEnabled(), "fixture's normal account sign-out available");
+	signOut->click();
+	wait_for([&] { return panel->bar()->query_editor()->toPlainText().isEmpty() && !panel->projection().Matches && !panel->projection().Scope && application->status().SourceSearchQuiescent; }, "authority retirement clears sensitive runtime query results and admitted work");
+	settle();
+	expect(!searchAction->isEnabled() && panel->bar()->query_editor()->toPlainText().isEmpty() && !panel->projection().Matches, "late old-authority completion cannot restore search");
+
 	application->begin_shutdown();
 	wait_for([&] { return application->status().ShutdownComplete; }, "Search shutdown quiescent");
 	std::cout << "SOURCE_PR_FIND_SCOPE_PATH_OK\n";

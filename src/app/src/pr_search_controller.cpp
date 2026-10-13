@@ -1,6 +1,7 @@
 #include "pr_search_controller.hpp"
 #include <QPlainTextEdit>
 #include <algorithm>
+#include <limits>
 namespace bpr::app {
 	pr_search_controller::pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab)
 		: Panel{ aPanel }
@@ -97,11 +98,12 @@ namespace bpr::app {
 			return;
 		}
 		static_cast<void>(Host.select_match(aIndex));
-		const auto tab = OpenFile(*current, *entry);
-		if (!tab) {
+		const auto readingGeneration = ReadingGeneration;
+		const auto tab               = OpenFile(*current, *entry);
+		if (!tab || readingGeneration != ReadingGeneration || ReadingGeneration == std::numeric_limits<std::uint64_t>::max()) {
 			return;
 		}
-		Pending = reveal{ *current, tab, projection.Generation, hit.File, side->Path, *location };
+		Pending = reveal{ *current, tab, projection.Generation, readingGeneration, hit.File, side->Path, *location };
 		RevealTimer.start();
 		try_reveal();
 	}
@@ -113,7 +115,7 @@ namespace bpr::app {
 		}
 		const auto scope      = Scope();
 		const auto projection = Host.projection();
-		if (scope != std::optional{ Pending->Scope } || Tab() != Pending->Tab || projection.Generation != Pending->Generation || projection.Scope != std::optional{ Pending->Scope }) {
+		if (Pending->ReadingGeneration != ReadingGeneration || scope != std::optional{ Pending->Scope } || Tab() != Pending->Tab || projection.Generation != Pending->Generation || projection.Scope != std::optional{ Pending->Scope }) {
 			cancel_reveal();
 			return;
 		}
@@ -121,9 +123,10 @@ namespace bpr::app {
 		if (!context || context->Key.Authority != Pending->Scope.Authority || context->Key.File != Pending->File || context->Key.LeftAnchor != Pending->Scope.Comparison.Left.Identity || context->Key.RightAnchor != Pending->Scope.Comparison.Right.Identity) {
 			return;
 		}
-		if (Validate(Pending->Scope, Pending->File, Pending->Path, Pending->Location) && Surface.reveal_source_match(Pending->Location, true)) {
+		const auto location = Pending->Location;
+		if (Validate(Pending->Scope, Pending->File, Pending->Path, location) && Surface.reveal_source_match(location, true)) {
 			cancel_reveal();
-			Surface.focus_source();
+			Surface.focus_source(location.Side);
 		}
 	}
 	void pr_search_controller::observe_scope()
@@ -136,6 +139,9 @@ namespace bpr::app {
 	}
 	void pr_search_controller::cancel_reveal()
 	{
+		if (ReadingGeneration != std::numeric_limits<std::uint64_t>::max()) {
+			++ReadingGeneration;
+		}
 		Pending.reset();
 		RevealTimer.stop();
 	}
@@ -153,15 +159,18 @@ namespace bpr::app {
 	}
 	auto pr_search_controller::is_quiescent() const -> bool { return Host.is_quiescent() && !RevealTimer.isActive(); }
 	auto pr_search_controller::counters() const -> application::source_search_host_counters { return Host.counters(); }
+	auto pr_search_controller::statistics() const -> application::source_search_statistics { return Execution.statistics(); }
 	void pr_search_controller::publish(const application::source_search_projection& aProjection)
 	{
 		auto projection       = aProjection;
 		projection.Statistics = Execution.statistics();
 		Panel.set_snippet_font(Surface.right_pane()->font());
 		if (projection.Scope) {
-			const auto left  = core::canonical_hex(projection.Scope->Comparison.Left.Commit);
-			const auto right = core::canonical_hex(projection.Scope->Comparison.Right.Commit);
-			Panel.set_scope_labels(QStringLiteral("PR #%1  %2 → %3").arg(projection.Scope->Authority.Number.value()).arg(QString::fromUtf8(left.view().data(), 8), QString::fromUtf8(right.view().data(), 8)), QStringLiteral("Left %1\nRight %2").arg(QString::fromUtf8(left.view().data(), static_cast<qsizetype>(left.view().size())), QString::fromUtf8(right.view().data(), static_cast<qsizetype>(right.view().size()))));
+			const auto left       = core::canonical_hex(projection.Scope->Comparison.Left.Commit);
+			const auto right      = core::canonical_hex(projection.Scope->Comparison.Right.Commit);
+			const auto leftShort  = left.view().substr(0, 8);
+			const auto rightShort = right.view().substr(0, 8);
+			Panel.set_scope_labels(QStringLiteral("PR #%1  %2 → %3").arg(projection.Scope->Authority.Number.value()).arg(QString::fromUtf8(leftShort.data(), static_cast<qsizetype>(leftShort.size())), QString::fromUtf8(rightShort.data(), static_cast<qsizetype>(rightShort.size()))), QStringLiteral("Left %1\nRight %2").arg(QString::fromUtf8(left.view().data(), static_cast<qsizetype>(left.view().size())), QString::fromUtf8(right.view().data(), static_cast<qsizetype>(right.view().size()))));
 		}
 		Panel.present(projection);
 	}

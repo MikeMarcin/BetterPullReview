@@ -1,0 +1,42 @@
+{
+  "architecture": "arm64",
+  "cancel_ms": 3,
+  "cold": {
+    "acquired_bytes": 11779548,
+    "acquisition_us": 2567327,
+    "cache_hits": 0,
+    "compilations": 1,
+    "matching_us": 1549940,
+    "peak_owned_bound_bytes": 192943168,
+    "read_calls": 136,
+    "scans": 68
+  },
+  "cold_final_ms": 4210,
+  "cold_first_ms": 156,
+  "eligible_files": 68,
+  "fixture_entries": 70,
+  "navigation_ms": 243,
+  "platform": "macOS Tahoe (26.6.2)",
+  "qt": "6.11.2",
+  "rss_before_bytes": 194609152,
+  "rss_peak_bytes": 212221952,
+  "source_bytes": 11779610,
+  "warm": {
+    "acquired_bytes": 0,
+    "acquisition_us": 3324,
+    "cache_hits": 132,
+    "compilations": 1,
+    "matching_us": 1543002,
+    "peak_owned_bound_bytes": 192943168,
+    "read_calls": 132,
+    "scans": 68
+  },
+  "warm_final_ms": 1623,
+  "warm_first_ms": 126,
+  "development_candidate": "working source after a4dc59cea; final candidate rerun required",
+  "source_owned_admission_mib": 192,
+  "projection_reserve_mib": 8,
+  "read_yield_or_retry_calls": 4,
+  "coverage": "68/68 eligible,131matches,0skipped; original catalogue-token query and generation retained through selected-source navigation;4extra read attempts yielded/resumed rather than abandoning remaining corpus",
+  "context": "m5-performance-context.json"
+}

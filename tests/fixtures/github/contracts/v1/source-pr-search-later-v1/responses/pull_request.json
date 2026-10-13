@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/source-pr-search",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Synthetic full-file historical search course.\n",
+	"changed_files": 9,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "nested-folders",
+		"repo": {
+			"full_name": "bpr-fixtures/source-pr-search",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_78",
+	"number": 78,
+	"state": "open",
+	"title": "Search full retained source",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

@@ -1186,8 +1186,27 @@ controller. Match traversal uses the accepted immutable record collection.
 Escape clears decorations and restores target source focus; Next can reopen
 and advance the retained query without another scan. Unrelated editors, modal
 dialogs, Home and other modalities retain their keys. The resident desktop menu
-mirrors Find commands disabled. PR Find in Files and F4 result navigation remain
-the next milestone of [RFC-BPR-0077](../rfcs/RFC-BPR-0077-find-and-find-in-files.md).
+mirrors all six Find commands disabled.
+
+View > Find in Files (`Cmd+Shift+F` on macOS, `Ctrl+Shift+F` elsewhere) enters
+PR Review from Overview, Discuss or Threads, expands Files and selects its
+Search tab. It seeds from selected source text, then the current pane query,
+then its own retained query. Pane and PR options stay independent. The native
+query and status stay visible; Search Details discloses include/exclude globs,
+full comparison OIDs and skipped-side reasons. Search uses all full changed
+sources under the active tab's exact pair, independently of Files filters and
+private excluded receipts. It never autoopens a typed result.
+
+Click/Return activates an occurrence through ordinary active-tab source opening.
+F4 and Shift+F4 navigate the accepted ordered prefix, with exact source-side
+focus and explicit wrap. Unrelated editable fields and modal dialogs retain
+their keys. Sibling tabs, review drafts, receipts and pinned comparisons remain.
+Unavailable material offers Retry under the original exact authority; partial,
+cancelled and capped results qualify coverage, and the cap asks for a narrower
+query or file filter. Escape returns source focus while retaining PR results;
+Close cancels pending query/filter work and restores the prior drawer tab and
+collapse state. Counts, scope, invalid input and coverage share accessible
+wording. See the [source search contract](../architecture/source-search.md).
 
 The command opens the unique closest same-basename opposite-family file through
 ordinary exact file selection, replacing the active tab's file and retaining its

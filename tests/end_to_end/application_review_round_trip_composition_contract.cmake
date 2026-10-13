@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"9ad653dbe578af82811ef4ec02ed81847fb798aab6654574ef298de9041668c8"
+		"5901bcc00aa90cb44b3b33b6996523ea5fbe8eb18a0af0884d48e0c60be194c6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1506,8 +1506,12 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/installed_resources.hpp"
         "src/installed_runtime.cpp"
         "src/installed_runtime.hpp"
+        "src/pane_find_controller.cpp"
+        "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
+        "src/pr_search_controller.cpp"
+        "src/pr_search_controller.hpp"
         "src/private_review_workflow.cpp"
         "src/private_review_workflow.hpp"
         "src/profile_desktop.cpp"
@@ -1563,23 +1567,23 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
-		"src/cycle_cli.cpp"
-		"src/cycle_cli.hpp"
-		"src/cycle_commands.cpp"
-		"src/cycle_commands.hpp"
-		"src/cycle_owner_service.cpp"
-		"src/cycle_owner_service.hpp"
-		"src/cycle_session.cpp"
-		"src/cycle_session.hpp"
-		"src/designated_live_macos_capsule_identity.cpp"
-		"src/designated_live_macos_capsule_identity.hpp"
-		"src/designated_live_macos_provenance.cpp"
-		"src/designated_live_macos_provenance.hpp"
-		"src/designated_live_macos_supervisor.cpp"
-		"src/designated_live_macos_supervisor_identity.cpp"
-		"src/designated_live_macos_supervisor_identity.hpp"
-		"src/designated_live_macos_supervisor_launch.cpp"
-		"src/designated_live_macos_supervisor_launch.hpp"
+        "src/cycle_cli.cpp"
+        "src/cycle_cli.hpp"
+        "src/cycle_commands.cpp"
+        "src/cycle_commands.hpp"
+        "src/cycle_owner_service.cpp"
+        "src/cycle_owner_service.hpp"
+        "src/cycle_session.cpp"
+        "src/cycle_session.hpp"
+        "src/designated_live_macos_capsule_identity.cpp"
+        "src/designated_live_macos_capsule_identity.hpp"
+        "src/designated_live_macos_provenance.cpp"
+        "src/designated_live_macos_provenance.hpp"
+        "src/designated_live_macos_supervisor.cpp"
+        "src/designated_live_macos_supervisor_identity.cpp"
+        "src/designated_live_macos_supervisor_identity.hpp"
+        "src/designated_live_macos_supervisor_launch.cpp"
+        "src/designated_live_macos_supervisor_launch.hpp"
         "src/diagnostic_controls.cpp"
         "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
@@ -1594,20 +1598,24 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/installed_runtime.cpp"
         "src/installed_runtime.hpp"
         "src/large_review_fixture.hpp"
+        "src/pane_find_controller.cpp"
+        "src/pane_find_controller.hpp"
         "src/platform_credential_vault.cpp"
         "src/platform_credential_vault.hpp"
+        "src/pr_search_controller.cpp"
+        "src/pr_search_controller.hpp"
         "src/private_review_fixture_course.cpp"
         "src/private_review_fixture_course.hpp"
         "src/private_review_workflow.cpp"
         "src/private_review_workflow.hpp"
-		"src/profile_admission.cpp"
-		"src/profile_admission.hpp"
+        "src/profile_admission.cpp"
+        "src/profile_admission.hpp"
         "src/profile_desktop.cpp"
         "src/profile_window_layout_port.hpp"
         "src/release_maintenance_controls.cpp"
         "src/release_update_desktop.cpp"
-		"src/review_cycle_desktop.cpp"
-		"src/review_cycle_desktop.hpp"
+        "src/review_cycle_desktop.cpp"
+        "src/review_cycle_desktop.hpp"
         "src/review_submission_fixture.cpp"
         "src/review_submission_fixture.hpp"
         "src/review_submission_workflow.cpp"
@@ -1617,36 +1625,36 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/system_browser_opener.hpp"
         "src/terminal_diagnostics.cpp"
         "src/terminal_diagnostics.hpp"
-		"src/terminal_text.cpp"
-		"src/terminal_text.hpp"
-		"src/tour_assist.cpp"
-		"src/tour_assist.hpp"
-		"src/tour_cancellation.cpp"
-		"src/tour_cancellation.hpp"
-		"src/tour_cli.cpp"
-		"src/tour_cli.hpp"
-		"src/tour_cli_types.hpp"
-		"src/tour_decisions.hpp"
-		"src/tour_editor.cpp"
-		"src/tour_editor.hpp"
-		"src/tour_feedback.cpp"
-		"src/tour_feedback.hpp"
-		"src/tour_main.cpp"
-		"src/tour_observation.hpp"
-		"src/tour_owner_service.cpp"
-		"src/tour_owner_service.hpp"
-		"src/tour_publication_plan.cpp"
-		"src/tour_publication_plan.hpp"
-		"src/tour_remote.cpp"
-		"src/tour_runtime.cpp"
-		"src/tour_runtime.hpp"
-		"src/tour_text_input.cpp"
-		"src/tour_text_input.hpp"
-		"src/windows_title_row_host.cpp"
-		"src/windows_title_row_host.hpp"
-		"src/worker_executor.cpp"
-		"src/xcb_activation_host.cpp"
-		"src/xcb_activation_host.hpp"
+        "src/terminal_text.cpp"
+        "src/terminal_text.hpp"
+        "src/tour_assist.cpp"
+        "src/tour_assist.hpp"
+        "src/tour_cancellation.cpp"
+        "src/tour_cancellation.hpp"
+        "src/tour_cli.cpp"
+        "src/tour_cli.hpp"
+        "src/tour_cli_types.hpp"
+        "src/tour_decisions.hpp"
+        "src/tour_editor.cpp"
+        "src/tour_editor.hpp"
+        "src/tour_feedback.cpp"
+        "src/tour_feedback.hpp"
+        "src/tour_main.cpp"
+        "src/tour_observation.hpp"
+        "src/tour_owner_service.cpp"
+        "src/tour_owner_service.hpp"
+        "src/tour_publication_plan.cpp"
+        "src/tour_publication_plan.hpp"
+        "src/tour_remote.cpp"
+        "src/tour_runtime.cpp"
+        "src/tour_runtime.hpp"
+        "src/tour_text_input.cpp"
+        "src/tour_text_input.hpp"
+        "src/windows_title_row_host.cpp"
+        "src/windows_title_row_host.hpp"
+        "src/worker_executor.cpp"
+        "src/xcb_activation_host.cpp"
+        "src/xcb_activation_host.hpp"
         "update_helper_main.cpp"
     )
     file(GLOB_RECURSE bpr_actual_app_sources
@@ -1672,7 +1680,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "1cfb1e645e8aeb2f5eee8d32d10c2bfae3ab4440b9d68ed15e431755d72e9312"
+        "8fe8e590e993b7561797234562f978a378e8ad5b7757576d50a1c631aa6d3c50"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2341,3 +2349,18 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # review confirms no publication, credential, grant or inventory changes.
 # Refresh the full application and production-manifest digests only; the
 # 42-file inventory and production mutation-branch pin remain unchanged.
+
+# RFC-BPR-0077 M5 combined-source review (2026-10-13): source-search ownership
+# and exact-reveal composition in a7fb9af0a and 0220258f4, adopted main
+# 31ab8129f9b8529423d0ca4a5d637b0443eedabb through a4dc59cea, and the final
+# M5 corrections are reviewed in m5-source-review.json and BPR-1423. Register
+# both pane and PR controllers in production manifest and exact tree inventory.
+# Search adds read-only epoch acquisition, its own profile effect lane, exact
+# scope/query/endpoint and monotonic reading seals, then uses ordinary tab open.
+# Selected navigation yields background reads and the original corpus resumes.
+# Runtime authority reset clears input; every new host drains before ports die.
+# The agent-disabled workshop fixture guard fixes inherited executable linkage.
+# No provider, credentials, publication admission or mutation branch changes;
+# production mutation digest remains e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df.
+# Existing language, provider bypass, full-source and exact-tree negative controls
+# remain mandatory. No PRINT_PINNED_DIGESTS switch is passed by registered tests.

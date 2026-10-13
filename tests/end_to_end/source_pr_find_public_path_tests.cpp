@@ -7,6 +7,7 @@
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -28,6 +29,7 @@
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QSysInfo>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QThread>
@@ -103,6 +105,18 @@ int main(int aArgc, char** aArgv)
 	auto* searchAction = window.findChild<QAction*>(QStringLiteral("sourceFilesAction"));
 	auto* nextAction   = window.findChild<QAction*>(QStringLiteral("sourceFilesNextAction"));
 	expect(searchAction && nextAction && !searchAction->isEnabled(), "Home cannot Search retained PR");
+	for (const auto name : { "sourceFindAction", "sourceFindNextAction", "sourceFindPreviousAction", "sourceFilesAction", "sourceFilesNextAction", "sourceFilesPreviousAction" }) {
+		auto* owner = window.findChild<QAction*>(QString::fromUtf8(name));
+		expect(owner, "all6Find commands composed");
+		for (const auto& shortcut : owner->shortcuts()) {
+			auto count = 0;
+			for (const auto* candidate : window.findChildren<QAction*>()) {
+				count += candidate->shortcuts().contains(shortcut) ? 1 : 0;
+			}
+			expect(count == 1, "each pane and PR shortcut has exactly one window owner");
+		}
+	}
+
 	window.github_connect_action()->trigger();
 	wait_for([&] { return window.github_open_action()->isEnabled(); }, "connect fixture");
 	window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/source-find#77"));
@@ -134,10 +148,119 @@ int main(int aArgc, char** aArgv)
 	QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 	QApplication::sendEvent(panel->tree(), &enter);
 	wait_for([&] { return surface->current_result() && surface->selection() && surface->current_context()->Key.File == core::file_identity_of("src/find.cpp") && surface->left_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"); }, "exact result ordinary file load and left span reveal");
-	expect(surface->selection()->PreferredLine.Side == core::diff_side::left, "semantic Comment side follows result");
+	expect(surface->selection()->PreferredLine.Side == core::diff_side::left && surface->left_pane()->hasFocus(), "semantic Comment side and keyboard focus follow left result");
 	tests::window_system_key(window, Qt::Key_F4);
 	wait_for([&] { return surface->selection() && surface->selection()->PreferredLine.Side == core::diff_side::right && surface->right_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"); }, "physical F4 exact right result");
+	expect(surface->right_pane()->hasFocus(), "F4 focuses the exact right occurrence reader");
+
+	const auto  beforeTraversal = panel->projection().Statistics;
+	const auto* comparison      = surface->current_result().get();
+	for (int step = 0; step < 1000; ++step) {
+		nextAction->trigger();
+	}
+	settle();
+	expect(panel->projection().Statistics.Compilations == beforeTraversal.Compilations && panel->projection().Statistics.ReadCalls == beforeTraversal.ReadCalls && panel->projection().Statistics.Scans == beforeTraversal.Scans, "1000 PR result traversals perform no compile scan or source read");
+	expect(surface->current_result().get() == comparison, "same-file PR traversal reuses ordinary accepted diff");
+
+	filter->clear();
+	wait_for([&] { return window.exclude_action()->isEnabled(); }, "private receipt action enabled on exact result");
+	window.exclude_action()->trigger();
+	wait_for([&] { return !window.files_drawer()->contents()->index_for_file(core::file_identity_of("src/find.cpp")).isValid(); }, "private excluded file withheld from ordinary Files order");
+	expect(panel->projection().Summary.Matches == 2U, "private receipt cannot shrink full PR search corpus");
+	nextAction->trigger();
+	settle();
+	expect(surface->current_context()->Key.File == core::file_identity_of("src/find.cpp") && !window.files_drawer()->contents()->index_for_file(core::file_identity_of("src/find.cpp")).isValid(), "result reveal retains excluded receipt");
+	window.exclude_action()->trigger();
+	wait_for([&] { return window.files_drawer()->contents()->index_for_file(core::file_identity_of("src/find.cpp")).isValid(); }, "explicit receipt restoration");
+
+	surface->right_pane()->setFocus();
+	window.findChild<QAction*>(QStringLiteral("sourceFindAction"))->trigger();
+	query(*surface->source_find(), QStringLiteral("needle"));
+	expect(surface->source_find()->projection().Summary.Matches > 0, "pane query independently searches retained source");
+	const auto paneQuery = surface->source_find()->query();
+	panel->tree()->setCurrentIndex(panel->tree()->model()->index(0, 0, panel->tree()->model()->index(0, 0)));
+	QApplication::sendEvent(panel->tree(), &enter);
+	wait_for([&] { return surface->left_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"); }, "PR exact span selected while pane decorations own source");
+	settle();
+	expect(surface->source_find()->isVisible() && surface->source_find()->query() == paneQuery && panel->bar()->query() == "offscreen needle" && surface->left_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"), "pane publication never overwrites external occurrence or independent queries");
+	surface->source_find()->findChild<QToolButton*>(QStringLiteral("sourceFindClose"))->click();
+
+	surface->right_pane()->setFocus();
+	tests::window_system_key(window, Qt::Key_Home, Qt::ControlModifier);
+	tests::window_system_key(window, Qt::Key_Down);
+	settle();
+	const auto ordinaryReading = surface->selection();
+	const auto pendingLocation = *panel->projection().Matches->front().Match.Locations[0];
+	expect(ordinaryReading && ordinaryReading->PreferredLine.Side == core::diff_side::right && ordinaryReading->PreferredLine.Line != pendingLocation.Line, "race starts from a distinct ordinary reading position");
+	filter->clear();
+	open(*application, "src/other.cpp");
+	panel->tree()->setCurrentIndex(panel->tree()->model()->index(0, 0, panel->tree()->model()->index(0, 0)));
+	QApplication::sendEvent(panel->tree(), &enter);
+	auto*      files = window.files_drawer()->contents_view();
+	const auto other = window.files_drawer()->contents()->index_for_file(core::file_identity_of("src/other.cpp"));
+	files->setCurrentIndex({ });
+	files->setCurrentIndex(other);
+	wait_for([&] { return surface->current_result() && surface->current_context()->Key.File == core::file_identity_of("src/other.cpp") && !surface->geometry_pending(); }, "later ordinary file navigation defeats queued reveal");
+	open(*application, "src/find.cpp");
+	settle();
+	std::cout << "REVEAL_RACE before=" << (ordinaryReading ? static_cast<int>(ordinaryReading->PreferredLine.Side) : -1) << ":" << (ordinaryReading ? ordinaryReading->PreferredLine.Line : 0) << " after=" << (surface->selection() ? static_cast<int>(surface->selection()->PreferredLine.Side) : -1) << ":" << (surface->selection() ? surface->selection()->PreferredLine.Line : 0) << '\n'
+			  << std::flush;
+	expect(!surface->selection() || surface->selection()->PreferredLine.Line != pendingLocation.Line || surface->selection()->PreferredLine.Side != pendingLocation.Side, "cancelled reveal cannot revive after returning to its old file");
+
+	window.compose_review_action()->trigger();
+	auto* draft = window.review_submission_editor_view()->body_editor();
+	wait_for([&] { return draft->isVisible() && !draft->isReadOnly(); }, "real PR composer");
+	draft->setPlainText(QStringLiteral("unsent search course text"));
+	draft->setFocus();
+	settle();
+	const auto beforeEditor = panel->projection().CurrentMatch;
+	tests::window_system_key(window, Qt::Key_F4);
+	expect(window.current_modality() == qt::review_modality::discuss && draft->toPlainText() == QStringLiteral("unsent search course text") && panel->projection().CurrentMatch == beforeEditor, "F4 cannot hijack unrelated composer");
+	tests::window_system_key(window, Qt::Key_F, Qt::ControlModifier | Qt::ShiftModifier);
+	wait_for([&] { return window.current_modality() == qt::review_modality::review && panel->bar()->query_editor()->hasFocus(); }, "physical Find Files enters Review from composer");
+	expect(draft->toPlainText() == QStringLiteral("unsent search course text"), "Find Files retains unsent review body");
+	QDialog modal{ &window };
+	modal.setWindowModality(Qt::ApplicationModal);
+	modal.show();
+	settle();
+	expect(!searchAction->isEnabled() && !nextAction->isEnabled(), "modal owns all PR search keys");
+	modal.close();
+	window.activateWindow();
+	settle();
+	panel->bar()->query_editor()->setFocus();
+	settle();
+	expect(panel->bar()->query_editor()->hasFocus(), "Search owns focus before Escape");
+	const auto retainedCount = panel->projection().Summary.Matches;
+	tests::window_system_key(window, Qt::Key_Escape);
+	expect(surface->isAncestorOf(QApplication::focusWidget()) && qobject_cast<QPlainTextEdit*>(QApplication::focusWidget()), "Search Escape returns to source");
+	expect(panel->projection().Summary.Matches == retainedCount, "Escape retains PR results");
+	window.resize(860, 760);
+	settle();
+	render(window, QStringLiteral("pr-search-narrow"));
+	window.toggle_drawers_action()->trigger();
+	searchAction->trigger();
+	settle();
+	render(window, QStringLiteral("pr-search-narrow-focused-drawer"));
+	expect(panel->bar()->query_editor()->width() > 80 && surface->width() > 160, "narrow native layout retains query and usable source");
+	for (auto* toggle : panel->bar()->findChildren<QToolButton*>()) {
+		if (toggle->isVisible()) {
+			expect(!toggle->accessibleName().isEmpty(), "all visible native search buttons labelled");
+			expect(panel->bar()->rect().contains(QRect{ toggle->mapTo(panel->bar(), QPoint{ }), toggle->size() }), "native second row fits narrow drawer");
+		}
+	}
+	window.resize(1280, 860);
+	settle();
 	render(window, QStringLiteral("pr-search-first-public"));
+	panel->bar()->query_editor()->setFocus();
+	panel->bar()->query_editor()->setPlainText(QStringLiteral("needle"));
+	tests::window_system_key(window, Qt::Key_Escape);
+	wait_for([&] { return panel->projection().Query == "needle" && panel->projection().Status == core::source_search_status::complete; }, "Escape leaves pending typing search alive");
+	panel->bar()->query_editor()->setPlainText(QStringLiteral("pending close query"));
+	panel->bar()->findChild<QToolButton*>(QStringLiteral("sourceFindClose"))->click();
+	wait_for([&] { return application->status().SourceSearchQuiescent; }, "explicit Close cancels pending debounce and work");
+	settle();
+	expect(!panel->projection().Open && !panel->isVisible() && filter->text().isEmpty(), "Close restores Files tab and retains its independent filters");
+
 	application->begin_shutdown();
 	wait_for([&] { return application->status().ShutdownComplete; }, "Search shutdown quiescent");
 	std::cout << "SOURCE_PR_FIND_PUBLIC_PATH_OK\n";

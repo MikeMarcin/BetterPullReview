@@ -1,0 +1,26 @@
+{
+  "schema": "bpr.source-search.regression.v1",
+  "fixture": "source-pr-search-large-v1",
+  "cold_final_ms": 20000,
+  "cold_first_ms": 1500,
+  "navigation_ms": 2000,
+  "warm_final_ms": 10000,
+  "warm_first_ms": 1000,
+  "cancel_ms": 250,
+  "peak_resident_mib": 512,
+  "component_owned_mib": 192,
+  "context": "Native offscreen full public composition; fresh private profile and repo actor; ordinary selected-source/preparation cache entries remain and actual hits are recorded. Warm query changes letter case with both-sided full corpus retained.",
+  "basis": {
+    "hardware": "Apple M4 Pro 14 CPU / 48 GiB",
+    "build": "Debug arm64 Xcode C++23 / Qt6.11.2 / macOS26.6.2",
+    "observation": "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance.json",
+    "development_cold_first_ms": 156,
+    "development_cold_final_ms": 4210,
+    "development_warm_first_ms": 126,
+    "development_warm_final_ms": 1623,
+    "development_navigation_ms": 243,
+    "development_cancel_ms": 3,
+    "development_peak_resident_bytes": 212221952
+  },
+  "rationale": "Conservative engineering regression budgets with headroom for Debug scheduling and ordinary concurrent host load. Cold20s and warm10s bound the full fixture; first-result and navigation budgets reject multi-second UI stalls. Clear-to-actual-quiescence250ms is independent of observer delivery.512MiB bounds process RSS separately from the unchanged192MiB component admission. These thresholds are not universal native device latency promises."
+}

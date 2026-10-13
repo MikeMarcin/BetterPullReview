@@ -1,0 +1,633 @@
+[
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/000.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 000 full unchanged source row 0000\n // fixture 000 full unchanged source row 0001\n // fixture 000 full unchanged source row 0002",
+		"sha": "325a6b3d75f7d2ef7d16c8428b19bfaf4431bb2d",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/001.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 001 full unchanged source row 0000\n // fixture 001 full unchanged source row 0001\n // fixture 001 full unchanged source row 0002",
+		"sha": "f05068796913df2c615276ead86d9d7286e2787a",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/002.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 002 full unchanged source row 0000\n // fixture 002 full unchanged source row 0001\n // fixture 002 full unchanged source row 0002",
+		"sha": "9668f0f1ac772ee8fd969e383d44e2be092fd7bb",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/003.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 003 full unchanged source row 0000\n // fixture 003 full unchanged source row 0001\n // fixture 003 full unchanged source row 0002",
+		"sha": "64ffe2cebe3203ada71af7a3974e838d519e78d9",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/004.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 004 full unchanged source row 0000\n // fixture 004 full unchanged source row 0001\n // fixture 004 full unchanged source row 0002",
+		"sha": "56b321e2e7362a38f43cf2b1860a003a56a9e327",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/005.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 005 full unchanged source row 0000\n // fixture 005 full unchanged source row 0001\n // fixture 005 full unchanged source row 0002",
+		"sha": "0ae2538dcbe0a171dceef2d392343275cf254ba9",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/006.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 006 full unchanged source row 0000\n // fixture 006 full unchanged source row 0001\n // fixture 006 full unchanged source row 0002",
+		"sha": "1211638ee1c0abbdab1520c91f360d2128f4fe6d",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/007.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 007 full unchanged source row 0000\n // fixture 007 full unchanged source row 0001\n // fixture 007 full unchanged source row 0002",
+		"sha": "ab6e5b412f0a26ce96ca2c6a22627724d17ea881",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/008.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 008 full unchanged source row 0000\n // fixture 008 full unchanged source row 0001\n // fixture 008 full unchanged source row 0002",
+		"sha": "17d58f39f19ded52c469ef2644e95210a4e8adf4",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/009.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 009 full unchanged source row 0000\n // fixture 009 full unchanged source row 0001\n // fixture 009 full unchanged source row 0002",
+		"sha": "d928f309d67e4d38305660cb01f674521a157795",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/010.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 010 full unchanged source row 0000\n // fixture 010 full unchanged source row 0001\n // fixture 010 full unchanged source row 0002",
+		"sha": "de26e170f5bbb585c97c895e7e7953bc10e42365",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/011.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 011 full unchanged source row 0000\n // fixture 011 full unchanged source row 0001\n // fixture 011 full unchanged source row 0002",
+		"sha": "c413520b29b2256db522ad023549e42fd3f0481e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/012.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 012 full unchanged source row 0000\n // fixture 012 full unchanged source row 0001\n // fixture 012 full unchanged source row 0002",
+		"sha": "175b84c9d0e15c5bc3eddd5a6a7bbe8db51b3c35",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/013.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 013 full unchanged source row 0000\n // fixture 013 full unchanged source row 0001\n // fixture 013 full unchanged source row 0002",
+		"sha": "bf84c95aa03b0d9aeb765a8a87ed06eb69e01c44",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/014.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 014 full unchanged source row 0000\n // fixture 014 full unchanged source row 0001\n // fixture 014 full unchanged source row 0002",
+		"sha": "5eb1971236963f0d21648a05ed8dab4a809f55c1",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/015.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 015 full unchanged source row 0000\n // fixture 015 full unchanged source row 0001\n // fixture 015 full unchanged source row 0002",
+		"sha": "3e19fc5dc2793d89a28fbb26a986c4ad60bfe741",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/016.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 016 full unchanged source row 0000\n // fixture 016 full unchanged source row 0001\n // fixture 016 full unchanged source row 0002",
+		"sha": "dae6aa792ec4d851d0fdd10c6fc0f1b053d6d918",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/017.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 017 full unchanged source row 0000\n // fixture 017 full unchanged source row 0001\n // fixture 017 full unchanged source row 0002",
+		"sha": "94cc7f0650864b4af4b52d0d5b34bddc51e23c05",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/018.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 018 full unchanged source row 0000\n // fixture 018 full unchanged source row 0001\n // fixture 018 full unchanged source row 0002",
+		"sha": "6cfe9c35d2eadf6d50be9da655661ac520671c47",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/019.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 019 full unchanged source row 0000\n // fixture 019 full unchanged source row 0001\n // fixture 019 full unchanged source row 0002",
+		"sha": "9d755048b87b040d6ff8448f083160cc890b0dff",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/020.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 020 full unchanged source row 0000\n // fixture 020 full unchanged source row 0001\n // fixture 020 full unchanged source row 0002",
+		"sha": "8d2f5618a137a65948a5be6c3501227b5e84f028",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/021.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 021 full unchanged source row 0000\n // fixture 021 full unchanged source row 0001\n // fixture 021 full unchanged source row 0002",
+		"sha": "ba60b54d9fc77f65272d0d800221701c2edac720",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/022.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 022 full unchanged source row 0000\n // fixture 022 full unchanged source row 0001\n // fixture 022 full unchanged source row 0002",
+		"sha": "0ea42365f114dc8c5598680ca2dcf11158077e33",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/023.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 023 full unchanged source row 0000\n // fixture 023 full unchanged source row 0001\n // fixture 023 full unchanged source row 0002",
+		"sha": "94d45f51a96e410c350dbb15727c86f7b5d052ba",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/024.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 024 full unchanged source row 0000\n // fixture 024 full unchanged source row 0001\n // fixture 024 full unchanged source row 0002",
+		"sha": "e390dda6990e375622f0908962a0a013b27301fb",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/025.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 025 full unchanged source row 0000\n // fixture 025 full unchanged source row 0001\n // fixture 025 full unchanged source row 0002",
+		"sha": "70a2249a3ff119e3a01839c26a279a5cd5c1d2e8",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/026.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 026 full unchanged source row 0000\n // fixture 026 full unchanged source row 0001\n // fixture 026 full unchanged source row 0002",
+		"sha": "839f1979c0203cad734885decee1ce60a967a36e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/027.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 027 full unchanged source row 0000\n // fixture 027 full unchanged source row 0001\n // fixture 027 full unchanged source row 0002",
+		"sha": "33428941ce2c167a2a512a20f0381e3e047ffbb9",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/028.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 028 full unchanged source row 0000\n // fixture 028 full unchanged source row 0001\n // fixture 028 full unchanged source row 0002",
+		"sha": "14a472290726f9a466ab3c561005c7bd142eaddd",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/029.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 029 full unchanged source row 0000\n // fixture 029 full unchanged source row 0001\n // fixture 029 full unchanged source row 0002",
+		"sha": "92f3346a59b294724f62fcebab208f50f34a3d66",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/030.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 030 full unchanged source row 0000\n // fixture 030 full unchanged source row 0001\n // fixture 030 full unchanged source row 0002",
+		"sha": "fbe02d790a0f9f6d94ebd8c26c251e09f6ad6887",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/031.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 031 full unchanged source row 0000\n // fixture 031 full unchanged source row 0001\n // fixture 031 full unchanged source row 0002",
+		"sha": "4a59899ea0baa528d7f1e83dca3d42cd9544cf8e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/032.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 032 full unchanged source row 0000\n // fixture 032 full unchanged source row 0001\n // fixture 032 full unchanged source row 0002",
+		"sha": "693338aa076a48b022d51d496de50c4d1518a383",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/033.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 033 full unchanged source row 0000\n // fixture 033 full unchanged source row 0001\n // fixture 033 full unchanged source row 0002",
+		"sha": "9ef9165554982242d19aa73110265d9433741ea7",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/034.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 034 full unchanged source row 0000\n // fixture 034 full unchanged source row 0001\n // fixture 034 full unchanged source row 0002",
+		"sha": "6a90d0aee2426b3f9ff48007dce40aaf365588d0",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/035.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 035 full unchanged source row 0000\n // fixture 035 full unchanged source row 0001\n // fixture 035 full unchanged source row 0002",
+		"sha": "5b182d7e969e5e22af4782afaa196f1049e0d871",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/036.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 036 full unchanged source row 0000\n // fixture 036 full unchanged source row 0001\n // fixture 036 full unchanged source row 0002",
+		"sha": "037830422dcca97e4917b8a5fff979256f773ab8",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/037.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 037 full unchanged source row 0000\n // fixture 037 full unchanged source row 0001\n // fixture 037 full unchanged source row 0002",
+		"sha": "e803e691496cdba64965029a44c32256d202bcde",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/038.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 038 full unchanged source row 0000\n // fixture 038 full unchanged source row 0001\n // fixture 038 full unchanged source row 0002",
+		"sha": "d03f92d1d6fd1a9fbc74f0a248d6a59b7cd3b799",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/039.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 039 full unchanged source row 0000\n // fixture 039 full unchanged source row 0001\n // fixture 039 full unchanged source row 0002",
+		"sha": "e1357386c43fca51e5d80764b8dcce3c089582ed",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/040.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 040 full unchanged source row 0000\n // fixture 040 full unchanged source row 0001\n // fixture 040 full unchanged source row 0002",
+		"sha": "71f02f2cc699089b9f6b94b109f78dac84aa2fba",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/041.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 041 full unchanged source row 0000\n // fixture 041 full unchanged source row 0001\n // fixture 041 full unchanged source row 0002",
+		"sha": "ba43ea7f96a3df06ebfd176e4f44a3494b3cc62d",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/042.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 042 full unchanged source row 0000\n // fixture 042 full unchanged source row 0001\n // fixture 042 full unchanged source row 0002",
+		"sha": "790c62b6564bc1c113ad4088e073e5513cb34e12",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/043.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 043 full unchanged source row 0000\n // fixture 043 full unchanged source row 0001\n // fixture 043 full unchanged source row 0002",
+		"sha": "cb14ac761f213bb13a0c4a0695537e5a2585c24e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/044.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 044 full unchanged source row 0000\n // fixture 044 full unchanged source row 0001\n // fixture 044 full unchanged source row 0002",
+		"sha": "1a5d3a3806e65cde557f4f7e17f5089ff441b31b",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/045.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 045 full unchanged source row 0000\n // fixture 045 full unchanged source row 0001\n // fixture 045 full unchanged source row 0002",
+		"sha": "fe144bb57d4e73da1db908a24b527733e6fc0e7b",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/046.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 046 full unchanged source row 0000\n // fixture 046 full unchanged source row 0001\n // fixture 046 full unchanged source row 0002",
+		"sha": "991cdcc5fc6e9be4ddbcbf842443142da4543206",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/047.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 047 full unchanged source row 0000\n // fixture 047 full unchanged source row 0001\n // fixture 047 full unchanged source row 0002",
+		"sha": "8caf5c8f8a881653b76add731213ea8a37e35ed1",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/048.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 048 full unchanged source row 0000\n // fixture 048 full unchanged source row 0001\n // fixture 048 full unchanged source row 0002",
+		"sha": "db2eb6b2a0ba839f5e75fb4a3296e71861775d64",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/049.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 049 full unchanged source row 0000\n // fixture 049 full unchanged source row 0001\n // fixture 049 full unchanged source row 0002",
+		"sha": "e121a35c78527c0246164c466157b11ecb72c800",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/050.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 050 full unchanged source row 0000\n // fixture 050 full unchanged source row 0001\n // fixture 050 full unchanged source row 0002",
+		"sha": "80dfd475f4d5640cfd008fa852bb734017c0dd16",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/051.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 051 full unchanged source row 0000\n // fixture 051 full unchanged source row 0001\n // fixture 051 full unchanged source row 0002",
+		"sha": "24bcdd872e51fac6e227f034bf5b62727f3c9189",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/052.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 052 full unchanged source row 0000\n // fixture 052 full unchanged source row 0001\n // fixture 052 full unchanged source row 0002",
+		"sha": "86486c919f3c3844c677ae805393d116de416e83",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/053.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 053 full unchanged source row 0000\n // fixture 053 full unchanged source row 0001\n // fixture 053 full unchanged source row 0002",
+		"sha": "dd86414fe9fa36fe2f15b3e0a3d69154c95e13f5",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/054.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 054 full unchanged source row 0000\n // fixture 054 full unchanged source row 0001\n // fixture 054 full unchanged source row 0002",
+		"sha": "09dc7e76e836185e4ea47691ee72b74acc8dd63e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/055.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 055 full unchanged source row 0000\n // fixture 055 full unchanged source row 0001\n // fixture 055 full unchanged source row 0002",
+		"sha": "b176e9d3702f2d35fa114456cf3229022107f242",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/056.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 056 full unchanged source row 0000\n // fixture 056 full unchanged source row 0001\n // fixture 056 full unchanged source row 0002",
+		"sha": "21bd77e800edc6bbdec6802ff610a3ad3b2cded8",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/057.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 057 full unchanged source row 0000\n // fixture 057 full unchanged source row 0001\n // fixture 057 full unchanged source row 0002",
+		"sha": "0fe2eebb2926714a676c94270a359324a43dc87e",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/058.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 058 full unchanged source row 0000\n // fixture 058 full unchanged source row 0001\n // fixture 058 full unchanged source row 0002",
+		"sha": "93d7772105e86a49b21d7dad22967482e97b65ee",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/059.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 059 full unchanged source row 0000\n // fixture 059 full unchanged source row 0001\n // fixture 059 full unchanged source row 0002",
+		"sha": "19001eb5f3a7909b793c00a16844a7b6aebc5823",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/060.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 060 full unchanged source row 0000\n // fixture 060 full unchanged source row 0001\n // fixture 060 full unchanged source row 0002",
+		"sha": "d2081b0fcbd5d1fab743deca5bb88bfa46e965fc",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/061.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 061 full unchanged source row 0000\n // fixture 061 full unchanged source row 0001\n // fixture 061 full unchanged source row 0002",
+		"sha": "cb8e6420e4e3ce6b1f8d08bfc1788dcbf9aba398",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/062.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 062 full unchanged source row 0000\n // fixture 062 full unchanged source row 0001\n // fixture 062 full unchanged source row 0002",
+		"sha": "80cc82e3aec15f607864dbcec679ad6a93497b3c",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 2,
+		"deletions": 1,
+		"filename": "bulk/063.cpp",
+		"patch": "@@ -1,4 +1,4 @@\n-earlier\n+later\n // fixture 063 full unchanged source row 0000\n // fixture 063 full unchanged source row 0001\n // fixture 063 full unchanged source row 0002",
+		"sha": "15da6bbba933208a6d214a8cf1076b0c82e3926a",
+		"status": "modified"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "src/added.cpp",
+		"patch": "@@ -0,0 +1 @@\n+added catalogue token",
+		"sha": "5bcb8823c3d698d73cdda3860f05a2a6b84bef9c",
+		"status": "added"
+	},
+	{
+		"additions": 0,
+		"changes": 1,
+		"deletions": 1,
+		"filename": "src/removed.cpp",
+		"patch": "@@ -1 +0,0 @@\n-removed catalogue token",
+		"sha": "23110d1bea20c7c9ac4ef74b0ef20714dd9ce8f3",
+		"status": "removed"
+	},
+	{
+		"additions": 0,
+		"changes": 0,
+		"deletions": 0,
+		"filename": "src/renamed.cpp",
+		"patch": "",
+		"previous_filename": "old/name.cpp",
+		"sha": "30f7bdf256329fcba451c722d9b815c6c1421cd1",
+		"status": "renamed"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "today/only.cpp",
+		"patch": "@@ -0,0 +1 @@\n+today-only token",
+		"sha": "67dab4324b3e23272b4c96e36bc286ef932ab4f8",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "unsupported/binary.bin",
+		"patch": "@@ -0,0 +1 @@\n+catalogue token\u0000binary",
+		"sha": "a2417abf1bac4f7cbcc7fc551b2d516f6b394aa4",
+		"status": "added"
+	},
+	{
+		"additions": 1,
+		"changes": 1,
+		"deletions": 0,
+		"filename": "unsupported/invalid.cpp",
+		"patch": "@@ -0,0 +1 @@\n+catalogue token\ufffd",
+		"sha": "514897d0c9fc1ed5f231c81395037e42b325c71d",
+		"status": "added"
+	}
+]

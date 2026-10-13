@@ -2,7 +2,7 @@
   "mandate_revision": "find-and-find-in-files-v1-r1",
   "milestone": "pr-search",
   "claim": "e7f4f67be37cd2bcb7aa6e20ea8cdac9b87bce29",
-  "candidate": "WIP snapshot before safe main adoption; full M5 acceptance pending",
+  "candidate": "a4dc59cea plus current follow-up working edits; full acceptance pending",
   "development_checks": [
     {
       "command": "cmake --build build/find-corpus-git --target test_source_find_public_path -j 4",
@@ -51,16 +51,46 @@
     {
       "command": "same-anchor retained comparison public course",
       "result": "failed24.75s; exact base/base scope was unavailable although epoch diff ready. Exact-anchor catalogue queries require unique identities; search sent duplicate identities and demanded2results. Corrected request to unique identity list and verifies same exact anchor serves both sides. Correction remains unqualified until focused rerun."
+    },
+    {
+      "command": "expanded ordinary PR public course",
+      "result": "initial pane text assertion failed4.22s because fixture token context absent; selected known fixture needle query. Prior reading restoration assertion failed4.99s; refined against RFC pending occurrence, retaining original failure. Generation hardening first failed ordinary exact reveal23.50s because own result-open had called external-reading cancellation; own-open now cancels prior restoration without invalidating its same intent. Subsequent ordinary race before right0 after left0 rejects pending left1102. Escape initially checked only split editors and failed5.57s; refined to actual source reader ancestry/native text editor, includes unified source. Expanded course passes6.23s; later accessibility changes need final rerun."
+    },
+    {
+      "command": "A\u2192B\u2192A cancellation removal negative control",
+      "result": "mutant builds then fails exact pending-reveal assertion; restored source byte-for-byte and rebuilt targets. m5-reveal-negative.json holds identity/counters and original source seal."
+    },
+    {
+      "command": "recorded fixture provenance and exact security",
+      "result": "RECORDED_FIXTURE_OK including both new accurate epochs and full blobs; exact security18tests pass1.180s. Narrow inventory entries preserve unexpected fixture rejection."
+    },
+    {
+      "command": "full core-only 275-test integration followed by targeted containment correction",
+      "result": "Full pass274/275,709.23s, exit8; sole inherited contained_temporary_usage_contract failure is strict CLI qualifier tempfile.TemporaryDirectory. Authorized supported-helper correction passes1/1,2.95s. No live/native credential qualifier executed. Original269/272 inherited failures remain separately preserved."
+    },
+    {
+      "command": "final reveal/focus/comparison development public courses",
+      "result": "PR6.81s, historical7.01s pass exact side focus and immediate old-hit retirement. Later excluded course6.80s; native1.25x5.81s/2.0x5.90s pass. Native focused-drawer render visually inspected."
+    },
+    {
+      "command": "unavailable material public Retry course",
+      "result": "First attempt2.34s and attempts3.48s/3.67s failed to intercept blob. Installed Git bootstrap resolves --exec-path/git, bypassing supplied launcher. Synthetic exact forwarding installation fixes bootstrap identity; actual refusing blob course passes5.80s, same originalscope +newquerygeneration. Small fixture subsequently adds exactunsupportedmode; final rerun pending."
+    },
+    {
+      "command": "agent-disabled full application target",
+      "result": "Initial link fails inherited attended workshop references to agent-only fixture helpers; minimal existing BPR_AGENT_INTEGRATIONS guard repairs. Rebuilt app target passes; no agent-enabled behavior change."
+    },
+    {
+      "command": "combined source composition and negative controls",
+      "result": "First guard fails explicit inventory lexical order; corrected four-entry inventory retains exact rejection. Roundtrip4.01s passes; full selected4 negative suites24.079s pass; production mutation branch remains byte-identical e067bef\u2026."
     }
   ],
   "current_work": [
-    "sealed endpoint path verification",
-    "first result creates tab without restarting corpus search",
-    "pane query retains decorations and external exact occurrence selection",
-    "full historical/rename/dedup/coverage/races course",
-    "large public performance fixture and actual thresholds",
-    "all final full pack checks and narrow baseline repairs",
-    "Safe lane main adoption authorized at31ab8129f9b8529423d0ca4a5d637b0443eedabb after explicit WIP and command quiescence; main landing separate."
+    "small exact unsupported-mode public rerun",
+    "new/changed-line tidy22 final",
+    "committed candidate performance window including actual cap and streaming row",
+    "original pane regression and architecture/docs final",
+    "full ledger/card/RFC acceptance reconciliation"
   ],
   "commands": {
     "running": [],

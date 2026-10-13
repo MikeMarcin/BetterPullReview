@@ -3515,6 +3515,12 @@ namespace bpr::qt {
 	{
 		(OnePaneEnabled ? Unified : Right)->setFocus(Qt::ShortcutFocusReason);
 	}
+	void diff_workbench::focus_source(core::diff_side aSide)
+	{
+		(OnePaneEnabled ? Unified : aSide == core::diff_side::left ? Left
+																   : Right)
+			->setFocus(Qt::ShortcutFocusReason);
+	}
 
 	auto diff_workbench::detail_pane() const noexcept -> QPlainTextEdit*
 	{

@@ -1,0 +1,30 @@
+{
+  "machdep.cpu.brand_string": "Apple M4 Pro",
+  "hw.ncpu": "14",
+  "hw.memsize": "51539607552",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+  "cache": "fresh private application profile/repository actor per course; ordinary selected source/preparation allowed and actual cache hits reported; OS page cache not flushed and state not assumed cold",
+  "build": "Debug arm64 Xcode C++23, Qt6.11.2, installed Git, network-isolated offscreen public composition",
+  "source_candidate": "working changes after a4dc59cea; main31ab8129f9b8529423d0ca4a5d637b0443eedabb adopted",
+  "observed_load": {
+    "all_process_cpu_percent_sum": 226.1,
+    "build_processes": [
+      {
+        "name": "cmake",
+        "cpu_percent": 0.0
+      },
+      {
+        "name": "ninja",
+        "cpu_percent": 0.1
+      },
+      {
+        "name": "cmake",
+        "cpu_percent": 66.0
+      }
+    ]
+  },
+  "observed_load_before_measurement": {
+    "all_process_cpu_percent_sum": 156.6,
+    "build_processes": []
+  }
+}

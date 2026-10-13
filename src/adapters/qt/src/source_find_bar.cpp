@@ -148,7 +148,9 @@ namespace bpr::qt {
 			&& static_cast<QKeyEvent*>(aEvent)->key() == Qt::Key_Escape) {
 			aEvent->accept();
 			if (aEvent->type() == QEvent::KeyPress) {
-				Debounce->stop();
+				if (!Files) {
+					Debounce->stop();
+				}
 				if (Dispatch) {
 					Dispatch(Files ? source_find_gesture::escape : source_find_gesture::close);
 				}
@@ -163,7 +165,9 @@ namespace bpr::qt {
 					return true;
 				}
 				if (key->key() == Qt::Key_Escape) {
-					Debounce->stop();
+					if (!Files) {
+						Debounce->stop();
+					}
 					if (Dispatch) {
 						Dispatch(Files ? source_find_gesture::escape : source_find_gesture::close);
 					}
@@ -263,7 +267,7 @@ namespace bpr::qt {
 		case core::source_search_status::unavailable:         words = QStringLiteral("Source unavailable"); break;
 		case core::source_search_status::failure:             words = QStringLiteral("Search failed; edit the query to retry"); break;
 		case core::source_search_status::resource_limit:      words = QStringLiteral("Search resource limit; narrow the query"); break;
-		case core::source_search_status::result_limit:        words = QStringLiteral("%1 shown; limit reached").arg(aProjection.Summary.Matches); break;
+		case core::source_search_status::result_limit:        words = QStringLiteral("%1 shown; limit reached; %2").arg(aProjection.Summary.Matches).arg(Files ? tr("narrow query or files") : tr("narrow query")); break;
 		case core::source_search_status::cancelled:           words = QStringLiteral("Search stopped"); break;
 		case core::source_search_status::partial:             words = QStringLiteral("%1 matches; incomplete").arg(aProjection.Summary.Matches); break;
 		default:

@@ -8,27 +8,43 @@ user's import-on-main amendment. No acceptance waiver or scope reduction exists.
 Immutable RFC_BASE_SHA: `aa3d71fe470627e1e78488eb51a9114a788f33bd`.
 
 Source/tracker root: `/Users/jaeger/.codex/worktrees/a675/BetterPullReview`.
-Branch: `codex/find-and-find-in-files`. Sole product writer is released at the
-M4 handoff. Product candidate: `a7fb9af0a2e0f0a21ab0de86c3a938a70af28626`. Guarded acceptance/tracker and later
+Branch: `codex/find-and-find-in-files`. Sole product writer now owns M5; the accepted M4 product candidate is: `a7fb9af0a2e0f0a21ab0de86c3a938a70af28626`. Guarded acceptance/tracker and later
 checkpoint-only revisions are recorded in [m4-return.json](m4-return.json) and
 [m4-command-state.json](m4-command-state.json), separately from tested product.
-No main write, merge, force, stash, remote mutation or publication occurred.
+No main write, force, stash, remote mutation or publication occurred; the authorized lane merge is recorded below.
 
-## Current frontier: fresh M5
+## Current frontier: M5 qualification in progress
 
-M4 `pane-find`, [[BPR-1422]], is accepted; all three bounded exits pass. Original
-AC01/AC02 pass through the shipped pane path; AC07's pane slice passes. The next
-milestone is `pr-search`, [[BPR-1423]], followed by full original criteria on
-[[BPR-1424]]. Read the live RFC, authored plan, current card, ledger, this
-checkpoint and retained run/selection before binding accepted M1–M4 and claiming
-Ready BPR-1423. Preserve all remaining full-RFC obligations; do not infer pack
-completion from M4.
+BPR-1423 is claimed at `e7f4f67be37cd2bcb7aa6e20ea8cdac9b87bce29`;
+[m5-binding.json](m5-binding.json) covers all M5 work and full original exits.
+WIP product snapshot `0220258f4` safely adopted exact main
+`31ab8129f9b8529423d0ca4a5d637b0443eedabb` in merge `a4dc59cea` after owned
+commands quiesced and coordinator authorization. Main itself is untouched.
+The same sole source owner continues here; no children or review server exist.
 
-The [authored plan](../../../rfcs/plans/find-and-find-in-files-v1/milestone-plan.json)
-and [ledger](../../../verification/RFC-BPR-0077.md) remain authoritative. The
-[accepted M4 record](m4-acceptance.json), [public native course](m4-native-public-path.json),
-[self-review](m4-self-review.json) and [render identities](m4-native-render.json)
-bind the exact candidate and actual offscreen platform observations.
+Native Search, exact activation, runtime query ownership, catalogue/reading seals,
+retained-pair refresh, path/dedup/coverage, rapid query/tab/authority courses and
+A→B→A cancellation negative control are implemented. Development evidence and
+preserved failures are [m5-development.json](m5-development.json) and
+[m5-reveal-negative.json](m5-reveal-negative.json). Native offscreen renders are
+owned build outputs; no owner's desktop or personal data was accessed.
+
+The first actual large course finishes all68eligible files after navigation,
+with original nonempty query/generation intact. [Measured development report](m5-performance.json)
+and [hardware/cache/load context](m5-performance-context.json) distinguish actual
+cold acquisition from matching, warm cache reuse, cancellation, full RSS and
+component admission. These are not final-candidate acceptance claims.
+
+Remaining: public unavailable-material Retry and result-limit coverage; final
+focused/native/scale and performance rerun on a committed candidate; legitimate
+combined-source composition seals/inventory with retained negative controls;
+full core-only, boundaries, docs, scoped tidy and full ledger/card/RFC closeout.
+Full core-only ended274/275 in709.23s; its sole inherited containment failure
+was narrowly corrected and the targeted gate passes2.95s. The original full
+failure remains recorded. Changed-line/new-file tidy, exact fixture gates, boundaries including negative
+contract, full format22, docs and67 regressions pass. All owned commands are
+quiescent before the product commit and final AC08 measurement window. No human
+acceptance gate has been invented. The full original AC01–08 remains required.
 
 ## Accepted foundations to reuse
 
@@ -144,18 +160,15 @@ retains five executables absent in the Qt tree. Their fresh built core-only
 correction passes [five cases](m4-core-integration.json). Architecture negative
 contract passed in the initial run; exact final boundaries/network manifest pass.
 
-Main may have advanced (coordinator reported strict CLI `fd01bc16a`). This lane
-has not refreshed it. Refresh only after owned commit/quiescence and authorized
-coordination. A legitimate merged source-composition diff may require resealing
-that merged candidate; never copy an old lane seal to claim a different diff.
+Exact main `31ab8129f9b8529423d0ca4a5d637b0443eedabb` was safely adopted in
+this lane at `a4dc59cea`. The merged source-composition guards will be resealed
+for that reviewed combined candidate, retaining all negative controls. Main
+landing remains a separate coordinator window after clean qualification.
 
 ## Ownership and commands
 
-All M4 builds, native courses, core/architecture/fixture/format/tidy commands and
-documentation/bookkeeping operations have ended before handoff. No agent
-children, background descendant, server, protected/frozen candidate or review
-interpretation exists. Task-owned temporary edit/tidy helpers are removed;
-owned build/core-only and build/find-corpus-git remain for M5. Committed product
-paths/identities and final tracker revision are in [m4-command-state.json](m4-command-state.json).
-The next action is fresh M5 binding/claim on the accepted candidate, retaining
-these full original obligations and known integration failures.
+M4's handoff commands and temporary helpers ended as recorded in
+[m4-command-state.json](m4-command-state.json). M5 is now the sole source writer
+here. All owned M5 commands are quiescent. No children, server, frozen/protected attended
+candidate or review interpretation exists. This active checkpoint is not a handoff;
+commands will be stopped and their actual outcomes reconciled before return.
