@@ -1,0 +1,176 @@
+{
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "product_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "source_identity": "all production sources and all performance inputs byte-identical after final scope-test-only extension",
+  "checks": [
+    {
+      "log": "build/m5-final-native-public.log",
+      "result": "8/8 pass;54.99s, exact committed product",
+      "log_sha256": "a7c7430f8fa6273f33209f1e7f41839a57ec0a7ca256746d8db80c9a5ee39467"
+    },
+    {
+      "log": "build/m5-absent-side-public.log",
+      "result": "1/1 pass;9.07s, final test extension, production bytes unchanged",
+      "log_sha256": "bceb24bf53c12edd38d3dffd64d97139fb48867abf928e15d5f43d1ef348bd09"
+    },
+    {
+      "log": "build/m5-adopted-composition-public.log",
+      "result": "2/2 pass;14.32s, header/source andC++identifier appearance",
+      "log_sha256": "415f9551c2c16fc531b12c84e9eead92bfc75a17b79408e8d10ee94d2cd7bc3d"
+    },
+    {
+      "log": "build/m5-adopted-cli-public.log",
+      "result": "1/1 pass;3.73s, ordinary strictCLI fixture submission",
+      "log_sha256": "49ccb62b36b8045434a99143d0fddbcaf40dd07580d4fd8f8eeb2f219885605d"
+    },
+    {
+      "log": "build/m5-round-trip-composition-correction.log",
+      "result": "1/1 pass;4.01s, complete combined source guard/runtime roundtrip",
+      "log_sha256": "d49fe4206481e819f7e37335f27a1d78cb2007b1adbfc1af63853fc6b64d30d2"
+    },
+    {
+      "log": "build/m5-composition-negatives-correction.log",
+      "result": "4 suites pass;24.079s, all nested language/source/provider/tree negative controls retained",
+      "log_sha256": "7111e2d08b77667a0aa3fd1734b4a4c0ba8d8d4a00a0d0ca9d7b845cc69b6e0c"
+    }
+  ],
+  "scope_test_extension_sha256": "5f967d4610c1835c6caaac3bd1dbfd1c73189f126f825fc57f6955089ef4f390",
+  "images": [
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders/pr-search-first-public.png",
+      "width_px": 1280,
+      "height_px": 860,
+      "sha256": "49da832561caba8dac7eac7d905a6ef5fbcee81ba06add1fa60daaf48dd3ba55"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders/pr-search-narrow-focused-drawer.png",
+      "width_px": 900,
+      "height_px": 760,
+      "sha256": "3c31ea12815111f251871751086f7c2e387abf79c4878341f0b4eb4a63a9012b"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders/pr-search-narrow.png",
+      "width_px": 900,
+      "height_px": 760,
+      "sha256": "e86a5f40e0648a633b699aba672dc702adfab33d26808ec9752f584973633696"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders-1_25/pr-search-first-public.png",
+      "width_px": 1600,
+      "height_px": 1075,
+      "sha256": "baac25ca794a9a5a64a94b5bf152cdcda567186e3963aff4f20368d0d4417602"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders-1_25/pr-search-narrow-focused-drawer.png",
+      "width_px": 1125,
+      "height_px": 950,
+      "sha256": "966f36197bf200d9255c8a94f72939f8eb6121a7a766b0afa3b64b89f2d14674"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders-1_25/pr-search-narrow.png",
+      "width_px": 1125,
+      "height_px": 950,
+      "sha256": "e3af2af3b1edac92de9ae063f10ac9506c01d45a303da9e04995f4146e420748"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders-2_0/pr-search-first-public.png",
+      "width_px": 2560,
+      "height_px": 1720,
+      "sha256": "58e1df439983516938f80cb76a0a688192e6635cc0c092eedb29a44cdef8a2ce"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders-2_0/pr-search-narrow-focused-drawer.png",
+      "width_px": 1800,
+      "height_px": 1520,
+      "sha256": "2d978c3ba9eaace13031cc099e650d97b456eb91b68e4fe52755adf7ca17742f"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-find-renders-2_0/pr-search-narrow.png",
+      "width_px": 1800,
+      "height_px": 1520,
+      "sha256": "92669c93e15c076f275fd95c7aa7f958e7ab086ba64f1c5d76193314332d09f1"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/01-split-offscreen.png",
+      "width_px": 1280,
+      "height_px": 860,
+      "sha256": "8c767cdc161f27d447b00d447cc28f505f84017dbca24182b9b312c7bb38712b"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/02-unified.png",
+      "width_px": 1280,
+      "height_px": 860,
+      "sha256": "05544c78b9f6c0c4225bd4aac7841302048dd10a7fe597cbfe3f4a9512e6ca8a"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/03-narrow.png",
+      "width_px": 900,
+      "height_px": 640,
+      "sha256": "b147fed6a90f4ab9b7a183ad5c5083eb639a7ff8abe0f8876c83f2415518b6d7"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders/04-dark-native-controls.png",
+      "width_px": 900,
+      "height_px": 640,
+      "sha256": "5ece5b293caa4f9de64489fb691cfd5e3a3a2c25896be10f242aca42fdb33bd9"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/01-split-offscreen.png",
+      "width_px": 1600,
+      "height_px": 1075,
+      "sha256": "55d400ee51520a27ab24c5202c4cb1825d02a7be215797aa38530c43b826df52"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/02-unified.png",
+      "width_px": 1600,
+      "height_px": 1075,
+      "sha256": "8ba81a71ef9a373bd7866777646273f0045621293401755834bf144045a29e62"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/03-narrow.png",
+      "width_px": 1125,
+      "height_px": 800,
+      "sha256": "254f3475f8dffed75b2692a713312dddc29f980fd09464f468cdc93559d69724"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-1_25/04-dark-native-controls.png",
+      "width_px": 1125,
+      "height_px": 800,
+      "sha256": "1f61b6b1cd2c60e6c8ec46e757f0f658e6c828b046febd70a36d93a415c481b4"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/01-split-offscreen.png",
+      "width_px": 2560,
+      "height_px": 1720,
+      "sha256": "17029bc3523756482fdde0f813e5c1369275a6be4bc61e6263c25a0863966f19"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/02-unified.png",
+      "width_px": 2560,
+      "height_px": 1720,
+      "sha256": "95169eb90b5fb76894bf8f3decd34304db57d906e58df532661254da5bf36e3e"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/03-narrow.png",
+      "width_px": 1800,
+      "height_px": 1280,
+      "sha256": "0ae1b26336b3f38ce50f68818a3692cfe37e3b5509e4481647e68fb7abe80b82"
+    },
+    {
+      "path": "build/find-corpus-git/source-find-renders-2_0/04-dark-native-controls.png",
+      "width_px": 1800,
+      "height_px": 1280,
+      "sha256": "7d71da154d9c1f36ac6e323f03b17c1807d8d59e0960af7f81d2986695e7a97e"
+    },
+    {
+      "path": "build/find-corpus-git/source-pr-search-scope-renders/pr-search-complete-course.png",
+      "width_px": 1280,
+      "height_px": 860,
+      "sha256": "8a01146f51c05cb9ece611f81929934e3d134742b9e2e56123e71c0fcf464495"
+    }
+  ],
+  "native_review": "required frontend-design loaded; actual complete offscreen macOS/Qt native window inspected at supported minimum900logical width, independent Files/Search with native2-rowquery/options/close, scope, disclosure andwrapcoverage; focused-drawer2x image visually inspected",
+  "accessibility": "native query/options/actions/tree/scope/fullOIDs/skipped labels/status names and combined polite description asserted through real composed courses; editor/modality guards, exactsidefocus andEscape/Close verified",
+  "limits": "native offscreen evidence is not a physicaldisplay/VoiceOver/Windows/Linux/device claim; no such explicit human criterion is required by this RFC",
+  "failures_preserved": "m5-development.json, m5-reveal-negative.json, m5-integration.json retain original failures and narrow corrections"
+}

@@ -182,6 +182,26 @@ int main(int aArgc, char** aArgv)
 	query(*panel->bar(), QStringLiteral("catalogue token"));
 	wait_for([&] { return panel->projection().Status == core::source_search_status::partial; }, "full ordered both-side query");
 	expect(panel->projection().Summary.Matches == 7U, "unopened added removed modified and pure rename sources full both sides, identical rename merged once");
+
+	for (const auto& [path, side] : { std::pair{ std::string_view{ "src/added.cpp" }, core::diff_side::right }, std::pair{ std::string_view{ "src/removed.cpp" }, core::diff_side::left } }) {
+		QModelIndex entryGroup;
+		for (int row = 0; row < panel->tree()->model()->rowCount(); ++row) {
+			const auto candidate = panel->tree()->model()->index(row, 0);
+			if (candidate.data().toString().contains(QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size())))) {
+				entryGroup = candidate;
+				break;
+			}
+		}
+		expect(entryGroup.isValid(), "added/removed exact entry has public result row");
+		panel->tree()->setCurrentIndex(panel->tree()->model()->index(0, 0, entryGroup));
+		QApplication::sendEvent(panel->tree(), &enter);
+		wait_for([&] {
+			const auto* reader = side == core::diff_side::left ? surface->left_pane() : surface->right_pane();
+			return surface->current_result() && surface->current_context()->Key.File == core::file_identity_of(path) && surface->selection() && surface->selection()->PreferredLine.Side == side && reader->textCursor().selectedText() == QStringLiteral("catalogue token") && reader->hasFocus();
+		},
+				 "absent opposite side cannot steal exact added/removed source span and focus");
+		expect(strip->tabs()[0].Id == historical.Id && strip->tabs()[0].Path == historical.Path, "added/removed activation preserves sibling reading state");
+	}
 	const auto rename = std::ranges::find(*panel->projection().Matches, core::file_identity_of("src/renamed.cpp"), &application::source_search_match::File);
 	expect(rename != panel->projection().Matches->end() && rename->Match.Locations[0] && rename->Match.Locations[1], "same blob span retains both source locations");
 	auto group = QModelIndex{ };

@@ -1,0 +1,54 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+      "evidence": {
+        "kind": "observation",
+        "detail": "OriginalAC03-AC07 pass through native Search commands: whole both-side unopened/filtered/excluded/added/removed/rename corpus, actual historical Refresh/pinnedpair, exactspan/F4/sidefocus/siblingdrafts/pathfilters/dedup, races, qualifiedbinary/decode/mode/unavailableRetry/completeempty, supportednative/scaled/accessibledescription/key/editor/modality paths.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact pending reveal binds all PRauthority/catalogue/tab/pair/path/side/blob/query/span identities andmonotonicreadinggeneration. LaterA-to-B-to-Aordinarynavigation unequivocallyrejectsoldLeft1102; cancellation-removal mutantfails theoriginalassertion. OrdinaryOpenFile andselectedendpoint revalidate before sharedreveal.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Independentpane/PRquery/options runtime-only; paneFindretainsdecorations whilePRexactselectionworks. Realaccountsignout clearsquery/scope/records anddrainsterminals; clear/Close/Escape/reset/shutdown pathsquiescewithoutoldauthority resurrection.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json"
+        ]
+      }
+    }
+  ]
+}

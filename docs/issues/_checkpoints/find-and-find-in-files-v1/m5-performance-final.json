@@ -1,0 +1,46 @@
+{
+  "architecture": "arm64",
+  "cancel_ms": 3,
+  "cold": {
+    "acquired_bytes": 11779548,
+    "acquisition_us": 2112272,
+    "cache_hits": 0,
+    "compilations": 1,
+    "matching_us": 1543433,
+    "peak_owned_bound_bytes": 192943168,
+    "read_calls": 135,
+    "scans": 68
+  },
+  "cold_final_ms": 3747,
+  "cold_first_ms": 147,
+  "eligible_files": 68,
+  "fixture_entries": 70,
+  "navigation_ms": 227,
+  "platform": "macOS Tahoe (26.6.2)",
+  "qt": "6.11.2",
+  "rss_before_bytes": 195117056,
+  "rss_peak_bytes": 226836480,
+  "source_bytes": 11779610,
+  "warm": {
+    "acquired_bytes": 0,
+    "acquisition_us": 3677,
+    "cache_hits": 132,
+    "compilations": 1,
+    "matching_us": 1568828,
+    "peak_owned_bound_bytes": 192943168,
+    "read_calls": 132,
+    "scans": 68
+  },
+  "warm_final_ms": 1649,
+  "warm_first_ms": 126,
+  "candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "test_result": "pass",
+  "public_course_includes": [
+    "same nonempty query/generation full68 coverage after navigation",
+    "stable current persistent row through ordered batches",
+    "visible10000record prefix/narrowing",
+    "1000cursor moves no compile/scan/read/diff/index rebuild",
+    "actual matcher in-flight before clear-to-quiescence",
+    "complete shutdown"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "timestamp_utc": "2026-10-13T14:30:38.391720+00:00",
+  "hardware": "Apple M4 Pro",
+  "logical_cpu": 14,
+  "memory_bytes": 51539607552,
+  "macos": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+  "aggregate_process_cpu_percent": 165.7,
+  "load_average": [
+    10.51171875,
+    7.5166015625,
+    6.19091796875
+  ],
+  "builder_processes": [],
+  "owned_other_commands": [],
+  "build": "Debug arm64 Xcode C++23, Qt6.11.2; actual public composition, network isolated Qt offscreen",
+  "cache": "fresh private application/profile/repository actor; ordinary selected/prepared cache permitted; actual source read hits/bytes recorded; OS page cache untouched and unknown",
+  "measurement": "full original nonempty cold query resumes through navigation; warm case-change; actual matcher has begun before clear; true host quiescence and RSS/capacity measured separately",
+  "after": {
+    "timestamp_utc": "2026-10-13T14:31:27.816386+00:00",
+    "aggregate_process_cpu_percent": 372.6,
+    "load_average": [
+      8.17041015625,
+      7.3046875,
+      6.1787109375
+    ],
+    "builder_count": 0
+  },
+  "result": "pass",
+  "first_development_observation_preserved": "m5-performance.json and m5-performance-context.json"
+}
