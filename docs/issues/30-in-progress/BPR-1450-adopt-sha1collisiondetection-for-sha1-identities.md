@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1450"
 title: "Adopt sha1collisiondetection for every SHA-1 Git identity"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"
