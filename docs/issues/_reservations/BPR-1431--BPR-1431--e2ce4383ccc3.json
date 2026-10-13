@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1431"
+  ],
+  "reserve_for": "re2-source-matcher",
+  "purpose": "Replace the hand-written source regex engine with RE2",
+  "created": "2026-10-13T16:31:59.570226+00:00",
+  "base": "a3eaa21ce309532823527388e70cb8c75b343015"
+}
