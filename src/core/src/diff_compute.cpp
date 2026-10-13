@@ -14,6 +14,7 @@
 #include <span>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -1926,15 +1927,36 @@ namespace bpr::core {
 		/// [[BPR-1465]] One class per line of both sides: equal normalized lines
 		/// share a class. Classes are numbered in order of first appearance,
 		/// left side first, so they are the same in every run.
+		struct normalized_line_pointer_hash
+		{
+			[[nodiscard]] auto operator()(const normalized_line* const aLine) const noexcept -> std::size_t
+			{
+				auto value = std::uint64_t{ 0xCBF2'9CE4'8422'2325ULL };
+				for (const auto scalar : aLine->Values) {
+					value = (value ^ scalar) * 0x0000'0100'0000'01B3ULL;
+				}
+				return static_cast<std::size_t>(value);
+			}
+		};
+
+		struct normalized_line_pointer_equal
+		{
+			[[nodiscard]] auto operator()(const normalized_line* const aLeft, const normalized_line* const aRight) const noexcept -> bool
+			{
+				return *aLeft == *aRight;
+			}
+		};
+
 		auto assign_line_classes(diff_compute_progress& aProgress, diff_step_meter& aMeter) -> void
 		{
-			auto classes = std::map<const normalized_line*, std::uint32_t, normalized_line_pointer_less>{ };
+			auto classes = std::unordered_map<const normalized_line*, std::uint32_t, normalized_line_pointer_hash, normalized_line_pointer_equal>{ };
+			classes.reserve(aProgress.Sides[0U].Normalized.size() + aProgress.Sides[1U].Normalized.size());
 			for (std::size_t side = 0U; side < aProgress.Sides.size(); ++side) {
 				auto& target = side == 0U ? aProgress.LeftClasses : aProgress.RightClasses;
 				target.clear();
 				target.reserve(aProgress.Sides[side].Normalized.size());
 				for (const auto& line : aProgress.Sides[side].Normalized) {
-					aMeter.tick(indexed_probe_work(classes.size(), line.Values.size()));
+					aMeter.tick(2U + 2U * static_cast<std::uint64_t>(line.Values.size()));
 					const auto [entry, inserted] = classes.try_emplace(&line, static_cast<std::uint32_t>(classes.size()));
 					static_cast<void>(inserted);
 					target.push_back(entry->second);

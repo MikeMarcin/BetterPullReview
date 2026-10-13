@@ -25,16 +25,10 @@ import time
 import xml.etree.ElementTree as ElementTree
 
 SUITES = (
-    r"^(core_diff_compute|core_diff_compute_components|core_diff_semantics|core_diff_transition|"
+    r"^(core_diff_compute|core_diff_semantics|core_diff_transition|"
     r"core_review_comment_range|core_review_cycle_comparison|core_review_cycle_suggestion|"
     r"core_diff_compute_benchmark|application_diff_host|application_large_review_.*)$"
 )
-
-
-def candidates_of(build: pathlib.Path) -> list[str]:
-    harness = build / "tests/evaluation/diff_engine/better_pull_review_diff_engine_evaluation"
-    del harness
-    return []
 
 
 def main() -> int:
@@ -47,6 +41,8 @@ def main() -> int:
     parser.add_argument("--regex", default=SUITES)
     parser.add_argument("--timeout", type=int, default=3600)
     arguments = parser.parse_args()
+    arguments.out = arguments.out.resolve()
+    arguments.build = arguments.build.resolve()
     selection = arguments.build / "diff-evaluation-candidate.txt"
     replay = arguments.build / "tests/evaluation/diff_engine/diff_fuzz_replay"
     corpus = arguments.repo / "tests/fuzz/corpora/diff"

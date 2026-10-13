@@ -382,6 +382,8 @@ namespace {
 			.add("intraline_digest", aSummary.IntralineDigest);
 		if (aSummary.Agreement.has_value()) {
 			aLine.add("oracle_exact", aSummary.Agreement->Exact)
+				.add("oracle_exact_github_join", aSummary.Agreement->ExactGithubJoin)
+				.add("oracle_exact_git_join", aSummary.Agreement->ExactGitJoin)
 				.add("oracle_hunks", std::uint64_t{ aSummary.Agreement->OracleHunks })
 				.add("candidate_hunks", std::uint64_t{ aSummary.Agreement->CandidateHunks })
 				.add("comment_flips", aSummary.Agreement->CommentFlips);
@@ -522,6 +524,7 @@ namespace {
 		std::string              Out;
 		std::vector<std::string> Candidates;
 		std::string              PairFilter;
+		std::vector<std::string> Classes;
 		int                      Rounds = 3;
 		int                      Reps   = 3;
 		std::string              Single;
@@ -559,6 +562,8 @@ namespace {
 				result.Candidates = split(value);
 			} else if (key == "--pairs") {
 				result.PairFilter = value;
+			} else if (key == "--classes") {
+				result.Classes = split(value);
 			} else if (key == "--rounds") {
 				result.Rounds = std::max(1, std::atoi(value.c_str()));
 			} else if (key == "--reps") {
@@ -583,9 +588,18 @@ namespace {
 		return result;
 	}
 
+	/// The station's one-minute load average: the evaluation records how
+	/// busy the station was beside every sample.
+	[[nodiscard]] auto load_average() -> double
+	{
+		auto values = std::array<double, 3U>{ };
+		return ::getloadavg(values.data(), 1) == 1 ? values[0] : -1.0;
+	}
+
 	auto base_line(json_line& aLine, const std::string& aMode, const std::string& aCandidate, const corpus_pair& aPair) -> void
 	{
 		const auto description = evaluation::find_candidate(aCandidate);
+		aLine.add("load", load_average());
 		aLine.add("mode", aMode)
 			.add("candidate", aCandidate)
 			.add("component", std::to_string(static_cast<int>(description.has_value() ? description->Component : evaluation::component_kind::baseline)))
@@ -1062,7 +1076,12 @@ auto main(const int aArgc, char** aArgv) -> int
 		overhead(options);
 		return 0;
 	}
-	const auto pairs = load_corpus(options.Corpus, options.PairFilter);
+	auto pairs = load_corpus(options.Corpus, options.PairFilter);
+	if (!options.Classes.empty()) {
+		std::erase_if(pairs, [&options](const corpus_pair& aPair) {
+			return std::ranges::find(options.Classes, aPair.Class) == options.Classes.end() && std::ranges::find(options.Classes, aPair.Size) == options.Classes.end();
+		});
+	}
 	if (options.Mode == "single") {
 		auto exact = std::vector<corpus_pair>{ };
 		for (const auto& pair : pairs) {

@@ -18,8 +18,15 @@ namespace bpr::evaluation {
 
 	struct oracle_agreement
 	{
-		/// Every hunk's left and right lines equal the recording's.
-		bool          Exact          = false;
+		/// BPR's comment hunks (`github_review_hunks`, which joins only
+		/// touching hunks) equal the recording's on both sides.
+		bool Exact = false;
+		/// The candidate's hunks, joined as GitHub's file list joins them
+		/// (one unchanged line apart, `--inter-hunk-context=1`), equal the
+		/// recording's: agreement of the diff itself.
+		bool ExactGithubJoin = false;
+		/// The same with Git's own join (touching hunks only).
+		bool          ExactGitJoin   = false;
 		std::uint32_t OracleHunks    = 0U;
 		std::uint32_t CandidateHunks = 0U;
 		/// Lines, on both sides, inside a hunk on one side of the comparison

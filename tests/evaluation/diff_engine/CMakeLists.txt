@@ -186,3 +186,32 @@ bpr_add_executable(tool_diff_fuzz_replay
     "${PROJECT_SOURCE_DIR}/tests/fuzz/diff_fuzz.cpp"
     harness/fuzz_replay_main.cpp)
 target_link_libraries(tool_diff_fuzz_replay PRIVATE BetterPullReview::Core)
+
+# Expectation inventories: copies of the suites whose binaries stop at their
+# first failed expectation, generated into the build tree with that stop
+# replaced by a count, so a candidate's run lists every changed expectation
+# (each FAILED line) instead of the first. The sources are not copied into the
+# repository; the copy is regenerated whenever the suite changes.
+foreach(inventory IN ITEMS
+        "diff_compute_inventory|tests/core/diff_compute_tests.cpp|BetterPullReview::Core"
+        "diff_host_inventory|tests/application/diff_application_host_tests.cpp|BetterPullReview::Application")
+    string(REPLACE "|" ";" fields "${inventory}")
+    list(GET fields 0 name)
+    list(GET fields 1 source)
+    list(GET fields 2 library)
+    if(NOT TARGET "${library}")
+        continue()
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/${source}")
+    file(READ "${PROJECT_SOURCE_DIR}/${source}" content)
+    string(REPLACE "std::exit(EXIT_FAILURE);" "++bpr_eval_inventory_failures;" content "${content}")
+    string(PREPEND content
+        "#include <cstdio>\n"
+        "inline int bpr_eval_inventory_failures = 0;\n"
+        "namespace { struct bpr_eval_inventory_report { ~bpr_eval_inventory_report() { std::fprintf(stderr, \"INVENTORY_FAILURES %d\\n\", bpr_eval_inventory_failures); } } const bpr_eval_inventory_reporter; }\n")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/inventory/${name}.cpp" "${content}")
+    get_filename_component(source_directory "${PROJECT_SOURCE_DIR}/${source}" DIRECTORY)
+    bpr_add_executable(tool_${name} "${CMAKE_CURRENT_BINARY_DIR}/inventory/${name}.cpp")
+    target_include_directories(tool_${name} PRIVATE "${source_directory}")
+    target_link_libraries(tool_${name} PRIVATE "${library}")
+endforeach()
