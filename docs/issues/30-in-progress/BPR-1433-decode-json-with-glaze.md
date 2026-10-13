@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1433"
 title: "Decode JSON with glaze behind one shared structural check"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1434"]
 priority: "P1"
