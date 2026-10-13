@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1433"
 title: "Decode JSON with glaze behind one shared structural check"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1434"]
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7537b4696","evidence":{"kind":"observation","detail":"core_json_preflight and the six GitHub contract suites pass over the single core check","path":"docs/issues/60-done/BPR-1433-decode-json-with-glaze.md"}},{"criterion":"AC2","outcome":"pass","revision":"7537b4696","evidence":{"kind":"observation","detail":"application_mcp_context_helper and designated_live_public_observer_fixture pass with glaze decoding","path":"docs/issues/60-done/BPR-1433-decode-json-with-glaze.md"}},{"criterion":"AC3","outcome":"pass","revision":"7537b4696","evidence":{"kind":"observation","detail":"dependency_modernization_contract and boundary/package audits pass; exceptions documented","path":"docs/issues/60-done/BPR-1433-decode-json-with-glaze.md"}}]
 ---
 
 # Decode JSON with glaze behind one shared structural check
