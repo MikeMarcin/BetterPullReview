@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1460"
 title: "Record each Git metadata component's verdict in a committed decision record"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1455", "BPR-1456", "BPR-1457", "BPR-1458", "BPR-1459"]
 priority: "P2"
