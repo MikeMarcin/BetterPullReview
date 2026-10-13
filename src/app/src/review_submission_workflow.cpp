@@ -623,7 +623,7 @@ namespace bpr::app {
 			if (result->Request == *recovered
 				&& (result->Publication != application::review_submission_publication::published || (result->Receipt && application::valid(*result->Receipt, *recovered)))) {
 				answer(*recovered, result->Publication);
-				if (result->Publication != application::review_submission_publication::definitely_not_published && PublicationObserved) {
+				if (result->Publication == application::review_submission_publication::published && PublicationObserved) {
 					PublicationObserved();
 				}
 			}
@@ -688,11 +688,11 @@ namespace bpr::app {
 				}
 				answer(refused, application::review_submission_publication::definitely_not_published);
 			} else {
+				// [[BPR-1475]]. Not reread: Check status is how an unknown outcome
+				// is settled, and a read accepted while it runs can replace the
+				// authority it runs under. Once it finds the review published,
+				// that answer rereads.
 				Status = QStringLiteral("Review status is unknown. Check status to reconcile this attempt; do not submit it again.");
-				// [[BPR-1475]]. It may be on GitHub; a fresh read shows whether.
-				if (PublicationObserved) {
-					PublicationObserved();
-				}
 			}
 		}
 		if (!Context) {

@@ -54,9 +54,9 @@ namespace bpr::app {
 		/// this workflow is not already settling is looked up, and its answer
 		/// settles its drafts.
 		void resolve_held(std::vector<std::string> aKeys);
-		/// [[BPR-1475]]. A review that is, or may be, on GitHub: published, or
-		/// with an unknown outcome. Called whether or not it carried comments,
-		/// so the window can read the pull request again (owner, 2026-10-13).
+		/// [[BPR-1475]]. A review GitHub confirmed published, on its answer or
+		/// on Check status. Called whether or not it carried comments, so the
+		/// window can read the pull request again (owner, 2026-10-13).
 		using publication_observer = std::function<void()>;
 		void set_publication_observer(publication_observer);
 

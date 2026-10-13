@@ -14419,8 +14419,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& same_name(snapshot->Repository.Name, aDestination.Repository.Name);
 		}
 		/// [[BPR-1475]]. After this window publishes to the pull request (a
-		/// review, a comment or a reply), or may have, it reads the pull
-		/// request again, as Refresh does, so what was posted shows without
+		/// review, a comment, a reply or a tour), it reads the pull request
+		/// again, as Refresh does, so what was posted shows without
 		/// a manual refresh (owner, 2026-10-13). One reread is owed at most: a
 		/// read already in flight may predate the publication, so the reread
 		/// waits for it to settle rather than being dropped or stacked.
@@ -29413,7 +29413,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_third_published: {
 			const auto mutations = implementation->Fixture->review_mutation_evidence();
 			note("native=" + std::to_string(mutations.NativePosts) + " pending=" + std::to_string(pending().size()));
-			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || !ready()) {
+			// [[BPR-1475]]. The single comment's own reread lands before the
+			// course moves on: a file chosen while it lands is chosen again.
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || !ready() || implementation->RereadOwed
+				|| implementation->RereadQueued || implementation->WindowRead->state().PendingPullRequest.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.SingleAlone = mutations.NativePosts == probe.NativeBefore + 1U && mutations.LastPath == path && probe.Third

@@ -694,9 +694,9 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
 - **After publishing** ([[BPR-1475]], the owner, 2026-10-13). When this
   window publishes a review, a comment or a reply, it reads the pull request
   again by itself, as Refresh does, so what was posted shows without a manual
-  refresh. A review whose outcome is unknown is reread too, which shows
-  whether it landed; a comment or reply whose outcome is unknown is not, since
-  its draft stays held for a retry bound to the shown read. The reviewer's place stays: the
+  refresh. An unknown outcome is not reread: a review's is settled by Check
+  status, which rereads once it finds the review published, and a comment or
+  reply's draft stays held for a retry bound to the shown read. The reviewer's place stays: the
   modality, the selected file and line, the status line, and a note being
   written, which is held again and reopened in the drawer. A read already in
   flight is not doubled: the reread waits for it to settle.
