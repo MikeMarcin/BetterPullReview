@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1439"
+  ],
+  "reserve_for": "library-replacements-http",
+  "purpose": "GitHub HTTP helpers, fmt timestamps and shared hex from the 2026-10-13 audit (item 10)",
+  "created": "2026-10-13T18:30:59.896237+00:00",
+  "base": "8cf18d842def541b10086199029b80ecc72b0b0e"
+}
