@@ -5,6 +5,52 @@
 #include <utility>
 
 namespace bpr::application {
+	namespace {
+		auto valid_match_payload(const source_search_execution& aExecution, std::stop_token aStop) -> bool
+		{
+			if (!aExecution.Matches) {
+				return true;
+			}
+			const auto& records = *aExecution.Matches;
+			if (records.size() != aExecution.Terminal.Summary.Matches || records.size() > core::maximum_source_search_matches) {
+				return false;
+			}
+			auto        bytes = records.capacity() * sizeof(source_search_match);
+			const auto& scope = aExecution.Terminal.Request.Scope;
+			for (const auto& record : records) {
+				if (aStop.stop_requested() || !record.File.valid() || record.Match.Preview.size() > 960U || core::inspect_source_search_query(record.Match.Preview) == core::source_search_input::invalid_utf8) {
+					return false;
+				}
+				bytes += record.Match.Preview.capacity() + 1U;
+				if (bytes > core::source_match_limits{ }.MaximumResultBytes) {
+					return false;
+				}
+				if (!record.Match.Locations[0] && !record.Match.Locations[1]) {
+					return false;
+				}
+				if (scope.Document && scope.Document->File != record.File) {
+					return false;
+				}
+				for (auto index = std::size_t{ 0U }; index < 2U; ++index) {
+					const auto& location = record.Match.Locations[index];
+					if (!location) {
+						continue;
+					}
+					if (!location->Blob.valid() || location->Span.Begin > location->Span.End || location->Span.End > core::source_match_limits{ }.MaximumBytes
+						|| location->Side != (index == 0U ? core::diff_side::left : core::diff_side::right)) {
+						return false;
+					}
+					if (scope.Document && location->Blob != (index == 0U ? scope.Document->LeftBlob : scope.Document->RightBlob)) {
+						return false;
+					}
+					if (scope.Selection && (location->Side != scope.Selection->Side || location->Span.Begin < scope.Selection->Span.Begin || location->Span.End > scope.Selection->Span.End)) {
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+	}
 
 	struct source_search_host::implementation : std::enable_shared_from_this<implementation>
 	{
@@ -37,21 +83,22 @@ namespace bpr::application {
 		{
 		}
 
-		decision_executor&             Decisions;
-		effect_executor&               Effects;
-		source_search_execution_port&  Execution;
-		source_search_projection_port& Projection;
-		core::source_search_state      State;
-		std::string                    Query;
-		std::shared_ptr<job>           Active;
-		std::shared_ptr<job>           Queued;
-		std::deque<command>            Ingress;
-		source_search_host_counters    Counters;
-		core::source_search_reason     Reason          = core::source_search_reason::none;
-		bool                           Wrapped         = false;
-		bool                           Turning         = false;
-		bool                           Closed          = false;
-		bool                           ShutdownPending = false;
+		decision_executor&                                      Decisions;
+		effect_executor&                                        Effects;
+		source_search_execution_port&                           Execution;
+		source_search_projection_port&                          Projection;
+		core::source_search_state                               State;
+		std::string                                             Query;
+		std::shared_ptr<const std::vector<source_search_match>> Matches;
+		std::shared_ptr<job>                                    Active;
+		std::shared_ptr<job>                                    Queued;
+		std::deque<command>                                     Ingress;
+		source_search_host_counters                             Counters;
+		core::source_search_reason                              Reason          = core::source_search_reason::none;
+		bool                                                    Wrapped         = false;
+		bool                                                    Turning         = false;
+		bool                                                    Closed          = false;
+		bool                                                    ShutdownPending = false;
 
 		auto projection() const -> source_search_projection
 		{
@@ -62,6 +109,7 @@ namespace bpr::application {
 			output.Input        = State.Input;
 			output.Status       = State.Status;
 			output.Summary      = State.Summary;
+			output.Matches      = Matches;
 			output.CurrentMatch = State.CurrentMatch;
 			output.Reason       = Reason;
 			output.Open         = State.Open;
@@ -104,6 +152,9 @@ namespace bpr::application {
 					retire_queued();
 				}
 			}
+			if (aOutput.Work || aOutput.Cancel || aOutput.ClearQuery || (aOutput.Changed && State.Summary.Matches == 0U && !aOutput.Accepted)) {
+				Matches.reset();
+			}
 			if (aOutput.ClearQuery) {
 				Query.clear();
 			}
@@ -142,16 +193,25 @@ namespace bpr::application {
 			}
 		}
 
-		void complete(const std::shared_ptr<job>& aJob, core::source_search_terminal aTerminal)
+		void complete(const std::shared_ptr<job>& aJob, source_search_execution aExecution)
 		{
 			// The effect executor retains each admitted closure exactly once.
 			// Completion remains on the decision lane until Active is retired.
-			Turning = true;
+			Turning         = true;
+			auto& aTerminal = aExecution.Terminal;
 			++Counters.Terminals;
 			if (aTerminal.Request != aJob->Work.Request) {
 				aTerminal = { aJob->Work.Request, core::source_search_status::failure, { } };
+				aExecution.Matches.reset();
+			}
+			if (aExecution.Matches && (aExecution.Matches->size() != aTerminal.Summary.Matches || aExecution.Matches->size() > core::maximum_source_search_matches)) {
+				aTerminal = { aJob->Work.Request, core::source_search_status::failure, { } };
+				aExecution.Matches.reset();
 			}
 			const auto output = core::complete_source_search(State, aTerminal);
+			if (output.Accepted) {
+				Matches = std::move(aExecution.Matches);
+			}
 			if (output.Reason == core::source_search_reason::stale_completion) {
 				++Counters.StaleTerminals;
 			}
@@ -171,12 +231,15 @@ namespace bpr::application {
 			const auto host    = shared_from_this();
 			try {
 				Effects.post([host, current] {
-					auto terminal = core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } };
+					auto terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
 					if (!current->Stop.stop_requested()) {
 						try {
 							terminal = host->Execution.execute(current->Work, current->Stop.get_token());
+							if (!valid_match_payload(terminal, current->Stop.get_token())) {
+								terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, current->Stop.stop_requested() ? core::source_search_status::cancelled : core::source_search_status::failure, { } } };
+							}
 						} catch (...) {
-							terminal = { current->Work.Request, core::source_search_status::failure, { } };
+							terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } } };
 						}
 					}
 					host->Decisions.post([host, current, completion = std::move(terminal)]() mutable { host->complete(current, std::move(completion)); });
@@ -185,7 +248,7 @@ namespace bpr::application {
 			} catch (...) {
 				// A refused post retained no closure. Its admitted job still gets
 				// one terminal through the required live decision service.
-				Decisions.post([host, current] { host->complete(current, { current->Work.Request, core::source_search_status::failure, { } }); });
+				Decisions.post([host, current] { host->complete(current, core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } }); });
 			}
 		}
 

@@ -97,13 +97,16 @@ namespace bpr::core {
 			return false;
 		}
 		if (aScope.Target == source_search_target::files) {
-			return !aScope.Document;
+			return !aScope.Document && !aScope.Selection;
 		}
 		if (!aScope.Document || !aScope.Document->File.valid() || !aScope.Document->Comparison.valid()
 			|| (aScope.Document->LeftBlob && !aScope.Document->LeftBlob->valid())
 			|| (aScope.Document->RightBlob && !aScope.Document->RightBlob->valid())
 			|| (aScope.Document->LeftBlob && aScope.Document->LeftBlob->algorithm() != aScope.Comparison.Left.Commit.algorithm())
 			|| (aScope.Document->RightBlob && aScope.Document->RightBlob->algorithm() != aScope.Comparison.Right.Commit.algorithm())) {
+			return false;
+		}
+		if (aScope.Selection && (aScope.Selection->Span.Begin >= aScope.Selection->Span.End || (aScope.Selection->Side != diff_side::left && aScope.Selection->Side != diff_side::right) || (aScope.Selection->Side == diff_side::left && (!aScope.Document->LeftBlob || aScope.Target == source_search_target::right)) || (aScope.Selection->Side == diff_side::right && (!aScope.Document->RightBlob || aScope.Target == source_search_target::left)))) {
 			return false;
 		}
 		switch (aScope.Target) {

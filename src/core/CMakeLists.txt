@@ -2,6 +2,10 @@ add_library(
     better_pull_review_core
     STATIC
         src/source_search.cpp
+        src/source_match_compile.cpp
+        src/source_match_scan.cpp
+        src/source_match_entry.cpp
+        src/source_path_filter.cpp
         src/remembered_connection.cpp
         src/review_preparation.cpp
         src/window_review_restoration.cpp

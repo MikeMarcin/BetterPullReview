@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SOURCE_SEARCH_HOST_HPP
 
 #include "bpr/application/port.hpp"
+#include "bpr/core/source_matcher.hpp"
 #include "bpr/core/source_search.hpp"
 
 #include <memory>
@@ -18,30 +19,50 @@ namespace bpr::application {
 		std::string                 Query;
 	};
 
+	/// \brief One exact source occurrence; locations retain both proven sides.
+	struct source_search_match
+	{
+		core::file_identity       File;
+		core::source_match_record Match;
+	};
+	struct source_search_execution
+	{
+		core::source_search_terminal                            Terminal;
+		std::shared_ptr<const std::vector<source_search_match>> Matches;
+		source_search_execution(core::source_search_terminal aTerminal)
+			: Terminal(std::move(aTerminal))
+		{ }
+	};
+	/// \brief Execute the shared matcher for an exact, already accepted pane material.
+	/// \details This performs no reads. A PR corpus execution compiles once and
+	/// calls the same core entry matcher across its exact ordered catalogue.
+	[[nodiscard]] auto execute_source_pane_match(const source_search_work& aWork, const core::source_match_entry& aEntry, std::stop_token aStop, core::source_match_limits aLimits = { }) -> source_search_execution;
+
 	/// \brief Executes one exact request off the decision lane, with advisory cancellation.
 	/// \details M2 supplies the shared matcher and M3 its epoch-backed corpus.
 	/// Implementations return one terminal and do not touch core state or Qt.
 	class source_search_execution_port
 	{
 	public:
-		virtual ~source_search_execution_port()                                                                                    = default;
-		[[nodiscard]] virtual auto execute(const source_search_work& aWork, std::stop_token aStop) -> core::source_search_terminal = 0;
+		virtual ~source_search_execution_port()                                                                               = default;
+		[[nodiscard]] virtual auto execute(const source_search_work& aWork, std::stop_token aStop) -> source_search_execution = 0;
 	};
 
 	/// \brief Runtime-only search presentation, with explicit empty/partial/error coverage.
 	struct source_search_projection
 	{
-		std::optional<core::source_search_scope> Scope;
-		std::string                              Query;
-		core::source_search_options              Options;
-		core::source_search_input                Input  = core::source_search_input::empty;
-		core::source_search_status               Status = core::source_search_status::idle;
-		core::source_search_summary              Summary;
-		std::optional<std::uint32_t>             CurrentMatch;
-		core::source_search_reason               Reason    = core::source_search_reason::none;
-		bool                                     Open      = false;
-		bool                                     Wrapped   = false;
-		bool                                     NoResults = false;
+		std::optional<core::source_search_scope>                Scope;
+		std::string                                             Query;
+		core::source_search_options                             Options;
+		core::source_search_input                               Input  = core::source_search_input::empty;
+		core::source_search_status                              Status = core::source_search_status::idle;
+		core::source_search_summary                             Summary;
+		std::shared_ptr<const std::vector<source_search_match>> Matches;
+		std::optional<std::uint32_t>                            CurrentMatch;
+		core::source_search_reason                              Reason    = core::source_search_reason::none;
+		bool                                                    Open      = false;
+		bool                                                    Wrapped   = false;
+		bool                                                    NoResults = false;
 	};
 
 	class source_search_projection_port

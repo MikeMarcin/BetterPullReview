@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_SOURCE_SEARCH_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_SOURCE_SEARCH_HPP
 
+#include "bpr/core/diff_compute.hpp"
 #include "bpr/core/document_tabs.hpp"
 
 #include <cstddef>
@@ -28,6 +29,13 @@ namespace bpr::core {
 		auto                        operator==(const source_search_document&) const -> bool = default;
 	};
 
+	/// \brief Fixed original source bounds; navigation never moves this range.
+	struct source_search_range
+	{
+		diff_side Side = diff_side::right;
+		byte_span Span;
+		auto      operator==(const source_search_range&) const -> bool = default;
+	};
 	/// \brief Binds one search to the active tab's exact pair and corpus generation.
 	/// \details CatalogueGeneration identifies the host's catalogue for this pair,
 	/// not the latest remote epoch. A refresh which leaves this scope valid is a no-op.
@@ -38,6 +46,7 @@ namespace bpr::core {
 		comparison_pair                       Comparison;
 		std::uint64_t                         CatalogueGeneration = 0U;
 		std::optional<document_tab_id>        Tab;
+		std::optional<source_search_range>    Selection;
 		source_search_target                  Target = source_search_target::right;
 		std::optional<source_search_document> Document;
 		auto                                  operator==(const source_search_scope&) const -> bool = default;

@@ -1013,3 +1013,13 @@ target_link_libraries(test_source_search_policy PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_source_search_policy)
 bpr_enable_warnings(test_source_search_policy)
 bpr_add_network_isolated_test(NAME core_source_search_policy COMMAND test_source_search_policy)
+
+bpr_add_executable(test_source_matcher source_matcher_tests.cpp)
+target_link_libraries(test_source_matcher PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_source_matcher)
+bpr_enable_warnings(test_source_matcher)
+bpr_add_network_isolated_test(NAME core_source_matcher COMMAND test_source_matcher)
+bpr_add_network_isolated_test(
+    NAME core_source_matcher_reference
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/source_matcher_reference_tests.py" "$<TARGET_FILE:test_source_matcher>"
+)

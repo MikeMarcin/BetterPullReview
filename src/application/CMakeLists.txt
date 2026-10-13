@@ -14,6 +14,7 @@ add_library(
     better_pull_review_application
     STATIC
         src/source_search_host.cpp
+        src/source_match_execution.cpp
         src/remembered_connection_host.cpp
         src/writing_hooks.cpp
         src/review_tour_import.cpp

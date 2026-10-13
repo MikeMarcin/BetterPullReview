@@ -91,3 +91,20 @@ to its own chat; this lane authored no main changes.
 The M1 engineering writer is released at handoff. Any final checkpoint-only
 commit changes no tested product bytes; candidate identity and later tracker
 revision are kept distinct in the return record.
+
+## M2 engineering frontier
+
+`shared-matching`, [[BPR-1420]], is claimed at `945562593` in this same lane.
+[m2-binding.json](m2-binding.json) binds the preserved run/segment/mandate and
+accepted M1. The M2 engineering writer owns this worktree exclusively and has no
+agent descendants. No main checkout, live desktop, remote repository or source
+tracker counter was changed.
+
+The shared core compiler/scanner, Unicode 17 tables, path policy, actual-version
+unified plan and application exact-record completion are implemented. Public
+matcher/host and reference checks pass. Self-review corrected nullable repetition
+priority against actual RE2 and suppressed left text hidden by whitespace-equal
+right rows. A CRLF mapping negative control fails the same exact-span assertion.
+The next action is final candidate integration/gates, acceptance and explicit-path
+card finish, then release the writer at the M2 boundary. Original AC01–AC08 stay
+Pending; the corpus/cache, UI and full qualification work is unchanged.

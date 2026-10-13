@@ -15,12 +15,12 @@ namespace {
 
 	struct execution final : source_search_execution_port
 	{
-		std::vector<source_search_work>                                                         Calls;
-		std::function<core::source_search_terminal(const source_search_work&, std::stop_token)> Answer;
-		auto                                                                                    execute(const source_search_work& aWork, const std::stop_token aStop) -> core::source_search_terminal override
+		std::vector<source_search_work>                                                    Calls;
+		std::function<source_search_execution(const source_search_work&, std::stop_token)> Answer;
+		auto                                                                               execute(const source_search_work& aWork, const std::stop_token aStop) -> source_search_execution override
 		{
 			Calls.push_back(aWork);
-			return Answer ? Answer(aWork, aStop) : search_terminal(aWork.Request);
+			return Answer ? Answer(aWork, aStop) : source_search_execution{ search_terminal(aWork.Request) };
 		}
 	};
 
@@ -221,6 +221,62 @@ namespace {
 		decisions.drain();
 		search_expect(host.state().Status == core::source_search_status::failure && host.counters().Admitted == 1U && host.counters().Terminals == 1U && worker.Calls.empty() && host.is_quiescent(), "submission failure ends exactly once without worker or stale searching");
 	}
+	void test_real_matcher_records_and_stale_payload()
+	{
+		fixture    f;
+		auto       entry   = core::source_match_entry{ };
+		const auto scope   = search_scope();
+		entry.File         = scope.Document->File;
+		entry.Target       = core::source_search_target::right;
+		entry.Right        = core::source_match_side{ *scope.Document->RightBlob, "café\r\ncafé" };
+		f.Execution.Answer = [&entry](const auto& aWork, std::stop_token aStop) { return execute_source_pane_match(aWork, entry, aStop); };
+		search_expect(f.Host.set_query("CAFÉ"), "real matcher query admitted");
+		f.Effects.drain();
+		search_expect(!f.Host.projection().Matches, "worker records not published before decision");
+		f.Decisions.drain();
+		const auto accepted = f.Host.projection().Matches;
+		search_expect(accepted && accepted->size() == 2U && accepted->at(1U).Match.Locations[1]->Span == core::byte_span{ 7U, 12U }, "exact original records accepted through serialized host");
+		for (auto index = 0U; index < 1000U; ++index) {
+			(void)f.Host.navigate(core::change_navigation_direction::next);
+		}
+		search_expect(f.Host.projection().Matches == accepted && f.Execution.Calls.size() == 1U, "navigation reuses immutable exact records");
+		search_expect(f.Host.set_query("CAFÉ") && !f.Host.projection().Matches, "query edit synchronously clears old records");
+		f.Effects.drain();
+		search_expect(f.Host.set_query("missing"), "replacement before late matcher terminal");
+		f.Decisions.drain();
+		search_expect(!f.Host.projection().Matches, "stale exact record collection never publishes");
+		f.drain();
+		search_expect(f.Host.projection().Matches && f.Host.projection().Matches->empty() && f.Host.projection().NoResults, "real complete empty has exact empty collection");
+		search_expect(f.Host.set_query("[", { .RegularExpression = true }), "real invalid regex admitted");
+		f.drain();
+		search_expect(f.Host.state().Status == core::source_search_status::invalid_pattern && !f.Host.projection().Matches, "invalid regex cannot retain apparently current records");
+		auto bounded      = scope;
+		bounded.Selection = core::source_search_range{ core::diff_side::right, { 7U, 12U } };
+		entry.Selection   = std::pair{ core::diff_side::right, core::byte_span{ 7U, 12U } };
+		search_expect(f.Host.set_scope(bounded) && f.Host.set_query("CAFÉ"), "fixed selection identity admitted");
+		f.drain();
+		search_expect(f.Host.projection().Matches->size() == 1U && f.Host.state().Scope->Selection == bounded.Selection, "selection range stays fixed after worker and navigation");
+		(void)f.Host.navigate(core::change_navigation_direction::next);
+		search_expect(f.Host.state().Scope->Selection == bounded.Selection, "match navigation never moves captured bounds");
+		entry.Right->Blob = *scope.Document->LeftBlob;
+		search_expect(f.Host.set_query("CAFÉ"), "wrong material test admitted");
+		f.drain();
+		search_expect(f.Host.state().Status == core::source_search_status::unavailable && !f.Host.projection().Matches, "wrong blob cannot publish a pane span");
+		f.Execution.Answer = [](const auto& aWork, std::stop_token) {
+			auto output                    = source_search_execution{ search_terminal(aWork.Request, 1U) };
+			auto records                   = std::make_shared<std::vector<source_search_match>>(1U);
+			records->front().File          = search_identity<core::file_identity>(5U);
+			records->front().Match.Preview = std::string(961U, 'x');
+			output.Matches                 = std::move(records);
+			return output;
+		};
+		(void)f.Host.set_query("payload cap");
+		f.drain();
+		search_expect(f.Host.state().Status == core::source_search_status::failure && !f.Host.projection().Matches, "oversized or location-free worker payload cannot be current");
+		f.Host.shutdown();
+		search_expect(f.Host.is_quiescent(), "real matcher owner quiesces");
+	}
+
 }
 
 int main()
@@ -232,5 +288,6 @@ int main()
 	test_projection_feedback_and_shutdown();
 	test_stop_reentrancy_and_terminal_failures();
 	test_effect_submission_refusal();
+	test_real_matcher_records_and_stale_payload();
 	std::cout << "source-search-host:pass\n";
 }
