@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1425"
 title: "Build the operation-owned sensitive CLI credential path"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0078"]
 depends_on: []
 platforms: ["mac"]
