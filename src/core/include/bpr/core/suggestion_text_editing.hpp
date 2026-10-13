@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -19,9 +20,12 @@
 /// \details This is a deliberately small code-proposal editor, not an IDE.
 /// The text is UTF-8 kept as lines with their own endings, so CRLF, LF,
 /// tabs and a missing final newline survive every edit. As in Git, only LF
-/// ends a line and a lone CR is content ([[BPR-1432]]). Positions are visual
-/// columns: a tab advances to the next tab stop and every other scalar value
-/// is one column. Virtual space, a column beyond the end of a line, belongs
+/// ends a line and a lone CR is content ([[BPR-1432]]). Positions are display
+/// columns of extended grapheme clusters ([[BPR-1438]]): a tab advances to
+/// the next tab stop, a wide cluster (CJK, fullwidth forms, emoji) takes two
+/// columns, any other cluster one, and a combining mark or joiner adds none
+/// to its cluster. Carets step, select and delete whole clusters, and a
+/// column inside a wide cluster or a tab means its start. Virtual space, a column beyond the end of a line, belongs
 /// to the box gesture alone (Alt+Shift+Arrow), which makes one caret per line
 /// at the same visual columns however short a line is; typing there pads the
 /// line with spaces. Every other gesture keeps a caret on its line's text: a
@@ -100,6 +104,21 @@ namespace bpr::core {
 	/// text with no indented line uses four spaces for Python, two for YAML
 	/// and a tab otherwise.
 	[[nodiscard]] auto indentation_for(std::string_view aPath, std::string_view aText) -> text_indentation;
+
+	/// \brief One extended grapheme cluster of a line and the columns it takes.
+	struct text_cluster
+	{
+		std::size_t   Offset = 0;
+		std::size_t   Length = 0;
+		std::uint64_t Column = 0;
+		/// Columns: a tab's run to its stop, otherwise 1 or 2.
+		std::uint64_t Width                                  = 0;
+		auto          operator<=>(const text_cluster&) const = default;
+	};
+
+	/// \brief The clusters of a line's content in order, with their columns.
+	/// \details The view paints by these, so its cells are the editor's columns.
+	[[nodiscard]] auto text_clusters(std::string_view aContent, std::uint32_t aTabWidth) -> std::vector<text_cluster>;
 
 	struct suggestion_text_state
 	{
@@ -270,6 +289,9 @@ namespace bpr::core {
 		/// \brief The point of byte `aOffset` of the text. An offset inside a
 		/// line ending is the end of its line; one past the text is its end.
 		[[nodiscard]] auto point_of(std::size_t aOffset) const -> text_point;
+		/// \brief The columns of the cluster at a point, from its first column to
+		/// the one after it; at or beyond the line's end, the point's column twice.
+		[[nodiscard]] auto cluster_span(const text_point& aPoint) const -> std::pair<std::uint64_t, std::uint64_t>;
 		/// \brief The byte offset of a point in the text; a point in virtual
 		/// space is the end of its line.
 		[[nodiscard]] auto byte_offset_of(const text_point& aPoint) const -> std::size_t;

@@ -140,7 +140,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto cell_rectangle(const core::text_point& aPoint) const -> QRectF;
 		/// \brief The text position under a viewport point, in virtual space
 		/// beyond a line's end; a gesture other than the box places a caret
-		/// at the line's end instead.
+		/// at the line's end instead. Inside a wide cluster it is the nearer of
+		/// the cluster's two edges ([[BPR-1438]]).
 		[[nodiscard]] auto point_at(const QPoint& aPosition) const -> core::text_point;
 		/// \brief The cell under a viewport point: the character a double
 		/// click or a word drag means, where `point_at` is the nearer edge.
@@ -211,8 +212,8 @@ namespace bpr::qt {
 		qreal RowHeight   = 1.0;
 		qreal Ascent      = 0.0;
 		qreal ColumnWidth = 1.0;
-		/// \brief [[BPR-1156]]. One character shaped alone in the code font, as a
-		/// one-character `drawText` shapes it, kept so a paint does not shape it again.
+		/// \brief [[BPR-1156]]. One grapheme cluster shaped alone in the code font,
+		/// as a one-cluster `drawText` shapes it, kept so a paint does not shape it again.
 		struct shaped_glyph
 		{
 			QRawFont Font;
@@ -222,6 +223,8 @@ namespace bpr::qt {
 			/// False when the character needs more than one glyph or a second font;
 			/// such a character is drawn with `drawText` as before.
 			bool Single = false;
+			/// The shaped cluster's advance, which centres a wide cluster in its two cells.
+			qreal Advance = 0.0;
 		};
 		mutable QHash<QString, shaped_glyph> ShapedGlyphs;
 		mutable qreal                        ShapedRatio = 0.0;

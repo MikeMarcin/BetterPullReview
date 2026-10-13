@@ -1,5 +1,7 @@
 #include "bpr/core/suggestion_text_editing.hpp"
 
+#include "bpr/core/utf8.hpp"
+
 #include <algorithm>
 #include <array>
 #include <map>
@@ -17,53 +19,44 @@ namespace bpr::core {
 			return "";
 		}
 
-		/// Bytes in the UTF-8 scalar starting at `aIndex`; a malformed byte is one.
-		auto scalar_length(const std::string_view aText, const std::size_t aIndex) -> std::size_t
+		/// [[BPR-1438]]. The end of the extended grapheme cluster starting at
+		/// `aIndex`; an ill-formed byte is a cluster of its own.
+		auto cluster_end(const std::string_view aText, const std::size_t aIndex) -> std::size_t
 		{
-			const auto lead   = static_cast<unsigned char>(aText[aIndex]);
-			const auto length = lead < 0x80U ? 1U : lead >= 0xF0U ? 4U
-				: lead >= 0xE0U                                   ? 3U
-				: lead >= 0xC0U                                   ? 2U
-																  : 1U;
-			if (aIndex + length > aText.size()) {
-				return 1U;
-			}
-			for (std::size_t offset = 1; offset < length; ++offset) {
-				if ((static_cast<unsigned char>(aText[aIndex + offset]) & 0xC0U) != 0x80U) {
-					return 1U;
-				}
-			}
-			return length;
+			return utf8::grapheme_end(aText, aIndex);
 		}
 
-		/// Columns the scalar at `aIndex` occupies when it starts at `aColumn`.
-		auto advance(const std::string_view aText, const std::size_t aIndex, const std::uint64_t aColumn, const std::uint32_t aTab) -> std::uint64_t
+		/// Columns the cluster `[aIndex, aEnd)` occupies when it starts at `aColumn`.
+		auto advance(const std::string_view aText, const std::size_t aIndex, const std::size_t aEnd, const std::uint64_t aColumn, const std::uint32_t aTab) -> std::uint64_t
 		{
-			return aText[aIndex] == '\t' ? aTab - (aColumn % aTab) : 1U;
+			return aText[aIndex] == '\t' ? aTab - (aColumn % aTab) : utf8::grapheme_width(aText.substr(aIndex, aEnd - aIndex));
 		}
 
 		auto width_of(const std::string_view aText, const std::uint32_t aTab) -> std::uint64_t
 		{
 			auto column = std::uint64_t{ 0 };
-			for (std::size_t index = 0; index < aText.size(); index += scalar_length(aText, index)) {
-				column += advance(aText, index, column, aTab);
+			for (std::size_t index = 0; index < aText.size();) {
+				const auto end = cluster_end(aText, index);
+				column += advance(aText, index, end, column, aTab);
+				index = end;
 			}
 			return column;
 		}
 
-		/// The byte offset of the scalar boundary at or before a visual column,
+		/// The byte offset of the cluster boundary at or before a visual column,
 		/// and the virtual columns beyond the end of the line.
 		auto offset_of(const std::string_view aText, const std::uint64_t aColumn, const std::uint32_t aTab) -> std::pair<std::size_t, std::uint64_t>
 		{
 			auto column = std::uint64_t{ 0 };
 			auto index  = std::size_t{ 0 };
 			while (index < aText.size()) {
-				const auto next = column + advance(aText, index, column, aTab);
+				const auto end  = cluster_end(aText, index);
+				const auto next = column + advance(aText, index, end, column, aTab);
 				if (next > aColumn) {
 					return { index, 0U };
 				}
 				column = next;
-				index += scalar_length(aText, index);
+				index  = end;
 			}
 			return { index, aColumn - std::min(aColumn, column) };
 		}
@@ -71,10 +64,22 @@ namespace bpr::core {
 		auto column_of(const std::string_view aText, const std::size_t aOffset, const std::uint32_t aTab) -> std::uint64_t
 		{
 			auto column = std::uint64_t{ 0 };
-			for (std::size_t index = 0; index < aOffset && index < aText.size(); index += scalar_length(aText, index)) {
-				column += advance(aText, index, column, aTab);
+			for (std::size_t index = 0; index < aOffset && index < aText.size();) {
+				const auto end = cluster_end(aText, index);
+				column += advance(aText, index, end, column, aTab);
+				index = end;
 			}
 			return column;
+		}
+
+		/// The starts of the clusters that begin before `aLimit`, in order.
+		auto cluster_starts(const std::string_view aText, const std::size_t aLimit) -> std::vector<std::size_t>
+		{
+			auto starts = std::vector<std::size_t>{ };
+			for (std::size_t index = 0; index < aLimit && index < aText.size(); index = cluster_end(aText, index)) {
+				starts.push_back(index);
+			}
+			return starts;
 		}
 
 		enum class character_class : std::uint8_t {
@@ -82,14 +87,18 @@ namespace bpr::core {
 			word,
 			punctuation,
 		};
-		auto class_of(const char aByte) -> character_class
+		/// [[BPR-1438]]. A cluster's class is its first scalar's: letters,
+		/// marks, numbers and connector punctuation are word characters; other
+		/// punctuation, symbols and an ill-formed byte are punctuation.
+		auto class_of(const std::string_view aText, const std::size_t aIndex) -> character_class
 		{
-			const auto value = static_cast<unsigned char>(aByte);
-			if (aByte == ' ' || aByte == '\t') {
-				return character_class::space;
-			}
-			if (value >= 0x80U || (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || (aByte >= '0' && aByte <= '9') || aByte == '_') {
-				return character_class::word;
+			auto offset = aIndex;
+			if (const auto value = utf8::decode(aText, offset); value) {
+				switch (utf8::classify_word(*value)) {
+				case utf8::word_class::space: return character_class::space;
+				case utf8::word_class::word:  return character_class::word;
+				case utf8::word_class::other: return character_class::punctuation;
+				}
 			}
 			return character_class::punctuation;
 		}
@@ -216,6 +225,21 @@ namespace bpr::core {
 		return text;
 	}
 
+	auto text_clusters(const std::string_view aContent, const std::uint32_t aTabWidth) -> std::vector<text_cluster>
+	{
+		const auto tab      = aTabWidth == 0U ? default_suggestion_tab_width : aTabWidth;
+		auto       clusters = std::vector<text_cluster>{ };
+		auto       column   = std::uint64_t{ 0 };
+		for (std::size_t index = 0; index < aContent.size();) {
+			const auto end   = cluster_end(aContent, index);
+			const auto width = advance(aContent, index, end, column, tab);
+			clusters.push_back({ .Offset = index, .Length = end - index, .Column = column, .Width = width });
+			column += width;
+			index = end;
+		}
+		return clusters;
+	}
+
 	suggestion_text_editor::suggestion_text_editor(const std::string_view aText, const std::uint32_t aTabWidth)
 	{
 		State.Lines    = split_text_lines(aText);
@@ -277,6 +301,22 @@ namespace bpr::core {
 			aOffset -= total;
 		}
 		return { };
+	}
+
+	auto suggestion_text_editor::cluster_span(const text_point& aPoint) const -> std::pair<std::uint64_t, std::uint64_t>
+	{
+		const auto& content = State.Lines[std::min<std::uint64_t>(aPoint.Line, State.Lines.size() - 1U)].Content;
+		auto        column  = std::uint64_t{ 0 };
+		for (std::size_t index = 0; index < content.size();) {
+			const auto end  = cluster_end(content, index);
+			const auto next = column + advance(content, index, end, column, State.TabWidth);
+			if (next > aPoint.Column) {
+				return { column, next };
+			}
+			column = next;
+			index  = end;
+		}
+		return { aPoint.Column, aPoint.Column };
 	}
 
 	auto suggestion_text_editor::byte_offset_of(const text_point& aPoint) const -> std::size_t
@@ -374,21 +414,19 @@ namespace bpr::core {
 			const auto& content = State.Lines[at.Line].Content;
 			auto        first   = std::min(offset_of(content, at.Column, tab).first, content.size());
 			if (first == content.size() && first > 0U) {
-				first = 0U;
-				for (std::size_t index = 0; index < content.size(); index += scalar_length(content, index)) {
-					first = index;
-				}
+				first = cluster_starts(content, content.size()).back();
 			}
 			auto last = first;
 			if (first < content.size()) {
-				const auto kind = class_of(content[first]);
-				last            = first + scalar_length(content, first);
+				const auto kind = class_of(content, first);
+				last            = cluster_end(content, first);
 				if (kind != character_class::punctuation) {
-					while (first > 0U && class_of(content[first - 1U]) == kind) {
-						--first;
+					const auto starts = cluster_starts(content, first);
+					for (auto earlier = starts.rbegin(); earlier != starts.rend() && class_of(content, *earlier) == kind; ++earlier) {
+						first = *earlier;
 					}
-					while (last < content.size() && class_of(content[last]) == kind) {
-						++last;
+					while (last < content.size() && class_of(content, last) == kind) {
+						last = cluster_end(content, last);
 					}
 				}
 			}
@@ -535,17 +573,13 @@ namespace bpr::core {
 					return { aHead.Line, width(aHead.Line) };
 				}
 				if (offset > 0U) {
-					auto previous = std::size_t{ 0 };
-					for (std::size_t index = 0; index < offset; index += scalar_length(content, index)) {
-						previous = index;
-					}
-					return { aHead.Line, column_of(content, previous, tab) };
+					return { aHead.Line, column_of(content, cluster_starts(content, offset).back(), tab) };
 				}
 				return aHead.Line > 0U ? text_point{ aHead.Line - 1U, width(aHead.Line - 1U) } : aHead;
 			case text_motion::right:
 				// At the end, Right goes on to the next line, as in any editor.
 				if (offset < content.size()) {
-					return { aHead.Line, column_of(content, offset + scalar_length(content, offset), tab) };
+					return { aHead.Line, column_of(content, cluster_end(content, offset), tab) };
 				}
 				if (virtualColumns > 0U || aHead.Line + 1U >= lines()) {
 					return { aHead.Line, width(aHead.Line) };
@@ -567,12 +601,12 @@ namespace bpr::core {
 					return aHead.Line + 1U < lines() ? text_point{ aHead.Line + 1U, 0U } : aHead;
 				}
 				auto       index = offset;
-				const auto kind  = class_of(content[index]);
-				while (index < content.size() && class_of(content[index]) == kind && kind != character_class::space) {
-					index += scalar_length(content, index);
+				const auto kind  = class_of(content, index);
+				while (index < content.size() && class_of(content, index) == kind && kind != character_class::space) {
+					index = cluster_end(content, index);
 				}
-				while (index < content.size() && class_of(content[index]) == character_class::space) {
-					++index;
+				while (index < content.size() && class_of(content, index) == character_class::space) {
+					index = cluster_end(content, index);
 				}
 				return { aHead.Line, column_of(content, index, tab) };
 			}
@@ -580,17 +614,18 @@ namespace bpr::core {
 				if (offset == 0U && virtualColumns == 0U) {
 					return aHead.Line > 0U ? text_point{ aHead.Line - 1U, width(aHead.Line - 1U) } : aHead;
 				}
-				auto index = offset;
-				while (index > 0U && class_of(content[index - 1U]) == character_class::space) {
-					--index;
+				const auto starts = cluster_starts(content, offset);
+				auto       count  = starts.size();
+				while (count > 0U && class_of(content, starts[count - 1U]) == character_class::space) {
+					--count;
 				}
-				if (index > 0U) {
-					const auto kind = class_of(content[index - 1U]);
-					while (index > 0U && class_of(content[index - 1U]) == kind) {
-						--index;
+				if (count > 0U) {
+					const auto kind = class_of(content, starts[count - 1U]);
+					while (count > 0U && class_of(content, starts[count - 1U]) == kind) {
+						--count;
 					}
 				}
-				return { aHead.Line, column_of(content, index, tab) };
+				return { aHead.Line, column_of(content, count < starts.size() ? starts[count] : offset, tab) };
 			}
 			}
 			return aHead;
@@ -749,7 +784,7 @@ namespace bpr::core {
 					}
 					State.Primary = 0;
 				} else if constexpr (std::is_same_v<value_type, insert_text>) {
-					const auto single = split_text_lines(aValue.Text).size() == 1U && !aValue.Text.empty() && scalar_length(aValue.Text, 0) == aValue.Text.size();
+					const auto single = split_text_lines(aValue.Text).size() == 1U && !aValue.Text.empty() && cluster_end(aValue.Text, 0) == aValue.Text.size();
 					State.BoxAnchor   = std::nullopt;
 					const auto typing = Typing;
 					const auto pushed = !(single && Typing);
@@ -837,16 +872,13 @@ namespace bpr::core {
 							continue;
 						}
 						if (backward && offset > 0U) {
-							auto previous = std::size_t{ 0 };
-							for (std::size_t index = 0; index < offset; index += scalar_length(content, index)) {
-								previous = index;
-							}
+							const auto previous = cluster_starts(content, offset).back();
 							edits.emplace_back(flat_edit{ .Start = at - (offset - previous), .End = at });
 						} else if (backward && caret.Head.Line > 0U) {
 							const auto ending = ending_bytes(State.Lines[caret.Head.Line - 1U].Ending).size();
 							edits.emplace_back(flat_edit{ .Start = at - ending, .End = at });
 						} else if (!backward && offset < content.size()) {
-							edits.emplace_back(flat_edit{ .Start = at, .End = at + scalar_length(content, offset) });
+							edits.emplace_back(flat_edit{ .Start = at, .End = at + (cluster_end(content, offset) - offset) });
 						} else if (!backward && caret.Head.Line + 1U < lines()) {
 							edits.emplace_back(flat_edit{ .Start = at, .End = at + ending_bytes(State.Lines[caret.Head.Line].Ending).size() });
 						} else {

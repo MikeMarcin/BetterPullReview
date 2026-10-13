@@ -179,7 +179,14 @@ namespace bpr::qt {
 
 			[[nodiscard]] auto characterRect(const int aOffset) const -> QRect override
 			{
-				const auto cell = view().cell_rectangle(view().model().point_of(bytes_of(aOffset))).toAlignedRect();
+				// [[BPR-1438]]. A wide cluster's rectangle covers both its cells.
+				const auto at    = view().model().point_of(bytes_of(aOffset));
+				const auto span  = view().model().cluster_span(at);
+				auto       exact = view().cell_rectangle(at);
+				if (span.second > span.first) {
+					exact.setWidth(exact.width() * static_cast<qreal>(span.second - span.first));
+				}
+				const auto cell = exact.toAlignedRect();
 				return QRect{ view().viewport()->mapToGlobal(cell.topLeft()), cell.size() };
 			}
 
@@ -530,6 +537,7 @@ namespace bpr::qt {
 		layout.beginLayout();
 		const auto line = layout.createLine();
 		layout.endLayout();
+		glyph.Advance = line.naturalTextWidth();
 		if (const auto runs = layout.glyphRuns(); runs.size() == 1 && runs.front().glyphIndexes().size() == 1) {
 			glyph.Font   = runs.front().rawFont();
 			glyph.Index  = runs.front().glyphIndexes().front();
@@ -591,8 +599,15 @@ namespace bpr::qt {
 		const auto lines  = static_cast<int>(Editor.state().Lines.size());
 		const auto row    = static_cast<int>(std::floor(static_cast<qreal>(aPosition.y()) / RowHeight));
 		const auto line   = std::clamp(verticalScrollBar()->value() + row, 0, lines - 1);
-		const auto offset = (static_cast<qreal>(aPosition.x()) - column_x(0U)) / ColumnWidth;
-		return { static_cast<std::uint64_t>(line), static_cast<std::uint64_t>(std::max<qreal>(0.0, std::round(offset))) };
+		const auto offset = std::max<qreal>(0.0, (static_cast<qreal>(aPosition.x()) - column_x(0U)) / ColumnWidth);
+		const auto at     = core::text_point{ static_cast<std::uint64_t>(line), static_cast<std::uint64_t>(std::floor(offset)) };
+		// [[BPR-1438]]. Inside a wide cluster, the nearer of its edges. A tab
+		// keeps the nearer column, which the core takes to the tab's start.
+		const auto& content = Editor.state().Lines[at.Line].Content;
+		if (const auto [first, after] = Editor.cluster_span(at); after - first == 2U && content[Editor.locate(at).first] != '\t') {
+			return { at.Line, offset - static_cast<qreal>(first) < 1.0 ? first : after };
+		}
+		return { at.Line, static_cast<std::uint64_t>(std::round(offset)) };
 	}
 
 	auto suggestion_editor::cell_at(const QPoint& aPosition) const -> core::text_point
@@ -640,7 +655,7 @@ namespace bpr::qt {
 				}
 			}
 		}
-		// One glyph per column cell, so carets, selections and boxes line up
+		// One cluster per column cell, so carets, selections and boxes line up
 		// whatever the font's own advances are. A classified glyph takes its
 		// role's colour; everything else is the native text colour.
 		const auto text = palette().text().color();
@@ -684,29 +699,46 @@ namespace bpr::qt {
 					std::fill(unitColours.begin() + from, unitColours.begin() + to, colour);
 				}
 			}
-			auto column = std::uint64_t{ 0 };
-			// The glyph's position in UTF-16 units, which is how the shared
+			// The cluster's position in UTF-16 units, which is how the shared
 			// painter's ranges count.
 			auto        unit  = std::size_t{ 0 };
 			const auto& spans = selected[static_cast<std::size_t>(line - first)];
-			for (std::size_t index = 0; index < content.size();) {
-				if (content[index] == '\t') {
-					column += tab - (column % tab);
-					++index;
-					++unit;
+			// [[BPR-1438]]. One extended grapheme cluster per cell, or per two
+			// cells when the core measures it wide, its scalars shaped together
+			// so a combining mark sits on its base.
+			for (const auto& cluster : core::text_clusters(content, tab)) {
+				const auto source = QString::fromUtf8(content.data() + cluster.Offset, static_cast<qsizetype>(cluster.Length));
+				const auto at     = unit;
+				unit += static_cast<std::size_t>(source.size());
+				if (content[cluster.Offset] == '\t') {
 					continue;
 				}
-				auto length = std::size_t{ 1 };
-				while (index + length < content.size() && (static_cast<unsigned char>(content[index + length]) & 0xC0U) == 0x80U && length < 4U) {
-					++length;
-				}
-				const auto& role   = unitColours[std::min(unit, unitColours.size() - 1U)];
+				const auto  column = cluster.Column;
+				const auto& role   = unitColours[std::min(at, unitColours.size() - 1U)];
 				const auto  inside = std::ranges::any_of(spans, [column](const auto& aSpan) { return aSpan.first <= column && column < aSpan.second; });
 				const auto  colour = inside ? selection_ink(role, selection) : role;
 				// [[BPR-1432]]. A lone CR is content, shown as its symbol.
-				const auto glyph  = content[index] == '\r' ? QString{ QChar{ lone_carriage_return_symbol } } : QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length));
-				const auto origin = QPointF{ column_x(column), y };
-				if (const auto& found = shaped(glyph); found.Single) {
+				const auto  glyph  = content[cluster.Offset] == '\r' ? QString{ QChar{ lone_carriage_return_symbol } } : source;
+				auto        origin = QPointF{ column_x(column), y };
+				const auto& found  = shaped(glyph);
+				// A wide cluster is centred in its cells, and narrowed when a
+				// fallback face draws it wider than both.
+				const auto box  = static_cast<qreal>(cluster.Width) * ColumnWidth;
+				const auto wide = cluster.Width > 1U;
+				if (wide && found.Advance > box) {
+					flush();
+					painter.save();
+					painter.setPen(colour);
+					painter.translate(origin);
+					painter.scale(box / found.Advance, 1.0);
+					painter.drawText(QPointF{ }, glyph);
+					painter.restore();
+					continue;
+				}
+				if (wide) {
+					origin.rx() += (box - found.Advance) / 2.0;
+				}
+				if (found.Single) {
 					if (found.Font != runFont || colour != runColour) {
 						flush();
 						runFont   = found.Font;
@@ -719,9 +751,6 @@ namespace bpr::qt {
 					painter.setPen(colour);
 					painter.drawText(origin, glyph);
 				}
-				index += length;
-				unit += length == 4U ? 2U : 1U;
-				++column;
 			}
 		}
 		flush();

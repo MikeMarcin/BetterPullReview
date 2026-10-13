@@ -26,11 +26,13 @@
 #include <QTextDocument>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 /// \file
@@ -479,6 +481,66 @@ namespace {
 		return std::abs(aPixel.red() - aColour.red()) <= 3 && std::abs(aPixel.green() - aColour.green()) <= 3 && std::abs(aPixel.blue() - aColour.blue()) <= 3;
 	}
 
+	/// \brief The horizontal device-pixel range where two renders of the first
+	/// row differ, or (-1, -1) when they do not.
+	auto changed_ink(const qt::suggestion_editor& aEditor, const QImage& aBefore, const QImage& aAfter) -> std::pair<int, int>
+	{
+		auto       found  = std::pair{ -1, -1 };
+		const auto bottom = std::min({ aBefore.height(), aAfter.height(), static_cast<int>(aEditor.cell_rectangle({ 0U, 0U }).bottom() * aAfter.devicePixelRatio()) });
+		for (auto y = 0; y < bottom; ++y) {
+			for (auto x = 0; x < std::min(aBefore.width(), aAfter.width()); ++x) {
+				if (aBefore.pixel(x, y) != aAfter.pixel(x, y)) {
+					found.first  = found.first < 0 ? x : std::min(found.first, x);
+					found.second = std::max(found.second, x);
+				}
+			}
+		}
+		return found;
+	}
+
+	/// \brief [[BPR-1438]]. Each extended grapheme cluster is painted at its own
+	/// display column: a wide cluster in two cells, a combining mark on its base.
+	void paints_clusters_in_their_cells(qt::suggestion_editor& aEditor)
+	{
+		const auto render = [&](const char* aText) {
+			aEditor.set_text(aText);
+			settle();
+			return aEditor.viewport()->grab().toImage();
+		};
+		const auto ratio  = aEditor.viewport()->devicePixelRatioF();
+		const auto edge   = [&](const std::uint64_t aColumn) { return aEditor.cell_rectangle({ 0U, aColumn }).left() * ratio; };
+		const auto within = [&](const std::pair<int, int>& aInk, const std::uint64_t aFirst, const std::uint64_t aAfter) {
+			return aInk.first >= 0 && static_cast<qreal>(aInk.first) >= edge(aFirst) - 1.0 && static_cast<qreal>(aInk.second) <= edge(aAfter) + 1.0;
+		};
+		const auto blank = render("    \n");
+		for (const auto* const wide : { "\xE6\xBC\xA2  \n", "\xEF\xBC\xA1  \n" }) {
+			const auto ink = changed_ink(aEditor, blank, render(wide));
+			expect(within(ink, 0U, 2U), "a wide cluster stays inside its two cells");
+			expect(static_cast<qreal>(ink.second) > edge(1U) + 1.0, "and reaches into the second, centred there");
+		}
+		const auto after = changed_ink(aEditor, render("\xE6\xBC\xA2 \n"), render("\xE6\xBC\xA2x\n"));
+		expect(within(after, 2U, 3U), "the next cluster starts at column 2, clear of the wide one");
+		const auto accent = changed_ink(aEditor, render("ex\n"), render("e\xCC\x81x\n"));
+		expect(within(accent, 0U, 1U), "a combining mark is drawn on its base, and the next letter stays in column 1");
+		aEditor.set_text("\xE6\xBC\xA2"
+						 "ab\n");
+		settle();
+		const auto cell = aEditor.cell_rectangle({ 0U, 0U });
+		const auto at   = [&](const qreal aCells) { return aEditor.point_at(QPoint{ static_cast<int>(std::floor(cell.left() + (cell.width() * aCells))), static_cast<int>(cell.center().y()) }); };
+		expect(at(0.7) == core::text_point{ 0U, 0U } && at(1.4) == core::text_point{ 0U, 2U } && at(2.4) == core::text_point{ 0U, 2U }, "a point in a wide cluster is its nearer edge");
+		// The offscreen sample: CJK, fullwidth, emoji, a flag, a combining mark,
+		// a tab after wide text and a lone CR, with a selection across a wide cluster.
+		aEditor.set_text("\xE6\xBC\xA2\xE5\xAD\x97\tint x; // \xEF\xBC\xA1\xEF\xBC\xA2\n"
+						 "caf\x65\xCC\x81 \xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD \xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7 \xF0\x9F\x87\xAF\xF0\x9F\x87\xB5 end\n"
+						 "a\xE6\xBC\xA2\tb\rc\n"
+						 "abcdefghij\n");
+		aEditor.apply(core::place_caret{ .At = { 0U, 1U } });
+		aEditor.apply(core::place_caret{ .At = { 0U, 4U }, .Extend = true });
+		settle();
+		expect(aEditor.model().line_width(0U) == 22U && aEditor.model().line_width(1U) == 17U && aEditor.model().line_width(2U) == 7U, "the sample's display widths");
+		capture(aEditor, QStringLiteral("suggestion-editor-graphemes"));
+	}
+
 	/// \brief [[BPR-1156]]. A text selection reads as one in any text box
 	/// (owner note on composer-layout v005: "darker than usual"): the solid
 	/// `Highlight` fill, ending at the line's text plus one cell for a
@@ -691,6 +753,7 @@ try {
 	ime_and_mouse(*editor);
 	indents_like_an_editor(*editor);
 	reads_without_editing(*editor);
+	paints_clusters_in_their_cells(*editor);
 	// The editor sits where the file is read; the composer beside it.
 	auto        pane  = QWidget{ };
 	auto* const code  = new qt::suggestion_editor{ &pane };

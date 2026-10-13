@@ -2,9 +2,11 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -208,6 +210,128 @@ namespace {
 		expect(unicode.text() == "caf\xE6\x97\xA5\xE6\x9C\xAC", "committed IME text inserted exactly");
 	}
 
+	// [[BPR-1438]]. Clusters the scalar-per-column editor used to split.
+	constexpr auto acute    = std::string_view{ "e\xCC\x81" };
+	constexpr auto thumbs   = std::string_view{ "\xF0\x9F\x91\x8D\xF0\x9F\x8F\xBD" };
+	constexpr auto family   = std::string_view{ "\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7" };
+	constexpr auto flag     = std::string_view{ "\xF0\x9F\x87\xAF\xF0\x9F\x87\xB5" };
+	constexpr auto kanji    = std::string_view{ "\xE6\xBC\xA2\xE5\xAD\x97" };
+	constexpr auto wideA    = std::string_view{ "\xEF\xBC\xA1" };
+	constexpr auto fullStop = std::string_view{ "\xE3\x80\x82" };
+
+	auto joined(const std::initializer_list<std::string_view> aParts) -> std::string
+	{
+		auto text = std::string{ };
+		for (const auto part : aParts) {
+			text += part;
+		}
+		return text;
+	}
+
+	/// Left, Right, Backspace, Delete and selection take whole extended grapheme clusters.
+	void steps_by_grapheme_clusters()
+	{
+		const auto text   = joined({ "a", acute, thumbs, family, flag, "z" });
+		auto       editor = suggestion_text_editor{ text };
+		expect(editor.line_width(0U) == 9U, "a, e+U+0301, then three emoji of two columns, then z");
+		auto columns = std::vector<std::uint64_t>{ };
+		for (auto step = 0; step < 7; ++step) {
+			editor.apply(move_carets{ text_motion::right });
+			columns.push_back(heads(editor).front().Column);
+		}
+		expect(columns == std::vector<std::uint64_t>{ 1U, 2U, 4U, 6U, 8U, 9U, 9U }, "Right steps over each whole cluster");
+		columns.clear();
+		for (auto step = 0; step < 6; ++step) {
+			editor.apply(move_carets{ text_motion::left });
+			columns.push_back(heads(editor).front().Column);
+		}
+		expect(columns == std::vector<std::uint64_t>{ 8U, 6U, 4U, 2U, 1U, 0U }, "Left steps back over each whole cluster");
+		editor.apply(place_caret{ { 0U, 1U } });
+		editor.apply(move_carets{ .Motion = text_motion::right, .Extend = true });
+		expect(editor.copy().Text == acute, "Shift+Right selects the base and its combining mark");
+		editor.apply(place_caret{ { 0U, 3U } });
+		expect(heads(editor).front() == text_point{ 0U, 2U }, "a column inside a wide cluster is its start");
+		editor.apply(delete_forward{ });
+		expect(editor.text() == joined({ "a", acute, family, flag, "z" }), "Delete removes the thumb and its skin tone together");
+		editor.apply(place_caret{ { 0U, 6U } });
+		editor.apply(delete_backward{ });
+		expect(editor.text() == joined({ "a", acute, family, "z" }) && heads(editor).front() == text_point{ 0U, 4U }, "Backspace removes both regional indicators of a flag");
+		editor.apply(delete_backward{ });
+		expect(editor.text() == joined({ "a", acute, "z" }), "Backspace removes a whole ZWJ family");
+		editor.apply(delete_backward{ });
+		expect(editor.text() == "az", "Backspace removes a base with its combining mark");
+		editor.apply(undo_edit{ });
+		editor.apply(undo_edit{ });
+		expect(editor.text() == joined({ "a", acute, family, "z" }), "undo restores whole clusters");
+		auto malformed = suggestion_text_editor{ "a\xFF\xC3z" };
+		expect(malformed.line_width(0U) == 4U, "an ill-formed byte is a cluster of one column");
+		malformed.apply(place_caret{ { 0U, 1U } });
+		malformed.apply(delete_forward{ });
+		expect(malformed.text() == "a\xC3z", "and is deleted alone");
+		auto typed = suggestion_text_editor{ };
+		typed.apply(insert_text{ std::string{ thumbs } });
+		typed.apply(insert_text{ "x" });
+		typed.apply(undo_edit{ });
+		expect(typed.text().empty(), "a typed cluster coalesces like one typed character");
+	}
+
+	/// Columns are display columns: wide clusters take two, tabs keep their stops.
+	void measures_display_columns()
+	{
+		auto editor = suggestion_text_editor{ joined({ kanji, "\tx\n", wideA, "\tb\na", kanji.substr(0, 3), "\tb\nabcd\n" }) };
+		expect(editor.line_width(0U) == 9U && editor.line_width(1U) == 5U && editor.line_width(2U) == 5U, "a tab after wide text still advances to its stop");
+		expect(editor.point_of(6U) == text_point{ 0U, 4U } && editor.point_of(7U) == text_point{ 0U, 8U }, "byte offsets map to display columns");
+		expect(editor.cluster_span({ 0U, 3U }) == std::pair<std::uint64_t, std::uint64_t>{ 2U, 4U } && editor.cluster_span({ 0U, 5U }) == std::pair<std::uint64_t, std::uint64_t>{ 4U, 8U },
+			   "the span of a wide cluster and of a tab");
+		expect(editor.cluster_span({ 0U, 20U }) == std::pair<std::uint64_t, std::uint64_t>{ 20U, 20U }, "no cluster past the end");
+		const auto clusters = text_clusters(joined({ wideA, "\tb" }), 4U);
+		expect(clusters
+				   == std::vector<text_cluster>{ { .Offset = 0U, .Length = 3U, .Column = 0U, .Width = 2U }, { .Offset = 3U, .Length = 1U, .Column = 2U, .Width = 2U }, { .Offset = 4U, .Length = 1U, .Column = 4U, .Width = 1U } },
+			   "the clusters the view paints by");
+		const auto marked = text_clusters(joined({ acute, "\r" }), 4U);
+		expect(marked.size() == 2U && marked[0].Width == 1U && marked[1].Width == 1U, "a combining mark adds no column; a lone CR keeps one [[BPR-1432]]");
+		editor.apply(place_caret{ { 3U, 2U } });
+		editor.apply(move_carets{ text_motion::up });
+		expect(heads(editor).front() == text_point{ 2U, 1U }, "Up into a wide cluster stops at its start");
+		editor.apply(move_carets{ text_motion::down });
+		expect(heads(editor).front() == text_point{ 3U, 2U }, "and Down still aims for the column it started from");
+		editor.apply(place_caret{ { 0U, 0U } });
+		editor.apply(extend_box{ text_motion::right });
+		editor.apply(extend_box{ text_motion::right });
+		editor.apply(extend_box{ text_motion::down });
+		editor.apply(extend_box{ text_motion::down });
+		editor.apply(extend_box{ text_motion::down });
+		expect(editor.copy() == copied_text{ .Text = joined({ kanji.substr(0, 3), "\n", wideA, "\na\nab" }), .Box = true }, "a box takes whole clusters at the same columns");
+	}
+
+	/// Word movement by Unicode general category.
+	void moves_by_unicode_words()
+	{
+		const auto text   = joined({ "foo_bar \xC2\xAB", "caf", acute, "\xC2\xBB ", kanji, fullStop, "x\xE2\x80\x94y 12" });
+		auto       editor = suggestion_text_editor{ text };
+		auto       stops  = std::vector<std::uint64_t>{ };
+		for (auto step = 0; step < 10; ++step) {
+			editor.apply(move_carets{ text_motion::word_right });
+			stops.push_back(heads(editor).front().Column);
+		}
+		expect(stops == std::vector<std::uint64_t>{ 8U, 9U, 13U, 15U, 19U, 21U, 22U, 23U, 25U, 27U }, "letters, marks, digits and _ are words; guillemets, the ideographic full stop and the dash are not");
+		stops.clear();
+		for (auto step = 0; step < 4; ++step) {
+			editor.apply(move_carets{ text_motion::word_left });
+			stops.push_back(heads(editor).front().Column);
+		}
+		expect(stops == std::vector<std::uint64_t>{ 25U, 23U, 22U, 21U }, "Ctrl+Left by the same classes");
+		editor.apply(select_word_at{ { 0U, 10U } });
+		expect(editor.copy().Text == joined({ "caf", acute }), "a double click takes the word with its combining mark");
+		editor.apply(select_word_at{ { 0U, 20U } });
+		expect(editor.copy().Text == fullStop, "an ideographic full stop is one punctuation mark");
+		editor.apply(select_word_at{ { 0U, 16U } });
+		expect(editor.copy().Text == kanji, "CJK ideographs are letters");
+		auto emoji = suggestion_text_editor{ joined({ "a", thumbs, "b" }) };
+		emoji.apply(move_carets{ text_motion::word_right });
+		expect(heads(emoji).front() == text_point{ 0U, 1U }, "an emoji is not a word character");
+	}
+
 	/// The owner asked for indentation on Enter like a modern editor
 	/// (BPR-1156, 2026-10-02): the line's blanks, a level after an opener,
 	/// a bracket's closer on its own line, and a typed closer outdents.
@@ -362,5 +486,8 @@ auto main() -> int
 	undoes_ordinary_steps();
 	refuses_over_the_bound();
 	moves_and_collapses();
+	steps_by_grapheme_clusters();
+	measures_display_columns();
+	moves_by_unicode_words();
 	return EXIT_SUCCESS;
 }

@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_UTF8_HPP
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -27,6 +28,30 @@ namespace bpr::core::utf8 {
 	/// lowered again, as case-insensitive file systems compare names (so σ and
 	/// ς meet, and ß stays ß).
 	[[nodiscard]] auto simple_fold(char32_t aValue) noexcept -> char32_t;
+	/// \brief The end of the extended grapheme cluster (UAX #29) that starts at
+	/// `aOffset`, which must be a cluster boundary. A byte that begins no
+	/// well-formed scalar is a cluster of its own, so ill-formed text still
+	/// steps byte by byte. At or past the end, the size of `aText`.
+	[[nodiscard]] auto grapheme_end(std::string_view aText, std::size_t aOffset) noexcept -> std::size_t;
+	/// \brief The display columns one cluster takes in a monospaced grid.
+	/// \details [[BPR-1438]]. The widest scalar in it: 2 for East Asian wide
+	/// and fullwidth characters and emoji presentation, 0 for marks, joiners
+	/// and other continuations. A cluster with U+FE0F or a regional-indicator
+	/// pair (a flag) is drawn as an emoji, so it takes 2. Every cluster takes at
+	/// least 1, so a lone mark, a control or an ill-formed byte still has a
+	/// cell. A tab's stop is the caller's rule.
+	[[nodiscard]] auto grapheme_width(std::string_view aCluster) noexcept -> std::uint32_t;
+	/// \brief How word movement treats a scalar.
+	enum class word_class : std::uint8_t {
+		/// A space or tab, or another space separator (Zs).
+		space,
+		/// A letter, mark, number or connector punctuation such as `_`.
+		word,
+		/// Any other punctuation, symbol, control or unassigned scalar.
+		other,
+	};
+	/// \brief The word class of a scalar, from its Unicode general category.
+	[[nodiscard]] auto classify_word(char32_t aValue) noexcept -> word_class;
 }
 
 #endif
