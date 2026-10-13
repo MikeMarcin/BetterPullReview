@@ -21,13 +21,13 @@ claims a result for them.
 
 | Component | Role | Decision | Rule result on macOS arm64 |
 |---|---|---|---|
-| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.06x to 3.03x the current core SHA-1 (rule: at least 1.0x), and 1.42x to 1.85x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector. |
-| HACL* `Hacl_Hash_SHA2` | Core SHA-256 | **Eligible pending Q2** | Gate: zero mismatches, including `main`'s whole history as SHA-256. W1 to W3: 1.32x to 1.71x the core SHA-256 (rule: at least 0.9x). The block-level wrapper allocates nothing. |
-| CommonCrypto behind a host port | Bulk SHA-256 the host already holds, on macOS | **Throughput condition passes; site decision pending [[BPR-1447]]** | Inputs of 1 MiB or more: 7.35x to 9.56x core (rule: at least 3x on a SHA-extension target). The site condition (10 ms less window-thread hashing at 10k, or none on the window thread) can be measured only with the port built. |
+| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.55x to 2.96x the current core SHA-1 (rule: at least 1.0x; run 1: 2.06x to 3.03x), and 1.53x to 1.90x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector. |
+| HACL* `Hacl_Hash_SHA2` | Core SHA-256 | **Eligible pending Q2** | Gate: zero mismatches, including `main`'s whole history as SHA-256. W1 to W3: 1.18x to 1.48x the core SHA-256 (rule: at least 0.9x; run 1: 1.32x to 1.71x). The block-level wrapper allocates nothing. |
+| CommonCrypto behind a host port | Bulk SHA-256 the host already holds, on macOS | **Throughput condition passes; site decision pending [[BPR-1447]]** | Inputs of 1 MiB or more: 7.11x to 8.54x core (rule: at least 3x on a SHA-extension target; run 1: 7.35x to 9.56x). The site condition (10 ms less window-thread hashing at 10k, or none on the window thread) can be measured only with the port built. |
 | CNG `BCrypt*` behind the port | The same, on Windows | **Unmeasured** | Station missing ([[BPR-1448]]). |
 | System libcrypto behind the port | The same, on Linux | **Unmeasured** | Station missing ([[BPR-1449]]); Q3 is asked only if this passes. |
-| `QCryptographicHash` | Identity and bulk roles | **Rejected, as before** | SHA-256 at 0.56x to 0.71x core, as the RFC's grounding table found (247 against 433 MB/s). Its SHA-1 is 2.64x to 4.84x core, also as the grounding found, but detects nothing. Its existing non-identity uses are unchanged. |
-| First-party SHA-1 hashing whole blocks | The RFC's control arm | **Measured, not adopted** | 1.45x to 1.95x core SHA-1, below sha1dc on every workload. [[BPR-1452]] takes it up only on a Q1 Reject. |
+| `QCryptographicHash` | Identity and bulk roles | **Rejected, as before** | SHA-256 at 0.52x to 0.71x core over both runs, as the RFC's grounding table found (247 against 433 MB/s). Its SHA-1 is 2.64x to 4.84x core, also as the grounding found, but detects nothing. Its existing non-identity uses are unchanged. |
+| First-party SHA-1 hashing whole blocks | The RFC's control arm | **Measured, not adopted** | 1.45x to 1.95x core SHA-1 over both runs, below sha1dc on every workload. [[BPR-1452]] takes it up only on a Q1 Reject. |
 
 ## Stations and builds
 
@@ -47,8 +47,8 @@ time**, with the thread at user-interactive QoS so it stays on a performance
 core, arms interleaved within each run, one warm-up, and the median of 7. The
 wall-clock medians are in the raw file. Absolute rates are below the RFC's
 grounding table, which used Homebrew clang 23 and best-of-5 runs; the decisions
-rest on ratios measured side by side, and the narrowest margin is HACL*'s 1.32x
-against a 0.9x rule. An idle re-measurement on this Mac stays owed before any
+rest on ratios measured side by side in two runs, and the narrowest margin is
+HACL*'s 1.18x against a 0.9x rule. An idle re-measurement on this Mac stays owed before any
 adoption card relies on an absolute rate.
 
 ## Correctness gate
@@ -110,51 +110,80 @@ adopt rule as written: adoption also needs that amendment or such a vector.
 
 ## Throughput
 
-Run at `40870b777` ([raw](RFC-BPR-0080/macos-arm64-throughput.json)). W1 is
+Two runs, each the median of 7 after a warm-up, arms interleaved within each
+run, in thread CPU time (see "The machine was not idle" above). Run 2 is at
+`3f9e45980`, where the candidate libraries are built hardened like the core
+([raw](RFC-BPR-0080/macos-arm64-throughput-run2.json)); run 1 is at `40870b777`,
+before that change ([raw](RFC-BPR-0080/macos-arm64-throughput-run1.json)). W1 is
 64 MiB in one update; W2 is 20,015 separate digests of 400 bytes (BPR-1349's
 10k body shape); W3 is 1, 16 and 256 MiB in 64 KiB updates. MB is 10^6 bytes.
+
+Ratios to the current core implementation across W1 to W3, from the medians
+and, as a check against load that changed during a run, the median of each
+run's own ratio (the arms of one run execute back to back):
+
+| Arm | Rule | Run 2, medians | Run 2, per-run | Run 1, medians | Run 1, per-run |
+|---|---|---|---|---|---|
+| sha1dc against core SHA-1 | at least 1.0x | 2.55x to 2.96x | 2.58x to 2.87x | 2.06x to 3.03x | 2.06x to 2.80x |
+| First-party block SHA-1 (control) | — | 1.56x to 1.76x | 1.43x to 1.72x | 1.45x to 1.95x | 1.45x to 1.95x |
+| HACL* against core SHA-256 | at least 0.9x | 1.18x to 1.48x | 1.31x to 1.48x | 1.32x to 1.71x | 1.33x to 1.77x |
+| CommonCrypto SHA-256, 1 MiB or more | at least 3x | 7.11x to 8.54x | 7.10x to 7.83x | 7.35x to 9.56x | 7.39x to 9.07x |
+| `QCryptographicHash` SHA-256 | — | 0.52x to 0.63x | 0.55x to 0.62x | 0.56x to 0.71x | 0.56x to 0.70x |
+
+Wall-clock ratios are in the raw files and are not used: a wall-clock run here
+mostly measured how long the thread waited for a core, which differs from arm
+to arm within a run (for example HACL* at W3 1 MiB in run 1 is 0.77x by
+wall-clock medians, 1.40x by thread CPU time and 1.03x by the per-run wall
+ratio).
+
+Run 2 in full: median MB/s, ratio to core, and the run spread
+((max − min) / median):
 
 **SHA-1** — median MB/s over thread CPU time, ratio to core, and the run spread ((max − min) / median):
 
 | Workload | core | first-party block (control) | sha1dc | CommonCrypto | QCryptographicHash |
 |---|---|---|---|---|---|
-| W1: 64 MiB, one update | 192 (1.00x; 28%) | 292 (1.52x; 22%) | 540 (2.81x; 19%) | 1,572 (8.18x; 98%) | 931 (4.84x; 18%) |
-| W2: 20,015 bodies of 400 B | 204 (1.00x; 16%, 39.2 ms) | 356 (1.75x; 31%, 22.5 ms) | 515 (2.53x; 36%, 15.5 ms) | 973 (4.77x; 8%, 8.2 ms) | 814 (3.99x; 25%, 9.8 ms) |
-| W3: 1 MiB | 211 (1.00x; 39%) | 413 (1.95x; 30%) | 640 (3.03x; 42%) | 2,747 (13.00x; 21%) | 844 (3.99x; 60%) |
-| W3: 16 MiB | 229 (1.00x; 13%) | 335 (1.46x; 26%) | 618 (2.70x; 16%) | 2,541 (11.09x; 6%) | 978 (4.27x; 28%) |
-| W3: 256 MiB | 163 (1.00x; 6%) | 237 (1.45x; 14%) | 336 (2.06x; 5%) | 717 (4.39x; 18%) | 431 (2.64x; 22%) |
+| W1: 64 MiB, one update | 243 (1.00x; 14%) | 403 (1.66x; 21%) | 629 (2.59x; 11%) | 2,581 (10.64x; 16%) | 960 (3.96x; 17%) |
+| W2: 20,015 bodies of 400 B | 199 (1.00x; 36%, 40.3 ms) | 310 (1.56x; 34%, 25.9 ms) | 588 (2.96x; 48%, 13.6 ms) | 1,083 (5.45x; 34%, 7.4 ms) | 884 (4.45x; 45%, 9.1 ms) |
+| W3: 1 MiB | 280 (1.00x; 31%) | 476 (1.70x; 1%) | 727 (2.59x; 4%) | 2,952 (10.54x; 1%) | 1,095 (3.91x; 1%) |
+| W3: 16 MiB | 228 (1.00x; 31%) | 364 (1.60x; 29%) | 582 (2.55x; 31%) | 2,959 (12.97x; 27%) | 912 (4.00x; 21%) |
+| W3: 256 MiB | 230 (1.00x; 8%) | 404 (1.76x; 18%) | 631 (2.74x; 21%) | 2,819 (12.26x; 15%) | 956 (4.16x; 8%) |
 
 **SHA-256** — median MB/s over thread CPU time, ratio to core, and the run spread ((max − min) / median):
 
 | Workload | core | HACL* | CommonCrypto | QCryptographicHash |
 |---|---|---|---|---|
-| W1: 64 MiB, one update | 238 (1.00x; 29%) | 407 (1.71x; 20%) | 2,275 (9.56x; 100%) | 168 (0.71x; 17%) |
-| W2: 20,015 bodies of 400 B | 287 (1.00x; 22%, 27.9 ms) | 448 (1.56x; 38%, 17.9 ms) | 2,287 (7.98x; 31%, 3.5 ms) | 170 (0.59x; 21%, 47.1 ms) |
-| W3: 1 MiB | 372 (1.00x; 72%) | 511 (1.37x; 92%) | 2,945 (7.91x; 59%) | 212 (0.57x; 42%) |
-| W3: 16 MiB | 400 (1.00x; 23%) | 534 (1.33x; 14%) | 2,940 (7.35x; 19%) | 226 (0.56x; 6%) |
-| W3: 256 MiB | 345 (1.00x; 72%) | 455 (1.32x; 59%) | 2,734 (7.92x; 198%) | 201 (0.58x; 21%) |
+| W1: 64 MiB, one update | 333 (1.00x; 22%) | 494 (1.48x; 17%) | 2,842 (8.54x; 24%) | 211 (0.63x; 5%) |
+| W2: 20,015 bodies of 400 B | 332 (1.00x; 69%, 24.1 ms) | 393 (1.18x; 27%, 20.4 ms) | 2,390 (7.19x; 75%, 3.3 ms) | 185 (0.56x; 27%, 43.4 ms) |
+| W3: 1 MiB | 405 (1.00x; 22%) | 516 (1.27x; 54%) | 2,879 (7.11x; 46%) | 218 (0.54x; 26%) |
+| W3: 16 MiB | 356 (1.00x; 29%) | 491 (1.38x; 45%) | 2,826 (7.93x; 20%) | 186 (0.52x; 25%) |
+| W3: 256 MiB | 354 (1.00x; 9%) | 475 (1.34x; 8%) | 2,764 (7.81x; 12%) | 201 (0.57x; 7%) |
 
-W2 is the hashing part of a first observation at 10k: 27.9 ms of core SHA-256
-against 3.5 ms through CommonCrypto.
+W2 is the hashing part of a first observation at 10k: 24.1 ms of core SHA-256
+against 3.3 ms through CommonCrypto in run 2 (27.9 ms against 3.5 ms in run 1).
 
 ## Window-thread baseline
 
-`application_feedback_counter_costs` in the same tree at `40870b777`, first
-observation (`observe_cold`), wall clock as the row measures it, under the
-load described above:
+`application_feedback_counter_costs` in the same tree, first observation
+(`observe_cold`), wall clock as the row measures it, under the load described
+above:
 
-| Workload | Bodies hashed | Median | Least | Most |
-|---|---|---|---|---|
-| 1k | 2,015 | 4.35 ms | 4.27 ms | 5.07 ms |
-| 10k | 20,015 | 123.4 ms | 43.4 ms | 253.0 ms |
+| Run | Workload | Bodies hashed | Median | Least | Most |
+|---|---|---|---|---|---|
+| 2 (`3f9e45980`) | 1k | 2,015 | 4.40 ms | 4.31 ms | 5.07 ms |
+| 2 | 10k | 20,015 | 44.7 ms | 44.3 ms | 55.6 ms |
+| 1 (`40870b777`) | 1k | 2,015 | 4.35 ms | 4.27 ms | 5.07 ms |
+| 1 | 10k | 20,015 | 123.4 ms | 43.4 ms | 253.0 ms |
 
-The 10k spread is wider than the 10 ms the host-port rule is about, so this is
-a record of the row, not a baseline for that rule. [[BPR-1447]] measures before
-and after in one session on one tree, with the other window-thread rows the RFC
-names (`application_large_review_responsiveness`,
-`application_first_tab_comparison`, Review Cycle capture and export of a
-16 MiB file, a syntax request for a 16 MiB document). This evaluation changes no
-product code, so no row can have regressed.
+Run 1's 10k spread is far wider than the 10 ms the host-port rule is about,
+and both runs share a loaded machine, so these record the row rather than set
+the baseline for that rule. W2 above puts the hashing inside the 10k first
+observation at about 24 to 28 ms of CPU. [[BPR-1447]] measures before and after
+in one session on one tree, with the other window-thread rows the RFC names
+(`application_large_review_responsiveness`, `application_first_tab_comparison`,
+Review Cycle capture and export of a 16 MiB file, a syntax request for a 16 MiB
+document): a baseline taken in a different session could not show a 10 ms
+change. This evaluation changes no product code, so no row can have regressed.
 
 ## Library fit
 
@@ -216,8 +245,9 @@ content from outside the repository and its seeded inputs is recorded.
 | File | Revision | Phases |
 |---|---|---|
 | [macos-arm64-correctness.json](RFC-BPR-0080/macos-arm64-correctness.json) | `d9bfa436b` | known answers, chunking, collisions, differential, Git, both repository sweeps |
-| [macos-arm64-throughput.json](RFC-BPR-0080/macos-arm64-throughput.json) | `40870b777` | W1 to W3, window-thread row |
+| [macos-arm64-throughput-run2.json](RFC-BPR-0080/macos-arm64-throughput-run2.json) | `3f9e45980` | W1 to W3, window-thread row |
+| [macos-arm64-throughput-run1.json](RFC-BPR-0080/macos-arm64-throughput-run1.json) | `40870b777` | W1 to W3, window-thread row |
 | [macos-x86_64-rosetta-correctness.json](RFC-BPR-0080/macos-x86_64-rosetta-correctness.json) | `d9bfa436b` harness | known answers, chunking, collisions, differential, Git |
 
-`dirty` is true in the second and third files because documentation was being
+`dirty` is true in the throughput and x86_64 files because documentation was being
 edited in the working tree; the harness sources were the committed ones.
