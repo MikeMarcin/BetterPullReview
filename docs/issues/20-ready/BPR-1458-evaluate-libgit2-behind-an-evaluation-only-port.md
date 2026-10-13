@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1458"
 title: "Evaluate libgit2 for the Git metadata components behind an evaluation-only option on macOS"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1454"]
 priority: "P2"

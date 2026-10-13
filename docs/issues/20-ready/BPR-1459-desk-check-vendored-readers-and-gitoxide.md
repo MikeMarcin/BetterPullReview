@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1459"
 title: "Record the vendored-piece and gitoxide desk checks and cost records"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1454"]
 priority: "P2"
