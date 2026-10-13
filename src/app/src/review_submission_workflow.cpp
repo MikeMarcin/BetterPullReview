@@ -708,7 +708,7 @@ namespace bpr::app {
 			Host->shutdown();
 			Retired.push_back(std::move(Host));
 		}
-		std::erase_if(Retired, [](const auto& h) { return h->is_quiescent(); });
+		std::erase_if(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
 		Context.reset();
 		Binding.reset();
 		Plan.reset();
@@ -848,7 +848,7 @@ namespace bpr::app {
 	}
 	void review_tour_publication_workflow::publish(const application::review_submission_host_terminal& aTerminal)
 	{
-		std::erase_if(Retired, [](const auto& h) { return h->is_quiescent(); });
+		std::erase_if(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
 		if (Closing || !Context || aTerminal.Context != *Context) {
 			return;
 		}
@@ -944,6 +944,6 @@ namespace bpr::app {
 	}
 	auto review_tour_publication_workflow::is_quiescent() const -> bool
 	{
-		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& h) { return h->is_quiescent(); });
+		return (!Host || Host->is_quiescent()) && std::ranges::all_of(Retired, [](const auto& aHost) { return aHost->is_quiescent(); });
 	}
 }

@@ -26,10 +26,8 @@ namespace bpr::e2e {
 				if (!prompt) {
 					return;
 				}
-				if (prompt->text().startsWith(QStringLiteral("Use ")) && prompt->text().contains(QStringLiteral("gh"))) {
-					++TrustQuestions;
-					prompt->button(QMessageBox::Yes)->click();
-				} else if (prompt->text().startsWith(QStringLiteral("Use ")) && prompt->text().contains(QStringLiteral("GitHub CLI"))) {
+				if (prompt->text().startsWith(QStringLiteral("Use "))
+					&& (prompt->text().contains(QStringLiteral("gh")) || prompt->text().contains(QStringLiteral("GitHub CLI")))) {
 					++TrustQuestions;
 					prompt->button(QMessageBox::Yes)->click();
 				} else {

@@ -1458,7 +1458,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"2e04f25d859479d8abf6ae974878874cf8de86ae055503fca6d44b66a3e48638"
+		"4c54e2e48cffb809616a0d79fe70cf228485b69fc5873da1a50a0ddf49881b85"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1662,7 +1662,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "36cdacfc6c15cd70057fde67043ffb81ed41ff04ebc5fdf5bce3e3b541051ae6"
+        "173abc3f1130a69a0f3e84b4e74cf7743f65bfdcd1effb3e26aef8a103658896"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2316,3 +2316,10 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # The one-use grant issuers and production mutation-branch digest are unchanged.
 # Self-review covers failed/current identity separation and receipt truth;
 # final independent critical acceptance is owed at M4, not self-certified here.
+
+# Final M3 tidy correction: over f4ba6409d, touched tour callback argument
+# names and workflow quiescence callback names follow the coding standard;
+# the synthetic trust responder merges equivalent branches. No grant,
+# request, failure or publication behavior changes. Self-review and focused
+# post-correction checks bind this successor; older unrelated naming findings
+# are retained separately rather than described as a whole-file tidy pass.

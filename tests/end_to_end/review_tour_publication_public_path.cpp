@@ -115,7 +115,7 @@ auto main(int argc, char** argv) -> int
 	auto          currentDataRoot      = dataRoot;
 	auto          server               = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
-	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto result){terminal=true;if(result){started=std::move(*result);
+	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
 	const std::string originalTemplate = "# Existing template\r\n\r\nKeep [the ticket](https://example.invalid/123) and this checklist.\r\n- [ ] Original check\r\n";
 	if (mode != "description") {
@@ -128,7 +128,7 @@ auto main(int argc, char** argv) -> int
 		open(*application, cli);
 		auto&      window = application->window();
 		auto&      editor = *window.tour_editor();
-		const auto button = [&](const char* name) {auto* value=editor.findChild<QPushButton*>(QString::fromUtf8(name));expect(value!=nullptr,"normal publication control exists");return value; };
+		const auto button = [&](const char* aName) {auto* value=editor.findChild<QPushButton*>(QString::fromUtf8(aName));expect(value!=nullptr,"normal publication control exists");return value; };
 		auto*      status = editor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 		wait([&] { return status->text().contains(QStringLiteral("Saved locally")); }, "read-only recovery discovery completes");
 		button("tourPreparePublication")->click();
