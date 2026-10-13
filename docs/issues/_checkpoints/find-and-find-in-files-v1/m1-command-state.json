@@ -1,0 +1,35 @@
+{
+  "schema": "find-rfc.command-handoff.v1",
+  "run_id": "find-and-find-in-files-v1",
+  "segment_id": "coordinator-implementer-001",
+  "milestone": "search-session-policy",
+  "source_candidate": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "acceptance_commit": "213a7dd15fc7da33d19e86cd23750b21cbdc9387",
+  "tracker_upkeep_commit": "16169d87b229e3ff2088d1e3502045a0c12af1eb",
+  "owned_background_commands": [],
+  "review_server": null,
+  "frozen_candidates": [],
+  "descendant_agents": [],
+  "writer": "Released after final checkpoint publication; no successor shares this owner context.",
+  "temporary_cleanup": "Disposable mutated source/executable and random main-baseline export removed. Original import-preparation runtime remains as a small prior checkpoint; imported packet is durably retained in repository assets. Core-only build retained for next milestone.",
+  "next_milestone": "shared-matching",
+  "next_card": "docs/issues/20-ready/BPR-1420-shared-matching.md",
+  "plan": "docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+  "continuation": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
+  "whole_rfc_pending": [
+    "AC01",
+    "AC02",
+    "AC03",
+    "AC04",
+    "AC05",
+    "AC06",
+    "AC07",
+    "AC08"
+  ],
+  "integration_failures": [
+    "coding_format_check: adopted-main syntax fixture",
+    "github_contract_fixture_security: adopted-main missing fixture inventory",
+    "dependency_modernization_contract: uncached LibArchive under denied network"
+  ],
+  "final_checkpoint_only": "The final publication commit changes only these checkpoint receipts, not tested source or requirements. The return check observed tracker_upkeep_commit before publication; successor binds its own current revision."
+}

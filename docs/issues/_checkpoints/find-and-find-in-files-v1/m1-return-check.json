@@ -1,0 +1,1 @@
+{"action": "fresh-context", "detail": "BPR-1419 accepted at 213a7dd15; exact tested product candidate 7efc8c2d5; tracker upkeep at 16169d87b229e3ff2088d1e3502045a0c12af1eb. Next: BPR-1420, Ready. All full-RFC AC01\u2013AC08 and three unrelated broad-suite failures remain explicit; no matcher, corpus, Qt or whole-RFC pass is inferred.", "engineering_acceptance": "not-evaluated"}

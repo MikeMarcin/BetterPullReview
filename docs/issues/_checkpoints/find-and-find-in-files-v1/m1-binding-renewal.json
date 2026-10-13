@@ -1,0 +1,10 @@
+{
+  "reason": "Bookkeeping renewal after finish: card evidence/continuation body changed, with all4originalAcceptance bullet lines byte-identical; full plan/criteria/mandate unchanged.",
+  "original_binding": "m1-binding.json",
+  "renewed_binding": "m1-completion-binding.json",
+  "source_candidate": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "tracker_revision": "16169d87b229e3ff2088d1e3502045a0c12af1eb",
+  "definition_same": true,
+  "exit_criteria_same": true,
+  "prior_check": "reconcile affected plan or requirements changed; renewed against finished card while preserving original evidence binding"
+}

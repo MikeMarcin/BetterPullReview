@@ -1,0 +1,138 @@
+{
+  "run_id": "find-and-find-in-files-v1",
+  "segment_id": "coordinator-implementer-001",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "search-session-policy",
+  "binding": {
+    "plan_id": "find-and-find-in-files-v1",
+    "plan_path": "docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+    "milestone_id": "search-session-policy",
+    "definition_fingerprint": "sha256:6f221e7b46f69c89464696eae9c9707dc53643bf21a7a4a2f65b5d303fa37729",
+    "obligations": [
+      {
+        "id": "BPR-1419:*",
+        "source": "BPR-1419",
+        "selector": null,
+        "source_fingerprint": "sha256:6e3e26dae69a8ca110f045b97bb2f5bd573866bfcff9dbc6bb9bb0aed7527723"
+      }
+    ],
+    "obligation_fingerprint": "sha256:8dc83e76040484c6cd9ac586e09db960dd4748d913b19513430904eb79d8a79a",
+    "exit_criteria": [
+      {
+        "id": "search-session-policy:exit:1",
+        "text": "The core stores only exact scope, query/request generations, compact result counts and cursor facts; no query text, source documents or result collections enter interaction state."
+      },
+      {
+        "id": "search-session-policy:exit:2",
+        "text": "The public Qt-free search host validates the 4 KiB query boundary, submits no work for empty input, separates independent pane/PR sessions and reports invalid input without retaining apparently current results."
+      },
+      {
+        "id": "search-session-policy:exit:3",
+        "text": "Reversed query/scope/authority completions and duplicates cannot publish; supersession, clear, close and shutdown cancel old work, preserve exactly-one terminals for admitted effects, and reach observable quiescence."
+      },
+      {
+        "id": "search-session-policy:exit:4",
+        "text": "Next/Previous traverses accepted counts in constant work, wraps explicitly and never calls the worker; incomplete coverage cannot become unqualified No results."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "milestone-complete",
+  "candidate_revision": "16169d87b229e3ff2088d1e3502045a0c12af1eb",
+  "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-acceptance.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-final-documentation.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-integration-failures.json",
+    "docs/verification/RFC-BPR-0077.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1419:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-final-documentation.json"
+      ]
+    },
+    {
+      "id": "search-session-policy:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-final-documentation.json"
+      ]
+    },
+    {
+      "id": "search-session-policy:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-final-documentation.json"
+      ]
+    },
+    {
+      "id": "search-session-policy:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-final-documentation.json"
+      ]
+    },
+    {
+      "id": "search-session-policy:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-final-documentation.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "fresh",
+    "next_milestone": "shared-matching",
+    "reason": "integrated-boundary",
+    "detail": "BPR-1419 accepted at 213a7dd15; exact tested product candidate 7efc8c2d5; tracker upkeep at 16169d87b229e3ff2088d1e3502045a0c12af1eb. Next: BPR-1420, Ready. All full-RFC AC01\u2013AC08 and three unrelated broad-suite failures remain explicit; no matcher, corpus, Qt or whole-RFC pass is inferred."
+  },
+  "ownership": "quiescent"
+}
