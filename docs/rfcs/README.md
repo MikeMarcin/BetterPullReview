@@ -545,3 +545,5 @@ separate platform/release obligations retain their scope.
 | [RFC-BPR-0071](RFC-BPR-0071-remember-cli-connections.md) | Remember the chosen GitHub CLI connection across launches | Auto-Verified | None |
 
 | [RFC-BPR-0072](RFC-BPR-0072-cpp-identifier-context.md) | Context-aware C++ namespace and enum highlighting | In Progress | RFC-BPR-0006, RFC-BPR-0034 |
+
+| [RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) | Smooth diff touchpad panning without accidental vertical steps | In Progress | RFC-BPR-0004, RFC-BPR-0005 |

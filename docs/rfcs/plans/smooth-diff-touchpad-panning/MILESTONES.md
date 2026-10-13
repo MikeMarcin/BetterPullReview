@@ -1,0 +1,29 @@
+# Milestones
+
+> Generated from `milestone-plan.json`; edit the JSON, not this view.
+
+Plan: **smooth-diff-touchpad-panning** · Coverage: **complete**
+
+These are integration outcomes, not compulsory agent-launch boundaries.
+
+## smooth-comparison-panning
+
+The split and unified source comparisons render fractional vertical origins, suppress incidental vertical drift during horizontal touchpad panning, retain discrete keyboard navigation and pass all eight draft criteria, including the owner touchpad verdict.
+
+**Work:** `BPR-1413`, `RFC-BPR-0073` [AC01, AC02, AC03, AC04, AC05, AC06, AC07, AC08]
+
+**Prerequisites:** None
+
+**Completion:**
+
+- AC01: Rendered split and unified panes visibly apply, retain and reverse sub-line pixel motion without cumulative drift.
+- AC02: Repeated horizontal events around 20 pixels with at most 1 pixel vertical noise, horizontal reversal and clamping, and gesture end cause no vertical movement or delayed step.
+- AC03: Vertical-only and sustained diagonal input, within-gesture reorientation, input forwarding and gesture/device/comparison/presentation resets behave correctly.
+- AC04: Actual fractional viewport geometry aligns text, ribbons, gutters, marks, selection, pointer hits and conversation anchors at 100%, 125%, 200% and after code zoom.
+- AC05: Insertion pinning, unequal replacements, Home/End, scroll-past-end, pane handoff, angle fallback, Shift-wheel, zoom and semantic reveals preserve existing single-authority behavior.
+- AC06: A composed large-file course meets existing input budgets without semantic recomputation, unchanged-axis rebuild or whole-file text scan per event, observing real origins and geometry.
+- AC07: The owner accepts the exact self-contained frozen build through a fresh short attended-review session with the required Accept/Reject question and change note.
+- AC08: Split and unified arrows, repeat, Shift selection, pages and keyboard reveals remain discrete; viewport movement aligns the receiving presentation through the shared authority, cursor-only movement retains its fractional origin, and touchpad input resumes from the applied origin.
+- The new live RFC, adopted plan, canonical cards, baseline/provenance, semantic documentation, focused verification and closeout agree, with historical terminal evidence preserved.
+
+**Boundary:** One integrated scrolling repair; all unattended engineering and bookkeeping finish before AC07 handoff. Required owner acceptance remains pending until the actual verdict.

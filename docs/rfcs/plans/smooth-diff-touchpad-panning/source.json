@@ -1,0 +1,8 @@
+{
+  "mapping": {
+    "RFC-DRAFT-0012": "RFC-BPR-0073"
+  },
+  "plan_path": "docs/rfcs/plans/smooth-diff-touchpad-panning/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "235ce739c674a483bf8f177869e6b3341eb8ed36d3f5561af18f054d938a757d"
+}

@@ -1,6 +1,6 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
-  "state": "required-skill-unavailable",
+  "state": "implementing",
   "assignment": "/root/smooth_panning_m1",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
@@ -20,8 +20,10 @@
   "plan": "plan-proposal.json",
   "plan_state": "proposed-not-adopted",
   "live_import": null,
-  "live_rfc": null,
-  "live_cards": [],
+  "live_rfc": "RFC-BPR-0073",
+  "live_cards": [
+    "BPR-1413"
+  ],
   "candidate_revision": null,
   "product_changes": [],
   "pending_criteria": [
@@ -34,22 +36,11 @@
     "AC07",
     "AC08"
   ],
-  "blocker": {
-    "skill": "frontend-design:frontend-design",
-    "instruction": "AGENTS.md: Any UX or visual work (mockups, design candidates, icons, layout, Qt surfaces the owner will look at) loads the frontend-design:frontend-design skill first and says so in its report.",
-    "searched_roots": [
-      "/Users/jaeger/.agents",
-      "/Users/jaeger/.codex",
-      "/Users/jaeger/.mask",
-      "/Users/jaeger/.claude",
-      "/Users/jaeger/Documents/GitHub"
-    ],
-    "result": "No matching frontend-design SKILL.md; no orchestrator skill access tools exposed."
-  },
+  "blocker": null,
   "commands": {
     "background": [],
     "review_server": null,
-    "writers_released": true
+    "writers_released": false
   },
   "next_action": "Resolve and read the trusted required frontend-design skill. Reconcile current writers and draft digests, import with allocated live IDs and provenance on main, adopt this bounded plan, bind/claim the live milestone, then implement and verify. Preserve AC07 for the actual owner verdict.",
   "verification": [
@@ -69,5 +60,6 @@
       "command": "python3 scripts/verify_documentation.py --root .",
       "result": "exit 0: DOCUMENTATION_OK"
     }
-  ]
+  ],
+  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md"
 }

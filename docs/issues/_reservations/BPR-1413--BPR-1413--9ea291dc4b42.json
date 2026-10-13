@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1413"
+  ],
+  "reserve_for": "smooth-diff-touchpad-panning",
+  "purpose": "Smooth diff touchpad panning milestone and AC07 closeout",
+  "created": "2026-10-13T00:28:43.044833+00:00",
+  "base": "644d667256a21adfb34bc23e90214bcd0f14945c"
+}
