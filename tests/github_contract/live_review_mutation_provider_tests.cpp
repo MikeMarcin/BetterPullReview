@@ -783,18 +783,19 @@ namespace {
 	{
 	public:
 		explicit fake_github_review_mutation_lease(
-			github_mutation_wire_transport& aTransport)
+			github_mutation_wire_transport& aTransport, bool aCli = false, bool aStrict = false)
 			: Profile{
 				.Profile               = configuration().CredentialContext.Authority.Profile,
 				.ProfileRevision       = configuration().CredentialContext.Authority.ProfileRevision,
 				.Host                  = configuration().CredentialContext.Authority.Host,
 				.Hostname              = configuration().CredentialContext.Authority.Hostname,
 				.ServerContract        = configuration().CredentialContext.Authority.ServerContract,
-				.Authentication        = application::github_authentication_transport::native_https,
+				.Authentication        = aCli ? application::github_authentication_transport::github_cli : application::github_authentication_transport::native_https,
 				.ProbeContractRevision = application::github_probe_contract_revision{ 1U },
 			}
 			, Context{ configuration().CredentialContext }
 			, Transport{ &aTransport }
+			, Strict{ aStrict }
 		{
 		}
 
@@ -816,10 +817,13 @@ namespace {
 			return active() ? Transport : nullptr;
 		}
 
+		auto strict_cli() const noexcept -> bool override { return Strict; }
+
 	private:
 		application::github_profile_authority            Profile;
 		application::github_credential_operation_context Context;
 		github_mutation_wire_transport*                  Transport = nullptr;
+		bool                                             Strict    = false;
 	};
 
 	void test_observe_then_immediate_revalidate_then_submit()
@@ -1374,6 +1378,9 @@ namespace {
 		auto retained  = application::review_mutation_transport{ lease };
 		expect(admit_review_mutation_provider(retained, target(), identity()).has_value(),
 			   "the exact active lease is admitted by the factory gate");
+		auto unsupported = admit_review_mutation_provider(std::make_shared<fake_github_review_mutation_lease>(transport, true), target(), identity());
+		expect(!unsupported && unsupported.error() == application::review_mutation_failure::unsupported && transport.Requests.empty(), "non-strict CLI lease refuses before provider effects");
+		expect(admit_review_mutation_provider(std::make_shared<fake_github_review_mutation_lease>(transport, true, true), target(), identity()).has_value(), "strict CLI lease retains exact provider admission");
 		lease->revoke();
 
 		auto admission = admit_review_mutation_provider(

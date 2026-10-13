@@ -35,6 +35,8 @@ namespace bpr::adapters::github::detail {
 			-> const application::github_credential_operation_context& = 0;
 		[[nodiscard]] virtual auto mutation_transport() noexcept
 			-> github_mutation_wire_transport* = 0;
+		/// \brief The retained wire implements fresh exact-account credential acquisition.
+		[[nodiscard]] virtual auto strict_cli() const noexcept -> bool { return false; }
 	};
 
 	using github_wire_transport_factory_result = std::expected<std::shared_ptr<github_wire_transport_port>,

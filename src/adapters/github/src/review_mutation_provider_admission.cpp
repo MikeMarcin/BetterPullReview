@@ -25,6 +25,10 @@ namespace bpr::adapters::github::detail {
 		}
 		const auto& profile = lease->profile();
 		const auto& context = lease->credential_context();
+		if (profile.Authentication == application::github_authentication_transport::github_cli
+			&& !lease->strict_cli()) {
+			return std::unexpected(application::review_mutation_failure::unsupported);
+		}
 		if (!application::valid(profile) || !application::valid(context)
 			|| context.Authority.Profile != profile.Profile
 			|| context.Authority.ProfileRevision != profile.ProfileRevision

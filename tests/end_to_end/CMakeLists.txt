@@ -4266,3 +4266,19 @@ bpr_add_network_isolated_test(NAME application_review_navigation_entry WINDOWS_U
 set_tests_properties(application_review_navigation_entry PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_REVIEW_NAVIGATION_RENDER_ROOT=${PROJECT_BINARY_DIR}/review-navigation-renders"
     TIMEOUT 180 PASS_REGULAR_EXPRESSION "REVIEW_NAVIGATION_ENTRY_OK")
+
+# RFC0079 ordinary CLI gestures retain exact fixture grants and strict capability.
+if(APPLE)
+    bpr_add_network_isolated_test(NAME application_review_submission_cli_ordinary
+        COMMAND test_better_pull_review_review_submission_composition_public_path --cli)
+    set_tests_properties(application_review_submission_cli_ordinary PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120
+        PASS_REGULAR_EXPRESSION "review-submission-composition:pass")
+    foreach(course IN ITEMS native stop)
+        bpr_add_network_isolated_test(NAME application_review_tour_cli_ordinary_${course}
+            COMMAND test_review_tour_publication_public_path --cli ${course})
+        set_tests_properties(application_review_tour_cli_ordinary_${course} PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+            PASS_REGULAR_EXPRESSION "review-tour-publication:.*:pass")
+    endforeach()
+endif()
