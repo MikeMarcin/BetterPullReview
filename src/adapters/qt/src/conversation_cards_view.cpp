@@ -76,6 +76,11 @@ namespace bpr::qt {
 		constexpr std::size_t      chips_each_way  = 3U;
 		constexpr std::string_view draft_card_id   = "draft:unpublished";
 
+		/// [[BPR-1471]]. The green resolved check, and the slot every closed
+		/// note keeps for it so what follows stands in one column.
+		constexpr int resolved_size = 14;
+		constexpr int resolved_slot = resolved_size + 6;
+
 		[[nodiscard]] auto text(const std::string& aValue) -> QString
 		{
 			return QString::fromUtf8(aValue.data(), static_cast<qsizetype>(aValue.size()));
@@ -100,6 +105,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto name_height(const QFont& aFont) -> int
 		{
 			return std::max(19, QFontMetrics{ semibold(aFont) }.height());
+		}
+
+		/// The bold figure in a closed note's blue new-post count.
+		[[nodiscard]] auto new_count_font(const QFont& aFont) -> QFont
+		{
+			auto pill = semibold(scaled(aFont, 0.8));
+			pill.setWeight(QFont::Bold);
+			return pill;
 		}
 
 		[[nodiscard]] auto body_line_height(const QFont& aFont) -> int
@@ -2165,38 +2178,34 @@ namespace bpr::qt {
 			paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::lock, ink);
 			right -= w + 20;
 		} else {
-			if (aCard.Resolved) {
-				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - 14), top + (nameH - 14) / 2.0, 14.0, 14.0 }, conversation_glyph::resolved, colours.Ok);
-				right -= 14 + 6;
+			// [[BPR-1471]], [[BPR-1473]]. The resolved check's slot is kept on
+			// every note and the blue count follows it, so the counts line up
+			// down the list whatever else a note shows.
+			const auto meta = closed_meta(aCard);
+			if (!meta.Resolved.isEmpty()) {
+				paint_conversation_glyph(aPainter, meta.Resolved, conversation_glyph::resolved, colours.Ok);
 			}
 			// [[BPR-1374]]. My reply written in this thread and not sent, in
 			// the writing blue, at full strength on a resolved note too.
-			if (aCard.UnsentReply.has_value()) {
+			if (!meta.UnsentReply.isEmpty()) {
 				const auto words = QStringLiteral("Your reply");
-				const auto w     = smallMetrics.horizontalAdvance(words);
 				aPainter.save();
 				aPainter.setOpacity(1.0);
 				aPainter.setPen(colours.Signal);
-				aPainter.drawText(QRect{ right - w, top, w + 1, nameH }, Qt::AlignRight | Qt::AlignVCenter, words);
-				paint_conversation_glyph(aPainter, QRectF{ static_cast<qreal>(right - w - 16), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.Signal);
+				aPainter.drawText(meta.UnsentReply.adjusted(16.0, 0.0, 1.0, 0.0), Qt::AlignRight | Qt::AlignVCenter, words);
+				paint_conversation_glyph(aPainter, QRectF{ meta.UnsentReply.left(), top + (nameH - 12) / 2.0, 12.0, 12.0 }, conversation_glyph::edit, colours.Signal);
 				aPainter.restore();
-				right -= w + 16 + 8;
 			}
-			if (aCard.UnreadCount > 0U) {
-				const auto count = QString::number(aCard.UnreadCount);
-				auto       pill  = semibold(scaled(font(), 0.8));
-				pill.setWeight(QFont::Bold);
-				const auto w       = std::max(16, QFontMetrics{ pill }.horizontalAdvance(count) + 10);
-				const auto pillBox = QRectF{ static_cast<qreal>(right - w), top + (nameH - 16) / 2.0, static_cast<qreal>(w), 16.0 };
+			if (!meta.NewCount.isEmpty()) {
 				aPainter.setPen(Qt::NoPen);
 				aPainter.setBrush(colours.New);
-				aPainter.drawRoundedRect(pillBox, 8.0, 8.0);
-				aPainter.setFont(pill);
+				aPainter.drawRoundedRect(meta.NewCount, 8.0, 8.0);
+				aPainter.setFont(new_count_font(font()));
 				aPainter.setPen(colours.OnNew);
-				aPainter.drawText(pillBox, Qt::AlignCenter, count);
+				aPainter.drawText(meta.NewCount, Qt::AlignCenter, QString::number(aCard.UnreadCount));
 				aPainter.setFont(small);
-				right -= w + 6;
 			}
+			right              = meta.Replies;
 			const auto replies = aCard.Posts.size() > 1U ? aCard.Posts.size() - 1U : 0U;
 			if (replies > 0U) {
 				const auto count = QString::number(replies);
@@ -2344,6 +2353,36 @@ namespace bpr::qt {
 	auto conversation_cards_view::label_marks() const noexcept -> const feedback_mark_theme&
 	{
 		return MarkTheme;
+	}
+
+	auto conversation_cards_view::closed_meta(const thread_card& aCard) const -> closed_note_meta
+	{
+		if (aCard.Draft || aCard.Posts.empty() || aCard.Rect.isEmpty()) {
+			return { };
+		}
+		const auto rect  = to_viewport(aCard.Rect);
+		const auto top   = static_cast<qreal>(rect.top() + note_top);
+		const auto nameH = name_height(font());
+		auto       right = rect.right() - note_right;
+		auto       meta  = closed_note_meta{ };
+		if (aCard.Resolved) {
+			meta.Resolved = QRectF{ static_cast<qreal>(right - resolved_size), top + ((nameH - resolved_size) / 2.0), resolved_size, resolved_size };
+		}
+		right -= resolved_slot;
+		// [[BPR-1473]]. The blue count comes straight after the check's slot,
+		// so nothing else on the row moves it.
+		if (aCard.UnreadCount > 0U) {
+			const auto w  = std::max(16, QFontMetrics{ new_count_font(font()) }.horizontalAdvance(QString::number(aCard.UnreadCount)) + 10);
+			meta.NewCount = QRectF{ static_cast<qreal>(right - w), top + ((nameH - 16) / 2.0), static_cast<qreal>(w), 16.0 };
+			right -= w + 6;
+		}
+		if (aCard.UnsentReply.has_value()) {
+			const auto w     = QFontMetrics{ scaled(font(), 0.92) }.horizontalAdvance(QStringLiteral("Your reply"));
+			meta.UnsentReply = QRectF{ static_cast<qreal>(right - w - 16), top, static_cast<qreal>(w + 16), static_cast<qreal>(nameH) };
+			right -= w + 16 + 8;
+		}
+		meta.Replies = right;
+		return meta;
 	}
 
 	auto conversation_cards_view::mark_rect(const thread_card& aCard) const -> QRect
