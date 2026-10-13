@@ -1,0 +1,54 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "9492bef2f732703779c59fa40190af95f7e695ce",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Core and public-host checks pass all suffixes/case behavior, exact stems, exact-directory priority, clarified src/inc/project suffix proximity, unique zero-overlap and equal-best no-op.",
+        "artifact": "docs/issues/_checkpoints/header-source-navigation-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-focused.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-format.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "9492bef2f732703779c59fa40190af95f7e695ce",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Public host query and ordinary exact selection reach a deduplicated withheld entry and resolve back. Removed/Unicode paths work; renamed PreviousPath and differently cased or unsupported stems are excluded. Unobserved and refused catalogues are unavailable.",
+        "artifact": "docs/issues/_checkpoints/header-source-navigation-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-focused.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-format.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-documentation.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "9492bef2f732703779c59fa40190af95f7e695ce",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Both 32- and 4096-entry catalogues deliberately share one basename. One hundred queries visit exactly 400 directory nodes in each, with no indexing, selected-diff reads or projection publications. Exact invalidation/replacement retires membership and candidates.",
+        "artifact": "docs/issues/_checkpoints/header-source-navigation-v1/m1-verification.json",
+        "command_evidence": [
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-focused.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-format.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-tidy.json",
+          "docs/issues/_checkpoints/header-source-navigation-v1/m1-documentation.json"
+        ]
+      }
+    }
+  ]
+}

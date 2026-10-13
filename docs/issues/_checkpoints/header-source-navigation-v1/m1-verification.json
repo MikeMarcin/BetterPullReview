@@ -1,0 +1,136 @@
+{
+  "schema": "bpr.header-source-navigation.verification.v1",
+  "mandate_revision": "header-source-navigation-r4",
+  "milestone": "indexed-counterpart-resolution",
+  "issue": "BPR-1415",
+  "rfc_base_sha": "6a310fc57ae2d52360bfec252cf25aa1350d8aa2",
+  "product_candidate": "9492bef2f732703779c59fa40190af95f7e695ce",
+  "source_paths": [
+    "docs/architecture/header-source-navigation.md",
+    "docs/rfcs/RFC-BPR-0074-header-source-navigation.md",
+    "src/application/include/bpr/application/workbench_application_host.hpp",
+    "src/application/src/header_source_index.hpp",
+    "src/application/src/workbench_application_host.cpp",
+    "src/core/CMakeLists.txt",
+    "src/core/include/bpr/core/header_source_navigation.hpp",
+    "src/core/src/header_source_navigation.cpp",
+    "tests/application/workbench_application_host_tests.cpp",
+    "tests/core/CMakeLists.txt",
+    "tests/core/header_source_navigation_tests.cpp"
+  ],
+  "source_sha256": {
+    "docs/architecture/header-source-navigation.md": "670e6793f956b59d3be75c58836bc24cf4cc14edeaa14b02120d131504eba466",
+    "docs/rfcs/RFC-BPR-0074-header-source-navigation.md": "000f256543576058f168b5f3b0cf2b527d3f18b49174842c1ca5f54e28d27222",
+    "src/application/include/bpr/application/workbench_application_host.hpp": "b36ca9be472ba7cdfa7f95d6681671f5075ef82fff214de90fd72552a631c004",
+    "src/application/src/header_source_index.hpp": "82e71dceb65792f7a14e89121be5cfdb692caba013f5a696563fc58f9830fa4f",
+    "src/application/src/workbench_application_host.cpp": "8fad7f4ec630de1e6ba657db756489e23c53b1231d9ce62819af7cf4ee60cd23",
+    "src/core/CMakeLists.txt": "de32821cca06ca1a27a5d74f9032ba0fa9815f26b50951ad331ce6d3464660a4",
+    "src/core/include/bpr/core/header_source_navigation.hpp": "c53343b4aadeee732e7db4563d93ab20f8f5182772e3a05decb2aa36603313c9",
+    "src/core/src/header_source_navigation.cpp": "90e684877d0ab6c9b0e5b2645d8ba890a40474e0c6e91850df7c4a576519c381",
+    "tests/application/workbench_application_host_tests.cpp": "dee3f790db61c7583119ae94722ff1700812720db8a8d6612564997972fccc37",
+    "tests/core/CMakeLists.txt": "70ba45340fb13400017b7680e282dcf857a12dae85fc08d4e52ac1a2b398155a",
+    "tests/core/header_source_navigation_tests.cpp": "6c92191853cd7ba891e4ae79ae42f7716d399d9383b5c37531d50ff89cfcb0ab"
+  },
+  "context": {
+    "platform": "Darwin",
+    "release": "25.6.0",
+    "architecture": "arm64",
+    "qt": "not selected (core-only)",
+    "input": "manual executors and accepted provider-free catalogue fixtures"
+  },
+  "checks": [
+    {
+      "command": [
+        "cmake",
+        "--preset",
+        "core-only"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--target",
+        "test_better_pull_review_header_source_navigation_core_tests",
+        "test_better_pull_review_application_workbench_host_tests",
+        "-j",
+        "6"
+      ],
+      "outcome": "pass",
+      "detail": "Rebuilt both targets after the UTF-8 correction. Final product commit adds only documentation comments to the already-built index header."
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/header-source-navigation-v1/m1-focused.json"
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "--output-on-failure",
+        "-R",
+        "^architecture_boundary_contract$"
+      ],
+      "outcome": "pass",
+      "elapsed_seconds": 113.4,
+      "detail": "Architecture enforcer negative contract passed on the M1 working candidate before the UTF-8-only application-path correction. Enforcement code and dependency graph inputs were unchanged; exact committed candidate architecture_boundaries also passes in m1-focused.json."
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/header-source-navigation-v1/m1-format.json"
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/header-source-navigation-v1/m1-tidy.json"
+    },
+    {
+      "evidence_ref": "docs/issues/_checkpoints/header-source-navigation-v1/m1-documentation.json"
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "outcome": "pass"
+    }
+  ],
+  "acceptance": {
+    "AC1": "Core and public-host checks pass all suffixes/case behavior, exact stems, exact-directory priority, clarified src/inc/project suffix proximity, unique zero-overlap and equal-best no-op.",
+    "AC2": "Public host query and ordinary exact selection reach a deduplicated withheld entry and resolve back. Removed/Unicode paths work; renamed PreviousPath and differently cased or unsupported stems are excluded. Unobserved and refused catalogues are unavailable.",
+    "AC3": "Both 32- and 4096-entry catalogues deliberately share one basename. One hundred queries visit exactly 400 directory nodes in each, with no indexing, selected-diff reads or projection publications. Exact invalidation/replacement retires membership and candidates."
+  },
+  "scaling_assertions": [
+    {
+      "catalogue_files": 32,
+      "queries": 100,
+      "directory_lookups": 400,
+      "additional_indexed_rows": 0,
+      "additional_selected_file_reads": 0,
+      "additional_file_projection_rows": 0
+    },
+    {
+      "catalogue_files": 4096,
+      "queries": 100,
+      "directory_lookups": 400,
+      "additional_indexed_rows": 0,
+      "additional_selected_file_reads": 0,
+      "additional_file_projection_rows": 0
+    }
+  ],
+  "failures_and_corrections": [
+    "First warnings-as-errors build refused partial positional resolution aggregate initialization; changed status-only returns to designated initialization and rebuilt successfully.",
+    "Self-review replaced locale-dependent native-path generic_string conversion with explicit UTF-8 bytes and added removed/Unicode/zero-overlap host coverage.",
+    "Initial documentation gate found concurrent BPR-1413 AC08 checklist drift; its owner reconciled it and final gate is green.",
+    "One format-helper discovery command named a nonexistent check_format.py; used the installed format_check.py and recorded its passing result."
+  ],
+  "self_review": "One bounded correctness/simplification pass checked summary ambiguity, opposite-family selection, same-directory precedence, deepest nonempty suffix fallback, flat-node lifetime across vector growth, stable-identity deduplication, explicit UTF-8 paths and accepted-catalogue lifecycle. No known critical M1 defect remains.",
+  "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "limits": [
+    "This milestone does not expose the native View command or shortcut.",
+    "Full composed RFC AC01\u2013AC06 and active-tab/context/focus/status acceptance remain BPR-1416.",
+    "No installed, native-device, human or independent verdict is claimed or required by M1.",
+    "Concurrent smooth-panning commit d97c8d105 is disjoint from these source paths; unchanged passing M1 evidence is retained."
+  ]
+}
