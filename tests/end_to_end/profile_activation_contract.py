@@ -201,6 +201,13 @@ def main():
         result = subprocess.run([args.desktop_application, *arguments],
                                 capture_output=True, text=True, timeout=15)
         assert result.returncode != 0 and "PROFILE_LAUNCH_ARGUMENTS_INVALID" in result.stdout, result
+    # [[BPR-1437]] One strict reader takes every launch option: a value is never
+    # another option, and an unknown option or a stray word is refused, not ignored.
+    for arguments in (["--ghes-host", "--new-window"], ["--ghes-host"], ["--ghes-host=github.example"],
+                      ["--no-such-option"], ["stray"], ["--self-test", "--self-test"]):
+        result = subprocess.run([args.desktop_application, *arguments],
+                                capture_output=True, text=True, timeout=15)
+        assert result.returncode != 0 and "LAUNCH_ARGUMENTS_INVALID" in result.stdout.splitlines(), result
     for identity in ("1", "18446744073709551615"):
         result = subprocess.run([args.desktop_application, "--bpr-profile", identity,
                                  "--new-window", "--application-icon-probe"],

@@ -98,6 +98,11 @@ def contract_edges(course):
         assert command in data["commands"], command
     course.refused("unsupported_version", 2, "capabilities", "--schema-version", "2", data_root=False)
     course.refused("unsupported_option", 2, "capabilities", "--yes", data_root=False)
+    # [[BPR-1437]] One strict reader: `--file --json` names no file, and
+    # `--name=value`, `--`, a single-dash word and a repeated option are refused.
+    for words in (("note", "RC-1", "--file"), ("note", "RC-1", "--file=body.md"), ("show", "--"), ("show", "-j")):
+        course.refused("unsupported_option", 2, *words, data_root=False)
+    course.refused("invalid_input", 2, "show", "--json", data_root=False)
     course.refused("unsupported_command", 2, "publish", data_root=False)
     _, err = course.human("show", "--force", code=2)
     assert "--force" in err

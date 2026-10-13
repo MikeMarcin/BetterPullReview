@@ -487,7 +487,10 @@ launches activate its most recent window through the existing owner on supported
 POSIX roots. A routed process exits without creating a competing runtime.
 Refused or indeterminate handoffs report a fixed diagnostic; they do not retry
 New Window automatically. Windows activation transport and roots whose socket
-path exceeds the native address bound remain unavailable.
+path exceeds the native address bound remain unavailable. The application
+refuses an option it does not know, a repeated option or an option given as
+another option's value, printing `LAUNCH_ARGUMENTS_INVALID` (or
+`PROFILE_LAUNCH_ARGUMENTS_INVALID` for the two profile options) and exiting.
 
 On macOS both graphs build application bundles, which is why the path is nested;
 on Linux and Windows the executable is flat at

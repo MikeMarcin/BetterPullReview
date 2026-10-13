@@ -3406,6 +3406,29 @@ exposes only headers; it does not execute upstream build or install rules.
 License and provenance are under `third_party/glaze/`. Since [[BPR-1433]] every
 build, core-only included, acquires Glaze (see JSON decoding below).
 
+## Command lines
+
+[[BPR-1437]] reads every BetterPullReview command line with one reader,
+`bpr::app::command_line` (`bpr/app/command_line.hpp`), built on
+`QCommandLineParser`. It serves the desktop application, `bpr tour` and
+`bpr cycle`. Each declares a table of flags and value options. Qt
+tokenizes, and the reader adds the refusals Qt leaves to its caller:
+- an unknown option, including a single-dash word, `--name=value` and a bare
+  `--`;
+- a missing value, including when the next word is itself an option, so
+  `--ghes-host --new-window` names no host;
+- a repeated option.
+
+The two CLIs keep their per-command allow-lists and error codes. The desktop
+application reads its options once, after QApplication has removed its own
+(`-platform` and the rest), and refuses an unknown option or a stray word with
+`LAUNCH_ARGUMENTS_INVALID`. It previously ignored both. Tests-only options are
+declared only in a tests-enabled build, so a released binary names none of
+them. Two checks still read the raw arguments because they must run before
+QApplication exists: the installed-runtime plugin guard and the
+designated-live provenance check. The tests-only live-candidate seam takes one
+value, `--public-preview-live-candidate OWNER/REPOSITORY/NUMBER`.
+
 ## JSON decoding
 
 [[BPR-1433]] gives every JSON decoder one structural check,

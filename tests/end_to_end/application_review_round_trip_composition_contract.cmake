@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5901bcc00aa90cb44b3b33b6996523ea5fbe8eb18a0af0884d48e0c60be194c6"
+		"8ba4e700a93a9c6bd83b6baafde6bfd06489d48d58f8b3e8ea89ab4f85302fb3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1483,6 +1483,7 @@ endfunction()
 
 function(bpr_compute_production_app_manifest_digest app_source_root out_variable)
     set(bpr_production_app_sources
+        "include/bpr/app/command_line.hpp"
         "include/bpr/app/diagnostic_controls.hpp"
         "include/bpr/app/diagnostic_export_directory.hpp"
         "include/bpr/app/foundation_application.hpp"
@@ -1493,6 +1494,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
 		"main.cpp"
+		"src/command_line.cpp"
 		"src/designated_live_macos_supervisor.cpp"
 		"src/designated_live_macos_supervisor_identity.cpp"
 		"src/designated_live_macos_supervisor_identity.hpp"
@@ -1557,6 +1559,7 @@ function(bpr_verify_app_source_tree app_source_root)
         )
     endif()
     set(bpr_expected_app_sources
+        "include/bpr/app/command_line.hpp"
         "include/bpr/app/diagnostic_controls.hpp"
         "include/bpr/app/diagnostic_export_directory.hpp"
         "include/bpr/app/foundation_application.hpp"
@@ -1567,6 +1570,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+        "src/command_line.cpp"
         "src/cycle_cli.cpp"
         "src/cycle_cli.hpp"
         "src/cycle_commands.cpp"
@@ -1680,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8fe8e590e993b7561797234562f978a378e8ad5b7757576d50a1c631aa6d3c50"
+        "929e778b8d344d93f860509437d2381dae43a890170529e922b85c8f48251626"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2364,3 +2368,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # production mutation digest remains e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df.
 # Existing language, provider bypass, full-source and exact-tree negative controls
 # remain mandatory. No PRINT_PINNED_DIGESTS switch is passed by registered tests.
+
+# [[BPR-1431]] and [[BPR-1437]] reseal. github_application.cpp gained only the
+# RE2 source-regex engine member and its two finder constructor arguments.
+# main.cpp now reads its options once through the shared QCommandLineParser
+# reader (src/command_line.cpp and include/bpr/app/command_line.hpp, added to
+# the inventory and the production manifest): unknown, repeated and
+# value-less options are refused at startup. The attended approval, inventory
+# and replay options keep their names, values and ordering, and the
+# pre-QApplication provenance check still reads the raw arguments. No
+# publication, credential, grant or mutation-branch change; the full
+# application and production-manifest digests are refreshed.

@@ -1,3 +1,14 @@
+if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
+    # [[BPR-1437]]. The one command-line reader, on QCommandLineParser, for
+    # the desktop application, `bpr tour` and `bpr cycle`.
+    add_library(better_pull_review_command_line STATIC src/command_line.cpp)
+    target_include_directories(better_pull_review_command_line PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(better_pull_review_command_line PUBLIC Qt6::Core)
+    target_compile_features(better_pull_review_command_line PUBLIC cxx_std_23)
+    bpr_enable_hardening(better_pull_review_command_line)
+    bpr_enable_warnings(better_pull_review_command_line)
+endif()
+
 if(BPR_BUILD_TOUR_CLI)
     add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp)
     add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
@@ -10,7 +21,7 @@ if(BPR_BUILD_TOUR_CLI)
         target_compile_definitions(better_pull_review_tour_runtime PRIVATE BPR_BUILD_TESTING=1 BPR_NATIVE_HTTPS_TESTING=1)
     endif()
     target_link_libraries(better_pull_review_tour_runtime PUBLIC BetterPullReview::Application
-        PRIVATE BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::Platform Qt6::Core Qt6::Network)
+        PRIVATE better_pull_review_command_line BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::Platform Qt6::Core Qt6::Network)
     target_include_directories(better_pull_review_tour_runtime PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src" "${PROJECT_SOURCE_DIR}/src/application/src" "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_compile_features(better_pull_review_tour_runtime PUBLIC cxx_std_23)
@@ -335,6 +346,8 @@ if(BPR_BUILD_QT)
 		bpr_attended_review_source_surface
 		src/app/CMakeLists.txt
 		src/app/main.cpp
+		src/app/include/bpr/app/command_line.hpp
+		src/app/src/command_line.cpp
 		src/app/include/bpr/app/github_application.hpp
 		src/app/src/github_application.cpp
 		src/app/src/review_submission_workflow.hpp
@@ -421,6 +434,7 @@ if(BPR_BUILD_QT)
         app_better_pull_review
         PRIVATE
             BetterPullReview::Composition
+            better_pull_review_command_line
     )
     target_compile_definitions(
         app_better_pull_review
