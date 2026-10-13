@@ -43,4 +43,4 @@ existing selected-diff path without changing the actionable order or receipt.
 The first milestone provides and verifies this core/host boundary. The native
 View command, keyboard translation, active-tab context, focus/status presentation
 and composed split/unified acceptance are the second milestone, tracked by
-[BPR-1416](../issues/10-backlog/BPR-1416-composed-header-source-command.md).
+[BPR-1416](../issues/20-ready/BPR-1416-composed-header-source-command.md).

@@ -7,7 +7,8 @@ coordinator-implementer recipe. [Selection](selection.json),
 [M1 verification](m1-verification.json) are durable continuation inputs.
 
 Product candidate: `9492bef2f732703779c59fa40190af95f7e695ce` on local main.
-Import: `717efcf0c`; claim: `45416917d`. M1 source paths and hashes are in
+Import: `717efcf0c`; claim: `45416917d`; accepted issue slice: `3237bb79e`.
+BPR-1415 is Done; BPR-1416 is now Ready. M1 source paths and hashes are in
 m1-verification.json. No push or external mutation occurred.
 
 Core now classifies supported suffixes and exact stems, defines reversed
@@ -35,8 +36,8 @@ human criterion exists; do not invent one. The frontend-design skill path is in
 m1-verification.json and must be loaded before Qt/UX work.
 
 M1 owns no review server or protected attended candidate. All task-owned build,
-test and tidy commands must finish before return; final observation records
-quiescence. Shared preexisting build/core-only is retained, not task temporary
+test and tidy commands have finished; no background command remains. Final
+observation records quiescence. Shared preexisting build/core-only is retained, not task temporary
 work. The coordinator’s original /tmp selection is preserved in this directory.
 
 Other writers: smooth-panning owner committed d97c8d105 on disjoint Qt and

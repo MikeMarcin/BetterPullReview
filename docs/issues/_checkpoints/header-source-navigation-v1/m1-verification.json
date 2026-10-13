@@ -123,7 +123,8 @@
     "First warnings-as-errors build refused partial positional resolution aggregate initialization; changed status-only returns to designated initialization and rebuilt successfully.",
     "Self-review replaced locale-dependent native-path generic_string conversion with explicit UTF-8 bytes and added removed/Unicode/zero-overlap host coverage.",
     "Initial documentation gate found concurrent BPR-1413 AC08 checklist drift; its owner reconciled it and final gate is green.",
-    "One format-helper discovery command named a nonexistent check_format.py; used the installed format_check.py and recorded its passing result."
+    "One format-helper discovery command named a nonexistent check_format.py; used the installed format_check.py and recorded its passing result.",
+    "A premature closeout_for marker on the future M2 card required the repository canonical closeout filename/title/table; removed the marker and retained the exact criteria. Final documentation gate passes; M2 continuation explicitly owns that closeout conversion."
   ],
   "self_review": "One bounded correctness/simplification pass checked summary ambiguity, opposite-family selection, same-directory precedence, deepest nonempty suffix fallback, flat-node lifetime across vector growth, stable-identity deduplication, explicit UTF-8 paths and accepted-catalogue lifecycle. No known critical M1 defect remains.",
   "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
@@ -132,5 +133,11 @@
     "Full composed RFC AC01\u2013AC06 and active-tab/context/focus/status acceptance remain BPR-1416.",
     "No installed, native-device, human or independent verdict is claimed or required by M1.",
     "Concurrent smooth-panning commit d97c8d105 is disjoint from these source paths; unchanged passing M1 evidence is retained."
-  ]
+  ],
+  "upkeep": {
+    "issue_finish_commit": "3237bb79e67a72e715b9a8ced2844ae6c1ca331a",
+    "successor": "BPR-1416 in Ready",
+    "documentation_link_repair": "Moving BPR-1416 to Ready updates only its link in docs/architecture/header-source-navigation.md; product source hashes remain those of 9492bef2f.",
+    "closeout_card_preparation": "Successor now contains all six exact canonical RFC criteria. Its canonical closeout filename/title/metadata/evidence table remain part of M2 final upkeep."
+  }
 }

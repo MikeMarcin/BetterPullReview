@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1416"
 title: "Compose header and source navigation command"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0074"]
 depends_on: ["BPR-1415"]
 priority: "P1"
