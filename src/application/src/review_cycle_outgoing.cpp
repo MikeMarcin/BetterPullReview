@@ -1,7 +1,7 @@
 #include "bpr/application/review_cycle_outgoing.hpp"
 
 #include "bpr/application/review_cycle_comparison.hpp"
-#include "bpr/core/review_cycle_git.hpp"
+#include "bpr/application/review_cycle_git_metadata.hpp"
 
 #include <algorithm>
 #include <iterator>
@@ -14,82 +14,6 @@
 
 namespace bpr::application {
 	namespace {
-		constexpr std::uint64_t maximum_reference_file_bytes = 64U * 1024U;
-
-		[[nodiscard]] auto text(const std::vector<std::uint8_t>& aBytes) -> std::string_view
-		{
-			return { reinterpret_cast<const char*>(aBytes.data()), aBytes.size() };
-		}
-
-		/// A reference name this reads: under `refs/`, with no empty, `.`-led
-		/// or `..` segment, no control character, space or `~^:?*[\` and no
-		/// `.lock` ending.
-		[[nodiscard]] auto admissible_reference(const std::string_view aName) -> bool
-		{
-			if (!aName.starts_with("refs/") || aName.size() > core::maximum_outgoing_reference_bytes || aName.ends_with('/') || aName.ends_with(".lock")
-				|| aName.find("..") != std::string_view::npos || aName.find("@{") != std::string_view::npos) {
-				return false;
-			}
-			for (const auto character : aName) {
-				const auto value = static_cast<unsigned char>(character);
-				if (value < 0x21U || value == 0x7FU || std::string_view{ "~^:?*[\\" }.find(character) != std::string_view::npos) {
-					return false;
-				}
-			}
-			auto start = std::size_t{ 0 };
-			while (start < aName.size()) {
-				const auto end     = aName.find('/', start);
-				const auto segment = aName.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
-				if (segment.empty() || segment.front() == '.') {
-					return false;
-				}
-				if (end == std::string_view::npos) {
-					break;
-				}
-				start = end + 1U;
-			}
-			return true;
-		}
-
-		/// One reference: its loose file, else `packed-refs`. A loose symbolic
-		/// reference is followed once.
-		auto resolve_named(workspace_root_session& aSession, const std::string_view aName, const core::git_hash_algorithm aAlgorithm, const bool aFollow, const std::stop_token& aStop)
-			-> std::expected<core::git_commit_oid, std::optional<workspace_failure>>
-		{
-			if (!admissible_reference(aName)) {
-				return std::unexpected(std::nullopt);
-			}
-			const auto loose = aSession.read_git(workspace_git_area::common, aName, maximum_reference_file_bytes, aStop);
-			if (loose) {
-				const auto contents = text(*loose);
-				if (contents.starts_with("ref: ")) {
-					auto target = contents.substr(5U);
-					while (!target.empty() && (target.back() == '\n' || target.back() == '\r')) {
-						target.remove_suffix(1U);
-					}
-					if (!aFollow) {
-						return std::unexpected(std::nullopt);
-					}
-					return resolve_named(aSession, target, aAlgorithm, false, aStop);
-				}
-				if (const auto commit = core::parse_git_reference(contents, aAlgorithm)) {
-					return *commit;
-				}
-				return std::unexpected(std::nullopt);
-			}
-			if (loose.error() != workspace_failure::missing) {
-				return std::unexpected(loose.error());
-			}
-			const auto packed = aSession.read_git(workspace_git_area::common, "packed-refs", maximum_workspace_metadata_bytes, aStop);
-			if (!packed) {
-				return std::unexpected(packed.error() == workspace_failure::missing ? std::nullopt : std::optional{ packed.error() });
-			}
-			if (const auto commit = core::find_packed_reference(text(*packed), aName, aAlgorithm)) {
-				return *commit;
-			}
-			return std::unexpected(std::nullopt);
-		}
-
 		void target_paths(const core::cycle_feedback_target& aTarget, std::vector<std::string>& aPaths)
 		{
 			std::visit(
@@ -121,32 +45,6 @@ namespace bpr::application {
 			}
 			return { .Status = cycle_outgoing_status::repository, .Git = std::move(aError) };
 		}
-	}
-
-	auto resolve_reference(workspace_root_session& aSession, const std::string_view aName, const core::git_hash_algorithm aAlgorithm, std::stop_token aStop)
-		-> std::expected<core::git_commit_oid, std::optional<workspace_failure>>
-	{
-		if (const auto exact = core::parse_git_commit_oid(aName)) {
-			if (exact->algorithm() != aAlgorithm) {
-				return std::unexpected(std::nullopt);
-			}
-			return *exact;
-		}
-		if (aName == "HEAD") {
-			const auto head = aSession.read_git(workspace_git_area::worktree, "HEAD", maximum_reference_file_bytes, aStop);
-			if (!head) {
-				return std::unexpected(head.error() == workspace_failure::missing ? std::nullopt : std::optional{ head.error() });
-			}
-			const auto parsed = core::parse_git_head(text(*head), aAlgorithm);
-			if (parsed.Commit) {
-				return *parsed.Commit;
-			}
-			if (parsed.Reference) {
-				return resolve_named(aSession, *parsed.Reference, aAlgorithm, false, aStop);
-			}
-			return std::unexpected(std::nullopt);
-		}
-		return resolve_named(aSession, aName, aAlgorithm, true, aStop);
 	}
 
 	review_cycle_outgoing_host::review_cycle_outgoing_host(workspace_source_port& aSource, review_cycle_store& aStore, publication_candidate_port& aGit) noexcept
@@ -196,6 +94,13 @@ namespace bpr::application {
 		}
 		if (core::verify_workspace(*aCycle.Workspace, (*session)->observation()) != core::workspace_verification::matches) {
 			return stopWith(cycle_outgoing_status::root_changed);
+		}
+		// A repository the readers refuse is refused here too, with its reason.
+		if (const auto format = read_git_repository_format(**session, aStop); !format) {
+			if (format.error().Workspace == workspace_failure::cancelled) {
+				return stopWith(cycle_outgoing_status::cancelled);
+			}
+			return std::unexpected(cycle_outgoing_outcome{ .Status = cycle_outgoing_status::workspace, .Workspace = format.error().Workspace, .Repository = format.error().Repository });
 		}
 		const auto resolve = [&](const std::string& aName) -> std::expected<core::git_commit_oid, cycle_outgoing_outcome> {
 			auto resolved = resolve_reference(**session, aName, algorithm, aStop);

@@ -132,11 +132,15 @@ namespace bpr::application {
 		auto outgoing_words(const cycle_outgoing_outcome& aOutcome, const std::string& aBase) -> std::string
 		{
 			switch (aOutcome.Status) {
-			case cycle_outgoing_status::planned:               return { };
-			case cycle_outgoing_status::not_bound:             return "This cycle has no project folder. Publishing needs a Git checkout.";
-			case cycle_outgoing_status::not_captured:          return "Capture the project before publishing.";
-			case cycle_outgoing_status::root_changed:          return "The project folder is not the one this cycle captured. Open it again to publish from it.";
-			case cycle_outgoing_status::workspace:             return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
+			case cycle_outgoing_status::planned:      return { };
+			case cycle_outgoing_status::not_bound:    return "This cycle has no project folder. Publishing needs a Git checkout.";
+			case cycle_outgoing_status::not_captured: return "Capture the project before publishing.";
+			case cycle_outgoing_status::root_changed: return "The project folder is not the one this cycle captured. Open it again to publish from it.";
+			case cycle_outgoing_status::workspace:
+				if (aOutcome.Repository) {
+					return cycle_repository_words(*aOutcome.Repository);
+				}
+				return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
 			case cycle_outgoing_status::reference_unavailable: return "\"" + aBase + "\" does not name a commit in this checkout. Name a branch, HEAD or a commit.";
 			case cycle_outgoing_status::repository:            return "Git could not read the repository" + (aOutcome.Git && !aOutcome.Git->Detail.empty() ? " (" + aOutcome.Git->Detail + ")." : std::string{ "." });
 			case cycle_outgoing_status::material:              return "Retained material for this cycle is missing or damaged; nothing was substituted.";

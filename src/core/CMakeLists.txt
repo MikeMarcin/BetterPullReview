@@ -65,6 +65,7 @@ add_library(
         src/review_cycle_promotion.cpp
         src/git_objects.cpp
         src/suggestion_text_editing.cpp
+        src/git_config.cpp
         src/review_cycle_git.cpp
         src/review_cycle_ignore.cpp
         src/review_cycle_manifest.cpp

@@ -2,9 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1459"
 title: "Record the vendored-piece and gitoxide desk checks and cost records"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0083"]
-depends_on: ["BPR-1455"]
+depends_on: ["BPR-1454"]
 priority: "P2"
 platforms: ["mac"]
 metadata: {"milestone_plan": {"id": "git-metadata-readers-v1", "path": "docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"}, "mandate_revision": "git-metadata-readers-r1", "rfc_base_sha": "9a4f61976bba23727acd77d10c23c041f87208f0", "reservation": "docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json"}
@@ -15,6 +15,8 @@ metadata: {"milestone_plan": {"id": "git-metadata-readers-v1", "path": "docs/rfc
 Candidates V and G of [RFC-BPR-0083](../../rfcs/RFC-BPR-0083-git-metadata-readers.md). Under the owner's Q1
 answer, a vendored matcher or reftable reader in core is eligible only pending
 the owner's approval of that code; it may be measured as a test-only oracle.
+
+It needs only [[BPR-1454]] to start; V's oracle measurement runs in the harness or fuzz target once [[BPR-1455]] or [[BPR-1457]] lands.
 
 ## Acceptance criteria
 

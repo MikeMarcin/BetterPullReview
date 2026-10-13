@@ -6464,7 +6464,7 @@ namespace bpr::app {
 			const auto* profile = session ? find_profile(session->Profile) : nullptr;
 			if (profile != nullptr && session->Mode == destination.Mode && profile->hostname() == destination.Hostname
 				&& WindowRead->state().ActiveProfile == session->Profile
-				&& shows_destination({ .Hostname = destination.Hostname, .Repository = destination.Repository, .Number = destination.Number })) {
+				&& reuses_shown({ .Hostname = destination.Hostname, .Repository = destination.Repository, .Number = destination.Number })) {
 				Window->choose_home(false);
 				Window->choose_modality(qt::review_modality::overview);
 				return;
@@ -11200,6 +11200,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void settle_review_comments(const std::string& aKey, const application::review_submission_publication aPublication,
 									const std::optional<application::review_submission_request>& aRequest)
 		{
+			// [[BPR-1472]]. A review that may be on GitHub is not in the shown read.
+			if (!Closing && aPublication != application::review_submission_publication::definitely_not_published) {
+				note_publication();
+			}
 			if (Closing || !SharedDrafts || aPublication == application::review_submission_publication::indeterminate) {
 				return;
 			}
@@ -11373,6 +11377,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto publishing = std::exchange(PublishingDraft, std::nullopt);
+			if (aSuccess) {
+				note_publication();
+			}
 			if (PrivateReview && PrivateDraftsReady) {
 				const auto owner    = SharedDrafts;
 				auto       complete = [this, owner, publishing, after = std::move(aAfter)](auto aCommit) {
@@ -14309,7 +14316,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// shows under this session reads nothing again: the window keeps
 			// its review and goes to the location. Anything else opens here
 			// and goes to the location once this window accepts it.
-			const auto shown = shows_destination(aDestination) && WindowRead->state().ActiveProfile == aProfile;
+			const auto shown = reuses_shown(aDestination) && WindowRead->state().ActiveProfile == aProfile;
 			if (shown || aDestination.Target.Kind != core::pull_request_location_kind::pull_request) {
 				PendingLinkLocation = link_location{ .Destination = aDestination };
 			}
@@ -14348,6 +14355,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& snapshot->PullRequest.Number == aDestination.Number
 				&& same_name(snapshot->Repository.Owner, aDestination.Repository.Owner)
 				&& same_name(snapshot->Repository.Name, aDestination.Repository.Name);
+		}
+		/// [[BPR-1472]]. The shown read is reused only while it is still the
+		/// latest this window knows of: once this window has published to the
+		/// pull request over it, GitHub holds comments that read lacks, so
+		/// reopening reads it again. A new accepted read clears this by itself.
+		std::optional<core::provider_snapshot_id> PublishedOverSnapshot;
+		void                                      note_publication()
+		{
+			if (WindowRead && WindowRead->accepted_snapshot()) {
+				PublishedOverSnapshot = WindowRead->accepted_snapshot()->Snapshot;
+			}
+		}
+		[[nodiscard]] auto reuses_shown(const core::setup_destination& aDestination) const -> bool
+		{
+			return shows_destination(aDestination)
+				&& PublishedOverSnapshot != std::optional{ WindowRead->accepted_snapshot()->Snapshot };
 		}
 		void schedule_link_location()
 		{
@@ -18051,6 +18074,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_restored,
 				awaiting_finish_page,
 				awaiting_submitted,
+				// [[BPR-1472]]. Home, then the pull request's Recently viewed row.
+				awaiting_recent_open,
+				awaiting_recent_read,
 				awaiting_refused,
 				awaiting_discarded,
 				awaiting_held,
@@ -18087,6 +18113,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::size_t                        Waited       = 0U;
 			phase                              Phase        = phase::awaiting_file;
 			std::string                        Diagnostic;
+			/// [[BPR-1472]]. The reads and the shown read before the reopen.
+			int                                       ReadsBefore = 0;
+			std::optional<core::provider_snapshot_id> ShownBefore;
 		};
 		std::optional<start_review_probe_state> StartReviewProbe;
 		// [[BPR-1331]]. The private progress course across a push.
@@ -29403,6 +29432,55 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& summary->shown_draft().has_value() && summary->shown_draft()->State == core::review_submission_state::drafting && summary->shown_draft()->Comments.empty();
 			if (!probe.Evidence.SubmittedExact || !probe.Evidence.MarkedPublished) {
 				return fail("submitted-not-exact");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_recent_open;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_recent_open: {
+			// [[BPR-1472]]. The owner's course: Home, then this pull request's
+			// Recently viewed row. The shown read predates the review just
+			// submitted, so the row reads the pull request again.
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
+			auto* const recent   = window->home_recent_list();
+			if (!snapshot || recent == nullptr) {
+				return fail("nothing-shown-to-reopen");
+			}
+			const auto name = QStringLiteral("%1/%2#%3").arg(QString::fromStdString(snapshot->Repository.Owner), QString::fromStdString(snapshot->Repository.Name)).arg(snapshot->PullRequest.Number.value());
+			window->choose_home(true);
+			QCoreApplication::processEvents();
+			auto row = -1;
+			for (auto index = 0; index < recent->count(); ++index) {
+				if (recent->item(index)->text().startsWith(name)) {
+					row = index;
+				}
+			}
+			note("recent=" + std::to_string(recent->count()) + " row=" + std::to_string(row) + " visible=" + std::to_string(recent->isVisible() ? 1 : 0));
+			if (row < 0 || !recent->isVisible()) {
+				return ++probe.Waited < 400U ? result::pending : fail("no-recent-row");
+			}
+			probe.ReadsBefore = implementation->Fixture->evidence().AccountReadCount;
+			probe.ShownBefore = snapshot->Snapshot;
+			recent->setCurrentRow(row);
+			recent->setFocus(Qt::OtherFocusReason);
+			auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QCoreApplication::sendEvent(recent, &open);
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_recent_read;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_recent_read: {
+			const auto& snapshot = implementation->WindowRead->accepted_snapshot();
+			const auto  reads    = implementation->Fixture->evidence().AccountReadCount;
+			note("reads=" + std::to_string(reads) + " before=" + std::to_string(probe.ReadsBefore) + " ready=" + std::to_string(ready() ? 1 : 0)
+				 + " home=" + std::to_string(window->showing_home() ? 1 : 0));
+			if (reads == probe.ReadsBefore || !snapshot || snapshot->Snapshot == probe.ShownBefore || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("reopen-reused-the-stale-read");
+			}
+			probe.Evidence.ReopenedFresh = !window->showing_home() && window->current_modality() == qt::review_modality::overview;
+			if (!probe.Evidence.ReopenedFresh) {
+				return fail("reopen-not-on-overview");
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

@@ -354,6 +354,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "review_cycle_outgoing": "dos-volume-name",
     # [[BPR-1173]]. The same course shape as review_cycle_outgoing.
     "review_cycle_candidate": "dos-volume-name",
+    # [[BPR-1454]]. The Git metadata reader rows: the same scratch-root store
+    # course with the build's Git making fixtures (and the publication catalog
+    # for the outgoing row).
+    "review_cycle_git_readers": "unmeasured (registered on macOS)",
+    # [[BPR-1457]]. The scale bench's Git reader and adversarial cases.
+    "review_cycle_git_reader_scale": "unmeasured (registered on macOS)",
     # [[BPR-1174]]. The same course shape.
     "review_cycle_publication": "dos-volume-name",
     # [[BPR-1175]]. The same course shape; the provider is simulated in memory.
