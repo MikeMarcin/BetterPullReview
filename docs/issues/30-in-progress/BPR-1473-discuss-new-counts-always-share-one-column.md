@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1473"
 title: "Discuss's new-post counts always share one column"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1471"]
 priority: "P3"
