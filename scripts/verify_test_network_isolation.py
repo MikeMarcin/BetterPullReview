@@ -358,6 +358,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # course with the build's Git making fixtures (and the publication catalog
     # for the outgoing row).
     "review_cycle_git_readers": "unmeasured (registered on macOS)",
+    # [[BPR-1457]]. The scale bench's Git reader and adversarial cases.
+    "review_cycle_git_reader_scale": "unmeasured (registered on macOS)",
+    # [[BPR-1455]] and [[BPR-1456]]. The Git metadata differential harness and
+    # canary course: the same scratch-root store course, with the build's Git
+    # making fixtures and answering as the oracle.
+    "git_metadata_harness": "unmeasured (registered on macOS)",
     # [[BPR-1174]]. The same course shape.
     "review_cycle_publication": "dos-volume-name",
     # [[BPR-1175]]. The same course shape; the provider is simulated in memory.

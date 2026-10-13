@@ -15,7 +15,9 @@ cmake_minimum_required(VERSION 4.4.2)
 #           Finish review opens the summary in Discuss listing both; Comment
 #           with no summary is submitted as one review whose comments are
 #           exactly the two (path, lines, side, words), and each is marked
-#           published on GitHub's acceptance.
+#           published on GitHub's acceptance. Home, then the pull request's
+#           Recently viewed row, reads it again (BPR-1472): the shown read
+#           predates the review.
 # refused   The server refuses the review (422): the draft stays pending with
 #           its text; Discard review, confirmed, deletes it and closes the
 #           page (v002).
@@ -44,7 +46,7 @@ bpr_private_data_root(BPR_ROOT)
 
 foreach(course_spec IN ITEMS
     "pending|persistent|START_REVIEW_PENDING_EVIDENCE:11111"
-    "finish|persistent|START_REVIEW_FINISH_EVIDENCE:11111"
+    "finish|persistent|START_REVIEW_FINISH_EVIDENCE:111111"
     "refused|fresh|START_REVIEW_REFUSED_EVIDENCE:1111"
     "uncertain|fresh|START_REVIEW_UNCERTAIN_EVIDENCE:1111"
     "again|fresh|START_REVIEW_AGAIN_EVIDENCE:1111111111")

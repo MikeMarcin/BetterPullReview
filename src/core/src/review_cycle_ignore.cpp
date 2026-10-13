@@ -508,6 +508,64 @@ namespace bpr::core {
 		}
 
 		/// The subject a rule's pattern is matched against.
+		using byte_set = std::array<std::uint64_t, 4>;
+
+		void insert(byte_set& aSet, const unsigned char aValue)
+		{
+			aSet.at(aValue / 64U) |= std::uint64_t{ 1 } << (aValue % 64U);
+		}
+
+		/// The bytes of `aText`, folded to lower case under `aCaseFold`.
+		auto bytes_of(const std::string_view aText, const bool aCaseFold) -> byte_set
+		{
+			auto set = byte_set{ };
+			for (const auto character : aText) {
+				const auto value = static_cast<unsigned char>(character);
+				insert(set, aCaseFold ? to_lower(value) : value);
+			}
+			return set;
+		}
+
+		/// \brief Bytes a pattern's literals demand of any subject it matches:
+		/// every byte outside a wildcard, up to the first bracket expression
+		/// (whose extent the matcher alone decides). A rule whose required
+		/// bytes a subject lacks cannot match it, so it is skipped without
+		/// running the matcher (RFC-BPR-0083 H6: a 1 MiB rule file).
+		/// \details Under case folding a plain literal is required folded; an
+		/// escaped byte is required as written, because the matcher compares
+		/// it unfolded with the folded text.
+		auto required_bytes(const std::string_view aPattern, const bool aCaseFold) -> byte_set
+		{
+			auto set = byte_set{ };
+			for (std::size_t index = 0; index < aPattern.size(); ++index) {
+				const auto value = static_cast<unsigned char>(aPattern[index]);
+				if (value == '[') {
+					break;
+				}
+				if (value == '*' || value == '?') {
+					continue;
+				}
+				if (value == '\\') {
+					if (++index < aPattern.size()) {
+						insert(set, static_cast<unsigned char>(aPattern[index]));
+					}
+					continue;
+				}
+				insert(set, aCaseFold ? to_lower(value) : value);
+			}
+			return set;
+		}
+
+		auto contains_all(const byte_set& aHave, const byte_set& aNeed) -> bool
+		{
+			for (std::size_t word = 0; word < aNeed.size(); ++word) {
+				if ((aNeed.at(word) & ~aHave.at(word)) != 0U) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		/// One rule's pattern against a path below its base, as Git's
 		/// `match_basename` and `match_pathname` do. A pattern without a `/`
 		/// matches the last segment. An anchored pattern's literal part, up to
@@ -671,6 +729,7 @@ namespace bpr::core {
 			current.DirectoryOnly = pattern.DirectoryOnly;
 			current.Anchored      = pattern.Anchored;
 			current.Pattern       = std::string{ pattern.Pattern };
+			current.Required      = required_bytes(current.Pattern, IgnoreCase);
 			// An empty pattern can match nothing.
 			if (!current.Pattern.empty()) {
 				parsed.push_back(std::move(current));
@@ -685,8 +744,12 @@ namespace bpr::core {
 
 	auto workspace_ignore_rules::ignored(const std::string_view aPath, const bool aDirectory) const -> bool
 	{
+		// A rule's subject is the last segment or the path below its base; both
+		// lie within these byte sets.
+		const auto pathBytes = bytes_of(aPath, IgnoreCase);
+		const auto nameBytes = bytes_of(aPath.substr(aPath.find_last_of('/') + 1), IgnoreCase);
 		for (const auto& current : std::views::reverse(Rules)) {
-			if (current.DirectoryOnly && !aDirectory) {
+			if ((current.DirectoryOnly && !aDirectory) || !contains_all(current.Anchored ? pathBytes : nameBytes, current.Required)) {
 				continue;
 			}
 			auto relative = std::string_view{ };
@@ -784,7 +847,8 @@ namespace bpr::core {
 							   .Pattern       = std::string{ path.Pattern },
 							   .Anchored      = path.Anchored,
 							   .DirectoryOnly = path.DirectoryOnly,
-							   .Assignments   = std::move(assignments) });
+							   .Assignments   = std::move(assignments),
+							   .Required      = required_bytes(path.Pattern, IgnoreCase) });
 		});
 		return Rules.size() + InfoRules.size() + Assignments + added <= maximum_ignore_rules * 4U;
 	}
@@ -826,7 +890,7 @@ namespace bpr::core {
 	auto workspace_attribute_rules::matches(const rule& aRule, const std::string_view aPath) const -> bool
 	{
 		// A directory pattern never applies to a file or a directory's contents.
-		if (aRule.DirectoryOnly) {
+		if (aRule.DirectoryOnly || !contains_all(bytes_of(aRule.Anchored ? aPath : aPath.substr(aPath.find_last_of('/') + 1), IgnoreCase), aRule.Required)) {
 			return false;
 		}
 		auto relative = std::string_view{ };

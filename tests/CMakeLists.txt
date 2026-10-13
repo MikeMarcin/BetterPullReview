@@ -1274,6 +1274,12 @@ endif()
 if(BPR_BUILD_FUZZERS)
     add_subdirectory(fuzz)
 endif()
+# [[BPR-1446]]. RFC-BPR-0080's hash candidates, evaluation only: OFF acquires
+# nothing, and the product never links what this builds.
+option(BPR_HASH_EVALUATION "Build the RFC-BPR-0080 hash evaluation harness and its pinned candidates" OFF)
+if(BPR_HASH_EVALUATION)
+    add_subdirectory(hash_evaluation)
+endif()
 
 if(BPR_BUILD_QT)
     add_subdirectory(adapters_qt)
