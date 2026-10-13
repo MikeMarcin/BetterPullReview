@@ -584,3 +584,11 @@ Mandate `cpp-identifier-parser-evaluation-r1` adopts RFC-DRAFT-0021. [Import and
 | [RFC-BPR-0080](RFC-BPR-0080-hashing-replacement.md) | Evaluate and replace the hand-written SHA-1 and SHA-256 | In Progress | None |
 
 [Import and provenance](assets/hashing-replacement-v1.LIVE_IMPORT.md); [plan](plans/hashing-replacement-v1/milestone-plan.json). Q1 to Q3 are unanswered owner questions.
+
+## Diff engine evaluation
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0082](RFC-BPR-0082-diff-engine-evaluation.md) | Evaluate replacing the hand-written diff engine | Proposed | RFC-BPR-0004 |
+
+Mandate `diff-engine-evaluation-r1` adopts RFC-DRAFT-0018. [Import and provenance](assets/diff-engine-evaluation-v1.LIVE_IMPORT.md). Q1 (LGPL xdiff linking) and Q3 (results that depend on the installed Git version) are open owner questions; the core library allowance of 2026-10-13 answers Q2 only for glaze, utf8proc, zlib and fmt.
