@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0079"
 title: "Publish through the chosen CLI account without a second warning popup"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0078"]
 metadata: {"mandate_revision":"strict-cli-publication-r2","rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","milestone_plan":{"id":"strict-cli-account-publication-v1","path":"docs/rfcs/plans/strict-cli-account-publication-v1/milestone-plan.json"}}
@@ -147,8 +147,24 @@ limits and the documentation gate. The tests-only remembered-disclosure repair
 and its exact cancellation-account successor have independent no-finding receipts.
 Historical failed P1/P2, native limits and BPR-1373 owner look remain intact.
 
-This is lane qualification, not a claim that the final companion has landed on
-main. The coordinator/main monitor owns the actual ordered integration and the
-synchronized terminal RFC/index metadata update. This lane retains their current
-Proposed/Proposed pair until that action. No new human acceptance, remote push,
-release or installed-app replacement is implied.
+At lane release, the RFC/index pair remained Proposed pending actual main
+integration. No new human acceptance, remote push, release or installed-app
+replacement is implied by the lane qualification.
+
+## Main integration confirmation — 2026-10-13
+
+Accepted product `34b6a43458659747648e4039a99ca52407d14624` and final clean lane
+`1ded2e2f86b0a9c031198428d406825b6ce0ccc3` landed on local main at
+`19a286231dff89b5ef71f11d5d3aafd546f855c3`. The ordered integration preserves
+the accepted strict predecessor and the previously landed navigation and C++
+appearance work. Its fixture-only composition digest refresh was independently
+adjudicated without changing the mutation-branch pin, inventory or bypass guards.
+Thirteen unique focused checks and all eight composition counterexamples pass;
+the two initial remembered-connection failures and digest failure remain in the
+receipts alongside their passing repairs. The documentation gate and all 67
+documentation contracts pass. All 42 protected control/draft hashes are unchanged.
+This terminal status confirms AC01–AC05 as recorded in the criterion ledger and
+M4 handoff, preserving their native, offscreen and credential-lifetime limits.
+Historical BPR-1373 owner judgment and any deferred attended review retain their
+original scope. No remote push, release or installed-app replacement occurred.
+Receipt: `/tmp/bpr-companion-main-landing.json`.

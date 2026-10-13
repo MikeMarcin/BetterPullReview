@@ -567,6 +567,6 @@ Imported under `find-and-find-in-files-v1-r1`; [source and mapping](assets/find-
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
 | [RFC-BPR-0078](RFC-BPR-0078-strict-cli-account-credentials.md) | Use the chosen GitHub CLI account without credential fallback | Auto-Verified | None |
-| [RFC-BPR-0079](RFC-BPR-0079-remove-cli-publication-warning.md) | Publish through the chosen CLI account without a second warning popup | Proposed | RFC-BPR-0078 |
+| [RFC-BPR-0079](RFC-BPR-0079-remove-cli-publication-warning.md) | Publish through the chosen CLI account without a second warning popup | Auto-Verified | RFC-BPR-0078 |
 
 Owner mandate `strict-cli-publication-r1` selects this order. [Import and provenance](assets/strict-cli-account-publication-v1.LIVE_IMPORT.md); [plan](plans/strict-cli-account-publication-v1/milestone-plan.json). Historical tokenless and per-write-warning evidence retains its original scope.
