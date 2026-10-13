@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1438"
 title: "Step, measure and paint the suggestion editor by grapheme cluster and display width"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1434"]
 priority: "P2"
 platforms: []
 metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-1432--BPR-1438--a3c0ec887bde.json","origin":"owner request 2026-10-13 after the hand-rolled infrastructure audit","related_cards":["BPR-1156","BPR-1432","BPR-1434"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7706b6167","evidence":{"kind":"observation","detail":"Left/Right/Backspace/Delete/selection step whole extended grapheme clusters (e+U+0301, skin-tone thumb, ZWJ family, flag); malformed byte steps alone; core_suggestion_text_editing passes.","path":"docs/issues/60-done/BPR-1438-suggestion-editor-graphemes-and-widths.md"}},{"criterion":"AC2","outcome":"pass","revision":"7706b6167","evidence":{"kind":"observation","detail":"Display columns: CJK and fullwidth take 2, marks 0, tabs keep stops after wide text, a column inside a wide cluster is its start; measures_display_columns passes.","path":"docs/issues/60-done/BPR-1438-suggestion-editor-graphemes-and-widths.md"}},{"criterion":"AC3","outcome":"pass","revision":"7706b6167","evidence":{"kind":"observation","detail":"Word movement and double-click classify L*/M*/N*/Pc as word, Zs as space, other punctuation and symbols as non-word; moves_by_unicode_words passes.","path":"docs/issues/60-done/BPR-1438-suggestion-editor-graphemes-and-widths.md"}},{"criterion":"AC4","outcome":"pass","revision":"7706b6167","evidence":{"kind":"observation","detail":"Painter draws each cluster at its column, wide ones centred in two cells, marks on their base, lone CR as U+240D; qt_suggestion_editor_1_0/2_0 pixel checks pass; offscreen sample shows no overlap.","path":"docs/issues/60-done/BPR-1438-suggestion-editor-graphemes-and-widths.md"}},{"criterion":"AC5","outcome":"pass","revision":"7706b6167","evidence":{"kind":"observation","detail":"Box, virtual space, undo and line-ending cases unchanged; utf8proc only in utf8.cpp; core_suggestion_draft/applicability, qt_review_cycle_view_*, application_review_cycle_desktop_public_path, boundary gates and doc gate pass.","path":"docs/issues/60-done/BPR-1438-suggestion-editor-graphemes-and-widths.md"}}]
 ---
 
 # Step, measure and paint the suggestion editor by grapheme cluster and display width
