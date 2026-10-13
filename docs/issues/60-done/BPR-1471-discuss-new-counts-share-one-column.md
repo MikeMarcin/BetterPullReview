@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1471"
 title: "Discuss's new-post counts share one column"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1471--BPR-1471--f569dda6851d.json","origin":"owner request 2026-10-13"}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3f81d7845","evidence":{"kind":"observation","detail":"closed_meta keeps the resolved check's slot on every closed non-draft note; paint_closed draws the check and blue count from it, so counts, reply counts and faces share one column.","path":"docs/issues/60-done/BPR-1471-discuss-new-counts-share-one-column.md"}},{"criterion":"AC2","outcome":"pass","revision":"3f81d7845","evidence":{"kind":"observation","detail":"test_discuss_new_counts_share_one_column asserts equal count rects and replies edges across two resolved and two unresolved Discuss notes; qt_conversation_cards_view and 17 related Qt tests plus 3 Discuss end-to-end tests pass.","path":"docs/issues/60-done/BPR-1471-discuss-new-counts-share-one-column.md"}},{"criterion":"AC3","outcome":"pass","revision":"3f81d7845","evidence":{"kind":"observation","detail":"Offscreen before (previous source) and after renders written via BPR_DISCUSS_ALIGNMENT_PNG to build/dev/bpr-1471/, not committed; before shows the 20 px offset, after one column.","path":"docs/issues/60-done/BPR-1471-discuss-new-counts-share-one-column.md"}}]
 ---
 
 # Discuss's new-post counts share one column
