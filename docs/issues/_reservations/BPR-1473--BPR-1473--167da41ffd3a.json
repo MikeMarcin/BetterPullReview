@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1473"
+  ],
+  "reserve_for": "discuss-alignment-always",
+  "purpose": "Discuss new-post counts always share one column",
+  "created": "2026-10-13T20:12:20.203710+00:00",
+  "base": "6e28e83b64eb59aa7a2e0a03e2905bf6872f5958"
+}
