@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1440",
+    "BPR-1441",
+    "BPR-1442",
+    "BPR-1443",
+    "BPR-1444",
+    "BPR-1445"
+  ],
+  "reserve_for": "cpp-parser-evaluation",
+  "purpose": "RFC-DRAFT-0021 C++ identifier parser evaluation cards",
+  "created": "2026-10-13T19:11:07.022282+00:00",
+  "base": "fd86525493cd44c433d9ded2f076c5b7f4d43f39"
+}
