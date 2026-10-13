@@ -8,6 +8,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/testing.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
+#include "bpr/core/hex.hpp"
 
 #include <sqlite3.h>
 
@@ -1486,13 +1487,8 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto hex_name(const std::array<std::uint8_t, 32>& aRandom)
 			-> std::string
 		{
-			constexpr std::string_view digits = "0123456789abcdef";
-			std::string                result = ".epoch-catalog.bootstrap-";
-			result.reserve(result.size() + aRandom.size() * 2U + 8U);
-			for (const auto byte : aRandom) {
-				result.push_back(digits[byte >> 4U]);
-				result.push_back(digits[byte & 0x0FU]);
-			}
+			std::string result = ".epoch-catalog.bootstrap-";
+			core::append_lower_hex(result, aRandom);
 			result.append(".sqlite3");
 			return result;
 		}
@@ -1527,13 +1523,8 @@ namespace bpr::adapters::sqlite::detail {
 				if (!random_bytes(random)) {
 					return std::unexpected(failure::unavailable);
 				}
-				auto                       name   = std::string{ "bpr-retained-linux-catalog-" };
-				constexpr std::string_view Digits = "0123456789abcdef";
-				name.reserve(name.size() + random.size() * 2U);
-				for (const auto byte : random) {
-					name.push_back(Digits[byte >> 4U]);
-					name.push_back(Digits[byte & 0x0FU]);
-				}
+				auto name = std::string{ "bpr-retained-linux-catalog-" };
+				core::append_lower_hex(name, random);
 
 				auto result = std::unique_ptr<retained_linux_vfs>{
 					new retained_linux_vfs{ *base, std::move(name) }
@@ -1951,13 +1942,9 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto hex_name(const std::array<std::uint8_t, 32>& random)
 			-> std::wstring
 		{
-			constexpr std::wstring_view Digits = L"0123456789abcdef";
-			std::wstring                result = L".epoch-catalog.bootstrap-";
-			result.reserve(result.size() + random.size() * 2U + 8U);
-			for (const auto byte : random) {
-				result.push_back(Digits[byte >> 4U]);
-				result.push_back(Digits[byte & 0x0FU]);
-			}
+			const auto   digits = core::lower_hex(random);
+			std::wstring result = L".epoch-catalog.bootstrap-";
+			result.append(digits.begin(), digits.end());
 			result.append(L".sqlite3");
 			return result;
 		}
@@ -2353,13 +2340,8 @@ namespace bpr::adapters::sqlite::detail {
 				if (!random_bytes(random)) {
 					return std::unexpected(failure::unavailable);
 				}
-				auto                       name   = std::string{ "bpr-private-catalog-" };
-				constexpr std::string_view Digits = "0123456789abcdef";
-				name.reserve(name.size() + random.size() * 2U);
-				for (const auto byte : random) {
-					name.push_back(Digits[byte >> 4U]);
-					name.push_back(Digits[byte & 0x0FU]);
-				}
+				auto name = std::string{ "bpr-private-catalog-" };
+				core::append_lower_hex(name, random);
 				auto result = std::unique_ptr<secure_windows_vfs>{
 					new secure_windows_vfs{
 						base, parent, security, main_path, std::move(name) }

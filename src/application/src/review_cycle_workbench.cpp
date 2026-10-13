@@ -4,6 +4,7 @@
 #include "bpr/application/review_cycle_words.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -102,17 +103,6 @@ namespace bpr::application {
 
 		// Publish as Pull Request (BPR-1177): what each outcome says, in the
 		// reviewer's words. None of them claims more than was observed.
-
-		auto lower_hex(const std::array<std::uint8_t, 32>& aBytes) -> std::string
-		{
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			auto           text   = std::string{ };
-			for (const auto byte : aBytes) {
-				text += digits[byte >> 4U];
-				text += digits[byte & 0x0FU];
-			}
-			return text;
-		}
 
 		auto path_list(const std::vector<std::string>& aPaths) -> std::string
 		{
@@ -2034,7 +2024,7 @@ namespace bpr::application {
 			auto& view   = *View.Publication;
 			view.Current = record_of(aStored);
 			view.Stage   = stage_of(aStored.Journal);
-			view.Digest  = lower_hex(aStored.Journal.PlanDigest.bytes());
+			view.Digest  = core::lower_hex(aStored.Journal.PlanDigest.bytes());
 			view.Preview = core::render_publication_preview(aStored.Plan);
 			if (const auto words = journal_words(aStored.Plan, aStored.Journal); !words.empty()) {
 				view.Status = words;

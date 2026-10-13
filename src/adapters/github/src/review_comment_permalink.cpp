@@ -1,5 +1,6 @@
 #include "review_comment_permalink.hpp"
 
+#include "github_http_helpers.hpp"
 #include "github_mutation_contract.hpp"
 
 #include <QString>
@@ -70,24 +71,10 @@ namespace bpr::adapters::github::detail {
 				}
 				start = end + 1U;
 			}
-			auto result = std::string{ };
-			result.reserve(raw.size());
-			constexpr std::string_view hex = "0123456789ABCDEF";
-			for (const char character : raw) {
-				const auto byte = static_cast<unsigned char>(character);
-				if (byte < 0x20U || byte == 0x7FU || byte == '\\') {
-					return std::nullopt;
-				}
-				if ((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z')
-					|| (byte >= '0' && byte <= '9') || byte == '-' || byte == '_' || byte == '.' || byte == '~' || byte == '/') {
-					result.push_back(static_cast<char>(byte));
-				} else {
-					result.push_back('%');
-					result.push_back(hex[byte >> 4U]);
-					result.push_back(hex[byte & 0x0FU]);
-				}
+			if (std::ranges::any_of(raw, [](const unsigned char aByte) { return aByte < 0x20U || aByte == 0x7FU || aByte == '\\'; })) {
+				return std::nullopt;
 			}
-			return result;
+			return percent_encode(raw, "/");
 		}
 
 		auto code_url_prefix(const tour_permalink_scope& aScope, const core::tour_code_destination& aSource) -> std::optional<std::string>

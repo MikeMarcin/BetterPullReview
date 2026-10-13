@@ -42,7 +42,7 @@ RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []
 # list its copyright line names.
 NOTICE_FILES = (
     "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
-    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md",
+    "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "fmt/LICENSE",
 )
 
 

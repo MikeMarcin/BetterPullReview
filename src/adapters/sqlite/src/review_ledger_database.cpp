@@ -3,6 +3,8 @@
 #include "private_review_database.hpp"
 #include "storage_internal.hpp"
 
+#include "bpr/core/hex.hpp"
+
 #include <sqlite3.h>
 
 #include <algorithm>
@@ -942,16 +944,11 @@ namespace bpr::adapters::sqlite::detail {
 			if (error) {
 				return std::unexpected(failure::unavailable);
 			}
-			constexpr std::string_view digits = "0123456789abcdef";
 			for (auto attempt = 0; attempt != 32; ++attempt) {
 				auto random = std::array<unsigned char, 16U>{ };
 				::sqlite3_randomness(static_cast<int>(random.size()), random.data());
 				auto name = std::string{ "bpr-ledger-preflight-" };
-				name.reserve(name.size() + random.size() * 2U);
-				for (const auto byte : random) {
-					name.push_back(digits[byte >> 4U]);
-					name.push_back(digits[byte & 0x0FU]);
-				}
+				core::append_lower_hex(name, random);
 				auto candidate = root / name;
 				error.clear();
 				if (!std::filesystem::create_directory(candidate, error)) {

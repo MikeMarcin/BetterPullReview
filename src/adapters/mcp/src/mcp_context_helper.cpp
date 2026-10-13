@@ -4,6 +4,7 @@
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "bpr/core/utf8.hpp"
 
@@ -242,14 +243,7 @@ namespace bpr::adapters::mcp {
 		[[nodiscard]] auto encode_identity(
 			const std::array<std::uint8_t, 32U>& aBytes) -> std::string
 		{
-			constexpr std::string_view hex    = "0123456789abcdef";
-			auto                       output = std::string{ };
-			output.reserve(64U);
-			for (const auto byte : aBytes) {
-				output.push_back(hex[byte >> 4U]);
-				output.push_back(hex[byte & 0x0FU]);
-			}
-			return output;
+			return core::lower_hex(aBytes);
 		}
 
 		[[nodiscard]] auto decode_unsigned(const std::string_view aText)
