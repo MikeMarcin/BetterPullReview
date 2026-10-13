@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1414"
 title: "Repair Home role filters and grouping, lead with titles, and remove recent entries"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0026", "RFC-BPR-0032"]
 depends_on: []
 priority: "P1"
