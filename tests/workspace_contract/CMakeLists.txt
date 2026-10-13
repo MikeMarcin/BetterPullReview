@@ -192,6 +192,26 @@ if(TARGET Git::Git)
     bpr_add_network_isolated_test(NAME review_cycle_git_readers WINDOWS_UNCONTAINED COMMAND test_review_cycle_git_readers ${bpr_workspace_git_arguments})
 endif()
 
+# [[BPR-1455]] and [[BPR-1456]]. RFC-BPR-0083's differential harness: the
+# installed Git, isolated from system and global files, and each candidate
+# implementation of the Git metadata components answer the same questions
+# over the corpus; every divergence is classified under H1, and the canary
+# course checks containment, no execution and no writes. `--large` adds the
+# 250,000-entry case (BPR-1457 owns its timing). libgit2 (L) joins when the
+# evaluation-only target exists, wherever it is defined.
+if(TARGET Git::Git)
+    bpr_add_executable(test_git_metadata_harness git_metadata_harness.cpp git_metadata_first_party.cpp)
+    target_link_libraries(test_git_metadata_harness PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::Application
+        "$<$<TARGET_EXISTS:bpr_libgit2_candidate>:bpr_libgit2_candidate>")
+    target_compile_definitions(test_git_metadata_harness PRIVATE "$<$<TARGET_EXISTS:bpr_libgit2_candidate>:BPR_HAVE_LIBGIT2_CANDIDATE=1>")
+    bpr_enable_hardening(test_git_metadata_harness)
+    if(WIN32)
+        target_link_libraries(test_git_metadata_harness PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_git_metadata_harness)
+    bpr_add_network_isolated_test(NAME git_metadata_harness WINDOWS_UNCONTAINED COMMAND test_git_metadata_harness ${bpr_workspace_git_arguments})
+endif()
+
 # [[BPR-1173]]. Isolated squashed candidates: canaries, exact read-back, external patch.
 if(TARGET Git::Git)
     bpr_add_executable(test_review_cycle_candidate review_cycle_candidate_tests.cpp)

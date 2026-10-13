@@ -189,7 +189,9 @@ namespace bpr::application {
 			interruption                          Stopped   = interruption::none;
 			std::optional<workspace_failure>      Failure;
 			std::optional<cycle_store_error>      StoreError;
-			std::string                           ChangedPath;
+			/// A named refusal, with `workspace`: a rule file past capture's bound.
+			std::optional<core::git_repository_problem> Repository;
+			std::string                                 ChangedPath;
 		};
 
 		/// One observation of the whole scope.
@@ -343,18 +345,43 @@ namespace bpr::application {
 				return tracked(aPath) != nullptr || tracks_beneath(aPath) ? core::manifest_origin::tracked : core::manifest_origin::untracked;
 			}
 
+			/// One rule file named in a directory listing: absent, its contents, or
+			/// past capture's bound.
+			struct rule_read
+			{
+				std::optional<std::string> Contents;
+				bool                       TooLarge = false;
+			};
+
 			/// Reads one rule file named in a directory listing.
-			auto rule_file(const std::string& aDirectory, const std::vector<workspace_entry_observation>& aListing, const std::string_view aName) -> std::optional<std::string>
+			auto rule_file(const std::string& aDirectory, const std::vector<workspace_entry_observation>& aListing, const std::string_view aName) -> rule_read
 			{
 				const auto found = std::ranges::find(aListing, aName, &workspace_entry_observation::Name);
-				if (found == aListing.end() || found->Kind != workspace_entry_kind::file || found->Size > maximum_rule_file_bytes) {
-					return std::nullopt;
+				if (found == aListing.end() || found->Kind != workspace_entry_kind::file) {
+					return { };
+				}
+				if (found->Size > maximum_rule_file_bytes) {
+					return { .TooLarge = true };
 				}
 				auto       contents = std::string{ };
 				const auto read     = Session.read(join(aDirectory, std::string{ aName }), maximum_rule_file_bytes, [&contents](const std::span<const std::uint8_t> aChunk) {
                     contents.append(aChunk.begin(), aChunk.end());
                     return true; }, Stop);
-				return read ? std::optional{ std::move(contents) } : std::nullopt;
+				if (!read) {
+					// Git warns and goes on without a rule file it cannot open.
+					return { .TooLarge = read.error() == workspace_failure::too_large };
+				}
+				return { .Contents = std::move(contents) };
+			}
+
+			/// [[BPR-1455]]. A rule file past capture's bound (1 MiB, or more than
+			/// `maximum_ignore_rules` rules) stops the capture with a named reason.
+			/// Dropping it would capture the paths it ignores, which Git keeps out.
+			void rule_bound(const std::string& aDirectory, const std::string_view aName)
+			{
+				Result.Stopped    = interruption::workspace;
+				Result.Failure    = workspace_failure::too_large;
+				Result.Repository = core::git_repository_problem{ .Reason = core::git_repository_refusal::rule_file_bound, .Key = join(aDirectory, std::string{ aName }) };
 			}
 
 			/// Adds a directory's `.gitignore` and `.gitattributes` rules once.
@@ -363,11 +390,14 @@ namespace bpr::application {
 				if (Git == nullptr || !Loaded.insert(aDirectory).second) {
 					return;
 				}
-				if (const auto ignore = rule_file(aDirectory, aListing, ".gitignore")) {
-					static_cast<void>(Ignore.add(aDirectory, *ignore));
+				const auto ignore = rule_file(aDirectory, aListing, ".gitignore");
+				if (ignore.TooLarge || (ignore.Contents && !Ignore.add(aDirectory, *ignore.Contents))) {
+					rule_bound(aDirectory, ".gitignore");
+					return;
 				}
-				if (const auto attributes = rule_file(aDirectory, aListing, ".gitattributes")) {
-					static_cast<void>(Attributes.add(aDirectory, *attributes));
+				const auto attributes = rule_file(aDirectory, aListing, ".gitattributes");
+				if (attributes.TooLarge || (attributes.Contents && !Attributes.add(aDirectory, *attributes.Contents))) {
+					rule_bound(aDirectory, ".gitattributes");
 				}
 			}
 
@@ -403,6 +433,9 @@ namespace bpr::application {
 			{
 				if (Git != nullptr) {
 					load_ancestor_rules(aPath);
+					if (stopping()) {
+						return;
+					}
 				}
 				const auto observed = Session.stat(aPath, Stop);
 				if (!observed) {
@@ -447,6 +480,9 @@ namespace bpr::application {
 					return;
 				}
 				load_rules(aDirectory, *listing);
+				if (stopping()) {
+					return;
+				}
 				for (const auto& entry : *listing) {
 					visit(join(aDirectory, entry.Name), entry, aIgnoredAncestor);
 					if (stopping()) {
@@ -783,8 +819,9 @@ namespace bpr::application {
 				aOutcome.Status = cycle_capture_status::too_many_entries;
 				return;
 			case interruption::workspace:
-				aOutcome.Status    = cycle_capture_status::workspace;
-				aOutcome.Workspace = aPass.Failure;
+				aOutcome.Status     = cycle_capture_status::workspace;
+				aOutcome.Workspace  = aPass.Failure;
+				aOutcome.Repository = aPass.Repository;
 				return;
 			case interruption::unstable:
 			case interruption::none:
@@ -1032,9 +1069,10 @@ namespace bpr::application {
 		if (candidate.Stopped != interruption::none) {
 			auto failed = cycle_capture_outcome{ };
 			from_interruption(candidate, failed);
-			outcome.Status    = failed.Status;
-			outcome.Workspace = failed.Workspace;
-			outcome.Store     = failed.Store;
+			outcome.Status     = failed.Status;
+			outcome.Workspace  = failed.Workspace;
+			outcome.Repository = failed.Repository;
+			outcome.Store      = failed.Store;
 			return outcome;
 		}
 		auto check = core::workspace_material_check{ .Compared = latest.Entries.size() };
