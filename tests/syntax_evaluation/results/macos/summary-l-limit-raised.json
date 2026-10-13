@@ -1,0 +1,540 @@
+{
+ "pins": {
+  "master": {
+   "accuracy": {
+    "baseline": {
+     "first-party": {
+      "conservative_negative": {
+       "labels": 2076
+      },
+      "enum_use": {
+       "fn": 22,
+       "labels": 40,
+       "tp": 18
+      },
+      "enumerator_decl": {
+       "labels": 186,
+       "tp": 186
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 8,
+       "tp": 7
+      },
+      "ns_decl": {
+       "labels": 5,
+       "tp": 5
+      },
+      "ns_qualifier": {
+       "labels": 40,
+       "tp": 40
+      },
+      "protected": {
+       "labels": 36363
+      }
+     }
+    },
+    "candidate": {
+     "first-party": {
+      "conservative_negative": {
+       "labels": 2076
+      },
+      "enum_use": {
+       "fn": 22,
+       "labels": 40,
+       "tp": 18
+      },
+      "enumerator_decl": {
+       "labels": 186,
+       "tp": 186
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 8,
+       "tp": 7
+      },
+      "ns_decl": {
+       "fn": 2,
+       "labels": 5,
+       "tp": 3
+      },
+      "ns_qualifier": {
+       "fn": 40,
+       "labels": 40
+      },
+      "protected": {
+       "labels": 36363
+      }
+     }
+    }
+   },
+   "hypotheses": {
+    "H1": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H2": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H3": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H4": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H5": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H6": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H7": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H8": {
+     "baseline": {
+      "eight_mib_inputs": {},
+      "largest_input": "first-party-concat/concat-8000000.cpp",
+      "largest_peak_heap": 93232928,
+      "status": "refuted"
+     },
+     "candidate": {
+      "eight_mib_inputs": {},
+      "largest_input": "first-party-concat/concat-8000000.cpp",
+      "largest_peak_heap": 220106832,
+      "status": "refuted"
+     }
+    }
+   },
+   "metrics": {
+    "composer_per_edit": {},
+    "heap": {
+     "L": {
+      "baseline": {
+       "max_bytes": 93232928,
+       "median_bytes": 31088464
+      },
+      "candidate": {
+       "max_bytes": 220106832,
+       "median_bytes": 79574144
+      }
+     }
+    },
+    "nondeterministic": [],
+    "resident_bytes": {
+     "L": 372031488
+    },
+    "statuses": {
+     "baseline": {
+      "available": 15
+     },
+     "candidate": {
+      "available": 15
+     }
+    },
+    "stop": {
+     "L/refinement": {
+      "baseline": {
+       "max_ms": 1.032959,
+       "median_ms": 0.086709,
+       "p95_ms": 0.592667,
+       "trials": 99
+      },
+      "candidate": {
+       "max_ms": 37.71225,
+       "median_ms": 6.2841664999999995,
+       "p95_ms": 28.54575,
+       "trials": 96
+      }
+     },
+     "L/whole": {
+      "baseline": {
+       "max_ms": 7.012667,
+       "median_ms": 1.704333,
+       "p95_ms": 3.9965,
+       "trials": 100
+      },
+      "candidate": {
+       "max_ms": 35.515334,
+       "median_ms": 2.556292,
+       "p95_ms": 25.131208,
+       "trials": 100
+      }
+     }
+    },
+    "stop_outcomes": {
+     "baseline": {
+      "cancelled, no spans": 199,
+      "finished before the stop": 1
+     },
+     "candidate": {
+      "cancelled, no spans": 188,
+      "complete answer (stop after the last check)": 8,
+      "finished before the stop": 4
+     }
+    },
+    "stop_publication_failures": 0,
+    "timing": {
+     "L": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 1391.505917,
+        "median_ms": 506.1815,
+        "p95_ms": 1391.505917
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 63.548041,
+        "median_ms": 23.780333,
+        "p95_ms": 63.548041
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 1455.019958,
+        "median_ms": 529.591917,
+        "p95_ms": 1455.019958
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 1388.143083,
+        "median_ms": 511.099833,
+        "p95_ms": 1388.143083
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 697.828875,
+        "median_ms": 255.50125,
+        "p95_ms": 697.828875
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 2085.971958,
+        "median_ms": 766.601083,
+        "p95_ms": 2085.971958
+       }
+      }
+     }
+    }
+   }
+  },
+  "v0_23_4": {
+   "accuracy": {
+    "baseline": {
+     "first-party": {
+      "conservative_negative": {
+       "labels": 2076
+      },
+      "enum_use": {
+       "fn": 22,
+       "labels": 40,
+       "tp": 18
+      },
+      "enumerator_decl": {
+       "labels": 186,
+       "tp": 186
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 8,
+       "tp": 7
+      },
+      "ns_decl": {
+       "labels": 5,
+       "tp": 5
+      },
+      "ns_qualifier": {
+       "labels": 40,
+       "tp": 40
+      },
+      "protected": {
+       "labels": 36363
+      }
+     }
+    },
+    "candidate": {
+     "first-party": {
+      "conservative_negative": {
+       "labels": 2076
+      },
+      "enum_use": {
+       "fn": 22,
+       "labels": 40,
+       "tp": 18
+      },
+      "enumerator_decl": {
+       "labels": 186,
+       "tp": 186
+      },
+      "macro_keep": {
+       "fn": 1,
+       "labels": 8,
+       "tp": 7
+      },
+      "ns_decl": {
+       "fn": 2,
+       "labels": 5,
+       "tp": 3
+      },
+      "ns_qualifier": {
+       "fn": 40,
+       "labels": 40
+      },
+      "protected": {
+       "labels": 36363
+      }
+     }
+    }
+   },
+   "hypotheses": {
+    "H1": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H2": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H3": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H4": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H5": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H6": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H7": {
+     "baseline": {
+      "failures": [],
+      "status": "refuted"
+     },
+     "candidate": {
+      "failures": [],
+      "status": "refuted"
+     }
+    },
+    "H8": {
+     "baseline": {
+      "eight_mib_inputs": {},
+      "largest_input": "first-party-concat/concat-8000000.cpp",
+      "largest_peak_heap": 90808096,
+      "status": "refuted"
+     },
+     "candidate": {
+      "eight_mib_inputs": {},
+      "largest_input": "first-party-concat/concat-8000000.cpp",
+      "largest_peak_heap": 217636640,
+      "status": "refuted"
+     }
+    }
+   },
+   "metrics": {
+    "composer_per_edit": {},
+    "heap": {
+     "L": {
+      "baseline": {
+       "max_bytes": 90808096,
+       "median_bytes": 31088464
+      },
+      "candidate": {
+       "max_bytes": 217636640,
+       "median_bytes": 79500224
+      }
+     }
+    },
+    "nondeterministic": [],
+    "resident_bytes": {
+     "L": 369377280
+    },
+    "statuses": {
+     "baseline": {
+      "available": 15
+     },
+     "candidate": {
+      "available": 15
+     }
+    },
+    "stop": {
+     "L/refinement": {
+      "baseline": {
+       "max_ms": 0.809584,
+       "median_ms": 0.097083,
+       "p95_ms": 0.745875,
+       "trials": 97
+      },
+      "candidate": {
+       "max_ms": 39.1955,
+       "median_ms": 6.4348125,
+       "p95_ms": 35.084167,
+       "trials": 100
+      }
+     },
+     "L/whole": {
+      "baseline": {
+       "max_ms": 4.936584,
+       "median_ms": 1.5363959999999999,
+       "p95_ms": 4.545792,
+       "trials": 100
+      },
+      "candidate": {
+       "max_ms": 38.247625,
+       "median_ms": 2.31475,
+       "p95_ms": 30.265708,
+       "trials": 100
+      }
+     }
+    },
+    "stop_outcomes": {
+     "baseline": {
+      "cancelled, no spans": 196,
+      "complete answer (stop after the last check)": 1,
+      "finished before the stop": 3
+     },
+     "candidate": {
+      "cancelled, no spans": 195,
+      "complete answer (stop after the last check)": 5
+     }
+    },
+    "stop_publication_failures": 0,
+    "timing": {
+     "L": {
+      "baseline": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 1392.843375,
+        "median_ms": 514.494292,
+        "p95_ms": 1392.843375
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 66.302,
+        "median_ms": 24.020958,
+        "p95_ms": 66.302
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 1460.4855,
+        "median_ms": 538.408458,
+        "p95_ms": 1460.4855
+       }
+      },
+      "candidate": {
+       "grammar_ns": {
+        "files": 5,
+        "max_ms": 1408.142666,
+        "median_ms": 508.449917,
+        "p95_ms": 1408.142666
+       },
+       "refine_ns": {
+        "files": 5,
+        "max_ms": 709.404417,
+        "median_ms": 255.706666,
+        "p95_ms": 709.404417
+       },
+       "total_ns": {
+        "files": 5,
+        "max_ms": 2117.547083,
+        "median_ms": 764.156583,
+        "p95_ms": 2117.547083
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

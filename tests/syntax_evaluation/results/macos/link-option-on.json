@@ -1,0 +1,10 @@
+{
+ "build": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/cpp-parser-evaluation/build/eval-release",
+ "option": true,
+ "tree_sitter_stage_present": true,
+ "edges_linking_tree_sitter": 15,
+ "edges_outside_evaluation": [],
+ "adapter_archive": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/cpp-parser-evaluation/build/eval-release/src/adapters/syntax/libbetter_pull_review_adapter_syntax.a",
+ "adapter_tree_sitter_symbols": [],
+ "ok": true
+}

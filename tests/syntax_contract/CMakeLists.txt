@@ -42,3 +42,35 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "syntax-classification-contract-tests:pass"
         TIMEOUT 120
 )
+
+# [[BPR-1441]]. A stop requested while the C++ identifier refinement runs,
+# after the grammar pass, publishes nothing. The executable replaces the global
+# allocation functions to find that moment, so it is kept apart from the
+# contract test above.
+bpr_add_executable(
+    test_better_pull_review_syntax_refinement_cancellation_tests
+    syntax_refinement_cancellation_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_syntax_refinement_cancellation_tests
+    PRIVATE
+        BetterPullReview::AdapterSyntax
+        Qt6::Core
+)
+bpr_enable_hardening(
+    test_better_pull_review_syntax_refinement_cancellation_tests
+)
+bpr_enable_warnings(
+    test_better_pull_review_syntax_refinement_cancellation_tests
+)
+
+bpr_add_network_isolated_test(
+    NAME syntax_refinement_cancellation
+    COMMAND test_better_pull_review_syntax_refinement_cancellation_tests
+)
+set_tests_properties(
+    syntax_refinement_cancellation
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "syntax-refinement-cancellation-tests:pass"
+        TIMEOUT 120
+)

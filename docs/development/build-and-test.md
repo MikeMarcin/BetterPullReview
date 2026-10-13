@@ -1436,6 +1436,19 @@ throughput workloads and the window-thread baseline, and writes one JSON
 document. `--phases` selects some of them. The
 [report](../verification/RFC-BPR-0080.md) records each station's results.
 
+## C++ parser evaluation
+
+[[BPR-1442]]. `BPR_BUILD_SYNTAX_EVALUATION=ON` adds RFC-BPR-0081's harness in
+`tests/syntax_evaluation`. It acquires the pinned tree-sitter archives,
+compares the shipped C++ identifier refinement with a tree-sitter candidate,
+and registers `@ts-*` twins of the syntax contract rows. It needs
+`BPR_BUILD_QT=ON` and `BUILD_TESTING=ON`, and nothing it builds ships. With the
+option off, as by default, no target acquires or links tree-sitter. Commands
+and outputs are in
+[tests/syntax_evaluation/README.md](../../tests/syntax_evaluation/README.md),
+and the report is
+[docs/verification/RFC-BPR-0081.md](../verification/RFC-BPR-0081.md).
+
 ## Focused evidence
 
 ```sh
