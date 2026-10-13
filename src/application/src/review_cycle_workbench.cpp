@@ -125,6 +125,8 @@ namespace bpr::application {
 			case core::candidate_limit::signing_required: return "This repository requires signed commits, which BetterPullReview does not make. Save a patch and commit it with your own Git tools.";
 			case core::candidate_limit::normalization:    return "Line endings can be changed only for selected text files with CRLF endings.";
 			case core::candidate_limit::metadata:         return "Give the commit a one-line title and an author name and email.";
+			case core::candidate_limit::collision_detected:
+				return "Git's SHA-1 collision detection refused an object of this commit, so it was not built. Nothing was substituted.";
 			}
 			return "The commit cannot be built as chosen.";
 		}
@@ -132,17 +134,24 @@ namespace bpr::application {
 		auto outgoing_words(const cycle_outgoing_outcome& aOutcome, const std::string& aBase) -> std::string
 		{
 			switch (aOutcome.Status) {
-			case cycle_outgoing_status::planned:               return { };
-			case cycle_outgoing_status::not_bound:             return "This cycle has no project folder. Publishing needs a Git checkout.";
-			case cycle_outgoing_status::not_captured:          return "Capture the project before publishing.";
-			case cycle_outgoing_status::root_changed:          return "The project folder is not the one this cycle captured. Open it again to publish from it.";
-			case cycle_outgoing_status::workspace:             return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
+			case cycle_outgoing_status::planned:      return { };
+			case cycle_outgoing_status::not_bound:    return "This cycle has no project folder. Publishing needs a Git checkout.";
+			case cycle_outgoing_status::not_captured: return "Capture the project before publishing.";
+			case cycle_outgoing_status::root_changed: return "The project folder is not the one this cycle captured. Open it again to publish from it.";
+			case cycle_outgoing_status::workspace:
+				if (aOutcome.Repository) {
+					return cycle_repository_words(*aOutcome.Repository);
+				}
+				return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
 			case cycle_outgoing_status::reference_unavailable: return "\"" + aBase + "\" does not name a commit in this checkout. Name a branch, HEAD or a commit.";
 			case cycle_outgoing_status::repository:            return "Git could not read the repository" + (aOutcome.Git && !aOutcome.Git->Detail.empty() ? " (" + aOutcome.Git->Detail + ")." : std::string{ "." });
 			case cycle_outgoing_status::material:              return "Retained material for this cycle is missing or damaged; nothing was substituted.";
 			case cycle_outgoing_status::refused:
 				if (aOutcome.Refusal == core::outgoing_refusal::repository_required) {
 					return "This project is not a Git checkout. A pull request starts from a commit, so publish from a checkout of the repository.";
+				}
+				if (aOutcome.Refusal == core::outgoing_refusal::collision_detected) {
+					return "Git's SHA-1 collision detection refused content this plan needs, so nothing was planned or substituted.";
 				}
 				return "The outgoing content cannot be planned (" + std::string{ aOutcome.Refusal ? core::name(*aOutcome.Refusal) : "refused" } + ").";
 			case cycle_outgoing_status::limited:   return "Nothing differs from the base commit, so there is nothing to publish.";
@@ -185,6 +194,7 @@ namespace bpr::application {
 			case cycle_publish_limit::blob_too_large:       return "A file is over the 128 KiB upload bound. Save a patch instead." + nothing;
 			case cycle_publish_limit::material:             return "Retained material for this plan is missing or damaged." + nothing;
 			case cycle_publish_limit::pull_request_exists:  return "A pull request for " + destination.NewBranch + " already exists. If it is yours, link it. Nothing more was sent." + held_words(aJournal);
+			case cycle_publish_limit::collision_detected:   return "Git's SHA-1 collision detection refused a file of this plan, so it was not uploaded." + nothing;
 			}
 			return "Nothing was sent.";
 		}

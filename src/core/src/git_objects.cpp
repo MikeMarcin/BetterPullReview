@@ -126,7 +126,7 @@ namespace bpr::core {
 				}
 				const auto digest = git_object_digest(Algorithm, git_object_type::tree, bytes);
 				if (!digest) {
-					return std::unexpected{ git_tree_error::algorithm };
+					return std::unexpected{ digest.error() == git_object_refusal::collision_detected ? git_tree_error::collision_detected : git_tree_error::algorithm };
 				}
 				const auto id = git_tree_oid{ Algorithm, *digest };
 				Trees.push_back({ .Path = aPrefix.empty() ? std::string{ } : aPrefix.substr(0U, aPrefix.size() - 1U), .Id = id, .Bytes = std::move(bytes) });
@@ -170,6 +170,19 @@ namespace bpr::core {
 		}
 	}
 
+	auto name(const git_object_refusal aRefusal) noexcept -> std::string_view
+	{
+		switch (aRefusal) {
+		case git_object_refusal::algorithm:
+			return "algorithm";
+		case git_object_refusal::size:
+			return "size";
+		case git_object_refusal::collision_detected:
+			return "collision_detected";
+		}
+		return "unknown";
+	}
+
 	auto parse_git_entry_oid(const std::string_view aText) noexcept -> std::optional<git_entry_oid>
 	{
 		const auto blob = parse_git_blob_oid(aText);
@@ -207,35 +220,40 @@ namespace bpr::core {
 		}
 	}
 
-	auto git_object_hasher::finish() noexcept -> std::optional<std::array<std::uint8_t, 32>>
+	auto git_object_hasher::finish() noexcept -> git_object_digest_result
 	{
-		if (Delivered != Declared) {
-			return std::nullopt;
+		if (Algorithm != git_hash_algorithm::sha1 && Algorithm != git_hash_algorithm::sha256) {
+			return std::unexpected{ git_object_refusal::algorithm };
 		}
-		auto result = std::array<std::uint8_t, 32>{ };
-		if (Algorithm == git_hash_algorithm::sha1) {
-			const auto digest = Sha1.finish();
-			std::ranges::copy(digest, result.begin());
-			return result;
+		if (Delivered != Declared) {
+			return std::unexpected{ git_object_refusal::size };
 		}
 		if (Algorithm == git_hash_algorithm::sha256) {
 			return Sha256.finish();
 		}
-		return std::nullopt;
+		const auto digest = Sha1.finish();
+		if (!digest) {
+			return std::unexpected{ git_object_refusal::collision_detected };
+		}
+		auto result = std::array<std::uint8_t, 32>{ };
+		std::ranges::copy(*digest, result.begin());
+		return result;
 	}
 
-	auto git_object_digest(const git_hash_algorithm aAlgorithm, const git_object_type aType, const std::span<const std::uint8_t> aContent)
-		-> std::optional<std::array<std::uint8_t, 32>>
+	auto git_object_digest(const git_hash_algorithm aAlgorithm, const git_object_type aType, const std::span<const std::uint8_t> aContent) -> git_object_digest_result
 	{
 		auto hasher = git_object_hasher{ aAlgorithm, aType, aContent.size() };
 		hasher.update(aContent);
 		return hasher.finish();
 	}
 
-	auto git_blob_identity(const std::span<const std::uint8_t> aBytes, const git_hash_algorithm aAlgorithm) -> git_blob_oid
+	auto git_blob_identity(const std::span<const std::uint8_t> aBytes, const git_hash_algorithm aAlgorithm) -> std::expected<git_blob_oid, git_object_refusal>
 	{
 		const auto digest = git_object_digest(aAlgorithm, git_object_type::blob, aBytes);
-		return digest ? git_blob_oid{ aAlgorithm, *digest } : git_blob_oid{ };
+		if (!digest) {
+			return std::unexpected{ digest.error() };
+		}
+		return git_blob_oid{ aAlgorithm, *digest };
 	}
 
 	auto valid_git_entry_mode(const std::uint32_t aMode) noexcept -> bool
@@ -313,26 +331,32 @@ namespace bpr::core {
 		}
 		const auto digest = git_object_digest(aCommit.Tree.algorithm(), git_object_type::commit, *encoded);
 		if (!digest) {
-			return std::unexpected{ git_commit_error::algorithm };
+			return std::unexpected{ digest.error() == git_object_refusal::collision_detected ? git_commit_error::collision_detected : git_commit_error::algorithm };
 		}
 		return git_commit_oid{ aCommit.Tree.algorithm(), *digest };
 	}
-	auto verified_commit_tree(const std::span<const std::uint8_t> aCommitObject, const git_commit_oid& aCommit) -> std::optional<git_tree_oid>
+	auto verified_commit_tree(const std::span<const std::uint8_t> aCommitObject, const git_commit_oid& aCommit) -> std::expected<git_tree_oid, verified_commit_error>
 	{
+		if (!aCommit.valid()) {
+			return std::unexpected{ verified_commit_error::identity };
+		}
 		const auto digest = git_object_digest(aCommit.algorithm(), git_object_type::commit, aCommitObject);
-		if (!aCommit.valid() || !digest || git_commit_oid{ aCommit.algorithm(), *digest } != aCommit) {
-			return std::nullopt;
+		if (!digest) {
+			return std::unexpected{ digest.error() == git_object_refusal::collision_detected ? verified_commit_error::collision_detected : verified_commit_error::identity };
+		}
+		if (git_commit_oid{ aCommit.algorithm(), *digest } != aCommit) {
+			return std::unexpected{ verified_commit_error::identity };
 		}
 		const auto text   = std::string_view{ reinterpret_cast<const char*>(aCommitObject.data()), aCommitObject.size() };
 		const auto length = aCommit.byte_count() * 2U;
 		if (!text.starts_with("tree ") || text.size() < 5U + length + 1U || text[5U + length] != '\n') {
-			return std::nullopt;
+			return std::unexpected{ verified_commit_error::malformed };
 		}
 		const auto tree = parse_git_tree_oid(text.substr(5U, length));
 		if (!tree || tree->algorithm() != aCommit.algorithm()) {
-			return std::nullopt;
+			return std::unexpected{ verified_commit_error::malformed };
 		}
-		return tree;
+		return *tree;
 	}
 
 	auto line_feed_form(const std::span<const std::uint8_t> aBytes) -> std::optional<std::vector<std::uint8_t>>

@@ -1,5 +1,10 @@
 #include "bpr/core/review_cycle_git.hpp"
 
+#include "bpr/core/git_config.hpp"
+#include "bpr/core/review_cycle_outgoing.hpp"
+#include "bpr/core/sha1.hpp"
+#include "bpr/core/sha256.hpp"
+
 #include <algorithm>
 #include <array>
 
@@ -52,16 +57,6 @@ namespace bpr::core {
 			return value;
 		}
 
-		auto ascii_lower(const char aValue) -> char
-		{
-			return aValue >= 'A' && aValue <= 'Z' ? static_cast<char>(aValue - 'A' + 'a') : aValue;
-		}
-
-		auto equals_folded(const std::string_view aLeft, const std::string_view aRight) -> bool
-		{
-			return aLeft.size() == aRight.size() && std::ranges::equal(aLeft, aRight, [](const char aA, const char aB) { return ascii_lower(aA) == ascii_lower(aB); });
-		}
-
 		auto trim(std::string_view aText) -> std::string_view
 		{
 			constexpr auto space = std::string_view{ " \t\r\n" };
@@ -71,6 +66,29 @@ namespace bpr::core {
 			}
 			aText = aText.substr(first);
 			return aText.substr(0, aText.find_last_not_of(space) + 1);
+		}
+
+		/// Git's white space: space, tab, line feed and carriage return.
+		auto is_git_space(const char aCharacter) -> bool
+		{
+			return aCharacter == ' ' || aCharacter == '\t' || aCharacter == '\n' || aCharacter == '\r';
+		}
+
+		/// The trailer is all zero (`index.skipHash`) or the repository hash
+		/// of everything before it.
+		auto trailer_matches(const std::span<const std::uint8_t> aBytes, const git_hash_algorithm aAlgorithm, const std::size_t aHashLength) -> bool
+		{
+			const auto body    = aBytes.first(aBytes.size() - aHashLength);
+			const auto trailer = aBytes.last(aHashLength);
+			if (std::ranges::all_of(trailer, [](const std::uint8_t aByte) { return aByte == 0; })) {
+				return true;
+			}
+			if (aAlgorithm == git_hash_algorithm::sha1) {
+				// A body collision detection refuses has no checksum to match.
+				const auto digest = sha1(body);
+				return digest && std::ranges::equal(*digest, trailer);
+			}
+			return std::ranges::equal(sha256(body), trailer);
 		}
 
 		auto commit_of(const std::string_view aHex, const git_hash_algorithm aAlgorithm) -> std::optional<git_commit_oid>
@@ -108,6 +126,9 @@ namespace bpr::core {
 		}
 		if (aBytes[0] != 'D' || aBytes[1] != 'I' || aBytes[2] != 'R' || aBytes[3] != 'C') {
 			return std::unexpected(git_index_error::signature);
+		}
+		if (!trailer_matches(aBytes, aAlgorithm, hashLength)) {
+			return std::unexpected(git_index_error::checksum);
 		}
 		auto       index = git_index{ .Version = big_endian_32(aBytes, 4) };
 		const auto count = big_endian_32(aBytes, 8);
@@ -189,6 +210,12 @@ namespace bpr::core {
 			if (limit - offset - 8U < size) {
 				return std::unexpected(git_index_error::truncated);
 			}
+			// Git skips an extension whose signature starts with A-Z and
+			// refuses any other it does not understand.
+			const auto optional = signature.front() >= 'A' && signature.front() <= 'Z';
+			if (!optional && signature != "link" && signature != "sdir") {
+				return std::unexpected(git_index_error::required_extension);
+			}
 			index.SplitIndex        = index.SplitIndex || signature == "link";
 			index.SparseDirectories = index.SparseDirectories || signature == "sdir";
 			offset += 8U + size;
@@ -196,58 +223,215 @@ namespace bpr::core {
 		return index;
 	}
 
-	auto git_object_format(const std::string_view aConfig) -> git_hash_algorithm
-	{
-		auto inExtensions = false;
-		auto format       = git_hash_algorithm::sha1;
-		each_line(aConfig, [&](std::string_view aLine) {
-			aLine = trim(aLine);
-			if (aLine.empty() || aLine.front() == '#' || aLine.front() == ';') {
-				return false;
-			}
-			if (aLine.front() == '[') {
-				const auto close = aLine.find(']');
-				const auto name  = trim(aLine.substr(1, close == std::string_view::npos ? std::string_view::npos : close - 1));
-				inExtensions     = equals_folded(name, "extensions");
-				aLine            = close == std::string_view::npos ? std::string_view{ } : trim(aLine.substr(close + 1));
-				if (aLine.empty()) {
-					return false;
+	namespace {
+		/// The extensions Git honours in a version 0 repository.
+		auto version_zero_extension(const std::string_view aName) -> bool
+		{
+			return aName == "noop" || aName == "preciousobjects" || aName == "partialclone" || aName == "worktreeconfig";
+		}
+
+		/// The extensions Git honours only in a version 1 repository.
+		auto version_one_extension(const std::string_view aName) -> bool
+		{
+			return aName == "noop-v1" || aName == "objectformat" || aName == "compatobjectformat" || aName == "refstorage" || aName == "relativeworktrees";
+		}
+
+		auto refusal(const git_repository_refusal aReason, std::string aKey = { }) -> std::unexpected<git_repository_problem>
+		{
+			return std::unexpected(git_repository_problem{ .Reason = aReason, .Key = std::move(aKey) });
+		}
+
+		auto extension_name(const git_config_entry& aEntry) -> std::string
+		{
+			return aEntry.Subsection ? *aEntry.Subsection + "." + aEntry.Key : aEntry.Key;
+		}
+
+		auto core_key(const git_config_entry& aEntry, const std::string_view aKey) -> bool
+		{
+			return aEntry.Section == "core" && !aEntry.Subsection && aEntry.Key == aKey;
+		}
+
+		/// `core.ignoreCase` from one config file, the last setting winning.
+		auto ignore_case(const std::vector<git_config_entry>& aEntries, bool& aIgnoreCase) -> std::optional<git_repository_problem>
+		{
+			for (const auto& entry : aEntries) {
+				if (core_key(entry, "ignorecase")) {
+					const auto value = git_config_bool(entry.Value);
+					if (!value) {
+						return git_repository_problem{ .Reason = git_repository_refusal::invalid_value, .Key = "core.ignorecase" };
+					}
+					aIgnoreCase = *value;
 				}
 			}
-			if (!inExtensions) {
-				return false;
+			return std::nullopt;
+		}
+	}
+
+	auto read_git_repository_format(const std::string_view aConfig) -> std::expected<git_repository_format, git_repository_problem>
+	{
+		const auto entries = parse_git_config(aConfig);
+		if (!entries) {
+			return refusal(git_repository_refusal::malformed_config);
+		}
+		auto format       = git_repository_format{ };
+		auto version      = std::int32_t{ 0 };
+		auto unknown      = std::optional<std::string>{ };
+		auto versionOne   = std::optional<std::string>{ };
+		auto objectFormat = git_hash_algorithm::sha1;
+		auto reftable     = false;
+		for (const auto& entry : *entries) {
+			if (core_key(entry, "repositoryformatversion")) {
+				const auto value = git_config_int(entry.Value);
+				if (!value) {
+					return refusal(git_repository_refusal::format_version, "core.repositoryformatversion");
+				}
+				version = *value;
+				continue;
 			}
-			const auto equals = aLine.find('=');
-			if (equals == std::string_view::npos || !equals_folded(trim(aLine.substr(0, equals)), "objectformat")) {
-				return false;
+			if (entry.Section != "extensions") {
+				continue;
 			}
-			auto value = trim(aLine.substr(equals + 1));
-			if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
-				value = value.substr(1, value.size() - 2);
+			const auto name = extension_name(entry);
+			const auto key  = "extensions." + name;
+			// Git validates every value it interprets, whatever the version.
+			if (name == "preciousobjects" || name == "worktreeconfig" || name == "relativeworktrees") {
+				const auto value = git_config_bool(entry.Value);
+				if (!value) {
+					return refusal(git_repository_refusal::invalid_value, key);
+				}
+				if (name == "worktreeconfig") {
+					format.WorktreeConfig = *value;
+				}
+			} else if (name == "partialclone" || name == "compatobjectformat") {
+				if (!entry.Value) {
+					return refusal(git_repository_refusal::invalid_value, key);
+				}
+			} else if (name == "objectformat") {
+				if (entry.Value == "sha1") {
+					objectFormat = git_hash_algorithm::sha1;
+				} else if (entry.Value == "sha256") {
+					objectFormat = git_hash_algorithm::sha256;
+				} else {
+					return refusal(git_repository_refusal::object_format, key);
+				}
+			} else if (name == "refstorage") {
+				if (entry.Value == "files" || entry.Value == "reftable") {
+					reftable = entry.Value == "reftable";
+				} else {
+					return refusal(git_repository_refusal::ref_storage, key);
+				}
 			}
-			format = equals_folded(value, "sha1") ? git_hash_algorithm::sha1 : equals_folded(value, "sha256") ? git_hash_algorithm::sha256
-																											  : git_hash_algorithm::invalid;
-			return false;
-		});
+			if (version_zero_extension(name)) {
+				continue;
+			}
+			if (version_one_extension(name)) {
+				// Git knows compatObjectFormat; these readers do not read the
+				// object map it adds and decline it with the unknown ones.
+				if (name == "compatobjectformat") {
+					unknown = unknown.value_or(key);
+				}
+				versionOne = versionOne.value_or(key);
+				continue;
+			}
+			unknown = unknown.value_or(key);
+		}
+		if (version < 0 || version > 1) {
+			return refusal(git_repository_refusal::format_version, "core.repositoryformatversion");
+		}
+		if (version == 0 && versionOne) {
+			return refusal(git_repository_refusal::version_zero_extension, *versionOne);
+		}
+		if (version == 1) {
+			if (unknown) {
+				return refusal(git_repository_refusal::unknown_extension, *unknown);
+			}
+			if (reftable) {
+				return refusal(git_repository_refusal::reftable, "extensions.refstorage");
+			}
+			format.ObjectFormat = objectFormat;
+		}
+		// Version 0 keeps SHA-1 and files: Git ignores unknown extensions there
+		// and honours only the version 0 ones.
+		if (const auto problem = ignore_case(*entries, format.IgnoreCase)) {
+			return std::unexpected(*problem);
+		}
 		return format;
+	}
+
+	auto apply_git_worktree_config(const std::string_view aConfig, git_repository_format& aFormat) -> std::optional<git_repository_problem>
+	{
+		const auto entries = parse_git_config(aConfig);
+		if (!entries) {
+			return git_repository_problem{ .Reason = git_repository_refusal::malformed_config, .Key = "config.worktree" };
+		}
+		return ignore_case(*entries, aFormat.IgnoreCase);
+	}
+
+	auto git_index_problem(const git_index_error aError) noexcept -> git_repository_problem
+	{
+		switch (aError) {
+		case git_index_error::checksum:
+			return { .Reason = git_repository_refusal::index_checksum };
+		case git_index_error::required_extension:
+			return { .Reason = git_repository_refusal::index_extension };
+		default:
+			return { .Reason = git_repository_refusal::index_format };
+		}
+	}
+
+	auto admissible_git_reference(const std::string_view aName) noexcept -> bool
+	{
+		if (!aName.starts_with("refs/") || aName.size() > maximum_outgoing_reference_bytes || aName.ends_with('/') || aName.ends_with(".lock")
+			|| aName.find("..") != std::string_view::npos || aName.find("@{") != std::string_view::npos) {
+			return false;
+		}
+		for (const auto character : aName) {
+			const auto value = static_cast<unsigned char>(character);
+			if (value < 0x21U || value == 0x7FU || std::string_view{ "~^:?*[\\" }.find(character) != std::string_view::npos) {
+				return false;
+			}
+		}
+		auto start = std::size_t{ 0 };
+		while (start < aName.size()) {
+			const auto end     = aName.find('/', start);
+			const auto segment = aName.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start);
+			if (segment.empty() || segment.front() == '.') {
+				return false;
+			}
+			if (end == std::string_view::npos) {
+				break;
+			}
+			start = end + 1U;
+		}
+		return true;
 	}
 
 	auto parse_git_head(const std::string_view aHead, const git_hash_algorithm aAlgorithm) -> git_head
 	{
-		const auto line = trim(aHead.substr(0, aHead.find('\n')));
-		if (line.starts_with("ref:")) {
-			const auto reference = trim(line.substr(4));
-			if (reference.starts_with("refs/") && reference.find("..") == std::string_view::npos) {
+		auto contents = aHead;
+		while (!contents.empty() && is_git_space(contents.back())) {
+			contents.remove_suffix(1);
+		}
+		if (contents.starts_with("ref:")) {
+			auto reference = contents.substr(4);
+			while (!reference.empty() && is_git_space(reference.front())) {
+				reference.remove_prefix(1);
+			}
+			if (admissible_git_reference(reference)) {
 				return { .Reference = std::string{ reference } };
 			}
 			return { };
 		}
-		return { .Commit = commit_of(line, aAlgorithm) };
+		const auto length = hash_bytes(aAlgorithm) * 2U;
+		if (length == 0 || contents.size() < length || (contents.size() > length && !is_git_space(contents[length]))) {
+			return { };
+		}
+		return { .Commit = commit_of(contents.substr(0, length), aAlgorithm) };
 	}
 
 	auto parse_git_reference(const std::string_view aContents, const git_hash_algorithm aAlgorithm) -> std::optional<git_commit_oid>
 	{
-		return commit_of(trim(aContents.substr(0, aContents.find('\n'))), aAlgorithm);
+		return parse_git_head(aContents, aAlgorithm).Commit;
 	}
 
 	auto find_packed_reference(const std::string_view aPackedRefs, const std::string_view aReference, const git_hash_algorithm aAlgorithm)

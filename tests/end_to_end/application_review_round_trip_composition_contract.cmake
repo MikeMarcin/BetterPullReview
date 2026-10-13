@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5649cded940de091a2036cafb8e60639ed9a1748f2d9b3e6bf3f1bb153517a2f"
+		"33fc265e38f6a7036fd91dcec648bc78d45a7dda7be0d24048a73a31eb54ad8f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "af8736948cc1a2892bf67153d3f2cdf1a0f315aea5a846b1759eb9371d4e01bd"
+        "e6e69f402bd424b125179e620ca5824bb0842c7f3db5ea880cb3bbc3183d6812"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2385,3 +2385,28 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # conversion, with identical output. No publication, credential, grant,
 # inventory or mutation-branch change; the full application and
 # production-manifest digests are refreshed.
+
+# [[BPR-1472]] reseal, over main 58ca8e97a. github_application.cpp: a
+# Recently viewed row or pasted link for the pull request the window shows
+# reuses that read (BPR-0987) only if this window has not published to it
+# over that read. A review that is published or of unknown outcome, or a
+# single comment or reply that succeeded, records the shown snapshot, and the
+# next accepted read clears it. The start-review `finish` course gains a
+# reopen-from-Recent phase and evidence bit (main.cpp prints it;
+# github_application_fixture_access.hpp holds it). No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.
+
+# [[BPR-1475]] reseal, over main a05bf2623. github_application.cpp: every
+# reopen reads fresh (owner, 2026-10-13), so BPR-1472's reuse of the shown
+# read and its publication record are removed. After a review, comment, reply
+# or tour publishes (not on an unknown outcome) the window dispatches
+# the core's refresh of the shown pull request itself, once, after any read
+# in flight settles; a new comment being written is held again and reopened
+# in the drawer (core::resume_comment_after_refresh). The review submission
+# workflow gains a publication observer. The start-review `pending` course
+# waits for the single comment's reread; the `finish` course gains two
+# evidence bits (main.cpp prints them;
+# github_application_fixture_access.hpp holds them). No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.

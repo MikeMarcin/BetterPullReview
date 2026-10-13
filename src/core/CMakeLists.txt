@@ -65,6 +65,7 @@ add_library(
         src/review_cycle_promotion.cpp
         src/git_objects.cpp
         src/suggestion_text_editing.cpp
+        src/git_config.cpp
         src/review_cycle_git.cpp
         src/review_cycle_ignore.cpp
         src/review_cycle_manifest.cpp
@@ -109,7 +110,7 @@ add_library(
         src/reply_draft_standing.cpp
         src/review_submission.cpp
         src/review_preflight.cpp
-        src/sha1.cpp
+        src/sha1_collision_detecting.cpp
         src/sha256.cpp
         src/theme_exchange.cpp
         src/pull_request_location.cpp
@@ -130,7 +131,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Owner 2026-10-13: core links only approved pinned, pure libraries; the
 # functional-core boundary check enforces this list.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc)
+target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc)
 
 bpr_enable_hardening(better_pull_review_core)
 bpr_enable_warnings(better_pull_review_core)

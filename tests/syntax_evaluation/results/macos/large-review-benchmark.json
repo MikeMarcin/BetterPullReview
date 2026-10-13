@@ -1,0 +1,286 @@
+{
+ "baseline": [
+  {
+   "round": 1,
+   "failure": "a prepared open was slower than the median unprepared one beyond the tolerance",
+   "syntax_first_file_ms": [],
+   "syntax_navigation_ms": [],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 2,
+   "failure": "",
+   "syntax_first_file_ms": [
+    186.395708
+   ],
+   "syntax_navigation_ms": [
+    684.112083,
+    127.971959,
+    602.106167,
+    124.035375,
+    494.895083,
+    112.122084,
+    460.908875
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 3,
+   "failure": "",
+   "syntax_first_file_ms": [
+    214.085
+   ],
+   "syntax_navigation_ms": [
+    761.741875,
+    149.003834,
+    601.00625,
+    204.4565,
+    732.508625,
+    174.771875,
+    552.018417
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 4,
+   "failure": "",
+   "syntax_first_file_ms": [
+    220.270625
+   ],
+   "syntax_navigation_ms": [
+    714.505416,
+    133.0375,
+    631.386542,
+    131.546708,
+    535.443083,
+    114.411333,
+    478.462958
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 5,
+   "failure": "",
+   "syntax_first_file_ms": [
+    183.477083
+   ],
+   "syntax_navigation_ms": [
+    617.938375,
+    119.519375,
+    578.339417,
+    128.170208,
+    485.690167,
+    108.253708,
+    455.510292
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  }
+ ],
+ "ts-v0.23.4": [
+  {
+   "round": 1,
+   "failure": "",
+   "syntax_first_file_ms": [
+    196.071083
+   ],
+   "syntax_navigation_ms": [
+    621.97925,
+    133.85975,
+    591.940291,
+    125.378125,
+    541.892042,
+    117.102166,
+    482.032125
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 2,
+   "failure": "",
+   "syntax_first_file_ms": [
+    185.87475
+   ],
+   "syntax_navigation_ms": [
+    833.400291,
+    171.912959,
+    583.507125,
+    126.225833,
+    645.576584,
+    149.402584,
+    559.936541
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 3,
+   "failure": "",
+   "syntax_first_file_ms": [
+    187.838
+   ],
+   "syntax_navigation_ms": [
+    699.234125,
+    124.611917,
+    561.064041,
+    134.869042,
+    491.407708,
+    114.775417,
+    439.362333
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 4,
+   "failure": "",
+   "syntax_first_file_ms": [
+    193.072708
+   ],
+   "syntax_navigation_ms": [
+    717.256375,
+    139.836625,
+    696.485375,
+    203.201792,
+    644.42375,
+    118.09525,
+    478.078083
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 5,
+   "failure": "",
+   "syntax_first_file_ms": [
+    195.9295
+   ],
+   "syntax_navigation_ms": [
+    689.575625,
+    123.222625,
+    562.726542,
+    116.401792,
+    496.185541,
+    111.8985,
+    443.960334
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  }
+ ],
+ "ts-master": [
+  {
+   "round": 1,
+   "failure": "",
+   "syntax_first_file_ms": [
+    198.16425
+   ],
+   "syntax_navigation_ms": [
+    727.167292,
+    172.534542,
+    648.649416,
+    137.715333,
+    640.666583,
+    136.546041,
+    516.78025
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 2,
+   "failure": "",
+   "syntax_first_file_ms": [
+    194.360292
+   ],
+   "syntax_navigation_ms": [
+    707.117208,
+    129.599458,
+    608.599459,
+    141.263833,
+    644.972833,
+    141.138917,
+    533.698375
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 3,
+   "failure": "",
+   "syntax_first_file_ms": [
+    187.853375
+   ],
+   "syntax_navigation_ms": [
+    678.3015,
+    120.631541,
+    554.532125,
+    128.6095,
+    490.075208,
+    114.845375,
+    446.148625
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 4,
+   "failure": "",
+   "syntax_first_file_ms": [
+    189.279209
+   ],
+   "syntax_navigation_ms": [
+    653.476542,
+    124.242958,
+    636.361375,
+    126.795917,
+    567.387333,
+    119.639917,
+    480.622458
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  },
+  {
+   "round": 5,
+   "failure": "",
+   "syntax_first_file_ms": [
+    208.575333
+   ],
+   "syntax_navigation_ms": [
+    702.381458,
+    129.786167,
+    602.435958,
+    132.82425,
+    530.301125,
+    111.814708,
+    470.144667
+   ],
+   "build": "Release",
+   "platform": "macOS Tahoe (26.6.2)"
+  }
+ ],
+ "load": [
+  "baseline 1 exit=1 load={ 13.53 20.97 28.78 }",
+  "ts-v0.23.4 1 exit=0 load={ 13.22 20.66 28.58 }",
+  "ts-master 1 exit=0 load={ 12.74 20.19 28.27 }",
+  "baseline 2 exit=0 load={ 12.16 19.82 28.05 }",
+  "ts-v0.23.4 2 exit=0 load={ 11.84 19.50 27.83 }",
+  "ts-master 2 exit=0 load={ 11.72 19.22 27.64 }",
+  "baseline 3 exit=0 load={ 11.77 18.98 27.45 }",
+  "ts-v0.23.4 3 exit=0 load={ 11.49 18.68 27.25 }",
+  "ts-master 3 exit=0 load={ 11.11 18.36 27.04 }",
+  "baseline 4 exit=0 load={ 11.09 18.12 26.85 }",
+  "ts-v0.23.4 4 exit=0 load={ 11.08 17.88 26.66 }",
+  "ts-master 4 exit=0 load={ 11.14 17.67 26.49 }",
+  "baseline 5 exit=0 load={ 10.74 17.37 26.28 }",
+  "ts-v0.23.4 5 exit=0 load={ 10.52 17.22 26.17 }",
+  "ts-master 5 exit=0 load={ 10.53 16.99 25.98 }",
+  "done"
+ ]
+}

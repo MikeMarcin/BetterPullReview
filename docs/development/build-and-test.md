@@ -1410,6 +1410,45 @@ the artifact prefix. Fix the cause, then add the input to the corpus as a
 regression seed. [docs/verification/BPR-0970-parser-fuzzing.md](../verification/BPR-0970-parser-fuzzing.md)
 holds the inventory of entry points and the campaigns run so far.
 
+## Hash evaluation
+
+[[BPR-1446]]. `BPR_HASH_EVALUATION=ON` builds RFC-BPR-0080's evaluation
+harness, `bench_hash_evaluation`, in `tests/hash_evaluation`. It acquires
+sha1collisiondetection, HACL*'s generated SHA-2 and the NIST CAVP SHA vectors
+as pinned, verified archives (`cmake/BprHashEvaluationProvider.cmake`) and
+compares them with the core hashes, the platform hashes and
+`QCryptographicHash`. The product links none of it; with the option off,
+nothing is acquired. Measure in an optimized tree of its own, one row at a time,
+on a machine that is otherwise idle:
+
+```sh
+cmake --preset dev -B build/hash-evaluation -DCMAKE_BUILD_TYPE=Release -DBPR_HASH_EVALUATION=ON
+cmake --build build/hash-evaluation --target bench_hash_evaluation test_better_pull_review_feedback_counter_costs
+ctest --test-dir build/hash-evaluation -R '^hash_evaluation_' --output-on-failure
+python3 tests/hash_evaluation/run_hash_evaluation.py --build build/hash-evaluation \
+  --repository . --output /absolute/path/to/hash-evaluation.json
+```
+
+The driver runs the known answers, chunking, seeded differential inputs up to
+256 MiB, Git identities in both object formats, this repository's object store
+and its `main` history converted to SHA-256, the collision inputs, the W1 to W3
+throughput workloads and the window-thread baseline, and writes one JSON
+document. `--phases` selects some of them. The
+[report](../verification/RFC-BPR-0080.md) records each station's results.
+
+## C++ parser evaluation
+
+[[BPR-1442]]. `BPR_BUILD_SYNTAX_EVALUATION=ON` adds RFC-BPR-0081's harness in
+`tests/syntax_evaluation`. It acquires the pinned tree-sitter archives,
+compares the shipped C++ identifier refinement with a tree-sitter candidate,
+and registers `@ts-*` twins of the syntax contract rows. It needs
+`BPR_BUILD_QT=ON` and `BUILD_TESTING=ON`, and nothing it builds ships. With the
+option off, as by default, no target acquires or links tree-sitter. Commands
+and outputs are in
+[tests/syntax_evaluation/README.md](../../tests/syntax_evaluation/README.md),
+and the report is
+[docs/verification/RFC-BPR-0081.md](../verification/RFC-BPR-0081.md).
+
 ## Focused evidence
 
 ```sh
@@ -3489,6 +3528,25 @@ policy on the tokens: the gh and native transports admit any pagination
 relations, the paged read and mutation readers require exactly one quoted
 relation per link, and the publication reader refuses any `next` or an
 unreadable header.
+
+## Core sha1collisiondetection
+
+[[BPR-1450]] builds sha1collisiondetection at pinned commit
+`a06f1adbe5522f3c939cd6a3f13d5ec7f4c1a988` for every SHA-1 Git object
+identity: `cmake/BprSha1dcProvider.cmake` checks archive SHA-256, size and
+license, honors the offline cache, re-extracts under `build/_bpr/sha1dc`, and
+compiles only `lib/sha1.c` and `lib/ubc_check.c` as Git configures them
+(`SHA1DC_NO_STANDARD_INCLUDES`, `SHA1DC_INIT_SAFE_HASH_DEFAULT=0`, the
+standard headers in `third_party/sha1collisiondetection/sha1dc_includes.h`).
+It is part of the Qt-free core graph and on the owner's core allow-list. The
+core SHA-1 (`bpr/core/sha1.hpp`) and every Git identity API refuse an input the
+library detects as a collision attack, with a reason named
+`collision_detected`; `core_git_objects` reads the committed pairs in
+`tests/fixtures/sha1-collisions`. `architecture_boundaries` leaves Qt's plain
+SHA-1 only to the pack checksum in `installed_git_cache.cpp` and refuses any
+other SHA-1 implementation outside `src/core/src/sha1_collision_detecting.cpp`.
+The hash evaluation (`-DBPR_HASH_EVALUATION=ON`) measures this same target.
+License and provenance are under `third_party/sha1collisiondetection/`.
 
 ## Source search regex engine
 

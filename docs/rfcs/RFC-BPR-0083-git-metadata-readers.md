@@ -31,6 +31,15 @@ groups the cards:
 | [[BPR-1463]] | Linux harness, canary and cost measurements |
 | [[BPR-1464]] | Verify and close this RFC |
 
+**Progress (2026-10-13, macOS).** Done: [[BPR-1454]] (fixes 1–7),
+[[BPR-1461]] (reftable refused), [[BPR-1455]] and [[BPR-1456]] (harness and
+canary course for K), [[BPR-1457]] (fuzz oracles, H6, scale), [[BPR-1458]] (L)
+and [[BPR-1459]] (V, G). The [decision record](../verification/RFC-BPR-0083-decision.md)
+keeps K for every component: L fails H1, H2, H3 and H6, V fails H6, and G is
+rejected, so Q3 is not asked. Remaining: the Windows and Linux stations
+([[BPR-1462]], [[BPR-1463]]) and closeout ([[BPR-1464]]). Evidence is in the
+[verification ledger](../verification/RFC-BPR-0083.md).
+
 **Owner answers.** Q1 was answered on 2026-10-13: core may link only the
 owner-approved pinned pure libraries glaze, utf8proc, zlib and fmt, and any other
 third-party code vendored into core needs the owner's explicit approval for that

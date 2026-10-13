@@ -1,0 +1,158 @@
+{
+  "schema": "bpr.syntax-evaluation.corpus.v1",
+  "rfc": "RFC-BPR-0081",
+  "card": "BPR-1440",
+  "master_seed": 81,
+  "cpp_extensions": [".cpp", ".cc", ".cxx", ".c++", ".C", ".h", ".hh", ".hpp", ".hxx", ".h++", ".inl", ".ipp", ".tcc"],
+  "cpp_extension_rule": "suffix matched case-insensitively, except that a lowercase .c (C source) is excluded",
+  "size_classes": {
+    "S": "under 65536 bytes",
+    "M": "65536 to 1048575 bytes",
+    "L": "1048576 to 8388608 bytes",
+    "pathological": "every generated class-6 file, whatever its size",
+    "fragment": "every class-5 file"
+  },
+  "classes": [
+    {
+      "number": 1,
+      "name": "contract",
+      "label_source": "contract",
+      "fixtures_glob": "tests/fixtures/syntax/*.cpp",
+      "packs": [
+        "tests/fixtures/github/pull-requests/cpp-identifiers-v1/objects.pack",
+        "tests/fixtures/github/pull-requests/header-source-v1/objects.pack",
+        "tests/fixtures/github/pull-requests/uiforetw-74/objects.pack",
+        "tests/fixtures/github/pull-requests/large-review-v1/objects.pack"
+      ],
+      "pack_rule": "every commit in the pack (each fixture's base and head commits and, for large-review-v1, its epochs); every C++ path in each commit's tree; deduplicated by blob id",
+      "recordings": [
+        {
+          "path": "tests/fixtures/github/pull-requests/directxmath-336/recording.json",
+          "rule": "the head side (context and added lines) of every hunk of each C++ file's patch, in order; the recording holds patches only, so the text is the patched region, not the whole head file"
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "name": "first-party",
+      "label_source": "first-party",
+      "commit": "530d92eaff1578413c0e669f476e740387441152",
+      "tree": "src",
+      "rule": "git archive of the commit (never the working tree), every C++ path under src/",
+      "concatenations": {
+        "label_source": "first-party-concat",
+        "rule": "whole first-party files in sorted path order, each ending in LF, added while the total stays at or under the target; size class L; no accuracy labels, because concatenation changes what is in the blob",
+        "targets": [1500000, 3000000, 6000000, 8000000],
+        "limit": 8388608
+      }
+    },
+    {
+      "number": 3,
+      "name": "third-party",
+      "rule": "C++ members of archives the build already pins, verified by SHA-256 and byte size before extraction; never committed",
+      "archives": [
+        {
+          "label_source": "abseil",
+          "name": "Abseil 20250814.2",
+          "file": "abseil-cpp-20250814.2.tar.gz",
+          "sha256": "f9148fb00ec98a2396bdf875c99a78e6a70afa662b107862d92b285d857a8320",
+          "bytes": 2235771,
+          "pinned_by": "cmake/BprRe2Provider.cmake",
+          "include_roots": ["."]
+        },
+        {
+          "label_source": "re2",
+          "name": "RE2 2025-11-05",
+          "file": "re2-2025-11-05.tar.gz",
+          "sha256": "87f6029d2f6de8aa023654240a03ada90e876ce9a4676e258dd01ea4c26ffd67",
+          "bytes": 397504,
+          "pinned_by": "cmake/BprRe2Provider.cmake",
+          "include_roots": ["."],
+          "needs": ["abseil"]
+        },
+        {
+          "label_source": "glaze",
+          "name": "Glaze 8.3.0",
+          "file": "glaze-v8.3.0.tar.gz",
+          "sha256": "6a8f97f5cdb8df5c87f1b32710679585f3f1a577b67bb66150f2516072e00317",
+          "bytes": 2147798,
+          "pinned_by": "cmake/BprGlazeProvider.cmake",
+          "include_roots": ["include", "tests/include"]
+        },
+        {
+          "label_source": "quill",
+          "name": "Quill 13.0.0",
+          "file": "quill-v13.0.0.tar.gz",
+          "sha256": "88b4a1542125577a4d51cf444c51e34d63618c422ba6a4fa9bd23894b49d696b",
+          "bytes": 2061083,
+          "pinned_by": "cmake/BprQuillProvider.cmake",
+          "include_roots": ["include", "test", "test/misc"]
+        }
+      ],
+      "source_trees": [
+        {
+          "label_source": "ksyntaxhighlighting",
+          "name": "KSyntaxHighlighting 6.28.1",
+          "cache_directory": "bprksyntaxhighlighting",
+          "source_manifest_sha256": "b60bfc55ecf48aeddffa1c2c6cc36afc4ba72c9030483c242af551904459ff85",
+          "archive_sha256": "fe0d4133af62c6b9c0cf7728928c64d2deb55fe808a264a5de871f4b6bc86f65",
+          "pinned_by": "cmake/BprSyntaxHighlightingProvider.cmake",
+          "digest_rule": "bpr_syntax_source_digest: SHA-256 of the text made of one line '<file sha256>  <relative path>' per regular file, relative paths sorted",
+          "include_roots": ["src/lib", "src/indexer", "autotests"],
+          "qt_frameworks": ["QtCore", "QtGui", "QtNetwork", "QtTest", "QtQml", "QtQuick", "QtWidgets", "QtPrintSupport"]
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "name": "gap",
+      "label_source": "gap",
+      "glob": "tests/fixtures/syntax/evaluation/gap/*.cpp",
+      "rule": "copied when the directory exists; its labels are written by the integrator, not by label_with_clang.py"
+    },
+    {
+      "number": 5,
+      "name": "fragments",
+      "label_source": "fragments",
+      "excerpts": {
+        "rule": "src/adapters/qt/src/review_cycle_share_sheet.cpp note_code_view::show_excerpt over core::excerpt_note: shown rows only, each followed by LF; tabs expanded to the next multiple of tab_width counted in UTF-16 units from the code's first column; one empty line for each omitted run between windows; line endings (LF, CRLF) are not part of a row",
+        "context_lines": 2,
+        "tab_width": 4,
+        "anchors_per_excerpt": [1, 4],
+        "anchor_lines": [1, 3],
+        "row_limit": 20000,
+        "counts": {"contract": 50, "first-party": 125, "third-party": 125}
+      },
+      "hunks": {
+        "rule": "contiguous original lines (bytes unchanged, original line endings) that begin strictly inside the named construct, found by text search",
+        "lines": [20, 200],
+        "kinds": ["enum-body", "namespace-body", "block-comment", "raw-string"],
+        "per_kind": 30
+      },
+      "parent_rule": "parents are class 1-3 files that are valid UTF-8 and have at least 30 lines"
+    },
+    {
+      "number": 6,
+      "name": "malformed",
+      "label_source": "malformed",
+      "truncated": 16,
+      "unbalanced": 16,
+      "unbalanced_edits": [1, 24],
+      "nesting_depth": 100000,
+      "single_line_bytes": 1048576,
+      "classifier_limit_bytes": 8388608,
+      "brace_flood_bytes": [8388600, 8388608],
+      "enum_names_bytes": 8388608,
+      "random_utf8_bytes": 1048576
+    },
+    {
+      "number": 7,
+      "name": "composer",
+      "label_source": "composer",
+      "sequences": {"contract": 3, "first-party": 3},
+      "steps": 150,
+      "rule": "step 000 is the unedited parent; steps 001-150 each apply one edit: typing an enum or namespace declaration a few characters at a time, deleting a block and re-adding it, pasting a 30-line function, or undoing back to an earlier step",
+      "parent_bytes": [4000, 80000]
+    }
+  ]
+}

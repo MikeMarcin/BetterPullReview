@@ -171,8 +171,11 @@ namespace bpr::adapters::github::detail {
 		if (aBytes.size() > application::maximum_github_publication_blob_bytes) {
 			return error(github_publication_failure::too_large);
 		}
-		// The bytes must be the named object before anything is sent.
-		if (core::retag<core::git_entry_oid_kind>(core::git_blob_identity(aBytes, aExpected.algorithm())) != aExpected) {
+		// The bytes must be the named object before anything is sent. A refused
+		// identity, collision detection included, is refused here too; the
+		// publisher has already named a detection before calling ([[BPR-1450]]).
+		const auto identity = core::git_blob_identity(aBytes, aExpected.algorithm());
+		if (!identity || core::retag<core::git_entry_oid_kind>(*identity) != aExpected) {
 			return error(github_publication_failure::refused);
 		}
 		const auto response = exchange(aTarget, compile_create_blob(aTarget, aBytes), std::move(aStop));

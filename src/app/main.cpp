@@ -4967,7 +4967,7 @@ namespace {
 				stream << "START_REVIEW_PENDING_EVIDENCE:" << evidence.Started << evidence.Added << evidence.Drawn << evidence.SingleAlone << evidence.NavigationKept << '\n';
 				break;
 			case bpr::app::detail::start_review_course::finish:
-				stream << "START_REVIEW_FINISH_EVIDENCE:" << evidence.Restored << evidence.FinishOpened << evidence.CommentWithoutSummary << evidence.SubmittedExact << evidence.MarkedPublished << '\n';
+				stream << "START_REVIEW_FINISH_EVIDENCE:" << evidence.Restored << evidence.FinishOpened << evidence.CommentWithoutSummary << evidence.SubmittedExact << evidence.MarkedPublished << evidence.RereadAfterPublish << evidence.NoteKept << evidence.ReopenedFresh << '\n';
 				break;
 			case bpr::app::detail::start_review_course::refused:
 				stream << "START_REVIEW_REFUSED_EVIDENCE:" << evidence.Started << evidence.FinishOpened << evidence.RefusedKept << evidence.DiscardDeleted << '\n';

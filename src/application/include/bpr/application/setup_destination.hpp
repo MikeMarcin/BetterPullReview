@@ -12,7 +12,9 @@ namespace bpr::application {
 	/// \brief [[BPR-0987]]. How the host answered an accepted destination.
 	///
 	/// \details `navigated` means the receiving window already showed that
-	/// pull request, so no new read was issued and its view is kept.
+	/// pull request, so no new read was issued and its view is kept. The
+	/// composed window no longer answers it: every reopen reads fresh
+	/// ([[BPR-1475]], owner 2026-10-13).
 	enum class setup_destination_opening : std::uint8_t {
 		reading,
 		navigated,

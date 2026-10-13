@@ -288,7 +288,7 @@ namespace bpr::tests::workspace_contract {
 			-> application::github_publication_result<void> override
 		{
 			return write("blob", [&]() -> std::string {
-				const auto id = core::git_blob_identity(aBytes, core::git_hash_algorithm::sha1);
+				const auto id = core::git_blob_identity(aBytes, core::git_hash_algorithm::sha1).value();
 				Blobs[std::string{ core::canonical_hex(id).view() }] = { aBytes.begin(), aBytes.end() };
 				return std::string{ core::canonical_hex(id).view() }; }, hex(aExpected));
 		}

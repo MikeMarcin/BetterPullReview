@@ -1765,7 +1765,7 @@ namespace {
 		auto fixture = std::vector<conversation>{ };
 		auto state   = std::vector<qt::thread_read_state>{ };
 		for (const auto& [id, resolved] : std::array<std::pair<const char*, bool>, 4U>{
-				 { { "t-open-a", false }, { "t-resolved-a", true }, { "t-open-b", false }, { "t-resolved-b", true } } }) {
+				 { { "review-thread:t-open-a", false }, { "review-thread:t-resolved-a", true }, { "review-thread:t-open-b", false }, { "review-thread:t-resolved-b", true } } }) {
 			const auto line = static_cast<std::uint32_t>(10U + (10U * fixture.size()));
 			fixture.push_back(thread(id, "src/a.cpp", line, true, resolved));
 			fixture.push_back(reply(std::string{ id } + "-r", id, "author", resolved ? "Resolved, with a new reply." : "Open, with a new reply."));
@@ -1775,6 +1775,9 @@ namespace {
 		view.set_viewer_login(QStringLiteral("reviewer-one"));
 		view.adopt(fixture);
 		view.set_read_state(state);
+		// [[BPR-1473]]. An unsent reply on one open and one resolved note must
+		// not move their blue counts either.
+		view.set_saved_drafts({ }, { core::reply_draft_decision{ .Draft = core::review_draft_id{ 41U }, .Thread = "t-open-b", .Standing = core::reply_draft_standing::none, .Sendable = true }, core::reply_draft_decision{ .Draft = core::review_draft_id{ 42U }, .Thread = "t-resolved-a", .Standing = core::reply_draft_standing::thread_resolved, .Sendable = true } });
 		view.set_feed(true);
 		view.set_scope(qt::cards_scope::whole_pull_request);
 		QApplication::processEvents();
@@ -1783,6 +1786,8 @@ namespace {
 		}
 		expect(view.cards().size() == 4U && std::ranges::count_if(view.cards(), &qt::thread_card::Resolved) == 2,
 			   "two notes are resolved and two are not, each with a new reply");
+		expect(std::ranges::count_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.UnsentReply.has_value(); }) == 2,
+			   "one open and one resolved note carry an unsent reply");
 		const auto first = view.closed_meta(view.cards().front());
 		expect(!first.NewCount.isEmpty(), "a note with a new reply draws its blue count");
 		for (const auto& card : view.cards()) {
@@ -1790,7 +1795,9 @@ namespace {
 			expect(meta.Resolved.isEmpty() != card.Resolved, "only a resolved note draws the green check");
 			expect(meta.NewCount == first.NewCount.translated(0.0, meta.NewCount.top() - first.NewCount.top()),
 				   "the blue count stands in one column whether or not the note is resolved");
-			expect(meta.Replies == first.Replies, "the reply count and faces stand in one column too");
+			expect(meta.UnsentReply.isEmpty() != card.UnsentReply.has_value(), "only a note with an unsent reply draws \"Your reply\"");
+			expect(meta.UnsentReply.isEmpty() || meta.UnsentReply.right() <= meta.NewCount.left(), "\"Your reply\" stands left of the blue count");
+			expect(card.UnsentReply.has_value() || meta.Replies == first.Replies, "the reply count and faces stand in one column without an unsent reply");
 			expect(!card.Resolved || (meta.Resolved.right() <= view.note_rect(card.Id).right() && meta.Resolved.left() > meta.NewCount.right()),
 				   "the green check keeps its slot right of the blue count");
 		}

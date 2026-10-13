@@ -38,6 +38,30 @@ namespace bpr::application {
 		}
 	}
 
+	auto cycle_repository_words(const core::git_repository_problem& aProblem) -> std::string
+	{
+		const auto key = aProblem.Key.empty() ? std::string{ } : " (" + aProblem.Key + ")";
+		switch (aProblem.Reason) {
+		case core::git_repository_refusal::malformed_config: return "This checkout's Git config" + key + " has a line Git itself would refuse to read; nothing was read from the checkout.";
+		case core::git_repository_refusal::format_version:   return "This checkout's Git repository format version" + key + " is one BetterPullReview does not read; nothing was read from the checkout.";
+		case core::git_repository_refusal::unknown_extension:
+			return "This checkout's Git repository uses an extension" + key + " that BetterPullReview does not read; nothing was read from the checkout.";
+		case core::git_repository_refusal::version_zero_extension:
+			return "This checkout's Git config sets an extension" + key + " that Git refuses in a version 0 repository; nothing was read from the checkout.";
+		case core::git_repository_refusal::object_format: return "This checkout's Git config names an object format" + key + " Git does not know; nothing was read from the checkout.";
+		case core::git_repository_refusal::ref_storage:   return "This checkout's Git config names a reference format" + key + " Git does not know; nothing was read from the checkout.";
+		case core::git_repository_refusal::reftable:
+			return "This checkout stores its branches in Git's reftable format, which BetterPullReview does not read yet; nothing was read from the checkout.";
+		case core::git_repository_refusal::invalid_value:   return "This checkout's Git config gives a setting" + key + " a value Git itself refuses; nothing was read from the checkout.";
+		case core::git_repository_refusal::index_format:    return "This checkout's Git index is in a form BetterPullReview does not read; nothing was read from the checkout.";
+		case core::git_repository_refusal::index_checksum:  return "This checkout's Git index is damaged: its checksum does not match; nothing was read from the checkout.";
+		case core::git_repository_refusal::index_extension: return "This checkout's Git index uses a required extension BetterPullReview does not read; nothing was read from the checkout.";
+		case core::git_repository_refusal::rule_file_bound:
+			return "This checkout's ignore or attributes file" + key + " is larger than BetterPullReview reads (1 MiB or 100,000 rules), so paths it ignores could be captured; nothing was recorded.";
+		}
+		return "This checkout's Git repository is one BetterPullReview does not read; nothing was read from the checkout.";
+	}
+
 	namespace {
 		/// [[BPR-1183]]. The cycle's location answers with another root than the
 		/// one it was bound to, found before reading or while reading. Capturing
@@ -98,8 +122,12 @@ namespace bpr::application {
 	auto cycle_rebind_check_words(const cycle_material_check_outcome& aOutcome) -> std::string
 	{
 		switch (aOutcome.Status) {
-		case cycle_capture_status::captured:         return { };
-		case cycle_capture_status::workspace:        return (aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : std::string{ "The chosen folder could not be read." }) + " Nothing was changed.";
+		case cycle_capture_status::captured: return { };
+		case cycle_capture_status::workspace:
+			if (aOutcome.Repository) {
+				return cycle_repository_words(*aOutcome.Repository) + " Nothing was changed.";
+			}
+			return (aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : std::string{ "The chosen folder could not be read." }) + " Nothing was changed.";
 		case cycle_capture_status::too_many_entries: return "The folder holds more than 250,000 entries, the most one capture keeps; nothing was changed.";
 		case cycle_capture_status::store:            return aOutcome.Store ? cycle_store_words(*aOutcome.Store) : "The local cycle store is unavailable.";
 		case cycle_capture_status::cancelled:        return { };
@@ -119,6 +147,9 @@ namespace bpr::application {
 			if (aOutcome.Workspace == workspace_failure::missing) {
 				// [[BPR-1279]]. Moved away with nothing in its place.
 				return "This cycle's folder is no longer at its location; nothing was recorded. Rebind the cycle to where the folder is now, or move it back.";
+			}
+			if (aOutcome.Repository) {
+				return cycle_repository_words(*aOutcome.Repository);
 			}
 			return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The chosen folder could not be read.";
 		case cycle_capture_status::not_bound: return "The cycle has no folder to capture.";

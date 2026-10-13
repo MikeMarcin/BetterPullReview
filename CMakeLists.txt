@@ -112,6 +112,14 @@ if(BPR_BUILD_FUZZERS)
     string(APPEND CMAKE_EXE_LINKER_FLAGS " -fsanitize=address,undefined")
     string(APPEND CMAKE_SHARED_LINKER_FLAGS " -fsanitize=address,undefined")
 endif()
+# [[BPR-1442]]. RFC-BPR-0081's C++ identifier parser evaluation harness, in
+# tests/syntax_evaluation. It acquires the candidate parser and builds only
+# evaluation executables; with it off, as by default, no target acquires or
+# links the candidate, and it can never reach a tests-disabled package.
+option(BPR_BUILD_SYNTAX_EVALUATION "Build the RFC-BPR-0081 parser evaluation harness (never shipped)" OFF)
+if(BPR_BUILD_SYNTAX_EVALUATION AND (NOT BPR_BUILD_QT OR NOT BUILD_TESTING))
+    message(FATAL_ERROR "BPR_BUILD_SYNTAX_EVALUATION requires BPR_BUILD_QT=ON and BUILD_TESTING=ON")
+endif()
 option(BPR_DISTRIBUTION_BUILD "Restrict the product to its deployed runtime" OFF)
 if(BPR_DISTRIBUTION_BUILD AND (BUILD_TESTING OR NOT BPR_BUILD_QT))
     message(FATAL_ERROR "Distribution builds require the tests-disabled application graph")

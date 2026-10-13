@@ -401,7 +401,8 @@ The initial target shape should be equivalent to:
 ```text
 better_pull_review_core
     standard/domain C++, plus only the owner-approved pinned, pure
-    libraries (glaze, utf8proc, zlib, fmt; owner 2026-10-13)
+    libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
+    HACL* SHA-2; owner 2026-10-13)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -448,7 +449,9 @@ The live repository may use different target names, but it must enforce these ru
 
 - The core imports no Qt, SQLite, GitHub, Git, operating-system, AI, clock, thread, future, timer, dialog, or process APIs.
 - The core links only owner-approved pinned, pure libraries (no I/O, threads,
-  clocks or globals): glaze, utf8proc, zlib and fmt (owner, 2026-10-13).
+  clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection and
+  HACL*'s generated SHA-2 (owner, 2026-10-13; the last two through
+  RFC-BPR-0080).
   `cmake/VerifyCoreBoundary.cmake` refuses any other library. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.
@@ -852,7 +855,9 @@ three steps, each inside an existing bound:
   through `git_smart_transport_port::read_exact_blobs`, after the actor proves
   each endpoint durably sparse exactly as a single exact read must. The round
   trip runs on the preparing thread, never on the actor. The host checks every
-  answer's SHA-1 against its object ID before it keeps it. Verified bytes,
+  answer's SHA-1 against its object ID before it keeps it, through the core's
+  collision-detecting SHA-1 (sha1collisiondetection, [[BPR-1450]]), as the
+  transport does; a detected input is refused, never retained. Verified bytes,
   including those of single exact reads, are retained per actor (at most 256
   blobs and 16 MiB) and dropped on authority replacement or revocation, so the
   classifier's second read of a blob and a revisit do not cross the network

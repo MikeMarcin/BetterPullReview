@@ -1,0 +1,7 @@
+{
+  "schema": "bpr.release-sources.v1",
+  "draft": "RFC-BPR-0083 candidate L trial entry (BPR-1458); not part of packaging/dependencies.json and not a release",
+  "components": [
+    {"name":"libgit2","version":"1.9.7","license":"GPL-2.0-only WITH GCC-exception-2.0 AND LGPL-2.1-or-later AND BSD-3-Clause WITH PCRE2-exception AND MIT AND BSD-3-Clause AND BSD-2-Clause AND CC0-1.0 AND LicenseRef-libgit2-wildmatch","linkage":"static library behind the workspace adapter's evaluation port; no HTTPS, SSH, NTLM, GSSAPI or CLI; bundled PCRE2 without JIT, xdiff and llhttp compiled in; system zlib; COPYING (GPL-2.0 with linking exception and every bundled notice) and the LGPL-2.1 xdiff headers retained","platforms":["Darwin"],"url":"https://codeload.github.com/libgit2/libgit2/tar.gz/refs/tags/v1.9.7","sha256":"1a4fbe7589e814777ae76b64734ad80f4ecad22cd33a22682a2aaea4ae5375e7"}
+  ]
+}

@@ -880,7 +880,7 @@ bpr_add_executable(test_better_pull_review_git_objects_tests git_objects_tests.c
 target_link_libraries(test_better_pull_review_git_objects_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_git_objects_tests)
 bpr_enable_warnings(test_better_pull_review_git_objects_tests)
-bpr_add_network_isolated_test(NAME core_git_objects COMMAND test_better_pull_review_git_objects_tests)
+bpr_add_network_isolated_test(NAME core_git_objects COMMAND test_better_pull_review_git_objects_tests "${PROJECT_SOURCE_DIR}/tests/fixtures/sha1-collisions")
 
 # [[BPR-1172]]. Selected outgoing content over an explicit Git base: R0, Rn, P and T.
 bpr_add_executable(test_better_pull_review_review_cycle_outgoing_tests review_cycle_outgoing_tests.cpp)

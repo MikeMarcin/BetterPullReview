@@ -631,8 +631,15 @@ namespace bpr::app {
 		}
 		auto       document = std::make_shared<const std::string>(aDocument);
 		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
-		Wanted[aSlot]       = wanted_syntax{
-			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aPath) },
+		const auto blob     = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		if (!blob) {
+			// [[BPR-1450]]. A text collision detection refuses has no cache
+			// key: it stays plain, as without a syntax host.
+			Wanted[aSlot].reset();
+			return;
+		}
+		Wanted[aSlot] = wanted_syntax{
+			.Key      = { .Blob = *blob, .Definition = SyntaxDefinitions->definition_for_path(aPath) },
 			.Document = std::move(document),
 		};
 		submit_syntax();
@@ -660,8 +667,13 @@ namespace bpr::app {
 		}
 		auto       document = std::make_shared<const std::string>(aRequest.Document);
 		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
-		auto       wanted   = wanted_syntax{
-			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aRequest.Path) },
+		const auto blob     = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		if (!blob) {
+			// [[BPR-1450]]. No cache key for a refused text: it stays plain.
+			return;
+		}
+		auto wanted = wanted_syntax{
+			.Key      = { .Blob = *blob, .Definition = SyntaxDefinitions->definition_for_path(aRequest.Path) },
 			.Document = std::move(document),
 		};
 		if ((CodeClassifying && CodeClassifying->Key == wanted.Key) || std::ranges::find(CodeWanted, wanted.Key, &wanted_syntax::Key) != CodeWanted.end()) {

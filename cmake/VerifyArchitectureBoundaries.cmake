@@ -1858,6 +1858,20 @@ verify_effect_owner(
     "src/adapters/mcp/src/mcp_terminal_diagnostic.hpp"
     "src/app/src/terminal_diagnostics.cpp"
 )
+# [[BPR-1450]]. Every SHA-1 Git object identity is computed by one library,
+# sha1collisiondetection, behind the core's SHA-1 (RFC-BPR-0080 AC03). Qt's
+# plain SHA-1 is left only to the pack transfer checksum, which Git also
+# computes without detection, and no other SHA-1 implementation may appear.
+verify_effect_owner(
+    "QCryptographicHash::Sha1"
+    "plain Qt SHA-1 (object identities use the core's collision-detecting SHA-1)"
+    "src/adapters/git/src/installed_git_cache.cpp"
+)
+verify_effect_owner(
+    "(SHA1DC[A-Za-z]*[ \t\r\n]*\\(|SHA1_CTX|CC_SHA1_|EVP_sha1|BCRYPT_SHA1_ALGORITHM|0x67452301|#[ \t]*include[ \t]*[<\"]sha1\\.h[>\"])"
+    "SHA-1 implementation"
+    "src/core/src/sha1_collision_detecting.cpp"
+)
 verify_effect_owner(
     "QNetworkAccessManager"
     "QNetworkAccessManager"
