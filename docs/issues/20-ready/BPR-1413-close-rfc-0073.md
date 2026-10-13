@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1413"
 title: "Verify and close RFC-BPR-0073"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0073"]
 depends_on: []
 closeout_for: ["RFC-BPR-0073"]
 priority: "P1"
 metadata: {"milestone_plan":{"id":"smooth-diff-touchpad-panning","path":"docs/rfcs/plans/smooth-diff-touchpad-panning/milestone-plan.json"}}
 acceptance: [{"criterion":"AC01","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence"}},{"criterion":"AC02","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence"}},{"criterion":"AC03","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence"}},{"criterion":"AC04","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence"}},{"criterion":"AC05","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence"}},{"criterion":"AC06","outcome":"pass","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence"}},{"criterion":"AC07","outcome":"pending","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence; separate v002 owner touchpad judgment pending"}},{"criterion":"AC08","outcome":"pending","revision":"59a2fa10c147fd1dc976eb5eef161137da5077fe","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0073.md; m2-verification.json: current direct composed and integration evidence; separate v002 owner minimum keyboard reveal judgment (agent checks pass) pending"}}]
-parked_on: "human-review"
 ---
 
 # Smooth diff touchpad panning
