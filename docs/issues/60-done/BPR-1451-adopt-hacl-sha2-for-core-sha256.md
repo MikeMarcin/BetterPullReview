@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1451"
 title: "Adopt HACL* generated SHA-2 for the core SHA-256"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"hashing-replacement-r1","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1446--BPR-1453--810e9a5c8803.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9a7235228","evidence":{"kind":"command","detail":"144 digest-using rows pass (all core_*, application feedback/epoch/review-cycle/mutation, all sqlite_*, workspace_source, github mutation and publication contracts); stored-digest rows (core_sha256, core_git_objects, core_review_cycle_retrieval/round/material/bundle, sqlite_review_mutation_recovery_storage, sqlite_epoch_catalog_storage_contract, github_mutation_contract, review_cycle_capture/candidate, application_writing_delivery) pass unchanged; evaluation driver correctness/git/sweep256 zero mismatches.","path":"docs/issues/60-done/BPR-1451-adopt-hacl-sha2-for-core-sha256.md"}},{"criterion":"AC2","outcome":"pass","revision":"9a7235228","evidence":{"kind":"observation","detail":"sha256_hacl.cpp implements the noexcept sha256_stream API with HACL* block-level calls only (init, update_nblocks <=1 GiB, update_last, finish); the allocating streaming API is never called; core_sha256 split-point and uneven-chunk rows pass.","path":"docs/issues/60-done/BPR-1451-adopt-hacl-sha2-for-core-sha256.md"}},{"criterion":"AC3","outcome":"pass","revision":"9a7235228","evidence":{"kind":"command","detail":"dev and core-only configure and build; core_dependency_boundary, core_boundary_contract, architecture_boundaries (new HACL* single-owner rule) and architecture_boundary_contract pass; src/core/src/sha256.cpp deleted, core_sha256 kept.","path":"docs/issues/60-done/BPR-1451-adopt-hacl-sha2-for-core-sha256.md"}},{"criterion":"AC4","outcome":"pass","revision":"9a7235228","evidence":{"kind":"command","detail":"BprHaclSha2Provider pins archive and licence digests; third_party/hacl-star LICENSE and PROVENANCE.md; dependencies.json entry; NOTICE_FILES; dependency_modernization_contract (offline configure), package_runtime_contract, release_security_audit_contract and binary_dependency_audit_contract pass on macOS; release inventory updated.","path":"docs/issues/60-done/BPR-1451-adopt-hacl-sha2-for-core-sha256.md"}}]
 ---
 
 # BPR-1451: Adopt HACL* generated SHA-2 for the core SHA-256
