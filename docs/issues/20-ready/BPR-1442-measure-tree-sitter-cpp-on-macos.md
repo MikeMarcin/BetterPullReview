@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1442"
 title: "Build the parser evaluation harness and measure tree-sitter-cpp on macOS"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0081"]
 depends_on: ["BPR-1440", "BPR-1441"]
 priority: "P2"

@@ -13,7 +13,7 @@ metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_p
 # BPR-1443: Measure the C++ parser evaluation on Windows x64
 
 Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `windows-measurement`. Runs the harness that
-[BPR-1442](BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Windows
+[BPR-1442](../20-ready/BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Windows
 x64 station, with the thresholds unchanged.
 
 ## Acceptance

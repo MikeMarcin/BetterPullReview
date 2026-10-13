@@ -15,7 +15,7 @@ acceptance: [{"criterion":"AC1","outcome":"pass","revision":"309375c5a","evidenc
 
 Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `evaluation-ground`. The labels are fixed before any
 candidate runs, so this card lands before
-[BPR-1442](../10-backlog/BPR-1442-measure-tree-sitter-cpp-on-macos.md) produces
+[BPR-1442](../20-ready/BPR-1442-measure-tree-sitter-cpp-on-macos.md) produces
 a candidate result.
 
 ## Acceptance

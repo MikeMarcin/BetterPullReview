@@ -13,7 +13,7 @@ metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_p
 # BPR-1444: Measure the C++ parser evaluation on Linux x64 and run its Linux fuzz campaign
 
 Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `linux-measurement`. Runs the harness that
-[BPR-1442](BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Linux x64
+[BPR-1442](../20-ready/BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Linux x64
 station, with the thresholds unchanged.
 
 ## Acceptance
