@@ -1,7 +1,7 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
   "state": "human-pending",
-  "assignment": "/root/smooth_panning_revision",
+  "assignment": "/root/smooth_panning_keyboard_v3",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
   "mandate_revision": "b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d",
@@ -24,7 +24,7 @@
   "live_cards": [
     "BPR-1413"
   ],
-  "candidate_revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+  "candidate_revision": "a9af17c712f2fc3e7dc4c4718689ff482af8fed7",
   "product_changes": [
     "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
     "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
@@ -33,27 +33,30 @@
     "tests/adapters_qt/diff_workbench_tests.cpp"
   ],
   "pending_criteria": [
-    "AC07",
     "AC08-owner-minimal-reveal-amendment"
   ],
   "blocker": null,
   "commands": {
     "background": [],
     "review_server": {
-      "pid": 12885,
-      "command_session": 98161,
-      "port": 55146,
-      "session": "c595e5c955c2cd527f9f4a351d3ab175",
-      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v002-20261012",
-      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v002-20261012/handoff.json"
+      "pid": 46999,
+      "command_session": 21007,
+      "port": 56292,
+      "session": "12930e4afcde5660e890f36745df8f70",
+      "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012",
+      "handoff": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012/handoff.json"
     },
     "writers_released": true
   },
-  "next_action": "Owner reviews v002 at local URL, uses Finish and hand back, then sends Resume the attended review. Coordinator verifies session/fingerprints/hash, reads events after6, persists consumed cursor before a fresh engineering round or accepted closeout.",
+  "next_action": "After owner Finish and hand back and manual resume, coordinator reads events after3, verifies candidate fingerprint/source/executable, persists consumed cursor, then dispatches next engineering leaf. Only AC08 verdict remains.",
   "verification": [
     {
       "artifact": "docs/verification/RFC-BPR-0073.md",
-      "result": "AC01\u2013AC06 agent pass; AC08 stricter agent checks pass with separate owner judgment pending; AC07 owner pending"
+      "result": "AC01\u2013AC06 agent pass; AC07 actual owner accept on v002; AC08 v003 rendered agent checks pass and separate owner judgment pending"
+    },
+    {
+      "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m3-verification.json",
+      "result": "Seven affected integration tests and scoped static checks pass; v002 negative control fails; v003 official frozen launcher check passes."
     },
     {
       "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m2-verification.json",
@@ -65,13 +68,13 @@
     }
   ],
   "frontend_design_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
-  "last_finding": "Committed revised candidate passes all10integrationchecks, format22, four-unit tidy, documentation gate and67verifier tests. Official self-contained freeze and launcher check pass. Two independent review questions are ready/protected; human verdicts remain pending.",
+  "last_finding": "Displayed viewport region is365px while overscan mask is343px; old code moves an already visible target up15px. Strengthened test fails on v002 and passes v003 at100/125/200%. Axis implementation unchanged; AC07 acceptance retained.",
   "active_commands": [
-    "Handed-off loopback attended-review server only, PID12885/session98161"
+    "Handed-off loopback attended-review server only, PID46999/session21007"
   ],
   "milestone": "smooth-comparison-panning",
-  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m2-binding.json",
-  "segment_id": "rejected-v001-revision",
+  "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m3-binding.json",
+  "segment_id": "rejected-ac08-v002",
   "binding_renewal": "Renew after owner amendment and card parking change whole-source fingerprints. Adopted plan definition, eight criteria and exit texts remain unchanged. Original m1 binding retained.",
   "diagnostic": {
     "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-sublime-recording-v001-20261012",
@@ -100,8 +103,36 @@
     "original_executable_hash_verified_before_removal": true
   },
   "review": {
+    "session": "12930e4afcde5660e890f36745df8f70",
+    "cursor": 3,
+    "candidates": [
+      {
+        "id": "BPR-1413-AC08-v003",
+        "fingerprint": "d0fbf577e3862a33df5b65614549a83ac12b3e98474ab00de7e3afcc69428ec2"
+      }
+    ],
+    "manifest": "attended-manifest-v003.json",
+    "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-smooth-panning-v003-20261012",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_",
+    "executable_sha256": "bc9ba159aba61791d37ef68765ea1b49cdbf79859dca256cc430bf13e5e81072",
+    "wait_owner": "coordinator /root",
+    "wait_qualification": "unqualified; manual resume required",
+    "pending_decisions": [
+      "AC08 Accept/Reject with change note"
+    ]
+  },
+  "accepted_ac07": {
+    "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
     "session": "c595e5c955c2cd527f9f4a351d3ab175",
-    "cursor": 6,
+    "candidate": "BPR-1413-AC07-v002",
+    "fingerprint": "def1bc09d1cf931783cd1059720d1593954933c7b1ff317a314e0afb75e0234b",
+    "decision_id": "0a0ba98a-3e76-4cb8-b404-fb0196dbd48c",
+    "outcome": "accept"
+  },
+  "previous_review": {
+    "session": "c595e5c955c2cd527f9f4a351d3ab175",
+    "cursor": 11,
     "candidates": [
       {
         "id": "BPR-1413-AC07-v002",
@@ -119,9 +150,15 @@
     "executable_sha256": "958c7079ff56817dd37538f028ed8544002689d9f26bc1f3f3805991ba196747",
     "wait_owner": "coordinator /root",
     "wait_qualification": "unqualified; manual resume required",
-    "pending_decisions": [
-      "AC07 Accept/Reject touchpad drift",
-      "AC08 Accept/Reject minimum keyboard reveal"
-    ]
+    "pending_decisions": [],
+    "decisions": {
+      "AC07": "accept",
+      "AC08": "reject"
+    },
+    "protections_released": true,
+    "release_reason": "Rejected AC08 and shared diff_workbench path protection reconciled through resume-development; accepted AC07 verdict and frozen artifact retained.",
+    "server_stopped": true,
+    "frozen_root_removed": true,
+    "original_executable_hash_verified_before_removal": true
   }
 }

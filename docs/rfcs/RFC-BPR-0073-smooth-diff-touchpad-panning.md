@@ -179,6 +179,19 @@ not consistently release preference. Synthetic replay delivered movement but
 failed to reproduce the trajectory, so no physical replay equivalence is claimed.
 The original trace remains private outside Git; capture has stopped.
 
+## Owner correction after candidate v002
+
+In session `c595e5c955c2cd527f9f4a351d3ab175`, the owner accepted AC07
+touchpad behavior (decision `0a0ba98a-3e76-4cb8-b404-fb0196dbd48c`) and
+rejected AC08 keyboard reveal (decision `02e54a5d-56d8-439a-b158-ed1bf27b9c9b`):
+the highlighted line should have been the bottom line. The accepted adaptive
+axis implementation is retained. A rendered reproduction found keyboard reveal
+scrolling a fully visible target upward by one row because the overscan mask
+was shorter than the displayed content area. Reveal now captures the displayed
+area before selection projection. Fully visible targets stay put; clipped
+targets keep the existing nearest-edge, line-aligned destination. The fresh
+review asks only for the remaining keyboard judgment.
+
 ## Acceptance criteria
 
 - **AC01:** In rendered split and unified comparisons, successive vertical
@@ -221,10 +234,10 @@ The original trace remains private outside Git; capture has stopped.
   and unified views, including an unequal replacement in split view.
 
 No material product choice remains open. Exact filtering constants and the
-native-control technique remain implementation decisions. Physical touchpad
-feel remains unverified until the attended criterion; authoring checks are not
-implementation acceptance.
+native-control technique remain implementation decisions. The owner's v002
+touchpad acceptance is retained; the revised minimum keyboard reveal still
+requires its separate attended judgment.
 
 ## Adoption and execution
 
-Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Candidate v001 was rejected; BPR-1413 remains open for the required touchpad verdict and the separate minimum keyboard reveal judgment on its revised frozen candidate. No human acceptance is inferred from automated checks or the scoped diagnostic.
+Adopted under the recorded [live import](assets/smooth-diff-touchpad-panning.LIVE_IMPORT.md). The original owner amendments and all eight criteria remain authoritative. The revised implementation and deterministic criteria are verified in [the evidence ledger](../verification/RFC-BPR-0073.md). Touchpad behavior has actual owner acceptance on v002; BPR-1413 remains open only for the separate minimum keyboard reveal judgment on v003. No human acceptance is inferred from automated checks or the scoped diagnostic.

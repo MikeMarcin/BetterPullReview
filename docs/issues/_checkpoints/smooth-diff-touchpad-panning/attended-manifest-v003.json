@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "revision": "a9af17c712f2fc3e7dc4c4718689ff482af8fed7 / executable bc9ba159aba61791d37ef68765ea1b49cdbf79859dca256cc430bf13e5e81072",
+      "paths": [
+        "src/adapters/qt/src/diff_workbench.cpp",
+        "tests/adapters_qt/diff_workbench_tests.cpp"
+      ],
+      "resources": [
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_"
+      ],
+      "resource_versions": {
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_": "sha256:bc9ba159aba61791d37ef68765ea1b49cdbf79859dca256cc430bf13e5e81072"
+      },
+      "launch": {
+        "label": "Launch the exact frozen comparison",
+        "command": "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_/launch.py"
+      },
+      "id": "BPR-1413-AC08-v003",
+      "title": "Keep the minimum keyboard reveal?",
+      "criteria": [
+        "Does keyboard navigation reveal a clipped line only as far as needed to make the whole line visible?"
+      ],
+      "content": "Launch the frozen build below. Select a source line around lines 500\u2013600, scroll slightly between line boundaries, then use Down or Shift-Down until the selected line reaches the bottom edge. The selected line should be the bottom fully visible line when scrolling is necessary; an already visible target should stay put. Try Up at the top edge and split/unified view as part of the same minimum-reveal judgment. The destination remains line-aligned. Accept to keep this keyboard reveal, or Reject and describe the desired change in the note. Touchpad behavior was already accepted and is retained. After saving this decision, use Finish and hand back.",
+      "metadata": {
+        "rfc": "RFC-BPR-0073",
+        "criterion": "AC08",
+        "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v003.teir6i4_",
+        "source_revision": "a9af17c712f2fc3e7dc4c4718689ff482af8fed7",
+        "freeze_check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832"
+      }
+    }
+  ]
+}
