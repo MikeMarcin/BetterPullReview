@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1415"
 title: "Index closest header and source counterparts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0074"]
 depends_on: []
 priority: "P1"
