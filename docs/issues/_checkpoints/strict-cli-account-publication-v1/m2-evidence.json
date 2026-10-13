@@ -156,7 +156,7 @@
     "outcome": "supplied; prior P1/P2 fixed; no blocker"
   },
   "pending": [
-    "required bounded independent critical recheck of final M2 lifecycle seam/native harness, then RFC/card bookkeeping closeout",
+    "main integrator confirms terminal RFC/index status consistently; first-RFC criteria and M2 exits are accepted",
     "fresh M3 ordinary CLI publication owner; no popup removal yet",
     "historical BPR-1373 human criterion for original candidate unchanged"
   ],
@@ -195,5 +195,30 @@
     "tests/github_contract/github_cli_process_runner_tests.cpp",
     "tests/github_contract/qualify_strict_cli_native.py",
     "tests/github_contract/strict_cli_native_probe.cpp"
-  ]
+  ],
+  "required_independent_review": {
+    "revision": "2793606c5a7785d0b671b81a31f016b401cab1b5",
+    "path": "/tmp/bpr-strict-cli-run/critical-m2-review.md",
+    "sha256": "4e3bb093da0c28ccdcf6971f5ff139413ec973d390bfce627ad458291800dedb",
+    "outcome": "supplied; no blocking finding against affected RFC0078 claims; independent runner 1/1 pass and source/evidence/executable hashes verified",
+    "disposition": "accepted with existing explicit metadata socket/test CA/CONNECT, live /user and watchdog lifecycle limits"
+  },
+  "milestone_acceptance": {
+    "status": "accepted",
+    "mandate_revision": "strict-cli-publication-r2",
+    "source_revision": "2793606c5a7785d0b671b81a31f016b401cab1b5",
+    "criteria": [
+      "RFC-BPR-0078:AC01",
+      "RFC-BPR-0078:AC02",
+      "RFC-BPR-0078:AC03",
+      "RFC-BPR-0078:AC04",
+      "RFC-BPR-0078:AC05"
+    ],
+    "exits": [
+      "strict-credential-qualification:exit:1",
+      "strict-credential-qualification:exit:2",
+      "strict-credential-qualification:exit:3",
+      "strict-credential-qualification:exit:4"
+    ]
+  }
 }

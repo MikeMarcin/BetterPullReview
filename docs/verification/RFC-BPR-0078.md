@@ -10,7 +10,13 @@ classification no longer reproduce. Its existing exact-bound M1 evidence is
 M2 adds explicit native qualification helpers and an actual-child watchdog
 course; its final revision and current verification are recorded in
 [the M2 checkpoint](../issues/_checkpoints/strict-cli-account-publication-v1/m2-handoff.md).
-Required acceptance of that final candidate remains pending until supplied.
+Bounded independent critical acceptance of final candidate
+`2793606c5a7785d0b671b81a31f016b401cab1b5` is supplied in
+`/tmp/bpr-strict-cli-run/critical-m2-review.md`: no blocking finding, independent
+runner 1/1 pass, ten evidence-file hashes and probe/stock-gh hashes verified.
+All five strict criteria and M2 exits are accepted under `strict-cli-publication-r2`
+with the limitations below. Main integration owns matching terminal RFC/index
+status confirmation; no lane-owned index or counter change is made.
 
 | Criterion | Direct evidence and limits |
 |---|---|
