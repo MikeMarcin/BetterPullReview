@@ -1,0 +1,13 @@
+{
+  "criterion": "AC01-AC05",
+  "outcome": "pass",
+  "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"/Users/jaeger/.codex/worktrees/file-change-navigation/BetterPullReview/build/dev\", \"-R\", \"^(application_review_navigation_entry|application_header_source_navigation|qt_workbench_window_scale_100|architecture_boundaries|test_network_isolation_manifest)$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 74.815,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/file-change-navigation/BetterPullReview/build/dev\n    Start   5: architecture_boundaries\n1/5 Test   #5: architecture_boundaries ................   Passed   10.62 sec\n    Start  62: test_network_isolation_manifest\n2/5 Test  #62: test_network_isolation_manifest ........   Passed    0.73 sec\n    Start 381: qt_workbench_window_scale_100\n3/5 Test #381: qt_workbench_window_scale_100 ..........   Passed   25.94 sec\n    Start 690: application_header_source_navigation\n4/5 Test #690: application_header_source_navigation ...   Passed    9.21 sec\n    Start 692: application_review_navigation_entry\n5/5 Test #692: application_review_navigation_entry ....   Passed   28.27 sec\n\n100% tests passed out of 5\n\nLabel Time Summary:\nbpr_network_isolated                    =  74.76 sec*proc (5 tests)\nbpr_serial_gui                          =  63.42 sec*proc (3 tests)\nbpr_windows_uncontained_registration    =  37.48 sec*proc (2 tests)\n\nTotal Test time (real) =  74.79 sec\n",
+    "stderr_tail": ""
+  }
+}

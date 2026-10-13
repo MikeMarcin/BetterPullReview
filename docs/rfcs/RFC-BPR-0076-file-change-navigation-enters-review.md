@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0076"
 title: "File and change navigation enters Review"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"rfc_base_sha":"d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1","mandate_revision":"file-change-navigation-r1","milestone_plan":{"id":"file-change-navigation-v1","path":"docs/rfcs/plans/file-change-navigation-v1/milestone-plan.json"}}
 ---
@@ -14,7 +14,11 @@ Mandate `file-change-navigation-r1` adopts the draft and settled owner decisions
 Immutable RFC_BASE_SHA: `d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1`. The
 [live import](assets/file-change-navigation-v1.LIVE_IMPORT.md) preserves source bytes, and the
 [one-milestone plan](plans/file-change-navigation-v1/milestone-plan.json) covers all criteria.
-Implementation and acceptance are pending on [[BPR-1417]].
+AC01–AC05 pass on `aa3d71fe4`: all four retained navigation actions enter
+Review before stepping its exact active-tab context, including bounded entry.
+[[BPR-1417]] records acceptance. The [verification ledger](../verification/RFC-BPR-0076.md)
+binds the composed/window evidence, negative control and baseline tidy limits.
+No required human/native/independent acceptance remains.
 
 ## Problem and grounded current behavior
 

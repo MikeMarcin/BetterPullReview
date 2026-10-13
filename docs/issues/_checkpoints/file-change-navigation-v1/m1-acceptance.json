@@ -1,0 +1,71 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The composed Git/cache review course invokes all four retained QActions from Overview, Discuss and Threads through toolbar clicks, View menu activation and admitted physical key events; each of 36 entries reveals Review and performs its ordinary step once.",
+        "refs": [
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The composed course covers first/last file and change, no-open-comparison, no-changes and no-tab first-file entry; bounds retain exact source/reading position and the existing three-second message, while inactive actions remain disabled.",
+        "refs": [
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "The exact older/reverse active-tab pair is restored before navigation. Delayed file/change entry runs once; unavailable material and later command/tab/file/comparison/Home/composer gestures cancel without retargeting. The final sibling assertion restores its unchanged semantic reading position.",
+        "refs": [
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC04",
+      "outcome": "pass",
+      "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Hidden and remembered Review drawers restore on entry and retain later changes inside Review. The composed summary draft survives the round trip; the full Qt window course verifies discussion selection, reading, filters, replies and existing draft retention.",
+        "refs": [
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC05",
+      "outcome": "pass",
+      "revision": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Physical key entry focuses visible source after exact asynchronous restoration or the originating visible arrow for empty/unavailable Review. Editable multi-line keys retain their native text/caret behavior; Home, local-cycle and composer behavior retain existing checks.",
+        "refs": [
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+          "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json"
+        ]
+      }
+    }
+  ]
+}

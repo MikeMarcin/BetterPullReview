@@ -56,7 +56,7 @@ namespace bpr::qt {
 	/// Theme is the six-tile strip in its inset well: the tiles are the control, and
 	/// the six-way mode combo box that repeated them is gone. Type is eleven rows
 	/// beside the labelled preview, with sizes in points rather than in the
-	/// hundredths the core stores. Colours is the whole 47-role list for the theme on
+	/// hundredths the core stores. Colours is the whole 60-role list for the theme on
 	/// screen, edited through the platform picker, with one bar at its foot while
 	/// anything is previewed. Dif keeps the mascot's visibility, its motion and the
 	/// explanation of what the system asked for, which RFC-BPR-0031's B3 requires to
@@ -191,7 +191,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto theme_previews() const noexcept -> theme_preview_strip*;
 		/// \brief The Type card's labelled preview.
 		[[nodiscard]] auto specimen() const noexcept -> type_preview*;
-		/// \brief The Colours card's 47-role list.
+		/// \brief The Colours card's 60-role list.
 		[[nodiscard]] auto colours() const noexcept -> colour_role_list*;
 		[[nodiscard]] auto colours_title() const noexcept -> QLabel*;
 		[[nodiscard]] auto colours_subtitle() const noexcept -> QLabel*;

@@ -875,6 +875,38 @@ namespace {
 		}
 	}
 
+	void test_old_theme_defers_only_omitted_additive_ink()
+	{
+		auto h        = harness{ };
+		auto palette  = contrast_safe_palette();
+		auto document = core::export_theme(palette);
+		for (const auto role : { core::appearance_role::syntax_namespace, core::appearance_role::syntax_enum_member }) {
+			const auto begin = document.find(std::string{ core::stable_name(role) } + ' ');
+			expect(begin != std::string::npos, "new theme export includes additive role");
+			document.erase(begin, document.find('\n', begin) + 1U - begin);
+			palette[core::index_of(role)] = core::unassigned_appearance_color;
+		}
+		h.ThemeDocuments.Document = document;
+		h.Host.import_theme_file("old-identifier.theme");
+		h.settle();
+		expect(h.Projections.Failed.empty() && h.Projections.Published.size() == 1U
+				   && h.Projections.Published.back().ThemePreview && h.Projections.Published.back().ThemePreview->Palette == palette,
+			   "old theme previews every existing value while deferring both new defaults to presentation");
+		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "old import is preview-only with all stored states retained");
+
+		h.Projections.Published.clear();
+		palette                                                          = contrast_safe_palette();
+		palette[core::index_of(core::appearance_role::syntax_namespace)] = core::appearance_color{ .Alpha = 255U };
+		h.ThemeDocuments.Document                                        = core::export_theme(palette);
+		h.Host.import_theme_file("explicit-unreadable-namespace.theme");
+		h.settle();
+		expect(h.Projections.Published.empty() && h.Projections.Failed.size() == 1U
+				   && h.Projections.Failed.back().Failure == application::appearance_host_failure::palette_contrast_rejected
+				   && std::ranges::any_of(h.Projections.Failed.back().ContrastRejections, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
+			   "explicit unreadable new-role ink is still rejected; only the omission sentinel is deferred");
+		expect(h.Settings.Stores == 0U, "explicit contrast failure performs no durable write");
+	}
+
 	void test_theme_import_is_bounded_typed_and_preview_only()
 	{
 		auto       harnessed              = harness{ };
@@ -1325,6 +1357,7 @@ auto main() -> int
 	test_a_palette_reset_names_one_variant_and_spares_the_others();
 	test_palette_commit_refuses_contrast_failures_without_writing();
 	test_theme_import_is_bounded_typed_and_preview_only();
+	test_old_theme_defers_only_omitted_additive_ink();
 	test_system_mode_follows_the_observation_and_explicit_mode_does_not();
 	test_classification_misses_once_then_hits();
 	test_appearance_changes_never_reparse();

@@ -204,6 +204,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_review_navigation_entry": "dos-volume-name",
     "application_header_source_navigation": "dos-volume-name",
     "application_header_source_navigation_large": "dos-volume-name",
+    "application_cpp_identifier_appearance": "unmeasured (registered on macOS)",
     # [[BPR-1327]], [[BPR-1340]]. Measured on bpr-main-win 2026-10-08 at
     # 9809b3786, registered contained for the measurement: the prepared-open
     # benchmark stops at "large-review-benchmark-failed: private data root

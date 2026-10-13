@@ -1,0 +1,117 @@
+{
+  "base": "d9c93c2dbfe29c5fcd6e11b21df4be0a0aead5f1",
+  "records": [
+    {
+      "translation_unit": "src/app/src/github_application.cpp",
+      "diagnostics": [
+        {
+          "diagnostic": "invalid case style for parameter 'session' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'generation' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'plan' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'binding' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral(\"Publish the previewed review tour and its separately selected description edit\")); }, [this](const application::staged_publication_record& record) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'record' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral(\"Publish the previewed review tour and its separately selected description edit\")); }, [this](const application::staged_publication_record& record) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'hook' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'captured' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'maximum_cancellations' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "constexpr auto maximum_cancellations = std::size_t{ 80U };",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'id' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'text' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for parameter 'limit' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'count_published' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto count_published = [&] {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'count_held' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto count_held = [&] {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'start_one' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto start_one = [&](const state_type::phase aAfter) -> result {",
+          "unchanged_at_base": true
+        }
+      ]
+    },
+    {
+      "translation_unit": "tests/adapters_qt/workbench_window_tests.cpp",
+      "diagnostics": [
+        {
+          "diagnostic": "invalid case style for local variable 'menu_at' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto menu_at = [&window, code](const std::uint32_t aLine) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "the const qualified variable 'command' of type 'const value_type' (aka 'const bpr::core::revisioned_review_draft_command') is copy-constructed from a const reference; consider making it a const reference [performance-unnecessary-copy-initialization,-warnings-as-errors]",
+          "source_quote": "const auto command = commands[applied++];",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "the const qualified variable 'command' of type 'const value_type' (aka 'const bpr::core::revisioned_review_draft_command') is copy-constructed from a const reference; consider making it a const reference [performance-unnecessary-copy-initialization,-warnings-as-errors]",
+          "source_quote": "const auto command = commands[applied++];",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'native_caret' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto native_caret = [&body](const int aKey, const Qt::KeyboardModifiers aModifiers, const int aFrom) {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'all_enabled' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto all_enabled = [&window] {",
+          "unchanged_at_base": true
+        },
+        {
+          "diagnostic": "invalid case style for local variable 'selected_after_review' [readability-identifier-naming,-warnings-as-errors]",
+          "source_quote": "const auto selected_after_review = [&log]() -> std::optional<core::workbench_file_id> {",
+          "unchanged_at_base": true
+        }
+      ]
+    }
+  ],
+  "new_window_resident_course": "pass",
+  "whole_tu_clean": "not claimed"
+}

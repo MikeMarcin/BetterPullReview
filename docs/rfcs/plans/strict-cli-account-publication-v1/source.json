@@ -1,0 +1,15 @@
+{
+  "mapping": {
+    "CLI-0001": "BPR-1425",
+    "CLI-0002": "BPR-1426",
+    "CLI-0003": "BPR-1427",
+    "CLI-0004": "BPR-1428",
+    "CLI-0005": "BPR-1429",
+    "CLI-0006": "BPR-1430",
+    "RFC-DRAFT-0016": "RFC-BPR-0078",
+    "RFC-DRAFT-0017": "RFC-BPR-0079"
+  },
+  "plan_path": "docs/rfcs/plans/strict-cli-account-publication-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "23c48193b13794b308b70bcb17a58f8137e08f42366f43037e952dc0d5514265"
+}

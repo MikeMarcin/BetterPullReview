@@ -1,0 +1,168 @@
+{
+  "run_id": "file-change-navigation-r1",
+  "segment_id": "closeout-recovery-1",
+  "mandate_revision": "file-change-navigation-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "review-navigation-entry",
+  "binding": {
+    "plan_id": "file-change-navigation-v1",
+    "plan_path": "docs/rfcs/plans/file-change-navigation-v1/milestone-plan.json",
+    "milestone_id": "review-navigation-entry",
+    "definition_fingerprint": "sha256:3385cd464e5dd2523e49a30e725e6f9af4f66bbf69161ed3cae1feb1231a4f4f",
+    "obligations": [
+      {
+        "id": "BPR-1417:*",
+        "source": "BPR-1417",
+        "selector": null,
+        "source_fingerprint": "sha256:1e3a6c61c355f8aa8daed071ab135d11c392fb605d77a15c10f91e1bc5c9d307"
+      },
+      {
+        "id": "RFC-BPR-0076:*",
+        "source": "RFC-BPR-0076",
+        "selector": null,
+        "source_fingerprint": "sha256:1e3a6c61c355f8aa8daed071ab135d11c392fb605d77a15c10f91e1bc5c9d307"
+      }
+    ],
+    "obligation_fingerprint": "sha256:4e52c16ecf32bc99a93aadc9c0ca7c252560a32885a7d950113a0b958eb93224",
+    "exit_criteria": [
+      {
+        "id": "review-navigation-entry:exit:1",
+        "text": "AC01\u2013AC05 pass through real Qt actions, admitted physical shortcuts and the composed Git/cache review path, including bounds and older active-tab material."
+      },
+      {
+        "id": "review-navigation-entry:exit:2",
+        "text": "Exact delayed restoration, supersession and unavailable material preserve active/sibling tab identity, drawer memory, drafts and visible focus."
+      },
+      {
+        "id": "review-navigation-entry:exit:3",
+        "text": "Owning UX/tab architecture, baseline review, verification ledger and tracker state agree with the tested candidate; focused format, architecture and documentation gates pass."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "pack-complete",
+  "candidate_revision": "b4e546cd116314554640e85713109d2d680968e4",
+  "handoff_ref": "docs/issues/_checkpoints/file-change-navigation-v1/continuation.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-acceptance.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-baseline-review.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-tidy-limits.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation-tests.json",
+    "docs/issues/_checkpoints/file-change-navigation-v1/m1-final-documentation.json",
+    "docs/verification/RFC-BPR-0076.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1417:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-baseline-review.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-tidy-limits.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation-tests.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-final-documentation.json",
+        "docs/verification/RFC-BPR-0076.md"
+      ]
+    },
+    {
+      "id": "RFC-BPR-0076:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-baseline-review.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-tidy-limits.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation-tests.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-final-documentation.json",
+        "docs/verification/RFC-BPR-0076.md"
+      ]
+    },
+    {
+      "id": "review-navigation-entry:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-baseline-review.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-tidy-limits.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation-tests.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-final-documentation.json",
+        "docs/verification/RFC-BPR-0076.md"
+      ]
+    },
+    {
+      "id": "review-navigation-entry:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-baseline-review.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-tidy-limits.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation-tests.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-final-documentation.json",
+        "docs/verification/RFC-BPR-0076.md"
+      ]
+    },
+    {
+      "id": "review-navigation-entry:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-acceptance.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-integrated-checks.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-verification.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-baseline-review.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-tidy-limits.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-documentation-tests.json",
+        "docs/issues/_checkpoints/file-change-navigation-v1/m1-final-documentation.json",
+        "docs/verification/RFC-BPR-0076.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "RFC-BPR-0076/BPR-1417 original AC01-AC05 and all three milestone exits accepted; bookkeeping and archive cleanup complete. Return completed assignment to coordinator."
+  },
+  "ownership": "quiescent"
+}

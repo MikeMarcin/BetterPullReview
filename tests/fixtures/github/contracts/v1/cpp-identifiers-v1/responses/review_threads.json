@@ -1,0 +1,32 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_cpp-identifiers",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "review.cpp",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/cpp-identifiers:72:files",
+						"hasNextPage": false
+					},
+					"totalCount": 1
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_72",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

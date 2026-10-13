@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1425",
+    "BPR-1426",
+    "BPR-1427",
+    "BPR-1428",
+    "BPR-1429",
+    "BPR-1430"
+  ],
+  "reserve_for": "codex-strict-cli-account-publication",
+  "purpose": "Strict CLI account credentials and ordinary publication pack",
+  "created": "2026-10-13T07:33:46.369092+00:00",
+  "base": "646394bc4e3aa16a44dd751bfc5b0108eb27279a"
+}

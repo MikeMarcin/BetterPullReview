@@ -1,0 +1,25 @@
+{
+  "schema": "bpr.strict-cli-source-identities.v1",
+  "rfc_base_sha": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "mandate_revision": "strict-cli-publication-r1",
+  "files": [
+    {
+      "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/strict-cli-account-publication/RFC-DRAFT-0016-strict-cli-account-credentials.md",
+      "retained_path": "RFC-DRAFT-0016-strict-cli-account-credentials.md",
+      "sha256": "08af081fe83fd791d7a9675f2ab86a1477009eac44be5ada43e359015c3c8357",
+      "bytes": 10177
+    },
+    {
+      "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/strict-cli-account-publication/RFC-DRAFT-0017-remove-cli-publication-warning.md",
+      "retained_path": "RFC-DRAFT-0017-remove-cli-publication-warning.md",
+      "sha256": "370beb705ad9f75acadd9781d44832310d3acca60c4ce1c519d3a5977c6f1b53",
+      "bytes": 7111
+    },
+    {
+      "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/strict-cli-account-publication/proposed-cli-amendments.md",
+      "retained_path": "proposed-cli-amendments.md",
+      "sha256": "73cd4fcb1be9649ec0cb662df54aabb6f8333098644b9112cb0833b97b60e6e8",
+      "bytes": 6348
+    }
+  ]
+}

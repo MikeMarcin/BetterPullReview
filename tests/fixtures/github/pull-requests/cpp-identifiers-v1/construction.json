@@ -1,0 +1,54 @@
+{
+	"commits": [
+		{
+			"author": {
+				"date": "2020-01-01T00:00:00Z",
+				"name": "fixture-author"
+			},
+			"message": "Update C++ identifier example",
+			"parents": [
+				"c587f5b879dc20b319b5de8fb75f512d493bf36b"
+			],
+			"sha": "7b0b05bac636051f80198ef1ad6c52aff0aedf36"
+		}
+	],
+	"constructed": "Synthetic BPR-1412 C++ identifier comparison; no recording or remote data",
+	"files": [
+		{
+			"additions": 1,
+			"base_content_base64": "I2RlZmluZSBHQ1RfQVNTRVJUKHZhbHVlKSAoKHZvaWQpKHZhbHVlKSkKbmFtZXNwYWNlIEdDVDo6TmV0d29yayB7CmVudW0gY2xhc3MgUmVhc29uIHsKICAgIE5vZGUgPSA5LAogICAgSUQgPSAxLAogICAgUGxheWVyID0gNjQsCiAgICBETkEKfTsKZW51bSBjbGFzcyBwcmV2aWV3X2VtaXRfbW9kZSB7IEZ1bGwsIFBhcnRpYWwgfTsKY29uc3RleHByIGF1dG8gcmVhc29uID0gUmVhc29uOjpJRDsKY29uc3RleHByIGF1dG8gb3V0cHV0ID0gcHJldmlld19lbWl0X21vZGU6OkZ1bGw7Cn0KbmFtZXNwYWNlIE1peGVkQ2FzZSB7IGVudW0gQ29sb3VyIHsgUmVkLCBCbHVlIH07IH0KY29uc3RleHByIGF1dG8gc2VsZWN0ZWQgPSBHQ1Q6Ok5ldHdvcms6OlJlYXNvbjo6RE5BOwpjb25zdGV4cHIgYXV0byBjb2xvdXIgPSBNaXhlZENhc2U6OkNvbG91cjo6UmVkOwp2b2lkIHZlcmlmeSgpIHsgR0NUX0FTU0VSVChzZWxlY3RlZCA9PSBHQ1Q6Ok5ldHdvcms6OlJlYXNvbjo6SUQpOyB9CmNvbnN0ZXhwciBpbnQgY2hhbmdlZCA9IDE7Cg==",
+			"changes": 2,
+			"deletions": 1,
+			"filename": "review.cpp",
+			"head_content_base64": "I2RlZmluZSBHQ1RfQVNTRVJUKHZhbHVlKSAoKHZvaWQpKHZhbHVlKSkKbmFtZXNwYWNlIEdDVDo6TmV0d29yayB7CmVudW0gY2xhc3MgUmVhc29uIHsKICAgIE5vZGUgPSA5LAogICAgSUQgPSAxLAogICAgUGxheWVyID0gNjQsCiAgICBETkEKfTsKZW51bSBjbGFzcyBwcmV2aWV3X2VtaXRfbW9kZSB7IEZ1bGwsIFBhcnRpYWwgfTsKY29uc3RleHByIGF1dG8gcmVhc29uID0gUmVhc29uOjpJRDsKY29uc3RleHByIGF1dG8gb3V0cHV0ID0gcHJldmlld19lbWl0X21vZGU6OkZ1bGw7Cn0KbmFtZXNwYWNlIE1peGVkQ2FzZSB7IGVudW0gQ29sb3VyIHsgUmVkLCBCbHVlIH07IH0KY29uc3RleHByIGF1dG8gc2VsZWN0ZWQgPSBHQ1Q6Ok5ldHdvcms6OlJlYXNvbjo6RE5BOwpjb25zdGV4cHIgYXV0byBjb2xvdXIgPSBNaXhlZENhc2U6OkNvbG91cjo6UmVkOwp2b2lkIHZlcmlmeSgpIHsgR0NUX0FTU0VSVChzZWxlY3RlZCA9PSBHQ1Q6Ok5ldHdvcms6OlJlYXNvbjo6SUQpOyB9CmNvbnN0ZXhwciBpbnQgY2hhbmdlZCA9IDI7Cg==",
+			"patch": "@@ -14,4 +14,4 @@\n constexpr auto selected = GCT::Network::Reason::DNA;\n constexpr auto colour = MixedCase::Colour::Red;\n void verify() { GCT_ASSERT(selected == GCT::Network::Reason::ID); }\n-constexpr int changed = 1;\n+constexpr int changed = 2;",
+			"sha": "ce55ae99decb609af0a18cd18d44a13ad612914d",
+			"status": "modified"
+		}
+	],
+	"pull_request": {
+		"additions": 1,
+		"author": {
+			"login": "fixture-author"
+		},
+		"base": {
+			"ref": "main",
+			"sha": "c587f5b879dc20b319b5de8fb75f512d493bf36b"
+		},
+		"body": "Constructed complete-blob declarations, qualified uses and a genuine macro.\n",
+		"changed_files": 1,
+		"commits": 1,
+		"deletions": 1,
+		"head": {
+			"ref": "cpp-identifiers",
+			"sha": "7b0b05bac636051f80198ef1ad6c52aff0aedf36"
+		},
+		"number": 72,
+		"state": "open",
+		"title": "C++ namespaces and enum members"
+	},
+	"repository": {
+		"name": "cpp-identifiers",
+		"owner": "bpr-fixtures"
+	}
+}

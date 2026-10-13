@@ -153,6 +153,12 @@ namespace bpr::application {
 			auto rejections = std::vector<appearance_contrast_rejection>{ };
 			for (const auto variant : all_appearance_variants) {
 				for (auto finding : core::failing_contrast(aPalette, variant)) {
+					// Older documents leave additive roles unassigned. Presentation
+					// supplies their variant's built-in values; the sentinel is not ink.
+					if (core::defaults_on_import(finding.Pair.Foreground)
+						&& aPalette[core::index_of(finding.Pair.Foreground)] == core::unassigned_appearance_color) {
+						continue;
+					}
 					rejections.push_back(appearance_contrast_rejection{
 						.Variant = variant,
 						.Finding = std::move(finding),

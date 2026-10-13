@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/cpp-identifiers",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Constructed complete-blob declarations, qualified uses and a genuine macro.\n",
+	"changed_files": 1,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "cpp-identifiers",
+		"repo": {
+			"full_name": "bpr-fixtures/cpp-identifiers",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_72",
+	"number": 72,
+	"state": "open",
+	"title": "C++ namespaces and enum members",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}
