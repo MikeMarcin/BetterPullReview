@@ -211,3 +211,137 @@ stayed byte-identical with no lock files. A positive control under real Git
 fires the FIFO and fsmonitor canaries, so they can detect an open or a run. The
 FIFO canary polls every 200 µs, so a non-blocking open that closes at once could
 escape it; a blocking reader is always caught.
+
+## BPR-1458: candidate L, libgit2
+
+**Acquisition.** `BPR_EVALUATE_LIBGIT2` (default off, `tests/CMakeLists.txt`)
+adds `tests/evaluation/`, whose `cmake/BprLibgit2Provider.cmake` fetches libgit2
+1.9.7 through `bpr_fetch_verified_archive` (from `BprRe2Provider.cmake`):
+`https://codeload.github.com/libgit2/libgit2/tar.gz/refs/tags/v1.9.7`, SHA-256
+`1a4fbe7589e814777ae76b64734ad80f4ecad22cd33a22682a2aaea4ae5375e7`, 7,769,162
+bytes, COPYING SHA-256
+`e0938121c0554985fe17196ac38fc590d149268e9c46e0c0e7a2eae1354fae71`, re-extracted
+under `build/_bpr/libgit2`. One `cmake -P` download learned the pin (v1.9.8 to
+v1.9.15 answered 404). libgit2 builds static with no HTTPS, SSH, NTLM, GSSAPI,
+CLI, tests, examples or fuzzers, bundled PCRE2 for regex and builtin SHA-256,
+and installs nothing. Integrating it needed `CMAKE_POLICY_VERSION_MINIMUM 3.10`,
+`CMAKE_POLICY_DEFAULT_CMP0126 NEW` (otherwise libgit2's cache writes silently
+re-enabled SecureTransport HTTPS and system regex), removing its cached C90
+standard, and the system zlib: libgit2's bundled zlib and core's pinned zlib
+both define `_z_errmsg`. With the option off, configure mentions no libgit2,
+`build.ninja` has no libgit2 reference, nothing is staged under `_bpr`, and the
+shipped `app_bpr` links no git2 library (its link command hashes the same with
+the option on and off).
+
+**Harness, L beside K (`git_metadata_harness` with the option on, macOS).**
+
+| Component | Agree | Diverge | Refused | Skipped |
+|---|---|---|---|---|
+| C1 | 35 | 2 | 7 | 1 |
+| C2 | 37 | 2 | 5 | 1 |
+| C3 | 36 | 3 | 5 | 1 |
+| C4 | 37 | 2 | 5 | 1 |
+| C5 | 33 | 5 | 5 | 2 |
+| C6 | 31 | 5 | 7 | 2 |
+
+Classified refusals: SHA-256 repositories in the shipped build (`unknown
+object format 'sha256'`), reftable, `compatObjectFormat`, and split and sparse
+indexes (C1, C6: `unsupported mandatory extension`). **Silent divergences**
+(registry class `silent`, so L is not eligible for the component under H1):
+a version 0 repository naming `extensions.refStorage` read as files (all
+components; Git refuses it); a config Git refuses (`core.ignorecase = maybe`)
+read anyway (all components); symbolic references followed past Git's five
+reads (C3); `config/local**/*.pem` keeping a path Git ignores, the literal-prefix
+defect BPR-1454 fixed in K (C5); a directory-only attribute pattern applied to a
+directory path Git leaves unspecified, and C-quoted attribute patterns not read
+(C6). L's adversarial ignore case is not run (C5, C6): libgit2's
+`src/util/wildmatch.c:198-199` returns `WM_NOMATCH` where Git aborts, and
+`tool_libgit2_probe` measured `*a` repeated 14 times at 4.8 s, with 18 or more
+unfinished after 10 s (K: 0.5 ms for 3,000 repetitions).
+
+**Containment, execution and writes (H2, macOS).** The canary course: for every
+component L opened the `include.path` FIFO outside the root; C2 followed the
+outside include and C5 and C6 followed the symlinked rule files out of the root.
+A dylib shim logging every path call (`libgit2_course.py`) shows why: the
+symlinked rule files are opened with `O_CLOEXEC` only (libgit2's source has no
+`O_NOFOLLOW`; `attr_file.c:155-161`, `futils.c:98-100`), includes are joined
+unrooted and read by path (`config_file.c:523-529`, `:147`), the index is read by
+path (`index.c:696`), and `core.excludesFile` and `core.attributesFile` targets
+outside the root are opened. Global files stayed unread with all four search
+levels set to empty and the home directory cleared. L ran no process (hooks,
+fsmonitor, filter and textconv canaries never fired; the only process-creating
+code, `transports/ssh_exec.c:258`, is not built) and wrote nothing.
+
+**SHA-256 and reftable (H3).** The shipped configuration refuses SHA-256; the
+experimental build (`BPR_EVALUATE_LIBGIT2_SHA256=ON`) reads it and otherwise
+answers the same, and libgit2's changelog moves SHA-256 out of experimental only
+in 2.0, with API and ABI changes. 1.9.7 contains no reftable code.
+
+**Cost record (macOS arm64).**
+
+- **License (SPDX):** `GPL-2.0-only WITH GCC-exception-2.0 AND LGPL-2.1-or-later
+  AND BSD-3-Clause WITH PCRE2-exception AND MIT AND BSD-3-Clause AND
+  BSD-2-Clause AND CC0-1.0 AND LicenseRef-libgit2-wildmatch`, from COPYING and
+  the compiled parts' headers. The linking exception's text is the GCC exception
+  2.0's. xdiff is LGPL-2.1-or-later (`deps/xdiff/xdiff.h`), which COPYING does
+  not mention, and 33 `xdl_` symbols are linked. Both points need legal review.
+- **Trial packaging:** `tests/evaluation/libgit2/dependencies.libgit2-draft.json`
+  through `release.verify` with a patched component list:
+  `RELEASE_SOURCE_ASSET_OK` ("legal_approval: pending separately"); a wrong
+  SHA-256 gives `corresponding-source-digest-mismatch`. `packaging/dependencies.json`
+  is unchanged.
+- **Build time of libgit2 alone** (one clean run each on a busy machine):
+  Release 28.5 s at `-j1`, 3.8 s at `-j10`; Debug `-O0 -g0` 21.3 s and 2.7 s.
+- **Stripped binary size** (the same program with K, and with K and L):
+  Release +1,249,264 bytes (108,184 to 1,357,448); with `-Wl,-dead_strip`, which
+  the product does not use, +686,256; Debug +2,008,352. L also links
+  `/usr/lib/libz.1.dylib`.
+- **Toolchain:** a C90 compiler and CMake with the three workarounds above;
+  shipping it needs the system zlib or a symbol-prefixed copy (core's pinned
+  zlib has no deflate).
+- **Releases and advisories** (from the archive's changelog and SECURITY.md,
+  which carry no dates): eight 1.9 releases, three of them security releases
+  (1.9.2, 1.9.5 with five CVEs, 1.9.7); fixes promised for the latest two series;
+  1.9 is the last 1.x series and 2.0 will change API and ABI.
+- **Integration size:** 102 lines of provider, 38 of CMake and 298 of candidate;
+  evaluation-only tools 160 (probe), 61 (size), 201 (V differential) and 614
+  (course).
+- **Windows and Linux:** not measured ([[BPR-1462]], [[BPR-1463]]).
+
+A build tree made with the option on inside the checkout fails
+`architecture_boundaries`: its recursive scan of `CMakeLists.txt` files reaches
+the staged libgit2 sources under `build/`. The option-off tree is unaffected;
+an evaluation build outside the checkout, or anchoring that scan as the script
+already does elsewhere, avoids it.
+
+## BPR-1459: candidates V and G
+
+**V, a vendored matcher.** libgit2's `wildmatch.c` header claims GPL-2.0 with the
+linking exception, while COPYING (lines 1074–1098) gives Rich Salz's BSD-style
+terms with a binary acknowledgement ("This product includes software developed
+by Rich Salz"); neither calls it public domain, as the RFC's drafting assumed.
+Both sets of terms bind: libgit2's and Git's modifications under GPL-2.0 with
+the exception, the original under Rich Salz's terms. `tool_wildmatch_differential`
+(evaluation-only, linked against the verified archive, never core or the
+product) compared it with `core::wildcard_match` on 7,000,000 generated pairs in
+the C locale (seeds 83, 1, 2, 3): full agreement with and without folding. In an
+`en_US.UTF-8` process (`setlocale(LC_ALL, "")`, as a Qt application does) it
+disagrees on 486 exact and 1,096 folded pairs per million, one class: the C
+library's character classes treat bytes such as 0xC9 and 0xE9 as letters and fold
+them. It also carries the exponential star behaviour above. Vendoring it into core
+would need the owner's approval for that code (Q1), the abort fix, ASCII-only
+classes and the dual notices; it adds no capability K lacks. A reftable reader has
+no libgit2 source to vendor in 1.9.7. **V is not eligible as is (H6), and at best
+eligible pending the owner's approval and those changes.**
+
+**G, gitoxide (desk check; nothing downloaded or linked; from the evaluator's
+knowledge, not re-checked against upstream).** MIT OR Apache-2.0; a second
+toolchain (rustup, cargo and a recent stable Rust) on macOS, Windows and Linux,
+plus CMake–cargo glue; no C API, so BPR would write and maintain the FFI, with no
+type crossing the port; dozens of `gix-*` crates and their dependencies, each
+needing an SPDX entry, notices and corresponding source per release; fuzzing and
+sanitizers through cargo-fuzz and nightly Rust, outside the CMake and ctest
+presets; no released reftable support or default-build SHA-256 known. **Rejected:**
+its toolchain, FFI and packaging cost exceeds K's fix cost for every component,
+and it offers no capability in scope that K lacks. Its tests may still serve as a
+semantic reference.
