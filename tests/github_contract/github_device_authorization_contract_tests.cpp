@@ -494,6 +494,18 @@ namespace {
 				}),
 			device_authorization_contract_failure::off_authority_verification_uri,
 			"a non-https verification address is refused");
+		// [[BPR-1439]]. The exact authority: no userinfo, port or fragment.
+		for (const auto* address : { "https://user@github.com/login/device", "https://user:secret@github.com/login/device", "https://@github.com/login/device",
+									 "https://github.com:443/login/device", "https://github.com:8443/login/device", "https://github.com/login/device#code" }) {
+			failure(
+				mutated(
+					body,
+					[address](fixture_object& aObject) {
+						aObject.insert_or_assign("verification_uri", address);
+					}),
+				device_authorization_contract_failure::off_authority_verification_uri,
+				"a verification address with userinfo, a port or a fragment is refused");
+		}
 		failure(
 			mutated(
 				body,
@@ -514,6 +526,13 @@ namespace {
 		expect(
 			!parse_device_code_response(wrongType).has_value(),
 			"an unexpected content type is refused");
+		// [[BPR-1439]]. The shared JSON predicate replaced a prefix match.
+		for (const auto* type : { "application/jsonx", "application/json-seq", "application/json; charset=latin1" }) {
+			wrongType.Headers.front().Value = type;
+			expect(!parse_device_code_response(wrongType).has_value(), "a JSON-prefixed media type that is not JSON is refused");
+		}
+		wrongType.Headers.front().Value = "application/json; charset=utf-8";
+		expect(parse_device_code_response(wrongType).has_value(), "JSON with charset=utf-8 is accepted");
 
 		auto oversized = response_from(fixture, body);
 		oversized.Body.append(

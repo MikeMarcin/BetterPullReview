@@ -3165,13 +3165,8 @@ namespace bpr::app {
 			return false;
 		}
 		const auto hex = [](const auto& aIdentity) {
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			auto           text   = std::string{ };
-			for (const auto byte : aIdentity.bytes()) {
-				text.push_back(digits[static_cast<std::size_t>(byte) >> 4U]);
-				text.push_back(digits[static_cast<std::size_t>(byte) & 0x0FU]);
-			}
-			return text;
+			const auto& bytes = aIdentity.bytes();
+			return QByteArray::fromRawData(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())).toHex().toStdString();
 		};
 		auto binding = std::ofstream{ aRoot / "binding", std::ios::binary };
 		binding << aBinding << '\n';
@@ -20778,14 +20773,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 
 		const auto lowerHex = [](const std::span<const std::uint8_t> aBytes) {
-			static constexpr std::string_view digits = "0123456789abcdef";
-			auto                              result = std::string{ };
-			result.reserve(aBytes.size() * 2U);
-			for (const auto byte : aBytes) {
-				result.push_back(digits[(static_cast<unsigned>(byte) >> 4U) & 0x0fU]);
-				result.push_back(digits[byte & 0x0fU]);
-			}
-			return result;
+			return QByteArray::fromRawData(reinterpret_cast<const char*>(aBytes.data()), static_cast<qsizetype>(aBytes.size())).toHex().toStdString();
 		};
 
 		const auto& authority = *selectedAuthority;

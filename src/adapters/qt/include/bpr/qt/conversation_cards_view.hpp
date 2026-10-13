@@ -231,6 +231,23 @@ namespace bpr::qt {
 		std::vector<card_post> Posts;
 	};
 
+	/// \brief [[BPR-1471]]. Where a closed note's meta row draws, in viewport
+	/// coordinates, from its right edge leftward. A note that is not a draft
+	/// keeps the resolved check's slot whether or not it is resolved, so the
+	/// blue new-post count, the reply count and the faces stand in one column.
+	struct closed_note_meta final
+	{
+		/// The green resolved check; empty when the note is not resolved.
+		QRectF Resolved;
+		/// The blue new-post count; empty when nothing in the note is new. Its
+		/// right edge is the same on every closed note ([[BPR-1473]]).
+		QRectF NewCount;
+		/// "Your reply" and its pencil, left of the count; empty without one.
+		QRectF UnsentReply;
+		/// The right edge the reply count and the repliers' faces start from.
+		int Replies = 0;
+	};
+
 	/// \brief [[BPR-1084]]. What a reply in this conversation would be attached
 	/// to on GitHub, from its accepted projection: a file comment (also one its
 	/// code link places at a line), an outdated line, no current line, the pull
@@ -539,6 +556,9 @@ namespace bpr::qt {
 		/// viewport coordinates: centred under its 18 px avatar, 3 px below
 		/// it. Empty for a plain first post.
 		[[nodiscard]] auto mark_rect(const thread_card& aCard) const -> QRect;
+		/// \brief [[BPR-1471]]. Where a closed note that is not a draft draws
+		/// its meta row; all empty for a draft or a note without posts.
+		[[nodiscard]] auto closed_meta(const thread_card& aCard) const -> closed_note_meta;
 		/// \brief Where a closed note's rail is drawn, in viewport coordinates:
 		/// down its left edge, 2 px wide or 4 px when blocking, growing outward.
 		[[nodiscard]] auto rail_rect(const thread_card& aCard) const -> QRectF;

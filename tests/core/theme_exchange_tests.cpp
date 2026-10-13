@@ -1,6 +1,7 @@
 #include "bpr/core/theme_exchange.hpp"
 
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/hex.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -8,6 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -539,10 +541,24 @@ namespace {
 				   == theme_import_reason::malformed_document,
 			   "a non-ASCII byte is outside the format's alphabet");
 	}
+
+	/// [[BPR-1439]]. The one plain lowercase hex the core and the Qt-free
+	/// targets share; a colour is written with it.
+	void test_lower_hex_is_two_lowercase_digits_per_byte()
+	{
+		const auto bytes = std::vector<std::uint8_t>{ 0x00U, 0x0FU, 0xA5U, 0xFFU };
+		expect(bpr::core::lower_hex(bytes) == "000fa5ff", "two lowercase digits per byte, high nibble first");
+		expect(bpr::core::lower_hex(std::string_view{ "\x01\xFE", 2U }) == "01fe", "characters are read as octets");
+		expect(bpr::core::lower_hex(std::span<const std::uint8_t>{ }).empty(), "no bytes, no digits");
+		auto text = std::string{ "#" };
+		bpr::core::append_lower_hex(text, bytes);
+		expect(text == "#000fa5ff", "appending keeps what was there");
+	}
 } // namespace
 
 int main()
 {
+	test_lower_hex_is_two_lowercase_digits_per_byte();
 	test_a_valid_document_round_trips();
 	test_a_document_may_be_written_by_hand();
 	test_an_unknown_field_is_refused_by_name();

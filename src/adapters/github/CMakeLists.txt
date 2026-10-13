@@ -63,6 +63,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
             src/github_capability_probe.cpp
             src/github_cli_process_runner.cpp
             src/github_host_profile.cpp
+            src/github_http_helpers.cpp
 			src/github_mutation_contract.cpp
             src/github_publication_contract.cpp
             src/github_publication_session.cpp
@@ -93,6 +94,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
         PUBLIC
             BetterPullReview::Application
         PRIVATE
+            BetterPullReview::Fmt
             BetterPullReview::ProcessSupport
             Qt6::Core
             Qt6::Network

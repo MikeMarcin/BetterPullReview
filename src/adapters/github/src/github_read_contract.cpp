@@ -1,6 +1,7 @@
 #include "github_read_contract.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "github_graphql_operation_policy.hpp"
+#include "github_http_helpers.hpp"
 
 #include <QString>
 
@@ -168,28 +169,6 @@ namespace bpr::adapters::github::detail {
 								: std::string_view{ "/api/v3" };
 			}
 			return failure(contract_failure_code::unsupported_server_contract);
-		}
-
-		[[nodiscard]] auto percent_encode(const std::string_view aValue) -> std::string
-		{
-			constexpr std::string_view hexadecimal = "0123456789ABCDEF";
-			std::string                encoded;
-			encoded.reserve(aValue.size());
-
-			for (const auto rawCharacter : aValue) {
-				const auto character  = static_cast<unsigned char>(rawCharacter);
-				const auto unreserved = std::isalnum(character) != 0 || character == '-'
-					|| character == '_' || character == '.' || character == '~';
-				if (unreserved) {
-					encoded.push_back(static_cast<char>(character));
-					continue;
-				}
-
-				encoded.push_back('%');
-				encoded.push_back(hexadecimal[(static_cast<unsigned>(character) >> 4U) & 0x0FU]);
-				encoded.push_back(hexadecimal[character & 0x0FU]);
-			}
-			return encoded;
 		}
 
 		[[nodiscard]] auto rest_headers() -> std::vector<http_header>

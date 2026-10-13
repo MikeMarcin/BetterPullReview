@@ -21,6 +21,7 @@ add_library(
         src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/review_cycle_capture.cpp
+        src/review_cycle_git_metadata.cpp
         src/review_cycle_comparison.cpp
         src/review_cycle_feedback.cpp
         src/review_cycle_round.cpp

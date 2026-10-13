@@ -178,6 +178,20 @@ if(TARGET Git::Git)
     bpr_add_network_isolated_test(NAME review_cycle_outgoing WINDOWS_UNCONTAINED COMMAND test_review_cycle_outgoing ${bpr_workspace_git_arguments})
 endif()
 
+# [[BPR-1454]] and [[BPR-1461]]. The Git metadata readers against repositories
+# real Git made: format refusals, config syntax, ignoreCase, POSIX classes, the
+# index trailer and extensions, HEAD resolution and reftable.
+if(TARGET Git::Git)
+    bpr_add_executable(test_review_cycle_git_readers review_cycle_git_reader_tests.cpp)
+    target_link_libraries(test_review_cycle_git_readers PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application)
+    bpr_enable_hardening(test_review_cycle_git_readers)
+    if(WIN32)
+        target_link_libraries(test_review_cycle_git_readers PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_review_cycle_git_readers)
+    bpr_add_network_isolated_test(NAME review_cycle_git_readers WINDOWS_UNCONTAINED COMMAND test_review_cycle_git_readers ${bpr_workspace_git_arguments})
+endif()
+
 # [[BPR-1173]]. Isolated squashed candidates: canaries, exact read-back, external patch.
 if(TARGET Git::Git)
     bpr_add_executable(test_review_cycle_candidate review_cycle_candidate_tests.cpp)

@@ -1,0 +1,14 @@
+{
+  "mapping": {
+    "BPR-0001": "BPR-1440",
+    "BPR-0002": "BPR-1441",
+    "BPR-0003": "BPR-1442",
+    "BPR-0004": "BPR-1443",
+    "BPR-0005": "BPR-1444",
+    "BPR-0006": "BPR-1445",
+    "RFC-DRAFT-0021": "RFC-BPR-0081"
+  },
+  "plan_path": "docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "732ddd2e178e77a8cd1b3b6667181d8335d795f57f0c501338a6e5c9a66caad4"
+}

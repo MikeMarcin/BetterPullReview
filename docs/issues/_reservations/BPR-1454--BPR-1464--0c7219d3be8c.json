@@ -1,0 +1,20 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1454",
+    "BPR-1455",
+    "BPR-1456",
+    "BPR-1457",
+    "BPR-1458",
+    "BPR-1459",
+    "BPR-1460",
+    "BPR-1461",
+    "BPR-1462",
+    "BPR-1463",
+    "BPR-1464"
+  ],
+  "reserve_for": "git-metadata-readers",
+  "purpose": "RFC-DRAFT-0019 Git metadata readers: fix card, harness, canary, fuzz/perf, libgit2 evaluation, desk checks, decision, reftable Q2, Windows, Linux, closeout",
+  "created": "2026-10-13T19:14:54.714889+00:00",
+  "base": "c0fb324862bbc2c8db1ee4e60f150ff7539c8a50"
+}

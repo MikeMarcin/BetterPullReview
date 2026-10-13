@@ -1,6 +1,7 @@
 #include "github_capability_probe.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "github_graphql_operation_policy.hpp"
+#include "github_http_helpers.hpp"
 
 #include <QRegularExpression>
 #include <QSet>
@@ -1888,32 +1889,6 @@ namespace bpr::adapters::github::detail {
 			return false;
 		}
 
-		[[nodiscard]] auto json_content_type(
-			const std::string_view aContentType) noexcept -> bool
-		{
-			if (aContentType.size() > 256U) {
-				return false;
-			}
-			const auto separator = aContentType.find(';');
-			auto       mediaType = aContentType.substr(0U, separator);
-			while (!mediaType.empty() && std::isspace(static_cast<unsigned char>(mediaType.front())) != 0) {
-				mediaType.remove_prefix(1U);
-			}
-			while (!mediaType.empty() && std::isspace(static_cast<unsigned char>(mediaType.back())) != 0) {
-				mediaType.remove_suffix(1U);
-			}
-			constexpr std::string_view expected = "application/json";
-			if (mediaType.size() != expected.size()) {
-				return false;
-			}
-			for (std::size_t index = 0U; index < mediaType.size(); ++index) {
-				if (ascii_fold(mediaType[index]) != expected[index]) {
-					return false;
-				}
-			}
-			return true;
-		}
-
 		[[nodiscard]] auto
 		graphql_error_body_rate_limited(const capability_probe_response& aResponse,
 										const capability_probe_limits&   aLimits) noexcept
@@ -1921,7 +1896,7 @@ namespace bpr::adapters::github::detail {
 		{
 			if (aResponse.Body.empty()
 				|| aResponse.Body.size() > aLimits.MaximumResponseBytes
-				|| !json_content_type(aResponse.ContentType)) {
+				|| !json_media_type(aResponse.ContentType)) {
 				return false;
 			}
 			try {
@@ -2291,7 +2266,7 @@ namespace bpr::adapters::github::detail {
 				}
 				return data_unavailable(status_failure(value.Status), application::github_capability_diagnostic::normalizer_transport_unavailable);
 			}
-			if (!json_content_type(value.ContentType)) {
+			if (!json_media_type(value.ContentType)) {
 				return data_unavailable(
 					capability_probe_unavailability::invalid_content_type, application::github_capability_diagnostic::transport_invalid_content_type);
 			}

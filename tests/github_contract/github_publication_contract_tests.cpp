@@ -180,6 +180,19 @@ namespace {
 		expect(many && many->size() == 1U, "a listing");
 		const auto paged = parse_pull_requests(response(200, "[" + pull + "]", { { .Name = "Link", .Value = R"(<https://api.github.com/x?page=2>; rel="next")" } }), core::git_hash_algorithm::sha1);
 		expect(!paged, "an incomplete listing is refused, never read as all matches");
+		// [[BPR-1439]]. The shared Link reader: an unquoted or multi-relation
+		// `next` and an unreadable header are refused as well; a `prev` is not.
+		for (const auto* link : { "<https://api.github.com/x?page=2>; rel=next", R"(<https://api.github.com/x?page=2>; rel="next last")",
+								  R"(<https://api.github.com/x?page=1>; rel="prev", <https://api.github.com/x?page=3>; rel=next)", "<https://api.github.com/x?page=2>; rel=",
+								  "<https://api.github.com/x?page=2>" }) {
+			expect(!parse_pull_requests(response(200, "[" + pull + "]", { { .Name = "Link", .Value = link } }), core::git_hash_algorithm::sha1),
+				   "a listing whose Link names a next page or cannot be read is refused");
+		}
+		const auto last = parse_pull_requests(response(200, "[" + pull + "]", { { .Name = "link", .Value = R"(<https://api.github.com/x?page=1>; rel="prev first")" } }), core::git_hash_algorithm::sha1);
+		expect(last && last->size() == 1U, "the last page of a listing is read");
+		auto early           = commit_content();
+		early.Author.Seconds = -62'000'000'000;
+		expect(publication_date(early.Author).starts_with("0005-"), "a year before 1000 is zero-padded to four digits");
 	}
 
 	/// A transport that answers from a script and records every call.

@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8ba4e700a93a9c6bd83b6baafde6bfd06489d48d58f8b3e8ea89ab4f85302fb3"
+		"5649cded940de091a2036cafb8e60639ed9a1748f2d9b3e6bf3f1bb153517a2f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "929e778b8d344d93f860509437d2381dae43a890170529e922b85c8f48251626"
+        "af8736948cc1a2892bf67153d3f2cdf1a0f315aea5a846b1759eb9371d4e01bd"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2379,3 +2379,9 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # pre-QApplication provenance check still reads the raw arguments. No
 # publication, credential, grant or mutation-branch change; the full
 # application and production-manifest digests are refreshed.
+
+# [[BPR-1439]] reseal. github_application.cpp's two hand-written lowercase hex
+# loops (the review identity and a byte rendering) became Qt's byte-array hex
+# conversion, with identical output. No publication, credential, grant,
+# inventory or mutation-branch change; the full application and
+# production-manifest digests are refreshed.

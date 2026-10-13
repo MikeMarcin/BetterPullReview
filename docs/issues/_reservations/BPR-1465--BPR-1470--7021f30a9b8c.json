@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1465",
+    "BPR-1466",
+    "BPR-1467",
+    "BPR-1468",
+    "BPR-1469",
+    "BPR-1470"
+  ],
+  "reserve_for": "diff-engine-evaluation",
+  "purpose": "RFC-DRAFT-0018 diff engine evaluation: core seam, harness, macOS measurements and decisions, Linux, Windows, closeout",
+  "created": "2026-10-13T19:15:40.785454+00:00",
+  "base": "9a4f61976bba23727acd77d10c23c041f87208f0"
+}

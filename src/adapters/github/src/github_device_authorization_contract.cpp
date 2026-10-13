@@ -2,6 +2,8 @@
 
 #include "bpr/application/github_host_authority.hpp"
 
+#include "github_http_helpers.hpp"
+
 #include <QString>
 #include <QUrl>
 
@@ -67,32 +69,6 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		[[nodiscard]] auto form_safe(const char aCharacter) noexcept -> bool
-		{
-			const auto value = static_cast<unsigned char>(aCharacter);
-			return (std::isalnum(value) != 0) || aCharacter == '-'
-				|| aCharacter == '.' || aCharacter == '_' || aCharacter == '~';
-		}
-
-		[[nodiscard]] auto form_encode(const std::string_view aValue)
-			-> std::string
-		{
-			constexpr std::string_view digits = "0123456789ABCDEF";
-			std::string                encoded;
-			encoded.reserve(aValue.size());
-			for (const auto character : aValue) {
-				if (form_safe(character)) {
-					encoded.push_back(character);
-					continue;
-				}
-				const auto value = static_cast<unsigned char>(character);
-				encoded.push_back('%');
-				encoded.push_back(digits[value >> 4U]);
-				encoded.push_back(digits[value & 0x0FU]);
-			}
-			return encoded;
-		}
-
 		[[nodiscard]] auto device_headers() -> std::vector<http_header>
 		{
 			return {
@@ -139,10 +115,7 @@ namespace bpr::adapters::github::detail {
 						== 0;
 				});
 			if (contentType == aResponse.Headers.end()
-				|| !QString::fromStdString(contentType->Value)
-						.startsWith(
-							QStringLiteral("application/json"),
-							Qt::CaseInsensitive)) {
+				|| !json_media_type(contentType->Value)) {
 				return std::unexpected(device_failure::unexpected_content_type);
 			}
 			auto object = device_response_json{ };
@@ -322,7 +295,7 @@ namespace bpr::adapters::github::detail {
 			.Method   = http_method::post,
 			.Url      = std::string{ device_code_url },
 			.Headers  = device_headers(),
-			.Body     = "client_id=" + form_encode(aClientId),
+			.Body     = "client_id=" + percent_encode(aClientId),
 		};
 	}
 
@@ -349,9 +322,9 @@ namespace bpr::adapters::github::detail {
 			.Method   = http_method::post,
 			.Url      = std::string{ token_url },
 			.Headers  = device_headers(),
-			.Body     = "client_id=" + form_encode(aClientId) + "&device_code="
-				+ form_encode(aDeviceCode) + "&grant_type="
-				+ form_encode(device_grant_type),
+			.Body     = "client_id=" + percent_encode(aClientId) + "&device_code="
+				+ percent_encode(aDeviceCode) + "&grant_type="
+				+ percent_encode(device_grant_type),
 		};
 	}
 
@@ -411,9 +384,13 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected(device_failure::invalid_field_value);
 		}
 		const auto verificationUrl = QUrl{ QString::fromStdString(*verification) };
+		// [[BPR-1439]]. The exact authority: no userinfo (even an empty one),
+		// no explicit port and no fragment.
 		if (!verificationUrl.isValid()
 			|| verificationUrl.scheme() != QStringLiteral("https")
-			|| verificationUrl.host() != expected_verification_authority()) {
+			|| verificationUrl.host() != expected_verification_authority()
+			|| verificationUrl.authority(QUrl::FullyEncoded) != expected_verification_authority()
+			|| verificationUrl.port() != -1 || verificationUrl.hasFragment()) {
 			return std::unexpected(
 				device_failure::off_authority_verification_uri);
 		}
@@ -506,9 +483,9 @@ namespace bpr::adapters::github::detail {
 			.Method   = http_method::post,
 			.Url      = std::string{ token_url },
 			.Headers  = device_headers(),
-			.Body     = "client_id=" + form_encode(aClientId) + "&grant_type="
-				+ form_encode(refresh_grant_type) + "&refresh_token="
-				+ form_encode(aRefreshToken),
+			.Body     = "client_id=" + percent_encode(aClientId) + "&grant_type="
+				+ percent_encode(refresh_grant_type) + "&refresh_token="
+				+ percent_encode(aRefreshToken),
 		};
 	}
 

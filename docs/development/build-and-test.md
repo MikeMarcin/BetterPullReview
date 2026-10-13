@@ -3466,6 +3466,30 @@ which replaced the hand-written path-folding tables and duplicated decoders.
 It is part of the Qt-free core graph and on the owner's core allow-list.
 License and provenance are under `third_party/utf8proc/`.
 
+## Core fmt and shared byte helpers
+
+[[BPR-1439]] acquires pinned {fmt} 12.2.0 (`cmake/BprFmtProvider.cmake`:
+archive SHA-256, size and license checked, offline cache honored) as the
+header-only target `BetterPullReview::Fmt`. Formatting uses fmt, never
+`std::format`; Quill's bundled fmt is a separate copy. fmt is on the owner's
+core allow-list and is acquired in the Qt-free graph. License and provenance
+are under `third_party/fmt/`.
+
+Plain lowercase hex of bytes has one helper, `bpr/core/hex.hpp`, for core and
+the Qt-free targets (application, SQLite and MCP adapters). Qt targets use
+`QByteArray::toHex`. Integer, pkt-line length, percent and JSON `\u`
+renderings are separate and stay where they are.
+
+The GitHub adapter's `src/github_http_helpers.hpp` holds the one `Link` header
+tokenizer (links, their parameters and the split `rel` relations), the one
+JSON `Content-Type` predicate (`application/json`, optionally
+`charset=utf-8`), and the byte-for-byte percent-encoder over
+`QByteArray::toPercentEncoding`. Each reader keeps its own URL and strictness
+policy on the tokens: the gh and native transports admit any pagination
+relations, the paged read and mutation readers require exactly one quoted
+relation per link, and the publication reader refuses any `next` or an
+unreadable header.
+
 ## Source search regex engine
 
 [[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as

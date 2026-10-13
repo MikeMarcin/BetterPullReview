@@ -1,6 +1,7 @@
 #include "github_paged_read.hpp"
 #include "bpr/application/review_queue_facts.hpp"
 #include "bpr/core/json_preflight.hpp"
+#include "github_http_helpers.hpp"
 #include "github_review_comment_grouping.hpp"
 
 #include <QString>
@@ -34,6 +35,9 @@ namespace bpr::adapters::github::detail {
 		constexpr std::size_t   maximum_header_name_bytes   = 256U;
 		constexpr std::size_t   maximum_header_value_bytes  = 8U * 1024U;
 		constexpr std::uint64_t maximum_retry_after_seconds = 86'400U;
+		/// [[BPR-1439]]. Spelled with its length: a `"\r\n\0"` literal ends at
+		/// the NUL, so a header carrying one used to pass.
+		constexpr std::string_view header_breaks{ "\r\n\0", 3U };
 
 		constexpr std::size_t   maximum_production_page_bytes      = 4U * 1024U * 1024U;
 		constexpr std::size_t   maximum_production_aggregate_bytes = 64U * 1024U * 1024U;
@@ -150,23 +154,6 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 
-		[[nodiscard]] auto json_content_type(std::string_view aValue) noexcept -> bool
-		{
-			if (aValue.size() > 256U) {
-				return false;
-			}
-			const auto separator = aValue.find(';');
-			const auto media     = trim_ows(aValue.substr(0U, separator));
-			if (!ascii_equal_fold(media, "application/json")) {
-				return false;
-			}
-			if (separator == std::string_view::npos) {
-				return true;
-			}
-			return ascii_equal_fold(trim_ows(aValue.substr(separator + 1U)),
-									"charset=utf-8");
-		}
-
 		enum class metadata_header : std::uint8_t {
 			content_type,
 			link,
@@ -220,8 +207,8 @@ namespace bpr::adapters::github::detail {
 			for (const auto& header : aResponse.Headers) {
 				if (header.Name.empty() || header.Name.size() > maximum_header_name_bytes
 					|| header.Value.size() > maximum_header_value_bytes
-					|| header.Name.find_first_of("\r\n\0") != std::string::npos
-					|| header.Value.find_first_of("\r\n\0") != std::string::npos) {
+					|| header.Name.find_first_of(header_breaks) != std::string::npos
+					|| header.Value.find_first_of(header_breaks) != std::string::npos) {
 					return std::unexpected{ provider_error(
 						application::github_provider_failure::malformed_response) };
 				}
@@ -281,7 +268,7 @@ namespace bpr::adapters::github::detail {
 											 seen[static_cast<std::size_t>(metadata_header::reset)])
 				+ static_cast<std::size_t>(
 											 seen[static_cast<std::size_t>(metadata_header::resource)]);
-			if (!contentType.has_value() || !json_content_type(*contentType)
+			if (!contentType.has_value() || !json_media_type(*contentType)
 				|| (rateHeaderCount != 0U && rateHeaderCount != 4U)
 				|| (rateHeaderCount == 4U
 					&& (!limit.has_value() || !remaining.has_value()
@@ -1134,59 +1121,33 @@ namespace bpr::adapters::github::detail {
 			std::string Relation;
 		};
 
+		/// The strict pagination form GitHub writes: at most four links, each
+		/// with exactly one parameter, a quoted `rel` naming one pagination
+		/// relation, and no relation twice.
 		[[nodiscard]] auto parse_link_relations(const std::string_view aValue)
 			-> std::optional<std::vector<link_relation>>
 		{
-			if (aValue.empty() || aValue.size() > maximum_header_value_bytes) {
+			if (aValue.size() > maximum_header_value_bytes) {
+				return std::nullopt;
+			}
+			const auto links = parse_link_header(aValue);
+			if (!links || links->size() > 4U) {
 				return std::nullopt;
 			}
 			std::vector<link_relation> relations;
-			std::size_t                position = 0U;
-			while (position < aValue.size()) {
-				if (relations.size() == 4U) {
-					return std::nullopt;
-				}
-				auto segmentEnd = aValue.find(',', position);
-				if (segmentEnd == std::string_view::npos) {
-					segmentEnd = aValue.size();
-				}
-				const auto segment = trim_ows(aValue.substr(position, segmentEnd - position));
-				const auto close   = segment.find('>');
-				if (segment.size() < 10U || segment.front() != '<'
-					|| close == std::string_view::npos || close == 1U) {
-					return std::nullopt;
-				}
-				const auto                 parameter = trim_ows(segment.substr(close + 1U));
-				constexpr std::string_view prefix{ "; rel=\"" };
-				if (!parameter.starts_with(prefix)
-					|| parameter.size() <= prefix.size() + 1U || parameter.back() != '"'
-					|| parameter.find('"', prefix.size()) != parameter.size() - 1U) {
-					return std::nullopt;
-				}
-				const auto relation = parameter.substr(
-					prefix.size(), parameter.size() - prefix.size() - 1U);
-				if (relation != "next" && relation != "prev" && relation != "first"
-					&& relation != "last") {
-					return std::nullopt;
-				}
-				if (std::ranges::any_of(relations,
-										[relation](const link_relation& aExisting) { return aExisting.Relation == relation; })) {
+			for (const auto& link : *links) {
+				const auto names = link_relations(link);
+				if (link.Parameters.size() != 1U || !link.Parameters.front().Quoted || !names || names->size() != 1U
+					|| !pagination_relation(names->front())
+					|| std::ranges::any_of(relations, [&names](const link_relation& aExisting) { return aExisting.Relation == names->front(); })) {
 					return std::nullopt;
 				}
 				relations.push_back(link_relation{
-					.Url      = std::string{ segment.substr(1U, close - 1U) },
-					.Relation = std::string{ relation },
+					.Url      = std::string{ link.Target },
+					.Relation = std::string{ names->front() },
 				});
-				position = segmentEnd;
-				if (position < aValue.size()) {
-					if (position + 1U == aValue.size()) {
-						return std::nullopt;
-					}
-					++position;
-				}
 			}
-			return relations.empty() ? std::nullopt
-									 : std::optional{ std::move(relations) };
+			return relations;
 		}
 
 		struct url_query_parameter

@@ -5,6 +5,7 @@
 // the body. It takes the captured bytes and nothing else. [[BPR-0970]] fuzzes
 // it through this header; the transport includes it and calls the same code.
 
+#include "github_http_helpers.hpp"
 #include "github_read_contract.hpp"
 
 #include "bpr/application/github_provider_port.hpp"
@@ -21,154 +22,6 @@
 namespace bpr::adapters::github::detail {
 	/// \brief The most standard output one `gh` invocation may print.
 	inline constexpr std::size_t maximum_gh_cli_standard_output_bytes = 4U * 1024U * 1024U;
-
-	[[nodiscard]] inline auto
-	parse_link_completeness(const std::optional<std::string>& aLink) noexcept
-		-> std::optional<page_completeness>
-	{
-		if (!aLink.has_value()) {
-			return page_completeness::complete;
-		}
-		if (aLink->empty()) {
-			return std::nullopt;
-		}
-
-		const auto text           = std::string_view{ *aLink };
-		const auto tokenCharacter = [](const char aCharacter) noexcept {
-			const auto value = static_cast<unsigned char>(aCharacter);
-			return ((value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') || (value >= '0' && value <= '9')) || aCharacter == '!'
-				|| aCharacter == '#' || aCharacter == '$' || aCharacter == '%'
-				|| aCharacter == '&' || aCharacter == '\'' || aCharacter == '*'
-				|| aCharacter == '+' || aCharacter == '-' || aCharacter == '.'
-				|| aCharacter == '^' || aCharacter == '_' || aCharacter == '`'
-				|| aCharacter == '|' || aCharacter == '~';
-		};
-		const auto skipWhitespace = [&text](std::size_t& aPosition) noexcept {
-			while (aPosition < text.size()
-				   && (text[aPosition] == ' ' || text[aPosition] == '\t')) {
-				++aPosition;
-			}
-		};
-		const auto validRelation = [](const std::string_view aValue,
-									  bool&                  aHasNext) noexcept {
-			if (aValue.empty()) {
-				return false;
-			}
-			std::size_t position = 0U;
-			while (position < aValue.size()) {
-				const auto separator = aValue.find(' ', position);
-				const auto relation  = aValue.substr(position, separator == std::string_view::npos ? aValue.size() - position : separator - position);
-				if (relation != "next" && relation != "prev" && relation != "first"
-					&& relation != "last") {
-					return false;
-				}
-				aHasNext = aHasNext || relation == "next";
-				if (separator == std::string_view::npos) {
-					break;
-				}
-				position = separator + 1U;
-				if (position == aValue.size() || aValue[position] == ' ') {
-					return false;
-				}
-			}
-			return true;
-		};
-
-		bool        hasNext  = false;
-		std::size_t position = 0U;
-		while (position < text.size()) {
-			skipWhitespace(position);
-			if (position == text.size() || text[position] != '<') {
-				return std::nullopt;
-			}
-			const auto targetEnd = text.find('>', position + 1U);
-			if (targetEnd == std::string_view::npos || targetEnd == position + 1U) {
-				return std::nullopt;
-			}
-			for (auto target = position + 1U; target < targetEnd; ++target) {
-				const auto value = static_cast<unsigned char>(text[target]);
-				if (value <= 0x20U || value >= 0x7fU || text[target] == '<'
-					|| text[target] == '"') {
-					return std::nullopt;
-				}
-			}
-			position = targetEnd + 1U;
-
-			bool relationSeen = false;
-			while (true) {
-				skipWhitespace(position);
-				if (position == text.size() || text[position] == ',') {
-					break;
-				}
-				if (text[position] != ';') {
-					return std::nullopt;
-				}
-				++position;
-				skipWhitespace(position);
-				const auto nameBegin = position;
-				while (position < text.size() && tokenCharacter(text[position])) {
-					++position;
-				}
-				if (nameBegin == position) {
-					return std::nullopt;
-				}
-				const auto name = text.substr(nameBegin, position - nameBegin);
-				skipWhitespace(position);
-				if (position == text.size() || text[position] != '=') {
-					return std::nullopt;
-				}
-				++position;
-				skipWhitespace(position);
-				const auto quoted = position < text.size() && text[position] == '"';
-				if (quoted) {
-					++position;
-				}
-				const auto valueBegin = position;
-				if (quoted) {
-					while (position < text.size() && text[position] != '"') {
-						const auto value = static_cast<unsigned char>(text[position]);
-						if (value < 0x20U || value == 0x7fU
-							|| text[position] == '\\') {
-							return std::nullopt;
-						}
-						++position;
-					}
-					if (position == text.size()) {
-						return std::nullopt;
-					}
-				} else {
-					while (position < text.size() && tokenCharacter(text[position])) {
-						++position;
-					}
-				}
-				if (valueBegin == position) {
-					return std::nullopt;
-				}
-				const auto value = text.substr(valueBegin, position - valueBegin);
-				if (quoted) {
-					++position;
-				}
-				if (name == "rel") {
-					if (relationSeen || !validRelation(value, hasNext)) {
-						return std::nullopt;
-					}
-					relationSeen = true;
-				}
-			}
-			if (!relationSeen) {
-				return std::nullopt;
-			}
-			if (position == text.size()) {
-				break;
-			}
-			++position;
-			if (position == text.size()) {
-				return std::nullopt;
-			}
-		}
-		return hasNext ? std::optional{ page_completeness::has_next_page }
-					   : std::optional{ page_completeness::complete };
-	}
 
 	[[nodiscard]] inline auto response_header_name(const std::string_view aName) -> bool
 	{
@@ -261,7 +114,7 @@ namespace bpr::adapters::github::detail {
 			}
 			response.Headers.push_back({ .Name = std::string{ line.substr(0U, colon) }, .Value = std::string{ value } });
 		}
-		const auto completeness = parse_link_completeness(link);
+		const auto completeness = link_completeness(link);
 		if (!separated || !completeness.has_value()) {
 			return std::unexpected{ failure::malformed_response };
 		}

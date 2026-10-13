@@ -2,6 +2,7 @@
 #include "../../native/windows_private_storage.hpp"
 #include "bpr/application/diagnostic_log_files.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 #include "storage_internal.hpp"
 
@@ -1296,15 +1297,12 @@ namespace bpr::adapters::sqlite {
 		}
 		auto export_namespace() -> std::string
 		{
-			std::random_device         source;
-			std::string                result;
-			constexpr std::string_view hex = "0123456789abcdef";
-			for (unsigned index = 0U; index < 16U; ++index) {
-				const auto byte = source() & 255U;
-				result.push_back(hex[byte >> 4U]);
-				result.push_back(hex[byte & 15U]);
+			std::random_device           source;
+			std::array<std::uint8_t, 16> bytes{ };
+			for (auto& byte : bytes) {
+				byte = static_cast<std::uint8_t>(source() & 255U);
 			}
-			return result;
+			return core::lower_hex(bytes);
 		}
 
 		void validate_cache_manifests(native_handle aRoot, const std::vector<entry>& aEntries)
@@ -1320,13 +1318,7 @@ namespace bpr::adapters::sqlite {
 					|| (bytes[11U] != '\1' && bytes[11U] != '\2') || (bytes[12U] != '\1' && bytes[12U] != '\2')) {
 					fail(reason::incomplete_inventory);
 				}
-				std::string                cache;
-				constexpr std::string_view digits{ "0123456789abcdef" };
-				for (const auto value : std::string_view{ bytes }.substr(85U, 32U)) {
-					const auto byte = static_cast<unsigned char>(value);
-					cache.push_back(digits[byte >> 4U]);
-					cache.push_back(digits[byte & 15U]);
-				}
+				const auto cache = core::lower_hex(std::string_view{ bytes }.substr(85U, 32U));
 				if (path[2] != cache + ".git") {
 					fail(reason::invalid_authority);
 				}

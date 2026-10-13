@@ -3,6 +3,7 @@
 
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/workspace_source_port.hpp"
+#include "bpr/core/review_cycle_git.hpp"
 #include "bpr/core/review_cycle_manifest.hpp"
 
 #include <cstddef>
@@ -101,8 +102,10 @@ namespace bpr::application {
 
 	struct cycle_capture_outcome
 	{
-		cycle_capture_status                           Status = cycle_capture_status::cancelled;
-		std::optional<workspace_failure>               Workspace;
+		cycle_capture_status             Status = cycle_capture_status::cancelled;
+		std::optional<workspace_failure> Workspace;
+		/// Why the checkout's Git metadata was refused, with `workspace`.
+		std::optional<core::git_repository_problem>    Repository;
 		std::optional<core::workspace_verification>    Verification;
 		std::optional<cycle_store_error>               Store;
 		std::optional<cycle_write_receipt>             Receipt;
@@ -114,8 +117,10 @@ namespace bpr::application {
 	/// \brief Result of comparing a candidate root with the latest revision.
 	struct cycle_material_check_outcome
 	{
-		cycle_capture_status                          Status = cycle_capture_status::cancelled;
-		std::optional<workspace_failure>              Workspace;
+		cycle_capture_status             Status = cycle_capture_status::cancelled;
+		std::optional<workspace_failure> Workspace;
+		/// Why the checkout's Git metadata was refused, with `workspace`.
+		std::optional<core::git_repository_problem>   Repository;
 		std::optional<cycle_store_error>              Store;
 		std::optional<core::workspace_material_check> Check;
 		/// The candidate root as the check opened it: what a rebind confirmed

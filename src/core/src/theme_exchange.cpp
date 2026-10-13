@@ -1,4 +1,5 @@
 #include "bpr/core/theme_exchange.hpp"
+#include "bpr/core/hex.hpp"
 
 #include <algorithm>
 #include <array>
@@ -538,8 +539,7 @@ namespace bpr::core {
 
 		auto append_color(std::string& aText, const appearance_color& aColor) -> void
 		{
-			constexpr auto digits   = std::string_view{ "0123456789abcdef" };
-			const auto     channels = std::array<std::uint8_t, 4U>{
+			const auto channels = std::array<std::uint8_t, 4U>{
 				aColor.Red,
 				aColor.Green,
 				aColor.Blue,
@@ -547,10 +547,7 @@ namespace bpr::core {
 			};
 
 			aText.push_back('#');
-			for (const auto channel : channels) {
-				aText.push_back(digits[static_cast<std::size_t>(channel >> 4U)]);
-				aText.push_back(digits[static_cast<std::size_t>(channel & 0x0FU)]);
-			}
+			append_lower_hex(aText, channels);
 		}
 	} // namespace
 

@@ -4,6 +4,7 @@
 #include "bpr/application/review_cycle_words.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -103,17 +104,6 @@ namespace bpr::application {
 		// Publish as Pull Request (BPR-1177): what each outcome says, in the
 		// reviewer's words. None of them claims more than was observed.
 
-		auto lower_hex(const std::array<std::uint8_t, 32>& aBytes) -> std::string
-		{
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			auto           text   = std::string{ };
-			for (const auto byte : aBytes) {
-				text += digits[byte >> 4U];
-				text += digits[byte & 0x0FU];
-			}
-			return text;
-		}
-
 		auto path_list(const std::vector<std::string>& aPaths) -> std::string
 		{
 			auto text = std::string{ };
@@ -142,11 +132,15 @@ namespace bpr::application {
 		auto outgoing_words(const cycle_outgoing_outcome& aOutcome, const std::string& aBase) -> std::string
 		{
 			switch (aOutcome.Status) {
-			case cycle_outgoing_status::planned:               return { };
-			case cycle_outgoing_status::not_bound:             return "This cycle has no project folder. Publishing needs a Git checkout.";
-			case cycle_outgoing_status::not_captured:          return "Capture the project before publishing.";
-			case cycle_outgoing_status::root_changed:          return "The project folder is not the one this cycle captured. Open it again to publish from it.";
-			case cycle_outgoing_status::workspace:             return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
+			case cycle_outgoing_status::planned:      return { };
+			case cycle_outgoing_status::not_bound:    return "This cycle has no project folder. Publishing needs a Git checkout.";
+			case cycle_outgoing_status::not_captured: return "Capture the project before publishing.";
+			case cycle_outgoing_status::root_changed: return "The project folder is not the one this cycle captured. Open it again to publish from it.";
+			case cycle_outgoing_status::workspace:
+				if (aOutcome.Repository) {
+					return cycle_repository_words(*aOutcome.Repository);
+				}
+				return aOutcome.Workspace ? cycle_workspace_words(*aOutcome.Workspace) : "The project folder could not be read.";
 			case cycle_outgoing_status::reference_unavailable: return "\"" + aBase + "\" does not name a commit in this checkout. Name a branch, HEAD or a commit.";
 			case cycle_outgoing_status::repository:            return "Git could not read the repository" + (aOutcome.Git && !aOutcome.Git->Detail.empty() ? " (" + aOutcome.Git->Detail + ")." : std::string{ "." });
 			case cycle_outgoing_status::material:              return "Retained material for this cycle is missing or damaged; nothing was substituted.";
@@ -2034,7 +2028,7 @@ namespace bpr::application {
 			auto& view   = *View.Publication;
 			view.Current = record_of(aStored);
 			view.Stage   = stage_of(aStored.Journal);
-			view.Digest  = lower_hex(aStored.Journal.PlanDigest.bytes());
+			view.Digest  = core::lower_hex(aStored.Journal.PlanDigest.bytes());
 			view.Preview = core::render_publication_preview(aStored.Plan);
 			if (const auto words = journal_words(aStored.Plan, aStored.Journal); !words.empty()) {
 				view.Status = words;

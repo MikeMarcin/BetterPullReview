@@ -1,4 +1,5 @@
 #include "bpr/application/review_mutation_recovery_port.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 #include <algorithm>
 #include <span>
@@ -36,16 +37,9 @@ namespace bpr::application {
 	}
 	auto review_publication_child_key(const std::string_view aParent, const core::review_publication_representation aRepresentation) -> std::string
 	{
-		const auto  material = std::string{ "bpr-review-child-v1:" } + std::string{ aParent } + (aRepresentation == core::review_publication_representation::native_line ? ":native-wire-v1" : ":file-wire-v1:permalink-v1:body-v1");
-		const auto  digest   = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(material.data()), material.size() });
-		std::string result;
-		result.reserve(64U);
-		constexpr std::string_view hex = "0123456789abcdef";
-		for (const auto byte : digest) {
-			result.push_back(hex[byte >> 4U]);
-			result.push_back(hex[byte & 15U]);
-		}
-		return result;
+		const auto material = std::string{ "bpr-review-child-v1:" } + std::string{ aParent } + (aRepresentation == core::review_publication_representation::native_line ? ":native-wire-v1" : ":file-wire-v1:permalink-v1:body-v1");
+		const auto digest   = core::sha256(std::span{ reinterpret_cast<const std::uint8_t*>(material.data()), material.size() });
+		return core::lower_hex(digest);
 	}
 	auto valid(const review_publication_recovery_record& aRecord) noexcept -> bool
 	{

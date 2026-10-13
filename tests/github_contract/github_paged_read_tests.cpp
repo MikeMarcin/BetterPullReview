@@ -4,6 +4,7 @@
 #include "bpr/application/review_tour_import.hpp"
 #include "fixture_json.hpp"
 #include "github_anonymous_read_admission.hpp"
+#include "github_http_helpers.hpp"
 #include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
@@ -1653,6 +1654,15 @@ namespace {
 		injected.Headers.front().Value = "application/json\r\nInjected: yes";
 		expect(!parse_github_response_metadata(injected).has_value(),
 			   "metadata injection is rejected");
+
+		// [[BPR-1439]]. A NUL in a header name or value is refused; the old
+		// `"\r\n\0"` set ended at the NUL and let one through.
+		auto nulValue                  = response;
+		nulValue.Headers.front().Value = std::string{ "application/json\0x", 18U };
+		expect(!parse_github_response_metadata(nulValue).has_value(), "a header value with a NUL is refused");
+		auto nulName                 = response;
+		nulName.Headers.front().Name = std::string{ "Content-Type\0", 13U };
+		expect(!parse_github_response_metadata(nulName).has_value(), "a header name with a NUL is refused");
 
 		auto missing = response;
 		missing.Body = fixture_json(fixture_object{
@@ -4275,10 +4285,45 @@ namespace {
 		expect(!result && std::get<application::github_provider_error>(result.error()).AccountMismatch, "the CLI lease's account-mismatch terminal propagates through optional requirements unchanged");
 	}
 
+	/// [[BPR-1439]]. The shared tokenizer, media-type predicate and encoder
+	/// every GitHub reader uses; each reader's own policy is tested with it.
+	void test_shared_http_helpers()
+	{
+		const auto links = parse_link_header(R"(<https://a.invalid/x?page=2>; rel="next last"; title=t , <https://a.invalid/y,z>;rel=prev)");
+		expect(links && links->size() == 2U && links->front().Target == "https://a.invalid/x?page=2" && links->front().Parameters.size() == 2U
+				   && links->front().Parameters.front().Quoted && links->back().Target == "https://a.invalid/y,z" && !links->back().Parameters.front().Quoted,
+			   "the tokenizer reads quoted and token values, other parameters and a comma inside a target");
+		const auto relations = links ? link_relations(links->front()) : std::nullopt;
+		expect(relations && relations->size() == 2U && relations->front() == "next" && relations->back() == "last", "a multi-relation value splits on its spaces");
+		for (const auto* malformed : { "", "<>; rel=next", "<a b>; rel=next", "<a>; rel=", R"(<a>; rel="next)", "<a>; rel=next,", "<a> rel=next", R"(<a>; rel="ne\xt")" }) {
+			expect(!parse_link_header(malformed), "a malformed Link value is refused");
+		}
+		const auto twoRel = parse_link_header(R"(<a>; rel=next; rel=prev)");
+		const auto spaced = parse_link_header(R"(<a>; rel="next  last")");
+		expect(twoRel && !link_relations(twoRel->front()) && spaced && !link_relations(spaced->front()), "two rel parameters or an empty relation are refused");
+		expect(link_completeness(std::nullopt) == page_completeness::complete && link_completeness(std::string{ "<a>; rel=next" }) == page_completeness::has_next_page
+				   && link_completeness(std::string{ R"(<a>; rel="prev first")" }) == page_completeness::complete && !link_completeness(std::string{ "<a>; rel=self" })
+				   && !link_completeness(std::string{ "<a>; title=x" }),
+			   "completeness needs every link to carry only pagination relations");
+
+		for (const auto* accepted : { "application/json", "Application/JSON", " application/json ; charset=UTF-8 ", "application/json;charset=utf-8" }) {
+			expect(json_media_type(accepted), "a JSON media type is accepted");
+		}
+		for (const auto* refused : { "application/jsonx", "application/json; charset=latin1", "application/json;", "application/json; charset=utf-8; q=1", "text/json", "" }) {
+			expect(!json_media_type(refused), "anything else is refused");
+		}
+		expect(!json_media_type("application/json;" + std::string(300U, ' ')), "the media type is bounded");
+
+		expect(percent_encode("octo-org:bpr/harden ~._") == "octo-org%3Abpr%2Fharden%20~._", "unreserved bytes stay and the rest are uppercase escapes");
+		expect(percent_encode("bpr/harden v2", "/") == "bpr/harden%20v2", "a kept byte stays");
+		expect(percent_encode(std::string{ "\xC3\x28\0", 3U }) == "%C3%28%00", "invalid UTF-8 and NUL are encoded byte for byte");
+		expect(percent_encode("\xC3\xA9") == "%C3%A9", "UTF-8 is encoded byte for byte");
+	}
 }
 
 auto main() -> int
 {
+	test_shared_http_helpers();
 	test_optional_explanations_preserve_account_authority();
 	test_review_request_pagination();
 	test_review_request_actor_fallback();

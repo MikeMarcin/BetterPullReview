@@ -54,9 +54,9 @@ def cache_entry(build_directory: Path, name: str) -> str | None:
 
 def copy_core_archives(cache: Path) -> None:
     """The Qt-free core graph needs SQLite, zlib ([[BPR-1435]]), utf8proc
-    ([[BPR-1434]]) and glaze ([[BPR-1433]])."""
+    ([[BPR-1434]]), glaze ([[BPR-1433]]) and fmt ([[BPR-1439]])."""
     cache.mkdir(parents=True, exist_ok=True)
-    for archive in ("zlib-1.3.2.tar.gz", "utf8proc-2.12.0.tar.gz", "glaze-v8.3.0.tar.gz"):
+    for archive in ("zlib-1.3.2.tar.gz", "utf8proc-2.12.0.tar.gz", "glaze-v8.3.0.tar.gz", "fmt-12.2.0.zip"):
         shutil.copy2(CPM_SOURCE_CACHE / archive, cache / archive)
 
 

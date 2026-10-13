@@ -1,9 +1,13 @@
 #include "github_publication_contract.hpp"
 
+#include "github_http_helpers.hpp"
 #include "github_json_preflight.hpp"
 
 #include "bpr/core/review_cycle_publication.hpp"
 
+#include <QByteArray>
+
+#include <fmt/format.h>
 #include <glaze/json.hpp>
 
 #include <algorithm>
@@ -52,40 +56,6 @@ namespace bpr::adapters::github::detail {
 		auto failed(const publication_contract_failure aFailure) -> std::unexpected<publication_contract_failure>
 		{
 			return std::unexpected{ aFailure };
-		}
-
-		[[nodiscard]] auto percent_encode(const std::string_view aValue) -> std::string
-		{
-			constexpr std::string_view hexadecimal = "0123456789ABCDEF";
-			auto                       encoded     = std::string{ };
-			for (const auto raw : aValue) {
-				const auto character = static_cast<unsigned char>(raw);
-				if ((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') || character == '-' || character == '_'
-					|| character == '.' || character == '~') {
-					encoded.push_back(static_cast<char>(character));
-					continue;
-				}
-				encoded.push_back('%');
-				encoded.push_back(hexadecimal[static_cast<unsigned>(character) >> 4U]);
-				encoded.push_back(hexadecimal[static_cast<unsigned>(character) & 0x0FU]);
-			}
-			return encoded;
-		}
-
-		/// A branch in a path keeps its separators; every segment is encoded.
-		[[nodiscard]] auto encode_branch(const std::string_view aBranch) -> std::string
-		{
-			auto encoded = std::string{ };
-			auto start   = std::size_t{ 0 };
-			while (true) {
-				const auto end = aBranch.find('/', start);
-				encoded += percent_encode(aBranch.substr(start, end == std::string_view::npos ? std::string_view::npos : end - start));
-				if (end == std::string_view::npos) {
-					return encoded;
-				}
-				encoded.push_back('/');
-				start = end + 1U;
-			}
 		}
 
 		[[nodiscard]] auto valid_target(const application::github_publication_target& aTarget) -> bool
@@ -139,19 +109,17 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto base64(const std::span<const std::uint8_t> aBytes) -> std::string
 		{
-			constexpr std::string_view alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-			auto                       out      = std::string{ };
-			out.reserve((aBytes.size() + 2U) / 3U * 4U);
-			for (std::size_t index = 0; index < aBytes.size(); index += 3U) {
-				const auto remaining = aBytes.size() - index;
-				const auto value     = (static_cast<std::uint32_t>(aBytes[index]) << 16U) | (remaining > 1U ? static_cast<std::uint32_t>(aBytes[index + 1U]) << 8U : 0U)
-					| (remaining > 2U ? static_cast<std::uint32_t>(aBytes[index + 2U]) : 0U);
-				out.push_back(alphabet[(value >> 18U) & 63U]);
-				out.push_back(alphabet[(value >> 12U) & 63U]);
-				out.push_back(remaining > 1U ? alphabet[(value >> 6U) & 63U] : '=');
-				out.push_back(remaining > 2U ? alphabet[value & 63U] : '=');
-			}
-			return out;
+			return QByteArray::fromRawData(reinterpret_cast<const char*>(aBytes.data()), static_cast<qsizetype>(aBytes.size())).toBase64().toStdString();
+		}
+
+		/// Whether every link of a `Link` value reads and none names a next page.
+		[[nodiscard]] auto links_no_next_page(const std::string_view aValue) -> bool
+		{
+			const auto links = parse_link_header(aValue);
+			return links && std::ranges::all_of(*links, [](const link_value& aLink) {
+					   const auto relations = link_relations(aLink);
+					   return relations && std::ranges::find(*relations, "next") == relations->end();
+				   });
 		}
 
 		[[nodiscard]] auto octal(const std::uint32_t aMode) -> std::string
@@ -457,11 +425,6 @@ namespace bpr::adapters::github::detail {
 			const auto m   = mp < 10 ? mp + 3 : mp - 9;
 			return { yoe + era * 400 + (m <= 2 ? 1 : 0), m, d };
 		}
-
-		[[nodiscard]] auto two(const std::int64_t aValue) -> std::string
-		{
-			return std::string{ static_cast<char>('0' + aValue / 10), static_cast<char>('0' + aValue % 10) };
-		}
 	}
 
 	auto publication_exchange_for(const publication_operation aOperation) noexcept -> std::optional<publication_exchange>
@@ -498,12 +461,12 @@ namespace bpr::adapters::github::detail {
 		const auto days    = local >= 0 ? local / 86400 : (local - 86399) / 86400;
 		const auto seconds = local - days * 86400;
 		const auto date    = civil(days);
-		auto       text    = std::to_string(date[0]) + "-" + two(date[1]) + "-" + two(date[2]) + "T" + two(seconds / 3600) + ":" + two((seconds / 60) % 60) + ":" + two(seconds % 60);
+		auto       text    = fmt::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", date[0], date[1], date[2], seconds / 3600, (seconds / 60) % 60, seconds % 60);
 		if (aSignature.OffsetMinutes == 0) {
 			return text + "Z";
 		}
-		const auto minutes = aSignature.OffsetMinutes < 0 ? -aSignature.OffsetMinutes : aSignature.OffsetMinutes;
-		return text + (aSignature.OffsetMinutes < 0 ? "-" : "+") + two(minutes / 60) + ":" + two(minutes % 60);
+		const auto minutes = aSignature.OffsetMinutes < 0 ? -static_cast<std::int64_t>(aSignature.OffsetMinutes) : static_cast<std::int64_t>(aSignature.OffsetMinutes);
+		return text + fmt::format("{}{:02}:{:02}", aSignature.OffsetMinutes < 0 ? '-' : '+', minutes / 60, minutes % 60);
 	}
 
 	auto compile_observe_repository(const application::github_publication_target& aTarget) -> publication_contract_result<publication_wire_request>
@@ -516,7 +479,7 @@ namespace bpr::adapters::github::detail {
 		if (!core::valid_publication_branch(aBranch)) {
 			return failed(publication_contract_failure::invalid_request);
 		}
-		return request(publication_observe_branch{ .Branch = aBranch }, aTarget, publication_operation::observe_branch, repository_path(aTarget) + "/git/ref/heads/" + encode_branch(aBranch));
+		return request(publication_observe_branch{ .Branch = aBranch }, aTarget, publication_operation::observe_branch, repository_path(aTarget) + "/git/ref/heads/" + percent_encode(aBranch, "/"));
 	}
 
 	auto compile_observe_commit(const application::github_publication_target& aTarget, const core::git_commit_oid& aCommit) -> publication_contract_result<publication_wire_request>
@@ -886,8 +849,9 @@ namespace bpr::adapters::github::detail {
 		if (aResponse.Status != 200) {
 			return failed(publication_contract_failure::unexpected_status);
 		}
-		// Every matching pull request, or none: a further page is refused.
-		if (std::ranges::any_of(aResponse.Headers, [](const http_header& aHeader) { return ascii_equal_fold(aHeader.Name, "Link") && aHeader.Value.find("rel=\"next\"") != std::string::npos; })) {
+		// Every matching pull request, or none: a further page is refused, and
+		// so is a `Link` header that cannot be read or a link without a `rel`.
+		if (std::ranges::any_of(aResponse.Headers, [](const http_header& aHeader) { return ascii_equal_fold(aHeader.Name, "Link") && !links_no_next_page(aHeader.Value); })) {
 			return failed(publication_contract_failure::malformed_response);
 		}
 		const auto parsed = document<std::vector<pull_json>>(aResponse, listing_limits);

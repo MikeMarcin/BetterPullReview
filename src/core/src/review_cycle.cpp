@@ -1,5 +1,6 @@
 #include "bpr/core/review_cycle.hpp"
 
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -558,13 +559,7 @@ namespace bpr::core {
 		for (const auto value : { check.Compared, check.Matching, check.Differing, check.Missing, check.Added }) {
 			number(value);
 		}
-		const auto     digest = sha256(bytes);
-		constexpr auto digits = std::string_view{ "0123456789abcdef" };
-		auto           result = std::string{ };
-		for (std::size_t index = 0; index < workspace_rebind_confirmation_characters / 2U; ++index) {
-			result.push_back(digits[digest[index] >> 4U]);
-			result.push_back(digits[digest[index] & 0x0FU]);
-		}
-		return result;
+		const auto digest = sha256(bytes);
+		return lower_hex(std::span{ digest }.first(workspace_rebind_confirmation_characters / 2U));
 	}
 }

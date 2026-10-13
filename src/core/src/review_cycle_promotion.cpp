@@ -1,6 +1,7 @@
 #include "bpr/core/review_cycle_promotion.hpp"
 
 #include "bpr/core/git_objects.hpp"
+#include "bpr/core/hex.hpp"
 #include "bpr/core/sha256.hpp"
 
 #include <algorithm>
@@ -43,13 +44,7 @@ namespace bpr::core {
 
 		auto hex(const std::span<const std::uint8_t> aBytes, const std::size_t aCount) -> std::string
 		{
-			constexpr auto digits = std::string_view{ "0123456789abcdef" };
-			auto           result = std::string{ };
-			for (const auto byte : aBytes.first(std::min(aCount, aBytes.size()))) {
-				result.push_back(digits[byte >> 4U]);
-				result.push_back(digits[byte & 15U]);
-			}
-			return result;
+			return lower_hex(aBytes.first(std::min(aCount, aBytes.size())));
 		}
 
 		auto lower(std::string_view aText) -> std::string
