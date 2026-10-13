@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1451"
 title: "Adopt HACL* generated SHA-2 for the core SHA-256"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"
