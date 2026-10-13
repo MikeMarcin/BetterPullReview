@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "title-row-publication-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0075"
+    ],
+    "issues": [
+      "BPR-1418"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "settled-title-row",
+      "outcome": "Accepted PR content settles the existing title row immediately at the current width without corrective navigation or resize.",
+      "work": [
+        {
+          "issue": "BPR-1418"
+        },
+        {
+          "rfc": "RFC-BPR-0075"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01\u2013AC03 pass through the public workbench window publication path, including a failing-before loading-to-acceptance control and retained navigation.",
+        "AC04 passes rendered title-row and width checks at the registered 100%, 125% and 200% scales without overflow or visibility oscillation.",
+        "Focused composed-path, architecture, format and documentation checks pass; the baseline diff, RFC ledger, card and checkpoint agree with the exact candidate."
+      ],
+      "boundary": "Complete the authorized RFC correction and upkeep. Preserve native and human evidence limits; no new visual design or provider/browser admission changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
