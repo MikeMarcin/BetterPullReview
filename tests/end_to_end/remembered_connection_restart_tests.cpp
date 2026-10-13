@@ -192,7 +192,7 @@ namespace {
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			const tests::exit_on_failure inTheEventLoop;
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				const auto login = aPhase == "replace-account" ? QStringLiteral("recent-reviewer-78") : QStringLiteral("recent-reviewer-77");
+				const auto login = aPhase == "replace-account" || aPhase == "cancel-first" ? QStringLiteral("recent-reviewer-78") : QStringLiteral("recent-reviewer-77");
 				expect(prompt->text() == QStringLiteral("Use %1’s GitHub CLI sign-in on %2?").arg(login, QString::fromLatin1(host)), "only the exact chosen-account read trust is asked");
 				expect(prompt->informativeText().contains(QStringLiteral("existing sign-in without saving its token")), "read trust explains existing sign-in without token storage");
 				expect(prompt->informativeText().contains(QStringLiteral("reused until you sign out or replace it")), "read trust explains reuse across fresh processes");
