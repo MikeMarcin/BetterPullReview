@@ -1687,6 +1687,13 @@ namespace bpr::qt {
 		}
 		refresh_reply_controls();
 		fit_draft_actions();
+		if (former != LastNotice) {
+			// Invalidate only the changed notice's parent measurement chain. The
+			// LayoutRequest below also places the final settled preferred height.
+			Editor->layout()->invalidate();
+			Foot->layout()->invalidate();
+			layout()->invalidate();
+		}
 		if (HeightChanged) {
 			HeightChanged();
 		}
@@ -1783,6 +1790,17 @@ namespace bpr::qt {
 	{
 		QWidget::resizeEvent(aEvent);
 		fit_draft_actions();
+	}
+
+	auto open_thread_card::event(QEvent* const aEvent) -> bool
+	{
+		const auto handled = QWidget::event(aEvent);
+		// Qt settles nested wrapped-label measurements after presentation. The
+		// drawer places cards itself, so it must adopt that new preferred height.
+		if (aEvent->type() == QEvent::LayoutRequest && HeightChanged) {
+			HeightChanged();
+		}
+		return handled;
 	}
 
 	auto open_thread_card::change_view() const noexcept -> QWidget*

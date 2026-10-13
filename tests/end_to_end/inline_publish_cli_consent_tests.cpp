@@ -18,7 +18,9 @@
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QFontMetrics>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -90,6 +92,29 @@ namespace {
 		return label != nullptr && label->isVisibleTo(open) ? label->text() : QString{ };
 	}
 
+	void expect_status_visible(qt::conversation_cards_view& aCards)
+	{
+		auto* const label = aCards.open_card()->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
+		expect(label != nullptr, "the composed draft has a wrapped status label");
+		const auto readable = [label] {
+			const auto textHeight = QFontMetrics{ label->font() }.boundingRect(QRect{ 0, 0, label->contentsRect().width(), 32768 }, Qt::TextWordWrap, label->text()).height();
+			return label->isVisible() && label->height() >= label->heightForWidth(label->width())
+				&& label->contentsRect().height() >= textHeight && label->visibleRegion().contains(label->rect());
+		};
+		const auto fits = wait_until(readable, 1500);
+		std::cout << "M3_COMPOSED_STATUS_GEOMETRY scale=" << label->devicePixelRatioF() << " width=" << label->width()
+				  << " height=" << label->height() << " required=" << label->heightForWidth(label->width())
+				  << " visible=" << label->visibleRegion().boundingRect().height() << '\n';
+		if (!fits) {
+			for (auto* ancestor = label->parentWidget(); ancestor && ancestor != &aCards; ancestor = ancestor->parentWidget()) {
+				std::cout << "STATUS_ANCESTOR name=" << ancestor->objectName().toStdString() << " width=" << ancestor->width() << " height=" << ancestor->height()
+						  << " hfw=" << ancestor->hasHeightForWidth() << " required=" << ancestor->heightForWidth(ancestor->width())
+						  << " hint=" << ancestor->sizeHint().height() << " minimum=" << ancestor->minimumSizeHint().height() << '\n';
+			}
+		}
+		expect(fits, "the full composed publication status fits and is visible, including locked-draft/GET-only guidance");
+	}
+
 	void capture_settled(qt::workbench_window& aWindow, const QString& aSuffix)
 	{
 		const auto root = qEnvironmentVariable("BPR_QT_RENDER_PATH");
@@ -119,6 +144,7 @@ namespace {
 		auto& editor = *aApplication.window().review_editor();
 		wait_for([&] { return draft_status(aCards).contains(aReason) && editor.publication_retry_offered(); },
 				 "refused recovery keeps the same retry in the public drawer");
+		expect_status_visible(aCards);
 		const auto after = github_application_fixture_access::review_mutation_evidence(aApplication);
 		expect(draft_status(aCards).contains(QStringLiteral("still unknown")) && !draft_status(aCards).contains(QStringLiteral("Not published")),
 			   "a refused check cannot claim the original comment was not published");
@@ -257,6 +283,7 @@ namespace {
 			const auto said = wait_until([&] { return aCourse == course::unsupported ? draft_status(*cards).contains(QStringLiteral("does not support")) : draft_status(*cards).contains(QStringLiteral("draft is kept")); }, 5000);
 			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(said, "the draft says publication is unavailable and keeps its text");
+			expect_status_visible(*cards);
 			capture_settled(window, "-inline-" + QString::number(static_cast<unsigned int>(aCourse)));
 			if (aCourse == course::credential_unavailable || aCourse == course::tool_failed) {
 				expect(draft_status(*cards).contains(QStringLiteral("octo-reviewer")) && draft_status(*cards).contains(QStringLiteral("github.com")), "inline failure uses its failed operation's chosen account and server");
