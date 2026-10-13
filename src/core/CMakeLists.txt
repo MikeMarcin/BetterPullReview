@@ -9,6 +9,7 @@ add_library(
         src/remembered_connection.cpp
         src/review_preparation.cpp
         src/utf8.cpp
+        src/json_preflight.cpp
         src/window_review_restoration.cpp
         src/anonymous_read_policy.cpp
         src/appearance_contrast.cpp

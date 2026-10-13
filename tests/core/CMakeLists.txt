@@ -1026,3 +1026,10 @@ if(TARGET BetterPullReview::AdapterRegex)
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/source_matcher_reference_tests.py" "$<TARGET_FILE:test_source_matcher>"
     )
 endif()
+
+# [[BPR-1433]]. The one structural JSON check every response decoder shares.
+bpr_add_executable(test_json_preflight json_preflight_tests.cpp)
+target_link_libraries(test_json_preflight PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_json_preflight)
+bpr_enable_warnings(test_json_preflight)
+bpr_add_network_isolated_test(NAME core_json_preflight COMMAND test_json_preflight)

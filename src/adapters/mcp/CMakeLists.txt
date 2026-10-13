@@ -7,10 +7,11 @@
 # for both directions, and the target that starts an agent would link the
 # target that answers one.
 #
-# It links `BetterPullReview::Core` and nothing else. Not the application host,
-# not Qt, not the GitHub, Git, or SQLite adapters: a helper whose whole claim is
-# that it reaches no credential and no network is best served by a link line a
-# reviewer can read in one line.
+# It links `BetterPullReview::Core` and the header-only glaze JSON decoder
+# ([[BPR-1433]]), and nothing else. Not the application host, not Qt, not the
+# GitHub, Git, or SQLite adapters: a helper whose whole claim is that it reaches
+# no credential and no network is best served by a link line a reviewer can
+# read in one line.
 #
 # [[BPR-1179]]. It serves somebody else's agent, so it is an agent
 # integration: an agent-free graph builds neither the library nor the helper.
@@ -33,6 +34,8 @@ target_link_libraries(
     better_pull_review_adapter_mcp
     PUBLIC
         BetterPullReview::Core
+    PRIVATE
+        glaze::glaze
 )
 target_compile_features(better_pull_review_adapter_mcp PUBLIC cxx_std_23)
 bpr_enable_hardening(better_pull_review_adapter_mcp)

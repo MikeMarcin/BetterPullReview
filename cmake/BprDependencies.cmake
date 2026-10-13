@@ -97,6 +97,12 @@ function(bpr_configure_dependencies)
     bpr_require_dependency_target(BetterPullReview::UTF8Proc utf8proc)
     list(APPEND records "utf8proc|PINNED_ARCHIVE|BetterPullReview::UTF8Proc")
 
+    # [[BPR-1433]]. glaze is an owner-approved core library (2026-10-13) and
+    # the MCP helper's JSON decoder, so the Qt-free graph acquires it too.
+    bpr_acquire_glaze()
+    bpr_require_dependency_target(glaze::glaze Glaze)
+    list(APPEND records "Glaze|PINNED_ARCHIVE|glaze::glaze")
+
     if(
         BUILD_TESTING
         OR BPR_ENABLE_CODING_TARGETS
@@ -266,17 +272,14 @@ function(bpr_configure_dependencies)
             list(APPEND records "Git|CMAKE_MODULE|Git::Git")
         endif()
 
-        bpr_acquire_glaze()
-        bpr_require_dependency_target(glaze::glaze Glaze)
-        list(APPEND records "Glaze|PINNED_ARCHIVE|glaze::glaze")
 
         if(BPR_BUILD_QT)
             bpr_acquire_quill()
             bpr_require_dependency_target(quill::quill Quill)
             list(APPEND records "Quill|PINNED_ARCHIVE|quill::quill")
 
-            # [[BPR-1431]]. Source search's regex engine. Like Glaze, it stays
-            # out of the Qt-free core graph, which needs only SQLite.
+            # [[BPR-1431]]. Source search's regex engine. It stays out of the
+            # Qt-free core graph: Abseil uses threads, so it is no core library.
             bpr_acquire_re2()
             bpr_require_dependency_target(BetterPullReview::RE2 RE2)
             list(APPEND records "RE2|PINNED_ARCHIVE|BetterPullReview::RE2")

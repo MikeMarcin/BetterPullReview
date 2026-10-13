@@ -1,10 +1,12 @@
 #include "designated_live_public_observer.hpp"
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/json_preflight.hpp"
 #include "bpr/core/utf8.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
+#include <glaze/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -16,7 +18,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fcntl.h>
-#include <map>
 #include <optional>
 #include <signal.h>
 #include <span>
@@ -29,8 +30,52 @@
 #include <thread>
 #include <unistd.h>
 #include <utility>
-#include <variant>
 #include <vector>
+
+namespace bpr::adapters::github::detail::observed_target {
+	/// The fields the designated target is checked against; everything else
+	/// in GitHub's response is skipped by glaze ([[BPR-1433]]).
+	struct observed_repository
+	{
+		std::uint64_t Id = 0U;
+		std::string   NodeId;
+		std::string   FullName;
+	};
+	struct observed_branch
+	{
+		std::string                        Sha;
+		std::string                        Ref;
+		std::optional<observed_repository> Repo;
+	};
+	struct observed_pull_request
+	{
+		std::uint64_t   Id     = 0U;
+		std::uint64_t   Number = 0U;
+		std::string     NodeId;
+		std::string     State;
+		observed_branch Head;
+		observed_branch Base;
+	};
+} // namespace bpr::adapters::github::detail::observed_target
+
+template <>
+struct glz::meta<bpr::adapters::github::detail::observed_target::observed_repository>
+{
+	using value_type            = bpr::adapters::github::detail::observed_target::observed_repository;
+	static constexpr auto value = object("id", &value_type::Id, "node_id", &value_type::NodeId, "full_name", &value_type::FullName);
+};
+template <>
+struct glz::meta<bpr::adapters::github::detail::observed_target::observed_branch>
+{
+	using value_type            = bpr::adapters::github::detail::observed_target::observed_branch;
+	static constexpr auto value = object("sha", &value_type::Sha, "ref", &value_type::Ref, "repo", &value_type::Repo);
+};
+template <>
+struct glz::meta<bpr::adapters::github::detail::observed_target::observed_pull_request>
+{
+	using value_type            = bpr::adapters::github::detail::observed_target::observed_pull_request;
+	static constexpr auto value = object("id", &value_type::Id, "number", &value_type::Number, "node_id", &value_type::NodeId, "state", &value_type::State, "head", &value_type::Head, "base", &value_type::Base);
+};
 
 namespace bpr::adapters::github::detail {
 	namespace {
@@ -294,386 +339,35 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		struct json_number
-		{
-			std::string Value;
-		};
-
-		struct json_value
-		{
-			using object = std::map<std::string, json_value, std::less<>>;
-			using array  = std::vector<json_value>;
-			std::variant<std::monostate, bool, json_number, std::string, object, array>
-				Value;
-		};
-
-		class json_parser final
-		{
-		public:
-			explicit json_parser(const std::string_view aText) noexcept
-				: Text{ aText }
-			{
-			}
-
-			[[nodiscard]] auto parse() -> std::optional<json_value>
-			{
-				auto result = value(0U);
-				space();
-				return result.has_value() && Position == Text.size()
-					? result
-					: std::nullopt;
-			}
-
-		private:
-			void space() noexcept
-			{
-				while (Position != Text.size()
-					   && (Text[Position] == ' ' || Text[Position] == '\n'
-						   || Text[Position] == '\r' || Text[Position] == '\t')) {
-					++Position;
-				}
-			}
-
-			[[nodiscard]] auto take(const char aCharacter) noexcept -> bool
-			{
-				space();
-				if (Position == Text.size() || Text[Position] != aCharacter) {
-					return false;
-				}
-				++Position;
-				return true;
-			}
-
-			[[nodiscard]] static auto hex(const char aCharacter) noexcept
-				-> std::optional<std::uint32_t>
-			{
-				if (aCharacter >= '0' && aCharacter <= '9') {
-					return static_cast<std::uint32_t>(aCharacter - '0');
-				}
-				if (aCharacter >= 'a' && aCharacter <= 'f') {
-					return static_cast<std::uint32_t>(aCharacter - 'a' + 10);
-				}
-				if (aCharacter >= 'A' && aCharacter <= 'F') {
-					return static_cast<std::uint32_t>(aCharacter - 'A' + 10);
-				}
-				return std::nullopt;
-			}
-
-			[[nodiscard]] auto unicode_escape() -> std::optional<std::uint32_t>
-			{
-				if (Position + 4U > Text.size()) {
-					return std::nullopt;
-				}
-				auto result = std::uint32_t{ 0U };
-				for (auto count = 0U; count != 4U; ++count) {
-					const auto digit = hex(Text[Position++]);
-					if (!digit.has_value()) {
-						return std::nullopt;
-					}
-					result = result * 16U + *digit;
-				}
-				return result;
-			}
-
-			/// \brief The shared core encoder; false for a lone surrogate or a
-			/// value above U+10FFFF, which have no UTF-8 encoding ([[BPR-1434]]).
-			[[nodiscard]] static auto append_utf8(
-				std::string& aOutput, const std::uint32_t aCodePoint) -> bool
-			{
-				return core::utf8::append(aOutput, static_cast<char32_t>(aCodePoint));
-			}
-
-			[[nodiscard]] auto string() -> std::optional<std::string>
-			{
-				if (!take('"')) {
-					return std::nullopt;
-				}
-				auto result = std::string{ };
-				while (Position != Text.size()) {
-					const auto character = static_cast<unsigned char>(Text[Position++]);
-					if (character == '"') {
-						// Raw bytes are copied as read, so the whole string is checked once.
-						return core::utf8::valid(result) ? std::optional{ std::move(result) } : std::nullopt;
-					}
-					if (character < 0x20U) {
-						return std::nullopt;
-					}
-					if (character != '\\') {
-						result.push_back(static_cast<char>(character));
-						continue;
-					}
-					if (Position == Text.size()) {
-						return std::nullopt;
-					}
-					const auto escaped = Text[Position++];
-					switch (escaped) {
-					case '"':  result.push_back('"'); break;
-					case '\\': result.push_back('\\'); break;
-					case '/':  result.push_back('/'); break;
-					case 'b':  result.push_back('\b'); break;
-					case 'f':  result.push_back('\f'); break;
-					case 'n':  result.push_back('\n'); break;
-					case 'r':  result.push_back('\r'); break;
-					case 't':  result.push_back('\t'); break;
-					case 'u':  {
-						auto codePoint = unicode_escape();
-						if (!codePoint.has_value()) {
-							return std::nullopt;
-						}
-						if (*codePoint >= 0xd800U && *codePoint <= 0xdbffU) {
-							if (Position + 2U > Text.size()
-								|| Text.substr(Position, 2U) != "\\u") {
-								return std::nullopt;
-							}
-							Position += 2U;
-							const auto low = unicode_escape();
-							if (!low.has_value() || *low < 0xdc00U || *low > 0xdfffU) {
-								return std::nullopt;
-							}
-							*codePoint = 0x10000U + ((*codePoint - 0xd800U) << 10U)
-								+ (*low - 0xdc00U);
-						}
-						if (!append_utf8(result, *codePoint)) {
-							return std::nullopt;
-						}
-						break;
-					}
-					default: return std::nullopt;
-					}
-				}
-				return std::nullopt;
-			}
-
-			[[nodiscard]] auto number() -> std::optional<json_value>
-			{
-				space();
-				const auto begin = Position;
-				if (Position != Text.size() && Text[Position] == '-') {
-					++Position;
-				}
-				if (Position == Text.size()) {
-					return std::nullopt;
-				}
-				if (Text[Position] == '0') {
-					++Position;
-				} else if (Text[Position] >= '1' && Text[Position] <= '9') {
-					while (Position != Text.size() && std::isdigit(static_cast<unsigned char>(Text[Position]))) {
-						++Position;
-					}
-				} else {
-					return std::nullopt;
-				}
-				if (Position != Text.size() && Text[Position] == '.') {
-					++Position;
-					const auto fraction = Position;
-					while (Position != Text.size() && std::isdigit(static_cast<unsigned char>(Text[Position]))) {
-						++Position;
-					}
-					if (Position == fraction) {
-						return std::nullopt;
-					}
-				}
-				if (Position != Text.size()
-					&& (Text[Position] == 'e' || Text[Position] == 'E')) {
-					++Position;
-					if (Position != Text.size()
-						&& (Text[Position] == '+' || Text[Position] == '-')) {
-						++Position;
-					}
-					const auto exponent = Position;
-					while (Position != Text.size() && std::isdigit(static_cast<unsigned char>(Text[Position]))) {
-						++Position;
-					}
-					if (Position == exponent) {
-						return std::nullopt;
-					}
-				}
-				return json_value{ .Value = json_number{
-									   .Value = std::string{ Text.substr(begin, Position - begin) } } };
-			}
-
-			[[nodiscard]] auto object(const std::size_t aDepth)
-				-> std::optional<json_value>
-			{
-				if (!take('{')) {
-					return std::nullopt;
-				}
-				auto result = json_value::object{ };
-				space();
-				if (take('}')) {
-					return json_value{ .Value = std::move(result) };
-				}
-				for (;;) {
-					auto key = string();
-					if (!key.has_value() || !take(':')) {
-						return std::nullopt;
-					}
-					auto member = value(aDepth + 1U);
-					if (!member.has_value()
-						|| !result.emplace(std::move(*key), std::move(*member)).second) {
-						return std::nullopt;
-					}
-					if (take('}')) {
-						return json_value{ .Value = std::move(result) };
-					}
-					if (!take(',')) {
-						return std::nullopt;
-					}
-				}
-			}
-
-			[[nodiscard]] auto array(const std::size_t aDepth)
-				-> std::optional<json_value>
-			{
-				if (!take('[')) {
-					return std::nullopt;
-				}
-				auto result = json_value::array{ };
-				space();
-				if (take(']')) {
-					return json_value{ .Value = std::move(result) };
-				}
-				for (;;) {
-					auto member = value(aDepth + 1U);
-					if (!member.has_value()) {
-						return std::nullopt;
-					}
-					result.push_back(std::move(*member));
-					if (take(']')) {
-						return json_value{ .Value = std::move(result) };
-					}
-					if (!take(',')) {
-						return std::nullopt;
-					}
-				}
-			}
-
-			[[nodiscard]] auto literal(
-				const std::string_view aText, json_value aValue)
-				-> std::optional<json_value>
-			{
-				space();
-				if (Text.substr(Position, aText.size()) != aText) {
-					return std::nullopt;
-				}
-				Position += aText.size();
-				return aValue;
-			}
-
-			[[nodiscard]] auto value(const std::size_t aDepth)
-				-> std::optional<json_value>
-			{
-				if (aDepth > 32U) {
-					return std::nullopt;
-				}
-				space();
-				if (Position == Text.size()) {
-					return std::nullopt;
-				}
-				switch (Text[Position]) {
-				case '{': return object(aDepth);
-				case '[': return array(aDepth);
-				case '"': {
-					auto text = string();
-					return text.has_value()
-						? std::optional{ json_value{ .Value = std::move(*text) } }
-						: std::nullopt;
-				}
-				case 't': return literal("true", json_value{ .Value = true });
-				case 'f': return literal("false", json_value{ .Value = false });
-				case 'n': return literal("null", json_value{ });
-				default:  return number();
-				}
-			}
-
-			std::string_view Text;
-			std::size_t      Position = 0U;
-		};
-
-		[[nodiscard]] auto member(
-			const json_value::object& aObject, const std::string_view aName)
-			-> const json_value*
-		{
-			const auto found = aObject.find(aName);
-			return found == aObject.end() ? nullptr : &found->second;
-		}
-
-		[[nodiscard]] auto object_member(
-			const json_value::object& aObject, const std::string_view aName)
-			-> const json_value::object*
-		{
-			const auto* value = member(aObject, aName);
-			return value == nullptr
-				? nullptr
-				: std::get_if<json_value::object>(&value->Value);
-		}
-
-		[[nodiscard]] auto text_member(
-			const json_value::object& aObject, const std::string_view aName)
-			-> const std::string*
-		{
-			const auto* value = member(aObject, aName);
-			return value == nullptr ? nullptr : std::get_if<std::string>(&value->Value);
-		}
-
-		[[nodiscard]] auto integer_member(
-			const json_value::object& aObject, const std::string_view aName)
-			-> std::optional<std::uint64_t>
-		{
-			const auto* value  = member(aObject, aName);
-			const auto* number = value == nullptr
-				? nullptr
-				: std::get_if<json_number>(&value->Value);
-			if (number == nullptr || number->Value.empty()) {
-				return std::nullopt;
-			}
-			auto       result = std::uint64_t{ 0U };
-			const auto parsed = std::from_chars(
-				number->Value.data(), number->Value.data() + number->Value.size(), result);
-			return parsed.ec == std::errc{ }
-					&& parsed.ptr == number->Value.data() + number->Value.size()
-				? std::optional{ result }
-				: std::nullopt;
-		}
-
 		[[nodiscard]] auto exact_target_body(
 			const std::span<const std::uint8_t> aBody) -> bool
 		{
 			const auto text = std::string_view{
 				reinterpret_cast<const char*>(aBody.data()), aBody.size()
 			};
-			auto        parsed = json_parser{ text }.parse();
-			const auto* root   = parsed.has_value()
-				? std::get_if<json_value::object>(&parsed->Value)
-				: nullptr;
-			if (root == nullptr) {
+			// The shared core check refuses duplicate keys and bounds the document;
+			// glaze then reads the exact fields, with exact 64-bit identifiers.
+			const auto limits = core::json_preflight_limits{ .Depth = 32U, .ObjectMembers = 256U, .ArrayElements = 1'024U, .Values = 100'000U, .StringBytes = 1024U * 1024U };
+			if (core::json_preflight(text, limits).Result != core::json_preflight_result::valid || !core::utf8::valid(text)) {
 				return false;
 			}
-			const auto* head           = object_member(*root, "head");
-			const auto* base           = object_member(*root, "base");
-			const auto* repo           = base == nullptr ? nullptr : object_member(*base, "repo");
-			const auto* node           = text_member(*root, "node_id");
-			const auto* state          = text_member(*root, "state");
-			const auto* headSha        = head == nullptr ? nullptr : text_member(*head, "sha");
-			const auto* headRef        = head == nullptr ? nullptr : text_member(*head, "ref");
-			const auto* baseSha        = base == nullptr ? nullptr : text_member(*base, "sha");
-			const auto* baseRef        = base == nullptr ? nullptr : text_member(*base, "ref");
-			const auto* repositoryNode = repo == nullptr ? nullptr : text_member(*repo, "node_id");
-			const auto* repositoryName = repo == nullptr ? nullptr : text_member(*repo, "full_name");
-			return integer_member(*root, "id") == 4'650'736'621U
-				&& integer_member(*root, "number") == 2U
-				&& node != nullptr && *node == "PR_kwDOTyvof88AAAABFTSb7Q"
-				&& state != nullptr && *state == "open"
-				&& headSha != nullptr && *headSha == designated_head_oid
-				&& headRef != nullptr
-				&& *headRef == "codex/rfc0022-live-comments-20260926"
-				&& baseSha != nullptr && *baseSha == designated_base_oid
-				&& baseRef != nullptr && *baseRef == "codex/rfc0022-fixture-base-20260926"
-				&& repo != nullptr
-				&& integer_member(*repo, "id") == 1'328'277'631U
-				&& repositoryNode != nullptr && *repositoryNode == "R_kgDOTyvofw"
-				&& repositoryName != nullptr
-				&& *repositoryName == "MikeMarcin/BPR-Test";
+			auto pull = observed_target::observed_pull_request{ };
+			if (glz::read<glz::opts{ .error_on_unknown_keys = false }>(pull, text)) {
+				return false;
+			}
+			const auto& repo = pull.Base.Repo;
+			return pull.Id == 4'650'736'621U
+				&& pull.Number == 2U
+				&& pull.NodeId == "PR_kwDOTyvof88AAAABFTSb7Q"
+				&& pull.State == "open"
+				&& pull.Head.Sha == designated_head_oid
+				&& pull.Head.Ref == "codex/rfc0022-live-comments-20260926"
+				&& pull.Base.Sha == designated_base_oid
+				&& pull.Base.Ref == "codex/rfc0022-fixture-base-20260926"
+				&& repo.has_value()
+				&& repo->Id == 1'328'277'631U
+				&& repo->NodeId == "R_kgDOTyvofw"
+				&& repo->FullName == "MikeMarcin/BPR-Test";
 		}
 
 		void capture(const int aDescriptor, const std::size_t aLimit, bounded_capture& aCapture)

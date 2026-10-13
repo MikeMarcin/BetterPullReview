@@ -3403,8 +3403,25 @@ BPR-0610 uses pinned Glaze v8.3.0 for whole-review request serialization and
 typed response parsing inside the GitHub adapter. The central provider checks
 archive SHA-256 and size, supports the ordinary offline dependency cache, and
 exposes only headers; it does not execute upstream build or install rules.
-License and provenance are under `third_party/glaze/`. Core-only builds do not
-acquire Glaze. Existing GitHub Qt JSON parsers are unchanged in this slice.
+License and provenance are under `third_party/glaze/`. Since [[BPR-1433]] every
+build, core-only included, acquires Glaze (see JSON decoding below).
+
+## JSON decoding
+
+[[BPR-1433]] gives every JSON decoder one structural check,
+`core::json_preflight` (`bpr/core/json_preflight.hpp`): exactly one value,
+well-formed strings and numbers (magnitude below 10^308), no duplicate or
+escaped object key, and per-caller depth, member, element, value and string
+ceilings, with string and other ceilings reported as structural limits. glaze
+cannot refuse duplicate keys, so the check runs first and glaze then decodes
+the exact fields. It replaced three drifted copies in the GitHub adapter (whose
+shared header is now a thin wrapper), and the MCP context helper and the
+designated live observer now decode with glaze instead of hand-written parsers.
+glaze is an owner-approved core library and part of the Qt-free graph. Two
+parsers stay deliberately first-party: the review-cycle canonical JSON reader
+and writer, whose exact-integer, sorted, byte-identical form is hashed into
+bundles and which glaze's double-based DOM cannot preserve, and the agent
+stream parser, which lifts payloads out of a frame by their exact byte range.
 
 ## Core zlib
 

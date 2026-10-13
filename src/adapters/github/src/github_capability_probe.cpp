@@ -1,4 +1,5 @@
 #include "github_capability_probe.hpp"
+#include "bpr/core/json_preflight.hpp"
 #include "github_graphql_operation_policy.hpp"
 
 #include <QRegularExpression>
@@ -150,19 +151,13 @@ namespace bpr::adapters::github::detail {
 			"unresolvePayload",
 		};
 
-		enum class json_preflight_result : std::uint8_t {
-			valid,
-			malformed,
-			duplicate_key,
-			structural_limit,
-		};
+		using json_preflight_result = core::json_preflight_result;
 
+		/// [[BPR-1433]]. The shared core check with the probe's ceilings.
 		class json_structural_preflight
 		{
 		public:
-			json_structural_preflight(
-				const std::string_view         aInput,
-				const capability_probe_limits& aLimits) noexcept
+			json_structural_preflight(const std::string_view aInput, const capability_probe_limits& aLimits) noexcept
 				: Input{ aInput }
 				, Limits{ aLimits }
 			{
@@ -170,279 +165,16 @@ namespace bpr::adapters::github::detail {
 
 			[[nodiscard]] auto run() noexcept -> json_preflight_result
 			{
-				whitespace();
-				const auto result = value(0U);
-				if (result != json_preflight_result::valid) {
-					return result;
-				}
-				whitespace();
-				return Position == Input.size()
-					? json_preflight_result::valid
-					: json_preflight_result::malformed;
+				const auto report = core::json_preflight(Input, { .Depth = Limits.MaximumDepth, .ObjectMembers = Limits.MaximumObjectMembers, .ArrayElements = Limits.MaximumArrayElements, .Values = Limits.MaximumTotalValues, .StringBytes = Limits.MaximumStringBytes });
+				Values            = report.Values;
+				return report.Result;
 			}
-
-		public:
 			[[nodiscard]] auto value_count() const noexcept -> std::size_t { return Values; }
 
 		private:
-			[[nodiscard]] auto value(const std::size_t aDepth) noexcept
-				-> json_preflight_result
-			{
-				if (Values == Limits.MaximumTotalValues) {
-					return json_preflight_result::structural_limit;
-				}
-				++Values;
-				whitespace();
-				if (Position >= Input.size()) {
-					return json_preflight_result::malformed;
-				}
-				switch (Input[Position]) {
-				case '{':
-					return object(aDepth);
-				case '[':
-					return array(aDepth);
-				case '"':
-					if (string(nullptr, false)) {
-						return json_preflight_result::valid;
-					}
-					return StringLimitExceeded
-						? json_preflight_result::structural_limit
-						: json_preflight_result::malformed;
-				case 't':
-					return literal("true");
-				case 'f':
-					return literal("false");
-				case 'n':
-					return literal("null");
-				default:
-					return number();
-				}
-			}
-
-			[[nodiscard]] auto object(const std::size_t aDepth) noexcept
-				-> json_preflight_result
-			{
-				if (aDepth >= Limits.MaximumDepth) {
-					return json_preflight_result::structural_limit;
-				}
-				++Position;
-				whitespace();
-				if (consume('}')) {
-					return json_preflight_result::valid;
-				}
-
-				std::array<std::string_view, hard_limits.MaximumObjectMembers> keys;
-				std::size_t                                                    count = 0U;
-				while (true) {
-					if (count == Limits.MaximumObjectMembers) {
-						return json_preflight_result::structural_limit;
-					}
-					std::string_view key;
-					if (!string(&key, true)) {
-						return StringLimitExceeded
-							? json_preflight_result::structural_limit
-							: json_preflight_result::malformed;
-					}
-					if (
-						std::ranges::find(
-							keys.begin(),
-							keys.begin() + static_cast<std::ptrdiff_t>(count),
-							key)
-						!= keys.begin() + static_cast<std::ptrdiff_t>(count)) {
-						return json_preflight_result::duplicate_key;
-					}
-					keys[count++] = key;
-					whitespace();
-					if (!consume(':')) {
-						return json_preflight_result::malformed;
-					}
-					const auto child = value(aDepth + 1U);
-					if (child != json_preflight_result::valid) {
-						return child;
-					}
-					whitespace();
-					if (consume('}')) {
-						return json_preflight_result::valid;
-					}
-					if (!consume(',')) {
-						return json_preflight_result::malformed;
-					}
-					whitespace();
-				}
-			}
-
-			[[nodiscard]] auto array(const std::size_t aDepth) noexcept
-				-> json_preflight_result
-			{
-				if (aDepth >= Limits.MaximumDepth) {
-					return json_preflight_result::structural_limit;
-				}
-				++Position;
-				whitespace();
-				if (consume(']')) {
-					return json_preflight_result::valid;
-				}
-
-				std::size_t count = 0U;
-				while (true) {
-					if (count == Limits.MaximumArrayElements) {
-						return json_preflight_result::structural_limit;
-					}
-					++count;
-					const auto child = value(aDepth + 1U);
-					if (child != json_preflight_result::valid) {
-						return child;
-					}
-					whitespace();
-					if (consume(']')) {
-						return json_preflight_result::valid;
-					}
-					if (!consume(',')) {
-						return json_preflight_result::malformed;
-					}
-					whitespace();
-				}
-			}
-
-			[[nodiscard]] auto string(
-				std::string_view* aOutput,
-				const bool        aObjectKey) noexcept -> bool
-			{
-				if (!consume('"')) {
-					return false;
-				}
-				const auto start = Position;
-				while (Position < Input.size()) {
-					if (Position - start > Limits.MaximumStringBytes) {
-						StringLimitExceeded = true;
-						return false;
-					}
-					const auto character = static_cast<unsigned char>(Input[Position++]);
-					if (character == '"') {
-						if (aOutput != nullptr) {
-							*aOutput = Input.substr(start, Position - start - 1U);
-						}
-						return true;
-					}
-					if (character < 0x20U) {
-						return false;
-					}
-					if (character != '\\') {
-						continue;
-					}
-					if (aObjectKey || Position >= Input.size()) {
-						return false;
-					}
-					const auto escaped = Input[Position++];
-					if (
-						escaped == '"' || escaped == '\\' || escaped == '/'
-						|| escaped == 'b' || escaped == 'f' || escaped == 'n'
-						|| escaped == 'r' || escaped == 't') {
-						continue;
-					}
-					if (escaped != 'u' || Input.size() - Position < 4U) {
-						return false;
-					}
-					for (std::size_t index = 0U; index < 4U; ++index) {
-						const auto digit = static_cast<unsigned char>(Input[Position++]);
-						if (std::isxdigit(digit) == 0) {
-							return false;
-						}
-					}
-				}
-				return false;
-			}
-
-			[[nodiscard]] auto number() noexcept -> json_preflight_result
-			{
-				const auto start = Position;
-				(void)consume('-');
-				if (consume('0')) {
-					if (
-						Position < Input.size() && Input[Position] >= '0'
-						&& Input[Position] <= '9') {
-						return json_preflight_result::malformed;
-					}
-				} else {
-					if (
-						Position >= Input.size() || Input[Position] < '1'
-						|| Input[Position] > '9') {
-						return json_preflight_result::malformed;
-					}
-					while (
-						Position < Input.size() && Input[Position] >= '0'
-						&& Input[Position] <= '9') {
-						++Position;
-					}
-				}
-				if (consume('.')) {
-					const auto digits = Position;
-					while (
-						Position < Input.size() && Input[Position] >= '0'
-						&& Input[Position] <= '9') {
-						++Position;
-					}
-					if (Position == digits) {
-						return json_preflight_result::malformed;
-					}
-				}
-				if (
-					Position < Input.size()
-					&& (Input[Position] == 'e' || Input[Position] == 'E')) {
-					++Position;
-					if (
-						Position < Input.size()
-						&& (Input[Position] == '+' || Input[Position] == '-')) {
-						++Position;
-					}
-					const auto digits = Position;
-					while (
-						Position < Input.size() && Input[Position] >= '0'
-						&& Input[Position] <= '9') {
-						++Position;
-					}
-					if (Position == digits) {
-						return json_preflight_result::malformed;
-					}
-				}
-				return Position != start ? json_preflight_result::valid
-										 : json_preflight_result::malformed;
-			}
-
-			[[nodiscard]] auto literal(const std::string_view aExpected) noexcept
-				-> json_preflight_result
-			{
-				if (Input.substr(Position, aExpected.size()) != aExpected) {
-					return json_preflight_result::malformed;
-				}
-				Position += aExpected.size();
-				return json_preflight_result::valid;
-			}
-
-			auto whitespace() noexcept -> void
-			{
-				while (
-					Position < Input.size()
-					&& (Input[Position] == ' ' || Input[Position] == '\t'
-						|| Input[Position] == '\r' || Input[Position] == '\n')) {
-					++Position;
-				}
-			}
-
-			[[nodiscard]] auto consume(const char aExpected) noexcept -> bool
-			{
-				if (Position >= Input.size() || Input[Position] != aExpected) {
-					return false;
-				}
-				++Position;
-				return true;
-			}
-
 			std::string_view               Input;
 			const capability_probe_limits& Limits;
-			std::size_t                    Position            = 0U;
-			std::size_t                    Values              = 0U;
-			bool                           StringLimitExceeded = false;
+			std::size_t                    Values = 0U;
 		};
 
 		enum class selected_type_shape : std::uint8_t {

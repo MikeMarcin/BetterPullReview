@@ -25,6 +25,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
             PUBLIC
                 BetterPullReview::Application
             PRIVATE
+                glaze::glaze
                 Threads::Threads
                 "${BPR_DESIGNATED_LIVE_OBSERVER_COREFOUNDATION_FRAMEWORK}"
                 "${BPR_DESIGNATED_LIVE_OBSERVER_SECURITY_FRAMEWORK}"
