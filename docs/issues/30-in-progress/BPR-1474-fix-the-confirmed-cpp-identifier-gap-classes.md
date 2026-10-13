@@ -47,3 +47,44 @@ scope, each with a committed gap fixture in
 - **AC3:** The C++ identifier revision is bumped so cached spans from the old
   rules are refused, and RFC-BPR-0072's contract, the evaluation's harness
   baseline and `syntax_refinement_cancellation` still pass.
+
+## Evidence
+
+Implementation `4add47f63`, measured on macOS (Apple M4 Pro) on 2026-10-13.
+
+- AC1: `cpp_gap_contract` in
+  [`syntax_classification_contract_tests.cpp`](../../../tests/syntax_contract/syntax_classification_contract_tests.cpp)
+  classifies each committed gap fixture through the public classifier. With the
+  revision-6 refinement every class fails (H1 both checks, H2, H3, H4, H5's
+  closing check, H6, H7 and the split `extern "C"` enum); with `4add47f63` all
+  pass. `brace_flood_contract` in
+  [`syntax_refinement_cancellation_tests.cpp`](../../../tests/syntax_contract/syntax_refinement_cancellation_tests.cpp)
+  bounds what the refinement requests on 299,952 bytes of `{`: 100 bytes per
+  source byte now, over 128 before. The baseline engine of
+  `syntax_evaluation_v0_23_4` was run over the freshly materialized corpus
+  (5,270 files, one round) with the old and the new refinement and scored by
+  `score_evaluation.py`. The old run reproduces the committed baseline exactly
+  (136 FP, 3,576 FN). New: FP 132 (ns_decl 0, enumerator_decl 1 to 0, enum_use
+  12, ns_qualifier 82, conservative_negative 41 to 38, macro_keep 0, protected
+  0), FN 3,561 (ns_decl 243 to 240, enumerator_decl 8 to 5, enum_use 438 to
+  433, ns_qualifier 2,270 to 2,267, macro_keep 617 to 616). No label
+  disagreement is new; 19 are fixed, all in the gap suite. Outside the gap
+  suite only `malformed/random-utf8-1mib.cpp` changes spans (non-ASCII bytes).
+  H1 to H7 move from confirmed to refuted. H8: the peak refinement heap on
+  both brace floods falls from 2,022,703,120 and 1,099,956,240 bytes to
+  261,095,520, under the RFC's 512 MiB cap; the scorer still reports H8
+  "confirmed", because its rule asks whether an 8 MiB input has the largest
+  footprint, and 8 MiB of tokens is larger than any other input's whole
+  refinement. Determinism held; statuses unchanged (5,264 available, 4 over
+  the span limit).
+- AC2: `cpp_identifier_context.cpp` is 698 lines. No pass over the whole blob
+  was added: conditional directive lines are recorded in the existing
+  directive scan of `prepare_roles` and consumed in step with
+  `collect_declarations`. Macro expansion, cross-file uses and unqualified
+  uses were not attempted.
+- AC3: `cpp_identifier_heuristic_revision` is 7, and the contract refuses a
+  key carrying revision 6. `syntax_classification_contract`,
+  `syntax_refinement_cancellation`, `qt_syntax_pane_composition`,
+  `application_cpp_identifier_appearance`, `application_appearance_host`, the
+  four boundary checks and `core-only` pass; `coding-format-check` and
+  changed-line tidy are clean.
