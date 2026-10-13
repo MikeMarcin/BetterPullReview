@@ -412,7 +412,7 @@ try {
 			windowA->resize(aWidth, 760);
 			QApplication::processEvents();
 			wait_for([&] {
-				for (auto* const view : windowA->home_list()->row_views()) {
+				for (auto* const view : windowA->home_list()->findChildren<QListView*>()) {
 					if (!view->isVisible()) {
 						continue;
 					}
