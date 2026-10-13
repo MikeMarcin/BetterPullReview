@@ -1,0 +1,35 @@
+{
+  "candidate": "b82247dc63af2e5e3097ffc658d9a75756da58bf; pending checkpoint-only commit",
+  "production_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "documentation": "DOCUMENTATION_OK after full closeout/checkpoint upkeep",
+  "documentation_regression": "67 tests pass2.137s; expected negative-fixture diagnostics retained",
+  "board": {
+    "schema": "implement-rfc.validation.v1",
+    "valid": true,
+    "card_count": 1420,
+    "errors": []
+  },
+  "plan": {
+    "state": "found",
+    "path": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+    "origin": "explicit",
+    "plan_id": "find-and-find-in-files-v1",
+    "structural": "valid",
+    "semantic_coverage": "unknown",
+    "milestone_ids": [
+      "search-session-policy",
+      "shared-matching",
+      "exact-pr-corpus",
+      "pane-find",
+      "pr-search"
+    ]
+  },
+  "return": {
+    "action": "report-closeout",
+    "detail": "All five milestones and original AC01\u2013AC08 accepted. Product7d56dc1e5 is unchanged through M5 acceptancef7a707221 and full closeoutb82247dc63af2e5e3097ffc658d9a75756da58bf. No required attended/native/human decision remains. Main landing is coordinated separately by normal fast-forward; this lane is quiescent and ready for release.",
+    "engineering_acceptance": "not-evaluated"
+  },
+  "required_pending": [],
+  "source_changes_since_product": [],
+  "source_scripts_and_fixture_tree_unchanged": true
+}

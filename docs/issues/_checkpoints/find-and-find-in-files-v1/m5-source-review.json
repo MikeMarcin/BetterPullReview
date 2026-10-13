@@ -7,7 +7,7 @@
     "a7fb9af0a",
     "0220258f4"
   ],
-  "candidate": "final M5 working source over a4dc59cea; exact product commit will bind final acceptance",
+  "candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
   "scope": "all own source deltas from adopted main, preserving accepted CLI/navigation/C++ programs",
   "findings": [
     "One exact accepted active-tab pair binds corpus under epoch actor authority, full catalogue and query generation. No provider list/filter/receipt intersects membership.",
@@ -29,11 +29,13 @@
     "src/pr_search_controller.cpp",
     "src/pr_search_controller.hpp"
   ],
-  "negative_controls": "all existing composition_contract_tests controls retained; qualification pending",
+  "negative_controls": "Combined roundtrip and all four selected language/full-source/provider/exact-tree suites pass; every original control retained.",
   "baseline_repairs": [
     "syntax fixture clang-format22 only",
     "exact fixture registry adds omitted header-source-v1 and cpp-identifiers-v1; source-find-v1 already registered",
     "core-only dependency test uses supported populated offline CPM cache",
     "adopted strict CLI native qualifier uses supported contained_temporary_directory; no native qualifier run"
-  ]
+  ],
+  "product_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "accepted_closeout_revision": "b82247dc63af2e5e3097ffc658d9a75756da58bf"
 }

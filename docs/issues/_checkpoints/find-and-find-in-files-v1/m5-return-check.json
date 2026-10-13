@@ -1,0 +1,5 @@
+{
+  "action": "report-closeout",
+  "detail": "All five milestones and original AC01\u2013AC08 accepted. Product7d56dc1e5 is unchanged through M5 acceptancef7a707221 and full closeoutb82247dc63af2e5e3097ffc658d9a75756da58bf. No required attended/native/human decision remains. Main landing is coordinated separately by normal fast-forward; this lane is quiescent and ready for release.",
+  "engineering_acceptance": "not-evaluated"
+}

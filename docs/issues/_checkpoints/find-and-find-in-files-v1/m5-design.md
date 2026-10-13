@@ -1,4 +1,4 @@
-# M5 native Search design and implementation frontier
+# M5 native Search design
 
 Mandate `find-and-find-in-files-v1-r1`; full final `pr-search` binding.
 Required frontend-design loaded before UI work; native palette/UI font/source font,
@@ -21,7 +21,12 @@ Initial result opening from a window scope adopts the newly created active tab
 without a second scan, while the reveal still binds the real target tab. Every
 later explicit tab/pair/authority/reading gesture invalidates that continuation.
 
-First public development course passed; see m5-development.json. This is progress,
-not M5 or RFC acceptance. Exact final source, native layouts, race and coverage
-courses, large public measurements, core-only/boundaries/docs and main integration
-remain to do. Historical M1 269/272 failure and M3 tidy limitations remain retained.
+The completed design is accepted on product `7d56dc1e5` and full closeout
+`b82247dc6`. Numeric tree indexes borrow immutable records; the 8 MiB projection/
+tab reserve stays inside the 192 MiB component admission. A monotonically newer
+reading gesture defeats pending A→B→A reveal even when document identities
+coincide. Cold acquisition yields/retries while the original nonempty query
+finishes full coverage. Complete evidence is in m5-full-criteria.json. Original
+failed commands and inherited M3 global tidy limitations remain retained with
+precise corrective/reuse dispositions. Main landing belongs to the coordinator;
+no required human criterion remains.

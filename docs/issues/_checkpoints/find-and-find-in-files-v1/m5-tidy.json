@@ -1,7 +1,7 @@
 {
   "tool": "clang-tidy22",
   "baseline": "32d1909d2; accepted main source also included in changed ranges",
-  "candidate": "product sources prepared for commit over a4dc59cea",
+  "candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
   "scope": "11 changed-line TUs; existing M3 whole-file findings retained, no global tidy-clean claim",
   "filters": [
     {
@@ -625,5 +625,12 @@
     "tests/end_to_end/source_pr_search_performance_tests.cpp"
   ],
   "new_tu_result": "all pass with warnings as errors; scope course final static arguments call and unsupported mode check rerun passes",
-  "initial_failures": "m5-new-tidy.log retains explicit short OID string-view size, endl, argument name and static call failures; corrected before acceptance"
+  "initial_failures": "m5-new-tidy.log retains explicit short OID string-view size, endl, argument name and static call failures; corrected before acceptance",
+  "product_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "accepted_closeout_revision": "b82247dc63af2e5e3097ffc658d9a75756da58bf",
+  "final_scope_extension": {
+    "path": "tests/end_to_end/source_pr_search_scope_path_tests.cpp",
+    "source_sha256": "5f967d4610c1835c6caaac3bd1dbfd1c73189f126f825fc57f6955089ef4f390",
+    "tidy22": "Pass with warnings as errors after final added/removed activation extension"
+  }
 }

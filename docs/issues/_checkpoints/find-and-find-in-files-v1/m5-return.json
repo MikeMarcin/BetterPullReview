@@ -1,0 +1,256 @@
+{
+  "run_id": "find-and-find-in-files-v1",
+  "segment_id": "coordinator-implementer-001",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "milestone": "pr-search",
+  "binding": {
+    "plan_id": "find-and-find-in-files-v1",
+    "plan_path": "docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json",
+    "milestone_id": "pr-search",
+    "definition_fingerprint": "sha256:a187fab107b7975cec6f4684a201713be72408fa0046993387ec161e80dc8637",
+    "obligations": [
+      {
+        "id": "BPR-1423:*",
+        "source": "BPR-1423",
+        "selector": null,
+        "source_fingerprint": "sha256:ea8051a8c3dcfa18f755ae3ddd0ab720dfce341484c2d8cb81c69deb34894fcd"
+      },
+      {
+        "id": "BPR-1424:*",
+        "source": "BPR-1424",
+        "selector": null,
+        "source_fingerprint": "sha256:9bf0e2dee666c871729fb844ea269994ac8ce4097854e3c59a53b1c03783bda7"
+      },
+      {
+        "id": "RFC-BPR-0077:*",
+        "source": "RFC-BPR-0077",
+        "selector": null,
+        "source_fingerprint": "sha256:9c3a93b14e1fa0bf84efbf3f1bf6e488b946216c5c5f29b64995d0690d01d123"
+      }
+    ],
+    "obligation_fingerprint": "sha256:4cbba5e0a197ace2c577473b979d83ba38e776fdc68fdc6b137bcfe9b4f72acc",
+    "exit_criteria": [
+      {
+        "id": "pr-search:exit:1",
+        "text": "AC03\u2013AC07 pass through real Search-tab commands and key paths: historical membership, exact result activation/F4, sibling preservation, filters/deduplication, stale completion/reveal, qualified coverage and accessible native layout."
+      },
+      {
+        "id": "pr-search:exit:2",
+        "text": "Selection/reveal binds PR authority, catalogue, tab, comparison, exact path/side/blob/span and query generation; later reading gestures cancel it."
+      },
+      {
+        "id": "pr-search:exit:3",
+        "text": "Pane and PR query state remain independent and runtime-only; authority changes clear sensitive text/results and all newly admitted effects reach their terminal."
+      },
+      {
+        "id": "pr-search:exit:4",
+        "text": "AC01\u2013AC08 retain their complete original meaning and all pass on the exact integrated candidate, with any required attended/native judgment actually supplied."
+      },
+      {
+        "id": "pr-search:exit:5",
+        "text": "Large public-path fixture records warm/cold matching/acquisition, cancellation latency, peak memory, hardware/cache context and committed regression thresholds; navigation remains usable during cold scan and structural no-rescan rules hold."
+      },
+      {
+        "id": "pr-search:exit:6",
+        "text": "Command map, source-search behavior, resource ownership, baseline diff, verification ledger and live tracker agree; architecture and core-only checks plus documentation gates pass."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:9a391f7e6d462e88c0c29bcf52871c9a4f83f17064742db90c97a27ca20b6c51",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "disposition": "pack-complete",
+  "candidate_revision": "b82247dc63af2e5e3097ffc658d9a75756da58bf",
+  "handoff_ref": "docs/issues/_checkpoints/find-and-find-in-files-v1/continuation.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+    "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1423:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "BPR-1424:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "RFC-BPR-0077:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "pr-search:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "pr-search:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "pr-search:exit:3",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "pr-search:exit:4",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "pr-search:exit:5",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    },
+    {
+      "id": "pr-search:exit:6",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json",
+        "docs/issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "All five milestones and original AC01\u2013AC08 accepted. Product7d56dc1e5 is unchanged through M5 acceptancef7a707221 and full closeoutb82247dc63af2e5e3097ffc658d9a75756da58bf. No required attended/native/human decision remains. Main landing is coordinated separately by normal fast-forward; this lane is quiescent and ready for release."
+  },
+  "ownership": "quiescent"
+}

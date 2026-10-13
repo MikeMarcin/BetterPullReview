@@ -1,0 +1,15 @@
+{
+  "product_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "m5_acceptance": "f7a707221192e82bf544c0b591480af95a47b249",
+  "full_closeout": "b82247dc63af2e5e3097ffc658d9a75756da58bf",
+  "source_owner": "Sole a675 Find implementer; no other source writer in this lane",
+  "running_commands": [],
+  "children": [],
+  "review_server": null,
+  "frozen_attended_candidate": null,
+  "required_pending": [],
+  "attended_deferrals": [],
+  "source_effects": "All public courses and shutdowns terminal. No main write, remote mutation or publication.",
+  "cleanup": "Cancellation-removal mutation restored byte-for-byte; copied fixture negative-control root removed. Passing installed-Git courses use normal QTemporaryDir cleanup. No process stopped by pattern. Owned build logs/renders retained as evidence.",
+  "checkpoint_tip": "The following checkpoint-only commit changes no production or performance input; its exact tip is reported in the final handoff."
+}

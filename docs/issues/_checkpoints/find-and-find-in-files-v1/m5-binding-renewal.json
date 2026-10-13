@@ -1,0 +1,17 @@
+{
+  "reason": "Accepted mutable execution/continuation/checklist notes changed full-card requirement fingerprints. Renew the same full assignment after comparing the complete original criteria and plan. No new scope, projection, waiver or strategy change.",
+  "prior_result": {
+    "action": "reconcile",
+    "detail": "affected plan or requirements changed; renew assignment",
+    "engineering_acceptance": "not-evaluated"
+  },
+  "original_binding": "m5-binding.json",
+  "renewed_binding": "m5-final-binding.json",
+  "immutable_rfc_original_criteria_equal": true,
+  "original_card_criteria_equal": true,
+  "authored_plan_bytes_equal": true,
+  "all_six_exits_equal": true,
+  "same_three_whole_obligations": true,
+  "product_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "accepted_closeout_revision": "b82247dc63af2e5e3097ffc658d9a75756da58bf"
+}

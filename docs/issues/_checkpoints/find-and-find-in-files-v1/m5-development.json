@@ -2,7 +2,7 @@
   "mandate_revision": "find-and-find-in-files-v1-r1",
   "milestone": "pr-search",
   "claim": "e7f4f67be37cd2bcb7aa6e20ea8cdac9b87bce29",
-  "candidate": "a4dc59cea plus current follow-up working edits; full acceptance pending",
+  "candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
   "development_checks": [
     {
       "command": "cmake --build build/find-corpus-git --target test_source_find_public_path -j 4",
@@ -85,17 +85,14 @@
       "result": "First guard fails explicit inventory lexical order; corrected four-entry inventory retains exact rejection. Roundtrip4.01s passes; full selected4 negative suites24.079s pass; production mutation branch remains byte-identical e067bef\u2026."
     }
   ],
-  "current_work": [
-    "small exact unsupported-mode public rerun",
-    "new/changed-line tidy22 final",
-    "committed candidate performance window including actual cap and streaming row",
-    "original pane regression and architecture/docs final",
-    "full ledger/card/RFC acceptance reconciliation"
-  ],
+  "current_work": [],
   "commands": {
     "running": [],
     "review_server": null,
     "children": []
   },
-  "ownership": "sole a675 source writer; no main writes or remote effects"
+  "ownership": "sole a675 source writer; no main writes or remote effects",
+  "product_candidate": "7d56dc1e528fcc24320bd6287a2274362d5bd5f2",
+  "accepted_closeout_revision": "b82247dc63af2e5e3097ffc658d9a75756da58bf",
+  "final_status": "All original AC01\u2013AC08 and full M5/BPR-1424 accepted; main integration awaits coordinator."
 }

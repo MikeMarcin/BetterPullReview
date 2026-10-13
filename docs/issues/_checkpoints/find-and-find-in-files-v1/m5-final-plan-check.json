@@ -1,0 +1,1 @@
+{"state": "found", "path": "/Users/jaeger/.codex/worktrees/a675/BetterPullReview/docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json", "origin": "explicit", "plan_id": "find-and-find-in-files-v1", "structural": "valid", "semantic_coverage": "unknown", "milestone_ids": ["search-session-policy", "shared-matching", "exact-pr-corpus", "pane-find", "pr-search"]}
