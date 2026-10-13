@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1441"
 title: "Stop the C++ refinement partway in a test and fuzz the C++ classifier"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0081"]
 depends_on: []
 priority: "P2"
