@@ -14,6 +14,7 @@
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
+#include "bpr/qt/home_panel.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -783,6 +784,41 @@ try {
 			   && afterWindow.VaultRetrieveAttempts == beforeWindow.VaultRetrieveAttempts && afterWindow.VaultDeleteAttempts == beforeWindow.VaultDeleteAttempts,
 		   "presenting the session in the second window reads no account and touches no vault");
 	expect(evidence().DiscoverySearches == 6U && discovery().Statistics.Refreshes == 2U, "a second window adds no discovery request");
+	// [[BPR-1414]]. The real strip actions must survive the host round trip.
+	{
+		const auto allRows = queue_numbers(*windowA);
+		const auto role    = [&](const char* aName) {
+			auto* const action = windowA->findChild<QAction*>(QString::fromUtf8(aName));
+			expect(action != nullptr, "the Home role action exists");
+			action->trigger();
+			QApplication::processEvents();
+		};
+		role("homeFilterRequestedAction");
+		expect(queue_numbers(*windowA) == std::set<std::int64_t>{ 4003 }, "Requested includes discovered requests through the real menu");
+		role("homeFilterAuthorAction");
+		expect(queue_numbers(*windowA) == std::set<std::int64_t>({ 4001, 4002 }), "Author includes discovered authorship through the real menu");
+		role("homeFilterAnyAction");
+		expect(queue_numbers(*windowA) == allRows, "Any restores every row");
+		const auto selected = queue_item(*windowA, 4003)->Ref;
+		expect(windowA->home_list()->select(selected, true), "requested row selected before grouping");
+		for (const auto grouping : { application::home_grouping::repository, application::home_grouping::organization, application::home_grouping::account }) {
+			windowA->home_group_action(grouping)->trigger();
+			QApplication::processEvents();
+			expect(windowA->home_view().Grouping == grouping && windowA->home_list()->grouping() == grouping,
+				   "grouping survives composed host publication");
+			expect(!windowA->home_list()->group_panels().empty() && windowA->selected_queue_item() && windowA->selected_queue_item()->Ref == selected,
+				   "group panels contain the selected PR");
+			expect(windowB->home_view().Grouping == application::home_grouping::none, "grouping belongs to one window");
+			for (const auto headers : { false, true }) {
+				windowA->home_state_headers_action()->trigger();
+				QApplication::processEvents();
+				expect(windowA->home_list()->state_headers() == headers && queue_numbers(*windowA) == allRows,
+					   "state headers do not lose grouped rows");
+			}
+		}
+		windowA->home_group_action(application::home_grouping::none)->trigger();
+		QApplication::processEvents();
+	}
 
 	// The explicit Refresh, from the second window: one more refresh, which
 	// both windows see.
@@ -815,6 +851,12 @@ try {
 	expect(queue_item(*windowA, 4003)->Bucket == core::attention_bucket::quiet && queue_item(*windowB, 4003)->Bucket == core::attention_bucket::quiet
 			   && contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"),
 		   "Home Refresh moves an approved unopened PR to Following in both windows");
+	windowA->findChild<QAction*>(QStringLiteral("homeFilterReviewerAction"))->trigger();
+	QApplication::processEvents();
+	expect(queue_numbers(*windowA).contains(4003), "Reviewer includes the accepted discovered review");
+	windowA->findChild<QAction*>(QStringLiteral("homeFilterAnyAction"))->trigger();
+	QApplication::processEvents();
+	expect(windowA->home_list()->select(authoredRef, true), "restore the authored row after checking Reviewer");
 
 	if (!cliCourse) {
 		// The normal Return gesture on that same authored identity opens it here.
@@ -872,6 +914,8 @@ try {
 	const auto followedTitle = queue_item(*windowA, 17)->Facts.Title;
 	expect(!followedTitle.empty(), "followed PR has an accepted title before restarting");
 	expect(queue_item(*windowA, 17)->Facts.Draft == true, "queue agrees with accepted Recent draft before restart");
+	windowA->home_group_action(application::home_grouping::repository)->trigger();
+	QApplication::processEvents();
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
 	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
@@ -899,12 +943,17 @@ try {
 			 "signing in again lists the account's own records", diagnose);
 	if (cliCourse) {
 		const auto transport = evidence();
+		std::cerr << "restarted transport=" << transport.AccountTransportSelected << " vault-store=" << transport.VaultStoreAttempts
+				  << " vault-retrieve=" << transport.VaultRetrieveAttempts << " profile=" << windowA->account_action()->text().toStdString() << '\n';
 		expect(transport.AccountTransportSelected && transport.VaultStoreAttempts == 0U && transport.VaultRetrieveAttempts == 0U,
 			   "restored Home metadata uses the CLI account lease without a native credential");
 	}
 
 	wait_for([&] { const auto item = queue_item(*windowA, 4003); const auto followed = queue_item(*windowA, 17); return discovery().Quiescent && item && followed && followed->Facts.Title == followedTitle && item->Facts.Title == "Discovered pull request 4003" && item->Bucket == core::attention_bucket::quiet; },
 			 "restarted Home fills retained titles and approval state before opening a review", diagnose);
+	expect(windowA->home_view().Grouping == application::home_grouping::repository && windowA->home_list()->grouping() == application::home_grouping::repository
+			   && windowA->home_list()->group_panel(QStringLiteral("octo-org/review-repository")) != nullptr,
+		   "repository grouping survives restart and rebuilt queue rows");
 	auto retainedRecentDraft = false;
 	for (auto index = 0; index < windowA->home_recent_list()->count(); ++index) {
 		const auto* recent  = windowA->home_recent_list()->item(index);
@@ -921,8 +970,9 @@ try {
 	// profile's restoration host, and Delete takes the rest; GitHub is asked
 	// for nothing.
 	{
-		auto* const recentRows = windowA->home_recent_list();
-		const auto  listed     = recentRows->count();
+		auto* const recentRows         = windowA->home_recent_list();
+		const auto  listed             = recentRows->count();
+		const auto  readsBeforeRemoval = evidence().AccountReadOperations.size();
 		expect(listed >= 1, "the restored profile lists what it viewed");
 		const auto removed = recentRows->item(0)->data(qt::home_row_role::identity).toString();
 		recentRows->setFocus(Qt::OtherFocusReason);
@@ -938,6 +988,9 @@ try {
 			return recentRows->count() == listed - 1;
 		},
 				 "Remove from Recently Viewed takes the row off the list", diagnose);
+		for (const auto context : owner->windows()) {
+			expect(owner->window(context)->home_recent_list()->count() == listed - 1, "every profile window observes recent removal");
+		}
 		while (recentRows->count() > 0) {
 			const auto remaining = recentRows->count();
 			recentRows->setFocus(Qt::OtherFocusReason);
@@ -947,6 +1000,7 @@ try {
 			wait_for([&] { return recentRows->count() == remaining - 1; }, "Delete takes the current Recently viewed row off", diagnose);
 		}
 		expect(!windowA->home_recent_panel()->isVisible(), "an emptied Recently viewed is not shown");
+		expect(evidence().AccountReadOperations.size() == readsBeforeRemoval, "recent removal makes no GitHub read");
 	}
 	// Settings › Repositories removes through the existing saved-repository
 	// intent and store; the last removal brings back the first-run call to action.
@@ -973,6 +1027,21 @@ try {
 	expect(app::detail::github_application_fixture_access::review_mutation_evidence(*owner).Submissions == 0U, "removal asks GitHub to change nothing");
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "restarted profile drains");
+	retiredDesktop = desktop->management_window();
+	desktop.reset();
+	wait_for([&] { return retiredDesktop.isNull(); }, "removed recents are durable before another startup");
+	owner    = nullptr;
+	terminal = false;
+	desktop  = app::detail::github_application_fixture_access::start_desktop(
+		app::detail::github_public_path_fixture::profile_window_restoration_v1, options, [&](auto aResult) { terminal = true; if (aResult) { owner = *aResult; } });
+	wait_for([&] { return terminal && owner != nullptr && !owner->windows().empty(); }, "profile restarts after recent removal");
+	owner->show();
+	windowA = owner->window(owner->windows().front());
+	connect();
+	wait_for([&] { return windowA->session_panel()->status() == core::github_status::session_ready && savedCount() == 0; }, "same account returns after recent removal");
+	expect(windowA->home_recent_list()->count() == 0, "SQLite restart does not resurrect removed recent entries");
+	owner->begin_shutdown();
+	wait_for([&] { return owner->status().ShutdownComplete; }, "final removal verification drains");
 	desktop.reset();
 	expect(e2e::remove_course_root(temporary), "the course's temporary root is removed");
 	std::cout << (cliCourse ? "personal-discovery-cli-public-path:pass\n" : "personal-discovery-public-path:pass\n");

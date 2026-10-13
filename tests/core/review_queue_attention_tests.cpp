@@ -360,12 +360,14 @@ namespace {
 		const auto reviewed  = item({ .Reviewed = true });
 		const auto authored  = item({ .Authored = true });
 		const auto ruled     = item(membership(core::github_role::none, true));
-		const auto changed   = item(membership(core::github_role::none, true), core::attention_bucket::changed_since_my_review);
+		const auto observed  = core::queue_membership_with_activity(membership(core::github_role::none, true), std::nullopt, true);
 		expect(core::holds_role(requested, core::github_role::requested_reviewer), "a discovered request is Requested");
 		expect(!core::holds_role(requested, core::github_role::reviewer) && !core::holds_role(requested, core::github_role::none),
 			   "a discovered request is neither Reviewer nor No role");
 		expect(core::holds_role(reviewed, core::github_role::reviewer), "an observed review is Reviewer");
-		expect(core::holds_role(changed, core::github_role::reviewer), "changed since my review is Reviewer, even for a rule's item");
+		expect(core::holds_role(item(observed), core::github_role::reviewer)
+				   && core::holds_role(item(observed, core::attention_bucket::changed_since_my_review), core::github_role::reviewer),
+			   "an observed submitted review is Reviewer regardless of attention bucket");
 		expect(core::holds_role(authored, core::github_role::author) && !core::holds_role(authored, core::github_role::none),
 			   "a discovered authored item is Author");
 		expect(core::holds_role(ruled, core::github_role::none), "a rule's item with no role of its own is No role");

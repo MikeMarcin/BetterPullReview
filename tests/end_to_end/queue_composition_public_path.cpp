@@ -93,7 +93,7 @@ namespace {
 		-> application::queue_presentation_preferences
 	{
 		return {
-			.Role           = core::github_role::none,
+			.Role           = core::github_role::reviewer,
 			.ObserverReason = core::observer_rule_kind::repository,
 			.Repository     = "octo-org/review-repository",
 			.Quiet          = application::queue_quiet_filter::all,
@@ -227,7 +227,7 @@ auto main(int argc, char** argv) -> int
 		window.add_queue_rule_action()->trigger();
 	}
 	auto firstHead = wait_terms{ };
-	if (!wait_until_reporting(firstHead, [&window, &rule](wait_terms& aTerms) {
+	if (!wait_until_reporting(firstHead, [&window, &rule, refreshCourse](wait_terms& aTerms) {
 			note_first_head(aTerms, window, rule);
 			if (!aTerms.require(
 					"remove-enabled",
@@ -247,8 +247,8 @@ auto main(int argc, char** argv) -> int
 				&& aTerms.require("matched-a-rule", item->Membership.MatchedRule)
 				&& aTerms.require("rule-is-exact", item->Membership.Rule == rule)
 				&& aTerms.require(
-					"bucket-is-quiet",
-					item->Bucket == core::attention_bucket::quiet);
+					"bucket-matches-accepted-review",
+					item->Bucket == (refreshCourse ? core::attention_bucket::quiet : core::attention_bucket::changed_since_my_review));
 		})) {
 		return fail(
 			*application, "first-head-is-exact-and-quiet", firstHead.render());
@@ -412,7 +412,7 @@ auto main(int argc, char** argv) -> int
 			const auto preferences = fixture_preferences();
 			window.queue_role_filter()->setCurrentIndex(
 				window.queue_role_filter()->findData(
-					static_cast<int>(core::github_role::none)));
+					static_cast<int>(core::github_role::reviewer)));
 			window.queue_observer_filter()->setCurrentIndex(
 				window.queue_observer_filter()->findData(
 					static_cast<int>(core::observer_rule_kind::repository)));

@@ -89,6 +89,16 @@ has not given them.
 is not answered, and collapsing them would lose the difference between work
 waiting and work done — which is most of what a queue is for.
 
+Home's My role filter checks all accepted membership reasons, not just the
+single legacy role field. Authored and Requested discovery match their roles;
+retained Reviewed membership or an observed submitted review matches Reviewer.
+An item can match several roles; No role matches only when none applies.
+Observed review membership affects the row projection without turning a
+rule-only enrollment into a durable personal enrollment. Opening a PR computes
+changed-since-review from its accepted head and submitted review commit on the
+first read as well as later refreshes. The Reviewing chip records which PR is
+open and does not clear attention ([[BPR-1414]]).
+
 ## Observer rules
 
 A rule matches a repository, an author, or a path. Path patterns are prefixes,
@@ -308,16 +318,13 @@ anything of this reviewer, and a tool that interrupted for them would teach the
 reviewer to ignore its notifications — after which the ones that matter are
 ignored too.
 
-The composition root retains the first accepted head for one exact queue
-session and pull-request identity. That first accepted snapshot supplies an
-empty activity observation and is quiet for a rule-only enrollment. A later
-accepted handoff for that same identity reports `ReviewedByMe` only when the
-accepted provider handoff carries a current-viewer review. It reports
-`HeadMovedSinceMyReview` only when the first accepted head differs from the
-current head and the accepted review commit also differs from the current
-head. The first baseline stays fixed, so a changed-since-review result remains
-true until accepted provider facts make it false. Replacement or invalidation
-clears the baseline and activity. No role, comment, or defect fact is inferred.
+Every accepted handoff reports `ReviewedByMe` when it carries a current-viewer
+submitted review, including the first open in a new process.
+`HeadMovedSinceMyReview` compares that review's commit with the accepted head.
+Opening or reopening cannot erase that comparison; it stays true until accepted
+provider facts make it false. The composition retains the exact session and PR
+identity for notification deduplication; replacement or invalidation clears that
+identity and activity. No review fact is inferred from opening or viewing a PR.
 
 The composition root forwards each accepted queue projection unchanged to the
 real workbench first, then considers a warranting `(queue session,

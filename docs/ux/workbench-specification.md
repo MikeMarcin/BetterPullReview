@@ -561,13 +561,16 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Quiet. Group changes the panels around the rows; section order comes first
   and the chosen sort orders rows inside each section. Notifications and the
   repository drawer retain the same attention policy and counts.
-- **A row** is the identity, the title, a second line that says why and ends
+- **A row** leads with the PR title, a second line that says why and ends
   in its one-word reason, and at the right the time and my reading progress.
   Recently viewed uses the same anatomy, so a row reads the same way wherever
-  it appears. [[BPR-1406]]: on a queue row for someone else's pull request
-  the second line leads with its author, "Opened by octocat; the code moved
-  since my last review", in every section; my own rows never name me, and
-  Recently viewed stores no author. [[BPR-1407]]: a queue row's right holds
+  it appears. [[BPR-1414]] (owner, 2026-10-12) puts the title in the row weight
+  and moves repository/number into the quieter second line. An unknown title
+  falls back to the full identity. Under Repository grouping the second line
+  needs only #number; under Organization it needs name#number. Each queue row
+  names its author beside that identity, including the viewer's own PRs; the
+  login uses ordinary text ink. Assistive text keeps the full identity and
+  author. Recently viewed stores no author. [[BPR-1407]]: a queue row's right holds
   a column of facts, each on the line it is about: "+1,204 / −318" beside
   the first line, "21d" and a comment icon with "14" beside the second in
   its quiet ink. Tabular figures line the column up from row to row; the
@@ -642,6 +645,13 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   its rows' action: on hover, on focus and in the row's menu. It is governed
   by the entries the composition gave the window rather than by the account,
   so a signed-out window still lists its public reading.
+  It retains at most ten destinations per profile, with no time expiry.
+  **Remove from Recently Viewed**, in a recent row's menu, or Delete/Backspace
+  while the list has focus removes that exact destination from the profile's
+  list and persists it. Other windows update too. It does not close an open
+  review, remove its saved reading, unfollow it or change GitHub. Opening it
+  in another window or navigating away and back can list it again; a refresh
+  of the already-open PR leaves it removed ([[BPR-1414]]).
 - **Opening a row** ([[BPR-1342]], the owner, 2026-10-08: "I should be able
   to open a review and open a review in a new window from the home, including
   from right click on a pr"). A single click only selects a row: it becomes

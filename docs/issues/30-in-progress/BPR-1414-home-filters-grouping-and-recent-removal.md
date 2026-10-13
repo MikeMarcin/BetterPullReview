@@ -32,10 +32,14 @@ land it on main. The reserved ID and existing WIP are retained.
   Removal updates the profile's windows, persists across restart, preserves
   other destinations and open reviews, and makes no GitHub request. Reopening
   the PR may add it again. The existing ten-entry, no-expiry bound remains.
+- **AC5:** Opening a PR preserves its outstanding review work. A PR whose
+  accepted head differs from the viewer's submitted review remains in Needs
+  me on the first open after restart; the Reviewing chip changes no policy.
+  This additional owner report arrived during the takeover on 2026-10-12.
 
 ## Execution
 
-One direct milestone delivers AC1–AC4 together. Base before Claude's work:
+One direct milestone delivers AC1–AC5 together. Base before Claude's work:
 `241c21087`. Takeover preserved all uncommitted edits at `b229fdf1b` and merged
 current main without conflicts. No running command from this worktree remained.
 The registered main project's direct preflight passes; this legacy worktree

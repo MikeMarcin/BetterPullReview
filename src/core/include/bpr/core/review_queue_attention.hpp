@@ -177,8 +177,8 @@ namespace bpr::core {
 		auto operator<=>(const queue_item_facts&) const = default;
 	};
 
-	/// \brief Adds accepted ownership to presentation without changing retained enrollment reasons.
-	[[nodiscard]] auto queue_membership_with_authorship(queue_membership aMembership, std::optional<bool> aAuthored) noexcept -> queue_membership;
+	/// \brief Adds observed authorship and submitted-review facts to presentation without changing retained enrollment reasons.
+	[[nodiscard]] auto queue_membership_with_activity(queue_membership aMembership, std::optional<bool> aAuthored, bool aReviewedByMe) noexcept -> queue_membership;
 
 	struct queue_item
 	{
@@ -195,8 +195,8 @@ namespace bpr::core {
 	/// \details What "My role" filters by. GitHub's own `Role` is one way in;
 	/// personal discovery records the same facts as reasons beside it —
 	/// `Authored`, `Requested`, `Reviewed` — and a reviewer asking for the pull
-	/// requests they were requested on means both. A changed-since-my-review
-	/// bucket is itself an observed review. An item holds several roles at
+	/// requests they were requested on means both. Accepted activity also
+	/// contributes submitted-review membership. An item holds several roles at
 	/// once, so this is a test rather than a single answer, and `none` holds
 	/// exactly when no other role does.
 	[[nodiscard]] auto holds_role(const queue_item& aItem, github_role aRole) noexcept -> bool;

@@ -866,7 +866,7 @@ namespace {
 		model.set_now(now);
 		expect(changed == std::vector{ 0 }, "a clock changes only the rows whose age it gives");
 		expect(model.data(first, qt::home_row_role::age).toString() == QStringLiteral("2d") && model.data(first, qt::home_row_role::size).toString() == QStringLiteral("+5 / \u22121"), "the row answers its size and age");
-		expect(description() == qt::home_why_sentence(aged) + QStringLiteral(" Requested. Opened 2 days ago; 5 lines added and 1 removed; 2 comments."), "the accessible description says the drawn facts after the reason");
+		expect(description() == QStringLiteral("Opened by octocat. ") + qt::home_why_sentence(aged) + QStringLiteral(" Requested. Opened 2 days ago; 5 lines added and 1 removed; 2 comments."), "the accessible description says the drawn facts after the reason");
 		changed.clear();
 		model.set_now(now + 3600);
 		expect(changed.empty(), "an hour that changes no day changes no row");

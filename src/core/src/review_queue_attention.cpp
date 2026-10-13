@@ -3,8 +3,9 @@
 #include <algorithm>
 
 namespace bpr::core {
-	auto queue_membership_with_authorship(queue_membership aMembership, std::optional<bool> aAuthored) noexcept -> queue_membership
+	auto queue_membership_with_activity(queue_membership aMembership, std::optional<bool> aAuthored, bool aReviewedByMe) noexcept -> queue_membership
 	{
+		aMembership.Reviewed        = aMembership.Reviewed || aReviewedByMe;
 		aMembership.OwnsPullRequest = aAuthored.value_or(false);
 		if (aAuthored && !*aAuthored) {
 			aMembership.Authored = false;
@@ -24,8 +25,7 @@ namespace bpr::core {
 		case github_role::requested_reviewer:
 			return membership.Role == github_role::requested_reviewer || membership.Requested;
 		case github_role::reviewer:
-			return membership.Role == github_role::reviewer || membership.Reviewed
-				|| aItem.Bucket == attention_bucket::changed_since_my_review;
+			return membership.Role == github_role::reviewer || membership.Reviewed;
 		case github_role::participant:
 			return membership.Role == github_role::participant;
 		case github_role::none:

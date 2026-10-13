@@ -343,7 +343,12 @@ namespace bpr::core {
 	}
 	auto window_review_restoration::forget_recent(const window_review_destination& aDestination) -> bool
 	{
-		return std::erase_if(Recent, [&aDestination](const window_recent_review& aEntry) { return aEntry.Destination == aDestination; }) > 0U;
+		const auto found = std::ranges::find(Recent, aDestination, &window_recent_review::Destination);
+		if (found == Recent.end()) {
+			return false;
+		}
+		Recent.erase(found);
+		return true;
 	}
 	auto window_review_restoration::accepted_draft(const window_review_destination& aDestination, std::optional<bool> aDraft) -> bool
 	{

@@ -823,7 +823,6 @@ namespace bpr::app {
 		{
 			application::queue_session_id Session;
 			core::pull_request_ref        Ref;
-			core::git_commit_oid          Head;
 		};
 
 		struct queue_activity_fact
@@ -13367,21 +13366,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 					activity.ReviewersAwaited = activity.Waiting.Requests.value_or(0);
 					activity.FactRevision     = QueueFactRevision;
-					const auto sameBaseline   = QueueActivityBaseline.has_value()
+					// Opening a PR does not review it. Its accepted review remains
+					// the comparison baseline even on this process's first read.
+					activity.ReviewedByMe           = aHandoff.CurrentViewerReview.has_value();
+					activity.HeadMovedSinceMyReview = activity.ReviewedByMe
+						&& aHandoff.CurrentViewerReview->Commit != aHandoff.Head;
+					const auto sameBaseline = QueueActivityBaseline.has_value()
 						&& QueueActivityBaseline->Session == session
 						&& QueueActivityBaseline->Ref == observation.Ref;
-					if (sameBaseline) {
-						activity.ReviewedByMe
-							= aHandoff.CurrentViewerReview.has_value();
-						activity.HeadMovedSinceMyReview
-							= activity.ReviewedByMe
-							&& QueueActivityBaseline->Head != aHandoff.Head
-							&& aHandoff.CurrentViewerReview->Commit != aHandoff.Head;
-					} else {
+					if (!sameBaseline) {
 						QueueActivityBaseline = queue_activity_baseline{
 							.Session = session,
 							.Ref     = observation.Ref,
-							.Head    = aHandoff.Head,
 						};
 						ActiveQueueNotifications.clear();
 					}

@@ -167,6 +167,33 @@ namespace {
 		restored.drain();
 		expect(restored.Store.Snapshot == f.Store.Snapshot && restored.Store.Saves == 0, "failed restore and same-PR refresh preserve exact stored identity");
 	}
+	void test_recent_removal_persists_without_changing_open_reviews()
+	{
+		fixture f;
+		auto    otherAccount             = recent();
+		otherAccount.Destination.Account = core::github_account_id{ 12 };
+		f.Store.Snapshot.Records         = { { core::bpr_window_id{ 1 }, destination() } };
+		f.Store.Snapshot.Recent          = { recent(), otherAccount, recent(28) };
+		f.load();
+		const auto records = f.Store.Snapshot.Records;
+		f.Host.forget_recent(f.Host.recent().front().Destination);
+		expect(f.Host.recent() == std::vector{ otherAccount, recent(28) } && f.Output.RecentChanges == 2,
+			   "removal is exact to the account and announces the remaining rows");
+		f.Host.forget_recent(destination());
+		expect(f.Output.RecentChanges == 2, "duplicate removal has no publication");
+		f.Host.shutdown_orderly();
+		f.drain();
+		expect(f.Store.Snapshot.Records == records && f.Store.Snapshot.Recent == std::vector{ otherAccount, recent(28) },
+			   "removal persists through Quit without changing open reviews");
+		fixture restarted;
+		restarted.Store.Snapshot = f.Store.Snapshot;
+		restarted.load();
+		expect(restarted.Host.recent() == f.Store.Snapshot.Recent, "restart does not restore the removed recent row");
+		restarted.Host.accepted_read(context(2), destination(), 200);
+		restarted.drain();
+		expect(restarted.Store.Snapshot.Recent.size() == 3 && restarted.Store.Snapshot.Recent.front().Destination == destination(),
+			   "another accepted read can list the removed destination again");
+	}
 	/// [[BPR-1131]]. The window's document tabs persist with its reading and
 	/// come back to the window that resumes the pull request.
 	void test_document_tabs_persist_and_resume()
@@ -335,6 +362,7 @@ int main()
 {
 	test_positions_coalesce_and_survive_failed_restore();
 	test_document_tabs_persist_and_resume();
+	test_recent_removal_persists_without_changing_open_reviews();
 	test_load_prunes_and_gates_restoration();
 	test_coalesced_quit_close_and_conflict();
 	test_failure_cancellation_and_reentrancy();

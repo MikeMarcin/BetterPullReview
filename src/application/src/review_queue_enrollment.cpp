@@ -371,7 +371,7 @@ namespace bpr::application {
 				}
 				membership.Authored = false;
 			}
-			membership = core::queue_membership_with_authorship(membership, facts.Authored);
+			membership = core::queue_membership_with_activity(membership, facts.Authored, activity.ReviewedByMe);
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = membership,
@@ -1435,7 +1435,7 @@ namespace bpr::application {
 
 		[[nodiscard]] static auto observed_item(const enrollment_record& aRecord, const queue_activity_report& aReport) -> core::queue_item
 		{
-			const auto membership = core::queue_membership_with_authorship(aRecord.Membership, aReport.Facts.Authored);
+			const auto membership = core::queue_membership_with_activity(aRecord.Membership, aReport.Facts.Authored, aReport.Observation.ReviewedByMe);
 			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, aReport.Observation), .Facts = aReport.Facts };
 		}
 
