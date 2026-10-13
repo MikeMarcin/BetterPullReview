@@ -33,4 +33,26 @@ but cannot refuse duplicate keys, so one first-party structural check remains.
 
 ## Evidence
 
-Pending.
+- AC1: `src/core/src/json_preflight.cpp` is the single check;
+  `github_read_contract.cpp`, `github_paged_read.cpp` and
+  `github_capability_probe.cpp` keep only their ceilings and call it, and
+  `github_json_preflight.hpp` is a wrapper. `core_json_preflight` covers one
+  value, `1e999` and `.5`/`01`, raw control characters, duplicate and escaped
+  keys, and string versus member ceilings; `github_read_contract`,
+  `github_anonymous_read_contract`, `github_mutation_contract`,
+  `github_publication_contract`, `github_paged_read` and
+  `github_capability_probe` pass unchanged.
+- AC2: `mcp_context_helper.cpp` runs the shared check and UTF-8 validation,
+  then `glz::read_json` into `glz::generic`, and writes strings with
+  `glz::write_json`; `application_mcp_context_helper` passes.
+  `designated_live_public_observer.cpp` reads its exact fields, with 64-bit
+  `id` values, through `glz::meta` mappings;
+  `designated_live_public_observer_fixture` passes.
+- AC3: `cmake/BprDependencies.cmake` acquires glaze outside `BPR_BUILD_QT`;
+  `dependency_modernization_contract`, `architecture_boundaries`,
+  `architecture_boundary_contract`, `package_runtime_contract`,
+  `release_security_audit_contract` and `binary_dependency_audit_contract`
+  pass. The two first-party parsers and their reasons are under "JSON
+  decoding" in `docs/development/build-and-test.md`.
+- Gates: 119 focused tests pass; changed-line clang-tidy 22 has no findings;
+  the format check and `verify_documentation.py` pass.

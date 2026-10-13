@@ -107,7 +107,7 @@ that fuzz it. "Selector" is the first input byte modulo the target's case count.
 
 | Entry point | Input | Deterministic rows | Fuzzed by |
 |---|---|---|---|
-| `json_preflight` (`github_json_preflight.hpp`) | Every JSON response before glaze decodes it | through `github_read_contract`, `github_mutation_contract` | `fuzz_github_api`, selector 0 |
+| `json_preflight` (`github_json_preflight.hpp`; since [[BPR-1433]] a wrapper over `core::json_preflight`) | Every JSON response before glaze decodes it | through `github_read_contract`, `github_mutation_contract` | `fuzz_github_api`, selector 0 |
 | `inspect_graphql_operation_policy` (`github_graphql_operation_policy.hpp`) | An outbound GraphQL document | `github_read_contract` | selector 1 |
 | `normalize_github_read`, `decode_record` (`github_read_normalizer.cpp`) | The ten read responses | `github_read_contract` | selector 2: one of the ten recorded github.com responses replaced |
 | `parse_github_response_metadata` (rate limits, `Link`, `Retry-After`), `github_error_body_is_secondary_rate_limit`, `github_graphql_error_body_is_rate_limited`, `normalize_observed_github_viewer` (`github_paged_read.cpp`) | Response headers and bodies | `github_paged_read`, `gh_cli_transport` | selector 3 |
