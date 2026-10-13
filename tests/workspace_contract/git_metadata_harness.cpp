@@ -72,7 +72,10 @@ namespace {
 	/// candidate, component, case and (optionally) the path, reference or
 	/// field. `fix` is a reader bug fixed with a test (kept here only while a
 	/// fix is pending, so it never applies today); `refusal` is an explicit
-	/// refusal with a reason; `deliberate` is a documented choice.
+	/// refusal with a reason; `deliberate` is a documented choice. `silent`
+	/// records a candidate's silent divergence that BPR cannot fix in it: the
+	/// row still passes, but under H1 the candidate is not eligible for that
+	/// component, and the decision record says so.
 	struct classification
 	{
 		std::string_view Candidate;
@@ -118,8 +121,10 @@ namespace {
 		entries.push_back({ "K", "C3", "reference-directory", "refs/heads/feature", "refusal",
 							"a loose reference that is a directory is reported as unreadable rather than falling back to packed-refs, as fix 7 reports any loose failure but missing" });
 		// C4.
-		entries.push_back({ "K", "C4", "config-bad-ignorecase", "", "deliberate",
-							"discovery opens the Git directories and reads no config; Git dies on the config before printing them, and every config-reading component refuses as Git does" });
+		for (const auto* name : { "config-bad-ignorecase", "format-v0-refstorage" }) {
+			entries.push_back({ "K", "C4", name, "", "deliberate",
+								"discovery opens the Git directories and reads no config; Git dies on the config before printing them, and every config-reading component refuses as Git does" });
+		}
 		// C5 and C6.
 		entries.push_back({ "K", "C5", "ignorecase-latin1", "\xE9t\xE9.txt", "deliberate",
 							"these readers fold ASCII case only; Git under a UTF-8 locale on macOS also folds this Latin-1 byte through the C library (under LC_ALL=C it does not)" });
@@ -131,6 +136,37 @@ namespace {
 									"a rule file past capture's bound (1 MiB or 100,000 rules) refuses the capture by name instead of being dropped (BPR-1455 fix); Git reads up to 100 MB" });
 			}
 		}
+		// [[BPR-1458]]. libgit2 1.9.7 (L), run when the evaluation-only target
+		// exists. Its refusals are explicit; its silent divergences make it
+		// ineligible for the components they touch.
+		const auto every   = std::to_array<std::string_view>({ "C1", "C2", "C3", "C4", "C5", "C6" });
+		const auto library = [&entries, &every](const std::string_view aCase, const std::string_view aKind, const std::string_view aReason) {
+			for (const auto component : every) {
+				entries.push_back({ "L", component, aCase, "", aKind, aReason });
+			}
+		};
+		for (const auto* name : { "sha256-index-v2", "sha256-index-v4", "config-syntax" }) {
+			library(name, "refusal", "libgit2 1.9.7's shipped build has no SHA-256 (only its experimental build reads it), so it refuses a SHA-256 repository: H3 fails");
+		}
+		library("reftable", "refusal", "libgit2 1.9.7 has no reftable support and refuses extensions.refStorage");
+		library("format-compat-object-format", "refusal", "libgit2 refuses extensions.compatObjectFormat as an unsupported extension");
+		library("format-v0-refstorage", "silent", "libgit2 reads a version 0 repository naming extensions.refStorage as a files repository; Git refuses it");
+		library("config-bad-ignorecase", "silent", "libgit2 reads a config Git refuses outright (core.ignorecase = maybe) and answers every question");
+		for (const auto component : { std::string_view{ "C1" }, std::string_view{ "C6" } }) {
+			entries.push_back({ "L", component, "split-index", "", "refusal", "libgit2 refuses the mandatory link extension of a split index" });
+			entries.push_back({ "L", component, "sparse-index-cone", "", "refusal", "libgit2 refuses the mandatory sdir extension of a sparse index" });
+		}
+		entries.push_back({ "L", "C3", "head-symbolic-too-deep", "", "silent", "libgit2 follows symbolic references past Git's limit of five reads and resolves a reference Git calls unresolvable" });
+		for (const auto* name : { "ignorecase-true", "ignorecase-false" }) {
+			entries.push_back({ "L", "C5", name, "config/local/a/key.pem", "silent",
+								"libgit2 matches an anchored pattern whole, without Git's literal-prefix rule, so config/local**/*.pem keeps a path Git ignores (the defect BPR-1454 fixed in K)" });
+		}
+		for (const auto* name : { "attributes", "ignorecase-true", "ignorecase-false" }) {
+			entries.push_back({ "L", "C6", name, "dir", "silent", "libgit2 applies a directory-only attribute pattern to a directory path that Git leaves unspecified" });
+			entries.push_back({ "L", "C6", name, "quoted name.txt", "silent", "libgit2 does not read a C-quoted attribute pattern, which Git does" });
+		}
+		entries.push_back({ "L", "C5", "ignorecase-latin1", "\xE9t\xE9.txt", "deliberate",
+							"in this C-locale process libgit2 folds ASCII only, like K; in a process that has called setlocale with a UTF-8 locale (as a Qt application does) it folds Latin-1 through the C library" });
 		return entries;
 	}
 
@@ -934,6 +970,13 @@ namespace {
 							  aContext.Git(aSetup.Root, { "config", "core.repositoryformatversion", "-1" });
 							  return std::nullopt;
 						  } });
+		cases.push_back({ .Name  = "format-v0-refstorage",
+						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
+							  // refStorage is a version 1 extension: Git refuses it here.
+							  standard_repository(aContext, aSetup);
+							  append(aSetup.Root / ".git" / "config", "[extensions]\n\trefStorage = files\n");
+							  return std::nullopt;
+						  } });
 		cases.push_back({ .Name  = "format-missing-version",
 						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
 							  standard_repository(aContext, aSetup);
@@ -1265,6 +1308,19 @@ namespace {
 		bool                                 SkipCanary = false;
 	};
 
+	/// \brief Questions a candidate is not asked because answering them is
+	/// known to exceed H6 by orders of magnitude, so the run can finish. Each
+	/// names the separate measurement that shows it; the decision record
+	/// counts it as that candidate's H6 failure.
+	auto exceeds_h6(const std::string_view aCandidate, const std::string_view aComponent, const std::string_view aCase) -> std::optional<std::string_view>
+	{
+		if (aCandidate == "L" && aCase == "adversarial-bpr0970" && (aComponent == "C5" || aComponent == "C6")) {
+			return "not run: libgit2 1.9.7's wildmatch is exponential in the number of `*` (wildmatch.c returns WM_NOMATCH where Git aborts); `*a` x14 took 4.8 s and x18 did not finish in "
+				   "tool_libgit2_probe, against well under 1 ms for K";
+		}
+		return std::nullopt;
+	}
+
 	auto case_insensitive(const std::filesystem::path& aScratch) -> bool
 	{
 		write_file(aScratch / "CaseProbe", "x");
@@ -1346,8 +1402,16 @@ namespace {
 				}
 				aReport.add(std::move(headResult));
 				aReport.add(compare(name, "C4", caseName, oracleDiscovery, candidate->discover(setup.Root), compare_discovery));
-				aReport.add(compare(name, "C5", caseName, oracleIgnored, candidate->ignored(setup.Root, questions), per_path<bool>(questions)));
-				aReport.add(compare(name, "C6", caseName, oracleFilter, candidate->filter(setup.Root, questions), per_path<attribute_answer>(questions)));
+				if (const auto reason = exceeds_h6(name, "C5", caseName)) {
+					aReport.add({ .Candidate = name, .Component = "C5", .Case = caseName, .Verdict = verdict::skipped, .Detail = std::string{ *reason } });
+				} else {
+					aReport.add(compare(name, "C5", caseName, oracleIgnored, candidate->ignored(setup.Root, questions), per_path<bool>(questions)));
+				}
+				if (const auto reason = exceeds_h6(name, "C6", caseName)) {
+					aReport.add({ .Candidate = name, .Component = "C6", .Case = caseName, .Verdict = verdict::skipped, .Detail = std::string{ *reason } });
+				} else {
+					aReport.add(compare(name, "C6", caseName, oracleFilter, candidate->filter(setup.Root, questions), per_path<attribute_answer>(questions)));
+				}
 				if (name == "K") {
 					if (setup.SkipCapture) {
 						aReport.add({ .Candidate = name, .Component = "C5-capture", .Case = caseName, .Verdict = verdict::skipped, .Detail = "not captured in this case" });
@@ -1492,7 +1556,9 @@ namespace {
 				const auto changes     = compare_snapshots(before, take_snapshot(repo));
 				const auto contained   = !opened && !followed;
 				const auto componentOk = contained && !executed && changes.empty();
-				passed                 = passed && componentOk;
+				// K must pass; another candidate's failure is its H2 result,
+				// reported here and weighed in the decision record.
+				passed = passed && (componentOk || name != "K");
 				std::cout << "GMR canary candidate=" << name << " component=" << component << " containment=" << (contained ? "pass" : "FAIL") << " fifo-opened=" << (opened ? "yes" : "no")
 						  << " outside-rules-followed=" << (followed ? "yes" : "no") << " no-execution=" << (executed ? "FAIL" : "pass") << " no-write=" << (changes.empty() ? "pass" : "FAIL")
 						  << " answer=\"" << printable(answered) << "\"\n";
