@@ -255,3 +255,81 @@ receipts are recorded with the guarded milestone finish and canonical handoff.
 M1–M4 accept only their named milestone scope. Original AC03–AC06, complete
 AC07/AC08 and whole-RFC closeout remain pending. No human decision is required
 for M4; no attended candidate/server or owner desktop capture is held.
+
+
+## M5 and full RFC acceptance
+
+Mandate `find-and-find-in-files-v1-r1` is completely satisfied in the Find lane.
+The exact main `31ab8129f9b8529423d0ca4a5d637b0443eedabb` was safely adopted
+through `a4dc59cea`; WIP `0220258f4` and final product
+`7d56dc1e528fcc24320bd6287a2274362d5bd5f2` retain the accepted CLI/navigation/C++
+composition. Guarded M5 acceptance is `f7a707221192e82bf544c0b591480af95a47b249`.
+Later qualification-test/tracker changes preserve all production/performance inputs.
+The [complete criterion record](../issues/_checkpoints/find-and-find-in-files-v1/m5-full-criteria.json)
+and [closeout acceptance](../issues/_checkpoints/find-and-find-in-files-v1/m5-closeout-acceptance.json)
+bind every original AC01–AC08 and all six authored M5 exits. Earlier pending
+statements above record their original milestone boundaries; this final section
+supplies their completed successor evidence. No acceptance waiver exists.
+
+The [native evidence](../issues/_checkpoints/find-and-find-in-files-v1/m5-native-public.json)
+records eight final pane/PR/scale/coverage courses, all passing in 54.99 s.
+The final added/removed activation extension passes 9.07 s. Both exact paths,
+rename same-blob deduplication, historical-only membership after actual public
+Refresh, old pinned pair, latest explicit pair, private excluded receipts,
+siblings and unsent review text are exercised. Later reading defeats pending
+occurrence on A→B→A; [removing cancellation](../issues/_checkpoints/find-and-find-in-files-v1/m5-reveal-negative.json)
+makes the original assertion fail. Runtime account retirement clears sensitive
+input and all admitted work reaches terminal. Native Retry restores a refused
+exact blob under the same scope; binary/decode/mode skips, qualified empty,
+complete empty and actual capped prefix remain visibly distinct. Accepted M3
+transport-unavailable controls map into the same native qualification; no live
+network-outage claim follows.
+
+Native UI uses the required frontend-design skill and inherited palette/UI/source
+fonts. Actual complete offscreen windows at 900 logical width windows at 1x / 1.25x / 2x show query,
+options, scope, disclosure, coverage and results. Native actions, exact-side focus,
+editor/modality guards and combined accessible status are exercised. Pane Find
+owns decorations while a PR occurrence retains its exact selection. There is no
+required human criterion outstanding; these observations do not claim physical
+scaling, VoiceOver or other-platform device evidence.
+
+The [final committed performance](../issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final.json)
+and [hardware/cache/load](../issues/_checkpoints/find-and-find-in-files-v1/m5-performance-final-context.json)
+record cold first 147 ms/final 3747 ms, navigation 227 ms, same nonempty query completing
+all 68 eligible files/131 matches, warm first 126 ms/final 1649 ms,132 cache hits and zero
+warm acquired bytes. Cold acquisition2,112,272µs and matching1,543,433µs are separate.
+Actual in-flight matcher clear reaches host quiescence in 3 ms. Peak process RSS is
+226,836,480bytes; the separate conservative owned bound is192,943,168bytes within
+192 MiB. Stable focused row during batches,1000 cursor moves with no compile/scan/
+read/diff/index rebuild and visible 10000-record prefix/narrowing pass. The
+[committed thresholds](../../tests/fixtures/source-search/regression-v1.json)
+state conservative regression budgets and context. Fresh private profile/actor
+and actual hits are recorded; OS page cache remains untouched/unknown. Before
+sample shows 165.7% aggregate CPU, load 10.51 and zero builders; no other owned work
+ran during measurement. The original development observation remains preserved.
+
+The [integration reconciliation](../issues/_checkpoints/find-and-find-in-files-v1/m5-integration.json)
+retains the full command's 274/275 pass, exit 8, 709.23 s. Its only inherited failure
+was the strict CLI qualifier's temporary-directory containment. The narrow
+supported-helper repair passes that exact case 2.95 s, covering all 275integration
+cases without claiming that the earlier full command passed. The original
+M1's269/272 receipt remains intact. Narrow clang-format22 fixture correction,
+exact fixture registry omissions and supported populated offline CPM cache
+repair the three original inherited failures. Deterministic fixture provenance,
+18 exact security tests and explicit unexpected-fixture rejection pass.
+Final boundaries 11.77 s, architecture negative 110.69 s, full format 22 check 37.04 s,
+network manifest 0.54 s, documentation and67 regressions 2.104 s pass.
+[Eleven changed-line and five new TUs](../issues/_checkpoints/find-and-find-in-files-v1/m5-tidy.json)
+pass tidy22; inherited M3 whole-file/global findings remain explicit.
+
+The [combined source review](../issues/_checkpoints/find-and-find-in-files-v1/m5-source-review.json)
+registers both controller pairs in the exact production manifest/inventory.
+The production mutation-branch seal stays byte-identical. Full round-trip
+composition 4.01 s and all four selected language/source/provider/tree negative
+suites 24.079 s pass; initial inventory-order failure is retained. Accepted
+header/source and C++appearance public checks pass 14.32 s; ordinary strict CLI
+fixture submission passes 3.73 s. Coordinator additionally reports independent
+7d56 default graph/shipped-app/three-Find-target build,4 public courses and all 42
+protected control/draft hashes unchanged. No live credential qualification,
+remote mutation, owner's desktop/personal data, publication or main write occurred.
+Main landing is the coordinator's next normal fast-forward step.

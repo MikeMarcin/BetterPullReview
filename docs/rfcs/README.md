@@ -558,7 +558,7 @@ separate platform/release obligations retain their scope.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0077](RFC-BPR-0077-find-and-find-in-files.md) | Find in the current pane and across a pull request | Proposed | — |
+| [RFC-BPR-0077](RFC-BPR-0077-find-and-find-in-files.md) | Find in the current pane and across a pull request | Auto-Verified | — |
 
 Imported under `find-and-find-in-files-v1-r1`; [source and mapping](assets/find-and-find-in-files-v1.LIVE_IMPORT.md) and [authored five-milestone plan](plans/find-and-find-in-files-v1/milestone-plan.json). [[BPR-1419]] is Ready; [[BPR-1424]] owns the complete original AC01–AC08 closeout. Import supplies no implementation or acceptance evidence.
 

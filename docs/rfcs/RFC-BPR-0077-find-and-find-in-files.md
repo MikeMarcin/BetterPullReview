@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0077"
 title: "Find in the current pane and across a pull request"
-status: "Proposed"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"rfc_base_sha":"aa3d71fe470627e1e78488eb51a9114a788f33bd","mandate_revision":"find-and-find-in-files-v1-r1","milestone_plan":{"id":"find-and-find-in-files-v1","path":"docs/rfcs/plans/find-and-find-in-files-v1/milestone-plan.json"}}
 ---
@@ -14,16 +14,21 @@ Mandate `find-and-find-in-files-v1-r1` preserves the settled Q1/Q2 decisions.
 Immutable RFC_BASE_SHA: `aa3d71fe470627e1e78488eb51a9114a788f33bd`.
 The [retained packet and live mapping](assets/find-and-find-in-files-v1.LIVE_IMPORT.md) and
 [authored five-milestone plan](plans/find-and-find-in-files-v1/milestone-plan.json) define live work.
-The M1 session/host foundation, M2 shared matcher, M3 exact retained-comparison
-corpus and M4 native pane Find are accepted on [[BPR-1419]], [[BPR-1420]],
-[[BPR-1421]] and [[BPR-1422]]. Exact scoped evidence and retained unrelated
-integration failures are in the [verification ledger](../verification/RFC-BPR-0077.md).
-Original AC01/AC02 pass through the shipped pane composition; the pane slice of
-AC07 is verified with native offscreen renders. [[BPR-1423]] owns PR Search and
-its activation/invalidation paths. AC03–AC06, complete AC07 and AC08 performance
-remain pending; [[BPR-1424]] retains all eight original criteria for final closeout.
+All five authored milestones and original AC01–AC08 are accepted on
+[[BPR-1419]], [[BPR-1420]], [[BPR-1421]], [[BPR-1422]], [[BPR-1423]] and
+[[BPR-1424]]. Tested integrated product is
+`7d56dc1e528fcc24320bd6287a2274362d5bd5f2`, safely composed with exact main
+`31ab8129f9b8529423d0ca4a5d637b0443eedabb`. The
+[verification ledger](../verification/RFC-BPR-0077.md) binds complete public
+behavior, native layout/accessibility, cold/warm/navigation/cancellation/memory,
+architecture, all 275reconciled core cases and documentation. Original failure
+receipts and narrow corrective passes remain explicit. Required frontend-design
+was applied; no required human criterion is pending and no acceptance is waived.
+No main landing or publication is claimed by this lane.
 
 ## Problem and grounded current behavior
+
+This section records the original pre-implementation baseline of 2026-10-12.
 
 On 2026-10-12 the owner requested efficient Find in the current pane and Find
 in Files in the current PR, suggested limiting the latter to the current epoch,
