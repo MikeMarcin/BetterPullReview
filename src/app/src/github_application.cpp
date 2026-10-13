@@ -21591,16 +21591,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.CustomisedVariant = implementation->AppearanceProfile->variant();
 			panel->keep_changes_button()->click();
 			reportStage("commit-dispatched");
-			if (implementation->AppearanceProfile->previewing_palette()
-				|| panel->preview_palette().has_value()
-				|| implementation->AppearanceProfile->palette() != probe.Candidate
-				|| application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant).Palette
-					!= probe.Candidate
-				|| !application::customisation_of(
-						implementation->AppearanceHost->settings(),
-						probe.CustomisedVariant)
-						.Stored
-				|| !unchanged()) {
+			const auto committed   = application::customisation_of(implementation->AppearanceHost->settings(), probe.CustomisedVariant);
+			const auto commitFacts = std::array{
+				!implementation->AppearanceProfile->previewing_palette(),
+				!panel->preview_palette().has_value(),
+				implementation->AppearanceProfile->palette() == probe.Candidate,
+				committed.Palette == probe.Candidate,
+				committed.Stored,
+				unchanged(),
+			};
+			{
+				QTextStream stream{ stdout };
+				stream << "APPEARANCE_THEME_PROBE_COMMIT_FACTS:";
+				for (const auto fact : commitFacts) {
+					stream << fact;
+				}
+				stream << '\n';
+				// A refused commit says why only in the panel, as a contrast
+				// rejection naming each role.
+				if (!std::ranges::all_of(commitFacts, std::identity{ })) {
+					stream << "APPEARANCE_THEME_PROBE_COMMIT_STATUS:" << panel->status_text().simplified() << '\n';
+				}
+				stream.flush();
+			}
+			if (!std::ranges::all_of(commitFacts, std::identity{ })) {
+				reportIdentity();
 				return fail();
 			}
 			enter_phase(probe.Phase, probe.Wait, state_type::phase::awaiting_store);
