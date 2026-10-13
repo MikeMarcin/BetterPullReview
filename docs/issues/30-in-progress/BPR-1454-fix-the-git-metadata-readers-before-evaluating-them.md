@@ -38,4 +38,8 @@ verified on macOS; [[BPR-1462]] and [[BPR-1463]] record the Windows and Linux ru
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done on `ae60c0250` (macOS). Evidence, the per-row negative control and the
+independent review are in the [verification ledger](../../verification/RFC-BPR-0083.md).
+Review findings not fixed here (a rule file past 1 MiB or 100,000 rules being
+dropped, and the safe-direction refusals) go to [[BPR-1455]] for H1
+classification. Windows and Linux runs are [[BPR-1462]] and [[BPR-1463]].
