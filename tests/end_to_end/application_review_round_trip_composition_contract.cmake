@@ -1458,7 +1458,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5aec6edb7ada80035e9019fa76fe9fd48a476db0f6aaf69abf2c808ce984be57"
+		"4014605ad3e8f8e6b4951b8597d6297a582c8b39eb9a466ea615a7aaba651775"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1662,7 +1662,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a525a2fc6658c8ff1ca24a7019ec5d379311b6ecfbfda4a0ba7d7bacfd473125"
+        "e58af72709573382efc7e5bf25ec239c4e7233d8a13c7bf47eeb0e26bb1a4ae2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2299,3 +2299,12 @@ endif()
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
+
+# BPR-1428 reseal: over accepted strict tracker 4ae67d6b. Sole new pinned
+# changes are github_application.cpp and review_submission_workflow.cpp/.hpp:
+# CLI popup becomes exact-current admission with retained strict-wire capability;
+# whole-review and inline recheck immediately before one-use grant issuance,
+# including after durable draft/comment holding. Grant issuers and mutation
+# branch are unchanged. Self-review checks scope/default refusal/lease lifetime;
+# six focused architecture/provider/ordinary composed CLI courses pass.
+# Independent final critical acceptance remains a separately recorded M4 obligation.

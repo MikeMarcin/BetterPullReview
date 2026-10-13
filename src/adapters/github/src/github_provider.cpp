@@ -326,6 +326,11 @@ namespace bpr::adapters::github::detail {
 					: nullptr;
 			}
 
+			[[nodiscard]] auto strict_cli() const noexcept -> bool override
+			{
+				return active() && Transport->strict_cli();
+			}
+
 		private:
 			application::github_profile_authority            Profile;
 			application::github_credential_operation_context CredentialContext;

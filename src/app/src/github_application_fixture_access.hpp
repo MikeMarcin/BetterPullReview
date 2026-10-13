@@ -277,7 +277,9 @@ namespace bpr::app::detail {
 		/// developer's real CLI configuration.
 		std::optional<std::vector<github_cli_discovery_account>> GithubCliDiscoveryAccounts;
 		std::shared_ptr<std::atomic_size_t>                      GithubCliInventoryChecks;
-		std::optional<std::filesystem::path>                     ExternalAgentExecutable;
+		/// Selected fixture capability cut; absent uses the strict synthetic CLI path.
+		std::shared_ptr<std::atomic_bool>    GithubCliStrictCapability;
+		std::optional<std::filesystem::path> ExternalAgentExecutable;
 		/// Points the Codex JSONL profile at a fixture executable. That
 		/// protocol is the one with a result frame a finding payload can ride
 		/// on; the external terminal has none and refuses one by design.

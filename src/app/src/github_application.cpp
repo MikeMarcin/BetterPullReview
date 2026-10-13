@@ -7402,13 +7402,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
 																			*Window->review_submission_editor_view(), std::move(issueReviewGrant),
-																			[this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
-																				const auto operation = aDisposition == core::review_disposition::approve
-																					? QStringLiteral("Approve pull request")
-																					: aDisposition == core::review_disposition::request_changes
-																					? QStringLiteral("Request changes")
-																					: QStringLiteral("Submit comment review");
-																				return confirm_cli_publication(aBinding.Target, aBinding.ActingIdentity, operation);
+																			[this](const application::review_submission_live_binding& aBinding) {
+																				return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity);
 																			});
 #if defined(BPR_BUILD_TESTING)
 			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
@@ -7419,7 +7414,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
 			};
 #endif
-			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral("Publish the previewed review tour and its separately selected description edit")); }, [this](const application::staged_publication_record& record) {
+			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding) { return admit_cli_publication(binding.Target, binding.ActingIdentity); }, [this](const application::staged_publication_record& record) {
                 if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
                 if(!draft){return;}
                 if(auto published=application::published_tour(record,*draft)){TourHost->observe_publication(std::move(*published));} });
@@ -9721,107 +9716,44 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& aRecord.Authority == aAuthority;
 		}
 
-		/// \brief Whether this publication may go over the session's GitHub
-		/// CLI, asking the person when it would.
-		///
-		/// \details [[BPR-1329]]. A refusal names its reason in \p aRefusal
-		/// when one is given: `cancelled` when the person declined, otherwise
-		/// `undesignated_target`, the session, pull request or account having
-		/// changed or gone, before or while the person was asked.
-		[[nodiscard]] auto confirm_cli_publication(
-			application::review_mutation_target_binding  aTarget,
-			application::review_mutation_acting_identity aActor,
-			const QString&                               aOperation,
-			application::review_mutation_failure*        aRefusal = nullptr) const -> bool
+		/// \brief Checks the exact current CLI publication and its retained strict wire.
+		/// \details Admission supplies no write authority; the ordinary gesture must
+		/// still issue its exact one-use grant and the provider reacquires credentials.
+		[[nodiscard]] auto admit_cli_publication(
+			const application::review_mutation_target_binding&  aTarget,
+			const application::review_mutation_acting_identity& aActor) const
+			-> std::expected<void, application::review_mutation_failure>
 		{
-			const auto refuse = [aRefusal](const application::review_mutation_failure aFailure) {
-				if (aRefusal != nullptr) {
-					*aRefusal = aFailure;
-				}
-				return false;
-			};
+			using failure = application::review_mutation_failure;
 			if (!Host || !WindowRead || !Host->accepted_session()
 				|| !WindowRead->accepted_snapshot()) {
-				return refuse(application::review_mutation_failure::undesignated_target);
+				return std::unexpected(failure::undesignated_target);
 			}
-			const auto* profile = find_profile(Host->accepted_session()->Profile);
-			if (!profile || profile->authentication_transport() != application::github_authentication_transport::github_cli) {
-				return profile != nullptr || refuse(application::review_mutation_failure::undesignated_target);
+			const auto& session = *Host->accepted_session();
+			const auto* profile = find_profile(session.Profile);
+			if (!profile) {
+				return std::unexpected(failure::undesignated_target);
 			}
-			const auto exactCurrent = [this, &aTarget, &aActor] {
-				if (!Host || !WindowRead || !Host->accepted_session()
-					|| !WindowRead->accepted_snapshot()) {
-					return false;
-				}
-				const auto& session  = *Host->accepted_session();
-				const auto& snapshot = *WindowRead->accepted_snapshot();
-				const auto* selected = find_profile(session.Profile);
-				return selected && selected->authentication_transport() == application::github_authentication_transport::github_cli
-					&& snapshot.Profile == session.Profile && snapshot.Host == session.Host
-					&& session.Viewer.Account == snapshot.Account
-					&& session.Viewer.Account == aActor.Account
-					&& session.Viewer.Login == snapshot.Viewer.Login
-					&& session.Viewer.Login == aActor.Login
-					&& aTarget.Semantic.Host == session.Host
-					&& aTarget.Semantic.Repository == snapshot.Repository.Repository
-					&& aTarget.Semantic.PullRequest == snapshot.PullRequest.PullRequest
-					&& aTarget.Repository.Owner == snapshot.Repository.Owner
-					&& aTarget.Repository.Name == snapshot.Repository.Name
-					&& aTarget.Number == snapshot.PullRequest.Number
-					&& aTarget.Hostname.value() == selected->hostname();
-			};
-			if (!exactCurrent()) {
-				return refuse(application::review_mutation_failure::undesignated_target);
+			if (profile->authentication_transport() != application::github_authentication_transport::github_cli) {
+				return { };
 			}
-			// [[BPR-0797]]. Asked at run time, and compiled into both graphs,
-			// for exactly the reason the label and the factory above are. This
-			// gate used to be `!BPR_BUILD_TESTING`, which is on in every build
-			// made with this project's CMake default. That was harmless only
-			// while the same define also withheld `opted_in_cli_transport_factory`,
-			// because a session that could not read over `gh` could never reach a
-			// write over it either. Moving the factory to a run-time question
-			// without moving this one would have left a person's own build
-			// composing the real CLI transport with its per-publication
-			// confirmation compiled out, which is [[BPR-0786]]'s first criterion
-			// -- "read opt-in alone cannot publish" -- turned false in the one
-			// build anybody actually runs.
-			//
-			// A run inside the automated test boundary composes a factory whose
-			// `supports_cli()` is false, so it cannot hold a CLI session and never
-			// arrives here; the unconditional `true` below stays its answer, and no
-			// unattended row is handed a modal dialog it has nobody to answer with.
-#if defined(__APPLE__)
-			if (Profile->cli_read_offered_here()) {
-				const auto consent = QMessageBox::warning(
-					Window.get(), QStringLiteral("Confirm GitHub CLI publication"),
-					QStringLiteral("%1 on %2 for %3/%4#%5 as %6?\n\n"
-								   "BetterPullReview will use your configured gh account for this write. "
-								   "The active gh account can switch outside this app, even after the identity check. "
-								   "Executable, configuration, certificate, redirect and helper-process behavior remain trusted as configured on this machine. "
-								   "This confirmation applies only to this publication.")
-						.arg(aOperation)
-						.arg(QString::fromStdString(std::string{ aTarget.Hostname.value() }))
-						.arg(QString::fromStdString(aTarget.Repository.Owner))
-						.arg(QString::fromStdString(aTarget.Repository.Name))
-						.arg(aTarget.Number.value())
-						.arg(QString::fromStdString(aActor.Login)),
-					QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-				if (consent != QMessageBox::Yes) {
-					return refuse(application::review_mutation_failure::cancelled);
-				}
-				// The question runs its own event loop; what it was asked
-				// about must still be what the session holds.
-				return exactCurrent() || refuse(application::review_mutation_failure::undesignated_target);
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto  head     = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			if (snapshot.Profile != session.Profile || snapshot.Host != session.Host
+				|| session.Viewer.Account != snapshot.Account || session.Viewer.Account != aActor.Account
+				|| session.Viewer.Login != snapshot.Viewer.Login || session.Viewer.Login != aActor.Login
+				|| aTarget.Semantic.Host != session.Host || aTarget.Semantic.Repository != snapshot.Repository.Repository
+				|| aTarget.Semantic.PullRequest != snapshot.PullRequest.PullRequest
+				|| aTarget.Repository.Owner != snapshot.Repository.Owner || aTarget.Repository.Name != snapshot.Repository.Name
+				|| aTarget.Number != snapshot.PullRequest.Number || aTarget.Hostname.value() != profile->hostname()
+				|| !head || aTarget.Semantic.ExpectedHead != *head) {
+				return std::unexpected(failure::undesignated_target);
 			}
-#endif
-			// Only the macOS prompt above reads the operation; every other graph
-			// must still name it, or MSVC's /W4 /WX refuses a tests-disabled build.
-			static_cast<void>(aOperation);
-#if defined(BPR_BUILD_TESTING)
-			return true;
-#else
-			return refuse(application::review_mutation_failure::unavailable);
-#endif
+			const auto lease = std::dynamic_pointer_cast<adapters::github::detail::github_review_mutation_transport_lease>(WindowRead->mutation_transport());
+			if (!lease || !lease->strict_cli()) {
+				return std::unexpected(failure::unsupported);
+			}
+			return { };
 		}
 
 		std::unique_ptr<application::review_tour_host> TourHost;
@@ -11941,15 +11873,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			};
 			if (publish) {
-				auto refusal = application::review_mutation_failure::undesignated_target;
-				if (!InlineReviewBinding || !confirm_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, QStringLiteral("Publish inline comment"), &refusal)) {
-					if (!Closing && Window && Window->review_editor()) {
-						if (refusal == application::review_mutation_failure::cancelled) {
-							refusePublish(QStringLiteral("Not published: you cancelled the GitHub CLI confirmation. Your draft is kept."));
-						} else {
-							Window->review_editor()->present(refusal);
-						}
-					}
+				const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
+														   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
+				if (!admission) {
+					Window->review_editor()->present(admission.error());
 					settle(false);
 					return;
 				}
@@ -12095,6 +12022,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				refresh_agent_private_context_choices();
 				editor->present(
 					application::review_mutation_failure::undesignated_target);
+				return;
+			}
+			const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
+													   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
+			if (!admission) {
+				complete_shared_draft(false);
+				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+				editor->present(admission.error());
 				return;
 			}
 			auto request = application::review_mutation_publication_request{

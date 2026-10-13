@@ -1632,8 +1632,9 @@ namespace bpr::app::detail {
 			bool                                             LargeReviewForeignPosts = false;
 			bool                                             ReviewTourCourse        = false;
 			std::shared_ptr<review_submission_fixture_state> PublishedTour;
-			bool                                             LargeReviewRepeatReads   = false;
-			bool                                             CliEnabled               = false;
+			bool                                             LargeReviewRepeatReads = false;
+			bool                                             CliEnabled             = false;
+			std::shared_ptr<std::atomic_bool>                CliStrictCapability;
 			bool                                             RefuseFirstSmartAcquire  = false;
 			bool                                             FirstSmartAcquireRefused = false;
 			std::optional<core::application_session_id>      AuthenticationSession;
@@ -2314,6 +2315,12 @@ namespace bpr::app::detail {
 				: State{ std::move(aState) }
 				, Role{ aRole }
 			{
+			}
+
+			[[nodiscard]] auto strict_cli() const noexcept -> bool override
+			{
+				return State->CliEnabled && Role == fixture_transport_role::account
+					&& (!State->CliStrictCapability || State->CliStrictCapability->load());
 			}
 
 			[[nodiscard]] auto perform(
@@ -4481,6 +4488,7 @@ namespace bpr::app::detail {
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
+			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);

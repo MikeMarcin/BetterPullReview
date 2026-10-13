@@ -60,12 +60,12 @@ namespace bpr::app {
 	}
 
 	review_submission_workflow::review_submission_workflow(application::effect_executor&   aEffects,
-														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant, write_confirmation aConfirmWrite)
+														   application::decision_executor& aDecisions, qt::review_submission_editor& aEditor, grant_factory aIssueGrant, publication_admission aAdmitPublication)
 		: Effects{ aEffects }
 		, Decisions{ aDecisions }
 		, Editor{ aEditor }
 		, IssueGrant{ std::move(aIssueGrant) }
-		, ConfirmWrite{ std::move(aConfirmWrite) }
+		, AdmitPublication{ std::move(aAdmitPublication) }
 	{ }
 
 	void review_submission_workflow::adopt(application::review_submission_live_binding   aBinding,
@@ -455,14 +455,19 @@ namespace bpr::app {
 					present();
 					return;
 				}
-				if (ConfirmWrite) {
+				if (AdmitPublication) {
 					if (!DraftBinding) {
 						return;
 					}
 					const auto confirmedDraft   = *Draft;
 					const auto confirmedBinding = *DraftBinding;
-					if (!ConfirmWrite(confirmedBinding, confirmedDraft.Disposition)
-						|| !Draft || *Draft != confirmedDraft || !Current
+					const auto admission        = AdmitPublication(confirmedBinding);
+					if (!admission) {
+						Status = QStringLiteral("Not published. The current connection cannot publish this review. Your draft is kept.");
+						present();
+						return;
+					}
+					if (!Draft || *Draft != confirmedDraft || !Current
 						|| DraftBinding != confirmedBinding || !decided_controls().Submit) {
 						return;
 					}
@@ -543,6 +548,16 @@ namespace bpr::app {
 
 	void review_submission_workflow::send(application::review_submission_request aRequest)
 	{
+		const auto admission = aRequest.LiveBinding && Current && *aRequest.LiveBinding == Current->Binding
+			? (AdmitPublication ? AdmitPublication(*aRequest.LiveBinding) : std::expected<void, application::review_mutation_failure>{ })
+			: std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
+		if (!admission) {
+			complete(command_kind::fail_submit);
+			Pending.reset();
+			answer(aRequest, application::review_submission_publication::definitely_not_published);
+			Status = QStringLiteral("Not published. The current connection cannot publish this review. Your draft is kept.");
+			return;
+		}
 		Context = Host ? Host->submit(aRequest, IssueGrant(Current->Authority.ApplicationSession, Generation, aRequest)) : std::nullopt;
 		if (Context) {
 			Status = QStringLiteral("Submitting the exact review shown…");
@@ -668,12 +683,12 @@ namespace bpr::app {
 }
 
 namespace bpr::app {
-	review_tour_publication_workflow::review_tour_publication_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::review_tour_editor& aEditor, grant_factory aIssueGrant, review_submission_workflow::write_confirmation aConfirmWrite, receipt_sink aReceiptSink)
+	review_tour_publication_workflow::review_tour_publication_workflow(application::effect_executor& aEffects, application::decision_executor& aDecisions, qt::review_tour_editor& aEditor, grant_factory aIssueGrant, review_submission_workflow::publication_admission aAdmitPublication, receipt_sink aReceiptSink)
 		: Effects{ aEffects }
 		, Decisions{ aDecisions }
 		, Editor{ aEditor }
 		, IssueGrant{ std::move(aIssueGrant) }
-		, ConfirmWrite{ std::move(aConfirmWrite) }
+		, AdmitPublication{ std::move(aAdmitPublication) }
 		, ReceiptSink{ std::move(aReceiptSink) }
 	{ }
 	void review_tour_publication_workflow::invalidate()
@@ -803,7 +818,9 @@ namespace bpr::app {
 		if (Record && (State == application::staged_publication_state::outcome_unknown || State == application::staged_publication_state::conflict || State == application::staged_publication_state::published)) {
 			return;
 		}
-		if (ConfirmWrite && !ConfirmWrite(*Binding, core::review_disposition::comment)) {
+		if (AdmitPublication && !AdmitPublication(*Binding)) {
+			Status = "Not published. The current connection cannot publish this tour. Your draft is kept.";
+			present();
 			return;
 		}
 		const auto grant = IssueGrant ? IssueGrant(Authority.ApplicationSession, Generation, *Plan) : application::review_submission_execution_grant{ };

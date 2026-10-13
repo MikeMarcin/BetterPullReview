@@ -14,9 +14,9 @@ namespace bpr::app {
 	class review_submission_workflow final : public application::review_submission_projection_port
 	{
 	public:
-		using grant_factory      = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::review_submission_request&)>;
-		using write_confirmation = std::function<bool(const application::review_submission_live_binding&, core::review_disposition)>;
-		review_submission_workflow(application::effect_executor&, application::decision_executor&, qt::review_submission_editor&, grant_factory, write_confirmation = { });
+		using grant_factory         = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::review_submission_request&)>;
+		using publication_admission = std::function<std::expected<void, application::review_mutation_failure>(const application::review_submission_live_binding&)>;
+		review_submission_workflow(application::effect_executor&, application::decision_executor&, qt::review_submission_editor&, grant_factory, publication_admission = { });
 		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory);
 		void               invalidate(QString aReason = { });
 		void               invalidate(const application::pull_request_authority_invalidation&);
@@ -83,7 +83,7 @@ namespace bpr::app {
 		application::decision_executor&                                               Decisions;
 		qt::review_submission_editor&                                                 Editor;
 		grant_factory                                                                 IssueGrant;
-		write_confirmation                                                            ConfirmWrite;
+		publication_admission                                                         AdmitPublication;
 		std::unique_ptr<application::review_submission_application_host>              Host;
 		std::vector<std::unique_ptr<application::review_submission_application_host>> Retired;
 		std::optional<selection>                                                      Current;
@@ -123,7 +123,7 @@ namespace bpr::app {
 	public:
 		using grant_factory = std::function<application::review_submission_execution_grant(core::application_session_id, core::request_generation, const application::staged_review_plan&)>;
 		using receipt_sink  = std::function<void(const application::staged_publication_record&)>;
-		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::write_confirmation = { }, receipt_sink = { });
+		review_tour_publication_workflow(application::effect_executor&, application::decision_executor&, qt::review_tour_editor&, grant_factory, review_submission_workflow::publication_admission = { }, receipt_sink = { });
 		void               adopt(application::review_submission_live_binding, application::workbench_pull_request_authority, application::review_submission_provider_factory, std::string aDescription, bool aQualified = false);
 		void               observe(const application::tour_presentation&);
 		void               dispatch(qt::tour_editor_action);
@@ -139,7 +139,7 @@ namespace bpr::app {
 		application::decision_executor&                                               Decisions;
 		qt::review_tour_editor&                                                       Editor;
 		grant_factory                                                                 IssueGrant;
-		review_submission_workflow::write_confirmation                                ConfirmWrite;
+		review_submission_workflow::publication_admission                             AdmitPublication;
 		std::unique_ptr<application::review_submission_application_host>              Host;
 		std::vector<std::unique_ptr<application::review_submission_application_host>> Retired;
 		std::optional<application::review_submission_live_binding>                    Binding;
