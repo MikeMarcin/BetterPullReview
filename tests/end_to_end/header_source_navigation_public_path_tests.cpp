@@ -68,7 +68,7 @@ namespace {
 
 	void open(app::github_application& aApplication, const std::string_view aPath)
 	{
-		std::cout << "header-source open=" << aPath << std::endl;
+		std::cout << "header-source open=" << aPath << '\n';
 		auto&      window = aApplication.window();
 		const auto index  = window.files_drawer()->contents()->index_for_file(core::file_identity_of(aPath));
 		expect(index.isValid(), "requested path belongs to accepted actionable catalogue");
@@ -168,7 +168,7 @@ int main(int aArgc, char** aArgv)
 		wait_for([&] { return application->status().ShutdownComplete; }, "large course shutdown drains");
 		application.reset();
 		expect(e2e::remove_course_root(temporary), "large private root removed");
-		std::cout << "HEADER_SOURCE_LARGE_OK files=" << before.AcceptedObservationRows << " queries=100 directory_lookups=100 additional_blob_helpers=0 model_resets=0 qt=" << qVersion() << std::endl;
+		std::cout << "HEADER_SOURCE_LARGE_OK files=" << before.AcceptedObservationRows << " queries=100 directory_lookups=100 additional_blob_helpers=0 model_resets=0 qt=" << qVersion() << '\n';
 		return 0;
 	}
 	open(*application, "src/widget.cpp");
@@ -204,8 +204,10 @@ int main(int aArgc, char** aArgv)
 	const auto headerSibling = window.document_tabs()->tabs().back();
 	window.document_tabs()->tab_bar()->setCurrentIndex(0);
 	wait_for([&] { return shown(window, "src/widget.cpp"); }, "first tab restores source");
-	focus_source(window);
-	action->trigger();
+	window.document_tabs()->tab_bar()->setFocus();
+	QApplication::processEvents();
+	expect(action->isEnabled(), "tab strip focus offers counterpart shortcut");
+	key(window);
 	wait_for([&] { return shown(window, "inc/widget.h"); }, "counterpart replaces first tab although already open in second");
 	expect(window.document_tabs()->tabs().size() == 2 && window.document_tabs()->tabs().front().Id == sibling.Id
 			   && window.document_tabs()->tabs().front().Active && window.document_tabs()->tabs().back().Id == headerSibling.Id
@@ -366,6 +368,24 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(!shown(window, "src/widget.cpp"), "intervening file selection rejects queued old counterpart resolution");
 	open(*application, "src/widget.cpp");
+	focus_source(window);
+	action->trigger();
+	window.home_action()->trigger();
+	settle();
+	expect(window.showing_home() && access::epoch_refresh_identity(*application).SelectedFile == core::file_identity_of("src/widget.cpp"), "Home entry rejects queued counterpart without changing retained source");
+	window.home_action()->trigger();
+	wait_for([&] { return shown(window, "src/widget.cpp") && !window.showing_home(); }, "returns to retained review source");
+	for (const auto modality : { qt::review_modality::overview, qt::review_modality::discuss, qt::review_modality::threads }) {
+		window.choose_modality(modality);
+		settle();
+		expect(!action->isEnabled(), "inactive review modality disables counterpart action");
+		const auto selected = access::epoch_refresh_identity(*application).SelectedFile;
+		key(window);
+		settle();
+		expect(access::epoch_refresh_identity(*application).SelectedFile == selected, "inactive modality key cannot navigate retained source");
+	}
+	window.choose_modality(qt::review_modality::review);
+	wait_for([&] { return shown(window, "src/widget.cpp") && !access::epoch_refresh_identity(*application).TabPending; }, "Review restores exact source after inactive modalities");
 	focus_source(window);
 	action->trigger();
 	expect(access::reaccept_fixture_revision(*application, false), "accepted catalogue generation replacement is admitted");
