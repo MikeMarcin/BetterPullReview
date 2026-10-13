@@ -1,0 +1,641 @@
+{
+ "schema": "bpr.hash-evaluation.v1",
+ "rfc": "RFC-BPR-0080",
+ "card": "BPR-1446",
+ "revision": "d9bfa436b269eb81144e6a90bc3977f10280e547",
+ "dirty": false,
+ "seed": 20261013,
+ "machine": {
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "python": "3.14.7",
+  "git": "git version 2.50.1 (Apple Git-155)",
+  "load_average": "{ 75.84 64.69 49.50 }",
+  "cpu": "Apple M4 Pro",
+  "os": "macOS 26.6.2 25G83",
+  "sha_extensions": {
+   "FEAT_SHA1": "1",
+   "FEAT_SHA256": "1",
+   "FEAT_SHA512": "1",
+   "FEAT_SHA3": "1"
+  },
+  "logical_cpus": "14"
+ },
+ "build": {
+  "build_type": "Release",
+  "cxx_compiler": "/usr/bin/c++",
+  "cxx_compiler_version": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+  "cxx_flags": "",
+  "cxx_flags_release": "-O3 -DNDEBUG",
+  "c_flags_release": "-O3 -DNDEBUG",
+  "osx_architectures": ""
+ },
+ "phases": {
+  "correctness": {
+   "kat": {
+    "exit": 0,
+    "seconds": 2.7,
+    "lines": [
+     {
+      "command": "kat",
+      "group": "sha1",
+      "arm": "core",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha1",
+      "arm": "first-party-block",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha1",
+      "arm": "sha1dc",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha1",
+      "arm": "commoncrypto",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha1",
+      "arm": "qt",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha256",
+      "arm": "core",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha256",
+      "arm": "hacl",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha256",
+      "arm": "commoncrypto",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "kat",
+      "group": "sha256",
+      "arm": "qt",
+      "cases": 233,
+      "mismatches": 0,
+      "first_mismatch": ""
+     }
+    ]
+   },
+   "chunking": {
+    "exit": 0,
+    "seconds": 0.2,
+    "lines": [
+     {
+      "command": "chunking",
+      "group": "sha1",
+      "arm": "baseline-vs-platform",
+      "cases": 133,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha1",
+      "arm": "core",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha1",
+      "arm": "first-party-block",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha1",
+      "arm": "sha1dc",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha1",
+      "arm": "commoncrypto",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha1",
+      "arm": "qt",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha256",
+      "arm": "baseline-vs-platform",
+      "cases": 133,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha256",
+      "arm": "core",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha256",
+      "arm": "hacl",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha256",
+      "arm": "commoncrypto",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "chunking",
+      "group": "sha256",
+      "arm": "qt",
+      "cases": 335,
+      "mismatches": 0,
+      "first_mismatch": ""
+     }
+    ]
+   },
+   "collision": {
+    "exit": 0,
+    "seconds": 0.0,
+    "lines": [
+     {
+      "command": "collision",
+      "input": "SHAttered",
+      "bytes": [
+       422435,
+       422435
+      ],
+      "contents_differ": true,
+      "plain_sha1": [
+       "38762cf7f55934b34d179ae6a4c80cadccbb7f0a",
+       "38762cf7f55934b34d179ae6a4c80cadccbb7f0a"
+      ],
+      "plain_collides": true,
+      "sha1dc_detected": [
+       true,
+       true
+      ],
+      "sha1dc_digest_equals_plain": true,
+      "blob_ids": [
+       "ba9aaa145ccd24ef760cf31c74d8f7ca1a2e47b0",
+       "b621eeccd5c7edac9b7dcba35a8d5afd075e24f2"
+      ],
+      "blob_sha1dc_detected": [
+       false,
+       false
+      ]
+     },
+     {
+      "command": "collision",
+      "input": "SHA-mbles",
+      "bytes": [
+       640,
+       640
+      ],
+      "contents_differ": true,
+      "plain_sha1": [
+       "8ac60ba76f1999a1ab70223f225aefdc78d4ddc0",
+       "8ac60ba76f1999a1ab70223f225aefdc78d4ddc0"
+      ],
+      "plain_collides": true,
+      "sha1dc_detected": [
+       true,
+       true
+      ],
+      "sha1dc_digest_equals_plain": true,
+      "blob_ids": [
+       "5a7c30e97646c66422abe0a9793a5fcb9f1cf8d6",
+       "fe39178400a7ebeedca8ccfd0f3a64ceecdb9cda"
+      ],
+      "blob_sha1dc_detected": [
+       false,
+       false
+      ]
+     },
+     {
+      "command": "collision",
+      "input": "sha1_reducedsha_coll.bin",
+      "bytes": 128,
+      "sha1dc_detected": false,
+      "sha1dc_reduced_round_detected": true
+     },
+     {
+      "command": "collision",
+      "satisfied": true
+     }
+    ]
+   },
+   "differential": {
+    "exit": 0,
+    "seconds": 346.7,
+    "lines": [
+     {
+      "command": "differential",
+      "group": "sha1",
+      "seed": 20261013,
+      "inputs": 2304,
+      "bytes": 1420217882
+     },
+     {
+      "command": "differential",
+      "group": "sha1",
+      "arm": "baseline-vs-platform",
+      "cases": 2304,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha1",
+      "arm": "core",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha1",
+      "arm": "first-party-block",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha1",
+      "arm": "sha1dc",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha1",
+      "arm": "commoncrypto",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha1",
+      "arm": "qt",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha256",
+      "seed": 20261013,
+      "inputs": 2304,
+      "bytes": 1416089461
+     },
+     {
+      "command": "differential",
+      "group": "sha256",
+      "arm": "baseline-vs-platform",
+      "cases": 2304,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha256",
+      "arm": "core",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha256",
+      "arm": "hacl",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha256",
+      "arm": "commoncrypto",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     },
+     {
+      "command": "differential",
+      "group": "sha256",
+      "arm": "qt",
+      "cases": 4608,
+      "mismatches": 0,
+      "first_mismatch": ""
+     }
+    ]
+   }
+  },
+  "git": {
+   "files": 55,
+   "bytes": 308630319,
+   "formats": {
+    "sha1": {
+     "hash_object_count": 55,
+     "arms": [
+      "commoncrypto",
+      "core",
+      "first-party-block",
+      "qt",
+      "sha1dc"
+     ],
+     "blob_mismatches": {},
+     "write_tree": "27b320d900e5a0bbe2019eede60fc3179093f6b2",
+     "mktree_equals_write_tree": true,
+     "commits": [
+      "99ebc4e6a8b13215c4930393031482a50bd6de63",
+      "3c78cdaf3d3108ac38bb4f139203735c047ed480"
+     ],
+     "sweep_exit": 0,
+     "sweep": [
+      {
+       "command": "sweep",
+       "group": "sha1",
+       "objects": 78,
+       "bytes": 308633913,
+       "blobs": 55,
+       "trees": 21,
+       "commits": 2,
+       "tags": 0,
+       "detections": 0
+      },
+      {
+       "command": "sweep",
+       "group": "sha1",
+       "arm": "core",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha1",
+       "arm": "first-party-block",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha1",
+       "arm": "sha1dc",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha1",
+       "arm": "commoncrypto",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha1",
+       "arm": "qt",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      }
+     ]
+    },
+    "sha256": {
+     "hash_object_count": 55,
+     "arms": [
+      "commoncrypto",
+      "core",
+      "hacl",
+      "qt"
+     ],
+     "blob_mismatches": {},
+     "write_tree": "04e5f18ec88bb9ede5bbca45c113abc35bf00acbf7315051bd63fd6a088f5405",
+     "mktree_equals_write_tree": true,
+     "commits": [
+      "6e162cd25b61a27b0115a609d0802bcc6e49ca34c6819f4d7f62e99299004969",
+      "abd9896fdf48c22e164d5c2f0402adc3f8abb16b9c59ffe63af306f6fded6211"
+     ],
+     "sweep_exit": 0,
+     "sweep": [
+      {
+       "command": "sweep",
+       "group": "sha256",
+       "objects": 78,
+       "bytes": 308634885,
+       "blobs": 55,
+       "trees": 21,
+       "commits": 2,
+       "tags": 0,
+       "detections": 0
+      },
+      {
+       "command": "sweep",
+       "group": "sha256",
+       "arm": "core",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha256",
+       "arm": "hacl",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha256",
+       "arm": "commoncrypto",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      },
+      {
+       "command": "sweep",
+       "group": "sha256",
+       "arm": "qt",
+       "cases": 78,
+       "mismatches": 0,
+       "first_mismatch": ""
+      }
+     ]
+    }
+   }
+  },
+  "sweep": {
+   "repository_head": "78b03113f973c93642fa7b01b8c5c23e4ec6dc81",
+   "object_format": "sha1",
+   "cat_file_exit": 0,
+   "sweep_exit": 0,
+   "seconds": 68.9,
+   "lines": [
+    {
+     "command": "sweep",
+     "group": "sha1",
+     "objects": 106013,
+     "bytes": 2328828218,
+     "blobs": 35293,
+     "trees": 61707,
+     "commits": 9003,
+     "tags": 10,
+     "detections": 0
+    },
+    {
+     "command": "sweep",
+     "group": "sha1",
+     "arm": "core",
+     "cases": 106013,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha1",
+     "arm": "first-party-block",
+     "cases": 106013,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha1",
+     "arm": "sha1dc",
+     "cases": 106013,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha1",
+     "arm": "commoncrypto",
+     "cases": 106013,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha1",
+     "arm": "qt",
+     "cases": 106013,
+     "mismatches": 0,
+     "first_mismatch": ""
+    }
+   ]
+  },
+  "sweep256": {
+   "source_head": "78b03113f973c93642fa7b01b8c5c23e4ec6dc81",
+   "converted_head": "a52e5880ac71148217234904af94bf8641460215eff2f46d798e8ea3bf01d23d",
+   "fast_export_exit": 0,
+   "fast_import_exit": 0,
+   "sweep_exit": 0,
+   "seconds": 522.0,
+   "lines": [
+    {
+     "command": "sweep",
+     "group": "sha256",
+     "objects": 93019,
+     "bytes": 2022893042,
+     "blobs": 33326,
+     "trees": 52397,
+     "commits": 7296,
+     "tags": 0,
+     "detections": 0
+    },
+    {
+     "command": "sweep",
+     "group": "sha256",
+     "arm": "core",
+     "cases": 93019,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha256",
+     "arm": "hacl",
+     "cases": 93019,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha256",
+     "arm": "commoncrypto",
+     "cases": 93019,
+     "mismatches": 0,
+     "first_mismatch": ""
+    },
+    {
+     "command": "sweep",
+     "group": "sha256",
+     "arm": "qt",
+     "cases": 93019,
+     "mismatches": 0,
+     "first_mismatch": ""
+    }
+   ]
+  }
+ },
+ "failures": []
+}

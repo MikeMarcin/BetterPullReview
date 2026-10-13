@@ -1264,8 +1264,21 @@ add_subdirectory(application)
 add_subdirectory(contract)
 add_subdirectory(sqlite_contract)
 add_subdirectory(workspace_contract)
+# [[BPR-1458]] and [[BPR-1459]]. RFC-BPR-0083's evaluation-only libgit2
+# candidate. Off by default: with it off nothing new is acquired, built or
+# linked.
+option(BPR_EVALUATE_LIBGIT2 "Acquire and build libgit2 for RFC-BPR-0083's evaluation-only candidate L" OFF)
+if(BPR_EVALUATE_LIBGIT2)
+    add_subdirectory(evaluation)
+endif()
 if(BPR_BUILD_FUZZERS)
     add_subdirectory(fuzz)
+endif()
+# [[BPR-1446]]. RFC-BPR-0080's hash candidates, evaluation only: OFF acquires
+# nothing, and the product never links what this builds.
+option(BPR_HASH_EVALUATION "Build the RFC-BPR-0080 hash evaluation harness and its pinned candidates" OFF)
+if(BPR_HASH_EVALUATION)
+    add_subdirectory(hash_evaluation)
 endif()
 
 if(BPR_BUILD_QT)

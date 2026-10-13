@@ -1,0 +1,18 @@
+a[[:space:]]b
+x[![:space:]]y
+Secret.env
+[A]bc
+\Kk
+config/local**/*.pem
+[[:bogus:]]
+unterminated[ab
+back\\  
+
+
+a b
+x y
+secret.env
+Abc
+kk
+config/local/a/key.pem
+back\

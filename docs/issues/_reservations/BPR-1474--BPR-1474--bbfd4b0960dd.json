@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1474"
+  ],
+  "reserve_for": "cpp-parser-evaluation",
+  "purpose": "RFC-BPR-0081 extend outcome follow-up card",
+  "created": "2026-10-13T21:33:34.186377+00:00",
+  "base": "34cbf79f1702bf29252fa31ee1fcb1a529beeeb6"
+}

@@ -104,6 +104,10 @@ namespace bpr::core {
 		index_checksum,
 		/// The index carries a required extension these readers do not read.
 		index_extension,
+		/// A `.gitignore` or `.gitattributes` file is past capture's bound
+		/// (1 MiB, or more than `maximum_ignore_rules` rules). Git reads it, so
+		/// capture refuses rather than keep the paths it would ignore.
+		rule_file_bound,
 	};
 
 	/// \brief A refusal and the config key or index part it concerns, for

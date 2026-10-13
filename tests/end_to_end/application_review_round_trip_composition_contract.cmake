@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5649cded940de091a2036cafb8e60639ed9a1748f2d9b3e6bf3f1bb153517a2f"
+		"8244918caf3dde2daf759c840f8dad2a29728b060019040f32dfe566fb8b2042"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "af8736948cc1a2892bf67153d3f2cdf1a0f315aea5a846b1759eb9371d4e01bd"
+        "5c7e0ec424d38fe727e2fb9ae9404e41a3f73e9a177cfae50fe82acd4c1bc48d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2385,3 +2385,14 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # conversion, with identical output. No publication, credential, grant,
 # inventory or mutation-branch change; the full application and
 # production-manifest digests are refreshed.
+
+# [[BPR-1472]] reseal, over main 58ca8e97a. github_application.cpp: a
+# Recently viewed row or pasted link for the pull request the window shows
+# reuses that read (BPR-0987) only if this window has not published to it
+# over that read. A review that is published or of unknown outcome, or a
+# single comment or reply that succeeded, records the shown snapshot, and the
+# next accepted read clears it. The start-review `finish` course gains a
+# reopen-from-Recent phase and evidence bit (main.cpp prints it;
+# github_application_fixture_access.hpp holds it). No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.
