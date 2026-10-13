@@ -13,10 +13,10 @@
       "work": [{"issue": "BPR-1454"}],
       "depends_on": [],
       "exit_criteria": [
-        "Fixes 1-7 pass their real-Git workspace contract tests on macOS, each shown failing on the readers at RFC base 9a4f61976; reftable is reported by the reader and left to Q2.",
+        "Fixes 1-7 pass their real-Git workspace contract tests on macOS, each shown failing on the readers at RFC base 9a4f61976; a reftable checkout is refused under the owner's Q2 answer (a) of 2026-10-13.",
         "Core unit tests, the core-only preset, both architecture-boundary checks, format, changed-line tidy and the documentation gate pass."
       ],
-      "boundary": "No Q2 option is picked. Windows and Linux runs belong to their station cards."
+      "boundary": "Q2 was answered (a) on 2026-10-13; reading reftable stays with C3. Windows and Linux runs belong to their station cards."
     },
     {
       "id": "differential-baseline",
@@ -70,7 +70,7 @@
       "work": [{"issue": "BPR-1461"}],
       "depends_on": ["reader-fixes"],
       "exit_criteria": ["A reftable checkout yields Git's HEAD commit or the chosen refusal or marker, never an empty HeadCommit, shown by a real-Git contract test."],
-      "boundary": "Blocked until the owner answers Q2."
+      "boundary": "The owner answered Q2 (a) on 2026-10-13: refuse now; whether to read reftable is C3's verdict in the decision record."
     },
     {
       "id": "closeout",

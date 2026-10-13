@@ -21,6 +21,10 @@ Changes in the live RFC: front matter, an execution-status section recording the
 owner's Q1 answer of 2026-10-13, the `Acceptance` heading renamed `Acceptance
 criteria` for the documentation gate, and links rebased to `docs/rfcs/`.
 Excluded: the other drafts under `docs/rfcs/drafts/` and the unrelated
-`.gitignore` and MASK changes in the main checkout. Q2 and Q3 stay with the owner;
-the reftable part of fix 1 and AC07 wait for Q2. Import supplies no measurement or
-acceptance.
+`.gitignore` and MASK changes in the main checkout. Import supplies no measurement
+or acceptance.
+
+Amendment, 2026-10-13: the owner answered Q2 with option (a), relayed by the
+coordinator after import. Fix 1 refuses a reftable checkout ([[BPR-1454]],
+[[BPR-1461]]); reading reftable stays with C3's evaluation ([[BPR-1460]]). Q3 stays
+with the owner.

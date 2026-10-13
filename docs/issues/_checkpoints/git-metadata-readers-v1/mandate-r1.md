@@ -22,3 +22,9 @@ an evaluation-only option; no live GitHub calls; tests may run Git to build
 fixtures and as the oracle, the product never runs Git. macOS is measured here;
 Windows and Linux are station cards. Main is advanced only by fast-forward after
 merging the latest main and re-running the focused checks. No push.
+
+Amendment (2026-10-13, owner via coordinator): Q2 answered (a). Refuse a
+reftable checkout now under fix 1 with a test; decide later, under C3, whether
+to read it. The reftable part of fix 1 is unblocked and implemented in
+[[BPR-1454]]; [[BPR-1461]] carries AC07's refusal evidence. Q3 remains open and is
+asked only if libgit2 passes.
