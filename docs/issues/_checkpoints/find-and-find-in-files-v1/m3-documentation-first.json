@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 documentation and scoped upkeep",
+  "outcome": "fail",
+  "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 1,
+    "elapsed_seconds": 0.906,
+    "stdout_tail": "",
+    "stderr_tail": "ERROR: broken relative link in /Users/jaeger/.codex/worktrees/a675/BetterPullReview/docs/verification/RFC-BPR-0077.md: ../issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json\n"
+  }
+}

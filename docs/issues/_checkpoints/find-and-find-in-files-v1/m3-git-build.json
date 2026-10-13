@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 installed Git build",
+  "outcome": "pass",
+  "revision": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"cmake\", \"--build\", \"build/find-corpus-git\", \"--target\", \"test_better_pull_review_git_process_contract_tests\", \"test_better_pull_review_git_cache_contract_tests\", \"better_pull_review_adapter_git\", \"-j\", \"4\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.069,
+    "stdout_tail": "[0/2] Re-checking globbed directories...\nninja: no work to do.\n",
+    "stderr_tail": ""
+  }
+}

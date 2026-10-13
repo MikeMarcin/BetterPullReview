@@ -1,0 +1,94 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Historical-only membership derives from exact retained trees; public epoch path and installed Git/cache contracts refuse missing exact commits/catalogue. Mutation substituting accepted current head fails the same public fixture.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-correction-verification.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-git-contracts.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-git-process.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-git-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Independent all-entry/full-document corpus retains both exact paths and sides for added/removed/modified/rename/copy; path policy before acquisition, same-entry blob dedup and binary/unsupported/missing/UTF-8/size/line qualifications preserve usable opposite sides.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-correction-verification.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-git-contracts.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-git-process.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-git-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact reads remain on epoch actor/cache with immutable cross-generation coalescing, selected-source/pane priority, authority/demand cancellation and unchanged retention limits. Authenticated sparse read course proves one transport request/read job after old caller cancels.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-correction-verification.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-git-contracts.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-git-process.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-git-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json"
+        ]
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Defined path/side/offset order, <=128 batches, coalesced/throttled progress and 10000 cap plus honest qualification/retry pass through public Qt-free core/host. Real same-scope retry, usable partial prefixes, 1000 no-read traversals and late progress quiescence are covered.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-correction-verification.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-git-contracts.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-git-process.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-final-format.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-self-review.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-git-tidy.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json"
+        ]
+      }
+    }
+  ]
+}

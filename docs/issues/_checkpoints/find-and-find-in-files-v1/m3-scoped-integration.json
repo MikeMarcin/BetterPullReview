@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 AC1-4",
+  "outcome": "pass",
+  "revision": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--preset\", \"core-only\", \"--output-on-failure\", \"-R\", \"^(application_source_pr_search|application_source_search_host|application_epoch_host|core_source_search_policy|core_source_matcher|architecture_boundaries)$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 12.771,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/core-only\n    Start   4: architecture_boundaries\n1/6 Test   #4: architecture_boundaries ..........   Passed   10.70 sec\n    Start 162: core_source_search_policy\n2/6 Test #162: core_source_search_policy ........   Passed    0.05 sec\n    Start 163: core_source_matcher\n3/6 Test #163: core_source_matcher ..............   Passed    0.18 sec\n    Start 178: application_epoch_host\n4/6 Test #178: application_epoch_host ...........   Passed    1.42 sec\n    Start 216: application_source_search_host\n5/6 Test #216: application_source_search_host ...   Passed    0.06 sec\n    Start 228: application_source_pr_search\n6/6 Test #228: application_source_pr_search .....   Passed    0.34 sec\n\n100% tests passed out of 6\n\nLabel Time Summary:\nbpr_network_isolated    =  12.75 sec*proc (6 tests)\n\nTotal Test time (real) =  12.76 sec\n",
+    "stderr_tail": ""
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 corrected installed Git exact copies",
+  "outcome": "pass",
+  "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/find-corpus-git\", \"--output-on-failure\", \"-R\", \"^git_process_contract$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 18.441,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/find-corpus-git\n    Start 458: git_process_contract\n1/1 Test #458: git_process_contract .............   Passed   18.40 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated                    =  18.40 sec*proc (1 test)\nbpr_windows_uncontained_registration    =  18.40 sec*proc (1 test)\n\nTotal Test time (real) =  18.43 sec\n",
+    "stderr_tail": ""
+  }
+}

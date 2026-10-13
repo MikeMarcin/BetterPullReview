@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 touched format",
+  "outcome": "pass",
+  "revision": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/adapters/git/src/git_process_output.hpp\", \"src/adapters/git/src/installed_git_cache.cpp\", \"src/adapters/git/src/installed_git_process.cpp\", \"src/application/include/bpr/application/epoch_application_host.hpp\", \"src/application/include/bpr/application/git_cache_port.hpp\", \"src/application/include/bpr/application/git_process_port.hpp\", \"src/application/include/bpr/application/source_corpus_port.hpp\", \"src/application/include/bpr/application/source_pr_search_execution.hpp\", \"src/application/include/bpr/application/source_search_host.hpp\", \"src/application/src/epoch_application_host.cpp\", \"src/application/src/source_pr_search_execution.cpp\", \"src/application/src/source_search_host.cpp\", \"src/core/include/bpr/core/source_search.hpp\", \"src/core/src/source_search.cpp\", \"tests/application/epoch_application_host_tests.cpp\", \"tests/application/source_pr_search_tests.cpp\", \"tests/git_contract/git_cache_contract_tests.cpp\", \"tests/git_contract/git_process_contract_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.746,
+    "stdout_tail": "Checking 18 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/adapters/git/src/git_process_output.hpp\nsrc/adapters/git/src/installed_git_cache.cpp\nsrc/adapters/git/src/installed_git_process.cpp\nsrc/application/include/bpr/application/epoch_application_host.hpp\nsrc/application/include/bpr/application/git_cache_port.hpp\nsrc/application/include/bpr/application/git_process_port.hpp\nsrc/application/include/bpr/application/source_corpus_port.hpp\nsrc/application/include/bpr/application/source_pr_search_execution.hpp\nsrc/application/include/bpr/application/source_search_host.hpp\nsrc/application/src/epoch_application_host.cpp\nsrc/application/src/source_pr_search_execution.cpp\nsrc/application/src/source_search_host.cpp\nsrc/core/include/bpr/core/source_search.hpp\nsrc/core/src/source_search.cpp\ntests/application/epoch_application_host_tests.cpp\ntests/application/source_pr_search_tests.cpp\ntests/git_contract/git_cache_contract_tests.cpp\ntests/git_contract/git_process_contract_tests.cpp\n",
+    "stderr_tail": ""
+  }
+}

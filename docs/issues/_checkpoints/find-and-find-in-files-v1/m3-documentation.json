@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 documentation and scoped upkeep",
+  "outcome": "pass",
+  "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 1.062,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}

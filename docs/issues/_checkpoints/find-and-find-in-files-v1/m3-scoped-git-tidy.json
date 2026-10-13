@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 changed-line Git tidy; unchanged whole-file failures retained",
+  "outcome": "pass",
+  "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"build/m3-tidy/scoped.py\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 41.084,
+    "stdout_tail": "[\"/opt/homebrew/opt/llvm@22/bin/clang-tidy\", \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/git/src/installed_git_process.cpp\", \"-p\", \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/m3-tidy\", \"--extra-arg=-Wno-error\", \"--extra-arg=-Wno-missing-designated-field-initializers\", \"--extra-arg=-isysroot\", \"--extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk\", \"--warnings-as-errors=*\", \"--line-filter=[{\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/git/src/installed_git_process.cpp\\\", \\\"lines\\\": [[4851, 4880]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/tests/git_contract/git_cache_contract_tests.cpp\\\", \\\"lines\\\": [[3129, 3132]]}]\"]\n\n[\"/opt/homebrew/opt/llvm@22/bin/clang-tidy\", \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/tests/git_contract/git_cache_contract_tests.cpp\", \"-p\", \"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/m3-tidy\", \"--extra-arg=-Wno-error\", \"--extra-arg=-Wno-missing-designated-field-initializers\", \"--extra-arg=-isysroot\", \"--extra-arg=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk\", \"--warnings-as-errors=*\", \"--line-filter=[{\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/src/adapters/git/src/installed_git_process.cpp\\\", \\\"lines\\\": [[4851, 4880]]}, {\\\"name\\\": \\\"/Users/jaeger/.codex/worktrees/a675/BetterPullReview/tests/git_contract/git_cache_contract_tests.cpp\\\", \\\"lines\\\": [[3129, 3132]]}]\"]\n\n",
+    "stderr_tail": "118 warnings generated.\nSuppressed 119 warnings (117 in non-user code, 1 due to line filter, 1 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n\n3 warnings generated.\nSuppressed 4 warnings (2 in non-user code, 1 due to line filter, 1 NOLINT).\nUse -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.\n\n"
+  }
+}

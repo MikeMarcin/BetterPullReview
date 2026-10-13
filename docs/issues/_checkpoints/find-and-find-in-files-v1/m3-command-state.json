@@ -1,0 +1,97 @@
+{
+  "schema": "bpr.find.command-state.v1",
+  "milestone": "exact-pr-corpus",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "product_candidate": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "writer": "completing guarded acceptance/upkeep; no product command active",
+  "active_commands": [],
+  "background_descendants": [],
+  "review_server": null,
+  "protected_candidates": [],
+  "completed": [
+    "core-only and offline Git contract builds",
+    "six-case focused public/core/host/architecture integration",
+    "installed Git SHA-1/SHA-256 exact rename/copy and cache contract courses",
+    "corrected two-case public host/PR integration",
+    "corrected four-TU tidy22 and two-TU changed-line tidy22",
+    "18-file format22 plus four-file correction format22",
+    "historical-membership negative control",
+    "small foundation-suite measurement",
+    "documentation gate and 67 regressions",
+    "guarded board finish dry-run"
+  ],
+  "retained_failed_receipts": [
+    "m3-tidy.json",
+    "m3-git-tidy.json",
+    "m1-core-integration.json"
+  ],
+  "cleanup": [
+    "Historical mutant source/object/executable removed by unique temporary directory",
+    "Task-owned negative-control script, /tmp placeholder and thin tidy database/scripts removed",
+    "Owned core-only and offline Git build trees retained for successor"
+  ],
+  "retained_builds": [
+    "build/core-only",
+    "build/find-corpus-git"
+  ],
+  "changed_product_paths": [
+    "src/adapters/git/src/git_process_output.hpp",
+    "src/adapters/git/src/installed_git_cache.cpp",
+    "src/adapters/git/src/installed_git_process.cpp",
+    "src/application/CMakeLists.txt",
+    "src/application/include/bpr/application/epoch_application_host.hpp",
+    "src/application/include/bpr/application/git_cache_port.hpp",
+    "src/application/include/bpr/application/git_process_port.hpp",
+    "src/application/include/bpr/application/source_corpus_port.hpp",
+    "src/application/include/bpr/application/source_pr_search_execution.hpp",
+    "src/application/include/bpr/application/source_search_host.hpp",
+    "src/application/src/epoch_application_host.cpp",
+    "src/application/src/source_pr_search_execution.cpp",
+    "src/application/src/source_search_host.cpp",
+    "src/core/include/bpr/core/source_search.hpp",
+    "src/core/src/source_search.cpp",
+    "tests/application/CMakeLists.txt",
+    "tests/application/epoch_application_host_tests.cpp",
+    "tests/application/source_pr_search_tests.cpp",
+    "tests/git_contract/git_cache_contract_tests.cpp",
+    "tests/git_contract/git_process_contract_tests.cpp"
+  ],
+  "product_path_sha256": {
+    "src/adapters/git/src/git_process_output.hpp": "f133a3f4b91a6bbaadb368e24ae310ce4bdd158abced7708c41f63bb93372e8c",
+    "src/adapters/git/src/installed_git_cache.cpp": "2267d4d099814aecddc9476b667d2b23776e824249a1cc6ea5e51e7e9c1289b3",
+    "src/adapters/git/src/installed_git_process.cpp": "76feb1f67aa0c3017e35e976ef6b133f5f9d862597de381a1f2ae5b040f2585f",
+    "src/application/CMakeLists.txt": "940f73745b1c5613159e36e2b5668e51d28fdcd9322e994886d14552f0460693",
+    "src/application/include/bpr/application/epoch_application_host.hpp": "472c03427cd04e69ffbae63203a080fafe274c7e2a1a8a3d09ebc0a5afb6653a",
+    "src/application/include/bpr/application/git_cache_port.hpp": "969cf9947500172e7e30d509c07e27e170a774977d6b077ce022d757d94c4e84",
+    "src/application/include/bpr/application/git_process_port.hpp": "24b276d81bf72d00a6bae1145b223decd4dc4073ee775da6221d6504cae00d99",
+    "src/application/include/bpr/application/source_corpus_port.hpp": "879d5ae1183751aae38d6ce2a0535f0f346ebef873f8772991244bd6823417b0",
+    "src/application/include/bpr/application/source_pr_search_execution.hpp": "b34e0610915764268dd4c4ef73a988857b45cb5ace5e5ff3968bec8153656bfa",
+    "src/application/include/bpr/application/source_search_host.hpp": "09421e3ba3375dba8602945e6897a7262f5be06be93197404e68a7cace4715e0",
+    "src/application/src/epoch_application_host.cpp": "7fb3f1a27ce7465c8517ba33c1529dbc3e194a790215e0da9a474dad70773f71",
+    "src/application/src/source_pr_search_execution.cpp": "50585ebec6675989719b7a01b72165104b56d6065ec56b7b3378d63562797983",
+    "src/application/src/source_search_host.cpp": "d970239370a4abb598b3154b38850a54ccf729b8a9adfc53eebf799e495b2c00",
+    "src/core/include/bpr/core/source_search.hpp": "9fa1485400325b25e5bcd63fb3f22c7ef269b662f4838dc20994c001f03a1e9c",
+    "src/core/src/source_search.cpp": "3a45314b60be80172685d36175144b3687efcb5eb669fb85836698368907aaa2",
+    "tests/application/CMakeLists.txt": "2781a346a5e5f8144c729e3460ce95ddcb62cfa11eaa55392c7f3e27ba3b4b18",
+    "tests/application/epoch_application_host_tests.cpp": "79740308e8c430db7eda90aea3adcb906742d122f5c75d647a14af289520c4c3",
+    "tests/application/source_pr_search_tests.cpp": "cda28abf793cddb411fefc4f297c64d52e22b8160ece3ed9836ad7b969d33a14",
+    "tests/git_contract/git_cache_contract_tests.cpp": "c0997ab6c3ae60a2aa5e7fe6fbd493a4843ed678ff74ce373be0b2fc6f20098a",
+    "tests/git_contract/git_process_contract_tests.cpp": "b2be14fcaddb32724003c43c108b6a6e3a0e493d2fc288954cd5d3d6eb18565a"
+  },
+  "main_source_or_tracker_writes": false,
+  "live_desktop_or_personal_app_data": false,
+  "remote_mutations_or_push": false,
+  "pending_obligations": [
+    "M4 pane/native UI, decorations and reveal",
+    "M5 composed PR Search, invalidation/reveal races, full AC01-AC08 and native/human acceptance",
+    "Large public application warm/cold/cancellation/memory evidence and committed thresholds",
+    "M1 retained broad-core format, fixture inventory and uncached dependency failures"
+  ],
+  "next_action": "Fresh M4 owner reads frontend-design, binds accepted M1/M2/M3 and claims BPR-1422",
+  "command_refusals": [
+    {
+      "action": "record documentation evidence at occupied output path",
+      "result": "exclusive-create refused overwrite; captured separate fresh receipt; original failed receipt retained"
+    }
+  ]
+}

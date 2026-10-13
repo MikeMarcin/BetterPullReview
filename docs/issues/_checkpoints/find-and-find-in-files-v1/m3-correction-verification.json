@@ -1,0 +1,96 @@
+{
+  "schema": "bpr.find.correction-verification.v1",
+  "milestone": "exact-pr-corpus",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "candidate_revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "evidence_kind": "observed completed tool commands; product bytes committed without further change",
+  "completed_commands": [
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "core-only",
+        "--target",
+        "test_source_pr_search",
+        "test_better_pull_review_application_epoch_host_tests",
+        "-j4"
+      ],
+      "exit_code": 0,
+      "session_id": 51510
+    },
+    {
+      "command": [
+        "ctest",
+        "--preset",
+        "core-only",
+        "--output-on-failure",
+        "-R",
+        "^(application_source_pr_search|application_epoch_host)$"
+      ],
+      "exit_code": 0,
+      "session_id": 51510,
+      "tests": 2
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "build/find-corpus-git",
+        "--target",
+        "test_better_pull_review_git_process_contract_tests",
+        "test_better_pull_review_git_cache_contract_tests",
+        "better_pull_review_adapter_git",
+        "-j4"
+      ],
+      "exit_code": 0,
+      "session_id": 27048
+    },
+    {
+      "command": [
+        "python3",
+        "_coding-standard/scripts/tidy.py",
+        "--compile-commands",
+        "build/m3-tidy/compile_commands.json",
+        "--clang-tidy",
+        "/opt/homebrew/opt/llvm@22/bin/clang-tidy",
+        "--warnings-as-errors",
+        "--paths",
+        "src/application/src/source_pr_search_execution.cpp",
+        "tests/application/epoch_application_host_tests.cpp",
+        "tests/application/source_pr_search_tests.cpp",
+        "tests/git_contract/git_process_contract_tests.cpp"
+      ],
+      "exit_code": 0,
+      "session_id": 46318,
+      "translation_units": 4
+    }
+  ],
+  "product_sha256": {
+    "src/application/src/source_pr_search_execution.cpp": "50585ebec6675989719b7a01b72165104b56d6065ec56b7b3378d63562797983",
+    "tests/application/epoch_application_host_tests.cpp": "79740308e8c430db7eda90aea3adcb906742d122f5c75d647a14af289520c4c3",
+    "tests/application/source_pr_search_tests.cpp": "cda28abf793cddb411fefc4f297c64d52e22b8160ece3ed9836ad7b969d33a14",
+    "tests/git_contract/git_process_contract_tests.cpp": "b2be14fcaddb32724003c43c108b6a6e3a0e493d2fc288954cd5d3d6eb18565a"
+  },
+  "reuse": {
+    "initial_product": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+    "unchanged_passing_units": [
+      "src/core/src/source_search.cpp",
+      "src/application/src/source_search_host.cpp",
+      "src/application/src/epoch_application_host.cpp",
+      "src/adapters/git/src/installed_git_cache.cpp"
+    ],
+    "references": [
+      "m3-scoped-integration.json",
+      "m3-tidy.json",
+      "m3-git-tidy.json",
+      "m3-git-contracts.json",
+      "m3-negative-control.json"
+    ],
+    "architecture_negative_contract": "passed 111.94 seconds before correction; boundary scripts and public port headers unchanged"
+  },
+  "scope_limits": [
+    "No full-file or global tidy pass inferred",
+    "No full-RFC native or public-application performance acceptance inferred"
+  ]
+}

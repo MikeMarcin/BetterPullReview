@@ -130,19 +130,80 @@ batched progress, command/UI/reveal composition and warm/cold public-path perfor
 remain later milestones. The failed M1 269/272 full-core result remains retained
 above; the exhaustive suite was not rerun and no broad passing claim replaces it.
 
+## M3 candidate and scope
+
+[[BPR-1421]] supplies exact retained-tree membership, epoch-owned full documents
+and streamed PR search. Initial product is `4b6bc16e50d6e134efc3570c2dccff74898e0d65`;
+self-review corrections are integrated at exact tested product
+`df4b42d6942d131caebc2343a6ed360c8023bc0d`. Run, segment, mandate and authored
+criteria remain unchanged. The [acceptance](../issues/_checkpoints/find-and-find-in-files-v1/m3-acceptance.json)
+binds all four bounded exits; [self-review](../issues/_checkpoints/find-and-find-in-files-v1/m3-self-review.json)
+records findings, corrected development failures and evidence reuse.
+
+The shortest public composition runs search host → PR worker → actual epoch
+host with fake narrow cache/catalogue ports. A historical-only path survives an
+accepted remote-head change, and both full sides come from the requested retained
+pair. Missing exact commits/catalogues are unavailable. The installed Git
+SHA-1/SHA-256 contracts verify exact raw rename/copy paths, unchanged empty pairs
+and refusal of a missing commit. A disposable mutation replacing the requested
+historical head with today's accepted head fails the public fixture. Product
+bytes remain unchanged and the mutant is removed.
+
+Membership ignores Files filters, receipts and opened state. Path policy is
+compiled before reads; either rename side includes, and exclusion wins. Added,
+removed, modified, renamed and evidenced copied entries retain their exact sides.
+Binary, invalid UTF-8, missing material, symlink/gitlink and size/line refusals
+qualify individual sides. The opposite searchable side and accepted result
+prefix remain usable. A same-authority retry keeps the original corpus scope.
+Identical same-entry blobs share scanning while retaining both locations.
+
+Immutable reads remain on the existing epoch actor. A replacement that still
+needs an in-flight blob joins one read/job even after the old query caller stops.
+Clear, authority invalidation and shutdown cancel unneeded work. Selected-source
+work and pane Find can yield background reads and scanning. The existing actor
+retention remains 256 blobs/16 MiB; background entries cannot evict foreground
+material. No competing cache, checkout, whole-corpus materialization, syntax or
+diff computation is introduced.
+
+The worker admits at most 10,000 ordered results; an actually observed extra hit
+qualifies the visible prefix as capped. Publications contain at most 128 records,
+with one coalesced progress closure and a terminal on the decision lane. Progress
+is throttled to at most ten updates per second; terminal-before-progress and
+late closures cannot restore stale state or falsely report quiescence. One
+thousand result traversals perform no read or worker call. Core stays 1,592 bytes;
+catalogues, documents, matcher programs and records remain outside it. A 192 MiB
+conservative admission envelope accounts for two documents, the matcher, existing
+cache, catalogue stages and result/publication copies. It is an owned-capacity
+bound, not a whole-application RSS measurement or final AC08 timing claim.
+
+Evidence:
+
+- [Core build](../issues/_checkpoints/find-and-find-in-files-v1/m3-core-build.json), [six-case core/host/architecture integration](../issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-integration.json) and [correction checks](../issues/_checkpoints/find-and-find-in-files-v1/m3-correction-verification.json).
+- [Installed Git build](../issues/_checkpoints/find-and-find-in-files-v1/m3-git-build.json), [process/cache contracts](../issues/_checkpoints/find-and-find-in-files-v1/m3-git-contracts.json) and [corrected exact-copy process course](../issues/_checkpoints/find-and-find-in-files-v1/m3-final-git-process.json).
+- [Format 22](../issues/_checkpoints/find-and-find-in-files-v1/m3-format.json) and [corrected format](../issues/_checkpoints/find-and-find-in-files-v1/m3-final-format.json).
+- [Initial core/host tidy](../issues/_checkpoints/find-and-find-in-files-v1/m3-tidy.json) and [initial Git tidy](../issues/_checkpoints/find-and-find-in-files-v1/m3-git-tidy.json) remain failed receipts. Corrections pass; [changed-line Git tidy](../issues/_checkpoints/find-and-find-in-files-v1/m3-scoped-git-tidy.json) excludes two byte-identical baseline diagnostics outside M3. No whole-file or global tidy pass is claimed.
+- [Historical negative control](../issues/_checkpoints/find-and-find-in-files-v1/m3-negative-control.json) and [small foundation-suite measurement](../issues/_checkpoints/find-and-find-in-files-v1/m3-measurement.json); the latter is not the large-review public application benchmark.
+- [Documentation](../issues/_checkpoints/find-and-find-in-files-v1/m3-documentation.json) and [documentation regressions](../issues/_checkpoints/find-and-find-in-files-v1/m3-documentation-tests.json).
+
+M3 changes no UX or rendering and requires no attended decision. M4/M5 still own
+shipped commands, decoration/reveal composition, native judgement and final warm/cold
+public-path performance. The failed M1 269/272 full-core result remains retained;
+it was not rerun or replaced by a global passing claim.
+
 ## Whole-RFC acceptance remains pending
 
 | Criterion | State | Remaining evidence |
 |---|---|---|
 | AC01 | Pending | Real split/unified source matching, offscreen unchanged text and version-contiguous multiline semantics. |
 | AC02 | Pending | Shipped Find bar, seeding, options, selection bounds, exact Unicode/LF spans, focus and invalid-regex behavior. |
-| AC03 | Pending | Full both-side exact/historical corpus including unopened, filtered, excluded and renamed files. |
+| AC03 | Pending | M3 foundation proves full exact/historical membership; shipped Search composition must demonstrate unopened, filtered, excluded and renamed files. |
 | AC04 | Pending | Real activation/F4 through exact tab/file/span/comparison reveal, filters and identity-proven deduplication. |
 | AC05 | Pending | Composed query/tab/epoch/authority races and pending-reveal cancellation. M1 session rejection alone is insufficient. |
-| AC06 | Pending | Actual material/transport/cancellation/resource failures, honest visible partial coverage and exact-authority retry. |
+| AC06 | Pending | M3 foundation proves material/transport/cancellation/resource qualification and exact-authority retry; composed visible coverage remains. |
 | AC07 | Pending | Native command/key ownership, accessible layouts and rendered decoration coexistence through the application. |
 | AC08 | Pending | Large public-path warm/cold/cancellation/memory measurements, thresholds and usable navigation during cold scanning. Core-only foundation success alone is insufficient. |
 
-No matcher, source-corpus, source-span, Qt, native, installed-package, human or
-full-RFC acceptance is inferred from M1. There is no human decision required
-for this bounded foundation, and no attended candidate or server is held.
+M1–M3 accept only their named engineering foundations. Qt commands/rendering,
+native, installed-package, human and whole-RFC acceptance remain pending.
+There is no human decision required for these bounded foundations, and no
+attended candidate or server is held.

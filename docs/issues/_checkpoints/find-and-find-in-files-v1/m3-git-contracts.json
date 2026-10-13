@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 installed catalogue/material boundary",
+  "outcome": "pass",
+  "revision": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/find-corpus-git\", \"--output-on-failure\", \"-R\", \"^git_(process|cache)_contract$\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 49.173,
+    "stdout_tail": "Test project /Users/jaeger/.codex/worktrees/a675/BetterPullReview/build/find-corpus-git\n    Start 458: git_process_contract\n1/2 Test #458: git_process_contract .............   Passed   18.96 sec\n    Start 459: git_cache_contract\n2/2 Test #459: git_cache_contract ...............   Passed   30.18 sec\n\n100% tests passed out of 2\n\nLabel Time Summary:\nbpr_network_isolated                    =  49.15 sec*proc (2 tests)\nbpr_windows_uncontained_registration    =  49.15 sec*proc (2 tests)\n\nTotal Test time (real) =  49.17 sec\n",
+    "stderr_tail": ""
+  }
+}

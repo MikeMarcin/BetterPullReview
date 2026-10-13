@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 structural corpus memory",
+  "outcome": "pass",
+  "revision": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"/usr/bin/time\", \"-l\", \"build/core-only/tests/application/source_pr_search\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.314,
+    "stdout_tail": "source-pr-search-tests:pass\n",
+    "stderr_tail": "        0.30 real         0.30 user         0.00 sys\n            24264704  maximum resident set size\n                   0  average shared memory size\n                   0  average unshared data size\n                   0  average unshared stack size\n                1668  page reclaims\n                   1  page faults\n                   0  swaps\n                   0  block input operations\n                   0  block output operations\n                   0  messages sent\n                   0  messages received\n                   0  signals received\n                   0  voluntary context switches\n                  79  involuntary context switches\n          6050934344  instructions retired\n          1211462983  cycles elapsed\n            22872448  peak memory footprint\n"
+  }
+}

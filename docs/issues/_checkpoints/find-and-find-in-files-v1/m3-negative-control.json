@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 historical membership negative control",
+  "outcome": "pass",
+  "revision": "4b6bc16e50d6e134efc3570c2dccff74898e0d65",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"build/m3-negative-control.py\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 5.547,
+    "stdout_tail": "M3_HISTORICAL_NEGATIVE_CONTROL_OK: replacing the requested historical head with the accepted current head fails the public host fixture; mutant exit 1\nFAILED: catalogue is exact historical pair, never today's membership\nM3_PRODUCT_BYTES_UNCHANGED_AND_MUTANT_REMOVED\n",
+    "stderr_tail": ""
+  }
+}

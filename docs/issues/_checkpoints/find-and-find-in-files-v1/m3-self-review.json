@@ -1,0 +1,88 @@
+{
+  "schema": "bpr.find.self-review.v1",
+  "milestone": "exact-pr-corpus",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "candidate_revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "independent_review": false,
+  "findings": [
+    {
+      "risk": "Historical membership substituted from accepted current catalogue",
+      "disposition": "Public host/worker/epoch fixture establishes historical-only membership first. Exact retained tree arguments and missing-tree refusal pass; replacing requested head with accepted head fails the disposable negative control."
+    },
+    {
+      "risk": "Search corpus narrows to Files projection, receipts or opened documents",
+      "disposition": "Retained-tree catalogue is independent; both full sides and both rename/copy paths are retained. Installed SHA-1/SHA-256 actual Git courses prove rename/copy and missing-commit refusal. Unsupported modes remain typed unavailable sides without following links."
+    },
+    {
+      "risk": "Query cancellation destroys still-needed immutable read",
+      "disposition": "Latest demand is installed before old matcher stops. Authenticated sparse material fixture cancels first caller while needed; replacement joins the same epoch actor read/job and one transport request. Different scope cancels unneeded work; no competing cache."
+    },
+    {
+      "risk": "Navigation priority and cache residency regression",
+      "disposition": "Catalogue/read work and scan tokens yield to existing selected-source reviewer work and explicit pane-Find yield. Background retention only evicts background within unchanged 256-blob/16-MiB budget; foreground promotion and shutdown quiescence pass."
+    },
+    {
+      "risk": "Partial records or late progress claim completion/quiescence",
+      "disposition": "Per-side qualification and same-authority retry preserve usable prefix; <=128-record packets, single pending progress, monotonic summary, exact scope/blob validation and terminal-before-progress cleanup pass. Pending closure accounting prevents premature quiescence."
+    },
+    {
+      "risk": "Resource qualification hides valid opposite side",
+      "disposition": "Count logical CR/CRLF/LF source lines including unterminated last line before matching. Added CR-only line-ceiling fixture proves one side skipped with opposite-side hit retained. Missing catalogue exposes retry for same exact scope."
+    },
+    {
+      "risk": "Owned-memory admission understated by publication copies",
+      "disposition": "192-MiB conservative reservation precedes result allocation/reads and accounts matcher, two material documents, existing actor cache, catalogue stages, records/mailbox/projection copies and metadata. Core remains 1592 bytes; collections remain host-owned. This is not whole-app RSS or AC08 timing evidence."
+    }
+  ],
+  "development_failures": [
+    {
+      "kind": "build",
+      "detail": "Initial compile API mismatch and an unknown target name corrected before candidate; final core/Git builds pass."
+    },
+    {
+      "kind": "fixture",
+      "detail": "Historical fixture initially expected current selected context; corrected to preserve pinned pair and assert exact historical membership."
+    },
+    {
+      "kind": "architecture",
+      "detail": "Closed Git process port initially exposed std::vector; corrected to bounded domain sink, with application cache collector outside the process port. Architecture boundary and negative contract pass."
+    },
+    {
+      "kind": "tidy",
+      "detail": "Initial new worker duplicate branch and parser fixture temporary strings corrected; corrected four-TU tidy passes. constinit chrono globals receive narrowly explained SDK false-positive NOLINT."
+    },
+    {
+      "kind": "documentation",
+      "detail": "First gate referenced its not-yet-created output receipt; failed receipt retained as m3-documentation-first.json. The recorder then refused overwriting an existing file after running the gate. Captured pass in a fresh path and normalized canonical receipt after retaining first failure."
+    }
+  ],
+  "retained_failures": [
+    {
+      "reference": "m3-git-tidy.json",
+      "file": "src/adapters/git/src/installed_git_process.cpp",
+      "current_line": 7006,
+      "baseline_line": 6976,
+      "diagnostic": "readability-identifier-naming existing small_text",
+      "unchanged_statement": "const auto small_text = [](const std::filesystem::path& aPath) -> std::optional<std::string> {"
+    },
+    {
+      "reference": "m3-git-tidy.json",
+      "file": "tests/git_contract/git_cache_contract_tests.cpp",
+      "current_line": 1339,
+      "baseline_line": 1339,
+      "diagnostic": "performance-inefficient-string-concatenation existing makePack fixture",
+      "unchanged_statement": "const auto bytes = course == 2U ? makePack(headText + \"\\n\") : course == 3U ? makePack(blobText + \"\\n\" + treeText + \"\\n\")"
+    }
+  ],
+  "baseline_revision": "6f2276bc0118e32b6f943b804e1bccaab96cc079",
+  "scoped_tidy_reference": "m3-scoped-git-tidy.json",
+  "correction_reference": "m3-correction-verification.json",
+  "negative_control_reference": "m3-negative-control.json",
+  "scope_limits": [
+    "No full-file/global tidy pass claimed; initial failed receipts retained",
+    "Original AC01-AC08 require shipped UI/reveal/native/public-path performance and remain Pending",
+    "M1 269/272 full-core failure retained; not rerun or hidden",
+    "Native SHA-256 sparse remote transport remains unavailable per existing acquisition; local SHA-256 catalogue/blobs pass",
+    "No UX/rendering changes, attended decision or review server for this bounded M3"
+  ]
+}

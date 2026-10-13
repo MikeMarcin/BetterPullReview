@@ -1,0 +1,13 @@
+{
+  "criterion": "M3 corrected four-file format22",
+  "outcome": "pass",
+  "revision": "df4b42d6942d131caebc2343a6ed360c8023bc0d",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/application/src/source_pr_search_execution.cpp\", \"tests/application/epoch_application_host_tests.cpp\", \"tests/application/source_pr_search_tests.cpp\", \"tests/git_contract/git_process_contract_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.256,
+    "stdout_tail": "Checking 4 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/application/src/source_pr_search_execution.cpp\ntests/application/epoch_application_host_tests.cpp\ntests/application/source_pr_search_tests.cpp\ntests/git_contract/git_process_contract_tests.cpp\n",
+    "stderr_tail": ""
+  }
+}

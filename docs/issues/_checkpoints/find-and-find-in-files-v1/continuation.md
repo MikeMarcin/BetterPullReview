@@ -108,3 +108,79 @@ main writes, remote mutation or push exist. Task-owned oracle/UCD copies and dia
 scripts were removed after receipts; the shared core-only build is retained for M3.
 Any final checkpoint-only commit changes no tested product bytes. Product identity
 and later tracker revision are kept distinct in the return record.
+
+## Accepted M3 and next engineering owner
+
+`exact-pr-corpus`, [[BPR-1421]], completes on tested product
+`df4b42d6942d131caebc2343a6ed360c8023bc0d` (initial implementation
+`4b6bc16e50d6e134efc3570c2dccff74898e0d65`). [Acceptance](m3-acceptance.json),
+[self-review](m3-self-review.json), [correction checks](m3-correction-verification.json)
+and the [ledger](../../../verification/RFC-BPR-0077.md) bind all four M3 exits.
+The guarded finish and latest checkpoint/tracker revisions are in
+[m3-return.json](m3-return.json). This section supersedes the earlier M2 next action.
+
+Start a fresh owner on `pane-find`, [[BPR-1422]], bind accepted milestones
+`search-session-policy`, `shared-matching` and `exact-pr-corpus`, and claim the
+Ready card before editing. Read the required frontend-design skill before UI
+work. Original AC01–AC08, shipped native commands/rendering/reveal, final composed
+races and large-review warm/cold performance remain pending. No acceptance waiver
+or engine question was introduced. M1's 269/272 broad-core failure receipt remains
+retained; do not replace it with this milestone's focused passing claim.
+
+### Composition APIs
+
+- Pane Find uses `execute_source_pane_match(work, acceptedEntry, stop)` from
+  `source_search_host.hpp`. It accepts the exact full accepted pane material and
+  performs no acquisition. Keep pane and PR hosts/query state independent. Before
+  admitting pane Find work, call the epoch port's `yield_to_source_navigation()`;
+  actual selected-source work also interrupts background reads/scanning through
+  the existing reviewer-work guard. M4 owns controller, decoration and exact reveal.
+- PR composition (M5) calls
+  `epoch_application_host::bind_source_search(currentWorkbenchAuthority, pinnedComparison, activeTab)`
+  on the decision lane. Retain that optional scope while the exact authority/tab/
+  comparison remains valid; query/options/path changes go to the search host, not
+  a fresh catalogue grant. The scope carries a catalogue generation independent
+  of query/request generations. Rebind only for a real scope change, and pass
+  `nullopt` when unavailable. Never substitute the current accepted catalogue for
+  the pinned historical pair.
+- Construct `source_pr_search_execution(epochHost)` and a `source_search_host`
+  with the existing decision/effect executors and a projection port. Use
+  `set_scope`, `set_query`, `set_paths`, `retry`, `navigate`, `clear`, `close` and
+  `shutdown`. All host ingress/inspection runs on the serialized decision lane;
+  epoch host, execution/projection ports and executors outlive host quiescence.
+- `source_search_projection::Corpus` is the immutable exact ordered catalogue.
+  Its entries provide `File`, optional `Left`/`Right` path/blob/mode and primary
+  `path()` for result headers. `Matches` holds file identities and exact original
+  spans/blob locations; identical same-entry blobs retain both side locations.
+  `Skipped` records per-file/side typed reasons; `RetryAvailable`, `Summary`,
+  `Status` and `NoResults` qualify coverage. Only complete empty coverage may
+  present an unqualified no-results label. `retry()` retains the same scope.
+- The epoch corpus port performs all reads. Its `catalogue`, `read`,
+  `demand_changed` and `scan_stop_token` are worker capabilities, not widget
+  effects. Material is immutable and two documents are streamed at a time;
+  replacement demand is installed before cancelling an old matcher so a still
+  needed exact blob read can be shared. Path policy validates before acquisition.
+- M4/M5 must still compose authority/tab/comparison invalidation and cancel any
+  pending reveal on later reading gestures. Result activation binds exact
+  authority, catalogue, tab, comparison, file/path/side/blob/span and current query
+  generation through the existing selection/reveal controller; the corpus API
+  alone does not supply native activation acceptance.
+
+### M3 ownership and command state
+
+The M3 writer is released at handoff. [Command state](m3-command-state.json)
+records completed core/Git builds, focused contracts, architecture checks,
+negative control, corrected format/tidy, documentation and bookkeeping. No
+descendants, protected/frozen candidates, review server, live desktop/personal
+app data, main writes, remote mutation or push exist. Temporary mutation and
+tidy scripts/databases are removed after receipts. The owned `build/core-only`
+and `build/find-corpus-git` trees are retained for successors. The latter uses
+the existing pinned main dependency cache read-only, offline, with Qt 6.11.2;
+it built only Git contract targets, not a new UI acceptance candidate.
+
+Full-file Git tidy retains two unchanged baseline diagnostics (the existing
+`small_text` name and pack-fixture temporary concatenation). M3's changed lines
+pass separately; no unrelated code repair or global tidy pass is asserted.
+Product fingerprints and exact scoped candidate identity stay distinct from
+later checkpoint-only commits. There is no required human/native/independent
+decision for this bounded M3 outcome; later milestones retain those obligations.
