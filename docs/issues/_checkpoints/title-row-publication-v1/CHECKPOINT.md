@@ -23,7 +23,7 @@ failures reproduced against baseline product. Source restored byte-for-byte afte
 control, then focused binaries rebuilt. Three scale render courses, format 22.1.8,
 bounded source tidy and diff checks pass. See `acceptance.json`, `final-title-row.json`,
 `candidate-verification.json`, `composed-github-baseline.json`, `render-observation.json`
-and `quality-checks.json` beside this checkpoint. Documentation/board finish follows.
+and `quality-checks.json` beside this checkpoint. Documentation passed; BPR-1418 is Done and RFC-BPR-0075 Auto-Verified at finish commit `c1ca9154e8afcd31091c544bf8a029ed712b5300`.
 
 ## Ownership and commands
 
@@ -36,8 +36,12 @@ are preserved and excluded from commits.
 
 ## Continuation
 
-No successor milestone or required human/native/independent obligation. Complete the
-explicit-path board finish, documentation and milestone consistency check, then return
-the actual terminal commits and quiescent handoff to the coordinator. Native appearance,
+No successor milestone or required human/native/independent obligation. Board finish and documentation gate are complete. Return the terminal commits,
+consistency check and quiescent handoff to the coordinator. Native appearance,
 Windows/Linux observation and identification of the owner's installed binary are not
 claims of this bounded correction.
+
+The original binding is retained in `binding.json`. `closeout-binding.json` renews
+whole-source fingerprints after accepted status/progress/ledger updates; original
+AC01–AC04, milestone grouping, scope and exits remain unchanged. `check.json`
+records the final quiescent consistency result; it does not itself certify evidence.
