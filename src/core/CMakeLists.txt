@@ -1,6 +1,7 @@
 add_library(
     better_pull_review_core
     STATIC
+        src/source_search.cpp
         src/remembered_connection.cpp
         src/review_preparation.cpp
         src/window_review_restoration.cpp
