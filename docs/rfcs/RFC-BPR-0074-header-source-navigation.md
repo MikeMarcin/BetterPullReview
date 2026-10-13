@@ -8,6 +8,17 @@ metadata: {"rfc_base_sha":"6a310fc57ae2d52360bfec252cf25aa1350d8aa2","mandate_re
 
 # Jump between a review's header and source files
 
+## Execution status
+
+Mandate `header-source-navigation-r4` adopts the original draft and owner Q1
+amendments; immutable RFC_BASE_SHA: `6a310fc57ae2d52360bfec252cf25aa1350d8aa2`.
+The [live import](assets/header-source-navigation-v1.LIVE_IMPORT.md) preserves
+original bytes and the [two-milestone plan](plans/header-source-navigation-v1/milestone-plan.json).
+The first milestone supplies indexed core/host resolution. The command and
+full composed RFC acceptance remain in the second milestone. The
+[navigation architecture](../architecture/header-source-navigation.md) records
+the implemented boundary.
+
 ## Problem and grounded current behavior
 
 On 2026-10-12 the owner requested a best-effort jump between a C++ source
@@ -155,8 +166,8 @@ map and navigation architecture documentation.
   rejects the old resolution, and a late diff cannot replace the latest selection.
   A missing target at that comparison is reported without fallback.
 - **AC05:** The real QAction and physical key-event path reach the same
-  selection operation, with a unique assembled shortcut and accessible menu,
-  status text. Editable Option/Alt input and inactive modalities
+  selection operation, with a unique assembled shortcut and accessible menu
+  and status text. Editable Option/Alt input and inactive modalities
   retain their behavior; successful navigation keeps focus in the source comparison.
 - **AC06:** A large accepted review performs indexed counterpart lookup without
   a full-catalogue scan per gesture, speculative candidate reads or model reset.
