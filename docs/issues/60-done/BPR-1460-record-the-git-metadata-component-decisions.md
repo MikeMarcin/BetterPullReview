@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1460"
 title: "Record each Git metadata component's verdict in a committed decision record"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1455", "BPR-1456", "BPR-1457", "BPR-1458", "BPR-1459"]
 priority: "P2"
 platforms: ["mac"]
 metadata: {"milestone_plan": {"id": "git-metadata-readers-v1", "path": "docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"}, "mandate_revision": "git-metadata-readers-r1", "rfc_base_sha": "9a4f61976bba23727acd77d10c23c041f87208f0", "reservation": "docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json"}
+acceptance: [{"criterion":"BPR-1460:AC1","outcome":"pass","revision":"f965a7693","evidence":{"kind":"observation","detail":"docs/verification/RFC-BPR-0083-decision.md (commit f965a7693) gives each component C1-C6 the verdict Keep K, the gate or rule that decided it (rule 1; L fails H1/H2/H3/H6, V fails H6 and needs Q1 approval, G rejected; C3's reftable capability has no candidate), links to the harness, reader rows, canary course, H6 table, scale bench and L/V/G cost records in the ledger, and every question answer relied on (Q1 answered, Q2 a, Q3 not asked because L passes no component). Pending: K's H2/H5 cells on Windows and Linux (BPR-1462, BPR-1463).","path":"docs/issues/60-done/BPR-1460-record-the-git-metadata-component-decisions.md"}},{"criterion":"BPR-1460:AC2","outcome":"pass","revision":"f965a7693","evidence":{"kind":"observation","detail":"Nothing moved, so the system architecture and workspace adapter description need no change beyond BPR-1454's domain-model note; no library is adopted, libgit2 stays behind the evaluation-only option. On the current head: core-only preset built with every code row passing (the failures are three documentation rows needing .agents scripts absent from worktrees, and two source scans flagging other agents' files on main: tests/hash_evaluation/run_hash_evaluation.py and tests/adapters_qt/conversation_cards_view_tests.cpp); architecture_boundaries passes in the dev tree; DOCUMENTATION_OK.","path":"docs/issues/60-done/BPR-1460-record-the-git-metadata-component-decisions.md"}}]
 ---
 
 # BPR-1460: Record each Git metadata component's verdict in a committed decision record
