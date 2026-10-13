@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe / executable 958c7079ff56817dd37538f028ed8544002689d9f26bc1f3f3805991ba196747",
+      "paths": [
+        "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
+        "src/adapters/qt/include/bpr/qt/comparison_scroll_controller.hpp",
+        "src/adapters/qt/src/comparison_scroll_controller.cpp",
+        "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+        "src/adapters/qt/src/diff_workbench.cpp"
+      ],
+      "resources": [
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men"
+      ],
+      "resource_versions": {
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men": "sha256:958c7079ff56817dd37538f028ed8544002689d9f26bc1f3f3805991ba196747"
+      },
+      "launch": {
+        "label": "Launch the exact frozen comparison",
+        "command": "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men/launch.py"
+      },
+      "id": "BPR-1413-AC07-v002",
+      "title": "Keep the revised touchpad axis behavior?",
+      "criteria": [
+        "Does horizontal panning stay at the intended vertical reading position despite minor finger wobble?"
+      ],
+      "content": "Launch the frozen build below. It opens a fixture file in Review. Scroll to a middle section with long lines (around lines 500\u2013600 works), then pan left and right with your normal touchpad movement, including minor wobble, reversal and reaching a horizontal edge. Try a deliberate vertical or diagonal turn during the same gesture as part of assessing whether it follows your intended direction. Split and unified views use the same filtering policy. Accept to keep the behavior, or Reject and describe the desired change in the note.",
+      "metadata": {
+        "rfc": "RFC-BPR-0073",
+        "criterion": "AC07",
+        "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men",
+        "source_revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+        "freeze_check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832"
+      }
+    },
+    {
+      "revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe / executable 958c7079ff56817dd37538f028ed8544002689d9f26bc1f3f3805991ba196747",
+      "paths": [
+        "src/adapters/qt/include/bpr/qt/pixel_scroll_gesture.hpp",
+        "src/adapters/qt/include/bpr/qt/comparison_scroll_controller.hpp",
+        "src/adapters/qt/src/comparison_scroll_controller.cpp",
+        "src/adapters/qt/include/bpr/qt/diff_workbench.hpp",
+        "src/adapters/qt/src/diff_workbench.cpp"
+      ],
+      "resources": [
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men"
+      ],
+      "resource_versions": {
+        "frozen-build:/Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men": "sha256:958c7079ff56817dd37538f028ed8544002689d9f26bc1f3f3805991ba196747"
+      },
+      "launch": {
+        "label": "Launch the exact frozen comparison",
+        "command": "/opt/homebrew/Frameworks/Python.framework/Versions/3.14/bin/python3.14 /Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men/launch.py"
+      },
+      "id": "BPR-1413-AC08-v002",
+      "title": "Keep the minimum keyboard reveal?",
+      "criteria": [
+        "Does keyboard navigation reveal a clipped line only as far as needed to make the whole line visible?"
+      ],
+      "content": "Use the same frozen window. Select a source line, scroll slightly between line boundaries, and use Up/Down or Shift-Up/Down until the selected line reaches a partially clipped top or bottom edge. Repeating the arrow should keep the target near that edge. The receiving pane still aligns to a line boundary, so at most one line of alignment remainder can be necessary. Try split and unified view. Accept to keep this minimum reveal, or Reject and describe the desired change in the note. After saving your decisions, use Finish and hand back.",
+      "metadata": {
+        "rfc": "RFC-BPR-0073",
+        "criterion": "AC08",
+        "frozen_root": "/Users/jaeger/bpr-1413-smooth-panning-v002.zlg08men",
+        "source_revision": "59a2fa10c147fd1dc976eb5eef161137da5077fe",
+        "freeze_check": "CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp head 89df5e592e5db97a526a05a445735733395e4832"
+      }
+    }
+  ]
+}
