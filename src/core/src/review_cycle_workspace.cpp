@@ -1,4 +1,5 @@
 #include "bpr/core/review_cycle_workspace.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <array>
@@ -38,34 +39,8 @@ namespace bpr::core {
 		/// is not a well-formed shortest-form scalar value.
 		auto utf8_sequence(const std::string_view aText, const std::size_t aOffset) noexcept -> std::size_t
 		{
-			const auto byte = [&](const std::size_t aIndex) { return static_cast<std::uint8_t>(aText[aIndex]); };
-			const auto lead = byte(aOffset);
-			if (lead < 0x80U) {
-				return 1;
-			}
-			const auto remaining    = aText.size() - aOffset;
-			const auto continuation = [&](const std::size_t aIndex) { return aOffset + aIndex < aText.size() && (byte(aOffset + aIndex) & 0xC0U) == 0x80U; };
-			if (lead >= 0xC2U && lead <= 0xDFU) {
-				return remaining >= 2 && continuation(1) ? 2 : 0;
-			}
-			if (lead >= 0xE0U && lead <= 0xEFU) {
-				if (remaining < 3 || !continuation(1) || !continuation(2)) {
-					return 0;
-				}
-				const auto second    = byte(aOffset + 1);
-				const auto shortest  = lead != 0xE0U || second >= 0xA0U;
-				const auto surrogate = lead == 0xEDU && second >= 0xA0U;
-				return shortest && !surrogate ? 3 : 0;
-			}
-			if (lead >= 0xF0U && lead <= 0xF4U) {
-				if (remaining < 4 || !continuation(1) || !continuation(2) || !continuation(3)) {
-					return 0;
-				}
-				const auto second  = byte(aOffset + 1);
-				const auto inRange = (lead != 0xF0U || second >= 0x90U) && (lead != 0xF4U || second < 0x90U);
-				return inRange ? 4 : 0;
-			}
-			return 0;
+			auto next = aOffset;
+			return utf8::decode(aText, next) ? next - aOffset : 0U;
 		}
 
 		auto reserved_device_name(const std::string_view aSegment) noexcept -> bool

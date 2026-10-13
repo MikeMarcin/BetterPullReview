@@ -3416,6 +3416,16 @@ part of the Qt-free core graph, which now needs SQLite and zlib. zlib is on the
 owner's core allow-list, which `cmake/VerifyCoreBoundary.cmake` enforces.
 License and provenance are under `third_party/zlib/`.
 
+## Core utf8proc
+
+[[BPR-1434]] builds pinned utf8proc 2.12.0 for the functional core: only
+`utf8proc.c` is compiled, with `UTF8PROC_STATIC`, after the archive's SHA-256,
+size and license are checked. Core code reaches it through `bpr/core/utf8.hpp`
+(decode, validate, encode, canonical decomposition, one-to-one case folding),
+which replaced the hand-written path-folding tables and duplicated decoders.
+It is part of the Qt-free core graph and on the owner's core allow-list.
+License and provenance are under `third_party/utf8proc/`.
+
 ## Source search regex engine
 
 [[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as

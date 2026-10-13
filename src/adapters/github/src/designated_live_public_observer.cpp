@@ -1,6 +1,7 @@
 #include "designated_live_public_observer.hpp"
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <Security/Security.h>
@@ -374,31 +375,12 @@ namespace bpr::adapters::github::detail {
 				return result;
 			}
 
+			/// \brief The shared core encoder; false for a lone surrogate or a
+			/// value above U+10FFFF, which have no UTF-8 encoding ([[BPR-1434]]).
 			[[nodiscard]] static auto append_utf8(
 				std::string& aOutput, const std::uint32_t aCodePoint) -> bool
 			{
-				if (aCodePoint <= 0x7fU) {
-					aOutput.push_back(static_cast<char>(aCodePoint));
-				} else if (aCodePoint <= 0x7ffU) {
-					aOutput.push_back(static_cast<char>(0xc0U | (aCodePoint >> 6U)));
-					aOutput.push_back(static_cast<char>(0x80U | (aCodePoint & 0x3fU)));
-				} else if (aCodePoint <= 0xffffU
-						   && !(aCodePoint >= 0xd800U && aCodePoint <= 0xdfffU)) {
-					aOutput.push_back(static_cast<char>(0xe0U | (aCodePoint >> 12U)));
-					aOutput.push_back(static_cast<char>(
-						0x80U | ((aCodePoint >> 6U) & 0x3fU)));
-					aOutput.push_back(static_cast<char>(0x80U | (aCodePoint & 0x3fU)));
-				} else if (aCodePoint <= 0x10ffffU) {
-					aOutput.push_back(static_cast<char>(0xf0U | (aCodePoint >> 18U)));
-					aOutput.push_back(static_cast<char>(
-						0x80U | ((aCodePoint >> 12U) & 0x3fU)));
-					aOutput.push_back(static_cast<char>(
-						0x80U | ((aCodePoint >> 6U) & 0x3fU)));
-					aOutput.push_back(static_cast<char>(0x80U | (aCodePoint & 0x3fU)));
-				} else {
-					return false;
-				}
-				return true;
+				return core::utf8::append(aOutput, static_cast<char32_t>(aCodePoint));
 			}
 
 			[[nodiscard]] auto string() -> std::optional<std::string>
@@ -410,7 +392,8 @@ namespace bpr::adapters::github::detail {
 				while (Position != Text.size()) {
 					const auto character = static_cast<unsigned char>(Text[Position++]);
 					if (character == '"') {
-						return result;
+						// Raw bytes are copied as read, so the whole string is checked once.
+						return core::utf8::valid(result) ? std::optional{ std::move(result) } : std::nullopt;
 					}
 					if (character < 0x20U) {
 						return std::nullopt;

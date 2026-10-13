@@ -8,6 +8,7 @@ add_library(
         src/source_path_filter.cpp
         src/remembered_connection.cpp
         src/review_preparation.cpp
+        src/utf8.cpp
         src/window_review_restoration.cpp
         src/anonymous_read_policy.cpp
         src/appearance_contrast.cpp
@@ -128,7 +129,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Owner 2026-10-13: core links only approved pinned, pure libraries; the
 # functional-core boundary check enforces this list.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib)
+target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc)
 
 bpr_enable_hardening(better_pull_review_core)
 bpr_enable_warnings(better_pull_review_core)

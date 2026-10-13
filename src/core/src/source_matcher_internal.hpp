@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_SRC_SOURCE_MATCHER_INTERNAL_HPP
 #define BPR_SRC_CORE_SRC_SOURCE_MATCHER_INTERNAL_HPP
 #include "bpr/core/source_matcher.hpp"
+#include "bpr/core/utf8.hpp"
 #include <algorithm>
 #include <span>
 #include <string>
@@ -54,34 +55,19 @@ namespace bpr::core::source_matching {
 			&& aLimits.MaximumCompileSteps > 0U && aLimits.MaximumCompileSteps <= upper.MaximumCompileSteps
 			&& aLimits.MaximumScanSteps > 0U && aLimits.MaximumScanSteps <= upper.MaximumScanSteps;
 	}
+	/// \brief Decodes one scalar or refuses the side; NUL marks binary material.
 	inline auto scalar(std::string_view aText, std::size_t& aOffset) -> char32_t
 	{
-		const auto first = static_cast<unsigned char>(aText[aOffset++]);
-		if (first < 0x80U) {
-			if (first == 0U) {
-				throw stopped{ source_search_status::invalid_input };
-			}
+		const auto first = static_cast<unsigned char>(aText[aOffset]);
+		if (first != 0U && first < 0x80U) {
+			++aOffset;
 			return first;
 		}
-		const auto length = first >= 0xF0U ? 4U : first >= 0xE0U ? 3U
-																 : 2U;
-		if (first < 0xC2U || first > 0xF4U || aOffset + length - 1U > aText.size()) {
+		const auto value = first == 0U ? std::nullopt : utf8::decode(aText, aOffset);
+		if (!value) {
 			throw stopped{ source_search_status::invalid_input };
 		}
-		auto value = static_cast<char32_t>(first & (0x7FU >> length));
-		for (auto index = 1U; index < length; ++index) {
-			const auto next = static_cast<unsigned char>(aText[aOffset++]);
-			if ((next & 0xC0U) != 0x80U) {
-				throw stopped{ source_search_status::invalid_input };
-			}
-			value = (value << 6U) | (next & 0x3FU);
-		}
-		if (value < (length == 2U ? 0x80U : length == 3U ? 0x800U
-														 : 0x10000U)
-			|| value > 0x10FFFFU || (value >= 0xD800U && value <= 0xDFFFU)) {
-			throw stopped{ source_search_status::invalid_input };
-		}
-		return value;
+		return *value;
 	}
 	/// \brief Start of the scalar ending at `aOffset`; `aOffset` is a scalar boundary.
 	inline auto previous_start(std::string_view aText, const std::size_t aOffset) -> std::size_t

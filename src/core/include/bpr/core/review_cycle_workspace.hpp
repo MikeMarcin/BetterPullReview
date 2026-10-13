@@ -196,11 +196,11 @@ namespace bpr::core {
 		auto                     operator<=>(const workspace_path_collision&) const = default;
 	};
 	/// \brief The key two paths share when some platform would merge them.
-	/// \details Applies canonical decomposition and simple lowercase mapping
-	/// for Latin, Greek and Cyrillic (Unicode 16 data for U+00C0-U+04FF and
-	/// U+1E00-U+1FFF) and ASCII case folding. Other scripts compare by exact
-	/// bytes, so a collision there can go unreported; two distinct paths are
-	/// never merged by this key alone.
+	/// \details Applies canonical decomposition (NFD, combining marks in
+	/// canonical order) and one-to-one case folding for every script, through
+	/// utf8proc ([[BPR-1434]]). Full foldings such as ß to ss are not applied,
+	/// because no case-insensitive file system makes them. Invalid UTF-8 bytes
+	/// stay as themselves; two distinct paths are never merged by this key alone.
 	[[nodiscard]] auto workspace_collision_key(std::string_view aPath) -> std::string;
 	/// \brief Finds every pair of distinct paths that share a collision key.
 	/// Indexes refer to `aPaths`; nothing is combined or dropped.

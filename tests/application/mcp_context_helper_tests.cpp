@@ -811,12 +811,12 @@ namespace {
 			+ tool_call_with_path(5U, "snapshot_file_alignment", "src/retry.cpp")
 			+ "\n" + "this line is not JSON at all\n"
 			+ tool_call_with_path(6U, "read_snapshot_file", "src/absent.cpp")
-			+ "\n";
+			+ "\n" + R"({"jsonrpc":"2.0","id":7,"method":"\uDC00"})" + "\n";
 
 		const auto run       = run_helper(requests);
 		const auto responses = split_lines(run.StandardOutput);
 		expect(
-			responses.size() == 7U,
+			responses.size() == 8U,
 			"a notification is answered with silence and every request with "
 			"exactly one line");
 
@@ -856,6 +856,11 @@ namespace {
 			refusal_of(responses[6]) == "snapshot_entry_missing",
 			"a path inside the snapshot that is not in it is missing, not "
 			"outside it - the two refusals stay distinguishable");
+		expect(
+			responses[7].find(R"("id":null)") != std::string::npos
+				&& refusal_of(responses[7]) == "invalid_request",
+			"[[BPR-1434]] a lone low surrogate escape is malformed JSON, never "
+			"an invalid UTF-8 sequence");
 
 		// The refusal enumeration is closed, and every value is reachable by a
 		// distinguishable number, so no two causes can collapse onto one.

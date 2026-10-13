@@ -5,6 +5,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprQuillProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprGlazeProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprRe2Provider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprZlibProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprUtf8procProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
@@ -90,6 +91,11 @@ function(bpr_configure_dependencies)
     bpr_acquire_zlib()
     bpr_require_dependency_target(BetterPullReview::ZLib zlib)
     list(APPEND records "zlib|PINNED_ARCHIVE|BetterPullReview::ZLib")
+
+    # [[BPR-1434]]. The core's Unicode decoding, decomposition and case mapping.
+    bpr_acquire_utf8proc()
+    bpr_require_dependency_target(BetterPullReview::UTF8Proc utf8proc)
+    list(APPEND records "utf8proc|PINNED_ARCHIVE|BetterPullReview::UTF8Proc")
 
     if(
         BUILD_TESTING

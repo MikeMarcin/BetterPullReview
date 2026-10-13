@@ -1,4 +1,5 @@
 #include "bpr/core/fuzzy_match.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <array>
@@ -49,37 +50,12 @@ namespace bpr::core {
 		/// \brief Decodes one UTF-8 sequence at `aIndex`, or nothing if invalid.
 		auto decode_one(const std::string_view aText, const std::size_t aIndex) -> std::optional<decoded_character>
 		{
-			const auto lead = static_cast<unsigned char>(aText[aIndex]);
-			auto       size = std::size_t{ 0U };
-			auto       code = char32_t{ 0 };
-			if (lead < 0x80U) {
-				size = 1U;
-				code = lead;
-			} else if ((lead & 0xE0U) == 0xC0U) {
-				size = 2U;
-				code = lead & 0x1FU;
-			} else if ((lead & 0xF0U) == 0xE0U) {
-				size = 3U;
-				code = lead & 0x0FU;
-			} else if ((lead & 0xF8U) == 0xF0U) {
-				size = 4U;
-				code = lead & 0x07U;
-			}
-			if (size == 0U || aIndex + size > aText.size()) {
+			auto       next = aIndex;
+			const auto code = utf8::decode(aText, next);
+			if (!code) {
 				return std::nullopt;
 			}
-			for (std::size_t offset = 1U; offset < size; ++offset) {
-				const auto next = static_cast<unsigned char>(aText[aIndex + offset]);
-				if ((next & 0xC0U) != 0x80U) {
-					return std::nullopt;
-				}
-				code = (code << 6U) | (next & 0x3FU);
-			}
-			constexpr std::array<char32_t, 5> smallest{ 0, 0, 0x80, 0x800, 0x10000 };
-			if (code < smallest[size] || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
-				return std::nullopt;
-			}
-			return decoded_character{ .Value = code, .Begin = aIndex, .End = aIndex + size };
+			return decoded_character{ .Value = *code, .Begin = aIndex, .End = next };
 		}
 
 		/// Decodes UTF-8, replacing each invalid or truncated byte.

@@ -1,4 +1,5 @@
 #include "bpr/core/profile_window.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -7,45 +8,13 @@
 
 namespace bpr::core {
 	namespace {
-		[[nodiscard]] auto next_code_point(const std::string_view aText, std::size_t& aPosition) noexcept
-			-> std::optional<std::uint32_t>
+		[[nodiscard]] auto next_code_point(const std::string_view aText, std::size_t& aPosition) noexcept -> std::optional<std::uint32_t>
 		{
-			const auto first = static_cast<unsigned char>(aText[aPosition++]);
-			if (first < 0x80U) {
-				return first;
-			}
-			std::size_t   count   = 0U;
-			std::uint32_t point   = 0U;
-			std::uint32_t minimum = 0U;
-			if (first >= 0xC2U && first <= 0xDFU) {
-				count   = 1U;
-				point   = first & 0x1FU;
-				minimum = 0x80U;
-			} else if (first >= 0xE0U && first <= 0xEFU) {
-				count   = 2U;
-				point   = first & 0x0FU;
-				minimum = 0x800U;
-			} else if (first >= 0xF0U && first <= 0xF4U) {
-				count   = 3U;
-				point   = first & 0x07U;
-				minimum = 0x10000U;
-			} else {
-				return std::nullopt;
-			}
-			if (count > aText.size() - aPosition) {
-				return std::nullopt;
-			}
-			for (std::size_t index = 0U; index < count; ++index) {
-				const auto byte = static_cast<unsigned char>(aText[aPosition++]);
-				if ((byte & 0xC0U) != 0x80U) {
-					return std::nullopt;
-				}
-				point = (point << 6U) | (byte & 0x3FU);
-			}
-			if (point < minimum || point > 0x10FFFFU || (point >= 0xD800U && point <= 0xDFFFU)) {
-				return std::nullopt;
-			}
-			return point;
+			// [[BPR-1434]]. The shared utf8proc decoder; an ill-formed byte is skipped.
+			auto       next  = aPosition;
+			const auto value = utf8::decode(aText, next);
+			aPosition        = value ? next : aPosition + 1U;
+			return value ? std::optional{ static_cast<std::uint32_t>(*value) } : std::nullopt;
 		}
 
 		[[nodiscard]] auto whitespace(const std::uint32_t aPoint) noexcept -> bool

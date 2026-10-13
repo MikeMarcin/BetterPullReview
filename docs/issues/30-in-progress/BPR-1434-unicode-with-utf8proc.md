@@ -41,4 +41,28 @@ approved pure core libraries.
 
 ## Evidence
 
-Pending.
+- AC1: `cmake/BprUtf8procProvider.cmake` builds utf8proc 2.12.0 (Unicode 18.0.0
+  data; SHA-256, size and license checked; offline cache honoured) and core
+  links it privately; `bpr/core/utf8.hpp` and `src/core/src/utf8.cpp` are the
+  one toolkit. `third_party/utf8proc`, `packaging/dependencies.json` and
+  `NOTICE_FILES` carry it; `package_runtime_contract`,
+  `release_security_audit_contract`, `binary_dependency_audit_contract` and
+  `dependency_modernization_contract` pass.
+- AC2: `review_cycle_path_folding.cpp` falls from 1,589 to 93 lines.
+  `core_review_cycle_workspace` keeps its collision cases and adds `F5 80 80`
+  against U+5000, が against か plus U+3099, a Hangul syllable against its jamo,
+  σ/ς, the Kelvin sign, combining-mark order, and ß kept apart from ss;
+  `core_review_cycle_bundle`, `workspace_source` and `review_cycle_capture`
+  pass.
+- AC3: the eight core helpers and the two agent-stream helpers keep their
+  signatures over `utf8::decode`/`utf8::append`; all 103 `core_*` suites and
+  `application_agent_launch` pass.
+- AC4: `application_mcp_context_helper` refuses `{"method":"\uDC00"}` as
+  `invalid_request` under a null identity (it was previously decoded to
+  invalid UTF-8 and refused as an unknown method);
+  `designated_live_public_observer_fixture` passes with the shared encoder and
+  raw-byte check.
+- Gates: `core_dependency_boundary`, `core_boundary_contract`,
+  `architecture_boundaries`, `architecture_boundary_contract` and the
+  documentation gate pass; clang-format 22 applied; clang-tidy 22 reports no
+  finding on changed lines.
