@@ -7,6 +7,7 @@
 // payload at `fuzz::part_separator`.
 
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/core/git_config.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/review_cycle_git.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
@@ -40,7 +41,10 @@ namespace {
 		if (const auto reference = application::parse_git_base_branch_ref(aText)) {
 			fuzz::require(application::valid(*reference));
 		}
-		static_cast<void>(core::git_object_format(aText));
+		if (const auto entries = core::parse_git_config(aText)) {
+			fuzz::require(entries->size() <= core::maximum_git_config_entries);
+		}
+		static_cast<void>(core::read_git_repository_format(aText));
 	}
 
 	auto index(const std::span<const std::uint8_t> aBytes, const std::uint8_t aParameter) -> void
@@ -65,9 +69,10 @@ namespace {
 
 	auto ignore_rules(const fuzz::fuzz_input& aInput, const std::uint8_t aParameter) -> void
 	{
-		const auto [rules, paths] = aInput.split(fuzz::part_separator);
-		core::workspace_ignore_rules    ignore;
-		core::workspace_attribute_rules attributes;
+		const auto [rules, paths]            = aInput.split(fuzz::part_separator);
+		const auto                      fold = (aParameter & 4U) != 0U;
+		core::workspace_ignore_rules    ignore{ fold };
+		core::workspace_attribute_rules attributes{ fold };
 		const auto                      base = (aParameter & 1U) == 0U ? std::string_view{ } : std::string_view{ "src/nested" };
 		static_cast<void>(ignore.add(base, rules));
 		static_cast<void>(attributes.add(base, rules));
@@ -78,7 +83,7 @@ namespace {
 			static_cast<void>(ignore.ignored(path, (aParameter & 2U) != 0U));
 			static_cast<void>(attributes.filter(path));
 			// The first line of the rules is also tried as a single pattern.
-			static_cast<void>(core::wildcard_match(rules.substr(0U, rules.find('\n')), path));
+			static_cast<void>(core::wildcard_match(rules.substr(0U, rules.find('\n')), path, fold));
 			if (end == std::string_view::npos) {
 				break;
 			}

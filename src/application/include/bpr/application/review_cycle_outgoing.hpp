@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_OUTGOING_HPP
 
 #include "bpr/application/publication_candidate_port.hpp"
+#include "bpr/application/review_cycle_git_metadata.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/application/workspace_source_port.hpp"
@@ -70,18 +71,12 @@ namespace bpr::application {
 		std::optional<publication_git_error>  Git;
 		std::optional<review_material_status> Material;
 		std::optional<core::outgoing_refusal> Refusal;
-		std::optional<core::outgoing_plan>    Plan;
+		/// Why the checkout's Git metadata was refused, with `workspace`.
+		std::optional<core::git_repository_problem> Repository;
+		std::optional<core::outgoing_plan>          Plan;
 		/// The readable preview of `Plan`.
 		std::string Preview;
 	};
-
-	/// \brief Resolves a reference name to a commit, reading only the
-	/// checkout's `HEAD`, loose references and `packed-refs` as data.
-	/// \details `HEAD`, names under `refs/` and one level of symbolic
-	/// reference are followed; anything else, including reference storage
-	/// this build does not read, is unavailable rather than guessed.
-	[[nodiscard]] auto resolve_reference(workspace_root_session& aSession, std::string_view aName, core::git_hash_algorithm aAlgorithm, std::stop_token aStop)
-		-> std::expected<core::git_commit_oid, std::optional<workspace_failure>>;
 
 	struct cycle_candidate_request
 	{

@@ -1,5 +1,6 @@
 #include "bpr/application/review_cycle_capture.hpp"
 
+#include "bpr/application/review_cycle_git_metadata.hpp"
 #include "bpr/core/review_cycle_git.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -14,11 +15,9 @@ namespace bpr::application {
 		constexpr std::size_t changed_examples = 16U;
 		/// Content installed per store transaction: one connection per batch
 		/// rather than per file.
-		constexpr std::size_t   install_batch_objects     = 512U;
-		constexpr std::uint64_t install_batch_bytes       = 32U * 1024U * 1024U;
-		constexpr std::uint64_t maximum_rule_file_bytes   = 1024U * 1024U;
-		constexpr std::uint64_t maximum_head_bytes        = 4096U;
-		constexpr std::uint64_t maximum_packed_refs_bytes = 64U * 1024U * 1024U;
+		constexpr std::size_t   install_batch_objects   = 512U;
+		constexpr std::uint64_t install_batch_bytes     = 32U * 1024U * 1024U;
+		constexpr std::uint64_t maximum_rule_file_bytes = 1024U * 1024U;
 
 		auto join(const std::string& aDirectory, const std::string& aName) -> std::string
 		{
@@ -62,7 +61,9 @@ namespace bpr::application {
 		/// What a Git root's metadata says, read as data.
 		struct git_metadata
 		{
-			core::git_hash_algorithm            Format = core::git_hash_algorithm::invalid;
+			core::git_hash_algorithm Format = core::git_hash_algorithm::invalid;
+			/// `core.ignoreCase`: ignore and attribute patterns fold case.
+			bool                                IgnoreCase = false;
 			core::cycle_material_digest         IndexDigest;
 			std::vector<tracked_path>           Tracked;
 			bool                                Unmerged = false;
@@ -113,63 +114,43 @@ namespace bpr::application {
 			return bytes;
 		}
 
-		auto read_head(workspace_root_session& aSession, git_metadata& aGit, const std::stop_token& aStop) -> std::optional<workspace_failure>
-		{
-			const auto head = read_optional(aSession, workspace_git_area::worktree, "HEAD", maximum_head_bytes, aStop);
-			if (!head) {
-				return head.error();
-			}
-			const auto parsed  = core::parse_git_head(text_of(*head), aGit.Format);
-			aGit.HeadReference = parsed.Reference;
-			aGit.HeadCommit    = parsed.Commit;
-			if (!parsed.Reference || core::admit_workspace_path(*parsed.Reference) != core::workspace_path_refusal::none) {
-				return std::nullopt;
-			}
-			const auto loose = read_optional(aSession, workspace_git_area::common, *parsed.Reference, maximum_head_bytes, aStop);
-			if (loose && !loose->empty()) {
-				aGit.HeadCommit = core::parse_git_reference(text_of(*loose), aGit.Format);
-				return std::nullopt;
-			}
-			const auto packed = read_optional(aSession, workspace_git_area::common, "packed-refs", maximum_packed_refs_bytes, aStop);
-			if (packed) {
-				aGit.HeadCommit = core::find_packed_reference(text_of(*packed), *parsed.Reference, aGit.Format);
-			}
-			return std::nullopt;
-		}
-
-		auto read_git_metadata(workspace_root_session& aSession, const std::stop_token& aStop) -> std::expected<git_metadata, workspace_failure>
+		auto read_git_metadata(workspace_root_session& aSession, const std::stop_token& aStop) -> std::expected<git_metadata, git_metadata_failure>
 		{
 			auto       git    = git_metadata{ };
-			const auto config = read_optional(aSession, workspace_git_area::common, "config", maximum_rule_file_bytes, aStop);
-			if (!config) {
-				return std::unexpected(config.error());
+			const auto format = read_git_repository_format(aSession, aStop);
+			if (!format) {
+				return std::unexpected(format.error());
 			}
-			git.Format = core::git_object_format(text_of(*config));
-			if (git.Format == core::git_hash_algorithm::invalid) {
-				return std::unexpected(workspace_failure::unsupported);
-			}
+			git.Format       = format->ObjectFormat;
+			git.IgnoreCase   = format->IgnoreCase;
 			const auto index = read_optional(aSession, workspace_git_area::worktree, "index", maximum_workspace_metadata_bytes, aStop);
 			if (!index) {
-				return std::unexpected(index.error());
+				return std::unexpected(git_metadata_failure{ .Workspace = index.error() });
 			}
 			git.IndexDigest = core::cycle_material_digest{ core::sha256(*index) };
 			if (!index->empty()) {
 				const auto parsed = core::parse_git_index(*index, git.Format, core::maximum_cycle_capture_entries);
 				if (!parsed) {
-					return std::unexpected(parsed.error() == core::git_index_error::bounds ? workspace_failure::too_large : workspace_failure::unsupported);
+					if (parsed.error() == core::git_index_error::bounds) {
+						return std::unexpected(git_metadata_failure{ .Workspace = workspace_failure::too_large });
+					}
+					return std::unexpected(git_metadata_failure{ .Workspace = workspace_failure::unsupported, .Repository = core::git_index_problem(parsed.error()) });
 				}
 				git.Tracked  = merge_stages(parsed->Entries);
 				git.Unmerged = parsed->Unmerged;
 				git.Sparse   = parsed->SparseDirectories;
 				git.Split    = parsed->SplitIndex;
 			}
-			if (const auto failure = read_head(aSession, git, aStop)) {
-				return std::unexpected(*failure);
+			const auto head = read_git_head(aSession, git.Format, aStop);
+			if (!head) {
+				return std::unexpected(git_metadata_failure{ .Workspace = head.error() });
 			}
+			git.HeadReference     = head->Reference;
+			git.HeadCommit        = head->Commit;
 			const auto exclude    = read_optional(aSession, workspace_git_area::common, "info/exclude", maximum_rule_file_bytes, aStop);
 			const auto attributes = read_optional(aSession, workspace_git_area::common, "info/attributes", maximum_rule_file_bytes, aStop);
 			if (!exclude || !attributes) {
-				return std::unexpected(!exclude ? exclude.error() : attributes.error());
+				return std::unexpected(git_metadata_failure{ .Workspace = !exclude ? exclude.error() : attributes.error() });
 			}
 			git.InfoExclude    = text_of(*exclude);
 			git.InfoAttributes = text_of(*attributes);
@@ -233,8 +214,10 @@ namespace bpr::application {
 			auto run() -> pass_result
 			{
 				if (Git != nullptr) {
+					Ignore     = core::workspace_ignore_rules{ Git->IgnoreCase };
+					Attributes = core::workspace_attribute_rules{ Git->IgnoreCase };
 					static_cast<void>(Ignore.add("", Git->InfoExclude));
-					static_cast<void>(InfoAttributes.add("", Git->InfoAttributes));
+					static_cast<void>(Attributes.add_info(Git->InfoAttributes));
 				}
 				if (Session.observation().Kind == core::workspace_root_kind::file) {
 					observe_file_root();
@@ -570,7 +553,8 @@ namespace bpr::application {
 				if (Git == nullptr) {
 					return false;
 				}
-				return InfoAttributes.filter(aPath).value_or(Attributes.filter(aPath).value_or(false));
+				// Only a named driver transforms bytes; a bare `filter` names none.
+				return Attributes.filter(aPath).Kind == core::git_attribute_state::kind::value;
 			}
 
 			void capture(const std::string& aPath, const workspace_entry_observation& aEntry, const tracked_path* aIndex)
@@ -772,7 +756,6 @@ namespace bpr::application {
 			std::function<void(std::uint64_t)>                                             Counted;
 			core::workspace_ignore_rules                                                   Ignore;
 			core::workspace_attribute_rules                                                Attributes;
-			core::workspace_attribute_rules                                                InfoAttributes;
 			std::set<std::string>                                                          Loaded;
 			std::vector<std::pair<std::vector<std::uint8_t>, core::cycle_material_digest>> Pending;
 			std::uint64_t                                                                  PendingBytes = 0;
@@ -817,11 +800,11 @@ namespace bpr::application {
 		};
 
 		/// Opens a root and reads its Git metadata when it has any.
-		auto open_root(workspace_source_port& aSource, const std::string_view aLocation, const std::stop_token& aStop) -> std::expected<opened, workspace_failure>
+		auto open_root(workspace_source_port& aSource, const std::string_view aLocation, const std::stop_token& aStop) -> std::expected<opened, git_metadata_failure>
 		{
 			auto session = aSource.open(aLocation, aStop);
 			if (!session) {
-				return std::unexpected(session.error());
+				return std::unexpected(git_metadata_failure{ .Workspace = session.error() });
 			}
 			auto result = opened{ .Session = std::move(*session) };
 			if (git_root(result.Session->observation().Kind)) {
@@ -907,8 +890,9 @@ namespace bpr::application {
 			outcome.Diagnostics.Attempts = attempt + 1;
 			auto root                    = open_root(Source, binding.Root.Location, aStop);
 			if (!root) {
-				outcome.Status    = root.error() == workspace_failure::cancelled ? cycle_capture_status::cancelled : cycle_capture_status::workspace;
-				outcome.Workspace = root.error();
+				outcome.Status     = root.error().Workspace == workspace_failure::cancelled ? cycle_capture_status::cancelled : cycle_capture_status::workspace;
+				outcome.Workspace  = root.error().Workspace;
+				outcome.Repository = root.error().Repository;
 				return outcome;
 			}
 			const auto verification = core::verify_workspace(binding, root->Session->observation());
@@ -1036,8 +1020,9 @@ namespace bpr::application {
 		}
 		auto root = open_root(Source, aLocation, aStop);
 		if (!root) {
-			outcome.Status    = root.error() == workspace_failure::cancelled ? cycle_capture_status::cancelled : cycle_capture_status::workspace;
-			outcome.Workspace = root.error();
+			outcome.Status     = root.error().Workspace == workspace_failure::cancelled ? cycle_capture_status::cancelled : cycle_capture_status::workspace;
+			outcome.Workspace  = root.error().Workspace;
+			outcome.Repository = root.error().Repository;
 			return outcome;
 		}
 		outcome.Root             = root->Session->observation();
