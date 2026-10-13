@@ -1,0 +1,17 @@
+{
+  "schema": "find-rfc.integration-refresh.v1",
+  "run_id": "find-and-find-in-files-v1",
+  "segment_id": "coordinator-implementer-001",
+  "mandate_revision": "find-and-find-in-files-v1-r1",
+  "rfc_base_sha": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "product_commit": "34256fb55",
+  "main_adopted": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+  "integrated_candidate": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "method": "merge --no-ff exact main commit, no main mutation",
+  "conflicts": [],
+  "find_source_changed_by_refresh": false,
+  "reason": "Concurrent integrator strict-CLI import advanced historical next-counter highwater from1425 to1431. Lane adopted integrator-authored state; it authored no counter/receipt/index changes.",
+  "original_failure": "NEXT_ID BPR-1425 rewinds historical high water BPR-1431",
+  "post_refresh": "Documentation gate and BPR-1419 scoped board validation pass. Criteria and original baseline unchanged.",
+  "commands_before_refresh": "All owned build/tidy/test commands had finished; no other Find writer or protected review candidate."
+}

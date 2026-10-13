@@ -1,0 +1,62 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Core state is trivially copyable,1528bytes; exactscope/generation/options/count/cursor only, no query/material/results collections.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+          "docs/verification/RFC-BPR-0077.md"
+        ]
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Public Qt-free host admits4096bytes, refuses4097/invalidUTF8 without copying excess or retaining current hits; empty performs no work; separate pane/PR host query state.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+          "docs/verification/RFC-BPR-0077.md"
+        ]
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Core reverse/foreign/duplicate completions refused; public host101admitted edits101terminals with2worker calls, bounded reentrant ingress, cancelled coalescing, projection/worker/executor failures and clear/close/reset/shutdown reach quiescence.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+          "docs/verification/RFC-BPR-0077.md"
+        ]
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+      "evidence": {
+        "kind": "observation",
+        "detail": "1000public match traversals perform zero worker/effect calls; next/previous wraps accepted prefix; complete-empty alone projects NoResults, skipped/unsearched/error/limit stays qualified.",
+        "references": [
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-scoped-integration.json",
+          "docs/issues/_checkpoints/find-and-find-in-files-v1/m1-self-review.json",
+          "docs/verification/RFC-BPR-0077.md"
+        ]
+      }
+    }
+  ]
+}

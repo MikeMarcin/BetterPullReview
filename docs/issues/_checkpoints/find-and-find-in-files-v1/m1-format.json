@@ -1,0 +1,13 @@
+{
+  "criterion": "M1-format",
+  "outcome": "pass",
+  "revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"_coding-standard/scripts/format.py\", \"--dry-run\", \"src/core/include/bpr/core/source_search.hpp\", \"src/core/src/source_search.cpp\", \"src/application/include/bpr/application/source_search_host.hpp\", \"src/application/src/source_search_host.cpp\", \"tests/support/source_search_fixture.hpp\", \"tests/core/source_search_tests.cpp\", \"tests/application/source_search_host_tests.cpp\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.207,
+    "stdout_tail": "Checking 7 file(s) with /opt/homebrew/opt/llvm@22/bin/clang-format (22.1.8)\nsrc/application/include/bpr/application/source_search_host.hpp\nsrc/application/src/source_search_host.cpp\nsrc/core/include/bpr/core/source_search.hpp\nsrc/core/src/source_search.cpp\ntests/application/source_search_host_tests.cpp\ntests/core/source_search_tests.cpp\ntests/support/source_search_fixture.hpp\n",
+    "stderr_tail": ""
+  }
+}

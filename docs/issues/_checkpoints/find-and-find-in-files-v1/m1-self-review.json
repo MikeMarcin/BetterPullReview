@@ -1,0 +1,38 @@
+{
+  "schema": "find-rfc.self-review.v1",
+  "candidate_revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "scope": "BPR-1419/search-session-policy",
+  "findings": [
+    {
+      "finding": "Unavailable corpus must preserve query owner so account replacement cannot retain private text",
+      "disposition": "fixed with compact QueryOwner and core/host regression"
+    },
+    {
+      "finding": "Stale terminal diagnostics should not publish any projection",
+      "disposition": "fixed; host regression asserts publication count unchanged"
+    },
+    {
+      "finding": "Coverage must refuse impossible counts and nonterminal statuses",
+      "disposition": "fixed; bounded core validation and regression"
+    },
+    {
+      "finding": "Lambda capture shadows terminal local under AppleClang Werror",
+      "disposition": "fixed capture naming; build passed"
+    },
+    {
+      "finding": "Tidy22 fixture optional dereference-and-rewrap",
+      "disposition": "removed conversions; all four touched translation units pass"
+    }
+  ],
+  "negative_control": {
+    "mutation": "Removed equality of pending request and terminal request in disposable copy of core source",
+    "compile_exit": 0,
+    "execution_exit": 1,
+    "observed": "FAILED: reverse completion B refused",
+    "cleanup": "mutated source and executable removed; repository source unchanged"
+  },
+  "touched_cpp_format": "clang-format22.1.8",
+  "touched_tidy": "clang-tidy22 on four translation units, warnings-as-errors, pass; unchanged M1 source after main merge",
+  "required_pending": [],
+  "rfc_acceptance_limit": "No matcher/corpus/Qt/performance criterion is inferred; AC01\u2013AC08 remain pending."
+}

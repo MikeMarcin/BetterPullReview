@@ -1,0 +1,32 @@
+{
+  "schema": "find-rfc.integration-failure-disposition.v1",
+  "candidate": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "adopted_main": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+  "suite_result": "269/272 passed; ctest exit8, elapsed723.324s",
+  "failures": [
+    {
+      "test": "coding_format_check",
+      "cause": "tests/fixtures/syntax/cpp_identifier_context.cpp is not clang-format22 formatted",
+      "find_delta": "No change from exact adopted main; direct dry-run on committed main export fails",
+      "baseline_exit": 1,
+      "owner": "Existing C++ identifier appearance fixture owner; outside Find scope"
+    },
+    {
+      "test": "github_contract_fixture_security",
+      "cause": "Exact fixture inventory omits header-source-v1 and cpp-identifiers-v1 trees",
+      "find_delta": "No change from exact adopted main; selected unittest on committed main export reproduces same extra tree members",
+      "baseline_exit": 1,
+      "owner": "Existing fixture inventory owner; outside Find scope"
+    },
+    {
+      "test": "dependency_modernization_contract",
+      "cause": "test_qt_provider_is_the_default_acquisition_path attempts uncached pinned LibArchive3.8.9 download inside network-denied test; cannot resolve libarchive.org",
+      "find_delta": "Dependency test, CMake providers, scripts and fixture trees byte-identical to adopted main; Find adds no dependency and core-only intentionally acquires SQLite alone",
+      "classification": "Cold owned CPM cache/test prerequisite, not an observed Find regression",
+      "owner": "Build environment/dependency fixture owner; no source changes made"
+    }
+  ],
+  "scoped_result": "core_source_search_policy, application_source_search_host and both architecture tests passed in same integrated run; Find touched-C++format and tidy22 pass",
+  "scope_guard": "No external fixture/provider source, tracker IDs or unrelated cards edited. Broad failures remain explicit, not waived or labelled passing. Full RFC AC08 remains Pending.",
+  "temporary_baseline_export": "Selected committed paths only; random task-owned root removed after probes"
+}

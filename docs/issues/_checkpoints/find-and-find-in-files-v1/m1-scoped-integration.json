@@ -1,0 +1,37 @@
+{
+  "criterion": "BPR-1419-scoped-integration",
+  "outcome": "pass",
+  "revision": "7efc8c2d547bc74208069f9e7331e0f0253bc107",
+  "evidence": {
+    "kind": "observation",
+    "detail": "Selected cases passed in completed ctest --preset core-only invocation; full command separately records three unrelated failures. No full-suite passing claim.",
+    "cases": [
+      {
+        "test": "architecture_boundaries",
+        "outcome": "pass",
+        "elapsed_seconds": null,
+        "output_tail": "-- Application, provider, and Qt architecture boundaries verified\nTEST_RUNNER_CHILD_EXIT:0"
+      },
+      {
+        "test": "architecture_boundary_contract",
+        "outcome": "pass",
+        "elapsed_seconds": 108.89,
+        "output_tail": "......................................................................................................................................................\n----------------------------------------------------------------------\nRan 150 tests in 108.782s\n\nOK\nTEST_RUNNER_CHILD_EXIT:0"
+      },
+      {
+        "test": "core_source_search_policy",
+        "outcome": "pass",
+        "elapsed_seconds": null,
+        "output_tail": "source-search-core:pass state-bytes=1528\nTEST_RUNNER_CHILD_EXIT:0"
+      },
+      {
+        "test": "application_source_search_host",
+        "outcome": "pass",
+        "elapsed_seconds": null,
+        "output_tail": "source-search-host:pass\nTEST_RUNNER_CHILD_EXIT:0"
+      }
+    ],
+    "full_receipt": "m1-core-integration.json",
+    "failure_dispositions": "m1-integration-failures.json"
+  }
+}
