@@ -25,4 +25,5 @@ It needs only [[BPR-1454]] to start; V's oracle measurement runs in the harness 
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done on `f3a351729` (macOS); evidence in the
+[verification ledger](../../verification/RFC-BPR-0083.md#bpr-1459-candidates-v-and-g).

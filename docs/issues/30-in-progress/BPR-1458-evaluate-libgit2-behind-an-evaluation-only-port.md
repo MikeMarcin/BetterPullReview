@@ -28,4 +28,5 @@ Its provider and adapter need only [[BPR-1454]]; AC2 runs through the harness of
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Done on `f3a351729` (macOS); evidence in the
+[verification ledger](../../verification/RFC-BPR-0083.md#bpr-1458-candidate-l-libgit2). Windows and Linux measurements are [[BPR-1462]] and [[BPR-1463]]. Adopting L would also wait for Q3, but L passes no component, so Q3 is not asked.
