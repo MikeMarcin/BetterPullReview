@@ -476,10 +476,6 @@ namespace bpr::adapters::github::detail {
 	{
 		std::scoped_lock lock{ Mutex };
 		try {
-			github_mutation_operation_scope operation{ Transport, aStop };
-			if (!operation.valid()) {
-				return { .State = application::staged_publication_state::unavailable, .Failure = operation.failure() };
-			}
 			if ((aWrite && !aAuthorize) || !application::valid(aPlan) || !Recovery || !Lease || !Lease->active() || !valid(Configuration)
 				|| !application::same_review_submission_identity(*aPlan.Submission.LiveBinding, { Configuration.Target, Configuration.ActingIdentity })) {
 				return { };
@@ -494,7 +490,14 @@ namespace bpr::adapters::github::detail {
 				if (current.Plan != aPlan || !application::valid(current)) {
 					return { state::conflict, current };
 				}
-			} else {
+			}
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return { .State   = current.PossiblyTransmitted ? state::outcome_unknown : (current.Published ? status(current) : state::unavailable),
+						 .Record  = *loaded ? std::optional{ current } : std::nullopt,
+						 .Failure = operation.failure() };
+			}
+			if (!*loaded) {
 				if (!aWrite) {
 					return { state::outcome_unknown, { } };
 				}

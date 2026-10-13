@@ -113,6 +113,13 @@ namespace bpr::adapters::github::detail {
 		gh_cli_help_topic::auth_git_credential,
 		gh_cli_help_topic::auth_token,
 	};
+	/// \brief Distinguishes a completed named lookup refusal from tool/probe failures.
+	struct gh_cli_credential_error
+	{
+		github_cli_process_failure Failure               = github_cli_process_failure::invalid_request;
+		bool                       CredentialUnavailable = false;
+	};
+	using gh_cli_credential_result = std::expected<cli_transient_credential, gh_cli_credential_error>;
 
 	/// \brief The one `gh` account a pinned configuration's launches use.
 	/// \details [[BPR-1373]]. Carries no credential. Every `gh` launch of a
@@ -167,7 +174,7 @@ namespace bpr::adapters::github::detail {
 			github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
 			github_cli_process_request aRequest, std::stop_token aStop, cli_transient_credential aCredential)
 			-> github_cli_process_result;
-		friend auto acquire_gh_cli_credential(github_cli_process_port&, const validated_gh_cli_configuration&, std::stop_token) -> cli_sensitive_result;
+		friend auto acquire_gh_cli_credential(github_cli_process_port&, const validated_gh_cli_configuration&, std::stop_token) -> gh_cli_credential_result;
 		friend auto compile_gh_cli_auth_inventory_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
@@ -243,7 +250,7 @@ namespace bpr::adapters::github::detail {
 		github_cli_process_request aRequest, std::stop_token aStop, cli_transient_credential aCredential = { }) -> github_cli_process_result;
 
 	/// \brief Acquires only the named account under token-free private configuration.
-	[[nodiscard]] auto acquire_gh_cli_credential(github_cli_process_port&, const validated_gh_cli_configuration&, std::stop_token) -> cli_sensitive_result;
+	[[nodiscard]] auto acquire_gh_cli_credential(github_cli_process_port&, const validated_gh_cli_configuration&, std::stop_token) -> gh_cli_credential_result;
 	/// \brief Stock-gh hostname classification, independent of BPR's server-contract enum.
 	[[nodiscard]] auto gh_cli_credential_environment(std::string_view) noexcept -> cli_credential_environment;
 
@@ -427,6 +434,8 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto configuration_unchanged() const -> bool;
 
 	private:
+		[[nodiscard]] auto acquire_operation(std::stop_token aStop)
+			-> std::expected<std::shared_ptr<gh_cli_transport>, gh_cli_credential_error>;
 		struct configuration_metadata
 		{
 			std::filesystem::path           Canonical;
