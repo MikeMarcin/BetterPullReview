@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1456"
 title: "Extend the canary course with containment canaries for the Git metadata readers on macOS"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1455"]
 priority: "P2"
