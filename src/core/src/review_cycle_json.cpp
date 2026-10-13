@@ -1,4 +1,5 @@
 #include "bpr/core/review_cycle_json.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -28,32 +29,11 @@ namespace bpr::core {
 		}
 
 		/// Length of the well-formed scalar at `aIndex`, or zero.
+		/// Length of the well-formed scalar at `aIndex`, or zero ([[BPR-1434]]: utf8proc).
 		auto scalar_length(const std::string_view aText, const std::size_t aIndex) noexcept -> std::size_t
 		{
-			const auto lead = static_cast<unsigned char>(aText[aIndex]);
-			if (lead < 0x80U) {
-				return 1U;
-			}
-			const auto count = lead >= 0xC2U && lead <= 0xDFU ? 1U : lead >= 0xE0U && lead <= 0xEFU ? 2U
-				: lead >= 0xF0U && lead <= 0xF4U                                                    ? 3U
-																									: 0U;
-			if (count == 0U || count > aText.size() - aIndex - 1U) {
-				return 0U;
-			}
-			auto point = static_cast<std::uint32_t>(lead & (0x7FU >> (count + 1U)));
-			for (std::size_t offset = 1; offset <= count; ++offset) {
-				const auto next = static_cast<unsigned char>(aText[aIndex + offset]);
-				if ((next & 0xC0U) != 0x80U) {
-					return 0U;
-				}
-				point = (point << 6U) | (next & 0x3FU);
-			}
-			const auto minimum = count == 1U ? 0x80U : count == 2U ? 0x800U
-																   : 0x10000U;
-			if (point < minimum || point > 0x10FFFFU || (point >= 0xD800U && point <= 0xDFFFU)) {
-				return 0U;
-			}
-			return count + 1U;
+			auto next = aIndex;
+			return utf8::decode(aText, next) ? next - aIndex : 0U;
 		}
 
 		class reader

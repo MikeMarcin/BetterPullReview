@@ -1,4 +1,5 @@
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <limits>
 
@@ -8,46 +9,13 @@ namespace bpr::core {
 		using state     = review_submission_state;
 		using kind      = review_submission_command_kind;
 
-		[[nodiscard]] auto next_code_point(const std::string_view aText,
-										   std::size_t&           aPosition) noexcept -> std::optional<std::uint32_t>
+		[[nodiscard]] auto next_code_point(const std::string_view aText, std::size_t& aPosition) noexcept -> std::optional<std::uint32_t>
 		{
-			const auto first = static_cast<unsigned char>(aText[aPosition++]);
-			if (first < 0x80U) {
-				return first;
-			}
-			std::size_t   continuationCount = 0U;
-			std::uint32_t codePoint         = 0U;
-			std::uint32_t minimum           = 0U;
-			if (first >= 0xC2U && first <= 0xDFU) {
-				continuationCount = 1U;
-				codePoint         = first & 0x1FU;
-				minimum           = 0x80U;
-			} else if (first >= 0xE0U && first <= 0xEFU) {
-				continuationCount = 2U;
-				codePoint         = first & 0x0FU;
-				minimum           = 0x800U;
-			} else if (first >= 0xF0U && first <= 0xF4U) {
-				continuationCount = 3U;
-				codePoint         = first & 0x07U;
-				minimum           = 0x10000U;
-			} else {
-				return std::nullopt;
-			}
-			if (continuationCount > aText.size() - aPosition) {
-				return std::nullopt;
-			}
-			for (std::size_t index = 0U; index < continuationCount; ++index) {
-				const auto byte = static_cast<unsigned char>(aText[aPosition++]);
-				if ((byte & 0xC0U) != 0x80U) {
-					return std::nullopt;
-				}
-				codePoint = (codePoint << 6U) | (byte & 0x3FU);
-			}
-			if (codePoint < minimum || codePoint > 0x10FFFFU
-				|| (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
-				return std::nullopt;
-			}
-			return codePoint;
+			// [[BPR-1434]]. The shared utf8proc decoder; an ill-formed byte is skipped.
+			auto       next  = aPosition;
+			const auto value = utf8::decode(aText, next);
+			aPosition        = value ? next : aPosition + 1U;
+			return value ? std::optional{ static_cast<std::uint32_t>(*value) } : std::nullopt;
 		}
 
 		// Unicode White_Space, fixed independently of locale and Qt versions.

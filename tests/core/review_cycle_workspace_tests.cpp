@@ -152,6 +152,20 @@ namespace {
 		// Identical spellings are one path, not a collision.
 		const auto same = std::vector<std::string>{ "a.txt", "a.txt" };
 		expect(find_path_collisions(same).empty(), "duplicate is not a collision");
+
+		// [[BPR-1434]]. utf8proc covers every script and refuses lead bytes
+		// F5-FF, which the hand-written decoder read as three-byte sequences.
+		const auto key = [](const std::string_view aPath) { return workspace_collision_key(aPath); };
+		expect(key("\xF5\x80\x80") != key("\xE5\x80\x80"), "an invalid F5 lead never meets U+5000");
+		expect(key("\xE3\x81\x8C") == key("\xE3\x81\x8B\xE3\x82\x99"), "kana with a voicing mark meets its decomposition");
+		expect(key("\xEA\xB0\x80") == key("\xE1\x84\x80\xE1\x85\xA1"), "Hangul syllable meets its jamo");
+		expect(key("\xCF\x83") == key("\xCF\x82"), "small and final sigma meet");
+		expect(key("\xE2\x84\xAA") == key("k"), "the Kelvin sign meets k");
+		expect(key("a\xCC\xA3\xCC\x81") == key("a\xCC\x81\xCC\xA3"), "combining marks take canonical order");
+		expect(key("stra\xC3\x9F"
+				   "e")
+				   != key("strasse"),
+			   "no file system folds sharp s to ss");
 	}
 
 	void verifies_by_identity_not_spelling()

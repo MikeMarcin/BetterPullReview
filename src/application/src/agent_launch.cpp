@@ -3,6 +3,7 @@
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/review_cycle_send.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <array>
@@ -465,45 +466,18 @@ namespace bpr::application {
 				return malformed();
 			}
 
+			/// \brief Copies the well-formed scalar whose lead byte was just read
+			/// ([[BPR-1434]]: the shared core decoder).
 			[[nodiscard]] auto append_raw_utf8(
-				std::string& aOutput, const unsigned char aLeadingByte) -> bool
+				std::string& aOutput, [[maybe_unused]] const unsigned char aLeadingByte) -> bool
 			{
-				const auto begin             = Position - 1U;
-				auto       codePoint         = std::uint32_t{ 0U };
-				auto       continuationCount = std::size_t{ 0U };
-				auto       minimum           = std::uint32_t{ 0U };
-				if (aLeadingByte >= 0xC2U && aLeadingByte <= 0xDFU) {
-					codePoint         = aLeadingByte & 0x1FU;
-					continuationCount = 1U;
-					minimum           = 0x80U;
-				} else if (aLeadingByte >= 0xE0U && aLeadingByte <= 0xEFU) {
-					codePoint         = aLeadingByte & 0x0FU;
-					continuationCount = 2U;
-					minimum           = 0x800U;
-				} else if (aLeadingByte >= 0xF0U && aLeadingByte <= 0xF4U) {
-					codePoint         = aLeadingByte & 0x07U;
-					continuationCount = 3U;
-					minimum           = 0x10000U;
-				} else {
+				const auto begin = Position - 1U;
+				auto       next  = begin;
+				if (!core::utf8::decode(Input, next)) {
 					return false;
 				}
-				if (continuationCount > Input.size() - Position) {
-					return false;
-				}
-				for (auto count = std::size_t{ 0U }; count < continuationCount; ++count) {
-					const auto continuation
-						= static_cast<unsigned char>(Input[Position++]);
-					if ((continuation & 0xC0U) != 0x80U) {
-						return false;
-					}
-					codePoint = (codePoint << 6U) | (continuation & 0x3FU);
-				}
-				if (
-					codePoint < minimum || codePoint > 0x10FFFFU
-					|| (codePoint >= 0xD800U && codePoint <= 0xDFFFU)) {
-					return false;
-				}
-				aOutput.append(Input.substr(begin, continuationCount + 1U));
+				aOutput.append(Input.substr(begin, next - begin));
+				Position = next;
 				return true;
 			}
 
@@ -530,26 +504,10 @@ namespace bpr::application {
 				return value;
 			}
 
+			/// \brief Appends a scalar the escape decoder has already proven is not a surrogate.
 			static void append_utf8(std::string& aOutput, const std::uint32_t aCodePoint)
 			{
-				if (aCodePoint <= 0x7FU) {
-					aOutput.push_back(static_cast<char>(aCodePoint));
-				} else if (aCodePoint <= 0x7FFU) {
-					aOutput.push_back(static_cast<char>(0xC0U | (aCodePoint >> 6U)));
-					aOutput.push_back(static_cast<char>(0x80U | (aCodePoint & 0x3FU)));
-				} else if (aCodePoint <= 0xFFFFU) {
-					aOutput.push_back(static_cast<char>(0xE0U | (aCodePoint >> 12U)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | ((aCodePoint >> 6U) & 0x3FU)));
-					aOutput.push_back(static_cast<char>(0x80U | (aCodePoint & 0x3FU)));
-				} else {
-					aOutput.push_back(static_cast<char>(0xF0U | (aCodePoint >> 18U)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | ((aCodePoint >> 12U) & 0x3FU)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | ((aCodePoint >> 6U) & 0x3FU)));
-					aOutput.push_back(static_cast<char>(0x80U | (aCodePoint & 0x3FU)));
-				}
+				static_cast<void>(core::utf8::append(aOutput, static_cast<char32_t>(aCodePoint)));
 			}
 
 			[[nodiscard]] auto parse_literal(

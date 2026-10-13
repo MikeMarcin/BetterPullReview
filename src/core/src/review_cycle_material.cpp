@@ -1,4 +1,5 @@
 #include "bpr/core/review_cycle_material.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <string_view>
@@ -29,35 +30,9 @@ namespace bpr::core {
 		/// Length of the well-formed UTF-8 sequence at `aOffset`, or zero.
 		auto sequence_length(const std::span<const std::uint8_t> aText, const std::size_t aOffset) noexcept -> std::size_t
 		{
-			const auto lead = aText[aOffset];
-			if (lead < 0x80U) {
-				return 1;
-			}
-			auto length = std::size_t{ 0 };
-			auto low    = std::uint8_t{ 0x80U };
-			auto high   = std::uint8_t{ 0xBFU };
-			if (lead >= 0xC2U && lead <= 0xDFU) {
-				length = 2;
-			} else if (lead >= 0xE0U && lead <= 0xEFU) {
-				length = 3;
-				low    = static_cast<std::uint8_t>(lead == 0xE0U ? 0xA0U : 0x80U);
-				high   = static_cast<std::uint8_t>(lead == 0xEDU ? 0x9FU : 0xBFU);
-			} else if (lead >= 0xF0U && lead <= 0xF4U) {
-				length = 4;
-				low    = static_cast<std::uint8_t>(lead == 0xF0U ? 0x90U : 0x80U);
-				high   = static_cast<std::uint8_t>(lead == 0xF4U ? 0x8FU : 0xBFU);
-			} else {
-				return 0;
-			}
-			if (aOffset + length > aText.size() || aText[aOffset + 1] < low || aText[aOffset + 1] > high) {
-				return 0;
-			}
-			for (std::size_t index = 2; index < length; ++index) {
-				if ((aText[aOffset + index] & 0xC0U) != 0x80U) {
-					return 0;
-				}
-			}
-			return length;
+			const auto text = std::string_view{ reinterpret_cast<const char*>(aText.data()), aText.size() };
+			auto       next = aOffset;
+			return utf8::decode(text, next) ? next - aOffset : 0U;
 		}
 	}
 

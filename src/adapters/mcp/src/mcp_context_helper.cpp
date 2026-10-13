@@ -4,6 +4,7 @@
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -194,33 +195,11 @@ namespace bpr::adapters::mcp {
 				return value;
 			}
 
-			static void append_code_point(
-				std::string& aOutput, const std::uint32_t aCodePoint)
+			/// \brief Appends a scalar value; false for a lone surrogate, which
+			/// has no UTF-8 encoding ([[BPR-1434]]: the shared core encoder).
+			[[nodiscard]] static auto append_code_point(std::string& aOutput, const std::uint32_t aCodePoint) -> bool
 			{
-				if (aCodePoint < 0x80U) {
-					aOutput.push_back(static_cast<char>(aCodePoint));
-				} else if (aCodePoint < 0x800U) {
-					aOutput.push_back(
-						static_cast<char>(0xC0U | (aCodePoint >> 6U)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | (aCodePoint & 0x3FU)));
-				} else if (aCodePoint < 0x10000U) {
-					aOutput.push_back(
-						static_cast<char>(0xE0U | (aCodePoint >> 12U)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | ((aCodePoint >> 6U) & 0x3FU)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | (aCodePoint & 0x3FU)));
-				} else {
-					aOutput.push_back(
-						static_cast<char>(0xF0U | (aCodePoint >> 18U)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | ((aCodePoint >> 12U) & 0x3FU)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | ((aCodePoint >> 6U) & 0x3FU)));
-					aOutput.push_back(
-						static_cast<char>(0x80U | (aCodePoint & 0x3FU)));
-				}
+				return core::utf8::append(aOutput, static_cast<char32_t>(aCodePoint));
 			}
 
 			[[nodiscard]] auto parse_string() -> std::optional<std::string>
@@ -288,7 +267,9 @@ namespace bpr::adapters::mcp {
 								+ ((codePoint - 0xD800U) << 10U)
 								+ (*low - 0xDC00U);
 						}
-						append_code_point(output, codePoint);
+						if (!append_code_point(output, codePoint)) {
+							return std::nullopt;
+						}
 						break;
 					}
 					default:

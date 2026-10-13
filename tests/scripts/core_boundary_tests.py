@@ -16,12 +16,14 @@ VERIFY_SCRIPT = REPOSITORY_ROOT / "cmake" / "VerifyCoreBoundary.cmake"
 
 
 class CoreBoundaryTests(unittest.TestCase):
-    def run_check(self, source: str) -> subprocess.CompletedProcess[str]:
+    def run_check(self, source: str, cmake: str | None = None) -> subprocess.CompletedProcess[str]:
         with contained_temporary_directory() as temporary_directory:
             root = Path(temporary_directory)
             core_source = root / "src/core/policy.cpp"
             core_source.parent.mkdir(parents=True)
             core_source.write_text(source, encoding="utf-8")
+            if cmake is not None:
+                (root / "src/core/CMakeLists.txt").write_text(cmake, encoding="utf-8")
 
             return subprocess.run(
                 [
@@ -50,6 +52,22 @@ class CoreBoundaryTests(unittest.TestCase):
             "struct identity { std::uint64_t Value; std::string Label; };\n"
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_only_owner_approved_libraries_link_into_core(self) -> None:
+        # Owner, 2026-10-13: glaze, utf8proc, zlib and fmt only.
+        approved = self.run_check(
+            "struct identity {};\n",
+            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze)\n",
+        )
+        self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
+        for library in ("re2::re2", "Qt6::Core", "BetterPullReview::SQLite3", "Threads::Threads"):
+            with self.subTest(library=library):
+                refused = self.run_check(
+                    "struct identity {};\n",
+                    f"target_link_libraries(\n    better_pull_review_core\n    PUBLIC\n        {library}\n)\n",
+                )
+                self.assertNotEqual(refused.returncode, 0, refused.stdout)
+                self.assertIn("not an owner-approved core library", refused.stdout + refused.stderr)
 
     def test_qt_provider_and_effect_headers_are_rejected(self) -> None:
         for header in (

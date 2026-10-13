@@ -2,6 +2,8 @@
 
 #include "bpr/core/review_cycle_json.hpp"
 
+#include "review_cycle_zip_codec.hpp"
+
 #include <algorithm>
 #include <array>
 #include <optional>
@@ -19,18 +21,6 @@ namespace bpr::core {
 		constexpr std::uint16_t utf8_names          = 0x0800U;
 		constexpr std::uint16_t stored              = 0U;
 		constexpr std::uint16_t deflated            = 8U;
-
-		constexpr auto crc_table = [] {
-			auto table = std::array<std::uint32_t, 256>{ };
-			for (std::uint32_t index = 0; index < 256U; ++index) {
-				auto value = index;
-				for (int bit = 0; bit < 8; ++bit) {
-					value = (value & 1U) != 0U ? 0xEDB88320U ^ (value >> 1U) : value >> 1U;
-				}
-				table[index] = value;
-			}
-			return table;
-		}();
 
 		void put16(std::string& aOut, const std::uint32_t aValue)
 		{
@@ -53,284 +43,6 @@ namespace bpr::core {
 		{
 			return get16(aBytes, aOffset) | (get16(aBytes, aOffset + 2U) << 16U);
 		}
-
-		// ---- inflate (RFC 1951), after Mark Adler's puff ----------------
-
-		constexpr int maximum_code_bits = 15;
-
-		struct huffman
-		{
-			std::array<std::uint16_t, maximum_code_bits + 1> Count{ };
-			std::array<std::uint16_t, 288>                   Symbol{ };
-		};
-
-		/// Builds decoding tables from code lengths. Zero for a complete code,
-		/// positive for an incomplete one, negative for an over-subscribed one.
-		auto construct(huffman& aTable, const std::span<const std::uint16_t> aLengths) -> int
-		{
-			aTable.Count.fill(0U);
-			for (const auto length : aLengths) {
-				++aTable.Count[length];
-			}
-			if (aTable.Count[0] == aLengths.size()) {
-				return 0;
-			}
-			auto left = 1;
-			for (int length = 1; length <= maximum_code_bits; ++length) {
-				left *= 2;
-				left -= aTable.Count[static_cast<std::size_t>(length)];
-				if (left < 0) {
-					return left;
-				}
-			}
-			auto offsets = std::array<std::uint16_t, maximum_code_bits + 1>{ };
-			for (std::size_t length = 1; length < maximum_code_bits; ++length) {
-				offsets[length + 1U] = static_cast<std::uint16_t>(offsets[length] + aTable.Count[length]);
-			}
-			for (std::size_t symbol = 0; symbol < aLengths.size(); ++symbol) {
-				if (aLengths[symbol] != 0U) {
-					aTable.Symbol[offsets[aLengths[symbol]]++] = static_cast<std::uint16_t>(symbol);
-				}
-			}
-			return left;
-		}
-
-		class inflater
-		{
-		public:
-			inflater(const std::span<const std::uint8_t> aInput, const std::uint64_t aLimit)
-				: Input{ aInput }
-				, Limit{ aLimit }
-			{
-			}
-
-			auto run() -> std::optional<std::string>
-			{
-				auto last = 0U;
-				do {
-					last            = bits(1);
-					const auto type = bits(2);
-					if (Failed) {
-						return std::nullopt;
-					}
-					switch (type) {
-					case 0:  stored_block(); break;
-					case 1:  fixed_block(); break;
-					case 2:  dynamic_block(); break;
-					default: Failed = true; break;
-					}
-				} while (!Failed && last == 0U);
-				if (Failed) {
-					return std::nullopt;
-				}
-				return std::move(Output);
-			}
-
-		private:
-			auto bits(const int aNeed) -> std::uint32_t
-			{
-				auto value = Buffer;
-				while (Count < aNeed) {
-					if (Position == Input.size()) {
-						Failed = true;
-						return 0U;
-					}
-					value |= static_cast<std::uint32_t>(Input[Position++]) << static_cast<unsigned>(Count);
-					Count += 8;
-				}
-				Buffer = value >> static_cast<unsigned>(aNeed);
-				Count -= aNeed;
-				return value & ((1U << static_cast<unsigned>(aNeed)) - 1U);
-			}
-
-			auto emit(const char aByte) -> bool
-			{
-				if (Output.size() >= Limit) {
-					Failed = true;
-					return false;
-				}
-				Output.push_back(aByte);
-				return true;
-			}
-
-			void stored_block()
-			{
-				Buffer = 0U;
-				Count  = 0;
-				if (Input.size() - Position < 4U) {
-					Failed = true;
-					return;
-				}
-				const auto length  = get16(Input, Position);
-				const auto inverse = get16(Input, Position + 2U);
-				Position += 4U;
-				if (length != (~inverse & 0xFFFFU) || Input.size() - Position < length) {
-					Failed = true;
-					return;
-				}
-				auto index = std::uint32_t{ 0 };
-				while (index < length && emit(static_cast<char>(Input[Position + index]))) {
-					++index;
-				}
-				Position += length;
-			}
-
-			auto decode(const huffman& aTable) -> int
-			{
-				auto code  = 0;
-				auto first = 0;
-				auto index = 0;
-				for (int length = 1; length <= maximum_code_bits; ++length) {
-					code += static_cast<int>(bits(1));
-					if (Failed) {
-						return -1;
-					}
-					const auto count = static_cast<int>(aTable.Count[static_cast<std::size_t>(length)]);
-					if (code - count < first) {
-						const auto at = index + (code - first);
-						return aTable.Symbol[static_cast<std::size_t>(at)];
-					}
-					index += count;
-					first += count;
-					first *= 2;
-					code *= 2;
-				}
-				Failed = true;
-				return -1;
-			}
-
-			void codes(const huffman& aLengths, const huffman& aDistances)
-			{
-				static constexpr auto lengthBase    = std::array<std::uint16_t, 29>{ 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258 };
-				static constexpr auto lengthExtra   = std::array<std::uint8_t, 29>{ 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0 };
-				static constexpr auto distanceBase  = std::array<std::uint16_t, 30>{ 1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577 };
-				static constexpr auto distanceExtra = std::array<std::uint8_t, 30>{ 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13 };
-				while (!Failed) {
-					auto symbol = decode(aLengths);
-					if (Failed || symbol == 256) {
-						return;
-					}
-					if (symbol < 256) {
-						emit(static_cast<char>(symbol));
-						continue;
-					}
-					symbol -= 257;
-					if (symbol >= 29) {
-						Failed = true;
-						return;
-					}
-					const auto length = lengthBase[static_cast<std::size_t>(symbol)] + bits(lengthExtra[static_cast<std::size_t>(symbol)]);
-					const auto code   = decode(aDistances);
-					if (Failed || code >= 30) {
-						Failed = true;
-						return;
-					}
-					const auto distance = distanceBase[static_cast<std::size_t>(code)] + bits(distanceExtra[static_cast<std::size_t>(code)]);
-					if (Failed || distance > Output.size()) {
-						Failed = true;
-						return;
-					}
-					auto copied = std::uint32_t{ 0 };
-					while (copied < length && emit(Output[Output.size() - distance])) {
-						++copied;
-					}
-				}
-			}
-
-			void fixed_block()
-			{
-				static const auto tables = [] {
-					auto lengths = std::array<std::uint16_t, 288>{ };
-					std::fill(lengths.begin(), lengths.begin() + 144, std::uint16_t{ 8 });
-					std::fill(lengths.begin() + 144, lengths.begin() + 256, std::uint16_t{ 9 });
-					std::fill(lengths.begin() + 256, lengths.begin() + 280, std::uint16_t{ 7 });
-					std::fill(lengths.begin() + 280, lengths.end(), std::uint16_t{ 8 });
-					auto result = std::pair<huffman, huffman>{ };
-					construct(result.first, lengths);
-					auto distances = std::array<std::uint16_t, 30>{ };
-					distances.fill(5U);
-					construct(result.second, distances);
-					return result;
-				}();
-				codes(tables.first, tables.second);
-			}
-
-			void dynamic_block()
-			{
-				static constexpr auto order         = std::array<std::uint8_t, 19>{ 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 };
-				const auto            lengthCount   = bits(5) + 257U;
-				const auto            distanceCount = bits(5) + 1U;
-				const auto            codeCount     = bits(4) + 4U;
-				if (Failed || lengthCount > 286U || distanceCount > 30U) {
-					Failed = true;
-					return;
-				}
-				auto lengths = std::array<std::uint16_t, 316>{ };
-				for (std::uint32_t index = 0; index < codeCount; ++index) {
-					lengths[order[index]] = static_cast<std::uint16_t>(bits(3));
-				}
-				auto lengthCode = huffman{ };
-				if (Failed || construct(lengthCode, std::span{ lengths.data(), 19U }) != 0) {
-					Failed = true;
-					return;
-				}
-				lengths.fill(0U);
-				for (std::uint32_t index = 0; index < lengthCount + distanceCount;) {
-					const auto symbol = decode(lengthCode);
-					if (Failed) {
-						return;
-					}
-					if (symbol < 16) {
-						lengths[index++] = static_cast<std::uint16_t>(symbol);
-						continue;
-					}
-					auto value  = std::uint16_t{ 0 };
-					auto repeat = 0U;
-					if (symbol == 16) {
-						if (index == 0U) {
-							Failed = true;
-							return;
-						}
-						value  = lengths[index - 1U];
-						repeat = 3U + bits(2);
-					} else if (symbol == 17) {
-						repeat = 3U + bits(3);
-					} else {
-						repeat = 11U + bits(7);
-					}
-					if (Failed || index + repeat > lengthCount + distanceCount) {
-						Failed = true;
-						return;
-					}
-					while (repeat-- != 0U) {
-						lengths[index++] = value;
-					}
-				}
-				if (lengths[256] == 0U) {
-					Failed = true;
-					return;
-				}
-				auto       literals      = huffman{ };
-				auto       distances     = huffman{ };
-				const auto literalCheck  = construct(literals, std::span{ lengths.data(), lengthCount });
-				const auto distanceCheck = construct(distances, std::span{ lengths.data() + lengthCount, distanceCount });
-				// Only a code with a single one-bit length may be incomplete.
-				if ((literalCheck != 0 && (literalCheck < 0 || lengthCount != static_cast<std::uint32_t>(literals.Count[0] + literals.Count[1])))
-					|| (distanceCheck != 0 && (distanceCheck < 0 || distanceCount != static_cast<std::uint32_t>(distances.Count[0] + distances.Count[1])))) {
-					Failed = true;
-					return;
-				}
-				codes(literals, distances);
-			}
-
-			std::span<const std::uint8_t> Input;
-			std::uint64_t                 Limit;
-			std::size_t                   Position = 0;
-			std::uint32_t                 Buffer   = 0;
-			int                           Count    = 0;
-			bool                          Failed   = false;
-			std::string                   Output;
-		};
 
 		struct entry
 		{
@@ -490,17 +202,13 @@ namespace bpr::core {
 
 	auto cycle_crc32(const std::string_view aBytes) noexcept -> std::uint32_t
 	{
-		auto value = 0xFFFFFFFFU;
-		for (const auto symbol : aBytes) {
-			value = crc_table[(value ^ static_cast<unsigned char>(symbol)) & 0xFFU] ^ (value >> 8U);
-		}
-		return value ^ 0xFFFFFFFFU;
+		return zip_codec::checksum(aBytes);
 	}
 
 	auto inflate_cycle_deflate(const std::span<const std::uint8_t> aStream, const std::uint64_t aExpectedBytes) -> std::expected<std::string, cycle_zip_problem>
 	{
-		auto output = inflater{ aStream, aExpectedBytes }.run();
-		if (!output || output->size() != aExpectedBytes) {
+		auto output = zip_codec::inflate_raw(aStream, aExpectedBytes);
+		if (!output) {
 			return std::unexpected(cycle_zip_problem::inflate);
 		}
 		return std::move(*output);

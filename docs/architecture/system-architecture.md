@@ -400,7 +400,8 @@ The initial target shape should be equivalent to:
 
 ```text
 better_pull_review_core
-    standard/domain C++ only
+    standard/domain C++, plus only the owner-approved pinned, pure
+    libraries (glaze, utf8proc, zlib, fmt; owner 2026-10-13)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -446,6 +447,11 @@ better_pull_review_app
 The live repository may use different target names, but it must enforce these rules:
 
 - The core imports no Qt, SQLite, GitHub, Git, operating-system, AI, clock, thread, future, timer, dialog, or process APIs.
+- The core links only owner-approved pinned, pure libraries (no I/O, threads,
+  clocks or globals): glaze, utf8proc, zlib and fmt (owner, 2026-10-13).
+  `cmake/VerifyCoreBoundary.cmake` refuses any other library. Before
+  hand-writing a general-purpose system in core, ask the owner whether a
+  library should be allowed instead.
 - The host depends on core and capability-specific port contracts. It may be mutable and concurrent, but semantic decisions remain in the core.
 - Provider adapters implement narrow host ports. They do not expose provider response types to the core or Qt.
 - `QProcess`, `QNetworkAccessManager`, and credential-vault APIs are confined

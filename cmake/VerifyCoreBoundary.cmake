@@ -69,4 +69,35 @@ foreach(core_file IN LISTS core_files)
     endforeach()
 endforeach()
 
+# Owner, 2026-10-13: core may link only these pinned, pure (no I/O, threads,
+# clocks or globals) libraries. Anything else needs the owner's approval first.
+set(core_allowed_link_targets glaze::glaze BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Fmt)
+set(core_cmake "${BPR_ROOT}/src/core/CMakeLists.txt")
+if(EXISTS "${core_cmake}")
+    file(READ "${core_cmake}" core_cmake_contents)
+    string(REGEX MATCHALL "target_link_libraries[ \t]*\\([^)]*\\)" core_links "${core_cmake_contents}")
+    foreach(core_link IN LISTS core_links)
+        string(REGEX REPLACE "^target_link_libraries[ \t]*\\(" "" core_items "${core_link}")
+        string(REGEX REPLACE "\\)$" "" core_items "${core_items}")
+        string(REGEX REPLACE "[ \t\r\n]+" ";" core_items "${core_items}")
+        list(REMOVE_ITEM core_items "")
+        list(POP_FRONT core_items core_link_target)
+        if(NOT core_link_target STREQUAL "better_pull_review_core")
+            continue()
+        endif()
+        foreach(core_item IN LISTS core_items)
+            if(core_item STREQUAL "" OR core_item MATCHES "^(PUBLIC|PRIVATE|INTERFACE)$")
+                continue()
+            endif()
+            if(NOT core_item IN_LIST core_allowed_link_targets)
+                message(
+                    FATAL_ERROR
+                    "Functional-core boundary violation in src/core/CMakeLists.txt: "
+                    "${core_item} is not an owner-approved core library"
+                )
+            endif()
+        endforeach()
+    endforeach()
+endif()
+
 message(STATUS "Functional-core dependency boundary verified")

@@ -52,6 +52,13 @@ def cache_entry(build_directory: Path, name: str) -> str | None:
     return None
 
 
+def copy_core_archives(cache: Path) -> None:
+    """The Qt-free core graph needs SQLite, zlib ([[BPR-1435]]) and utf8proc ([[BPR-1434]])."""
+    cache.mkdir(parents=True, exist_ok=True)
+    for archive in ("zlib-1.3.2.tar.gz", "utf8proc-2.12.0.tar.gz"):
+        shutil.copy2(CPM_SOURCE_CACHE / archive, cache / archive)
+
+
 class DependencyModernizationTests(unittest.TestCase):
     def configure(
         self,
@@ -809,6 +816,7 @@ class DependencyModernizationTests(unittest.TestCase):
                     temporary = Path(temporary_directory)
                     cache = temporary / "offline cache"
                     shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
+                    copy_core_archives(cache)
                     if copy_sqlite:
                         shutil.copytree(
                             CPM_SOURCE_CACHE / "bprsqlite", cache / "bprsqlite"
@@ -843,6 +851,7 @@ class DependencyModernizationTests(unittest.TestCase):
             temporary = Path(temporary_directory)
             cache = temporary / "poisoned cache"
             shutil.copytree(CPM_SOURCE_CACHE / "cpm", cache / "cpm")
+            copy_core_archives(cache)
             shutil.copytree(
                 CPM_SOURCE_CACHE / "bprsqlite",
                 cache / "bprsqlite",
