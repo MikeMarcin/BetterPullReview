@@ -667,6 +667,7 @@ namespace {
 			return toggle_workbench_drawers_intent{ };
 		case workbench_command_id::toggle_line_numbers:
 			return toggle_workbench_line_numbers_intent{ };
+		case workbench_command_id::go_to_header_source:
 		case workbench_command_id::previous_change:
 		case workbench_command_id::next_change:
 			// A change gesture leaves as an RFC-BPR-0004 diff intent rather than
@@ -776,8 +777,7 @@ namespace {
 				   [&drawerCommand](const workbench_command_projection& aCommand) {
 					   return drawerCommand(aCommand.Id)
 						   ? aCommand.DisabledReason == workbench_reason_code::none
-						   : aCommand.DisabledReason
-							   == workbench_reason_code::no_active_workbench;
+						   : aCommand.DisabledReason == (aCommand.Id == workbench_command_id::go_to_header_source ? workbench_reason_code::header_source_no_selection : workbench_reason_code::no_active_workbench);
 				   }),
 			   "an inactive workbench explains every disabled command the same way, and "
 			   "names no reason for the ones it offers");
@@ -1597,10 +1597,31 @@ namespace {
 		expect(route_workbench_thread(open_workbench_thread_intent{ .Draft = true }).Reason == workbench_thread_route_reason::none,
 			   "my draft asked for in Review opens there with no reason");
 	}
+
+	void test_header_source_command_legality()
+	{
+		auto       state   = workbench_interaction_state{ };
+		const auto command = [&] { return project_workbench_commands(state).Commands[static_cast<std::size_t>(workbench_command_id::go_to_header_source)]; };
+		expect(!command().Enabled && command().DisabledReason == workbench_reason_code::header_source_no_selection, "no selection disables counterpart command");
+		state.HeaderSource = header_source_status::unavailable_catalogue;
+		expect(!command().Enabled && command().DisabledReason == workbench_reason_code::header_source_unavailable_catalogue, "unavailable catalogue has its own reason");
+		state.HeaderSource = header_source_status::unsupported_file;
+		expect(!command().Enabled && command().DisabledReason == workbench_reason_code::header_source_unsupported_file, "unsupported suffix has its own reason");
+		state.Navigation = resident(1U, 1U);
+		for (const auto status : { header_source_status::matched, header_source_status::no_match, header_source_status::ambiguous }) {
+			state.HeaderSource = status;
+			expect(command().Enabled, "accepted supported selection offers counterpart command even for no-op");
+		}
+		for (const auto modality : { workbench_modality::overview, workbench_modality::discuss, workbench_modality::threads }) {
+			state.Modality = modality;
+			expect(!command().Enabled && command().DisabledReason == workbench_reason_code::header_source_requires_review, "inactive modality cannot navigate hidden review source");
+		}
+	}
 } // namespace
 
 int main()
 {
+	test_header_source_command_legality();
 	test_cursor_contract();
 	test_change_cursor_contract();
 	test_navigation_follows_actionable_order();

@@ -58,6 +58,8 @@ namespace bpr::app::detail {
 		/// [[BPR-1213]]. Constructed 17-file pull request with several folders,
 		/// nested subfolders and a root file, served on github.com with one head.
 		nested_folders_v1,
+		/// RFC-BPR-0074 synthetic cross-folder counterparts.
+		header_source_v1,
 		/// [[BPR-1083]]. The nested-folders pull request with review threads
 		/// whose posts carry every Conventional Comments label, for judging the
 		/// thread marks, the label chip and the shortcodes in the application.

@@ -1078,6 +1078,7 @@ never invents enabled state.
 |---|---|
 | Previous file ([[BPR-1328]]) | `Ctrl+Alt+Up` (⌥⌘↑) |
 | Next file ([[BPR-1328]]) | `Ctrl+Alt+Down` (⌥⌘↓) |
+| View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
 | Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
@@ -1118,6 +1119,23 @@ the zoom is left alone. The read-only code panes leave the key to Actual Size.
 The three zoom commands sit in View after Updates Line, between separators,
 and the resident desktop menu bar offers them disabled with the same keys
 ([[BPR-0796]]).
+
+View > Go to header/source uses one window action, available in PR Review with
+an accepted catalogue and a supported selected file. Its `Alt+O` (Option+O)
+shortcut works from read-only source, Files and the tab strip. Editable fields
+and composers disable the native menu equivalent while they have focus, keeping
+their ordinary Option/Alt input. Home, local Review Cycles, Overview, Discuss
+and Threads cannot navigate a hidden retained source. The resident desktop menu
+mirrors the item disabled when no window is open.
+
+The command opens the unique closest same-basename opposite-family file through
+ordinary exact file selection, replacing the active tab's file and retaining its
+comparison. Siblings, filters, private receipts and actionable order stay as they
+were. Exact-directory candidates win; otherwise the greatest number of matching
+trailing directory components wins uniquely. A tie or absent match changes no
+reading state and announces a brief nonmodal reason. Missing target versions
+report the ordinary selected-comparison failure. See the
+[navigation contract](../architecture/header-source-navigation.md).
 
 The code-pane keys act only while a code pane itself has keyboard focus
 ([[BPR-1212]]; owner Q1, 2026-10-06). They are not window shortcuts: the pane

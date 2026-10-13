@@ -671,6 +671,14 @@ namespace bpr::qt {
 				return QStringLiteral(
 					"In Threads the finder is the page. Choose Review to "
 					"hide or show the drawers.");
+			case core::workbench_reason_code::header_source_requires_review:
+				return QStringLiteral("Choose Review to go to a matching header or source file.");
+			case core::workbench_reason_code::header_source_no_selection:
+				return QStringLiteral("Select a header or source file first.");
+			case core::workbench_reason_code::header_source_unsupported_file:
+				return QStringLiteral("This file has no supported header or source extension.");
+			case core::workbench_reason_code::header_source_unavailable_catalogue:
+				return QStringLiteral("The changed-file catalogue is unavailable. Refresh the pull request.");
 			}
 			// Deliberately outside the switch and with no default label, so a
 			// reason the core adds later is a compile error here rather than a
@@ -1116,6 +1124,9 @@ namespace bpr::qt {
 
 	workbench_window::~workbench_window()
 	{
+		// Child settings windows can change focus while QWidget tears down the
+		// already-deleted menu actions. Stop application focus ingress first.
+		disconnect(qApp, &QApplication::focusChanged, this, nullptr);
 		unmount_settings();
 	}
 
@@ -10284,6 +10295,63 @@ namespace bpr::qt {
 		return Navigation[1].Action;
 	}
 
+	auto workbench_window::header_source_action() const noexcept -> QAction*
+	{
+		return HeaderSourceAction;
+	}
+
+	void workbench_window::set_header_source_dispatch(std::function<void()> aDispatch)
+	{
+		HeaderSourceDispatch = std::move(aDispatch);
+		update_header_source_action();
+	}
+
+	void workbench_window::present_header_source_result(const core::header_source_resolution aResult)
+	{
+		auto message = QString{ };
+		switch (aResult.Status) {
+		case core::header_source_status::matched:
+			ComparisonSurface->focus_source();
+			return;
+		case core::header_source_status::no_match:
+			message = aResult.SelectedFamily == core::header_source_family::source ? tr("No matching header in this review") : tr("No matching source file in this review");
+			break;
+		case core::header_source_status::ambiguous:
+			message = tr("More than one equally close header or source file matches in this review");
+			break;
+		case core::header_source_status::unavailable_catalogue:
+			message = reason_text(core::workbench_reason_code::header_source_unavailable_catalogue);
+			break;
+		case core::header_source_status::unsupported_file:
+			message = reason_text(core::workbench_reason_code::header_source_unsupported_file);
+			break;
+		case core::header_source_status::no_selection:
+			message = reason_text(core::workbench_reason_code::header_source_no_selection);
+			break;
+		}
+		statusBar()->showMessage(message, bounded_navigation_message_ms);
+		QAccessibleAnnouncementEvent announcement{ this, message };
+		announcement.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&announcement);
+	}
+
+	void workbench_window::update_header_source_action()
+	{
+		if (HeaderSourceAction == nullptr) {
+			return;
+		}
+		const auto  projection = command(core::workbench_command_id::go_to_header_source);
+		const auto* focused    = QApplication::focusWidget();
+		const auto* line       = qobject_cast<const QLineEdit*>(focused);
+		const auto  editing    = focused != nullptr && isAncestorOf(focused) && (editable_multi_line(focused) || (line != nullptr && !line->isReadOnly()));
+		const auto  inReview   = !showing_home() && !LocalCycleShown && CompositionPage == nullptr && current_modality() == review_modality::review;
+		const auto  reason     = !inReview ? reason_text(core::workbench_reason_code::header_source_requires_review)
+			: editing                      ? tr("Keep Option/Alt text input in the editor. Focus the source comparison to navigate.")
+										   : reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::header_source_no_selection);
+		describe_action(HeaderSourceAction, inReview && !editing && projection && projection->Enabled && static_cast<bool>(HeaderSourceDispatch),
+						tr("Go to the closest matching header or source file in this review"), reason);
+	}
+
 	auto workbench_window::previous_change_action() const noexcept -> QAction*
 	{
 		return Navigation[2].Action;
@@ -13824,6 +13892,18 @@ namespace bpr::qt {
 		ViewMenu->setAccessibleName(QStringLiteral("View"));
 		ViewMenu->setAccessibleDescription(
 			QStringLiteral("Presentation options for the comparison surface"));
+		HeaderSourceAction = new QAction{ tr("Go to header/source"), this };
+		HeaderSourceAction->setObjectName(QStringLiteral("goToHeaderSourceAction"));
+		HeaderSourceAction->setShortcut(QKeySequence{ QStringLiteral("Alt+O") });
+		HeaderSourceAction->setShortcutContext(Qt::WindowShortcut);
+		addAction(HeaderSourceAction);
+		ViewMenu->addAction(HeaderSourceAction);
+		ViewMenu->addSeparator();
+		connect(HeaderSourceAction, &QAction::triggered, this, [this] {
+			if (HeaderSourceAction->isEnabled() && HeaderSourceDispatch) {
+				HeaderSourceDispatch();
+			}
+		});
 
 		LineNumbersAction
 			= new QAction{ QStringLiteral("&Line numbers"), this };
@@ -13900,6 +13980,7 @@ namespace bpr::qt {
 		connect(ShowThreadsAction, &QAction::triggered, this, [this] { toggle_threads(); });
 		EditorKeyYield = new editor_key_yield{ this, ToggleDrawersAction, editor_native_keys() };
 		connect(qApp, &QApplication::focusChanged, this, [this](QWidget* const aOld, QWidget* const aNow) {
+			update_header_source_action();
 			if (aNow != nullptr && editable_multi_line(aNow) && isAncestorOf(aNow)) {
 				aNow->installEventFilter(EditorKeyYield);
 			}
@@ -14372,6 +14453,7 @@ namespace bpr::qt {
 
 	void workbench_window::apply_drawers_toggle()
 	{
+		update_header_source_action();
 		if (ToggleDrawersAction == nullptr) {
 			return;
 		}
@@ -14937,6 +15019,7 @@ namespace bpr::qt {
 
 	void workbench_window::update_action_state()
 	{
+		update_header_source_action();
 		// One projection for all four primary actions. Entry `i` of the core's
 		// delta decides action `i`; the window adds no legality of its own and
 		// keeps no second carrier for the change actions.

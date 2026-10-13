@@ -751,9 +751,11 @@ namespace {
 		expect(harnessed.Projections.Published.size() == 2U,
 			   "selecting a file publishes");
 		const auto& selection = harnessed.Projections.Published.back();
-		expect(selection.Selection.has_value() && !selection.Commands.has_value()
+		expect(selection.Selection.has_value() && selection.Commands.has_value()
 				   && !selection.Drawers.has_value() && !selection.Layout.has_value(),
-			   "a bounded selection change publishes the selection domain only");
+			   "a bounded selection change publishes selection and counterpart availability only");
+		expect(selection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::go_to_header_source)].Enabled,
+			   "selecting a supported path offers counterpart navigation through the single command projection");
 		expect(selection.Selection->Cursor->Ordinal == 2U
 				   && selection.Selection->Cursor->File == file(2U),
 			   "the host resolved the exact file to its ordinal");

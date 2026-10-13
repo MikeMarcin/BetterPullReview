@@ -4234,3 +4234,22 @@ if(APPLE)
     bpr_add_network_isolated_test(NAME application_remembered_connection_restart COMMAND test_remembered_connection_restart)
     set_tests_properties(application_remembered_connection_restart PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240 PASS_REGULAR_EXPRESSION "remembered-connection-restart-tests:pass")
 endif()
+
+# RFC-BPR-0074: real command, window-system keys and Git-backed selected diffs.
+bpr_add_executable(test_header_source_public_path header_source_navigation_public_path_tests.cpp)
+target_link_libraries(test_header_source_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_header_source_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_header_source_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_header_source_public_path)
+bpr_enable_warnings(test_header_source_public_path)
+bpr_add_network_isolated_test(NAME application_header_source_navigation WINDOWS_UNCONTAINED
+    COMMAND test_header_source_public_path)
+set_tests_properties(application_header_source_navigation PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_HEADER_SOURCE_RENDER_ROOT=${PROJECT_BINARY_DIR}/header-source-renders"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "HEADER_SOURCE_PUBLIC_PATH_OK")
+
+bpr_add_network_isolated_test(NAME application_header_source_navigation_large WINDOWS_UNCONTAINED
+    COMMAND test_header_source_public_path --large)
+set_tests_properties(application_header_source_navigation_large PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_HEADER_SOURCE_RENDER_ROOT=${PROJECT_BINARY_DIR}/header-source-renders"
+    TIMEOUT 120 PASS_REGULAR_EXPRESSION "HEADER_SOURCE_LARGE_OK")
