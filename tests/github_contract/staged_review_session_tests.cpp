@@ -4,6 +4,7 @@
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
 #if defined(__APPLE__)
+	#include "../support/strict_cli_fixture.hpp"
 	#include "gh_cli_transport.hpp"
 	#include "github_cli_process_runner.hpp"
 #endif
@@ -675,6 +676,68 @@ namespace {
 		}
 	}
 #if defined(__APPLE__)
+	void test_strict_tour_scope()
+	{
+		for (const bool stopAfterPost : { false, true }) {
+			scratch                   root;
+			server                    remote;
+			std::stop_source          stop;
+			tests::strict_cli_fixture process{ root.Path };
+			process.Respond   = [&](const auto& aWire) { return remote.perform_review_mutation(aWire, { }, [used = false]() mutable { return !std::exchange(used, true); }); };
+			process.Completed = [&](const auto& aWire) {
+				if (aWire.Wire.Method == http_method::post) {
+					process.available(false);
+					if (stopAfterPost) {
+						stop.request_stop();
+						remote.ReadFailure = true;
+					}
+				}
+			};
+			const auto profile = tests::strict_cli_profile(credential_context());
+			const auto base    = process.configuration();
+			expect(profile && base, "strict tour fixture selects actual configured child");
+			const auto pinned = pin_gh_cli_configuration(*base, "github.com", identity().Login);
+			expect(pinned.has_value(), "strict tour pins its exact selected login");
+			gh_cli_transport        strict{ *profile, *pinned, process };
+			tests::strict_cli_relay relay{ strict, process };
+			const auto              input = plan();
+			{
+				review_submission_session initial{ relay, configuration(), std::make_shared<lease>(), storage(root.Path) };
+				const auto                result = initial.publish_tour(input, stop.get_token(), [](const auto&) { return true; });
+				std::cerr << "strict tour: state=" << static_cast<unsigned>(result.State) << " probes=" << process.Probes << " acquisitions=" << process.Acquisitions << " api=" << process.ApiCalls << " writes=" << process.Writes << '\n';
+				expect(result.State == (stopAfterPost ? publication_state::outcome_unknown : publication_state::published)
+						   && process.Acquisitions == 1U && process.Writes == (stopAfterPost ? 1U : 5U),
+					   "strict tour shares one acquired owner through all writes and reconciliation despite removed lookup");
+			}
+			expect(process.Credential.expired(), "tour credential is released after operation drain");
+			const auto calls = process.ApiCalls;
+			for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::cancelled,
+										github_cli_process_failure::timeout, github_cli_process_failure::process_crash, github_cli_process_failure::reap_failure }) {
+				process.AcquisitionFailure = failure == github_cli_process_failure::nonzero_exit ? std::nullopt : std::optional{ failure };
+				review_submission_session restarted{ relay, configuration(), std::make_shared<lease>(), storage(root.Path) };
+				const auto                result   = restarted.publish_tour(input, { }, [](const auto&) { return true; });
+				const auto                expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
+					: failure == github_cli_process_failure::cancelled                                   ? application::review_mutation_failure::cancelled
+																										 : application::review_mutation_failure::credential_tool_failed;
+				expect(result.State == (stopAfterPost ? publication_state::outcome_unknown : publication_state::published)
+						   && result.Failure == expected && result.Record && result.Record->Plan == input && result.Record->PossiblyTransmitted == stopAfterPost
+						   && process.ApiCalls == calls && process.Writes == (stopAfterPost ? 1U : 5U),
+					   "strict tour credential/tool refusal retains durable unknown or confirmed state with zero further API/writes");
+			}
+			process.AcquisitionFailure.reset();
+			process.available(true);
+			process.Completed  = { };
+			remote.ReadFailure = false;
+			review_submission_session resumed{ relay, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                recovered = resumed.reconcile_tour(input);
+			expect(recovered.State != publication_state::outcome_unknown && process.Writes == (stopAfterPost ? 1U : 5U), "explicit strict tour recovery reads only and does not repeat the first POST");
+			expect(resumed.publish_tour(input, { }, [](const auto&) { return true; }).State == publication_state::published
+					   && process.Writes == 5U && remote.Creates == 1U && remote.Submits == 1U,
+				   "a new strict tour Resume reacquires once and publishes only remaining steps");
+			process.verify_persistence();
+		}
+	}
+
 	// [[BPR-1368]]. One native two-stop tour published on the owner's
 	// designated live target, MikeMarcin/BPR-Test, by the production session
 	// over the production `gh api` transport: create pending, edit both stops
@@ -1132,6 +1195,17 @@ namespace {
 }
 auto main(int argc, char** argv) -> int
 try {
+	QCoreApplication application{ argc, argv };
+#if defined(__APPLE__)
+	if (std::filesystem::path{ argv[0] }.filename() == "gh") {
+		return tests::strict_cli_child(QCoreApplication::arguments());
+	}
+	if (argc == 2 && std::string_view{ argv[1] } == "--strict-cli-fixture") {
+		test_strict_tour_scope();
+		std::cout << "strict-tour-scope:pass\n";
+		return EXIT_SUCCESS;
+	}
+#endif
 	if (argc == 3 && std::string_view{ argv[1] } == "--live-review-identity") {
 #if defined(__APPLE__)
 		live_review_identity(argv[2]);

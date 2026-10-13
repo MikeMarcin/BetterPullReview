@@ -496,6 +496,23 @@ namespace {
 		return result;
 	}
 
+	[[nodiscard]] auto synthetic_operation_credential() -> cli_transient_credential
+	{
+		auto value = std::make_shared<cli_sensitive_bytes>();
+		expect(value->append("synthetic-operation-credential\n") && value->finish_credential(), "synthetic scoped credential is valid");
+		return value;
+	}
+
+	[[nodiscard]] auto scoped_configuration(const validated_gh_cli_configuration& aConfiguration, const validated_github_host_profile& aProfile) -> validated_gh_cli_configuration
+	{
+		if (aConfiguration.pin()) {
+			return aConfiguration;
+		}
+		const auto value = pin_gh_cli_configuration(aConfiguration, aProfile.hostname(), "fixture");
+		expect(value.has_value(), "compiler course selects one explicit account");
+		return *value;
+	}
+
 	class successful_counting_process final : public github_cli_process_port
 	{
 	public:
@@ -503,6 +520,16 @@ namespace {
 			const github_cli_process_request& aRequest,
 			const std::stop_token             aStop) -> github_cli_process_result override
 		{
+			const auto arguments = gh_arguments(aRequest);
+			if (EnableAcquisition && ProbeFailure && (arguments == std::vector<std::string>{ "--version" } || (!arguments.empty() && arguments.back() == "--help"))) {
+				return std::unexpected{ *ProbeFailure };
+			}
+			if (EnableAcquisition && arguments == std::vector<std::string>{ "--version" }) {
+				return github_cli_process_success{ .StandardOutput = "gh version 2.101.0 (fixture)\n" };
+			}
+			if (EnableAcquisition && !arguments.empty() && arguments.back() == "--help") {
+				return github_cli_process_success{ .StandardOutput = "gh auth token [flags]\ngh repo clone <repo> [-- <gitflags>...]\ngh auth git-credential\n --hostname HOST\n --user LOGIN\n --include\n --method METHOD\n --header VALUE\n --input FILE\n --no-upstream\n" };
+			}
 			++Calls;
 			LastRequest       = aRequest;
 			LastStopRequested = aStop.stop_requested();
@@ -515,6 +542,38 @@ namespace {
 			return Result;
 		}
 
+		[[nodiscard]] auto acquire_sensitive(const github_cli_process_request& aRequest, std::stop_token aStop,
+											 std::shared_ptr<const void> = { }) -> cli_sensitive_result override
+		{
+			++Acquisitions;
+			expect(gh_arguments(aRequest) == std::vector<std::string>{ "auth", "token", "--hostname", "github.com", "--user", "fixture-reviewer" }, "recovery operation acquires only its exact named credential");
+			if (MissingCredential || aStop.stop_requested()) {
+				return std::unexpected{ aStop.stop_requested() ? github_cli_process_failure::cancelled : github_cli_process_failure::nonzero_exit };
+			}
+			if (AcquisitionFailure) {
+				return std::unexpected{ *AcquisitionFailure };
+			}
+			auto credential    = synthetic_operation_credential();
+			AcquiredCredential = credential;
+			return credential;
+		}
+
+		[[nodiscard]] auto run_credentialed(const github_cli_process_request& aRequest, cli_transient_credential aCredential,
+											cli_credential_environment, std::stop_token                          aStop) -> github_cli_process_result override
+		{
+			expect(aCredential != nullptr, "compiler unit seam receives a scoped credential separately");
+			if (Acquisitions != 0U) {
+				expect(aCredential.get() == AcquiredCredential.lock().get(), "all requests in the operation use exactly the acquired owner");
+			}
+			return run(aRequest, aStop);
+		}
+
+		bool                                      EnableAcquisition = false;
+		std::size_t                               Acquisitions      = 0U;
+		bool                                      MissingCredential = false;
+		std::optional<github_cli_process_failure> AcquisitionFailure;
+		std::optional<github_cli_process_failure> ProbeFailure;
+		std::weak_ptr<const cli_sensitive_bytes>  AcquiredCredential;
 		github_cli_process_result                 Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n{}" };
 		std::function<void()>                     OnRun;
 		std::stop_source*                         StopOnRun = nullptr;
@@ -1097,7 +1156,7 @@ namespace {
 		const auto       cloud         = validate_github_host_profile(cloud_candidate());
 		expect(configuration.has_value() && cloud.has_value(), "transport prerequisites validate");
 		successful_counting_process process;
-		gh_cli_transport            transport{ *cloud, *configuration, process };
+		gh_cli_transport            transport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		const auto                  request = wire_request_for(*cloud, read_operation::get_repository);
 		const std::string           body    = "{\"private_fixture\":true}\n";
 		// Source-derived isolated fixture: cli/cli v2.96.0 pkg/cmd/api/api.go
@@ -1106,7 +1165,7 @@ namespace {
 				 std::pair{ std::string{ }, page_completeness::complete },
 				 std::pair{ std::string{ "Link: <https://api.github.com/repos/o/r?page=2>; rel=\"next\"\r\n" }, page_completeness::has_next_page },
 				 std::pair{ std::string{ "Link: <https://api.github.com/repos/o/r?page=1>; rel=\"prev\"\r\n" }, page_completeness::complete } }) {
-			process.Result      = github_cli_process_success{ .StandardOutput = "HTTP/2.0 206 Partial Content\nContent-Type: application/json\r\n" + link + "X-Ratelimit-Remaining: 42\r\n\r\n" + body };
+			process.Result      = github_cli_process_success{ .StandardOutput = std::string{ "HTTP/2.0 206 Partial Content\nContent-Type: application/json\r\n" }.append(link).append("X-Ratelimit-Remaining: 42\r\n\r\n").append(body) };
 			const auto  result  = transport.perform(request, { });
 			const auto* success = std::get_if<github_wire_success>(&result);
 			expect(success != nullptr && success->Correlation == request.Correlation
@@ -1162,7 +1221,7 @@ namespace {
 		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
 		successful_counting_process process;
-		gh_cli_transport            transport{ *cloud, *configuration, process };
+		gh_cli_transport            transport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		const auto                  request = wire_request_for(*cloud, read_operation::get_viewer_identity);
 		for (const int status : { 200, 404 }) {
 			const std::string body = status == 200 ? R"({"id":42,"login":"fixture","name":null,"node_id":"MDQ6VXNlcjQy"})" : R"({"message":"Not Found"})";
@@ -1184,7 +1243,7 @@ namespace {
 		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
 		successful_counting_process process;
-		gh_cli_transport            transport{ *cloud, *configuration, process };
+		gh_cli_transport            transport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		const auto                  request = wire_request_for(*cloud, read_operation::get_viewer_identity);
 		for (const int status : { 401, 403, 429 }) {
 			process.Result = github_cli_process_success{
@@ -1197,8 +1256,7 @@ namespace {
 			const auto metadata = parse_github_response_metadata(success->Response);
 			expect(metadata.has_value() && metadata->RetryAfterSeconds == 17U, "HTTP error retry metadata survives");
 			const auto normalized = normalize_observed_github_viewer(success->Response);
-			expect(!normalized.has_value() && normalized.error().Failure == (status == 401 ? application::github_provider_failure::authentication : status == 403 ? application::github_provider_failure::rate_limit
-																																								  : application::github_provider_failure::rate_limit),
+			expect(!normalized.has_value() && normalized.error().Failure == (status == 401 ? application::github_provider_failure::authentication : application::github_provider_failure::rate_limit),
 				   "HTTP denial reaches existing normalized classification");
 			expect(process.LastRequest->PreserveCompletedOutput, "canonical API reads opt into bounded completed output");
 		}
@@ -1241,7 +1299,7 @@ namespace {
 		const auto                                 configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		const auto                                 cloud         = validate_github_host_profile(cloud_candidate());
 		successful_counting_process                process;
-		gh_cli_transport                           transport{ *cloud, *configuration, process };
+		gh_cli_transport                           transport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		const auto                                 request = wire_request_for(*cloud, read_operation::list_review_threads);
 		const github_capability_probe_wire_request probe{
 			.Correlation = { .Part = 0U, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
@@ -1281,68 +1339,25 @@ namespace {
 
 	auto test_configuration_file_metadata_changes() -> void
 	{
-		temporary_layout layout;
-#if defined(_WIN32)
-		const auto directory = layout.RoamingDirectory / "GitHub CLI";
-#else
+		temporary_layout            layout;
+		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
+		successful_counting_process process;
+		const auto                  request = wire_request_for(*cloud, read_operation::get_repository);
+		gh_cli_transport            unpinned{ *cloud, *configuration, process };
+		const auto                  refused = unpinned.perform(request, { });
+		expect(std::holds_alternative<github_wire_error>(refused) && process.Calls == 0U, "unpinned account choice refuses before any API or credential retrieval");
+#if !defined(_WIN32)
 		const auto directory = layout.HomeDirectory / ".config" / "gh";
-#endif
-		const auto                                 configuration = validate_gh_cli_configuration(configuration_candidate(layout));
-		const auto                                 cloud         = validate_github_host_profile(cloud_candidate());
-		successful_counting_process                process;
-		const auto                                 request = wire_request_for(*cloud, read_operation::get_repository);
-		const auto                                 wire    = compile_capability_probe_request(*cloud);
-		const github_capability_probe_wire_request probe{
-			.Correlation = { .Part = 0U, .Session = session_parent(*cloud), .ProfileRevision = cloud->revision(), .Host = cloud->host(), .ObservedAccount = core::github_account_id{ 42 } },
-			.Wire        = *wire,
-		};
-		gh_cli_transport missingDirectory{ *cloud, *configuration, process };
 		std::filesystem::create_directories(directory);
-		expect(std::get<github_wire_error>(missingDirectory.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "new default configuration directory refuses launch");
+		gh_cli_transport pinned{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		for (const auto* name : { "config.yml", "hosts.yml" }) {
-			const auto       path = directory / name;
-			gh_cli_transport absent{ *cloud, *configuration, process };
-			{
-				std::ofstream output{ path };
-				output << "fixture";
-			}
-			auto calls = process.Calls;
-			expect(std::get<github_wire_error>(absent.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls, "added configured file refuses read");
-			gh_cli_transport present{ *cloud, *configuration, process };
-			std::filesystem::remove(path);
-			expect(std::get<github_capability_probe_wire_error>(present.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls, "removed configured file refuses probe");
-			{
-				std::ofstream output{ path };
-				output << "fixture";
-			}
-			gh_cli_transport original{ *cloud, *configuration, process };
-			const auto       replacement = directory / "replacement";
-			{
-				std::ofstream output{ replacement };
-				output << "replacement fixture";
-			}
-			std::filesystem::remove(path);
-			std::filesystem::rename(replacement, path);
-			expect(std::holds_alternative<github_wire_error>(original.perform(request, { })) && process.Calls == calls, "stable replacement refuses launch");
-			gh_cli_transport duringRead{ *cloud, *configuration, process };
-			process.OnRun = [&path] { std::ofstream output{path, std::ios::app}; output << "change"; };
-			expect(std::get<github_wire_error>(duringRead.perform(request, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls + 1U, "post-read metadata drift discards success");
-			gh_cli_transport duringProbe{ *cloud, *configuration, process };
-			expect(std::get<github_capability_probe_wire_error>(duringProbe.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == calls + 2U, "post-probe metadata drift discards success");
-			process.OnRun = { };
-			// Metadata does not contain account/keychain races or same-metadata
-			// edits: record that limitation rather than claiming content identity.
-			gh_cli_transport metadataOnly{ *cloud, *configuration, process };
-			const auto       modified = std::filesystem::last_write_time(path);
-			const auto       size     = std::filesystem::file_size(path);
-			{
-				std::ofstream output{ path };
-				output << std::string(size, 'x');
-			}
-			std::filesystem::last_write_time(path, modified);
-			expect(std::holds_alternative<github_wire_success>(metadataOnly.perform(request, { })), "same-metadata edit remains an explicit uncontained limitation");
-			std::filesystem::remove(path);
+			std::ofstream output{ directory / name };
+			output << "ambient unrelated configuration";
+			output.close();
+			expect(std::holds_alternative<github_wire_success>(pinned.perform(request, { })), "private pinned execution never borrows ambient gh configuration");
 		}
+#endif
 	}
 
 	auto test_detected_configuration_change_refuses_launch() -> void
@@ -1351,7 +1366,7 @@ namespace {
 		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
 		successful_counting_process process;
-		gh_cli_transport            transport{ *cloud, *configuration, process };
+		gh_cli_transport            transport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		const auto                  request = wire_request_for(*cloud, read_operation::get_repository);
 		{
 			std::ofstream changed{ configuration->executable(), std::ios::app };
@@ -1365,7 +1380,7 @@ namespace {
 			.Wire        = *wire,
 		};
 		expect(std::get<github_capability_probe_wire_error>(transport.perform_capability_probe(probe, { })).Error.Failure == application::github_provider_failure::cli_unavailable && process.Calls == 0U, "probe detects executable change too");
-		gh_cli_transport newTransport{ *cloud, *configuration, process };
+		gh_cli_transport newTransport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		std::error_code  error;
 		std::filesystem::create_directory(configuration->neutral_working_directory() / ".git", error);
 		expect(!error, "working directory fixture becomes repository");
@@ -1547,24 +1562,78 @@ namespace {
 	class fixture_mutation_lease final : public application::review_mutation_transport_lease
 	{ };
 
+	void test_strict_acquisition_failures()
+	{
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		auto             candidate     = cloud_candidate();
+		candidate.CliAccountLogin      = "fixture-reviewer";
+		const auto profile             = validate_github_host_profile(candidate);
+		const auto pinned              = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
+		for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::timeout,
+									github_cli_process_failure::process_crash, github_cli_process_failure::reap_failure,
+									github_cli_process_failure::cancelled, github_cli_process_failure::start_failure,
+									github_cli_process_failure::standard_output_limit, github_cli_process_failure::invalid_request }) {
+			successful_counting_process process;
+			process.EnableAcquisition  = true;
+			process.AcquisitionFailure = failure;
+			gh_cli_transport transport{ *profile, *pinned, process };
+			const auto       read  = transport.perform(wire_request_for(*profile, read_operation::get_repository), { });
+			const auto*      error = std::get_if<github_wire_error>(&read);
+			expect(error != nullptr && error->Error.CliCredentialUnavailable == (failure == github_cli_process_failure::nonzero_exit), "only completed named lookup refusal reports credential unavailable on reads");
+			expect((error->Error.Failure == application::github_provider_failure::authentication) == error->Error.CliCredentialUnavailable, "timeout, crash, reap, cancellation and malformed acquisition are tool failures, never authentication");
+			if (failure == github_cli_process_failure::timeout) {
+				expect(error->Error.Failure == application::github_provider_failure::timeout, "read acquisition keeps typed timeout");
+			}
+			const auto              wire    = mutation_request_for(*profile);
+			const auto              request = std::get<application::review_mutation_request>(wire.Wire.Semantic);
+			const auto              binding = *request.LiveBinding;
+			review_mutation_session session{ transport, { .CredentialContext = wire.Context, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity }, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(std::make_shared<fake_recovery_state>()) };
+			const auto              refused  = session.submit(request);
+			const auto              expected = failure == github_cli_process_failure::nonzero_exit ? application::review_mutation_failure::credential_unavailable
+				: failure == github_cli_process_failure::cancelled                                 ? application::review_mutation_failure::cancelled
+																								   : application::review_mutation_failure::credential_tool_failed;
+			expect(!refused && refused.error() == expected && process.Calls == 0U, "inline strict acquisition distinguishes cancellation, credential refusal and tool failure with zero API launches");
+		}
+		for (const auto failure : { github_cli_process_failure::nonzero_exit, github_cli_process_failure::timeout,
+									github_cli_process_failure::process_crash, github_cli_process_failure::reap_failure, github_cli_process_failure::cancelled }) {
+			successful_counting_process process;
+			process.EnableAcquisition = true;
+			process.ProbeFailure      = failure;
+			gh_cli_transport transport{ *profile, *pinned, process };
+			const auto       read  = transport.perform(wire_request_for(*profile, read_operation::get_repository), { });
+			const auto*      error = std::get_if<github_wire_error>(&read);
+			expect(error && !error->Error.CliCredentialUnavailable && error->Error.Failure != application::github_provider_failure::authentication
+					   && process.Acquisitions == 0U && process.Calls == 0U,
+				   "a failed local capability probe never pretends that a named credential is missing");
+		}
+	}
+
 	void test_cli_mutation_session_recovery()
 	{
 		for (const bool mismatch : { false, true }) {
-			temporary_layout                         layout;
-			const auto                               configuration = validate_gh_cli_configuration(configuration_candidate(layout));
-			const auto                               profile       = validate_github_host_profile(cloud_candidate());
-			const auto                               wire          = mutation_request_for(*profile);
-			const auto                               request       = std::get<application::review_mutation_request>(wire.Wire.Semantic);
-			const auto                               binding       = *request.LiveBinding;
+			temporary_layout layout;
+			const auto       configuration                   = validate_gh_cli_configuration(configuration_candidate(layout));
+			auto             candidate                       = cloud_candidate();
+			candidate.CliAccountLogin                        = "fixture-reviewer";
+			const auto                               profile = validate_github_host_profile(candidate);
+			const auto                               pinned  = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
+			std::stop_source                         stop;
+			const auto                               wire    = mutation_request_for(*profile);
+			const auto                               request = std::get<application::review_mutation_request>(wire.Wire.Semantic);
+			const auto                               binding = *request.LiveBinding;
 			const live_review_mutation_configuration sessionConfiguration{ .CredentialContext = wire.Context, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity };
 			auto                                     state = std::make_shared<fake_recovery_state>();
 			successful_counting_process              process;
-			unsigned                                 posts = 0;
-			unsigned                                 gets  = 0;
-			process.OnRun                                  = [&] {
+			process.EnableAcquisition = true;
+			unsigned posts            = 0;
+			unsigned gets             = 0;
+			process.OnRun             = [&] {
 				const auto args = gh_arguments(*process.LastRequest);
 				if (args[6] == "POST") {
 					++posts;
+					process.MissingCredential = true;
+					stop.request_stop();
 					expect(state->Records.at(request.IdempotencyKey).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted, "recovery witness is recorded before actual CLI POST dispatch");
 					expect(process.LastRequest->StandardInput == wire.Wire.Body, "session dispatches canonical inline body via CLI stdin");
 					process.Result = std::unexpected{ github_cli_process_failure::timeout };
@@ -1580,18 +1649,27 @@ namespace {
 				process.Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" + body };
 			};
 			{
-				gh_cli_transport        transport{ *profile, *configuration, process };
+				gh_cli_transport        transport{ *profile, *pinned, process };
 				review_mutation_session session{ transport, sessionConfiguration, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(state) };
-				const auto              result = session.submit(request);
+				const auto              result = session.submit(request, stop.get_token());
 				expect(!result, "mismatch or timed out CLI POST cannot report success");
+				expect(process.Acquisitions == 1U, "one acquisition covers validation, POST and cancellation reconciliation");
 				expect(posts == (mismatch ? 0U : 1U), "observed account mismatch prevents actual CLI POST");
 			}
 			if (mismatch) {
 				continue;
 			}
 			expect(state->Records.at(request.IdempotencyKey).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted, "ambiguous attempt retains possible transmission across session destruction");
-			const auto              previousGets = gets;
-			gh_cli_transport        restartedTransport{ *profile, *configuration, process };
+			expect(process.AcquiredCredential.expired(), "completed operation retains no credential in the session");
+			const auto previousGets = gets;
+			{
+				gh_cli_transport        unavailableTransport{ *profile, *pinned, process };
+				review_mutation_session unavailable{ unavailableTransport, sessionConfiguration, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(state) };
+				const auto              refused = unavailable.submit(request);
+				expect(!refused && refused.error() == application::review_mutation_failure::credential_unavailable && gets == previousGets && posts == 1U, "a later missing credential refuses before API without another POST");
+			}
+			process.MissingCredential = false;
+			gh_cli_transport        restartedTransport{ *profile, *pinned, process };
 			review_mutation_session restarted{ restartedTransport, sessionConfiguration, std::make_shared<fixture_mutation_lease>(), std::make_unique<fake_recovery>(state) };
 			const auto              retried = restarted.submit(request);
 			expect(!retried && gets > previousGets && posts == 1U, "recreated session reconciles via CLI GET without second POST");
@@ -1607,7 +1685,7 @@ namespace {
 			const auto                      configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 			const auto                      profile       = validate_github_host_profile(candidate);
 			successful_counting_process     process;
-			gh_cli_transport                transport{ *profile, *configuration, process };
+			gh_cli_transport                transport{ *profile, scoped_configuration(*configuration, *profile), process, synthetic_operation_credential() };
 			auto                            request         = mutation_request_for(*profile);
 			const auto                      semanticRequest = std::get<application::review_mutation_request>(request.Wire.Semantic);
 			const auto                      binding         = *semanticRequest.LiveBinding;
@@ -1675,7 +1753,7 @@ namespace {
 				expect(std::get<github_mutation_wire_cancelled>(transport.perform_review_mutation(request, stopped.get_token(), witness)).Transmission == github_mutation_transmission::definitely_not_sent && process.Calls == stoppedCalls, "prelaunch cancellation never starts process");
 
 				auto drift = request;
-				drift.Wire.Body += " ";
+				drift.Wire.Body += ' ';
 				const auto calls = process.Calls;
 				expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation(drift, { }, witness)) && calls == process.Calls, "body drift cannot launch");
 				drift                           = request;
@@ -1698,7 +1776,7 @@ namespace {
 			const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 			const auto                  profile       = validate_github_host_profile(candidate);
 			successful_counting_process process;
-			gh_cli_transport            transport{ *profile, *configuration, process };
+			gh_cli_transport            transport{ *profile, scoped_configuration(*configuration, *profile), process, synthetic_operation_credential() };
 			const auto                  base    = mutation_request_for(*profile);
 			const auto                  binding = *std::get<application::review_mutation_request>(base.Wire.Semantic).LiveBinding;
 			for (const auto& [staged, method] : rows) {
@@ -1739,7 +1817,7 @@ namespace {
 				// [[BPR-1368]]. The pending stop edit, and nothing else, goes to the host's GraphQL root.
 				expect((args[1] == "graphql") == (staged == operation::update_pending_comment), "only the pending stop edit uses gh api graphql");
 				expect((std::ranges::find(args, "--input") != args.end()) == body, "only nonempty typed JSON uses --input -");
-				expect(std::ranges::none_of(args, [&](const auto& a) { return a.contains("touch /nope"); }), "shell metacharacters never enter argv or a shell");
+				expect(std::ranges::none_of(args, [&](const auto& aArgument) { return aArgument.contains("touch /nope"); }), "shell metacharacters never enter argv or a shell");
 				expect(std::get<github_mutation_wire_success>(result).Response.Body == "{\"id\":18446744073709551615}", "normalization preserves all integer bytes");
 				for (const auto status : { 301, 401, 403, 422, 429, 503 }) {
 					process.Result    = github_cli_process_success{ .StandardOutput = "HTTP/2.0 " + std::to_string(status) + " status\r\n\r\n{}", .ExitCode = 1 };
@@ -1763,7 +1841,7 @@ namespace {
 		const auto                  configuration = validate_gh_cli_configuration(configuration_candidate(layout));
 		const auto                  cloud         = validate_github_host_profile(cloud_candidate());
 		successful_counting_process process;
-		gh_cli_transport            transport{ *cloud, *configuration, process };
+		gh_cli_transport            transport{ *cloud, scoped_configuration(*configuration, *cloud), process, synthetic_operation_credential() };
 		for (std::uint8_t part = 0U; part < capability_probe_part_count; ++part) {
 			const auto wire = compile_capability_probe_request(*cloud, { }, part);
 			expect(wire.has_value(), "probe compiles");
@@ -2007,12 +2085,12 @@ namespace {
 			output << "github.com:\n    user: MikeMarcin\n";
 		}
 		gh_cli_transport unpinnedTransport{ *cloud, *configuration, process };
-		gh_cli_transport pinnedTransport{ *cloud, *pinned, process };
+		gh_cli_transport pinnedTransport{ *cloud, *pinned, process, synthetic_operation_credential() };
 		{
 			std::ofstream output{ directory / "hosts.yml" };
 			output << "github.com:\n    user: MikeMarcinTest-switched\n";
 		}
-		expect(std::get<github_wire_error>(unpinnedTransport.perform(wire, { })).Error.Failure == application::github_provider_failure::cli_unavailable,
+		expect(std::get<github_wire_error>(unpinnedTransport.perform(wire, { })).Error.Failure == application::github_provider_failure::authentication,
 			   "an unpinned transport refuses once gh's own configuration changes (the account may have switched)");
 		auto pinnedConfiguration = std::string{ };
 		process.OnRun            = [&] {
@@ -2034,6 +2112,7 @@ namespace {
 
 auto main() -> int
 try {
+	test_strict_acquisition_failures();
 	test_cli_mutation_session_recovery();
 	test_mutation_closed_shapes_and_ambiguous_results();
 	test_staged_cli_catalog();
@@ -2047,6 +2126,12 @@ try {
 	test_full_inventory_lists_every_account();
 	test_pinned_launch_gets_a_private_configuration();
 	test_auth_status_inventory_is_token_free_bounded_and_fail_closed();
+	for (const std::string_view host : { "github.com", "sub.github.com", "github.localhost", "sub.github.localhost", "tenant.ghe.com", "api.tenant.ghe.com" }) {
+		expect(gh_cli_credential_environment(host) == cli_credential_environment::github, "stock-gh public/tenancy host classes use the selected GH_TOKEN");
+	}
+	for (const std::string_view host : { "ghe.com", "github.example.com", "ghe.example.com", "github.com.example.com" }) {
+		expect(gh_cli_credential_environment(host) == cli_credential_environment::enterprise, "stock-gh enterprise classes use selected GH_ENTERPRISE_TOKEN");
+	}
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();
 	test_completed_http_errors_preserve_provider_evidence();

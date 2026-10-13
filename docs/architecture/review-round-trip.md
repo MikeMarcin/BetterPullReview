@@ -1053,3 +1053,42 @@ owner's revision check, undo journal and request receipts serve the desktop
 and `bpr tour` alike. The Qt controls are BPR-1083's. The headless
 comment-draft command is BPR-1092's; until it lands, an ordinary comment draft
 has no CLI path.
+
+## Strict CLI ordinary publication (RFC-BPR-0079)
+
+A deliberate Comment, Approve, Request changes or inline Publish checks the exact
+current actor, host, repository, PR, head and prepared content before issuing its
+one-use grant. CLI admission requires the retained wire's strict acquisition
+capability; provider admission repeats that gate. Whole-review and inline paths
+repeat current admission after asynchronous durable draft/comment holding,
+immediately before grant issuance. Read trust, discovery and remembered startup
+supply no publication authority. Tour Publish/Resume retains its immutable preview
+and separate description choice, without an additional CLI modal.
+
+`credential_unavailable` means the chosen credential is absent or inaccessible;
+`credential_tool_failed` means the tool failed before publication dispatch.
+Both keep the draft and name the failed operation's account/host in the existing
+status. The latter comes directly from acquisition, without collapsing through
+an account-observation wrapper. Generic cancellation and attempted unknown
+outcomes retain their existing recovery semantics. Unknown writes reconcile
+GET-only, never a second POST. Prior staged/partial tour records survive a fresh
+acquisition refusal; their status says no further publication rather than
+claiming that earlier successful writes did not occur. Confirmed receipts and
+unknown journal outcomes take precedence over a fresh failure.
+
+Inline draft completion combines typed prior/current publication knowledge in
+core. A retained publishing draft represents an unconfirmed earlier attempt;
+a retry refused during strict admission or the coordinator's target observation
+cannot return it to editable drafting. The host keeps its exact body, anchor,
+durable revision and retry identity even when that check never reaches journal
+loading. The status describes the earlier result as unknown and separately names
+the current credential/tool/cancellation/capability refusal. A fresh credential
+refusal keeps an editable draft. Only an exact confirmed receipt resolves the
+locked unknown draft; restored credentials use the existing same-key GET-only
+reconciliation without another ordinary comment POST.
+
+The native inline status uses its measured wrapping height at the current card
+width. Changed notice content invalidates editor/footer/card measurements; native
+layout requests notify the existing drawer height callback. This updates preferred
+height without rebuilding the card or model, moving focus, or changing the locked
+publication state.

@@ -544,7 +544,7 @@ separate platform/release obligations retain their scope.
 | [RFC-BPR-0070](RFC-BPR-0070-preserve-home-waiting.md) | Keep authored pull requests waiting on others visible on Home | Auto-Verified | RFC-BPR-0069, RFC-BPR-0066 |
 | [RFC-BPR-0071](RFC-BPR-0071-remember-cli-connections.md) | Remember the chosen GitHub CLI connection across launches | Auto-Verified | None |
 
-| [RFC-BPR-0072](RFC-BPR-0072-cpp-identifier-context.md) | Context-aware C++ namespace and enum highlighting | In Progress | RFC-BPR-0006, RFC-BPR-0034 |
+| [RFC-BPR-0072](RFC-BPR-0072-cpp-identifier-context.md) | Context-aware C++ namespace and enum highlighting | Auto-Verified | RFC-BPR-0006, RFC-BPR-0034 |
 
 | [RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) | Smooth diff touchpad panning without accidental vertical steps | Auto-Verified | RFC-BPR-0004, RFC-BPR-0005 |
 
@@ -566,7 +566,7 @@ Imported under `find-and-find-in-files-v1-r1`; [source and mapping](assets/find-
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0078](RFC-BPR-0078-strict-cli-account-credentials.md) | Use the chosen GitHub CLI account without credential fallback | Proposed | None |
-| [RFC-BPR-0079](RFC-BPR-0079-remove-cli-publication-warning.md) | Publish through the chosen CLI account without a second warning popup | Proposed | RFC-BPR-0078 |
+| [RFC-BPR-0078](RFC-BPR-0078-strict-cli-account-credentials.md) | Use the chosen GitHub CLI account without credential fallback | Auto-Verified | None |
+| [RFC-BPR-0079](RFC-BPR-0079-remove-cli-publication-warning.md) | Publish through the chosen CLI account without a second warning popup | Auto-Verified | RFC-BPR-0078 |
 
 Owner mandate `strict-cli-publication-r1` selects this order. [Import and provenance](assets/strict-cli-account-publication-v1.LIVE_IMPORT.md); [plan](plans/strict-cli-account-publication-v1/milestone-plan.json). Historical tokenless and per-write-warning evidence retains its original scope.

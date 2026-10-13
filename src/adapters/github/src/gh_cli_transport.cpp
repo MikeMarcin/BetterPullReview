@@ -55,20 +55,20 @@ namespace glz {
 	template <>
 	struct meta<bpr::adapters::github::detail::auth_status_json_detail::account>
 	{
-		using T                     = bpr::adapters::github::detail::auth_status_json_detail::account;
+		using value_type            = bpr::adapters::github::detail::auth_status_json_detail::account;
 		static constexpr auto value = object(
-			"active", &T::Active,
-			"host", &T::Host,
-			"login", &T::Login,
-			"state", &T::State,
-			"tokenSource", &T::TokenSource);
+			"active", &value_type::Active,
+			"host", &value_type::Host,
+			"login", &value_type::Login,
+			"state", &value_type::State,
+			"tokenSource", &value_type::TokenSource);
 	};
 
 	template <>
 	struct meta<bpr::adapters::github::detail::auth_status_json_detail::document>
 	{
-		using T                     = bpr::adapters::github::detail::auth_status_json_detail::document;
-		static constexpr auto value = object("hosts", &T::Hosts);
+		using value_type            = bpr::adapters::github::detail::auth_status_json_detail::document;
+		static constexpr auto value = object("hosts", &value_type::Hosts);
 	};
 }
 
@@ -765,7 +765,7 @@ namespace bpr::adapters::github::detail {
 
 	auto run_gh_cli(
 		github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
-		github_cli_process_request aRequest, const std::stop_token aStop) -> github_cli_process_result
+		github_cli_process_request aRequest, const std::stop_token aStop, cli_transient_credential aCredential) -> github_cli_process_result
 	{
 		if (std::ranges::any_of(aRequest.Environment, [](const github_cli_process_environment_entry& aEntry) {
 				return aEntry.Name == "GH_CONFIG_DIR";
@@ -773,21 +773,97 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected{ github_cli_process_failure::invalid_request };
 		}
 		if (!aConfiguration.Pin) {
+			if (aCredential) {
+				return std::unexpected{ github_cli_process_failure::invalid_request };
+			}
 			return aProcess.run(aRequest, aStop);
 		}
 #if defined(_WIN32)
 		static_cast<void>(aStop);
 		return std::unexpected{ github_cli_process_failure::start_failure };
 #else
-		const private_account_directory directory{ aConfiguration.NeutralWorkingDirectory, *aConfiguration.Pin };
-		if (!directory.valid()) {
+		const auto directory = std::make_shared<private_account_directory>(aConfiguration.NeutralWorkingDirectory, *aConfiguration.Pin);
+		if (!directory->valid()) {
 			return std::unexpected{ github_cli_process_failure::start_failure };
 		}
-		append_environment(aRequest.Environment, "GH_CONFIG_DIR", path_bytes(directory.path()));
+		append_environment(aRequest.Environment, "GH_CONFIG_DIR", path_bytes(directory->path()));
 		if (!bounded_environment(aRequest.Environment)) {
 			return std::unexpected{ github_cli_process_failure::invalid_request };
 		}
+		if (aCredential) {
+			struct launch_owner
+			{
+				cli_transient_credential                   Secret;
+				std::shared_ptr<private_account_directory> Directory;
+			};
+			auto owner       = std::make_shared<launch_owner>();
+			owner->Secret    = std::move(aCredential);
+			owner->Directory = directory;
+			const cli_transient_credential retained{ owner, owner->Secret.get() };
+			return aProcess.run_credentialed(aRequest, retained, gh_cli_credential_environment(aConfiguration.Pin->Hostname), aStop);
+		}
 		return aProcess.run(aRequest, aStop);
+#endif
+	}
+
+	auto gh_cli_credential_environment(std::string_view aHostname) noexcept -> cli_credential_environment
+	{
+		// cli/go-gh v2.16.1 auth.NormalizeHostname/tokenForHost. These host
+		// classes are independent of the provider's GitHub.com/GHES routes.
+		return aHostname == "github.com" || aHostname.ends_with(".github.com")
+				|| aHostname == "github.localhost" || aHostname.ends_with(".github.localhost") || aHostname.ends_with(".ghe.com")
+			? cli_credential_environment::github
+			: cli_credential_environment::enterprise;
+	}
+
+	auto acquire_gh_cli_credential(github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration, std::stop_token aStop) -> gh_cli_credential_result
+	{
+		if (!aConfiguration.Pin) {
+			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::invalid_request } };
+		}
+		const auto version = run_gh_cli(aProcess, aConfiguration, compile_gh_cli_version_request(aConfiguration), aStop);
+		if (!version) {
+			return std::unexpected{ gh_cli_credential_error{ version.error() } };
+		}
+		if (!supported_gh_cli_version(version->StandardOutput)) {
+			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
+		}
+		for (const auto topic : gh_cli_required_help_topics) {
+			const auto help = run_gh_cli(aProcess, aConfiguration, compile_gh_cli_help_request(aConfiguration, topic), aStop);
+			if (!help) {
+				return std::unexpected{ gh_cli_credential_error{ help.error() } };
+			}
+			if (!gh_cli_help_admits(topic, help->StandardOutput)) {
+				return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
+			}
+		}
+#if defined(_WIN32)
+		return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
+#else
+		const auto directory = std::make_shared<private_account_directory>(aConfiguration.NeutralWorkingDirectory, *aConfiguration.Pin);
+		if (!directory->valid()) {
+			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
+		}
+		auto request = constrain_gh_writes(github_cli_process_request{
+			.Executable          = path_bytes(aConfiguration.Executable),
+			.Arguments           = { "auth", "token", "--hostname", aConfiguration.Pin->Hostname, "--user", aConfiguration.Pin->Login },
+			.Environment         = aConfiguration.Environment,
+			.WorkingDirectory    = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInputLimit  = 1U,
+			.StandardOutputLimit = cli_sensitive_bytes::capacity,
+			.StandardErrorLimit  = 2048U,
+			.Timeout             = std::chrono::seconds{ 10 },
+			.ReapTimeout         = process_reap_timeout,
+		});
+		append_environment(request.Environment, "GH_CONFIG_DIR", path_bytes(directory->path()));
+		if (!bounded_environment(request.Environment)) {
+			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::invalid_request } };
+		}
+		auto acquired = aProcess.acquire_sensitive(request, aStop, directory);
+		if (!acquired) {
+			return std::unexpected{ gh_cli_credential_error{ acquired.error(), acquired.error() == github_cli_process_failure::nonzero_exit } };
+		}
+		return *acquired;
 #endif
 	}
 
@@ -1083,6 +1159,7 @@ namespace bpr::adapters::github::detail {
 	{
 		std::vector<std::string> arguments;
 		switch (aTopic) {
+		case gh_cli_help_topic::auth_token:          arguments = { "auth", "token", "--help" }; break;
 		case gh_cli_help_topic::api:                 arguments = { "api", "--help" }; break;
 		case gh_cli_help_topic::repo_clone:          arguments = { "repo", "clone", "--help" }; break;
 		case gh_cli_help_topic::auth_git_credential: arguments = { "auth", "git-credential", "--help" }; break;
@@ -1136,6 +1213,8 @@ namespace bpr::adapters::github::detail {
 			});
 		};
 		switch (aTopic) {
+		case gh_cli_help_topic::auth_token:
+			return option("hostname") && option("user") && usage("gh auth token", "[flags]");
 		case gh_cli_help_topic::api:
 			return option("hostname") && option("include") && option("method") && option("header") && option("input");
 		case gh_cli_help_topic::repo_clone:
@@ -1490,10 +1569,11 @@ namespace bpr::adapters::github::detail {
 	gh_cli_transport::gh_cli_transport(
 		const validated_github_host_profile&  aProfile,
 		const validated_gh_cli_configuration& aConfiguration,
-		github_cli_process_port&              aProcess)
+		github_cli_process_port& aProcess, cli_transient_credential aCredential)
 		: Profile{ aProfile }
 		, Configuration{ aConfiguration }
 		, Process{ aProcess }
+		, Credential{ std::move(aCredential) }
 	{
 		for (const auto& entry : Configuration.Environment) {
 #if defined(_WIN32)
@@ -1514,6 +1594,54 @@ namespace bpr::adapters::github::detail {
 		}
 		ExecutableWriteTime   = std::filesystem::last_write_time(Configuration.executable(), error);
 		ConfigurationObserved = !error;
+	}
+
+	auto gh_cli_transport::acquire_operation(std::stop_token aStop)
+		-> std::expected<std::shared_ptr<gh_cli_transport>, gh_cli_credential_error>
+	{
+		if (Credential) {
+			return std::shared_ptr<gh_cli_transport>{ };
+		}
+		if (!Configuration.pin() || Configuration.pin()->Hostname != Profile.hostname()
+			|| Configuration.pin()->Login != Profile.cli_account_login() || !configuration_unchanged()) {
+			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::invalid_request } };
+		}
+		try {
+			auto secret = acquire_gh_cli_credential(Process, Configuration, aStop);
+			if (!secret) {
+				return std::unexpected{ secret.error() };
+			}
+			return std::make_shared<gh_cli_transport>(Profile, Configuration, Process, std::move(*secret));
+		} catch (...) {
+			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
+		}
+	}
+	auto gh_cli_transport::begin_operation(std::stop_token aStop) -> github_wire_operation
+	{
+		if (!Credential && (!Configuration.pin() || Configuration.pin()->Hostname != Profile.hostname() || Configuration.pin()->Login != Profile.cli_account_login() || !configuration_unchanged())) {
+			return std::unexpected{ application::github_provider_error{ .Failure = application::github_provider_failure::authentication } };
+		}
+		auto scope = acquire_operation(aStop);
+		if (!scope) {
+			const bool credentialUnavailable = scope.error().CredentialUnavailable;
+			auto       error                 = application::github_provider_error{ .Failure = credentialUnavailable
+																					   ? application::github_provider_failure::authentication
+																					   : process_failure(scope.error().Failure) };
+			error.CliCredentialUnavailable   = credentialUnavailable;
+			return std::unexpected{ error };
+		}
+		return *scope;
+	}
+	auto gh_cli_transport::begin_mutation_operation(std::stop_token aStop) -> github_mutation_operation
+	{
+		auto scope = acquire_operation(aStop);
+		if (!scope) {
+			if (scope.error().Failure == github_cli_process_failure::cancelled) {
+				return std::unexpected{ application::review_mutation_failure::cancelled };
+			}
+			return std::unexpected{ scope.error().CredentialUnavailable ? application::review_mutation_failure::credential_unavailable : application::review_mutation_failure::credential_tool_failed };
+		}
+		return *scope;
 	}
 
 	auto gh_cli_transport::observe_configuration_files() const
@@ -1613,6 +1741,13 @@ namespace bpr::adapters::github::detail {
 		const github_wire_request& aRequest,
 		const std::stop_token      aStop) -> github_wire_completion
 	{
+		if (!Credential) {
+			auto scope = begin_operation(aStop);
+			if (!scope) {
+				return github_wire_error{ .Correlation = aRequest.Correlation, .Error = scope.error() };
+			}
+			return (*scope)->perform(aRequest, aStop);
+		}
 		if (aStop.stop_requested()) {
 			return github_wire_cancelled{
 				.Correlation = aRequest.Correlation,
@@ -1633,7 +1768,7 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
-		const auto result = run_gh_cli(Process, Configuration, *invocation, aStop);
+		const auto result = run_gh_cli(Process, Configuration, *invocation, aStop, Credential);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}
@@ -1660,6 +1795,13 @@ namespace bpr::adapters::github::detail {
 		const github_mutation_wire_request& aRequest, const std::stop_token aStop,
 		github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion
 	{
+		if (!Credential) {
+			auto scope = begin_mutation_operation(aStop);
+			if (!scope) {
+				return github_mutation_wire_error{ };
+			}
+			return (*scope)->perform_review_mutation(aRequest, aStop, std::move(aWitness));
+		}
 		using transmission = github_mutation_transmission;
 		if (aStop.stop_requested()) {
 			return github_mutation_wire_cancelled{ };
@@ -1763,7 +1905,7 @@ namespace bpr::adapters::github::detail {
 			return github_mutation_wire_error{ };
 		}
 		const auto sent   = writes ? transmission::indeterminate : transmission::definitely_not_sent;
-		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop);
+		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_mutation_wire_cancelled{ .Transmission = sent };
 		}
@@ -1783,6 +1925,13 @@ namespace bpr::adapters::github::detail {
 		const github_capability_probe_wire_request& aRequest,
 		const std::stop_token                       aStop) -> github_capability_probe_wire_completion
 	{
+		if (!Credential) {
+			auto scope = begin_operation(aStop);
+			if (!scope) {
+				return github_capability_probe_wire_error{ .Correlation = aRequest.Correlation, .Error = scope.error() };
+			}
+			return (*scope)->perform_capability_probe(aRequest, aStop);
+		}
 		const auto error = [&aRequest](const application::github_provider_failure aFailure) {
 			return github_capability_probe_wire_error{
 				.Correlation = aRequest.Correlation,
@@ -1818,7 +1967,7 @@ namespace bpr::adapters::github::detail {
 		}
 		invocation.Arguments.emplace_back("--input");
 		invocation.Arguments.emplace_back("-");
-		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop);
+		const auto result = run_gh_cli(Process, Configuration, constrain_gh_writes(std::move(invocation)), aStop, Credential);
 		if (aStop.stop_requested() || (!result && result.error() == github_cli_process_failure::cancelled)) {
 			return github_capability_probe_wire_cancelled{ .Correlation = aRequest.Correlation };
 		}

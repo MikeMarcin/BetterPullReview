@@ -1,0 +1,33 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC01",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": {
+        "kind": "observation",
+        "detail": "All RFC0079 AC01-AC05: criterion map in durable M4 evidence; focused current/reused public-path evidence and final docs gate."
+      }
+    },
+    {
+      "criterion": "AC02",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": {
+        "kind": "artifact",
+        "detail": "Independent critical tests-only and successor receipts; accepted unchanged M3 implementation P1/P2 disposition."
+      }
+    },
+    {
+      "criterion": "AC03",
+      "outcome": "pass",
+      "revision": "ff1143b5b3dd8d312e247eb37cc23237a8539b54",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Offscreen/native focused evidence reused with original limits. No new required owner look. Main-only terminal metadata deferred honestly to actual monitor landing."
+      }
+    }
+  ]
+}

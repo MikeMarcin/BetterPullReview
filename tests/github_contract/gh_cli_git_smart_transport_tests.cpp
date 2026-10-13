@@ -56,17 +56,18 @@ namespace {
 	[[nodiscard]] auto cloud_candidate() -> github_host_profile_candidate
 	{
 		return {
-			.Profile        = core::host_profile_id{ 11 },
-			.Host           = core::git_host_id{ 21 },
-			.Revision       = application::github_profile_revision{ 31 },
-			.Server         = application::github_server_contract::github_com_2022_11_28,
-			.Authentication = application::github_authentication_transport::github_cli,
-			.Proxy          = application::github_proxy_mode::system,
-			.Trust          = application::github_trust_mode::system,
-			.Provenance     = github_profile_provenance::builtin,
-			.Hostname       = "github.com",
-			.RestRoot       = "https://api.github.com",
-			.GraphqlRoot    = "https://api.github.com/graphql",
+			.Profile         = core::host_profile_id{ 11 },
+			.Host            = core::git_host_id{ 21 },
+			.Revision        = application::github_profile_revision{ 31 },
+			.Server          = application::github_server_contract::github_com_2022_11_28,
+			.Authentication  = application::github_authentication_transport::github_cli,
+			.Proxy           = application::github_proxy_mode::system,
+			.Trust           = application::github_trust_mode::system,
+			.Provenance      = github_profile_provenance::builtin,
+			.Hostname        = "github.com",
+			.RestRoot        = "https://api.github.com",
+			.GraphqlRoot     = "https://api.github.com/graphql",
+			.CliAccountLogin = "fixture",
 		};
 	}
 
@@ -273,6 +274,16 @@ namespace {
 
 	[[nodiscard]] auto resolved_account(const std::filesystem::path& aRoot) -> std::optional<fixture_account>
 	{
+		const auto token = QProcessEnvironment::systemEnvironment().value(QStringLiteral("GH_TOKEN")).toStdString();
+		if (!token.empty()) {
+			for (const auto& entry : std::filesystem::directory_iterator{ aRoot }) {
+				const auto filename = entry.path().filename().string();
+				if (filename.starts_with("issued-") && read_text(entry.path()) == token) {
+					return fixture_account_named(aRoot, filename.substr(7U));
+				}
+			}
+			return std::nullopt;
+		}
 		auto       login     = read_text(aRoot / "active-account").value_or("");
 		const auto directory = QProcessEnvironment::systemEnvironment().value(QStringLiteral("GH_CONFIG_DIR"));
 		if (!directory.isEmpty()) {
@@ -303,8 +314,7 @@ namespace {
 		};
 		const auto environment = QProcessEnvironment::systemEnvironment();
 		for (const auto& name : environment.keys()) {
-			if (name == "GH_TOKEN" || name == "GITHUB_TOKEN" || name == "GH_ENTERPRISE_TOKEN" || name == "GITHUB_ENTERPRISE_TOKEN"
-				|| carries(environment.value(name))) {
+			if (name != "GH_TOKEN" && name != "GH_ENTERPRISE_TOKEN" && (name == "GITHUB_TOKEN" || name == "GITHUB_ENTERPRISE_TOKEN" || carries(environment.value(name)))) {
 				return 13;
 			}
 		}
@@ -394,6 +404,8 @@ namespace {
 				std::cout << "FLAGS\n  -H, --header key:value\n      --hostname string\n  -i, --include\n      --input file\n  -X, --method string\n";
 			} else if (topic == "repo-clone") {
 				std::cout << "USAGE\n  gh repo clone <repository> [<directory>] [-- <gitflags>...]\n\nFLAGS\n      --no-upstream   Do not add an upstream remote\n";
+			} else if (topic == "auth-token") {
+				std::cout << "USAGE\n  gh auth token [flags]\nFLAGS\n  -h, --hostname string\n  -u, --user string\n";
 			} else if (topic == "auth-git-credential") {
 				std::cout << "USAGE\n  gh auth git-credential [flags]\n";
 			} else {
@@ -412,6 +424,24 @@ namespace {
 				std::cout << "gh version 2.100.0 (fixture)\n";
 			}
 			return 0;
+		}
+		if (aArguments.size() == 7 && aArguments[1] == "auth" && aArguments[2] == "token" && aArguments[3] == "--hostname" && aArguments[5] == "--user") {
+			const auto secret = accountMode ? read_text(root / ("keychain-" + aArguments[6].toStdString())) : std::optional<std::string>{ "synthetic-fixture-credential" };
+			if (!secret) {
+				return 1;
+			}
+			std::cout << *secret << '\n';
+			return 0;
+		}
+		if (aArguments.size() > 2 && (aArguments[1] == "api" || aArguments[1] == "repo")) {
+			const auto hostAt = aArguments.indexOf("--hostname");
+			const auto host   = hostAt >= 0 ? aArguments[hostAt + 1].toStdString()
+				: aArguments[1] == "repo"   ? aArguments[3].mid(8).section('/', 0, 0).toStdString()
+											: std::string{ "github.com" };
+			const auto name   = gh_cli_credential_environment(host) == cli_credential_environment::github ? "GH_TOKEN" : "GH_ENTERPRISE_TOKEN";
+			if (qEnvironmentVariable(name).isEmpty()) {
+				return 17;
+			}
 		}
 		if (aArguments.size() > 2 && aArguments[1] == "api" && aArguments[2].contains("/git/blobs/")) {
 			if (std::filesystem::exists(root / "wait-blob")) {
@@ -685,6 +715,27 @@ namespace {
 			return result;
 		}
 
+		auto acquire_sensitive(const github_cli_process_request& aRequest, std::stop_token aStop, std::shared_ptr<const void> aLifetime) -> cli_sensitive_result override
+		{
+			return Inner->acquire_sensitive(aRequest, aStop, std::move(aLifetime));
+		}
+		auto run_credentialed(const github_cli_process_request& aRequest, cli_transient_credential aCredential, cli_credential_environment aEnvironment, std::stop_token aStop) -> github_cli_process_result override
+		{
+			const auto  result = Inner->run_credentialed(aRequest, std::move(aCredential), aEnvironment, aStop);
+			std::string facts;
+			for (const auto& argument : aRequest.Arguments) {
+				facts += argument + '\n';
+			}
+			for (const auto& entry : aRequest.Environment) {
+				facts += entry.Name + '=' + entry.Value + '\n';
+			}
+			if (result) {
+				facts += result->StandardOutput;
+			}
+			recorded_launches().push_back(std::move(facts));
+			return result;
+		}
+
 	private:
 		std::unique_ptr<github_cli_process_port> Inner;
 	};
@@ -709,6 +760,8 @@ namespace {
 		{
 			return Transport.perform(aRequest, aStop);
 		}
+		auto strict_cli() const noexcept -> bool override { return true; }
+		auto begin_operation(std::stop_token aStop) -> github_wire_operation override { return Transport.begin_operation(aStop); }
 		auto supports_sparse_commit_trees() const noexcept -> bool override { return true; }
 		auto acquire(const application::git_smart_request_context& aContext)
 			-> application::git_smart_transport_result<application::git_smart_transport> override
@@ -828,7 +881,7 @@ namespace {
 		const auto read      = [&](application::git_smart_transport& aTransport, const core::git_blob_oid& aBlob) {
 			return aTransport->read_exact_blob({ aContext, aBlob, application::maximum_git_exact_blob_bytes }, { });
 		};
-		const auto as_text = [](const std::vector<std::byte>& aBytes) {
+		const auto asText = [](const std::vector<std::byte>& aBytes) {
 			return std::string{ reinterpret_cast<const char*>(aBytes.data()), aBytes.size() };
 		};
 		write(aRoot / "graphql-from-store", "1");
@@ -844,14 +897,13 @@ namespace {
 			const auto rightBytes = read(*transport, right);
 			const auto open       = launches.take();
 			std::cout << "cold open of a text file: sign-in " << signIn << " gh processes, both sides " << open << " gh processes\n";
-			expect(leftBytes && as_text(*leftBytes) == leftText && rightBytes && as_text(*rightBytes) == rightText,
+			expect(leftBytes && asText(*leftBytes) == leftText && rightBytes && asText(*rightBytes) == rightText,
 				   "both sides of a cold open read their verified text through the account lease");
-			expect(open == 2U, "a cold open of a text file takes one gh process a side: the GraphQL answer names its account, "
-							   "so no gh api user call brackets either read (ten before [[BPR-1370]])");
+			expect(open == 14U, "each side acquires its exact credential after five local probes, then makes one self-identifying GraphQL read");
 			write(aRoot / "fail-viewer", "1");
 			const auto unobserved = read(*transport, left);
 			std::filesystem::remove(aRoot / "fail-viewer");
-			expect(unobserved && as_text(*unobserved) == leftText && launches.take() == 1U,
+			expect(unobserved && asText(*unobserved) == leftText && launches.take() == 7U,
 				   "a text read makes no separate account observation: it reads while every gh api user call fails");
 
 			// A binary side keeps the REST read and both pairs of observations.
@@ -860,13 +912,13 @@ namespace {
 			const auto binary         = read(*transport, right);
 			const auto binaryLaunches = launches.take();
 			std::cout << "binary side: " << binaryLaunches << " gh processes\n";
-			expect(binary && as_text(*binary) == rightText && binaryLaunches == 6U,
+			expect(binary && asText(*binary) == rightText && binaryLaunches == 10U,
 				   "a binary blob falls back to the REST read: one GraphQL attempt, then the read between its "
-				   "account observations (two by the lease, two by the transport)");
+				   "account observations, sharing the one acquisition across GraphQL and REST");
 			write(aRoot / "fail-viewer", "1");
 			const auto binaryUnobserved = read(*transport, right);
 			std::filesystem::remove(aRoot / "fail-viewer");
-			expect(!binaryUnobserved && launches.take() == 2U, "the REST fallback is still refused when its account cannot be observed");
+			expect(!binaryUnobserved && launches.take() == 8U, "the REST fallback is still refused when its account cannot be observed");
 			std::filesystem::remove(aRoot / ("binary-" + aRight.toStdString()));
 			write(aRoot / ("text-" + aRight.toStdString()), rightText);
 		}
@@ -880,7 +932,7 @@ namespace {
 			std::filesystem::remove(aRoot / "graphql-viewer");
 			expect(!refused && refused.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(),
 				   "a text read whose answer names another account or login is refused and revokes the read");
-			expect(launches.take() == 1U, "the refused read made one gh process and did not fall back to REST");
+			expect(launches.take() == 7U, "the refused read acquired once and made one API process and did not fall back to REST");
 			const auto again = read(*transport, left);
 			expect(!again && launches.take() == 0U, "the refused lease reads nothing more, even with the account back");
 			expect(!lease.Git->supports_sparse_commit_trees() && !lease.Git->acquire(aContext).has_value(),
@@ -893,8 +945,8 @@ namespace {
 
 	/// [[BPR-1373]]. A pinned CLI profile over a fixture gh holding three
 	/// accounts: each read stays on the pinned account while gh's active
-	/// account switches, the clone is pinned too, and gh's silent fallback to
-	/// the active account is refused rather than read through.
+	/// account switches, the clone inherits the chosen credential, and a missing
+	/// named credential refuses before API or helper launch.
 	void pinned_account_course(const std::filesystem::path& aRoot, const validated_github_host_profile& aUnpinnedProfile,
 							   const validated_gh_cli_configuration& aConfiguration, const core::github_session_request_context& aSession,
 							   const application::git_smart_request_context& aContext, const QByteArray& aBlob)
@@ -905,10 +957,14 @@ namespace {
 		write(aRoot / "keychain-owner", canaries[0]);
 		write(aRoot / "keychain-tester", canaries[1]);
 		write(aRoot / "keychain-other", canaries[2]);
+		write(aRoot / "issued-owner", canaries[0]);
+		write(aRoot / "issued-tester", canaries[1]);
+		write(aRoot / "issued-other", canaries[2]);
 		write(aRoot / "active-account", "owner");
 		write(aRoot / "graphql-from-store", "1");
 		write(aRoot / ("text-" + aBlob.toStdString()), "complete local contents\n");
 		recorded_launches().clear();
+		launch_counter launches{ aRoot };
 
 		auto candidate            = cloud_candidate();
 		candidate.CliAccountLogin = "tester";
@@ -958,31 +1014,33 @@ namespace {
 		std::filesystem::remove(aRoot / "clone-login");
 		write(aRoot / "active-account", "tester");
 		{
-			cli_account_lease lease{ aUnpinnedProfile, aConfiguration, aSession, "tester" };
-			auto              transport = lease.Git->acquire(aContext);
-			expect(transport && read(*transport), "an unpinned lease reads as gh's active account");
-			write(aRoot / "active-account", "owner");
-			const auto switched = read(*transport);
-			expect(!switched && switched.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(),
-				   "an unpinned lease is refused when gh's active account switches (the behaviour before)");
+			auto             process = make_github_cli_process_runner();
+			gh_cli_transport legacy{ aUnpinnedProfile, aConfiguration, *process };
+			expect(!legacy.begin_operation({ }), "an old unpinned connection cannot acquire any authenticated operation");
 		}
 
-		// gh's silent fallback: the pinned login has left the keychain, so gh
-		// answers as the active account. The viewer check refuses it.
+		// Named acquisition fails after sign-out before API or helper launch,
+		// even though another stored credential remains usable.
 		write(aRoot / "require-pin", "1");
 		{
 			cli_account_lease lease{ *profile, *pinned, aSession, "tester" };
 			auto              transport = lease.Git->acquire(aContext);
 			expect(transport && read(*transport), "a pinned lease reads before its account signs out");
+			static_cast<void>(launches.take());
 			std::filesystem::remove(aRoot / "keychain-tester");
 			const auto fallback = read(*transport);
-			expect(!fallback && fallback.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked()
-					   && !lease.Git->acquire(aContext),
-				   "a read gh answers as the active account after a silent fallback is refused, and refuses the lease");
+			expect(!fallback && fallback.error().Failure == application::git_smart_transport_failure::authentication,
+				   "missing named acquisition refuses the read without trying the usable active credential");
+			expect(launches.take() == 6U, "missing selected credential launches only five local probes and named acquisition, with zero API or helper launches");
 			const auto  signIn = lease.sign_in(*profile, aSession);
 			const auto* error  = signIn ? std::get_if<application::github_viewer_error>(&*signIn) : nullptr;
-			expect(error && error->Error.Failure == application::github_provider_failure::authentication && error->Error.AccountMismatch,
-				   "signing in again while the account is signed out in gh is refused as a mismatch, never as the active account");
+			expect(error && error->Error.Failure == application::github_provider_failure::authentication && error->Error.CliCredentialUnavailable,
+				   "signing in again reports selected credential unavailable without using the active account");
+			expect(launches.take() == 6U, "failed connection validation makes no API request after named acquisition fails");
+			write(aRoot / "keychain-tester", canaries[0]);
+			const auto  mislabelled = lease.sign_in(*profile, aSession);
+			const auto* wrongSecret = mislabelled ? std::get_if<application::github_viewer_error>(&*mislabelled) : nullptr;
+			expect(wrongSecret && wrongSecret->Error.AccountMismatch, "a credential stored under the chosen login but belonging to another identity is refused");
 			write(aRoot / "keychain-tester", canaries[1]);
 			const auto again = lease.sign_in(*profile, aSession);
 			expect(again && std::holds_alternative<application::github_viewer_success>(*again), "signed back in, the pinned profile signs in again");
@@ -995,18 +1053,18 @@ namespace {
 		}
 		expect(leftovers() == 0U, "refused and fallen-back launches removed their private configurations too");
 
-		auto launches = 0U;
+		auto recorded = 0U;
 		for (const auto& text : recorded_launches()) {
-			++launches;
+			++recorded;
 			for (const auto& canary : canaries) {
 				expect(text.find(canary) == std::string::npos, "no keychain token appears in a launch's arguments, environment, input or output");
 			}
 			expect(text.find("GH_TOKEN") == std::string::npos && text.find("GITHUB_TOKEN") == std::string::npos,
-				   "no launch sets a token variable");
+				   "generic launch records contain no token-variable entry");
 		}
-		expect(launches > 0U, "the lease's launches were recorded");
-		std::cout << "pinned account course: " << launches << " lease launches recorded, none carrying a token\n";
-		for (const auto* name : { "accounts", "keychain-owner", "keychain-tester", "keychain-other", "active-account", "graphql-from-store", "require-pin" }) {
+		expect(recorded > 0U, "the lease's launches were recorded");
+		std::cout << "pinned account course: " << recorded << " lease launches recorded, none carrying a token\n";
+		for (const auto* name : { "accounts", "keychain-owner", "keychain-tester", "keychain-other", "issued-owner", "issued-tester", "issued-other", "active-account", "graphql-from-store", "require-pin" }) {
 			std::filesystem::remove(aRoot / name);
 		}
 		std::filesystem::remove(aRoot / ("text-" + aBlob.toStdString()));
@@ -1043,7 +1101,8 @@ namespace {
 		std::filesystem::copy_file(QCoreApplication::applicationFilePath().toStdString(), syntheticGit);
 		std::filesystem::permissions(syntheticGit, std::filesystem::perms::owner_all);
 		write(root / "git-version", "git version 2.54.0 (Apple Git-157)\n");
-		const auto configuration = validate_gh_cli_configuration({ .Executable = executable, .NeutralWorkingDirectory = root / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = root / "home" }, .Https = { } });
+		const auto unpinnedConfiguration = validate_gh_cli_configuration({ .Executable = executable, .NeutralWorkingDirectory = root / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = root / "home" }, .Https = { } });
+		const auto configuration         = pin_gh_cli_configuration(*unpinnedConfiguration, "github.com", "fixture");
 		expect(configuration.has_value(), "configuration");
 		const core::github_session_request_context session{ .Request = core::request_id{ 101 }, .ApplicationSession = context.ApplicationSession, .Profile = profile->profile(), .IdentityGeneration = core::github_identity_generation{ 207 } };
 		auto                                       fixtureProcess = make_github_cli_process_runner();
@@ -1072,9 +1131,43 @@ namespace {
 		enterpriseCandidate.GraphqlRoot = "https://ghe.example.invalid/api/graphql";
 		const auto enterpriseProfile    = validate_github_host_profile(enterpriseCandidate);
 		expect(enterpriseProfile.has_value(), "synthetic GHES CLI profile validates");
+		const auto enterpriseConfiguration = pin_gh_cli_configuration(*unpinnedConfiguration, enterpriseProfile->hostname(), "fixture");
+		expect(enterpriseConfiguration.has_value(), "synthetic GHES exact account pin validates");
+		expect(!make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; }),
+			   "Git helper authority refuses a different host pin before acquisition");
+
+		for (const std::string host : { "tenant.ghe.com", "github.localhost" }) {
+			auto hostedCandidate           = enterpriseCandidate;
+			hostedCandidate.Hostname       = host;
+			hostedCandidate.RestRoot       = "https://" + host + "/api/v3";
+			hostedCandidate.GraphqlRoot    = "https://" + host + "/api/graphql";
+			const auto hostedProfile       = validate_github_host_profile(hostedCandidate);
+			const auto hostedConfiguration = pin_gh_cli_configuration(*unpinnedConfiguration, host, "fixture");
+			expect(hostedProfile && hostedConfiguration, "stock-gh hosted hostname class is admitted explicitly");
+			auto                hosted = make_gh_cli_git_smart_transport(*hostedProfile, *hostedConfiguration, syntheticGit, session, context, [] { return true; });
+			recording_pack_sink correct{ core::git_hash_algorithm::sha1 };
+			expect(hosted && application::acquire_git_protocol_v2_pack(**hosted, context, { }, correct, limits, { }) && correct.Finished,
+				   "API and clone inherit the GitHub token family even when the BPR server contract is enterprise");
+			auto       process    = make_github_cli_process_runner();
+			const auto credential = acquire_gh_cli_credential(*process, *hostedConfiguration, { });
+			const auto read       = compile_gh_cli_process_request(*hostedConfiguration, *hostedProfile,
+																   { .Correlation = { .Parent = session, .ProfileRevision = hostedProfile->revision(), .Host = hostedProfile->host(), .Operation = read_operation::get_viewer_identity, .Page = 1U },
+																	 .Wire        = *compile_read_request({ .Server = server_contract::ghes_3_18, .Operation = read_operation::get_viewer_identity }) });
+			expect(credential && read, "host-family negative control compiles the actual API path");
+			const auto wrongApi = process->run_credentialed(*read, *credential, cli_credential_environment::enterprise, { });
+			expect(!wrongApi || wrongApi->ExitCode != 0, "wrong token family cannot authenticate the API fixture");
+			QTemporaryDir helperTemporary{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
+			expect(helperTemporary.isValid(), "helper negative owns a correctly constrained temporary root");
+			const auto helperRoot = std::filesystem::canonical(helperTemporary.path().toStdString());
+			std::filesystem::create_directories(helperRoot / "empty");
+			const auto clone = compile_gh_cli_git_clone_request(*hostedConfiguration, *hostedProfile, context, context.Revision.Base, syntheticGit, helperRoot, 0U);
+			expect(clone.has_value(), "host-family negative control compiles the actual clone path");
+			const auto wrongClone = process->run_credentialed(*clone, *credential, cli_credential_environment::enterprise, { });
+			expect(!wrongClone || wrongClone->ExitCode != 0, "wrong token family cannot authenticate the helper fixture");
+		}
 		for (const bool restarted : { false, true }) {
 			static_cast<void>(restarted);
-			auto qualifiedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+			auto qualifiedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 			expect(qualifiedTransport.has_value(), "synthetic selected Git is admitted under exact authority");
 			recording_pack_sink qualified{ core::git_hash_algorithm::sha1 };
 			expect(application::acquire_git_protocol_v2_pack(**qualifiedTransport, context, { }, qualified, limits, { }).has_value() && qualified.Finished,
@@ -1082,14 +1175,14 @@ namespace {
 		}
 		for (const std::string_view banner : { "git version 2.49.0\n", "git version 2.54.0.windows.1\n", "git version 3.0.0 (future vendor)\n" }) {
 			write(root / "git-version", banner);
-			auto                qualifiedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+			auto                qualifiedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 			recording_pack_sink qualified{ core::git_hash_algorithm::sha1 };
 			expect(application::acquire_git_protocol_v2_pack(**qualifiedTransport, context, { }, qualified, limits, { }).has_value() && qualified.Finished,
 				   "minimum, upstream and other vendor versions require the same direct capability and object operation proof");
 		}
 		for (const std::string_view banner : { "git version 2.48.9\n", "git version 2.54\n", "git version 2.54.0junk\n", "git version 999999999999999999999.0.0\n", "unclassified fixture output\n" }) {
 			write(root / "git-version", banner);
-			auto                refusedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+			auto                refusedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
 			const auto          result = application::acquire_git_protocol_v2_pack(**refusedTransport, context, { }, refused, limits, { });
 			const auto*         error  = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
@@ -1097,7 +1190,7 @@ namespace {
 				   "older and malformed numeric Git versions cannot acquire objects");
 		}
 		write(root / "git-version", "git version 2.54.0 (Apple Git-157)\n");
-		auto                       probeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+		auto                       probeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 		constexpr std::string_view completeHelp   = " --revision <rev>\n --bare\n --template <dir>\n --config <key>\n --filter <args>\n --depth <n>\n";
 		for (const std::string_view missing : { "revision", "bare", "template", "config" }) {
 			auto       incompleteHelp = std::string{ completeHelp };
@@ -1111,7 +1204,7 @@ namespace {
 		}
 		auto sparseProbeContext            = context;
 		sparseProbeContext.AcquisitionMode = application::git_smart_acquisition_mode::sparse_commit_trees;
-		auto sparseProbeTransport          = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, sparseProbeContext, [] { return true; });
+		auto sparseProbeTransport          = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, sparseProbeContext, [] { return true; });
 		for (const std::string_view missing : { "depth", "filter" }) {
 			auto       incompleteHelp = std::string{ completeHelp };
 			const auto position       = incompleteHelp.find(missing);
@@ -1155,7 +1248,7 @@ namespace {
 		expect(timedOutError && timedOutError->Failure == application::git_smart_transport_failure::timeout && timedOutError->Step == application::git_smart_transport_step::git_capability_probe && timedOutSink.Received.empty(), "capability probe deadline preserves a typed timeout without publishing content");
 		std::filesystem::remove(root / "wait-git-help");
 		write(root / "fail-git-version", "1");
-		auto                failedProbeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+		auto                failedProbeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 		recording_pack_sink failedProbeSink{ core::git_hash_algorithm::sha1 };
 		const auto          failedProbe      = application::acquire_git_protocol_v2_pack(**failedProbeTransport, context, { }, failedProbeSink, limits, { });
 		const auto*         failedProbeError = failedProbe ? nullptr : std::get_if<application::git_smart_transport_error>(&failedProbe.error());
@@ -1166,7 +1259,7 @@ namespace {
 		recording_pack_sink retriedSink{ core::git_hash_algorithm::sha1 };
 		expect(application::acquire_git_protocol_v2_pack(**failedProbeTransport, context, { }, retriedSink, limits, { }).has_value() && retriedSink.Finished,
 			   "probe recovery retries the same exact authority without resetting profile state");
-		auto                reopenedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; });
+		auto                reopenedTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 		recording_pack_sink reopenedSink{ core::git_hash_algorithm::sha1 };
 		expect(application::acquire_git_protocol_v2_pack(**reopenedTransport, context, { }, reopenedSink, limits, { }).has_value() && reopenedSink.Finished,
 			   "recreated authority recovers with capabilities instead of exact version equality");
@@ -1228,7 +1321,7 @@ namespace {
 		}
 		std::filesystem::remove(root / "wait-blob");
 		cold_open_course(root, *profile, *configuration, session, context, blob, changedBlob);
-		pinned_account_course(root, *profile, *configuration, session, context, blob);
+		pinned_account_course(root, *profile, *unpinnedConfiguration, session, context, blob);
 		{
 			// [[BPR-1327]]. A batch is one GraphQL read; each answer is checked
 			// against its own object ID and a bad one does not spoil the rest.

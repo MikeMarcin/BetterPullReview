@@ -1004,6 +1004,12 @@ namespace bpr::qt {
 	{
 		++Members.Statistics.MutationUpdates;
 		switch (aFailure) {
+		case application::review_mutation_failure::credential_unavailable:
+			set_publication_status(QStringLiteral("Not published. Check the chosen account's GitHub CLI sign-in and credential access, then try again. Your draft is kept."));
+			break;
+		case application::review_mutation_failure::credential_tool_failed:
+			set_publication_status(QStringLiteral("Not published. GitHub CLI could not complete the credential check. Your draft is kept."));
+			break;
 		case application::review_mutation_failure::unavailable:
 			set_publication_status(QStringLiteral(
 				"Publication result is unavailable; retry is safe."));

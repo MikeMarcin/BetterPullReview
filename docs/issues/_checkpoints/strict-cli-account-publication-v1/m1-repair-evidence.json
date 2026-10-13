@@ -1,0 +1,203 @@
+{
+  "schema": "bpr.strict-cli.m1-repair-evidence.v1",
+  "mandate_revision": "strict-cli-publication-r2",
+  "plan": "strict-cli-account-publication-v1",
+  "milestone": "strict-credential-execution",
+  "source_candidate": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+  "starting_revision": "25647104beeacfc6db11e1f350913e890e349e57",
+  "prior_product": "29b4002e509991da38522a209d8a7f6e7be7765e",
+  "baseline": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
+  "platform": "mac/arm64",
+  "host_load": "not_verified",
+  "changed_paths": [
+    "src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+    "src/adapters/github/src/gh_cli_transport.cpp",
+    "src/adapters/github/src/gh_cli_transport.hpp",
+    "src/adapters/github/src/review_submission_session.cpp",
+    "src/adapters/github/src/staged_review_session.cpp",
+    "tests/github_contract/gh_cli_transport_tests.cpp",
+    "tests/github_contract/github_cli_process_runner_tests.cpp",
+    "tests/github_contract/live_review_submission_provider_tests.cpp",
+    "tests/github_contract/staged_review_session_tests.cpp",
+    "tests/support/strict_cli_fixture.hpp"
+  ],
+  "findings": {
+    "P1": "reproduced and repaired; real SQLite strict same-key publication outcome/cancellation/refusal checks pass",
+    "P2": "reproduced and repaired; acquisition stage and process categories preserved with no raw output",
+    "coverage": "whole-review/tour selected strict adapter and actual runner compositions now exercised; prior twelve app courses are fixture-transport regression evidence only"
+  },
+  "acceptance_records": {
+    "BPR-1425": [
+      {
+        "criterion": "AC01",
+        "outcome": "pass",
+        "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+        "evidence": {
+          "kind": "artifact",
+          "detail": "Dedicated sensitive capture/environment and generic canary confinement unchanged; real runner descendant timeout/cancellation and strict operation canary generic-output/persistence negatives pass.",
+          "path": "/tmp/bpr-strict-cli-run/m1-repair-focused-final.log"
+        }
+      },
+      {
+        "criterion": "AC02",
+        "outcome": "pass",
+        "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+        "evidence": {
+          "kind": "artifact",
+          "detail": "Only a completed named lookup refusal reports credential unavailable. Timeout, crash, reap, cancelled, startup, invalid/oversized and local-probe errors stay distinct tool/cancel categories. Direct reads/inline and strict SQLite review/tour controls pass with zero downstream API on refusal.",
+          "path": "/tmp/bpr-strict-cli-run/m1-repair-strict-review.log"
+        }
+      },
+      {
+        "criterion": "AC03",
+        "outcome": "pass",
+        "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+        "evidence": {
+          "kind": "artifact",
+          "detail": "Actual credential-bearing descendants verify inheritance before timeout/cancel, the sensitive owner remains live, and process/worker drain precedes owner release. The existing pre-execution quarantine test proves queued reap-failure ownership only; actual credential-bearing reap_failure is not forced or claimed.",
+          "path": "/tmp/bpr-strict-cli-run/m1-repair-focused-final.log"
+        }
+      }
+    ],
+    "BPR-1426": [
+      {
+        "criterion": "AC01",
+        "outcome": "pass",
+        "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+        "evidence": {
+          "kind": "artifact",
+          "detail": "Read acquisition failure classification repaired; unchanged connection/pager/discovery scopes retain prior relevant evidence. Current focused transport and composed regressions pass.",
+          "path": "/tmp/bpr-strict-cli-run/m1-repair-focused-final.log"
+        }
+      },
+      {
+        "criterion": "AC02",
+        "outcome": "pass",
+        "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+        "evidence": {
+          "kind": "artifact",
+          "detail": "Production strict adapter/runner with real SQLite exercises whole-review and tour scope, post-POST lookup removal/cancellation, same-key confirmed and possibly-transmitted retries, typed refusal/tool/cancel causes, pending draft retention and read-only recovery with no second POST. One owner covers the full tour; explicit Resume reacquires and sends only remaining steps.",
+          "path": "/tmp/bpr-strict-cli-run/m1-repair-strict-tour-final.log"
+        }
+      },
+      {
+        "criterion": "AC03",
+        "outcome": "pass",
+        "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+        "evidence": {
+          "kind": "artifact",
+          "detail": "Existing real strict Git clone/blob/helper fixture contract passes after typed acquisition propagation. Host class mapping, private configuration/canary negatives and local Git credential-free behavior remain covered. Stock-gh native evidence remains M2.",
+          "path": "/tmp/bpr-strict-cli-run/m1-repair-focused-final.log"
+        }
+      }
+    ]
+  },
+  "verification": {
+    "focused_contracts": "6/6 pass (68.14s)",
+    "architecture_contract": "151/151 pass",
+    "strict_review": "pass; one acquisition/5 API/1 POST for each first unknown/confirmed course",
+    "strict_tour": "pass; complete47 API/5 writes, cancelled unknown8 API/1 write; retries and Resume do not repeat create POST",
+    "public_regressions": "3/3 pass after relink (22.74s); regression only",
+    "format22": "10 changed files pass",
+    "tidy": "7 changed TUs pass; sixth baseline diagnostic set in existing staged test TU preserved, no changed-line errors",
+    "documentation_contract": "67/67 pass",
+    "documentation_gate": "pass after current card metadata and handoff bookkeeping"
+  },
+  "limits": [
+    "Required independent bounded repair recheck was supplied for this exact source candidate; it does not qualify official-gh native behavior or companion popup UX.",
+    "Official gh/macOS API/helper native qualification remains M2; all new credentials are runtime-random synthetic fixture inputs.",
+    "macOS refuses nested sandbox initialization: strict courses use explicit --strict-cli-fixture selectors with TMPDIR=/private/tmp outside the CTest network wrapper, retain the production write-denied child sandbox, and select only a canonical copy of the same test executable. No new sandbox exception was added.",
+    "Actual credential-bearing reap_failure was not safely forced. Queue pre-execution quarantine evidence and actual descendant timeout/cancellation evidence have separate scopes.",
+    "Prior baseline full-format syntax fixture and github_application naming diagnostics remain unchanged; no global passing claim.",
+    "Qt/OS/third-party process memory copies are not claimed precisely erased."
+  ],
+  "artifacts": [
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-build-final.log",
+      "sha256": "84c09a99b3b125fac9e44be81f2fba7df33d166130de132d11b4142766e00a07"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-app-build.log",
+      "sha256": "fc13ae414bf20990296714db126f0afabf157574fb8ad5746b4627587c4eb2d2"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-focused-final.log",
+      "sha256": "17f3b77ee4472e3e380ad6fc61788da8eba251bec4fc159d196b753914505e3a"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-strict-review.log",
+      "sha256": "7c2268f10ca80a74fb76cca6dbde9e40db43c9d09b4f9d83c0eb216be3a643bb"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-strict-tour-final.log",
+      "sha256": "b61c42e219b904174cdb52a676b2691e5f5a54d6cfe12f78fd734c1206c64038"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-public-regressions.log",
+      "sha256": "b506bcdc0f6b2bac82c8b750f5f07b288f645c3342e12ab7bf34a194e8262aab"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-architecture-contract.log",
+      "sha256": "76dd6f3177069102e5131c1ca4e4130cbc86d1ce7dc2814b54428faa9ed36a5f"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-format-final.log",
+      "sha256": "8f55747852c840734b19eda364487d42993baad71accc982338c6d905528b949"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-tidy.log",
+      "sha256": "0d9071648176ab0663ffb0f9e8f362bbcfdb7a1a267101bf113178eaaef4c341"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-tidy-tour-final.log",
+      "sha256": "1588e39f27cd2b4d6ecc0ceb0d3bb5fe2c0ef5fa7389dae682a07e211c3830bd"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-baseline-gates.json",
+      "sha256": "206e07efc401fcf8b1b6ab91416ebc93edc2af8f803cc09ada746e3f8d2895bf"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-documentation-contract.log",
+      "sha256": "410bcf5ab39351c12f7d03f007675fcd46e8d90dd3f5549522331f0008412e67"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/critical-m1-review.md",
+      "sha256": "b39f2e1843cdf6fafa1c429fabb6592ad194bcc31fe126237323c6ede894cebf"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/critical-m1-recheck.md",
+      "sha256": "009a9ebf66dbb4aa1ef900e7fa0156ad58a8ad0719133efdfe6f6f3fa0fc39cb"
+    },
+    {
+      "path": "/tmp/bpr-strict-cli-run/m1-repair-documentation-final.log",
+      "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+    }
+  ],
+  "commands": [
+    "cmake --build --preset dev --target test_better_pull_review_gh_cli_transport_tests test_better_pull_review_live_review_submission_provider_tests test_staged_review_session test_better_pull_review_github_cli_process_runner_tests test_better_pull_review_gh_cli_git_smart_transport_tests",
+    "cmake --build --preset dev --target test_staged_review_session app_better_pull_review",
+    "ctest --preset dev -R ^(gh_cli_transport|github_cli_process_runner|live_review_submission_provider|staged_review_session|gh_cli_git_smart_transport|architecture_boundaries)$ --output-on-failure",
+    "TMPDIR=/private/tmp build/dev/tests/github_contract/better_pull_review_live_review_submission_provider_tests --strict-cli-fixture",
+    "TMPDIR=/private/tmp build/dev/tests/github_contract/staged_review_session --strict-cli-fixture",
+    "ctest --preset dev -R ^(application_inline_publish_cli_consent|application_review_submission_composition_public_path|application_review_tour_publication_reconciliation)$ --output-on-failure",
+    "python3 tests/scripts/architecture_boundary_tests.py",
+    "python3 _coding-standard/scripts/format.py --dry-run <10 explicit changed C++ files>",
+    "python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <8 explicit changed TUs>",
+    "python3 tests/scripts/verify_documentation_tests.py",
+    "python3 scripts/verify_documentation.py --root ."
+  ],
+  "failed_attempts": [
+    "Wrong tour target name stopped before compilation (m1-repair-build.log).",
+    "Fixture helper missing method function and later rejected basename were corrected (build2/3 and tests1).",
+    "Nested macOS sandbox prevented strict fixture probe in CTest; strict courses became explicit selectors, retaining ordinary CTest isolation (tests2-5).",
+    "The synthetic tour response witness was corrected to one-use before the final strict tour pass (m1-repair-strict-tour.log)."
+  ],
+  "command_state": "All task-owned commands and descendants completed. Product and tracker writer ownership released at handoff; no review server, live GitHub mutation, push/merge, main/counter writer or protected candidate owner remains.",
+  "cleanup": "Removed the one failed task-owned strict tour fixture root /private/tmp/bpr-staged-9046830 after commands stopped; normal successful fixture roots were removed by their owners.",
+  "independent_review": {
+    "status": "supplied",
+    "revision": "cb41d1a1609d69373871bc3dd9321f59dcd60cc0",
+    "report": "/tmp/bpr-strict-cli-run/critical-m1-recheck.md",
+    "disposition": "Both prior blockers no longer reproduce; no blocking finding on the bounded repair surface. Reviewer independently reran strict whole-review/tour actual adapter/runner/SQLite, transport/runner and actual descendant timeout/cancel."
+  }
+}

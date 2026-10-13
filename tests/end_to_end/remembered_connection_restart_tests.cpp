@@ -192,7 +192,12 @@ namespace {
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			const tests::exit_on_failure inTheEventLoop;
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
-				expect(prompt->informativeText().contains(QStringLiteral("reused on later launches")), "only first-selection read trust is asked");
+				const auto login = aPhase == "replace-account" || aPhase == "cancel-first" ? QStringLiteral("recent-reviewer-78") : QStringLiteral("recent-reviewer-77");
+				expect(prompt->text() == QStringLiteral("Use %1’s GitHub CLI sign-in on %2?").arg(login, QString::fromLatin1(host)), "only the exact chosen-account read trust is asked");
+				expect(prompt->informativeText().contains(QStringLiteral("existing sign-in without saving its token")), "read trust explains existing sign-in without token storage");
+				expect(prompt->informativeText().contains(QStringLiteral("reused until you sign out or replace it")), "read trust explains reuse across fresh processes");
+				expect(prompt->informativeText().contains(QStringLiteral("Connecting for reads does not authorize publishing.")), "remembered read trust grants no publication authority");
+				expect(prompt->detailedText().contains(QStringLiteral("Remembered metadata saves no token and is checked again before use.")), "read trust retains token-free metadata and current revalidation");
 				++readAsks;
 				prompt->button(aPhase == "cancel-first" ? QMessageBox::Cancel : QMessageBox::Yes)->click();
 			}
@@ -259,7 +264,7 @@ namespace {
 			const auto account = aPhase.ends_with("-78") ? 78U : 77U;
 			expect(row.Profile == window.session_panel()->active_profile() && row.Account == core::github_account_id{ account } && row.Login == "recent-reviewer-" + std::to_string(account), "stable host/login/numeric authority matches accepted session");
 			const auto evidence = github_application_fixture_access::evidence(*owner);
-			expect(evidence.AccountFactoryCalls == 1U && evidence.VaultRetrieveAttempts == 0U && evidence.VaultStores == 0U && evidence.BootstrapFactoryCalls == 0U, "restored CLI uses only the tokenless account transport");
+			expect(evidence.AccountFactoryCalls == 1U && evidence.VaultRetrieveAttempts == 0U && evidence.VaultStores == 0U && evidence.BootstrapFactoryCalls == 0U, "restored CLI uses only its chosen account transport without native credential fallback");
 			if (aPhase == "replace-account") {
 				fixtureOptions.RecentAccount->store(78U);
 				connect_cli(window, host, "recent-reviewer-78");

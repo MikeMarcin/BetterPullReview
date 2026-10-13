@@ -1,6 +1,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
@@ -11,10 +12,13 @@
 #include <QAction>
 #include <QApplication>
 #include <QContextMenuEvent>
+#include <QElapsedTimer>
 #include <QFile>
+#include <QFontMetrics>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
@@ -22,6 +26,7 @@
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QTextEdit>
+#include <QThread>
 #include <QToolButton>
 #include <QWheelEvent>
 
@@ -49,6 +54,58 @@ namespace {
 			std::cerr << "FAILED: " << aMessage << '\n';
 			std::exit(EXIT_FAILURE);
 		}
+	}
+
+	void test_wrapped_publication_status_is_fully_visible()
+	{
+		qt::conversation_cards_view view;
+		view.resize(320, 900);
+		view.show();
+		const auto comparison = core::file_comparison_digest{ };
+		view.set_draft(core::review_comment_draft{
+						   .Id     = core::review_draft_id{ 1U },
+						   .Anchor = { .Comparison = comparison, .Side = core::diff_side::right, .Line = 3U },
+						   .Body   = "Keep this exact publication.",
+						   .State  = core::review_draft_state::publishing,
+					   },
+					   comparison);
+		const auto draft = std::ranges::find_if(view.cards(), &qt::thread_card::Draft);
+		expect(draft != view.cards().end(), "the publishing draft has a card");
+		const auto identity = draft->Id;
+		view.open_thread(identity);
+		QApplication::processEvents();
+		view.draft_editor()->setFocus();
+		auto* const focused = QApplication::focusWidget();
+		view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("Keep this exact publication."), .Editable = false, .Lines = QStringLiteral("Line 4"), .Notice = QStringLiteral("Publishing your comment to GitHub…") });
+		QApplication::processEvents();
+		for (const auto width : { 320, 560, 320 }) {
+			view.resize(width, 900);
+			for (const auto failure : { application::review_mutation_failure::credential_unavailable, application::review_mutation_failure::credential_tool_failed }) {
+				const auto notice = qt::github_cli_publication_recovery_text(failure, QStringLiteral("octo-reviewer"), QStringLiteral("github.com"));
+				view.present_draft(qt::draft_composer_presentation{ .Body = QStringLiteral("Keep this exact publication."), .Publishable = true, .Editable = false, .Lines = QStringLiteral("Line 4"), .Notice = notice, .Retry = true });
+				QElapsedTimer elapsed;
+				elapsed.start();
+				auto* const label = view.open_card()->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
+				expect(label != nullptr, "the publication notice is its native wrapped label");
+				const auto readable = [label] {
+					const auto textHeight = QFontMetrics{ label->font() }.boundingRect(QRect{ 0, 0, label->contentsRect().width(), 32768 }, Qt::TextWordWrap, label->text()).height();
+					return label->isVisible() && label->height() >= label->heightForWidth(label->width())
+						&& label->contentsRect().height() >= textHeight && label->visibleRegion().contains(label->rect());
+				};
+				while (!readable() && elapsed.elapsed() < 1400) {
+					QApplication::processEvents();
+					QThread::msleep(1);
+				}
+				std::cout << "PUBLICATION_STATUS_GEOMETRY scale=" << view.devicePixelRatioF() << " width=" << label->width()
+						  << " height=" << label->height() << " required=" << label->heightForWidth(label->width())
+						  << " visible=" << label->visibleRegion().boundingRect().height() << " card_hfw=" << view.open_card()->heightForWidth(view.open_card()->width()) << '\n';
+				expect(readable(), "all wrapped outcome/locked-draft/GET-only guidance fits and is visible after layout settles");
+				expect(label->text() == notice && label->accessibleName() == notice && QApplication::focusWidget() == focused,
+					   "height changes preserve the exact accessible status and native focus");
+				expect(view.draft_editor()->isReadOnly() && view.open_thread_id() == identity, "responsive layout preserves the same locked publishing draft");
+			}
+		}
+		view.hide();
 	}
 
 	struct fixture_json_options : glz::opts
@@ -1725,6 +1782,12 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
+		test_wrapped_publication_status_is_fully_visible();
+		std::cout << "publication-status-geometry:pass\n";
+		return EXIT_SUCCESS;
+	}
+	test_wrapped_publication_status_is_fully_visible();
 	test_replacing_a_forest_never_reads_the_last_one();
 	test_discuss_wheel_moves_readable_lines_without_changing_selection();
 	test_thread_menus_and_defect_badges();

@@ -1,27 +1,37 @@
 # C++ identifier context checkpoint
 
-Milestone **cpp-lexical-context complete**; BPR-1411 is Done. Sole engineering
-leaf `/root/cpp_context_m1`, mandate `cpp-identifier-context-r1`, main tracker
-authority. Stop at this boundary; the coordinator starts a fresh leaf for
-`cpp-colours-and-closeout` and claims ready BPR-1412. Full RFC scope remains.
+**Authorized RFC scope complete.** Both adopted milestones and BPR-1411/1412
+are accepted; RFC-BPR-0072 and its index row are Auto-Verified. Final leaf
+`/root/cpp_context_m2` owns mandate `cpp-identifier-context-r1`, milestone
+`cpp-colours-and-closeout`, main tracker authority. Stop at this boundary.
 
-## Binding and candidate
+## Binding and candidates
 
-- RFC_BASE_SHA: `6ebd33e57479a24aed91b930624bab030a436045` (immutable).
-- Import/plan: `20417f727`; claim: `af6f2c26fae1c5e749dce8d7f4bb72ff681d4d01`.
-- Product candidate: `c58bdebdac18da64a3b7629c0499d200f36007ae` (18 explicit paths).
-- Acceptance: `46973960209e247888f86b44941e96bc8abe00d5`.
-- [Selection](selection.json), [bound milestone](m1-binding.json),
-  [completion observation](m1-observation.json), [verification](m1-verification.json)
-  and [card acceptance](m1-acceptance.json) preserve requirement/exit identities.
-  The final handoff commit contains only this lane's checkpoint and the BPR-1412
-  Ready move; it changes no verified product input. The observation/check record
-  describes the accepted pre-handoff candidate; successors bind M2 at current HEAD.
+- Immutable RFC_BASE_SHA: `6ebd33e57479a24aed91b930624bab030a436045`.
+- Import/plan: `20417f727`; M1 claim: `af6f2c26fae1c5e749dce8d7f4bb72ff681d4d01`.
+- M1 product: `c58bdebdac18da64a3b7629c0499d200f36007ae` (18 explicit paths);
+  acceptance: `46973960209e247888f86b44941e96bc8abe00d5`.
+- M2 claim: `09e4a69eb28238123f29f8505bdf6106bcfe210a`;
+  product: `bc4b4aafe6f51020aa469c519e936d616e124e89` (28 explicit paths);
+  acceptance/RFC upkeep: `9193dbee27f8ccf332a0cba99281253c90f8a4c6`.
+- [Selection](selection.json), [initial M2 binding](m2-binding.json),
+  [final binding](m2-final-binding.json), [renewal receipt](m2-binding-renewal.json),
+  [completion observation](m2-observation.json) and [consistency check](m2-check.json)
+  preserve assignment/mandate identity and both exits. Acceptance-only card/RFC
+  upkeep changed whole-body fingerprints; every canonical criterion, selector,
+  plan definition and exit was checked unchanged before final binding renewal.
+- The observation/check names the accepted pre-handoff revision. The final
+  handoff commit changes only checkpoint/verification records; no verified
+  product input changes. M1's [binding](m1-binding.json),
+  [observation](m1-observation.json) and evidence retain their original meaning.
 - Live authority: [RFC-BPR-0072](../../../rfcs/RFC-BPR-0072-cpp-identifier-context.md),
-  [plan](../../../rfcs/plans/cpp-identifier-context-v1/milestone-plan.json).
-  Imported source/provenance remain immutable under `docs/rfcs/assets/cpp-identifier-context-v1/`.
+  [plan](../../../rfcs/plans/cpp-identifier-context-v1/milestone-plan.json),
+  [full criterion ledger](../../../verification/RFC-BPR-0072.md).
+  Imported source/provenance under `docs/rfcs/assets/cpp-identifier-context-v1/`
+  and the authored plan remain immutable.
 
-## Integrated behavior and evidence
+## Accepted M1 behavior and evidence
+
 
 C++ classification refines complete grammar-protected blob spans with private
 adapter-local namespace, enum, scope and delimiter facts. Known qualified uses
@@ -48,42 +58,51 @@ negative controls cover missing member evidence, unknown externals, aliases,
 object/template paths and local/parameter shadows. Full changed paths and
 SHA-256 identities are in `m1-verification.json`.
 
-## Next action and remaining obligations
+## Accepted M2 result and verification
 
-Claim `docs/issues/20-ready/BPR-1412-close-rfc-0072.md`. Load the live RFC,
-plan, this checkpoint and required project/skill contracts. For all visual work,
-load `frontend-design:frontend-design` first; M1 used
+[Verification](m2-verification.json) records hashes, 45 scoped baseline paths,
+commands, failures and dispositions. [Exact focused evidence](m2-focused.json)
+passes 5/5 in 11.83 seconds: public classifier, storage, host, isolation manifest
+and the real Git-backed composed appearance course. Its five fresh processes
+pass both-pane Light/Dark token formats and visible pixels, 374 contrast pairs
+in all four built-ins, mixed legacy stored flags and every existing color,
+independent four-variant picker edits, old/new exchange and two restarts.
+[Core-only host](m2-core-host.json) passes the exact candidate, including a
+negative control that rejects explicitly unreadable namespace ink without a
+write. Only omitted additive foreground sentinels defer to presentation defaults;
+the existing all-variant theme admission floor remains unchanged.
+
+Nine touched C++ paths pass clang-format 22.1.8, three changed translation units
+pass clang-tidy, both architecture/core boundary pairs pass and the final
+[documentation gate](m2-documentation.json) reports DOCUMENTATION_OK. A second
+post-finish documentation gate also passed on acceptance revision `9193dbee2`.
+M1 product/test hashes were checked unchanged. Owning appearance/architecture
+contracts, fixture catalog, the eight-row closeout card, RFC and index agree.
+
+Frontend-design was loaded before visual work from
 `/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md`.
+Full-window Light/Dark PNGs remain outside Git; [artifact identities](m2-artifacts.json)
+name their complete local paths and SHA-256 digests. No native, installed,
+release, human or independent verdict is inferred. No attended criterion is
+specified, so no review session, frozen build or server remains.
 
-1. AC06: direct composed **offscreen comparison**, both panes, declaration and
-   qualified use sites (uppercase included), Light and Dark, with a genuine
-   neighboring macro. Reuse passing all-variant contrast evidence while its
-   inputs stay unchanged; strengthen per-role rendered evidence as needed.
-2. AC08: edit namespace and member independently in each variant; actual durable
-   restart and old/new export/import; preserve all existing custom values and
-   stored flags. Existing generic import tests pass but do not replace this
-   new-role qualification.
-3. Reconcile current role counts in RFC-BPR-0034 prose and the architecture's
-   classifier/complete-document descriptions. M1 added narrow amendments to
-   RFC-BPR-0006/0034 without rewriting prior verdicts. System architecture is
-   currently dirty from another task: preserve its changes and stage only this
-   lane's own additions if it remains shared.
-4. Account for all AC01–AC08 and scoped final diff from RFC_BASE_SHA; run final
-   documentation/public-path checks; close BPR-1412, RFC-BPR-0072 and index
-   truthfully. No human/native/independent approval requirement was inferred.
-   Historical BPR-0720/BPR-0738 obligations remain intact.
+## Ownership, commands and continuation
 
-## Ownership and command state
+All task-owned commands finished. The two random M2 build roots
+`build/cpp-context-m2-l68xjdwi` and `build/cpp-context-m2-core-kjy2lgcd` were
+removed after evidence consumption. M1's roots had already been removed.
+Shared `build/dev` and `build/.cpm-cache` were left untouched. There is no
+remaining task-owned process, source writer, worktree, protected candidate or
+review server; [command state](m2-runtime.json) records cleanup.
 
-All M1 commands finished; no task-owned process, writer, frozen candidate,
-worktree or review server remains. Consumed task-owned build roots
-`build/cpp-context-m1-ckl3zbew` and `build/cpp-context-m1-core-only` were removed
-after evidence collection. Shared `build/dev` was left alone after another
-writer was observed; no unrelated process was stopped. Short runtime logs
-outside Git were consumed into the bounded evidence records.
+No selected criteria or milestone obligations remain. Next action: the
+coordinator reports completion under the unchanged mandate. Historical
+BPR-0720/BPR-0738 obligations remain separate. The broader profile row failed
+its pre-existing font-resize reading-line assertion before M2's host correction;
+its cause is unadjudicated and no global profile-suite pass is claimed. The
+user retracted a scrolling request, so no scrolling scope was added.
 
-Unrelated main writers advanced history and edit GitHub/application/composition,
-settings inventory and architecture files. Preserve their work, plus .gitignore,
-.mask.json, .mask.lock.json and unrelated untracked drafts/checkpoints. No stash,
-external writes, push, global gh authentication change, live desktop capture or
-personal browser-data inspection occurred. No blockers or pending M1 criteria.
+Unrelated main commits and edits, including `.gitignore`, `.mask.json`,
+`.mask.lock.json`, drafts, navigation checkpoints and the new RFC-0078/0079
+index entries, were preserved. No stash, push, remote mutation, global gh
+account switch, owner desktop capture or personal browser-data read occurred.

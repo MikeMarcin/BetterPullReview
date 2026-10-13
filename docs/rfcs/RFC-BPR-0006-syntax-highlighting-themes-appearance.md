@@ -231,5 +231,6 @@ existing roles. Their defaults enter the existing variant profiles, contrast
 pairs and Colours controls. Missing new roles in an older palette document are
 unassigned in the core import and resolve to the chosen variant's built-in
 values in Qt. Existing overrides and stored flags remain authoritative. Final
-rendered, persistence and exchange acceptance belongs to RFC-BPR-0072; prior
-palette verdicts and parked BPR-0720/BPR-0738 obligations are preserved.
+rendered, persistence and exchange acceptance is recorded in
+[the RFC-BPR-0072 ledger](../verification/RFC-BPR-0072.md); prior palette verdicts
+and parked BPR-0720/BPR-0738 obligations are preserved.

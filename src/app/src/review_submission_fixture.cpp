@@ -49,7 +49,7 @@ namespace bpr::app::detail {
 			{
 				// [[BPR-1345]]. A review with line comments: the exact production
 				// request, journal and reconciliation, against this server.
-				if (!aRequest.Proposal.Comments.empty()) {
+				if (State->CliStrictCourse || !aRequest.Proposal.Comments.empty()) {
 					return Production->submit_and_reconcile(aRequest, aStop);
 				}
 				if (aStop.stop_requested() || !aRequest.LiveBinding || *aRequest.LiveBinding != Binding) {
@@ -102,7 +102,7 @@ namespace bpr::app::detail {
 			}
 			auto reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override
 			{
-				if (!aRequest.Proposal.Comments.empty()) {
+				if (State->CliStrictCourse || !aRequest.Proposal.Comments.empty()) {
 					{
 						std::scoped_lock lock{ State->Mutex };
 						++State->Reconciliations;
@@ -177,6 +177,21 @@ namespace bpr::app::detail {
 				, Binding{ std::move(aBinding) }
 				, Description{ std::move(aDescription) }
 			{ }
+			auto begin_mutation_operation(std::stop_token aStop) -> wire::github_mutation_operation override
+			{
+				std::scoped_lock lock{ State->Mutex };
+				if (!State->CliStrictCourse) {
+					return std::shared_ptr<wire::github_mutation_wire_transport>{ };
+				}
+				++State->CliAcquisitions;
+				if (aStop.stop_requested()) {
+					return std::unexpected(application::review_mutation_failure::cancelled);
+				}
+				if (State->CliAcquisitionFailure) {
+					return std::unexpected(*State->CliAcquisitionFailure);
+				}
+				return std::shared_ptr<wire::github_mutation_wire_transport>{ std::make_shared<staged_fixture_wire>(State, Binding, Description) };
+			}
 			auto actor() const -> application::staged_review_actor
 			{
 				const auto& a = Binding.ActingIdentity;

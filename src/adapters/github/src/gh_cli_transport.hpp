@@ -104,19 +104,29 @@ namespace bpr::adapters::github::detail {
 		api,
 		repo_clone,
 		auth_git_credential,
+		auth_token,
 	};
 
 	inline constexpr std::array gh_cli_required_help_topics{
 		gh_cli_help_topic::api,
 		gh_cli_help_topic::repo_clone,
 		gh_cli_help_topic::auth_git_credential,
+		gh_cli_help_topic::auth_token,
 	};
+	/// \brief Distinguishes a completed named lookup refusal from tool/probe failures.
+	struct gh_cli_credential_error
+	{
+		github_cli_process_failure Failure               = github_cli_process_failure::invalid_request;
+		bool                       CredentialUnavailable = false;
+	};
+	using gh_cli_credential_result = std::expected<cli_transient_credential, gh_cli_credential_error>;
 
 	/// \brief The one `gh` account a pinned configuration's launches use.
 	/// \details [[BPR-1373]]. Carries no credential. Every `gh` launch of a
 	/// pinned configuration runs through `run_gh_cli`, which hands the child a
-	/// private configuration directory naming only this host and login, so
-	/// `gh` resolves that login's keychain token itself.
+	/// token-free private configuration naming only this host and login. One
+	/// operation acquires the named credential separately and passes it through
+	/// the dedicated process port; the pin itself never holds credential bytes.
 	struct gh_cli_account_pin
 	{
 		std::string Hostname;
@@ -162,8 +172,9 @@ namespace bpr::adapters::github::detail {
 			-> std::optional<validated_gh_cli_configuration>;
 		friend auto run_gh_cli(
 			github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
-			github_cli_process_request aRequest, std::stop_token aStop)
+			github_cli_process_request aRequest, std::stop_token aStop, cli_transient_credential aCredential)
 			-> github_cli_process_result;
+		friend auto acquire_gh_cli_credential(github_cli_process_port&, const validated_gh_cli_configuration&, std::stop_token) -> gh_cli_credential_result;
 		friend auto compile_gh_cli_auth_inventory_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
@@ -232,11 +243,17 @@ namespace bpr::adapters::github::detail {
 	/// host and login, makes both files 0400 and the directory 0500, and adds
 	/// `GH_CONFIG_DIR` to this child's environment alone. It runs the child and
 	/// then removes the directory. A launch whose directory cannot be made is
-	/// refused as `start_failure` without running. No token variable is ever
-	/// set, and an existing `GH_CONFIG_DIR` entry refuses the launch.
+	/// refused as `start_failure` without running. Generic requests are token-free;
+	/// an operation credential uses the separate sensitive environment port.
+	/// An existing `GH_CONFIG_DIR` entry refuses the launch.
 	[[nodiscard]] auto run_gh_cli(
 		github_cli_process_port& aProcess, const validated_gh_cli_configuration& aConfiguration,
-		github_cli_process_request aRequest, std::stop_token aStop) -> github_cli_process_result;
+		github_cli_process_request aRequest, std::stop_token aStop, cli_transient_credential aCredential = { }) -> github_cli_process_result;
+
+	/// \brief Acquires only the named account under token-free private configuration.
+	[[nodiscard]] auto acquire_gh_cli_credential(github_cli_process_port&, const validated_gh_cli_configuration&, std::stop_token) -> gh_cli_credential_result;
+	/// \brief Stock-gh hostname classification, independent of BPR's server-contract enum.
+	[[nodiscard]] auto gh_cli_credential_environment(std::string_view) noexcept -> cli_credential_environment;
 
 	using gh_cli_invocation_result = std::expected<
 		github_cli_process_request,
@@ -393,7 +410,11 @@ namespace bpr::adapters::github::detail {
 		gh_cli_transport(
 			const validated_github_host_profile&  aProfile,
 			const validated_gh_cli_configuration& aConfiguration,
-			github_cli_process_port&              aProcess);
+			github_cli_process_port& aProcess, cli_transient_credential aCredential = { });
+
+		[[nodiscard]] auto begin_operation(std::stop_token) -> github_wire_operation override;
+		[[nodiscard]] auto begin_mutation_operation(std::stop_token) -> github_mutation_operation override;
+		[[nodiscard]] auto strict_cli() const noexcept -> bool override { return true; }
 
 		[[nodiscard]] auto availability_reasons() const noexcept
 			-> std::array<gh_cli_availability_reason, 8>;
@@ -414,6 +435,8 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto configuration_unchanged() const -> bool;
 
 	private:
+		[[nodiscard]] auto acquire_operation(std::stop_token aStop)
+			-> std::expected<std::shared_ptr<gh_cli_transport>, gh_cli_credential_error>;
 		struct configuration_metadata
 		{
 			std::filesystem::path           Canonical;
@@ -432,6 +455,7 @@ namespace bpr::adapters::github::detail {
 		validated_github_host_profile                        Profile;
 		validated_gh_cli_configuration                       Configuration;
 		github_cli_process_port&                             Process;
+		cli_transient_credential                             Credential;
 	};
 }
 

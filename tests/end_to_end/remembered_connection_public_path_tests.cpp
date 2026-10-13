@@ -62,12 +62,17 @@ namespace {
 		options.IndependentWindowReads     = true;
 		expect(options.ApplicationDataRoot.has_value(), "private root");
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
 		unsigned prompts                   = 0;
 		QTimer   consent;
 		QObject::connect(&consent, &QTimer::timeout, [&] {
 			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
 				const tests::exit_on_failure inTheEventLoop;
-				expect(prompt->informativeText().contains(QStringLiteral("reused on later launches until you sign out or replace it")), "read consent explains durable reuse");
+				expect(prompt->text() == QStringLiteral("Use octo-reviewer’s GitHub CLI sign-in on github.com?"), "read consent names the chosen account and server");
+				expect(prompt->informativeText().contains(QStringLiteral("existing sign-in without saving its token")), "read consent explains existing sign-in without token storage");
+				expect(prompt->informativeText().contains(QStringLiteral("reused until you sign out or replace it")), "read consent explains durable reuse");
+				expect(prompt->informativeText().contains(QStringLiteral("Connecting for reads does not authorize publishing.")), "read consent grants no publication authority");
+				expect(prompt->detailedText().contains(QStringLiteral("Remembered metadata saves no token and is checked again before use.")), "read consent retains revalidation and token-free metadata disclosure");
 				const auto capture = qEnvironmentVariable("BPR_REMEMBERED_CONNECTION_CONSENT_CAPTURE");
 				if (!capture.isEmpty()) {
 					expect(prompt->grab().save(capture, "PNG"), "offscreen consent capture is written");
@@ -102,10 +107,12 @@ namespace {
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "reopen revalidates exact remembered CLI connection");
 		expect(application->window().session_panel()->active_profile() == profile && prompts == 1, "reopen preserves identity without another selector or trust prompt");
 		stop(application);
+		const auto checksBeforeFailure    = options.GithubCliInventoryChecks->load();
 		options.ViewerNamesAnotherAccount = true;
 		application                       = start(options);
 		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "changed authenticated viewer refuses the remembered authority");
 		stop(application);
+		expect(options.GithubCliInventoryChecks->load() == checksBeforeFailure, "failed remembered startup drains without ambient account inventory network checks");
 		saved               = store->load({ });
 		const auto retained = core::select_remembered_connection(*saved);
 		expect(retained && retained->Profile == row.Profile && retained->Account == row.Account, "validation refusal preserves the exact durable choice");
@@ -147,6 +154,33 @@ namespace {
 		stop(application);
 		consent.stop();
 	}
+	void failed_cli_connect()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.PublicPreviewEnabledCourse = true;
+		options.ViewerNamesAnotherAccount  = true;
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
+		QTimer consent;
+		QObject::connect(&consent, &QTimer::timeout, [&] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		consent.start(1);
+		auto  application = start(options);
+		auto& window      = application->window();
+		window.show();
+		window.home_action()->trigger();
+		window.home_landing()->secondary_button()->click();
+		wait_for([&] { return window.session_panel()->status() == core::github_status::session_failed; }, "failed Connect reaches its refusal through the public CLI gesture");
+		stop(application);
+		expect(options.GithubCliInventoryChecks->load() == 1U, "failed Connect drains with only the explicitly requested discovery and no automatic inventory network check");
+		consent.stop();
+	}
+
 	void forget_server()
 	{
 		QTemporaryDir temporary;
@@ -301,6 +335,7 @@ int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
 	run();
+	failed_cli_connect();
 	forget_server();
 	native_replacement_and_legacy();
 	std::cout << "remembered-connection-public-path-tests:pass\n";

@@ -1,0 +1,13 @@
+{
+  "criterion": "AC08",
+  "outcome": "pass",
+  "revision": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"ctest\", \"--test-dir\", \"build/cpp-context-m2-core-kjy2lgcd\", \"-R\", \"^application_appearance_host$\", \"--output-on-failure\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.079,
+    "stdout_tail": "Test project /Users/jaeger/Documents/GitHub/BetterPullReview/build/cpp-context-m2-core-kjy2lgcd\n    Start 177: application_appearance_host\n1/1 Test #177: application_appearance_host ......   Passed    0.06 sec\n\n100% tests passed out of 1\n\nLabel Time Summary:\nbpr_network_isolated    =   0.06 sec*proc (1 test)\n\nTotal Test time (real) =   0.07 sec\n",
+    "stderr_tail": ""
+  }
+}

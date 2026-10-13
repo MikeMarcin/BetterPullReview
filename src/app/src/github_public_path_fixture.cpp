@@ -1692,8 +1692,9 @@ namespace bpr::app::detail {
 			bool                                             LargeReviewForeignPosts = false;
 			bool                                             ReviewTourCourse        = false;
 			std::shared_ptr<review_submission_fixture_state> PublishedTour;
-			bool                                             LargeReviewRepeatReads   = false;
-			bool                                             CliEnabled               = false;
+			bool                                             LargeReviewRepeatReads = false;
+			bool                                             CliEnabled             = false;
+			std::shared_ptr<std::atomic_bool>                CliStrictCapability;
 			bool                                             RefuseFirstSmartAcquire  = false;
 			bool                                             FirstSmartAcquireRefused = false;
 			std::optional<core::application_session_id>      AuthenticationSession;
@@ -2374,6 +2375,12 @@ namespace bpr::app::detail {
 				: State{ std::move(aState) }
 				, Role{ aRole }
 			{
+			}
+
+			[[nodiscard]] auto strict_cli() const noexcept -> bool override
+			{
+				return State->CliEnabled && Role == fixture_transport_role::account
+					&& (!State->CliStrictCapability || State->CliStrictCapability->load());
 			}
 
 			[[nodiscard]] auto perform(
@@ -4073,7 +4080,24 @@ namespace bpr::app::detail {
 		};
 		class fixture_publication_lease final : public application::review_mutation_transport_lease
 		{ };
-		class fixture_publication_wire final : public adapters::github::detail::github_mutation_wire_transport
+		// The same synthetic acquisition seam applies to the coordinator's target
+		// observation and the session. Refusal can precede any journal read.
+		auto admit_fixture_cli_operation(const std::shared_ptr<fixture_recording_state>& aState, const std::stop_token aStop)
+			-> std::expected<void, application::review_mutation_failure>
+		{
+			if (aState && aState->CliEnabled && aState->PublishedTour) {
+				const auto lock = std::scoped_lock{ aState->PublishedTour->Mutex };
+				++aState->PublishedTour->CliAcquisitions;
+				if (aStop.stop_requested()) {
+					return std::unexpected(application::review_mutation_failure::cancelled);
+				}
+				if (aState->PublishedTour->CliAcquisitionFailure) {
+					return std::unexpected(*aState->PublishedTour->CliAcquisitionFailure);
+				}
+			}
+			return { };
+		}
+		class fixture_publication_wire final : public adapters::github::detail::github_mutation_wire_transport, public std::enable_shared_from_this<fixture_publication_wire>
 		{
 		public:
 			fixture_publication_wire(std::shared_ptr<fixture_recording_state>  aState,
@@ -4083,6 +4107,17 @@ namespace bpr::app::detail {
 				, Evidence{ aEvidence }
 				, LoseFirst{ aLoseFirst }
 			{ }
+			auto begin_mutation_operation(std::stop_token aStop) -> adapters::github::detail::github_mutation_operation override
+			{
+				if (const auto admitted = admit_fixture_cli_operation(State, aStop); !admitted) {
+					return std::unexpected(admitted.error());
+				}
+				if (State->CliEnabled && State->PublishedTour) {
+					return std::shared_ptr<adapters::github::detail::github_mutation_wire_transport>{ shared_from_this() };
+				}
+				return std::shared_ptr<adapters::github::detail::github_mutation_wire_transport>{ };
+			}
+
 			auto perform_review_mutation(const adapters::github::detail::github_mutation_wire_request& aRequest,
 										 const std::stop_token aStop, adapters::github::detail::github_mutation_transmission_witness aWitness)
 				-> adapters::github::detail::github_mutation_wire_completion override
@@ -4265,8 +4300,18 @@ namespace bpr::app::detail {
 				core::review_mutation_target,
 				application::review_mutation_failure> override
 			{
+				return observe_target({ });
+			}
+
+			auto observe_target(const std::stop_token aStop) -> std::expected<
+				core::review_mutation_target,
+				application::review_mutation_failure> override
+			{
 				const std::scoped_lock providerLock{ Mutex };
 				++Evidence.TargetObservations;
+				if (const auto admitted = admit_fixture_cli_operation(State, aStop); !admitted) {
+					return std::unexpected(admitted.error());
+				}
 				return Reported;
 			}
 
@@ -4391,7 +4436,7 @@ namespace bpr::app::detail {
 					.StorageRoot = StorageRoot, .Host = std::string{ binding.Target.Hostname.value() }, .Account = std::to_string(binding.ActingIdentity.Account.value()), .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = static_cast<std::int64_t>(binding.Target.Number.value())
 				};
 				if (!Wire) {
-					Wire = std::make_unique<fixture_publication_wire>(State, binding, Evidence, RealPublication);
+					Wire = std::make_shared<fixture_publication_wire>(State, binding, Evidence, RealPublication);
 				}
 				Wire->allow_reads();
 				if (!Session) {
@@ -4414,6 +4459,10 @@ namespace bpr::app::detail {
 				auto       reopened = adapters::sqlite::make_review_mutation_recovery_store(configuration);
 				const auto stored   = reopened ? (*reopened)->load_publication(PublicationKey) : std::expected<std::optional<application::review_publication_recovery_record>, application::review_mutation_recovery_failure>{ std::unexpected{ application::review_mutation_recovery_failure::unavailable } };
 				if (!stored || !*stored) {
+					if (!result) {
+						Session.reset();
+						return result;
+					}
 					return std::unexpected{ application::review_mutation_failure::unavailable };
 				}
 				++Evidence.DurableJournalReads;
@@ -4427,7 +4476,7 @@ namespace bpr::app::detail {
 			bool                                                                     RealPublication = false;
 			std::filesystem::path                                                    StorageRoot;
 			std::string                                                              PublicationKey;
-			std::unique_ptr<fixture_publication_wire>                                Wire;
+			std::shared_ptr<fixture_publication_wire>                                Wire;
 			std::unique_ptr<adapters::github::detail::review_mutation_session>       Session;
 
 			core::review_mutation_target                        Designated;
@@ -4541,6 +4590,7 @@ namespace bpr::app::detail {
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
+			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;
 			Recording->PersonalDiscovery       = std::move(aOptions.PersonalDiscovery);
 			Recording->RateLimit               = std::move(aOptions.RateLimit);

@@ -490,6 +490,9 @@ namespace bpr::adapters::github::detail {
 	/// \brief Observation only: fixed vocabulary and numeric status; never response prose or mutation authority.
 	[[nodiscard]] auto review_comment_diagnostic(const review_mutation_wire_request& aRequest, const github_mutation_wire_completion& aCompletion) noexcept -> application::diagnostic_event;
 
+	class github_mutation_wire_transport;
+	using github_mutation_operation = std::expected<std::shared_ptr<github_mutation_wire_transport>, application::review_mutation_failure>;
+
 	class github_mutation_wire_transport
 	{
 	public:
@@ -502,11 +505,39 @@ namespace bpr::adapters::github::detail {
 			-> github_mutation_wire_transport&    = delete;
 		virtual ~github_mutation_wire_transport() = default;
 
+		/// \brief Holds one immutable credential through admission, transmission and reconciliation.
+		[[nodiscard]] virtual auto begin_mutation_operation(std::stop_token) -> github_mutation_operation { return std::shared_ptr<github_mutation_wire_transport>{ }; }
+
 		[[nodiscard]] virtual auto perform_review_mutation(
 			const github_mutation_wire_request&  aRequest,
 			std::stop_token                      aStop,
 			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion = 0;
+	};
+
+	/// \brief Restores a session's token-free wire after one serialized operation.
+	class github_mutation_operation_scope final
+	{
+	public:
+		github_mutation_operation_scope(github_mutation_wire_transport*& aSlot, std::stop_token aStop)
+			: Slot{ aSlot }
+			, Original{ aSlot }
+			, Owner{ aSlot ? aSlot->begin_mutation_operation(aStop) : github_mutation_operation{ std::unexpected{ application::review_mutation_failure::unavailable } } }
+		{
+			if (Owner && *Owner) {
+				Slot = Owner->get();
+			}
+		}
+		github_mutation_operation_scope(const github_mutation_operation_scope&)                    = delete;
+		auto operator=(const github_mutation_operation_scope&) -> github_mutation_operation_scope& = delete;
+		~github_mutation_operation_scope() { Slot = Original; }
+		[[nodiscard]] auto valid() const noexcept -> bool { return Owner.has_value(); }
+		[[nodiscard]] auto failure() const noexcept -> application::review_mutation_failure { return Owner.error(); }
+
+	private:
+		github_mutation_wire_transport*& Slot;
+		github_mutation_wire_transport*  Original;
+		github_mutation_operation        Owner;
 	};
 
 	struct live_review_mutation_configuration

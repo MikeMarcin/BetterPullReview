@@ -1,32 +1,9 @@
-// [[BPR-1329]]. An inline draft published from its card in the Comments
-// drawer, over a GitHub CLI session, through the per-publication GitHub CLI
-// confirmation answered Yes. The owner's 0.1.5 report: "It popped up a
-// warning about publishing with my gh account and I allowed it but nothing
-// seemed to happen".
-//
-// The drawer's Publish runs the draft editor's own Publish, and every result
-// of that publication used to be written only into the draft editor's status
-// line, which sits on the inline composition page the drawer does not show.
-// So from the drawer a publication was invisible whatever became of it. Since
-// [[BPR-1212]] a new comment is written in the drawer, and opening its note
-// writes it there again. Since [[BPR-1345]] that Publish is Add single
-// comment; in the drawer's default width it is the split arrow's menu item
-// beside Start a review, and the courses send it from there.
-//
-// Two compositions over the recorded GitHub.com fixture and its synthetic
-// `gh auth status` account, each signed in through Use GitHub CLI:
-//
-// - success: the draft says the comment is publishing, then the posted
-//   thread replaces it, open;
-// - a lost result (the fixture stores the comment and loses its answer): the
-//   draft stays, says why in words and offers Retry, and says so again when
-//   it is closed and opened; Retry asks the confirmation again and the
-//   drawer then shows the one posted thread;
-// - the confirmation answered Cancel: nothing is sent, and the draft says so
-//   and still offers Add single comment.
-//
-// No live GitHub, gh process or credential.
+// Ordinary chosen-account CLI Publish in the drawer, including remembered
+// read trust, strict-capability refusal and GET-only lost-result recovery.
+// No live GitHub, gh process or credential. The designated fixture grants
+// stay unavailable outside this fixture composition.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -41,9 +18,12 @@
 #include <QAction>
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QFontMetrics>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
@@ -112,24 +92,98 @@ namespace {
 		return label != nullptr && label->isVisibleTo(open) ? label->text() : QString{ };
 	}
 
+	void expect_status_visible(qt::conversation_cards_view& aCards)
+	{
+		auto* const label = aCards.open_card()->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
+		expect(label != nullptr, "the composed draft has a wrapped status label");
+		const auto readable = [label] {
+			const auto textHeight = QFontMetrics{ label->font() }.boundingRect(QRect{ 0, 0, label->contentsRect().width(), 32768 }, Qt::TextWordWrap, label->text()).height();
+			return label->isVisible() && label->height() >= label->heightForWidth(label->width())
+				&& label->contentsRect().height() >= textHeight && label->visibleRegion().contains(label->rect());
+		};
+		const auto fits = wait_until(readable, 1500);
+		std::cout << "M3_COMPOSED_STATUS_GEOMETRY scale=" << label->devicePixelRatioF() << " width=" << label->width()
+				  << " height=" << label->height() << " required=" << label->heightForWidth(label->width())
+				  << " visible=" << label->visibleRegion().boundingRect().height() << '\n';
+		if (!fits) {
+			for (auto* ancestor = label->parentWidget(); ancestor && ancestor != &aCards; ancestor = ancestor->parentWidget()) {
+				std::cout << "STATUS_ANCESTOR name=" << ancestor->objectName().toStdString() << " width=" << ancestor->width() << " height=" << ancestor->height()
+						  << " hfw=" << ancestor->hasHeightForWidth() << " required=" << ancestor->heightForWidth(ancestor->width())
+						  << " hint=" << ancestor->sizeHint().height() << " minimum=" << ancestor->minimumSizeHint().height() << '\n';
+			}
+		}
+		expect(fits, "the full composed publication status fits and is visible, including locked-draft/GET-only guidance");
+	}
+
+	void capture_settled(qt::workbench_window& aWindow, const QString& aSuffix)
+	{
+		const auto root = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (root.isEmpty()) {
+			return;
+		}
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (elapsed.elapsed() < 900) {
+			QApplication::processEvents();
+			QThread::msleep(2);
+		}
+		expect(aWindow.grab().save(root + aSuffix + ".png"), "settled full inline publication surface renders");
+	}
+
+	void refuse_recovery(app::github_application& aApplication, const app::detail::github_public_path_fixture_options& aOptions,
+						 qt::conversation_cards_view& aCards, const core::review_comment_draft& aOriginal,
+						 std::optional<application::review_mutation_failure> aFailure, const QString& aReason)
+	{
+		const auto before = github_application_fixture_access::review_mutation_evidence(aApplication);
+		{
+			const auto lock                                        = std::scoped_lock{ aOptions.ReviewSubmissionServer->Mutex };
+			aOptions.ReviewSubmissionServer->CliAcquisitionFailure = aFailure;
+		}
+		aOptions.GithubCliStrictCapability->store(aFailure.has_value());
+		send_single(aCards);
+		auto& editor = *aApplication.window().review_editor();
+		wait_for([&] { return draft_status(aCards).contains(aReason) && editor.publication_retry_offered(); },
+				 "refused recovery keeps the same retry in the public drawer");
+		expect_status_visible(aCards);
+		const auto after = github_application_fixture_access::review_mutation_evidence(aApplication);
+		expect(draft_status(aCards).contains(QStringLiteral("still unknown")) && !draft_status(aCards).contains(QStringLiteral("Not published")),
+			   "a refused check cannot claim the original comment was not published");
+		expect(editor.shown_draft() && *editor.shown_draft() == aOriginal && editor.body_editor()->isReadOnly(),
+			   "body, anchor, publication identity and publishing lock are retained");
+		expect(after.NativePosts == before.NativePosts && after.FilePosts == before.FilePosts && after.StoredComments == 1U,
+			   "every refused recovery makes zero additional POSTs");
+		expect(after.DurableJournalReads == before.DurableJournalReads,
+			   "early capability or coordinator observation refusal is covered before session recovery loads");
+		expect(after.Submissions == before.Submissions && after.TargetObservations == before.TargetObservations + (aFailure ? 1U : 0U),
+			   "credential refusal reaches the coordinator observation; capability refusal stops before it");
+		auto* const retry = draft_publish(aCards);
+		expect(retry && retry->isEnabled() && retry->text() == QStringLiteral("Retry"), "the ordinary new-comment action never replaces the retry");
+		std::cout << "M3_RECOVERY_REFUSAL reason=" << aReason.toStdString() << " posts=" << after.NativePosts << " stored=" << after.StoredComments << '\n';
+	}
+
 	enum class course : std::uint8_t {
 		published,
 		lost_then_retried,
+		unsupported,
+		credential_unavailable,
+		tool_failed,
 		cancelled,
 	};
 
 	void run(const course aCourse)
 	{
 		const auto name      = aCourse == course::published ? std::string_view{ "published" }
-			: aCourse == course::cancelled                  ? std::string_view{ "cancelled" }
+			: aCourse == course::unsupported                ? std::string_view{ "unsupported" }
 															: std::string_view{ "lost-then-retried" };
 		auto       temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "private temporary application root");
 		auto options                          = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot           = e2e::private_data_root(temporary);
+		options.ReviewSubmissionServer        = std::make_shared<app::detail::review_submission_fixture_state>();
 		options.PublicPreviewEnabledCourse    = true;
 		options.IndependentWindowReads        = true;
 		options.LoseFirstReviewMutationResult = aCourse == course::lost_then_retried;
+		options.GithubCliStrictCapability     = std::make_shared<std::atomic_bool>(true);
 		options.GithubCliDiscoveryAccounts    = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{
 			{ .Hostname = "github.com", .Login = "octo-reviewer" }
 		};
@@ -151,7 +205,7 @@ namespace {
 		QApplication::processEvents();
 
 		// Every confirmation is answered Yes, as the owner did, except the
-		// publication's in the cancelled course; each one asked is counted.
+		// publication's in the unsupported course; each one asked is counted.
 		auto   readOptIns  = 0U;
 		auto   publishAsks = 0U;
 		QTimer consent;
@@ -162,7 +216,7 @@ namespace {
 					expect(prompt->text().startsWith(QStringLiteral("Publish inline comment on github.com for octo-org/review-repository#17 as octo-reviewer?")),
 						   "the publication confirmation names the operation, target and account");
 					++publishAsks;
-					prompt->button(aCourse == course::cancelled ? QMessageBox::Cancel : QMessageBox::Yes)->click();
+					prompt->button(aCourse == course::unsupported ? QMessageBox::Cancel : QMessageBox::Yes)->click();
 					return;
 				}
 				++readOptIns;
@@ -175,8 +229,8 @@ namespace {
 		QApplication::processEvents();
 		firstWindow.home_landing()->secondary_button()->click();
 		wait_for([&] { return firstWindow.session_panel()->status() == core::github_status::session_ready; }, "Use GitHub CLI connects the discovered account");
-		// BPR-1410: publication after restored read consent still needs its
-		// ordinary exact-operation confirmation, including cancellation.
+		// Publication after restored read trust still requires the ordinary
+		// exact-operation gesture and its grant; trust itself issues no write.
 		expect(readOptIns == 1U, "first explicit selection accepts read trust once");
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "first lifetime drains its remembered selection");
@@ -215,17 +269,31 @@ namespace {
 		auto* publish = draft_publish(*cards);
 		expect(publish != nullptr && single_offered(*cards) && publish->isEnabled(), "the open draft offers Add single comment");
 		const auto before = github_application_fixture_access::review_mutation_evidence(*application);
-		const auto text   = QString::fromStdString(body);
-		if (aCourse == course::cancelled) {
+		if (aCourse == course::unsupported) {
+			options.GithubCliStrictCapability->store(false);
+		}
+		const auto text = QString::fromStdString(body);
+		if (aCourse == course::credential_unavailable || aCourse == course::tool_failed || aCourse == course::cancelled) {
+			options.ReviewSubmissionServer->CliAcquisitionFailure = aCourse == course::credential_unavailable ? application::review_mutation_failure::credential_unavailable
+				: aCourse == course::tool_failed                                                              ? application::review_mutation_failure::credential_tool_failed
+																											  : application::review_mutation_failure::cancelled;
+		}
+		if (aCourse == course::unsupported || options.ReviewSubmissionServer->CliAcquisitionFailure) {
 			send_single(*cards);
-			const auto said = wait_until([&] { return draft_status(*cards).contains(QStringLiteral("cancelled")); }, 5000);
+			const auto said = wait_until([&] { return aCourse == course::unsupported ? draft_status(*cards).contains(QStringLiteral("does not support")) : draft_status(*cards).contains(QStringLiteral("draft is kept")); }, 5000);
 			std::cout << "BPR_1329:" << name << ":status=\"" << draft_status(*cards).toStdString() << "\" publish_asks=" << publishAsks << '\n';
-			expect(said, "the draft says the publication was not sent because the confirmation was cancelled");
+			expect(said, "the draft says publication is unavailable and keeps its text");
+			expect_status_visible(*cards);
+			capture_settled(window, "-inline-" + QString::number(static_cast<unsigned int>(aCourse)));
+			if (aCourse == course::credential_unavailable || aCourse == course::tool_failed) {
+				expect(draft_status(*cards).contains(QStringLiteral("octo-reviewer")) && draft_status(*cards).contains(QStringLiteral("github.com")), "inline failure uses its failed operation's chosen account and server");
+			}
+
 			const auto after = github_application_fixture_access::review_mutation_evidence(*application);
-			expect(publishAsks == 1U && after.Submissions == before.Submissions && after.StoredComments == 0U, "a cancelled confirmation sends nothing");
+			expect(publishAsks == 0U && after.NativePosts == before.NativePosts && after.StoredComments == 0U, "unsupported strict capability sends nothing");
 			publish = draft_publish(*cards);
 			expect(draft_card(*cards) != nullptr && publish != nullptr && single_offered(*cards) && publish->isEnabled()
-					   && publish->text() == QStringLiteral("Add single comment"),
+					   && (publish->text() == QStringLiteral("Add single comment") || (aCourse == course::cancelled && publish->text() == QStringLiteral("Retry"))),
 				   "the draft stays, and Add single comment is still offered");
 			std::cout << "BPR_1329:" << name << ":pass\n";
 			consent.stop();
@@ -258,7 +326,7 @@ namespace {
 			std::cout << "BPR_1329:" << name << ":after-loss draft_card=" << (draft_card(*cards) != nullptr) << " status=\"" << draft_status(*cards).toStdString()
 					  << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(settled, "the draft says in words that the result is unavailable and retry is safe");
-			expect(publishAsks == 1U, "the publication was confirmed once");
+			expect(publishAsks == 0U, "ordinary publication opened no CLI modal");
 			// Closed, the draft is kept as its note; opened, it says so again.
 			auto* const close = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadClose"));
 			expect(close != nullptr, "the draft in the drawer can be closed");
@@ -273,6 +341,19 @@ namespace {
 					  << " editor_enabled=" << window.review_editor()->publish_action()->isEnabled() << '\n';
 			expect(publish != nullptr && single_offered(*cards) && publish->isEnabled() && publish->text() == QStringLiteral("Retry"),
 				   "the draft offers Retry for the same publication");
+			const auto original = *window.review_editor()->shown_draft();
+			for (unsigned repeated = 0; repeated < 2; ++repeated) {
+				refuse_recovery(*application, options, *cards, original, application::review_mutation_failure::credential_unavailable, QStringLiteral("credential access"));
+			}
+			capture_settled(window, QStringLiteral("-unknown-credential"));
+			refuse_recovery(*application, options, *cards, original, application::review_mutation_failure::credential_tool_failed, QStringLiteral("could not check"));
+			refuse_recovery(*application, options, *cards, original, application::review_mutation_failure::cancelled, QStringLiteral("check was cancelled"));
+			refuse_recovery(*application, options, *cards, original, std::nullopt, QStringLiteral("cannot check"));
+			{
+				const auto lock = std::scoped_lock{ options.ReviewSubmissionServer->Mutex };
+				options.ReviewSubmissionServer->CliAcquisitionFailure.reset();
+			}
+			options.GithubCliStrictCapability->store(true);
 			send_single(*cards);
 		}
 
@@ -282,13 +363,14 @@ namespace {
 				  << " native_posts=" << (after.NativePosts - before.NativePosts) << " stored=" << after.StoredComments
 				  << " draft_card=" << (draft_card(*cards) != nullptr) << " posted_card=" << (posted_card(*cards, text) != nullptr)
 				  << " status=\"" << window.status_text().toStdString() << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\"\n";
-		expect(publishAsks == (aCourse == course::published ? 1U : 2U), "each publication asks the GitHub CLI confirmation once");
-		expect(after.StoredComments == 1U && after.LastBody == body, "the fixture server holds exactly the one comment, with the draft's text");
+		expect(publishAsks == 0U, "ordinary Publish and retry open no CLI modal");
+		expect(after.NativePosts == before.NativePosts + 1U && after.StoredComments == 1U && after.LastBody == body, "the fixture server holds exactly the one comment, with the draft's text");
 		expect(shown, "the drawer shows the posted thread in place of the draft");
 		expect(posted_count(*cards, text) == 1U, "one posted thread, not two");
 		const auto* const posted = posted_card(*cards, text);
 		expect(cards->open_card() != nullptr && cards->open_card()->isVisible() && cards->open_card()->property("threadKey").toString().startsWith(QString::fromStdString(posted->Id)),
 			   "the posted thread is the one open in the drawer");
+		capture_settled(window, QStringLiteral("-reconciled"));
 		std::cout << "BPR_1329:" << name << ":pass\n";
 
 		consent.stop();
@@ -300,10 +382,13 @@ namespace {
 int main(int aArgc, char** aArgv)
 try {
 	QApplication qt{ aArgc, aArgv };
-	// One course by name, or all three.
+	// One course by name, or the complete bounded fixture course.
 	const auto only = aArgc > 1 ? std::string_view{ aArgv[1] } : std::string_view{ };
 	for (const auto& [course, name] : { std::pair{ course::published, std::string_view{ "published" } },
 										std::pair{ course::lost_then_retried, std::string_view{ "lost-then-retried" } },
+										std::pair{ course::unsupported, std::string_view{ "unsupported" } },
+										std::pair{ course::credential_unavailable, std::string_view{ "credential-unavailable" } },
+										std::pair{ course::tool_failed, std::string_view{ "tool-failed" } },
 										std::pair{ course::cancelled, std::string_view{ "cancelled" } } }) {
 		if (only.empty() || only == name) {
 			run(course);

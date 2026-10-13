@@ -34,6 +34,9 @@ namespace bpr::application {
 		/// The server response could not be decoded under the operation contract.
 		malformed_response,
 		incompatible_body,
+		credential_unavailable,
+		/// The credential tool failed before any publication request.
+		credential_tool_failed,
 	};
 
 	/// \brief Returns the stable name for the supplied value.

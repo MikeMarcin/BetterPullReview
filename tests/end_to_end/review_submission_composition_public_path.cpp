@@ -5,6 +5,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "cli_publication_course.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
@@ -52,11 +53,11 @@ namespace {
 			throw std::runtime_error{ aMessage };
 		}
 	}
-	void open(app::github_application& aApp)
+	void open(app::github_application& aApp, e2e::cli_publication_course& aCli)
 	{
 		aApp.show();
 		auto& window = aApp.window();
-		window.github_connect_action()->trigger();
+		aCli.connect(window);
 		wait([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "connected controls");
 		// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
 		window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
@@ -111,18 +112,23 @@ auto main(int argc, char** argv) -> int
 		std::cerr << "review-submission-composition:fail private data root\n";
 		return EXIT_FAILURE;
 	}
-	auto server = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto make   = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false) {
+	const auto                  cliMode = argc > 1 && std::string_view{ argv[1] } == "--cli";
+	e2e::cli_publication_course cli{ cliMode };
+	auto                        server = std::make_shared<app::detail::review_submission_fixture_state>();
+	server->CliStrictCourse            = cliMode;
+	auto make                          = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
-		auto                                     startup         = access::start(aFixture,
-																				 app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads },
-																				 [&](auto aResult) {
+		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
+		cli.configure(options);
+		auto startup = access::start(aFixture,
+									 options,
+									 [&](auto aResult) {
 										 startupTerminal = true;
 										 if (aResult) {
 											 started = std::move(*aResult);
 										 }
-																				 });
+									 });
 		wait([&] { return startupTerminal && startup && startup->is_quiescent(); }, "application startup reaches a terminal");
 		expect(started != nullptr, "application startup succeeds");
 		return started;
@@ -135,11 +141,87 @@ auto main(int argc, char** argv) -> int
 		auto& initial = *application->window().review_submission_editor_view();
 		expect(!initial.shown_draft() && initial.target_editor()->isHidden() && initial.body_editor()->isHidden(), "signed-out no-draft composition explains itself without empty inputs");
 		expect(initial.status_label()->text().contains(QStringLiteral("Sign in")) && !initial.submit_action()->toolTip().isEmpty(), "signed-out next step and disabled reason");
-		open(*application);
+		open(*application, cli);
 		auto& window = application->window();
 		auto& editor = *window.review_submission_editor_view();
 		expect(!window.review_editor()->shown_draft(), "whole review needs no source-line draft");
 		expect(editor.target_editor()->toPlainText().contains(QStringLiteral("github.com")) && editor.target_editor()->toPlainText().contains(QStringLiteral("octo-reviewer")), "host and actual actor shown");
+		if (cliMode) {
+			if (argc > 2) {
+				expect(window.grab().save(QString::fromLocal8Bit(argv[2]) + "-review-ready.png"), "full ordinary CLI review presentation renders");
+			}
+			expect(server->Submissions == 0U && server->StagedWrites == 0U, "startup, discovery and connection trust grant no write");
+			for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
+				window.open_review_composition();
+				editor.choose_disposition(disposition);
+				editor.body_editor()->setPlainText(disposition == core::review_disposition::approve ? QString{ } : QStringLiteral("Ordinary chosen-account review."));
+				expect(editor.target_editor()->toPlainText().contains(QStringLiteral("octo-reviewer")) && editor.target_editor()->toPlainText().contains(QStringLiteral("github.com")), "ordinary review names actual actor and server");
+				editor.body_editor()->setFocus();
+				const auto before       = server->Submissions;
+				const auto acquisitions = server->CliAcquisitions;
+				editor.submit_action()->trigger();
+				submitted(editor);
+				expect(server->Submissions == before + 1U && server->CliAcquisitions == acquisitions + 1U, "one ordinary review gesture reacquires and dispatches exactly one POST");
+				expect(QApplication::activeModalWidget() == nullptr, "ordinary review opens no modal");
+			}
+			window.open_review_composition();
+			editor.body_editor()->setPlainText(QStringLiteral("Kept strict-capability draft."));
+			const auto kept   = *editor.shown_draft();
+			const auto before = server->Submissions;
+			cli.Strict->store(false);
+			editor.submit_action()->trigger();
+			expect(server->Submissions == before && editor.shown_draft() == kept && editor.status_label()->text().contains(QStringLiteral("draft is kept")), "absent strict capability refuses original review and keeps draft");
+			cli.Strict->store(true);
+			const auto shown = editor.shown_projection();
+			editor.body_editor()->setPlainText(QStringLiteral("Revised strict-capability draft."));
+			editor.present(shown);
+			editor.submit_action()->trigger();
+			expect(server->Submissions == before && editor.status_label()->text().contains(QStringLiteral("summary changed")), "changed frozen content refuses original ordinary gesture");
+			for (const auto failure : { application::review_mutation_failure::credential_unavailable, application::review_mutation_failure::credential_tool_failed, application::review_mutation_failure::cancelled }) {
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure = failure;
+				}
+				window.activateWindow();
+				QApplication::processEvents();
+				editor.body_editor()->setFocus();
+				QApplication::processEvents();
+				const auto priorFocus = QApplication::focusWidget();
+				expect(priorFocus && editor.isAncestorOf(priorFocus), "failure course establishes actual editor focus before Submit");
+				std::cout << "CLI_FAILURE_FOCUS before=" << (priorFocus ? priorFocus->objectName().toStdString() : "none") << " visible=" << editor.body_editor()->isVisible() << "\n";
+				editor.submit_action()->trigger();
+				wait([&] { return editor.submit_action()->isEnabled() && editor.status_label()->text().contains(QStringLiteral("draft is kept")); }, "typed acquisition failure returns editable draft");
+				expect(server->Submissions == before && editor.body_editor()->toPlainText() == QStringLiteral("Revised strict-capability draft."), "acquisition failure performs zero POST and retains exact summary");
+				if (failure != application::review_mutation_failure::cancelled) {
+					expect(editor.status_label()->text().contains(QStringLiteral("octo-reviewer")) && editor.status_label()->text().contains(QStringLiteral("github.com")), "failure binds the failed operation's chosen account and host");
+				}
+				std::cout << "CLI_FAILURE_FOCUS after=" << (QApplication::focusWidget() ? QApplication::focusWidget()->objectName().toStdString() : "none") << "\n";
+				expect(QApplication::focusWidget() == priorFocus && QApplication::activeModalWidget() == nullptr, "failure preserves existing keyboard focus without a new modal");
+				if (argc > 2) {
+					expect(window.grab().save(QString::fromLocal8Bit(argv[2]) + "-review-" + QString::fromUtf8(application::name(failure).data(), static_cast<qsizetype>(application::name(failure).size())) + ".png"), "typed CLI review refusal renders in its existing surface");
+				}
+			}
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->CliAcquisitionFailure.reset();
+				server->LoseNextReview = true;
+			}
+			editor.submit_action()->trigger();
+			wait([&] { return editor.status_label()->text().contains(QStringLiteral("unknown")); }, "attempted unknown write has honest status");
+			expect(server->Submissions == before + 1U && !editor.submit_action()->isEnabled(), "unknown attempt cannot issue a second POST");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->HideReviewReads = false;
+			}
+			editor.reconcile_action()->trigger();
+			submitted(editor);
+			expect(server->Submissions == before + 1U, "unknown attempt reconciles GET-only to its existing review");
+			cli.check();
+			shutdown(*application);
+			std::cout << "review-submission-composition:pass CLI dispositions and exact refusal\n";
+			return EXIT_SUCCESS;
+		}
+
 		expect(!editor.submit_action()->isEnabled(), "blank comment refused");
 		const auto first = *editor.shown_draft();
 		for (const auto disposition : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
@@ -354,7 +436,7 @@ auto main(int argc, char** argv) -> int
 		shutdown(*application);
 		application.reset();
 		application = make(app::detail::github_epoch_fixture_phase::reuse);
-		open(*application);
+		open(*application, cli);
 		auto* restoredNotes = application->window().private_notes();
 		wait([&] { return restoredNotes->notes_list()->count() == 1; }, "private note survives application reconstruction through SQLite");
 		restoredNotes->notes_list()->setCurrentRow(0);
@@ -410,7 +492,7 @@ auto main(int argc, char** argv) -> int
 		expect(!restored.submit_action()->isEnabled() && restored.shown_draft()->State == state::submitting, "retired terminal cannot complete or rebind frozen review");
 		application.reset();
 		application = make(app::detail::github_epoch_fixture_phase::seed);
-		open(*application);
+		open(*application, cli);
 		auto& frozen = *application->window().review_submission_editor_view();
 		frozen.body_editor()->setPlainText(QStringLiteral("Do not rebind this draft"));
 		const auto oldDraft = *frozen.shown_draft();
@@ -461,7 +543,7 @@ auto main(int argc, char** argv) -> int
 		// The preflight course re-reads the fake server through the public
 		// Refresh, so its recorded read script replays.
 		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true);
-		open(*application);
+		open(*application, cli);
 		{
 			auto& course   = application->window();
 			auto& composer = *course.review_submission_editor_view();
@@ -599,6 +681,7 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 		shutdown(*application);
+		cli.check();
 		std::cout << "review-submission-composition:pass\n";
 		return EXIT_SUCCESS;
 	} catch (const std::exception& error) {

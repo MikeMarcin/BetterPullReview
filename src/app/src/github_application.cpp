@@ -4649,6 +4649,7 @@ namespace bpr::app {
 			GithubCliDiscoveryAccounts = aFixture.has_value()
 				? aFixtureOptions.GithubCliDiscoveryAccounts
 				: std::nullopt;
+			GithubCliInventoryChecks   = aFixture.has_value() ? aFixtureOptions.GithubCliInventoryChecks : nullptr;
 			DiffComputeLimits          = aFixture.has_value()
 				? aFixtureOptions.DiffComputeLimits
 				: core::diff_compute_limits{ };
@@ -5883,7 +5884,8 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		bool NetworkDenied = false;
 		std::optional<std::vector<detail::github_public_path_fixture_options::github_cli_discovery_account>>
-			GithubCliDiscoveryAccounts;
+											GithubCliDiscoveryAccounts;
+		std::shared_ptr<std::atomic_size_t> GithubCliInventoryChecks;
 #endif
 		/// [[BPR-1373]]. gh's full inventory from the last check, and whether
 		/// gh has been checked in this run.
@@ -7473,27 +7475,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			ReviewSubmission = std::make_unique<review_submission_workflow>(ReviewSubmissionEffects, reviewDecisions,
 																			*Window->review_submission_editor_view(), std::move(issueReviewGrant),
-																			[this](const application::review_submission_live_binding& aBinding, core::review_disposition aDisposition) {
-																				const auto operation = aDisposition == core::review_disposition::approve
-																					? QStringLiteral("Approve pull request")
-																					: aDisposition == core::review_disposition::request_changes
-																					? QStringLiteral("Request changes")
-																					: QStringLiteral("Submit comment review");
-																				return confirm_cli_publication(aBinding.Target, aBinding.ActingIdentity, operation);
+																			[this](const application::review_submission_live_binding& aBinding) {
+																				return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity);
 																			});
 #if defined(BPR_BUILD_TESTING)
-			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto session, auto generation, const application::staged_review_plan& plan) {
-				return Fixture ? application::make_review_submission_testing_grant(session, generation, plan) : application::review_submission_execution_grant{ };
+			review_tour_publication_workflow::grant_factory issueTourGrant = [this](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
+				return Fixture ? application::make_review_submission_testing_grant(aSession, aGeneration, aPlan) : application::review_submission_execution_grant{ };
 			};
 #else
-			review_tour_publication_workflow::grant_factory issueTourGrant = [](auto session, auto generation, const application::staged_review_plan& plan) {
-				return application::detail::review_submission_user_authority_issuer::issue(session, generation, plan);
+			review_tour_publication_workflow::grant_factory issueTourGrant = [](auto aSession, auto aGeneration, const application::staged_review_plan& aPlan) {
+				return application::detail::review_submission_user_authority_issuer::issue(aSession, aGeneration, aPlan);
 			};
 #endif
-			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& binding, core::review_disposition) { return confirm_cli_publication(binding.Target, binding.ActingIdentity, QStringLiteral("Publish the previewed review tour and its separately selected description edit")); }, [this](const application::staged_publication_record& record) {
+			TourPublication = std::make_unique<review_tour_publication_workflow>(ReviewSubmissionEffects, reviewDecisions, *Window->tour_editor(), std::move(issueTourGrant), [this](const auto& aBinding) { return admit_cli_publication(aBinding.Target, aBinding.ActingIdentity); }, [this](const application::staged_publication_record& aRecord) {
                 if(!TourHost){return;}const auto draft=TourHost->presentation().Draft;
                 if(!draft){return;}
-                if(auto published=application::published_tour(record,*draft)){TourHost->observe_publication(std::move(*published));} });
+                if(auto published=application::published_tour(aRecord,*draft)){TourHost->observe_publication(std::move(*published));} });
 			Window->set_review_submission_dispatch([this](qt::review_submission_editor_intent aIntent) {
 				if (!Closing && ReviewSubmission) {
 					ReviewSubmission->dispatch(std::move(aIntent));
@@ -9831,113 +9828,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const application::workbench_pull_request_authority& aAuthority)
 			-> bool
 		{
-			return aRecord.Draft.State == core::review_draft_state::drafting
+			return (aRecord.Draft.State == core::review_draft_state::drafting || aRecord.Draft.State == core::review_draft_state::publishing)
 				&& aRecord.Draft.Anchor == aSelection.PreferredLine
 				&& aRecord.Draft.Anchor.Comparison == aSelection.Comparison
 				&& aRecord.Authority == aAuthority;
 		}
 
-		/// \brief Whether this publication may go over the session's GitHub
-		/// CLI, asking the person when it would.
-		///
-		/// \details [[BPR-1329]]. A refusal names its reason in \p aRefusal
-		/// when one is given: `cancelled` when the person declined, otherwise
-		/// `undesignated_target`, the session, pull request or account having
-		/// changed or gone, before or while the person was asked.
-		[[nodiscard]] auto confirm_cli_publication(
-			application::review_mutation_target_binding  aTarget,
-			application::review_mutation_acting_identity aActor,
-			const QString&                               aOperation,
-			application::review_mutation_failure*        aRefusal = nullptr) const -> bool
+		/// \brief Checks the exact current CLI publication and its retained strict wire.
+		/// \details Admission supplies no write authority; the ordinary gesture must
+		/// still issue its exact one-use grant and the provider reacquires credentials.
+		[[nodiscard]] auto admit_cli_publication(
+			const application::review_mutation_target_binding&  aTarget,
+			const application::review_mutation_acting_identity& aActor) const
+			-> std::expected<void, application::review_mutation_failure>
 		{
-			const auto refuse = [aRefusal](const application::review_mutation_failure aFailure) {
-				if (aRefusal != nullptr) {
-					*aRefusal = aFailure;
-				}
-				return false;
-			};
+			using failure = application::review_mutation_failure;
 			if (!Host || !WindowRead || !Host->accepted_session()
 				|| !WindowRead->accepted_snapshot()) {
-				return refuse(application::review_mutation_failure::undesignated_target);
+				return std::unexpected(failure::undesignated_target);
 			}
-			const auto* profile = find_profile(Host->accepted_session()->Profile);
-			if (!profile || profile->authentication_transport() != application::github_authentication_transport::github_cli) {
-				return profile != nullptr || refuse(application::review_mutation_failure::undesignated_target);
+			const auto& session = *Host->accepted_session();
+			const auto* profile = find_profile(session.Profile);
+			if (!profile) {
+				return std::unexpected(failure::undesignated_target);
 			}
-			const auto exactCurrent = [this, &aTarget, &aActor] {
-				if (!Host || !WindowRead || !Host->accepted_session()
-					|| !WindowRead->accepted_snapshot()) {
-					return false;
-				}
-				const auto& session  = *Host->accepted_session();
-				const auto& snapshot = *WindowRead->accepted_snapshot();
-				const auto* selected = find_profile(session.Profile);
-				return selected && selected->authentication_transport() == application::github_authentication_transport::github_cli
-					&& snapshot.Profile == session.Profile && snapshot.Host == session.Host
-					&& session.Viewer.Account == snapshot.Account
-					&& session.Viewer.Account == aActor.Account
-					&& session.Viewer.Login == snapshot.Viewer.Login
-					&& session.Viewer.Login == aActor.Login
-					&& aTarget.Semantic.Host == session.Host
-					&& aTarget.Semantic.Repository == snapshot.Repository.Repository
-					&& aTarget.Semantic.PullRequest == snapshot.PullRequest.PullRequest
-					&& aTarget.Repository.Owner == snapshot.Repository.Owner
-					&& aTarget.Repository.Name == snapshot.Repository.Name
-					&& aTarget.Number == snapshot.PullRequest.Number
-					&& aTarget.Hostname.value() == selected->hostname();
-			};
-			if (!exactCurrent()) {
-				return refuse(application::review_mutation_failure::undesignated_target);
+			if (profile->authentication_transport() != application::github_authentication_transport::github_cli) {
+				return { };
 			}
-			// [[BPR-0797]]. Asked at run time, and compiled into both graphs,
-			// for exactly the reason the label and the factory above are. This
-			// gate used to be `!BPR_BUILD_TESTING`, which is on in every build
-			// made with this project's CMake default. That was harmless only
-			// while the same define also withheld `opted_in_cli_transport_factory`,
-			// because a session that could not read over `gh` could never reach a
-			// write over it either. Moving the factory to a run-time question
-			// without moving this one would have left a person's own build
-			// composing the real CLI transport with its per-publication
-			// confirmation compiled out, which is [[BPR-0786]]'s first criterion
-			// -- "read opt-in alone cannot publish" -- turned false in the one
-			// build anybody actually runs.
-			//
-			// A run inside the automated test boundary composes a factory whose
-			// `supports_cli()` is false, so it cannot hold a CLI session and never
-			// arrives here; the unconditional `true` below stays its answer, and no
-			// unattended row is handed a modal dialog it has nobody to answer with.
-#if defined(__APPLE__)
-			if (Profile->cli_read_offered_here()) {
-				const auto consent = QMessageBox::warning(
-					Window.get(), QStringLiteral("Confirm GitHub CLI publication"),
-					QStringLiteral("%1 on %2 for %3/%4#%5 as %6?\n\n"
-								   "BetterPullReview will use your configured gh account for this write. "
-								   "The active gh account can switch outside this app, even after the identity check. "
-								   "Executable, configuration, certificate, redirect and helper-process behavior remain trusted as configured on this machine. "
-								   "This confirmation applies only to this publication.")
-						.arg(aOperation)
-						.arg(QString::fromStdString(std::string{ aTarget.Hostname.value() }))
-						.arg(QString::fromStdString(aTarget.Repository.Owner))
-						.arg(QString::fromStdString(aTarget.Repository.Name))
-						.arg(aTarget.Number.value())
-						.arg(QString::fromStdString(aActor.Login)),
-					QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
-				if (consent != QMessageBox::Yes) {
-					return refuse(application::review_mutation_failure::cancelled);
-				}
-				// The question runs its own event loop; what it was asked
-				// about must still be what the session holds.
-				return exactCurrent() || refuse(application::review_mutation_failure::undesignated_target);
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto  head     = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			if (snapshot.Profile != session.Profile || snapshot.Host != session.Host
+				|| session.Viewer.Account != snapshot.Account || session.Viewer.Account != aActor.Account
+				|| session.Viewer.Login != snapshot.Viewer.Login || session.Viewer.Login != aActor.Login
+				|| aTarget.Semantic.Host != session.Host || aTarget.Semantic.Repository != snapshot.Repository.Repository
+				|| aTarget.Semantic.PullRequest != snapshot.PullRequest.PullRequest
+				|| aTarget.Repository.Owner != snapshot.Repository.Owner || aTarget.Repository.Name != snapshot.Repository.Name
+				|| aTarget.Number != snapshot.PullRequest.Number || aTarget.Hostname.value() != profile->hostname()
+				|| !head || aTarget.Semantic.ExpectedHead != *head) {
+				return std::unexpected(failure::undesignated_target);
 			}
-#endif
-			// Only the macOS prompt above reads the operation; every other graph
-			// must still name it, or MSVC's /W4 /WX refuses a tests-disabled build.
-			static_cast<void>(aOperation);
-#if defined(BPR_BUILD_TESTING)
-			return true;
-#else
-			return refuse(application::review_mutation_failure::unavailable);
-#endif
+			const auto lease = std::dynamic_pointer_cast<adapters::github::detail::github_review_mutation_transport_lease>(WindowRead->mutation_transport());
+			if (!lease || !lease->strict_cli()) {
+				return std::unexpected(failure::unsupported);
+			}
+			return { };
 		}
 
 		std::unique_ptr<application::review_tour_host> TourHost;
@@ -11463,7 +11397,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 
-			auto outcome = SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
+			auto outcome = aPreserveForRetry ? SharedDrafts->read(DraftConsumer, publishing->Draft.Id)
+											 : SharedDrafts->complete(SharedDrafts->authority(), publishing->Draft.Id, publishing->Revision, aSuccess);
 			if (!outcome.Failure && outcome.Accepted) {
 				accept_shared_draft(*outcome.Accepted);
 			}
@@ -12021,6 +11956,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		void present_inline_publication_failure(application::review_mutation_failure                       aFailure,
+												core::review_publication_outcome                           aOutcome,
+												const std::optional<designated_review_mutation_selection>& aBinding)
+		{
+			if (!Window || !Window->review_editor()) {
+				return;
+			}
+			const auto login  = aBinding ? QString::fromStdString(aBinding->ActingIdentity.Login) : QString{ };
+			const auto host   = aBinding ? QString::fromStdString(std::string{ aBinding->Target.Hostname.value() }) : QString{ };
+			const auto status = aOutcome == core::review_publication_outcome::indeterminate
+				? qt::github_cli_publication_recovery_text(aFailure, login, host)
+				: aBinding ? qt::github_cli_publication_failure_text(aFailure, login, host)
+						   : QString{ };
+			if (status.isEmpty()) {
+				Window->review_editor()->present(aFailure);
+			} else {
+				Window->review_editor()->present_publication_refusal(status);
+			}
+		}
+
 		/// \brief Applies one draft command, and says once whether it was accepted.
 		///
 		/// \details [[BPR-1246]]. With private review the command is written
@@ -12047,25 +12002,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				settle(false);
 				return;
 			}
-			const auto& aCommand = aRevisionedCommand.Command;
-			const auto  publish  = aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			const auto& aCommand     = aRevisionedCommand.Command;
+			const auto  publish      = aCommand.Kind == core::review_draft_command_kind::begin_publish;
+			const auto  priorOutcome = ReviewDraft->State == core::review_draft_state::publishing
+				? core::review_publication_outcome::indeterminate
+				: core::review_publication_outcome::not_published;
 			// [[BPR-1329]]. A Publish that stops here says why, where the draft
 			// is shown; it used to stop without a word.
-			const auto refusePublish = [this, publish](const QString& aReason) {
+			const auto refusePublish = [this, publish, priorOutcome](const QString& aReason) {
 				if (publish && !Closing && Window && Window->review_editor()) {
-					Window->review_editor()->present_publication_refusal(aReason);
+					if (priorOutcome == core::review_publication_outcome::indeterminate) {
+						present_inline_publication_failure(application::review_mutation_failure::undesignated_target, priorOutcome, InlineReviewBinding);
+					} else {
+						Window->review_editor()->present_publication_refusal(aReason);
+					}
 				}
 			};
 			if (publish) {
-				auto refusal = application::review_mutation_failure::undesignated_target;
-				if (!InlineReviewBinding || !confirm_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity, QStringLiteral("Publish inline comment"), &refusal)) {
-					if (!Closing && Window && Window->review_editor()) {
-						if (refusal == application::review_mutation_failure::cancelled) {
-							refusePublish(QStringLiteral("Not published: you cancelled the GitHub CLI confirmation. Your draft is kept."));
-						} else {
-							Window->review_editor()->present(refusal);
-						}
-					}
+				const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
+														   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
+				if (!admission) {
+					present_inline_publication_failure(admission.error(), priorOutcome, InlineReviewBinding);
 					settle(false);
 					return;
 				}
@@ -12113,7 +12070,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
 						const auto retained = SharedDrafts->read(DraftConsumer, ReviewDraft->Id);
 						if (retained.Accepted) {
-							finish_review_draft_command(aRevisionedCommand, retained);
+							finish_review_draft_command(aRevisionedCommand, retained, priorOutcome);
 							finished = true;
 						}
 					}
@@ -12127,7 +12084,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				PrivateDraftCommandPending = true;
 				const auto owner           = SharedDrafts;
-				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, settled = std::move(aSettled)](auto aCommit) {
+				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, priorOutcome, settled = std::move(aSettled)](auto aCommit) {
 					PrivateDraftCommandPending = false;
 					const auto answer          = [&settled](const bool aAccepted) {
 						if (settled) {
@@ -12144,20 +12101,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					present_saved_drafts();
 					const auto accepted = owner->read(DraftConsumer, aRevisionedCommand.Command.Id);
 					if (accepted.Accepted) {
-						finish_review_draft_command(aRevisionedCommand, accepted);
+						finish_review_draft_command(aRevisionedCommand, accepted, priorOutcome);
 					}
 					answer(accepted.Accepted.has_value() && !accepted.Failure);
 				});
 				return;
 			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
-			finish_review_draft_command(aRevisionedCommand, outcome);
+			finish_review_draft_command(aRevisionedCommand, outcome, priorOutcome);
 			settle(!outcome.Failure && outcome.Accepted.has_value());
 		}
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
 		/// [[BPR-1374]]. The reply the editor held when a Refresh retired it.
 		std::optional<core::review_draft_id> ResumeReply;
-		void                                 finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome)
+		void                                 finish_review_draft_command(const core::revisioned_review_draft_command& aRevisionedCommand, const application::shared_draft_result& aOutcome, core::review_publication_outcome aPriorOutcome)
 		{
 			const auto& aCommand = aRevisionedCommand.Command;
 
@@ -12175,7 +12132,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->accept_dif_draft(aRevisionedCommand, *aOutcome.Accepted);
 			if (aCommand.Kind == core::review_draft_command_kind::begin_publish) {
-				PublishingDraft = *aOutcome.Accepted;
+				PublishingDraft        = *aOutcome.Accepted;
+				PublishingPriorOutcome = aPriorOutcome;
 			}
 
 			if (RetryableReviewDraft.has_value()
@@ -12201,16 +12159,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			if (!proposal.has_value()) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				return;
 			}
 			if (!SelectedDiffPublication.has_value()
 				|| !SelectedSemanticSelection.has_value()) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 				refresh_agent_private_context_choices();
 				editor->present(
 					application::review_mutation_failure::undesignated_target);
+				return;
+			}
+			const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
+													   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
+			if (!admission) {
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
+				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+				present_inline_publication_failure(admission.error(), aPriorOutcome, InlineReviewBinding);
 				return;
 			}
 			auto request = application::review_mutation_publication_request{
@@ -12229,12 +12195,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			const auto context = ReviewMutationHost->publish(std::move(request), std::move(grant));
 			if (context.Request.value() == 0U) {
-				complete_shared_draft(false);
+				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
-				editor->present(application::review_mutation_failure::unavailable);
+				present_inline_publication_failure(application::review_mutation_failure::unavailable, aPriorOutcome, InlineReviewBinding);
 				return;
 			}
 			PendingReviewMutation = context;
+			PublishingBinding     = InlineReviewBinding;
 			Window->review_editor()->allow_publication_retry(false);
 			editor->present_publication_started();
 		}
@@ -12465,17 +12432,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Closing && aTerminal.Lineage == application::review_lineage_state::pending && ReviewMutationHost) {
 				ReviewMutationHost->repair_pending_publications();
 			}
+			using outcome       = core::review_publication_outcome;
+			auto currentOutcome = outcome::published;
+			if (!aTerminal.Result) {
+				const auto failure         = aTerminal.Result.error();
+				const auto definiteRefusal = failure == application::review_mutation_failure::refused_by_server
+					|| failure == application::review_mutation_failure::incompatible_body
+					|| failure == application::review_mutation_failure::unsupported;
+				const auto unconfirmed = (aTerminal.MutationAttempted && !definiteRefusal)
+					|| failure == application::review_mutation_failure::unavailable
+					|| failure == application::review_mutation_failure::target_unavailable
+					|| failure == application::review_mutation_failure::malformed_response;
+				currentOutcome = unconfirmed ? outcome::indeterminate : outcome::not_published;
+			}
+			const auto publicationOutcome = core::retain_review_publication_outcome(PublishingPriorOutcome, currentOutcome);
 			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {
 				if (aTerminal.Result && Window && Window->review_editor()) {
 					Window->review_editor()->acknowledge_published_body(*PublishingDraft);
 				}
-				const auto uncertain = !aTerminal.Result && (aTerminal.Result.error() == application::review_mutation_failure::unavailable || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable || aTerminal.Result.error() == application::review_mutation_failure::malformed_response || aTerminal.Result.error() == application::review_mutation_failure::cancelled);
-				complete_shared_draft(aTerminal.Result.has_value(), [this, terminal = aTerminal] { finish_review_terminal(terminal); }, uncertain);
+				const auto uncertain = publicationOutcome == outcome::indeterminate;
+				complete_shared_draft(aTerminal.Result.has_value(), [this, terminal = aTerminal, publicationOutcome] { finish_review_terminal(terminal, publicationOutcome); }, uncertain);
 				return;
 			}
-			finish_review_terminal(aTerminal);
+			finish_review_terminal(aTerminal, publicationOutcome);
 		}
-		void finish_review_terminal(const application::review_mutation_terminal& aTerminal)
+		void finish_review_terminal(const application::review_mutation_terminal& aTerminal, core::review_publication_outcome aPublicationOutcome)
 		{
 
 			if (Closing
@@ -12483,6 +12464,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingReviewMutation.reset();
+			const auto failedBinding = std::exchange(PublishingBinding, std::nullopt);
 			refresh_review_projection(aTerminal);
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
@@ -12494,7 +12476,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 				return;
 			}
-			complete_shared_draft(aTerminal.Result.has_value());
+			complete_shared_draft(aTerminal.Result.has_value(), { }, aPublicationOutcome == core::review_publication_outcome::indeterminate);
 			const auto sameRetry = RetryableReviewDraft.has_value()
 				&& RetryableReviewDraft->Draft.Id == ReviewDraft->Id;
 			if (aTerminal.Result.has_value()) {
@@ -12502,9 +12484,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					RetryableReviewDraft.reset();
 				}
 			} else if (
-				(aTerminal.Result.error() == application::review_mutation_failure::unavailable
-				 || aTerminal.Result.error() == application::review_mutation_failure::target_unavailable
-				 || aTerminal.Result.error() == application::review_mutation_failure::malformed_response)
+				aPublicationOutcome == core::review_publication_outcome::indeterminate
 				&& SelectedDiffPublication.has_value()
 				&& ReviewDraft->Anchor.Comparison
 					== core::comparison_digest(SelectedDiffPublication->Key)) {
@@ -12545,7 +12525,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					});
 				}
 			} else {
-				editor->present(aTerminal.Result.error());
+				present_inline_publication_failure(aTerminal.Result.error(), aPublicationOutcome, failedBinding);
 			}
 		}
 
@@ -13989,7 +13969,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (status == core::github_status::session_failed && profile != nullptr && !profile->cli_account_login().empty()
 				&& GithubCliRecheckedFor != failed && Profile->cli_read_offered_here()) {
 				GithubCliRecheckedFor = failed;
-				discover_github_cli_accounts(false);
+				// Strict acquisition refusal never starts ambient account verification.
 			}
 		}
 
@@ -14015,6 +13995,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto        fixtureAccounts = std::optional<std::vector<
 				adapters::github::detail::gh_cli_inventory_account>>{ };
 	#if defined(BPR_BUILD_TESTING)
+			if (Profile->GithubCliInventoryChecks) {
+				++*Profile->GithubCliInventoryChecks;
+			}
 			if (Profile->GithubCliDiscoveryAccounts.has_value()) {
 				fixtureAccounts.emplace();
 				fixtureAccounts->reserve(Profile->GithubCliDiscoveryAccounts->size());
@@ -14571,17 +14554,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						// with the same consequence if it had been left
 						// behind: this build offers the row labelled "uses
 						// your gh sign-in", so it owes the reviewer the
-						// trust warning that says what accepting it means.
+						// connection question that says what accepting it means.
 						// A run inside the boundary composes no factory that
 						// can serve a CLI read, so it never reaches here.
 #if defined(__APPLE__)
+							if (profile->cli_account_login().empty()) {
+								discover_github_cli_accounts(true);
+								return;
+							}
 							const auto remembered = Profile->selected_connection(profile->hostname());
 							if (Profile->cli_read_offered_here() && !Profile->CliConsent.contains(aValue.Profile) && (!remembered || remembered->Profile != aValue.Profile)) {
 								// [[BPR-0933]]. A short decision; the full
 								// residual-risk list is behind Show Details.
 								const auto consent = qt::ask_github_cli_read_consent(
 									Window.get(), QStringLiteral("Use configured GitHub CLI"),
-									QString::fromStdString(std::string{ profile->hostname() }));
+									QString::fromStdString(std::string{ profile->hostname() }), QString::fromStdString(std::string{ profile->cli_account_login() }));
 								if (!consent) {
 									return;
 								}
@@ -18250,6 +18237,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																	  ReviewMutationHost;
 		decltype(github_profile_runtime::LiveReviewMutationGrant)&    LiveReviewMutationGrant = Profile->LiveReviewMutationGrant;
 		std::optional<designated_review_mutation_selection>           InlineReviewBinding;
+		std::optional<designated_review_mutation_selection>           PublishingBinding;
+		core::review_publication_outcome                              PublishingPriorOutcome     = core::review_publication_outcome::not_published;
 		decltype(github_profile_runtime::AttendedReviewMutationMode)& AttendedReviewMutationMode = Profile->AttendedReviewMutationMode;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
 		/// [[BPR-0657]]. The thread resolution in flight and what came of them.

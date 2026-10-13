@@ -144,15 +144,16 @@ RFC status supplies neither a new server observation nor a new native verdict.
 RFC-BPR-0015's amended first read milestone has a qualified macOS fixture
 path. Native HTTPS remains the default. The tests-disabled macOS composition
 has explicit
-CLI read opt-in on the selected GitHub.com or GHES host, with a Connect warning,
+CLI read opt-in on the selected GitHub.com or GHES host, with a chosen-account connection question,
 observed `/user` identity, pre/post-request account checks and a read-only lease.
 It invokes the configured `gh` directly with bounded arguments, input, output
-and time; account discovery and API use require `gh` 2.x with minor >= 96
-because the account inventory uses `gh auth status --active --json hosts`.
+and time; account discovery and API use require `gh` 2.96 or later
+because the account inventory uses `gh auth status --json hosts`
+(every account, with `--active` only for the default choice).
 Older versions are refused before account status runs and the UI requires an
 upgrade. BetterPullReview never passes `--show-token`.
-It uses `gh`'s default home-directory configuration and ignores custom CLI
-environment overrides.
+Credentialed calls use fresh private, token-free host/login configuration;
+ambient or custom CLI configuration-directory overrides are not inherited.
 This is a version check, not proof of an official executable's provenance.
 The r2 trust-boundary amendment permits a bounded exact-repository `gh` Git
 operation for objects; `gh` may internally launch Git and its shell credential
@@ -179,9 +180,10 @@ The probe does not bind the precise Security API calls, credential generation,
 or concurrent account selection. The private repository name and objects
 were not retained. On macOS, the opted-in CLI profile now routes whole-review and
 right-side inline-comment publication through the existing mutation admission,
-a separate exact-host/account/PR/operation confirmation for each ordinary write, and
-server reconciliation. The configured gh account may still change between
-checks; an ambiguous attempted write is not posted twice. Fixture actions
+strict exact-account/head/content admission and one-use grants from the ordinary
+review/comment gesture, plus
+server reconciliation. The acquired credential stays fixed across checks and dispatch; an ambiguous
+attempted write is not posted twice. Fixture actions
 exercise this path; no live PR was written. Windows and Linux remain
 unavailable. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
 Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
@@ -207,13 +209,24 @@ Cancellation discards the pending setup and ignores late discovery results. Home
 not yet discover authored or requested PRs automatically; personal discovery
 remains tracked under RFC-BPR-0026.
 
-BetterPullReview does not extract or copy CLI tokens or change global CLI
-authentication. Opt-in trusts the machine's configured executable, configuration,
-socket routing, CA and redirect behavior, active account and helper processes.
-Pre/post observations can detect some account changes but cannot bind a credential
-generation or prevent a concurrent account switch. Executable/configuration/CA
-replacement and process escape remain uncontained risks. Read opt-in grants no
-publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
+The chosen macOS CLI account now uses strict transient credential selection under
+[RFC-BPR-0078](docs/rfcs/RFC-BPR-0078-strict-cli-account-credentials.md). Each
+operation retrieves only its named existing gh credential through bounded
+sensitive capture, validates the chosen login and numeric account with the same
+bytes, and supplies them to that operation's API and gh-owned Git/helper children.
+A missing or inaccessible named credential stops before network work; it never
+falls back to the active account or another authentication transport. Global gh
+account/configuration stays unchanged. BPR persists no token and includes none in
+arguments, retained output, logs, SQLite, private configuration or recovery state.
+Owned buffers are cleared after descendants drain; Qt, OS and stock-child copies,
+swap and crash dumps remain outside perfect-erasure claims. Configured executable,
+system trust, redirects and helper processes remain trusted surfaces.
+[Native qualification](docs/verification/RFC-BPR-0078.md) records exact stock-gh
+helper negatives and selected API evidence. Qualified CLI Comment, Approve, Request changes and inline Publish now use their
+ordinary deliberate gestures without another CLI popup. Tour Publish and Resume
+retain the explicit immutable preview and separate description choice. Runtime
+strict capability and one-use exact-operation grants remain mandatory. Read
+trust grants no publishing authority. RFC-BPR-0013 keeps a 250-record limit for commits returned by the pull-request
 endpoint. A larger reported total is accepted only when that endpoint
 returns exactly 250 records ending at the accepted head. The UI names the
 reported total and returned count separately; this does not establish that

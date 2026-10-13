@@ -1,0 +1,317 @@
+{
+  "schema": "bpr.cpp-identifier-context.milestone-verification.v1",
+  "mandate_revision": "cpp-identifier-context-r1",
+  "milestone": "cpp-colours-and-closeout",
+  "issue": "BPR-1412",
+  "rfc_base_sha": "6ebd33e57479a24aed91b930624bab030a436045",
+  "source_revision": "bc4b4aafe6f51020aa469c519e936d616e124e89",
+  "source_paths": [
+    "docs/architecture/system-architecture.md",
+    "docs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md",
+    "docs/verification/fixture-catalog.md",
+    "scripts/build_cpp_identifier_fixture.py",
+    "scripts/verify_test_network_isolation.py",
+    "src/adapters/qt/include/bpr/qt/appearance_profile.hpp",
+    "src/adapters/qt/include/bpr/qt/appearance_settings_panel.hpp",
+    "src/adapters/qt/include/bpr/qt/colour_role_list.hpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/src/appearance_preferences_application_host.cpp",
+    "tests/application/appearance_application_host_tests.cpp",
+    "tests/end_to_end/CMakeLists.txt",
+    "tests/end_to_end/cpp_identifier_appearance_public_path_tests.cpp",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/manifest.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/checks.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/commits.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/files.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/issue_comments.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/pull_request.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/repository.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/review_threads.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/reviews.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/search.json",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/viewer.json",
+    "tests/fixtures/github/pull-requests/cpp-identifiers-v1/construction.json",
+    "tests/fixtures/github/pull-requests/cpp-identifiers-v1/objects.pack"
+  ],
+  "source_sha256": {
+    "docs/architecture/system-architecture.md": "bd20a65507a62b7edd6ce7cd68237f0fee7cb2efa461ef275a1fcd592df2a4a3",
+    "docs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md": "690f0c9b92a177fc7cb1115383f2b9adc4ed4b19c87992cc61ec5183cac558ba",
+    "docs/verification/fixture-catalog.md": "6114c2c70bb91becc6ae30ee0b83ff34a86b4e33d3c2bc5308fc575b360b4dae",
+    "scripts/build_cpp_identifier_fixture.py": "5d0c2bc447b2546b8ad357853fbc20ea06a4d6a73df1ba4f67ecd12d6bf0b4eb",
+    "scripts/verify_test_network_isolation.py": "f9e08c4e852b980f980a537783dc84718a27e5a46da6f64dae88186d7b7f4f12",
+    "src/adapters/qt/include/bpr/qt/appearance_profile.hpp": "759c1ee01c2c3c8b56e8f53cf8e026966705431f93a59aae818740067ba143e7",
+    "src/adapters/qt/include/bpr/qt/appearance_settings_panel.hpp": "d8439552d68c7ed9a4018dc12c969d05e42d9a48acc43fca21c568906a8089ac",
+    "src/adapters/qt/include/bpr/qt/colour_role_list.hpp": "d360932dd5d18fe0f01faa9eed107f2e884ad231d4b3fe8ff6300535e1407bcc",
+    "src/app/src/github_application.cpp": "7b583fe9608fa15a7c2b6a2faf150ba7cc5186788fe12d80d119bdf11ebe1fd3",
+    "src/app/src/github_application_fixture_access.hpp": "865a9911d512ea7962b26f8dd4ce02066926b53ed8832eb6f345cd25bb1054a5",
+    "src/app/src/github_public_path_fixture.cpp": "e83cf907345643b4d0d710508bb4ba26b7ff5aed89e8dbea8fc1817e34ec1529",
+    "src/application/src/appearance_preferences_application_host.cpp": "29352c0370111710587389847dec32bc304496a8ee5f4ced924af0f486d62662",
+    "tests/application/appearance_application_host_tests.cpp": "303ddcaa176b48eaa7a35134fa5acf7fa3880f3639a9a4f13fc4bcf342d83a3c",
+    "tests/end_to_end/CMakeLists.txt": "d90e5b582f77fa160a6ea848af8e707ef700ae49b317a9db4686db0c18dcf798",
+    "tests/end_to_end/cpp_identifier_appearance_public_path_tests.cpp": "b6a9c6c17580c6f50c5b5c2bd8406dee32e623ce2c6f06029722bbdc1ac6c2de",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/manifest.json": "988312fa078b5ef754f45136fdd3fa4a8aac12ab100b8ebaa80f310e76f5bcb0",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/checks.json": "aa31861eeafb1ffc7c85af0943281b1ce3555ccc3de0de9dde49afc6c335c726",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/commits.json": "ff806a8adce9b1a6f98c855fc36301ea6541b308d64fc2a28353d91936eda325",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/files.json": "7e75d74677cee8818f9346699ee1f8565c24460bf1aa06c264b6ea20417ef4fa",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/issue_comments.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/pull_request.json": "0eeb0ef7bbcbe27e3683d851749365454f76bd4ee9e936120d1bf613601ab604",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/repository.json": "aee4d864ac6b561a4a9b7d7b06ebd2a2dcf1f2ae1490c3a0bc0ff2cc3c4889ab",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/review_threads.json": "5ca458ee82c764c1928225db16814204ce694a4e385f9c48eb1c78103411f02b",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/reviews.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/search.json": "1238e36b1ac7f064716a3f0c6b1f33e0b74a6cc4b8fedc96f74216a891ac5b5c",
+    "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/viewer.json": "b97108e15012dadc9607606fffd7fbafe6c7095194a5b1105e914c2accda64bb",
+    "tests/fixtures/github/pull-requests/cpp-identifiers-v1/construction.json": "1434c3073bbf4b8ec548556e2887aaaa766b7ad3858c40627f82dbc76057051f",
+    "tests/fixtures/github/pull-requests/cpp-identifiers-v1/objects.pack": "7647fa15cf609ee72a229e4253e208b61f01e842f788e7a762e9fa1a44118d2c"
+  },
+  "reuse": {
+    "m1_product_revision": "c58bdebdac18da64a3b7629c0499d200f36007ae",
+    "m1_acceptance_revision": "46973960209e247888f86b44941e96bc8abe00d5",
+    "unchanged_m1_product_and_test_inputs": true,
+    "record": "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json"
+  },
+  "platform": {
+    "os": "macOS",
+    "architecture": "arm64",
+    "qt": "6.11.2",
+    "backend": "offscreen",
+    "scale": 1,
+    "network": "denied by existing test runner"
+  },
+  "checks": [
+    {
+      "record": "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-focused.json",
+      "outcome": "pass",
+      "detail": "5/5 exact candidate, 11.83 seconds; all five fresh-process phases and four-variant 374-pair audit pass."
+    },
+    {
+      "record": "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-core-host.json",
+      "outcome": "pass",
+      "detail": "Qt-free exact-candidate host, including omitted-field acceptance and explicit namespace low-contrast refusal."
+    },
+    {
+      "command": [
+        "ctest",
+        "--test-dir",
+        "build/cpp-context-m2-l68xjdwi",
+        "-R",
+        "^(architecture_boundaries|architecture_boundary_contract|core_dependency_boundary|core_boundary_contract)$",
+        "--output-on-failure"
+      ],
+      "outcome": "pass",
+      "detail": "4/4, 123.21 seconds. This ran before the narrow host correction. Gate rules/build graph/ownership constraints are unchanged; correction adds no dependencies or effects."
+    },
+    {
+      "command": [
+        "python3",
+        "_coding-standard/scripts/format.py",
+        "--dry-run"
+      ],
+      "outcome": "pass",
+      "detail": "All nine touched C++ paths, clang-format 22.1.8."
+    },
+    {
+      "command": [
+        "python3",
+        "_coding-standard/scripts/tidy.py",
+        "--build-dir",
+        "build/cpp-context-m2-l68xjdwi",
+        "--clang-tidy",
+        "/opt/homebrew/opt/llvm@22/bin/clang-tidy",
+        "--warnings-as-errors",
+        "--paths",
+        "src/application/src/appearance_preferences_application_host.cpp",
+        "tests/application/appearance_application_host_tests.cpp",
+        "tests/end_to_end/cpp_identifier_appearance_public_path_tests.cpp"
+      ],
+      "outcome": "pass",
+      "detail": "Three changed translation units. Final source candidate; only suppressed non-user-code warnings."
+    },
+    {
+      "record": "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-documentation.json",
+      "detail": "Final structure gate after RFC/index and criterion upkeep; result recorded separately."
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "outcome": "pass"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "outcome": "pass",
+      "revision": "9193dbee27f8ccf332a0cba99281253c90f8a4c6",
+      "detail": "Post-finish terminal-card and RFC/index structure gate: DOCUMENTATION_OK."
+    }
+  ],
+  "scope_reconciliation": {
+    "commits": [
+      "c58bdebdac18da64a3b7629c0499d200f36007ae",
+      "bc4b4aafe6f51020aa469c519e936d616e124e89"
+    ],
+    "scoped_paths": [
+      "docs/architecture/system-architecture.md",
+      "docs/rfcs/RFC-BPR-0006-syntax-highlighting-themes-appearance.md",
+      "docs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md",
+      "docs/verification/fixture-catalog.md",
+      "scripts/build_cpp_identifier_fixture.py",
+      "scripts/verify_test_network_isolation.py",
+      "src/adapters/qt/include/bpr/qt/appearance_profile.hpp",
+      "src/adapters/qt/include/bpr/qt/appearance_settings_panel.hpp",
+      "src/adapters/qt/include/bpr/qt/colour_role_list.hpp",
+      "src/adapters/qt/src/appearance_profile.cpp",
+      "src/adapters/qt/src/appearance_role_display.cpp",
+      "src/adapters/syntax/CMakeLists.txt",
+      "src/adapters/syntax/include/bpr/adapters/syntax/packaged_syntax_classifier.hpp",
+      "src/adapters/syntax/src/cpp_identifier_context.cpp",
+      "src/adapters/syntax/src/cpp_identifier_context.hpp",
+      "src/adapters/syntax/src/packaged_syntax_classifier.cpp",
+      "src/app/src/github_application.cpp",
+      "src/app/src/github_application_fixture_access.hpp",
+      "src/app/src/github_public_path_fixture.cpp",
+      "src/application/src/appearance_preferences_application_host.cpp",
+      "src/core/include/bpr/core/appearance_model.hpp",
+      "src/core/src/appearance_contrast.cpp",
+      "src/core/src/appearance_model.cpp",
+      "tests/adapters_qt/appearance_role_display_tests.cpp",
+      "tests/adapters_qt/appearance_settings_panel_tests.cpp",
+      "tests/application/appearance_application_host_tests.cpp",
+      "tests/core/appearance_contrast_tests.cpp",
+      "tests/core/theme_exchange_tests.cpp",
+      "tests/end_to_end/CMakeLists.txt",
+      "tests/end_to_end/cpp_identifier_appearance_public_path_tests.cpp",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/manifest.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/checks.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/commits.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/files.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/issue_comments.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/pull_request.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/repository.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/review_threads.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/reviews.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/search.json",
+      "tests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/viewer.json",
+      "tests/fixtures/github/pull-requests/cpp-identifiers-v1/construction.json",
+      "tests/fixtures/github/pull-requests/cpp-identifiers-v1/objects.pack",
+      "tests/fixtures/syntax/cpp_identifier_context.cpp",
+      "tests/syntax_contract/syntax_classification_contract_tests.cpp"
+    ],
+    "baseline_name_status": [
+      "M\tdocs/architecture/system-architecture.md",
+      "M\tdocs/rfcs/RFC-BPR-0006-syntax-highlighting-themes-appearance.md",
+      "M\tdocs/rfcs/RFC-BPR-0034-appearance-page-and-per-theme-colours.md",
+      "M\tdocs/verification/fixture-catalog.md",
+      "A\tscripts/build_cpp_identifier_fixture.py",
+      "M\tscripts/verify_test_network_isolation.py",
+      "M\tsrc/adapters/qt/include/bpr/qt/appearance_profile.hpp",
+      "M\tsrc/adapters/qt/include/bpr/qt/appearance_settings_panel.hpp",
+      "M\tsrc/adapters/qt/include/bpr/qt/colour_role_list.hpp",
+      "M\tsrc/adapters/qt/src/appearance_profile.cpp",
+      "M\tsrc/adapters/qt/src/appearance_role_display.cpp",
+      "M\tsrc/adapters/syntax/CMakeLists.txt",
+      "M\tsrc/adapters/syntax/include/bpr/adapters/syntax/packaged_syntax_classifier.hpp",
+      "A\tsrc/adapters/syntax/src/cpp_identifier_context.cpp",
+      "A\tsrc/adapters/syntax/src/cpp_identifier_context.hpp",
+      "M\tsrc/adapters/syntax/src/packaged_syntax_classifier.cpp",
+      "M\tsrc/app/src/github_application.cpp",
+      "M\tsrc/app/src/github_application_fixture_access.hpp",
+      "M\tsrc/app/src/github_public_path_fixture.cpp",
+      "M\tsrc/application/src/appearance_preferences_application_host.cpp",
+      "M\tsrc/core/include/bpr/core/appearance_model.hpp",
+      "M\tsrc/core/src/appearance_contrast.cpp",
+      "M\tsrc/core/src/appearance_model.cpp",
+      "M\ttests/adapters_qt/appearance_role_display_tests.cpp",
+      "M\ttests/adapters_qt/appearance_settings_panel_tests.cpp",
+      "M\ttests/application/appearance_application_host_tests.cpp",
+      "M\ttests/core/appearance_contrast_tests.cpp",
+      "M\ttests/core/theme_exchange_tests.cpp",
+      "M\ttests/end_to_end/CMakeLists.txt",
+      "A\ttests/end_to_end/cpp_identifier_appearance_public_path_tests.cpp",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/manifest.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/checks.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/commits.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/files.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/issue_comments.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/pull_request.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/repository.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/review_threads.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/reviews.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/search.json",
+      "A\ttests/fixtures/github/contracts/v1/cpp-identifiers-v1/responses/viewer.json",
+      "A\ttests/fixtures/github/pull-requests/cpp-identifiers-v1/construction.json",
+      "A\ttests/fixtures/github/pull-requests/cpp-identifiers-v1/objects.pack",
+      "A\ttests/fixtures/syntax/cpp_identifier_context.cpp",
+      "M\ttests/syntax_contract/syntax_classification_contract_tests.cpp"
+    ],
+    "detail": "Compare only authorized syntax/color/qualification paths against immutable RFC_BASE_SHA. Shared-path history also contains other milestones; attribution is the 18-path M1 commit and 28-path M2 commit, never the entire intervening main diff. Imported plan/assets remain unchanged. All AC01-AC08 are accounted for in docs/verification/RFC-BPR-0072.md."
+  },
+  "renders": [
+    {
+      "variant": "light",
+      "path": "/Users/jaeger/.codex/visualizations/2026/10/12/01a1323a-54e4-7842-bf32-14374322cfa1/cpp-identifiers-m2/light.png",
+      "sha256": "5f67ba35312beb62f00a082988bf4d6928860b52709b472e7a01ff8edaf0ae76",
+      "dimensions": [
+        1440,
+        1100
+      ],
+      "surface": "complete composed workbench, both Git-backed panes",
+      "scale": 1
+    },
+    {
+      "variant": "dark",
+      "path": "/Users/jaeger/.codex/visualizations/2026/10/12/01a1323a-54e4-7842-bf32-14374322cfa1/cpp-identifiers-m2/dark.png",
+      "sha256": "5aa86fab6bc5dd77182ea16a7f48040373d1131908ff0499a94d3088bee1b54c",
+      "dimensions": [
+        1440,
+        1100
+      ],
+      "surface": "complete composed workbench, both Git-backed panes",
+      "scale": 1
+    }
+  ],
+  "failure_dispositions": [
+    "Initial visible-pixel assertion failed when drawers clipped qualified names. Course closes them by public actions; layout and raster checks then pass.",
+    "Restart initially sampled defaults before asynchronous restore. Course waits for persisted tab width eight, then compares all old values and stored states.",
+    "Standard built-in import fixture failed the pre-existing all-variant high-contrast admission floor. Valid custom theme fixtures now include selection/current-line washes; an upfront audit proves their admission without relaxing validation.",
+    "Real AC08 defect: omitted additive foreground sentinels were measured as black ink. Host defers only those sentinels; explicit unreadable namespace input still fails without a durable write.",
+    "Isolation manifest initially lacked its unbuilt raw gh fixture executable. Built only that required checker executable; final manifest passes.",
+    "Initial build target spelling was wrong; rerun with actual application appearance-host target.",
+    "Broad qt_appearance_profile failed its existing font-resize reading-line assertion before the host correction. Relevant profile test, palette and Qt runtime inputs are unchanged by M2; cause remains unadjudicated. It is not claimed as a passing suite and no scrolling work was added."
+  ],
+  "self_review": "Bounded self-review retained core identities, private syntax refinement, existing storage/import format and contrast policy; no cross-variant reset, lexical reparse, effect in Qt, new provider or package capability. Tests distinguish omission from explicit unreadable ink and actual visible pixels from only format presence.",
+  "visual_skill": "/Users/jaeger/.claude/plugins/marketplaces/claude-plugins-official/plugins/frontend-design/skills/frontend-design/SKILL.md",
+  "pending": [],
+  "limits": [
+    "Blob-local best effort only; no compiler/includes/cross-file symbols or alias-target resolution.",
+    "No native/installed/release/human/independent acceptance requirement is specified or inferred; offscreen observations have only their recorded platform scope.",
+    "Historical BPR-0720/BPR-0738 obligations and broader font-resize test failure remain separate."
+  ],
+  "acceptance": {
+    "AC01": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC02": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC03": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC04": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC05": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC06": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC07": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
+    "AC08": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course."
+  },
+  "ownership": {
+    "state": "quiescent",
+    "task_build_roots_removed": [
+      "build/cpp-context-m2-l68xjdwi",
+      "build/cpp-context-m2-core-kjy2lgcd"
+    ],
+    "review_server": null,
+    "protected_candidates": [],
+    "unfinished_selected_obligations": []
+  }
+}

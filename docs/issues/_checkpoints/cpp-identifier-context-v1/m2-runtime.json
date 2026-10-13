@@ -1,0 +1,11 @@
+{
+  "build_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/cpp-context-m2-l68xjdwi",
+  "owner": "/root/cpp_context_m2",
+  "commands": [],
+  "core_build_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/build/cpp-context-m2-core-kjy2lgcd",
+  "state": "quiescent; all task-owned commands finished and both owned build roots removed",
+  "review_server": null,
+  "repository_writer": "released at final handoff",
+  "cleanup": "completed; shared build/dev and build/.cpm-cache untouched",
+  "protected_candidates": []
+}

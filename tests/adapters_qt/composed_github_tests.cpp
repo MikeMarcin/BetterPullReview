@@ -211,7 +211,7 @@ namespace {
 			   "only the server with a GitHub CLI profile has the GitHub CLI offer, and it is not offered while GitHub CLI is already the card's way in");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
 			   "the CLI card shows a wrapped literal warning before Connect");
-		for (const auto* phrase : { "this server", "existing gh sign-in", "observed after Connect", "native profile", "executable", "configuration", "socket", "CA", "redirects", "child-process", "account switching", "no exact account guarantee", "older gh configuration", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "does not authorize publishing" }) {
+		for (const auto* phrase : { "this server", "existing gh sign-in", "transient credential", "exact account", "executable", "private account configuration", "CA", "redirects", "child-process", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "does not authorize publishing" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
 		}
 		const auto host = QString::fromStdString(cliCard->hostname());
@@ -249,20 +249,26 @@ namespace {
 		QWidget parent;
 		parent.resize(1100, 760);
 		const auto host     = QStringLiteral("ghe.example.invalid");
-		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host);
+		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host, QStringLiteral("chosen-reviewer"));
 		const auto decision = question->text() + QLatin1Char(' ') + question->informativeText();
 		const auto words    = decision.split(QRegularExpression{ QStringLiteral("\\s+") }, Qt::SkipEmptyParts).size();
-		expect(question->icon() == QMessageBox::Warning && question->textFormat() == Qt::PlainText
-				   && question->text().contains(host) && question->text().contains(QStringLiteral("installed gh"))
+		expect(question->icon() == QMessageBox::Question && question->textFormat() == Qt::PlainText
+				   && question->text().contains(host) && question->text().contains(QStringLiteral("chosen-reviewer"))
 				   && question->text().endsWith(QLatin1Char('?')),
 			   "the read opt-in's headline is a plain-text question naming the exact host and the installed gh");
-		for (const auto* phrase : { "account gh is signed in to", "can change outside this app", "executable", "configuration", "certificates", "does not authorize publishing", "asks separately" }) {
+		for (const auto* phrase : { "existing sign-in", "without saving its token", "reused until you sign out or replace it", "does not authorize publishing" }) {
 			expect(decision.contains(QString::fromLatin1(phrase)),
 				   std::string{ "the short decision still states the trust it asks for and the read boundary: " } + phrase);
 		}
 		expect(words <= 70, "the decision before the disclosure reads in one breath, at most 70 words, not the former paragraph of every risk");
+		const auto absent = qt::make_github_cli_read_consent(&parent, QStringLiteral("Choose account"), host, QString{ });
+		expect(!absent->button(QMessageBox::Yes)->isEnabled() && absent->text().contains(QStringLiteral("Choose a GitHub CLI account")), "an absent account cannot imply chosen authority or accept connection trust");
+		const auto missing = qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_unavailable, QStringLiteral("chosen-reviewer"), host);
+		const auto failed  = qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_tool_failed, QStringLiteral("chosen-reviewer"), host);
+		expect(missing != failed && missing.contains(QStringLiteral("sign-in and credential access")) && failed.contains(QStringLiteral("credential check")) && missing.contains(host) && failed.contains(QStringLiteral("chosen-reviewer")), "typed missing/access and tool failures have distinct exact-account statuses");
+		expect(!qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_unavailable, QStringLiteral("chosen-reviewer"), host, true).startsWith(QStringLiteral("Not published")), "a resumed partial publication is not falsely labelled wholly unpublished");
 		const auto details = question->detailedText();
-		for (const auto* phrase : { "no per-request account selector", "no exact account guarantee", "redirects", "socket routing", "CA certificates", "child-process", "environment overrides", "needs migration", "temporary object store", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store limit", "never reads, stores or passes your gh token", "own confirmation" }) {
+		for (const auto* phrase : { "chosen account", "retrieves its credential into memory", "same credential", "does not save the token", "redirects", "CA certificates", "child processes", "private account configuration", "temporary object store", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store limit", "swap and crash dumps", "exact-operation authority" }) {
 			expect(details.contains(QString::fromLatin1(phrase)),
 				   std::string{ "every residual risk the long warning named is behind the disclosure: " } + phrase);
 		}
@@ -317,7 +323,7 @@ namespace {
 		}
 		expect(question->clickedButton() == cancel && question->isHidden(), "Escape declines the read");
 
-		const auto again = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host);
+		const auto again = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), host, QStringLiteral("chosen-reviewer"));
 		again->show();
 		QApplication::processEvents();
 		QKeyEvent enter{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
@@ -336,20 +342,11 @@ namespace {
 	auto test_cli_read_consent_names_this_machine() -> void
 	{
 		QWidget    parent;
-		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), QStringLiteral("ghe.example.invalid"));
-#if defined(__APPLE__)
+		const auto question = qt::make_github_cli_read_consent(&parent, QStringLiteral("Use configured GitHub CLI"), QStringLiteral("ghe.example.invalid"), QStringLiteral("chosen-reviewer"));
 		const auto expected = QStringLiteral(
-			"BetterPullReview will read as the account gh is signed in to, and that account can change "
-			"outside this app. You trust this Mac's gh executable, configuration and certificates as they "
-			"are set up. Connecting for reads does not authorize publishing; each review or comment asks "
-			"separately.");
-#else
-		const auto expected = QStringLiteral(
-			"BetterPullReview will read as the account gh is signed in to, and that account can change "
-			"outside this app. You trust this computer's gh executable, configuration and certificates as "
-			"they are set up. Connecting for reads does not authorize publishing; each review or comment "
-			"asks separately.");
-#endif
+			"BetterPullReview uses this account's existing sign-in without saving its token. "
+			"This connection will be reused until you sign out or replace it. "
+			"Connecting for reads does not authorize publishing.");
 		const auto said = question->informativeText();
 		if (said != expected) {
 			std::cerr << "The GitHub CLI read consent says: " << said.toStdString() << '\n';
@@ -8950,6 +8947,8 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1140]]. The GitHub CLI read consent's sentence on this platform,
 	// alone, as the first-launch card's is above.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--cli-read-consent"))) {
+		test_cli_warning_lives_on_its_servers_card();
+		test_cli_read_consent_is_a_short_decision();
 		test_cli_read_consent_names_this_machine();
 		std::cout << "cli-read-consent:pass\n";
 		return EXIT_SUCCESS;

@@ -6,6 +6,15 @@
 #include <string_view>
 
 namespace bpr::core {
+	/// \brief Publication knowledge for the exact draft, distinct from a retry's refusal.
+	enum class review_publication_outcome : std::uint8_t { not_published,
+														   indeterminate,
+														   published };
+	/// \brief A refusal to check an earlier attempt cannot establish non-publication.
+	/// \details The host supplies exact prior draft knowledge and current outcome facts.
+	/// Only a confirmed receipt resolves an indeterminate publication. This grants no write.
+	[[nodiscard]] auto retain_review_publication_outcome(review_publication_outcome aPrior, review_publication_outcome aCurrent) noexcept -> review_publication_outcome;
+
 	/// \brief Provider evidence about the selected anchor, never painted diff geometry.
 	enum class review_placement : std::uint8_t { unknown,
 												 legacy_line,

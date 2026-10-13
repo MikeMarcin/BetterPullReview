@@ -1,0 +1,10 @@
+{
+  "reason": "Acceptance-only closeout upkeep changes whole-body fingerprints; preserve initial binding and renew final observation. No plan, work selector, exit or criterion text changed.",
+  "prior_binding": "m2-binding.json",
+  "final_binding": "m2-final-binding.json",
+  "mandate_revision": "cpp-identifier-context-r1",
+  "rfc_criteria_sha256": "a77cf5d8eef09a6c1b72e0ad03eab5bf7433f195fa58deb26064df98891036bf",
+  "card_acceptance_sha256": "ddf4ebec6296d19e5b38452a54c157b62ff7c39fe459c6b19a433df72c8e3104",
+  "all_eight_canonical_card_criteria_unchanged": true,
+  "definition_and_exits_unchanged": true
+}

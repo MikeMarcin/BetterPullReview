@@ -1440,6 +1440,16 @@ endfunction()
 # events; no production mutation, authority or persistence rule changes.
 # The production mutation-branch pin remains e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df.
 # BPR-1407's AC4 owner look remains pending in its separate attended session.
+# BPR-1429 post-critical-review M3 repair (2026-10-13), over frozen611c:
+# exact publishing knowledge is captured before a retry and merged in core with
+# the current outcome. Early capability/coordinator refusals retain the original
+# locked draft and journal identity; only an exact receipt resolves uncertainty.
+# Qt presents unknown plus the current refusal, with the bound account/server.
+# The fixture's existing acquisition seam now covers coordinator observations.
+# No grant, actor/target/head/content admission, provider selection, publication
+# journal transition, source inventory or production mutation-branch change.
+# The composed old-library regression fails; repeated cuts then restore must
+# resolve exactly one comment with no second POST. M3 independent recheck pending.
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -1458,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"5aec6edb7ada80035e9019fa76fe9fd48a476db0f6aaf69abf2c808ce984be57"
+		"9ad653dbe578af82811ef4ec02ed81847fb798aab6654574ef298de9041668c8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1662,7 +1672,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "a525a2fc6658c8ff1ca24a7019ec5d379311b6ecfbfda4a0ba7d7bacfd473125"
+        "1cfb1e645e8aeb2f5eee8d32d10c2bfae3ab4440b9d68ed15e431755d72e9312"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2299,3 +2309,35 @@ endif()
 
 file(REMOVE_RECURSE "${BPR_ROOT}")
 message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
+
+# BPR-1428 reseal: over accepted strict tracker 4ae67d6b. Sole new pinned
+# changes are github_application.cpp and review_submission_workflow.cpp/.hpp:
+# CLI popup becomes exact-current admission with retained strict-wire capability;
+# whole-review and inline recheck immediately before one-use grant issuance,
+# including after durable draft/comment holding. Grant issuers and mutation
+# branch are unchanged. Self-review checks scope/default refusal/lease lifetime;
+# six focused architecture/provider/ordinary composed CLI courses pass.
+# Independent final critical acceptance remains a separately recorded M4 obligation.
+
+# BPR-1429 reseal over BPR-1428 a8d6cfdc3. New pinned changes name the chosen
+# login in first-use trust, retain the originating inline failure binding,
+# present typed acquisition failures in existing whole/tour surfaces, and keep
+# prior partial/unknown/confirmed tour outcome precedence on fresh refusal.
+# The one-use grant issuers and production mutation-branch digest are unchanged.
+# Self-review covers failed/current identity separation and receipt truth;
+# final independent critical acceptance is owed at M4, not self-certified here.
+
+# Final M3 tidy correction: over f4ba6409d, touched tour callback argument
+# names and workflow quiescence callback names follow the coding standard;
+# the synthetic trust responder merges equivalent branches. No grant,
+# request, failure or publication behavior changes. Self-review and focused
+# post-correction checks bind this successor; older unrelated naming findings
+# are retained separately rather than described as a whole-file tidy pass.
+
+# RFC0079 main integration reseal: combined 411f05111d6a425934f20e7cf20e474cfd54b2c8
+# against independently accepted 34b6a43458659747648e4039a99ca52407d14624.
+# The only additional app source is the already-landed cpp_identifiers_v1
+# fixture enum/descriptor and shared fixture server-selection case. M4 bounded
+# review confirms no publication, credential, grant or inventory changes.
+# Refresh the full application and production-manifest digests only; the
+# 42-file inventory and production mutation-branch pin remain unchanged.

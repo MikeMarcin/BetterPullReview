@@ -7,6 +7,7 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "cli_publication_course.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
@@ -51,11 +52,11 @@ namespace {
 			throw std::runtime_error{ aMessage };
 		}
 	}
-	void open(app::github_application& aApp)
+	void open(app::github_application& aApp, e2e::cli_publication_course& aCli)
 	{
 		aApp.show();
 		auto& window = aApp.window();
-		window.github_connect_action()->trigger();
+		aCli.connect(window);
 		wait([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "connected controls");
 		window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
 		window.home_open_action()->trigger();
@@ -102,16 +103,19 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication qtApplication{ argc, argv };
 	QApplication::setQuitOnLastWindowClosed(false);
-	const std::string mode = argc > 1 ? argv[1] : "native";
-	QTemporaryDir     data;
-	const auto        dataRoot = e2e::private_data_root(data);
+	const auto                  cliMode = argc > 1 && std::string_view{ argv[1] } == "--cli";
+	e2e::cli_publication_course cli{ cliMode };
+	const std::string           mode = cliMode ? (argc > 2 ? argv[2] : "native") : (argc > 1 ? argv[1] : "native");
+	QTemporaryDir               data;
+	const auto                  dataRoot = e2e::private_data_root(data);
 	if (!dataRoot) {
 		return EXIT_FAILURE;
 	}
-	QTemporaryDir     coldData;
-	auto              currentDataRoot  = dataRoot;
-	auto              server           = std::make_shared<app::detail::review_submission_fixture_state>();
-	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true},[&](auto result){terminal=true;if(result){started=std::move(*result);
+	QTemporaryDir coldData;
+	auto          currentDataRoot      = dataRoot;
+	auto          server               = std::make_shared<app::detail::review_submission_fixture_state>();
+	server->CliStrictCourse            = cliMode;
+	auto              make             = [&] {std::unique_ptr<app::github_application> started;bool terminal=false;auto options=app::detail::github_public_path_fixture_options{.ApplicationDataRoot=currentDataRoot,.ReviewSubmissionServer=server,.RepeatReadSessions=true};cli.configure(options);auto startup=access::start(app::detail::github_public_path_fixture::profile_window_restoration_v1,options,[&](auto aResult){terminal=true;if(aResult){started=std::move(*aResult);
 }});wait([&]{return terminal && startup && startup->is_quiescent();},"publication app starts");expect(started!=nullptr,"publication startup accepted");return started; };
 	const std::string originalTemplate = "# Existing template\r\n\r\nKeep [the ticket](https://example.invalid/123) and this checklist.\r\n- [ ] Original check\r\n";
 	if (mode != "description") {
@@ -121,10 +125,10 @@ auto main(int argc, char** argv) -> int
 	server->StagedQualified  = mode != "unsupported";
 	auto application         = make();
 	try {
-		open(*application);
+		open(*application, cli);
 		auto&      window = application->window();
 		auto&      editor = *window.tour_editor();
-		const auto button = [&](const char* name) {auto* value=editor.findChild<QPushButton*>(QString::fromUtf8(name));expect(value!=nullptr,"normal publication control exists");return value; };
+		const auto button = [&](const char* aName) {auto* value=editor.findChild<QPushButton*>(QString::fromUtf8(aName));expect(value!=nullptr,"normal publication control exists");return value; };
 		auto*      status = editor.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 		wait([&] { return status->text().contains(QStringLiteral("Saved locally")); }, "read-only recovery discovery completes");
 		button("tourPreparePublication")->click();
@@ -169,8 +173,8 @@ auto main(int argc, char** argv) -> int
 			return EXIT_SUCCESS;
 		}
 		expect(button("tourPublish")->isEnabled(), "complete qualified route exposes Publish only after preview");
-		if (argc > 2) {
-			expect(window.grab().save(QString::fromUtf8(argv[2])), "publication preview capture saved");
+		if (argc > (cliMode ? 3 : 2)) {
+			expect(window.grab().save(QString::fromUtf8(argv[cliMode ? 3 : 2])), "publication preview capture saved");
 		}
 		auto* preview = editor.publication_preview();
 		expect(preview->original_body().contains("Separate optional description edit") && preview->original_body().contains("Actor:") && preview->original_body().contains("Head:"), "preview freezes identity and separate description scope");
@@ -183,6 +187,31 @@ auto main(int argc, char** argv) -> int
 			server->StagedConflict          = mode == "conflict";
 			server->StagedRejectDescription = mode == "description";
 			server->StagedBlockNext         = mode == "stop";
+		}
+		if (cliMode) {
+			cli.Strict->store(false);
+			button("tourPublish")->click();
+			expect(server->StagedWrites == 0U && status->text().contains(QStringLiteral("draft is kept")), "missing strict capability refuses tour without a popup or a write");
+			cli.Strict->store(true);
+		}
+		if (cliMode) {
+			for (const auto failure : { application::review_mutation_failure::credential_unavailable, application::review_mutation_failure::credential_tool_failed, application::review_mutation_failure::cancelled }) {
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure = failure;
+				}
+				button("tourPublish")->click();
+				wait([&] { return !button("tourStop")->isEnabled() && status->text().contains(QStringLiteral("draft is kept")); }, "typed tour acquisition refusal retains private draft");
+				expect(server->StagedWrites == 0U && editor.problem_editor()->toPlainText() == QStringLiteral("Avoid losing the original explanation."), "tour acquisition failure performs zero writes and keeps prose");
+				if (failure != application::review_mutation_failure::cancelled) {
+					expect(status->text().contains(QStringLiteral("octo-reviewer")) && status->text().contains(QStringLiteral("github.com")), "tour failure names its captured account and host");
+				}
+				button("tourPreparePublication")->click();
+			}
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->CliAcquisitionFailure.reset();
+			}
 		}
 		button("tourPublish")->click();
 		if (mode == "stop") {
@@ -198,7 +227,7 @@ auto main(int argc, char** argv) -> int
 			shutdown(*application);
 			application.reset();
 			application = make();
-			open(*application);
+			open(*application, cli);
 			auto& restored       = *application->window().tour_editor();
 			auto* restoredStatus = restored.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 			wait([&] { return restoredStatus->text().contains(QStringLiteral("Staged on GitHub")); }, "restarted real app reconciles pending review before Resume");
@@ -210,6 +239,21 @@ auto main(int argc, char** argv) -> int
 			prepare->click();
 			auto* resume = restored.findChild<QPushButton*>(QStringLiteral("tourResume"));
 			expect(resume->isEnabled(), "captured-plan preview authorizes explicit Resume control");
+			if (cliMode) {
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure = application::review_mutation_failure::credential_unavailable;
+				}
+				resume->click();
+				wait([&] { return restoredStatus->text().startsWith(QStringLiteral("No further publication.")); }, "partial tour retains prior staged work when credential becomes unavailable");
+				expect(server->StagedWrites == before && static_cast<bool>(restored.shown().Draft), "partial resume refusal performs zero new writes and retains draft");
+				{
+					std::scoped_lock lock{ server->Mutex };
+					server->CliAcquisitionFailure.reset();
+				}
+				prepare->click();
+				expect(resume->isEnabled(), "the retained original partial plan still permits explicit Resume after repreview");
+			}
 			resume->click();
 			wait([&] { return restoredStatus->text().startsWith(QStringLiteral("Published:")); }, "Resume completes the original pending review");
 		} else if (mode == "conflict") {
@@ -284,7 +328,7 @@ auto main(int argc, char** argv) -> int
 			shutdown(*application);
 			application.reset();
 			application = make();
-			open(*application);
+			open(*application, cli);
 			auto& restored = *application->window().tour_editor();
 			wait([&] { return restored.shown().Draft && restored.shown().Draft->Conflicts.size() == 1; }, "unresolved B/L/R conflict survives real application restart");
 			restored.findChild<QPushButton*>(QStringLiteral("tourKeepLocalConflict"))->click();
@@ -299,7 +343,7 @@ auto main(int argc, char** argv) -> int
 			currentDataRoot = e2e::private_data_root(coldData);
 			expect(currentDataRoot.has_value(), "clean private profile admitted");
 			application = make();
-			open(*application);
+			open(*application, cli);
 			auto& cold    = *application->window().tour_editor();
 			auto* choices = cold.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
 			wait([&] { return choices->count() > 0; }, "clean profile discovers the actual shared published index");
@@ -372,7 +416,7 @@ auto main(int argc, char** argv) -> int
 				shutdown(*application);
 				application.reset();
 				application = make();
-				open(*application);
+				open(*application, cli);
 			}
 			auto&      activeWindow  = application->window();
 			auto&      activeEditor  = *activeWindow.tour_editor();
@@ -429,7 +473,7 @@ auto main(int argc, char** argv) -> int
 			shutdown(*application);
 			application.reset();
 			application = make();
-			open(*application);
+			open(*application, cli);
 			auto& restored       = *application->window().tour_editor();
 			auto* restoredStatus = restored.findChild<QLabel*>(QStringLiteral("tourPublicationStatus"));
 			wait([&] { return restoredStatus->text().contains("Staged on GitHub"); }, "restart reconciles insertion read-only");
@@ -486,7 +530,7 @@ auto main(int argc, char** argv) -> int
 				currentDataRoot = e2e::private_data_root(coldData);
 				expect(currentDataRoot.has_value(), "new clean profile admitted");
 				application = make();
-				open(*application);
+				open(*application, cli);
 				auto& cold    = *application->window().tour_editor();
 				auto* choices = cold.findChild<QComboBox*>(QStringLiteral("tourImportChoices"));
 				wait([&] { return choices->count() > 0; }, "clean profile discovers shared website roots");
@@ -518,12 +562,12 @@ auto main(int argc, char** argv) -> int
 				expect(server->StagedWrites == 23 && server->StagedCreates == 3 && server->StagedSubmits == 3 && server->DraftPullRequest && server->StagedDescription->ends_with("Preserve website template.\n"), "independent server counts preserve draft status and website template through complete manual course");
 			}
 		}
-		if (mode == "native" || mode == "compat") {
+		if ((mode == "native" || mode == "compat") && !cliMode) {
 			saved(*application->window().tour_editor());
 			shutdown(*application);
 			application.reset();
 			application = make();
-			open(*application);
+			open(*application, cli);
 			auto& restored = *application->window().tour_editor();
 			wait([&] {const auto& draft=restored.shown().Draft;return draft && draft->Remote && draft->Stops.size()==2 && draft->Stops[0].Remote && draft->Stops[1].Remote; }, "completed publication attribution survives app restart");
 			restored.findChild<QPushButton*>(QStringLiteral("tourPreparePublication"))->click();
@@ -531,6 +575,7 @@ auto main(int argc, char** argv) -> int
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedWrites == (mode == "compat" ? 6 : 5), "completed restart and preview perform zero writes");
 		}
+		cli.check();
 		shutdown(*application);
 		std::cout << "review-tour-publication:" << mode << ":pass\n";
 		return EXIT_SUCCESS;

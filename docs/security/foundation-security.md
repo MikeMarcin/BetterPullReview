@@ -23,6 +23,20 @@ adds the narrowly authorized macOS updater described in the
 network/process inventory and remaining qualification gaps. It adds no browser
 runtime, telemetry, privileged service or update listener.
 
+## Chosen CLI credential exception
+
+RFC-BPR-0078 permits an exact chosen-account stock-gh lookup into bounded,
+noncopyable adapter-owned transient storage. One operation holds those bytes
+through identity checks, API calls and gh-owned Git/helper descendants; only the
+runner supplies the correct primary token variable. No token crosses into core,
+application/Qt projections, profile metadata or grants, and BPR creates no vault,
+SQLite, configuration, journal, object-store, argument or log copy. Failed named
+retrieval refuses before network work without another authority. Owned memory is
+cleared after drain/quarantine; Qt, OS and stock-child copies, swap and crash
+capture remain explicit limits. [The qualification ledger](../verification/RFC-BPR-0078.md)
+binds native helper controls and actual descendant lifecycle evidence. Native
+vault, crash and release gaps below retain their original scope.
+
 ## Enforced boundaries
 
 - The core source scan rejects Qt, SQLite, curl, thread, future, filesystem,
