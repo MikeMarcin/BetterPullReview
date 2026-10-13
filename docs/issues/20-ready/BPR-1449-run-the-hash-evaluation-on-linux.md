@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1449"
 title: "Run the hash evaluation on the Linux station"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1447"
 title: "Supply feedback body digests from platform crypto behind a host port"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"

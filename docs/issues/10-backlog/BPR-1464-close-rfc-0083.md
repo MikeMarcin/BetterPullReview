@@ -42,4 +42,21 @@ baseline. Preserve RFC-BPR-0054's acceptance and every recorded owner answer.
 
 ## Continuation
 
-Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+Frontier on 2026-10-13 (main `03cc7bea4`). Done on macOS: [[BPR-1454]],
+[[BPR-1461]], [[BPR-1455]], [[BPR-1456]], [[BPR-1457]], [[BPR-1458]],
+[[BPR-1459]] and [[BPR-1460]]. Evidence: [verification ledger](../../verification/RFC-BPR-0083.md)
+and [decision record](../../verification/RFC-BPR-0083-decision.md) (K kept for
+C1–C6; Q3 not asked; reftable refused under Q2 (a) with no candidate that reads
+it).
+
+Remaining before closeout: [[BPR-1462]] (Windows: extend the POSIX-only
+canaries, then run the readers, harness, canary course and libgit2 cost
+measurements) and [[BPR-1463]] (Linux: the same runs), each with the station
+procedure on its card. Then AC03 and AC05 gain their Windows and Linux halves,
+the decision record's pending H2 and H5 cells are filled, and this card checks
+AC01–AC07 against `9a4f61976`.
+
+Known unrelated failures on main at this frontier: `test_network_isolation_manifest`
+(seven `application_source_pr_*` rows without entries), `contained_temporary_usage_contract`
+(`tests/hash_evaluation/run_hash_evaluation.py`) and `msvc_secure_crt_contract`
+(`tests/adapters_qt/conversation_cards_view_tests.cpp`).

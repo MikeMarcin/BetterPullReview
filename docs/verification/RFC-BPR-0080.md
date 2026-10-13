@@ -13,15 +13,22 @@ claims a result for them.
 | Question | Answer | Date |
 |---|---|---|
 | Which libraries may core link? | "Core may link only the owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries: glaze, utf8proc, zlib and fmt" (root `AGENTS.md`) | 2026-10-13 |
-| Q1: add sha1collisiondetection (MIT) to core's approved libraries? | Unanswered | — |
-| Q2: add HACL*'s generated SHA-2 C (MIT) to core's approved libraries? | Unanswered | — |
+| Q1: add sha1collisiondetection (MIT) to core's approved libraries? | Accept | 2026-10-13 |
+| Q2: add HACL*'s generated SHA-2 C (MIT) to core's approved libraries? | Accept | 2026-10-13 |
+| Waive the idle-machine condition for the macOS speed measurements | Accept ("the loaded macOS speed measurements are accepted for the adopt rules") | 2026-10-13 |
+| Amendment: the collision requirement is met by detection on raw byte streams plus the same library at every object-ID path, shown by inspection and test | Accept ("A Git-header collision vector is not required") | 2026-10-13 |
 | Q3: may the Linux build link the system libcrypto directly? | Not asked: the Linux backend has not been measured | — |
 
 ## Decisions
 
+The decisions below were made before the owner's answers. With Q1 and Q2
+accepted and the idle-machine condition waived for these macOS rows, both
+candidates meet their adopt rules on macOS; adoption is [[BPR-1450]] and
+[[BPR-1451]].
+
 | Component | Role | Decision | Rule result on macOS arm64 |
 |---|---|---|---|
-| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.55x to 2.96x the current core SHA-1 (rule: at least 1.0x; run 1: 2.06x to 3.03x), and 1.53x to 1.90x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector. |
+| sha1collisiondetection | SHA-1 Git identities and verification of fetched bytes | **Eligible pending Q1** | Gate: zero mismatches. Detection: both public pairs detected while plain SHA-1 collides; the repository sweep detected nothing. W1 to W3: 2.55x to 2.96x the current core SHA-1 (rule: at least 1.0x; run 1: 2.06x to 3.03x), and 1.53x to 1.90x the control arm. The digest-using rows and the four refusal points belong to adoption. A Q1 Accept is necessary but not sufficient: the AC03 finding below also needs an amendment or a Git-framed collision vector (the owner accepted that amendment on 2026-10-13). |
 | HACL* `Hacl_Hash_SHA2` | Core SHA-256 | **Eligible pending Q2** | Gate: zero mismatches, including `main`'s whole history as SHA-256. W1 to W3: 1.18x to 1.48x the core SHA-256 (rule: at least 0.9x; run 1: 1.32x to 1.71x). The block-level wrapper allocates nothing. |
 | CommonCrypto behind a host port | Bulk SHA-256 the host already holds, on macOS | **Throughput condition passes; site decision pending [[BPR-1447]]** | Inputs of 1 MiB or more: 7.11x to 8.54x core (rule: at least 3x on a SHA-extension target; run 1: 7.35x to 9.56x). The site condition (10 ms less window-thread hashing at 10k, or none on the window thread) can be measured only with the port built. |
 | CNG `BCrypt*` behind the port | The same, on Windows | **Unmeasured** | Station missing ([[BPR-1448]]). |
@@ -48,8 +55,8 @@ core, arms interleaved within each run, one warm-up, and the median of 7. The
 wall-clock medians are in the raw file. Absolute rates are below the RFC's
 grounding table, which used Homebrew clang 23 and best-of-5 runs; the decisions
 rest on ratios measured side by side in two runs, and the narrowest margin is
-HACL*'s 1.18x against a 0.9x rule. An idle re-measurement on this Mac stays owed before any
-adoption card relies on an absolute rate.
+HACL*'s 1.18x against a 0.9x rule. On 2026-10-13 the owner waived the idle condition for these macOS rows and
+accepted the loaded measurements for the adopt rules.
 
 ## Correctness gate
 
@@ -175,15 +182,24 @@ above:
 | 1 (`40870b777`) | 1k | 2,015 | 4.35 ms | 4.27 ms | 5.07 ms |
 | 1 | 10k | 20,015 | 123.4 ms | 43.4 ms | 253.0 ms |
 
-Run 1's 10k spread is far wider than the 10 ms the host-port rule is about,
-and both runs share a loaded machine, so these record the row rather than set
-the baseline for that rule. W2 above puts the hashing inside the 10k first
+The two end-to-end rows ran under load at `6b0c7fb15` (main plus this
+evaluation, which changes no product code) in the same Release tree, `-j1`:
+
+| Row | Result | Raw |
+|---|---|---|
+| `application_first_tab_comparison` | Passed (`FirstTabExact`): connect 103 ms, paged review and Git load 2,681 ms, base 1,710 ms, head 1,662 ms, file 2,210 ms; longest pulse 51 ms | [first-tab](RFC-BPR-0080/macos-arm64-first-tab-comparison.json) |
+| `application_large_review_responsiveness` | **Failed twice, on main's own behavior:** "Down from a line out of view did not reveal the next" (`keyboard_line_reveal` expired at the 90 s course clock). Every phase before it was measured: composition 1,223 ms, main to home render 1,230 ms, largest wheel event 88 ms, no input-budget failure | [responsiveness](RFC-BPR-0080/macos-arm64-large-review-responsiveness.json) |
+
+The responsiveness failure is keyboard navigation in the comparison, not
+hashing; this branch touches no product code, so it is main's state at
+`6b0c7fb15` and is reported for its owner. Run 1's 10k spread above is far
+wider than the 10 ms the host-port rule is about, and every row shares a
+loaded machine, so these record the rows rather than set the baseline for that
+rule. W2 above puts the hashing inside the 10k first
 observation at about 24 to 28 ms of CPU. [[BPR-1447]] measures before and after
-in one session on one tree, with the other window-thread rows the RFC names
-(`application_large_review_responsiveness`, `application_first_tab_comparison`,
-Review Cycle capture and export of a 16 MiB file, a syntax request for a 16 MiB
-document): a baseline taken in a different session could not show a 10 ms
-change. This evaluation changes no product code, so no row can have regressed.
+in one session on one tree, with Review Cycle capture and export of a 16 MiB
+file and a syntax request for a 16 MiB document: a baseline taken in a
+different session could not show a 10 ms change. This evaluation changes no product code, so no row can have regressed.
 
 ## Library fit
 
@@ -247,6 +263,7 @@ content from outside the repository and its seeded inputs is recorded.
 | [macos-arm64-correctness.json](RFC-BPR-0080/macos-arm64-correctness.json) | `d9bfa436b` | known answers, chunking, collisions, differential, Git, both repository sweeps |
 | [macos-arm64-throughput-run2.json](RFC-BPR-0080/macos-arm64-throughput-run2.json) | `3f9e45980` | W1 to W3, window-thread row |
 | [macos-arm64-throughput-run1.json](RFC-BPR-0080/macos-arm64-throughput-run1.json) | `40870b777` | W1 to W3, window-thread row |
+| [macos-arm64-first-tab-comparison.json](RFC-BPR-0080/macos-arm64-first-tab-comparison.json), [macos-arm64-large-review-responsiveness.json](RFC-BPR-0080/macos-arm64-large-review-responsiveness.json) | `6b0c7fb15` | the two end-to-end window-thread rows |
 | [macos-x86_64-rosetta-correctness.json](RFC-BPR-0080/macos-x86_64-rosetta-correctness.json) | `d9bfa436b` harness | known answers, chunking, collisions, differential, Git |
 
 `dirty` is true in the throughput and x86_64 files because documentation was being

@@ -5,7 +5,8 @@ identity/generation, semantic requests and deltas, and reason-coded
 diagnostics.
 
 - Use standard/domain C++, plus only the owner-approved pure libraries
-  (glaze, utf8proc, zlib, fmt; owner 2026-10-13).
+  (glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL* SHA-2; owner
+  2026-10-13).
 - Before hand-writing a major general-purpose system here (parser, codec,
   compressor, hash, regex or diff engine, Unicode tables, protocol), ask the
   owner whether a suitable library should be allowed instead (root `AGENTS.md`).

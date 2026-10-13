@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1446"
 title: "Evaluate sha1dc, HACL* SHA-2 and platform crypto on macOS arm64"
-status: "Blocked"
+status: "Done"
 rfcs: ["RFC-BPR-0080"]
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"mandate_revision":"hashing-replacement-r1","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1446--BPR-1453--810e9a5c8803.json"}
-blocked_by: "idle-macos-station"
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7676e35f2","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0080.md applies the decision rules per component (sha1dc and HACL* meet their macOS adopt rules after Q1/Q2 Accept and the idle waiver; CommonCrypto passes the host-port throughput condition, site left to BPR-1447; QCryptographicHash rejected; control arm not adopted) with raw JSON, hardware, SHA-extension flags and builds; owner answers recorded with date 2026-10-13.","path":"docs/issues/60-done/BPR-1446-evaluate-hash-candidates-on-macos.md"}},{"criterion":"AC2","outcome":"pass","revision":"d9bfa436b","evidence":{"kind":"command","detail":"run_hash_evaluation.py correctness,git,sweep,sweep256: zero mismatches for every arm across CAVP short/long/Monte and FIPS examples (233 per algorithm), chunking (335), seeded differential to 256 MiB (4,608), 55 Git blobs in both formats with trees and commits, 106,013 SHA-1 objects and 93,019 SHA-256 objects; x86_64 slice under Rosetta also clean.","path":"docs/issues/60-done/BPR-1446-evaluate-hash-candidates-on-macos.md"}},{"criterion":"AC3","outcome":"pass","revision":"d9bfa436b","evidence":{"kind":"command","detail":"hash_evaluation_collisions: sha1dc detects both SHAttered and both SHA-mbles files while plain SHA-1 collides; reduced-round vector detected with reduced-round detection; sweep detected nothing; Git-blob framing finding settled by the owner's 2026-10-13 amendment.","path":"docs/issues/60-done/BPR-1446-evaluate-hash-candidates-on-macos.md"}},{"criterion":"AC4","outcome":"pass","revision":"7676e35f2","evidence":{"kind":"observation","detail":"W1-W3 medians of 7 in thread CPU time in two loaded runs (40870b777, 3f9e45980): sha1dc 2.55-2.96x core SHA-1, HACL* 1.18-1.48x core SHA-256, CommonCrypto 7.11-8.54x on >=1 MiB; idle condition waived by the owner 2026-10-13. Window rows under load: feedback-count row both runs, application_first_tab_comparison passed, application_large_review_responsiveness fails on main's keyboard reveal at 6b0c7fb15 (no product code changed here).","path":"docs/issues/60-done/BPR-1446-evaluate-hash-candidates-on-macos.md"}},{"criterion":"AC5","outcome":"pass","revision":"3f9e45980","evidence":{"kind":"command","detail":"BPR_HASH_EVALUATION OFF by default; core-only configured with nothing acquired; pinned verified archives only; core_dependency_boundary, core_boundary_contract, architecture_boundaries, architecture_boundary_contract and the documentation gate pass.","path":"docs/issues/60-done/BPR-1446-evaluate-hash-candidates-on-macos.md"}}]
 ---
 
 # BPR-1446: Evaluate sha1dc, HACL* SHA-2 and platform crypto on macOS arm64
@@ -116,27 +116,14 @@ were not measured here.
 
 | Criterion | Outcome | Evidence |
 |---|---|---|
-| AC1 | Pass | [Report](../../verification/RFC-BPR-0080.md) at `b3e37dc26`: decisions per component; Q1 to Q3 recorded as unanswered |
+| AC1 | Pass | [Report](../../verification/RFC-BPR-0080.md): decisions per component; the owner's Q1, Q2, collision amendment and idle waiver recorded with their date |
 | AC2 | Pass | `macos-arm64-correctness.json` at `d9bfa436b`; x86_64 slice under Rosetta 2 |
-| AC3 | Pass | `hash_evaluation_collisions`; the Git-blob finding recorded for [[BPR-1450]] |
-| AC4 | **Open** | Two loaded runs support every decision with wide margins, but not under the RFC's idle condition. The window-thread rows other than the feedback-count row were not run here. |
+| AC3 | Pass | `hash_evaluation_collisions`; the Git-blob finding, settled by the owner's amendment |
+| AC4 | Pass under the owner's waiver | W1 to W3: two loaded runs (`40870b777`, `3f9e45980`); the owner waived the idle condition on 2026-10-13. Window-thread rows, all under load: `application_feedback_counter_costs` in both runs; `application_first_tab_comparison` passed; `application_large_review_responsiveness` fails twice on main's own keyboard reveal ("Down from a line out of view did not reveal the next") at `6b0c7fb15`, with every earlier phase measured. This branch changes no product code. |
 | AC5 | Pass | `BPR_HASH_EVALUATION` OFF by default; `core-only` configured without acquisition; architecture and documentation checks pass |
 
-## Blocked: an idle Mac for AC4
+## Owner waiver (2026-10-13)
 
-Remaining work, about ten minutes on an idle machine (one-minute load average
-well under the 14 CPUs, no other builds), in this card's tree:
-
-```sh
-cmake --preset dev -B build/hash-evaluation -DCMAKE_BUILD_TYPE=Release -DBPR_HASH_EVALUATION=ON
-cmake --build build/hash-evaluation --target bench_hash_evaluation test_better_pull_review_feedback_counter_costs bench_better_pull_review_large_review
-python3 tests/hash_evaluation/run_hash_evaluation.py --build build/hash-evaluation \
-  --repository "$PWD" --output "$PWD/docs/verification/RFC-BPR-0080/macos-arm64-throughput-idle.json" \
-  --phases throughput,window
-ctest --test-dir build/hash-evaluation -j1 --output-on-failure \
-  -R '^application_(large_review_responsiveness|first_tab_comparison)$'
-```
-
-Then re-apply the rules in the report with the idle rows, record the
-window-thread rows as BPR-1447's before-measurement or explain why that card
-re-takes them in its own session, and finish this card.
+The owner accepted the loaded macOS speed measurements for the adopt rules
+("Accept"). The waiver covers load, not missing rows, so the two end-to-end
+window-thread rows were built (Release Qt tree, 461 MB) and run under load.

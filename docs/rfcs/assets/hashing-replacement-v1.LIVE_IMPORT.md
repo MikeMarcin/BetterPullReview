@@ -22,3 +22,13 @@ uncommitted RFC-DRAFT-0018 draft with its name; the digest above is the
 original draft's. The original draft path and unrelated dirty configuration in the
 main checkout are excluded. No owner, native or package acceptance is supplied
 by import.
+
+Amendment, 2026-10-13 (mandate `hashing-replacement-r2`): the owner answered Q1
+and Q2 Accept and accepted the collision amendment; the
+[record](hashing-replacement-v1/proposed-owner-amendment-2026-10-13.md) keeps the
+live text before and after. The plan is unchanged.
+
+Waiver, 2026-10-13 (mandate `hashing-replacement-r3`): the owner accepted the
+loaded macOS throughput measurements for the adopt rules; the
+[record](hashing-replacement-v1/proposed-owner-waiver-2026-10-13.md) keeps the
+live text before and after. The plan is unchanged.

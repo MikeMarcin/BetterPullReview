@@ -45,10 +45,10 @@ namespace bpr::application {
 
 	/// \brief Resolves a reference name to a commit, reading only the
 	/// checkout's `HEAD`, loose references and `packed-refs` as data.
-	/// \details `HEAD`, names under `refs/` and one level of symbolic
-	/// reference are followed. `packed-refs` is consulted only when the loose
-	/// file is missing. Nothing (with no failure) means the name resolves to
-	/// no commit.
+	/// \details `HEAD` and names under `refs/` are followed through symbolic
+	/// references as deep as Git follows them (five reads in all).
+	/// `packed-refs` is consulted only when the loose file is missing. Nothing
+	/// (with no failure) means the name resolves to no commit.
 	[[nodiscard]] auto resolve_reference(workspace_root_session& aSession, std::string_view aName, core::git_hash_algorithm aAlgorithm, std::stop_token aStop)
 		-> std::expected<core::git_commit_oid, std::optional<workspace_failure>>;
 }
