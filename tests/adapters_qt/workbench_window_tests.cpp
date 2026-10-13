@@ -13550,22 +13550,30 @@ namespace {
 			};
 			expectCurrent();
 			save_open_on_github_render(*window.primary_toolbar(), QStringLiteral("accepted-%1").arg(viewportWidth));
-			auto selected = application::workbench_projection{
+			const auto selectedFile = core::file_identity_of("src/selected.cpp");
+			auto       selected     = application::workbench_projection{
 				.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{
-																  .File = core::file_identity_of("src/selected.cpp"), .Ordinal = 3U, .ActionableCount = 40U } },
+																  .File = selectedFile, .Ordinal = 1U, .ActionableCount = 1U } },
 				.Commands  = commands,
+				.Files     = std::vector{ application::workbench_file_projection{ .File = selectedFile, .Path = "src/selected.cpp" } },
 			};
 			window.publish(selected);
 			window.choose_modality(qt::review_modality::discuss);
 			process_events();
+			const auto selectedIndex = window.files_drawer()->contents_view()->currentIndex();
+			expect(selectedIndex.isValid() && window.files_drawer()->contents()->file_at(selectedIndex) == selectedFile,
+				   "a real selected file is retained behind the chosen modality");
 			const auto position      = window.file_position_label()->text();
 			accepted.Title           = "Current title with a very different length";
 			accepted.MarkdownContext = page_context(2U);
 			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
 			process_events();
 			expectCurrent();
-			expect(window.current_modality() == qt::review_modality::discuss && window.file_position_label()->text() == position,
-				   "same-PR content publication retains the chosen modality and selected-file position");
+			expect(
+				window.current_modality() == qt::review_modality::discuss && window.file_position_label()->text() == position
+					&& window.files_drawer()->contents_view()->currentIndex() == selectedIndex
+					&& window.files_drawer()->contents()->file_at(selectedIndex) == selectedFile,
+				"same-PR content publication retains the chosen modality and selected-file position");
 			const auto stable = std::pair{ window.identity_label()->geometry(), window.open_on_github_button()->geometry() };
 			window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
 			process_events();
