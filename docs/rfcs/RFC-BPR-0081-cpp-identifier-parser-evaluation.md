@@ -18,7 +18,7 @@ retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labell
 (labelled corpus and gap suite),
 [BPR-1441](../issues/60-done/BPR-1441-stop-the-cpp-refinement-partway-and-fuzz-the-classifier.md)
 (cancellation test and syntax fuzz target),
-[BPR-1442](../issues/30-in-progress/BPR-1442-measure-tree-sitter-cpp-on-macos.md)
+[BPR-1442](../issues/60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md)
 (harness, pins and macOS measurements),
 [BPR-1443](../issues/10-backlog/BPR-1443-measure-the-parser-evaluation-on-windows.md)
 (Windows x64),
