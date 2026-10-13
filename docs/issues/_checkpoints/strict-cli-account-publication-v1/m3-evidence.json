@@ -1,19 +1,19 @@
 {
   "schema": "bpr.milestone-engineering-evidence.v1",
   "run_id": "strict-cli-account-publication-v1",
-  "segment_id": "m3-ordinary",
+  "segment_id": "m3-repair",
   "mandate_revision": "strict-cli-publication-r2",
   "milestone": "ordinary-cli-publication",
   "source_root": "/Users/jaeger/.codex/worktrees/22e7/BetterPullReview",
   "branch": "codex/strict-cli-account-publication",
   "starting_revision": "4ae67d6b59db79e83bc59eb0550cf7c5f8c9efb0",
-  "product_candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+  "product_candidate": "34b6a43458659747648e4039a99ca52407d14624",
   "accepted_strict_product": "2793606c5a7785d0b671b81a31f016b401cab1b5",
   "baseline": "aa3d71fe470627e1e78488eb51a9114a788f33bd",
-  "disposition": "continue-milestone",
+  "disposition": "milestone-complete",
   "card_states": {
     "BPR-1428": "Done",
-    "BPR-1429": "In Progress"
+    "BPR-1429": "Done"
   },
   "commits": [
     {
@@ -47,6 +47,22 @@
     {
       "revision": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
       "subject": "Conform touched publication callbacks to coding rules"
+    },
+    {
+      "revision": "33a77bcc117ea6ff36459b5b16445351e2b7e3e8",
+      "subject": "Checkpoint M3 candidate with confirmed inline recovery repair obligation"
+    },
+    {
+      "revision": "e94814d94151e79b1081be032d25d14442d06722",
+      "subject": "Adopt M3 inline recovery critical repair ownership"
+    },
+    {
+      "revision": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+      "subject": "Preserve unknown inline publication through refused recovery"
+    },
+    {
+      "revision": "34b6a43458659747648e4039a99ca52407d14624",
+      "subject": "Fit settled publication status in the native comment card"
     }
   ],
   "changed_paths": [
@@ -294,31 +310,24 @@
       "id": "inline-unknown-acquisition-refusal",
       "state": "confirmed blocking P1; final critical receipt consumed; repair and recheck required",
       "source": "Coordinator conveyed independent source proof at frozen611c on2026-10-13",
-      "description": "At frozen611c independent reviewer reproduces: ambiguous/lost inline POST posts1/stored1; named credential_unavailable then Retry yields Not published, drafting/editable1/retry0; restoring credential and Add single comment yields posts2/stored2. Preflight refuses before loading recovery, and M3 definite failure classification clears unknown/editable state. Fix the earlier coordinator path plus session precedence, preserving exact ambiguous publication identity/draft and GET-only reconciliation across refusal. Session-only correction is insufficient. Existing lost_then_retried keeps acquisition successful and fresh failure tests do not cover this transition."
+      "description": "At frozen611c independent reviewer reproduces: ambiguous/lost inline POST posts1/stored1; named credential_unavailable then Retry yields Not published, drafting/editable1/retry0; restoring credential and Add single comment yields posts2/stored2. Preflight refuses before loading recovery, and M3 definite failure classification clears unknown/editable state. Fix the earlier coordinator path plus session precedence, preserving exact ambiguous publication identity/draft and GET-only reconciliation across refusal. Session-only correction is insufficient. Existing lost_then_retried keeps acquisition successful and fresh failure tests do not cover this transition.",
+      "historical_state": "confirmed blocking P1; final critical receipt consumed; repair and recheck required",
+      "current_disposition": "Superseded by independently clear P1/P2 at34b6; historical observation preserved."
     },
     {
       "id": "inline-actionable-status-clipping",
       "state": "nonblocking evidence timing; settled images supplied and inspected; no layout defect proven",
       "source": "m3-screen-inline-3.png offscreen inspection and coordinator",
-      "description": "Initial image was premature; reviewer waited900ms with events then captured full readable status. Supplied settled-inline-3.png and settled-unknown-missing.png now bound, copied to /tmp/bpr-strict-cli-run/m3-reviewer-* and inspected. No speculative layout rewrite is required."
+      "description": "Initial image was premature; reviewer waited900ms with events then captured full readable status. Supplied settled-inline-3.png and settled-unknown-missing.png now bound, copied to /tmp/bpr-strict-cli-run/m3-reviewer-* and inspected. No speculative layout rewrite is required.",
+      "historical_state": "nonblocking evidence timing; settled images supplied and inspected; no layout defect proven",
+      "current_disposition": "Superseded by independently clear P1/P2 at34b6; historical observation preserved."
     }
   ],
   "acceptance_scope": {
-    "passed_engineering": [
-      "Ordinary CLI whole review dispositions, inline and tour gesture courses show zero extra publication modal.",
-      "Runtime non-strict capability and frozen summary controls refuse writes; native/default fixture regression rows remain passing.",
-      "Fresh unavailable/tool/cancel statuses retain drafts and bind exact failed account/host; whole unknown uses GET-only recovery.",
-      "Partial tour unavailable Resume preserves prior staged work and requires a new preview; successful writes are not reposted.",
-      "Neutral chosen account/server question, no-choice Connect refusal, details and focused Qt mechanics pass."
-    ],
-    "required_pending": [
-      "BPR-1429 AC02 preserve inline unknown outcome across named acquisition refusal and prevent second POST",
-      "BPR-1429 AC03 preserve the ambiguous inline draft identity/editability/retry state across that same refusal",
-      "ordinary-cli-publication exit3 acceptance",
-      "Blocking P1 repair on new candidate and independent recheck; final critical receipt supplied at611c",
-      "Fresh M3 repair owner and affected composed regression on new immutable candidate",
-      "M4/BPR-1430 companion full AC01-AC05 qualification and any required owner judgment"
-    ]
+    "accepted_milestone": "ordinary-cli-publication",
+    "required_pending": [],
+    "next_milestone": "publication-qualification-closeout",
+    "boundary": "M3 runtime/text implementation accepted; full RFC-BPR-0079 AC01\u2013AC05 and pack closeout remain M4. Historical failed claims are preserved below; no native Cocoa/VoiceOver or human verdict is inferred."
   },
   "limits": [
     "Fixtures use designated closed grant/capability/acquisition seams; tests-on production grants remain denied.",
@@ -334,14 +343,14 @@
     "preservation_receipt": "/tmp/bpr-strict-cli-run/m3-main-status-preservation.json",
     "protected_hashes_unchanged": 42,
     "writer_window": "released",
-    "popup_integration": "not ready; no M3 import"
+    "popup_integration": "M3 accepted; main unchanged by repair owner; M4 and authorized monitor landing remain next"
   },
   "ownership": {
-    "product": "released for fresh post-review M3 repair owner; immutable611c preserved",
-    "card_BPR_1429": "released In Progress with all AC02/AC03 obligations retained",
+    "product": "released at accepted34b6 product; no further edits",
+    "card_BPR_1429": "terminal Done after explicit acceptance helper",
     "commands": "quiescent; all task-owned build/test/render/app/tidy commands terminal",
     "review_server": null,
-    "next": "Fresh post-review M3 repair owner; critical P1 correction and affected composition, then new independent recheck and M4 qualification."
+    "next": "Fresh M4 publication-qualification-closeout; no M4 source/card work by this owner"
   },
   "review_receipt": {
     "path": "/tmp/bpr-strict-cli-run/critical-m3-review.md",
@@ -364,5 +373,354 @@
         "sha256": "bc8b1278dd0db06e1512a194e15ca90104cf4968daaa4858224c827349f33df6"
       }
     ]
+  },
+  "repair_round": {
+    "assignment": "inline_recovery_publication_repair",
+    "segment_id": "m3-repair",
+    "mandate_revision": "strict-cli-publication-r2",
+    "starting_revision": "33a77bcc117ea6ff36459b5b16445351e2b7e3e8",
+    "ownership_commit": "e94814d94151e79b1081be032d25d14442d06722",
+    "product_candidate": "34b6a43458659747648e4039a99ca52407d14624",
+    "state": "P1 and P2 independently clear; BPR-1429 AC01/AC02/AC03 and M3 exits1\u20135 accepted",
+    "baseline_regression": {
+      "result": "expected failure against unchanged611c product libraries",
+      "log": "/tmp/bpr-strict-cli-run/m3-repair-baseline-regression.log",
+      "log_sha256": "6272968fc7a91fae40e26cc2120570aedd903bb0f04cbe224aca88ef5ee0ce94",
+      "probe_reproduction": {
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-baseline-probe.log",
+        "sha256": "eeb76cc0a629279cc2cbe2476cea61cbba71f4c555164719abdf15cd5592de59"
+      },
+      "geometry_baseline": {
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-baseline-composed-geometry.log",
+        "sha256": "a4c9f0a8ed395c71a6e9ba3618967948d9f857927ee8f5ecc979637cd92c3124"
+      },
+      "geometry_result": "Expected failure against ac1 actual constrained composition: label260x34 needs65px. Unconstrained direct widget test passed and was supplementary only."
+    },
+    "verification": {
+      "P1": "baseline611c expected composed failure; core typed policy and early coordinator cut regression pass",
+      "P2": "baselineac1 expected constrained geometry failure; final actual composed allocated/HFW/visible geometry pass",
+      "scope": "Focused impacted tests only; exact candidate public tripcounterexamples plus independent replay. Original unchanged M2/native and M3 whole/tour evidence reused with original limits."
+    },
+    "independent_recheck": {
+      "path": "/tmp/bpr-strict-cli-run/critical-m3-recheck.md",
+      "sha256": "9f6bdfed53733c29fec7107bd97ac52588b1d83f77c249fb746178bf67623908",
+      "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+      "P1": "pass: original QAction and visible Retry across all cuts preserve exact draft; restore1POST/1comment GET-only; fresh unavailable pass",
+      "P2": "new blocking settled native wrapped status clipping; width260 height34 needs65credential/52tool after1200ms",
+      "commands": "independent reviewer all commands terminal"
+    },
+    "commands": "All owned build/test/render/tidy commands terminal; no server.",
+    "next": "Fresh M4/BPR-1430 final qualification and closeout; coordinator owns dispatch. Main unchanged; monitor integrates only in authorized later window.",
+    "render_observation": {
+      "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+      "state": "rendered and locally inspected; full-status visibility observation referred to independent replay, no layout change inferred",
+      "settle_ms": 900,
+      "images": [
+        {
+          "path": "/tmp/bpr-strict-cli-run/m3-repair-screen-inline-3.png",
+          "sha256": "18ada3d3720fa08a359fddc7d3de56430823db2f21562570276229664425b768"
+        },
+        {
+          "path": "/tmp/bpr-strict-cli-run/m3-repair-screen-unknown-credential.png",
+          "sha256": "03a53c757ad431d92a004de7b710be455469c29dc9b6512723ec86e2a291a504"
+        },
+        {
+          "path": "/tmp/bpr-strict-cli-run/m3-repair-screen-reconciled.png",
+          "sha256": "114d412bc38e53cbf5fdabef1aa46c3b47503e24240b56c04dedc32bf6b4e1fc"
+        }
+      ],
+      "description": "Own unknown image shows prior unknown/account/access and Retry, but the final explanatory sentence appears partly outside status area. Existing reviewer-settled inline image shows the same constrained status area. Preserve images for assessment rather than infer a layout rewrite from the original timing-only finding."
+    },
+    "trip_counterexamples": {
+      "historical_failure": {
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-trip-counterexamples.log",
+        "sha256": "e5b6811e1d50e0cb1592e5e9d9ab42f1f428fcf90a915aec396ae69b56812fab"
+      },
+      "final_pass": {
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-trip-counterexamples-final.log",
+        "sha256": "96769744ba9aabcc44c8c1ee7aeb2e137f62f57daf1b730b2dfa2b04cb0e2893"
+      },
+      "change": "Remove obsolete popup requirement and match retained read question; preserve actual runtime/read/strict capability/actor/head gates, hostile negative controls, digest seals and allowdirty enforcement. No bypass-gate weakening."
+    },
+    "historical_ac1_frontier": {
+      "product_candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+      "state": "P1 independently accepted atac1; product unfrozen only for scoped P2 native status height/test repair",
+      "verification": {
+        "focused": "5/5 pass",
+        "core_only": "3/3 pass",
+        "format": "clang-format22 exact8 touched C++ paths pass"
+      },
+      "next": "Repair native wrapped status geometry; geometry/visibleRegion narrow-width scale regressions; successor freeze and independent P1/P2 recheck. No new native credential course.",
+      "trip_counterexamples": {
+        "log": "/tmp/bpr-strict-cli-run/m3-repair-trip-counterexamples.log",
+        "state": "language-sealed issuer and async mutation/source-manifest bypass negative tests pass; concrete selection test has obsolete warning requirement",
+        "pending": "Update only obsolete RFC0079 test invariant, retaining read consent and boundary negative controls. Product source remains frozenac1."
+      }
+    },
+    "required_pending": [],
+    "independent_final_recheck": {
+      "path": "/tmp/bpr-strict-cli-run/critical-m3-final-recheck.md",
+      "sha256": "f928dc64cefca4b83590c597cf1364d51b7a15a3dc625f16d2e639a626ab0dc5",
+      "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+      "outcome": "BOTH P1 duplicate-POST and P2 clipping clear; no blocking/nonblocking findings in bounded repair scope",
+      "commands": "reviewer commands terminal",
+      "limits": "Synthetic network-denied offscreen composition; owner 1.25/2 results inspected by reviewer, not independently rerun; no Cocoa/VoiceOver claim."
+    },
+    "commands_evidence": [
+      {
+        "name": "P1 impacted integration",
+        "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+        "exit_code": 0,
+        "scope": "11/11 pass; mutation host/coordinator, provider/restart, Qt draft, label, whole review, tour/native rows",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-integration.log",
+        "sha256": "8107ca0324a02f153aeaeb3f9312cdc646b75a5862a20997caa9a1b154ffff5c"
+      },
+      {
+        "name": "P1 core-only architecture and policy",
+        "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+        "exit_code": 0,
+        "scope": "3/3 pass; unchanged P2 core scope",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-core-only.log",
+        "sha256": "57daf9fc263280a11e58dd1d2bf1eb74e6b033e9ae4bd0706e0adfb53cf0d66f"
+      },
+      {
+        "name": "Exact final core policy",
+        "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+        "exit_code": 0,
+        "scope": "1/1 pass; unchanged P2 core scope",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-core-candidate.log",
+        "sha256": "3afc869d52637fbdc6b374b0aacda894916a4b2009ce0d81f4320ff03139cf8c"
+      },
+      {
+        "name": "P1 scoped format22",
+        "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+        "exit_code": 0,
+        "scope": "8 C++ paths pass; exact clang-format22",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-format-final.log",
+        "sha256": "8095587f5b57b3210da2ce81d7f5effd27dc5d2485300a69a33316e47fa4761f"
+      },
+      {
+        "name": "P1 scoped tidy",
+        "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+        "exit_code": 0,
+        "scope": "6/6 changed TUs pass; changed-line filter and repository host SDK arguments; unchanged P2 paths reused",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-tidy.log",
+        "sha256": "85a1155c0d7603e6a4d496bf0daca508d05f87ef9438b7b2e95986f974faf5cb"
+      },
+      {
+        "name": "Final P2 focused cards and full inline course",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "2/2 pass; existing card suite and full composed inline consent/recovery course",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-candidate-focused.log",
+        "sha256": "89c11b5292df4455900c3741c8368a04e7e11e6e4df88c1c9f8946b764a995af"
+      },
+      {
+        "name": "Final public paths",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "4/4 pass; actual app composition, composed GitHub, read consent and draft editor",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-final-public.log",
+        "sha256": "719387483bc45122d17345fa59d93f49c69bf554e666c348bc4f0d8e7da011de"
+      },
+      {
+        "name": "Final geometry scales",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "6/6 serial network-denied courses at1/1.25/2; supplementary widget width transition and actual lost-result/refused-recovery composition",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-scales.log",
+        "sha256": "43a315bdab554a9886e81e6c5be3212c4a4303a057ee41b85558871654b41841"
+      },
+      {
+        "name": "Final fresh unavailable settled render",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "Serial settled render pass; fresh draft editable; zero POST; label39/required39/visible39",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-fresh-render-serial.log",
+        "sha256": "538d3d58d2122a073b334edecc6161c7facef33d7fa89251cc2a2dd5e7d14ed2"
+      },
+      {
+        "name": "Final concrete trip counterexamples",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "3/3 pass; issuer seals, async source/manifest bypass, read/runtime/strict capability/actor/head/no-modal negative controls",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-trip-counterexamples-final.log",
+        "sha256": "96769744ba9aabcc44c8c1ee7aeb2e137f62f57daf1b730b2dfa2b04cb0e2893"
+      },
+      {
+        "name": "Final P2 scoped format22",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "4 C++ paths pass; exact clang-format22",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-format-check.log",
+        "sha256": "ec7c7669136b4f7f2bbe333dae16df0caecff724e1ee7b6a18905f832020ff0c"
+      },
+      {
+        "name": "Final P2 scoped tidy",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "3/3 changed TUs pass; changed-line filter and repository host SDK arguments",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-tidy.log",
+        "sha256": "c63e4583074fb39082dcafdfa9a7617151edc5c9ab254d61c56c90071b8ecbb9"
+      },
+      {
+        "name": "Final architecture boundaries",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "1/1 pass",
+        "path": "/tmp/bpr-strict-cli-run/m3-final-architecture.log",
+        "sha256": "0ac7854d8f58c0a93143d8db1c97a678f3c70696d7a12f7b51243e5e450eb2e7"
+      },
+      {
+        "name": "Documentation verifier contracts",
+        "candidate": "ac1d300bb645b1380730632f6186e1a8c4a0c4d5",
+        "exit_code": 0,
+        "scope": "67/67 pass; unchanged verifier; final edited-document structure gate runs separately",
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-doc-contracts.log",
+        "sha256": "f683c74d53b5546b2daf8fc8d893360c48f19f36c15d5143ad857705e3a9cdf1"
+      },
+      {
+        "name": "Final pre-bookkeeping documentation structure",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "exit_code": 0,
+        "scope": "DOCUMENTATION_OK",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-docs-before-close.log",
+        "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+      },
+      {
+        "name": "Final edited-document structure before terminal transition",
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624 plus explicit tracker/upkeep files",
+        "exit_code": 0,
+        "scope": "DOCUMENTATION_OK",
+        "path": "/tmp/bpr-strict-cli-run/m3-final-upkeep-docs.log",
+        "sha256": "d814c3384c84b4c69c3432b23bb5490ad0745e4079d4cb6677e48e76b4d83027"
+      }
+    ],
+    "result_artifacts": [
+      {
+        "path": "/tmp/bpr-strict-cli-run/m3-repair-tidy-result.json",
+        "sha256": "be004067e05d04acfed276ffb5be1e0b2e61334ccabdc9fb23a26d1b6e8063ea"
+      },
+      {
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-tidy-result.json",
+        "sha256": "726b27962c94e0c1e709df6ac392284746509e854a4271223f291855e80c8fee"
+      },
+      {
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-scales-result.json",
+        "sha256": "42a9b634b6248575322e5c7e8453bba70fac71092ee3b94168a0973c51c3e934"
+      }
+    ],
+    "settled_final_images": [
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-1-inline-3.png",
+        "sha256": "f7fff1c75534102ff776028919d63e5e55876c0313ee6569f9bec66e0db89abb"
+      },
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-1-unknown-credential.png",
+        "sha256": "7ba341c57b8e1b488fc3c7a353c1e2853e11d63d4cc26d85b626701753a5c562"
+      },
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-1-reconciled.png",
+        "sha256": "114d412bc38e53cbf5fdabef1aa46c3b47503e24240b56c04dedc32bf6b4e1fc"
+      },
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-1.25-unknown-credential.png",
+        "sha256": "1247315221e14f9cd2f06f1a41b5038b29f56185dd8b2e08fdc7d7d14d17feb3"
+      },
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-1.25-reconciled.png",
+        "sha256": "f5a9d282d60c6c88b660c2966321e305e35137366b85a3213cd2c784b41bbc31"
+      },
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-2-unknown-credential.png",
+        "sha256": "36789503fd535f57ee00b6b48f0499bc19fc7af568c3e55a7df19c23c0b66fe9"
+      },
+      {
+        "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+        "settle_ms": 900,
+        "inspection": "scale1 fresh/unknown/reconciled locally inspected; scale1.25/2 exact geometry mechanically verified",
+        "path": "/tmp/bpr-strict-cli-run/m3-p2-screen-2-reconciled.png",
+        "sha256": "26fb0b45c1e483daaaa7c3a08e5c1fcecfc17acb91d5ae37ef2144cf75e695ce"
+      }
+    ],
+    "final_geometry": {
+      "credential": "allocated65/heightForWidth65/visible65",
+      "tool": "52/52/52",
+      "fresh": "39/39/39",
+      "layout": "Independent exact composition settles1\u20133 requests; no idle loop/card/editor replacement/focus movement",
+      "identity": "Both retained original Publish QAction and visible Retry preserve full original body, anchor, durable revision and identity through unavailable twice/tool/cancel/strict-capability refusal; restoration GET-only yields one POST/one comment."
+    },
+    "cleanup": {
+      "path": "/tmp/bpr-strict-cli-run/m3-repair-cleanup.txt",
+      "sha256": "03b99363c47c6a0f832471c1c8d8254ea74e82aa8b57284985dedbb6ef8a43bf"
+    },
+    "card_acceptance": {
+      "path": "/tmp/bpr-strict-cli-run/m3-final-acceptance.json",
+      "sha256": "2dd2951bf75f74817fb1414199e5f38a0ed2d23fe743474b80715dd3caf1101b",
+      "criteria": [
+        "AC01",
+        "AC02",
+        "AC03"
+      ],
+      "outcome": "all pass",
+      "product_candidate": "34b6a43458659747648e4039a99ca52407d14624"
+    },
+    "binding_reconciliation": {
+      "original_checkpoint": "docs/issues/_checkpoints/strict-cli-account-publication-v1/m3-repair-binding.json",
+      "completion_checkpoint": "docs/issues/_checkpoints/strict-cli-account-publication-v1/m3-completion-binding.json",
+      "reason": "The broad BPR-1429 source fingerprint includes appended e948 repair ownership/history after the initial33 checkpoint. Acceptance AC01\u2013AC03 and r2 amendment unchanged; BPR-1428 fingerprint, plan definition, exits and prerequisite fingerprint identical. Preserve original checkpoint and renew completion binding for the execution-record delta."
+    }
+  },
+  "historical_611c_product_candidate": "611c756bdd62ac2bc9af8ed21ead57c7fc0df1e9",
+  "historical_segment_id": "m3-ordinary",
+  "historical_611c_acceptance_scope": {
+    "passed_engineering": [
+      "Ordinary CLI whole review dispositions, inline and tour gesture courses show zero extra publication modal.",
+      "Runtime non-strict capability and frozen summary controls refuse writes; native/default fixture regression rows remain passing.",
+      "Fresh unavailable/tool/cancel statuses retain drafts and bind exact failed account/host; whole unknown uses GET-only recovery.",
+      "Partial tour unavailable Resume preserves prior staged work and requires a new preview; successful writes are not reposted.",
+      "Neutral chosen account/server question, no-choice Connect refusal, details and focused Qt mechanics pass."
+    ],
+    "required_pending": [
+      "BPR-1429 AC02 preserve inline unknown outcome across named acquisition refusal and prevent second POST",
+      "BPR-1429 AC03 preserve the ambiguous inline draft identity/editability/retry state across that same refusal",
+      "ordinary-cli-publication exit3 acceptance",
+      "Blocking P1 repair on new candidate and independent recheck; final critical receipt supplied at611c",
+      "Fresh M3 repair owner and affected composed regression on new immutable candidate",
+      "M4/BPR-1430 companion full AC01-AC05 qualification and any required owner judgment"
+    ]
+  },
+  "historical_611c_ownership": {
+    "product": "released for fresh post-review M3 repair owner; immutable611c preserved",
+    "card_BPR_1429": "released In Progress with all AC02/AC03 obligations retained",
+    "commands": "quiescent; all task-owned build/test/render/app/tidy commands terminal",
+    "review_server": null,
+    "next": "Fresh post-review M3 repair owner; critical P1 correction and affected composition, then new independent recheck and M4 qualification."
+  },
+  "current_review_receipt": {
+    "path": "/tmp/bpr-strict-cli-run/critical-m3-final-recheck.md",
+    "sha256": "f928dc64cefca4b83590c597cf1364d51b7a15a3dc625f16d2e639a626ab0dc5",
+    "candidate": "34b6a43458659747648e4039a99ca52407d14624",
+    "outcome": "BOTH P1 duplicate-POST and P2 clipping clear; no blocking/nonblocking findings in bounded repair scope",
+    "commands": "reviewer commands terminal",
+    "limits": "Synthetic network-denied offscreen composition; owner 1.25/2 results inspected by reviewer, not independently rerun; no Cocoa/VoiceOver claim."
   }
 }

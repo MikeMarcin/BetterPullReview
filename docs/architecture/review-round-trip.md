@@ -1075,3 +1075,20 @@ GET-only, never a second POST. Prior staged/partial tour records survive a fresh
 acquisition refusal; their status says no further publication rather than
 claiming that earlier successful writes did not occur. Confirmed receipts and
 unknown journal outcomes take precedence over a fresh failure.
+
+Inline draft completion combines typed prior/current publication knowledge in
+core. A retained publishing draft represents an unconfirmed earlier attempt;
+a retry refused during strict admission or the coordinator's target observation
+cannot return it to editable drafting. The host keeps its exact body, anchor,
+durable revision and retry identity even when that check never reaches journal
+loading. The status describes the earlier result as unknown and separately names
+the current credential/tool/cancellation/capability refusal. A fresh credential
+refusal keeps an editable draft. Only an exact confirmed receipt resolves the
+locked unknown draft; restored credentials use the existing same-key GET-only
+reconciliation without another ordinary comment POST.
+
+The native inline status uses its measured wrapping height at the current card
+width. Changed notice content invalidates editor/footer/card measurements; native
+layout requests notify the existing drawer height callback. This updates preferred
+height without rebuilding the card or model, moving focus, or changing the locked
+publication state.
