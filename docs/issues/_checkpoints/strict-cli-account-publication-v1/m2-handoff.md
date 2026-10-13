@@ -59,10 +59,14 @@ checks, targeted `_coding-standard/scripts/tidy.py --warnings-as-errors`,
 are in the evidence JSON; unchanged M1 mutation/composed/recovery evidence is reused. M1 strict adapter/runner/SQLite/composed evidence is
 reused only for unchanged inputs and retains its original revision/scope.
 
-M2 native engineering is observed, but this checkpoint does not self-certify a
-new independent review. The coordinator receives the frozen M2 revision and
-supplies the required bounded critical recheck of the new lifecycle seam/harness
-before RFC closeout and M3. RFC/card stay open while that acceptance is pending.
+Final M2 independent critical acceptance is now supplied in
+`/tmp/bpr-strict-cli-run/critical-m2-review.md` against the frozen candidate:
+no blocking finding, independent runner 1/1 pass, production-null hooks/shared
+ownership and ten evidence-file/probe/stock-gh hashes verified. The coordinator
+accepts all first-RFC criteria and M2 exits with the existing explicit limits.
+BPR-1427 finishes through acceptance-driven bookkeeping. Main integration owns
+terminal RFC/index status confirmation; their Proposed/Proposed pair remains
+consistent in this lane.
 No owner human criterion is introduced, no attended server runs, and historical
 BPR-1373 owner judgment remains pending for its original candidate.
 
@@ -77,15 +81,15 @@ releases product source and command ownership; only tracker binding follows. The
 allocation/index-counter change, global gh switch, owner config byte read,
 Keychain search/default/trust/ACL change, real credential edit, owner desktop or
 browser access occurred. Only task-owned exact synthetic items and random
-scratch roots are created/cleaned. No task-owned review server is running. Next action is coordinator critical acceptance, M2 bookkeeping closeout,
-then a fresh M3 owner for ordinary publication; no popup work is performed here.
+scratch roots are created/cleaned. No task-owned review server is running. Next action is a fresh M3 owner for ordinary publication after this accepted
+M2 bookkeeping handoff, with main integration confirming terminal RFC/index status; no popup work is performed here.
 
 ## Criterion judgment and review handoff
 
 RFC AC01–AC04 are observed on the combined unchanged repaired M1 execution and
 M2 native/lifetime candidate, with scope distinctions in the ledger. AC05
-engineering checks/upkeep pass. Card AC01–AC03 and milestone exits 1–4 await only
-the final independent bounded acceptance and ensuing RFC/card upkeep; no native,
+engineering checks/upkeep pass. Card AC01–AC03 and milestone exits 1–4 are accepted after the supplied final
+independent bounded review; no native,
 human or source failure is concealed by tracker state. The actual watchdog
 reap-failure observation satisfies the owner-lifetime requirement without claiming
 a kernel failed-kill injection or perfect third-party erasure.
@@ -98,5 +102,17 @@ secret-free evidence. Private native facts are
 `m2-tidy-runner-final.log`, `m2-format-frozen.log`, `m2-docs-freeze.log` and
 `m2-docs-contract.log` under that same root. Prior M1 critical receipt is retained.
 No attended URL/session/cursor exists because M2 introduces no required owner
-judgment. After review, consume findings through this milestone owner, close M2
-only with supplied acceptance, then stop and dispatch a fresh M3 leaf.
+judgment. The supplied review has no findings requiring repair. This owner finishes M2
+bookkeeping and stops; dispatch a fresh M3 leaf. Required-pending for this
+milestone is empty. Historical BPR-1373 is outside this assignment.
+
+## Acceptance-bookkeeping completion
+
+The coordinator supplied final critical acceptance and authorized bookkeeping
+only. No product/test source or native run changed after the freeze. The final
+documentation gate checks the updated records; acceptance-driven `finish` moves
+BPR-1427 to Done and commits explicit tracker/RFC-ledger paths. All commands are
+quiescent and writer ownership is released. The private final milestone
+observation/check binds the terminal tracker HEAD, accepted obligations/exits
+and next milestone `ordinary-cli-publication`; it does not substitute for the
+actual independent receipt.
