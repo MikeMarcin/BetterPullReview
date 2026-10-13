@@ -1,0 +1,17 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1446",
+    "BPR-1447",
+    "BPR-1448",
+    "BPR-1449",
+    "BPR-1450",
+    "BPR-1451",
+    "BPR-1452",
+    "BPR-1453"
+  ],
+  "reserve_for": "hashing-replacement-v1",
+  "purpose": "RFC-DRAFT-0020 hashing replacement adoption: evaluation, host port, stations, adoptions, closeout",
+  "created": "2026-10-13T19:12:22.049474+00:00",
+  "base": "530d92eaff1578413c0e669f476e740387441152"
+}
