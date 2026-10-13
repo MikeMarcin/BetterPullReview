@@ -286,3 +286,9 @@ Accept; v004/v005 remain Reject in the history. The original eight criteria,
 plan grouping and dependency requirements are retained. Focused restoration
 checks and the final documentation gate are recorded in
 [M6 evidence](../issues/_checkpoints/smooth-diff-touchpad-panning/m6-verification.json).
+
+All seven current workbench/link-map/architecture checks pass at 100%, 125%
+and 200% in 60.68 seconds. Format22 and the local app rebuild pass. BPR-1413
+is Done; RFC-BPR-0073 is Auto-Verified after dependency, criterion and scoped
+baseline reconciliation. The final documentation gate passes; no new owner
+action is pending.

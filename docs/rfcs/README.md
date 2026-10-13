@@ -546,6 +546,6 @@ separate platform/release obligations retain their scope.
 
 | [RFC-BPR-0072](RFC-BPR-0072-cpp-identifier-context.md) | Context-aware C++ namespace and enum highlighting | In Progress | RFC-BPR-0006, RFC-BPR-0034 |
 
-| [RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) | Smooth diff touchpad panning without accidental vertical steps | In Progress | RFC-BPR-0004, RFC-BPR-0005 |
+| [RFC-BPR-0073](RFC-BPR-0073-smooth-diff-touchpad-panning.md) | Smooth diff touchpad panning without accidental vertical steps | Auto-Verified | RFC-BPR-0004, RFC-BPR-0005 |
 
 | [RFC-BPR-0074](RFC-BPR-0074-header-source-navigation.md) | Jump between a review’s header and source files | In Progress | — |

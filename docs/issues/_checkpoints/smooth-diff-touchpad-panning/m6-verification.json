@@ -45,6 +45,12 @@
       "command": "python3 scripts/verify_documentation.py --root .",
       "exit_code": 0,
       "result": "DOCUMENTATION_OK; terminal closeout rerun follows."
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "exit_code": 0,
+      "result": "DOCUMENTATION_OK with BPR-1413 Done and RFC/index Auto-Verified",
+      "record": "m6-documentation.json"
     }
   ],
   "integration_status": "pass:7tests,60.68seconds",

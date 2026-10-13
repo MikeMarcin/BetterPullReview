@@ -1,0 +1,13 @@
+{
+  "criterion": "CLOSEOUT",
+  "outcome": "pass",
+  "revision": "f9b81b37338941f400689fb6462adee846a596f5",
+  "evidence": {
+    "kind": "command",
+    "detail": "[\"python3\", \"scripts/verify_documentation.py\", \"--root\", \".\"]",
+    "exit_code": 0,
+    "elapsed_seconds": 0.986,
+    "stdout_tail": "DOCUMENTATION_OK\n",
+    "stderr_tail": ""
+  }
+}

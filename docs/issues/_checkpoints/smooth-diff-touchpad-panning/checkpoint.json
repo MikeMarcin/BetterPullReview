@@ -1,6 +1,6 @@
 {
   "schema": "bpr.smooth-diff-panning.checkpoint.v1",
-  "state": "verification-complete",
+  "state": "complete",
   "assignment": "/root/smooth_panning_transient_v6",
   "recipe": "coordinator-implementer",
   "mandate": "/implement-rfc use coordinator/implementer to Implement the RFC at /Users/jaeger/Documents/GitHub/BetterPullReview/docs/rfcs/drafts/smooth-diff-touchpad-panning/RFC-DRAFT-0012-smooth-diff-touchpad-panning.md.",
@@ -37,9 +37,9 @@
   "commands": {
     "background": [],
     "review_server": null,
-    "writers_released": false
+    "writers_released": true
   },
-  "next_action": "Finish approved card and RFC closeout, rerun terminal doc gate, then release writer ownership.",
+  "next_action": "No successor milestone or pending owner decision. Coordinator reports completed restored native behavior.",
   "verification": [
     {
       "artifact": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m6-verification.json",
@@ -76,7 +76,7 @@
   "milestone": "smooth-comparison-panning",
   "current_binding": "docs/issues/_checkpoints/smooth-diff-touchpad-panning/m6-binding.json",
   "segment_id": "owner-withdrawn-scrollbar-objection",
-  "binding_renewal": "M6 bound after explicit owner withdrawal; plan grouping/scope/exits unchanged, pending scrollbar concern removed only by human amendment.",
+  "binding_renewal": "Final M6 binding renewed to terminal card/RFC under explicit owner withdrawal; original plan grouping/exits and all8criteria retained.",
   "diagnostic": {
     "state": "/Users/jaeger/.mask/attended-review-sessions/bpr-1413-sublime-recording-v001-20261012",
     "session": "b9b49823-7485-49dc-946e-085797973c94",
@@ -241,5 +241,15 @@
     "consumed_cursor": 6,
     "protections_released": true,
     "server_stopped": true
+  },
+  "closure": {
+    "card": "docs/issues/60-done/BPR-1413-close-rfc-0073.md",
+    "card_finish_commit": "f9b81b37338941f400689fb6462adee846a596f5",
+    "rfc_status": "Auto-Verified",
+    "product_commit": "a6b40da50c060b4ccb1d83bf4e11ab1db49d4b61",
+    "documentation_gate": "m6-documentation.json",
+    "owner_requirement": "Explicit scrollbar-objection withdrawal; actual v002 AC07 Accept retained; v004/v005 Reject preserved.",
+    "scope": "One adopted milestone, all8criteria, both explicit dependencies satisfied",
+    "frozen_root": "Historical v005 root retained, unprotected; no new review server/session."
   }
 }

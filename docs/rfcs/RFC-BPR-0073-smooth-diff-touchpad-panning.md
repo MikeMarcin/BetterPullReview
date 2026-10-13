@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0073"
 title: "Smooth diff touchpad panning without accidental vertical steps"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: ["RFC-BPR-0004", "RFC-BPR-0005"]
 metadata: {"rfc_base_sha":"268b87049592ca4643e5303ab77114e116e7b5f3","mandate_revision":"b9a019b63aee9ddcf27e3381564b95f0aa78cef4173b57ce880d216d075eee4d","milestone_plan":{"id":"smooth-diff-touchpad-panning","path":"docs/rfcs/plans/smooth-diff-touchpad-panning/milestone-plan.json"}}
 ---
