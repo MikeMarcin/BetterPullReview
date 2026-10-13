@@ -177,6 +177,14 @@ if(BPR_BUILD_QT)
     target_include_directories(bench_better_pull_review_diff_engine_evaluation PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
+# The fixed intraline render set an attended review judges (AC06), drawn by
+# the product's own diff workbench offscreen.
+if(TARGET BetterPullReview::AdapterQt)
+    bpr_add_executable(tool_diff_intraline_render_set harness/intraline_render_set.cpp)
+    target_link_libraries(tool_diff_intraline_render_set PRIVATE BetterPullReview::AdapterQt Qt6::Widgets)
+    target_include_directories(tool_diff_intraline_render_set PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 bpr_add_executable(tool_diff_baseline_digest baseline_digest.cpp)
 target_link_libraries(tool_diff_baseline_digest PRIVATE BetterPullReview::Core)
 
