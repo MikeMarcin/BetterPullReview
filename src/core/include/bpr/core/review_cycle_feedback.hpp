@@ -117,8 +117,8 @@ namespace bpr::core {
 	};
 	/// \brief The text of the display line that holds byte `aOffset`, without
 	/// its ending: what a note made at a caret is about ([[BPR-1157]]).
-	/// \details LF, CRLF and a lone CR each end a line, as `project_lines`
-	/// counts them; an offset between a CR and its LF is the end of the line
+	/// \details LF and CRLF each end a line, as `project_lines` and Git count
+	/// them, and a lone CR is content; an offset between a CR and its LF is the end of the line
 	/// before. An empty line is an insertion point at its start. Nothing when
 	/// the offset lies outside the file.
 	[[nodiscard]] auto line_text_at(std::span<const std::uint8_t> aFile, std::uint64_t aOffset) -> std::optional<cycle_byte_range>;

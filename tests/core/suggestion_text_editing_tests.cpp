@@ -34,7 +34,7 @@ namespace {
 			expect(editor.text() == text, "round trip");
 		}
 		const auto lines = split_text_lines("a\r\nb\rc\nd");
-		expect(lines.size() == 4 && lines[0].Ending == text_line_ending::crlf && lines[1].Ending == text_line_ending::cr && lines[2].Ending == text_line_ending::lf && lines[3].Ending == text_line_ending::none, "line endings kept");
+		expect(lines.size() == 3 && lines[0].Ending == text_line_ending::crlf && lines[1].Content == "b\rc" && lines[1].Ending == text_line_ending::lf && lines[2].Ending == text_line_ending::none, "line endings kept; a lone CR is content [[BPR-1432]]");
 	}
 
 	/// Owner amendment to BPR-1156: Suggest change opens the whole file at the

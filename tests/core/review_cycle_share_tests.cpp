@@ -349,13 +349,14 @@ namespace {
 		const auto deleted = excerpt_note(bytes_of(file), std::nullopt, deletes, cycle_excerpt_context_lines, cycle_excerpt_rows);
 		expect(deleted && shape(*deleted) == "c18 c19 -20 c21 c22", "a deletion shows only what it removes");
 
-		// CRLF and a lone CR end lines as project_lines counts them; no ending shows.
+		// [[BPR-1432]]. LF and CRLF end lines as project_lines counts them, as Git
+		// does; a lone CR is content. No ending shows.
 		const auto mixed = std::string{ "one\r\ntwo\rthree\nfour" };
 		const auto four  = excerpt_note(bytes_of(mixed), range_of(mixed, "four"), { }, 1U, cycle_excerpt_rows);
-		expect(four && four->FileLines == 4U && four->Lines == project_lines(bytes_of(mixed), range_of(mixed, "four").Start, range_of(mixed, "four").End), "lines agree with project_lines");
-		expect(shape(*four) == "c3 n4" && four->Rows[0].Text == "three", "the line before, without its ending");
+		expect(four && four->FileLines == 3U && four->Lines == project_lines(bytes_of(mixed), range_of(mixed, "four").Start, range_of(mixed, "four").End), "lines agree with project_lines");
+		expect(shape(*four) == "c2 n3" && four->Rows[0].Text == "two\rthree", "the line before, without its ending");
 		const auto two = excerpt_note(bytes_of(mixed), range_of(mixed, "two"), { }, 1U, cycle_excerpt_rows);
-		expect(two && two->Rows[0].Text == "one" && two->Rows[1].Text == "two", "a CRLF line keeps no CR");
+		expect(two && two->Rows[0].Text == "one" && two->Rows[1].Text == "two\rthree", "a CRLF line keeps no CR; a lone CR stays");
 
 		expect(!excerpt_note(bytes_of(file), cycle_byte_range{ .Start = 0, .End = file.size() + 1U }, { }, 2U, 14U), "a range outside the file has no excerpt");
 		const auto opening = excerpt_note(bytes_of(file), std::nullopt, { }, cycle_excerpt_context_lines, cycle_excerpt_rows);

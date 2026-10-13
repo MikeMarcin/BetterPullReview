@@ -101,9 +101,16 @@ namespace bpr::core {
 			};
 		}
 
+		/// [[BPR-1432]]. Lines end only at LF, as Git counts them; a lone CR is content.
 		auto line_terminator(const std::span<const std::uint8_t> aFile, const std::size_t aIndex) -> bool
 		{
-			return aFile[aIndex] == '\n' || (aFile[aIndex] == '\r' && (aIndex + 1U == aFile.size() || aFile[aIndex + 1U] != '\n'));
+			return aFile[aIndex] == '\n';
+		}
+
+		/// Whether a line's content ends at `aIndex`: at LF, or at the CR of a CRLF.
+		auto content_ends(const std::span<const std::uint8_t> aFile, const std::size_t aIndex) -> bool
+		{
+			return aFile[aIndex] == '\n' || (aFile[aIndex] == '\r' && aIndex + 1U < aFile.size() && aFile[aIndex + 1U] == '\n');
 		}
 
 		/// Start of the line `aLines` lines above the one containing `aOffset`.
@@ -305,13 +312,12 @@ namespace bpr::core {
 		if (offset > 0U && offset < aFile.size() && aFile[offset - 1U] == '\r' && aFile[offset] == '\n') {
 			--offset;
 		}
-		const auto ends  = [&](const std::size_t aIndex) { return aFile[aIndex] == '\n' || aFile[aIndex] == '\r'; };
-		auto       start = offset;
-		while (start > 0U && !ends(start - 1U)) {
+		auto start = offset;
+		while (start > 0U && !line_terminator(aFile, start - 1U)) {
 			--start;
 		}
 		auto end = offset;
-		while (end < aFile.size() && !ends(end)) {
+		while (end < aFile.size() && !content_ends(aFile, end)) {
 			++end;
 		}
 		return cycle_byte_range{ .Start = start, .End = end };
@@ -330,7 +336,7 @@ namespace bpr::core {
 				begin = start;
 			}
 			auto end = start;
-			while (end < aFile.size() && aFile[end] != '\n' && aFile[end] != '\r') {
+			while (end < aFile.size() && !content_ends(aFile, end)) {
 				++end;
 			}
 			if (line == aLines.Last) {
@@ -339,8 +345,8 @@ namespace bpr::core {
 			if (end == aFile.size()) {
 				return std::nullopt;
 			}
-			// CRLF ends one line, as a lone CR or LF does.
-			start = end + (aFile[end] == '\r' && end + 1U < aFile.size() && aFile[end + 1U] == '\n' ? 2U : 1U);
+			// CRLF ends one line, as LF does.
+			start = end + (aFile[end] == '\r' ? 2U : 1U);
 			++line;
 		}
 	}

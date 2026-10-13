@@ -569,6 +569,33 @@ namespace {
 
 	/// \brief Proves the gutter is sized to the document it numbers.
 	/// \brief Proves hiding the numbers gives their width back to the code.
+	/// [[BPR-1432]]. Git and GitHub end a line only at LF, so a lone CR is
+	/// content: it must not start a Qt block, or block numbers would stop being
+	/// the decoded line numbers that comment anchors send to GitHub.
+	void test_a_lone_cr_is_shown_inside_its_line()
+	{
+		const auto diff = computed("one\ntwo\rthree\nfour\n", "one\ntwo\rthree\nfour\r\n", core::diff_options{ }, 41U);
+		expect(diff.LeftDocument && diff.LeftDocument->Lines.size() == 3U && diff.RightDocument && diff.RightDocument->Lines.size() == 3U,
+			   "a lone CR does not end a decoded line");
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'260, 820);
+		workbench.show();
+		process_events();
+		const auto selected = context(diff, 41U, 1U);
+		workbench.set_loading(selected);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		settle_geometry(workbench);
+		for (auto* const source : { workbench.left_pane(), workbench.right_pane() }) {
+			// Three lines plus the empty block after the final newline.
+			expect(source->blockCount() == 4, "each pane holds one block per decoded line");
+			expect(source->document()->findBlockByNumber(1).text() == QStringLiteral("two\u240Dthree"),
+				   "the lone CR shows as its symbol inside line two");
+		}
+	}
+
 	void test_the_viewport_fill_survives_a_style_clearing_it()
 	{
 		auto workbench = qt::diff_workbench{ };
@@ -5329,6 +5356,7 @@ auto main(int argc, char** argv) -> int
 			   "one-pane comparison has a dedicated unified source surface");
 	}
 	test_the_panes_number_their_own_lines();
+	test_a_lone_cr_is_shown_inside_its_line();
 	test_white_space_design_captures();
 	test_the_viewport_fill_survives_a_style_clearing_it();
 	test_the_gutter_sizes_to_its_longest_number();

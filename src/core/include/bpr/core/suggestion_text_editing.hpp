@@ -17,8 +17,9 @@
 /// BPR-1156): exact text, several carets, box selections, virtual space and
 /// ordinary undo.
 /// \details This is a deliberately small code-proposal editor, not an IDE.
-/// The text is UTF-8 kept as lines with their own endings, so CRLF, lone CR,
-/// tabs and a missing final newline survive every edit. Positions are visual
+/// The text is UTF-8 kept as lines with their own endings, so CRLF, LF,
+/// tabs and a missing final newline survive every edit. As in Git, only LF
+/// ends a line and a lone CR is content ([[BPR-1432]]). Positions are visual
 /// columns: a tab advances to the next tab stop and every other scalar value
 /// is one column. Virtual space, a column beyond the end of a line, belongs
 /// to the box gesture alone (Alt+Shift+Arrow), which makes one caret per line

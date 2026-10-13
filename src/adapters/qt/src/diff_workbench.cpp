@@ -6,6 +6,7 @@
 #include "bpr/qt/type_preview.hpp"
 
 #include "line_details_splitter.hpp"
+#include "source_display_text.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
@@ -1941,7 +1942,7 @@ namespace bpr::qt {
 				> static_cast<std::size_t>(std::numeric_limits<qsizetype>::max())) {
 				return { };
 			}
-			return QString::fromUtf8(
+			return source_display_text(
 				reinterpret_cast<const char*>(aDocument->Bytes.data()),
 				static_cast<qsizetype>(aDocument->Bytes.size()));
 		}
@@ -2037,7 +2038,7 @@ namespace bpr::qt {
 			}
 			const auto* bytes = aDocument->Bytes.data()
 				+ static_cast<std::size_t>(span.Begin);
-			return QString::fromUtf8(
+			return source_display_text(
 				reinterpret_cast<const char*>(bytes),
 				static_cast<qsizetype>(span.End - span.Begin));
 		}

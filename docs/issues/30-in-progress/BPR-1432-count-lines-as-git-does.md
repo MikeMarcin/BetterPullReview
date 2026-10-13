@@ -41,4 +41,20 @@ Copying from a pane copies the U+240D symbol, not the CR.
 
 ## Evidence
 
-Pending.
+- AC1: `core_diff_compute` pins `a\r\nb\rc\n` as two lines (CRLF, then LF
+  with `b\rc` as content); `text_line_ending::cr` is removed from
+  `diff_compute.hpp`, and the validator no longer admits it.
+- AC2: `core_suggestion_text_editing`, `core_review_cycle_feedback`,
+  `core_review_cycle_share` and `core_review_cycle_suggestion` pin the same
+  count for `project_lines`, `line_text_at`, `line_span_bytes`, excerpts and
+  suggestion lines.
+- AC3: `qt_diff_workbench_scale_{100,125,200}` adds
+  `test_a_lone_cr_is_shown_inside_its_line`: both panes hold one block per
+  decoded line and line two reads `two\u240Dthree`; `qt_suggestion_editor_*`
+  pass with the painter's CR symbol.
+- AC4: `core_source_matcher` pins that `a\nb` no longer matches across a lone
+  CR, `a\rb` matches it literally, and a CRLF query still matches LF.
+- Gates: the eight core suites above, five Qt suites, `core_boundary_contract`,
+  `architecture_boundaries`, `architecture_boundary_contract` and the
+  documentation gate pass; clang-format 22 applied; clang-tidy 22 reports no
+  finding on changed lines.

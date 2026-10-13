@@ -448,8 +448,8 @@ namespace bpr::core {
 
 	namespace {
 		/// One line of exact bytes, with and without its own ending, and where
-		/// it begins. LF, CRLF and a lone CR end a line; a text ending in a
-		/// line break has no empty line after it.
+		/// it begins. LF and CRLF end a line; a text ending in a line break
+		/// has no empty line after it.
 		struct exact_line
 		{
 			std::uint64_t    Begin = 0;
@@ -462,13 +462,12 @@ namespace bpr::core {
 			auto lines = std::vector<exact_line>{ };
 			auto begin = std::size_t{ 0 };
 			for (std::size_t index = 0; index < aText.size(); ++index) {
-				if (aText[index] != '\n' && aText[index] != '\r') {
+				// [[BPR-1432]]. LF ends a line and a CR before it joins the ending;
+				// a lone CR is content, as Git counts lines.
+				if (aText[index] != '\n') {
 					continue;
 				}
-				const auto content = index;
-				if (aText[index] == '\r' && index + 1U < aText.size() && aText[index + 1U] == '\n') {
-					++index;
-				}
+				const auto content = index > begin && aText[index - 1U] == '\r' ? index - 1U : index;
 				lines.push_back({ .Begin = begin, .Bytes = aText.substr(begin, index + 1U - begin), .Content = aText.substr(begin, content - begin) });
 				begin = index + 1U;
 			}

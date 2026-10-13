@@ -12,7 +12,6 @@ namespace bpr::core {
 			switch (aEnding) {
 			case text_line_ending::lf:   return "\n";
 			case text_line_ending::crlf: return "\r\n";
-			case text_line_ending::cr:   return "\r";
 			case text_line_ending::none: return "";
 			}
 			return "";
@@ -190,12 +189,14 @@ namespace bpr::core {
 		auto current = text_line{ };
 		for (std::size_t index = 0; index < aText.size(); ++index) {
 			const auto byte = aText[index];
-			if (byte == '\n' || byte == '\r') {
-				current.Ending = byte == '\n' ? text_line_ending::lf : text_line_ending::cr;
-				if (byte == '\r' && index + 1U < aText.size() && aText[index + 1U] == '\n') {
-					current.Ending = text_line_ending::crlf;
-					++index;
-				}
+			// [[BPR-1432]]. Lines end where Git ends them: at LF, with a CR before
+			// it forming CRLF. A lone CR stays in the line's content.
+			if (byte == '\r' && index + 1U < aText.size() && aText[index + 1U] == '\n') {
+				current.Ending = text_line_ending::crlf;
+				++index;
+				lines.push_back(std::exchange(current, text_line{ }));
+			} else if (byte == '\n') {
+				current.Ending = text_line_ending::lf;
 				lines.push_back(std::exchange(current, text_line{ }));
 			} else {
 				current.Content.push_back(byte);

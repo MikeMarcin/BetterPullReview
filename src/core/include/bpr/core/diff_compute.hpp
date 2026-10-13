@@ -19,7 +19,6 @@ namespace bpr::core {
 	enum class text_line_ending : std::uint8_t {
 		none,
 		lf,
-		cr,
 		crlf,
 	};
 

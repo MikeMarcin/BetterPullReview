@@ -480,10 +480,8 @@ namespace bpr::core::source_matching {
 			for (auto offset = std::size_t{ 0U }; offset < aQuery.size();) {
 				aBudget.tick();
 				auto value = scalar(aQuery, offset);
-				if (value == U'\r') {
-					if (offset < aQuery.size() && aQuery[offset] == '\n') {
-						++offset;
-					}
+				if (value == U'\r' && offset < aQuery.size() && aQuery[offset] == '\n') {
+					++offset;
 					value = U'\n';
 				}
 				aProgram.Literal.push_back(aProgram.Options.MatchCase ? value : fold(value));
@@ -533,11 +531,10 @@ namespace bpr::core::source_matching {
 				normalized.reserve(aQuery.size());
 				for (auto offset = std::size_t{ 0U }; offset < aQuery.size(); ++offset) {
 					work.tick();
-					if (aQuery[offset] == '\r') {
+					// [[BPR-1432]]. CRLF reads as LF; a lone CR stays literal.
+					if (aQuery[offset] == '\r' && offset + 1U < aQuery.size() && aQuery[offset + 1U] == '\n') {
 						normalized += '\n';
-						if (offset + 1U < aQuery.size() && aQuery[offset + 1U] == '\n') {
-							++offset;
-						}
+						++offset;
 					} else {
 						normalized += aQuery[offset];
 					}

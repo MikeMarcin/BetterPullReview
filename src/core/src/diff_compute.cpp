@@ -338,11 +338,6 @@ namespace bpr::core {
 						return false;
 					}
 					break;
-				case text_line_ending::cr:
-					if (extent != 1U || aDocument.Bytes[begin] != '\r') {
-						return false;
-					}
-					break;
 				case text_line_ending::crlf:
 					if (extent != 2U || aDocument.Bytes[begin] != '\r' || aDocument.Bytes[begin + 1U] != '\n') {
 						return false;
@@ -391,7 +386,6 @@ namespace bpr::core {
 				const auto marker = aOptions.LineEndings == line_ending_policy::normalize
 					? 0x110000U
 					: aLine.Ending == text_line_ending::lf ? 0x110000U
-					: aLine.Ending == text_line_ending::cr ? 0x110001U
 														   : 0x110002U;
 				result.Values.push_back(marker);
 			}
@@ -1972,32 +1966,27 @@ namespace bpr::core {
 							const auto pieceBegin = index;
 							const auto pieceEnd   = index + std::min(scan_chunk_bytes, bytes.size() - index);
 							for (; index < pieceEnd; ++index) {
-								const auto current = bytes[index];
-								if (current != static_cast<std::uint8_t>('\n') && current != static_cast<std::uint8_t>('\r')) {
+								// [[BPR-1432]]. Only LF ends a line, as Git and GitHub
+								// count them; a CR before it is part of a CRLF ending and
+								// a lone CR is content. Anchors send these line numbers.
+								if (bytes[index] != static_cast<std::uint8_t>('\n')) {
 									continue;
 								}
-								const auto crlf   = current == static_cast<std::uint8_t>('\r') && index + 1U < bytes.size() && bytes[index + 1U] == static_cast<std::uint8_t>('\n');
-								const auto ending = crlf ? text_line_ending::crlf
-									: current == static_cast<std::uint8_t>('\r')
-									? text_line_ending::cr
-									: text_line_ending::lf;
-								const auto end    = crlf ? index + 2U : index + 1U;
+								const auto crlf       = index > lineStart && bytes[index - 1U] == static_cast<std::uint8_t>('\r');
+								const auto contentEnd = crlf ? index - 1U : index;
 								document.Lines.push_back(decoded_text_line{
 									.Content    = { static_cast<std::uint64_t>(lineStart),
-													static_cast<std::uint64_t>(index) },
-									.Terminator = { static_cast<std::uint64_t>(index),
-													static_cast<std::uint64_t>(end) },
-									.Ending     = ending,
+													static_cast<std::uint64_t>(contentEnd) },
+									.Terminator = { static_cast<std::uint64_t>(contentEnd),
+													static_cast<std::uint64_t>(index + 1U) },
+									.Ending     = crlf ? text_line_ending::crlf : text_line_ending::lf,
 								});
 								if (document.Lines.size() > maximum) {
 									return nontext_result<TComparison>(aInput,
 																	   diff_content_state::unavailable,
 																	   diff_reason_code::materialization_limit);
 								}
-								lineStart = end;
-								if (crlf) {
-									++index;
-								}
+								lineStart = index + 1U;
 							}
 							progress.Position  = index;
 							progress.LineStart = lineStart;
@@ -2017,7 +2006,7 @@ namespace bpr::core {
 															   diff_content_state::unavailable,
 															   diff_reason_code::materialization_limit);
 						}
-						document.HasFinalNewline = !bytes.empty() && (bytes.back() == static_cast<std::uint8_t>('\n') || bytes.back() == static_cast<std::uint8_t>('\r'));
+						document.HasFinalNewline = !bytes.empty() && bytes.back() == static_cast<std::uint8_t>('\n');
 					}
 					progress.Side = 0U;
 					progress.Step = engine_step::normalize;

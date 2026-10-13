@@ -35,12 +35,12 @@ namespace bpr::core {
 				const auto value = scalar(aText, offset);
 				aWork.tick();
 				++column;
-				if (value == U'\r') {
-					if (offset < aText.size() && aText[offset] == '\n') {
-						++offset;
-					}
+				// [[BPR-1432]]. Only LF (or CRLF) ends a line; a lone CR is a column.
+				const auto crlf = value == U'\r' && offset < aText.size() && aText[offset] == '\n';
+				if (crlf) {
+					++offset;
 				}
-				if (value == U'\r' || value == U'\n') {
+				if (crlf || value == U'\n') {
 					column = 0U;
 					if (result.Starts.size() >= aLimits.MaximumLines + 1U) {
 						throw stopped{ source_search_status::resource_limit };
@@ -175,16 +175,12 @@ namespace bpr::core {
 					return { };
 				}
 				auto right = scalar(aRight.Bytes, rightOffset);
-				if (left == U'\r') {
-					if (leftOffset < aLeft.Bytes.size() && aLeft.Bytes[leftOffset] == '\n') {
-						++leftOffset;
-					}
+				if (left == U'\r' && leftOffset < aLeft.Bytes.size() && aLeft.Bytes[leftOffset] == '\n') {
+					++leftOffset;
 					left = U'\n';
 				}
-				if (right == U'\r') {
-					if (rightOffset < aRight.Bytes.size() && aRight.Bytes[rightOffset] == '\n') {
-						++rightOffset;
-					}
+				if (right == U'\r' && rightOffset < aRight.Bytes.size() && aRight.Bytes[rightOffset] == '\n') {
+					++rightOffset;
 					right = U'\n';
 				}
 				if (left != right) {

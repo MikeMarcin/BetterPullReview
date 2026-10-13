@@ -2,6 +2,8 @@
 
 #include "bpr/qt/code_sample_painter.hpp"
 
+#include "source_display_text.hpp"
+
 #include <QAbstractTextDocumentLayout>
 #include <QEvent>
 #include <QLocale>
@@ -248,7 +250,7 @@ namespace bpr::qt {
 			const auto bytes = row_bytes(row, aDiff);
 			RowBytes[index]  = QByteArray{ reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size()) };
 			cursor.insertText(
-				QString::fromUtf8(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())), plain);
+				source_display_text(reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())), plain);
 			for (const auto& span : row.Emphasis) {
 				const auto from = character_offset(bytes, span.Begin);
 				const auto to   = character_offset(bytes, span.End);

@@ -2,6 +2,8 @@
 
 #include "bpr/core/appearance_contrast.hpp"
 
+#include "source_display_text.hpp"
+
 #include <QAccessible>
 #include <QAccessibleWidget>
 #include <QAction>
@@ -701,8 +703,9 @@ namespace bpr::qt {
 				const auto& role   = unitColours[std::min(unit, unitColours.size() - 1U)];
 				const auto  inside = std::ranges::any_of(spans, [column](const auto& aSpan) { return aSpan.first <= column && column < aSpan.second; });
 				const auto  colour = inside ? selection_ink(role, selection) : role;
-				const auto  glyph  = QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length));
-				const auto  origin = QPointF{ column_x(column), y };
+				// [[BPR-1432]]. A lone CR is content, shown as its symbol.
+				const auto glyph  = content[index] == '\r' ? QString{ QChar{ lone_carriage_return_symbol } } : QString::fromUtf8(content.data() + index, static_cast<qsizetype>(length));
+				const auto origin = QPointF{ column_x(column), y };
 				if (const auto& found = shaped(glyph); found.Single) {
 					if (found.Font != runFont || colour != runColour) {
 						flush();

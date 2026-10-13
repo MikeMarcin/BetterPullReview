@@ -48,9 +48,10 @@ namespace bpr::core::source_matching {
 				const auto begin = offset;
 				const auto value = scalar(aSource, offset);
 				aWork.tick();
-				if (value == U'\r' || value == U'\n') {
+				// [[BPR-1432]]. CRLF reads as LF; a lone CR is content, as Git counts lines.
+				if (value == U'\n' || (value == U'\r' && offset < aSource.size() && aSource[offset] == '\n')) {
 					result.Text.push_back('\n');
-					if (value == U'\r' && offset < aSource.size() && aSource[offset] == '\n') {
+					if (value == U'\r') {
 						++offset;
 						result.Extras.push_back({ result.Text.size(), offset });
 					}
@@ -344,7 +345,7 @@ namespace bpr::core {
 		try {
 			auto begin = static_cast<std::size_t>(aSpan.Begin);
 			for (auto count = 0U; count < 80U && begin > 0U; ++count) {
-				if (aSource[begin - 1U] == '\n' || aSource[begin - 1U] == '\r') {
+				if (aSource[begin - 1U] == '\n') {
 					break;
 				}
 				--begin;

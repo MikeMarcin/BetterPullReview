@@ -226,8 +226,8 @@ namespace bpr::core {
 
 namespace bpr::core {
 	namespace {
-		/// Display lines as `project_lines` counts them: LF, CRLF and a lone
-		/// CR each end one. `Ends` excludes the ending; `Nexts` includes it.
+		/// Display lines as `project_lines` counts them: LF and CRLF each end
+		/// one. `Ends` excludes the ending; `Nexts` includes it.
 		struct display_lines
 		{
 			std::vector<std::uint64_t> Starts;
@@ -240,12 +240,11 @@ namespace bpr::core {
 			auto lines = display_lines{ };
 			auto start = std::uint64_t{ 0 };
 			for (std::size_t index = 0; index < aText.size(); ++index) {
-				const auto lineFeed = aText[index] == '\n';
-				const auto loneCr   = aText[index] == '\r' && (index + 1U == aText.size() || aText[index + 1U] != '\n');
-				if (!lineFeed && !loneCr) {
+				// [[BPR-1432]]. Only LF ends a line; a lone CR is content.
+				if (aText[index] != '\n') {
 					continue;
 				}
-				const auto crlf = lineFeed && index > start && aText[index - 1U] == '\r';
+				const auto crlf = index > start && aText[index - 1U] == '\r';
 				lines.Starts.push_back(start);
 				lines.Ends.push_back(crlf ? index - 1U : index);
 				lines.Nexts.push_back(index + 1U);

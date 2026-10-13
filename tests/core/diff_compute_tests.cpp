@@ -306,11 +306,11 @@ namespace {
 		expect(!exactEndings.Alignment.Groups.empty(),
 			   "exact line-ending policy distinguishes LF and CRLF");
 		expect(
-			exactEndings.LeftDocument->Lines[0].Ending == text_line_ending::crlf && exactEndings.LeftDocument->Lines[1].Ending == text_line_ending::cr,
-			"splitter distinguishes CRLF and lone CR endings");
+			exactEndings.LeftDocument->Lines.size() == 2U && exactEndings.LeftDocument->Lines[0].Ending == text_line_ending::crlf && exactEndings.LeftDocument->Lines[1].Ending == text_line_ending::lf,
+			"[[BPR-1432]] splitter ends lines only at LF and CRLF, as Git counts them");
 		expect(
-			exactEndings.LeftDocument->Lines[1].Content.End - exactEndings.LeftDocument->Lines[1].Content.Begin == 1U,
-			"lone CR terminates a logical line without entering display content");
+			exactEndings.LeftDocument->Lines[1].Content.End - exactEndings.LeftDocument->Lines[1].Content.Begin == 3U,
+			"[[BPR-1432]] a lone CR stays inside its line's content");
 
 		auto normalized               = diff_options{ };
 		normalized.LineEndings        = line_ending_policy::normalize;

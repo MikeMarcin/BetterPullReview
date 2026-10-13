@@ -164,30 +164,31 @@ namespace {
 		const auto bounded  = anchor(1, "l.txt", longLine, "TARGET");
 		expect(bounded.Before.size() == maximum_cycle_anchor_context_bytes && bounded.After.size() == maximum_cycle_anchor_context_bytes, "context bound");
 
-		// LF, CRLF and a lone CR each end a line; an insertion shows as its line.
+		// [[BPR-1432]]. LF and CRLF end a line, as Git counts them; a lone CR is
+		// content. An insertion shows as its line.
 		constexpr auto mixed = std::string_view{ "a\r\nb\rc\nd" };
 		expect(project_lines(bytes(mixed), 3, 4) == cycle_line_span{ 2, 2 }, "after CRLF");
-		expect(project_lines(bytes(mixed), 5, 6) == cycle_line_span{ 3, 3 }, "after CR");
+		expect(project_lines(bytes(mixed), 5, 6) == cycle_line_span{ 2, 2 }, "a lone CR does not end the line");
 		expect(project_lines(bytes(mixed), 0, 3) == cycle_line_span{ 1, 1 }, "a range ending at a line break stays on its line");
-		expect(project_lines(bytes(mixed), 8, 8) == cycle_line_span{ 4, 4 }, "insertion point at the end");
+		expect(project_lines(bytes(mixed), 8, 8) == cycle_line_span{ 3, 3 }, "insertion point at the end");
 		expect(project_lines(bytes(mixed), 1, 2) == cycle_line_span{ 1, 1 }, "between CR and LF is still line one");
 		expect(!project_lines(bytes(mixed), 3, 99), "outside the file");
 
 		// [[BPR-1157]]: a note made at a caret is about the caret's line, without its ending.
 		expect(line_text_at(bytes(mixed), 0) == cycle_byte_range{ 0, 1 } && line_text_at(bytes(mixed), 1) == cycle_byte_range{ 0, 1 }, "line one, without its CRLF");
 		expect(line_text_at(bytes(mixed), 2) == cycle_byte_range{ 0, 1 }, "between CR and LF is the end of line one");
-		expect(line_text_at(bytes(mixed), 3) == cycle_byte_range{ 3, 4 } && line_text_at(bytes(mixed), 6) == cycle_byte_range{ 5, 6 }, "after CRLF and after a lone CR");
+		expect(line_text_at(bytes(mixed), 3) == cycle_byte_range{ 3, 6 } && line_text_at(bytes(mixed), 6) == cycle_byte_range{ 3, 6 }, "after CRLF, keeping its lone CR");
 		expect(line_text_at(bytes(mixed), 8) == cycle_byte_range{ 7, 8 }, "the last line, with no ending");
 		constexpr auto blank = std::string_view{ "a\n\nb\n" };
 		expect(line_text_at(bytes(blank), 2) == cycle_byte_range{ 2, 2 } && line_text_at(bytes(blank), 5) == cycle_byte_range{ 5, 5 }, "an empty line is an insertion point at its start");
 		expect(!line_text_at(bytes(mixed), 9), "outside the file");
 
 		// [[BPR-1167]]: `bpr cycle note --lines` names display lines, counted the same way.
-		expect(line_span_bytes(bytes(mixed), { 1, 1 }) == cycle_byte_range{ 0, 1 } && line_span_bytes(bytes(mixed), { 2, 3 }) == cycle_byte_range{ 3, 6 }, "lines without their last ending");
-		expect(line_span_bytes(bytes(mixed), { 1, 4 }) == cycle_byte_range{ 0, 8 } && line_span_bytes(bytes(mixed), { 4, 4 }) == cycle_byte_range{ 7, 8 }, "through the last line");
-		expect(!line_span_bytes(bytes(mixed), { 4, 5 }) && !line_span_bytes(bytes(mixed), { 0, 1 }) && !line_span_bytes(bytes(mixed), { 3, 2 }), "beyond the file, zero or backwards");
+		expect(line_span_bytes(bytes(mixed), { 1, 1 }) == cycle_byte_range{ 0, 1 } && line_span_bytes(bytes(mixed), { 2, 2 }) == cycle_byte_range{ 3, 6 }, "lines without their last ending");
+		expect(line_span_bytes(bytes(mixed), { 1, 3 }) == cycle_byte_range{ 0, 8 } && line_span_bytes(bytes(mixed), { 3, 3 }) == cycle_byte_range{ 7, 8 }, "through the last line");
+		expect(!line_span_bytes(bytes(mixed), { 3, 4 }) && !line_span_bytes(bytes(mixed), { 0, 1 }) && !line_span_bytes(bytes(mixed), { 3, 2 }), "beyond the file, zero or backwards");
 		expect(line_span_bytes(bytes(blank), { 2, 2 }) == cycle_byte_range{ 2, 2 } && line_span_bytes(bytes(blank), { 4, 4 }) == cycle_byte_range{ 5, 5 }, "an empty line is an insertion point");
-		for (const auto span : { cycle_line_span{ 1, 1 }, cycle_line_span{ 2, 3 }, cycle_line_span{ 3, 4 } }) {
+		for (const auto span : { cycle_line_span{ 1, 1 }, cycle_line_span{ 1, 2 }, cycle_line_span{ 2, 3 } }) {
 			const auto range = line_span_bytes(bytes(mixed), span);
 			expect(range && project_lines(bytes(mixed), range->Start, range->End) == span, "projects back onto the same lines");
 		}

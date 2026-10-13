@@ -30,7 +30,9 @@ namespace {
 		expect_spans("Σ", "Σσς", { { 0U, 2U }, { 2U, 4U }, { 4U, 6U } });
 		expect_spans("k", "K K k", { { 0U, 3U }, { 4U, 5U }, { 6U, 7U } });
 		expect_spans("ss", "ß ss ẞ", { { 3U, 5U } });
-		expect_spans("a\nb", "a\r\nb a\rb a\nb", { { 0U, 4U }, { 5U, 8U }, { 9U, 12U } });
+		// [[BPR-1432]]. CRLF reads as LF; a lone CR is content, as Git counts lines.
+		expect_spans("a\nb", "a\r\nb a\rb a\nb", { { 0U, 4U }, { 9U, 12U } });
+		expect_spans("a\rb", "a\r\nb a\rb", { { 5U, 8U } });
 		expect_spans("aba", "ababa", { { 0U, 3U } });
 		expect_spans("cat", "cat 猫cat cat́ cat_ cat2 cat", { { 0U, 3U }, { 27U, 30U } }, { .WholeWord = true });
 		const auto regex = source_search_options{ .RegularExpression = true };
@@ -75,7 +77,7 @@ namespace {
 		search_expect(compile_source_match(std::string(4097U, 'x')).Status == source_search_status::invalid_input, "4 KiB query ceiling");
 		search_expect(compile_source_match("\xC0\xAF").Status == source_search_status::invalid_input, "invalid query scalar");
 		expect_spans("a\r\nb", "a\nb", { { 0U, 3U } }, regex);
-		expect_spans("a\r\nb", "a\rb", { { 0U, 3U } });
+		expect_spans("a\r\nb", "a\rb", { });
 		expect_spans("(?i:K)(?-i:k)", "Kk Kk kk KK", { { 0U, 4U }, { 5U, 7U }, { 8U, 10U } }, regex);
 		expect_spans("é", "é", { });
 		expect_spans("𐐀", "𐐨", { { 0U, 4U } });

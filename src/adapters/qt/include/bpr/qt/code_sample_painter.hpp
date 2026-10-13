@@ -195,8 +195,8 @@ namespace bpr::qt {
 	/// \brief One whole text's classification and where its classifier lines
 	/// begin, so a display line of that text can be coloured by its offset.
 	///
-	/// \details The classifier splits at LF only; a surface may split display
-	/// lines at CRLF or a lone CR as well. [[BPR-1156]] for Suggest change,
+	/// \details The classifier and every display surface split at LF only,
+	/// as Git does ([[BPR-1432]]). [[BPR-1156]] for Suggest change,
 	/// [[BPR-1157]] for the cycle page's source pane.
 	struct classified_text
 	{
