@@ -1,0 +1,134 @@
+{
+  "run_id": "cpp-identifier-context-r1",
+  "segment_id": "m2",
+  "mandate_revision": "cpp-identifier-context-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "binding": {
+    "plan_id": "cpp-identifier-context-v1",
+    "plan_path": "docs/rfcs/plans/cpp-identifier-context-v1/milestone-plan.json",
+    "milestone_id": "cpp-colours-and-closeout",
+    "definition_fingerprint": "sha256:de8ea2f866a37a87350f51f37957e2e6ce8b1f7f9846b61210c0f6526157d8a1",
+    "obligations": [
+      {
+        "id": "BPR-1412:*",
+        "source": "BPR-1412",
+        "selector": null,
+        "source_fingerprint": "sha256:b1290c1a65a4f6e7e1c37b4af50bd308724f4f5369eb24d2fe4c56387e9f7700"
+      },
+      {
+        "id": "RFC-BPR-0072:*",
+        "source": "RFC-BPR-0072",
+        "selector": null,
+        "source_fingerprint": "sha256:7d4e4313b4a2151126effc01d306eebe33d5b5c3fe48d504293d1a85b4ecb02e"
+      }
+    ],
+    "obligation_fingerprint": "sha256:83ab45dd82f75c6430397bdca71027ee9e1dbd6a14598602a1f0a8445a391e11",
+    "exit_criteria": [
+      {
+        "id": "cpp-colours-and-closeout:exit:1",
+        "text": "RFC AC06 and AC08 pass with direct composed offscreen light/dark evidence, all-variant contrast checks, independent editing, restart and old/new theme exchange."
+      },
+      {
+        "id": "cpp-colours-and-closeout:exit:2",
+        "text": "All eight RFC criteria have direct evidence against RFC_BASE_SHA, and owning appearance/architecture contracts and tracker closeout are truthful."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:55948ccd73a0b25b271c8d2da587803aef5e9e5be99ef0dc6c6d96a4128b1bec",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "milestone": "cpp-colours-and-closeout",
+  "disposition": "pack-complete",
+  "candidate_revision": "9193dbee27f8ccf332a0cba99281253c90f8a4c6",
+  "handoff_ref": "docs/issues/_checkpoints/cpp-identifier-context-v1/README.md",
+  "required_pending": [],
+  "evidence_refs": [
+    "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+    "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-verification.json",
+    "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-focused.json",
+    "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-core-host.json",
+    "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-documentation.json",
+    "docs/verification/RFC-BPR-0072.md"
+  ],
+  "acceptance_records": [
+    {
+      "id": "BPR-1412:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-focused.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-core-host.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-documentation.json",
+        "docs/verification/RFC-BPR-0072.md"
+      ]
+    },
+    {
+      "id": "RFC-BPR-0072:*",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-focused.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-core-host.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-documentation.json",
+        "docs/verification/RFC-BPR-0072.md"
+      ]
+    },
+    {
+      "id": "cpp-colours-and-closeout:exit:1",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-focused.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-core-host.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-documentation.json",
+        "docs/verification/RFC-BPR-0072.md"
+      ]
+    },
+    {
+      "id": "cpp-colours-and-closeout:exit:2",
+      "outcome": "pass",
+      "evidence_refs": [
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m1-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-verification.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-focused.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-core-host.json",
+        "docs/issues/_checkpoints/cpp-identifier-context-v1/m2-documentation.json",
+        "docs/verification/RFC-BPR-0072.md"
+      ]
+    }
+  ],
+  "continuation": {
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "Both adopted milestones, all AC01-AC08 and upkeep are accepted. Stop at final assigned milestone; historical palette/native obligations and unrelated font-resize failure remain separate."
+  },
+  "ownership": "quiescent"
+}

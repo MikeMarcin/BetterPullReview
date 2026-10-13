@@ -139,6 +139,17 @@
         "--check"
       ],
       "outcome": "pass"
+    },
+    {
+      "command": [
+        "python3",
+        "scripts/verify_documentation.py",
+        "--root",
+        "."
+      ],
+      "outcome": "pass",
+      "revision": "9193dbee27f8ccf332a0cba99281253c90f8a4c6",
+      "detail": "Post-finish terminal-card and RFC/index structure gate: DOCUMENTATION_OK."
     }
   ],
   "scope_reconciliation": {
@@ -292,5 +303,15 @@
     "AC06": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
     "AC07": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course.",
     "AC08": "pass \u2014 direct criterion evidence in docs/verification/RFC-BPR-0072.md; M1 accepted unchanged inputs and exact M2 focused course."
+  },
+  "ownership": {
+    "state": "quiescent",
+    "task_build_roots_removed": [
+      "build/cpp-context-m2-l68xjdwi",
+      "build/cpp-context-m2-core-kjy2lgcd"
+    ],
+    "review_server": null,
+    "protected_candidates": [],
+    "unfinished_selected_obligations": []
   }
 }
