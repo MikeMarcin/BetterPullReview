@@ -1,6 +1,8 @@
 #include "source_matcher_internal.hpp"
 
+#include <algorithm>
 #include <new>
+#include <optional>
 
 namespace bpr::core::source_matching {
 	namespace {
@@ -227,30 +229,48 @@ namespace bpr::core {
 			return result;
 		}
 	}
+	namespace {
+		/// The preview's byte bounds in the source, or nothing for a malformed span.
+		auto preview_bounds(std::string_view aSource, byte_span aSpan) -> std::optional<byte_span>
+		{
+			if (aSpan.Begin > aSpan.End || aSpan.End > aSource.size()) {
+				return std::nullopt;
+			}
+			if ((aSpan.Begin < aSource.size() && (static_cast<unsigned char>(aSource[static_cast<std::size_t>(aSpan.Begin)]) & 0xC0U) == 0x80U)
+				|| (aSpan.End < aSource.size() && (static_cast<unsigned char>(aSource[static_cast<std::size_t>(aSpan.End)]) & 0xC0U) == 0x80U)) {
+				return std::nullopt;
+			}
+			try {
+				auto begin = static_cast<std::size_t>(aSpan.Begin);
+				for (auto count = 0U; count < 80U && begin > 0U; ++count) {
+					if (aSource[begin - 1U] == '\n') {
+						break;
+					}
+					begin = source_matching::previous_start(aSource, begin);
+				}
+				auto end = begin;
+				for (auto count = 0U; count < 240U && end < aSource.size(); ++count) {
+					(void)source_matching::scalar(aSource, end);
+				}
+				return byte_span{ begin, end };
+			} catch (const source_matching::stopped&) {
+				return std::nullopt;
+			}
+		}
+	}
 	auto source_match_preview(std::string_view aSource, byte_span aSpan) -> std::string
 	{
-		if (aSpan.Begin > aSpan.End || aSpan.End > aSource.size()) {
+		const auto bounds = preview_bounds(aSource, aSpan);
+		return bounds ? std::string{ aSource.substr(static_cast<std::size_t>(bounds->Begin), static_cast<std::size_t>(bounds->End - bounds->Begin)) } : std::string{ };
+	}
+	auto source_match_preview_span(std::string_view aSource, byte_span aSpan) -> byte_span
+	{
+		const auto bounds = preview_bounds(aSource, aSpan);
+		if (!bounds || bounds->End == bounds->Begin) {
 			return { };
 		}
-		if ((aSpan.Begin < aSource.size() && (static_cast<unsigned char>(aSource[static_cast<std::size_t>(aSpan.Begin)]) & 0xC0U) == 0x80U)
-			|| (aSpan.End < aSource.size() && (static_cast<unsigned char>(aSource[static_cast<std::size_t>(aSpan.End)]) & 0xC0U) == 0x80U)) {
-			return { };
-		}
-		try {
-			auto begin = static_cast<std::size_t>(aSpan.Begin);
-			for (auto count = 0U; count < 80U && begin > 0U; ++count) {
-				if (aSource[begin - 1U] == '\n') {
-					break;
-				}
-				begin = source_matching::previous_start(aSource, begin);
-			}
-			auto end = begin;
-			for (auto count = 0U; count < 240U && end < aSource.size(); ++count) {
-				(void)source_matching::scalar(aSource, end);
-			}
-			return std::string{ aSource.substr(begin, end - begin) };
-		} catch (const source_matching::stopped&) {
-			return { };
-		}
+		const auto begin = std::min(aSpan.Begin, bounds->End) - bounds->Begin;
+		const auto end   = std::min(aSpan.End, bounds->End) - bounds->Begin;
+		return { begin, end };
 	}
 }

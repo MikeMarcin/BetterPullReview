@@ -15,13 +15,25 @@ namespace bpr::app {
 	{
 		Panel.Activate = [this](auto aIndex) { activate(aIndex); };
 		Panel.Select   = [this](auto aIndex) { static_cast<void>(Host.select_match(aIndex)); };
+		// [[BPR-1504]]. A current match the side filter hides moves to the next shown one.
+		Panel.SideFilterChanged = [this](auto aFilter) {
+			const auto projection = Host.projection();
+			const auto current    = Host.state().CurrentMatch;
+			if (!projection.Matches || !current || *current >= projection.Matches->size() || core::shown((*projection.Matches)[*current].Match, aFilter)) {
+				return;
+			}
+			if (const auto next = shown_neighbour(core::change_navigation_direction::next)) {
+				static_cast<void>(Host.select_match(*next));
+			}
+		};
 		RevealTimer.setInterval(10);
 		QObject::connect(&RevealTimer, &QTimer::timeout, [this] { try_reveal(); });
 	}
 	pr_search_controller::~pr_search_controller()
 	{
-		Panel.Activate = { };
-		Panel.Select   = { };
+		Panel.Activate          = { };
+		Panel.Select            = { };
+		Panel.SideFilterChanged = { };
 	}
 	void pr_search_controller::open()
 	{
@@ -71,10 +83,33 @@ namespace bpr::app {
 	}
 	void pr_search_controller::navigate(core::change_navigation_direction aDirection)
 	{
+		if (Panel.side_filter() != core::source_side_filter{ }) {
+			if (const auto next = shown_neighbour(aDirection)) {
+				activate(*next);
+			}
+			return;
+		}
 		static_cast<void>(Host.navigate(aDirection));
 		if (Host.state().CurrentMatch) {
 			activate(*Host.state().CurrentMatch);
 		}
+	}
+	auto pr_search_controller::shown_neighbour(core::change_navigation_direction aDirection) const -> std::optional<std::uint32_t>
+	{
+		const auto projection = Host.projection();
+		const auto current    = Host.state().CurrentMatch;
+		if (!projection.Matches || projection.Matches->empty() || !current) {
+			return std::nullopt;
+		}
+		const auto filter = Panel.side_filter();
+		const auto count  = projection.Matches->size();
+		for (std::size_t step = 1U; step <= count; ++step) {
+			const auto index = aDirection == core::change_navigation_direction::next ? (*current + step) % count : (*current + count - step % count) % count;
+			if (core::shown((*projection.Matches)[index].Match, filter)) {
+				return static_cast<std::uint32_t>(index);
+			}
+		}
+		return std::nullopt;
 	}
 	void pr_search_controller::activate(std::uint32_t aIndex)
 	{
