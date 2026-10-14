@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1476"
+  ],
+  "reserve_for": "keyboard-reveal-mask",
+  "purpose": "Down from a line out of view does not reveal the next on the large comparison (application_large_review_responsiveness)",
+  "created": "2026-10-14T01:01:35.625378+00:00",
+  "base": "6c750140bdb496f3534fd2fcb1f72c4e661b3076"
+}

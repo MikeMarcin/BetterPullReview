@@ -19,7 +19,7 @@ stays open and is now moot.
 
 **The outcome is "extend".** The gap suite confirms seven failures of the
 shipped heuristic inside RFC-BPR-0072's scope (H1 to H7), and H8 is confirmed
-as well. [BPR-1474](../issues/10-backlog/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
+as well. [BPR-1474](../issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
 fixes those classes in the heuristic. It may not take
 `cpp_identifier_context.cpp` past 800 lines or add a pass over the whole blob.
 
@@ -180,6 +180,25 @@ The per-source tables and every label disagreement are in
 The gap suite also shows two limits. The baseline does not find an enumerator
 across a split `extern "C" {`. T loses the enumerators under merge-conflict
 markers.
+
+**H8's rule, changed by the owner on 2026-10-13.** The table above was scored
+under the original rule: H8 was confirmed when an 8 MiB input had the largest
+peak refinement heap of any input. No refinement that keeps state per token can
+refute that, because the tokens of 8 MiB of `{` outweigh any other input's
+whole refinement. Asked during
+[BPR-1474](../issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md),
+the owner accepted reading H8 against the Memory gate's cap: H8 is confirmed
+when the peak refinement heap on an 8 MiB input exceeds 512 MiB, and refuted
+otherwise. `tools/score_evaluation.py` applies that rule from then on. The
+results above, including T's, are kept as they were recorded; under the new
+rule both the baseline (2.02 GB) and T (2.24 GB) would still be confirmed.
+
+**After BPR-1474 (macOS, 2026-10-13).** The fixed heuristic at `4add47f63`,
+re-run over the materialized corpus with the baseline engine, refutes H1 to H8.
+Its peak refinement heap on both brace floods is 261 MB. Across the corpus, it
+has 132 false positives and 3,561 false negatives, against 136 and 3,576 for the
+revision it replaces. No category gains a false positive, and no label
+disagreement is new. The card records the per-category numbers.
 
 ## Measurements (macOS)
 
