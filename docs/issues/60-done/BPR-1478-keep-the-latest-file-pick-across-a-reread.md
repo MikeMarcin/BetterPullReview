@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1478"
 title: "Keep the reviewer's latest file pick when a reread lands"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1475"]
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1478--BPR-1478--1180ae81b4b9.json","origin":"BPR-1475 finding, owner request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"bb9b1b25b","evidence":{"kind":"observation","detail":"application_refresh_pick_contract holds the read and the tab's turn so the read lands between the pick of renderer.h and the active tab taking it (Raced), from Refresh and from the reread after publishing. Without the pick reported, 10 of 10 runs failed pick-lost (evidence 100), settled on renderer.cpp.","path":"docs/issues/60-done/BPR-1478-keep-the-latest-file-pick-across-a-reread.md"}},{"criterion":"AC2","outcome":"pass","revision":"bb9b1b25b","evidence":{"kind":"observation","detail":"core::observe_file_choice keeps a chosen file the active tab has not taken; its next load (refresh or a comparison accepted for it) presents it, and tab gestures retire it. Three core_document_tabs tests; the final rule passed 30 of 30 course runs (evidence 111).","path":"docs/issues/60-done/BPR-1478-keep-the-latest-file-pick-across-a-reread.md"}},{"criterion":"AC3","outcome":"pass","revision":"bb9b1b25b","evidence":{"kind":"observation","detail":"The pending course's reread wait is removed; it passed 20 of 20 runs with the fix (8 on the final binary), and the start-review contract's pending and finish courses pass.","path":"docs/issues/60-done/BPR-1478-keep-the-latest-file-pick-across-a-reread.md"}},{"criterion":"AC4","outcome":"pass","revision":"bb9b1b25b","evidence":{"kind":"observation","detail":"Tab, restoration, file-switch, reply, label, refresh-pick and resealed composition suites and architecture_boundaries pass on main e145ccd35; format.py clean, changed-line tidy clean, DOCUMENTATION_OK. refused and the isolation manifest fail for causes on main.","path":"docs/issues/60-done/BPR-1478-keep-the-latest-file-pick-across-a-reread.md"}}]
 ---
 
 # Keep the reviewer's latest file pick when a reread lands
