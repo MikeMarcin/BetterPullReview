@@ -263,7 +263,7 @@ The end-to-end rows, before | after, ms, runs 1 and 2:
 | `application_large_review_responsiveness` | 10.3, 3.6 \| 5.1, 1.5 | failed all four runs on main's keyboard reveal ("Down from a line out of view did not reveal the next") | paged load 1250, 1222 \| 1202, 1183; large file selection 555, 565 \| 538, 536; Overview columns 3 / 12 / 0: 3, 3 / 4, 6 / 3, 8 \| 7, 7 / 8, 8 / 7, 8 |
 
 **Decision: adopt on macOS.** The rule's throughput half was already met
-(7.6x at 1 MiB and above, W1). At this site, CommonCrypto digests the 10k
+(7.11x to 8.54x core on 1 MiB or more, run 2). At this site, CommonCrypto digests the 10k
 bodies (about 400 bytes each) 2.4x faster than the core. The site half also
 passes on both counts. The first 10k observation's window-thread time falls
 by about 15 ms, from 32.0 to 33.3 ms to 17.2 to 18.0 ms, and the 8.04 MB it hashed moves to the
