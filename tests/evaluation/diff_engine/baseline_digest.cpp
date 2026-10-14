@@ -277,7 +277,7 @@ namespace {
 	/// `"left": "..."` and `"right": "..."` value in order.
 	[[nodiscard]] auto manifest_pairs(const std::string& aManifest) -> std::vector<std::pair<std::string, std::string>>
 	{
-		const auto text = read_file(aManifest);
+		const auto text   = read_file(aManifest);
 		auto       result = std::vector<std::pair<std::string, std::string>>{ };
 		if (!text.has_value()) {
 			return result;
