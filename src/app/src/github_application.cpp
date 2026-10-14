@@ -4237,6 +4237,64 @@ namespace bpr::app {
 			row.Transport       = cli ? core::remembered_connection_transport::github_cli : core::remembered_connection_transport::native_device;
 			static_cast<void>(Connections->remember(std::move(row)));
 		}
+		/// [[BPR-1494]]. A native sign-in begins on a profile minted before its
+		/// account is known. Once the host's bootstrap `/user` names the account,
+		/// core decides whether this profile already holds that account's own
+		/// native identity on the same server, and composition re-binds the sign-in
+		/// there so the authority-scoped private state saved under it resumes.
+		/// Startup rebuilds only the selected connection's profile, so a retired
+		/// identity from an earlier run is registered again exactly as it was.
+		[[nodiscard]] auto rebind_native_sign_in(const application::github_profile_authority& aAuthority, const application::github_viewer_record& aViewer) -> std::optional<core::host_profile_id>
+		{
+			if (Closing || !Connections || !Connections->available() || !ProfileCatalog) {
+				return std::nullopt;
+			}
+			const auto found = std::ranges::find(Profiles, aAuthority.Profile, &validated_github_host_profile::profile);
+			if (found == Profiles.end() || found->authentication_transport() != application::github_authentication_transport::native_https) {
+				return std::nullopt;
+			}
+			// Profiles is a deque: an element's address survives a push_back.
+			const auto*                 begun = &*found;
+			core::remembered_connection signIn;
+			signIn.Profile         = begun->profile();
+			signIn.ProfileRevision = begun->revision().value();
+			signIn.Host            = begun->host();
+			signIn.Hostname        = begun->hostname();
+			signIn.Account         = aViewer.Account;
+			signIn.Login           = aViewer.Login;
+			signIn.Server          = begun->product_kind() == application::github_product_kind::github_com ? core::remembered_connection_server::github_com : core::remembered_connection_server::ghes_3_18;
+			signIn.Transport       = core::remembered_connection_transport::native_device;
+			const auto adopted     = core::adopt_native_connection(Connections->state(), signIn);
+			if (!adopted) {
+				return std::nullopt;
+			}
+			const auto  registered = std::ranges::find(Profiles, adopted->Profile, &validated_github_host_profile::profile);
+			const auto* earlier    = registered != Profiles.end() ? &*registered : nullptr;
+			if (earlier == nullptr) {
+				const auto candidate = validate_github_host_profile(native_profile_candidate(adopted->Profile, adopted->Host, application::github_profile_revision{ adopted->ProfileRevision }, begun->server_contract(), application::github_authentication_transport::native_https, std::string{ begun->hostname() }, begun->provenance()));
+				if (!candidate || !ProfileCatalog->register_profile(*candidate)) {
+					return std::nullopt;
+				}
+				Profiles.push_back(*candidate);
+				earlier     = &Profiles.back();
+				auto option = profile_option(*candidate, std::string{ candidate->hostname() } + " — Native HTTPS");
+				ProfileOptions.push_back(option);
+				for_each_window([&](const window_observer& aObserver) { if (aObserver.SetupProfile) { aObserver.SetupProfile(option); } });
+			}
+			if (earlier->authentication_transport() != application::github_authentication_transport::native_https
+				|| earlier->revision().value() != adopted->ProfileRevision || earlier->host() != adopted->Host || earlier->hostname() != adopted->Hostname
+				|| earlier->server_contract() != begun->server_contract()) {
+				return std::nullopt;
+			}
+			// The device grant's refresh binding follows the session's profile.
+			if (DeviceHost && DeviceCapabilityRegistered && DeviceCapabilityProfile == begun->profile()) {
+				if (!DeviceHost->replace_profile(DeviceCapabilityProfile, earlier->profile())) {
+					return std::nullopt;
+				}
+				DeviceCapabilityProfile = earlier->profile();
+			}
+			return earlier->profile();
+		}
 		auto restore_cli(const core::remembered_connection& aRow) -> bool
 		{
 			if (aRow.Transport != core::remembered_connection_transport::github_cli) {
@@ -5368,7 +5426,7 @@ namespace bpr::app {
 																					  auto accept = std::move(SetupCredential);
 																					  accept(aProfile, std::move(aCredential), aLifetime, aSettled);
 																				  } else {
-																					  Host->enroll_profile(aProfile, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled);
+																					  Host->enroll_profile(aProfile, std::move(aCredential), application::github_credential_provenance::device_grant, aLifetime, aSettled, [this](const application::github_profile_authority& aAuthority, const application::github_viewer_record& aViewer) { return rebind_native_sign_in(aAuthority, aViewer); });
 																				  }
 																			  });
 
@@ -13881,7 +13939,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		[[nodiscard]] auto native_sign_in_profile(core::host_profile_id aProfile) -> core::host_profile_id
 		{
 			const auto* old = find_profile(aProfile);
-			if (!old || old->authentication_transport() != application::github_authentication_transport::native_https || aProfile.value() > Profile->Connections->state().LastProfileId) {
+			if (!old || old->authentication_transport() != application::github_authentication_transport::native_https) {
+				return aProfile;
+			}
+			if (aProfile.value() > Profile->Connections->state().LastProfileId) {
+				// [[BPR-1494]]. A sign-in re-bound to its account's earlier
+				// profile leaves the profile it began on unremembered. A later
+				// sign-in that begins there takes the device capability back, as
+				// a freshly minted profile does below.
+				const auto* registered = find_profile(Profile->DeviceCapabilityProfile);
+				if (Profile->DeviceCapabilityRegistered && registered && DeviceHost && registered->profile() != aProfile
+					&& registered->authentication_transport() == application::github_authentication_transport::native_https
+					&& registered->hostname() == old->hostname() && registered->server_contract() == old->server_contract()
+					&& DeviceHost->replace_profile(Profile->DeviceCapabilityProfile, aProfile)) {
+					Profile->DeviceCapabilityProfile = aProfile;
+				}
 				return aProfile;
 			}
 			auto profileHigh = Profile->Connections->state().LastProfileId;
@@ -14785,7 +14857,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							DeviceHost->release_refresh_authority();
 							DeviceRefreshAuthority.reset();
 							Host->enroll_profile(
-								native_sign_in_profile(aValue.Profile), std::move(*credential));
+								native_sign_in_profile(aValue.Profile), std::move(*credential), application::github_credential_provenance::manual, std::nullopt, false,
+								[runtime = Profile.get()](const application::github_profile_authority& aAuthority, const application::github_viewer_record& aViewer) { return runtime->rebind_native_sign_in(aAuthority, aViewer); });
 						}
 					} else {
 						if constexpr (std::is_same_v<intent_type, core::deactivate_github_identity_intent>) {

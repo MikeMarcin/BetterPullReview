@@ -86,6 +86,14 @@ namespace bpr::application {
 	using public_preview_sign_in_sink
 		= std::function<void(core::host_profile_id)>;
 
+	/// \brief [[BPR-1494]]. Composition's answer, once an enrollment's bootstrap
+	/// `/user` names its account, to which profile that account's sign-in belongs.
+	/// \details Called on the decision lane with the authority the enrollment began
+	/// on and the observed viewer, before anything is written to the vault. Another
+	/// profile restarts the same material there, where `/user` must name the same
+	/// account or the session fails; no value, or the same profile, continues here.
+	using github_enrollment_rebind = std::function<std::optional<core::host_profile_id>(const github_profile_authority&, const github_viewer_record&)>;
+
 	/// \brief Provides the github credential binding catalog contract.
 	class github_credential_binding_catalog final
 	{
@@ -205,7 +213,8 @@ namespace bpr::application {
 							github_credential_provenance aProvenance
 							= github_credential_provenance::manual,
 							std::optional<device_binding_lifetime> aLifetime       = std::nullopt,
-							bool                                   aRefreshSettled = false);
+							bool                                   aRefreshSettled = false,
+							github_enrollment_rebind               aRebind         = { });
 		/// \brief Validates setup credentials without replacing the active review or writing the vault.
 		/// The decision-lane callback must accept the exact still-current owner/request before commit.
 		void stage_setup_enrollment(core::pending_setup_destination                                   aPending,

@@ -154,8 +154,11 @@ handoff, and BPR-0686 the migration-preflight defect found by independent review
 The adopted selection record is profile-owned validation metadata, separate
 from vault material and current session facts. `remembered_connection_state`
 keeps one canonical server choice, observed account binding, stable identity,
-selected order and reuse-disable facts; `remembered_connection_store_port`
-commits a complete snapshot under `state/v1/remembered-connections.sqlite3`.
+selected order and reuse-disable facts, plus up to sixteen retired native
+identities that another account's native selection displaced (BPR-1494);
+`remembered_connection_store_port` commits a complete snapshot under
+`state/v1/remembered-connections.sqlite3`, schema version 2, which upgrades an
+admitted version 1 file in place.
 BPR-1408 supplies the metadata/policy capability. BPR-1409 wires shared
 runtime startup, successful-session observation, Sign out and Forget, with
 a dedicated serialized writer and orderly shutdown drain.

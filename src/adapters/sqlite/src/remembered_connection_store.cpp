@@ -24,6 +24,10 @@ namespace bpr::adapters::sqlite {
 		constexpr std::int64_t     ApplicationId = 0x42505243;
 		constexpr std::string_view MetaSchema    = "CREATE TABLE connection_meta(singleton INTEGER PRIMARY KEY CHECK(singleton=1),bpr_profile TEXT NOT NULL,revision TEXT NOT NULL,last_profile TEXT NOT NULL,last_host TEXT NOT NULL,last_selected TEXT NOT NULL) STRICT";
 		constexpr std::string_view RowSchema     = "CREATE TABLE remembered_connection(hostname TEXT PRIMARY KEY,profile TEXT NOT NULL,revision TEXT NOT NULL,host TEXT NOT NULL,account TEXT NOT NULL,login TEXT NOT NULL,server INTEGER NOT NULL CHECK(server IN(0,1)),transport INTEGER NOT NULL CHECK(transport IN(0,1)),selected_order TEXT NOT NULL,reuse_enabled INTEGER NOT NULL CHECK(reuse_enabled IN(0,1))) STRICT";
+		// [[BPR-1494]]. Version 2 adds the native identities a different account's
+		// sign-in displaced. Version 1 is upgraded in place once it is admitted.
+		constexpr std::string_view RetiredSchema = "CREATE TABLE retired_connection(profile TEXT PRIMARY KEY,revision TEXT NOT NULL,host TEXT NOT NULL,hostname TEXT NOT NULL,account TEXT NOT NULL,login TEXT NOT NULL,server INTEGER NOT NULL CHECK(server IN(0,1)),selected_order TEXT NOT NULL) STRICT";
+		constexpr std::int64_t     SchemaVersion = 2;
 
 		auto read_failure(sqlite3* aDatabase, std::stop_token aStop) -> failure
 		{
@@ -101,7 +105,8 @@ namespace bpr::adapters::sqlite {
 			detail::progress_handler_scope Handler;
 		};
 
-		auto validate_schema(sqlite3* aDatabase, std::stop_token aStop) -> result<void>
+		/// Returns the admitted version: the current one, or 1 only where aLegacy permits it.
+		auto validate_schema(sqlite3* aDatabase, std::stop_token aStop, bool aLegacy) -> result<std::int64_t>
 		{
 			const auto version  = detail::scalar_integer(aDatabase, "PRAGMA user_version");
 			const auto identity = detail::scalar_integer(aDatabase, "PRAGMA application_id");
@@ -111,29 +116,39 @@ namespace bpr::adapters::sqlite {
 			if (*identity != ApplicationId) {
 				return std::unexpected(failure::corrupt);
 			}
-			if (*version > 1) {
+			if (*version > SchemaVersion) {
 				return std::unexpected(failure::newer_schema);
 			}
-			const auto count = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 3)");
+			const auto count = detail::scalar_integer(aDatabase, "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT 4)");
 			const auto meta  = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='connection_meta'");
 			const auto rows  = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='remembered_connection'");
 			if (!count || !meta || !rows) {
 				return std::unexpected(read_failure(aDatabase, aStop));
 			}
-			if (*version != 1 || *count != 2 || detail::canonical_sql(*meta) != detail::canonical_sql(MetaSchema)
-				|| detail::canonical_sql(*rows) != detail::canonical_sql(RowSchema)) {
+			auto retired = std::string{ RetiredSchema };
+			if (*version == SchemaVersion) {
+				const auto stored = detail::scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE type='table' AND name='retired_connection'");
+				if (!stored) {
+					return std::unexpected(read_failure(aDatabase, aStop));
+				}
+				retired = *stored;
+			}
+			const auto legacy = *version == 1 && aLegacy;
+			if ((*version != SchemaVersion && !legacy) || *count != (legacy ? 2 : 3) || detail::canonical_sql(*meta) != detail::canonical_sql(MetaSchema)
+				|| detail::canonical_sql(*rows) != detail::canonical_sql(RowSchema) || detail::canonical_sql(retired) != detail::canonical_sql(RetiredSchema)) {
 				return std::unexpected(failure::corrupt);
 			}
-			return { };
+			return *version;
 		}
 
-		auto read_snapshot(sqlite3* aDatabase, core::bpr_profile_id aProfile, std::stop_token aStop) -> result<core::remembered_connection_state>
+		auto read_snapshot(sqlite3* aDatabase, core::bpr_profile_id aProfile, std::stop_token aStop, bool aLegacy = false) -> result<core::remembered_connection_state>
 		{
 			if (aStop.stop_requested()) {
 				return std::unexpected(failure::cancelled);
 			}
 			const auto limits = read_scope{ aDatabase, aStop };
-			if (auto schema = validate_schema(aDatabase, aStop); !schema) {
+			const auto schema = validate_schema(aDatabase, aStop, aLegacy);
+			if (!schema) {
 				return std::unexpected(schema.error());
 			}
 			auto meta = detail::prepare(aDatabase, "SELECT singleton,bpr_profile,revision,last_profile,last_host,last_selected FROM connection_meta LIMIT 2");
@@ -205,6 +220,44 @@ namespace bpr::adapters::sqlite {
 			if (step != SQLITE_DONE) {
 				return std::unexpected(read_failure(aDatabase, aStop));
 			}
+			if (*schema == SchemaVersion) {
+				auto retired = detail::prepare(aDatabase, "SELECT profile,revision,host,hostname,account,login,server,selected_order FROM retired_connection ORDER BY CAST(selected_order AS INTEGER) LIMIT 17");
+				if (!retired) {
+					return std::unexpected(read_failure(aDatabase, aStop));
+				}
+				while ((step = sqlite3_step(retired->Value)) == SQLITE_ROW) {
+					if (aStop.stop_requested()) {
+						return std::unexpected(failure::cancelled);
+					}
+					if (state.Retired.size() >= core::maximum_retired_connections) {
+						return std::unexpected(failure::corrupt);
+					}
+					const auto id              = id_of(retired->Value, 0);
+					const auto profileRevision = id_of(retired->Value, 1);
+					const auto host            = id_of(retired->Value, 2);
+					const auto account         = id_of(retired->Value, 4);
+					const auto order           = id_of(retired->Value, 7);
+					if (!id || !profileRevision || !host || !account || !order || sqlite3_column_type(retired->Value, 6) != SQLITE_INTEGER
+						|| sqlite3_column_int64(retired->Value, 6) < 0 || sqlite3_column_int64(retired->Value, 6) > 1) {
+						return std::unexpected(failure::corrupt);
+					}
+					core::remembered_connection row;
+					row.Profile         = core::host_profile_id{ *id };
+					row.ProfileRevision = *profileRevision;
+					row.Host            = core::git_host_id{ *host };
+					row.Hostname        = text_of(retired->Value, 3);
+					row.Account         = core::github_account_id{ *account };
+					row.Login           = text_of(retired->Value, 5);
+					row.Server          = static_cast<core::remembered_connection_server>(sqlite3_column_int(retired->Value, 6));
+					row.Transport       = core::remembered_connection_transport::native_device;
+					row.SelectedOrder   = *order;
+					row.ReuseEnabled    = false;
+					state.Retired.push_back(std::move(row));
+				}
+				if (step != SQLITE_DONE) {
+					return std::unexpected(read_failure(aDatabase, aStop));
+				}
+			}
 			if (!core::valid(state)) {
 				return std::unexpected(failure::corrupt);
 			}
@@ -213,8 +266,22 @@ namespace bpr::adapters::sqlite {
 
 		auto write_snapshot(sqlite3* aDatabase, const core::remembered_connection_state& aState, std::stop_token aStop) -> result<void>
 		{
-			if (!detail::execute(aDatabase, "DELETE FROM remembered_connection", aStop) || !detail::execute(aDatabase, "DELETE FROM connection_meta", aStop)) {
+			if (!detail::execute(aDatabase, "DELETE FROM remembered_connection", aStop) || !detail::execute(aDatabase, "DELETE FROM retired_connection", aStop)
+				|| !detail::execute(aDatabase, "DELETE FROM connection_meta", aStop)) {
 				return std::unexpected(read_failure(aDatabase, aStop));
+			}
+			for (const auto& row : aState.Retired) {
+				if (aStop.stop_requested()) {
+					return std::unexpected(failure::cancelled);
+				}
+				auto statement = detail::prepare(aDatabase, "INSERT INTO retired_connection VALUES(?1,?2,?3,?4,?5,?6,?7,?8)");
+				if (!statement || !bind_id(statement->Value, 1, row.Profile.value()) || !bind_id(statement->Value, 2, row.ProfileRevision)
+					|| !bind_id(statement->Value, 3, row.Host.value()) || !bind_text(statement->Value, 4, row.Hostname)
+					|| !bind_id(statement->Value, 5, row.Account.value()) || !bind_text(statement->Value, 6, row.Login)
+					|| sqlite3_bind_int(statement->Value, 7, static_cast<int>(row.Server)) != SQLITE_OK || !bind_id(statement->Value, 8, row.SelectedOrder)
+					|| sqlite3_step(statement->Value) != SQLITE_DONE) {
+					return std::unexpected(read_failure(aDatabase, aStop));
+				}
 			}
 			auto meta = detail::prepare(aDatabase, "INSERT INTO connection_meta VALUES(1,?1,?2,?3,?4,?5)");
 			if (!meta || !bind_id(meta->Value, 1, aState.BprProfile.value()) || !bind_id(meta->Value, 2, aState.Revision)
@@ -315,7 +382,7 @@ namespace bpr::adapters::sqlite {
 				}
 				const auto pristine = *version == 0 && *identity == 0 && *count == 0;
 				if (!pristine) {
-					if (auto current = read_snapshot(Database, Profile, aStop); !current) {
+					if (auto current = read_snapshot(Database, Profile, aStop, true); !current) {
 						return std::unexpected(current.error());
 					}
 				}
@@ -326,23 +393,39 @@ namespace bpr::adapters::sqlite {
 				if (!detail::configure_connection(Database)) {
 					return std::unexpected(failure::unavailable);
 				}
-				if (!pristine) {
+				if (!pristine && *version == SchemaVersion) {
 					return { };
 				}
 				if (!detail::execute(Database, "BEGIN IMMEDIATE", aStop)) {
 					return std::unexpected(read_failure(Database, aStop));
 				}
 				const auto rollback = transaction{ Database };
-				// Another opener may have initialized it before our write lock.
+				// Another opener may have initialized or upgraded it before our write lock.
 				const auto now = detail::scalar_integer(Database, "PRAGMA user_version");
 				if (!now) {
 					return std::unexpected(read_failure(Database, aStop));
 				}
-				if (*now != 0) {
+				if (*now == SchemaVersion) {
 					const auto current = read_snapshot(Database, Profile, aStop);
 					return current ? result<void>{ } : std::unexpected(current.error());
 				}
-				for (const auto sql : { MetaSchema, RowSchema, std::string_view{ "PRAGMA application_id=1112560195" }, std::string_view{ "PRAGMA user_version=1" } }) {
+				if (*now != 0) {
+					// [[BPR-1494]]. An admitted version 1 snapshot gains the empty
+					// retired table; its rows and counters are unchanged.
+					if (const auto current = read_snapshot(Database, Profile, aStop, true); !current) {
+						return std::unexpected(current.error());
+					}
+					for (const auto sql : { RetiredSchema, std::string_view{ "PRAGMA user_version=2" } }) {
+						if (!detail::execute(Database, sql, aStop)) {
+							return std::unexpected(read_failure(Database, aStop));
+						}
+					}
+					if (!detail::execute(Database, "COMMIT", aStop)) {
+						return std::unexpected(read_failure(Database, aStop));
+					}
+					return { };
+				}
+				for (const auto sql : { MetaSchema, RowSchema, RetiredSchema, std::string_view{ "PRAGMA application_id=1112560195" }, std::string_view{ "PRAGMA user_version=2" } }) {
 					if (!detail::execute(Database, sql, aStop)) {
 						return std::unexpected(read_failure(Database, aStop));
 					}

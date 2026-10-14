@@ -95,7 +95,9 @@ namespace {
 				 "UPDATE connection_meta SET bpr_profile='2'",
 				 "DELETE FROM connection_meta",
 				 "CREATE TABLE unexpected(value TEXT)",
-				 "DROP TABLE remembered_connection" }) {
+				 "DROP TABLE remembered_connection",
+				 "DROP TABLE retired_connection",
+				 "PRAGMA user_version=1" }) {
 			const auto root    = scratch_root{ "1408-corrupt" };
 			auto       store   = make_store(root);
 			const auto initial = *store->load({ });
@@ -124,6 +126,67 @@ namespace {
 		}
 		const auto before = bytes(database(root));
 		expect(!make_store(root)->load({ }) && bytes(database(root)) == before, "unreadable non-database stays intact and refused");
+	}
+	auto native(std::uint64_t aProfile, std::uint64_t aAccount) -> core::remembered_connection
+	{
+		auto row      = connection(aProfile, aAccount);
+		row.Login     = "reviewer-" + std::to_string(aAccount);
+		row.Transport = core::remembered_connection_transport::native_device;
+		return row;
+	}
+	auto save_next(application::remembered_connection_store_port& aStore, const core::remembered_connection_state& aBefore, const core::remembered_connection_result& aNext) -> core::remembered_connection_state
+	{
+		expect(aNext && aStore.save(*aNext, aBefore.Revision, { }).has_value(), "admitted update commits");
+		return *aNext;
+	}
+	// [[BPR-1494]]. Retired native identities survive reopen, a returning account's
+	// re-bound identity commits through the store's own update check, and an
+	// admitted version 1 file gains the empty retired table in place.
+	void retired_identities_and_upgrade()
+	{
+		const auto root  = scratch_root{ "1494-retired" };
+		auto       store = make_store(root);
+		auto       state = *store->load({ });
+		state            = save_next(*store, state, core::remember_connection(state, state.Revision, native(1U, 910001U)));
+		state            = save_next(*store, state, core::disable_connection_reuse(state, state.Revision, "github.com"));
+		state            = save_next(*store, state, core::remember_connection(state, state.Revision, native(2U, 910002U)));
+		state            = save_next(*store, state, core::disable_connection_reuse(state, state.Revision, "github.com"));
+		store.reset();
+		store = make_store(root);
+		expect(store->load({ }) == state && state.Retired.size() == 1U && state.Retired.front().Account == core::github_account_id{ 910001U }, "retired identity reopens exactly");
+		const auto adopted = core::adopt_native_connection(state, native(3U, 910001U));
+		expect(adopted && adopted->Profile == core::host_profile_id{ 1U }, "returning account re-binds to its durable identity");
+		state = save_next(*store, state, core::remember_connection(state, state.Revision, *adopted));
+		store.reset();
+		store               = make_store(root);
+		const auto reopened = store->load({ });
+		expect(reopened == state && core::select_remembered_connection(*reopened)->Profile == core::host_profile_id{ 1U } && reopened->Retired.front().Profile == core::host_profile_id{ 2U },
+			   "re-bound selection and newly retired identity survive reopen");
+		auto forged                        = *core::remember_connection(state, state.Revision, native(4U, 910003U));
+		forged.Connections.front().Profile = core::host_profile_id{ 2U };
+		forged.LastProfileId               = state.LastProfileId;
+		std::erase_if(forged.Retired, [](const auto& aRow) { return aRow.Profile == core::host_profile_id{ 2U }; });
+		const auto refused = store->save(forged, state.Revision, { });
+		expect(core::valid(forged) && !refused && refused.error() == failure::corrupt && store->load({ }) == state, "the store refuses a retired identity carrying another account");
+		store.reset();
+
+		const auto legacyRoot = scratch_root{ "1494-legacy" };
+		{
+			auto created = make_store(legacyRoot);
+			expect(created->load({ }).has_value(), "initialize private legacy root");
+		}
+		auto* raw = raw_open(database(legacyRoot));
+		execute(raw, "DROP TABLE retired_connection; PRAGMA user_version=1;");
+		sqlite3_close(raw);
+		const auto upgraded = make_store(legacyRoot)->load({ });
+		expect(upgraded && upgraded->Connections.empty() && upgraded->Retired.empty(), "admitted version 1 metadata loads unchanged");
+		raw                   = raw_open(database(legacyRoot));
+		sqlite3_stmt* version = nullptr;
+		expect(sqlite3_prepare_v2(raw, "SELECT (SELECT user_version FROM pragma_user_version), (SELECT count(*) FROM sqlite_schema WHERE name='retired_connection')", -1, &version, nullptr) == SQLITE_OK && sqlite3_step(version) == SQLITE_ROW
+				   && sqlite3_column_int(version, 0) == 2 && sqlite3_column_int(version, 1) == 1,
+			   "version 1 is upgraded in place with the retired table");
+		sqlite3_finalize(version);
+		sqlite3_close(raw);
 	}
 	std::stop_source* WriteStop = nullptr;
 	void              cancel_write() { WriteStop->request_stop(); }
@@ -186,6 +249,7 @@ int main()
 {
 	reopen_and_stale_saves();
 	refused_content_is_unchanged();
+	retired_identities_and_upgrade();
 	cancellation_and_write_refusal();
 #if !defined(_WIN32)
 	interrupted_writer();

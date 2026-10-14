@@ -392,6 +392,8 @@ namespace bpr::application {
 				= github_credential_provenance::manual;
 			std::optional<device_binding_lifetime> Lifetime;
 			bool                                   RefreshSettled = false;
+			github_enrollment_rebind               Rebind;
+			std::optional<core::github_account_id> ExpectedAccount;
 		};
 		struct deferred_grant_invalidation
 		{
@@ -506,7 +508,7 @@ namespace bpr::application {
 																deferred_enrollment>) {
 								enroll_profile_now(aIngress.Profile,
 												   std::move(aIngress.Credential),
-												   aIngress.Provenance, aIngress.Lifetime, aIngress.RefreshSettled);
+												   aIngress.Provenance, aIngress.Lifetime, aIngress.RefreshSettled, std::move(aIngress.Rebind), aIngress.ExpectedAccount);
 							} else if constexpr (std::is_same_v<ingress_type,
 																deferred_resume>) {
 								resume_profile_now(aIngress.Profile);
@@ -654,7 +656,9 @@ namespace bpr::application {
 							github_credential_material                   aCredential,
 							const github_credential_provenance           aProvenance,
 							const std::optional<device_binding_lifetime> aLifetime,
-							const bool                                   aRefreshSettled)
+							const bool                                   aRefreshSettled,
+							github_enrollment_rebind                     aRebind,
+							const std::optional<core::github_account_id> aExpectedAccount = std::nullopt)
 		{
 			cancel_setup_enrollment();
 			AcceptedSetupBootstrap.reset();
@@ -663,33 +667,39 @@ namespace bpr::application {
 			}
 			if (TurnActive) {
 				DeferredIngress.emplace_back(deferred_enrollment{
-					.Profile        = aProfile,
-					.Credential     = std::move(aCredential),
-					.Provenance     = aProvenance,
-					.Lifetime       = aLifetime,
-					.RefreshSettled = aRefreshSettled,
+					.Profile         = aProfile,
+					.Credential      = std::move(aCredential),
+					.Provenance      = aProvenance,
+					.Lifetime        = aLifetime,
+					.RefreshSettled  = aRefreshSettled,
+					.Rebind          = std::move(aRebind),
+					.ExpectedAccount = aExpectedAccount,
 				});
 				return;
 			}
 			if (DeferredIngressScheduled || !DeferredIngress.empty()) {
 				DeferredIngress.emplace_back(deferred_enrollment{
-					.Profile        = aProfile,
-					.Credential     = std::move(aCredential),
-					.Provenance     = aProvenance,
-					.Lifetime       = aLifetime,
-					.RefreshSettled = aRefreshSettled,
+					.Profile         = aProfile,
+					.Credential      = std::move(aCredential),
+					.Provenance      = aProvenance,
+					.Lifetime        = aLifetime,
+					.RefreshSettled  = aRefreshSettled,
+					.Rebind          = std::move(aRebind),
+					.ExpectedAccount = aExpectedAccount,
 				});
 				schedule_deferred_ingress();
 				return;
 			}
-			run_turn([this, aProfile, aProvenance, aLifetime, aRefreshSettled, credential = std::move(aCredential)]() mutable { enroll_profile_now(aProfile, std::move(credential), aProvenance, aLifetime, aRefreshSettled); });
+			run_turn([this, aProfile, aProvenance, aLifetime, aRefreshSettled, aExpectedAccount, rebind = std::move(aRebind), credential = std::move(aCredential)]() mutable { enroll_profile_now(aProfile, std::move(credential), aProvenance, aLifetime, aRefreshSettled, std::move(rebind), aExpectedAccount); });
 		}
 
 		void enroll_profile_now(const core::host_profile_id                  aProfile,
 								github_credential_material                   aCredential,
 								const github_credential_provenance           aProvenance,
 								const std::optional<device_binding_lifetime> aLifetime,
-								const bool                                   aRefreshSettled)
+								const bool                                   aRefreshSettled,
+								github_enrollment_rebind                     aRebind          = { },
+								const std::optional<core::github_account_id> aExpectedAccount = std::nullopt)
 		{
 			if (Closing) {
 				return;
@@ -704,6 +714,8 @@ namespace bpr::application {
 				NextEnrollmentProfile    = aProfile;
 				NextDeviceLifetime       = aLifetime;
 				NextRefreshSettled       = aRefreshSettled;
+				NextEnrollmentRebind     = std::move(aRebind);
+				NextExpectedAccount      = aExpectedAccount;
 			}
 			try {
 				dispatch_core(
@@ -712,6 +724,8 @@ namespace bpr::application {
 				NextEnrollment.reset();
 				NextEnrollmentProvenance = github_credential_provenance::manual;
 				NextEnrollmentProfile.reset();
+				NextEnrollmentRebind = { };
+				NextExpectedAccount.reset();
 				throw;
 			}
 			// A valid activation synchronously moved this material into the
@@ -721,6 +735,8 @@ namespace bpr::application {
 			NextEnrollment.reset();
 			NextEnrollmentProvenance = github_credential_provenance::manual;
 			NextEnrollmentProfile.reset();
+			NextEnrollmentRebind = { };
+			NextExpectedAccount.reset();
 		}
 
 		void cancel_setup_enrollment()
@@ -1513,6 +1529,8 @@ namespace bpr::application {
 											 request_type,
 											 core::establish_github_session_request>) {
 						DeferredSession             = aTypedRequest.Context;
+						SessionEnrollmentRebind     = std::exchange(NextEnrollmentRebind, github_enrollment_rebind{ });
+						SessionExpectedAccount      = std::exchange(NextExpectedAccount, std::nullopt);
 						SessionEnrollment           = std::move(NextEnrollment);
 						DeviceLifetime              = std::exchange(NextDeviceLifetime, std::nullopt);
 						DeviceRefreshSettled        = std::exchange(NextRefreshSettled, false);
@@ -1689,6 +1707,8 @@ namespace bpr::application {
 			BootstrapViewer.reset();
 			SessionEnrollment.reset();
 			SessionEnrollmentProvenance = github_credential_provenance::manual;
+			SessionEnrollmentRebind     = { };
+			SessionExpectedAccount.reset();
 			SessionResumeProfile.reset();
 			SessionKeptEnding.reset();
 			SessionPublicPreview = false;
@@ -2202,7 +2222,35 @@ namespace bpr::application {
 						return;
 					}
 					static_cast<void>(merge(RateLimits, success->RateLimits));
-					BootstrapViewer    = success->Viewer;
+					BootstrapViewer = success->Viewer;
+					// [[BPR-1494]]. Material re-bound to its account's earlier
+					// profile must name that same account here, or nothing is kept.
+					if (SessionExpectedAccount && success->Viewer.Account != *SessionExpectedAccount) {
+						SessionEnrollment.reset();
+						SessionEnrollmentProvenance = github_credential_provenance::manual;
+						fail_session(context, core::github_failure::malformed_response, false, github_bootstrap_failure_stage::account_identity, account_mismatch());
+						return;
+					}
+					// [[BPR-1494]]. Composition minted this profile before the
+					// account was known. Now that `/user` names it, the account's
+					// own earlier profile, if composition names one, takes the
+					// same material before any vault write, so its
+					// authority-scoped private state resumes.
+					if (SessionEnrollmentRebind && SessionEnrollment.has_value() && !LaunchRenewal) {
+						const auto rebind = std::exchange(SessionEnrollmentRebind, github_enrollment_rebind{ });
+						auto       target = std::optional<core::host_profile_id>{ };
+						try {
+							target = rebind(authority, success->Viewer);
+						} catch (...) {
+							target.reset();
+						}
+						if (target && target->value() != 0U && *target != authority.Profile) {
+							auto material = std::move(*SessionEnrollment);
+							SessionEnrollment.reset();
+							enroll_profile(*target, std::move(material), SessionEnrollmentProvenance, DeviceLifetime, DeviceRefreshSettled, { }, success->Viewer.Account);
+							return;
+						}
+					}
 					const auto adopted = credential_key(BprProfile, authority, success->Viewer.Account);
 					// [[BPR-0644]]. A renewed grant resumes only the account its
 					// binding named. Any other account's token is refused before
@@ -4439,6 +4487,10 @@ namespace bpr::application {
 		std::optional<core::host_profile_id>                NextEnrollmentProfile;
 		std::optional<github_credential_material>           SessionEnrollment;
 		github_credential_provenance                        SessionEnrollmentProvenance = github_credential_provenance::manual;
+		github_enrollment_rebind                            NextEnrollmentRebind;
+		github_enrollment_rebind                            SessionEnrollmentRebind;
+		std::optional<core::github_account_id>              NextExpectedAccount;
+		std::optional<core::github_account_id>              SessionExpectedAccount;
 		std::optional<core::host_profile_id>                NextResumeProfile;
 		std::optional<core::host_profile_id>                SessionResumeProfile;
 		std::optional<kept_session_ending>                  NextKeptEnding;
@@ -4555,10 +4607,11 @@ namespace bpr::application {
 		github_credential_material                   aCredential,
 		const github_credential_provenance           aProvenance,
 		const std::optional<device_binding_lifetime> aLifetime,
-		const bool                                   aRefreshSettled)
+		const bool                                   aRefreshSettled,
+		github_enrollment_rebind                     aRebind)
 	{
 		Implementation->enroll_profile(
-			aProfile, std::move(aCredential), aProvenance, aLifetime, aRefreshSettled);
+			aProfile, std::move(aCredential), aProvenance, aLifetime, aRefreshSettled, std::move(aRebind));
 	}
 
 	void github_application_host::stage_setup_enrollment(core::pending_setup_destination                                   aPending,
