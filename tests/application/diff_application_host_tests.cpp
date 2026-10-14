@@ -412,10 +412,12 @@ namespace {
 		test.Decisions.run_next();
 		expect(test.Projections.Results.size() == 1U && !test.Projections.Results.back().CacheHit,
 			   "the reviewer's comparison is published");
-		expect(test.Effects.pending() == 1U && test.Host->preparing() == 1U,
-			   "preparation resumes with what remains once the reviewer's work is done");
+		// [[BPR-1485]] The overtaken preparation was abandoned, not dropped:
+		// the window still wants it, so it is prepared again, first.
+		expect(test.Effects.pending() == 1U && test.Host->preparing() == 2U,
+			   "preparation resumes with the overtaken comparison and what remains once the reviewer's work is done");
 		settle(test);
-		expect(test.Host->prepared_entries() == 1U, "the remaining comparison is prepared");
+		expect(test.Host->prepared_entries() == 2U, "both comparisons are prepared");
 	}
 
 	auto test_opening_the_file_being_prepared_waits_for_it() -> void
