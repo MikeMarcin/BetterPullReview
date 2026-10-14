@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1503",
+    "BPR-1504"
+  ],
+  "reserve_for": "find-redesign",
+  "purpose": "VS Code-style Find widget and Find in Files redesign",
+  "created": "2026-10-14T14:43:52.186743+00:00",
+  "base": "83767b2ce648725f4c2953f0f9f0f8af13f14ac3"
+}
