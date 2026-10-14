@@ -117,6 +117,25 @@ namespace {
 		return aDocument;
 	}
 
+	[[nodiscard]] auto replaced_text(
+		std::string            aDocument,
+		const std::string_view aText,
+		const std::string_view aReplacement) -> std::string
+	{
+		const auto position = aDocument.find(aText);
+		expect(position != std::string::npos, "the replaced text is present");
+		aDocument.replace(position, aText.size(), aReplacement);
+		return aDocument;
+	}
+
+	[[nodiscard]] auto without_role_line_text(std::string aDocument, const std::string_view aLine) -> std::string
+	{
+		const auto position = aDocument.find(std::string{ aLine } + '\n');
+		expect(position != std::string::npos, "the removed line is present");
+		aDocument.erase(position, aLine.size() + 1U);
+		return aDocument;
+	}
+
 	[[nodiscard]] auto role_line_of(
 		const std::string&    aDocument,
 		const appearance_role aRole) -> std::string
@@ -175,6 +194,106 @@ namespace {
 			   "a role whose identifier resembles a directive is still an ordinary role");
 		expect(export_theme(*result.Palette) == document,
 			   "the exchange is stable across a second round trip");
+	}
+
+	/// \brief [[BPR-1479]]. A theme written for import names the variant it was made against.
+	auto test_a_version_2_document_names_its_base() -> void
+	{
+		const auto palette = sample_palette();
+		for (const auto base : { appearance_variant::light, appearance_variant::dark, appearance_variant::high_contrast_light, appearance_variant::high_contrast_dark }) {
+			const auto document = export_theme(palette, base);
+			expect(document.starts_with("bpr-theme 2\nbase " + std::string{ stable_name(base) } + "\n"),
+				   "a version-2 document names its base on the line after its signature");
+			expect(std::ranges::count(document, '\n') == static_cast<std::ptrdiff_t>(appearance_role_count) + 2,
+				   "a version-2 document carries the signature, the base and one line per role");
+			const auto result = imported(document);
+			expect(result.Palette == std::optional{ palette } && result.Base == std::optional{ base },
+				   "a version-2 document imports back to an equal palette and the base it names");
+			expect(export_theme(*result.Palette, *result.Base) == document,
+				   "the version-2 exchange is stable across a second round trip");
+		}
+
+		const auto written  = export_theme(palette, appearance_variant::dark);
+		const auto baseless = without_role_line_text(written, "base dark");
+		expect(only_rejection(imported(baseless))
+				   == theme_import_rejection{
+					   .Reason  = theme_import_reason::missing_field,
+					   .Subject = "base",
+					   .Line    = 0U },
+			   "a version-2 document without a base is refused, naming the base");
+
+		const auto stranger = replaced_text(written, "base dark", "base sepia");
+		expect(only_rejection(imported(stranger))
+				   == theme_import_rejection{
+					   .Reason  = theme_import_reason::unknown_base,
+					   .Subject = "sepia",
+					   .Line    = 2U },
+			   "a base that names no built-in variant is refused and quoted");
+
+		const auto twice = appended(written, "base light");
+		expect(only_rejection(imported(twice))
+				   == theme_import_rejection{
+					   .Reason  = theme_import_reason::duplicate_field,
+					   .Subject = "base",
+					   .Line    = appearance_role_count + 3U },
+			   "a second base is a duplicate rather than a choice");
+
+		const auto version1 = appended(valid_document(), "base dark");
+		expect(only_rejection(imported(version1))
+				   == theme_import_rejection{
+					   .Reason  = theme_import_reason::unknown_field,
+					   .Subject = "base",
+					   .Line    = appearance_role_count + 2U },
+			   "a version-1 document has no base key to give");
+
+		const auto partial = without_role(baseless, appearance_role::code_background);
+		const auto refused = imported(partial);
+		expect(refused.Rejections.size() == 2U && refused.Rejections.front().Subject == "base"
+				   && refused.Rejections.back().Subject == "code_background" && !refused.Base.has_value(),
+			   "a missing base is reported with the missing roles, before them, and no base is given");
+	}
+
+	/// \brief [[BPR-1479]]. A version-1 document's own code canvas says which base it had.
+	auto test_a_version_1_document_infers_its_base_from_its_code_canvas() -> void
+	{
+		const auto canvas = [](const std::string_view aValue) {
+			return imported(with_role_line(valid_document(), appearance_role::code_background, std::string{ "code_background " } + std::string{ aValue }));
+		};
+		expect(canvas("#000000").Base == std::optional{ appearance_variant::dark }
+				   && canvas("#1e1e1e").Base == std::optional{ appearance_variant::dark },
+			   "a document on a dark code canvas is a Dark theme");
+		expect(canvas("#ffffff").Base == std::optional{ appearance_variant::light }
+				   && canvas("#f3f3f3").Base == std::optional{ appearance_variant::light },
+			   "a document on a light code canvas is a Light theme");
+		// Relative luminance 0.162 reads better under white text (4.95:1 against
+		// 4.24:1), 0.216 under black (5.32:1 against 3.95:1).
+		expect(canvas("#707070").Base == std::optional{ appearance_variant::dark }
+				   && canvas("#808080").Base == std::optional{ appearance_variant::light },
+			   "a mid-grey canvas takes the base whose text reads better on it");
+	}
+
+	/// \brief [[BPR-1479]]. Filling from a base changes only what the document left out.
+	auto test_a_base_fills_only_the_roles_a_document_omits() -> void
+	{
+		auto base = appearance_palette{ };
+		base.fill(appearance_color{ .Red = 0x12U, .Green = 0x34U, .Blue = 0x56U, .Alpha = 255U });
+		const auto document = without_role(
+			without_role(export_theme(sample_palette(), appearance_variant::dark), appearance_role::syntax_namespace),
+			appearance_role::feedback_label_note);
+		const auto result = imported(document);
+		expect(result.Palette.has_value() && result.Base == std::optional{ appearance_variant::dark },
+			   "a version-2 document that omits additive roles imports with its base");
+		const auto filled                                        = with_base_defaults(*result.Palette, base);
+		auto       expected                                      = sample_palette();
+		expected[index_of(appearance_role::syntax_namespace)]    = base[index_of(appearance_role::syntax_namespace)];
+		expected[index_of(appearance_role::feedback_label_note)] = base[index_of(appearance_role::feedback_label_note)];
+		expect(filled == expected, "the omitted roles take the base's colours and every other role stays the document's");
+		expect(with_base_defaults(sample_palette(), base) == sample_palette(), "a palette with nothing unassigned is unchanged");
+
+		auto transparent                                        = sample_palette();
+		transparent[index_of(appearance_role::code_background)] = unassigned_appearance_color;
+		expect(with_base_defaults(transparent, base) == transparent,
+			   "a required role that happens to be transparent black is the document's choice, not a hole");
 	}
 
 	auto test_a_document_may_be_written_by_hand() -> void
@@ -493,12 +612,15 @@ namespace {
 					   .Line    = 1U },
 			   "another format's signature is refused with the offending line quoted");
 
-		expect(only_rejection(imported(with_signature_line("bpr-theme 2")))
+		expect(only_rejection(imported(with_signature_line("bpr-theme 3")))
 				   == theme_import_rejection{
 					   .Reason  = theme_import_reason::unsupported_version,
-					   .Subject = "2",
+					   .Subject = "3",
 					   .Line    = 1U },
 			   "a version this build does not interpret is refused under its own reason");
+		expect(only_rejection(imported(with_signature_line("bpr-theme 0"))).Reason
+				   == theme_import_reason::unsupported_version,
+			   "a version before the first is refused under the same reason");
 
 		expect(only_rejection(imported(with_signature_line("bpr-theme latest"))).Reason
 				   == theme_import_reason::malformed_document,
@@ -560,6 +682,9 @@ int main()
 {
 	test_lower_hex_is_two_lowercase_digits_per_byte();
 	test_a_valid_document_round_trips();
+	test_a_version_2_document_names_its_base();
+	test_a_version_1_document_infers_its_base_from_its_code_canvas();
+	test_a_base_fills_only_the_roles_a_document_omits();
 	test_a_document_may_be_written_by_hand();
 	test_an_unknown_field_is_refused_by_name();
 	test_a_partial_document_is_refused_rather_than_defaulted();

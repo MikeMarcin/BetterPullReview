@@ -124,7 +124,7 @@ namespace {
 		{
 			Settings.Stored = std::move(aStored);
 			Host            = std::make_shared<application::appearance_preferences_application_host>(
-				qt::default_appearance_settings(), Settings, Documents, Effects, Lane, core::application_session_id{ 1U });
+				qt::default_appearance_settings(), qt::builtin_appearance_palettes(), Settings, Documents, Effects, Lane, core::application_session_id{ 1U });
 			const auto attached = Host->attach(std::make_shared<ignored_projection>());
 			expect(attached.has_value(), "the composed appearance owner accepts a window");
 			Consumer = *attached;
