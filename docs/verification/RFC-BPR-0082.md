@@ -1,7 +1,8 @@
 # RFC-BPR-0082 diff-engine evaluation report
 
-[RFC-BPR-0082](../rfcs/RFC-BPR-0082-diff-engine-evaluation.md), mandate
-`diff-engine-evaluation-r1`. Immutable RFC base
+[RFC-BPR-0082](../rfcs/RFC-BPR-0082-diff-engine-evaluation.md), mandates
+`diff-engine-evaluation-r1` and `-r2` (the owner's Q1 and Q2 answers of
+2026-10-13, and the L re-measurement Q1 asked for). Immutable RFC base
 `cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5`. Station measured: **macOS only**
 (Apple M4 Pro, 14 cores, 48 GiB, macOS 26.6.2, Apple clang 21, Release build).
 Linux ([[BPR-1468]]) and Windows ([[BPR-1469]]) are not measured; nothing in
@@ -10,7 +11,10 @@ platform" is so far satisfied or failed on macOS alone.
 
 Raw results: [macOS raw results](RFC-BPR-0082/macOS-raw.json) (every sample
 time and every outcome), the [generated macOS tables](RFC-BPR-0082/macOS-results.md)
-and the [suite adjudication](RFC-BPR-0082/suite-adjudication.json). The GitHub
+and the [suite adjudication](RFC-BPR-0082/suite-adjudication.json). The linked
+shape's re-measurement after Q1 has its own [raw results](RFC-BPR-0082/macOS-L-raw.json)
+and [generated tables](RFC-BPR-0082/macOS-L-results.md), with the baseline
+measured again in the same run. The GitHub
 oracle is [`diff-oracle-v1`](../../tests/fixtures/github/diff-oracle-v1/README.md).
 The harness is described in its
 [README](../../tests/evaluation/diff_engine/README.md).
@@ -25,18 +29,17 @@ adoption waits on the named owner answer; it is not adopted.
 
 | Component | Outcome | Deciding evidence |
 |---|---|---|
-| Primary line matcher | **No change.** Every candidate rejected. | P and L fail the correctness gate (2 refusals each, see below) and the primary rule; C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). No candidate is 2× faster or smaller on L and pathological inputs. |
-| Hunk sliding | **No change.** Every candidate rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but the P and L matchers it comes with fail the correctness gate. The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
+| Primary line matcher | **No change.** Every candidate rejected. | P fails the correctness gate (2 refusals each, see below) and the primary rule. L, re-measured after Q1 as its own shared library with the whitespace mapping corrected, has no refusal and no invalid result, but fails the primary rule with every algorithm: 1.60–2.03× the baseline's median time on L inputs and 0.69–1.04× on pathological ones (memory 1.13–1.25× and 0.61–0.73×), so neither 2× faster nor 2× smaller, a regression above 10% on L, and 7 of the baseline's 11 approximate L and pathological comparisons still approximate. C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). |
+| Hunk sliding | **No change.** Every candidate rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but it runs inside Git's or xdiff's own matcher, so adopting it means adopting that matcher, which fails the primary rule (and, for P, the correctness gate). The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
 | Line-pair similarity | **Adopt rapidfuzz-cpp** ([[BPR-1480]]), after the owner's Q2 Accept of 2026-10-13. | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
 | Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06)** ([[BPR-1481]]); Q2 approved dtl for this per-line use on 2026-10-13. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
 | Review Cycle suggestion hunks | **No change.** | No primary matcher is adopted, so nothing replaces the bounded Myers. |
 
 A result of no change keeps the current engine. Restart-only cancellation is
 **not** enough for any candidate: the primary candidates' worst observed times
-on this corpus run from 214 ms (dtl) through 264 ms (L histogram) to 460 ms
-(the first-party histogram, the only primary candidate without a refusal),
-against the 10 ms stop budget, so BPR-1366's resumable machinery stays
-whatever is adopted.
+on this corpus run from 214 ms (dtl) through 247–441 ms (L, re-measured) to
+460 ms (the first-party histogram), against the 10 ms stop budget, so
+BPR-1366's resumable machinery stays whatever is adopted.
 
 ## What was evaluated
 
@@ -45,7 +48,7 @@ whatever is adopted.
 | `baseline` | all | — | the engine at RFC_BASE_SHA |
 | `p-<git>-<alg>` | primary | P | Git 2.39.5 and 2.56.0 built from kernel.org archives (SHA-256 checked against kernel.org's list), and the installed Git 2.50.1 (Apple Git-155); `myers`, `minimal`, `patience`, `histogram`; `--no-indent-heuristic` |
 | `p-<git>-<alg>-indent` | sliding | P | the same with `--indent-heuristic` |
-| `l-<alg>[-indent]` | primary / sliding | L | xdiff from Git 2.56.0, compiled with a first-party shim and called through `xdl_diff` |
+| `l-<alg>[-indent]` | primary / sliding | L | xdiff from Git 2.56.0, compiled with a first-party shim into its own shared library (`libbpr_eval_xdiff`, Q1's condition) and called through `xdl_diff` |
 | `c-onp` | primary | C | dtl 1.21 (O(NP), Wu–Manber–Myers) over the engine's line classes |
 | `c-histogram` | primary | C | first-party histogram matcher written for the evaluation, falling back to dtl |
 | `c-slide` | sliding | C | first-party post-pass written for the evaluation |
@@ -107,8 +110,23 @@ one-minute load average during the timing pass had a median of 4.6 and peaked
 at 35 on 14 cores, so absolute times are upper bounds; the interleaving keeps
 the ratios comparable.
 
-**Suites.** The RFC's list ran against every candidate through `ctest` in the
-evaluation build: `core_diff_compute`, `core_diff_semantics`,
+**L re-measurement** (after Q1, revision `39df8537a`). xdiff is built as its own
+shared library, `libbpr_eval_xdiff.dylib`, which every evaluation executable
+loads (`otool -L` on all 410 executables of the evaluation tree; none defines
+an `xdl_` symbol itself). The whitespace mapping is corrected: xdiff's own
+whitespace flags count CR, LF, VT and FF as whitespace, so a CRLF line matched
+its LF twin and the engine refused the matches. Under any option other than
+exact comparison xdiff now gets each line normalized as the engine normalizes
+it, with no whitespace flag. Exact comparison is unchanged: every L alignment
+except the two formerly refused `patho-crlf` ones is byte-identical to the
+first pass. The baseline and the eight L variants were measured again in one
+run (`run_measurements.py --modes measure,stops,determinism,rss --candidates
+...`), with their suites and inventories. The station was heavily loaded (load
+median 35, range 30–39, on 14 cores); the decision does not rest near a
+threshold (L needs a ratio of 0.5 or less and measured 1.60 or more).
+
+**Suites.** The RFC's list ran through `ctest` in the evaluation build:
+`core_diff_compute`, `core_diff_semantics`,
 `core_diff_transition`, `core_review_comment_range`,
 `core_review_cycle_comparison`, `core_review_cycle_suggestion`,
 `core_diff_compute_benchmark`, `application_diff_host`, all 15
@@ -119,13 +137,25 @@ first failed expectation, so generated copies that count failures instead
 (inventories) list every changed expectation; each is adjudicated in
 [suite-adjudication.json](RFC-BPR-0082/suite-adjudication.json).
 
+*Correction (L re-measurement).* The first pass did not run the suites for every
+candidate, and the first generated tables did not say so: its suite run stopped
+after `p-2.56.0-minimal-indent`, so the eight L variants, P's 2.56.0 `patience`
+and `histogram` variants and all eight installed-Git variants showed 0 tests,
+and the tables were generated without the inventories, so no adjudication was
+applied. The tables are now regenerated with the inventories, and a candidate
+whose suites never ran is shown as "not run". The L variants' suites ran with
+the re-measurement (their table); P's 2.56.0 `patience` and `histogram`
+variants ran afterwards (SUITES_P). The installed-Git variants' suites are
+**not run**; each of them already fails the Interruption gate (and its
+correctness gate on the corpus), so the suites cannot change their decision.
+
 ## Gates, with commands and counts (macOS)
 
 | Gate | How it was decided | Result |
 |---|---|---|
-| Correctness | `run_suites.py` and `run_inventories.py` against each candidate; `measure` validates all 86 comparisons per candidate (`validate_computed_file_diff`) and compares the reason with the baseline's. | Every P and L candidate: 2 refusals (`patho-crlf` under `ignore_trailing` and `ignore_all`: Git counts the CR of a CRLF line as trailing whitespace, the engine keeps line endings exact, and its class check refuses the matches). dtl as primary: 6 refusals (its restart past 2,000,000 path points returns common elements that join unequal lines), a crash (`std::length_error`) in `application_diff_host`, and a resumed run that never ends. Every other candidate: zero invalid results, zero new refusals, and only changed expectations adjudicated as equally valid, interruption-model or hook artefacts. |
+| Correctness | `run_suites.py` and `run_inventories.py` against each candidate; `measure` validates all 86 comparisons per candidate (`validate_computed_file_diff`) and compares the reason with the baseline's. | Every P candidate, and L in the first pass: 2 refusals (`patho-crlf` under `ignore_trailing` and `ignore_all`: Git counts the CR of a CRLF line as trailing whitespace, the engine keeps line endings exact, and its class check refuses the matches). L re-measured: zero invalid results and zero new refusals; SUITES_L. P's changed expectations that the inventories cover are adjudicated; under the shared station's load some P runs also failed `application_large_review_*` timing courses the baseline passed, left unadjudicated because P already fails the gate on its refusals. dtl as primary: 6 refusals (its restart past 2,000,000 path points returns common elements that join unequal lines), a crash (`std::length_error`) in `application_diff_host`, and a resumed run that never ends. Every C candidate other than dtl: zero invalid results, zero new refusals, and only changed expectations adjudicated as equally valid, interruption-model or hook artefacts. |
 | Determinism | `determinism` runs every candidate twice per comparison; P's digests compared across Git 2.39.5, 2.50.1 and 2.56.0. | Repeatable on 86/86 for every candidate. P `myers` and `patience` identical across the three Gits; `minimal` differs on 14 comparisons between 2.39.5 and the two newer Gits; `histogram` differs on 1 between 2.56.0 and the two older. Cross-platform: not yet measured. |
-| Interruption | `stops`, on the 28 L-size and pathological comparisons, 10 stops each. | Baseline p95 0.40 ms. C candidates 0.22–0.77 ms. L returns at once by abandoning its worker, whose abandoned work runs on (p95 102–163 ms). P 8.1–12.0 ms: the Git adapter's supervision polls every 10 ms wait slice, so P's latency is bounded by that slice plus the kill and reap; 2.39.5/2.56.0 variants sit around the 10 ms line, the installed Git's above it. |
+| Interruption | `stops`, on the 28 L-size and pathological comparisons, 10 stops each. | Baseline p95 0.40 ms. C candidates 0.22–0.77 ms. L returns at once by abandoning its worker, whose abandoned work runs on (p95 102–163 ms; re-measured 83–165 ms, return p95 below 0.001 ms). P 8.1–12.0 ms: the Git adapter's supervision polls every 10 ms wait slice, so P's latency is bounded by that slice plus the kill and reap; 2.39.5/2.56.0 variants sit around the 10 ms line, the installed Git's above it. |
 | Placement | Boundary checks in the proposed placement. | P and L live in an adapter; C candidates would sit in the core, where diff-match-patch would need an owner library approval and dtl and rapidfuzz-cpp have one since 2026-10-13 (Q2; dtl for per-line intraline use only), and the first-party matcher and post-pass need the owner's approval of hand-written diff code in the core (AGENTS.md). P keeps the engine as its fallback. The shipping configuration acquires and links nothing new (below). |
 | Licence | Per shipped file, below. | Recorded; owner answers named per candidate. |
 
@@ -143,7 +173,7 @@ environment and pre-format effects) and `core_dependency_boundary`,
 | Candidate | Files that would ship and their licence | Linkage | Obligations | Platform and Git-version dependence | Owner answer needed |
 |---|---|---|---|---|---|
 | P | none: runs the user's Git (GPL-2.0, a separate program) | process | none for BPR's distribution while Git is not bundled | needs Git ≥ 2.39 on every platform, with the engine as fallback; results depend on the Git version (`minimal` and `histogram` above) and the per-file launch costs 15 ms (pinned Git) to 28 ms (Apple's `/usr/bin/git` shim) | Q3 |
-| L | `xdiff/*.c,*.h` of Git 2.56.0: LGPL-2.1-or-later, except `xhistogram.c`, EDL-1.0 | static, in an adapter | LGPL relinking (object files or a relinkable build) and a source offer; LGPL and EDL notices | none beyond the compiler; no stop hook (a stop abandons a worker) | Q1 |
+| L | `xdiff/*.c,*.h` of Git 2.56.0: LGPL-2.1-or-later, except `xhistogram.c`, EDL-1.0 | its own shared library, linked dynamically by an adapter (Q1's condition; the re-measured shape) | the library's corresponding source and a way to replace it (dynamic linking provides that, as for Qt); LGPL and EDL notices | none beyond the compiler; no stop hook (a stop abandons a worker) | Q1 answered Accept 2026-10-13 for this shape only; static linking stays refused |
 | C dtl | `dtl/*.hpp` 1.21: BSD-3-Clause ("so-called BSD licence") | header-only, core | notice | the defects above would need fixing in a modified copy before any line-scale use | Q2 answered Accept 2026-10-13, per-line intraline use only |
 | C rapidfuzz | `rapidfuzz/**` 3.3.4: MIT | header-only, core | notice | none | Q2 answered Accept 2026-10-13 |
 | C diff-match-patch | `diff_match_patch.h` `ba3bbe3`: Apache-2.0 | header-only, core | licence and NOTICE; a modified copy must mark its changes, and a core copy needs one: the port calls `clock()` in its bisection loop even with its deadline disabled | none | an owner library approval (not asked: rejected on measurement) |
@@ -187,13 +217,14 @@ environment and pre-format effects) and `core_dependency_boundary`,
 
 ## Open questions and the evidence for them
 
-- **Q1 (linking LGPL xdiff).** Blocks every L shape. Evidence: L is the most
-  GitHub-faithful matcher measured (78/78 with the heuristic), 0.67–0.76× the
-  baseline's time on M and pathological inputs but about 2× slower on L, and
-  needs relinking and source-offer arrangements beyond today's Qt and
-  KSyntaxHighlighting ones. Its correctness failure here is the whitespace
-  mapping (CR as trailing whitespace), which an adapter can avoid by mapping
-  fewer flags; that variant was not measured.
+- **Q1 (linking LGPL xdiff), answered Accept on 2026-10-13** if xdiff is its
+  own dynamically linked shared library, and only if every gate passes. L was
+  re-measured in that shape with the whitespace mapping corrected: its two
+  refusals are gone and it remains the most GitHub-faithful matcher measured
+  (78/78 with Myers and the heuristic), but it fails the primary rule with every
+  algorithm (1.60–2.03× the baseline's time on L inputs; 7 of the baseline's 11
+  approximate L and pathological comparisons still approximate), so no L shape
+  is adopted and the primary matcher stays the engine's.
 - **Q2 (libraries in the core), answered Accept on 2026-10-13** for
   rapidfuzz-cpp and for dtl in per-line intraline comparison only. The owner
   was told dtl misbehaved as a whole-file line matcher. rapidfuzz-cpp gives

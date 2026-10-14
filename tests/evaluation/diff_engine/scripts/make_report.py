@@ -325,6 +325,17 @@ def main() -> int:
 
     # ------------------------------------------------------------ gates and decisions
     baseline = summary["baseline"]
+
+    def primary_rule(item: dict) -> dict:
+        return {
+            "no approximate where baseline is (L, pathological)": not item["unfixed_baseline_approximate"],
+            "2x faster or 2x smaller (L, pathological)": all(
+                (item["time_ratio"][category] <= 0.5 or item["memory_ratio"][category] <= 0.5) for category in ("L", "pathological")),
+            "no class median regresses > 10%": all(not (item["time_ratio"][category] > 1.10) for category in CLASSES),
+            "GitHub agreement >= baseline": item["oracle_exact"] >= baseline["oracle_exact"],
+            "comment flips do not increase": item["comment_flips"] <= baseline["comment_flips"],
+        }
+
     decisions = {}
     for name, item in summary.items():
         if name == "baseline":
@@ -344,12 +355,7 @@ def main() -> int:
         component = item["component"]
         rule = {}
         if component == "primary":
-            rule["no approximate where baseline is (L, pathological)"] = not item["unfixed_baseline_approximate"]
-            rule["2x faster or 2x smaller (L, pathological)"] = all(
-                (item["time_ratio"][category] <= 0.5 or item["memory_ratio"][category] <= 0.5) for category in ("L", "pathological"))
-            rule["no class median regresses > 10%"] = all(not (item["time_ratio"][category] > 1.10) for category in CLASSES)
-            rule["GitHub agreement >= baseline"] = item["oracle_exact"] >= baseline["oracle_exact"]
-            rule["comment flips do not increase"] = item["comment_flips"] <= baseline["comment_flips"]
+            rule = primary_rule(item)
         elif component == "slide":
             reference = baseline
             if name.startswith(("p-", "l-")):
@@ -357,6 +363,11 @@ def main() -> int:
             rule["GitHub agreement rises"] = item["oracle_exact"] > reference["oracle_exact"]
             rule["costs at most 5% of compute"] = all(not (item["time_ratio"][category] > 1.05 * (reference["time_ratio"][category] if reference is not baseline else 1.0))
                                                      for category in CLASSES)
+            # Git's indent heuristic runs inside Git's or xdiff's own matcher,
+            # so the sliding candidate also replaces the primary matcher and
+            # can be adopted only with it.
+            if reference is not baseline:
+                rule["its own matcher passes the primary rule"] = all(primary_rule(reference).values())
         elif component == "pairing":
             rule["pairing decisions bit-identical"] = all(outcome.get((name, pair), {}).get("pairs_digest") == outcome.get(("baseline", pair), {}).get("pairs_digest")
                                                          for pair in pair_ids)
@@ -369,8 +380,10 @@ def main() -> int:
         decided_failures = [gate for gate in failed if not (gate == "correctness" and correctness_unrun)]
         if decided_failures:
             decision = "reject: " + ", ".join(decided_failures) + " gate"
+        elif rule_failed and correctness_unrun:
+            decision = "reject: " + "; ".join(rule_failed) + " (suites not run)"
         elif correctness_unrun:
-            decision = "undecided: suites not run" + (f"; component rule fails ({'; '.join(rule_failed)})" if rule_failed else "")
+            decision = "undecided: suites not run"
         elif rule_failed:
             decision = "reject: " + "; ".join(rule_failed)
         elif component == "intraline":
