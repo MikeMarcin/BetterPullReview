@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"58c87cd1a2f62c4b856a0ca073533792dd4d5ec313c8011cedbac4b5350c94d2"
+		"a58e8b52668cb70942cb41d91660aa8bf61a66a44eb36a02811763e84096fcb1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "35e13aa389a811876a7766cf23deecba5319cfb5192eee557aa4a74948133e26"
+        "e30b3e49b3e37298f0f42a70219f3a082dc78aafce7203ff1a3117d7edf8c8a6"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2443,3 +2443,13 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # course no longer waits for the single comment's reread. No publication,
 # credential, grant, inventory or mutation-branch change; the full
 # application and production-manifest digests are refreshed.
+#
+# [[BPR-1485]] reseal, over main at f7a2945ea's merge. github_application.cpp,
+# cycle_session.cpp and review_cycle_desktop.cpp hand the diff hosts and the
+# Review Cycle runtime and desktop the application's line matcher (linked
+# xdiff, `bpr::adapters::xdiff::make_xdiff_line_matcher`), and src/app's
+# CMakeLists.txt links the xdiff adapter. The first-party primary matcher and
+# BPR-1366's pause and resume are gone, so a stopped preparation is abandoned
+# and recomputed. No publication, credential, grant, inventory or
+# mutation-branch change; the full application and production-manifest digests
+# are refreshed.
