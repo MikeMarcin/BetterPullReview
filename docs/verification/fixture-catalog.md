@@ -1751,13 +1751,14 @@ roles a document omits.
 
 `tests/fixtures/appearance/older-theme.bprtheme` is `contrast-safe-theme`
 as it stood before RFC-BPR-0072: version 1, black code canvas, no namespace or
-enum-member colour. `application_appearance_older_theme_contract` runs the
-theme-customization course over it with
-`BPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff`,
-Dark's built-ins. The theme is kept on the variant offscreen resolves (Light on
+enum-member colour and, since [[BPR-1503]], no Find wash.
+`application_appearance_older_theme_contract` runs the theme-customization
+course over it with `BPR_THEME_FILLED_ROLES` naming `syntax_namespace`,
+`syntax_enum_member`, `find_match_background` and
+`find_current_match_background` at Dark's built-ins. The theme is kept on the variant offscreen resolves (Light on
 macOS, printed as `APPEARANCE_THEME_EXPORT_BASE:light`), and the course
 requires the exported document to be `bpr-theme 2`, `base` that variant, every
-fixture line and the two filled lines. Before BPR-1479 the commit stage
+fixture line and the four filled lines. Before BPR-1479 the commit stage
 refused it with the 2.88:1 finding. Both theme courses compare the export
 against that shape rather than the imported bytes.
 

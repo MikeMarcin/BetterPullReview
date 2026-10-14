@@ -32,6 +32,10 @@ namespace bpr::qt {
 			return { group::surfaces_and_text, "Code selection background" };
 		case role::code_current_line_background:
 			return { group::surfaces_and_text, "Code current line background" };
+		case role::find_match_background:
+			return { group::surfaces_and_text, "Find match background" };
+		case role::find_current_match_background:
+			return { group::surfaces_and_text, "Find current match background" };
 
 		case role::diff_added_background:
 			return { group::diff, "Diff added background" };

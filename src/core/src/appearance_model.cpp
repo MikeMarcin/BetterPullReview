@@ -302,6 +302,10 @@ namespace bpr::core {
 			return "syntax_namespace";
 		case appearance_role::syntax_enum_member:
 			return "syntax_enum_member";
+		case appearance_role::find_match_background:
+			return "find_match_background";
+		case appearance_role::find_current_match_background:
+			return "find_current_match_background";
 		case appearance_role::state_attention:
 			return "state_attention";
 		}

@@ -1,5 +1,5 @@
 /// \file
-/// \brief Proves RFC-BPR-0034's Colours list: 60 roles, five groups, live picking.
+/// \brief Proves RFC-BPR-0034's Colours list: 62 roles, five groups, live picking.
 ///
 /// \details Criterion C5's list half. The inventory is every role the core
 /// declares except the two hunk-header roles the card no longer offers (C5
@@ -7,7 +7,7 @@
 /// [[BPR-1083]] added the twelve label tints as a fifth group, to 58 when
 /// [[BPR-1085]] added the attention amber to Review states, and to 60 when
 /// RFC-BPR-0072 added the namespace and enum-member colours to Syntax,
-/// [[BPR-1483]]), in five groups with sticky headers carrying counted totals;
+/// [[BPR-1483]], and to 62 when [[BPR-1503]] added Find's two washes), in five groups with sticky headers carrying counted totals;
 /// the filter lists what it matches; a swatch opens the picker through the
 /// settable seam and every colour the picker moves through is reported, so the
 /// review window can preview as the reviewer picks; a cancelled pick reports the
@@ -137,8 +137,8 @@ namespace {
 		show(list);
 
 		expect(
-			list.listed_roles().size() == 60U && core::appearance_role_count == 62U,
-			"60 of the 62 roles the core declares are listed");
+			list.listed_roles().size() == 62U && core::appearance_role_count == 64U,
+			"62 of the 64 roles the core declares are listed");
 		for (const auto unoffered :
 			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
 			expect(
@@ -213,7 +213,7 @@ namespace {
 			list.group_heading_text(group::surfaces_and_text)
 					== QStringLiteral("Surfaces and text")
 				&& list.group_count_text(group::surfaces_and_text)
-					== QStringLiteral("7")
+					== QStringLiteral("9")
 				&& list.group_count_text(group::diff) == QStringLiteral("6")
 				&& list.group_count_text(group::review_states)
 					== QStringLiteral("7")
@@ -289,7 +289,7 @@ namespace {
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == 60U
+			list.listed_roles().size() == 62U
 				&& list.group_count_text(group::syntax) == QStringLiteral("28")
 				&& list.group_count_text(group::review_states) == QStringLiteral("7"),
 			"clearing the filter lists every offered role again");

@@ -378,7 +378,7 @@ namespace {
 			   "a partial document yields no palette instead of a defaulted one");
 
 		const auto headerOnly = imported("bpr-theme 1\n");
-		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 3U,
+		expect(headerOnly.Rejections.size() == appearance_role_count - feedback_label_role_count - 5U,
 			   "a document that assigns nothing is missing every role but the additive optional colours");
 	}
 
