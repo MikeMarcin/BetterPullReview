@@ -1398,6 +1398,9 @@ namespace bpr::app::detail {
 		/// by the window, so they keep counting if the model were made afresh.
 		std::uint64_t FeedbackObservations = 0U;
 		std::uint64_t FeedbackBodiesParsed = 0U;
+		/// [[BPR-1500]]. No queue read or store is outstanding: an applied
+		/// refresh whose facts changed publishes its item only after the store.
+		bool QueueQuiescent = true;
 	};
 
 	/// \brief Samples comparison ownership without driving any host.

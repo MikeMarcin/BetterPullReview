@@ -86,16 +86,24 @@ namespace {
 
 	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { })
 	{
+		// [[BPR-1500]]. Decide on the sample the loop took. A condition can read
+		// counts worker threads move, such as the epoch host's jobs, so a second
+		// reading taken after the loop can differ from the one that ended it.
 		QElapsedTimer elapsed;
 		elapsed.start();
-		while (!aCondition() && elapsed.elapsed() < 30000) {
+		auto met = aCondition();
+		while (!met && elapsed.elapsed() < 30000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
+			met = aCondition();
 		}
-		if (!aCondition() && aDiagnostic) {
+		if (met && !aCondition()) {
+			std::cout << "wait_condition_moved_after_met=\"" << aMessage << "\"\n";
+		}
+		if (!met && aDiagnostic) {
 			aDiagnostic();
 		}
-		expect(aCondition(), aMessage);
+		expect(met, aMessage);
 	}
 
 	/// \brief Drains queued continuations, such as a window's own ledger
@@ -236,7 +244,11 @@ try {
 			const auto queueMeasurement   = gesture_measurement{ };
 			expect(window->github_refresh_action()->isEnabled(), "public PR refresh is enabled for the retained queue item");
 			window->github_refresh_action()->trigger();
-			wait_for([&] { return access::scaling_evidence(*owner).Queue.AppliedRefreshes > queueBefore.AppliedRefreshes
+			// [[BPR-1500]]. A refresh that brings new facts is applied first and
+			// publishes its item when the store answers, so wait for the queue
+			// to finish that store rather than for the applied count alone.
+			wait_for([&] { const auto queue = access::scaling_evidence(*owner);
+						   return queue.Queue.AppliedRefreshes > queueBefore.AppliedRefreshes && queue.QueueQuiescent
 							   && window->session_panel()->status() == core::github_status::pull_request_ready
 							   && owner->status().EpochStatus == core::epoch_status::ready; }, "refreshed public review updates its retained queue item");
 			const auto queueAfter        = access::scaling_evidence(*owner).Queue;
@@ -244,7 +256,9 @@ try {
 			report_allocations("queue-update-with-complete-PR-refresh", queueMeasurement);
 			std::cout << "queue_public_changed=1 item_publications=" << queueAfter.ItemPublications - queueBefore.ItemPublications
 					  << " catalogue_visits=" << queueAfter.Projection.RecordsVisited - queueBefore.Projection.RecordsVisited
-					  << " repository_full_builds=" << repositoriesAfter.FullBuilds - repositoriesBefore.FullBuilds << '\n';
+					  << " repository_full_builds=" << repositoriesAfter.FullBuilds - repositoriesBefore.FullBuilds
+					  << " applied_refreshes=" << queueAfter.AppliedRefreshes - queueBefore.AppliedRefreshes
+					  << " persistence_requests=" << queueAfter.PersistenceRequests - queueBefore.PersistenceRequests << '\n';
 			expect(queueAfter.ItemPublications == queueBefore.ItemPublications + 1U
 					   && queueAfter.Projection.RecordsVisited == queueBefore.Projection.RecordsVisited
 					   && repositoriesAfter.FullBuilds == repositoriesBefore.FullBuilds,

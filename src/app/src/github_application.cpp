@@ -20384,6 +20384,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			.OverviewFeedbackPublications = owner.OverviewFeedbackPublications,
 			.FeedbackObservations         = owner.FeedbackObservations,
 			.FeedbackBodiesParsed         = owner.FeedbackBodiesParsed,
+			.QueueQuiescent               = !owner.QueueHost || owner.QueueHost->is_quiescent(),
 		};
 	}
 
