@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1507"
 title: "Make file Accept available in one click"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Accept should be the default action on a file so it's one click, or we redesign that element so it can easily be one click.","milestone_plan":{"id":"bpr-1507-one-click-file-accept","path":"docs/rfcs/plans/bpr-1507-one-click-file-accept/milestone-plan.json"}}
