@@ -6,7 +6,8 @@ diagnostics.
 
 - Use standard/domain C++, plus only the owner-approved pure libraries
   (glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL* SHA-2,
-  rapidfuzz-cpp, and dtl for per-line intraline comparison only; owner
+  rapidfuzz-cpp, and dtl only for per-line intraline comparison and the
+  Review Cycle suggestion hunks' line edit bounded at 512 changes; owner
   2026-10-13).
 - Before hand-writing a major general-purpose system here (parser, codec,
   compressor, hash, regex or diff engine, Unicode tables, protocol), ask the

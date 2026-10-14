@@ -9,7 +9,8 @@
 #include <utility>
 #include <vector>
 
-// [[BPR-1481]] The only core source that names dtl (architecture_boundaries).
+// [[BPR-1481]] One of the two core sources that name dtl, with the Review
+// Cycle suggestion hunks (architecture_boundaries).
 namespace bpr::core::detail {
 	namespace {
 		static_assert(intraline_dtl_cells_limit < dtl::MAX_CORDINATES_SIZE,

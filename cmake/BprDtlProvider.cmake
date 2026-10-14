@@ -1,12 +1,14 @@
 include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
-# [[BPR-1481]]. dtl for the diff engine's intraline ranges, one of the
-# owner-approved pure core libraries (RFC-BPR-0082 Q2, 2026-10-13), approved
-# for per-line intraline comparison only. It is header-only: only the verified
-# archive's `dtl/` headers are put on the include path. No upstream build,
-# tests or examples run, and the core calls only `dtl::Diff` over one line
-# pair's Unicode scalars, never over a file's lines.
+# [[BPR-1481]] [[BPR-1498]]. dtl, one of the owner-approved pure core
+# libraries (RFC-BPR-0082 Q2, 2026-10-13), approved for exactly two uses: the
+# diff engine's per-line intraline comparison and the Review Cycle suggestion
+# hunks' line edit bounded at 512 changes. It is header-only: only the
+# verified archive's `dtl/` headers are put on the include path. No upstream
+# build, tests or examples run, and the core calls only `dtl::Diff`, over one
+# line pair's Unicode scalars or a suggestion's changed lines, never as the
+# diff engine's whole-file line matcher.
 function(bpr_acquire_dtl)
     if(TARGET BetterPullReview::Dtl OR TARGET better_pull_review_dtl)
         message(FATAL_ERROR "dtl target must be owned by the pinned provider")

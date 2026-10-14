@@ -3,7 +3,7 @@ id: "RFC-BPR-0082"
 title: "Evaluate replacing the hand-written diff engine"
 status: "Proposed"
 depends_on: ["RFC-BPR-0004"]
-metadata: {"rfc_base_sha":"cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5","mandate_revision":"diff-engine-evaluation-r2"}
+metadata: {"rfc_base_sha":"cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5","mandate_revision":"diff-engine-evaluation-r5"}
 ---
 
 # Evaluate replacing the hand-written diff engine
@@ -103,6 +103,21 @@ assert resumption change to the restart behaviour. It takes effect with L's
 adoption in [[BPR-1485]]. The
 [record](assets/diff-engine-evaluation-v1/owner-answer-restart-2026-10-13.md)
 keeps the amended paragraph before and after.
+
+## Owner answer on dtl for Review Cycle suggestion hunks — 2026-10-13
+
+Mandate `diff-engine-evaluation-r5`. Asked whether dtl's core approval may
+extend beyond per-line intraline comparison to the Review Cycle suggestion
+hunks, whose first-party Myers in `matched_lines` aligns a suggestion's
+changed lines with a cap of 512 edits, the owner answered **Accept**. dtl
+now has exactly two approved uses in the core: the diff engine's per-line
+intraline comparison and that bounded suggestion-hunk line edit. It is still
+never the diff engine's whole-file line matcher. [[BPR-1498]] carries the
+change: inputs bounded as before, the 512-edit cap kept, dtl's 2,000,000-point
+restart never reached, and the architecture-boundary rule allowing dtl in
+exactly those two sources. Q2's text changes, marked below; the
+[record](assets/diff-engine-evaluation-v1/owner-answer-dtl-suggestion-hunks-2026-10-13.md)
+keeps it before and after. Nothing else changes.
 
 ## Problem and grounded current behavior
 
@@ -370,7 +385,11 @@ answer on restart-only cancellation" above).
   histogram port. *Answered 2026-10-13: Accept for rapidfuzz-cpp and for dtl,
   dtl for per-line intraline comparison only* (see "Owner answer" above). The
   diff-match-patch port and a JGit-derived histogram port were not asked about
-  and remain unapproved; both were rejected on measurement.
+  and remain unapproved; both were rejected on measurement. *Extended
+  2026-10-13: dtl may also compute the Review Cycle suggestion hunks' line
+  edit, bounded at 512 changes, and never the diff engine's whole-file line
+  matcher* (see "Owner answer on dtl for Review Cycle suggestion hunks"
+  above).
 - **Q3. May comparison results depend on the user's installed Git version?**
   If Git is upgraded, the same comparison key could yield a different valid
   alignment, unless the version enters comparison identity. This affects P

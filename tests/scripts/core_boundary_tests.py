@@ -57,7 +57,8 @@ class CoreBoundaryTests(unittest.TestCase):
         # Owner, 2026-10-13: glaze, utf8proc, zlib and fmt, then
         # sha1collisiondetection and HACL* SHA-2 (RFC-BPR-0080 Q1 and Q2),
         # then rapidfuzz-cpp (RFC-BPR-0082 Q2, [[BPR-1480]]) and dtl for
-        # per-line intraline comparison ([[BPR-1481]]).
+        # per-line intraline comparison ([[BPR-1481]]) and the bounded Review
+        # Cycle suggestion hunks ([[BPR-1498]]).
         approved = self.run_check(
             "struct identity {};\n",
             "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)\n",

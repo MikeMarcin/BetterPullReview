@@ -474,7 +474,9 @@ The live repository may use different target names, but it must enforce these ru
   clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection,
   HACL*'s generated SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13;
   sha1collisiondetection and HACL* through RFC-BPR-0080, rapidfuzz-cpp and
-  dtl through RFC-BPR-0082, dtl for per-line intraline comparison only).
+  dtl through RFC-BPR-0082; dtl only for per-line intraline comparison and
+  the Review Cycle suggestion hunks' line edit bounded at 512 changes, never
+  as the diff engine's whole-file line matcher).
   `cmake/VerifyCoreBoundary.cmake` refuses any other library. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.

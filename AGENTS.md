@@ -106,8 +106,10 @@ network, or process effects.
   owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries:
   glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL*'s generated
   SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13; sha1collisiondetection
-  and HACL* through RFC-BPR-0080, rapidfuzz-cpp and dtl through RFC-BPR-0082,
-  dtl for per-line intraline comparison only). RE2 stays in an adapter
+  and HACL* through RFC-BPR-0080, rapidfuzz-cpp and dtl through RFC-BPR-0082;
+  dtl only for per-line intraline comparison and the Review Cycle suggestion
+  hunks' line edit bounded at 512 changes, never as the diff engine's
+  whole-file line matcher). RE2 stays in an adapter
   because Abseil uses threads. The 2026-10-13 audit found a hand-written regex
   engine with a correctness bug, eight JSON implementations, a DEFLATE
   inflater and hand-written hashes that libraries should have supplied.

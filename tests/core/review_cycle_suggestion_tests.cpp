@@ -239,6 +239,53 @@ namespace {
 	constexpr std::string_view two_functions = "int f()\r\n{\r\n\treturn caf\xC3\xA9(1);\r\n}\r\n\r\nint g()\r\n{\r\n\treturn 2;\r\n}\r\n";
 	constexpr std::string_view two_edited    = "int f()\r\n{\r\n\treturn coffee(1);\r\n}\r\nint g()\r\n{\r\n\t// two\r\n\treturn 2;\r\n}\r\n";
 
+	auto numbered(const std::string_view aPrefix, const int aFirst, const int aEnd) -> std::string
+	{
+		auto result = std::string{ };
+		for (int line = aFirst; line < aEnd; ++line) {
+			result += std::string{ aPrefix } + std::to_string(line) + "\n";
+		}
+		return result;
+	}
+
+	/// [[BPR-1498]] The alignment is dtl's minimal edit script, still bounded
+	/// at 512 changed lines, and dtl is never let near its 2,000,000-point
+	/// restart however long the changed middle is.
+	void alignment_is_dtl_bounded_at_512_edits()
+	{
+		// 256 lines replaced around one kept line: 512 edits keep the line
+		// between two hunks; one more edit, either side longer, is one hunk.
+		const auto original = numbered("a", 0, 128) + "kept\n" + numbered("a", 128, 256);
+		const auto replaced = numbered("b", 0, 128) + "kept\n" + numbered("b", 128, 256);
+		const auto aligned  = derive_edit_hunks(original, replaced);
+		expect(aligned.size() == 2U && apply_hunks(original, aligned) == replaced, "512 edits are aligned");
+		for (const auto& [from, to] : { std::pair{ original, numbered("b", 0, 128) + "kept\n" + numbered("b", 128, 257) },
+										std::pair{ original + "a256\n", numbered("b", 0, 128) + "kept\n" + numbered("b", 128, 256) } }) {
+			const auto found = derive_edit_hunks(from, to);
+			expect(found.size() == 1U && found[0].Start == 0U && apply_hunks(from, found) == to, "513 edits are one hunk");
+		}
+
+		// Of the equally short edits, the one the first-party Myers chose:
+		// the shorter original keeps its last line and the edit's first.
+		expect(derive_edit_hunks("b\na\n", "a\na\nb\n")
+				   == std::vector{ cycle_edit_hunk{ .Start = 0, .End = 2, .EditedStart = 0, .Replacement = "" }, cycle_edit_hunk{ .Start = 4, .End = 4, .EditedStart = 2, .Replacement = "a\nb\n" } },
+			   "the same tie-break as before");
+
+		// Two edits 50,000 lines apart: a grid far past dtl's 2,000,000 points,
+		// aligned because the edit is short.
+		const auto large  = numbered("line ", 0, 50'000);
+		auto       edited = large;
+		edited.replace(edited.find("line 10\n"), 8, "changed\n");
+		edited.insert(edited.find("line 49990\n"), "added\n");
+		const auto apart = derive_edit_hunks(large, edited);
+		expect(apart.size() == 2U && apply_hunks(large, apart) == edited, "two short edits in a long file");
+
+		// 2,000 different lines each side: unbounded, dtl would record about
+		// 4,000,000 points and restart; the bound ends it as one exact hunk.
+		const auto different = derive_edit_hunks("head\n" + numbered("a", 0, 2'000) + "tail\n", "head\n" + numbered("b", 0, 2'000) + "tail\n");
+		expect(different.size() == 1U && different[0].Start == 5U && different[0].Replacement == numbered("b", 0, 2'000), "a long rewrite is one hunk");
+	}
+
 	/// Owner amendment to BPR-1156 (2026-10-01): Suggest change edits the
 	/// whole file in place, and each changed run of lines becomes one exact
 	/// suggestion in the original's coordinates.
@@ -303,6 +350,8 @@ namespace {
 		}
 		const auto whole = derive_edit_hunks("head\n" + many + "tail\n", "head\n" + other + "tail\n");
 		expect(whole.size() == 1U && whole[0].Start == 5U && apply_hunks("head\n" + many + "tail\n", whole) == "head\n" + other + "tail\n", "one exact hunk past the bound");
+
+		alignment_is_dtl_bounded_at_512_edits();
 
 		expect(edit_hunks_problem(std::vector<cycle_edit_hunk>{ }) == cycle_edit_problem::unchanged && !edit_hunks_problem(hunks), "nothing to save; savable");
 		expect(edit_hunks_problem(std::vector<cycle_edit_hunk>(maximum_cycle_suggestions + 1U, hunks[0])) == cycle_edit_problem::too_many, "more changes than one note carries");

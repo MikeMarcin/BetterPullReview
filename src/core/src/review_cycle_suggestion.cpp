@@ -3,9 +3,12 @@
 #include "bpr/core/review_cycle_json.hpp"
 #include "bpr/core/sha256.hpp"
 
+#include <dtl/dtl.hpp>
+
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cstdlib>
 #include <numeric>
 #include <utility>
 
@@ -495,54 +498,130 @@ namespace bpr::core {
 		/// The work bound of the alignment, in changed lines.
 		constexpr std::ptrdiff_t maximum_edit_distance = 512;
 
-		/// Matched line pairs of the shortest line edit from `aLeft` to `aRight`
-		/// (Myers), in order; nothing when the edit is longer than the bound.
+		/// The most path points dtl records before `matched_lines` ends it.
+		/// `matched_lines` pads the original with up to `maximum_edit_distance`
+		/// lines, so dtl's frame always holds the edited lines across and the
+		/// padded original down, `aDelta` lines apart, and allows `aBand` more
+		/// rounds than the difference needs. dtl records `aDelta + 2p + 1`
+		/// points in round `p`, and the comparator stops it in the round after
+		/// the band.
+		constexpr auto dtl_path_points(const std::uint64_t aDelta, const std::uint64_t aBand) -> std::uint64_t
+		{
+			return (aBand + 2U) * (aDelta + aBand + 2U);
+		}
+
+		constexpr auto maximum_dtl_path_points() -> std::uint64_t
+		{
+			constexpr auto cap    = static_cast<std::uint64_t>(maximum_edit_distance);
+			auto           result = std::uint64_t{ 0 };
+			for (std::uint64_t delta = 0; delta <= cap; ++delta) {
+				// The original longer: no padding. The original shorter: padded
+				// to the edited length, with the padding's edits allowed.
+				result = std::max({ result, dtl_path_points(delta, (cap - delta) / 2U), dtl_path_points(0U, (cap + delta) / 2U) });
+			}
+			return result;
+		}
+
+		static_assert(maximum_dtl_path_points() < dtl::MAX_CORDINATES_SIZE, "dtl must never reach its restart past MAX_CORDINATES_SIZE path points");
+
+		/// What the comparator shares with `matched_lines`: dtl copies the
+		/// comparator, so its findings live here.
+		struct line_comparison
+		{
+			std::span<const exact_line> Left;
+			std::span<const exact_line> Right;
+			std::ptrdiff_t              Lowest  = 0;
+			std::ptrdiff_t              Highest = 0;
+			bool                        Stopped = false;
+		};
+
+		/// Compares an original line (or padding past the original's end,
+		/// which equals nothing) with an edited line by their exact bytes.
+		/// dtl compares on every diagonal of a round that does not finish, so
+		/// a comparison outside the band proves the edit longer than the
+		/// bound. From then every pair compares equal: dtl's snakes run to the
+		/// grid's edge and it finishes in this round, with a result that is
+		/// dropped.
+		class line_compare final : public dtl::Compare<std::size_t>
+		{
+		public:
+			line_compare() = default;
+
+			explicit line_compare(line_comparison* const aState) noexcept
+				: State{ aState }
+			{
+			}
+
+			[[nodiscard]] auto impl(const std::size_t& aLeft, const std::size_t& aRight) const -> bool override
+			{
+				if (State->Stopped) {
+					return true;
+				}
+				// The padded original is never shorter, so dtl swaps the two
+				// sides: its diagonal is the original index less the edited.
+				const auto diagonal = static_cast<std::ptrdiff_t>(aLeft) - static_cast<std::ptrdiff_t>(aRight);
+				if (diagonal < State->Lowest || diagonal > State->Highest) {
+					State->Stopped = true;
+					return true;
+				}
+				return aLeft < State->Left.size() && State->Left[aLeft].Bytes == State->Right[aRight].Bytes;
+			}
+
+		private:
+			line_comparison* State = nullptr;
+		};
+
+		/// [[BPR-1498]] Matched line pairs of the shortest line edit from
+		/// `aLeft` to `aRight`, in order, from dtl's O(NP) edit script
+		/// (RFC-BPR-0082); nothing when the edit is longer than the bound.
+		///
+		/// The alignment is the one the first-party Myers this replaced chose.
+		/// dtl agrees with it when the original has at least as many lines,
+		/// so a shorter original is padded at its end with lines that equal
+		/// nothing; the padding's deletions do not count toward the bound.
 		auto matched_lines(const std::span<const exact_line> aLeft, const std::span<const exact_line> aRight) -> std::optional<std::vector<std::pair<std::size_t, std::size_t>>>
 		{
-			const auto left     = static_cast<std::ptrdiff_t>(aLeft.size());
-			const auto right    = static_cast<std::ptrdiff_t>(aRight.size());
-			const auto limit    = std::min(left + right, maximum_edit_distance);
-			const auto offset   = limit + 1;
-			auto       furthest = std::vector<std::ptrdiff_t>(static_cast<std::size_t>(2 * limit + 3), 0);
-			auto       trace    = std::vector<std::vector<std::ptrdiff_t>>{ };
-			const auto at       = [offset](std::vector<std::ptrdiff_t>& aRow, const std::ptrdiff_t aDiagonal) -> std::ptrdiff_t& { return aRow[static_cast<std::size_t>(offset + aDiagonal)]; };
-			const auto down     = [&at](std::vector<std::ptrdiff_t>& aRow, const std::ptrdiff_t aDiagonal, const std::ptrdiff_t aDistance) {
-				return aDiagonal == -aDistance || (aDiagonal != aDistance && at(aRow, aDiagonal - 1) < at(aRow, aDiagonal + 1));
-			};
-			for (std::ptrdiff_t distance = 0; distance <= limit; ++distance) {
-				trace.push_back(furthest);
-				for (auto diagonal = -distance; diagonal <= distance; diagonal += 2) {
-					auto x = down(furthest, diagonal, distance) ? at(furthest, diagonal + 1) : at(furthest, diagonal - 1) + 1;
-					auto y = x - diagonal;
-					while (x < left && y < right && aLeft[static_cast<std::size_t>(x)].Bytes == aRight[static_cast<std::size_t>(y)].Bytes) {
-						++x;
-						++y;
-					}
-					at(furthest, diagonal) = x;
-					if (x < left || y < right) {
-						continue;
-					}
-					// Back from the end through each step's furthest points.
-					auto pairs = std::vector<std::pair<std::size_t, std::size_t>>{ };
-					for (auto step = distance; step >= 0; --step) {
-						auto&      row      = trace[static_cast<std::size_t>(step)];
-						const auto current  = x - y;
-						const auto previous = down(row, current, step) ? current + 1 : current - 1;
-						const auto fromX    = at(row, previous);
-						const auto fromY    = fromX - previous;
-						while (x > fromX && y > fromY) {
-							--x;
-							--y;
-							pairs.emplace_back(static_cast<std::size_t>(x), static_cast<std::size_t>(y));
-						}
-						x = fromX;
-						y = fromY;
-					}
-					std::ranges::reverse(pairs);
-					return pairs;
-				}
+			const auto left  = static_cast<std::ptrdiff_t>(aLeft.size());
+			const auto right = static_cast<std::ptrdiff_t>(aRight.size());
+			if (std::abs(left - right) > maximum_edit_distance) {
+				return std::nullopt;
 			}
-			return std::nullopt;
+			if (left == 0 || right == 0) {
+				return std::vector<std::pair<std::size_t, std::size_t>>{ };
+			}
+			const auto padded = std::max(left, right);
+			const auto delta  = padded - right;
+			const auto band   = (maximum_edit_distance + (padded - left) - delta) / 2;
+			auto       state  = line_comparison{ .Left = aLeft, .Right = aRight, .Lowest = -band, .Highest = delta + band };
+			auto       before = std::vector<std::size_t>(static_cast<std::size_t>(padded));
+			auto       after  = std::vector<std::size_t>(aRight.size());
+			std::iota(before.begin(), before.end(), std::size_t{ 0 });
+			std::iota(after.begin(), after.end(), std::size_t{ 0 });
+			auto diff = dtl::Diff<std::size_t, std::vector<std::size_t>, line_compare>{ std::move(before), std::move(after), line_compare{ &state } };
+			diff.compose();
+			if (state.Stopped) {
+				return std::nullopt;
+			}
+			auto pairs = std::vector<std::pair<std::size_t, std::size_t>>{ };
+			for (const auto& [value, info] : diff.getSes().getSequence()) {
+				static_cast<void>(value);
+				if (info.type != dtl::SES_COMMON) {
+					continue;
+				}
+				// A defect in dtl must never become a hunk: a common line out of
+				// order, out of range or unequal makes the middle one hunk.
+				const auto from  = static_cast<std::size_t>(info.beforeIdx - 1);
+				const auto to    = static_cast<std::size_t>(info.afterIdx - 1);
+				const auto later = pairs.empty() || (from > pairs.back().first && to > pairs.back().second);
+				if (info.beforeIdx < 1 || info.afterIdx < 1 || from >= aLeft.size() || to >= aRight.size() || !later || aLeft[from].Bytes != aRight[to].Bytes) {
+					return std::nullopt;
+				}
+				pairs.emplace_back(from, to);
+			}
+			if (left + right - 2 * static_cast<std::ptrdiff_t>(pairs.size()) > maximum_edit_distance) {
+				return std::nullopt;
+			}
+			return pairs;
 		}
 	}
 

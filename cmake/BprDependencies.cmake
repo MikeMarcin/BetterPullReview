@@ -124,8 +124,9 @@ function(bpr_configure_dependencies)
     bpr_require_dependency_target(BetterPullReview::RapidFuzz rapidfuzz-cpp)
     list(APPEND records "rapidfuzz-cpp|PINNED_ARCHIVE|BetterPullReview::RapidFuzz")
 
-    # [[BPR-1481]]. The diff engine's intraline ranges are dtl's common scalars
-    # of one line pair.
+    # [[BPR-1481]] [[BPR-1498]]. The diff engine's intraline ranges are dtl's
+    # common scalars of one line pair, and the Review Cycle suggestion hunks
+    # its bounded line edit.
     bpr_acquire_dtl()
     bpr_require_dependency_target(BetterPullReview::Dtl dtl)
     list(APPEND records "dtl|PINNED_ARCHIVE|BetterPullReview::Dtl")

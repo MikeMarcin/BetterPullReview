@@ -73,7 +73,9 @@ endforeach()
 # clocks or globals) libraries. Anything else needs the owner's approval first.
 # sha1collisiondetection and HACL*'s generated SHA-2 were approved the same day
 # (RFC-BPR-0080 Q1 and Q2), and rapidfuzz-cpp and dtl through RFC-BPR-0082 Q2
-# (dtl for per-line intraline comparison only).
+# (dtl only for per-line intraline comparison and the Review Cycle suggestion
+# hunks' line edit bounded at 512 changes; architecture_boundaries keeps it to
+# those two sources).
 set(
     core_allowed_link_targets
     glaze::glaze

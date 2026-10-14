@@ -1636,25 +1636,36 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure(diagnostic, {**adapter, path: expression})
 
-    def test_intraline_comparison_has_one_dtl_owner(self) -> None:
-        # [[BPR-1481]]. Only the engine's intraline comparison names dtl, so
-        # it never compares a file's lines.
-        result = self.run_check({
+    def test_dtl_has_exactly_two_owners(self) -> None:
+        # [[BPR-1481]] [[BPR-1498]]. Only the engine's intraline comparison
+        # and the Review Cycle suggestion hunks name dtl, so it never becomes
+        # the diff engine's whole-file line matcher.
+        owners = {
             "src/core/src/diff_intraline.cpp":
                 "#include <dtl/dtl.hpp>\n"
                 "auto diff = dtl::Diff<std::uint32_t>{ left, right };\n",
+            "src/core/src/review_cycle_suggestion.cpp":
+                "#include <dtl/dtl.hpp>\n"
+                "static_assert(points < dtl::MAX_CORDINATES_SIZE);\n",
             "src/core/CMakeLists.txt":
-                "add_library(better_pull_review_core src/agent_profile.cpp src/diff_intraline.cpp)\n",
-        })
+                "add_library(better_pull_review_core src/agent_profile.cpp src/diff_intraline.cpp src/review_cycle_suggestion.cpp)\n",
+        }
+        result = self.run_check(owners)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for owner in ("src/core/src/diff_intraline.cpp", "src/core/src/review_cycle_suggestion.cpp"):
+            with self.subTest(owner=owner):
+                alone = {path: text for path, text in owners.items() if path == owner or path.endswith("CMakeLists.txt")}
+                result = self.run_check(alone)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         for path, expression in (
+            ("src/core/src/review_cycle_comparison.cpp", "#include <dtl/dtl.hpp>\n"),
             ("src/core/src/diff_semantics.cpp", "#include <dtl/dtl.hpp>\n"),
             ("src/core/src/diff_line_matcher.cpp", "auto lines = dtl::Diff<line_class>{ left, right };\n"),
             ("src/adapters/xdiff/src/matcher.cpp", "if (info.type == dtl::SES_COMMON) {}\n"),
             ("src/application/src/diff_line_matcher.cpp", "#ifdef DTL_VARIABLES_H\n#endif\n"),
         ):
             with self.subTest(path=path, expression=expression):
-                self.assert_failure("dtl intraline comparison ownership violation", {path: expression})
+                self.assert_failure("dtl comparison ownership violation", {**owners, path: expression})
 
     def test_platform_sha256_has_one_adapter_owner(self) -> None:
         # [[BPR-1447]]. CommonCrypto's SHA-2 is called only by the GitHub

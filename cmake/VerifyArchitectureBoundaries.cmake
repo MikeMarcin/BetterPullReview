@@ -1898,14 +1898,17 @@ verify_effect_owner(
     "rapidfuzz-cpp line-pair similarity"
     "src/core/src/diff_compute.cpp"
 )
-# [[BPR-1481]]. The diff engine's intraline ranges are dtl's common scalars of
-# one similar line pair (RFC-BPR-0082 Q2: dtl for per-line intraline comparison
-# only). No other source names a dtl symbol, header or macro, so dtl can never
-# become a whole-file line matcher.
+# [[BPR-1481]] [[BPR-1498]]. dtl has exactly two approved uses (RFC-BPR-0082
+# Q2 and its 2026-10-13 owner answer): the diff engine's intraline ranges, the
+# common scalars of one similar line pair, and the Review Cycle suggestion
+# hunks, a line edit bounded at 512 changes. No other source names a dtl
+# symbol, header or macro, so dtl can never become the diff engine's
+# whole-file line matcher.
 verify_effect_owner(
     "(^|[^A-Za-z0-9_])(dtl::|dtl/)|DTL_"
-    "dtl intraline comparison"
+    "dtl comparison"
     "src/core/src/diff_intraline.cpp"
+    "src/core/src/review_cycle_suggestion.cpp"
 )
 # [[BPR-1485]]. The diff engine's primary line matcher is Git's xdiff, called
 # only by the xdiff adapter behind the application's line matcher port
