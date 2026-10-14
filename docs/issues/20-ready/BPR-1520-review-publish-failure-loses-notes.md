@@ -37,3 +37,7 @@ Owner additionally reports that creating comments remains unavailable even after
 - AC7: After the failed-publish/refresh/navigation sequence and app restart, an otherwise eligible active pull request/account can create and edit a new inline draft, or has a precise actionable recovery path. Resolve durable draft/publication state without losing prior content or bypassing authority checks.
 
 The screenshot is transient owner evidence; do not commit it or its private source-code content. No owner profile has been inspected or changed by the coordinator.
+
+## Owner recovery and retention observations
+
+Owner recovered the comment text themselves with a SQLite DB browser. They observed very old already-published comments and many empty-body rows in private_draft, and asked whether it grows indefinitely. This confirms owner recovery of text, not an agent recovery or resolution of the commenting failure. Investigate needless blank draft allocation and published/historical retention under the shared quota; keep authored content and publication lineage safe. No owner database content or credentials are included here.
