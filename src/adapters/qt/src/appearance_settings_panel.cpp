@@ -146,8 +146,9 @@ namespace bpr::qt {
 			auto* const header = new QWidget{ card.Frame };
 			header->setObjectName(aObjectName + QStringLiteral("Header"));
 			header->setAutoFillBackground(true);
-			// A native palette role, so the header tint follows every theme.
-			header->setBackgroundRole(QPalette::AlternateBase);
+			// Settings chrome follows the application surface; AlternateBase is
+			// the independently customisable code current-line fill (BPR-1513).
+			header->setBackgroundRole(QPalette::Window);
 			card.Header = new QHBoxLayout{ header };
 			card.Header->setContentsMargins(
 				card_inset, row_inset, card_inset, row_inset);

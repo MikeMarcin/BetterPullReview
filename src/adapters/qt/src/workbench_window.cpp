@@ -13837,6 +13837,15 @@ namespace bpr::qt {
 			break;
 		case QEvent::ApplicationPaletteChange:
 		case QEvent::PaletteChange:
+			// Settings is a separate top-level window, so Qt does not inherit
+			// the workbench's profile palette into either shell (BPR-1513).
+			if (SettingsWindow != nullptr) {
+				SettingsWindow->setPalette(palette());
+			}
+			if (MountedSettings) {
+				MountedSettings->setPalette(palette());
+			}
+			[[fallthrough]];
 		case QEvent::ApplicationFontChange:
 		case QEvent::FontChange:
 		case QEvent::StyleChange:
@@ -14440,6 +14449,7 @@ namespace bpr::qt {
 		SettingsWindow->hide();
 		swap_settings_pages(*SettingsWindow, aSettings);
 		MountedSettings = &aSettings;
+		aSettings.setPalette(palette());
 		aSettings.set_close_handler([panel = QPointer<appearance_settings_panel>{ AppearanceSettings }] {
 			if (panel) {
 				panel->cancel_preview();

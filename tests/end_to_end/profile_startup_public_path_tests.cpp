@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/profile_storage_root.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -12,7 +13,9 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QElapsedTimer>
+#include <QImage>
 #include <QLabel>
+#include <QPalette>
 #include <QPlainTextEdit>
 #include <QSpinBox>
 #include <QTemporaryDir>
@@ -54,6 +57,47 @@ namespace {
 		settings.Typography.Ui.Font.Family   = "Sans Serif";
 		settings.Typography.Code.Font.Family = "Monospace";
 		expect((*store)->store(settings, { }).has_value(), "seed valid distinct appearance");
+	}
+	/// \brief [[BPR-1513]]. Switches the open Appearance page through its owning host.
+	void test_appearance_banners(app::github_application& aRuntime)
+	{
+		auto* const panel            = aRuntime.window().appearance_settings();
+		auto* const settings         = aRuntime.window().settings();
+		const auto  captureDirectory = qEnvironmentVariable("BPR_APPEARANCE_BANNER_CAPTURE_DIR");
+		for (const auto mode : { core::appearance_mode::dark, core::appearance_mode::light,
+								 core::appearance_mode::high_contrast_dark, core::appearance_mode::high_contrast_light,
+								 core::appearance_mode::system, core::appearance_mode::high_contrast_system }) {
+			panel->choose_mode(mode);
+			wait_for([&] { return aRuntime.status().ProfileMode == mode; }, "Appearance tile reaches the profile host");
+			QApplication::processEvents();
+			const auto surface  = settings->palette().color(QPalette::Window);
+			const auto ink      = settings->palette().color(QPalette::WindowText);
+			const auto expected = qt::builtin_appearance_palette(aRuntime.status().ProfileVariant);
+			expect(surface == qt::to_presentation_color(expected[core::index_of(core::appearance_role::application_surface)])
+					   && ink == qt::to_presentation_color(expected[core::index_of(core::appearance_role::application_text)]),
+				   "the open Settings shell receives the selected profile's actual surface and text");
+			for (const auto* section : { "Theme", "Type", "Colours", "Dif" }) {
+				const auto  prefix = QStringLiteral("appearance%1Card").arg(QString::fromLatin1(section));
+				auto* const header = panel->findChild<QWidget*>(prefix + QStringLiteral("Header"));
+				auto* const title  = panel->findChild<QLabel*>(prefix + QStringLiteral("Title"));
+				expect(header != nullptr && title != nullptr, "every Appearance section has its header and title");
+				expect(header->palette().color(header->backgroundRole()) == surface,
+					   "Appearance banners use the application surface rather than a code-row fill");
+				expect(title->palette().color(title->foregroundRole()) == ink
+						   && qt::contrast_ratio(qt::to_appearance_color(ink), qt::to_appearance_color(surface)) >= 4.5,
+					   "Appearance titles retain readable application text after each live mode change");
+				const auto raster = header->grab().toImage();
+				expect(!raster.isNull() && raster.pixelColor(5, raster.height() / 2) == surface,
+					   "the actual painted banner uses the restrained surface");
+			}
+			if (!captureDirectory.isEmpty()) {
+				const auto name = core::stable_name(mode);
+				expect(panel->grab().save(QStringLiteral("%1/appearance-%2.png").arg(captureDirectory, QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())))),
+					   "write the composed Appearance page capture");
+			}
+		}
+		panel->choose_mode(core::appearance_mode::light);
+		wait_for([&] { return aRuntime.status().ProfileMode == core::appearance_mode::light; }, "restore Work's light appearance");
 	}
 	struct running_profile
 	{
@@ -198,6 +242,7 @@ try {
 	expect(work.Runtime->window().windowTitle().contains(QStringLiteral("Work")), "workbench identifies admitted profile");
 	work.Runtime->window().open_settings(qt::settings_page::appearance);
 	expect(work.Runtime->window().settings()->windowTitle().contains(QStringLiteral("Work")), "Settings identifies admitted profile");
+	test_appearance_banners(*work.Runtime);
 
 	auto original = await_profile(root, core::default_bpr_profile_id);
 	wait_for([&] { return original.Runtime->status().ProfileMode == core::appearance_mode::dark; }, "Default retains original settings");
