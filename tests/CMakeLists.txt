@@ -1300,6 +1300,8 @@ endif()
 
 # [[RFC-BPR-0082]] The opt-in diff-engine evaluation; never part of a shipping
 # configuration.
+add_subdirectory(evaluation/xdiff_equivalence)
+
 # [[BPR-1485]] Retired with the adoption of linked xdiff: the harness measured
 # every candidate against the first-party primary matcher, which is deleted,
 # and handed candidates to the engine through a hook on the one-argument entry
