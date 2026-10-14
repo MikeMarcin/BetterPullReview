@@ -25,6 +25,8 @@ namespace bpr::qt {
 		choose_pull_request,
 		/// A review is open behind Home: one button beside the bar goes back to it.
 		back_to_review,
+		/// A connection is being validated; no enrollment is offered yet.
+		connecting,
 	};
 
 	/// \brief Home's first-launch card, or its one button back to an open review.

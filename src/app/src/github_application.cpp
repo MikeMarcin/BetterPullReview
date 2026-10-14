@@ -147,6 +147,7 @@
 #include "bpr/application/shared_draft_application_host.hpp"
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
+#include "bpr/core/github_transition.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
@@ -7405,6 +7406,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// session presents it now, as its siblings did when it was accepted.
 			if (const auto adopted = WindowRead->adopted_presentation()) {
 				Window->publish(*adopted);
+			} else if (const auto pending = Host->pending_session_presentation()) {
+				Window->publish(*pending);
 			}
 			WorkbenchHost->restore();
 			AppearanceHost->restore();
@@ -7471,6 +7474,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			SetupDestination = std::make_unique<application::setup_destination_host>(*this);
 			Window->set_setup_destination_dispatch([this](application::setup_destination_intent aIntent) {
 				if (Closing || !SetupDestination) {
+					return;
+				}
+				if (!std::holds_alternative<application::cancel_setup_destination>(aIntent)
+					&& Host && !core::github_connection_setup_available(Host->state())) {
 					return;
 				}
 				std::visit([this](const auto& aValue) {
@@ -9070,6 +9077,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (const auto* const begin
 				= std::get_if<core::begin_device_authorization_intent>(
 					&aGesture)) {
+				if (Host == nullptr || !core::github_connection_setup_available(Host->state())) {
+					return;
+				}
 				if (GithubCliDiscoveryPending) {
 					retire_cli_discovery();
 				}
@@ -9183,6 +9193,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// dispatches; nothing here knows how the flow works.
 		void begin_public_preview_sign_in(const core::host_profile_id aProfile)
 		{
+			if (Host == nullptr || !core::github_connection_setup_available(Host->state())) {
+				return;
+			}
 			cancel_restoration(true);
 			++PublicPreviewSignInRequests;
 			if (Closing || DeviceHost == nullptr || aProfile.value() == 0U) {
@@ -14238,8 +14251,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void discover_github_cli_accounts(const bool aConnectSingle = true)
 		{
 #if defined(__APPLE__)
-			if (Closing || GithubCliDiscoveryPending || Window == nullptr
-				|| !Profile->cli_read_offered_here()) {
+			if (Closing || GithubCliDiscoveryPending || Window == nullptr || Host == nullptr
+				|| !core::github_connection_setup_available(Host->state()) || !Profile->cli_read_offered_here()) {
 				return;
 			}
 			GithubCliDiscoveryPending      = true;
@@ -14307,6 +14320,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					try {
 						lane->post([this, weak, discoveryGeneration, requestedHost, aConnectSingle, discovered = std::move(accounts), failure]() mutable {
 							if (weak.expired() || Closing || Window == nullptr || GithubCliDiscoveryGeneration != discoveryGeneration) {
+								return;
+							}
+							if (!core::github_connection_setup_available(Host->state())) {
+								retire_cli_discovery();
 								return;
 							}
 							GithubCliDiscoveryPending = false;
@@ -14822,6 +14839,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		void dispatch_intent(application::github_intent aIntent)
 		{
+			if (std::holds_alternative<core::activate_host_profile_intent>(aIntent)
+				&& (Closing || Host == nullptr || !core::github_connection_setup_available(Host->state()))) {
+				return;
+			}
 			if (GithubCliDiscoveryPending) {
 				retire_cli_discovery();
 			}

@@ -1671,6 +1671,7 @@ namespace bpr::app::detail {
 			// Set only by the deterministic standalone session-race regression.
 			std::function<void()>                HistoryCompileInterleave;
 			std::function<void(std::stop_token)> BeforeFilesPage;
+			std::function<void(std::stop_token)> BeforeViewerIdentity;
 			fixture_replay                       BootstrapRecording;
 			fixture_replay                       Recording;
 			// The signed-out script. A separate cursor as well as a separate
@@ -2394,6 +2395,12 @@ namespace bpr::app::detail {
 			{
 				if (aStop.stop_requested()) {
 					return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+				}
+				if (aRequest.Wire.Operation == read_operation::get_viewer_identity && State->BeforeViewerIdentity) {
+					State->BeforeViewerIdentity(aStop);
+					if (aStop.stop_requested()) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
 				}
 				if (auto summary = home_waiting_response(*State, aRequest)) {
 					if (!validate_github_wire_request(State->Profile, aRequest)) {
@@ -4594,6 +4601,7 @@ namespace bpr::app::detail {
 			Recording->PublishedTour           = aOptions.ReviewSubmissionServer;
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
+			Recording->BeforeViewerIdentity    = aOptions.BeforeViewerIdentity;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;
 			Recording->RefuseFirstSmartAcquire = aOptions.RefuseFirstSmartAcquire;

@@ -79,6 +79,7 @@ namespace {
 	}
 	void connect_cli(qt::workbench_window& aWindow, const std::string_view aHostname, const std::string_view aLogin)
 	{
+		wait_for([&] { return aWindow.session_panel()->status() != core::github_status::establishing_session; }, "remembered startup settles before explicit account replacement");
 		if (aWindow.session_panel()->status() == core::github_status::session_ready) {
 			aWindow.open_settings(qt::settings_page::accounts_and_hosts);
 			card(aWindow, aHostname).cli_check_button()->click();

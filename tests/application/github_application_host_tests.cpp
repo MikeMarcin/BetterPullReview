@@ -2514,6 +2514,14 @@ namespace {
 			.Profile = core::host_profile_id{ 11U },
 		});
 		const auto oldRequest = fixture.Provider.Profiles.front().Request;
+		const auto replay     = fixture.Host.pending_session_presentation();
+		expect(replay && replay->Transition && replay->Transition->Status == core::github_status_delta{ .Status = core::github_status::establishing_session }
+				   && replay->Transition->Identity->Profile == core::host_profile_id{ 11U } && !replay->Session && !replay->PullRequest,
+			   "late-attached windows can replay validation without an accepted account or private content");
+		const auto beforeReentry = fixture.Host.state();
+		fixture.Host.dispatch(core::activate_host_profile_intent{ .Profile = core::host_profile_id{ 11U } });
+		expect(fixture.Host.state() == beforeReentry && fixture.Provider.Profiles.size() == 1U && fixture.Provider.CancelledProfiles.empty(),
+			   "duplicate connection ingress keeps the pending authority and starts no effect");
 		fixture.Host.dispatch(core::activate_host_profile_intent{
 			.Profile = core::host_profile_id{ 12U },
 		});

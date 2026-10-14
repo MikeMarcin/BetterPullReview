@@ -181,10 +181,15 @@ namespace bpr::core {
 
 		[[nodiscard]] auto activate_profile(
 			github_state&                       aState,
-			const activate_host_profile_intent& aIntent) -> github_transition_output
+			const activate_host_profile_intent& aIntent,
+			const bool                          aRevalidation = false) -> github_transition_output
 		{
 			if (aIntent.Profile.value() == 0U) {
 				return reject(github_reason_code::invalid_profile);
+			}
+
+			if (!aRevalidation && aState.PendingSession && aState.ActiveProfile == aIntent.Profile && aState.AccessMode == aIntent.Mode) {
+				return reject(github_reason_code::session_in_progress);
 			}
 
 			const auto previous  = identity_scope(aState);
@@ -536,13 +541,18 @@ namespace bpr::core {
 		}
 	}
 
+	auto github_connection_setup_available(const github_state& aState) noexcept -> bool
+	{
+		return !aState.PendingSession.has_value();
+	}
+
 	auto github_commands(const github_state& aState)
 		-> std::vector<github_command_projection>
 	{
 		std::vector<github_command_projection> commands;
 		commands.reserve(4U);
 		commands.push_back(
-			command(github_command_id::activate_host_profile, true));
+			command(github_command_id::activate_host_profile, github_connection_setup_available(aState), github_reason_code::session_in_progress));
 
 		if (aState.PendingSession.has_value()) {
 			commands.push_back(command(
@@ -618,6 +628,8 @@ namespace bpr::core {
 						event_type,
 						activate_host_profile_intent>) {
 					return activate_profile(aState, aTypedEvent);
+				} else if constexpr (std::is_same_v<event_type, github_session_revalidation_event>) {
+					return activate_profile(aState, activate_host_profile_intent{ .Profile = aTypedEvent.Profile }, true);
 				} else if constexpr (
 					std::is_same_v<
 						event_type,

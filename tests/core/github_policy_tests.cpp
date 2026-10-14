@@ -248,6 +248,15 @@ namespace {
 				&& open.DisabledReason == github_reason_code::session_in_progress,
 			"open is disabled while session establishment is pending");
 
+		const auto connect = command_projection(output.Commands, github_command_id::activate_host_profile);
+		expect(!connect.Enabled && connect.DisabledReason == github_reason_code::session_in_progress,
+			   "connection setup is unavailable while a session is pending");
+		const auto beforeReentry = state;
+		const auto reentry       = transition(state, activate_host_profile_intent{ .Profile = host_profile_id{ 11 } });
+		expect(state == beforeReentry && reentry.Requests.empty()
+				   && reentry.Diagnostics == std::vector{ github_diagnostic{ .Code = github_reason_code::session_in_progress } },
+			   "repeated activation preserves the exact pending request and identity");
+
 		const auto ready = transition(
 			state,
 			github_session_ready_event{
@@ -1042,12 +1051,12 @@ namespace {
 		const auto sameProfileGeneration = state.IdentityGeneration;
 		static_cast<void>(transition(
 			state,
-			activate_host_profile_intent{ .Profile = host_profile_id{ 12 } }));
+			github_session_revalidation_event{ .Profile = host_profile_id{ 12 } }));
 		expect(
 			state.IdentityGeneration
 				== github_identity_generation{
 					sameProfileGeneration.value() + 1U },
-			"reselecting a profile renews possibly changed account identity");
+			"host credential revalidation renews possibly changed account identity");
 	}
 
 	auto test_successful_refresh_and_deterministic_replay() -> void

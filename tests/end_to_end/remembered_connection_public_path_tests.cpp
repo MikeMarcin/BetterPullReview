@@ -13,6 +13,7 @@
 #include <QCheckBox>
 #include <QDialog>
 #include <QElapsedTimer>
+#include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
@@ -101,11 +102,102 @@ namespace {
 		const auto row   = *core::select_remembered_connection(*saved);
 		expect(row.Profile == profile && row.Login == "octo-reviewer" && row.Account.value() != 0, "saved selection binds accepted stable profile and numeric account");
 		stop(application);
-		// Empty discovery inventory proves restoration does not need it.
+		// Hold the actual /user transport while a remembered CLI connection starts.
+		auto released                = std::make_shared<std::atomic_bool>(false);
+		auto started                 = std::make_shared<std::atomic_size_t>(0U);
+		auto cancelled               = std::make_shared<std::atomic_size_t>(0U);
+		options.BeforeViewerIdentity = [released, started, cancelled](std::stop_token aStop) {
+			++*started;
+			while (!released->load() && !aStop.stop_requested()) {
+				QThread::msleep(1);
+			}
+			if (aStop.stop_requested()) {
+				++*cancelled;
+			}
+		};
+		application = start(options);
+		wait_for([&] { return started->load() != 0U; }, "remembered CLI startup reaches the controlled viewer delay");
+		auto& loadingWindow = application->window();
+		loadingWindow.resize(1280, 820);
+		loadingWindow.show();
+		if (!loadingWindow.showing_home()) {
+			loadingWindow.home_action()->trigger();
+		}
+		QApplication::processEvents();
+		expect(loadingWindow.session_panel()->status() == core::github_status::establishing_session
+				   && loadingWindow.session_panel()->active_profile() == profile,
+			   "a window attached during validation presents the pending remembered identity");
+		const auto* landing = loadingWindow.home_landing();
+		expect(loadingWindow.showing_home() && landing->isVisible() && landing->state() == qt::landing_state::connecting
+				   && landing->title_label()->text() == QStringLiteral("Connecting to GitHub…")
+				   && landing->body_label()->isVisible() && !landing->primary_button()->isVisible()
+				   && !landing->secondary_button()->isVisible() && !landing->tertiary_button()->isVisible()
+				   && !loadingWindow.github_connect_action()->isEnabled(),
+			   "pending CLI validation shows loading and offers no first-time enrollment");
+		const auto checksBeforeReentry  = options.GithubCliInventoryChecks->load();
+		const auto effectsBeforeReentry = github_application_fixture_access::evidence(*application);
+		for (auto attempt = 0; attempt < 3; ++attempt) {
+			loadingWindow.home_landing()->secondary_button()->click();
+			// Deliver queued signals even though the projected controls are unavailable.
+			expect(QMetaObject::invokeMethod(loadingWindow.findChild<QPushButton*>(QStringLiteral("accountsUseGithubCli")), "clicked", Qt::DirectConnection, Q_ARG(bool, false)), "queued CLI gesture is delivered");
+			expect(QMetaObject::invokeMethod(loadingWindow.github_connect_action(), "triggered", Qt::DirectConnection, Q_ARG(bool, false)), "queued activation gesture is delivered");
+		}
+		loadingWindow.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
+		expect(QMetaObject::invokeMethod(loadingWindow.home_open_action(), "triggered", Qt::DirectConnection, Q_ARG(bool, false)), "queued Home navigation gesture is delivered");
+		QApplication::processEvents();
+		expect(loadingWindow.session_panel()->active_profile() == profile
+				   && loadingWindow.session_panel()->status() == core::github_status::establishing_session
+				   && options.GithubCliInventoryChecks->load() == checksBeforeReentry && prompts == 1
+				   && (!loadingWindow.sign_in_dialog() || !loadingWindow.sign_in_dialog()->isVisible())
+				   && github_application_fixture_access::evidence(*application).DeviceTransportSubmissions == effectsBeforeReentry.DeviceTransportSubmissions,
+			   "queued enrollment cannot discover accounts, prompt, launch native sign-in or replace the pending authority");
+		loadingWindow.home_open_bar()->clear();
+		const auto capture = qEnvironmentVariable("BPR_CLI_LOADING_CAPTURE");
+		if (!capture.isEmpty()) {
+			expect(loadingWindow.grab().save(capture, "PNG"), "offscreen loading capture is written");
+		}
+		released->store(true);
+		wait_for([&] { return loadingWindow.session_panel()->status() == core::github_status::session_ready; }, "reopen revalidates exact remembered CLI connection");
+		expect(loadingWindow.session_panel()->active_profile() == profile && prompts == 1
+				   && loadingWindow.home_landing()->state() == qt::landing_state::choose_pull_request,
+			   "successful loading preserves identity and reaches signed-in Home");
+		stop(application);
+
+		// A real transport refusal restores enrollment; retry uses the same authority.
+		options.RepeatReadSessions = true;
+		options.Offline            = std::make_shared<app::detail::github_offline_fixture>();
+		released->store(false);
+		started->store(0U);
+		application = start(options);
+		wait_for([&] { return started->load() != 0U; }, "failure course reaches delayed CLI validation");
+		options.Offline->Offline.store(true);
+		released->store(true);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_failed; }, "delayed network refusal reaches its terminal");
+		expect(application->window().home_landing()->state() == qt::landing_state::sign_in && application->window().github_connect_action()->isEnabled(),
+			   "failed validation restores connection recovery controls");
+		const auto refused = core::select_remembered_connection(*store->load({ }));
+		expect(refused && refused->Profile == row.Profile && refused->Account == row.Account, "failed load keeps the exact remembered choice");
+		options.Offline->Offline.store(false);
+		application->window().connect_github_profile(*profile);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "retry after delayed failure accepts the same connection");
+		expect(application->window().session_panel()->active_profile() == profile && prompts == 1, "retry preserves account and trust");
+		stop(application);
+		options.Offline.reset();
+
+		// Quit cancels a held validation and drains its terminal; reopening can retry.
+		released->store(false);
+		started->store(0U);
+		application = start(options);
+		wait_for([&] { return started->load() != 0U; }, "cancellation course reaches delayed validation");
+		stop(application);
+		expect(cancelled->load() != 0U, "Quit cancels and drains the pending viewer read");
+		const auto afterCancel = core::select_remembered_connection(*store->load({ }));
+		expect(afterCancel && afterCancel->Profile == row.Profile && afterCancel->Account == row.Account, "cancelled validation preserves durable choice");
+		options.BeforeViewerIdentity = { };
 		options.GithubCliDiscoveryAccounts->clear();
 		application = start(options);
-		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "reopen revalidates exact remembered CLI connection");
-		expect(application->window().session_panel()->active_profile() == profile && prompts == 1, "reopen preserves identity without another selector or trust prompt");
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "reopening after cancellation retries the exact connection without inventory");
+		expect(application->window().session_panel()->active_profile() == profile && prompts == 1, "cancelled startup cannot retire saved consent or identity");
 		stop(application);
 		const auto checksBeforeFailure    = options.GithubCliInventoryChecks->load();
 		options.ViewerNamesAnotherAccount = true;

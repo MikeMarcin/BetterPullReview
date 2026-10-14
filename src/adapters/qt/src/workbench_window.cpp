@@ -3060,7 +3060,8 @@ namespace bpr::qt {
 				}
 				if (HomeOpenAction != nullptr) {
 					HomeOpenAction->setEnabled(
-						!HomeOpenBar->text().trimmed().isEmpty());
+						!HomeOpenBar->text().trimmed().isEmpty()
+						&& (SessionPanel == nullptr || SessionPanel->status() != core::github_status::establishing_session));
 				}
 			});
 			HomeOpenAction->setEnabled(false);
@@ -9606,10 +9607,14 @@ namespace bpr::qt {
 				? QStringLiteral("file %1 of %2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: QString{ });
 		HomeLanding->set_state(
-			(HasGithubPullRequest || HasCachedOverview) ? landing_state::back_to_review
-				: account                               ? landing_state::choose_pull_request
-														: landing_state::sign_in);
+			status == core::github_status::establishing_session ? landing_state::connecting
+				: (HasGithubPullRequest || HasCachedOverview)   ? landing_state::back_to_review
+				: account                                       ? landing_state::choose_pull_request
+																: landing_state::sign_in);
 		place_home_landing();
+		if (HomeOpenAction != nullptr && HomeOpenBar != nullptr) {
+			HomeOpenAction->setEnabled(status != core::github_status::establishing_session && !HomeOpenBar->text().trimmed().isEmpty());
+		}
 		// [[BPR-0775]]. Signed out, the bar reads a public pull request without
 		// an account and says so; with an account it names any pull request.
 		if (HomeOpenBar != nullptr) {
@@ -10049,6 +10054,9 @@ namespace bpr::qt {
 
 	void workbench_window::begin_github_cli_from_home()
 	{
+		if (SessionPanel != nullptr && !SessionPanel->connect_enabled()) {
+			return;
+		}
 		open_sign_in({ }, true);
 		if (GithubCliDiscoveryDispatch && GithubCliDiscoveryState != github_cli_discovery_state::discovering) {
 			GithubCliDiscoveryDispatch();
@@ -11744,9 +11752,7 @@ namespace bpr::qt {
 			shown.DeviceSignIn  = holdsSignIn && deviceFlow && flowHere;
 			// Sign in is shown only while its way in is admitted: the device
 			// flow's begin for a host with one, otherwise Connect.
-			shown.SignInAdmitted = card->offers_device_sign_in()
-				? DevicePanel != nullptr && DevicePanel->begin_button()->isEnabled()
-				: admitted;
+			shown.SignInAdmitted = admitted && (!card->offers_device_sign_in() || (DevicePanel != nullptr && DevicePanel->begin_button()->isEnabled()));
 			const auto signedIn  = shown.State == server_card_state::connected && shown.Session.has_value();
 			if (holdsSignIn && deviceSigning && !signedIn) {
 				shown.State = server_card_state::signing_in;
@@ -12855,6 +12861,9 @@ namespace bpr::qt {
 
 	void workbench_window::open_from_home_bar()
 	{
+		if (SessionPanel != nullptr && SessionPanel->status() == core::github_status::establishing_session) {
+			return;
+		}
 		if (HomeOpenBar && SetupDestinationDispatch) {
 			if (SignInDialog && SignInDialog->isVisible()) {
 				SignInDialog->reject();
@@ -14518,7 +14527,7 @@ namespace bpr::qt {
 
 	void workbench_window::open_sign_in(std::string aHostname, const bool aCliOnly)
 	{
-		if (!AccountsPanel) {
+		if (!AccountsPanel || (SessionPanel != nullptr && !SessionPanel->connect_enabled())) {
 			return;
 		}
 		if (!SignInDialog) {
