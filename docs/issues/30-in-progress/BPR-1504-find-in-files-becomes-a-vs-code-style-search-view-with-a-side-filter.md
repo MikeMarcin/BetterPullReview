@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1504"
 title: "Find in Files becomes a VS Code-style search view with a side filter"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
