@@ -1,0 +1,21 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1513-dark-appearance-banners",
+  "scope": {"issues": ["BPR-1513"]},
+  "milestones": [
+    {
+      "id": "subdued-appearance-banners",
+      "outcome": "Appearance section headers use legible restrained theme surfaces in dark and light appearances, update while the page is open, and receive an exact frozen owner visual candidate.",
+      "work": [{"issue": "BPR-1513"}],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: Dark Appearance section banners remove the reported bright white-on-white flash.",
+        "AC2: Header background and text use existing application theme roles with restrained contrast.",
+        "AC3: Light, high-contrast and live theme changes preserve legibility and update all section headers.",
+        "AC4: Actual offscreen Appearance renders and the composed theme-switch path pass; a self-contained frozen build and fresh attended Accept/Reject candidate carry the remaining owner visual judgement.",
+        "Focused checks, documentation gate, explicit commits and a durable checkpoint agree with the exact candidate and pending human obligation."
+      ],
+      "boundary": "Finish all independent engineering and bookkeeping, then hand the short attended session to the coordinator; do not infer the owner visual verdict."
+    }
+  ]
+}
