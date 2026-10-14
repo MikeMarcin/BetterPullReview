@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1499"
 title: "The macOS composition contract timeout does not cover a cold nested build"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
