@@ -131,7 +131,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Owner 2026-10-13: core links only approved pinned, pure libraries; the
 # functional-core boundary check enforces this list.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2)
+target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz)
 
 bpr_enable_hardening(better_pull_review_core)
 bpr_enable_warnings(better_pull_review_core)
