@@ -9,6 +9,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprUtf8procProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprFmtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSha1dcProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprHaclSha2Provider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprRapidFuzzProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
@@ -114,6 +115,12 @@ function(bpr_configure_dependencies)
     bpr_acquire_hacl_sha2()
     bpr_require_dependency_target(BetterPullReview::HaclSha2 hacl-star)
     list(APPEND records "hacl-star|PINNED_ARCHIVE|BetterPullReview::HaclSha2")
+
+    # [[BPR-1480]]. The diff engine scores line pairs with rapidfuzz-cpp's
+    # Indel distance.
+    bpr_acquire_rapidfuzz()
+    bpr_require_dependency_target(BetterPullReview::RapidFuzz rapidfuzz-cpp)
+    list(APPEND records "rapidfuzz-cpp|PINNED_ARCHIVE|BetterPullReview::RapidFuzz")
 
     # [[BPR-1433]]. glaze is an owner-approved core library (2026-10-13) and
     # the MCP helper's JSON decoder, so the Qt-free graph acquires it too.

@@ -3569,6 +3569,28 @@ evaluation measures this same target: its `core` arm is the product wrapper and
 its `hacl` arm the library called directly. License and provenance are under
 `third_party/hacl-star/`.
 
+## Core rapidfuzz-cpp line-pair similarity
+
+[[BPR-1480]] uses header-only rapidfuzz-cpp 3.3.4 for the diff engine's
+line-pair similarity (RFC-BPR-0082): `cmake/BprRapidFuzzProvider.cmake` checks
+archive SHA-256, size and the MIT license, honors the offline cache, and
+re-extracts only the `rapidfuzz/` headers and `LICENSE` under
+`build/_bpr/rapidfuzz`. It is part of the Qt-free core graph and on the
+owner's core allow-list as `BetterPullReview::RapidFuzz`. `secondary_pairs` in
+`src/core/src/diff_compute.cpp` scores each replacement pair with
+`rapidfuzz::CachedIndel`, built once per left line: the score is
+2 x LCS x 1000 / (L + R), floored, with LCS = (L + R - Indel distance) / 2, the
+same integers the per-pair character LCS table gave. A pair below the threshold
+scores 0, since the distance is computed only up to the threshold's cutoff and
+pairing reads no score under it. The matrix budget and the step meter are
+charged exactly as that table charged them, so a limit leaves the same
+replacements unpaired and every poll, pause and phase start falls where it
+did. `architecture_boundaries` refuses a rapidfuzz-cpp symbol, header or macro
+anywhere else. `core_diff_compute_benchmark` (the
+`bench_better_pull_review_diff_compute` executable) prints a `refine` column,
+the pairing phase's time from a run polled every 4,096 steps. License and
+provenance are under `third_party/rapidfuzz-cpp/`.
+
 ## Source search regex engine
 
 [[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as

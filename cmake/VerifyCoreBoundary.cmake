@@ -72,7 +72,8 @@ endforeach()
 # Owner, 2026-10-13: core may link only these pinned, pure (no I/O, threads,
 # clocks or globals) libraries. Anything else needs the owner's approval first.
 # sha1collisiondetection and HACL*'s generated SHA-2 were approved the same day
-# (RFC-BPR-0080 Q1 and Q2).
+# (RFC-BPR-0080 Q1 and Q2), and rapidfuzz-cpp and dtl through RFC-BPR-0082 Q2
+# (dtl for per-line intraline comparison only).
 set(
     core_allowed_link_targets
     glaze::glaze
@@ -81,6 +82,8 @@ set(
     BetterPullReview::Fmt
     BetterPullReview::Sha1dc
     BetterPullReview::HaclSha2
+    BetterPullReview::RapidFuzz
+    BetterPullReview::Dtl
 )
 set(core_cmake "${BPR_ROOT}/src/core/CMakeLists.txt")
 if(EXISTS "${core_cmake}")

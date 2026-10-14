@@ -591,7 +591,7 @@ Mandate `cpp-identifier-parser-evaluation-r1` adopts RFC-DRAFT-0021. [Import and
 |---|---|---|---|
 | [RFC-BPR-0082](RFC-BPR-0082-diff-engine-evaluation.md) | Evaluate replacing the hand-written diff engine | Proposed | RFC-BPR-0004 |
 
-Mandate `diff-engine-evaluation-r1` adopts RFC-DRAFT-0018. [Import and provenance](assets/diff-engine-evaluation-v1.LIVE_IMPORT.md). Q1 (LGPL xdiff linking) and Q3 (results that depend on the installed Git version) are open owner questions; the core library allowance of 2026-10-13 answers Q2 only for glaze, utf8proc, zlib and fmt.
+Mandate `diff-engine-evaluation-r1` adopts RFC-DRAFT-0018. [Import and provenance](assets/diff-engine-evaluation-v1.LIVE_IMPORT.md). Q1 (LGPL xdiff linking) and Q3 (results that depend on the installed Git version) are open owner questions. Q2 was answered Accept on 2026-10-13 for rapidfuzz-cpp and dtl (dtl for per-line intraline comparison only); [[BPR-1480]] adopts rapidfuzz-cpp's line-pair similarity, and dtl's intraline adoption ([[BPR-1481]]) waits on the owner's render review (AC06).
 
 ## Git metadata readers
 

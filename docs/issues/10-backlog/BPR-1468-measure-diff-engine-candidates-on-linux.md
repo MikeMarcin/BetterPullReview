@@ -13,7 +13,7 @@ metadata: {"mandate_revision":"diff-engine-evaluation-r1"}
 # BPR-1468: Measure the diff-engine candidates on Linux
 
 Part of [RFC-BPR-0082](../../rfcs/RFC-BPR-0082-diff-engine-evaluation.md). Runs the harness of
-[BPR-1466](BPR-1466-opt-in-diff-engine-evaluation-harness.md) on the Linux
+[BPR-1466](../30-in-progress/BPR-1466-opt-in-diff-engine-evaluation-harness.md) on the Linux
 station with the thresholds unchanged, after the macOS report of
 [BPR-1467](BPR-1467-measure-diff-engine-candidates-on-macos.md).
 
