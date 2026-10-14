@@ -2417,3 +2417,15 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # provider's thread. No publication, credential, grant, inventory or
 # mutation-branch change; the full application and production-manifest
 # digests are refreshed.
+
+# [[BPR-1477]] reseal. github_application.cpp: a reread (Refresh) while a new
+# comment's outcome is unknown holds its draft again, publishing, for the same
+# retry (core::resume_comment_after_refresh now holds a comment awaiting its
+# retry, not one a submitted review holds). The composition keeps the retry
+# record and its reason across the replaced mutation host, says the reason
+# again, and reopens the locked draft in the drawer
+# (workbench_window::reopen_draft_in_drawer). An unknown outcome is still not
+# reread by the window itself. The fixture access reports the window read's
+# snapshot and whether a read is in flight or owed. No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.
