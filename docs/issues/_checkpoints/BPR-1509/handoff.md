@@ -12,7 +12,8 @@ forms its drawer header. Page instances and all host/core policy are retained.
 Required frontend-design skill was read and applied.
 
 Own commits to integrate: `530c2ae53` (plan), `cefb41c59` (canonical claim),
-`8f11e6083` (product/tests/spec/binding), and this checkpoint commit. Imported
+`8f11e6083` (product/tests/spec/binding), `df40466e8` (verification checkpoint),
+`bd857f52c` (canonical Done acceptance), and this final handoff update. Imported
 tracker-only commits between them already exist on main; exclude them from
 integration. No changes belong to the other testing-note issues.
 
@@ -39,8 +40,9 @@ Clang-format 22.1.8 checks all three touched C++ files. `git diff --check` passe
 Product/search-course clang-tidy passes. The full workbench-test TU has six
 pre-existing diagnostics on unchanged lines (four local variable names and two
 copied command locals); `tidy-preexisting.json` verifies those lines against
-baseline. Documentation self-tests pass 67. The documentation gate currently
-fails only the stale tracker counter guard.
+baseline. Documentation self-tests pass 67. The original documentation gate refused a
+stale tracker counter; authorized tracker reconciliation resolved that guard.
+`documentation-final.log` reports `DOCUMENTATION_OK`.
 
 Full-window renders were inspected in `build/dev/source-pr-find-renders`,
 `build/dev/source-pr-find-renders-1_25`, `build/dev/source-pr-find-renders-2_0`.
@@ -53,27 +55,31 @@ This implementer is the sole writer in this assigned worktree. All task-owned
 configure/build/test/tidy/negative-control commands have finished. Source is
 restored to the product candidate. No GUI app, review server, waiter or frozen
 candidate is left running. Other implementers use their assigned worktrees.
-Source editing is released on this checkpoint; required workflow upkeep remains.
+Engineering and workflow upkeep are complete. Writer ownership is released.
 
-## Pending closeout and next action
+## Accepted closeout and continuation
 
-No human, native or independent acceptance is required for this bounded note.
-Coordinator explicitly confirmed that deterministic rendered/composed evidence
-suffices. No attended session was created.
+BPR-1509 is Done through canonical finish commit
+`bd857f52cc0eebb36115c14c3d3c9772c9f0f7a5`. All AC1–AC4 acceptance records
+remain bound to exact verified product candidate `8f11e6083`. No human, native
+or independent acceptance is required for this bounded note. Coordinator
+explicitly confirmed that deterministic rendered/composed evidence suffices.
+No attended session was created.
 
-Local NEXT_ID is BPR-1515; shared Git history now requires BPR-1520. Existing
-specific coordinator authorization covered imports through `a1130fccb` only.
-The remaining main tracker-only imports are, in order:
-`fa776388e1f9f16a648c096c4d27b66cd92be034`,
-`75dfc87c508d70d8d54a5c6108e5f5286e2eec61`,
-`48a1aa1725c948c021dcfa8f59fdf61264d757be`,
-`f47d44964ed678289ba4bf1e4912a497d3a026ed`,
-`9b551b73883ef67888431b30287bf09b550f021a`.
+On resume, coordinator authorized existing metadata-only main commits
+`a1130fccb..3e8793add`. All nine were inspected and cherry-picked sequentially.
+BPR-1520's P0, inline-draft clarification, restart failure and owner recovery/
+retention observations are preserved byte-for-byte. NEXT_ID is BPR-1521,
+matching those committed allocation records. No independent allocation or main
+mutation occurred. Exclude every imported tracker commit from integration.
 
-Coordinator must authorize those unchanged tracker imports (or reconcile in its
-own tracker authority), then resume this same implementer for final
-`python3 scripts/verify_documentation.py --root .` and canonical
-`issue_board.py finish BPR-1509 --acceptance docs/issues/_checkpoints/BPR-1509/acceptance.json`.
-The card remains In Progress until that succeeds. No counter allocation or
-main edit is authorized to this implementer. Reuse unchanged passing evidence;
-no product repair remains.
+Final product, test and specification files compare byte-identical to the
+verified candidate. No rebuild was needed; unchanged passing evidence is
+reused. The final documentation gate passes, and canonical finish moved the
+card to `docs/issues/60-done/BPR-1509-files-search-tabs-match-comments-notes.md`.
+
+Coordinator should integrate only the own commits listed above, preserving
+BPR-1508's earlier e2e result-opening block and other agents' workbench hunks.
+No further BPR-1509 engineering or acceptance obligation remains. The broader
+native platform/appearance and pre-existing tidy debt retain their stated
+limits; no release claim follows from this styling correction.
