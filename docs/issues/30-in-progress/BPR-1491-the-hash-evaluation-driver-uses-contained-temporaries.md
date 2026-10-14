@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1491"
 title: "The hash evaluation driver uses contained temporaries"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
