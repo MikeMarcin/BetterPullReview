@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1510"
 title: "Remove redundant Cmd+J button covered by Threads tab"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Cmd+j button can go away, threads tab already covers the behavior","milestone_plan":{"id":"bpr1510-remove-cmd-j","path":"docs/rfcs/plans/bpr1510-remove-cmd-j/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8a4eee77607a1ef6d6bc0d3841bf2d5814bc2874","evidence":{"kind":"observation","detail":"Actual offscreen1280x820 and minimum900x420 headers inspected: no redundant widget or reserved gap. Coordinator clarified no human-only criterion exists; added implementation-plan gate corrected without changing original ACs."}},{"criterion":"AC2","outcome":"pass","revision":"8a4eee77607a1ef6d6bc0d3841bf2d5814bc2874","evidence":{"kind":"command","detail":"application_attended_recent_replay passes the Threads modality action through actual Composition; qt_workbench_conversation_reveal passes Threads tab and core transitions."}},{"criterion":"AC3","outcome":"pass","revision":"8a4eee77607a1ef6d6bc0d3841bf2d5814bc2874","evidence":{"kind":"command","detail":"qt_workbench_conversation_reveal passes actual Cmd+J key delivery and focus restoration; focus order passes 100/125/200; full Composition action/tab focus assertions pass once its window is explicitly activated."}},{"criterion":"AC4","outcome":"pass","revision":"8a4eee77607a1ef6d6bc0d3841bf2d5814bc2874","evidence":{"kind":"artifact","detail":"/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1510-ashc70r3/focused-tests.log (first five pass) and /focus-course-recheck.log (Composition passes); actual offscreen Review and Threads PNGs inspected. Native system appearance is not inferred."}}]
 ---
 
 # BPR-1510: Remove redundant Cmd+J button covered by Threads tab
@@ -26,14 +27,14 @@ Load frontend-design:frontend-design before UX edits, as required by AGENTS.md. 
 ## Milestone plan and checkpoint (2026-10-14)
 
 - Assignment: BPR-1510 only, owner testing note 2026-10-14 r1; branch `bpr1510-remove-cmd-j`, original baseline `e0db7fb17`. Coordinator-authorized tracker imports through `9c80010a0` were copied unchanged; claim `4c99101a5`. No independent allocation.
-- [Adopted plan](../../rfcs/plans/bpr1510-remove-cmd-j/milestone-plan.json): remove the redundant Comments-header button, retain Threads and Cmd+J, verify render/interaction/focus, then present AC1's visual judgment as one short attended candidate.
+- [Adopted plan](../../rfcs/plans/bpr1510-remove-cmd-j/milestone-plan.json): remove the redundant Comments-header button, retain Threads and Cmd+J, verify render/interaction/focus. The initial extra human gate is corrected by the [closeout clarification](../../rfcs/plans/bpr1510-remove-cmd-j/closeout-clarification.md); the original ACs are unchanged.
 - Skills: implement-rfc, manage-agent-skills (exact registration plan `sha256:0452f63d3420c2a0c3c3f3ca8f5c4ffbf1e28094cfcd94a3aae88a980290ecf0` applied; preflight `ready_pinned`, host loading unverified), frontend-design:frontend-design.
 - Design: preserve the native palette, typography, tab row and one-pixel tool spacing. Remove the finder widget outright so remaining comment tools occupy its former space.
 - Scope: `workbench_window.cpp/.hpp`, existing window and composed application courses, and the owning UX specification. BPR-1509 confirmed its Files/Search styling hunks are independent.
 - Documentation impact: UX specification updated for the removed entry. No policy, host, provider, persistence, publication, build or release behavior changes.
-- Current state: implementation and automated AC2–AC4 verified. AC1 absence and spacing are directly observed offscreen; the initially authored plan also introduced a human visual ask, whose necessity is awaiting coordinator reconciliation against the original card. No human verdict is claimed.
-- Runtime evidence and milestone binding: `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1510-ashc70r3`. Task-owned build command uses the isolated `build/dev`, four compile jobs, shared read-only dependency inputs. No other product writer or protected candidate yet.
-- Next: coordinator reconciles the added visual gate, supplies the current import-only tracker snapshot, integrates the scoped commits and runs canonical finish. If the AC1 ask is retained, use the prepared short session and a fresh post-review implementer; otherwise explicitly correct the added plan gate, release the candidate and finish from the objective evidence.
+- Current state: all AC1–AC4 pass from the direct rendering and public interaction evidence below. The coordinator confirmed no explicit human-only criterion exists; the implementer-added gate is corrected without claiming a human verdict.
+- Runtime evidence and milestone binding: `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1510-ashc70r3`. Completed build commands used isolated `build/dev`, four compile jobs, and shared dependency inputs. No active product writer, protected candidate or task-owned command remains.
+- Next: coordinator integrates the scoped implementation and closeout commits. This bounded milestone requires no further owner action.
 
 ## Verified candidate and handoff (2026-10-14)
 
@@ -49,21 +50,14 @@ Verification on macOS arm64, Qt 6.11.2:
 - Actual `1280×820` Review/Threads renders and the composed minimum `900×420` render were inspected offscreen. The redundant button is absent, reading controls remain compact, and no fixed placeholder is left. These are layout observations, not native system-appearance acceptance.
 - Self-review: all widget references are removed; the original QAction remains in View with its shortcut, enabled-state projection and existing transition. No host effect, policy, persistence or broader visual redesign was introduced.
 
-Frozen candidate: `/Users/jaeger/BPR-1510-cmd-j-v001.qdo6nre2`, source `de0bfb4bcc6e31d73de1be6a10cf134845789878`, executable SHA-256 `e0e4d380d1d76a4b3ef47e6b55d952320c79fc155f87a4ede859586ccab92e14`. `scripts/freeze_attended_build.py freeze` exported committed fixtures and built inside that root; its own `launch.py --check` passed with `ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`, head `89df5e592e5db97a526a05a445735733395e4832`. An initial preparation with the wrong file argument was stopped by its exact task-owned PIDs before building and its root removed.
+## Retired preparation and completed upkeep (2026-10-14)
 
-Launch from any directory:
+A frozen build at `/Users/jaeger/BPR-1510-cmd-j-v001.qdo6nre2` was prepared from source `de0bfb4bcc6e31d73de1be6a10cf134845789878`, executable SHA-256 `e0e4d380d1d76a4b3ef47e6b55d952320c79fc155f87a4ede859586ccab92e14`. Its own `launch.py --check` reached `ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`, head `89df5e592e5db97a526a05a445735733395e4832`. An initial preparation with the wrong file argument was stopped by exact owned PIDs before building and its root removed.
 
-```sh
-python3 /Users/jaeger/BPR-1510-cmd-j-v001.qdo6nre2/launch.py
-```
+The coordinator confirmed that the original mandate/cards contain no explicit human-only criterion and directed correction of the added gate using the passing offscreen evidence. The unnecessary session `40c921d030490283d544fb88816130ed` was inspected with no verdict, released at cursor `3`, and stopped through the attended companion; server PID `95114` and command-session `71176` have exited. Its frozen root was removed through `freeze_attended_build.py remove`. There is no active review URL, protection, pending decision or waiter. Historical identities and the superseded handoff remain in private runtime evidence.
 
-Short attended session (prepared under the current plan; no verdict supplied):
+Coordinator-authorized metadata-only imports `fa776388e..3e8793add` were inspected and copied unchanged: cards, allocation receipts/counter, and owner-note amendments only. Local NEXT_ID is BPR-1521; no independent allocation or main edit occurred. The prior stale-counter limitation is resolved.
 
-- State: `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1510-ashc70r3/attended-review`. Default resource registry: `/Users/jaeger/.mask/attended-review-resources`.
-- Session `40c921d030490283d544fb88816130ed`, cursor `2`, candidate `BPR-1510-header-v001`, fingerprint `4fd4a35d5d58604ac69a69a777f133b70dd1110c12a374ce082f975e78ef3b8c`. Candidate is ready/protected. Only ask: AC1 resulting Comments-header spacing, Accept/Reject.
-- Loopback host port `52575`, PID `95114`, command-session `71176`. Complete token-bearing URL is in the private runtime handoff and coordinator message, not committed.
-- Coordinator owns any attended wait: run the companion with the same source/state and `wait --after 2 --kind handed-back --timeout 43200`; validate this session and consume new events before dispatching the next round. No waiter was started by this leaf.
+Final acceptance: AC1 passes from actual default and minimum rendered headers with no button, reserved spacer or awkward gap; AC2–AC4 pass from the unchanged focused courses recorded above. Product and test inputs have not changed since the passing checks, so their evidence is reused. The final documentation gate is rerun for the plan correction and board closeout.
 
-Ownership: engineering writer released after this checkpoint; all build, test, configure and freeze commands have completed. Only the explicitly handed-off review server remains. The two protected source paths and frozen-build resource are listed in the session. No owner desktop was driven or captured; no live GitHub effect occurred.
-
-Tracker limitation: authorized imports through `fa776388e` were copied unchanged. Canonical `finish --dry-run` refuses local `NEXT_ID` BPR-1516 against historical BPR-1520. No unapproved counter/receipt bytes were changed. The card stays In Progress until the coordinator supplies the current approved tracker snapshot or finishes after integration. Acceptance decision file, commands, images and exact checkpoint records are retained in the runtime evidence root above.
+Ownership: all task-owned commands, writers and protections are quiescent. No owner desktop was driven or captured; no live GitHub effect occurred. The final closeout binding, observation, acceptance records and gate output are retained in `/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr1510-ashc70r3`. The coordinator's next action is integration; no in-scope obligation remains.

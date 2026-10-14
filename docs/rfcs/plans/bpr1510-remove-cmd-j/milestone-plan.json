@@ -17,7 +17,7 @@
       ],
       "depends_on": [],
       "exit_criteria": [
-        "AC1: No redundant button or awkward layout gap; human visual judgement remains pending until supplied.",
+        "AC1: The redundant Cmd+J button is absent and its former space leaves no awkward layout gap.",
         "AC2: Threads tab retains behavior.",
         "AC3: Cmd+J, focus and accessibility remain usable.",
         "AC4: Actual offscreen rendering and composed Threads/keyboard actions verified."
