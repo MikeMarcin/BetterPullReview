@@ -104,8 +104,10 @@ network, or process effects.
   licence, the layer it would live in, and why it fits or does not; do not
   hand-roll it while that question is open. Core may link only the
   owner-approved pinned, pure (no I/O, threads, clocks or globals) libraries:
-  glaze, utf8proc, zlib, fmt, sha1collisiondetection and HACL*'s generated
-  SHA-2 (owner, 2026-10-13; the last two through RFC-BPR-0080). RE2 stays in an adapter
+  glaze, utf8proc, zlib, fmt, sha1collisiondetection, HACL*'s generated
+  SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13; sha1collisiondetection
+  and HACL* through RFC-BPR-0080, rapidfuzz-cpp and dtl through RFC-BPR-0082,
+  dtl for per-line intraline comparison only). RE2 stays in an adapter
   because Abseil uses threads. The 2026-10-13 audit found a hand-written regex
   engine with a correctness bug, eight JSON implementations, a DEFLATE
   inflater and hand-written hashes that libraries should have supplied.

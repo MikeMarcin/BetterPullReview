@@ -3,7 +3,7 @@ id: "RFC-BPR-0082"
 title: "Evaluate replacing the hand-written diff engine"
 status: "Proposed"
 depends_on: ["RFC-BPR-0004"]
-metadata: {"rfc_base_sha":"cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5","mandate_revision":"diff-engine-evaluation-r1"}
+metadata: {"rfc_base_sha":"cc9e9376e1fc02e2cdf3154fa56dfcc14991a8d5","mandate_revision":"diff-engine-evaluation-r2"}
 ---
 
 # Evaluate replacing the hand-written diff engine
@@ -25,6 +25,36 @@ rapidfuzz-cpp, a diff-match-patch port and a JGit-derived matcher remain
 shape that passes but needs an open answer is recorded as "eligible pending
 Qn" and is not adopted. The CR line-identity fix the draft mentions has since
 landed ([[BPR-1432]]), so the engine already splits lines at LF only.
+
+## Owner answer — 2026-10-13
+
+Mandate `diff-engine-evaluation-r2`. The owner answered, as relayed by the
+coordinating session on 2026-10-13:
+
+- **Q2, Accept:** rapidfuzz-cpp (MIT) and dtl (BSD-3-Clause) may both go into
+  the core as approved libraries. The owner was told that dtl misbehaved as a
+  whole-file line matcher in this evaluation and would be used only for the
+  per-line intraline comparison, where it passed every macOS gate; the
+  approval is for that use.
+
+- **Q1, Accept with a condition:** linking LGPL xdiff is acceptable "if xdiff
+  is dynamically linked as its own shared library, as Qt is". Shape L may be
+  adopted only as a separately built shared library that the adapter links
+  dynamically, never compiled or statically linked into a BPR binary, and only
+  if every gate passes. The owner also asked for L to be re-measured with the
+  whitespace flags corrected (the CRLF and trailing-whitespace mapping that
+  caused its two correctness refusals) before that decision.
+
+The answers change Q1's and Q2's text, marked below; the
+[Q2 record](assets/diff-engine-evaluation-v1/owner-answer-2026-10-13.md) and
+the [Q1 record](assets/diff-engine-evaluation-v1/owner-answer-q1-2026-10-13.md)
+keep the text before and after. Nothing else changes: the thresholds,
+decision rules and acceptance criteria are as adopted, Q3 stays open,
+and dtl's intraline adoption still needs the owner's Accept of its render set
+(AC06). Core's link allow-list, both `AGENTS.md` rules and the system
+architecture now name both libraries. With every gate passed on macOS and no
+owner answer outstanding, rapidfuzz-cpp's line-pair similarity is adopted
+through [[BPR-1480]]; dtl's intraline adoption waits on AC06 in [[BPR-1481]].
 
 ## Problem and grounded current behavior
 
@@ -278,12 +308,17 @@ resumable machinery.
 - **Q1. Is linking LGPL xdiff acceptable?** Statically linking LGPL-2.1
   code into a distributed desktop app brings relinking and source-offer duties
   beyond the current Qt (dynamic) and KSyntaxHighlighting arrangements. Shape L
-  is measured but cannot be adopted until the owner answers.
+  is measured but cannot be adopted until the owner answers. *Answered
+  2026-10-13: Accept, if xdiff is dynamically linked as its own shared
+  library, as Qt is* (see "Owner answer" above). Static linking stays
+  refused. Shape L is re-measured with corrected whitespace flags and is
+  adopted only if every gate passes.
 - **Q2. May vendored pure-computation third-party code enter the core?**
   This affects dtl, rapidfuzz-cpp, a diff-match-patch port and a JGit-derived
-  histogram port. The owner question is pending in the parent session. Until
-  it is answered, these are evaluated only in the opt-in target, and core
-  placement cannot be adopted.
+  histogram port. *Answered 2026-10-13: Accept for rapidfuzz-cpp and for dtl,
+  dtl for per-line intraline comparison only* (see "Owner answer" above). The
+  diff-match-patch port and a JGit-derived histogram port were not asked about
+  and remain unapproved; both were rejected on measurement.
 - **Q3. May comparison results depend on the user's installed Git version?**
   If Git is upgraded, the same comparison key could yield a different valid
   alignment, unless the version enters comparison identity. This affects P

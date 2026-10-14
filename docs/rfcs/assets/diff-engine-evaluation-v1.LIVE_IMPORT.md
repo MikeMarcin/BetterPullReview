@@ -23,3 +23,9 @@ owner decisions supplied with the mandate (the core library allowance of
 `docs/rfcs/`. Excluded: the other drafts under `docs/rfcs/drafts/` and unrelated
 configuration changes in the main checkout. Import supplies no measurement or
 acceptance.
+
+Owner answer, 2026-10-13 (mandate `diff-engine-evaluation-r2`): Q2 Accept for
+rapidfuzz-cpp and dtl (dtl for per-line intraline comparison only); recorded in
+the RFC with the [answer record](diff-engine-evaluation-v1/owner-answer-2026-10-13.md).
+Follow-ups BPR-1480 to BPR-1482 were allocated
+(`docs/issues/_reservations/BPR-1480--BPR-1482--0bbd641765b5.json`).

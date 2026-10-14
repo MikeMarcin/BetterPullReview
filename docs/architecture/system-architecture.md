@@ -424,7 +424,7 @@ The initial target shape should be equivalent to:
 better_pull_review_core
     standard/domain C++, plus only the owner-approved pinned, pure
     libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
-    HACL* SHA-2; owner 2026-10-13)
+    HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -471,9 +471,10 @@ The live repository may use different target names, but it must enforce these ru
 
 - The core imports no Qt, SQLite, GitHub, Git, operating-system, AI, clock, thread, future, timer, dialog, or process APIs.
 - The core links only owner-approved pinned, pure libraries (no I/O, threads,
-  clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection and
-  HACL*'s generated SHA-2 (owner, 2026-10-13; the last two through
-  RFC-BPR-0080).
+  clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection,
+  HACL*'s generated SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13;
+  sha1collisiondetection and HACL* through RFC-BPR-0080, rapidfuzz-cpp and
+  dtl through RFC-BPR-0082, dtl for per-line intraline comparison only).
   `cmake/VerifyCoreBoundary.cmake` refuses any other library. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.
