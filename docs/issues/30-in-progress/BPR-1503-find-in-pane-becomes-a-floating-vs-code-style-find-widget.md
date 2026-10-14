@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1503"
 title: "Find in pane becomes a floating VS Code-style find widget"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
