@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1508"
 title: "Start Find in Files L/R markers at the far left"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Find in files we can start the LR markers on the far left they don't need to be indented"}
