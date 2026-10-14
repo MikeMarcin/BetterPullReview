@@ -204,11 +204,6 @@ int main(int aArgc, char** aArgv)
 		expect(!toggle->isChecked() && bar->query() == "needle", "and toggles it back");
 	}
 	wait_for([&] { return bar->projection().Summary.Matches == 2U; }, "options restored");
-	surface->right_pane()->setFocus();
-	tests::window_system_key(window, Qt::Key_C, Qt::AltModifier, QString::fromUtf8("ç"));
-	expect(bar->option_button(qt::source_find_option::match_case)->isChecked(), "Option+C toggles Match Case from the pane while Find is open");
-	tests::window_system_key(window, Qt::Key_C, Qt::AltModifier, QString::fromUtf8("ç"));
-	wait_for([&] { return !bar->option_button(qt::source_find_option::match_case)->isChecked() && bar->projection().Summary.Matches == 2U; }, "and back");
 	// Seeding keeps the current match on the selected occurrence.
 	{
 		auto* right = surface->right_pane();

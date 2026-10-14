@@ -4241,18 +4241,8 @@ namespace bpr::qt {
 			if (type == QEvent::Resize || type == QEvent::Move || type == QEvent::Show || type == QEvent::Hide) {
 				place_source_find();
 			}
-			// Option+C/W/R/L toggle Find's options from the pane too, as in VS Code.
-			if ((type == QEvent::ShortcutOverride || type == QEvent::KeyPress)
-				&& (static_cast<QKeyEvent*>(aEvent)->modifiers() & ~Qt::KeypadModifier) == Qt::AltModifier) {
-				const auto key = static_cast<QKeyEvent*>(aEvent)->key();
-				if (key == Qt::Key_C || key == Qt::Key_W || key == Qt::Key_R || key == Qt::Key_L) {
-					aEvent->accept();
-					if (type == QEvent::KeyPress) {
-						static_cast<void>(Find->Bar->handle_option_key(*static_cast<QKeyEvent*>(aEvent)));
-					}
-					return true;
-				}
-			}
+			// Option+C and Option+R stay Comment and Compose review in the pane;
+			// only the find query claims them for its options.
 		}
 		if (Find && (aWatched == Left || aWatched == Right || aWatched == Unified) && aEvent->type() == QEvent::FocusIn) {
 			Find->Recent = static_cast<QPlainTextEdit*>(aWatched);
