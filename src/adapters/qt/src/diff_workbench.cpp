@@ -898,10 +898,14 @@ namespace bpr::qt {
 		protected:
 			void scrollContentsBy(const int aDx, const int aDy) override
 			{
+				// [[BPR-1492]]. The base records the new top line first. Clearing
+				// the within-line offset can resize the viewport, and that resize
+				// readjusts the bar to the top line the base last recorded, so
+				// clearing it first sent a font change's hold back to the old line.
+				QPlainTextEdit::scrollContentsBy(aDx, aDy);
 				if (aDy != 0 && !ApplyingPixelWheel) {
 					set_within_line_offset(0.0);
 				}
-				QPlainTextEdit::scrollContentsBy(aDx, aDy);
 			}
 
 			void wheelEvent(QWheelEvent* const aEvent) override
@@ -5305,8 +5309,13 @@ namespace bpr::qt {
 				row = static_cast<qreal>(Hold->Line->Line);
 			}
 		}
-		const auto newTop = static_cast<std::uint32_t>(std::max(0.0, row - std::round((Hold->Offset - first) / current)));
+		// [[BPR-1492]]. `first` includes the within-line offset the old origin
+		// kept ([[BPR-1413]]). The new top line is placed flush, with no such
+		// offset, so only the noted offset counts here; counting `first` again
+		// put the reader's line most of a row lower than it was.
+		const auto newTop = static_cast<std::uint32_t>(std::max(0.0, row - std::round(Hold->Offset / current)));
 		source->set_top_line(newTop);
+		source->set_within_line_offset(0.0);
 		if (Hold->Line && !unified && Hold->Line->Side == side) {
 			HeldLine = held_line{ .Side = side, .Top = newTop };
 		}

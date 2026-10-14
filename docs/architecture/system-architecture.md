@@ -286,7 +286,11 @@ workbench generation, active tab and exact file/pair. Its ordinary tab driver
 restores that view before Qt applies the existing command projection and sends
 its file/change intent. Completion consumes the continuation once; later
 file/tab/comparison/modality/Home/composer gestures cancel it synchronously,
-and identity replacement is refused by the bound context. Unavailable tabs
+and identity replacement is refused by the bound context. The view it waits for
+is the active tab's current one: a reading position observed after the press
+reaches the tab through the decision lane, and each tab publication
+re-evaluates the continuation, so a press made just after a selection is not
+held waiting for the superseded position. Unavailable tabs
 retain their ordinary explanation without newer-pair fallback. No source tab
 is created by entry alone and no full-review scan/model reset is introduced.
 
