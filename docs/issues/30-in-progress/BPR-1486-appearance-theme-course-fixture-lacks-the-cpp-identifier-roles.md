@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1486"
 title: "The appearance theme course's fixture theme lacks the C++ identifier roles"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
