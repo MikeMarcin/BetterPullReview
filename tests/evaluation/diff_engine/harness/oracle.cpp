@@ -71,7 +71,7 @@ namespace bpr::evaluation {
 			.OracleHunks    = static_cast<std::uint32_t>(aOracle.size()),
 			.CandidateHunks = static_cast<std::uint32_t>(std::max(candidateLeft.size(), candidateRight.size())),
 		};
-		result.ExactGithubJoin = drawn_hunks(aAlignment, 1U) == oracleHeaders;
+		result.ExactGithubJoin = drawn_hunks(aAlignment, core::github_inter_hunk_context_lines) == oracleHeaders;
 		result.ExactGitJoin    = drawn_hunks(aAlignment, 0U) == oracleHeaders;
 		for (const auto& [candidate, oracle, lines] : { std::tuple{ &candidateLeft, &oracleLeft, aAlignment.LeftLineCount },
 														std::tuple{ &candidateRight, &oracleRight, aAlignment.RightLineCount } }) {

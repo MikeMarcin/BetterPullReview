@@ -18,8 +18,9 @@ namespace bpr::evaluation {
 
 	struct oracle_agreement
 	{
-		/// BPR's comment hunks (`github_review_hunks`, which joins only
-		/// touching hunks) equal the recording's on both sides.
+		/// BPR's comment hunks (`github_review_hunks`, which joins hunks one
+		/// unchanged line apart as GitHub's file list does, [[BPR-1482]])
+		/// equal the recording's on both sides.
 		bool Exact = false;
 		/// The candidate's hunks, joined as GitHub's file list joins them
 		/// (one unchanged line apart, `--inter-hunk-context=1`), equal the
