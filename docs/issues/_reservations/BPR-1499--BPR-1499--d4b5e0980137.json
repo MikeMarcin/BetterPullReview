@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1499"
+  ],
+  "reserve_for": "release-020-gate-3",
+  "purpose": "0.2.0 release gate repair: macOS application_composition_contract timeout does not cover a cold nested Release build",
+  "created": "2026-10-14T06:42:09.363741+00:00",
+  "base": "61a06fb0f61fdc8906e4606bd2679f33910f3e79"
+}
