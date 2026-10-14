@@ -12,7 +12,10 @@ summary JSON:
   expects; fragment labels are a derived subset, so fragments count only
   labelled errors.
 - hypotheses: H1 to H7 confirmed or refuted per engine from the gap suite's
-  labels, and H8 from the peak heap on the two 8 MiB inputs.
+  labels, and H8 from the peak heap on the 8 MiB inputs: confirmed when any
+  exceeds RFC-BPR-0081's 512 MiB memory cap (owner, 2026-10-13, BPR-1474).
+  Until then H8 was confirmed when an 8 MiB input had the largest peak heap;
+  the report keeps the results recorded under that rule.
 - timing, memory, stop latency and determinism, per size class.
 
 Usage: python3 score_evaluation.py --repo-root ROOT --corpus DIR --results DIR --out FILE
@@ -274,6 +277,10 @@ def summarize_metrics(results: Path, pin: str) -> dict:
     return summary
 
 
+# RFC-BPR-0081's Memory gate: at most 512 MiB for any input the classifier accepts.
+MEMORY_CAP_BYTES = 512 * 1024 * 1024
+
+
 def hypotheses(failures: list, heaps: dict) -> dict:
     result: dict = {}
     files = {"H1": "gap/h1_inline_namespace.cpp", "H2": "gap/h2_attributed_namespace.cpp", "H3": "gap/h3_enum_comparisons.cpp",
@@ -289,7 +296,8 @@ def hypotheses(failures: list, heaps: dict) -> dict:
             largest = max(per_file, key=per_file.get)
             eight = {file: bytes_ for file, bytes_ in per_file.items() if "brace-flood" in file or "enum-names-8mib" in file}
             result.setdefault("H8", {})[engine] = {
-                "status": "confirmed" if largest in eight else "refuted", "largest_input": largest,
+                "status": "confirmed" if any(bytes_ > MEMORY_CAP_BYTES for bytes_ in eight.values()) else "refuted",
+                "cap_bytes": MEMORY_CAP_BYTES, "largest_input": largest,
                 "largest_peak_heap": per_file[largest], "eight_mib_inputs": eight}
     return result
 

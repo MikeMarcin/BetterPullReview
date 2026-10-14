@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1478"
+  ],
+  "reserve_for": "awesome-euclid-60554e",
+  "purpose": "A pull request reread that lands just after the reviewer picks another file restores the file shown before the read; the latest pick should win (BPR-1475 follow-up)",
+  "created": "2026-10-14T01:03:05.079535+00:00",
+  "base": "c5de43eefe9fdda0d9a724665e72ff7ca786557c"
+}

@@ -1,6 +1,7 @@
 #include "bpr/application/github_window_read_host.hpp"
 
 #include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/feedback_sources.hpp"
 #include "bpr/application/github_read_admission.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/sha256.hpp"
@@ -847,13 +848,24 @@ namespace bpr::application {
 			auto*      lane  = &DecisionLane;
 			++Outstanding;
 			auto once     = std::make_shared<std::atomic_bool>(false);
-			auto callback = [weak, lane, token, once](github_pull_request_completion aCompletion) mutable {
+			auto callback = [weak, lane, token, once, digests = BodyDigests](github_pull_request_completion aCompletion) mutable {
 				if (once->exchange(true)) {
 					return;
 				}
 				auto locked = weak.lock();
 				if (!locked) {
 					return;
+				}
+				// [[BPR-1447]]. Here, on the provider's thread, not on the
+				// decision lane: the window thread then hashes no body the
+				// snapshot carries a digest for. A failed digest only leaves
+				// the core to hash.
+				if (auto* success = std::get_if<github_pull_request_success>(&aCompletion); success != nullptr && digests != nullptr) {
+					try {
+						success->Snapshot.FeedbackBodyDigests = digest_feedback_bodies(success->Snapshot, *digests);
+					} catch (...) {
+						success->Snapshot.FeedbackBodyDigests = { };
+					}
 				}
 				try {
 					lane->post([weak, token, terminal = std::move(aCompletion)]() mutable {
@@ -1546,35 +1558,38 @@ namespace bpr::application {
 				return core::markdown_link_result::failed;
 			}
 		}
-		std::uint64_t                                       MarkdownRevision  = 0;
-		bool                                                MarkdownExhausted = false;
-		std::unordered_set<std::string>                     MarkdownBodies;
-		bool                                                SuppressPublication = false;
-		core::github_window_read                            Policy;
-		const core::github_state&                           State;
-		core::application_session_id                        DiagnosticWindowSession;
-		github_pull_request_port&                           PullRequests;
-		decision_executor&                                  DecisionLane;
-		publication                                         Publish;
-		github_epoch_handoff_port*                          Epochs;
-		github_pull_request_port*                           AnonymousPullRequests;
-		git_smart_transport_factory_port*                   AnonymousSmartGit;
-		diagnostic_log_port*                                DiagnosticLog;
-		cached_review_overview_port*                        Overviews;
-		effect_executor*                                    CacheEffects;
-		cached_review_source_port*                          Sources;
-		std::shared_ptr<github_read_admission>              Admission;
-		std::optional<core::cached_review_overview>         CachedOverview;
-		std::optional<core::pull_request_request_context>   CachedRequest;
-		std::stop_source                                    CachedSourceStop;
-		std::stop_source                                    CacheReadStop;
-		bool                                                CacheWritePending = false;
-		std::optional<github_profile_session>               Session;
-		std::optional<github_session_read_model>            AcceptedSession;
-		std::optional<github_profile_authority>             AcceptedProfileAuthority;
-		std::optional<github_capability_cache_entry>        AcceptedCapabilityEvidence;
-		github_account_transport                            AccountTransport;
-		std::optional<github_pull_request_snapshot>         AcceptedSnapshot, StagedSnapshot;
+		std::uint64_t                                     MarkdownRevision  = 0;
+		bool                                              MarkdownExhausted = false;
+		std::unordered_set<std::string>                   MarkdownBodies;
+		bool                                              SuppressPublication = false;
+		core::github_window_read                          Policy;
+		const core::github_state&                         State;
+		core::application_session_id                      DiagnosticWindowSession;
+		github_pull_request_port&                         PullRequests;
+		decision_executor&                                DecisionLane;
+		publication                                       Publish;
+		github_epoch_handoff_port*                        Epochs;
+		github_pull_request_port*                         AnonymousPullRequests;
+		git_smart_transport_factory_port*                 AnonymousSmartGit;
+		diagnostic_log_port*                              DiagnosticLog;
+		cached_review_overview_port*                      Overviews;
+		effect_executor*                                  CacheEffects;
+		cached_review_source_port*                        Sources;
+		std::shared_ptr<github_read_admission>            Admission;
+		std::optional<core::cached_review_overview>       CachedOverview;
+		std::optional<core::pull_request_request_context> CachedRequest;
+		std::stop_source                                  CachedSourceStop;
+		std::stop_source                                  CacheReadStop;
+		bool                                              CacheWritePending = false;
+		std::optional<github_profile_session>             Session;
+		std::optional<github_session_read_model>          AcceptedSession;
+		std::optional<github_profile_authority>           AcceptedProfileAuthority;
+		std::optional<github_capability_cache_entry>      AcceptedCapabilityEvidence;
+		github_account_transport                          AccountTransport;
+		std::optional<github_pull_request_snapshot>       AcceptedSnapshot, StagedSnapshot;
+		/// [[BPR-1447]]. Digests a fetched snapshot's feedback bodies on the
+		/// provider's completion thread; none composed, the core hashes them.
+		const body_digest_port*                             BodyDigests = nullptr;
 		std::optional<github_pull_request_provider_request> PendingProvider;
 		std::uint64_t                                       ProviderOperationToken = 0;
 		std::atomic_size_t                                  Outstanding{ 0 };
@@ -1604,9 +1619,12 @@ namespace bpr::application {
 	github_window_read_host::github_window_read_host(core::bpr_window_context     aWindow,
 													 core::application_session_id aSession, github_pull_request_port& aReads,
 													 decision_executor& aDecision, publication aPublication, github_epoch_handoff_port* aEpochs,
-													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources, std::shared_ptr<github_read_admission> aAdmission)
+													 github_pull_request_port* aAnonymousReads, git_smart_transport_factory_port* aAnonymousGit, diagnostic_log_port* aLog, cached_review_overview_port* aOverviews, effect_executor* aCacheEffects, cached_review_source_port* aSources, std::shared_ptr<github_read_admission> aAdmission,
+													 const body_digest_port* aBodyDigests)
 		: Implementation{ std::make_shared<implementation>(aWindow, aSession, aReads, aDecision, std::move(aPublication), aEpochs, aAnonymousReads, aAnonymousGit, aLog, aOverviews, aCacheEffects, aSources, std::move(aAdmission)) }
-	{ }
+	{
+		Implementation->BodyDigests = aBodyDigests;
+	}
 	github_window_read_host::~github_window_read_host()
 	{
 		Implementation->Publish = { };

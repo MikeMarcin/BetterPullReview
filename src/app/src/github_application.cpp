@@ -50,6 +50,7 @@
 #include "github_provider.hpp"
 #include "live_review_mutation_provider.hpp"
 #include "native_https_transport.hpp"
+#include "platform_body_digest.hpp"
 #include "review_comment_permalink.hpp"
 
 #if defined(_WIN32)
@@ -3962,6 +3963,10 @@ namespace bpr::app {
 		worker_executor                                     ReviewSubmissionEffects;
 		qt::event_loop_executor                             DecisionLane;
 		std::shared_ptr<application::github_read_admission> ReadAdmission = std::make_shared<application::github_read_admission>();
+		/// [[BPR-1447]]. Feedback body digests on platform crypto, taken on the
+		/// provider's thread for every window's reads. Stateless, and outlives
+		/// the windows, which this profile owns.
+		adapters::github::platform_body_digest BodyDigests;
 		struct window_observer
 		{
 			std::weak_ptr<const void>                                                                 Lifetime;
@@ -7257,7 +7262,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
 					schedule_link_location();
-					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission);
+					schedule_publication_reread(); }, this, PublicPreviewComposed ? static_cast<application::github_pull_request_port*>(CountedAnonymousPullRequests.get()) : nullptr, PublicPreviewComposed ? static_cast<application::git_smart_transport_factory_port*>(AnonymousSmartGit.get()) : nullptr, Profile->DiagnosticLog.get(), Profile->CachedOverviews.get(), &Profile->WorkbenchEffects, this, Profile->ReadAdmission, &Profile->BodyDigests);
 			Window->overview_page()->set_cached_source_dispatch([this, weak](const QString& aPath) {
 				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
 					WindowRead->read_cached_source(aPath.toStdString());

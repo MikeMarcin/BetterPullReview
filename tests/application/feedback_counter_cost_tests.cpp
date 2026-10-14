@@ -1,8 +1,14 @@
 #include "../support/test_expectation.hpp"
+#include "bpr/application/body_digest_port.hpp"
 #include "bpr/application/feedback_counters.hpp"
+#include "bpr/application/feedback_sources.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/core/feedback_convention.hpp"
+
+#if defined(BPR_HAS_PLATFORM_BODY_DIGEST)
+	#include "platform_body_digest.hpp"
+#endif
 
 #include <algorithm>
 #include <array>
@@ -13,6 +19,7 @@
 #include <exception>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <new>
 #include <set>
 #include <string>
@@ -252,6 +259,8 @@ namespace {
 		result.BodiesParsed           = aAfter.BodiesParsed - aBefore.BodiesParsed;
 		result.BodiesReused           = aAfter.BodiesReused - aBefore.BodiesReused;
 		result.BodiesHashed           = aAfter.BodiesHashed - aBefore.BodiesHashed;
+		result.BodiesDigestSupplied   = aAfter.BodiesDigestSupplied - aBefore.BodiesDigestSupplied;
+		result.BytesHashed            = aAfter.BytesHashed - aBefore.BytesHashed;
 		result.RefreshesCarried       = aAfter.RefreshesCarried - aBefore.RefreshesCarried;
 		result.UnitIndexes            = aAfter.UnitIndexes - aBefore.UnitIndexes;
 		result.UnitsCompared          = aAfter.UnitsCompared - aBefore.UnitsCompared;
@@ -291,7 +300,8 @@ namespace {
 		std::ranges::sort(times);
 		std::cout << "feedback-cost workload=" << aShape.Name << " phase=" << aPhase << " columns=" << aColumns << " mode=" << aMode << " runs=" << times.size()
 				  << " observations=" << aResult.Work.Observations << " bodies_parsed=" << aResult.Work.BodiesParsed << " bodies_reused=" << aResult.Work.BodiesReused
-				  << " bodies_hashed=" << aResult.Work.BodiesHashed << " carried=" << aResult.Work.RefreshesCarried << " unit_indexes=" << aResult.Work.UnitIndexes
+				  << " bodies_hashed=" << aResult.Work.BodiesHashed << " bytes_hashed=" << aResult.Work.BytesHashed
+				  << " bodies_supplied=" << aResult.Work.BodiesDigestSupplied << " carried=" << aResult.Work.RefreshesCarried << " unit_indexes=" << aResult.Work.UnitIndexes
 				  << " units_compared=" << aResult.Work.UnitsCompared << " scopes_retallied=" << aResult.Work.ScopesRetallied
 				  << " scopes_tallied_on_request=" << aResult.Work.ScopesTalliedOnRequest << " units_tallied=" << aResult.Work.UnitsTallied
 				  << " alloc_calls=" << aResult.Calls << " alloc_bytes=" << aResult.Bytes << " min_us=" << static_cast<long long>(times.front())
@@ -323,6 +333,29 @@ namespace {
 		return result;
 	}
 
+	/// A model nothing observes: the cost of a digest batch touches none.
+	auto idle_model() -> const feedback_counter_model&
+	{
+		static const auto model = feedback_counter_model{ };
+		return model;
+	}
+
+	struct digest_backend
+	{
+		std::string                                    Name;
+		std::unique_ptr<application::body_digest_port> Port;
+	};
+
+	auto digest_backends() -> std::vector<digest_backend>
+	{
+		auto result = std::vector<digest_backend>{ };
+		result.push_back({ .Name = "core", .Port = std::make_unique<application::core_body_digest>() });
+#if defined(BPR_HAS_PLATFORM_BODY_DIGEST)
+		result.push_back({ .Name = std::string{ adapters::github::platform_body_digest_backend() }, .Port = std::make_unique<adapters::github::platform_body_digest>() });
+#endif
+		return result;
+	}
+
 	void run(const workload& aShape)
 	{
 		auto snapshot = make_snapshot(aShape);
@@ -351,6 +384,27 @@ namespace {
 				   std::string{ aShape.Name } + ": the first observation parses every body once");
 			expect(result.Work.BodiesHashed == posts, std::string{ aShape.Name } + ": the first observation hashes each body it parses, once");
 			expect(result.Work.RefreshesCarried == 0U && result.Work.UnitIndexes == 1U, std::string{ aShape.Name } + ": the first observation builds its set and its index");
+		}
+
+		// [[BPR-1447]]. What the host's body digest port costs off the window
+		// thread, per backend, and the first observation of a snapshot that
+		// carries those digests: the window thread then hashes no body.
+		{
+			auto digested = snapshot;
+			for (const auto& [name, port] : digest_backends()) {
+				auto       digests = application::github_feedback_body_digests{ };
+				const auto result  = measure([&]() -> const feedback_counter_model& { return idle_model(); }, 5U, [&] { digests = application::digest_feedback_bodies(snapshot, *port); });
+				report(aShape, "digest_bodies backend=" + name, "-", "-", result);
+				expect(digests.Entries && digests.Entries->size() == posts, std::string{ aShape.Name } + ": one digest for each body");
+				digested.FeedbackBodyDigests = digests;
+			}
+			auto       models  = std::vector<feedback_counter_model>(5U);
+			auto       current = models.size();
+			const auto result  = measure([&]() -> const feedback_counter_model& { return models[current]; }, models.size(), [&] { static_cast<void>(models[current].observe(key, digested)); },
+										 [&] { current = current == models.size() ? 0U : current + 1U; });
+			report(aShape, "observe_cold_supplied", "-", "-", result);
+			expect(result.Work.BodiesParsed == posts && result.Work.BodiesHashed == 0U && result.Work.BytesHashed == 0U && result.Work.BodiesDigestSupplied == posts,
+				   std::string{ aShape.Name } + ": with the host's digests the first observation hashes no body on the window thread");
 		}
 
 		auto       model = feedback_counter_model{ };

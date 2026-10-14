@@ -55,17 +55,19 @@ keeps the text before and after.
 
 ## Progress, 2026-10-13
 
-The macOS arm64 evaluation ([[BPR-1446]]) is recorded in the
-[hash evaluation report](../verification/RFC-BPR-0080.md): sha1dc is eligible
-pending Q1, HACL* SHA-2 eligible pending Q2, CommonCrypto passes the host
-port's throughput condition with the site decision left to [[BPR-1447]], and
-`QCryptographicHash` stays rejected for identities. The Mac was shared with
-other builds, so the throughput was measured in thread CPU time rather than on
-an idle machine; [[BPR-1446]] stays blocked until an idle re-measurement. The
-public collision pairs neither collide nor are detected when hashed as Git
-objects; the owner's amendment above settles AC03 without a Git-framed
-collision vector.
-Windows and Linux have not run. Nothing is adopted.
+- [[BPR-1446]] (done): the macOS arm64 evaluation and its
+  [report](../verification/RFC-BPR-0080.md), on loaded-machine measurements
+  the owner accepted.
+- [[BPR-1450]] (done): every SHA-1 Git identity is computed by
+  sha1collisiondetection; a detected collision attack is a refusal on every
+  object-ID path, and the first-party `sha1.cpp` is deleted.
+- [[BPR-1451]] (done): the core SHA-256 is HACL*'s generated SHA-2 through its
+  block-level calls; the first-party `sha256.cpp` is deleted.
+- [[BPR-1447]] (done): feedback body digests come from CommonCrypto on the
+  provider's worker on macOS, off the window thread; adopted on macOS.
+- Open: the Windows and Linux stations ([[BPR-1448]], [[BPR-1449]]), Q3 if the
+  Linux backend passes, and closeout ([[BPR-1453]]). [[BPR-1452]] is not needed
+  after the Q1 Accept.
 
 ## Problem and grounded current behavior
 

@@ -104,6 +104,7 @@ add_library(
         src/review_comment_placement.cpp
         src/review_preflight_observation.cpp
         src/reply_thread_observation.cpp
+        src/body_digest_port.cpp
         src/feedback_sources.cpp
         src/feedback_counters.cpp
         src/overview_feedback.cpp

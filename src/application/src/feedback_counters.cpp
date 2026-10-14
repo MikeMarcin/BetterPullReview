@@ -84,6 +84,8 @@ namespace bpr::application {
 		Work.BodiesParsed += update.Reparsed;
 		Work.BodiesReused += update.Reused;
 		Work.BodiesHashed += refresh.Hashed;
+		Work.BodiesDigestSupplied += refresh.Supplied;
+		Work.BytesHashed += refresh.HashedBytes;
 		Work.RefreshesCarried += refresh.Carried ? 1U : 0U;
 		auto adopted = core::adopt_feedback_refresh(current, std::move(refresh));
 		if (!adopted) {

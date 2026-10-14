@@ -29,7 +29,7 @@ retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labell
 Bounded-work and Memory gates at both pins, so it is rejected. The Contract
 failure comes from the grammar: tree-sitter-cpp accepts no attribute on an
 enumerator. The gap suite confirms H1-H8 on the shipped heuristic.
-[BPR-1474](../issues/10-backlog/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
+[BPR-1474](../issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
 fixes those classes.
 
 The [report](../verification/RFC-BPR-0081.md) records every gate, its

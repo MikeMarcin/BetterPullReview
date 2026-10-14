@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1477"
+  ],
+  "reserve_for": "objective-sutherland-659b90",
+  "purpose": "A Refresh while a comment or reply's outcome is unknown drops its held retry (application_inline_publish_cli_consent crash, application_label_publication_recovery failure)",
+  "created": "2026-10-14T01:01:53.316636+00:00",
+  "base": "76fa20bd431290655de996a7b67b410b139ca247"
+}

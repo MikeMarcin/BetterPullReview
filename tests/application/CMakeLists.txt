@@ -1017,6 +1017,23 @@ bpr_enable_hardening(test_better_pull_review_feedback_counter_costs)
 bpr_enable_warnings(test_better_pull_review_feedback_counter_costs)
 bpr_add_network_isolated_test(NAME application_feedback_counter_costs COMMAND test_better_pull_review_feedback_counter_costs)
 set_tests_properties(application_feedback_counter_costs PROPERTIES RUN_SERIAL TRUE TIMEOUT 300 PASS_REGULAR_EXPRESSION "feedback-counter-costs:measured")
+# [[BPR-1447]]. The body digest port: every backend equals the core's SHA-256,
+# and supplied digests count exactly as core-hashed ones with no body hashed on
+# the window thread. The platform backend lives in the GitHub adapter, which a
+# core-only tree does not build; there only the core backend is checked.
+bpr_add_executable(test_better_pull_review_body_digest_port body_digest_port_tests.cpp)
+target_link_libraries(test_better_pull_review_body_digest_port PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_body_digest_port)
+bpr_enable_warnings(test_better_pull_review_body_digest_port)
+bpr_add_network_isolated_test(NAME application_body_digest_port COMMAND test_better_pull_review_body_digest_port)
+set_tests_properties(application_body_digest_port PROPERTIES TIMEOUT 120 PASS_REGULAR_EXPRESSION "body-digest-port-tests:pass")
+if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
+    foreach(bpr_body_digest_target IN ITEMS test_better_pull_review_body_digest_port test_better_pull_review_feedback_counter_costs)
+        target_link_libraries(${bpr_body_digest_target} PRIVATE BetterPullReview::AdapterGitHub)
+        target_compile_definitions(${bpr_body_digest_target} PRIVATE BPR_HAS_PLATFORM_BODY_DIGEST=1)
+        target_include_directories(${bpr_body_digest_target} PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    endforeach()
+endif()
 
 bpr_add_executable(test_better_pull_review_application_home_open_host_tests home_open_host_tests.cpp)
 target_link_libraries(test_better_pull_review_application_home_open_host_tests PRIVATE BetterPullReview::Application)

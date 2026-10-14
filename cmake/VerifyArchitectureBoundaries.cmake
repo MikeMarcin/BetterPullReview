@@ -1772,6 +1772,11 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative STREQUAL "src/app/src/terminal_diagnostics.cpp")
             set(effect_owner_cmake "${app_cmake_contents}")
             set(effect_owner_target "better_pull_review_composition")
+        elseif(current_allowed_relative MATCHES "^src/app/src/designated_live_macos_(capsule|supervisor)_identity\\.cpp$")
+            # [[BPR-1447]]. Pre-existing CommonCrypto users whose target
+            # ownership the designated live supervisor rules above check.
+            set(effect_owner_cmake "${allowed_name}")
+            set(effect_owner_target "the designated live macOS tools")
         elseif(current_allowed_relative MATCHES "^src/core/")
             set(effect_owner_cmake "${core_cmake_contents}")
             set(effect_owner_target "better_pull_review_core")
@@ -1871,6 +1876,28 @@ verify_effect_owner(
     "(SHA1DC[A-Za-z]*[ \t\r\n]*\\(|SHA1_CTX|CC_SHA1_|EVP_sha1|BCRYPT_SHA1_ALGORITHM|0x67452301|#[ \t]*include[ \t]*[<\"]sha1\\.h[>\"])"
     "SHA-1 implementation"
     "src/core/src/sha1_collision_detecting.cpp"
+)
+# [[BPR-1451]]. The core's SHA-256 is HACL*'s generated SHA-2, called only by
+# the core wrapper (RFC-BPR-0080 AC03): no other source names a HACL* symbol
+# or header, and no first-party SHA-2 (its initial hash or first round
+# constant) comes back. Platform and Qt SHA-256 outside the core are not
+# identities and are left alone.
+verify_effect_owner(
+    "(Hacl_|0x6a09e667|0x6A09E667|0x428a2f98|0x428A2F98)"
+    "SHA-256 implementation"
+    "src/core/src/sha256_hacl.cpp"
+)
+# [[BPR-1447]]. Platform crypto sits behind the application's body digest port
+# in one adapter file (RFC-BPR-0080 AC06): CommonCrypto's SHA-2 is named
+# nowhere else in the product, so core and application stay free of OS crypto.
+# The designated live capsule and supervisor identities, test tooling that
+# already fingerprinted their own images with it, keep it.
+verify_effect_owner(
+    "(CommonCrypto/|CC_SHA(224|256|384|512)[A-Za-z0-9_]*)"
+    "platform crypto (CommonCrypto SHA-2)"
+    "src/adapters/github/src/platform_body_digest.cpp"
+    "src/app/src/designated_live_macos_capsule_identity.cpp"
+    "${app_designated_live_supervisor_identity_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"
