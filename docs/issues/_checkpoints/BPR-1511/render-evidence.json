@@ -1,0 +1,25 @@
+{
+  "candidate_revision": "879d3c6b7632a4f4c7919697cdf53f755b254fab",
+  "platform": "macOS arm64",
+  "qt": "6.11.2",
+  "scale": "1.0",
+  "surface": "QT_QPA_PLATFORM=offscreen; production workbench window, inherited style",
+  "artifacts": [
+    {
+      "path": "/Users/jaeger/.codex/worktrees/bpr1511-unread-badge/BetterPullReview/build/dev/tests/adapters_qt/current-file-unread-badge-current-file-unread.png",
+      "sha256": "bf18e9030a39ee655902c99493271dbfbbae92b9ee31db6cc67bc29ae5e10f5a",
+      "inspection": "Full offscreen window inspected: selected file has badge 1."
+    },
+    {
+      "path": "/Users/jaeger/.codex/worktrees/bpr1511-unread-badge/BetterPullReview/build/dev/tests/adapters_qt/current-file-unread-badge-current-file-clean.png",
+      "sha256": "e07496097f370ce5b2efbc8b277de0f9012715a3b144e3dde22ae655f6c40ffa",
+      "inspection": "Full offscreen window inspected: selected clean file has no title or Comments-tab badge while other files remain unread."
+    },
+    {
+      "path": "/Users/jaeger/.codex/worktrees/bpr1511-unread-badge/BetterPullReview/build/dev/tests/end_to_end/diff-workbench-public-path.png",
+      "sha256": "4c5c3c856d27486865f400cd5172fa9254fe92db3fe4937e51fa04a43ffdb338",
+      "inspection": "Shipped application offscreen selected-diff public path through installed Git/cache, rendered after the production interaction trace."
+    }
+  ],
+  "native_appearance_acceptance": false
+}
