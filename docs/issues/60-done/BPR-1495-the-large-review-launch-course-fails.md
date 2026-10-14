@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1495"
 title: "The large review launch course fails"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1492--BPR-1496--90f0a51696a5.json","origin":"0.2.0 release normal gate (scripts/run_test_suite.py --preset dev) on main cd4860e30, reproduced alone on a quiet machine, owner release request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e7f61aa5c","evidence":{"kind":"observation","detail":"Failing check ProcessToMainMarkerMs (129.8 ms vs 100 in the cd4860e30 gate): dyld coalescing 30,190 weak definitions exported by the Debug fixture (Release app: 118). No single commit; largest steps 32ccfd8ad (RE2/Abseil) and 8172a3a63 (fmt). No budget loosened."}},{"criterion":"AC2","outcome":"pass","revision":"e7f61aa5c","evidence":{"kind":"observation","detail":"large_review_launch.py prints LARGE_REVIEW_LAUNCH_FAILED naming each failed check and its limit."}},{"criterion":"AC3","outcome":"pass","revision":"e7f61aa5c","evidence":{"kind":"command","command":"ctest --preset dev -R ^application_large_review_launch$","detail":"APPLE-only empty exported-symbols list for the Debug bench fixture (no runtime symbol lookups found): binds 30,190 -> 39, main marker median 108.1 -> 16.2 ms at load 9.9; row passed 3/3 at load 9-10 (worker) and again here at load 29.9 after one cold first launch. Under load 25-50 the fixture responsiveness and history epoch budgets can still refuse; those budgets are unchanged."}}]
 ---
 
 # The large review launch course fails
@@ -121,3 +122,5 @@ same load. It is not a quiet-machine figure.
     (`better_pull_review_large_review_replay`), so it is not affected. That
     executable was not built, and the row was not run.
   - No budget was changed.
+
+- Integration at e7f61aa5c (combined with BPR-1499 over main 23b0deeac), macOS arm64: after the relink, `application_large_review_launch` failed once on a cold first launch (main marker 1310.9 ms, home 1983.9 ms, load 35.7) and then passed (10.9 s, load 29.9). In the gate, `application_large_review_benchmark` runs the same executable before this row.
