@@ -848,6 +848,41 @@ namespace bpr::app::detail {
 		auto operator<=>(const reply_draft_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1478]]. A reread of the shown pull request lands just after the
+	/// reviewer picks another file, in the composed application over
+	/// `conventional-comments-v1`. Review shows `src/engine/renderer.cpp`
+	/// with a line selected. The read starts, from the public Refresh
+	/// (`refresh`) or from the window's own reread after a publication
+	/// (`reread`), and is held. The reviewer picks `src/engine/renderer.h` in
+	/// the files drawer while the window's reflection of that pick into the
+	/// active tab is held too. The read lands first, then the reflection
+	/// runs: the order a slow event loop can give, made the same every run.
+	enum class refresh_pick_course {
+		refresh,
+		reread,
+	};
+
+	enum class refresh_pick_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct refresh_pick_probe_evidence
+	{
+		/// The read landed after the pick and before the active tab took it:
+		/// a new snapshot was accepted while the active tab still named
+		/// `renderer.cpp`.
+		bool Raced = false;
+		/// Once the read settled, Review shows `renderer.h`: the file chosen,
+		/// the active tab on it and its diff on screen.
+		bool Kept = false;
+		/// Twenty ticks later it still does, with nothing being read.
+		bool Stayed = false;
+
+		auto operator<=>(const refresh_pick_probe_evidence&) const = default;
+	};
+
 	/// [[BPR-1345]]. Start a review in the composed application over
 	/// `conventional-comments-v1`, on `src/engine/renderer.cpp`. `pending`
 	/// starts a review on one line, adds a range to it, publishes a third
@@ -1700,6 +1735,14 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto reply_draft_evidence(const github_application& aApplication)
 			-> reply_draft_probe_evidence;
 		[[nodiscard]] static auto reply_draft_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1478]]. One tick of the course in which a reread lands
+		/// just after the reviewer picks another file.
+		[[nodiscard]] static auto exercise_refresh_pick(github_application& aApplication, refresh_pick_course aCourse)
+			-> refresh_pick_probe_result;
+		[[nodiscard]] static auto refresh_pick_evidence(const github_application& aApplication)
+			-> refresh_pick_probe_evidence;
+		[[nodiscard]] static auto refresh_pick_diagnostic(const github_application& aApplication)
 			-> std::string;
 		/// \brief [[BPR-1345]]. One tick of the start-a-review course.
 		[[nodiscard]] static auto exercise_start_review(github_application& aApplication, start_review_course aCourse)

@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"43fbc5d022ea51b398dea6c0234d42d4ba44ba53cc6a28ce30c9694f2c14e831"
+		"534bf8868243e25c65481cff88d34d9aed77c1d9239cb0931d9347130be9f697"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4199286549005b6a09a069558971268ea9c7b6bdd7fa501f22ca4449b28de64f"
+        "deb1b9642e69df8666853019be489509943835ddd7e8c456e1b205de694a245b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2417,3 +2417,17 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # provider's thread. No publication, credential, grant, inventory or
 # mutation-branch change; the full application and production-manifest
 # digests are refreshed.
+
+# [[BPR-1478]] reseal, over main e145ccd35. github_application.cpp: a file
+# gesture in Review, or a pasted link's file, reports the chosen file to the
+# document tabs (core::observe_file_choice), so a reread or Refresh that lands
+# before the active tab takes the pick presents it instead of the view shown
+# before the read. A new tests-enabled course (`--refresh-pick-course
+# refresh|reread`) holds the read and the tab's reflection to land the read
+# between them; main.cpp runs and prints it, and
+# github_application_fixture_access.hpp holds it. The start-review `pending`
+# course no longer waits for the single comment's reread. Main's BPR-1479
+# change to github_application.cpp (5f6be7e91, 392256fbc), which main had not
+# resealed, is part of these digests. No publication, credential, grant,
+# inventory or mutation-branch change; the full application and
+# production-manifest digests are refreshed.

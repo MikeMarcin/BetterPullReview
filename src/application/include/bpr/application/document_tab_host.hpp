@@ -61,7 +61,11 @@ namespace bpr::application {
 		void apply(const core::document_tab_intent& aIntent);
 		/// \brief Adopts a persisted collection, as Resume brings it back.
 		void restore(const core::window_review_tabs& aTabs);
-		/// \brief The pull request refreshed: the active tab shows its exact view again.
+		/// \brief [[BPR-1478]]. The reviewer chose a file in Review, which the
+		/// active tab takes once its comparison settles.
+		void observe_file_choice(const core::file_identity& aFile);
+		/// \brief The pull request refreshed: the active tab shows its exact
+		/// view again, or the file the reviewer chose since ([[BPR-1478]]).
 		void refresh();
 		/// \brief The window leaves this pull request; identities continue.
 		void reset();
