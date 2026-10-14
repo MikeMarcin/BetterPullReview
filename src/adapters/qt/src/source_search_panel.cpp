@@ -733,6 +733,7 @@ namespace bpr::qt {
 	void source_search_panel::adopt_appearance(const appearance_profile& aProfile)
 	{
 		using role = core::appearance_role;
+		Bar->adopt_appearance(aProfile);
 		Delegate->set_colours({ aProfile.color(role::diff_intraline_removed_background), aProfile.color(role::diff_intraline_added_background), aProfile.color(role::diff_removed_background), aProfile.color(role::diff_added_background), aProfile.color(role::find_match_background), aProfile.color(role::application_text) });
 		Tree->viewport()->update();
 		for (std::size_t i = 0; i < 2U; ++i) {
