@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1496"
 title: "The gh CLI Git smart transport test runs at its timeout"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
