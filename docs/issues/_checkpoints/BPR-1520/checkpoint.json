@@ -64,10 +64,11 @@
     "focused": "9/9 passed, including both architecture gates, core/shared host, SQLite storage/host, Qt panel/editor.",
     "public": "3/3 passed: application_label_publication_recovery19.85s; application_start_review_contract; application_review_round_trip_composition_contract.",
     "core_only": "core-only build and core_revisioned_review_draft passed.",
-    "documentation": "DOCUMENTATION_OK and67 documentation tests passed before finish; post-finish gate next.",
+    "documentation": "Post-finish DOCUMENTATION_OK; scoped board validation valid;67 documentation script tests passed.",
     "format": "clang-format22.1.8 dry-run on all29 changed C++ files passed.",
     "review": "Complete changed-source self-review; required frontend-design skill loaded; offscreen render inspected. No independent/human acceptance is claimed or required by these card criteria.",
-    "mutation_branch_sha256": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df (unchanged)"
+    "mutation_branch_sha256": "e067befefeff198fdbd992259b2ee8ea105520d50ddf7125e3b091519cb8a5df (unchanged)",
+    "render": "Exact source candidate regenerated the synthetic dialog/window renders; both PNG hashes match the inspected images."
   },
   "evidence_logs": {
     "/tmp/bpr1520-final-public-tests.log": {
@@ -105,6 +106,22 @@
     "/tmp/bpr1520-pinned-digests.log": {
       "sha256": "431726fce3931524f86207a3520f7d9ab8da094231c71be4486f2972a64f4a3f",
       "retention": "task-owned local verification evidence; no owner content"
+    },
+    "/tmp/bpr1520-configure.log": {
+      "sha256": "6aae83c891b17bcbff81cd4aca644595da5bd9af69634459bf44413d0de06771",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    },
+    "/tmp/bpr1520-core-configure.log": {
+      "sha256": "c7c835d55b1509e15d3a69615a7b52f0faf1dc919379f5499087975b73ad9dde",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    },
+    "/tmp/bpr1520-final-build.log": {
+      "sha256": "42662e1cac5d82de25dac0a0d7a74cc83539e65aec524d721dfeb906ccbb5aa5",
+      "retention": "task-owned local verification evidence; synthetic content only"
+    },
+    "/tmp/bpr1520-capacity-course.log": {
+      "sha256": "9b347ec675e0a2c2dc293dc5050f8732ec1c43cc980b88a239cfb4c40b542750",
+      "retention": "task-owned local verification evidence; synthetic content only"
     }
   },
   "artifacts": {
@@ -204,9 +221,31 @@
     "safety": "No owner profile, real review, desktop, browser profile or credentials inspected/modified; no live GitHub calls."
   },
   "pending": [
-    "Canonical finish and post-finish documentation gate, then coordinator main integration.",
-    "Original owner Publish error remains unknown; no forensic equivalence claim.",
-    "Windows/Linux native runtime qualification is not claimed."
+    "Coordinator main integration, including combined app-manifest reseal if other source changes are integrated."
   ],
-  "next_action": "Canonical finish AC1-AC8 with acceptance.json and explicit checkpoint paths; verify final documentation and clean worktree; hand commits to coordinator."
+  "next_action": "Coordinator integrates claim1d01a06b5, source7522d5986 and canonical finish1a51aed1e plus this final checkpoint commit, preserving current main owner amendments. Recheck combined composition pins and focused integration after resolving any overlap.",
+  "canonical_finish": "1a51aed1e89a61aada16147acc09ceeadc8d200a",
+  "upkeep_status": "complete; canonical Done with passing AC1-AC8",
+  "tracker": {
+    "lane": "60-done",
+    "card": "docs/issues/60-done/BPR-1520-review-publish-failure-loses-notes.md",
+    "criteria": [
+      "AC1",
+      "AC2",
+      "AC3",
+      "AC4",
+      "AC5",
+      "AC6",
+      "AC7",
+      "AC8"
+    ],
+    "plan_binding": "docs/issues/_checkpoints/BPR-1520/final-plan-binding.json"
+  },
+  "uncertainties": [
+    "Original owner Publish error and exact incident trigger remain unknown; reproduced mechanisms are not forensic equivalence.",
+    "Owner reported actual content recovery; agent did not independently inspect the owner profile.",
+    "Windows/Linux native runtime evidence is not claimed."
+  ],
+  "final_definition_fingerprint": "sha256:f0ef546650c62171b8b313971a0c97dc90dc8585a06f4a56024702a74fe9f84f",
+  "final_obligation_fingerprint": "sha256:6e113f1fd3e3f1f4f3f4aa17c29154432462573e5584432c8df9a2c6472bd5bc"
 }
