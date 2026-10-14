@@ -155,6 +155,13 @@ separate, explicit service mounted in General. The [Settings authority
 inventory](../development/settings-authority-inventory.md) records each store,
 reset and failure scope; the [Settings guide](../development/settings.md)
 describes the corresponding user behavior.
+
+The workbench profile also owns center ribbon width ([[BPR-1512]]): 16–256
+logical pixels, default 28. Schema 20 adds it to the profile row while carrying
+all earlier profile and window choices forward. Accepted durable behaviour
+publication updates Qt’s actual splitter handle and map size hint together;
+Qt retains ribbon geometry, hit testing and splitter mechanics.
+
 The global profile registry retains bounded stable window identities and focus
 order. The management host saves core lifecycle decisions before starting or
 closing windows, and before orderly Quit drains services. Failed saves preserve

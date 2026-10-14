@@ -1,5 +1,7 @@
 #include "bpr/qt/diff_link_map.hpp"
 
+#include "bpr/application/workbench_runtime_ports.hpp"
+
 #include <QAccessible>
 #include <QApplication>
 #include <QColor>
@@ -24,8 +26,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto valid_configuration(
 			const diff_link_map_configuration& aConfiguration) noexcept -> bool
 		{
-			return aConfiguration.LogicalWidth >= 48
-				&& aConfiguration.LogicalWidth <= 256
+			return aConfiguration.LogicalWidth >= static_cast<int>(application::minimum_center_ribbon_width)
+				&& aConfiguration.LogicalWidth <= static_cast<int>(application::maximum_center_ribbon_width)
 				&& std::isfinite(aConfiguration.ControlFraction)
 				&& aConfiguration.ControlFraction > 0.0
 				&& aConfiguration.ControlFraction < 0.5
@@ -185,6 +187,18 @@ namespace bpr::qt {
 		setMouseTracking(true);
 		setAttribute(Qt::WA_OpaquePaintEvent, false);
 		update_accessible_status();
+	}
+
+	void diff_link_map::set_logical_width(const int aWidth)
+	{
+		auto next         = Configuration;
+		next.LogicalWidth = aWidth;
+		if (!valid_configuration(next) || Configuration.LogicalWidth == aWidth) {
+			return;
+		}
+		Configuration = next;
+		splitter()->setHandleWidth(aWidth);
+		updateGeometry();
 	}
 
 	void diff_link_map::set_geometry(
@@ -1075,7 +1089,8 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("diffComparisonSplitter"));
 		setChildrenCollapsible(false);
-		setHandleWidth(56);
+		static_assert(diff_link_map_configuration{ }.LogicalWidth == application::default_center_ribbon_width);
+		setHandleWidth(static_cast<int>(application::default_center_ribbon_width));
 	}
 
 	auto diff_comparison_splitter::link_map() const noexcept -> diff_link_map*

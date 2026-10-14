@@ -71,6 +71,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QSpinBox>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -10809,6 +10810,61 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1512]]. Settings edits wait for accepted publication and resize the real ribbon.
+	void test_center_ribbon_width_settings_and_rendering()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(every_primary_command_offered());
+		window.choose_modality(qt::review_modality::review);
+		window.publish(application::workbench_projection{ .Drawers = core::workbench_drawer_delta{ .Files = core::workbench_drawer_state::expanded, .Conversations = core::workbench_drawer_state::expanded, .Repositories = core::workbench_drawer_state::collapsed } });
+		const auto [leftText, rightText] = comparison_fixture_text();
+		const auto  diff                 = computed_comparison(leftText, rightText, 0U, core::file_identity_of("src/file.cpp"));
+		auto* const surface              = publish_fixture(window, diff);
+		auto* const map                  = surface->link_map();
+		auto* const control              = window.findChild<QSpinBox*>(QStringLiteral("centerRibbonWidth"));
+		expect(control != nullptr && control->accessibleName() == QStringLiteral("Center ribbon width")
+				   && control->accessibleDescription().contains(QStringLiteral("logical pixels"))
+				   && control->minimum() == 16 && control->maximum() == 256 && control->suffix() == QStringLiteral(" px"),
+			   "the real Settings control names its logical-pixel unit and supported bounds");
+		expect(control->value() == 28 && map->width() == 28 && map->sizeHint().width() == 28,
+			   "a new workbench uses exactly half the former 56-pixel center ribbon");
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const auto& aSettings) { records.push_back(aSettings); });
+		for (const auto logicalWidth : { 16, 28, 56, 256 }) {
+			const auto previousWidth = map->width();
+			control->setValue(logicalWidth);
+			expect(!records.empty() && records.back().CenterRibbonWidth == static_cast<std::uint32_t>(logicalWidth)
+					   && map->width() == previousWidth,
+				   "an edit dispatches the whole record without resizing before durable acceptance");
+			window.publish(application::workbench_projection{ .Behaviour = records.back() });
+			settle_geometry(*surface, "center ribbon width");
+			std::cout << "ribbon-width:" << logicalWidth << ",actual:" << map->width() << ",panes:" << surface->left_pane()->width() << "," << surface->right_pane()->width() << '\n';
+			expect(map->width() == logicalWidth && map->sizeHint().width() == logicalWidth
+					   && surface->left_pane()->width() > 100 && surface->right_pane()->width() > 100,
+				   "the accepted width reaches the real divider and leaves both source panes usable");
+			expect(!map->visible_links().empty(), "ribbons remain attached after width changes");
+			const auto link  = map->visible_links().front();
+			const auto point = QPointF{ logicalWidth / 2.0, (link.LeftTop + link.LeftBottom + link.RightTop + link.RightBottom) / 4.0 };
+			expect(map->hit_test(point) == link.Identity, "the painted ribbon retains exact hit identity at every supported width sample");
+			save_render(window, QStringLiteral("ribbon-%1").arg(logicalWidth));
+		}
+		window.open_settings(qt::settings_page::reviews_and_queue);
+		process_events();
+		expect(control->isVisible() && control->isEnabled(), "the ribbon width is reachable in Settings Reviews and queue");
+		window.findChild<QToolButton*>(QStringLiteral("resetComparisonBehaviour"))->click();
+		expect(records.back().CenterRibbonWidth == 28U, "Comparison Reset restores the new 28-pixel default");
+		window.publish(application::workbench_projection{ .Behaviour = records.back() });
+		process_events();
+		expect(control->value() == 28 && map->width() == 28, "accepted Reset reaches both Settings and the divider");
+		if (const auto renderPath = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !renderPath.isEmpty()) {
+			expect(window.settings()->grab().save(QFileInfo{ renderPath }.path() + QStringLiteral("/ribbon-settings.png")), "the real Settings window renders");
+		}
+		window.settings()->hide();
+		window.hide();
+	}
+
 	// [[BPR-0721]]. With the drawer controls hidden, the default, a collapsed
 	// drawer leaves the splitter entirely and an expanded one has no Hide
 	// button; with them shown, the rail is the 18-pixel column and nothing
@@ -15116,6 +15172,12 @@ auto main(int argc, char** argv) -> int
 		test_read_state_reaches_the_gutter_and_the_strip();
 		test_the_right_tray_holds_comments_and_notes_tabs();
 		std::cout << "current-file-unread-badge:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--center-ribbon-width"))) {
+		test_center_ribbon_width_settings_and_rendering();
+		test_line_details_view_menu_and_settings_follow_the_projection();
+		std::cout << "center-ribbon-width:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {

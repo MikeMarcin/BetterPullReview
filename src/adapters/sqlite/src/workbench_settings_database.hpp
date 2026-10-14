@@ -84,7 +84,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// every other field it had.
 	/// Nineteen since [[BPR-1388]]: Home's authored panel has its own collapse
 	/// bit. Older window rows retain the four original bits and start it expanded.
-	inline constexpr std::int64_t workbench_settings_schema_version = 19;
+	/// Twenty since [[BPR-1512]]: the profile's center ribbon width, defaulting
+	/// to 28 logical pixels, with all previous profile and window choices retained.
+	inline constexpr std::int64_t workbench_settings_schema_version = 20;
 
 	/// \brief Owns the durable workbench layout database.
 	///

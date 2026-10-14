@@ -1,0 +1,30 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1512-ribbon-width",
+  "scope": {
+    "issues": [
+      "BPR-1512"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "configurable-ribbon",
+      "outcome": "Center ribbon width is profile-persisted, defaults to 28 logical pixels and updates the real workbench after durable publication.",
+      "work": [
+        {
+          "issue": "BPR-1512"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: Accessible setting with sensible bounds and logical-pixel label.",
+        "AC2: Default and reset are 28, exactly half previous 56; migrated settings retain other explicit choices.",
+        "AC3: Accepted width updates real ribbon and persists across restart.",
+        "AC4: Real offscreen workbench interaction and settings/default/storage checks pass; visual judgement remains pending until exact frozen candidate receives attended acceptance."
+      ],
+      "boundary": "Verified scoped code and documentation with attended visual candidate handed to coordinator."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

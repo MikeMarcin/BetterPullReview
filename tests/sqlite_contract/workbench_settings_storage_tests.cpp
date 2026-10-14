@@ -49,9 +49,10 @@ namespace {
 		};
 	}
 
-	/// \brief Rebuilds a fixture's Home table with the pre-nineteen collapse bound, preserving its rows.
+	/// \brief Restores the pre-twenty profile and pre-nineteen Home schema of a legacy fixture, preserving its rows.
 	[[nodiscard]] auto legacy_home_bound(sqlite3* aDatabase) -> sqlite3*
 	{
+		expect(sqlite3_exec(aDatabase, "ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width", nullptr, nullptr, nullptr) == SQLITE_OK, "legacy fixture has no ribbon width column");
 		const auto definition = scalar_text(aDatabase, "SELECT sql FROM sqlite_schema WHERE name='window_layout'");
 		expect(definition.has_value(), "legacy fixture Home table exists");
 		auto       sql   = *definition;
@@ -134,9 +135,10 @@ namespace {
 		auto       chosen  = distinct_layout();
 		// [[BPR-0721]]. Away from its hidden default, so the column is
 		// written and read rather than merely defaulted on both sides.
-		chosen.Behaviour.DrawerControls = application::review_drawer_controls::shown;
-		chosen.WritingHooks.Revision    = 8;
-		chosen.WritingHooks.Overrides   = { "problem — preserve meaning", "solution", "outline", "comment" };
+		chosen.Behaviour.DrawerControls    = application::review_drawer_controls::shown;
+		chosen.Behaviour.CenterRibbonWidth = 56U;
+		chosen.WritingHooks.Revision       = 8;
+		chosen.WritingHooks.Overrides      = { "problem — preserve meaning", "solution", "outline", "comment" };
 
 		{
 			auto opened = workbench_settings_database::open(path, { });
@@ -1966,7 +1968,7 @@ namespace {
 		{
 			auto db = workbench_settings_database::open(path, { });
 			expect(db.has_value(), "version15 migration opens");
-			expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version && workbench_settings_schema_version == 19, "and stamps version nineteen");
+			expect(integer_pragma(path, "PRAGMA user_version") == workbench_settings_schema_version, "and stamps the current version");
 			const auto loaded = db->load({ });
 			expect(loaded && *loaded == chosen, "the four tour overrides, their revision and every other field are kept exactly");
 			expect(loaded && loaded->WritingHooks.Overrides[static_cast<std::size_t>(core::writing_hook::feedback)].empty(), "the migrated feedback hook follows the shipped default");
@@ -2212,6 +2214,38 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1512]]. Version nineteen adopts the narrower default without losing saved choices.
+	void test_center_ribbon_width_migration_and_bounds()
+	{
+		const auto scratch                 = scratch_directory{ };
+		const auto path                    = scratch.file("ribbon-v19.sqlite3");
+		auto       chosen                  = settled_profile();
+		chosen.Behaviour.CenterRibbonWidth = 56U;
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db && db->store(chosen, { }), "an explicit 56-pixel choice stores");
+			expect(sqlite3_exec(db->handle(), "ALTER TABLE workbench_preferences DROP COLUMN center_ribbon_width; UPDATE workbench_meta SET schema_format=19; PRAGMA user_version=19", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "the actual pre-setting version-nineteen schema is seeded");
+		}
+		{
+			auto db = workbench_settings_database::open(path, { });
+			expect(db.has_value(), "the prior production settings schema migrates");
+			chosen.Behaviour.CenterRibbonWidth = 28U;
+			expect(db->load({ }) == chosen, "migration adopts exactly half the old 56-pixel width and preserves every existing preference");
+			for (const auto supported : { 16U, 28U, 56U, 256U }) {
+				chosen.Behaviour.CenterRibbonWidth = supported;
+				expect(db->store(chosen, { }) && db->load({ }) == chosen, "each supported boundary/sample round-trips");
+			}
+			for (const auto unsupported : { 0U, 15U, 257U, 0xFFFFFFFFU }) {
+				chosen.Behaviour.CenterRibbonWidth = unsupported;
+				expect(!db->store(chosen, { }), "an out-of-bounds width cannot be written");
+			}
+		}
+		auto reopened                      = workbench_settings_database::open(path, { });
+		chosen.Behaviour.CenterRibbonWidth = 256U;
+		expect(reopened && reopened->load({ }) == chosen, "the explicit choice remains intact across restart");
+	}
+
 	void test_invalid_one_pane_window_is_refused()
 	{
 		const auto scratch = scratch_directory{ };
@@ -2236,6 +2270,7 @@ auto main() -> int
 try {
 	expect(sqlite_runtime_ready(), "SQLite runtime initializes before trace injection");
 	test_authored_collapse_upgrade_and_independent_windows();
+	test_center_ribbon_width_migration_and_bounds();
 	test_authoritative_window_retention();
 	test_feedback_marks_round_trip_and_migrate_from_eleven();
 	test_label_preferences_migrate_from_twelve_without_resetting_anything_else();

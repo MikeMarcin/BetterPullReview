@@ -218,6 +218,7 @@ namespace {
 
 		auto chosen = stored;
 		chosen.LabelColumnsRecovery.reset();
+		chosen.CenterRibbonWidth             = 56U;
 		chosen.LabelHelper                   = application::review_label_helper::on;
 		chosen.OverviewCounts                = application::review_overview_counts::all;
 		chosen.LabelColumns                  = *core::make_feedback_label_columns(std::array{ core::feedback_label::question, core::feedback_label::issue, core::feedback_label::quibble });
@@ -233,6 +234,12 @@ namespace {
 		expect(durable.Preferences.NewWindowDefaults.FilesWidth == 400U && durable.Preferences.Behaviour.OpenModality == application::review_open_modality::review,
 			   "no other preference is reset by the label edit");
 
+		for (const auto invalidWidth : { 15U, 257U }) {
+			auto invalid              = chosen;
+			invalid.CenterRibbonWidth = invalidWidth;
+			expect(!preferences.apply_behaviour(invalid) && durable.Writes == 1U && first.layout().Behaviour == chosen,
+				   "a ribbon width outside the supported bounds is refused before any durable write");
+		}
 		auto twice                    = chosen;
 		twice.LabelColumns.Labels[1]  = core::feedback_label::question;
 		const auto failuresBefore     = firstProjection.Failures;

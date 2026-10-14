@@ -1,6 +1,8 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 
+#include "bpr/application/workbench_runtime_ports.hpp"
+
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/line_details_pane.hpp"
@@ -3608,6 +3610,13 @@ namespace bpr::qt {
 	auto diff_workbench::line_details() const noexcept -> line_details_pane*
 	{
 		return Detail;
+	}
+
+	void diff_workbench::set_center_ribbon_width(const std::uint32_t aWidth)
+	{
+		if (aWidth >= application::minimum_center_ribbon_width && aWidth <= application::maximum_center_ribbon_width) {
+			LinkMap->set_logical_width(static_cast<int>(aWidth));
+		}
 	}
 
 	void diff_workbench::set_line_details_visible(const bool aVisible)

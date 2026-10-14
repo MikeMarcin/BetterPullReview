@@ -627,6 +627,10 @@ namespace bpr::application {
 		auto operator<=>(const review_label_columns_recovery&) const = default;
 	};
 
+	inline constexpr std::uint32_t minimum_center_ribbon_width = 16U;
+	inline constexpr std::uint32_t maximum_center_ribbon_width = 256U;
+	inline constexpr std::uint32_t default_center_ribbon_width = 28U;
+
 	/// \brief The reviewer's durable review-behaviour preferences.
 	///
 	/// \details [[BPR-0661]]. RFC-BPR-0028's Reviews & queue rows. Stored
@@ -636,7 +640,8 @@ namespace bpr::application {
 	/// comparison on return, the comments drawer's first filter and, since
 	/// [[BPR-0721]], whether the drawers carry their own controls. Every
 	/// default is the behaviour the window had before the preference existed,
-	/// except the drawer controls, which the owner asked to have off.
+	/// except the drawer controls, which the owner asked to have off, and the
+	/// center ribbon width, which the owner asked to halve ([[BPR-1512]]).
 	struct review_behaviour_settings
 	{
 		review_open_modality OpenModality = review_open_modality::overview;
@@ -660,6 +665,8 @@ namespace bpr::application {
 		std::optional<review_label_columns_recovery> LabelColumnsRecovery;
 		/// [[BPR-1334]]. Line details under the comparison, shown by default.
 		review_line_details LineDetails = review_line_details::shown;
+		/// [[BPR-1512]]. Logical pixels; half the previous fixed 56-pixel divider.
+		std::uint32_t CenterRibbonWidth = default_center_ribbon_width;
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -697,6 +704,8 @@ namespace bpr::application {
 			<= static_cast<std::uint8_t>(review_overview_counts::all)
 			&& static_cast<std::uint8_t>(aSettings.LineDetails)
 			<= static_cast<std::uint8_t>(review_line_details::hidden)
+			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
+			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();
 	}
 

@@ -6053,6 +6053,7 @@ namespace bpr::qt {
 			}
 			apply_label_helper();
 			apply_line_details();
+			ComparisonSurface->set_center_ribbon_width(Behaviour.CenterRibbonWidth);
 			consider_mark_read_when_fully_seen();
 			// A pull request that opened before the preferences landed takes
 			// them now, once each.
@@ -9172,6 +9173,18 @@ namespace bpr::qt {
 			[](application::review_behaviour_settings& aNext) {
 				aNext.DrawerControls = application::review_behaviour_settings{ }.DrawerControls;
 			});
+		CenterRibbonWidth = new QSpinBox{ BehaviourEditor };
+		CenterRibbonWidth->setObjectName(QStringLiteral("centerRibbonWidth"));
+		CenterRibbonWidth->setAccessibleName(QStringLiteral("Center ribbon width"));
+		CenterRibbonWidth->setAccessibleDescription(QStringLiteral("Width between the two source panes, in logical pixels"));
+		CenterRibbonWidth->setRange(static_cast<int>(application::minimum_center_ribbon_width), static_cast<int>(application::maximum_center_ribbon_width));
+		CenterRibbonWidth->setSuffix(QStringLiteral(" px"));
+		CenterRibbonWidth->setKeyboardTracking(false);
+		connect(CenterRibbonWidth, &QSpinBox::valueChanged, this, [this] {
+			if (!ApplyingBehaviour) {
+				dispatch_behaviour_from_controls();
+			}
+		});
 		// [[BPR-1334]]. The owner, 2026-10-08: "an optional on by default view
 		// page below the side by side". The same choice as View > Line Details.
 		addGroup(
@@ -9183,9 +9196,11 @@ namespace bpr::qt {
 					 QStringLiteral("lineDetails"),
 					 { { QStringLiteral("Shown"), QStringLiteral("lineDetailsShown") },
 					   { QStringLiteral("Hidden"), QStringLiteral("lineDetailsHidden") } } },
+				row{ 0U, QStringLiteral("Center ribbon width"), QStringLiteral("centerRibbonWidth"), { }, nullptr, CenterRibbonWidth },
 			},
 			[](application::review_behaviour_settings& aNext) {
-				aNext.LineDetails = application::review_behaviour_settings{ }.LineDetails;
+				aNext.LineDetails       = application::review_behaviour_settings{ }.LineDetails;
+				aNext.CenterRibbonWidth = application::default_center_ribbon_width;
 			});
 		// [[BPR-1083]]. The owner, 2026-10-05: "i think settings should also
 		// have a toggle to switch between the icons and the shortcode icons,
@@ -9438,6 +9453,9 @@ namespace bpr::qt {
 		check(6U, static_cast<std::size_t>(Behaviour.FeedbackMarks));
 		check(7U, static_cast<std::size_t>(Behaviour.OverviewCounts));
 		check(8U, static_cast<std::size_t>(Behaviour.LineDetails));
+		if (CenterRibbonWidth != nullptr) {
+			CenterRibbonWidth->setValue(static_cast<int>(Behaviour.CenterRibbonWidth));
+		}
 		if (LabelHelperSwitch != nullptr) {
 			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
 		}
@@ -9464,16 +9482,17 @@ namespace bpr::qt {
 			return 0U;
 		};
 		return application::review_behaviour_settings{
-			.OpenModality     = static_cast<application::review_open_modality>(chosen(0U)),
-			.MarkRead         = static_cast<application::review_mark_read_behaviour>(chosen(2U)),
-			.ReturnComparison = static_cast<application::review_return_comparison>(chosen(3U)),
-			.CommentsFilter   = static_cast<application::review_comments_filter>(chosen(4U)),
-			.DrawerControls   = static_cast<application::review_drawer_controls>(chosen(5U)),
-			.FeedbackMarks    = static_cast<application::review_feedback_marks>(chosen(6U)),
-			.LabelHelper      = LabelHelperSwitch != nullptr && LabelHelperSwitch->isChecked() ? application::review_label_helper::on : application::review_label_helper::off,
-			.OverviewCounts   = static_cast<application::review_overview_counts>(chosen(7U)),
-			.LabelColumns     = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
-			.LineDetails      = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
+			.OpenModality      = static_cast<application::review_open_modality>(chosen(0U)),
+			.MarkRead          = static_cast<application::review_mark_read_behaviour>(chosen(2U)),
+			.ReturnComparison  = static_cast<application::review_return_comparison>(chosen(3U)),
+			.CommentsFilter    = static_cast<application::review_comments_filter>(chosen(4U)),
+			.DrawerControls    = static_cast<application::review_drawer_controls>(chosen(5U)),
+			.FeedbackMarks     = static_cast<application::review_feedback_marks>(chosen(6U)),
+			.LabelHelper       = LabelHelperSwitch != nullptr && LabelHelperSwitch->isChecked() ? application::review_label_helper::on : application::review_label_helper::off,
+			.OverviewCounts    = static_cast<application::review_overview_counts>(chosen(7U)),
+			.LabelColumns      = LabelColumnsEditor != nullptr ? LabelColumnsEditor->columns() : Behaviour.LabelColumns,
+			.LineDetails       = BehaviourOptions[8].empty() ? Behaviour.LineDetails : static_cast<application::review_line_details>(chosen(8U)),
+			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 		};
 	}
 

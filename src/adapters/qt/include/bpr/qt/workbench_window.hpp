@@ -90,6 +90,7 @@ class QMenuBar;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
+class QSpinBox;
 class QStackedWidget;
 class QTabBar;
 class QTimer;
@@ -2247,6 +2248,7 @@ namespace bpr::qt {
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.
 		QCheckBox*                     LabelHelperSwitch    = nullptr;
+		QSpinBox*                      CenterRibbonWidth    = nullptr;
 		feedback_label_columns_editor* LabelColumnsEditor   = nullptr;
 		QLabel*                        LabelColumnsRecovery = nullptr;
 		QToolButton*                   MarkColoursLink      = nullptr;

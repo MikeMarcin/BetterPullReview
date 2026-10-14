@@ -1197,6 +1197,16 @@ endif()
 target_include_directories(test_better_pull_review_qt_workbench_window_tests SYSTEM PRIVATE
     "${bpr_qtgui_private_headers}" "${bpr_qtgui_private_headers}/QtGui")
 
+foreach(bpr_ribbon_scale IN ITEMS 1.0 1.25 2.0)
+    bpr_add_network_isolated_test(
+        NAME qt_center_ribbon_width_scale_${bpr_ribbon_scale}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --center-ribbon-width)
+    set_tests_properties(qt_center_ribbon_width_scale_${bpr_ribbon_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_ribbon_scale}"
+        PASS_REGULAR_EXPRESSION "center-ribbon-width:pass"
+        TIMEOUT 90)
+endforeach()
+
 bpr_add_network_isolated_test(
     NAME qt_shared_snapshot_navigation
     COMMAND test_better_pull_review_qt_workbench_window_tests --shared-snapshot-navigation
