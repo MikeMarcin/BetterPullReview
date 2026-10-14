@@ -3565,6 +3565,12 @@ namespace bpr::qt {
 			FileSearchTabs = new QTabWidget;
 			FileSearchTabs->setObjectName(QStringLiteral("fileSearchTabs"));
 			FileSearchTabs->setAccessibleName(tr("Files and Search"));
+			// [[BPR-1509]]. The tabs are the drawer's header, as in Comments/Notes.
+			FileSearchTabs->setDocumentMode(true);
+			FileSearchTabs->tabBar()->setExpanding(false);
+			FileSearchTabs->tabBar()->setDrawBase(true);
+			FileSearchTabs->tabBar()->setFocusPolicy(Qt::StrongFocus);
+			Drawers[0].Panel->set_heading_shown(false);
 			FileSearchTabs->addTab(filesSurface, tr("Files"));
 			SearchPanel          = new source_search_panel{ FileSearchTabs };
 			SearchPanel->Changed = [this] { update_source_find_actions(); };

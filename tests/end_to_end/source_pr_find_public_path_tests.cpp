@@ -12,12 +12,14 @@
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 #include <QAbstractButton>
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QHoverEvent>
 #include <QInputMethodEvent>
 #include <QKeyEvent>
 #include <QLabel>
@@ -30,12 +32,14 @@
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QSysInfo>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTextBlock>
 #include <QThread>
 #include <QToolButton>
 #include <QTreeView>
+#include <cmath>
 #include <iostream>
 
 namespace {
@@ -75,6 +79,15 @@ namespace {
 		aFind.query_editor()->setPlainText(aQuery);
 		aFind.flush();
 		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal");
+		settle();
+	}
+	void click_tab(QTabBar& aTabs, const int aIndex)
+	{
+		const auto  centre = aTabs.tabRect(aIndex).center();
+		QMouseEvent press{ QEvent::MouseButtonPress, centre, aTabs.mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QMouseEvent release{ QEvent::MouseButtonRelease, centre, aTabs.mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(&aTabs, &press);
+		QApplication::sendEvent(&aTabs, &release);
 		settle();
 	}
 	void open(app::github_application& aApplication, const std::string_view aPath)
@@ -172,6 +185,51 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(panel->projection().Statistics.Compilations == beforeTraversal.Compilations && panel->projection().Statistics.ReadCalls == beforeTraversal.ReadCalls && panel->projection().Statistics.Scans == beforeTraversal.Scans, "1000 PR result traversals perform no compile scan or source read");
 	expect(surface->current_result().get() == comparison, "same-file PR traversal reuses ordinary accepted diff");
+
+	// [[BPR-1509]]. Both drawer headers use compact native tabs; switching
+	// pages retains the file/filter and the independent Search session.
+	auto* const fileSearch = window.findChild<QTabWidget*>(QStringLiteral("fileSearchTabs"));
+	expect(fileSearch && fileSearch->count() == 2, "Files and Search share the existing drawer");
+	auto* const tabs            = fileSearch->tabBar();
+	const auto  retainedFile    = surface->current_context()->Key;
+	const auto  retainedSearch  = panel->projection().Matches;
+	const auto  retainedMatch   = panel->projection().CurrentMatch;
+	const auto  retainedSummary = panel->summary_text();
+	const auto  retainedWidth   = window.files_drawer()->width();
+	expect(tabs->tabRect(1).right() < fileSearch->width() - 20, "native tab labels leave room across the header");
+	expect(std::abs(tabs->mapTo(&window, QPoint{ }).y() - window.tray_tabs()->mapTo(&window, QPoint{ }).y()) <= 2, "Files/Search and Comments/Notes start at the same drawer header edge");
+	click_tab(*tabs, 0);
+	expect(!panel->isVisible() && filter->isVisible() && filter->text() == QStringLiteral("other"), "mouse Files switch restores its retained filter");
+	render(window, QStringLiteral("drawer-tabs-files"));
+	auto* const accessibleTabs = QAccessible::queryAccessibleInterface(tabs);
+	expect(accessibleTabs && accessibleTabs->role() == QAccessible::PageTabList && accessibleTabs->child(0)->text(QAccessible::Name) == QStringLiteral("Files") && accessibleTabs->child(1)->text(QAccessible::Name) == QStringLiteral("Search"), "native tab accessibility retains the page names");
+	tabs->setFocus(Qt::TabFocusReason);
+	expect(tabs->hasFocus(), "keyboard focus reaches the Files/Search header");
+	render(window, QStringLiteral("drawer-tabs-files-focus"));
+	tests::window_system_key(window, Qt::Key_Right);
+	settle();
+	render(window, QStringLiteral("drawer-tabs-search-focus"));
+	expect(panel->bar()->query_editor()->hasFocus() && panel->isVisible() && accessibleTabs->child(1)->state().selected, "Right switches to Search with its existing query focus and selected accessibility");
+	const auto  hoverPoint = tabs->tabRect(0).center();
+	QHoverEvent hover{ QEvent::HoverMove, hoverPoint, tabs->mapToGlobal(hoverPoint), QPointF{ -1, -1 } };
+	QApplication::sendEvent(tabs, &hover);
+	render(window, QStringLiteral("drawer-tabs-files-hover"));
+	QHoverEvent leave{ QEvent::HoverLeave, QPointF{ -1, -1 }, tabs->mapToGlobal(hoverPoint), hoverPoint };
+	QApplication::sendEvent(tabs, &leave);
+	tabs->setFocus(Qt::TabFocusReason);
+	tests::window_system_key(window, Qt::Key_Left);
+	settle();
+	expect(fileSearch->currentIndex() == 0 && !panel->isVisible(), "Left switches back to Files");
+	fileSearch->setTabEnabled(1, false);
+	expect(!tabs->isTabEnabled(1), "Search tab disabled for native navigation");
+	tests::window_system_key(window, Qt::Key_Right);
+	expect(fileSearch->currentIndex() == 0 && !panel->isVisible(), "keyboard skips disabled tabs");
+	render(window, QStringLiteral("drawer-tabs-search-disabled"));
+	fileSearch->setTabEnabled(1, true);
+	click_tab(*tabs, 1);
+	expect(panel->isVisible() && surface->current_context()->Key == retainedFile && filter->text() == QStringLiteral("other") && window.files_drawer()->width() == retainedWidth, "tab switching retains file selection, Files filter and drawer width");
+	expect(panel->projection().Query == "offscreen needle" && panel->projection().Matches == retainedSearch && panel->projection().CurrentMatch == retainedMatch && panel->summary_text() == retainedSummary, "tab switching retains Search query, exact results, selection and counts");
+	render(window, QStringLiteral("drawer-tabs-search"));
 
 	// [[BPR-1504]]. The side chips filter the rows, the counts and F4.
 	auto* leftChip  = panel->findChild<QAbstractButton*>(QStringLiteral("sourceSearchSideLeft"));

@@ -10694,9 +10694,11 @@ namespace {
 		auto* const files    = window.files_drawer();
 		auto* const comments = window.conversations_drawer();
 		auto* const heading  = files->findChild<QLabel*>(QStringLiteral("workbenchFilesDrawerHeading"));
-		expect(heading != nullptr && heading->isVisible() && !files->collapse_button()->isVisible()
+		auto* const tabs     = window.findChild<QTabWidget*>(QStringLiteral("fileSearchTabs"));
+		expect(heading != nullptr && !heading->isVisible() && tabs != nullptr && tabs->isVisible()
+				   && files->accessibleName() == QStringLiteral("Files drawer") && !files->collapse_button()->isVisible()
 				   && !files->controls_shown(),
-			   "an expanded drawer keeps its heading and, by default, has no Hide button");
+			   "Files/Search is the expanded drawer's header; its accessible name remains and Hide is absent by default");
 
 		auto collapsed    = application::workbench_projection{ };
 		collapsed.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
@@ -10725,16 +10727,16 @@ namespace {
 			   "with the controls shown the collapsed drawer is exactly its rail, with nothing above it");
 		window.publish(opened);
 		process_events();
-		expect(files->isVisible() && files->width() == 320 && heading->isVisible()
+		expect(files->isVisible() && files->width() == 320 && !heading->isVisible() && tabs->isVisible()
 				   && files->collapse_button()->isVisible() && !files->rail()->isVisible(),
-			   "expanded with the controls shown, the Hide button is back beside the heading");
+			   "expanded with the controls shown, Hide returns and the Files/Search header stays visible");
 
 		auto hidden      = application::workbench_projection{ };
 		hidden.Behaviour = application::review_behaviour_settings{ };
 		window.publish(hidden);
 		process_events();
-		expect(files->width() == 320 && !files->collapse_button()->isVisible() && heading->isVisible(),
-			   "hiding the controls again takes only the Hide button from an expanded drawer");
+		expect(files->width() == 320 && !files->collapse_button()->isVisible() && !heading->isVisible() && tabs->isVisible(),
+			   "hiding the controls again keeps the Files/Search header and drawer width");
 		window.hide();
 	}
 

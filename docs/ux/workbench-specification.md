@@ -331,6 +331,12 @@ the comparison, folded and open ([[BPR-1036]]).
 
 The file and conversation regions are true collapsible drawers. Their open widths are independently resizable and persisted. Collapsing one returns its width to the central review surface. Their toggles remain at the opposite edges of one compact icon-only row, so both surfaces stay reopenable without a second drawer toolbar.
 
+Files and Search form the file drawer's header, using the same compact native
+document tabs as Comments and Notes ([[BPR-1509]]). The drawer keeps its
+accessible name without a separate visible heading. Switching pages retains
+the file selection, Files filter and Search query/results; native tab focus,
+arrow navigation and disabled states remain available.
+
 **Hide and show every drawer** ([[BPR-1295]]). One checkable window command,
 Hide Drawers, on `Ctrl+B` (⌘B on macOS) and an icon immediately right of the
 comments toggle. While any drawer is open it closes every open drawer
