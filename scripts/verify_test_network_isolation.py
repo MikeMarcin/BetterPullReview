@@ -162,6 +162,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # registry ("STARTUP_FAILED_CAUSE: startup_failure=registry"), the same
     # refusal the BPR-0834 rows measured.
     "application_published_file_switch_contract": "dos-volume-name",
+    # [[BPR-1478]]. The file-switch row's composed application over the same
+    # fixture, with no data root of its own; pinned by that shape, not yet
+    # measured contained on Windows.
+    "application_refresh_pick_contract": "dos-volume-name",
     # [[BPR-1328]]. Measured the same day: change_arrows_public_path.exe stops at
     # "FAILED: private composed course root" (exit 3), as the overview summary
     # rows above do.

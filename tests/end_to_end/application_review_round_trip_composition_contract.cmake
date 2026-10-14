@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"8f85a4b3255749ae58190536da673a179109d61c6e8f60ceebd5c7deccab265b"
+		"58c87cd1a2f62c4b856a0ca073533792dd4d5ec313c8011cedbac4b5350c94d2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4b8a1fbaddbb75cf5e4a025899fd59092942652ffa48c2e2de4e43b0fb78b177"
+        "35e13aa389a811876a7766cf23deecba5319cfb5192eee557aa4a74948133e26"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2428,5 +2428,18 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # (workbench_window::reopen_draft_in_drawer). An unknown outcome is still not
 # reread by the window itself. The fixture access reports the window read's
 # snapshot and whether a read is in flight or owed. No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.
+
+# [[BPR-1478]] reseal, over main c43d85e97 (BPR-1477's reseal above).
+# github_application.cpp: a file
+# gesture in Review, or a pasted link's file, reports the chosen file to the
+# document tabs (core::observe_file_choice), so a reread or Refresh that lands
+# before the active tab takes the pick presents it instead of the view shown
+# before the read. A new tests-enabled course (`--refresh-pick-course
+# refresh|reread`) holds the read and the tab's reflection to land the read
+# between them; main.cpp runs and prints it, and
+# github_application_fixture_access.hpp holds it. The start-review `pending`
+# course no longer waits for the single comment's reread. No publication,
 # credential, grant, inventory or mutation-branch change; the full
 # application and production-manifest digests are refreshed.
