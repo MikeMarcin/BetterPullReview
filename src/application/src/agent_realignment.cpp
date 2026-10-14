@@ -200,9 +200,10 @@ namespace bpr::application {
 	}
 
 	composed_agent_realignment::composed_agent_realignment(
-		workbench_selected_diff_port& aFiles, diff_blob_port& aBlobs) noexcept
+		workbench_selected_diff_port& aFiles, diff_blob_port& aBlobs, diff_line_matcher_port& aMatcher) noexcept
 		: Files{ &aFiles }
 		, Blobs{ &aBlobs }
+		, Matcher{ &aMatcher }
 	{
 	}
 
@@ -211,7 +212,7 @@ namespace bpr::application {
 		-> agent_realignment_outcome
 	{
 		auto outcome = agent_realignment_outcome{ };
-		if (Files == nullptr || Blobs == nullptr) {
+		if (Files == nullptr || Blobs == nullptr || Matcher == nullptr) {
 			outcome.Refusal = agent_realignment_refusal::host_failure;
 			return outcome;
 		}
@@ -308,7 +309,8 @@ namespace bpr::application {
 					: std::nullopt,
 				.Limits     = aRequest.Limits,
 			};
-			auto computed = core::compute_file_diff(input);
+			auto matching = diff_line_matching{ *Matcher };
+			auto computed = core::compute_file_diff(input, matching);
 			if (!computed.Result.has_value()) {
 				outcome.Refusal = refusal_for_compute_reason(computed.Reason);
 				return outcome;

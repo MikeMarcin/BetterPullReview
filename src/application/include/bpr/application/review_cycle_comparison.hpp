@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_COMPARISON_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_COMPARISON_HPP
 
+#include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_material_bridge.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -48,7 +49,10 @@ namespace bpr::application {
 	class review_cycle_comparison_host
 	{
 	public:
-		review_cycle_comparison_host(review_cycle_store& aStore, core::local_cycle_authority aAuthority) noexcept;
+		/// [[BPR-1485]] `aMatcher` computes the line matches of a pair's diff;
+		/// without one, a pair's file is refused (`host_failure`).
+		review_cycle_comparison_host(review_cycle_store& aStore, core::local_cycle_authority aAuthority,
+									 std::shared_ptr<diff_line_matcher_port> aMatcher = nullptr) noexcept;
 
 		/// \brief The decoded manifest a revision recorded, verified against
 		/// the revision's recorded summary.
@@ -78,8 +82,9 @@ namespace bpr::application {
 
 		review_cycle_store&          Store;
 		core::local_cycle_authority  Authority;
-		review_material_bridge       Bridge;
-		std::vector<cached_manifest> Cache;
+		review_material_bridge                  Bridge;
+		std::shared_ptr<diff_line_matcher_port> Matcher;
+		std::vector<cached_manifest>            Cache;
 	};
 }
 

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_REALIGNMENT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_REALIGNMENT_HPP
 
+#include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/agent_finding.hpp"
@@ -147,14 +148,15 @@ namespace bpr::application {
 	/// \details Resolves the bound revision's blobs through the same
 	/// `workbench_selected_diff_port` the workbench resolves through,
 	/// materializes them through the same `diff_blob_port` the diff worker
-	/// materializes through, and computes with `core::compute_file_diff`. No
+	/// materializes through, and computes with `core::compute_file_diff` and
+	/// the same line matcher ([[BPR-1485]]). No
 	/// second copy of the algorithm exists here, so a continued turn and a
 	/// fresh one cannot align the same revision differently.
 	class composed_agent_realignment final : public agent_realignment_port
 	{
 	public:
 		composed_agent_realignment(
-			workbench_selected_diff_port& aFiles, diff_blob_port& aBlobs) noexcept;
+			workbench_selected_diff_port& aFiles, diff_blob_port& aBlobs, diff_line_matcher_port& aMatcher) noexcept;
 
 		[[nodiscard]] auto realign(
 			const agent_realignment_request& aRequest,
@@ -163,7 +165,8 @@ namespace bpr::application {
 
 	private:
 		workbench_selected_diff_port* Files = nullptr;
-		diff_blob_port*               Blobs = nullptr;
+		diff_blob_port*               Blobs   = nullptr;
+		diff_line_matcher_port*       Matcher = nullptr;
 	};
 } // namespace bpr::application
 

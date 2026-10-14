@@ -33,11 +33,13 @@ namespace bpr::application {
 
 	struct review_cycle_runtime::implementation : std::enable_shared_from_this<implementation>
 	{
-		implementation(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures)
+		implementation(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures,
+					   std::shared_ptr<diff_line_matcher_port> aMatcher)
 			: Store{ std::move(aStore) }
 			, Effects{ aEffects }
 			, Decisions{ aDecisions }
 			, Captures{ aCaptures }
+			, Matcher{ std::move(aMatcher) }
 		{
 		}
 
@@ -54,8 +56,11 @@ namespace bpr::application {
 		effect_executor&                              Effects;
 		decision_executor&                            Decisions;
 		/// [[BPR-1184]]. Optional: a capture runs here, beside the effect lane.
-		effect_executor*                    Captures = nullptr;
-		std::optional<core::review_subject> Selected;
+		effect_executor* Captures = nullptr;
+		/// [[BPR-1485]] The line matcher a pair's diff uses; without one a
+		/// pair is refused.
+		std::shared_ptr<diff_line_matcher_port> Matcher;
+		std::optional<core::review_subject>     Selected;
 		std::uint64_t                       Generation = 0;
 		std::stop_source                    Stop;
 		/// The running capture's own stop: a selection change, shutdown or
@@ -161,7 +166,7 @@ namespace bpr::application {
 		auto comparisons(const core::local_cycle_authority& aAuthority) -> std::shared_ptr<review_cycle_comparison_host>
 		{
 			if (!Comparisons) {
-				Comparisons = std::make_shared<review_cycle_comparison_host>(*Store, aAuthority);
+				Comparisons = std::make_shared<review_cycle_comparison_host>(*Store, aAuthority, Matcher);
 			}
 			return Comparisons;
 		}
@@ -176,8 +181,9 @@ namespace bpr::application {
 		}
 	};
 
-	review_cycle_runtime::review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures)
-		: Implementation{ std::make_shared<implementation>(std::move(aStore), aEffects, aDecisions, aCaptures) }
+	review_cycle_runtime::review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures,
+											   std::shared_ptr<diff_line_matcher_port> aMatcher)
+		: Implementation{ std::make_shared<implementation>(std::move(aStore), aEffects, aDecisions, aCaptures, std::move(aMatcher)) }
 	{
 	}
 

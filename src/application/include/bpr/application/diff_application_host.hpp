@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DIFF_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_DIFF_APPLICATION_HOST_HPP
 
+#include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/application/port.hpp"
 
@@ -22,9 +23,10 @@ namespace bpr::application {
 			diff_blob_port&           aBlobs,
 			effect_executor&          aEffects,
 			decision_executor&        aDecisionLane,
-			diff_projection_port&     aProjections,
-			diff_host_limits          aLimits        = { },
-			core::diff_compute_limits aComputeLimits = { });
+			diff_projection_port&                   aProjections,
+			std::shared_ptr<diff_line_matcher_port> aMatcher,
+			diff_host_limits                        aLimits        = { },
+			core::diff_compute_limits               aComputeLimits = { });
 		~diff_application_host();
 
 		diff_application_host(const diff_application_host&) = delete;
@@ -46,9 +48,10 @@ namespace bpr::application {
 		/// list stops preparation. Invalidation, cancellation of the
 		/// authority and shutdown discard it.
 		///
-		/// [[BPR-1366]] A preparation stopped for the reviewer pauses within
-		/// the engine's check interval and keeps its progress; it continues
-		/// before any new preparation, and a request for it continues it.
+		/// [[BPR-1366]] A preparation stopped for the reviewer returns within
+		/// milliseconds. [[BPR-1485]] Its work is abandoned: it is prepared
+		/// again from the start, before any new preparation, and a request for
+		/// it computes it from the start.
 		void prepare(std::vector<prepared_diff_request> aRequests);
 		void cancel();
 		void invalidate(const core::pull_request_authority& aAuthority);
@@ -65,13 +68,8 @@ namespace bpr::application {
 		/// the reviewer has not opened.
 		[[nodiscard]] auto prepared_entries() const noexcept -> std::size_t;
 		[[nodiscard]] auto prepared_bytes() const noexcept -> std::uint64_t;
-		/// Prepared comparisons queued, paused or being computed.
+		/// Prepared comparisons queued or being computed.
 		[[nodiscard]] auto preparing() const noexcept -> std::size_t;
-		/// [[BPR-1366]] Prepared comparisons stopped mid-computation and kept
-		/// to continue, and the bytes they hold (counted inside the prepared
-		/// share).
-		[[nodiscard]] auto paused_entries() const noexcept -> std::size_t;
-		[[nodiscard]] auto paused_bytes() const noexcept -> std::uint64_t;
 		/// Requests answered by a prepared comparison, from the cache or by
 		/// waiting for the one being prepared.
 		[[nodiscard]] auto prepared_hits() const noexcept -> std::uint64_t;
