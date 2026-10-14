@@ -173,12 +173,17 @@ and `histogram` variants and all eight installed-Git variants showed 0 tests,
 and the tables were generated without the inventories, so no adjudication was
 applied. The tables are now regenerated with the inventories, and a candidate
 whose suites never ran is shown as "not run". The L variants' suites ran with
-the re-measurement (their table); P's 2.56.0 `patience` and `histogram`
-variants and all eight installed-Git variants are **not run**: every one of
-them already fails its correctness gate on the corpus (2 refusals), the
-primary rule or, for a sliding variant, its own matcher's primary rule, and
-the installed-Git variants also fail the Interruption gate, so no suite result
-could change their decision.
+the re-measurement (their table supersedes the first pass's 8 "not run" L
+rows). P's 2.56.0 `patience` and `histogram` variants and all eight
+installed-Git variants ran afterwards in the integrated evaluation build
+(revision `2b306d6ef` plus the adjudication edits; the same-build baseline
+failed only `core_diff_compute`'s Release-only expectation) and are folded into
+the first-pass tables. Their new failures are the adjudicated budget-model and
+hook-artefact expectations and, under station loads of 40–47 from other
+builds, `application_large_review_*` timing courses the baseline passed; those
+timing failures are left unadjudicated, because every P variant already fails
+its correctness gate on the corpus (2 refusals) and so is rejected whatever
+they show.
 
 ## Gates, with commands and counts (macOS)
 
