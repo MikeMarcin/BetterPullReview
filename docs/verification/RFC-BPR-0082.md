@@ -27,8 +27,8 @@ adoption waits on the named owner answer; it is not adopted.
 |---|---|---|
 | Primary line matcher | **No change.** Every candidate rejected. | P and L fail the correctness gate (2 refusals each, see below) and the primary rule; C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). No candidate is 2× faster or smaller on L and pathological inputs. |
 | Hunk sliding | **No change.** Every candidate rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but the P and L matchers it comes with fail the correctness gate. The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
-| Line-pair similarity | **Eligible pending Q2** (rapidfuzz-cpp is not an approved core library). | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
-| Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06) and Q2.** diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
+| Line-pair similarity | **Adopt rapidfuzz-cpp** ([[BPR-1480]]), after the owner's Q2 Accept of 2026-10-13. | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
+| Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06)** ([[BPR-1481]]); Q2 approved dtl for this per-line use on 2026-10-13. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
 | Review Cycle suggestion hunks | **No change.** | No primary matcher is adopted, so nothing replaces the bounded Myers. |
 
 A result of no change keeps the current engine. Restart-only cancellation is
@@ -126,7 +126,7 @@ first failed expectation, so generated copies that count failures instead
 | Correctness | `run_suites.py` and `run_inventories.py` against each candidate; `measure` validates all 86 comparisons per candidate (`validate_computed_file_diff`) and compares the reason with the baseline's. | Every P and L candidate: 2 refusals (`patho-crlf` under `ignore_trailing` and `ignore_all`: Git counts the CR of a CRLF line as trailing whitespace, the engine keeps line endings exact, and its class check refuses the matches). dtl as primary: 6 refusals (its restart past 2,000,000 path points returns common elements that join unequal lines), a crash (`std::length_error`) in `application_diff_host`, and a resumed run that never ends. Every other candidate: zero invalid results, zero new refusals, and only changed expectations adjudicated as equally valid, interruption-model or hook artefacts. |
 | Determinism | `determinism` runs every candidate twice per comparison; P's digests compared across Git 2.39.5, 2.50.1 and 2.56.0. | Repeatable on 86/86 for every candidate. P `myers` and `patience` identical across the three Gits; `minimal` differs on 14 comparisons between 2.39.5 and the two newer Gits; `histogram` differs on 1 between 2.56.0 and the two older. Cross-platform: not yet measured. |
 | Interruption | `stops`, on the 28 L-size and pathological comparisons, 10 stops each. | Baseline p95 0.40 ms. C candidates 0.22–0.77 ms. L returns at once by abandoning its worker, whose abandoned work runs on (p95 102–163 ms). P 8.1–12.0 ms: the Git adapter's supervision polls every 10 ms wait slice, so P's latency is bounded by that slice plus the kill and reap; 2.39.5/2.56.0 variants sit around the 10 ms line, the installed Git's above it. |
-| Placement | Boundary checks in the proposed placement. | P and L live in an adapter; C candidates would sit in the core, where dtl, rapidfuzz-cpp and diff-match-patch need an owner library approval (Q2) and the first-party matcher and post-pass need the owner's approval of hand-written diff code in the core (AGENTS.md). P keeps the engine as its fallback. The shipping configuration acquires and links nothing new (below). |
+| Placement | Boundary checks in the proposed placement. | P and L live in an adapter; C candidates would sit in the core, where diff-match-patch would need an owner library approval and dtl and rapidfuzz-cpp have one since 2026-10-13 (Q2; dtl for per-line intraline use only), and the first-party matcher and post-pass need the owner's approval of hand-written diff code in the core (AGENTS.md). P keeps the engine as its fallback. The shipping configuration acquires and links nothing new (below). |
 | Licence | Per shipped file, below. | Recorded; owner answers named per candidate. |
 
 The package and boundary check: a fresh `dev` configuration with the option
@@ -144,9 +144,9 @@ environment and pre-format effects) and `core_dependency_boundary`,
 |---|---|---|---|---|---|
 | P | none: runs the user's Git (GPL-2.0, a separate program) | process | none for BPR's distribution while Git is not bundled | needs Git ≥ 2.39 on every platform, with the engine as fallback; results depend on the Git version (`minimal` and `histogram` above) and the per-file launch costs 15 ms (pinned Git) to 28 ms (Apple's `/usr/bin/git` shim) | Q3 |
 | L | `xdiff/*.c,*.h` of Git 2.56.0: LGPL-2.1-or-later, except `xhistogram.c`, EDL-1.0 | static, in an adapter | LGPL relinking (object files or a relinkable build) and a source offer; LGPL and EDL notices | none beyond the compiler; no stop hook (a stop abandons a worker) | Q1 |
-| C dtl | `dtl/*.hpp` 1.21: BSD-3-Clause ("so-called BSD licence") | header-only, core | notice | the defects above would need fixing in a modified copy | Q2 |
-| C rapidfuzz | `rapidfuzz/**` 3.3.4: MIT | header-only, core | notice | none | Q2 |
-| C diff-match-patch | `diff_match_patch.h` `ba3bbe3`: Apache-2.0 | header-only, core | licence and NOTICE; a modified copy must mark its changes, and a core copy needs one: the port calls `clock()` in its bisection loop even with its deadline disabled | none | Q2 |
+| C dtl | `dtl/*.hpp` 1.21: BSD-3-Clause ("so-called BSD licence") | header-only, core | notice | the defects above would need fixing in a modified copy before any line-scale use | Q2 answered Accept 2026-10-13, per-line intraline use only |
+| C rapidfuzz | `rapidfuzz/**` 3.3.4: MIT | header-only, core | notice | none | Q2 answered Accept 2026-10-13 |
+| C diff-match-patch | `diff_match_patch.h` `ba3bbe3`: Apache-2.0 | header-only, core | licence and NOTICE; a modified copy must mark its changes, and a core copy needs one: the port calls `clock()` in its bisection loop even with its deadline disabled | none | an owner library approval (not asked: rejected on measurement) |
 | C first-party | evaluation code, BPR's licence | core | none | none | owner approval of a hand-written diff algorithm in the core |
 
 ## Findings outside the decision rules
@@ -194,11 +194,13 @@ environment and pre-format effects) and `core_dependency_boundary`,
   KSyntaxHighlighting ones. Its correctness failure here is the whitespace
   mapping (CR as trailing whitespace), which an adapter can avoid by mapping
   fewer flags; that variant was not measured.
-- **Q2 (libraries in the core).** Blocks `c-rapidfuzz` and `c-onp-intraline`,
-  the two candidates that pass every macOS gate. Evidence: rapidfuzz-cpp gives
+- **Q2 (libraries in the core), answered Accept on 2026-10-13** for
+  rapidfuzz-cpp and for dtl in per-line intraline comparison only. The owner
+  was told dtl misbehaved as a whole-file line matcher. rapidfuzz-cpp gives
   identical pairing decisions with a pairing phase 10× faster (MIT,
-  header-only); dtl over scalars gives valid, slightly faster intraline spans
-  (BSD-3-Clause, header-only, with the defects above in its line-scale use).
+  header-only) and is adopted through [[BPR-1480]]; dtl over scalars gives
+  valid, slightly faster intraline spans (BSD-3-Clause, header-only) and waits
+  on AC06.
 - **Q3 (results depending on the installed Git).** Blocks every P shape.
   Evidence: `myers` and `patience` were identical across 2.39.5, 2.50.1 and
   2.56.0 on all 86 comparisons, `minimal` changed on 14 and `histogram` on 1;

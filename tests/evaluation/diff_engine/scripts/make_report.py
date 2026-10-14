@@ -40,8 +40,7 @@ SHAPE_NAMES = {"0": "baseline", "1": "process (P)", "2": "linked (L)", "3": "cor
 OWNER_ANSWERS = {
     "process": "Q3 (results depend on the installed Git version)",
     "linked": "Q1 (statically linking LGPL-2.1 xdiff)",
-    "dtl": "Q2 (dtl, BSD-3-Clause, is not an approved core library)",
-    "rapidfuzz": "Q2 (rapidfuzz-cpp, MIT, is not an approved core library)",
+    "dtl-lines": "an owner approval of dtl as a whole-file line matcher (Q2 approved it for per-line intraline use only)",
     "dmp": "Q2 (diff-match-patch port, Apache-2.0, is not an approved core library)",
     "first-party": "owner approval of a hand-written diff algorithm in the core (AGENTS.md)",
 }
@@ -76,10 +75,12 @@ def owner_answer(name: str) -> str | None:
         return OWNER_ANSWERS["process"]
     if name.startswith("l-"):
         return OWNER_ANSWERS["linked"]
-    if name in ("c-onp", "c-onp-intraline"):
-        return OWNER_ANSWERS["dtl"]
-    if name == "c-rapidfuzz":
-        return OWNER_ANSWERS["rapidfuzz"]
+    # Q2 answered Accept on 2026-10-13 for rapidfuzz-cpp, and for dtl in
+    # per-line intraline comparison only.
+    if name == "c-onp":
+        return OWNER_ANSWERS["dtl-lines"]
+    if name in ("c-onp-intraline", "c-rapidfuzz"):
+        return None
     if name == "c-dmp":
         return OWNER_ANSWERS["dmp"]
     if name in ("c-histogram", "c-slide"):
