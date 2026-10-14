@@ -8,6 +8,11 @@ station from an optimized evaluation build.
 
 Usage:
   run_measurements.py --build BUILD/eval --corpus DIR --results DIR [--rounds 3 --reps 3] [--modes a,b]
+      [--candidates a,b]
+
+--candidates limits measure, stops, determinism and rss to the named
+candidates (name the baseline too, so it is measured in the same run). Phases,
+intraline and overhead keep their own fixed lists.
 """
 
 from __future__ import annotations
@@ -66,21 +71,23 @@ def main() -> int:
     parser.add_argument("--reps", type=int, default=3)
     parser.add_argument("--modes", default=",".join(ALL_MODES))
     parser.add_argument("--stop-pairs", default="")
+    parser.add_argument("--candidates", default="")
     arguments = parser.parse_args()
     harness = arguments.build / "tests/evaluation/diff_engine/better_pull_review_diff_engine_evaluation"
     results = arguments.results
     results.mkdir(parents=True, exist_ok=True)
     (results / "environment.json").write_text(json.dumps(environment(arguments.build), indent=1, sort_keys=True) + "\n")
     common = ["--corpus", str(arguments.corpus)]
+    chosen = ["--candidates", arguments.candidates] if arguments.candidates else []
     plan = {
         "overhead": ["overhead", "--out", str(results / "overhead.jsonl"), "--reps", "60"],
-        "measure": ["measure", "--out", str(results / "measure.jsonl"), "--rounds", str(arguments.rounds), "--reps", str(arguments.reps)] + common,
+        "measure": ["measure", "--out", str(results / "measure.jsonl"), "--rounds", str(arguments.rounds), "--reps", str(arguments.reps)] + common + chosen,
         "phases": ["phases", "--out", str(results / "phases.jsonl"), "--rounds", str(arguments.rounds), "--candidates", PAIRING] + common,
         "intraline": ["intraline", "--out", str(results / "intraline.jsonl"), "--reps", "7", "--candidates", INTRALINE] + common,
-        "stops": ["stops", "--out", str(results / "stops.jsonl"), "--reps", "2", "--classes", "L,pathological"] + common
+        "stops": ["stops", "--out", str(results / "stops.jsonl"), "--reps", "2", "--classes", "L,pathological"] + common + chosen
         + (["--pairs", arguments.stop_pairs] if arguments.stop_pairs else []),
-        "determinism": ["determinism", "--out", str(results / "determinism.jsonl")] + common,
-        "rss": ["rss", "--out", str(results / "rss.jsonl")] + common,
+        "determinism": ["determinism", "--out", str(results / "determinism.jsonl")] + common + chosen,
+        "rss": ["rss", "--out", str(results / "rss.jsonl")] + common + chosen,
     }
     for mode in [name for name in arguments.modes.split(",") if name]:
         target = results / f"{mode}.jsonl"

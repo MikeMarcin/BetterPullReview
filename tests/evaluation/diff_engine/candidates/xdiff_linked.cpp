@@ -118,15 +118,15 @@ namespace bpr::evaluation {
 		if (aIndentHeuristic) {
 			parameters.flags |= XDF_INDENT_HEURISTIC;
 		}
-		auto leftStorage  = std::vector<std::uint8_t>{ };
-		auto rightStorage = std::vector<std::uint8_t>{ };
-		const auto leftBytes  = comparison_bytes(aLeft, aOptions, leftStorage);
-		const auto rightBytes = comparison_bytes(aRight, aOptions, rightStorage);
-		auto configuration      = xdemitconf_t{ };
-		configuration.hunk_func = &collect_hunk;
-		auto hunks              = std::vector<line_hunk>{ };
-		auto callback           = xdemitcb_t{ };
-		callback.priv           = &hunks;
+		auto       leftStorage   = std::vector<std::uint8_t>{ };
+		auto       rightStorage  = std::vector<std::uint8_t>{ };
+		const auto leftBytes     = comparison_bytes(aLeft, aOptions, leftStorage);
+		const auto rightBytes    = comparison_bytes(aRight, aOptions, rightStorage);
+		auto       configuration = xdemitconf_t{ };
+		configuration.hunk_func  = &collect_hunk;
+		auto hunks               = std::vector<line_hunk>{ };
+		auto callback            = xdemitcb_t{ };
+		callback.priv            = &hunks;
 		// xdiff reads the buffers and never writes them.
 		auto left  = mmfile_t{ .ptr = const_cast<char*>(reinterpret_cast<const char*>(leftBytes.data())), .size = static_cast<long>(leftBytes.size()) };
 		auto right = mmfile_t{ .ptr = const_cast<char*>(reinterpret_cast<const char*>(rightBytes.data())), .size = static_cast<long>(rightBytes.size()) };

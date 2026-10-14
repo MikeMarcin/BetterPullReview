@@ -39,7 +39,11 @@ SHAPE_NAMES = {"0": "baseline", "1": "process (P)", "2": "linked (L)", "3": "cor
 # boundaries and the owner decisions supplied with the mandate.
 OWNER_ANSWERS = {
     "process": "Q3 (results depend on the installed Git version)",
-    "linked": "Q1 (statically linking LGPL-2.1 xdiff)",
+    # Q1 answered Accept on 2026-10-13 with a condition: LGPL-2.1 xdiff only
+    # "if xdiff is dynamically linked as its own shared library, as Qt is".
+    # The evaluation builds it that way (libbpr_eval_xdiff); static linking
+    # stays refused.
+    "linked": "Q1's condition (xdiff only as its own shared library, linked dynamically, never compiled or statically linked into a BPR binary)",
     "dtl-lines": "an owner approval of dtl as a whole-file line matcher (Q2 approved it for per-line intraline use only)",
     "dmp": "Q2 (diff-match-patch port, Apache-2.0, is not an approved core library)",
     "first-party": "owner approval of a hand-written diff algorithm in the core (AGENTS.md)",
@@ -74,7 +78,7 @@ def owner_answer(name: str) -> str | None:
     if name.startswith("p-"):
         return OWNER_ANSWERS["process"]
     if name.startswith("l-"):
-        return OWNER_ANSWERS["linked"]
+        return None
     # Q2 answered Accept on 2026-10-13 for rapidfuzz-cpp, and for dtl in
     # per-line intraline comparison only.
     if name == "c-onp":
@@ -328,6 +332,9 @@ def main() -> int:
         gates = {}
         suites_state = item["suites"]
         gates["correctness"] = (suites_state["ran"] and not suites_state["unexplained"] and not item["invalid"] and not item["new_refusals"])
+        # Suites that never ran leave the gate undecided rather than failed,
+        # unless the corpus already fails it.
+        correctness_unrun = not suites_state["ran"] and not item["invalid"] and not item["new_refusals"]
         repeat = item["repeatable"]
         gates["determinism"] = bool(repeat) and repeat[0] == repeat[1] and not item["unstable_within_run"]
         gates["interruption"] = item["stop_samples_L_patho"] > 0 and item["stop_p95_L_patho_ms"] <= 10.0
@@ -359,17 +366,22 @@ def main() -> int:
             rule["p95 time per pair no worse"] = item["intraline_pair_p95_ms"] <= baseline["intraline_pair_p95_ms"]
         rule_failed = [text for text, passed in rule.items() if not passed]
         answer = owner_answer(name)
-        if failed:
-            decision = "reject: " + ", ".join(failed) + " gate"
+        decided_failures = [gate for gate in failed if not (gate == "correctness" and correctness_unrun)]
+        if decided_failures:
+            decision = "reject: " + ", ".join(decided_failures) + " gate"
+        elif correctness_unrun:
+            decision = "undecided: suites not run" + (f"; component rule fails ({'; '.join(rule_failed)})" if rule_failed else "")
         elif rule_failed:
             decision = "reject: " + "; ".join(rule_failed)
         elif component == "intraline":
             decision = "eligible pending owner render review (AC06)" + (f" and {answer}" if answer else "")
         elif answer:
             decision = f"eligible pending {answer}"
+        elif name.startswith("l-"):
+            decision = "adopt under " + OWNER_ANSWERS["linked"]
         else:
             decision = "adopt"
-        decisions[name] = {"gates": gates, "rule": rule, "decision": decision}
+        decisions[name] = {"gates": gates, "rule": rule, "decision": decision, "correctness_unrun": correctness_unrun}
 
     # ------------------------------------------------------------ raw output
     raw = {
@@ -472,6 +484,9 @@ def main() -> int:
     for name in candidates:
         state = summary[name]["suites"]
         detail = "; ".join(f"{test}: {message} ({verdict})" for test, message, verdict in state["new_failures"]) or "-"
+        if not state["ran"]:
+            lines.append(f"| {name} | not run | - | - |")
+            continue
         lines.append(f"| {name} | {state['total']} | {', '.join(state['failed']) or '-'} | {detail} |")
 
     lines += ["", f"## {arguments.station}: gates and mechanical decisions", "",
@@ -482,7 +497,8 @@ def main() -> int:
         decision = decisions[name]
         rule = "; ".join(f"{text}: {'pass' if passed else 'fail'}" for text, passed in decision["rule"].items()) or "-"
         gates = decision["gates"]
-        lines.append(f"| {name} | {summary[name]['component']} | {'pass' if gates['correctness'] else 'fail'} | {'pass' if gates['determinism'] else 'fail'} | "
+        correctness = "not run" if decision.get("correctness_unrun") else ("pass" if gates["correctness"] else "fail")
+        lines.append(f"| {name} | {summary[name]['component']} | {correctness} | {'pass' if gates['determinism'] else 'fail'} | "
                      f"{'pass' if gates['interruption'] else 'fail'} | {rule} | {decision['decision']} |")
     arguments.markdown.parent.mkdir(parents=True, exist_ok=True)
     arguments.markdown.write_text("\n".join(lines) + "\n")
