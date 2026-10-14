@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1484"
 title: "Pin the PR Search rows' Windows-uncontained registrations"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
