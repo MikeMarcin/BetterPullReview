@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1476"
 title: "Down from a line far out of view reveals the next line"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
