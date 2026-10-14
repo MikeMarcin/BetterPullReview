@@ -323,6 +323,16 @@ there is nothing to emphasize. This is the same 858 the evaluation measured
 for `c-onp-intraline` over the first-party primary. `core_diff_intraline`
 tests the uncharged budget, the large pair's table and a stop inside dtl.
 
+[[BPR-1485]]'s `tool_diff_xdiff_equivalence` over the same corpus now finds
+the segments and pairs digests of all 86 comparisons equal to
+`l-myers-indent`'s and GitHub agreement unchanged (78 of 78), and the
+intraline digest different on 30: the six above, where emphasis returns, and
+24 where dtl places equally short ranges differently from the table (the
+evaluation found 25 such for `c-onp-intraline` against the baseline), plus
+`bench-100000-30` no longer approximate. These are the differences of the
+render set the owner accepted (AC06); that tool's comparison with the recorded
+`l-myers-indent` intraline digests no longer applies once BPR-1481 lands.
+
 ## Open questions and the evidence for them
 
 - **Q1 (linking LGPL xdiff), answered Accept on 2026-10-13** if xdiff is its

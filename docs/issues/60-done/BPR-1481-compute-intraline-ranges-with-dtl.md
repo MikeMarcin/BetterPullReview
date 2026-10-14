@@ -84,6 +84,10 @@ the budgeted table, and every common scalar is checked before use.
   176,974,001 -> 159,739,202. The 858 are `patho-crlf`'s 286 line-ending-only
   pairs under three options. Stated in
   [the report](../../verification/RFC-BPR-0082.md#intraline-ranges-after-bpr-1481).
+- [[BPR-1485]]'s `tool_diff_xdiff_equivalence` at `fabbda64e`: segments and
+  pairs digests equal to `l-myers-indent` on 86 of 86, GitHub agreement 78 of
+  78; intraline digest differs on 30 (the six regained plus 24 equally short
+  placements) and `bench-100000-30` is no longer approximate, as intended.
 - `core_diff_intraline` (new): shortest-edit ranges, a budget pairing exactly
   fills keeps every pair's emphasis and `MatrixCellsConsumed` equals pairing's,
   a 1,500-scalar pair keeps the charged table and degrades past it, and 15
