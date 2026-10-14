@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1480"
 title: "Compute line-pair similarity with rapidfuzz-cpp"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0082"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"diff-engine-evaluation-r2","source":"RFC-BPR-0082 line-pair similarity decision: adopt (owner Q2 Accept, 2026-10-13)"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"303f01c2f, 4654b2181 (claude/bpr-1480-rapidfuzz); integrated at 2b306d6ef","evidence":{"kind":"command","detail":"BprRapidFuzzProvider.cmake acquires rapidfuzz-cpp 3.3.4 by pinned verified archive (SHA-256 a0dd2ef3...9881, 314,599 bytes, LICENSE digest 529ac8f0...944f) as header-only BetterPullReview::RapidFuzz, linked privately by better_pull_review_core only; third_party/rapidfuzz-cpp LICENSE and PROVENANCE, packaging/dependencies.json, package_runtime.py notices (SPDX, corresponding source) and release-packages.md updated as BPR-1450/1451 did. package_runtime_contract, dependency_modernization_contract, release_source_assets_contract, release_package_audit_contract, release_security_audit_contract, runtime_audit_contract and binary_dependency_audit_contract pass (worker run); on the integrated evaluation build package_runtime_contract and dependency_modernization_contract pass again; core-only at 2b306d6ef 270/275, the 5 others are the worktree's missing .agents links and main's own contained-temporary and MSVC getenv findings."}},{"criterion":"AC2","outcome":"pass","revision":"303f01c2f, 4654b2181; integrated at 2b306d6ef","evidence":{"kind":"command","detail":"line_pair_scorer in diff_compute.cpp scores pairs with rapidfuzz::CachedIndel (2*LCS*1000/(L+R) floored), charging the matrix budget and step meter exactly as the character table did. architecture_boundaries refuses rapidfuzz outside diff_compute.cpp (contract test added; passes on core-only and the evaluation build). tool_diff_baseline_digest byte-identical before (bdeaba868) and after: generated matrix 102,572 lines (8efc6960...a052) and matrix plus the 86-pair corpus 1,162 cases (4c8f0084...a959), outcomes, identities and counters. Deviation recorded and accepted by the integrator: a pair below the similarity threshold now scores 0 instead of its exact score; every reader of the score checks score >= threshold first, so no output changes (digests confirm; after integration no evaluation alignment digest changed). Pairing phase (core_diff_compute_benchmark refine, Release, median of 9): 2K/30 0.21->0.02 ms, 2K/300 3.33->0.21, 10K/30 1.05->0.10, 10K/300 15.80->0.97. core_diff_* and core-only pass (as AC1)."}}]
 ---
 
 # BPR-1480: Compute line-pair similarity with rapidfuzz-cpp
