@@ -872,6 +872,13 @@ namespace bpr::qt {
 		return static_cast<std::size_t>(std::ranges::count_if(Cards, [](const thread_card& aCard) { return aCard.UnreadCount > 0U; }));
 	}
 
+	auto conversation_cards_view::unread_thread_count(const core::file_identity aFile) const -> std::size_t
+	{
+		static_cast<void>(unread_threads_in_file_order());
+		const auto found = UnreadThreadsByFile.find(aFile);
+		return found != UnreadThreadsByFile.end() ? found->second : 0U;
+	}
+
 	void conversation_cards_view::set_code_font(const QFont& aFont)
 	{
 		if (CodeFont == aFont) {
@@ -936,7 +943,10 @@ namespace bpr::qt {
 		const auto& now    = ReadState[ReadStateByThread.at(aThread)].UnreadPosts;
 		const auto  wasNew = !previous.empty();
 		if (UnreadThreads.has_value() && wasNew && now.empty()) {
-			std::erase(*UnreadThreads, aThread);
+			if (const auto removed = std::erase(*UnreadThreads, aThread); removed > 0U) {
+				const auto index = RetainedById.at(aThread);
+				UnreadThreadsByFile.at(RetainedFiles[index]) -= removed;
+			}
 		} else if (wasNew != !now.empty()) {
 			// A thread becoming unread takes its place in file order when the
 			// list is next asked for.
@@ -956,7 +966,9 @@ namespace bpr::qt {
 		// Every thread of the pull request, whatever the scope shows, so the
 		// strip's next new comment walks the whole review in file order.
 		auto threads = std::vector<const application::github_conversation_projection*>{ };
-		for (const auto& node : Retained) {
+		UnreadThreadsByFile.clear();
+		for (std::size_t index = 0U; index < Retained.size(); ++index) {
+			const auto& node = Retained[index];
 			if (node.Kind != application::github_conversation_kind::review_thread
 				|| node.ParentId.has_value()) {
 				continue;
@@ -964,6 +976,7 @@ namespace bpr::qt {
 			const auto state = ReadStateByThread.find(node.Id);
 			if (state != ReadStateByThread.end() && !ReadState[state->second].UnreadPosts.empty()) {
 				threads.push_back(&node);
+				++UnreadThreadsByFile[RetainedFiles[index]];
 			}
 		}
 		std::ranges::stable_sort(threads, [](const auto* aLeft, const auto* aRight) {

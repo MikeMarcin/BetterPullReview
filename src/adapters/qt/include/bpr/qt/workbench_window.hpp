@@ -657,7 +657,7 @@ namespace bpr::qt {
 		/// \details [[BPR-0656]]. The cards draw it, the gutter marks a new
 		/// thread's line blue, and "next new comment" walks the unread threads
 		/// in file order. [[BPR-1129]]: the title row's comments toggle carries
-		/// their count.
+		/// the selected file's count. Next new comment remains review-wide.
 		void present_read_state(std::vector<thread_read_state> aState);
 		/// \brief [[BPR-1326]]. My unpublished drafts as they are saved. Each
 		/// on the shown comparison is a dashed note at its line with its

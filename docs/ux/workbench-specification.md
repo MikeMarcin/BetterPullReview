@@ -47,7 +47,8 @@ in order, the title row, the review bar and, while it is open, the Updates
 line's timeline, with no scroll area and no separate title bar. The **title row** carries the window, the pull
 request and the modality: Home, the repositories and files toggles and the pull
 request's name at its left; the modality at its right beside refresh, the
-comments toggle (which carries the count of threads with new comments), the
+comments toggle (which carries the current file's count of threads with new
+comments), the
 hide-drawers icon, account and settings; on Windows the application menu and
 the caption buttons.
 
@@ -1722,8 +1723,13 @@ The drawer is RFC-BPR-0052's right tray, and its header is its tabs:
 **Comments**, then **Notes** ([[BPR-1204]]). It opens on Comments. The
 Comments tab holds this file's threads exactly as described below; its filters
 and Next new comment sit at the right of the tab row; the tab carries the count
-of threads with new comments as an accent pill and says it to accessibility
-("Comments, 2 threads with new comments"). The Notes tab holds private ledger notes, AI tools, side chat replies and the
+of threads with new comments in the current file as an accent pill and says it
+to accessibility ("Comments, 2 threads with new comments in this file"). Both
+this pill and the title-row badge are absent without a selected file or when
+that file has no unread threads, even if another file does ([[BPR-1511]]). The
+count follows the accepted unread policy regardless of the drawer's filters.
+Next new comment continues through unread threads across the pull request.
+The Notes tab holds private ledger notes, AI tools, side chat replies and the
 finding queue. It stays available with no agent configured. Its introductory
 sentence says: "Private to you and never published. Write a note or ask an agent about this pull request, then promote what you want to say to a draft in Comments."
 One note or selected reply is copied to a local draft at Comment's target; the

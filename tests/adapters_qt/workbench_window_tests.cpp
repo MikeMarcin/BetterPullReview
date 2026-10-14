@@ -9900,9 +9900,10 @@ namespace {
 		qt::workbench_window window;
 		window.resize(1'280, 560);
 		window.show();
-		auto opened    = both_files_enabled();
-		opened.Drawers = drawer_states(core::workbench_drawer_state::collapsed,
-									   core::workbench_drawer_state::expanded);
+		auto opened      = both_files_enabled();
+		opened.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = core::file_identity_of("src/file.cpp") } };
+		opened.Drawers   = drawer_states(core::workbench_drawer_state::collapsed,
+										 core::workbench_drawer_state::expanded);
 		window.publish(opened);
 		process_events();
 		auto text = std::string{ };
@@ -10171,6 +10172,142 @@ namespace {
 		expect(!strip->isEnabled() && badge().isEmpty() && commentsToggle->sizeHint().width() < countedWidth
 				   && kinds() == std::vector{ qt::diff_line_mark_kind::thread, qt::diff_line_mark_kind::thread },
 			   "an empty read state withdraws the count, its room on the toggle, and the blue marks");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1511]]. File badges follow accepted selection, while Next new stays review-wide.
+	void test_unread_badge_follows_only_the_current_file()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		window.set_conversation_endpoint_placement(false, true);
+		const auto first      = core::file_identity_of("src/first.cpp");
+		const auto second     = core::file_identity_of("src/second.cpp");
+		const auto clean      = core::file_identity_of("src/clean.cpp");
+		auto       selected   = std::vector<core::file_identity>{ };
+		auto       generation = std::uint64_t{ 1U };
+		const auto select     = [&window, &generation](const std::optional<core::file_identity> aFile) {
+			window.publish(application::workbench_projection{
+				.Context   = { .Session = core::application_session_id{ 1U }, .Generation = core::request_generation{ generation } },
+				.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = aFile, .ActionableCount = 3U } },
+			});
+		};
+		window.set_dispatch([&](const core::workbench_interaction_intent& aIntent) {
+			if (const auto* file = std::get_if<core::select_workbench_file_intent>(&aIntent)) {
+				selected.push_back(file->File);
+				select(file->File);
+			}
+		});
+		auto opened  = both_files_enabled();
+		opened.Files = std::vector<application::workbench_file_projection>{
+			{ .File = first, .Path = "src/first.cpp" },
+			{ .File = second, .Path = "src/second.cpp" },
+			{ .File = clean, .Path = "src/clean.cpp" },
+		};
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		auto       pr        = application::github_pull_request_projection{ };
+		const auto addThread = [&pr](const std::string& aId, const std::string& aPath, const bool aResolved) {
+			pr.Conversations.push_back(application::github_conversation_projection{
+				.Id                 = aId,
+				.Kind               = application::github_conversation_kind::review_thread,
+				.Path               = aPath,
+				.Line               = 1U,
+				.DiffSide           = application::github_conversation_diff_side::right,
+				.AnchorAvailability = application::github_conversation_anchor_availability::current,
+				.Resolved           = aResolved,
+			});
+			pr.Conversations.push_back(application::github_conversation_projection{
+				.Id          = aId + "-post",
+				.ParentId    = aId,
+				.Kind        = application::github_conversation_kind::review_comment,
+				.AuthorLogin = "reviewer",
+				.Body        = "A new comment on " + aPath,
+				.Path        = aPath,
+			});
+		};
+		addThread("first-a", "src/first.cpp", false);
+		addThread("first-b", "src/first.cpp", true);
+		addThread("second-a", "src/second.cpp", false);
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		window.present_read_state({
+			{ .Thread = "first-a", .UnreadPosts = { "first-a-post", "first-a-reply" } },
+			{ .Thread = "first-b", .UnreadPosts = { "first-b-post" } },
+			{ .Thread = "second-a", .UnreadPosts = { "second-a-post" } },
+		});
+		auto* const toggle      = qobject_cast<QToolButton*>(window.primary_toolbar()->widgetForAction(window.conversations_drawer_toggle_action()));
+		const auto  badge       = [&] { return toggle->property(qt::strip_style::badge_property).toString(); };
+		const auto  expectCount = [&](const QString& aCount, const std::string_view aReason) {
+			expect(badge() == aCount && window.comments_count_text() == aCount, aReason);
+		};
+		expectCount({ }, "no file selected has no badge despite three unread threads in the review");
+		auto* const files = window.files_drawer()->contents_view();
+		files->setCurrentIndex(window.files_drawer()->contents()->index_for_file(first));
+		process_events();
+		expect(selected == std::vector{ first }, "the file gesture traverses semantic selection before the badge updates");
+		expectCount(QStringLiteral("2"), "the first file counts unread threads, including resolved, rather than unread posts or the whole review");
+		window.conversation_panel()->filter_unresolved_button()->setChecked(true);
+		process_events();
+		expectCount(QStringLiteral("2"), "hiding resolved threads does not change the file's unread policy or badge count");
+		window.conversation_panel()->filter_unresolved_button()->setChecked(false);
+		files->setCurrentIndex(window.files_drawer()->contents()->index_for_file(second));
+		process_events();
+		expectCount(QStringLiteral("1"), "switching file immediately replaces the badge with that file's count");
+		expect(toggle->accessibleDescription().contains(QStringLiteral("One thread with new comments in this file"))
+				   && window.tray_tabs()->accessibleTabName(0).contains(QStringLiteral("one thread with new comments in this file")),
+			   "both accessible badges state the current-file scope");
+		files->setCurrentIndex(window.files_drawer()->contents()->index_for_file(clean));
+		process_events();
+		expectCount({ }, "a file without unread comments has no badge while other files remain unread");
+		expect(window.next_new_comment_action()->isEnabled()
+				   && window.next_new_comment_action()->toolTip().contains(QStringLiteral("3 threads")),
+			   "Next new comment retains the pull-request-wide unread count and navigation");
+		select(second);
+		window.set_conversation_read_dispatch([&window](const std::string& aThread) { window.update_read_state(aThread, { }); });
+		window.conversation_panel()->cards()->open_thread("second-a");
+		process_events();
+		auto* const read = window.conversation_panel()->cards()->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadMarkRead"));
+		expect(read != nullptr && read->isEnabled(), "the current file's unread thread offers Mark read");
+		read->click();
+		expectCount({ }, "Mark read traverses the read dispatch and withdraws the current-file badge");
+		expect(window.next_new_comment_action()->isEnabled(), "other files' unread threads retain review-wide navigation");
+		window.update_read_state("second-a", { "second-a-post" });
+		expectCount(QStringLiteral("1"), "a new unread update restores the selected file's badge");
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, second)));
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		save_render(window, QStringLiteral("current-file-unread"));
+		select(clean);
+		static_cast<void>(publish_fixture(window, computed_comparison("unchanged\n", "unchanged\n", 0U, clean)));
+		expectCount({ }, "the rendered clean file has neither badge while other files remain unread");
+		save_render(window, QStringLiteral("current-file-clean"));
+		select(second);
+		select(std::nullopt);
+		expectCount({ }, "an explicitly empty file selection suppresses the badge even while a prior diff is retained");
+		select(second);
+		generation = 2U;
+		window.publish(application::workbench_projection{
+			.Context   = { .Session = core::application_session_id{ 1U }, .Generation = core::request_generation{ 2U } },
+			.Selection = core::workbench_selection_delta{ },
+			.Files     = std::vector<application::workbench_file_projection>{ },
+		});
+		expect(window.conversation_panel()->anchor_file() == std::optional{ second }, "the refresh gap retains only the drawer's visual anchor");
+		expectCount({ }, "the refresh gap has no semantic current file and clears the badge synchronously");
+		select(second);
+		std::erase_if(pr.Conversations, [](const auto& aNode) { return aNode.Path == "src/second.cpp"; });
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		expectCount({ }, "refreshing away the selected file's thread removes its cached count");
+		addThread("second-a", "src/second.cpp", false);
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		expectCount(QStringLiteral("1"), "an accepted conversation refresh rebuilds the file count under the existing read state");
+		window.publish(application::github_presentation_update{ .Transition = application::github_transition_projection{ .PullRequest = core::pull_request_summary_delta{ } } });
+		expectCount({ }, "authority invalidation removes the badge and all cached unread counts");
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		window.present_read_state({ { .Thread = "second-a", .UnreadPosts = { "second-a-post" } } });
+		expectCount({ }, "replacement authority cannot reuse the previous authority's file selection");
+		select(second);
+		expectCount(QStringLiteral("1"), "the replacement authority's selected file receives its own unread count");
 		window.hide();
 	}
 
@@ -14974,6 +15111,13 @@ void test_native_geometry_fits_current_displays_and_observes_only_after_restore(
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	if (QCoreApplication::arguments().contains(QStringLiteral("--current-file-unread-badge"))) {
+		test_unread_badge_follows_only_the_current_file();
+		test_read_state_reaches_the_gutter_and_the_strip();
+		test_the_right_tray_holds_comments_and_notes_tabs();
+		std::cout << "current-file-unread-badge:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {
 		// [[BPR-1074]]. The one window a launch puts on the desktop.
 		test_building_the_window_shows_no_window_of_its_own();
@@ -15169,6 +15313,7 @@ auto main(int argc, char** argv) -> int
 	test_review_state_icon_shows_the_decided_mark();
 	test_selection_synchronisation_and_restart_persistence();
 	test_read_state_reaches_the_gutter_and_the_strip();
+	test_unread_badge_follows_only_the_current_file();
 	test_the_right_tray_holds_comments_and_notes_tabs();
 	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
 	test_a_reply_waits_for_its_threads_own_comparison();

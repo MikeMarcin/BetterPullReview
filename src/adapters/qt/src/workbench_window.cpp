@@ -7677,13 +7677,20 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_threads_in_file_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
-		// [[BPR-1134]]. The Comments tab carries the same count.
+		// A refresh may retain the drawer's visual anchor without a selected
+		// file. Only standalone diff presentation falls back to that anchor.
+		const auto file       = LastWorkbenchContext.has_value()
+			? (Cursor.has_value() ? Cursor->File : std::nullopt)
+			: (HasGithubPullRequest ? std::nullopt : conversation_anchor_file());
+		const auto fileUnread = file.has_value() ? ConversationPanel->cards()->unread_thread_count(*file) : 0U;
+		// [[BPR-1511]]. The file-context badges count this file; navigation
+		// continues to walk unread threads across the pull request.
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
-			static_cast<tray_count_pill*>(TrayCommentsCount)->set_count(unread.size());
+			static_cast<tray_count_pill*>(TrayCommentsCount)->set_count(fileUnread);
 			TrayTabs->setAccessibleTabName(
 				tray_comments_tab,
-				unread.empty() ? tr("Comments")
-							   : tr("Comments, %1 with new comments").arg(unread.size() == 1U ? tr("one thread") : tr("%1 threads").arg(unread.size())));
+				fileUnread == 0U ? tr("Comments")
+								 : tr("Comments, %1 with new comments in this file").arg(fileUnread == 1U ? tr("one thread") : tr("%1 threads").arg(fileUnread)));
 		}
 		NextNewCommentAction->setToolTip(
 			unread.empty() ? QStringLiteral("Next new comment: nothing unread")
@@ -7692,10 +7699,10 @@ namespace bpr::qt {
 		// post newer than what I have read, and says it to accessibility.
 		if (auto* const toggle = qobject_cast<QToolButton*>(PrimaryToolbar->widgetForAction(Drawers[1].Toggle));
 			toggle != nullptr) {
-			set_strip_badge(*toggle, unread.empty() ? QString{ } : QString::number(unread.size()));
-			const auto counted = unread.empty()
+			set_strip_badge(*toggle, fileUnread == 0U ? QString{ } : QString::number(fileUnread));
+			const auto counted = fileUnread == 0U
 				? Drawers[1].Toggle->toolTip()
-				: QStringLiteral("%1 %2 with new comments.").arg(Drawers[1].Toggle->toolTip()).arg(unread.size() == 1U ? QStringLiteral("One thread") : QStringLiteral("%1 threads").arg(unread.size()));
+				: QStringLiteral("%1 %2 with new comments in this file.").arg(Drawers[1].Toggle->toolTip()).arg(fileUnread == 1U ? QStringLiteral("One thread") : QStringLiteral("%1 threads").arg(fileUnread));
 			toggle->setAccessibleDescription(counted);
 		}
 	}
@@ -15284,6 +15291,7 @@ namespace bpr::qt {
 		apply_drawers_toggle();
 		apply_updates_line();
 		update_receipt_actions();
+		update_new_comment_group();
 		// Last, and deliberately. The mode is not a second opinion about a
 		// command's legality; it is the answer that stands once the core's
 		// projections have had theirs.

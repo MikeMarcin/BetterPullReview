@@ -1382,6 +1382,12 @@ namespace {
 					   && view.unread_post_count() == complete.unread_post_count()
 					   && view.unread_marked_lines(core::diff_side::right) == complete.unread_marked_lines(core::diff_side::right),
 				   "one thread at a time agrees with the complete read state");
+			for (unsigned index = 0U; index < threads / 4U; ++index) {
+				const auto file = core::file_identity_of("src/file" + std::to_string(index) + ".cpp");
+				expect(view.unread_thread_count(file) == complete.unread_thread_count(file)
+						   && view.unread_thread_count(file) == (index < 2U ? 3U : 4U),
+					   "incremental per-file unread counts match a complete read-state projection");
+			}
 		}
 	}
 

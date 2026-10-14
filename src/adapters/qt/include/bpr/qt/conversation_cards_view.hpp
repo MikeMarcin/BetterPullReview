@@ -425,6 +425,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto thread_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto unresolved_count() const noexcept -> std::size_t;
 		[[nodiscard]] auto unread_thread_count() const noexcept -> std::size_t;
+		/// \brief Threads with unread posts on this file, independent of visible filters.
+		[[nodiscard]] auto unread_thread_count(core::file_identity aFile) const -> std::size_t;
 		void               set_code_colours(const QColor& aBackground, const QColor& aInk);
 		/// \brief [[BPR-1270]]. The excerpt's and inline code's font: the
 		/// appearance profile's code font. Until one is supplied, the default
@@ -657,6 +659,7 @@ namespace bpr::qt {
 		/// [[BPR-0972]]. The first read state of each thread.
 		std::unordered_map<std::string, std::size_t>                ReadStateByThread;
 		mutable std::optional<std::vector<std::string>>             UnreadThreads;
+		mutable std::map<core::file_identity, std::size_t>          UnreadThreadsByFile;
 		std::uint64_t                                               LayoutNodesVisited = 0U;
 		std::vector<thread_card>                                    Cards;
 		std::optional<core::file_identity>                          AnchorFile;
