@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1496"
 title: "The gh CLI Git smart transport test runs at its timeout"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1492--BPR-1496--90f0a51696a5.json","origin":"0.2.0 release normal gate (scripts/run_test_suite.py --preset dev) on main cd4860e30, reproduced alone on a quiet machine, owner release request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c0fcca266","evidence":{"kind":"observation","detail":"969 sandboxed fake gh launches at about 35 ms each; 98ba1d249 (BPR-1425/1426) added a six-launch credential lookup to every blob, batch and pack read (about 18 s of the growth); two 10 s product timeouts were waited out serially."}},{"criterion":"AC2","outcome":"pass","revision":"c0fcca266","evidence":{"kind":"command","command":"ctest --preset dev -R ^(gh_cli_git_smart_transport|test_network_isolation_manifest|test_network_isolation_structure_contract)$","detail":"Deadline cases run concurrently in their own fixture root, keeping every case and check; TIMEOUT 90 with measurements beside it. 36.7 s at load 19 here; worker pairs 38.5 vs 67.5 s and 35.5 vs 57.7 s; no network sockets observed."}}]
 ---
 
 # The gh CLI Git smart transport test runs at its timeout
@@ -83,3 +84,5 @@ paired rows compare directly: the change saves about 22 to 29 s.
 `test_network_isolation_manifest` passes (1.7 s). An `lsof -i` poll every
 0.5 s through a whole run found no socket held by the test, `gh`, `git` or
 `sandbox-exec`.
+
+- Integration at c0fcca266 (main e51351f60 merged), macOS arm64: `ctest --preset dev -R '^(gh_cli_git_smart_transport|test_network_isolation_manifest|test_network_isolation_structure_contract)$'` passes 3/3; the transport test took 36.68 s at load average about 19 (TIMEOUT 90).
