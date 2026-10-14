@@ -60,7 +60,12 @@ A result of no change keeps the current engine. Restart-only cancellation is
 **not** enough for any candidate: the primary candidates' worst observed times
 on this corpus run from 214 ms (dtl) through 247–441 ms (L, re-measured) to
 460 ms (the first-party histogram), against the 10 ms stop budget, so
-BPR-1366's resumable machinery stays whatever is adopted.
+BPR-1366's resumable machinery stays whatever is adopted. *The owner accepted
+restart-only cancellation on 2026-10-13 once xdiff is adopted; the machinery is
+then deleted and a stopped diff is recomputed from scratch (worst seen with L
+Myers and the heuristic: 265 ms median, 278 ms at most, on the 100,000-line,
+300-edit benchmark pair; 200 ms on its 30-edit twin, 80–116 ms at 40,000 lines,
+63 ms or less on every real file).*
 
 ## What was evaluated
 
