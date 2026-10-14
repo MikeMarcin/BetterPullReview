@@ -1,0 +1,86 @@
+{
+  "assignment": "BPR-1513",
+  "milestone": "subdued-appearance-banners",
+  "mandate_revision": "owner-2026-10-14",
+  "owner": "/root/bpr1513",
+  "source_root": "/Users/jaeger/.codex/worktrees/bpr1513-dark-banners/BetterPullReview",
+  "branch": "bpr1513-dark-appearance-banners",
+  "baseline": "9c80010a0",
+  "source_candidate": "59cefd86f83c9a7ed2a586a06739ac774d98dfb0",
+  "changed_product_paths": [
+    "src/adapters/qt/src/appearance_settings_panel.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "tests/end_to_end/profile_startup_public_path_tests.cpp"
+  ],
+  "verification": {
+    "focused": "build/bpr1513/composed-final-focused.log: 4/4 pass",
+    "shared_window": "build/bpr1513/multi-window.log: pass",
+    "format": "clang-format22 selected3 files pass",
+    "tidy": "build/bpr1513/tidy.log: exit0, only suppressed third-party warnings",
+    "documentation": "build/bpr1513/documentation-final.log: DOCUMENTATION_OK",
+    "documentation_tests": "build/bpr1513/documentation-tests.log:67 pass",
+    "negative_controls": [
+      "build/bpr1513/banner-negative.log",
+      "build/bpr1513/settings-palette-negative.log"
+    ],
+    "captures": "build/bpr1513/renders/appearance-*.png: all6 modes, actual dark/light inspected",
+    "frozen_launcher": "scripts/freeze_attended_build.py freeze: exit0; CHECK_OK ATTENDED_PULL_REQUEST_OPENED; fixtures checked before launch",
+    "platform": "Darwin arm64; Qt6.11.2; QT_QPA_PLATFORM=offscreen; no native appearance integration claim"
+  },
+  "pending": [
+    "AC1 owner visual judgement for the exact frozen candidate; AC4 human portion. AC2/AC3 and all unattended engineering are complete."
+  ],
+  "commands": {
+    "freeze": "finished exit0; launcher-check child exited",
+    "verification": "all finished; no task-owned background build/test/tidy process remains",
+    "review_server": {
+      "tool_session": 9896,
+      "pid": 44077,
+      "state": "running; explicitly handed to coordinator"
+    },
+    "repository_writer": "released at handoff; candidate source paths protected"
+  },
+  "next_action": "Coordinator presents complete loopback URL and owns wait after4 for handed-back. Reconcile session and cursor; use a fresh implementer for any engineering after hand-back. Keep source candidate and frozen root protected.",
+  "scope_notes": "No live GitHub calls or owner desktop driving/capture; source3 only; frontend-design loaded before UX edits.",
+  "frozen": {
+    "root": "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v001.vj_zom5o",
+    "launcher": "/Users/jaeger/.codex/attended-builds/bpr1513-banners-v001.vj_zom5o/launch.py",
+    "source_commit": "59cefd86f83c9a7ed2a586a06739ac774d98dfb0",
+    "executable_sha256": "3ecc9f99327835e0c51c7aca7e0b71ba7c0fc0b0eaa34b3bcac9f18edf83d721",
+    "source_and_build": "inside frozen root; shared CPM acquisition cache is a symlink, not first-party source or fixture authority"
+  },
+  "review": {
+    "state": "/Users/jaeger/.codex/attended-review/bpr1513-v001-8somlzhu",
+    "registry": "/Users/jaeger/.mask/attended-review-resources",
+    "session": "5983d1b81b558df9fa361c2cc29e7caf",
+    "event_cursor": 4,
+    "candidate": "BPR-1513-dark-banners-v001",
+    "fingerprint": "fc8c02470612dd67e6717a67eb1dc7d5a15691da5b8fab2e414fbd2b64508e79",
+    "revision": "59cefd86f83c9a7ed2a586a06739ac774d98dfb0",
+    "phase": "ready",
+    "protected": true,
+    "decision": null,
+    "server_base_url": "http://127.0.0.1:54305/",
+    "complete_url": "Obtain from the private session serve attach output; never commit the loopback bearer token.",
+    "server_pid": 44077,
+    "server_tool_session": 9896,
+    "driver": "coordinator /root; implementer does not interpret the verdict",
+    "wait_argv": [
+      "python3",
+      "/Users/jaeger/.codex/worktrees/bpr1513-dark-banners/BetterPullReview/.agents/skills/attended-review/scripts/attended_review.py",
+      "--repo-root",
+      "/Users/jaeger/.codex/worktrees/bpr1513-dark-banners/BetterPullReview",
+      "--state",
+      "/Users/jaeger/.codex/attended-review/bpr1513-v001-8somlzhu",
+      "--registry",
+      "/Users/jaeger/.mask/attended-review-resources",
+      "wait",
+      "--after",
+      "4",
+      "--kind",
+      "handed-back",
+      "--timeout",
+      "43200"
+    ]
+  }
+}
