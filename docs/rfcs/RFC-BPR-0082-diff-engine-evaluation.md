@@ -71,8 +71,20 @@ and a failure of any of them stops adoption. The
 [record](assets/diff-engine-evaluation-v1/owner-answer-l-speed-2026-10-13.md)
 keeps the rule's text before and after. Under it, L still fails the rule's
 first clause on 7 comparisons, through the shared pairing and intraline budgets
-rather than its own matcher; whether the waiver extends to that clause is put
-back to the owner, and L is not adopted until it is answered.
+rather than its own matcher; the owner's later answer below extends the waiver
+to that clause.
+
+## Owner answer on shape L's approximation clause — 2026-10-13
+
+Mandate `diff-engine-evaluation-r3`. Asked whether the speed waiver also covers
+the primary rule's first clause, which L failed on 7 comparisons through the
+shared pairing and intraline budgets (its own matcher never approximates, and
+it removes 4 of the baseline's 11 approximations), the owner answered
+**Accept**. With it L passes every gate and every rule clause it is held to on
+macOS: `l-myers-indent` is adopted as the primary matcher and hunk sliding
+through [[BPR-1485]], with the 7 approximations as known and out of scope. The
+[record](assets/diff-engine-evaluation-v1/owner-answer-l-approximation-2026-10-13.md)
+keeps the amended note before and after.
 
 ## Owner answer on restart-only cancellation — 2026-10-13
 
@@ -84,7 +96,7 @@ scratch the next time it is needed. The 10 ms stop budget must still hold
 through abandonment; only what becomes dead is removed (the step meter and the
 budgets intraline, pairing and the rapidfuzz-cpp scoring use stay); tests that
 assert resumption change to the restart behaviour. It takes effect with L's
-adoption, which still waits on the question above. The
+adoption in [[BPR-1485]]. The
 [record](assets/diff-engine-evaluation-v1/owner-answer-restart-2026-10-13.md)
 keeps the amended paragraph before and after.
 
@@ -324,7 +336,7 @@ rule:
 
 | Component | Adopt only if |
 |---|---|
-| Primary matcher | On L and pathological inputs it produces no approximate result where the baseline does, and is at least 2× faster or 2× smaller in median. No class regresses its median by more than 10%. GitHub hunk agreement is at least the baseline's, and comment-range flips do not increase. *For shape L the owner waived the speed and size conditions on 2026-10-13 (the 2× requirement and the 10% median-time regression); the rest of the row and every gate still apply.* |
+| Primary matcher | On L and pathological inputs it produces no approximate result where the baseline does, and is at least 2× faster or 2× smaller in median. No class regresses its median by more than 10%. GitHub hunk agreement is at least the baseline's, and comment-range flips do not increase. *For shape L the owner waived the speed and size conditions on 2026-10-13 (the 2× requirement and the 10% median-time regression) and the approximation clause (7 comparisons stay approximate through the shared pairing and intraline budgets); the rest of the row and every gate still apply.* |
 | Hunk sliding | GitHub hunk agreement rises, and it costs at most 5% of compute. |
 | Pair similarity | Pairing decisions are bit-identical to the baseline's over the corpus, and the pairing phase is at least 2× faster on M and L. |
 | Intraline | Every span is valid, p95 time per pair is no worse, and the owner accepts a fixed render set in an attended review. Semantic cleanup changes what is emphasized, so this is a look-and-judge criterion. |

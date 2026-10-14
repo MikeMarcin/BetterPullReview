@@ -29,8 +29,8 @@ adoption waits on the named owner answer; it is not adopted.
 
 | Component | Outcome | Deciding evidence |
 |---|---|---|
-| Primary line matcher | **No change.** Every candidate rejected. | P fails the correctness gate (2 refusals each, see below) and the primary rule. L, re-measured after Q1 as its own shared library with the whitespace mapping corrected, has no refusal and no invalid result, but fails the primary rule with every algorithm: 1.60–2.03× the baseline's median time on L inputs and 0.69–1.04× on pathological ones (memory 1.13–1.25× and 0.61–0.73×), so neither 2× faster nor 2× smaller, a regression above 10% on L, and 7 of the baseline's 11 approximate L and pathological comparisons still approximate. C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). |
-| Hunk sliding | **No change.** Every candidate rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but it runs inside Git's or xdiff's own matcher, so adopting it means adopting that matcher, which fails the primary rule (and, for P, the correctness gate). The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
+| Primary line matcher | **Adopt linked xdiff, Myers with the indent heuristic** (`l-myers-indent`, [[BPR-1485]]), under the owner's 2026-10-13 waivers of the speed, size and approximation clauses for shape L (below). Every other candidate rejected. | Under the rule as adopted: P fails the correctness gate (2 refusals each, see below) and the primary rule. L, re-measured after Q1 as its own shared library with the whitespace mapping corrected, has no refusal and no invalid result, but fails the primary rule with every algorithm: 1.60–2.03× the baseline's median time on L inputs and 0.69–1.04× on pathological ones (memory 1.13–1.25× and 0.61–0.73×), so neither 2× faster nor 2× smaller, a regression above 10% on L, and 7 of the baseline's 11 approximate L and pathological comparisons still approximate. C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). |
+| Hunk sliding | **Adopted with the primary matcher**: Git's indent heuristic inside xdiff ([[BPR-1485]]). The core post-pass is rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but it runs inside Git's or xdiff's own matcher, so adopting it means adopting that matcher, which fails the primary rule (and, for P, the correctness gate). The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
 | Line-pair similarity | **Adopted: rapidfuzz-cpp** ([[BPR-1480]], done), after the owner's Q2 Accept of 2026-10-13. The engine now scores pairs with its Indel distance; outputs byte-identical over 1,162 cases, pairing phase 15.80 → 0.97 ms on the 10K-line, 300-edit benchmark. | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
 | Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06)** ([[BPR-1481]]); Q2 approved dtl for this per-line use on 2026-10-13. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
 | Review Cycle suggestion hunks | **No change.** | No primary matcher is adopted, so nothing replaces the bounded Myers. |
@@ -52,9 +52,12 @@ the baseline's 11 approximate comparisons (`bench-10000-300`, `bench-40000-300`,
 `patho-long-lines`, `patho-moved-blocks`) stay approximate under every L
 algorithm through the shared pairing and intraline budgets (an unpaired
 replacement or an omitted intraline pass; `AlignmentApproximate` covers
-both). Whether the waiver extends to that clause is put back to the owner;
-L is **not adopted** until it is answered. If it is, the candidate is
-`l-myers-indent`, which also settles hunk sliding.
+both). Asked whether the waiver extends to that clause, the owner answered **Accept**
+on 2026-10-13, with the 7 approximations as known and out of scope. L
+therefore passes every gate and every clause it is held to on macOS, and
+`l-myers-indent` is adopted as the primary matcher and hunk sliding through
+[[BPR-1485]], which also deletes the first-party matcher and, per the
+restart-only answer, BPR-1366's pause and resume.
 
 A result of no change keeps the current engine. Restart-only cancellation is
 **not** enough for any candidate: the primary candidates' worst observed times
