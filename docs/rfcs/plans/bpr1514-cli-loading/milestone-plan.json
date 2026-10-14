@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1514-cli-loading",
+  "scope": {
+    "issues": [
+      "BPR-1514"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "cli-loading",
+      "outcome": "Remembered CLI validation projects coherent Home loading and rejects conflicting enrollment until a terminal.",
+      "work": [
+        {
+          "issue": "BPR-1514",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4",
+            "AC5"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Controlled delayed composed startup demonstrates loading, rejected reentry, success, failure/retry and cancellation with stale completion refusal.",
+        "Offscreen loading pixels, focused policy/host/composition and documentation gates pass; durable checkpoint records exact candidate and command state."
+      ],
+      "boundary": "milestone"
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

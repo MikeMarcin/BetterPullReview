@@ -1,0 +1,92 @@
+{
+  "schema": "bpr.bounded-verification.v1",
+  "assignment": "BPR-1514",
+  "mandate_revision": "owner-testing-note-2026-10-14",
+  "baseline": "a1130fccb",
+  "source_candidate": "b0da7b4aeff080fa583ddbb25f29dfdf9bc5322a",
+  "test_frontier": "4802241ec0a4a80813b30e7ea83e19183cf9e4fb",
+  "changed_product_paths": [
+    "docs/architecture/github-host-implementation.md",
+    "src/adapters/qt/include/bpr/qt/workbench_landing.hpp",
+    "src/adapters/qt/src/workbench_landing.cpp",
+    "src/adapters/qt/src/workbench_window.cpp",
+    "src/app/src/github_application.cpp",
+    "src/app/src/github_application_fixture_access.hpp",
+    "src/app/src/github_public_path_fixture.cpp",
+    "src/application/include/bpr/application/github_application_host.hpp",
+    "src/application/src/github_application_host.cpp",
+    "src/core/include/bpr/core/github_model.hpp",
+    "src/core/include/bpr/core/github_transition.hpp",
+    "src/core/src/github_transition.cpp",
+    "tests/application/github_application_host_tests.cpp",
+    "tests/core/github_policy_tests.cpp",
+    "tests/end_to_end/remembered_connection_public_path_tests.cpp",
+    "tests/end_to_end/remembered_connection_restart_tests.cpp"
+  ],
+  "checks": [
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R ^(core_github_policy|application_github_host|qt_composed_github_scale_100|application_remembered_connection_public_path|application_remembered_connection_restart|architecture_boundaries|core_boundary_contract)$",
+      "result": "First six rows pass; enterprise restart seed exposed scheduled-startup readiness in the course. Corrected test-only helper; see final restart recheck.",
+      "log": "/tmp/bpr1514-final-focused.log"
+    },
+    {
+      "command": "ctest --test-dir build/dev --output-on-failure -R ^application_remembered_connection_restart$",
+      "result": "1/1 pass, 29.65s; all fresh-process phases pass",
+      "log": "/tmp/bpr1514-restart-final.log"
+    },
+    {
+      "command": "ctest --test-dir build/core-only --output-on-failure -R ^(core_github_policy|application_github_host|architecture_boundaries|core_boundary_contract)$",
+      "result": "4/4 pass, 17.14s",
+      "log": "/tmp/bpr1514-core-focused.log"
+    },
+    {
+      "command": "python3 tests/scripts/verify_documentation_tests.py",
+      "result": "67 pass",
+      "log": "/tmp/bpr1514-doc-tests.log"
+    },
+    {
+      "command": "python3 _coding-standard/scripts/format.py --dry-run [15 explicit changed C++ paths]",
+      "result": "pass; clang-format 22.1.8",
+      "log": "/tmp/bpr1514-final-format.log"
+    },
+    {
+      "command": "git diff --check",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "result": "refused: NEXT_ID BPR-1519 rewinds shared historical high water BPR-1520; pending authorized import 9b551b738",
+      "log": "/tmp/bpr1514-final-doc-gate.log"
+    }
+  ],
+  "render": {
+    "path": "/tmp/bpr1514-cli-loading.png",
+    "sha256": "5c3abc13204d0cdda634eca67f1a1eec4de116e73f10396101e79f71c2d968a8",
+    "size": [
+      1280,
+      820
+    ],
+    "observed": "Native card rhythm; Connecting to GitHub heading and one sentence; no Add or Sign in controls. Offscreen evidence only."
+  },
+  "resolved_failures": [
+    "Initial delayed assertion exposed the missed pending projection before window attachment.",
+    "Initial duplicate-activation guard interfered with native launch renewal; explicit host revalidation event preserves intentional credential replacement.",
+    "Enterprise seed previously acted before scheduled startup began; course now waits its real terminal and keeps detailed refusal diagnostics.",
+    "Intermediate core-only build overlapped the event-header edit and linked mismatched event definitions; subsequent exact-candidate dependency rebuild and 4/4 pass replace it."
+  ],
+  "pending": [
+    "Authorized tracker import 9b551b738, documentation gate and canonical finish."
+  ],
+  "human_acceptance_required": false,
+  "independent_acceptance_required": false,
+  "live_github_calls": false,
+  "desktop_capture": false,
+  "frontend_design_loaded": true,
+  "command_state": "quiescent; all task-owned build/test subprocesses finished; no review server",
+  "workflow_finish": {
+    "result": "guard refused without mutations",
+    "schema": "implement-rfc.finish.v1",
+    "reason": "NEXT_ID BPR-1519 rewinds historical high water BPR-1520",
+    "receipt": "/tmp/bpr1514-finish.json"
+  }
+}
