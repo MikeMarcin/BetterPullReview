@@ -61,17 +61,9 @@ namespace bpr::core {
 	/// \brief Lines of context GitHub's pull-request diff keeps around a change.
 	inline constexpr std::uint32_t github_hunk_context_lines = 3U;
 
-	/// \brief Unchanged lines GitHub's pull-request file list lets separate two
-	/// hunks it still joins into one (`git diff --inter-hunk-context=1`).
-	/// \details The raw `.diff` joins only touching hunks; the file list, whose
-	/// hunks a review comment must stay inside, joins one line further
-	/// ([[BPR-1482]], from [[RFC-BPR-0082]]'s recorded oracle).
-	inline constexpr std::uint32_t github_inter_hunk_context_lines = 1U;
-
-	/// \brief The hunks of one side as GitHub's file list draws them: each
-	/// change group's lines with three lines of context either side, hunks
-	/// that overlap, touch or lie at most one unchanged line apart merged, in
-	/// line order.
+	/// \brief The hunks of one side as GitHub's diff draws them: each change
+	/// group's lines with three lines of context either side, touching or
+	/// overlapping hunks merged, in line order.
 	/// \details A deletion contributes its context on the right. The diff
 	/// options and the comparison are the accepted ones; where they differ
 	/// from GitHub's own diff, GitHub's refusal at Publish still stands.

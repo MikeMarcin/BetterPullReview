@@ -47,7 +47,7 @@ namespace bpr::core {
 		auto merged = std::vector<line_span>{ };
 		merged.reserve(result.size());
 		for (const auto& hunk : result) {
-			if (!merged.empty() && hunk.Begin <= merged.back().End + github_inter_hunk_context_lines) {
+			if (!merged.empty() && hunk.Begin <= merged.back().End) {
 				merged.back().End = std::max(merged.back().End, hunk.End);
 				continue;
 			}

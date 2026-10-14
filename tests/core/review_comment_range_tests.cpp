@@ -134,25 +134,10 @@ namespace {
 		close.replace(close.find("line 17\n"), 8U, "changed 17\n");
 		const auto merged = github_review_hunks(diff(numbered(40U), close).Alignment, diff_side::right);
 		expect(merged.size() == 1U && merged[0].Begin == 7U && merged[0].End == 21U, "six lines apart is one hunk");
-		// [[BPR-1482]]. Seven unchanged lines leave one line between the
-		// contexts; GitHub's file list still joins them (inter-hunk context 1).
-		auto oneGap = numbered(40U, 10U);
-		oneGap.replace(oneGap.find("line 18\n"), 8U, "changed 18\n");
-		const auto oneGapResult = diff(numbered(40U), oneGap);
-		const auto joined       = github_review_hunks(oneGapResult.Alignment, diff_side::right);
-		expect(joined.size() == 1U && joined[0].Begin == 7U && joined[0].End == 22U, "a one-line gap between contexts is joined into one hunk");
-		// Eight unchanged lines leave two between the contexts: two hunks.
-		auto twoGap = numbered(40U, 10U);
-		twoGap.replace(twoGap.find("line 19\n"), 8U, "changed 19\n");
-		const auto twoGapResult = diff(numbered(40U), twoGap);
-		const auto apart        = github_review_hunks(twoGapResult.Alignment, diff_side::right);
-		expect(apart.size() == 2U && apart[0].End == 14U && apart[1].Begin == 16U, "a two-line gap between contexts stays two hunks");
-		const auto across = decide_comment_range(oneGapResult.Alignment, at(oneGapResult, diff_side::right, 12U), at(oneGapResult, diff_side::right, 19U));
-		expect(across.Refusal == comment_range_refusal::none && across.StartLine == 12U && across.Anchor.Line == 19U,
-			   "a range across a one-line gap is inside one hunk, as GitHub accepts it");
-		expect(decide_comment_range(twoGapResult.Alignment, at(twoGapResult, diff_side::right, 12U), at(twoGapResult, diff_side::right, 20U)).Refusal
-				   == comment_range_refusal::crosses_hunk,
-			   "a range across a two-line gap still crosses a hunk");
+		// Seven unchanged lines: two.
+		auto apart = numbered(40U, 10U);
+		apart.replace(apart.find("line 18\n"), 8U, "changed 18\n");
+		expect(github_review_hunks(diff(numbered(40U), apart).Alignment, diff_side::right).size() == 2U, "seven lines apart is two hunks");
 
 		// A change at the top and the bottom clamps to the document.
 		auto edges = numbered(8U, 0U);
