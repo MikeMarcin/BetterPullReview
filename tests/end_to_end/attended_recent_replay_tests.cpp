@@ -245,8 +245,9 @@ namespace {
 		// to Threads after the redundant Comments-header button is removed.
 		expect(window.findChild<QToolButton*>(QStringLiteral("workbenchThreadsFinderButton")) == nullptr,
 			   "the composed Comments header has no redundant Threads finder button");
+		window.activateWindow();
 		surface->right_pane()->setFocus(Qt::OtherFocusReason);
-		QApplication::processEvents();
+		wait_for([&] { return surface->right_pane()->hasFocus(); }, "the composed course starts with code focus");
 		auto* const threads = window.show_threads_action();
 		expect(threads != nullptr && threads->isEnabled() && threads->shortcut() == QKeySequence{ QStringLiteral("Ctrl+J") },
 			   "the composed window retains its enabled Command-J action");
