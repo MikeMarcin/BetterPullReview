@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1492"
 title: "A font change or zoom moves the reader's line"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1492--BPR-1496--90f0a51696a5.json","origin":"0.2.0 release normal gate (scripts/run_test_suite.py --preset dev) on main cd4860e30, reproduced alone on a quiet machine, owner release request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"40289f270","evidence":{"kind":"command","command":"ctest --preset dev -R (qt_appearance_profile, application_diff_zoom_public_path, qt_diff_workbench_scale_*, qt_comparison_scroll_controller_scale_*, qt_diff_link_map_scale_*, application_diff_workbench_public_path, application_appearance_*_contract, qt_profile_management_window, application_profile_management_public_path, qt_menu_bar_status_item*, application_profile_empty_desktop_native_menu_bar, qt_hide_drawers_native_menu_key)","detail":"Cause 60aa86361 (BPR-1413): hold_reading_position subtracted the within-line offset the new top line no longer has, and scrollContentsBy cleared the offset before the base class, so a resize restored the old top line. Fix in diff_workbench.cpp; assertions unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"40289f270","evidence":{"kind":"command","command":"ctest --preset dev -R (qt_appearance_profile, application_diff_zoom_public_path, qt_diff_workbench_scale_*, qt_comparison_scroll_controller_scale_*, qt_diff_link_map_scale_*, application_diff_workbench_public_path, application_appearance_*_contract, qt_profile_management_window, application_profile_management_public_path, qt_menu_bar_status_item*, application_profile_empty_desktop_native_menu_bar, qt_hide_drawers_native_menu_key)","detail":"qt_appearance_profile and application_diff_zoom_public_path pass; scroll, link map, workbench and appearance neighbours pass (22/22)."}}]
 ---
 
 # A font change or zoom moves the reader's line
@@ -95,3 +96,5 @@ ctest --preset dev -R 'qt_diff_workbench_scale|qt_diff_link_map_scale|qt_compari
 BPR-1413 fractional-origin and pan tests) and
 `qt_comparison_scroll_controller_scale_{100,125,200}`. The core and SQLite
 appearance rows do not link the changed file and were not run.
+
+- Integration at 40289f270 (BPR-1492 and BPR-1493 combined over main 4e1d8536f), macOS arm64 full build/dev: `ctest --preset dev -R (qt_appearance_profile, application_diff_zoom_public_path, qt_diff_workbench_scale_*, qt_comparison_scroll_controller_scale_*, qt_diff_link_map_scale_*, application_diff_workbench_public_path, application_appearance_*_contract, qt_profile_management_window, application_profile_management_public_path, qt_menu_bar_status_item*, application_profile_empty_desktop_native_menu_bar, qt_hide_drawers_native_menu_key)` passes 22/22, load average about 60 from other agents. Both rows failed in the 0.2.0 baseline gate on cd4860e30.
