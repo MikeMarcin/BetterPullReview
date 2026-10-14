@@ -1,0 +1,46 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "8f11e6083ad1545f97e3b0b741e0dd3f42006ae6",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Full-window offscreen native document-tab renders inspected at 1x, 1.25x and 2x; both drawer headers share the same edge.",
+        "root": "/tmp/bpr1509-20261014"
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "8f11e6083ad1545f97e3b0b741e0dd3f42006ae6",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Actual mouse/window-system key path, native page names and selected accessibility state, disabled keyboard skipping, focus/hover/disabled renders verified.",
+        "root": "/tmp/bpr1509-20261014"
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "8f11e6083ad1545f97e3b0b741e0dd3f42006ae6",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Exact selected file/comparison, Files filter, Search query/results/current occurrence/count, drawer width and existing Close/Escape behavior retained; collapse/rail/Hide course passes.",
+        "root": "/tmp/bpr1509-20261014"
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "8f11e6083ad1545f97e3b0b741e0dd3f42006ae6",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Real composed application through installed Git/cache; old-header negative fails and restored candidate passes. No explicit human criterion exists; coordinator confirmed no new gate.",
+        "root": "/tmp/bpr1509-20261014"
+      }
+    }
+  ]
+}
