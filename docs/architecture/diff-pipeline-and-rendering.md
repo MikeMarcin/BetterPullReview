@@ -70,6 +70,15 @@ before publishing. Retained-result validation also proves normalized equality
 for every equal segment, accepted exact pair, and exact move relation, so a
 stale or mutated document cannot preserve a false exact correspondence.
 
+[[BPR-1481]] A similar pair's intraline ranges are the gaps between dtl's
+common scalars of its two lines (RFC-BPR-0082), computed in
+`src/core/src/diff_intraline.cpp`, the one source that names dtl. dtl compares
+one line pair, never a file's lines. Its comparisons are counted by the step
+meter but charged nothing from the matrix budget, so pairing has that budget to
+itself and a pair is left without emphasis only when pairing exhausted it. A
+pair whose (left + 1) x (right + 1) grid reaches dtl's 2,000,000 path-point
+restart bound keeps the budgeted character table instead.
+
 The live `diff_semantics` core boundary validates an immutable result once and
 builds retained segment, group, pair, move, and intraline indexes for repeated
 queries. It derives exact-line, similar-line, opposing-span, opposing-boundary,

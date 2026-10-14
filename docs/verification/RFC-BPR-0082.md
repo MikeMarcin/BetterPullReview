@@ -286,6 +286,43 @@ change.
 The generated tables keep the counts of the runs they come from; this table
 supersedes their comment-flip and BPR-hunk columns.
 
+## Intraline ranges after BPR-1481
+
+[[BPR-1481]] adopts dtl for intraline ranges on top of [[BPR-1485]]'s xdiff
+primary, after the owner's Q2 Accept and AC06 Accept (session
+`3dcb3e5660345ff127118964cc309faa`, decision
+`0552741d-9e4e-4c8b-8a7b-350e9d0326a8`, recorded in `a66d996df`). A similar
+pair's ranges are the gaps between dtl's common scalars. Its comparisons are
+counted by the step meter, not charged to the matrix budget, so
+`MatrixCellsConsumed` now counts pairing alone; a pair whose
+(left + 1) x (right + 1) grid reaches dtl's 2,000,000-point restart bound
+keeps the budgeted table (no corpus pair does: the only long lines,
+`patho-long-lines`, are never paired). The 86 corpus comparisons were computed
+once through the product path (`product_file_diff`, a `core-only` Debug build)
+and compared with `l-myers-indent` in `macos-bpr1482-refresh`, the same xdiff
+alignment with the table's intraline pass:
+
+| Measure (86 comparisons) | xdiff + table (`l-myers-indent`) | xdiff + dtl (BPR-1481) |
+|---|---|---|
+| Published and valid (`validate_computed_file_diff`) | 86 | 86 |
+| Similar pairs | 18,645 | 18,645 |
+| Pairs without intraline emphasis | 11,706 | 858 |
+| Approximate comparisons | 9 | 8 |
+| Matrix cells consumed | 176,974,001 | 159,739,202 |
+
+Every span validates (UTF-8 boundaries, monotonic, inside the pair's
+content). Emphasis comes back on six comparisons whose intraline passes the
+budget used to stop: `bench-10000-300` (1,891 pairs), `bench-40000-300`
+(2,480), `bench-100000-30` (1,702), `bench-100000-300` (2,238),
+`git-po-bg-po` (998) and `git-po-sv-po` (1,539). Five of them stay
+approximate, because pairing alone fills their 16 Mi-cell budget; only
+`bench-100000-30` stops being approximate. The 858 pairs still without
+emphasis are `patho-crlf`'s 286 under each of its three options: their lines
+differ only in the line ending, which is not part of a line's content, so
+there is nothing to emphasize. This is the same 858 the evaluation measured
+for `c-onp-intraline` over the first-party primary. `core_diff_intraline`
+tests the uncharged budget, the large pair's table and a stop inside dtl.
+
 ## Open questions and the evidence for them
 
 - **Q1 (linking LGPL xdiff), answered Accept on 2026-10-13** if xdiff is its

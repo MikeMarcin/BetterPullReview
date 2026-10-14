@@ -56,7 +56,8 @@ def copy_core_archives(cache: Path) -> None:
     """The Qt-free core graph needs SQLite, zlib ([[BPR-1435]]), utf8proc
     ([[BPR-1434]]), glaze ([[BPR-1433]]), fmt ([[BPR-1439]]) and
     sha1collisiondetection ([[BPR-1450]]), HACL* ([[BPR-1451]]),
-    rapidfuzz-cpp ([[BPR-1480]]) and Git's xdiff ([[BPR-1485]])."""
+    rapidfuzz-cpp ([[BPR-1480]]), Git's xdiff ([[BPR-1485]]) and dtl
+    ([[BPR-1481]])."""
     cache.mkdir(parents=True, exist_ok=True)
     for archive in (
         "zlib-1.3.2.tar.gz",
@@ -67,6 +68,7 @@ def copy_core_archives(cache: Path) -> None:
         "hacl-star-504c2987452f87fe44bce9b9f12e19d6e051761f.tar.gz",
         "rapidfuzz-cpp-3.3.4.tar.gz",
         "git-2.56.0.tar.xz",
+        "dtl-1.21.tar.gz",
     ):
         shutil.copy2(CPM_SOURCE_CACHE / archive, cache / archive)
 
@@ -553,6 +555,8 @@ class DependencyModernizationTests(unittest.TestCase):
         # [[BPR-1485]]. And its primary line matcher, Git's xdiff, built as its
         # own shared library.
         self.assertIn("git-xdiff|PINNED_ARCHIVE|BetterPullReview::Xdiff", records)
+        # [[BPR-1481]]. And its intraline ranges, dtl's common scalars.
+        self.assertIn("dtl|PINNED_ARCHIVE|BetterPullReview::Dtl", records)
         if any(target.startswith("Qt6::") for target in targets):
             self.assertIn("Quill|PINNED_ARCHIVE|quill::quill", records)
             self.assertIn("Glaze|PINNED_ARCHIVE|glaze::glaze", records)
