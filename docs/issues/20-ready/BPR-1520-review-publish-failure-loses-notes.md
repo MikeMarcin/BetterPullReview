@@ -25,3 +25,7 @@ Owner observed failed publication of review notes, then Refresh removed publicat
 ## Safety and coordination
 
 Highest-priority testing note; dispatch before queued polish/navigation cards. Use fixtures for publication failures and designated BPR-Test only if live validation is essential. No mutation of the owner’s real review, no publishing on their behalf. Never log credentials/private repository content or raw user notes into committed artifacts. Inspect draft/persistence/publication contracts and relevant RFCs. Load frontend-design:frontend-design before any UX edits. Never operate/capture owner desktop or inspect browser personal data.
+
+## Owner clarification
+
+The lost content was **file/line comment drafts** (owner reply, 2026-10-14). The exact Publish error remains unknown. Investigate inline draft durability first.
