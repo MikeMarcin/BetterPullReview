@@ -31,7 +31,7 @@ adoption waits on the named owner answer; it is not adopted.
 |---|---|---|
 | Primary line matcher | **No change.** Every candidate rejected. | P fails the correctness gate (2 refusals each, see below) and the primary rule. L, re-measured after Q1 as its own shared library with the whitespace mapping corrected, has no refusal and no invalid result, but fails the primary rule with every algorithm: 1.60–2.03× the baseline's median time on L inputs and 0.69–1.04× on pathological ones (memory 1.13–1.25× and 0.61–0.73×), so neither 2× faster nor 2× smaller, a regression above 10% on L, and 7 of the baseline's 11 approximate L and pathological comparisons still approximate. C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). |
 | Hunk sliding | **No change.** Every candidate rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but it runs inside Git's or xdiff's own matcher, so adopting it means adopting that matcher, which fails the primary rule (and, for P, the correctness gate). The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
-| Line-pair similarity | **Adopt rapidfuzz-cpp** ([[BPR-1480]]), after the owner's Q2 Accept of 2026-10-13. | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
+| Line-pair similarity | **Adopted: rapidfuzz-cpp** ([[BPR-1480]], done), after the owner's Q2 Accept of 2026-10-13. The engine now scores pairs with its Indel distance; outputs byte-identical over 1,162 cases, pairing phase 15.80 → 0.97 ms on the 10K-line, 300-edit benchmark. | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
 | Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06)** ([[BPR-1481]]); Q2 approved dtl for this per-line use on 2026-10-13. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
 | Review Cycle suggestion hunks | **No change.** | No primary matcher is adopted, so nothing replaces the bounded Myers. |
 
@@ -296,8 +296,9 @@ supersedes their comment-flip and BPR-hunk columns.
   the installed Apple Git adds 13 ms per launch over a plain build.
 - **AC06.** The dtl intraline candidate's render set (10 corpus pairs whose
   emphasis differs from the baseline's, rendered by the product's diff
-  workbench) is prepared for its own attended-review session; the owner's
-  Accept or Reject is pending.
+  workbench at revision `39df8537a`, byte-identical to the first pass's) is
+  prepared in its own new attended-review session (`3dcb3e56…`, one
+  Accept/Reject question); the owner's answer is pending.
 
 ## Platform status
 
