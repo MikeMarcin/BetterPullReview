@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1447"
 title: "Supply feedback body digests from platform crypto behind a host port"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0080"]
 depends_on: ["BPR-1446"]
 priority: "P2"
 platforms: ["mac"]
 metadata: {"mandate_revision":"hashing-replacement-r1","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"},"reservation":"docs/issues/_reservations/BPR-1446--BPR-1453--810e9a5c8803.json"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"004910e4b","evidence":{"kind":"command","detail":"application_body_digest_port: CommonCrypto and core backends equal core::sha256 for FIPS answers, lengths 0-200, block and 1 MiB edges and seeded inputs; supplied digests give identical units and counts with nothing hashed by core; 18 feedback rows pass.","path":"docs/issues/60-done/BPR-1447-supply-feedback-body-digests-from-platform-crypto.md"}},{"criterion":"AC2","outcome":"pass","revision":"004910e4b","evidence":{"kind":"observation","detail":"Release, -j1, twice before (a17294297) and after, loaded: 10k observe_cold 34.1/34.5 ms before; with supplied digests 18.0/17.2 ms and 0 bodies hashed on the window thread (digesting moves to the provider worker: CommonCrypto 8.2/7.5 ms); first_tab_comparison passes before/after, phases flat or lower; large_review_responsiveness fails before and after on main's keyboard reveal, phases recorded within before spread.","path":"docs/issues/60-done/BPR-1447-supply-feedback-body-digests-from-platform-crypto.md"}},{"criterion":"AC3","outcome":"pass","revision":"004910e4b","evidence":{"kind":"command","detail":"CC_SHA256 only in src/adapters/github/src/platform_body_digest.cpp behind application::body_digest_port; architecture_boundaries and architecture_boundary_contract enforce it; core_dependency_boundary, core_boundary_contract pass; dev and core-only build.","path":"docs/issues/60-done/BPR-1447-supply-feedback-body-digests-from-platform-crypto.md"}},{"criterion":"AC4","outcome":"pass","revision":"004910e4b","evidence":{"kind":"artifact","detail":"docs/verification/RFC-BPR-0080.md Host port section records the before/after tables and the adopt-on-macOS decision against the RFC's host-port rule.","path":"docs/issues/60-done/BPR-1447-supply-feedback-body-digests-from-platform-crypto.md"}}]
 ---
 
 # BPR-1447: Supply feedback body digests from platform crypto behind a host port
