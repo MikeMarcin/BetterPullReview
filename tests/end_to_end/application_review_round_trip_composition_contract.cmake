@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"cb0b2c64614ff4a5f1dd4ee6fe661d7dd8ebc361164aecefbbc41f6b3365f892"
+		"011aeb14465c81fe4daa107d4bdc81eb6c7a96f636ed4e60d72a1896e961405d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "3a5276bdb9632bc3ae7ddc736c758e2fff49ec7510aaa76d147c738b2bee6560"
+        "04cb5d2ab2d89039d0f0acc1a52a3b4aa4ed6c3d546a33a2d5fe27c9e239f98e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2461,4 +2461,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # facts and the panel's refusal text; and the UIforETW capture measures a
 # pane's masked viewport ([[BPR-1487]]). No publication, credential, grant,
 # inventory or mutation-branch change; the full application and
+# production-manifest digests are refreshed.
+
+# [[BPR-1500]] reseal. github_application.cpp's test-only scaling evidence
+# reports the queue host's existing quiescence, and the fixture access header
+# carries that field, so the active-changed scaling course waits for the queue
+# store before counting its item publication. No publication, credential,
+# grant, inventory or mutation-branch change; the full application and
 # production-manifest digests are refreshed.
