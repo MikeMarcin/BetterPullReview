@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1483"
+  ],
+  "reserve_for": "nifty-nash-e68549",
+  "purpose": "The Colours list course counts the 60 offered roles (28 in Syntax) now that RFC-BPR-0072 added Namespaces and Enum members, so qt_colour_role_list passes on main",
+  "created": "2026-10-14T02:29:12.900475+00:00",
+  "base": "632f572672e3060eb38823f007c52619d40a5e5e"
+}

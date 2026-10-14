@@ -228,9 +228,12 @@ of theme, and hunk spans project the complete-blob result.
 
 The two new colour roles append to the durable vocabulary without renumbering
 existing roles. Their defaults enter the existing variant profiles, contrast
-pairs and Colours controls. Missing new roles in an older palette document are
-unassigned in the core import and resolve to the chosen variant's built-in
-values in Qt. Existing overrides and stored flags remain authoritative. Final
+pairs and Colours controls. Missing new roles in an older stored palette
+document are unassigned in the core import and resolve to that slot's
+variant's built-in values in Qt. An imported theme document fills them at
+import from the built-in palette of the document's own base, not the theme on
+screen (owner, 2026-10-13, [[BPR-1479]]). Existing overrides and stored flags
+remain authoritative. Final
 rendered, persistence and exchange acceptance is recorded in
 [the RFC-BPR-0072 ledger](../verification/RFC-BPR-0072.md); prior palette verdicts
 and parked BPR-0720/BPR-0738 obligations are preserved.

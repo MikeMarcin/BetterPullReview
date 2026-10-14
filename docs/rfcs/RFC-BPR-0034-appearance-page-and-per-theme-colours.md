@@ -79,6 +79,28 @@ them use that variant's built-in defaults without changing any existing role
 or stored flag. The new RFC owns direct qualification of these additions;
 historical C1 to C6 acceptance does not prove the new roles.
 
+**Owner direction, 2026-10-13 ([[BPR-1479]]).** An older theme with a dark
+code background, imported while Light was on screen, previewed with Light's
+namespace colour and could not be kept: "Light: syntax_namespace on
+code_background is 2.88:1". The owner's direction: "theme should know its
+base theme light/dark etc. and new roles should get filled with the base
+themes colors on import", and a later export carries those colours rather
+than leaving them unassigned. Export now writes a version-2 document whose
+`base` line names the theme on screen. Import fills each additive role the
+document omits from its base's built-in palette, and contrast is checked on
+that filled palette, so a theme whose fill cannot be read is refused at
+import and never at Keep changes. A version-1 document's base is Light or
+Dark by its own code background. Stored palettes keep their per-slot rule.
+This status is unchanged.
+
+**Owner direction, 2026-10-13 ([[BPR-1483]]).** The two rows the additive
+syntax amendment added read "Syntax namespace" and "Syntax enum member",
+replacing "Namespaces" and "Enum members". The owner asked that they be
+offered "same as others": the other 26 Syntax rows begin "Syntax", and the
+filter matches a row's words, so a filter for "syntax" missed the two new
+rows. It now lists all 28. Stable names, counts and order are unchanged.
+This status is unchanged.
+
 **Follow-on from that verdict, 2026-09-24 ([[BPR-1107]]).** BPR-1107 builds
 the owner's white-space model. The preview and the review panes draw a space
 as a dot and a tab as a line to its stop, through one shared painter. The Type
@@ -236,8 +258,8 @@ losing an existing customisation in migration.
 ## Non-goals
 
 Roles beyond the named additive amendments, new modes, new typography fields, a theme gallery or marketplace,
-per-window themes, and any change to theme document format beyond carrying a
-variant, which it already does.
+per-window themes, and any change to theme document format beyond the base
+variant it carries since [[BPR-1479]].
 
 ## Acceptance criteria
 

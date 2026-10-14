@@ -1743,6 +1743,23 @@ keys by name, near-miss identifiers, partial documents with each unassigned
 role named, duplicate keys, oversized input, and external references. The
 external-reference scan runs before any key is interpreted, so a reference in a
 key position is refused as a reference rather than as an unknown field.
+[[BPR-1479]] adds version 2: the suite round-trips each of the four bases,
+refuses a version-2 document without a base, with an unknown or repeated base,
+and a version-1 document carrying one, infers a version-1 base from its code
+background on both sides of the white/black text crossover, and fills only the
+roles a document omits.
+
+`tests/fixtures/appearance/older-theme.bprtheme` is `contrast-safe-theme`
+as it stood before RFC-BPR-0072: version 1, black code canvas, no namespace or
+enum-member colour. `application_appearance_older_theme_contract` runs the
+theme-customization course over it with
+`BPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff`,
+Dark's built-ins. The theme is kept on the variant offscreen resolves (Light on
+macOS, printed as `APPEARANCE_THEME_EXPORT_BASE:light`), and the course
+requires the exported document to be `bpr-theme 2`, `base` that variant, every
+fixture line and the two filled lines. Before BPR-1479 the commit stage
+refused it with the 2.88:1 finding. Both theme courses compare the export
+against that shape rather than the imported bytes.
 
 `tests/syntax_contract/syntax_classification_contract_tests.cpp` is registered
 as `syntax_classification_contract` and uses `tests/fixtures/syntax/`:
@@ -1955,5 +1972,9 @@ restart. Existing palette documents omit only the two new fields; old import
 files are valid customized themes under the host's existing all-variant contrast
 floor. Every old value, mixed stored flag and unrelated typography preference is
 checked before editing. Picker edits and old/new imports change only their named
-variant, and every new export includes all 62 stable identities. Explicit
-unreadable new-role ink remains a typed refusal in `application_appearance_host`.
+variant, and every new export includes all 62 stable identities. Since
+[[BPR-1479]] an old import's two new roles come from the document's base, which
+its white or black canvas makes Light or Dark, so the high-contrast variants
+receive Light's or Dark's values rather than their own. Stored old palettes keep
+the sentinel and their slot's defaults. Explicit unreadable new-role ink remains
+a typed refusal in `application_appearance_host`.

@@ -183,6 +183,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "published-file-switch-timing", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "start-review-course", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "reply-draft-course", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "refresh-pick-course", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "device-authorization-browser-absent" },
 		bpr::app::command_line_option{ .Name = "device-authorization-panel-absent" },
 		bpr::app::command_line_option{ .Name = "epoch-fixture-root", .TakesValue = true },
@@ -1290,6 +1291,11 @@ namespace {
 		bool                                                ReplyDraftPassed = false;
 		bpr::app::detail::reply_draft_probe_evidence        ReplyDraftEvidence;
 		std::string                                         ReplyDraftDiagnostic;
+		// [[BPR-1478]]. `--refresh-pick-course refresh|reread`.
+		std::optional<bpr::app::detail::refresh_pick_course> RefreshPickCourse;
+		bool                                                 RefreshPickPassed = false;
+		bpr::app::detail::refresh_pick_probe_evidence        RefreshPickEvidence;
+		std::string                                          RefreshPickDiagnostic;
 		// [[BPR-1331]]. `--review-progress-push-probe before|after`.
 		std::optional<bpr::app::detail::review_progress_push_course> ReviewProgressPushProbe;
 		bool                                                         ReviewProgressPushPassed = false;
@@ -4959,6 +4965,12 @@ namespace {
 				   << evidence.Acted << evidence.NothingSent << '\n';
 			stream << "REPLY_DRAFT_DIAGNOSTIC:" << QString::fromStdString(aRun.ReplyDraftDiagnostic) << '\n';
 		}
+		if (aRun.RefreshPickCourse.has_value()) {
+			const auto& evidence = aRun.RefreshPickEvidence;
+			stream << (aRun.RefreshPickPassed ? "REFRESH_PICK_OK\n" : "REFRESH_PICK_FAILED\n")
+				   << "REFRESH_PICK_EVIDENCE:" << evidence.Raced << evidence.Kept << evidence.Stayed << '\n'
+				   << "REFRESH_PICK_DIAGNOSTIC:" << QString::fromStdString(aRun.RefreshPickDiagnostic) << '\n';
+		}
 		if (aRun.StartReviewCourse.has_value()) {
 			const auto& evidence = aRun.StartReviewEvidence;
 			stream << (aRun.StartReviewPassed ? "START_REVIEW_OK\n" : "START_REVIEW_FAILED\n");
@@ -5053,6 +5065,7 @@ namespace {
 			&& !aRun.LabelAuthoringProbe && !aRun.PublishedFileSwitchProbe
 			&& !aRun.StartReviewCourse.has_value()
 			&& !aRun.ReplyDraftCourse.has_value()
+			&& !aRun.RefreshPickCourse.has_value()
 			&& !aRun.ReviewProgressPushProbe.has_value()
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
@@ -5902,6 +5915,28 @@ namespace {
 		aRun.StartReviewEvidence = bpr::app::detail::github_application_fixture_access::start_review_evidence(aApplication);
 		aRun.StartReviewPassed   = result == bpr::app::detail::start_review_probe_result::passed;
 		if (!aRun.StartReviewPassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
+	}
+
+	// [[BPR-1478]]. One tick of the course in which a reread lands just
+	// after the reviewer picks another file.
+	void advance_refresh_pick_course(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		using access               = bpr::app::detail::github_application_fixture_access;
+		const auto result          = access::exercise_refresh_pick(aApplication, *aRun.RefreshPickCourse);
+		aRun.RefreshPickDiagnostic = access::refresh_pick_diagnostic(aApplication);
+		if (result == bpr::app::detail::refresh_pick_probe_result::pending) {
+			return;
+		}
+		aRun.RefreshPickEvidence = access::refresh_pick_evidence(aApplication);
+		aRun.RefreshPickPassed   = result == bpr::app::detail::refresh_pick_probe_result::passed;
+		if (!aRun.RefreshPickPassed) {
 			fail_automated_run(aApplication, aRun);
 			return;
 		}
@@ -6796,6 +6831,10 @@ namespace {
 				}
 				if (aRun->ReplyDraftCourse.has_value()) {
 					advance_reply_draft_course(aApplication, *aRun);
+					break;
+				}
+				if (aRun->RefreshPickCourse.has_value()) {
+					advance_refresh_pick_course(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ReviewProgressPushProbe.has_value()) {
@@ -8872,6 +8911,15 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1345]]. The start-a-review course reads again after publishing.
 		const auto startReviewCourse      = launch.value("--start-review-course");
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || startReviewCourse.has_value();
+		// [[BPR-1478]]. The refresh-pick course reads the pull request again.
+		const auto refreshPickCourseName = launch.value("--refresh-pick-course");
+		auto       refreshPickCourse     = std::optional<bpr::app::detail::refresh_pick_course>{ };
+		if (refreshPickCourseName == std::optional<std::string_view>{ "refresh" }) {
+			refreshPickCourse = bpr::app::detail::refresh_pick_course::refresh;
+		} else if (refreshPickCourseName == std::optional<std::string_view>{ "reread" }) {
+			refreshPickCourse = bpr::app::detail::refresh_pick_course::reread;
+		}
+		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || refreshPickCourse.has_value();
 		// [[BPR-1374]]. The unsent-reply course reads again on its Refresh.
 		const auto replyDraftCourseName = launch.value("--reply-draft-course");
 		const auto replyDraftCourse     = [&]() -> std::optional<bpr::app::detail::reply_draft_course> {
@@ -9936,6 +9984,7 @@ auto main(int argc, char** argv) -> int
 									: startReviewCourse == std::optional<std::string_view>{ "again" }                                                                                                                                                                     ? std::optional{ bpr::app::detail::start_review_course::again }
 																																																																		  : std::nullopt,
 								.ReplyDraftCourse                = replyDraftCourse,
+								.RefreshPickCourse               = refreshPickCourse,
 								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
 																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,

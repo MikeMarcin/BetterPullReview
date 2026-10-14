@@ -677,14 +677,17 @@ namespace bpr::qt {
 		core::appearance_palette       aPalette,
 		const core::appearance_variant aVariant) noexcept -> core::appearance_palette
 	{
-		const auto& builtin = builtin_appearance_palette(aVariant);
-		for (auto index = std::size_t{ 0U }; index < core::appearance_role_count; ++index) {
-			if (core::defaults_on_import(static_cast<core::appearance_role>(static_cast<std::uint8_t>(index)))
-				&& aPalette[index] == core::unassigned_appearance_color) {
-				aPalette[index] = builtin[index];
-			}
+		return core::with_base_defaults(aPalette, builtin_appearance_palette(aVariant));
+	}
+
+	auto builtin_appearance_palettes() noexcept -> application::appearance_builtin_palettes
+	{
+		auto palettes = application::appearance_builtin_palettes{ };
+		for (auto index = std::size_t{ 0U }; index < core::appearance_variant_count; ++index) {
+			palettes[index] = builtin_appearance_palette(
+				static_cast<core::appearance_variant>(static_cast<std::uint8_t>(index)));
 		}
-		return aPalette;
+		return palettes;
 	}
 
 	auto default_appearance_settings() -> application::appearance_settings

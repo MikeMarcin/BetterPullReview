@@ -66,12 +66,12 @@ namespace bpr::application {
 		appearance_consumer_id                                   Consumer;
 		bool                                                     Closing = false;
 	};
-	appearance_application_host::appearance_application_host(appearance_settings       aInitialSettings,
+	appearance_application_host::appearance_application_host(appearance_settings aInitialSettings, const appearance_builtin_palettes& aBuiltins,
 															 appearance_settings_port& aSettings, theme_document_port& aThemeDocuments, syntax_classification_port& aClassification,
 															 effect_executor& aEffects, decision_executor& aDecisionLane, appearance_projection_port& aProjections,
 															 core::application_session_id aSession, appearance_host_limits aLimits)
 		: Implementation{ std::make_unique<implementation>(std::make_shared<appearance_preferences_application_host>(
-															   std::move(aInitialSettings), aSettings, aThemeDocuments, aEffects, aDecisionLane, aSession, aLimits),
+															   std::move(aInitialSettings), aBuiltins, aSettings, aThemeDocuments, aEffects, aDecisionLane, aSession, aLimits),
 														   true,
 														   aClassification, aEffects, aDecisionLane, aProjections, aSession, aLimits) }
 	{ }
@@ -128,10 +128,10 @@ namespace bpr::application {
 			Implementation->Preferences->cancel_theme_import(Implementation->Consumer);
 		}
 	}
-	void appearance_application_host::export_theme_file(std::string aPath, core::appearance_palette aPalette)
+	void appearance_application_host::export_theme_file(std::string aPath, core::appearance_palette aPalette, const core::appearance_variant aVariant)
 	{
 		if (!Implementation->Closing) {
-			Implementation->Preferences->export_theme_file(Implementation->Consumer, std::move(aPath), aPalette);
+			Implementation->Preferences->export_theme_file(Implementation->Consumer, std::move(aPath), aPalette, aVariant);
 		}
 	}
 	void appearance_application_host::reset(const appearance_reset_scope aScope, const core::appearance_variant aVariant)

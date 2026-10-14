@@ -27,15 +27,16 @@ namespace bpr::application {
 		// The composition supplies the base appearance. The host invents no colour
 		// and no font family, and rejects a base its own validator would refuse.
 		appearance_application_host(
-			appearance_settings          aInitialSettings,
-			appearance_settings_port&    aSettings,
-			theme_document_port&         aThemeDocuments,
-			syntax_classification_port&  aClassification,
-			effect_executor&             aEffects,
-			decision_executor&           aDecisionLane,
-			appearance_projection_port&  aProjections,
-			core::application_session_id aSession,
-			appearance_host_limits       aLimits = { });
+			appearance_settings                aInitialSettings,
+			const appearance_builtin_palettes& aBuiltins,
+			appearance_settings_port&          aSettings,
+			theme_document_port&               aThemeDocuments,
+			syntax_classification_port&        aClassification,
+			effect_executor&                   aEffects,
+			decision_executor&                 aDecisionLane,
+			appearance_projection_port&        aProjections,
+			core::application_session_id       aSession,
+			appearance_host_limits             aLimits = { });
 		/// \brief Attaches a window to an existing profile preference owner.
 		appearance_application_host(std::shared_ptr<appearance_preferences_application_host> aPreferences,
 									syntax_classification_port& aClassification, effect_executor& aEffects, decision_executor& aDecisionLane,
@@ -79,7 +80,8 @@ namespace bpr::application {
 		void import_theme_file(std::string aPath);
 		/// Retires only the pending preview import; accepted durable work continues.
 		void cancel_theme_import();
-		void export_theme_file(std::string aPath, core::appearance_palette aPalette);
+		/// \brief Writes a theme document whose base is `aVariant`, the theme on screen.
+		void export_theme_file(std::string aPath, core::appearance_palette aPalette, core::appearance_variant aVariant);
 		/// \brief Resets one durable group; `palette` resets the named variant only.
 		void reset(appearance_reset_scope aScope, core::appearance_variant aVariant);
 		// Answers from the retained cache when the key is present and runs the

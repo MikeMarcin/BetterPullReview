@@ -65,7 +65,9 @@ namespace bpr::core {
 	/// comparison, and no tab opens before it. `Active` names a tab in `Tabs`
 	/// or is absent exactly when there is no tab. `Pending` is the one load in
 	/// force; `Presented` is the load whose view the window shows, which is
-	/// the one whose reading position the core adopts.
+	/// the one whose reading position the core adopts. `Chosen` is a file the
+	/// reviewer chose in Review that the active tab has not taken yet
+	/// ([[BPR-1478]]); it is never persisted.
 	struct document_tabs_state
 	{
 		std::optional<comparison_pair>           WindowComparison;
@@ -73,6 +75,7 @@ namespace bpr::core {
 		std::optional<document_tab_id>           Active;
 		std::optional<document_tab_view_request> Pending;
 		std::optional<document_tab_view_request> Presented;
+		std::optional<file_identity>             Chosen;
 		std::uint64_t                            LastTab     = 0U;
 		std::uint64_t                            LastRequest = 0U;
 
@@ -244,12 +247,30 @@ namespace bpr::core {
 		request_id                               aRequest,
 		const std::optional<semantic_selection>& aSelection) -> document_tabs_output;
 
+	/// \brief [[BPR-1478]]. Adopts a file the reviewer chose in Review, before
+	/// the active tab takes it.
+	///
+	/// \details The host reflects a chosen file into the active tab with
+	/// `open_in_active_tab_intent` once the comparison it opens under is
+	/// accepted. A refresh can land in between and retire the window's
+	/// selection, so the choice is kept here until the tab takes it: the
+	/// active tab's next load, for a refresh or for a comparison accepted for
+	/// it, presents the chosen file at its initial position. Nothing loads and
+	/// no tab changes now. A choice of the file the active tab already shows
+	/// clears it, and so does switching, closing or restoring tabs.
+	[[nodiscard]] auto observe_file_choice(
+		document_tabs_state& aState,
+		const file_identity& aFile) -> document_tabs_output;
+
 	/// \brief Presents the active tab's exact view again, after the pull
 	/// request refreshed.
 	///
-	/// \details A refresh never changes a tab's pair or file: the active tab
-	/// loads the same exact view under a fresh request, which retires the load
-	/// before it, and every other tab keeps its view untouched.
+	/// \details A refresh never changes a tab's pair: the active tab loads
+	/// under a fresh request, which retires the load before it, and every
+	/// other tab keeps its view untouched. The active tab loads the same exact
+	/// view, unless the reviewer chose another file it has not taken yet
+	/// ([[BPR-1478]]). That choice is the later one, so the tab takes it at the
+	/// file's initial position, as clicking it does.
 	[[nodiscard]] auto reload_active(document_tabs_state& aState) -> document_tabs_output;
 
 	/// \brief Replaces the state with a persisted collection, minting fresh

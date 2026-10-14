@@ -1107,6 +1107,16 @@ resolve to that variant's built-in defaults. Existing values and stored flags
 survive without a palette reset. Scoped palette reset removes one variant's
 overrides without deleting other appearance preferences.
 
+An exported theme is a version-2 document whose `base` line names the variant
+it customises ([[BPR-1479]]). The store's per-slot documents stay version 1,
+because the slot is their base. Theme import fills the additive roles a
+document omits from its base's built-in palette before checking contrast, so
+what is previewed is what Keep changes stores and a later export writes. A
+version-1 document's base is inferred from its code background (Light or Dark,
+never high contrast). The core parses and decides the base; the composition
+hands the host the four built-in palettes, which Qt owns, and the host
+performs the fill. The theme on screen plays no part.
+
 Migration files the version-6 palette under exactly the variant that row
 recorded, keeping its document bytes, and leaves the other three uncustomized,
 which is the same "no customization" a fresh installation has. It runs inside
@@ -1304,7 +1314,11 @@ scrollbar clamping. Recent directional evidence can release or change that
 preference; discarded motion is never banked, and momentum retains the established
 axis. Phase/device/idle and comparison resets clear context. Keyboard reveals
 place a clipped row flush with the nearest displayed edge within one device
-pixel through the receiving pane's existing authority. Subsequent reveals scroll
+pixel through the receiving pane's existing authority. The row is placed from
+the first visible row by the measured axis's line tops (in unified view, its row
+stride and the top margin row 0 alone shows), not by Qt's block geometry, which
+stops walking about two viewport heights from the first visible block, so a row
+selected far out of view is revealed at that edge too ([[BPR-1476]]). Subsequent reveals scroll
 one source row per arrow; the flush origin may retain a fraction. Page destinations
 remain line-aligned. In-view cursor navigation retains fractional placement.
 Source horizontal bars use Qt's ordinary native controls and transient feedback,

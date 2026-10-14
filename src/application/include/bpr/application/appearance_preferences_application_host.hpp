@@ -19,7 +19,13 @@ namespace bpr::application {
 	class appearance_preferences_application_host final
 	{
 	public:
-		appearance_preferences_application_host(appearance_settings aInitialSettings, appearance_settings_port& aSettings,
+		/// \brief Starts from the composed base appearance and the built-in palettes.
+		///
+		/// \details The built-in palettes fill the roles an older theme document
+		/// omits, from that document's base ([[BPR-1479]]); the host owns no
+		/// colour of its own. A built-in palette that leaves a role unassigned is
+		/// refused with `std::invalid_argument`.
+		appearance_preferences_application_host(appearance_settings aInitialSettings, const appearance_builtin_palettes& aBuiltins, appearance_settings_port& aSettings,
 												theme_document_port& aThemeDocuments, effect_executor& aEffects, decision_executor& aDecisionLane,
 												core::application_session_id aSession, appearance_host_limits aLimits = { });
 		~appearance_preferences_application_host();
@@ -54,7 +60,8 @@ namespace bpr::application {
 		void step_code_zoom(appearance_consumer_id aConsumer, core::code_zoom_step aStep);
 		void import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
 		void cancel_theme_import(appearance_consumer_id aConsumer);
-		void export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette);
+		/// \brief Writes a theme document whose base is `aVariant`, the theme the palette customises.
+		void export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette, core::appearance_variant aVariant);
 		/// \brief Resets one durable group; `palette` resets the named variant only.
 		void               reset(appearance_consumer_id aConsumer, appearance_reset_scope aScope, core::appearance_variant aVariant);
 		void               cancel();

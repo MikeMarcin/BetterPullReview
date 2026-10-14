@@ -591,8 +591,11 @@ namespace bpr::qt {
 			const core::source_line_ref& aLine, bool aAtTop = false) -> bool;
 		/// \brief Fully reveals a keyboard-selected row at the nearest edge.
 		void reveal_keyboard_row(QPlainTextEdit* aPane, const QRect& aRow, const QRect& aVisible);
-		void apply_interaction(bool aReveal, bool aAnnounceSelection);
-		void update_detail();
+		/// \brief [[BPR-1476]]. A row's rect in a pane's viewport, however far
+		/// it is from view.
+		[[nodiscard]] auto keyboard_row_rect(QPlainTextEdit* aPane, std::uint32_t aRow) const -> QRect;
+		void               apply_interaction(bool aReveal, bool aAnnounceSelection);
+		void               update_detail();
 		/// \brief [[BPR-1334]]. Projects the current line, or the panes'
 		/// text selection, into Line details.
 		void update_line_details();

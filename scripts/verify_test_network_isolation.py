@@ -162,6 +162,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # registry ("STARTUP_FAILED_CAUSE: startup_failure=registry"), the same
     # refusal the BPR-0834 rows measured.
     "application_published_file_switch_contract": "dos-volume-name",
+    # [[BPR-1478]]. The file-switch row's composed application over the same
+    # fixture, with no data root of its own; pinned by that shape, not yet
+    # measured contained on Windows.
+    "application_refresh_pick_contract": "dos-volume-name",
     # [[BPR-1328]]. Measured the same day: change_arrows_public_path.exe stops at
     # "FAILED: private composed course root" (exit 3), as the overview summary
     # rows above do.
@@ -208,6 +212,17 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_source_find_scale_2_0": "unmeasured (registered on macOS)",
     "application_header_source_navigation_large": "dos-volume-name",
     "application_cpp_identifier_appearance": "unmeasured (registered on macOS)",
+    # [[BPR-1423]], pinned by [[BPR-1484]]. PR Search's courses compose the
+    # shipped application over `e2e::private_data_root`, whose first step
+    # application_overview_double_click was measured refusing contained
+    # ("private composed course root"); pinned by that shape, not yet measured
+    # contained on Windows. The retry row is registered only on UNIX.
+    "application_source_pr_find": "dos-volume-name",
+    "application_source_pr_find_scale_1_25": "dos-volume-name",
+    "application_source_pr_find_scale_2_0": "dos-volume-name",
+    "application_source_pr_search_scope": "dos-volume-name",
+    "application_source_pr_search_retry": "dos-volume-name",
+    "application_source_pr_search_performance": "dos-volume-name",
     # [[BPR-1327]], [[BPR-1340]]. Measured on bpr-main-win 2026-10-08 at
     # 9809b3786, registered contained for the measurement: the prepared-open
     # benchmark stops at "large-review-benchmark-failed: private data root
@@ -415,6 +430,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_saved_server_contract": "dos-volume-name",
     "application_threaded_reply_contract": "dos-volume-name",
     "application_appearance_theme_customization_contract": "dos-volume-name",
+    "application_appearance_older_theme_contract": "unmeasured (registered on macOS)",
     "application_fixture_verdict_contract": "dos-volume-name",
     "application_attended_launch_contract": "dos-volume-name",
     "application_diff_workbench_shutdown_public_path": "dos-volume-name",

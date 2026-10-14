@@ -594,10 +594,9 @@ namespace bpr::qt {
 					appearance_role_group_of(role_at(index)))];
 			}
 		}
-		// Counted rather than restated. Since RFC-BPR-0034 C5's 2026-09-24
-		// amendment the card prints 7, 6, 6 and 26, and those are exactly the
-		// offered memberships the vocabulary reports, so a role added to one group
-		// cannot leave a stale number beside it.
+		// Counted rather than restated. The card prints exactly the offered
+		// memberships the vocabulary reports, so a role added to one group cannot
+		// leave a stale number beside it.
 		for (auto index = std::size_t{ 0U }; index < GroupHeaders.size(); ++index) {
 			GroupHeaders[index].Count->setText(
 				QString::number(static_cast<qulonglong>(counted[index])));

@@ -3824,7 +3824,7 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
-		const auto row     = pane(aPane)->line_row_rect(next);
+		const auto row     = keyboard_row_rect(aPane, next);
 		const auto visible = aPane->viewport()->visibleRegion().intersected(aPane->viewport()->mask()).boundingRect();
 		if (!select_line(side, next, true)) {
 			return false;
@@ -3900,7 +3900,7 @@ namespace bpr::qt {
 		if (!aExtend) {
 			anchor = next;
 		}
-		const auto  row      = pane(Unified)->line_row_rect(next);
+		const auto  row      = keyboard_row_rect(Unified, next);
 		const auto  visible  = Unified->viewport()->visibleRegion().intersected(Unified->viewport()->mask()).boundingRect();
 		const auto& identity = rows[next];
 		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
@@ -3948,12 +3948,17 @@ namespace bpr::qt {
 			return;
 		}
 		if (aPane == Unified) {
+			// [[BPR-1476]]. The document margin shows above row 0 only while
+			// row 0 is the top row, so a top row past it starts one margin
+			// further down the document than its rows alone.
 			auto* const vertical = aPane->verticalScrollBar();
 			const auto  height   = pane(aPane)->line_row_rect(0U).height();
-			const auto  wanted   = std::clamp(vertical->value() * height + pane(aPane)->within_line_position() + delta, 0.0, static_cast<qreal>(vertical->maximum() * height));
-			const auto  line     = static_cast<int>(std::floor(wanted / height));
+			const auto  margin   = aPane->document()->documentMargin();
+			const auto  top      = [height, margin](const int aLine) { return aLine == 0 ? 0.0 : margin + aLine * height; };
+			const auto  wanted   = std::clamp(top(vertical->value()) + pane(aPane)->within_line_position() + delta, 0.0, top(vertical->maximum()));
+			const auto  line     = wanted < top(1) ? 0 : static_cast<int>(std::floor((wanted - margin) / height));
 			vertical->setValue(line);
-			pane(aPane)->set_within_line_offset(wanted - line * height);
+			pane(aPane)->set_within_line_offset(wanted - top(line));
 			update_unified_paint();
 			if (FrameObserver) {
 				FrameObserver();
@@ -3970,6 +3975,44 @@ namespace bpr::qt {
 		// Reveal exactly to the displayed edge. Rounding to a top-line
 		// boundary leaves slack below the selected row at most view heights.
 		static_cast<void>(Controller->reveal_pane_origin(side, current + delta));
+	}
+
+	auto diff_workbench::keyboard_row_rect(QPlainTextEdit* const aPane, const std::uint32_t aRow) const -> QRect
+	{
+		// Qt places a block by walking from the first visible one and stops
+		// about two viewport heights below it, or one above, answering the
+		// block it stopped at. A row selected further away would then be
+		// revealed short of itself, so its top is taken from the first visible
+		// row's: in split view by the axis's line tops, the basis the reveal's
+		// origin is measured in, and in unified view by its one row stride.
+		// Its height is the row's own, as Qt reports it.
+		auto* const source = pane(aPane);
+		const auto  origin = source->visible_origin();
+		const auto  block  = aPane->document()->findBlockByNumber(static_cast<int>(aRow));
+		if (!origin || !block.isValid() || !block.isVisible()) {
+			return source->line_row_rect(aRow);
+		}
+		const auto* const layout   = aPane->document()->documentLayout();
+		auto              distance = std::optional<qreal>{ };
+		if (aPane == Unified) {
+			const auto stride = layout->blockBoundingRect(aPane->document()->firstBlock()).height();
+			distance          = (static_cast<qreal>(aRow) - static_cast<qreal>(origin->first)) * stride;
+		} else if (const auto* const axis = AxisCache.axis(); axis != nullptr) {
+			const auto top  = [axis, left = aPane == Left](const std::size_t aLine) { return left ? axis->left_line_origin(aLine) : axis->right_line_origin(aLine); };
+			const auto from = top(origin->first);
+			const auto to   = top(aRow);
+			if (from && to) {
+				distance = *to - *from;
+			}
+		}
+		if (!distance) {
+			return source->line_row_rect(aRow);
+		}
+		// The first visible row's top: its content offset, which the pane
+		// reports less the within-line offset it has applied.
+		const auto first = origin->second + source->within_line_offset();
+		return QRect{ 0, qRound(first + *distance), aPane->viewport()->width(),
+					  std::max(1, qRound(layout->blockBoundingRect(block).height())) };
 	}
 
 	/// \brief [[BPR-1212]]. Says the selected line or lines, once a move.
