@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1509"
 title: "Style Files and Search tabs like Comments and Notes tabs"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Lets makes files and search tabs more like comments notes tabs style","milestone_plan":{"id":"bpr1509-drawer-tabs","path":"docs/rfcs/plans/bpr1509-drawer-tabs/milestone-plan.json"}}
