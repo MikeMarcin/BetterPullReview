@@ -117,17 +117,22 @@ namespace bpr::qt {
 		ViewMenu = addMenu(QStringLiteral("&View"));
 		ViewMenu->setObjectName(QStringLiteral("desktopViewMenu"));
 		ViewMenu->setAccessibleName(QStringLiteral("View"));
-		auto*      findMenu = ViewMenu->addMenu(tr("&Find"));
-		const auto titles   = std::array{ tr("Find"), tr("Find in Files"), tr("Next pane match"), tr("Previous pane match"), tr("Next PR result"), tr("Previous PR result") };
-		const auto findKeys = std::array{ QKeySequence{ QKeySequence::Find }, QKeySequence{ QStringLiteral("Ctrl+Shift+F") }, QKeySequence{ QStringLiteral("F3") }, QKeySequence{ QStringLiteral("Shift+F3") }, QKeySequence{ QStringLiteral("F4") }, QKeySequence{ QStringLiteral("Shift+F4") } };
+		// [[BPR-1493]]. The window's Find submenu in the window's order (the pane's
+		// three commands, then the pull request's three), and the submenu itself
+		// disabled like every other item here: no window, nothing to search.
+		auto* const findMenu = ViewMenu->addMenu(tr("&Find"));
+		findMenu->setObjectName(QStringLiteral("desktopSourceFindMenu"));
+		findMenu->menuAction()->setEnabled(false);
+		const auto titles   = std::array{ tr("Find"), tr("Next pane match"), tr("Previous pane match"), tr("Find in Files"), tr("Next PR result"), tr("Previous PR result") };
+		const auto findKeys = std::array{ QKeySequence{ QKeySequence::Find }, QKeySequence{ QStringLiteral("F3") }, QKeySequence{ QStringLiteral("Shift+F3") }, QKeySequence{ QStringLiteral("Ctrl+Shift+F") }, QKeySequence{ QStringLiteral("F4") }, QKeySequence{ QStringLiteral("Shift+F4") } };
 		for (std::size_t index = 0U; index < titles.size(); ++index) {
 			auto* action = findMenu->addAction(titles[index]);
 			action->setShortcuts({ findKeys[index] });
 #if defined(Q_OS_MACOS)
-			if (index == 2U) {
+			if (index == 1U) {
 				action->setShortcuts({ findKeys[index], QKeySequence{ QStringLiteral("Ctrl+G") } });
 			}
-			if (index == 3U) {
+			if (index == 2U) {
 				action->setShortcuts({ findKeys[index], QKeySequence{ QStringLiteral("Ctrl+Shift+G") } });
 			}
 #endif
@@ -135,11 +140,13 @@ namespace bpr::qt {
 		}
 		ViewMenu->setAccessibleDescription(
 			QStringLiteral("Presentation options for the comparison surface, unavailable while no window is open"));
+		// [[BPR-1493]]. The window's navigation texts, mnemonics included, so the
+		// two View menus read alike.
 		const auto navigation = std::array{
-			std::pair{ QStringLiteral("Previous file"), QStringLiteral("Ctrl+Alt+Up") },
-			std::pair{ QStringLiteral("Next file"), QStringLiteral("Ctrl+Alt+Down") },
-			std::pair{ QStringLiteral("Previous change"), QStringLiteral("Alt+Up") },
-			std::pair{ QStringLiteral("Next change"), QStringLiteral("Alt+Down") },
+			std::pair{ QStringLiteral("&Previous file"), QStringLiteral("Ctrl+Alt+Up") },
+			std::pair{ QStringLiteral("&Next file"), QStringLiteral("Ctrl+Alt+Down") },
+			std::pair{ QStringLiteral("Pre&vious change"), QStringLiteral("Alt+Up") },
+			std::pair{ QStringLiteral("Ne&xt change"), QStringLiteral("Alt+Down") },
 		};
 		for (const auto& [name, key] : navigation) {
 			auto* const action = ViewMenu->addAction(name);
