@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1498"
 title: "Compute Review Cycle suggestion hunks with dtl"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1481"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"diff-engine-evaluation-r5","source":"Owner Accept 2026-10-13: extend dtl's core approval from per-line intraline to the bounded Review Cycle suggestion-hunk matcher (512-edit cap kept)"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a41035268, 7a4468007","evidence":{"kind":"command","detail":"RFC-BPR-0082 owner answer section (mandate r5) with Q2 extension marked and before/after record asset; root and core AGENTS.md, VerifyCoreBoundary.cmake, BprDtlProvider.cmake, BprDependencies.cmake, system-architecture.md, build-and-test.md, release-packages.md and dependencies.json name exactly the two uses. architecture_boundaries allows dtl in exactly diff_intraline.cpp and review_cycle_suggestion.cpp; test_dtl_has_exactly_two_owners passes (and fails under the old single-owner rule); architecture_boundaries, architecture_boundary_contract and core_boundary_contract pass."}},{"criterion":"AC2","outcome":"pass","revision":"a41035268","evidence":{"kind":"observation","detail":"matched_lines runs dtl::Diff synchronously over the trimmed middle; |left-right| > 512 returns nothing before dtl; a band-stop comparator ends dtl at its first out-of-band comparison and finished edits over 512 return nothing; static_assert bounds path points at 264,196 < 2,000,000 (onHuge never enabled); common lines checked before use. Integrator argument from dtl 1.21's compose/snake recorded on the card: round band+1 either compares out of band (stop) or finishes."}},{"criterion":"AC3","outcome":"pass","revision":"a41035268","evidence":{"kind":"command","detail":"No suggestion expectation changed; core_review_cycle_suggestion passes with the new alignment_is_dtl_bounded_at_512_edits (512/513 edits both ways, old tie-break, 50,000-line file, 2,000-line rewrite). Worker: 60,000 random inputs identical to the old Myers. core-only after merging main at f5bea5271: 269 of 272 non-perf tests pass (3 failures are the worktree's missing .agents links), plus architecture_boundary_contract, dependency_modernization_contract, package and release audit contracts and coding_format_check pass; docs gate OK; changed-line tidy clean."}}]
 ---
 
 # BPR-1498: Compute Review Cycle suggestion hunks with dtl
