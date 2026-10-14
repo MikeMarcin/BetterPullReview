@@ -74,6 +74,20 @@ first clause on 7 comparisons, through the shared pairing and intraline budgets
 rather than its own matcher; whether the waiver extends to that clause is put
 back to the owner, and L is not adopted until it is answered.
 
+## Owner answer on restart-only cancellation — 2026-10-13
+
+Mandate `diff-engine-evaluation-r3`. Told that the worst recomputation seen on
+the corpus with linked xdiff was about 264 ms, the owner answered **Accept**:
+with xdiff adopted, the first-party pause-and-resume machinery of
+[[BPR-1366]] is deleted, and a stopped diff is abandoned and recomputed from
+scratch the next time it is needed. The 10 ms stop budget must still hold
+through abandonment; only what becomes dead is removed (the step meter and the
+budgets intraline, pairing and the rapidfuzz-cpp scoring use stay); tests that
+assert resumption change to the restart behaviour. It takes effect with L's
+adoption, which still waits on the question above. The
+[record](assets/diff-engine-evaluation-v1/owner-answer-restart-2026-10-13.md)
+keeps the amended paragraph before and after.
+
 ## Problem and grounded current behavior
 
 On 2026-10-13 the owner asked for an RFC "to investigate if those replacements
@@ -319,7 +333,11 @@ rule:
 A rejected component keeps the current engine, and a result of no change is
 valid. The report also states whether the best candidate's worst observed time
 would make restart-only cancellation enough. It does not remove BPR-1366's
-resumable machinery.
+resumable machinery. *Answered 2026-10-13: restart-only cancellation is
+accepted once xdiff is adopted. The BPR-1366 pause-and-resume machinery is
+then deleted; a stopped diff is abandoned and recomputed from scratch when
+next needed, and the 10 ms stop budget holds through abandonment* (see "Owner
+answer on restart-only cancellation" above).
 
 ### Open questions
 
