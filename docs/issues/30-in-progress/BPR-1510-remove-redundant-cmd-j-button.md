@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1510"
 title: "Remove redundant Cmd+J button covered by Threads tab"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Cmd+j button can go away, threads tab already covers the behavior"}
