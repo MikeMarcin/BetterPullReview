@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1495"
 title: "The large review launch course fails"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
