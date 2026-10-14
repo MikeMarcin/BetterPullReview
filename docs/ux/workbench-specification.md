@@ -1131,7 +1131,7 @@ never invents enabled state.
 | View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
 | View > Find > Find ([[BPR-1422]]) | `Ctrl+F` (⌘F) |
 | View > Find > Next / Previous Match ([[BPR-1422]]) | `F3` / `Shift+F3`; macOS also ⌘G / ⌘⇧G |
-| In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+C` / `Alt+W` / `Alt+R` (⌥C / ⌥W / ⌥R) toggle Match Case, Whole Word and Regular Expression and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus |
+| In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+W` (⌥W) toggles Whole Word and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus; `Alt+C` and `Alt+R` stay Comment and Compose review (owner, 2026-10-14) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
 | Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
@@ -1196,8 +1196,9 @@ oversized query is an error state on the field, its words in the tooltip and
 the accessible status. Where a pane is too narrow, the panel extends left over
 its neighbour, then tightens its spacing, then lets Find in Selection give way
 to ⌥L, keeping every other control at the supported minimum window width.
-Native UI font and inherited palette roles supply the panel. Inside the query,
-⌥C and ⌥R toggle options; in the pane they stay Comment and Compose review.
+Native UI font and inherited palette roles supply the panel. ⌥C and ⌥R stay
+Comment and Compose review everywhere (owner, 2026-10-14); Match case and
+Regular expression take no key.
 
 Selected source text seeds the query, then a word at a real text caret, then
 the retained query. As in VS Code, the seeded occurrence is the current match

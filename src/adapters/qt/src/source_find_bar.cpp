@@ -204,7 +204,7 @@ namespace bpr::qt {
 		Query = new QPlainTextEdit{ Field };
 		Query->setObjectName(QStringLiteral("sourceFindQuery"));
 		Query->setAccessibleName(QStringLiteral("Find query"));
-		Query->setAccessibleDescription(QStringLiteral("Find source text. Enter next match; Shift+Enter previous; Ctrl+Enter newline; Option+C, Option+W and Option+R toggle Match Case, Whole Word and Regular Expression; Option+L toggles Find in Selection; Escape closes Find."));
+		Query->setAccessibleDescription(QStringLiteral("Find source text. Enter next match; Shift+Enter previous; Ctrl+Enter newline; Option+W toggles Whole Word; Option+L toggles Find in Selection; Escape closes Find."));
 		Query->setPlaceholderText(QStringLiteral("Find"));
 		Query->setTabChangesFocus(true);
 		Query->setFrameShape(QFrame::NoFrame);
@@ -230,9 +230,9 @@ namespace bpr::qt {
 		Case  = button(Field, find_glyph::match_case, QStringLiteral("sourceFindCase"), QStringLiteral("Match case"), true);
 		Word  = button(Field, find_glyph::whole_word, QStringLiteral("sourceFindWord"), QStringLiteral("Whole word"), true);
 		Regex = button(Field, find_glyph::regular_expression, QStringLiteral("sourceFindRegex"), QStringLiteral("Regular expression"), true);
-		Case->setToolTip(QStringLiteral("Match Case (%1)").arg(option_shortcut(Qt::Key_C)));
+		Case->setToolTip(QStringLiteral("Match Case"));
 		Word->setToolTip(QStringLiteral("Match Whole Word (%1)").arg(option_shortcut(Qt::Key_W)));
-		Regex->setToolTip(QStringLiteral("Use Regular Expression (%1)").arg(option_shortcut(Qt::Key_R)));
+		Regex->setToolTip(QStringLiteral("Use Regular Expression"));
 		for (auto* control : { Case, Word, Regex }) {
 			inside->addWidget(control, 0, Qt::AlignTop);
 		}
@@ -301,9 +301,12 @@ namespace bpr::qt {
 			setObjectName(QStringLiteral("sourceFilesBar"));
 			Query->setObjectName(QStringLiteral("sourceFilesQuery"));
 			Query->setAccessibleName(QStringLiteral("Find in Files query"));
-			Query->setAccessibleDescription(QStringLiteral("Search full changed files. Enter searches now; Ctrl+Enter newline; Option+C, Option+W and Option+R toggle Match Case, Whole Word and Regular Expression; Escape returns to source."));
+			Query->setAccessibleDescription(QStringLiteral("Search full changed files. Enter searches now; Ctrl+Enter newline; Option+W toggles Whole Word; Escape returns to source."));
 			Query->setPlaceholderText(QStringLiteral("Search"));
-			for (QWidget* control : { static_cast<QWidget*>(Count), static_cast<QWidget*>(Previous), static_cast<QWidget*>(Next), static_cast<QWidget*>(Selection), static_cast<QWidget*>(Close) }) {
+			// Close stays: it hands the drawer back to the tab it showed before.
+			Close->setToolTip(QStringLiteral("Close Search"));
+			Close->setAccessibleName(QStringLiteral("Close Search"));
+			for (QWidget* control : { static_cast<QWidget*>(Count), static_cast<QWidget*>(Previous), static_cast<QWidget*>(Next), static_cast<QWidget*>(Selection) }) {
 				control->hide();
 			}
 		}
@@ -446,9 +449,9 @@ namespace bpr::qt {
 			return false;
 		}
 		switch (aKey.key()) {
-		case Qt::Key_C: return toggle_option(source_find_option::match_case);
+		// Option+C and Option+R stay the window's Comment and Compose review
+		// (owner, 2026-10-14), so only Whole Word and Find in Selection have keys.
 		case Qt::Key_W: return toggle_option(source_find_option::whole_word);
-		case Qt::Key_R: return toggle_option(source_find_option::regular_expression);
 		case Qt::Key_L:
 			if (Files || !Selection->isEnabled()) {
 				return false;
@@ -470,9 +473,9 @@ namespace bpr::qt {
 		}
 		const bool keyed = aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::ShortcutOverride;
 		if (keyed) {
-			// Option+C/W/R would otherwise type "ç", "∑" or "®" into the query.
+			// Option+W and Option+L would otherwise type "∑" or "¬" into the query.
 			const auto& key = *static_cast<QKeyEvent*>(aEvent);
-			if ((key.modifiers() & ~Qt::KeypadModifier) == Qt::AltModifier && (key.key() == Qt::Key_C || key.key() == Qt::Key_W || key.key() == Qt::Key_R || (!Files && key.key() == Qt::Key_L))) {
+			if ((key.modifiers() & ~Qt::KeypadModifier) == Qt::AltModifier && (key.key() == Qt::Key_W || (!Files && key.key() == Qt::Key_L))) {
 				aEvent->accept();
 				if (aEvent->type() == QEvent::KeyPress) {
 					static_cast<void>(handle_option_key(key));

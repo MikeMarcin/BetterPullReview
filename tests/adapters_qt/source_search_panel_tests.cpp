@@ -11,6 +11,7 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QImage>
+#include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QToolButton>
@@ -177,16 +178,19 @@ int main(int aArgc, char** aArgv)
 	tree->clearSelection();
 	tree->setCurrentIndex(model->index(0, 0));
 	QApplication::processEvents();
-	auto wash = light.color(core::appearance_role::find_match_background);
-	{
-		const auto base = tree->viewport()->palette().color(QPalette::Active, QPalette::Base);
-		const auto a    = core::selection_wash_alpha / 255.0;
-		wash            = QColor::fromRgbF(static_cast<float>(wash.redF() * a + base.redF() * (1 - a)), static_cast<float>(wash.greenF() * a + base.greenF() * (1 - a)), static_cast<float>(wash.blueF() * a + base.blueF() * (1 - a)));
-	}
+	// The pane's composite: the find wash at the selection's opacity over the code background.
+	const auto wash          = qt::to_presentation_color(core::composited(light.palette()[core::index_of(core::appearance_role::find_match_background)], light.palette()[core::index_of(core::appearance_role::code_background)], core::selection_wash_alpha));
 	const auto [left, right] = painted_wash(*tree, first, wash);
 	const auto advance       = QFontMetrics{ QFontDatabase::systemFont(QFontDatabase::FixedFont) }.horizontalAdvance(QStringLiteral("needle"));
 	std::cout << "PAINTED_WASH left=" << left << " right=" << right << " advance=" << advance << '\n';
 	expect(left >= 0 && std::abs((right - left + 1) - (advance + 2)) <= 3, "painted wash spans the match text");
+	// [[BPR-1504]]. On the selected row the match keeps the same amber rather than greying over the accent.
+	tree->setCurrentIndex(first);
+	tree->selectionModel()->select(first, QItemSelectionModel::ClearAndSelect);
+	QApplication::processEvents();
+	const auto [selectedLeft, selectedRight] = painted_wash(*tree, first, wash);
+	std::cout << "SELECTED_WASH left=" << selectedLeft << " right=" << selectedRight << '\n';
+	expect(selectedLeft >= 0 && std::abs(selectedLeft - left) <= 2 && std::abs(selectedRight - right) <= 2, "a selected row paints the match in the same find colour");
 
 	// Owner, 2026-10-14: line numbers and snippets start at one x on every row.
 	const auto aligned = [&](const char* aWhere) {

@@ -463,8 +463,9 @@ namespace bpr::qt {
 			const int  top      = centre - metrics.height() / 2;
 			const auto baseline = top + metrics.ascent();
 			if (length > 0) {
-				auto wash = Colours.Find;
-				wash.setAlpha(core::selection_wash_alpha);
+				// Already composited over the code background, so the match
+				// reads in the same amber on a selected row as on the others.
+				const auto wash  = Colours.Find;
 				const auto left  = x + metrics.horizontalAdvance(text.left(start));
 				const auto right = x + metrics.horizontalAdvance(text.left(start + length));
 				aPainter.setPen(Qt::NoPen);
@@ -734,7 +735,7 @@ namespace bpr::qt {
 	{
 		using role = core::appearance_role;
 		Bar->adopt_appearance(aProfile);
-		Delegate->set_colours({ aProfile.color(role::diff_intraline_removed_background), aProfile.color(role::diff_intraline_added_background), aProfile.color(role::diff_removed_background), aProfile.color(role::diff_added_background), aProfile.color(role::find_match_background), aProfile.color(role::application_text) });
+		Delegate->set_colours({ aProfile.color(role::diff_intraline_removed_background), aProfile.color(role::diff_intraline_added_background), aProfile.color(role::diff_removed_background), aProfile.color(role::diff_added_background), to_presentation_color(core::composited(aProfile.palette()[core::index_of(role::find_match_background)], aProfile.palette()[core::index_of(role::code_background)], core::selection_wash_alpha)), aProfile.color(role::application_text) });
 		Tree->viewport()->update();
 		for (std::size_t i = 0; i < 2U; ++i) {
 			auto* chip = static_cast<side_chip*>(Sides[i]);

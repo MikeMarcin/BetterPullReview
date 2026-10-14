@@ -192,17 +192,18 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return bar->projection().CurrentMatch == std::optional{ (enterFrom + 1U) % 2U }; }, "Enter goes to the next match");
 	tests::window_system_key(window, Qt::Key_Return, Qt::ShiftModifier);
 	wait_for([&] { return bar->projection().CurrentMatch == std::optional{ enterFrom }; }, "Shift+Enter goes back to the previous match");
-	// Option+C, Option+W and Option+R toggle the inline options and type nothing.
-	for (const auto& [key, text, option] : { std::tuple{ Qt::Key_C, QString::fromUtf8("ç"), qt::source_find_option::match_case },
-											 std::tuple{ Qt::Key_W, QString::fromUtf8("∑"), qt::source_find_option::whole_word },
-											 std::tuple{ Qt::Key_R, QString::fromUtf8("®"), qt::source_find_option::regular_expression } }) {
+	// The options are toggles inside the query field; Option+W toggles Whole
+	// Word and types nothing. Option+C and Option+R stay Comment and Compose
+	// review (owner, 2026-10-14), so the Case and Regex toggles take no key.
+	for (const auto option : { qt::source_find_option::match_case, qt::source_find_option::whole_word, qt::source_find_option::regular_expression }) {
 		auto* toggle = bar->option_button(option);
 		expect(toggle && toggle->isCheckable() && !toggle->isChecked() && toggle->parentWidget() != bar, "each option is a toggle inside the query field");
-		tests::window_system_key(window, key, Qt::AltModifier, text);
-		expect(toggle->isChecked() && bar->query() == "needle", "Option+key in the query toggles its option without typing");
-		tests::window_system_key(window, key, Qt::AltModifier, text);
-		expect(!toggle->isChecked() && bar->query() == "needle", "and toggles it back");
 	}
+	tests::window_system_key(window, Qt::Key_W, Qt::AltModifier, QString::fromUtf8("∑"));
+	expect(bar->option_button(qt::source_find_option::whole_word)->isChecked() && bar->query() == "needle", "Option+W in the query toggles Whole Word without typing");
+	tests::window_system_key(window, Qt::Key_W, Qt::AltModifier, QString::fromUtf8("∑"));
+	expect(!bar->option_button(qt::source_find_option::whole_word)->isChecked() && bar->query() == "needle", "and toggles it back");
+	expect(bar->option_button(qt::source_find_option::match_case)->toolTip() == QStringLiteral("Match Case") && bar->option_button(qt::source_find_option::regular_expression)->toolTip() == QStringLiteral("Use Regular Expression"), "Match Case and Regular Expression name no Option key");
 	wait_for([&] { return bar->projection().Summary.Matches == 2U; }, "options restored");
 	// Seeding keeps the current match on the selected occurrence.
 	{

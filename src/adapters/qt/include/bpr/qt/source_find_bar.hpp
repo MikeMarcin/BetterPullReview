@@ -62,7 +62,7 @@ namespace bpr::qt {
 		void adopt_appearance(const appearance_profile& aProfile);
 		/// \brief Flips one option as its toggle would; true when it changed.
 		auto toggle_option(source_find_option aOption) -> bool;
-		/// \brief Option+C, Option+W and Option+R; true when the key was one of them.
+		/// \brief Option+W (Whole Word) and Option+L (Find in Selection); true when it was one.
 		auto handle_option_key(const QKeyEvent& aKey) -> bool;
 		/// \brief The panel width that shows every control with a useful query.
 		[[nodiscard]] auto preferred_width() const -> int;
