@@ -88,12 +88,17 @@ namespace {
 			QApplication::processEvents();
 			aWindow.home_landing()->secondary_button()->click();
 		}
-		wait_for([&] {
-			return std::ranges::any_of(aWindow.server_cards(), [&](const auto* aCard) {
-				return std::ranges::any_of(aCard->options(), [&](const auto& aOption) { return aOption.Hostname == aHostname && aOption.Label.find(aLogin) != std::string::npos; });
-			});
-		},
-				 "explicit discovery presents the named account");
+		wait_for([&] { return std::ranges::any_of(aWindow.server_cards(), [&](const auto* aCard) {
+						   return std::ranges::any_of(aCard->options(), [&](const auto& aOption) { return aOption.Hostname == aHostname && aOption.Label.find(aLogin) != std::string::npos; });
+					   }); },
+				 "explicit discovery presents the named account", [&] {
+					std::cerr << "cli-discovery:host=" << aHostname << ":status=" << aWindow.session_panel()->status_text()
+						<< ":diagnostic=" << aWindow.session_panel()->diagnostic_text() << ":landing=" << static_cast<unsigned>(aWindow.home_landing()->state())
+						<< ":connect=" << aWindow.github_connect_action()->isEnabled() << ":home=" << aWindow.showing_home();
+					if (auto* notice = aWindow.findChild<QLabel*>(QStringLiteral("githubCliDiscoveryStatus"))) {
+						std::cerr << ":discovery=" << notice->text().toStdString();
+					}
+					std::cerr << '\n'; });
 		std::optional<core::host_profile_id> profile;
 		for (const auto* server : aWindow.server_cards()) {
 			for (const auto& option : server->options()) {
@@ -239,6 +244,13 @@ namespace {
 				rival = std::make_unique<write_lock>(aRoot);
 			}
 			if (seed) {
+				if (core::select_remembered_connection(load(aRoot))) {
+					wait_for([&] {
+						const auto status = window.session_panel()->status();
+						return status == core::github_status::session_ready || status == core::github_status::session_failed || status == core::github_status::session_cancelled;
+					},
+							 "remembered startup reaches a terminal before adding another server");
+				}
 				connect_cli(window, host, "recent-reviewer-77");
 				expect(readAsks == 1U, "only the explicitly selected account receives read consent");
 			} else if (aPhase == "exact-host" || aPhase == "enterprise-forget" || aPhase == "after-forget") {
