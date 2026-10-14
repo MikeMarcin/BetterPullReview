@@ -11,6 +11,7 @@
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -161,6 +162,34 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(panel->projection().Statistics.Compilations == beforeTraversal.Compilations && panel->projection().Statistics.ReadCalls == beforeTraversal.ReadCalls && panel->projection().Statistics.Scans == beforeTraversal.Scans, "1000 PR result traversals perform no compile scan or source read");
 	expect(surface->current_result().get() == comparison, "same-file PR traversal reuses ordinary accepted diff");
+
+	// [[BPR-1504]]. The side chips filter the rows, the counts and F4.
+	auto* leftChip  = panel->findChild<QAbstractButton*>(QStringLiteral("sourceSearchSideLeft"));
+	auto* rightChip = panel->findChild<QAbstractButton*>(QStringLiteral("sourceSearchSideRight"));
+	expect(leftChip && rightChip && leftChip->isChecked() && rightChip->isChecked(), "both side chips start on");
+	leftChip->click();
+	settle();
+	expect(panel->tree()->model()->rowCount(panel->tree()->model()->index(0, 0)) == 1 && panel->summary_text() == QStringLiteral("1 match in 1 file"), "Right only lists and counts the right occurrence");
+	for (int step = 0; step < 3; ++step) {
+		tests::window_system_key(window, Qt::Key_F4);
+		wait_for([&] { return surface->selection() && surface->selection()->PreferredLine.Side == core::diff_side::right && surface->right_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"); }, "F4 under Right only stays on the right occurrence");
+		expect(panel->projection().CurrentMatch && panel->projection().Matches->at(*panel->projection().CurrentMatch).Match.Locations[1], "current match is a shown right record");
+	}
+	window.resize(900, 760);
+	settle();
+	render(window, QStringLiteral("pr-search-900-right-only"));
+	rightChip->click();
+	expect(rightChip->isChecked(), "the last side on stays on");
+	leftChip->click();
+	rightChip->click();
+	settle();
+	expect(panel->summary_text() == QStringLiteral("1 match in 1 file") && panel->projection().CurrentMatch && panel->projection().Matches->at(*panel->projection().CurrentMatch).Match.Locations[0], "Left only moves the hidden current match to a shown left one");
+	rightChip->click();
+	settle();
+	expect(panel->summary_text() == QStringLiteral("2 matches in 1 file"), "both sides restore every result");
+	render(window, QStringLiteral("pr-search-900"));
+	window.resize(1280, 860);
+	settle();
 
 	filter->clear();
 	wait_for([&] { return window.exclude_action()->isEnabled(); }, "private receipt action enabled on exact result");

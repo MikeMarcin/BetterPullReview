@@ -624,6 +624,8 @@ namespace bpr::qt {
 		void                               clear_source_find_document();
 		void                               append_find_selections(QPlainTextEdit& aPane, QList<QTextEdit::ExtraSelection>& aSelections);
 		void                               refresh_find_ticks();
+		void                               place_source_find();
+		[[nodiscard]] auto                 find_wash(bool aCurrent) const -> QColor;
 		[[nodiscard]] auto                 source_byte_at(QPlainTextEdit& aPane, int aPosition) const -> std::optional<std::pair<core::diff_side, std::size_t>>;
 		[[nodiscard]] auto                 source_text_position(core::diff_side aSide, std::size_t aByte) -> std::optional<int>;
 		[[nodiscard]] auto                 source_match_fragments(const core::source_match_location& aLocation) -> const std::vector<std::pair<int, int>>&;

@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -18,6 +19,7 @@
 #include <QElapsedTimer>
 #include <QInputMethodEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
@@ -71,6 +73,41 @@ namespace {
 		aFind.flush();
 		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal");
 		settle();
+	}
+	/// [[BPR-1503]]. Where the panes are and how much code they show, which a
+	/// floating Find must never change. (The viewport's offset is the shared
+	/// controller's alignment scroll, so only its size is compared.)
+	auto pane_geometry(qt::diff_workbench& aSurface) -> std::array<QRect, 3>
+	{
+		return { QRect{ aSurface.left_pane()->mapTo(&aSurface, QPoint{ 0, 0 }), aSurface.left_pane()->size() },
+				 QRect{ aSurface.right_pane()->mapTo(&aSurface, QPoint{ 0, 0 }), aSurface.right_pane()->size() },
+				 QRect{ QPoint{ 0, 0 }, aSurface.right_pane()->viewport()->size() } };
+	}
+	/// [[BPR-1503]]. The find widget floats over its pane's top-right corner.
+	void expect_floating(qt::diff_workbench& aSurface, qt::source_find_bar& aBar, const QPlainTextEdit& aPane, const char* aMessage)
+	{
+		const auto pane = QRect{ aPane.viewport()->mapTo(&aSurface, QPoint{ 0, 0 }), aPane.viewport()->size() };
+		expect(aBar.parentWidget() == &aSurface && aSurface.layout()->indexOf(&aBar) < 0, "the find widget is in no layout");
+		expect(pane.contains(aBar.geometry().topRight()) && aBar.geometry().top() - pane.top() <= 8 && pane.right() - aBar.geometry().right() <= 12, aMessage);
+	}
+	/// [[BPR-1503]]. How many find washes a pane paints, in the light theme's
+	/// match and current-match colours.
+	auto find_washes(const QPlainTextEdit& aPane) -> std::pair<int, int>
+	{
+		const auto& palette = qt::builtin_appearance_palette(core::appearance_variant::light);
+		const auto  match   = qt::to_presentation_color(palette[core::index_of(core::appearance_role::find_match_background)]).rgb();
+		const auto  current = qt::to_presentation_color(palette[core::index_of(core::appearance_role::find_current_match_background)]).rgb();
+		auto        found   = std::pair{ 0, 0 };
+		for (const auto& selection : aPane.extraSelections()) {
+			const auto color = selection.format.background().color();
+			if (color.alpha() == core::selection_wash_alpha && color.rgb() == match) {
+				++found.first;
+			}
+			if (color.alpha() == core::selection_wash_alpha && color.rgb() == current) {
+				++found.second;
+			}
+		}
+		return found;
 	}
 	void open(app::github_application& aApplication, const std::string_view aPath)
 	{
@@ -128,16 +165,76 @@ int main(int aArgc, char** aArgv)
 	surface->right_pane()->setFocus();
 	QApplication::processEvents();
 	expect(findAction->isEnabled(), "ready source Find available");
+	settle();
+	const auto closedPanes = pane_geometry(*surface);
 	tests::window_system_key(window, Qt::Key_F, Qt::ControlModifier, QStringLiteral("f"));
 	wait_for([&] { return !bar->isHidden(); }, "physical Find shortcut opens native query");
 	expect(QApplication::focusWidget() == bar->query_editor(), "Find focuses multiline query");
+	settle();
+	expect(pane_geometry(*surface) == closedPanes, "opening Find leaves every pane's geometry unchanged");
+	expect_floating(*surface, *bar, *surface->right_pane(), "Find floats over the focused right pane's top-right corner");
 	query(*bar, QStringLiteral("offscreen needle"));
+	expect(pane_geometry(*surface) == closedPanes, "a query and its reveal leave the panes' geometry unchanged");
 	expect(bar->projection().Summary.Matches == 1U && surface->right_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"), "Find reaches full offscreen unchanged source");
 	expect(surface->left_pane()->textCursor().selectedText().isEmpty() && surface->selection()->PreferredLine.Side == core::diff_side::right, "right Find does not select left source");
 	expect(surface->source_line_visible(core::diff_side::right, 1102U), "shared controller reveals offscreen actual row");
 	render(window, QStringLiteral("01-split-offscreen"));
 	query(*bar, QStringLiteral("needle"));
 	expect(bar->projection().Summary.Matches == 2U, "complete match count");
+	{
+		const auto [matches, currents] = find_washes(*surface->right_pane());
+		expect(matches == 1 && currents == 1, "one match carries the find wash and the current one the theme's stronger current wash");
+	}
+	// Enter and Shift+Enter in the query traverse, as in VS Code.
+	bar->query_editor()->setFocus();
+	const auto enterFrom = *bar->projection().CurrentMatch;
+	tests::window_system_key(window, Qt::Key_Return);
+	wait_for([&] { return bar->projection().CurrentMatch == std::optional{ (enterFrom + 1U) % 2U }; }, "Enter goes to the next match");
+	tests::window_system_key(window, Qt::Key_Return, Qt::ShiftModifier);
+	wait_for([&] { return bar->projection().CurrentMatch == std::optional{ enterFrom }; }, "Shift+Enter goes back to the previous match");
+	// The options are toggles inside the query field; Option+W toggles Whole
+	// Word and types nothing. Option+C and Option+R stay Comment and Compose
+	// review (owner, 2026-10-14), so the Case and Regex toggles take no key.
+	for (const auto option : { qt::source_find_option::match_case, qt::source_find_option::whole_word, qt::source_find_option::regular_expression }) {
+		auto* toggle = bar->option_button(option);
+		expect(toggle && toggle->isCheckable() && !toggle->isChecked() && toggle->parentWidget() != bar, "each option is a toggle inside the query field");
+	}
+	tests::window_system_key(window, Qt::Key_W, Qt::AltModifier, QString::fromUtf8("∑"));
+	expect(bar->option_button(qt::source_find_option::whole_word)->isChecked() && bar->query() == "needle", "Option+W in the query toggles Whole Word without typing");
+	tests::window_system_key(window, Qt::Key_W, Qt::AltModifier, QString::fromUtf8("∑"));
+	expect(!bar->option_button(qt::source_find_option::whole_word)->isChecked() && bar->query() == "needle", "and toggles it back");
+	expect(bar->option_button(qt::source_find_option::match_case)->toolTip() == QStringLiteral("Match Case") && bar->option_button(qt::source_find_option::regular_expression)->toolTip() == QStringLiteral("Use Regular Expression"), "Match Case and Regular Expression name no Option key");
+	wait_for([&] { return bar->projection().Summary.Matches == 2U; }, "options restored");
+	// Seeding keeps the current match on the selected occurrence.
+	{
+		auto* right = surface->right_pane();
+		auto  found = right->document()->find(QStringLiteral("needle"));
+		expect(!found.isNull(), "a first needle occurrence");
+		auto last = found;
+		while (!found.isNull()) {
+			last  = found;
+			found = right->document()->find(QStringLiteral("needle"), found);
+		}
+		surface->close_source_find();
+		right->setTextCursor(last);
+		right->setFocus();
+		findAction->trigger();
+		wait_for([&] { return bar->projection().Summary.Matches == 2U && bar->projection().CurrentMatch.has_value(); }, "selection seed searches");
+		expect(bar->query() == "needle" && *bar->projection().CurrentMatch == 1U && bar->count_text() == QStringLiteral("2 of 2"), "Cmd+F on the last occurrence makes that occurrence current, not the next one");
+		const auto firstNeedle = right->document()->find(QStringLiteral("needle"));
+		surface->close_source_find();
+		right->setTextCursor(firstNeedle);
+		right->setFocus();
+		findAction->trigger();
+		wait_for([&] { return bar->projection().Summary.Matches == 2U && bar->projection().CurrentMatch.has_value(); }, "selection seed searches again");
+		expect(*bar->projection().CurrentMatch == 0U && bar->count_text() == QStringLiteral("1 of 2") && right->textCursor().selectionStart() == firstNeedle.selectionStart(), "Cmd+F on the first occurrence stays on it");
+	}
+	surface->close_source_find();
+	settle();
+	expect(pane_geometry(*surface) == closedPanes, "closing Find leaves the panes' geometry unchanged");
+	surface->right_pane()->setFocus();
+	findAction->trigger();
+	query(*bar, QStringLiteral("needle"));
 	const auto records     = bar->projection().Matches;
 	const auto diff        = surface->current_result();
 	const auto index       = surface->current_semantic_index();
@@ -220,8 +317,10 @@ int main(int aArgc, char** aArgv)
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindRegex"))->click();
 	query(*bar, QStringLiteral("("));
 	expect(bar->projection().Status == core::source_search_status::invalid_pattern && !bar->projection().Matches && !nextAction->isEnabled(), "invalid regex clears current hits and navigation");
+	expect(bar->error_state() && bar->status_text() == QStringLiteral("Invalid regular expression") && bar->query_editor()->parentWidget()->toolTip() == QStringLiteral("Invalid regular expression"), "an invalid regex is an error state on the field, its message in the tooltip");
+	render(window, QStringLiteral("05-invalid-regex"));
 	query(*bar, QStringLiteral("(?=needle)"));
-	expect(bar->projection().Status == core::source_search_status::unsupported_pattern, "bounded unsupported regex status");
+	expect(bar->projection().Status == core::source_search_status::unsupported_pattern && bar->error_state(), "bounded unsupported regex status");
 	query(*bar, QStringLiteral("\\z"));
 	expect(bar->projection().Summary.Matches == 1U && surface->left_pane()->textCursor().position() == surface->left_pane()->document()->characterCount() - 1, "terminal zero-width match selects actual native EOF once");
 	expect(!surface->selection(), "EOF without a source line cannot invent a comment anchor");
@@ -258,7 +357,7 @@ int main(int aArgc, char** aArgv)
 	surface->left_pane()->setTextCursor(oversized);
 	findAction->trigger();
 	settle();
-	expect(bar->query() == "needle" && bar->findChild<QLabel*>(QStringLiteral("sourceFindStatus"))->text().contains(QStringLiteral("4 KiB")), "oversized source seed retains the query and inline input limit after publication");
+	expect(bar->query() == "needle" && bar->status_text().contains(QStringLiteral("4 KiB")) && bar->error_state() && bar->findChild<QLabel*>(QStringLiteral("sourceFindStatus"))->toolTip().contains(QStringLiteral("4 KiB")), "oversized source seed retains the query and shows the input limit as the field's error, its words in the tooltip");
 	query(*bar, QString(4097, QLatin1Char('a')));
 	expect(bar->projection().Status == core::source_search_status::invalid_input && !bar->projection().Matches && !nextAction->isEnabled(), "oversized native query refuses work and old hits");
 	query(*bar, QStringLiteral("needle"));
@@ -286,10 +385,11 @@ int main(int aArgc, char** aArgv)
 	query(*bar, QStringLiteral("removed bridge\n// unchanged source row 0000"));
 	expect(bar->projection().Summary.Matches == 1U, "unified multiline follows contiguous actual earlier version");
 	auto* unified = surface->findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+	expect_floating(*surface, *bar, *unified, "Find floats over the unified pane's top-right corner");
 	expect(unified && !unified->textCursor().selectedText().contains(QStringLiteral("added bridge")), "native occurrence excludes opposing visual rows");
 	const auto wrongRow = unified->document()->findBlockByNumber(3);
 	for (const auto& selection : unified->extraSelections()) {
-		if (selection.format.background().color().alpha() == 40) {
+		if (selection.format.background().color().alpha() == core::selection_wash_alpha) {
 			expect(selection.cursor.selectionEnd() <= wrongRow.position() || selection.cursor.selectionStart() >= wrongRow.position() + wrongRow.length(), "Find wash excludes opposing row");
 		}
 	}
@@ -300,14 +400,42 @@ int main(int aArgc, char** aArgv)
 	query(*bar, QStringLiteral("added bridge"));
 	expect(bar->projection().Summary.Matches == 1U && surface->selection()->PreferredLine.Side == core::diff_side::right, "unified added hit selects actual version");
 	render(window, QStringLiteral("02-unified"));
+	window.resize(1920, 1080);
+	settle();
+	expect_floating(*surface, *bar, *unified, "Find stays on the unified pane's top-right corner at full width");
+	render(window, QStringLiteral("02-unified-full"));
+	window.resize(1280, 860);
+	settle();
+	window.one_pane_action()->trigger();
+	wait_for([&] { return !surface->one_pane_enabled() && !surface->geometry_pending(); }, "split source ready again");
+	surface->right_pane()->setFocus();
+	findAction->trigger();
+	query(*bar, QStringLiteral("needle"));
+	window.resize(900, 700);
+	settle();
+	expect(bar->width() >= bar->minimumSizeHint().width() && bar->query_editor()->width() >= 48 && bar->geometry().right() < surface->width() && bar->geometry().left() >= 0, "the floating widget fits the supported 900-pixel window, every drawer open");
+	render(window, QStringLiteral("03-narrow-900"));
 	window.resize(720, 640);
 	settle();
-	expect(bar->width() >= bar->minimumSizeHint().width() && bar->query_editor()->width() >= 80, "native two-row layout fits actual supported minimum width");
+	expect(bar->width() >= bar->minimumSizeHint().width() && bar->query_editor()->width() >= 48 && bar->geometry().left() >= 0, "the floating widget keeps every control below the supported width");
 	for (auto* control : bar->findChildren<QToolButton*>()) {
-		expect(control->isVisible() && !control->accessibleName().isEmpty(), "all narrow native controls remain visible and labelled");
+		const bool givesWay = control->objectName() == QStringLiteral("sourceFindSelection");
+		expect((control->isVisible() || givesWay) && !control->accessibleName().isEmpty(), "every narrow control but find-in-selection stays visible, all labelled");
+	}
+	{
+		auto*      inSelection = bar->findChild<QToolButton*>(QStringLiteral("sourceFindSelection"));
+		const auto before      = inSelection->isChecked();
+		bar->query_editor()->setFocus();
+		tests::window_system_key(window, Qt::Key_L, Qt::AltModifier, QString::fromUtf8("¬"));
+		expect(inSelection->isChecked() == (before != inSelection->isEnabled()), "Option+L toggles Find in Selection even where its icon gave way");
+		if (inSelection->isChecked() != before) {
+			tests::window_system_key(window, Qt::Key_L, Qt::AltModifier, QString::fromUtf8("¬"));
+		}
 	}
 	expect(bar->font().family() == QApplication::font().family() && bar->styleSheet().isEmpty(), "native UI font and no QSS");
-	render(window, QStringLiteral("03-narrow"));
+	render(window, QStringLiteral("03-narrow-720"));
+	window.resize(1280, 860);
+	settle();
 	auto*      appearance = window.appearance_settings();
 	const auto beforeMode = appearance->adopted().Mode;
 	appearance->choose_mode(core::appearance_mode::dark);
@@ -315,6 +443,14 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(bar->palette().color(QPalette::Window) == window.palette().color(QPalette::Window), "Find inherits the accepted live window palette");
 	render(window, QStringLiteral("04-dark-native-controls"));
+	window.resize(900, 700);
+	settle();
+	render(window, QStringLiteral("04-dark-900"));
+	window.resize(1920, 1080);
+	settle();
+	render(window, QStringLiteral("04-dark-full"));
+	window.resize(1280, 860);
+	settle();
 	appearance->choose_mode(beforeMode);
 	settle();
 	query(*bar, QStringLiteral("needle"));

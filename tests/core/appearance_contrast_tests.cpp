@@ -296,6 +296,21 @@ namespace {
 				static_cast<std::uint32_t>(washed), washable ? 28U : 0U,
 				"every syntax role is checked over every washable canvas "
 				"background with the selection wash on top");
+			// [[BPR-1503]]. Find's two washes land on the same backgrounds.
+			for (const auto findWash : { appearance_role::find_match_background,
+										 appearance_role::find_current_match_background }) {
+				const auto found = std::ranges::count_if(
+					pairs,
+					[background, expectedKind, findWash](const contrast_pair& aPair) {
+						return aPair.Background == background
+							&& aPair.Kind == expectedKind
+							&& aPair.Wash == std::optional{ findWash };
+					});
+				expect_equal(
+					static_cast<std::uint32_t>(found), washable ? 28U : 0U,
+					"every syntax role is checked over every washable canvas "
+					"background with each Find wash on top");
+			}
 		}
 
 		// Against the application surface, which is where the state marks are
@@ -322,10 +337,11 @@ namespace {
 			"the change-group boundary rule is held to the indicator ratio "
 			"against the code surface it is drawn on");
 
-		expect_equal(static_cast<std::uint32_t>(pairs.size()), 374U,
+		expect_equal(static_cast<std::uint32_t>(pairs.size()), 710U,
 					 "the checked set is the three fixed pairs, the boundary rule, "
 					 "28 syntax roles over "
-					 "bare and washed canvas backgrounds, and six state indicators");
+					 "bare canvas backgrounds and under the selection and two Find "
+					 "washes, and six state indicators");
 	}
 
 	auto test_a_conforming_palette_reports_nothing() -> void
@@ -367,11 +383,12 @@ namespace {
 			appearance_role::diff_added_background,
 			bandColor);
 
-		// Two, not one: the band is checked bare and again through the
-		// selection wash, because selecting a line must not be what makes it
-		// unreadable. Both fail here, and the pair is what distinguishes them.
+		// Four, not one: the band is checked bare and again through the
+		// selection wash and Find's two washes ([[BPR-1503]]), because
+		// selecting or finding on a line must not be what makes it
+		// unreadable. All fail here, and the pair is what distinguishes them.
 		const auto failures = failing_contrast(palette, appearance_variant::light);
-		expect_equal(static_cast<std::uint32_t>(failures.size()), 2U,
+		expect_equal(static_cast<std::uint32_t>(failures.size()), 4U,
 					 "exactly the pairs below the minimum are reported, bare and "
 					 "washed");
 
@@ -381,7 +398,7 @@ namespace {
 			});
 		const auto washed = std::ranges::find_if(
 			failures, [](const contrast_finding& aFinding) {
-				return aFinding.Pair.Wash.has_value();
+				return aFinding.Pair.Wash == std::optional{ appearance_role::code_selection_background };
 			});
 		expect(bare != failures.end() && washed != failures.end(),
 			   "one failure is the bare band and the other is the washed one");

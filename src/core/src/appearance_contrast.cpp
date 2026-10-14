@@ -364,12 +364,16 @@ namespace bpr::core {
 
 		/// \brief Overlays a selected line is read through.
 		///
-		/// \details One entry today. The selected line is the only place the
+		/// \details The selected line and Find's matches are the places the
 		/// product draws code through a translucent layer, and a background it
 		/// can land on has to stay legible with it on top as well as bare -
-		/// selecting an added line must not make the added line unreadable.
+		/// selecting or finding on an added line must not make it unreadable.
 		constexpr auto canvas_washes = std::array{
 			appearance_role::code_selection_background,
+			// [[BPR-1503]]. Find lays its match and current-match washes over
+			// the same backgrounds at the same opacity as the selection.
+			appearance_role::find_match_background,
+			appearance_role::find_current_match_background,
 		};
 
 		/// \brief The backgrounds a wash can actually be composited over.

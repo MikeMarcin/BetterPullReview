@@ -1,4 +1,5 @@
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
@@ -66,6 +67,24 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-1503]]. The current find match's outline colour.
+		///
+		/// \details The current-match wash is held to the text floor, which
+		/// keeps it pale on a light canvas and dark on a dark one, too faint
+		/// to draw a one-pixel rule with. The outline is the same hue moved
+		/// toward the canvas's opposite until it reaches the indicator ratio
+		/// the theme checks every other mark on the canvas against.
+		[[nodiscard]] auto find_outline_color(const core::appearance_color aCurrent, const core::appearance_color aCanvas) -> QColor
+		{
+			const auto canvasLight = core::contrast_ratio_hundredths(aCanvas, core::appearance_color{ 0U, 0U, 0U, 255U })
+				> core::contrast_ratio_hundredths(aCanvas, core::appearance_color{ 255U, 255U, 255U, 255U });
+			const auto toward = canvasLight ? core::appearance_color{ 0U, 0U, 0U, 255U } : core::appearance_color{ 255U, 255U, 255U, 255U };
+			auto       mark   = aCurrent;
+			for (auto alpha = 0U; alpha <= 255U && core::contrast_ratio_hundredths(mark, aCanvas) < core::indicator_contrast_minimum_hundredths; alpha += 8U) {
+				mark = core::composited(toward, aCurrent, static_cast<std::uint8_t>(std::min(alpha, 255U)));
+			}
+			return to_presentation_color(mark);
+		}
 		/// Width of the change-group boundary rule, in device-independent pixels.
 		constexpr auto BoundaryRuleWidth = 2.0;
 		/// [[BPR-1335]]. Breathing room either side of the widest number the
@@ -455,7 +474,10 @@ namespace bpr::qt {
 		public:
 			explicit source_pane(QWidget* aParent = nullptr);
 			QList<QTextCursor> FindOutlines;
-			void               set_unified_rows(const std::vector<unified_source_row>* aRows)
+			/// [[BPR-1503]]. The current match's outline: the theme's current
+			/// match colour, carried to the indicator ratio on the canvas.
+			QColor FindOutlineColor;
+			void   set_unified_rows(const std::vector<unified_source_row>* aRows)
 			{
 				UnifiedRows = aRows;
 				refresh_gutter_width();
@@ -966,7 +988,7 @@ namespace bpr::qt {
 				paint_text(aEvent);
 				for (const auto& outlineCursor : FindOutlines) {
 					auto outlinePainter = QPainter{ viewport() };
-					outlinePainter.setPen(QPen{ palette().color(QPalette::Highlight), 1.5 });
+					outlinePainter.setPen(QPen{ FindOutlineColor.isValid() ? FindOutlineColor : palette().color(QPalette::Highlight), 1.5 });
 					const auto first = outlineCursor.selectionStart();
 					const auto last  = outlineCursor.selectionEnd();
 					for (auto visible = firstVisibleBlock(); visible.isValid(); visible = visible.next()) {
@@ -1688,7 +1710,14 @@ namespace bpr::qt {
 			// Qt puts the text selection last, in Highlight and HighlightedText.
 			// It becomes a wash with no foreground, among the extra selections.
 			const auto cursor = textCursor();
-			if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor) {
+			// [[BPR-1503]]. Find selects the current match; its own wash and
+			// outline mark it, so the selection wash is not stacked on top.
+			const bool findCurrent = std::ranges::any_of(FindOutlines, [&cursor](const QTextCursor& aOutline) {
+				return aOutline.selectionStart() == cursor.selectionStart() && aOutline.selectionEnd() == cursor.selectionEnd();
+			});
+			if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor && findCurrent) {
+				context.selections.removeLast();
+			} else if (cursor.hasSelection() && !context.selections.isEmpty() && context.selections.back().cursor == cursor) {
 				auto selection = context.selections.takeLast();
 				auto format    = QTextCharFormat{ };
 				if (selection.format.hasProperty(QTextFormat::FullWidthSelection)) {
@@ -2215,8 +2244,39 @@ namespace bpr::qt {
 		Find         = std::make_unique<find_presentation>();
 		Find->Bar    = new source_find_bar{ this };
 		Find->Recent = Right;
-		static_cast<QVBoxLayout*>(layout())->insertWidget(1, Find->Bar);
+		// [[BPR-1503]]. The find widget floats over the focused pane and is in
+		// no layout, so opening it never takes height from the code.
 		Find->Bar->Dispatch = [this](const source_find_gesture aGesture) { dispatch_source_find(aGesture); };
+		Find->Bar->installEventFilter(this);
+	}
+	void diff_workbench::place_source_find()
+	{
+		if (!Find || Find->Bar->isHidden()) {
+			return;
+		}
+		const QPlainTextEdit* target = Find->Target ? Find->Target.data() : OnePaneEnabled ? Unified
+																						   : Right;
+		if (!target->isVisible()) {
+			target = OnePaneEnabled ? Unified : Right->isVisible() ? Right
+																   : Left;
+		}
+		const auto* viewport = target->viewport();
+		const auto  origin   = viewport->mapTo(this, QPoint{ 0, 0 });
+		const auto  area     = QRect{ origin, viewport->size() };
+		// Inset from the pane's top-right corner as VS Code's widget is. A
+		// narrow pane keeps every control: the panel then extends left over
+		// the neighbouring pane rather than dropping any of them.
+		constexpr auto inset  = 8;
+		const auto     least  = Find->Bar->fit_to(this->width() - 2 * inset);
+		const auto     wanted = std::min(Find->Bar->preferred_width(), area.width() - 2 * inset);
+		const auto     width  = std::min(std::max(least, wanted), std::max(least, this->width() - 2 * inset));
+		const auto     height = Find->Bar->sizeHint().height();
+		// Where even that runs out of room on the left, the anchor slides right
+		// toward the surface's edge before any control is squeezed.
+		const auto right = std::min(std::max(area.right() - inset, inset + width - 1), this->width() - inset);
+		const auto left  = std::max(inset, right - width + 1);
+		Find->Bar->setGeometry(left, area.top() + inset / 2, std::min(width, right - left + 1), height);
+		Find->Bar->raise();
 	}
 	void diff_workbench::set_source_find_dispatch(std::function<void(const source_find_intent&)> aDispatch) { Find->Dispatch = std::move(aDispatch); }
 	void diff_workbench::set_source_find_changed(std::function<void()> aChanged) { Find->Changed = std::move(aChanged); }
@@ -2449,11 +2509,19 @@ namespace bpr::qt {
 		const bool largeSeed  = cursor.hasSelection() && cursor.selectionEnd() - cursor.selectionStart() > static_cast<int>(core::maximum_source_search_query_bytes);
 		auto       seed       = largeSeed ? QString{ static_cast<qsizetype>(core::maximum_source_search_query_bytes + 1U), QLatin1Char(' ') } : cursor.hasSelection() ? cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'))
 																																									  : QString{ };
+		// [[BPR-1503]]. As VS Code does, the current match is the occurrence
+		// the seed came from: a selection or the word under the caret is
+		// searched from its start, so it is "1 of N" there rather than the
+		// next occurrence after it.
+		auto originPosition = Find->Recall || target->textCursor().hasSelection() ? target->textCursor().selectionStart() : target->textCursor().position();
 		if (seed.isEmpty() && Find->RealCaret[caretIndex]) {
 			cursor.select(QTextCursor::WordUnderCursor);
 			seed = cursor.selectedText();
+			if (!seed.isEmpty()) {
+				originPosition = cursor.selectionStart();
+			}
 		}
-		auto origin = source_byte_at(*target, Find->Recall ? target->textCursor().selectionStart() : target->textCursor().position());
+		auto origin = source_byte_at(*target, originPosition);
 		if (!Find->RealCaret[caretIndex] && !target->textCursor().hasSelection() && Interaction.Selection) {
 			const auto  side     = Interaction.Selection->PreferredLine.Side;
 			const auto& document = side == core::diff_side::left ? CurrentResult->LeftDocument : CurrentResult->RightDocument;
@@ -2467,6 +2535,7 @@ namespace bpr::qt {
 		intent.OriginRow  = static_cast<std::uint32_t>(std::max(0, target->textCursor().blockNumber()));
 		Find->Bar->set_scope(intent.Target, Find->Capture.has_value(), target == Unified ? QStringLiteral("Select a contiguous range from one actual source version") : QStringLiteral("Select source text first"));
 		Find->Bar->show();
+		place_source_find();
 		Find->Bar->seed(Find->Recall || rebind ? QString{ } : seed, true);
 		Find->Recall = false;
 		dispatch_source_find(source_find_gesture::edit);
@@ -2751,11 +2820,15 @@ namespace bpr::qt {
 			selection.cursor = QTextCursor{ aPane.document() };
 			selection.cursor.setPosition(at->Begin);
 			selection.cursor.setPosition(at->End, QTextCursor::KeepAnchor);
-			auto color = aPane.palette().color(QPalette::Highlight);
-			color.setAlpha(40);
+			// [[BPR-1503]]. Every match carries the theme's find wash, and the
+			// current one its stronger wash plus an outline, composited at the
+			// selection's opacity so the contrast checks hold for both.
+			const bool current = Find->Current == std::optional{ at->Match };
+			auto       color   = find_wash(current);
+			color.setAlpha(core::selection_wash_alpha);
 			selection.format.setBackground(color);
 			aSelections.push_back(selection);
-			if (Find->Current == std::optional{ at->Match }) {
+			if (current) {
 				pane(&aPane)->FindOutlines.push_back(selection.cursor);
 			}
 		}
@@ -4158,6 +4231,19 @@ namespace bpr::qt {
 	auto diff_workbench::eventFilter(QObject* const aWatched, QEvent* const aEvent)
 		-> bool
 	{
+		if (Find && aWatched == Find->Bar && (aEvent->type() == QEvent::LayoutRequest || aEvent->type() == QEvent::Show)) {
+			// A taller multi-line query, or a font change, asks for a new size;
+			// the owner keeps it anchored to its pane.
+			QTimer::singleShot(0, this, [this] { place_source_find(); });
+		}
+		if (Find && !Find->Bar->isHidden() && (aWatched == Left || aWatched == Right || aWatched == Unified)) {
+			const auto type = aEvent->type();
+			if (type == QEvent::Resize || type == QEvent::Move || type == QEvent::Show || type == QEvent::Hide) {
+				place_source_find();
+			}
+			// Option+C and Option+R stay Comment and Compose review in the pane;
+			// only the find query claims them for its options.
+		}
 		if (Find && (aWatched == Left || aWatched == Right || aWatched == Unified) && aEvent->type() == QEvent::FocusIn) {
 			Find->Recent = static_cast<QPlainTextEdit*>(aWatched);
 			if (Find->Changed) {
@@ -4274,6 +4360,7 @@ namespace bpr::qt {
 	void diff_workbench::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QWidget::resizeEvent(aEvent);
+		place_source_find();
 		// Before the rebuild, because a resize can add or remove a pane's
 		// horizontal scrollbar and that changes the band without changing
 		// anything the axis knows about.
@@ -5321,6 +5408,13 @@ namespace bpr::qt {
 		}
 	}
 
+	auto diff_workbench::find_wash(const bool aCurrent) const -> QColor
+	{
+		if (!Colors.Supplied) {
+			return palette().color(QPalette::Highlight);
+		}
+		return Colors.Syntax[core::index_of(aCurrent ? core::appearance_role::find_current_match_background : core::appearance_role::find_match_background)];
+	}
 	void diff_workbench::adopt_appearance(const appearance_profile& aProfile)
 	{
 		using role  = core::appearance_role;
@@ -5339,6 +5433,15 @@ namespace bpr::qt {
 		// to how a role becomes a colour cannot reach one surface and miss another.
 		colors.Syntax = code_role_colors_of(aProfile.palette());
 		Colors        = std::move(colors);
+		{
+			const auto outline = find_outline_color(aProfile.palette()[core::index_of(role::find_current_match_background)], aProfile.palette()[core::index_of(role::code_background)]);
+			for (auto* const source : { Left, Right, Unified }) {
+				pane(source)->FindOutlineColor = outline;
+			}
+			if (Find) {
+				Find->Bar->adopt_appearance(aProfile);
+			}
+		}
 		// [[BPR-1334]]. Line details repeats the panes' lines in their colours.
 		Detail->set_colors(line_details_colors{
 			.Added            = Colors.Added,

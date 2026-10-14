@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"011aeb14465c81fe4daa107d4bdc81eb6c7a96f636ed4e60d72a1896e961405d"
+		"a5b34f54cf26dad0bedd2ac244c65651a2b27a325c00cb85afa86670c6230c4a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "36bfd3adfece291eec0141968ab4c9769839458feb18cef5746ab8dbacbf4582"
+        "f949b835254592ac7c81f0130a8e3da6356cac3202e0e07ea43716dfd7e3bdeb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2475,3 +2475,11 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # changes owner or revision, not on a window's first loaded draft or a repeat,
 # in whichever order they arrive. No publication, credential, grant, inventory
 # or mutation-branch change; the production-manifest digest is refreshed.
+
+# [[BPR-1503]] and [[BPR-1504]] reseal. github_application.cpp hands the Find
+# in Files panel the appearance profile beside the workbench, for its side
+# tags and match wash; pr_search_controller applies the panel's Left/Right side
+# filter to F4 traversal and moves a hidden current result to a shown one
+# through the existing source-search host. No publication, credential, grant,
+# inventory or mutation-branch change; the full application and
+# production-manifest digests are refreshed.

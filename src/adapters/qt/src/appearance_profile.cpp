@@ -139,6 +139,11 @@ namespace bpr::qt {
 			{ role::state_attention, srgb(0xAD7A00) },
 			{ role::syntax_namespace, srgb(0x1B5E70) },
 			{ role::syntax_enum_member, srgb(0x2F4F4F) },
+			// [[BPR-1503]]. Find's washes, composited at the selection's
+			// opacity: amber, apart from the blue selection and the diff's
+			// green and red, and as strong as the text floor allows.
+			{ role::find_match_background, srgb(0xF2CC6B) },
+			{ role::find_current_match_background, srgb(0xDB9100) },
 		} });
 
 		constexpr auto dark_profile = make_profile(profile_entries{ {
@@ -224,6 +229,8 @@ namespace bpr::qt {
 			{ role::state_attention, srgb(0xD29922) },
 			{ role::syntax_namespace, srgb(0xB8D7A3) },
 			{ role::syntax_enum_member, srgb(0xD6A05A) },
+			{ role::find_match_background, srgb(0x5C4214) },
+			{ role::find_current_match_background, srgb(0x754D00) },
 		} });
 
 		constexpr auto high_contrast_light_profile = make_profile(profile_entries{ {
@@ -289,6 +296,8 @@ namespace bpr::qt {
 			{ role::state_attention, srgb(0x8A5300) },
 			{ role::syntax_namespace, srgb(0x004859) },
 			{ role::syntax_enum_member, srgb(0x2F4F4F) },
+			{ role::find_match_background, srgb(0xFFF3C4) },
+			{ role::find_current_match_background, srgb(0xFFEBA3) },
 		} });
 
 		constexpr auto high_contrast_dark_profile = make_profile(profile_entries{ {
@@ -354,6 +363,8 @@ namespace bpr::qt {
 			{ role::state_attention, srgb(0xFFBC66) },
 			{ role::syntax_namespace, srgb(0xD4F5BE) },
 			{ role::syntax_enum_member, srgb(0xFFCB80) },
+			{ role::find_match_background, srgb(0x33260C) },
+			{ role::find_current_match_background, srgb(0x422C00) },
 		} });
 
 		/// \brief [[BPR-0776]]. Home's state colours per built-in variant, in

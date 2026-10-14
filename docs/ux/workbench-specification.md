@@ -1131,7 +1131,7 @@ never invents enabled state.
 | View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
 | View > Find > Find ([[BPR-1422]]) | `Ctrl+F` (⌘F) |
 | View > Find > Next / Previous Match ([[BPR-1422]]) | `F3` / `Shift+F3`; macOS also ⌘G / ⌘⇧G |
-| In the pane Find query ([[BPR-1422]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes |
+| In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+W` (⌥W) toggles Whole Word and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus; `Alt+C` and `Alt+R` stay Comment and Compose review (owner, 2026-10-14) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
 | Next review change ([[BPR-1328]]) | `Alt+Down` (⌥↓), or `Alt+PgDown` |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
@@ -1185,12 +1185,24 @@ View > Find searches the complete accepted source in PR Review. Focused split
 source chooses Earlier or Later; Review chrome recalls the most recently focused
 available source, initially Later or the sole available side. Unified Find
 uses actual versions in the displayed order. Find focuses a native multiline
-query above the reader. A second row keeps Match case, Whole word, Regular
-expression, Find in Selection and status visible at the supported minimum
-window width. Native UI font and inherited palette roles supply the bar.
+query in a floating panel modelled on VS Code's find widget ([[BPR-1503]]): a
+rounded panel with a hairline border, anchored to the focused pane's top-right
+corner over the code and in no layout, so opening it moves no line. Its query
+field carries the Aa (Match case), underlined ab (Whole word) and .\* (Regular
+expression) toggles at its right end; then the count ("2 of 14", "No results"),
+previous, next, a Find in Selection toggle and close. An active toggle is an
+accent tint with an accent outline. An invalid or unsupported pattern or an
+oversized query is an error state on the field, its words in the tooltip and
+the accessible status. Where a pane is too narrow, the panel extends left over
+its neighbour, then tightens its spacing, then lets Find in Selection give way
+to ⌥L, keeping every other control at the supported minimum window width.
+Native UI font and inherited palette roles supply the panel. ⌥C and ⌥R stay
+Comment and Compose review everywhere (owner, 2026-10-14); Match case and
+Regular expression take no key.
 
 Selected source text seeds the query, then a word at a real text caret, then
-the retained query. A semantic line cursor supplies only the reading origin.
+the retained query. As in VS Code, the seeded occurrence is the current match
+("1 of N" at a selected first occurrence), not the next one after it. A semantic line cursor supplies only the reading origin.
 Regex seeding escapes literal punctuation; an oversized selection retains the
 query and reports the 4 KiB input limit. The captured original selection remains
 fixed when Find in Selection is enabled. Unified ranges crossing versions are
@@ -1199,7 +1211,10 @@ incomplete coverage and wrapping have accessible wording.
 
 Quiet visible occurrence washes, a current outline and marks on the existing
 scroll tracks accompany exact source selection through the shared reveal
-controller. Match traversal uses the accepted immutable record collection.
+controller. The washes are the theme's `find_match_background` and, stronger,
+`find_current_match_background`, composited at the selection's opacity and held
+to the same contrast floors; the outline is the current-match hue carried to the
+indicator ratio, and the selection wash is not stacked on the current match. Match traversal uses the accepted immutable record collection.
 Escape clears decorations and restores target source focus; Next can reopen
 and advance the retained query without another scan. Unrelated editors, modal
 dialogs, Home and other modalities retain their keys. The resident desktop menu

@@ -119,6 +119,10 @@ namespace bpr::core {
 
 	/// \brief Bounded preview, up to 240 Unicode scalars around the occurrence.
 	[[nodiscard]] auto source_match_preview(std::string_view aSource, byte_span aSpan) -> std::string;
+	/// \brief The occurrence's byte span within `source_match_preview`'s text.
+	/// \details Clipped to the preview, so a match running past the preview's
+	/// 240 scalars ends at the preview's end. Empty when the preview is empty.
+	[[nodiscard]] auto source_match_preview_span(std::string_view aSource, byte_span aSpan) -> byte_span;
 
 	/// \brief Path decision with an explicit invalid/resource terminal for coverage.
 	struct source_path_decision
@@ -172,7 +176,31 @@ namespace bpr::core {
 		std::array<std::optional<source_match_location>, 2> Locations;
 		std::uint32_t                                       UnifiedRow = 0U;
 		std::string                                         Preview;
+		/// The occurrence's exact bytes within `Preview`, clipped to it.
+		byte_span PreviewMatch;
 	};
+	/// \brief The diff sides whose occurrences a result list shows ([[BPR-1504]]).
+	/// \details Two independent sides, both on by default. At least one stays
+	/// on: `toggled` refuses to turn off the last one, so no filter hides all.
+	struct source_side_filter
+	{
+		bool Left                                                = true;
+		bool Right                                               = true;
+		auto operator==(const source_side_filter&) const -> bool = default;
+	};
+	/// \brief Whether a record has a location on an enabled side; a
+	/// both-sides record shows under either single side.
+	[[nodiscard]] constexpr auto shown(const source_match_record& aRecord, source_side_filter aFilter) noexcept -> bool
+	{
+		return (aFilter.Left && aRecord.Locations[0].has_value()) || (aFilter.Right && aRecord.Locations[1].has_value());
+	}
+	/// \brief The filter with one side flipped, unless that would leave none on.
+	[[nodiscard]] constexpr auto toggled(source_side_filter aFilter, diff_side aSide) noexcept -> source_side_filter
+	{
+		auto next                                           = aFilter;
+		(aSide == diff_side::left ? next.Left : next.Right) = !(aSide == diff_side::left ? aFilter.Left : aFilter.Right);
+		return next.Left || next.Right ? next : aFilter;
+	}
 	/// \brief A single catalogue entry; identity-based merging never crosses entries.
 	struct source_match_entry
 	{

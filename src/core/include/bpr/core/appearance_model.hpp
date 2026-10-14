@@ -176,6 +176,15 @@ namespace bpr::core {
 		// Appended for durable ordinal compatibility (RFC-BPR-0072).
 		syntax_namespace,
 		syntax_enum_member,
+
+		// [[BPR-1503]]. Find's two washes, laid over the code canvas at
+		// `selection_wash_alpha` the way the selection is: every match of the
+		// query, and the stronger current match. Both are held to the text
+		// floor with syntax colouring read through them. Appended for durable
+		// ordinal compatibility, so an older palette or theme leaves them
+		// unassigned and reads the built-in values (`defaults_on_import`).
+		find_match_background,
+		find_current_match_background,
 	};
 
 	/// \brief The opacity the code panes composite the selection wash at.
@@ -212,10 +221,10 @@ namespace bpr::core {
 		};
 	}
 
-	inline constexpr std::size_t appearance_role_count = 62U;
+	inline constexpr std::size_t appearance_role_count = 64U;
 
 	static_assert(
-		static_cast<std::size_t>(appearance_role::syntax_enum_member) + 1U == appearance_role_count,
+		static_cast<std::size_t>(appearance_role::find_current_match_background) + 1U == appearance_role_count,
 		"appearance_role_count must cover every declared role");
 
 	/// \brief The first of the twelve label tint roles, in catalog order.
@@ -235,8 +244,8 @@ namespace bpr::core {
 	///
 	/// \details [[BPR-1083]]. Only the roles added after palettes and theme
 	/// documents had been written without them: the twelve label tints and,
-	/// after them, `state_attention` ([[BPR-1085]]) and the namespace/enum
-	/// categories (RFC-BPR-0072). The owner's rule (BPR-1079
+	/// after them, `state_attention` ([[BPR-1085]]), the namespace/enum
+	/// categories (RFC-BPR-0072) and Find's two washes ([[BPR-1503]]). The owner's rule (BPR-1079
 	/// `tints-v002`) is that such a palette reads them as the built-in values and
 	/// no other role changes. The core holds no built-in colour, so the parser
 	/// leaves such a role `unassigned_appearance_color`. A stored palette's slot

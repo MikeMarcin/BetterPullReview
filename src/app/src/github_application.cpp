@@ -17363,6 +17363,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				AppearanceProfile->apply_comparison_code_font_to(*workbench);
 				workbench->adopt_appearance(*AppearanceProfile);
 			}
+			// [[BPR-1504]]. Find in Files' side tags and match wash.
+			if (auto* const search = Window->pr_search(); search != nullptr) {
+				search->adopt_appearance(*AppearanceProfile);
+			}
 			Window->adopt_code_zoom(AppearanceProfile->typography().Code);
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);

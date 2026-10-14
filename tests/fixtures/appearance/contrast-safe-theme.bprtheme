@@ -61,3 +61,5 @@ feedback_label_quibble #9a5b7aff
 state_attention #ad7a00ff
 syntax_namespace #ffffffff
 syntax_enum_member #ffffffff
+find_match_background #000000ff
+find_current_match_background #000000ff
