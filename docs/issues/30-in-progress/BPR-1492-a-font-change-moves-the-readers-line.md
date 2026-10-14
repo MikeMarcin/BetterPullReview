@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1492"
 title: "A font change or zoom moves the reader's line"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
