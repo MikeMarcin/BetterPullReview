@@ -29,3 +29,11 @@ Highest-priority testing note; dispatch before queued polish/navigation cards. U
 ## Owner clarification
 
 The lost content was **file/line comment drafts** (owner reply, 2026-10-14). The exact Publish error remains unknown. Investigate inline draft durability first.
+
+## Restart-persistent commenting failure
+
+Owner additionally reports that creating comments remains unavailable even after reopening the app. Their supplied screenshot shows the status message: “No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment.” Treat this as part of this P0 investigation, without presuming a shared root cause is already proven.
+
+- AC7: After the failed-publish/refresh/navigation sequence and app restart, an otherwise eligible active pull request/account can create and edit a new inline draft, or has a precise actionable recovery path. Resolve durable draft/publication state without losing prior content or bypassing authority checks.
+
+The screenshot is transient owner evidence; do not commit it or its private source-code content. No owner profile has been inspected or changed by the coordinator.
