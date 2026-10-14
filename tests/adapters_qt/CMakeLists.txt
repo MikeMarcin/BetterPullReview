@@ -2009,3 +2009,32 @@ set_tests_properties(
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "anchored-tooltip-tests:pass"
 )
+
+# [[BPR-1504]]. Find in Files' result view: side filter, file and match rows,
+# the painted match wash and fixed match columns, at 1x and 2x.
+bpr_add_executable(
+    test_better_pull_review_qt_source_search_panel_tests
+    source_search_panel_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_qt_source_search_panel_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_source_search_panel_tests)
+bpr_enable_warnings(test_better_pull_review_qt_source_search_panel_tests)
+
+foreach(bpr_source_search_panel_scale IN ITEMS 1 2)
+    bpr_add_network_isolated_test(
+        NAME qt_source_search_panel_scale_${bpr_source_search_panel_scale}
+        COMMAND test_better_pull_review_qt_source_search_panel_tests
+    )
+    set_tests_properties(
+        qt_source_search_panel_scale_${bpr_source_search_panel_scale}
+        PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_SCALE_FACTOR=${bpr_source_search_panel_scale}"
+            PASS_REGULAR_EXPRESSION "source-search-panel-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()

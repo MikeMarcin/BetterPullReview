@@ -143,6 +143,20 @@ namespace {
 			astral += "😀";
 		}
 		search_expect(source_match_preview(astral, { 2000U, 2004U }).size() == 960U, "preview preserves whole four-byte scalars");
+		const auto line = std::string{ "first\n  const auto needle = 1;\n" };
+		const auto span = source_match_preview_span(line, { 19U, 25U });
+		search_expect(source_match_preview(line, { 19U, 25U }).substr(static_cast<std::size_t>(span.Begin), static_cast<std::size_t>(span.End - span.Begin)) == "needle", "preview span names the exact match bytes");
+		search_expect(source_match_preview_span(std::string(1000U, 'a'), { 500U, 900U }) == byte_span{ 80U, 240U }, "preview span clips at the preview end");
+		search_expect(source_match_preview_span(astral, { 2001U, 2004U }).empty(), "malformed span has no preview span");
+		constexpr auto leftOnly  = source_side_filter{ .Left = true, .Right = false };
+		constexpr auto rightOnly = source_side_filter{ .Left = false, .Right = true };
+		auto           record    = source_match_record{ };
+		record.Locations[0]      = source_match_location{ };
+		search_expect(shown(record, leftOnly) && shown(record, source_side_filter{ }) && !shown(record, rightOnly), "side filter keeps a left-only record off Right only");
+		record.Locations[1] = source_match_location{ .Side = diff_side::right };
+		search_expect(shown(record, rightOnly) && shown(record, leftOnly), "a both-sides record shows under either single side");
+		search_expect(toggled(source_side_filter{ }, diff_side::left) == rightOnly && toggled(rightOnly, diff_side::left) == source_side_filter{ }, "a side toggles independently");
+		search_expect(toggled(rightOnly, diff_side::right) == rightOnly, "the last enabled side stays on");
 	}
 	void test_globs()
 	{

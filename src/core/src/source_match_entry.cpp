@@ -237,6 +237,7 @@ namespace bpr::core {
 				record.Locations[side] = location(side == 0U ? diff_side::left : diff_side::right, *aSides[side], span, aLines[side], aWork);
 				record.UnifiedRow      = row(side, span);
 				record.Preview         = source_match_preview(aSides[side]->Bytes, span);
+				record.PreviewMatch    = source_match_preview_span(aSides[side]->Bytes, span);
 				for (auto offset = std::size_t{ 0U }; offset < record.Preview.size();) {
 					aWork.tick();
 					(void)scalar(record.Preview, offset);
