@@ -881,6 +881,16 @@ function(bpr_add_network_isolated_test)
     # unchanged, and the isolation setup already grants that prefix to the
     # container. Without this every Qt-linked test exits before main with
     # STATUS_DLL_NOT_FOUND (BPR-0430).
+    # [[BPR-1485]]. The linked xdiff is its own DLL beside no test: every test
+    # that computes a diff loads it from its build directory.
+    if(WIN32 AND TARGET better_pull_review_xdiff)
+        set_property(
+            TEST "${bpr_test_NAME}"
+            APPEND
+            PROPERTY ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:better_pull_review_xdiff>"
+        )
+    endif()
     if(WIN32 AND TARGET Qt6::Core)
         # Qt ships no fonts, and the offscreen platform every contract runs
         # under has no fontconfig here: without a font directory QFontDatabase

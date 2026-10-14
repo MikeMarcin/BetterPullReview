@@ -10,6 +10,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprFmtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSha1dcProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprHaclSha2Provider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprRapidFuzzProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprXdiffProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
@@ -121,6 +122,12 @@ function(bpr_configure_dependencies)
     bpr_acquire_rapidfuzz()
     bpr_require_dependency_target(BetterPullReview::RapidFuzz rapidfuzz-cpp)
     list(APPEND records "rapidfuzz-cpp|PINNED_ARCHIVE|BetterPullReview::RapidFuzz")
+
+    # [[BPR-1485]]. The diff engine's primary line matcher: Git 2.56.0's xdiff
+    # as its own shared library, which only the xdiff adapter links.
+    bpr_acquire_xdiff()
+    bpr_require_dependency_target(BetterPullReview::Xdiff git-xdiff)
+    list(APPEND records "git-xdiff|PINNED_ARCHIVE|BetterPullReview::Xdiff")
 
     # [[BPR-1433]]. glaze is an owner-approved core library (2026-10-13) and
     # the MCP helper's JSON decoder, so the Qt-free graph acquires it too.
