@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1481"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate_revision":"diff-engine-evaluation-r4","source":"Owner Accept 2026-10-13: extend dtl's core approval from per-line intraline to the bounded Review Cycle suggestion-hunk matcher (512-edit cap kept)"}
+metadata: {"mandate_revision":"diff-engine-evaluation-r5","source":"Owner Accept 2026-10-13: extend dtl's core approval from per-line intraline to the bounded Review Cycle suggestion-hunk matcher (512-edit cap kept)"}
 ---
 
 # BPR-1498: Compute Review Cycle suggestion hunks with dtl
@@ -30,3 +30,62 @@ comparison to this one bounded use. dtl stays out of whole-file line matching.
 - **AC3:** Every existing Review Cycle suggestion test returns identical
   results; `core-only`'s Review Cycle and diff suites and both
   architecture-boundary checks pass.
+
+## Built and verified (macOS arm64, 2026-10-13)
+
+Implementation `a41035268` and `7a4468007` on `claude/bpr-1498`, from `main`
+at `8ddd55bf0`, merged with `main` through `f5bea5271`.
+
+**AC1, approval and boundary.** RFC-BPR-0082 records the owner's Accept under
+mandate `diff-engine-evaluation-r5` ("Owner answer on dtl for Review Cycle
+suggestion hunks"), with Q2's extension marked and the
+[record](../../rfcs/assets/diff-engine-evaluation-v1/owner-answer-dtl-suggestion-hunks-2026-10-13.md)
+keeping its text before and after. Root and core `AGENTS.md`,
+`cmake/VerifyCoreBoundary.cmake`, `cmake/BprDtlProvider.cmake`,
+`cmake/BprDependencies.cmake`, the system architecture, `build-and-test.md`,
+`release-packages.md` and `packaging/dependencies.json` name exactly the two
+uses. `architecture_boundaries` allows dtl in exactly
+`src/core/src/diff_intraline.cpp` and `src/core/src/review_cycle_suggestion.cpp`;
+`test_dtl_has_exactly_two_owners` passes both files together and alone and
+refuses a third core file and four other files, and fails under the old
+single-owner rule.
+
+**AC2, engine.** `matched_lines` runs `dtl::Diff` (O(NP)) over the trimmed
+middle's line indexes, synchronously in core, with inputs bounded as before.
+A difference in line counts over 512 returns nothing before dtl runs; an empty
+side returns no pairs. The comparator stops dtl at its first comparison outside
+the cap's band of diagonals and then compares everything equal, so dtl ends in
+that round and the result is dropped; a finished edit longer than 512 also
+returns nothing, so pairs exist exactly when the edit distance is at most 512.
+A `static_assert` bounds dtl's path points at 264,196, under its 2,000,000-point
+restart, and `onHuge` is never enabled. As in `diff_intraline.cpp`, a common
+line out of order, out of range or unequal makes the middle one hunk. A shorter
+original is padded at its end with lines that equal nothing, which makes dtl
+choose the alignment the first-party Myers chose.
+
+Why the stop cannot be evaded (integrator's check against dtl 1.21's
+`compose` and `snake`): the padded original is never shorter, so dtl always
+swaps and walks diagonals `k` = original index minus edited index. Round `p`
+starts at its lowest diagonal `-p`, from `max(0, fp[-p+1])`. That snake makes
+no comparison only when its start is already at the edited side's end; then the
+same round's ascending sweep (`fp[k] >= fp[k-1] + 1`, no comparisons past that
+end) carries the point to diagonal `delta` at the original's end, and the round
+finishes. So round `band + 1` either compares on diagonal `-(band + 1)`, which
+is outside the band and stops dtl, or finishes; at most `band + 1` rounds run,
+which is the bound the `static_assert` checks.
+
+**AC3, identical results.** No existing suggestion expectation changed and all
+pass. The worker compared the new and old `matched_lines` on 60,000 random
+inputs, including inputs past the cap, with no difference, and the new test
+passes against the old source too. New `alignment_is_dtl_bounded_at_512_edits`
+covers 512 and 513 edits with either side longer, the old tie-break, two edits
+50,000 lines apart and a 2,000-line rewrite.
+
+- `core-only` (Debug, `-g0`): `core_review_cycle*`, `core_diff_*` (no
+  benchmark), `architecture_boundaries`, `architecture_boundary_contract`,
+  `core_boundary_contract`, the dependency and package audit contracts and
+  `coding_format_check`: 59 of 59 and 11 of 11 pass after merging main.
+  The wider `core-only` run (no benchmark, large or perf tests) at
+  `f5bea5271`: 269 of 272, the three failures being the worktree's missing
+  `.agents` links. Changed-line tidy reports no findings; the documentation
+  gate passes.
