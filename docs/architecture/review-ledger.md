@@ -187,7 +187,7 @@ coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check. Opening supported versions 3 through 7 compares every non-internal `sqlite_schema`
+such check. Opening supported versions 3 through 9 compares every non-internal `sqlite_schema`
 object with the canonical table definition. A same-name table with changed
 columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
 mismatch rather than a partially understood ledger.
@@ -262,7 +262,11 @@ bind the scope/incarnation and catalog generation or thread version; stale
 cursors refuse. Revision pages use a tested scope/thread/order index and no
 OFFSET scan. Run detail requests hold at most 16 runs/256 KiB; source requests
 hold at most 256 exact references. Publication and dependency pages have at
-most 64 entries. The bounded draft collection has at most 64 records.
+most 64 entries. The bounded draft collection retains at most 4,096 records, with at most 64 active authored drafts. Empty revision-one placeholders from older builds do not consume the active allowance; published and discarded records remain historical evidence. The existing 64 MiB private-payload budget still applies.
+
+Schema 9 rebuilds only the scope-counter table, copying every counter, binding, generation and allocation frontier while widening its retained-draft bound. It leaves all draft bytes, composition references and publication lineage in place. Browsing a source line creates one runtime-only empty selection per window consumer and writes no record or durable identity. The first edit creates the normal draft and applies that edit in one transaction before its projection can publish.
+
+There is no automatic expiry of authored text or publication history. Explicit cleanup removes only empty, never-edited revision-one ordinary placeholders, checks for publication references and rechecks eligibility transactionally. A racing accepted edit refuses the whole cleanup; a retained allocation frontier prevents a late restore from resurrecting removed placeholders. Written, intentionally cleared, composed, reply, pending and uncertain material is preserved.
 
 Per scope, the store admits 4,096 threads, 65,536 turn revisions, 65,536 runs,
 65,536 findings, 4,096 compositions, 65,536 candidate revisions and 65,536
@@ -530,3 +534,7 @@ including after a head advance, without another POST. Missing, ambiguous or
 mismatched viewer, PR, journal, body or comment identity leaves the join pending.
 Purge and lineage retention still obey the existing
 producer-quiescence and dependency rules.
+
+The Saved comments viewer can explicitly discard a still-unpublished draft, including one on an earlier head. This changes its local state and frees an active slot while retaining its exact text in history. The command checks the listed revision and cannot discard an uncertain publishing draft or a confirmed server comment.
+
+Saved-comment recovery actions carry the full private scope and the selected draft revision. A head update can retire an editable projection while the same scoped history remains inspectable; that update does not silently swallow a confirmed local discard. An account, PR, profile or private-incarnation change refuses the action.

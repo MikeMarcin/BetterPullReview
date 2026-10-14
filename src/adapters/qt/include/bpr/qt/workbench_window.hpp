@@ -529,6 +529,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]] v002. Where a confirmed Delete of a pending
 		/// comment on Finish your review goes: the composition deletes that
 		/// draft at the revision the page listed. Nothing is published.
+		void set_comment_draft_unavailable(QString aReason);
 		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
@@ -2069,6 +2070,7 @@ namespace bpr::qt {
 			bool                         Suggestion = false;
 		};
 		std::optional<pending_line_comment>  PendingLineComment;
+		QString                              CommentDraftUnavailable;
 		std::optional<core::source_line_ref> WritingAnchor;
 		QAction*                             AddCommentAction    = nullptr;
 		QAction*                             SuggestChangeAction = nullptr;

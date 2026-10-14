@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QKeyEvent>
 #include <QLabel>
@@ -116,6 +117,26 @@ int main(int argc, char** argv)
 	projection.Generation = 2;
 	panel.present(projection);
 	expect(panel.selected_sources().empty(), "identity replacement clears private selection");
+	projection.SavedScope = private_review_fixture::binding().Scope;
+	projection.Drafts     = { { .Id = core::review_draft_id{ 19 }, .Anchor = { private_review_fixture::opaque<core::file_comparison_digest>(), core::diff_side::right, 3 }, .State = core::review_draft_state::publishing, .Head = "original-head", .Path = "source.cpp", .Body = "Exact retained text <b>literal</b>", .Current = false } };
+	panel.present(projection);
+	panel.show_saved_comments();
+	auto* saved = panel.findChild<QDialog*>(QStringLiteral("savedComments"));
+	expect(saved && saved->findChild<QPlainTextEdit*>(QStringLiteral("savedCommentBody"))->toPlainText() == QStringLiteral("Exact retained text <b>literal</b>"), "retained content is literal and readable outside its current comparison");
+	expect(saved->findChild<QLabel*>(QStringLiteral("savedCommentAuthority"))->text().contains(QStringLiteral("unconfirmed")), "unknown publication remains distinct from unpublished text");
+	expect(!saved->findChild<QPushButton*>(QStringLiteral("savedCommentDiscard"))->isEnabled(), "an uncertain publication cannot be locally discarded");
+	projection.Drafts.front().State    = core::review_draft_state::drafting;
+	projection.Drafts.front().Revision = 7;
+	panel.present(projection);
+	saved->findChild<QPushButton*>(QStringLiteral("savedCommentDiscard"))->click();
+	auto* discardQuestion = saved->findChild<QDialog*>(QStringLiteral("discardSavedDraft"));
+	expect(discardQuestion != nullptr, "discard asks explicitly");
+	discardQuestion->findChild<QPushButton*>(QStringLiteral("discardSavedDraftConfirm"))->click();
+	expect(!intents.empty() && intents.back().Action == application::private_conversation_action::discard_saved_draft && intents.back().Draft == projection.Drafts.front().Id && intents.back().ExpectedVersion == 7 && intents.back().SavedScope == projection.SavedScope, "discard confirmation carries the exact listed draft and revision");
+	panel.present({ .Generation = projection.Generation + 1 });
+	expect(saved->findChild<QPlainTextEdit*>(QStringLiteral("savedCommentBody"))->toPlainText().isEmpty(), "scope invalidation clears retained private text from open dialog");
+	saved->close();
+	panel.present(projection);
 	qt::private_composition_editor                       editor;
 	std::vector<application::private_composition_intent> compositionIntents;
 	editor.set_dispatch([&](auto aIntent) { compositionIntents.push_back(std::move(aIntent)); });

@@ -2771,6 +2771,7 @@ namespace bpr::qt {
 		privateTabs->setObjectName(QStringLiteral("privateConversationTabs"));
 		privateTabs->setAccessibleName(tr("Private history and agent tools"));
 		PrivateReview = new private_review_panel{ notesPage };
+		ReviewSubmissionEditor->set_saved_comments_reveal([this] { PrivateReview->show_saved_comments(); });
 		privateTabs->addTab(makeTabColumn(PrivateReview, QStringLiteral("privateHistoryScroll")), tr("Private history"));
 		privateTabs->addTab(ConversationScroll, tr("Agent tools"));
 		notesPageLayout->addWidget(privateTabs, 1);
@@ -7805,6 +7806,9 @@ namespace bpr::qt {
 			&& (!ReviewEditor->body_editor()->isReadOnly() || ReviewEditor->reload_draft_action()->isEnabled() || ReviewEditor->reapply_draft_action()->isEnabled())
 			&& ReviewEditor->shown_draft() && selection
 			&& ReviewEditor->shown_draft()->Anchor == selection->PreferredLine;
+		if (aDraftRequired && !draftReady && !CommentDraftUnavailable.isEmpty()) {
+			return say(CommentDraftUnavailable, tr("Open Saved comments to recover"));
+		}
 		if (aDraftRequired && !draftReady) {
 			return say(tr("No editable draft is available. Wait for the review to load, or open an active pull request with an account that can comment."), tr("No draft available"));
 		}
@@ -8658,6 +8662,11 @@ namespace bpr::qt {
 		return DeleteDraftConfirmation.data();
 	}
 
+	void workbench_window::set_comment_draft_unavailable(QString aReason)
+	{
+		CommentDraftUnavailable = std::move(aReason);
+		update_comment_target();
+	}
 	void workbench_window::set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
 	{
 		PendingCommentDeleteDispatch = std::move(aDispatch);

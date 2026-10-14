@@ -172,7 +172,7 @@ namespace bpr::adapters::sqlite::detail {
 			std::uint64_t                 Last = 0, Generation = 1, NoteRevision = 0;
 			std::array<std::uint64_t, 10> Counts{ };
 		};
-		constexpr std::array<std::uint64_t, 10> Limits{ 4096, 65536, 65536, 65536, 4096, 65536, 64, 65536, 67108864, 67108864 };
+		constexpr std::array<std::uint64_t, 10> Limits{ 4096, 65536, 65536, 65536, 4096, 65536, 4096, 65536, 67108864, 67108864 };
 		class private_database
 		{
 		public:
@@ -868,7 +868,11 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			return record;
 		}
-		void store_drafts(private_database& aDb, state& aState, allocation& aIds, std::span<const private_draft_write> aDrafts)
+		[[nodiscard]] auto active_draft(const core::revisioned_review_draft& aDraft) -> bool
+		{
+			return (aDraft.Draft.State == core::review_draft_state::drafting || aDraft.Draft.State == core::review_draft_state::publishing) && !core::unused_review_draft(aDraft);
+		}
+		void store_drafts(private_database& aDb, state& aState, allocation& aIds, std::span<const private_draft_write> aDrafts, bool& aAdmitsActive)
 		{
 			for (const auto& item : aDrafts) {
 				const auto& d = item.Record;
@@ -878,8 +882,10 @@ namespace bpr::adapters::sqlite::detail {
 					require(d.Draft.Draft.ReplyToThread->size() <= maximum_shared_draft_reply_bytes);
 				}
 				bool unchangedLink = false;
+				bool wasActive     = false;
 				if (item.ExpectedRevision) {
-					auto old = read_draft(aDb, d.Draft.Draft.Id.value());
+					auto old  = read_draft(aDb, d.Draft.Draft.Id.value());
+					wasActive = active_draft(old.Draft);
 					require(old.Draft.Revision == item.ExpectedRevision && d.Draft.Revision == old.Draft.Revision + 1 && d.Binding == old.Binding && d.Draft.Draft.Anchor == old.Draft.Draft.Anchor, error::conflict);
 					require(!old.Draft.Composition || (d.Draft.Composition && old.Draft.Composition->Scope == d.Draft.Composition->Scope && old.Draft.Composition->Composition == d.Draft.Composition->Composition && old.Draft.Composition->Revision <= d.Draft.Composition->Revision), error::conflict);
 					unchangedLink = old.Draft.Composition == d.Draft.Composition && old.Draft.Draft.Body == d.Draft.Draft.Body;
@@ -889,6 +895,7 @@ namespace bpr::adapters::sqlite::detail {
 					aIds.add(d.Draft.Draft.Id.value());
 					++aState.Counts[6];
 				}
+				aAdmitsActive = aAdmitsActive || (!wasActive && active_draft(d.Draft));
 				std::optional<std::uint64_t>             content;
 				std::optional<std::vector<std::uint8_t>> body;
 				if (d.Draft.Composition) {
@@ -1027,7 +1034,7 @@ namespace bpr::adapters::sqlite::detail {
 			auto commit(const private_store_write& aWrite) -> private_store_result<private_store_frontier> override
 			{
 				return guarded([&] {
-					const auto count = aWrite.Threads.size() + aWrite.Revisions.size() + aWrite.Runs.size() + aWrite.Findings.size() + aWrite.Compositions.size() + aWrite.Candidates.size() + aWrite.Drafts.size() + aWrite.Publications.size();
+					const auto count = aWrite.Threads.size() + aWrite.Revisions.size() + aWrite.Runs.size() + aWrite.Findings.size() + aWrite.Compositions.size() + aWrite.Candidates.size() + aWrite.Drafts.size() + aWrite.RemoveUnusedDrafts.size() + aWrite.Publications.size();
 					require(count > 0 && count <= maximum_private_sources);
 					transaction tx{ Ledger.handle() };
 					auto        db = database();
@@ -1041,7 +1048,31 @@ namespace bpr::adapters::sqlite::detail {
 					store_findings(db, s, ids, aWrite.Findings);
 					store_compositions(db, s, ids, aWrite.Compositions);
 					store_candidates(db, s, ids, aWrite.Candidates);
-					store_drafts(db, s, ids, aWrite.Drafts);
+					for (const auto id : aWrite.RemoveUnusedDrafts) {
+						const auto record = read_draft(db, id.value());
+						require(core::unused_review_draft(record.Draft), error::conflict);
+						auto references = db.sql("SELECT 1 FROM private_publication WHERE scope_id=?1 AND draft_id=?2 LIMIT 1", Scope, id.value());
+						require(!references.row(), error::references_present);
+						s.Counts[9] -= record_size(db, "private_draft", id.value());
+						--s.Counts[6];
+						db.write("DELETE FROM private_draft WHERE scope_id=?1 AND id=?2", Scope, id.value());
+					}
+					bool admitsActive = false;
+					store_drafts(db, s, ids, aWrite.Drafts, admitsActive);
+					// A completed record remains publication evidence without consuming
+					// an editable slot. No authored or lineage row expires here.
+					if (admitsActive) {
+						auto        drafts   = db.sql("SELECT id FROM private_draft WHERE scope_id=?1 ORDER BY id LIMIT 4097", Scope);
+						std::size_t retained = 0, active = 0;
+						while (drafts.row()) {
+							require(++retained <= maximum_retained_private_drafts, error::quota);
+							const auto record = read_draft(db, drafts.integer(0));
+							if (active_draft(record.Draft)) {
+								++active;
+							}
+						}
+						require(active <= maximum_private_drafts, error::quota);
+					}
 					store_publications(db, s, ids, aWrite.Publications);
 					for (const auto& changed : aWrite.Threads) {
 						auto t = db.thread(changed.Thread.Id.value());
@@ -1275,10 +1306,10 @@ namespace bpr::adapters::sqlite::detail {
 				return guarded([&] {
 					transaction                       snapshot{ Ledger.handle(), false };
 					auto                              db = database();
-					auto                              q  = db.sql("SELECT id FROM private_draft WHERE scope_id=?1 ORDER BY id LIMIT 65", Scope);
+					auto                              q  = db.sql("SELECT id FROM private_draft WHERE scope_id=?1 ORDER BY id LIMIT 4097", Scope);
 					std::vector<private_draft_record> result;
 					while (q.row()) {
-						require(result.size() < maximum_private_drafts, error::integrity);
+						require(result.size() < maximum_retained_private_drafts, error::integrity);
 						result.push_back(read_draft(db, q.integer(0)));
 					}
 					return result;

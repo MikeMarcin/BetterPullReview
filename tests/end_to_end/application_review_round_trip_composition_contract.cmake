@@ -1,3 +1,11 @@
+# BPR-1520 r2 self-review: baseline9f2ebc10a through this product slice.
+# No intervening pinned-scope commits. Changed manifest paths are
+# github_application.cpp, private_review_workflow.cpp and .hpp: runtime-only
+# line selection, atomic first-save acknowledgement, scoped saved-history actions,
+# and exact original held-comment settlement after head advance. Store restoration
+# discovers retained held keys for the existing read-only lookup. No new remote
+# grant or provider route; actor/PR/head/content checks remain. The production
+# mutation-branch pin is unchanged. Review and composed evidence are on BPR-1520.
 # BPR-0573 r3 storage compatibility merge: reviewed 829291bec plus main89f23eeec.
 # Main's schema5 recovery, durable draft/lineage and tour semantics are preserved.
 # Against main, github_application.cpp changes only the exact approved PR2 target
@@ -1468,7 +1476,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"b0ee8a065c5f781915965391d72aa74f6b66776ceae49e811c12d07211cc3d19"
+		"6e0c8fa2ece8d7f152a3f820f08bbadb5c59814a3f2422413403667aa3c90641"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1692,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "cd5edf4f66e9a0833c27e31662d59562d3e6abdc6830ae81049d078862363f4a"
+        "0e5f22087c4982f779e41f15fa7e075b9ce23a3a5ebc2450e8187725bec56040"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

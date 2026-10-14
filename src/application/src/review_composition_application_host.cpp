@@ -209,16 +209,52 @@ namespace bpr::application {
 			return result;
 		});
 	}
+	auto review_composition_application_host::clear_unused_drafts() -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] {
+			auto                frontier = take(Store.frontier());
+			auto                records  = take(Store.list_drafts());
+			private_store_write write;
+			write.ExpectedNextIdentity = frontier.NextIdentity;
+			for (const auto& record : records) {
+				if (core::unused_review_draft(record.Draft)) {
+					write.RemoveUnusedDrafts.push_back(record.Draft.Draft.Id);
+				}
+			}
+			if (!write.RemoveUnusedDrafts.empty()) {
+				take(Store.commit(write));
+			}
+			durable_draft_commit result;
+			result.Scope         = frontier.Scope;
+			result.RemovedUnused = std::move(write.RemoveUnusedDrafts);
+			result.UnusedBefore  = frontier.NextIdentity ? frontier.NextIdentity : core::maximum_private_identity + 1U;
+			return result;
+		});
+	}
 	auto review_composition_application_host::restore(std::optional<core::git_commit_oid> aHead, std::optional<core::review_draft_id> aDraft) -> private_run_result<durable_draft_commit>
 	{
-		return attempt([&] { durable_draft_commit result; result.Scope = take(Store.frontier()).Scope; result.Records = take(Store.list_drafts()); std::erase_if(result.Records,[&](const auto& aRecord){return (aHead && aRecord.Binding.Revision.HeadOid != *aHead) || (aDraft && aRecord.Draft.Draft.Id != *aDraft);}); return result; });
+		return attempt([&] {
+			durable_draft_commit result;
+			result.Scope   = take(Store.frontier()).Scope;
+			result.Records = take(Store.list_drafts());
+			for (const auto& record : result.Records) {
+				if (core::held_by_review(record.Draft.Draft)) {
+					const auto& key = record.Draft.Draft.InReview->Submission;
+					if (std::ranges::find(result.HeldReviews, key) == result.HeldReviews.end()) {
+						result.HeldReviews.push_back(key);
+					}
+				}
+			}
+			std::erase_if(result.Records, [&](const auto& record) { return (aHead && record.Binding.Revision.HeadOid != *aHead) || (aDraft && record.Draft.Draft.Id != *aDraft); });
+			return result;
+		});
 	}
-	auto review_composition_application_host::select_draft(const core::private_review_binding& aBinding, const core::source_line_ref aLine, const core::diff_semantic_index& aIndex, std::optional<std::string> aReplyThread) -> private_run_result<durable_draft_commit>
+	auto review_composition_application_host::select_draft(const core::private_review_binding& aBinding, const core::source_line_ref aLine, const core::diff_semantic_index& aIndex, std::optional<std::string> aReplyThread, const bool aAllocate) -> private_run_result<durable_draft_commit>
 	{
 		auto reopened = attempt([&] {
 			auto drafts = std::vector<review_comment_draft>{ };
 			for (const auto& record : take(Store.list_drafts())) {
-				if (record.Binding == aBinding) {
+				if (record.Binding == aBinding && (aAllocate || !core::unused_review_draft(record.Draft))) {
 					drafts.push_back(record.Draft.Draft);
 				}
 			}
@@ -233,11 +269,46 @@ namespace bpr::application {
 		if (aReplyThread) {
 			return allocate_reply(aBinding, aLine, aIndex, std::move(*aReplyThread));
 		}
+		if (!aAllocate) {
+			return restore(aBinding.Revision.HeadOid, core::review_draft_id{ });
+		}
 		const auto target = make_composition_target(aBinding, aLine, aIndex);
 		if (!target) {
 			return std::unexpected(private_run_error{ .Policy = target.error() });
 		}
 		return allocate_draft(*target, aIndex);
+	}
+	auto review_composition_application_host::materialize_draft(const core::private_review_binding& aBinding, const core::diff_semantic_index& aIndex, const core::revisioned_review_draft& aPlaceholder, const core::revisioned_review_draft_command& aCommand) -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] {
+			require(aPlaceholder.Draft.Id.value() > core::maximum_private_identity && core::unused_review_draft(aPlaceholder) && aPlaceholder.Scope.value() != 0 && aCommand.Command.Kind == core::review_draft_command_kind::edit && aCommand.Command.Id == aPlaceholder.Draft.Id && aCommand.ExpectedRevision == aPlaceholder.Revision && aCommand.Scope == aPlaceholder.Scope && !aCommand.ChangeReplyTarget && !aCommand.Composition, core::private_review_refusal::invalid_target);
+			auto frontier = take(Store.frontier());
+			require(frontier.Scope == aBinding.Scope);
+			decide(core::make_composition_target(aBinding, aPlaceholder.Draft.Anchor, aIndex));
+			auto initial           = private_draft_record{ aBinding, aPlaceholder };
+			initial.Draft.Draft.Id = core::review_draft_id{ frontier.NextIdentity };
+			initial.Draft.Scope    = { };
+			auto current           = initial.Draft;
+			current.Scope          = aPlaceholder.Scope;
+			auto command           = aCommand;
+			command.Command.Id     = current.Draft.Id;
+			auto changed           = core::apply(current, command);
+			require(changed.Refusal == core::revisioned_draft_refusal::none && changed.Changed);
+			auto accepted        = initial;
+			accepted.Draft       = changed.Accepted;
+			accepted.Draft.Scope = { };
+			private_store_write write;
+			write.ExpectedNextIdentity = frontier.NextIdentity;
+			write.Drafts.push_back({ initial, 0 });
+			if (changed.Changed) {
+				write.Drafts.push_back({ accepted, 1 });
+			}
+			take(Store.commit(write));
+			durable_draft_commit result;
+			result.Scope = frontier.Scope;
+			result.Records.push_back(std::move(accepted));
+			return result;
+		});
 	}
 	auto review_composition_application_host::change_draft(const core::revisioned_review_draft_command& aCommand) -> private_run_result<durable_draft_commit>
 	{
@@ -274,6 +345,38 @@ namespace bpr::application {
 			durable_draft_commit result;
 			result.Scope = f.Scope;
 			result.Records.push_back(record);
+			return result;
+		});
+	}
+	auto review_composition_application_host::settle_review(std::string_view aKey, bool aPublished, const std::optional<core::review_submission_proposal>& aProposal) -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] {
+			auto frontier = take(Store.frontier());
+			require(!aKey.empty() && aKey.size() <= 256 && (!aPublished || aProposal));
+			if (aProposal) {
+				const auto& target = aProposal->Target;
+				require(target.Host == frontier.Scope.Host && target.Repository == frontier.Scope.Repository && target.PullRequest == frontier.Scope.PullRequest && aProposal->ActingAccount == frontier.Scope.Account, core::private_review_refusal::invalid_binding);
+			}
+			private_store_write  write{ .ExpectedNextIdentity = frontier.NextIdentity };
+			durable_draft_commit result;
+			result.Scope = frontier.Scope;
+			for (auto record : take(Store.list_drafts())) {
+				const auto revision = record.Draft.Revision;
+				record.Draft.Scope  = core::review_draft_scope_id{ 1 };
+				const auto command  = core::settle_held_review_draft(record.Draft, aKey, aPublished, aProposal ? &*aProposal : nullptr);
+				if (!command) {
+					continue;
+				}
+				const auto changed = core::apply(record.Draft, *command);
+				require(changed.Refusal == core::revisioned_draft_refusal::none && changed.Changed);
+				record.Draft       = changed.Accepted;
+				record.Draft.Scope = { };
+				write.Drafts.push_back({ record, revision });
+				result.Records.push_back(std::move(record));
+			}
+			if (!write.Drafts.empty()) {
+				take(Store.commit(write));
+			}
 			return result;
 		});
 	}

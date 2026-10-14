@@ -402,6 +402,16 @@ namespace bpr::adapters::sqlite::detail {
 			return tables;
 		}();
 
+		const auto SchemaVersion9Tables = [] {
+			auto tables = SchemaVersion8Tables;
+			for (auto& table : tables) {
+				if (table.Name == "private_scope_state") {
+					table.Sql = PrivateRetainedDraftState;
+				}
+			}
+			return tables;
+		}();
+
 		[[nodiscard]] auto run_all(
 			::sqlite3*                              aDatabase,
 			const std::span<const std::string_view> aStatements,
@@ -554,6 +564,15 @@ namespace bpr::adapters::sqlite::detail {
 				version = 8;
 			}
 
+			if (version == 8) {
+				const std::array statements{ std::string_view{ "ALTER TABLE private_scope_state RENAME TO private_scope_state_v8" }, PrivateRetainedDraftState, std::string_view{ "INSERT INTO private_scope_state SELECT * FROM private_scope_state_v8" }, std::string_view{ "DROP TABLE private_scope_state_v8" } };
+				if (auto migrated = run_all(aDatabase, statements, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 9;
+			}
+
 			if (auto recorded = execute(
 					aDatabase,
 					"UPDATE ledger_meta SET schema_format = "
@@ -658,7 +677,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion8Tables);
+				SchemaVersion9Tables);
 		}
 
 		struct preflight_file_image
@@ -1098,6 +1117,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion7Tables;
 					} else if (*version == 8) {
 						expected = SchemaVersion8Tables;
+					} else if (*version == 9) {
+						expected = SchemaVersion9Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}

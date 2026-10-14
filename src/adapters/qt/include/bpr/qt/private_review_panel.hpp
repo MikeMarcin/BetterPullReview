@@ -2,7 +2,9 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_PRIVATE_REVIEW_PANEL_HPP
 #include "bpr/application/private_review_projection.hpp"
 #include <QAbstractListModel>
+#include <QPointer>
 #include <QWidget>
+class QDialog;
 class QLabel;
 class QListView;
 class QPlainTextEdit;
@@ -45,6 +47,8 @@ namespace bpr::qt {
 		void present_provenance(const core::agent_run_provenance&);
 		void present_finding(std::string_view);
 		void show_status(const QString&);
+		/// Inspect retained text without changing its original authority, including earlier heads.
+		void show_saved_comments();
 		auto selected_sources() const -> const std::vector<core::private_source_selection>& { return Sources; }
 		auto thread_model() -> private_thread_model* { return Threads; }
 		auto turn_model() -> private_turn_model* { return Turns; }
@@ -52,6 +56,9 @@ namespace bpr::qt {
 	private:
 		void                                         emit_action(application::private_conversation_action);
 		void                                         select_turn();
+		void                                         present_saved_comments();
+		void                                         show_saved_comment();
+		QPointer<QDialog>                            SavedComments;
 		void                                         select_source();
 		application::private_conversation_dispatch   Dispatch;
 		application::private_conversation_projection Shown;

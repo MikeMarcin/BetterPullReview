@@ -25,6 +25,10 @@ namespace bpr::application {
 		core::review_draft_id    Id;
 		core::source_line_ref    Anchor;
 		core::review_draft_state State;
+		std::string              Head = { }, Path = { }, Body = { };
+		bool                     Current  = false;
+		bool                     Unused   = false;
+		std::uint64_t            Revision = 0;
 	};
 	struct private_conversation_projection
 	{
@@ -43,8 +47,11 @@ namespace bpr::application {
 		bool                                                        MoreThreads  = false;
 		bool                                                        MoreTurns    = false;
 		std::string                                                 Status;
+		std::optional<core::private_review_scope>                   SavedScope;
 	};
 	enum class private_conversation_action : std::uint8_t { refresh,
+															clear_unused_drafts,
+															discard_saved_draft,
 															next_threads,
 															next_findings,
 															inspect_finding,
@@ -75,6 +82,7 @@ namespace bpr::application {
 		bool                                          IncludeArchived = false;
 		std::optional<core::review_draft_id>          Draft;
 		std::string                                   Body;
+		std::optional<core::private_review_scope>     SavedScope;
 	};
 	using private_conversation_dispatch = std::function<void(private_conversation_intent)>;
 

@@ -10,6 +10,7 @@
 #include "scratch_root.hpp"
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <sqlite3.h>
 namespace {
 	using namespace bpr;
@@ -460,6 +461,155 @@ namespace {
 			expect(f.Process.Starts == 0, "unchecked/deleted/edited/duplicate/cross-review/overlimit source never launches");
 		}
 	}
+	void selection_placeholder_materialization()
+	{
+		fixture f;
+		auto    index        = private_review_fixture::index();
+		f.Binding.Comparison = index.diff().Alignment.Digest;
+		review_composition_application_host host(f.Fault);
+		const auto                          frontier = *f.Store->frontier();
+		for (auto count = 0U; count < 200U; ++count) {
+			auto selected = host.select_draft(f.Binding, { *f.Binding.Comparison, diff_side::right, count % 3U }, index, { }, false);
+			expect(selected && selected->records().empty(), "ordinary line observation never allocates a private draft");
+		}
+		expect(f.Store->list_drafts()->empty() && f.Store->frontier()->NextIdentity == frontier.NextIdentity, "browsing allocates neither rows nor durable identities");
+		auto       placeholder = revisioned_review_draft{ { review_draft_id{ std::numeric_limits<std::uint64_t>::max() }, { *f.Binding.Comparison, diff_side::right, 1 }, { }, review_draft_state::drafting, { } }, 1, review_draft_scope_id{ 9 } };
+		const auto body        = std::string{ "First real comment\r\nExact α bytes" };
+		auto       command     = revisioned_review_draft_command{ { placeholder.Draft.Id, review_draft_command_kind::edit, body }, 1, false, { }, placeholder.Scope };
+		auto       noChange    = command;
+		noChange.Command.Body.clear();
+		expect(!host.materialize_draft(f.Binding, index, placeholder, noChange) && f.Store->list_drafts()->empty(), "a no-op edit cannot materialize a needless blank row");
+		f.Fault.FailCommit = true;
+		expect(!host.materialize_draft(f.Binding, index, placeholder, command) && f.Store->list_drafts()->empty(), "first-save refusal stores no partial empty row or text");
+		f.Fault.FailCommit = false;
+		auto saved         = host.materialize_draft(f.Binding, index, placeholder, command);
+		expect(saved && saved->records().size() == 1 && saved->records().front().Draft.Draft.Id.value() <= maximum_private_identity && saved->records().front().Draft.Revision == 2 && saved->records().front().Draft.Draft.Body == body && saved->records().front().Binding == f.Binding, "first real edit atomically stores its exact normal draft identity, body and authority");
+		const auto id       = saved->records().front().Draft.Draft.Id;
+		auto       selected = host.select_draft(f.Binding, placeholder.Draft.Anchor, index, { }, false);
+		expect(selected && selected->records().front().Draft.Draft.Id == id && f.Store->list_drafts()->size() == 1, "line return reopens the saved comment rather than a new placeholder");
+		command.Scope = review_draft_scope_id{ 10 };
+		expect(!host.materialize_draft(f.Binding, index, placeholder, command), "mismatched runtime authority cannot materialize text");
+	}
+	void held_review_settlement_uses_stored_authority()
+	{
+		fixture f;
+		auto    index                              = private_review_fixture::index();
+		f.Binding.Comparison                       = index.diff().Alignment.Digest;
+		const auto                          target = *make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::right, 1 }, index);
+		review_composition_application_host host(f.Fault);
+		const auto                          body    = std::string{ "Retained original review comment\r\nα" };
+		const auto                          created = host.allocate_draft(target, index, body);
+		const auto                          id      = created->records().front().Draft.Draft.Id;
+		auto                                mark    = revisioned_review_draft_command{ { id, review_draft_command_kind::edit, body }, 1, false, { }, review_draft_scope_id{ 1 } };
+		mark.ChangePending                          = true;
+		mark.Pending                                = review_pending_mark{ "src/example.cpp", f.Binding.Revision.HeadOid, { } };
+		expect(host.change_draft(mark).has_value(), "comment is pending under its original head");
+		auto held                = mark;
+		held.Command.Kind        = review_draft_command_kind::begin_publish;
+		held.ExpectedRevision    = 2;
+		held.Pending->Submission = "original-held-review";
+		expect(host.change_draft(held).has_value(), "original review holds its exact comment");
+		const auto original       = *f.Store->load_draft(id);
+		const auto proposal       = review_submission_proposal{ .Target = { f.Binding.Scope.Host, f.Binding.Scope.Repository, f.Binding.Scope.PullRequest, f.Binding.Revision.HeadOid }, .ActingAccount = f.Binding.Scope.Account, .Comments = { { id, 2, "src/example.cpp", diff_side::right, 1, { }, body } } };
+		auto       other          = proposal;
+		other.Target.ExpectedHead = *parse_git_commit_oid("9999999999999999999999999999999999999999");
+		expect(host.settle_review("original-held-review", true, other)->records().empty(), "confirmation for another head cannot settle the retained draft");
+		other = proposal;
+		other.Comments.front().Body += " changed";
+		expect(host.settle_review("original-held-review", true, other)->records().empty(), "confirmation for changed prose cannot settle the retained draft");
+		other               = proposal;
+		other.ActingAccount = github_account_id{ 999 };
+		expect(!host.settle_review("original-held-review", true, other) && f.Store->load_draft(id)->Draft == original.Draft, "another account cannot settle this store scope");
+		f.Fault.FailCommit = true;
+		expect(!host.settle_review("original-held-review", true, proposal) && f.Store->load_draft(id)->Draft == original.Draft, "local settlement failure leaves exact uncertain state intact");
+		f.Fault.FailCommit                           = false;
+		auto                                reopened = std::move(*make_private_review_store(f.Config));
+		review_composition_application_host restarted(*reopened);
+		auto                                hidden = restarted.restore(*parse_git_commit_oid("9999999999999999999999999999999999999999"));
+		expect(hidden && hidden->records().empty() && hidden->held_reviews().size() == 1 && hidden->held_reviews().front() == "original-held-review", "restart discovers earlier-head held keys independently of the current editable projection");
+		auto confirmed = restarted.settle_review("original-held-review", true, proposal);
+		expect(confirmed && confirmed->records().size() == 1 && confirmed->records().front().Draft.Draft.State == review_draft_state::published && confirmed->records().front().Draft.Draft.Body == body && confirmed->records().front().Binding == f.Binding, "stored original authority settles without requiring a current-head cache entry");
+		expect(host.settle_review("original-held-review", true, proposal)->records().empty(), "repeated confirmation makes no second local transition");
+	}
+	void published_history_keeps_active_capacity()
+	{
+		fixture f;
+		auto    index                              = private_review_fixture::index();
+		f.Binding.Comparison                       = index.diff().Alignment.Digest;
+		const auto                          target = *make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::right, 1 }, index);
+		review_composition_application_host host(*f.Store);
+		for (auto count = 0U; count < maximum_private_drafts; ++count) {
+			auto       created    = host.allocate_draft(target, index, "Retained published history");
+			const auto id         = created->records().front().Draft.Draft.Id;
+			auto       publishing = host.change_draft({ { id, review_draft_command_kind::begin_publish, { } }, 1, false, { }, review_draft_scope_id{ 1 } });
+			expect(publishing.has_value(), "synthetic history enters publishing through the reducer");
+			expect(host.change_draft({ { id, review_draft_command_kind::complete_publish, { } }, 2, false, { }, review_draft_scope_id{ 1 } }).has_value(), "synthetic confirmed history retains its final draft");
+		}
+		expect(host.allocate_draft(target, index, "New authored comment after64 published reviews").has_value(), "published history consumes no active comment capacity");
+		expect(f.Store->list_drafts()->size() == maximum_private_drafts + 1 && f.Store->list_drafts()->front().Draft.Draft.Body == "Retained published history", "new admission preserves historical text");
+	}
+	void draft_capacity_recovery()
+	{
+		fixture f;
+		auto    index                              = private_review_fixture::index();
+		f.Binding.Comparison                       = index.diff().Alignment.Digest;
+		const auto                          target = *make_composition_target(f.Binding, { *f.Binding.Comparison, diff_side::right, 1 }, index);
+		review_composition_application_host host(f.Fault);
+		const auto                          body    = std::string{ "BPR-1520 retained comment\r\nExact bytes: α" };
+		auto                                written = host.allocate_draft(target, index, body);
+		expect(written.has_value(), "written comment is committed before failure");
+		const auto id     = written->records().front().Draft.Draft.Id;
+		auto       locked = host.change_draft({ { id, review_draft_command_kind::begin_publish, { } }, 1, false, { }, review_draft_scope_id{ 1 } });
+		expect(locked.has_value(), "uncertain publication retains a locked durable draft");
+		for (std::size_t count = 1; count < maximum_private_drafts; ++count) {
+			expect(host.allocate_draft(target, index).has_value(), "incidental line selections fill empty placeholder slots");
+		}
+		const auto frontier  = *f.Store->frontier();
+		auto       continued = host.allocate_draft(target, index);
+		expect(continued && f.Store->frontier()->NextIdentity > frontier.NextIdentity, "retained history can exceed the old64 lifetime limit");
+		auto                                reopened = std::move(*make_private_review_store(f.Config));
+		review_composition_application_host restart(*reopened);
+		expect(restart.restore()->records().size() == maximum_private_drafts + 1, "restart retains history beyond the old lifetime limit");
+		const auto retained = *reopened->load_draft(id);
+		expect(retained.Draft.Draft.Body == body && retained.Draft.Draft.State == review_draft_state::publishing && retained.Binding == f.Binding, "exact content and original authority survive failed allocation and restart");
+		const auto otherHead = *parse_git_commit_oid("9999999999999999999999999999999999999999");
+		expect(restart.restore(otherHead)->records().empty() && reopened->list_drafts()->size() == maximum_private_drafts + 1, "changed head hides current projection but retains every stored comment");
+		f.Fault.FailCommit = true;
+		expect(!host.clear_unused_drafts() && f.Store->list_drafts()->size() == maximum_private_drafts + 1, "failed cleanup preserves all records and returns no acknowledgement");
+		f.Fault.FailCommit = false;
+		auto cleared       = restart.clear_unused_drafts();
+		expect(cleared && cleared->removed_unused().size() == maximum_private_drafts, "explicit cleanup removes only never-edited empty placeholders");
+		expect(reopened->list_drafts()->size() == 1 && reopened->load_draft(id)->Draft == retained.Draft, "cleanup leaves uncertain body, revision, retry identity and authority unchanged");
+		expect(restart.allocate_draft(target, index, "New comment after safe recovery").has_value(), "ordinary inline draft creation works after recovery");
+		auto       empty      = restart.allocate_draft(target, index);
+		const auto emptyId    = empty->records().front().Draft.Draft.Id;
+		auto       edited     = restart.change_draft({ { emptyId, review_draft_command_kind::edit, "typed" }, 1, false, { }, review_draft_scope_id{ 1 } });
+		auto       erasedText = restart.change_draft({ { emptyId, review_draft_command_kind::edit, { } }, edited->records().front().Draft.Revision, false, { }, review_draft_scope_id{ 1 } });
+		expect(erasedText && restart.clear_unused_drafts()->removed_unused().empty() && reopened->load_draft(emptyId).has_value(), "an intentionally cleared user draft is not an unused placeholder");
+		auto                first  = restart.allocate_draft(target, index);
+		auto                second = restart.allocate_draft(target, index);
+		private_store_write stale;
+		stale.ExpectedNextIdentity = reopened->frontier()->NextIdentity;
+		stale.RemoveUnusedDrafts   = { first->records().front().Draft.Draft.Id, second->records().front().Draft.Draft.Id };
+		const auto secondId        = stale.RemoveUnusedDrafts.back();
+		expect(restart.change_draft({ { secondId, review_draft_command_kind::edit, "racing user edit" }, 1, false, { }, review_draft_scope_id{ 1 } }).has_value(), "user edit advances one cleanup candidate");
+		expect(!reopened->commit(stale) && reopened->load_draft(stale.RemoveUnusedDrafts.front()).has_value() && reopened->load_draft(secondId)->Draft.Draft.Body == "racing user edit", "racing accepted edit refuses the whole cleanup transaction");
+		const auto active = [&] {
+			std::size_t count = 0;
+			for (const auto& record : *reopened->list_drafts()) {
+				if ((record.Draft.Draft.State == review_draft_state::drafting || record.Draft.Draft.State == review_draft_state::publishing) && !unused_review_draft(record.Draft)) {
+					++count;
+				}
+			}
+			return count;
+		};
+		while (active() < maximum_private_drafts) {
+			expect(restart.allocate_draft(target, index, "Authored draft remains bounded").has_value(), "active allowance admits its64 authored drafts");
+		}
+		const auto full    = *reopened->frontier();
+		auto       refused = restart.allocate_draft(target, index, "Overflow remains unaccepted");
+		expect(!refused && refused.error().Store == private_store_failure::quota && reopened->frontier()->NextIdentity == full.NextIdentity, "active limit refuses atomically without deleting accepted material");
+	}
 	void durable_left_reply()
 	{
 		fixture f;
@@ -534,6 +684,12 @@ namespace {
 		expect(changed && shared.adopt(authority, *changed).has_value(), "linked edit commits reviewer successor before adoption");
 		expect(changed->records().front().Draft.Composition->Revision > draft.Composition->Revision, "linked draft edit advances immutable candidate identity");
 		expect(!shared.adopt(authority, *restored), "late old restore cannot overwrite edited draft");
+		auto unused = restart.allocate_draft(target, index);
+		expect(unused && shared.adopt(authority, *unused).has_value(), "legacy empty draft can be projected before cleanup");
+		const auto unusedId = unused->records().front().Draft.Draft.Id;
+		auto       retired  = restart.clear_unused_drafts();
+		expect(retired && shared.adopt(authority, *retired).has_value() && !shared.read(consumer, unusedId).Accepted, "explicit committed cleanup retires the cached empty draft");
+		expect(shared.adopt(authority, *unused).has_value() && !shared.read(consumer, unusedId).Accepted && shared.read(consumer, draft.Draft.Id).Accepted->Draft.Body == "Final reviewer edit", "a late pre-cleanup restore cannot resurrect a deleted placeholder or overwrite authored text");
 		expect(reopened->load_candidate(candidate.Identity)->Body == candidate.Body && reopened->read_revision_body({ ref, 0 })->Bytes == source.Revision.Body, "accept/edit/restart preserve exact source and prior candidate bytes");
 		expect(f.Process.Starts == 0 && f.Store->find_publication()->Records.empty(), "manual copy edit accept restart dispatch no agent or publication");
 	}
@@ -692,6 +848,10 @@ namespace {
 }
 int main()
 {
+	selection_placeholder_materialization();
+	held_review_settlement_uses_stored_authority();
+	published_history_keeps_active_capacity();
+	draft_capacity_recovery();
 	durable_left_reply();
 	composition_adversaries();
 	local_compositions();

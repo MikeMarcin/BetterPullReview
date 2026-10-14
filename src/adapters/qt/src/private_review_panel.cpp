@@ -1,13 +1,17 @@
 #include "bpr/qt/private_review_panel.hpp"
+#include "bpr/qt/destructive_question.hpp"
 #include <QAccessible>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -267,6 +271,144 @@ namespace bpr::qt {
 		connect(TurnList->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] { if (!Applying) { select_turn(); } });
 		present({ });
 	}
+	void private_review_panel::show_saved_comments()
+	{
+		if (SavedComments) {
+			SavedComments->raise();
+			return;
+		}
+		auto* dialog = new QDialog(this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->setObjectName(QStringLiteral("savedComments"));
+		dialog->setWindowTitle(tr("Saved comments"));
+		dialog->resize(680, 460);
+		auto* rows        = new QVBoxLayout(dialog);
+		auto* explanation = new QLabel(tr("Comments stay saved under their original pull request, account and revision. Inspect or copy their text here; nothing is published."), dialog);
+		explanation->setWordWrap(true);
+		rows->addWidget(explanation);
+		auto* status = new QLabel(dialog);
+		status->setObjectName(QStringLiteral("savedCommentsStatus"));
+		status->setWordWrap(true);
+		status->setTextFormat(Qt::PlainText);
+		rows->addWidget(status);
+		auto* choices = new QComboBox(dialog);
+		choices->setObjectName(QStringLiteral("savedCommentChoices"));
+		choices->setAccessibleName(tr("Retained comments"));
+		rows->addWidget(choices);
+		auto* authority = new QLabel(dialog);
+		authority->setObjectName(QStringLiteral("savedCommentAuthority"));
+		authority->setWordWrap(true);
+		authority->setTextFormat(Qt::PlainText);
+		authority->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		rows->addWidget(authority);
+		auto* body = new QPlainTextEdit(dialog);
+		body->setObjectName(QStringLiteral("savedCommentBody"));
+		body->setAccessibleName(tr("Saved comment text"));
+		body->setReadOnly(true);
+		rows->addWidget(body, 1);
+		auto* discard = new QPushButton(tr("Discard unpublished draft…"), dialog);
+		discard->setObjectName(QStringLiteral("savedCommentDiscard"));
+		rows->addWidget(discard, 0, Qt::AlignLeft);
+		connect(discard, &QPushButton::clicked, this, [this, dialog] {
+			const auto selected = dialog->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->currentIndex();
+			if (selected < 0 || static_cast<std::size_t>(selected) >= Shown.Drafts.size()) {
+				return;
+			}
+			const auto draft      = Shown.Drafts[static_cast<std::size_t>(selected)];
+			const auto generation = Shown.Generation;
+			const auto scope      = Shown.SavedScope;
+			if (!scope || draft.State != core::review_draft_state::drafting || draft.Unused) {
+				return;
+			}
+			auto* question = new destructive_question(*dialog, QStringLiteral("discardSavedDraft"), tr("Discard this unpublished draft?"), tr("Its text stays saved in history. This frees its active slot and does not delete a GitHub comment. This cannot be undone."), tr("Discard draft"));
+			connect(question, &QDialog::accepted, this, [this, generation, scope, id = draft.Id, revision = draft.Revision] {
+				// The host rechecks the captured account/PR scope and exact revision.
+				// A presentation refresh while this question is open must not
+				// silently swallow an already confirmed intent.
+				if (Dispatch) {
+					Dispatch(application::private_conversation_intent{ .Action = application::private_conversation_action::discard_saved_draft, .Generation = generation, .ExpectedVersion = revision, .Draft = id, .SavedScope = scope });
+				}
+			});
+			question->open();
+		});
+		auto* cleanup = new QPushButton(tr("Free unused empty drafts…"), dialog);
+		cleanup->setObjectName(QStringLiteral("savedCommentsFreeUnused"));
+		rows->addWidget(cleanup, 0, Qt::AlignLeft);
+		auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, dialog);
+		rows->addWidget(buttons);
+		connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::close);
+		connect(choices, &QComboBox::currentIndexChanged, this, [this] { show_saved_comment(); });
+		connect(cleanup, &QPushButton::clicked, this, [this, dialog] {
+			const auto generation = Shown.Generation;
+			const auto scope      = Shown.SavedScope;
+			auto*      question   = new destructive_question(*dialog, QStringLiteral("clearUnusedDrafts"), tr("Free unused empty drafts?"),
+															 tr("Only empty placeholders that were never edited will be removed. Written comments and pending publications are kept. This cannot be undone."), tr("Free empty drafts"));
+			connect(question, &QDialog::accepted, this, [this, generation, scope] {
+				if (Dispatch && scope) {
+					Dispatch(application::private_conversation_intent{ .Action = application::private_conversation_action::clear_unused_drafts, .Generation = generation, .SavedScope = scope });
+				}
+			});
+			question->open();
+		});
+		SavedComments = dialog;
+		connect(dialog, &QDialog::finished, this, [this, dialog] { if(SavedComments == dialog) { SavedComments = nullptr; } });
+		present_saved_comments();
+		dialog->show();
+	}
+	void private_review_panel::present_saved_comments()
+	{
+		if (!SavedComments) {
+			return;
+		}
+		auto* choices = SavedComments->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"));
+		SavedComments->findChild<QLabel*>(QStringLiteral("savedCommentsStatus"))->clear();
+		const auto           selected = choices->currentData();
+		const QSignalBlocker blocked(choices);
+		choices->clear();
+		for (const auto& draft : Shown.Drafts) {
+			const auto state = draft.State == core::review_draft_state::publishing ? tr("Publication unconfirmed") : draft.State == core::review_draft_state::published ? tr("Published")
+				: draft.State == core::review_draft_state::discarded                                                                                                    ? tr("Discarded")
+				: draft.Unused                                                                                                                                          ? tr("Unused empty draft")
+																																										: tr("Unpublished");
+			choices->addItem(tr("%1 · %2line %3 · %4").arg(state, draft.Anchor.Side == core::diff_side::left ? tr("base ") : QString{ }).arg(draft.Anchor.Line + 1U).arg(text(draft.Head).left(12)), QVariant::fromValue<qulonglong>(draft.Id.value()));
+		}
+		auto picked = choices->findData(selected);
+		if (picked < 0) {
+			const auto first = std::ranges::find_if(Shown.Drafts, [](const auto& draft) { return !draft.Body.empty(); });
+			picked           = first != Shown.Drafts.end() ? static_cast<int>(first - Shown.Drafts.begin()) : 0;
+		}
+		choices->setCurrentIndex(picked);
+		SavedComments->findChild<QPushButton*>(QStringLiteral("savedCommentsFreeUnused"))->setEnabled(Shown.Available && Shown.SavedScope && !Shown.Busy && std::ranges::any_of(Shown.Drafts, [](const auto& draft) { return draft.Unused; }));
+		show_saved_comment();
+	}
+	void private_review_panel::show_saved_comment()
+	{
+		if (!SavedComments) {
+			return;
+		}
+		const auto index     = SavedComments->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"))->currentIndex();
+		auto*      body      = SavedComments->findChild<QPlainTextEdit*>(QStringLiteral("savedCommentBody"));
+		auto*      authority = SavedComments->findChild<QLabel*>(QStringLiteral("savedCommentAuthority"));
+		SavedComments->findChild<QPushButton*>(QStringLiteral("savedCommentDiscard"))->setEnabled(false);
+		if (index < 0 || static_cast<std::size_t>(index) >= Shown.Drafts.size()) {
+			body->clear();
+			authority->setText(Shown.Available ? tr("No saved comments in this pull request.") : tr("Open this pull request with its original account and wait for private storage to load."));
+			return;
+		}
+		const auto& draft = Shown.Drafts[static_cast<std::size_t>(index)];
+		SavedComments->findChild<QPushButton*>(QStringLiteral("savedCommentDiscard"))->setEnabled(Shown.Available && Shown.SavedScope && !Shown.Busy && draft.State == core::review_draft_state::drafting && !draft.Unused);
+		body->setPlainText(text(draft.Body));
+		auto details = tr("Original revision: %1").arg(text(draft.Head));
+		if (!draft.Path.empty()) {
+			details += tr("\nFile: %1").arg(text(draft.Path));
+		}
+		if (draft.State == core::review_draft_state::publishing) {
+			details += tr("\nPublication is unconfirmed. Check publication status before reusing this text; it may already be on GitHub.");
+		} else if (!draft.Current && draft.State == core::review_draft_state::drafting) {
+			details += tr("\nEarlier comparison. Check current code before copying this text into a new comment. The original stays saved.");
+		}
+		authority->setText(details);
+	}
 	void private_review_panel::set_dispatch(application::private_conversation_dispatch aDispatch) { Dispatch = std::move(aDispatch); }
 	void private_review_panel::present(const application::private_conversation_projection& aProjection)
 	{
@@ -278,6 +420,7 @@ namespace bpr::qt {
 			Provenance->clear();
 		}
 		Shown = aProjection;
+		present_saved_comments();
 		findChild<QCheckBox*>(QStringLiteral("privateIncludeArchived"))->setChecked(aProjection.IncludeArchived);
 		auto*      drafts      = findChild<QComboBox*>(QStringLiteral("privateAcceptedDrafts"));
 		const auto chosenDraft = drafts->currentData();
@@ -326,6 +469,9 @@ namespace bpr::qt {
 	}
 	void private_review_panel::show_status(const QString& aStatus)
 	{
+		if (SavedComments && !Applying) {
+			SavedComments->findChild<QLabel*>(QStringLiteral("savedCommentsStatus"))->setText(aStatus);
+		}
 		if (Status->text() != aStatus) {
 			Status->setText(aStatus);
 			Status->setAccessibleDescription(aStatus);

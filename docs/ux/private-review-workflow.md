@@ -41,3 +41,13 @@ oversized writes rather than clipping text. See [storage and diagnostics](../dev
 for the precise limits and profile-purge boundary. Local fixture and native
 workbench paths have been verified for RFC-BPR-0023; designated live GitHub
 publication with independent server readback remains pending in BPR-0584.
+
+## Saved inline comments
+
+Choose **Finish review > Saved comments** to inspect retained comment text, including comments prepared on an earlier revision. The viewer names the original revision and shows whether a record is unpublished, published, discarded or awaiting publication confirmation. Earlier text can be copied after checking current code; it is never silently moved to the new head. For an uncertain publication, use **Check status** before reusing its text.
+
+Selecting lines does not save empty draft rows. The first edit saves the ordinary comment before it can be published. Failed saving keeps the text in the editor and exposes **Reapply my text**; resolve that failure before leaving the comment. Old never-edited empty rows can be removed through **Free unused empty drafts…**, after confirmation. Written comments, replies, composition sources and publication evidence are retained. Intentionally clearing a previously edited comment does not make it eligible for this cleanup.
+
+The store allows 64 active authored drafts and 4,096 retained draft records per account/PR scope, within the existing 64 MiB private-payload budget. Published and discarded records are retained history and consume no active slot. There is no automatic age-based deletion. Schema 9 preserves all existing rows and their authority while expanding historical capacity.
+
+The Saved comments viewer can explicitly discard a still-unpublished draft, including one on an earlier head. This changes its local state and frees an active slot while retaining its exact text in history. The command checks the listed revision and cannot discard an uncertain publishing draft or a confirmed server comment.

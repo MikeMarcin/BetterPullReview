@@ -11361,30 +11361,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto published = aPublication == application::review_submission_publication::published;
-			auto       commands  = std::vector<core::revisioned_review_draft_command>{ };
+			if (PrivateReview) {
+				PrivateReview->settle_review_comments(aKey, published, aRequest ? std::optional{ aRequest->Proposal } : std::nullopt);
+				return;
+			}
+			auto commands = std::vector<core::revisioned_review_draft_command>{ };
 			for (const auto& saved : SharedDrafts->recovery_snapshot()) {
-				const auto& draft = saved.Draft;
-				if (!core::held_by_review(draft) || draft.InReview->Submission != aKey) {
-					continue;
+				if (auto command = core::settle_held_review_draft(saved, aKey, published, aRequest ? &aRequest->Proposal : nullptr)) {
+					commands.push_back(std::move(*command));
 				}
-				const auto carried = aRequest ? std::ranges::find(aRequest->Proposal.Comments, draft.Id, &core::review_submission_comment::Draft) : decltype(aRequest->Proposal.Comments.cend()){ };
-				const auto exact   = aRequest && carried != aRequest->Proposal.Comments.cend() && saved.Revision == carried->DraftRevision + 1U && draft.Body == carried->Body;
-				if (published && !exact) {
-					// Published, but not as this draft now reads: it is not
-					// marked published, and stays held for its owner to see.
-					continue;
-				}
-				auto command             = core::revisioned_review_draft_command{ };
-				command.Command          = core::review_draft_command{ .Id = draft.Id, .Kind = published ? core::review_draft_command_kind::complete_publish : core::review_draft_command_kind::fail_publish };
-				command.ExpectedRevision = saved.Revision;
-				command.Scope            = saved.Scope;
-				if (!published) {
-					auto mark = *draft.InReview;
-					mark.Submission.clear();
-					command.ChangePending = true;
-					command.Pending       = std::move(mark);
-				}
-				commands.push_back(std::move(command));
 			}
 			change_review_drafts(std::move(commands), [](bool) { });
 		}
@@ -12235,6 +12220,53 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					settle(false);
 					return;
 				}
+				if (ReviewDraft->Id.value() > core::maximum_private_identity) {
+					if (aCommand.Kind == core::review_draft_command_kind::discard && PrivateDraftCommandPending) {
+						Window->review_editor()->present_publication_refusal(QStringLiteral("Your comment is still being saved. Delete it after saving completes."));
+						settle(false);
+						return;
+					}
+					if (aCommand.Kind == core::review_draft_command_kind::discard) {
+						adopt_review_selection(SelectedSemanticSelection, qt::review_draft_editor_clear_reason::selection_cleared);
+						settle(true);
+						return;
+					}
+					if (aCommand.Kind != core::review_draft_command_kind::edit || PrivateDraftCommandPending) {
+						settle(false);
+						return;
+					}
+					PrivateDraftCommandPending = true;
+					const auto owner           = SharedDrafts;
+					const auto placeholder     = core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope };
+					PrivateReview->materialize_draft(placeholder, aRevisionedCommand, [this, owner, placeholder, aRevisionedCommand, settled = std::move(aSettled)](auto aCommit) {
+						PrivateDraftCommandPending = false;
+						const auto accepted        = !Closing && owner == SharedDrafts && aCommit && owner->adopt(owner->authority(), *aCommit);
+						if (accepted && !aCommit->records().empty()) {
+							present_saved_drafts();
+							const auto saved = owner->read(DraftConsumer, aCommit->records().front().Draft.Draft.Id);
+							if (saved.Accepted) {
+								const auto shown = ReviewDraft && ReviewDraft->Id == placeholder.Draft.Id;
+								if (shown) {
+									ReviewDraft         = saved.Accepted->Draft;
+									ReviewDraftRevision = saved.Accepted->Revision;
+								}
+								Window->review_editor()->acknowledge_materialized(aRevisionedCommand, *saved.Accepted);
+								if (shown && !Window->review_editor()->rejected_candidate()) {
+									accept_shared_draft(*saved.Accepted);
+								}
+							}
+						} else if (!Closing && owner == SharedDrafts && ReviewDraft && ReviewDraft->Id == placeholder.Draft.Id) {
+							Window->review_editor()->present_conflict({ .Accepted = placeholder, .Refusal = core::revisioned_draft_refusal::conflict });
+							Window->review_editor()->present_publication_refusal(!aCommit && aCommit.error().Store == application::private_store_failure::quota
+																					 ? QStringLiteral("Your text has not been saved: the comment storage limit was reached. Inspect Finish review > Saved comments. Finish or discard existing active comments, or free unused empty drafts, then choose Reapply my text. Your text is kept here.")
+																					 : QStringLiteral("Your text has not been saved. It is kept here; choose Reapply my text to retry before leaving this comment."));
+						}
+						if (settled) {
+							settled(accepted);
+						}
+					});
+					return;
+				}
 				if (aCommand.Kind == core::review_draft_command_kind::begin_publish && ReviewDraft->State == core::review_draft_state::publishing) {
 					auto finished = false;
 					if (!PendingReviewMutation && ReviewDraftRevision == aRevisionedCommand.ExpectedRevision) {
@@ -12389,6 +12421,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const std::optional<core::semantic_selection>& aSelection,
 			const qt::review_draft_editor_clear_reason     aReason)
 		{
+			Window->set_comment_draft_unavailable({ });
 			SelectedSemanticSelection = aSelection;
 			PendingPrivateReply.reset();
 			ReviewDraft.reset();
@@ -12572,6 +12605,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						return;
 					}
 					if (!adopted) {
+						if (!aCommit && aCommit.error().Store == application::private_store_failure::quota) {
+							const auto reason = QStringLiteral("Comment storage is full. Inspect Finish review > Saved comments. Finish or discard existing active comments, or free unused empty drafts, then select the line again. Written comments and pending publications are kept.");
+							Window->review_editor()->present_publication_refusal(reason);
+							Window->set_comment_draft_unavailable(reason);
+							return;
+						}
 						if (PendingPrivateReply && PendingPrivateReply->first == anchor) {
 							const auto reply = std::exchange(PendingPrivateReply, std::nullopt);
 							begin_review_reply(reply->second);
@@ -12778,7 +12817,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!PrivateDraftsReady && SharedDrafts && PrivateReview->binding()) {
 				PrivateDraftsReady = true;
 				const auto owner   = SharedDrafts;
-				PrivateReview->restore([this, owner](auto aCommit) { if(Closing || owner!=SharedDrafts){return;} if(aCommit && owner->adopt(owner->authority(),*aCommit)){present_saved_drafts();if(SelectedSemanticSelection){present_review_draft(*SelectedSemanticSelection);}resume_reply();}else{PrivateDraftsReady=false;} });
+				PrivateReview->restore([this, owner](auto aCommit) {
+					if (Closing || owner != SharedDrafts) {
+						return;
+					}
+					if (aCommit && owner->adopt(owner->authority(), *aCommit)) {
+						present_saved_drafts();
+						if (ReviewSubmission) {
+							ReviewSubmission->resolve_held(std::vector<std::string>{ aCommit->held_reviews().begin(), aCommit->held_reviews().end() });
+						}
+						if (SelectedSemanticSelection) {
+							present_review_draft(*SelectedSemanticSelection);
+						}
+						resume_reply();
+					} else {
+						PrivateDraftsReady = false;
+					}
+				});
 			}
 		}
 		void adopt_private_drafts(const application::durable_draft_commit& aCommit, bool aOpen)
@@ -12787,6 +12842,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			present_saved_drafts();
+			if (ReviewDraft && std::ranges::find(aCommit.removed_unused(), ReviewDraft->Id) != aCommit.removed_unused().end()) {
+				adopt_review_selection(SelectedSemanticSelection, qt::review_draft_editor_clear_reason::selection_cleared);
+			} else if (!aCommit.removed_unused().empty() && SelectedSemanticSelection) {
+				Window->set_comment_draft_unavailable({ });
+				present_review_draft(*SelectedSemanticSelection);
+			}
 			if (aOpen && !aCommit.records().empty()) {
 				const auto& value = aCommit.records().front().Draft;
 				const auto  read  = SharedDrafts->read(DraftConsumer, value.Draft.Id);

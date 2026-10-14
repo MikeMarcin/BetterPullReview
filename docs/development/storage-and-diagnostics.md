@@ -57,11 +57,19 @@ any write permission that another principal holds on that folder. Do not
 repair an entry inside the area by hand. Instead, keep it for diagnosis:
 recovery refuses anything whose recorded identity it cannot prove.
 
+## Preserve inline comments before recovery
+
+Inline comments are private data in `<selected-profile-root>/state/v1/review-ledger.sqlite3`. Ordinary draft text is in `private_draft.body`; a composition-linked draft references `private_content.body` through its `content_id`. Its serialized record retains target, original head, state and revision. An older head or unavailable publish control does not establish that these rows were deleted.
+
+Quit the application normally before making a backup. Copy the selected profile directory into a fresh owner-private backup, retaining any SQLite `-wal` and `-shm` sidecars with their database. Keep the original in place; do not copy a live database by itself, remove locks, edit records or open the only copy in a tool that may write it. A copied profile contains private review text and should stay outside repositories and shared logs.
+
+The product's **Finish review > Saved comments** viewer can inspect earlier-head text in its original account/PR scope. Storage architecture and a passing fixture cannot establish that a particular owner's text was committed; actual recovery requires that profile's own evidence. BPR-1520's owner reported recovering their comments with a SQLite browser; the agent did not inspect or alter that profile.
+
 ## Inventory and retention
 
 The profile's `review-ledger.sqlite3` stores RFC-BPR-0023 private threads,
 immutable turns, run provenance, exact composition sources, local drafts and
-publication lineage. Schema 7 migrates supported v1–v6 ledgers atomically;
+publication lineage. Schema 9 migrates supported v1–v8 ledgers atomically;
 old notes retain their bytes and become `legacy_unknown` revisions. Pages and
 scope quotas are bounded; an oversized admission refuses the whole transaction.
 The [ledger contract](../architecture/review-ledger.md) lists exact page, body

@@ -486,6 +486,13 @@ namespace bpr::qt {
 		titleFont.setWeight(QFont::DemiBold);
 		Title->setFont(titleFont);
 		layout->addWidget(Title);
+		auto* savedComments = new QToolButton(this);
+		savedComments->setObjectName(QStringLiteral("wholeReviewSavedComments"));
+		savedComments->setText(tr("Saved comments…"));
+		savedComments->setAutoRaise(true);
+		savedComments->setToolTip(tr("Inspect comments saved under this pull request, including earlier revisions."));
+		layout->addWidget(savedComments, 0, Qt::AlignLeft);
+		connect(savedComments, &QToolButton::clicked, this, [this] { if (SavedCommentsReveal) { SavedCommentsReveal(); } });
 		DraftState = new QLabel{ this };
 		DraftState->setObjectName(QStringLiteral("wholeReviewDraftState"));
 		DraftState->setWordWrap(true);
@@ -1130,6 +1137,7 @@ namespace bpr::qt {
 			Dispatch({ .Operation = aOperation, .Command = { .Id = Draft->Id } });
 		}
 	}
+	void review_submission_editor::set_saved_comments_reveal(std::function<void()> aReveal) { SavedCommentsReveal = std::move(aReveal); }
 	auto review_submission_editor::body_editor() const noexcept -> QPlainTextEdit* { return Body; }
 	auto review_submission_editor::disposition_button(core::review_disposition aDisposition) const noexcept -> QToolButton* { return Decisions[decision_index(aDisposition)]; }
 	auto review_submission_editor::preflight_button() const noexcept -> QToolButton* { return Preflight; }

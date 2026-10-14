@@ -11,6 +11,8 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_private_page_bytes  = 512U * 1024U;
 	inline constexpr std::size_t maximum_private_detail_runs = 16;
 	inline constexpr std::size_t maximum_private_drafts      = 64;
+	/// Active authored drafts keep their64-row limit; completed history has its own bounded allowance.
+	inline constexpr std::size_t maximum_retained_private_drafts = 4096;
 	/// \brief Storage failures do not confer a workflow or remote authority.
 	enum class private_store_failure : std::uint8_t { unavailable,
 													  integrity,
@@ -174,8 +176,10 @@ namespace bpr::application {
 		std::vector<private_composition_write>         Compositions;
 		std::vector<core::review_composition_revision> Candidates;
 		std::vector<private_draft_write>               Drafts;
-		std::vector<private_publication_record>        Publications;
-		std::vector<core::private_source_selection>    SourceGuards;
+		/// Explicit cleanup: exact never-edited empty records, checked transactionally.
+		std::vector<core::review_draft_id>          RemoveUnusedDrafts;
+		std::vector<private_publication_record>     Publications;
+		std::vector<core::private_source_selection> SourceGuards;
 	};
 	struct private_finding_cursor
 	{
