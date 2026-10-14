@@ -76,14 +76,22 @@ background writers or review server exist. The worktree/build/renders remain
 for coordinator integration and inspection. No human criterion is required by
 BPR-1511; parent RFC native/human obligations are unchanged.
 
-Next action: coordinator authorizes existing note-only imports
-`75dfc87c5..9b551b738` (48a1aa172, f47d44964, 9b551b738), then resume this
-implementer for the documentation gate and canonical finish, then integration of only BPR-1511 plan,
-claim, source and finish commits. Imported note-only counter-sync commits are
-copies of existing main commits and should not be integrated again. No push
-or main write was performed by this leaf.
+Next action: coordinator integrates only the BPR-1511 plan, claim, product,
+verification and canonical finish commits. Imported note-only counter-sync
+commits are copies of existing main commits and must not be integrated again.
+No push or main write was performed by this leaf.
 
-The documentation gate and finish dry-run both refuse local NEXT1517 against
-historical NEXT1520. High water tracks previous NEXT_ID values, so the existing
-main imports through 9b551b738 suffice; no new allocation is needed. No further
-import was made beyond the coordinator-authorized 75dfc87c5 boundary.
+## Resumed canonical closeout
+
+The initial documentation gate and finish dry-run refused local NEXT1517
+against historical NEXT1520. On coordinator-authorized resume, inspected and
+cherry-picked metadata-only main range `75dfc87c5..3e8793add`, bringing the
+counter to NEXT1521 and preserving the unrelated owner amendments to BPR-1520.
+No manual counter or reservation edit was made. The product paths are byte
+identical to source candidate `879d3c6b7632a4f4c7919697cdf53f755b254fab`.
+
+`python3 scripts/verify_documentation.py --root .` now reports
+`DOCUMENTATION_OK`. Passing behavior, render, negative-control and formatting
+evidence is reused because its source inputs are unchanged. Canonical finish
+is the final write of this resumed bookkeeping round. No human/native criterion
+was added and no new tests or background commands were started.

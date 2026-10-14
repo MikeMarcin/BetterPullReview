@@ -56,12 +56,10 @@
     "diagnostics": [],
     "diagnostics_truncated": false
   },
-  "disposition": "continue-milestone",
-  "candidate_revision": "879d3c6b7632a4f4c7919697cdf53f755b254fab",
+  "disposition": "milestone-complete",
+  "candidate_revision": "b72bf32c705938e120bb10d47c243f0df3d99ee4",
   "handoff_ref": "docs/issues/_checkpoints/BPR-1511/handoff.md",
-  "required_pending": [
-    "Coordinator authorization for existing main note-only imports 75dfc87c5..9b551b738, then documentation gate and canonical finish."
-  ],
+  "required_pending": [],
   "evidence_refs": [
     "docs/issues/_checkpoints/BPR-1511/acceptance.json",
     "docs/issues/_checkpoints/BPR-1511/render-evidence.json",
@@ -99,8 +97,8 @@
   "continuation": {
     "intent": "stop",
     "next_milestone": null,
-    "reason": "pending-obligation",
-    "detail": "Product acceptance is verified; return at the source/card boundary for coordinator counter-import authority, then resume this implementer for canonical bookkeeping."
+    "reason": "target-complete",
+    "detail": "BPR-1511 acceptance and documentation gate pass; canonical finish and coordinator integration complete the existing bounded mandate."
   },
   "ownership": "quiescent"
 }
