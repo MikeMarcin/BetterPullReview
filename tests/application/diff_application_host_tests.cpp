@@ -664,8 +664,9 @@ namespace {
 		auto optionKey     = comparison_key(options);
 		complete_and_count_miss(test, optionKey, options, calls);
 
+		// [[BPR-1497]]. A key at the replaced engine's revision is refused.
 		auto unsupported      = base;
-		unsupported.Algorithm = core::diff_algorithm_revision{ 2U };
+		unsupported.Algorithm = core::diff_algorithm_revision{ 1U };
 		test.request(unsupported);
 		expect(test.Effects.pending() == 0U
 				   && test.Decisions.pending() == 0U
@@ -706,7 +707,7 @@ namespace {
 			auto replacement = base;
 			auto options     = core::diff_options{ };
 			if (unsupportedReplacement) {
-				replacement.Algorithm = core::diff_algorithm_revision{ 2U };
+				replacement.Algorithm = core::diff_algorithm_revision{ 1U };
 			} else {
 				options.ContextLines = 9U;
 			}

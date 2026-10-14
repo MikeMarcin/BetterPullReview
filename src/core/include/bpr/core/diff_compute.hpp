@@ -13,7 +13,13 @@
 #include <vector>
 
 namespace bpr::core {
-	inline constexpr auto supported_diff_algorithm_revision = diff_algorithm_revision{ 1U };
+	/// \brief The diff algorithm revision this engine computes.
+	/// \details Revision 2 is linked xdiff's Myers with the indent heuristic
+	/// ([[BPR-1485]], [[BPR-1497]]); revision 1 was the first-party matcher it
+	/// replaced. A comparison key or a result at any other revision is refused
+	/// and recomputed. The persisted comparison and material digests do not
+	/// carry it (see `comparison_digest`), so stored review data keeps matching.
+	inline constexpr auto supported_diff_algorithm_revision = diff_algorithm_revision{ 2U };
 
 	enum class text_line_ending : std::uint8_t {
 		none,

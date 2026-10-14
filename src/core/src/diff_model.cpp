@@ -447,6 +447,22 @@ namespace bpr::core {
 			: aBoundary.Boundary <= aRightLineCount;
 	}
 
+	namespace {
+		// [[BPR-1497]]. Both digests below are persisted: the review ledger
+		// (file receipts and defects), the recovery store (unpublished
+		// drafts), the private review store (notes, threads and retained
+		// agent sessions), review tours and window restoration keep them,
+		// each beside line coordinates that name file lines and not an
+		// alignment. Revision 1 wrote its own value into this slot. The
+		// algorithm revision therefore stays out of both digests and the slot
+		// keeps the value revision 1 wrote, so every stored record still
+		// matches after the move to linked xdiff, as an authenticated
+		// authority's bytes stayed fixed across BPR-0531. Results stay bound
+		// to the algorithm through the whole key: hosts look a result up by
+		// its exact key and refuse a key or result at another revision.
+		constexpr std::uint64_t persisted_algorithm_slot = 1U;
+	}
+
 	auto comparison_digest(const file_comparison_key& aKey) noexcept
 		-> file_comparison_digest
 	{
@@ -464,7 +480,7 @@ namespace bpr::core {
 		append_blob(encoder, aKey.RightBlob);
 		encoder.append(aKey.File.bytes());
 		encoder.append(aKey.Options.bytes());
-		encoder.append_u64(aKey.Algorithm.value());
+		encoder.append_u64(persisted_algorithm_slot);
 		return identity_from<file_comparison_digest>(encoder);
 	}
 
@@ -483,7 +499,7 @@ namespace bpr::core {
 		append_blob(encoder, aKey.RightBlob);
 		encoder.append(aKey.File.bytes());
 		encoder.append(aKey.Options.bytes());
-		encoder.append_u64(aKey.Algorithm.value());
+		encoder.append_u64(persisted_algorithm_slot);
 		return identity_from<file_comparison_digest>(encoder);
 	}
 

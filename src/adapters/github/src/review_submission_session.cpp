@@ -327,13 +327,16 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1345]]. GitHub answered 422: it refused the review, which
 			// it creates whole or not at all. With no new exact review of mine
 			// observed after the answer, it was definitely not published, and
-			// its record is withdrawn so it is not restored as unfinished.
+			// its record is withdrawn so it is not restored as unfinished. The
+			// server refused it: the connection supports the operation, so the
+			// refusal is not reported as `unsupported`, whose text says it does
+			// not (BPR-1429).
 			const auto* refusal = std::get_if<github_mutation_wire_error>(&completion);
 			if (refusal != nullptr && refusal->HttpStatus == 422U
 				&& std::ranges::all_of(observed->ExactReviews, [&expected](const review_submission_observation& aReview) {
 					   return std::ranges::binary_search(*expected.BaselineReviewIds, application::review_database_id{ aReview.ReviewDatabaseId });
 				   })) {
-				const auto unpublished = result(aRequest, publication::definitely_not_published, application::review_mutation_failure::unsupported);
+				const auto unpublished = result(aRequest, publication::definitely_not_published, application::review_mutation_failure::refused_by_server);
 				static_cast<void>(Recovery->withdraw(aRequest.IdempotencyKey, (**persisted).RequestFingerprint));
 				return unpublished;
 			}
