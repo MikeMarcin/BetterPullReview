@@ -1,4 +1,5 @@
 #include "bpr/core/diff_compute.hpp"
+#include "product_diff.hpp"
 #include "bpr/core/review_cycle_tabs.hpp"
 #include "bpr/core/review_cycle_views.hpp"
 
@@ -214,7 +215,7 @@ namespace {
 		const auto cycle = captured(captured(make_cycle(), 1), 2);
 		const auto key   = cycle_file_comparison(cycle.Subject, pair(cycle, 1, 2), "a.txt", identity<cycle_material_digest>(1), identity<cycle_material_digest>(2), { });
 		const auto bytes = [](const std::string_view aText) { return std::vector<std::uint8_t>(aText.begin(), aText.end()); };
-		const auto diff  = compute_material_diff({ .Key = *key, .LeftBytes = bytes("one\ntwo\r\nthree\n"), .RightBytes = bytes("one\n2\nthree\nfour\n") });
+		const auto diff  = bpr::tests::product_material_diff({ .Key = *key, .LeftBytes = bytes("one\ntwo\r\nthree\n"), .RightBytes = bytes("one\n2\nthree\nfour\n") });
 		expect(diff.published(), "diff computed");
 		const auto rows = diff_rows(*diff.Result);
 		expect(rows.size() == 5U && rows[3].Kind == cycle_diff_row_kind::context && rows[3].Text == "three", "five rows");

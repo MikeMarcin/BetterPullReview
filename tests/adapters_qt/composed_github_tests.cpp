@@ -1,4 +1,5 @@
 #include "../support/window_system_mouse.hpp"
+#include "product_diff.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "diff_publication_fixture.hpp"
@@ -3075,7 +3076,7 @@ namespace {
 		}
 		const auto left   = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
 		const auto right  = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
-		const auto result = core::compute_file_diff({
+		const auto result = bpr::tests::product_file_diff({
 			.Key        = key,
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },
@@ -3886,7 +3887,7 @@ namespace {
 		rightText += "new-a\nnew-b\ncommon-tail\n";
 		const auto left   = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
 		const auto right  = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
-		const auto result = core::compute_file_diff({
+		const auto result = bpr::tests::product_file_diff({
 			.Key        = key,
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },

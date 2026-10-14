@@ -1,4 +1,5 @@
 #include "bpr/core/diff_compute.hpp"
+#include "product_diff.hpp"
 #include "bpr/core/review_cycle_comparison.hpp"
 
 #include <array>
@@ -161,16 +162,16 @@ namespace {
 		// of the same bytes, under a different identity.
 		const auto before = std::string_view{ "one\ntwo\nthree\n" };
 		const auto after  = std::string_view{ "one\n2\nthree\nfour\n" };
-		const auto result = compute_material_diff({ .Key = *key, .Options = { }, .LeftBytes = bytes(before), .RightBytes = bytes(after) });
+		const auto result = bpr::tests::product_material_diff({ .Key = *key, .Options = { }, .LeftBytes = bytes(before), .RightBytes = bytes(after) });
 		expect(result.published() && result.Reason == diff_reason_code::none && validate_computed_material_diff(*result.Result).valid(), "material diff computed and valid");
 		expect(result.Result->Alignment.LeftLineCount == 3 && result.Result->Alignment.RightLineCount == 4, "line counts");
 		expect(result.Result->LeftDocument->Bytes == std::vector<std::uint8_t>(before.begin(), before.end()), "documents hold the exact bytes");
-		const auto binary = compute_material_diff({ .Key = *key, .LeftBytes = bytes(std::string_view{ "a\0b", 3 }), .RightBytes = bytes(after) });
+		const auto binary = bpr::tests::product_material_diff({ .Key = *key, .LeftBytes = bytes(std::string_view{ "a\0b", 3 }), .RightBytes = bytes(after) });
 		expect(binary.Reason == diff_reason_code::binary_file && binary.published(), "binary through the same rules");
 		auto broken       = *key;
 		broken.Comparison = { };
-		expect(compute_material_diff({ .Key = broken, .LeftBytes = bytes(before), .RightBytes = bytes(after) }).Reason == diff_reason_code::invalid_alignment, "an invalid key is refused");
-		expect(!compute_material_diff({ .Key = *key, .LeftBytes = std::nullopt, .RightBytes = bytes(after) }).Result->LeftDocument, "a missing side is reported, not invented");
+		expect(bpr::tests::product_material_diff({ .Key = broken, .LeftBytes = bytes(before), .RightBytes = bytes(after) }).Reason == diff_reason_code::invalid_alignment, "an invalid key is refused");
+		expect(!bpr::tests::product_material_diff({ .Key = *key, .LeftBytes = std::nullopt, .RightBytes = bytes(after) }).Result->LeftDocument, "a missing side is reported, not invented");
 	}
 
 	void keeps_previous_content_while_loading()

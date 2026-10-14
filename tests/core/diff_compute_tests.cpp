@@ -1,5 +1,7 @@
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/diff_compute_components.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -19,6 +21,16 @@
 
 namespace {
 	using namespace bpr::core;
+	using bpr::tests::product_file_diff;
+	using bpr::tests::product_material_diff;
+
+	/// [[BPR-1485]] The product's line matcher as the engine's primary
+	/// component, for the stoppable entry points.
+	[[nodiscard]] auto product_matching() -> bpr::application::diff_line_matching&
+	{
+		static auto matching = bpr::application::diff_line_matching{ *bpr::tests::product_line_matcher() };
+		return matching;
+	}
 
 	auto expect(const bool aCondition, const std::string_view aMessage) -> void
 	{
@@ -141,7 +153,7 @@ namespace {
 				: std::nullopt,
 			.Limits     = aLimits,
 		};
-		return compute_file_diff(input);
+		return product_file_diff(input);
 	}
 
 	[[nodiscard]] auto text_result(const diff_compute_outcome& aOutcome,
@@ -579,14 +591,11 @@ namespace {
 		expect(exact.MatrixCellsConsumed == baseline.MatrixCellsConsumed,
 			   "exact matrix limit is accepted without overflow");
 
-		auto overCells                    = exactLimits;
-		overCells.MaximumPrimaryIndexWork = 0U;
-		--overCells.MaximumMatrixCells;
-		// [[BPR-0719]]: an exhausted matrix budget degrades to an approximate
-		// alignment instead of refusing the file.
-		const auto cellLimited = text_result(run("a\n", "b\n", noPairing, true, true, overCells), "over-limit computation still aligns");
-		expect(cellLimited.AlignmentApproximate && cellLimited.Alignment.Segments.size() == 1U && cellLimited.Alignment.Segments.front().Kind == alignment_kind::replacement && cellLimited.MatrixCellsConsumed == 0U,
-			   "over-limit computation publishes an approximate replacement without charging the matrix");
+		// [[BPR-1485]] The primary matches come from the line matcher, which
+		// charges no matrix cells: without pairing a replacement costs none.
+		expect(baseline.MatrixCellsConsumed == 0U && !baseline.AlignmentApproximate && baseline.Alignment.Segments.size() == 1U
+				   && baseline.Alignment.Segments.front().Kind == alignment_kind::replacement,
+			   "the primary matches charge no matrix cells and need no budget");
 
 		auto overBytes                = exactLimits;
 		overBytes.MaximumBytesPerSide = 1U;
@@ -610,85 +619,64 @@ namespace {
 			   "one cell below secondary work degrades to an approximate alignment");
 	}
 
-	auto test_ordered_unique_line_fallback() -> void
+	/// [[BPR-1485]] The engine has no primary matcher of its own: the matches
+	/// come from the component, which must supply them, and the engine checks
+	/// them against its own line classes.
+	class declining_primary final : public bpr::core::diff_components
 	{
-		auto options                        = diff_options{ };
-		options.Pairing                     = pairing_policy::disabled;
-		options.SimilarityThresholdPermille = 0U;
-		auto indexedLimits                  = diff_compute_limits{ };
-		indexedLimits.MaximumMatrixCells    = 0U;
-
-		// Exhaustively compare small sequences against the original full-matrix
-		// result. Duplicates/crossings may refuse, but must never change a tie.
-		std::vector<std::string> sequences{ "" };
-		std::size_t              begin = 0U, end = 1U;
-		for (int length = 0; length < 3; ++length) {
-			for (std::size_t index = begin; index < end; ++index) {
-				for (const char value : { 'a', 'b', 'c' }) {
-					sequences.push_back(sequences[index] + value + '\n');
-				}
-			}
-			begin = end;
-			end   = sequences.size();
-		}
-		for (const auto& left : sequences) {
-			for (const auto& right : sequences) {
-				bool        eligible = true;
-				std::size_t previous = 0U;
-				for (std::size_t position = 0U; position < left.size(); position += 2U) {
-					const auto found = right.find(left[position]);
-					if (found == std::string::npos) {
-						continue;
-					}
-					if (std::ranges::count(left, left[position]) != 1 || std::ranges::count(right, left[position]) != 1
-						|| found + 1U <= previous) {
-						eligible = false;
-						break;
-					}
-					previous = found + 1U;
-				}
-				// [[BPR-0719]]: nothing refuses. An eligible input is exact; an
-				// ambiguous one is exact only when trimming resolved it, and is
-				// otherwise a valid alignment marked approximate.
-				const auto actual = text_result(run(left, right, options, true, true, indexedLimits), "indexed reference");
-				const auto matrix = text_result(run(left, right, options), "matrix reference");
-				expect(actual.MatrixCellsConsumed == 0U, "a zero matrix budget is never charged");
-				expect(!eligible || !actual.AlignmentApproximate, "ordered unique eligibility implies an exact alignment");
-				expect(!matrix.AlignmentApproximate, "the default budget aligns tiny inputs exactly");
-				if (actual.AlignmentApproximate) {
-					continue;
-				}
-				expect(actual.Alignment == matrix.Alignment && actual.LeftDocument == matrix.LeftDocument && actual.RightDocument == matrix.RightDocument
-						   && actual.Intraline == matrix.Intraline,
-					   "indexed result preserves exact matrix semantics and identities");
-			}
+	public:
+		explicit declining_primary(const bool aOffered) noexcept
+			: Offered{ aOffered }
+		{
 		}
 
-		auto normalized             = options;
-		normalized.Whitespace       = whitespace_policy::ignore_all;
-		normalized.LineEndings      = line_ending_policy::normalize;
-		const auto normalizedMatrix = text_result(run("a b\r\nc\n", "ab\nc\r\n", normalized), "normalization matrix");
-		const auto normalizedIndex  = text_result(run("a b\r\nc\n", "ab\nc\r\n", normalized, true, true, indexedLimits), "normalization index");
-		expect(normalizedIndex.Alignment == normalizedMatrix.Alignment && normalizedIndex.LeftDocument == normalizedMatrix.LeftDocument
-				   && normalizedIndex.RightDocument == normalizedMatrix.RightDocument,
-			   "index uses normalized equality and retains source bytes");
-		// Normalization cannot hide a repeated anchor: the repeated line is only
-		// exact because trimming pairs the first occurrence.
-		const auto repeatedNormalized = text_result(run("a b\nab\n", "ab\n", normalized, true, true, indexedLimits), "repeated normalized anchor");
-		const auto repeatedMatrix     = text_result(run("a b\nab\n", "ab\n", normalized), "repeated normalized matrix");
-		expect(!repeatedNormalized.AlignmentApproximate && repeatedNormalized.Alignment == repeatedMatrix.Alignment, "normalization cannot hide an ambiguous repeated anchor");
+		[[nodiscard]] auto parts() const noexcept -> diff_component_parts override
+		{
+			return { .Primary = Offered };
+		}
 
-		// [[BPR-0719]]: the prefix and suffix are shed before the index runs, so
-		// an interior unique anchor between two changed lines exercises it.
-		constexpr auto indexedLeft  = std::string_view{ "alpha\nbeta\ngamma\ndelta\n" };
-		constexpr auto indexedRight = std::string_view{ "alpha\nBETA\ngamma\nDELTA\n" };
-		const auto     measured     = text_result(run(indexedLeft, indexedRight, options, true, true, indexedLimits), "index budget baseline");
-		expect(measured.PrimaryIndexWorkConsumed > 0U && !measured.AlignmentApproximate, "index work is independently reported and the anchor is exact");
-		indexedLimits.MaximumPrimaryIndexWork = measured.PrimaryIndexWorkConsumed;
-		expect(!text_result(run(indexedLeft, indexedRight, options, true, true, indexedLimits), "exact index budget").AlignmentApproximate, "exact index budget succeeds");
-		--indexedLimits.MaximumPrimaryIndexWork;
-		const auto exhausted = text_result(run(indexedLeft, indexedRight, options, true, true, indexedLimits), "exhausted index budget still aligns");
-		expect(exhausted.AlignmentApproximate && exhausted.Alignment.Segments.size() == 2U, "an exhausted index budget degrades to an approximate replacement, never a refusal");
+		[[nodiscard]] auto primary_matches(const diff_primary_request& /*aRequest*/, diff_component_meter& /*aMeter*/)
+			-> std::optional<std::vector<diff_match>> override
+		{
+			++Calls;
+			return std::nullopt;
+		}
+
+		bool        Offered = false;
+		std::size_t Calls   = 0U;
+	};
+
+	auto test_bpr1485_primary_matches_come_from_the_line_matcher() -> void
+	{
+		const auto left    = copy_bytes("alpha\nbeta\n");
+		const auto right   = copy_bytes("alpha\ngamma\n");
+		const auto request       = diff_compute_input{
+				  .Key        = comparison_key({ }, true, true, 31U),
+				  .Options    = { },
+				  .LeftBytes  = std::span<const std::uint8_t>{ left },
+				  .RightBytes = std::span<const std::uint8_t>{ right },
+		};
+		for (const auto offered : { false, true }) {
+			auto       component = declining_primary{ offered };
+			const auto refused   = compute_file_diff(request, component);
+			expect(refused.Reason == diff_reason_code::host_failure && !refused.Result.has_value() && component.Calls == (offered ? 1U : 0U),
+				   "[[BPR-1485]] a comparison without the line matcher's matches is refused as a host failure, never computed another way");
+		}
+		const auto binary = copy_bytes(std::string_view{ "a\0b", 3U });
+		auto       none   = declining_primary{ false };
+		expect(compute_file_diff(diff_compute_input{ .Key = request.Key, .Options = { }, .LeftBytes = std::span<const std::uint8_t>{ binary }, .RightBytes = request.RightBytes }, none).Reason
+				   == diff_reason_code::binary_file,
+			   "[[BPR-1485]] a binary file is decided before the line matcher is asked");
+
+		// Normalized equality: the matcher compares lines as the engine
+		// normalizes them, and the source bytes are kept.
+		auto normalized        = diff_options{ };
+		normalized.Whitespace  = whitespace_policy::ignore_all;
+		normalized.LineEndings = line_ending_policy::normalize;
+		const auto ignoring    = text_result(run("a b\r\nc\n", "ab\nc\r\n", normalized), "normalized comparison");
+		expect(ignoring.Alignment.Segments.size() == 1U && ignoring.Alignment.Segments.front().Kind == alignment_kind::equal
+				   && ignoring.LeftDocument->Bytes == copy_bytes("a b\r\nc\n"),
+			   "[[BPR-1485]] lines equal under the options match, and the source bytes are retained");
 
 		std::string largeLeft, largeRight;
 		for (int line = 0; line < 20000; ++line) {
@@ -698,9 +686,8 @@ namespace {
 		}
 		const auto large = text_result(run(largeLeft, largeRight), "default limits compare large ordered source");
 		expect(large.LeftDocument->Lines.size() == 20000U && large.RightDocument->Lines.size() == 20000U && large.Alignment.Groups.size() == 20U
-				   && large.PrimaryIndexWorkConsumed > 0U && large.PrimaryIndexWorkConsumed <= diff_compute_limits{ }.MaximumPrimaryIndexWork
-				   && large.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells,
-			   "large comparison preserves source/groups within both independent budgets");
+				   && !large.AlignmentApproximate && large.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells,
+			   "large comparison preserves source and groups within the matrix budget");
 	}
 
 	/// [[BPR-0719]]: a limit degrades the alignment; it never refuses a file
@@ -759,19 +746,17 @@ namespace {
 		}
 		ambiguousLeft += "left only closing line\n";
 		ambiguousRight += "right only closing line\n";
-		const auto ambiguous = text_result(run(ambiguousLeft, ambiguousRight), "a changed region beyond the bound still computes");
-		expect(ambiguous.AlignmentApproximate, "a changed region beyond the bound is marked approximate");
-		expect(ambiguous.Alignment.LeftLineCount == 5002U && ambiguous.Alignment.RightLineCount == 5002U && !ambiguous.Alignment.Segments.empty(), "the approximate alignment covers both documents");
-		expect(ambiguous.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells, "the approximate alignment stays within the matrix budget");
+		// [[BPR-1485]] The line matcher has no budget of its own, so the
+		// region aligns; only pairing and intraline budgets may approximate.
+		const auto ambiguous = text_result(run(ambiguousLeft, ambiguousRight), "a large repetitive changed region still computes");
+		expect(ambiguous.Alignment.LeftLineCount == 5002U && ambiguous.Alignment.RightLineCount == 5002U && !ambiguous.Alignment.Segments.empty(), "the alignment covers both documents");
+		expect(ambiguous.MatrixCellsConsumed <= diff_compute_limits{ }.MaximumMatrixCells, "the alignment stays within the matrix budget");
 
-		auto approximateOptions                        = diff_options{ };
-		approximateOptions.Pairing                     = pairing_policy::disabled;
-		approximateOptions.SimilarityThresholdPermille = 0U;
-		auto oneCell                                   = diff_compute_limits{ };
-		oneCell.MaximumMatrixCells                     = 1U;
-		oneCell.MaximumPrimaryIndexWork                = 0U;
-		const auto tiny                                = text_result(run("alpha\nbeta\n", "alpha\ngamma\n", approximateOptions, true, true, oneCell), "an exhausted budget on a tiny file still computes");
-		expect(tiny.AlignmentApproximate && tiny.Alignment.Segments.size() == 2U, "an exhausted budget degrades to an approximate replacement after trimming");
+		// An exhausted pairing budget leaves the replacement unpaired.
+		auto oneCell               = diff_compute_limits{ };
+		oneCell.MaximumMatrixCells = 1U;
+		const auto tiny            = text_result(run("alpha\nbeta\n", "alpha\ngamma\n", { }, true, true, oneCell), "an exhausted budget on a tiny file still computes");
+		expect(tiny.AlignmentApproximate && tiny.Alignment.Segments.size() == 2U, "an exhausted pairing budget degrades to an approximate replacement");
 	}
 
 	auto test_computed_result_validator() -> void
@@ -1129,70 +1114,14 @@ namespace {
 		std::uint64_t                         Polls   = 0U;
 	};
 
-	/// \brief Every pause of a resumed run.
-	struct pause_record
+	[[nodiscard]] auto uninterrupted(const synthetic_case& aCase) -> file_diff_compute_run
 	{
-		std::uint64_t      Requested = 0U;
-		std::uint64_t      StoppedAt = 0U;
-		std::uint64_t      Kept      = 0U;
-		diff_compute_phase Phase     = diff_compute_phase::prepare;
-	};
-
-	struct resumed_run
-	{
-		diff_compute_outcome      Outcome;
-		diff_compute_statistics   Statistics;
-		std::vector<pause_record> Pauses;
-	};
-
-	/// \brief Runs a comparison to the end, pausing where aSchedule says and
-	/// resuming each pause from its state. aSchedule receives the steps kept
-	/// so far and the pauses taken, and answers the step to stop at.
-	template <typename Schedule>
-	[[nodiscard]] auto run_resumed(const synthetic_case& aCase, const std::uint64_t aCheckInterval, Schedule aSchedule)
-		-> resumed_run
-	{
-		auto run    = resumed_run{ };
-		auto paused = paused_diff_compute{ };
-		auto kept   = std::uint64_t{ 0U };
-		for (;;) {
-			const auto at    = aSchedule(kept, run.Pauses.size());
-			auto       stop  = stop_at_step{ at.value_or(std::numeric_limits<std::uint64_t>::max()) };
-			auto       slice = compute_file_diff(aCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = aCheckInterval }, std::move(paused));
-			expect(run.Pauses.empty() || slice.Statistics.Resumed, "[[BPR-1366]] every pause resumes from its state");
-			if (slice.Outcome.has_value()) {
-				expect(!stop.StoppedAt.has_value() && slice.Paused.empty(), "[[BPR-1366]] a finished slice holds no state");
-				run.Outcome    = std::move(*slice.Outcome);
-				run.Statistics = slice.Statistics;
-				return run;
-			}
-			expect(stop.StoppedAt.has_value() && !slice.Paused.empty(), "[[BPR-1366]] a slice pauses only when its predicate asks");
-			expect(slice.Statistics.Steps <= *stop.StoppedAt && slice.Statistics.Steps >= kept,
-				   "[[BPR-1366]] a pause keeps the steps up to its last resume point, never fewer than before");
-			expect(slice.Paused.statistics().Steps == slice.Statistics.Steps && slice.Paused.retained_bytes() >= aCase.Left.size() + aCase.Right.size(),
-				   "[[BPR-1366]] the paused state reports its steps and holds both sides");
-			run.Pauses.push_back(pause_record{
-				.Requested = *at,
-				.StoppedAt = *stop.StoppedAt,
-				.Kept      = slice.Statistics.Steps,
-				.Phase     = slice.Statistics.Phase,
-			});
-			kept   = slice.Statistics.Steps;
-			paused = std::move(slice.Paused);
-			expect(run.Pauses.size() < 100'000U, "[[BPR-1366]] a resumed run ends");
-		}
-	}
-
-	[[nodiscard]] auto uninterrupted(const synthetic_case& aCase) -> file_diff_compute_slice
-	{
-		auto slice = compute_file_diff(aCase.input(), diff_compute_control{ });
-		expect(slice.Outcome.has_value() && slice.Paused.empty() && slice.Statistics.Phase == diff_compute_phase::finished,
+		auto run = compute_file_diff(aCase.input(), diff_compute_control{ }, product_matching());
+		expect(run.Outcome.has_value() && run.Statistics.Phase == diff_compute_phase::finished,
 			   "[[BPR-1366]] nothing stops a computation without a predicate");
-		expect(slice.Outcome->Result == compute_file_diff(aCase.input()).Result && slice.Outcome->Reason == compute_file_diff(aCase.input()).Reason,
+		expect(run.Outcome->Result == product_file_diff(aCase.input()).Result && run.Outcome->Reason == product_file_diff(aCase.input()).Reason,
 			   "[[BPR-1366]] the stoppable entry point computes what the one call computes");
-		expect(slice.Statistics.Slices == 1U && !slice.Statistics.Resumed && slice.Statistics.WorkSteps == slice.Statistics.Steps,
-			   "[[BPR-1366]] one uninterrupted slice does each step once");
-		return slice;
+		return run;
 	}
 
 	/// The steps where aPhase begins and ends in a run of aStatistics.
@@ -1216,11 +1145,10 @@ namespace {
 		ignoring.Whitespace  = whitespace_policy::ignore_all;
 		ignoring.LineEndings = line_ending_policy::normalize;
 		cases.push_back(make_case({ .Lines = 400U, .Seed = 7U, .Edited = 120U, .Moved = 6U, .Unicode = true }, ignoring));
-		// [[BPR-0719]] Budgets small enough that regions, pairs and intraline
-		// passes degrade: the paused state must carry what was consumed.
+		// [[BPR-0719]] Budgets small enough that pairs and intraline passes
+		// degrade.
 		auto tight                     = diff_compute_limits{ };
 		tight.MaximumMatrixCells       = 400'000U;
-		tight.MaximumPrimaryIndexWork  = 600'000U;
 		tight.MaximumMoveDetectionWork = 40'000U;
 		cases.push_back(make_case({ .Lines = 700U, .Seed = 11U, .Edited = 250U, .Moved = 5U }, moves_options(), tight));
 		auto unpaired                        = diff_options{ };
@@ -1230,34 +1158,35 @@ namespace {
 		return cases;
 	}
 
-	auto test_bpr1366_an_uninterrupted_slice_is_the_one_call() -> void
+	auto test_bpr1366_an_uninterrupted_run_is_the_one_call() -> void
 	{
 		for (const auto& testCase : property_cases()) {
 			const auto slice  = uninterrupted(testCase);
 			auto       never  = stop_at_step{ std::numeric_limits<std::uint64_t>::max() };
-			const auto polled = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &never, .CheckInterval = 1U });
+			const auto polled = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &never, .CheckInterval = 1U }, product_matching());
 			expect(polled.Outcome.has_value() && polled.Outcome->Result == slice.Outcome->Result && polled.Statistics.Steps == slice.Statistics.Steps
 					   && polled.Statistics.PhaseStarts == slice.Statistics.PhaseStarts,
 				   "[[BPR-1366]] a predicate that never fires changes nothing, however often it is polled");
 		}
-		// The checks that need no text finish without a state.
+		// The checks that need no text finish at once.
 		auto binary        = make_case({ .Lines = 50U, .Seed = 2U });
 		binary.Right[10U]  = 0U;
-		const auto refused = compute_file_diff(binary.input(), diff_compute_control{ });
-		expect(refused.Outcome.has_value() && refused.Outcome->Reason == diff_reason_code::binary_file && refused.Paused.empty(),
-			   "[[BPR-1366]] a binary file finishes in one slice");
+		const auto refused = compute_file_diff(binary.input(), diff_compute_control{ }, product_matching());
+		expect(refused.Outcome.has_value() && refused.Outcome->Reason == diff_reason_code::binary_file,
+			   "[[BPR-1366]] a binary file finishes in one run");
 	}
 
 	auto test_bpr1366_a_stop_is_honoured_within_the_bound() -> void
 	{
 		// A large pair: hundreds of milliseconds uninterrupted in an optimized
-		// build. Each pause below must come at the first poll at or after its
+		// build. Each stop below must come at the first poll at or after its
 		// request: within the check interval plus the poll delay, which one
-		// indivisible increment of work bounds.
+		// indivisible increment of work bounds. [[BPR-1485]] A stop abandons
+		// the computation.
 		const auto large = make_case({ .Lines = optimized_build ? 40'000U : 6'000U, .Seed = 17U, .Edited = 300U, .Deleted = 15U, .Inserted = 15U, .Moved = 3U }, moves_options());
 		auto       timer = poll_timer{ };
 		const auto start = std::chrono::steady_clock::now();
-		const auto timed = compute_file_diff(large.input(), diff_compute_control{ .Stop = &timer });
+		const auto timed = compute_file_diff(large.input(), diff_compute_control{ .Stop = &timer }, product_matching());
 		const auto wall  = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
 		const auto full  = uninterrupted(large);
 		const auto total = full.Statistics.Steps;
@@ -1277,20 +1206,23 @@ namespace {
 			for (std::size_t sample = 0U; sample < 2U; ++sample) {
 				const auto request = begin + sequence.below(end - begin);
 				auto       stop    = stop_at_step{ request };
-				const auto slice   = compute_file_diff(large.input(), diff_compute_control{ .Stop = &stop });
-				expect(!slice.Outcome.has_value() && stop.StoppedAt.has_value(), "[[BPR-1366]] a stop requested mid-computation pauses it");
+				const auto slice   = compute_file_diff(large.input(), diff_compute_control{ .Stop = &stop }, product_matching());
+				expect(!slice.Outcome.has_value() && stop.StoppedAt.has_value(), "[[BPR-1366]] a stop requested mid-computation abandons it");
 				expect(*stop.StoppedAt >= request && *stop.StoppedAt - request <= bound,
 					   "[[BPR-1366]] a stop is honoured within the check interval plus the poll delay");
-				expect(*stop.StoppedAt < total, "[[BPR-1366]] the pause comes before the computation would have finished");
+				expect(*stop.StoppedAt < total, "[[BPR-1366]] the stop comes before the computation would have finished");
 				landed[static_cast<std::size_t>(slice.Statistics.Phase)] = true;
 				std::cout << "BPR-1366 stop in " << phase_name(static_cast<diff_compute_phase>(phase)) << ": requested at "
-						  << request << ", paused at " << *stop.StoppedAt << " (+" << (*stop.StoppedAt - request) << " steps) in "
+						  << request << ", stopped at " << *stop.StoppedAt << " (+" << (*stop.StoppedAt - request) << " steps) in "
 						  << phase_name(slice.Statistics.Phase) << '\n';
 			}
 		}
 		expect(std::ranges::all_of(landed, [](const bool aLanded) { return aLanded; }), "[[BPR-1366]] the stops land in every phase");
 	}
 
+	/// [[BPR-1485]] Restart-only cancellation: a stopped computation keeps
+	/// nothing, and computing the comparison again from the start, stoppably
+	/// or not, gives exactly the uninterrupted result.
 	auto test_bpr1366_interrupted_once_then_recomputed() -> void
 	{
 		auto sequence = seeded_sequence{ .State = 2024U };
@@ -1304,162 +1236,23 @@ namespace {
 					continue;
 				}
 				auto stop  = stop_at_step{ begin + sequence.below(end - begin) };
-				auto slice = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = 1U });
-				expect(!slice.Outcome.has_value(), "[[BPR-1366]] the seeded stop pauses the computation");
-				// Recomputed from scratch, the pause leaves no trace.
-				const auto again = compute_file_diff(testCase.input());
+				auto slice = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = 1U }, product_matching());
+				expect(!slice.Outcome.has_value(), "[[BPR-1366]] the seeded stop abandons the computation");
+				// Recomputed from scratch, the stop leaves no trace.
+				const auto again = product_file_diff(testCase.input());
 				expect(again.Reason == full.Outcome->Reason && again.Result == full.Outcome->Result,
 					   "[[BPR-1366]] a computation recomputed after a stop equals the uninterrupted one, counters and approximation included");
-				// A state from another comparison, bytes, options or limits is
-				// refused: the computation starts again and still equals its own
-				// uninterrupted result.
-				const auto& other      = cases[(index + 1U) % cases.size()];
-				auto        otherSlice = compute_file_diff(other.input(), diff_compute_control{ }, std::move(slice.Paused));
-				expect(!otherSlice.Statistics.Resumed && otherSlice.Outcome.has_value() && otherSlice.Outcome->Result == compute_file_diff(other.input()).Result,
-					   "[[BPR-1366]] another comparison's state is refused");
+				const auto restarted = compute_file_diff(testCase.input(), diff_compute_control{ }, product_matching());
+				expect(restarted.Outcome.has_value() && restarted.Outcome->Result == full.Outcome->Result && restarted.Statistics == full.Statistics,
+					   "[[BPR-1485]] a restarted stoppable computation equals the uninterrupted one, steps and phases included");
 			}
-		}
-		const auto& base     = cases.front();
-		const auto  refusals = std::array<std::string_view, 5U>{ "bytes", "file", "limits", "options", "material" };
-		for (const auto refusal : refusals) {
-			auto stop    = stop_at_step{ 5'000U };
-			auto slice   = compute_file_diff(base.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = 1U });
-			auto changed = base;
-			if (refusal == "bytes") {
-				changed.Right[changed.Right.size() / 2U] = static_cast<std::uint8_t>('#');
-			} else if (refusal == "file") {
-				changed.FileSeed = 77U;
-			} else if (refusal == "limits") {
-				changed.Limits.MaximumMatrixCells -= 1U;
-			} else if (refusal == "options") {
-				changed.Options.SimilarityThresholdPermille = 700U;
-			}
-			expect(!slice.Outcome.has_value(), "[[BPR-1366]] the refusal case pauses first");
-			if (refusal == "material") {
-				const auto material = compute_material_diff(base.material_input(), diff_compute_control{ }, std::move(slice.Paused));
-				expect(!material.Statistics.Resumed && material.Outcome.has_value() && material.Outcome->Result == compute_material_diff(base.material_input()).Result,
-					   "[[BPR-1366]] a file comparison's state does not resume a material comparison");
-				continue;
-			}
-			const auto resumed = compute_file_diff(changed.input(), diff_compute_control{ }, std::move(slice.Paused));
-			expect(!resumed.Statistics.Resumed && resumed.Outcome.has_value() && resumed.Outcome->Result == compute_file_diff(changed.input()).Result,
-				   "[[BPR-1366]] a state is refused when its key, bytes, options or limits differ");
-		}
-	}
-
-	auto test_bpr1366_resumed_results_are_identical() -> void
-	{
-		auto       sequence    = seeded_sequence{ .State = 77U };
-		auto       landed      = std::array<bool, phase_count>{ };
-		auto       insideUnits = std::array<bool, phase_count>{ };
-		auto       totalPauses = std::size_t{ 0U };
-		const auto record      = [&](const resumed_run& aRun) {
-			for (const auto& pause : aRun.Pauses) {
-				landed[static_cast<std::size_t>(pause.Phase)] = true;
-				if (pause.StoppedAt > pause.Kept) {
-					insideUnits[static_cast<std::size_t>(pause.Phase)] = true;
-				}
-			}
-			totalPauses += aRun.Pauses.size();
-		};
-		for (const auto& testCase : property_cases()) {
-			const auto  full      = uninterrupted(testCase);
-			const auto& expected  = full.Outcome->Result;
-			const auto  total     = full.Statistics.Steps;
-			const auto  largest   = full.Statistics.LargestRestartUnit;
-			const auto  identical = [&](const resumed_run& aRun, const std::string_view aMessage) {
-				expect(aRun.Outcome.Reason == full.Outcome->Reason && aRun.Outcome.Result == expected, aMessage);
-				expect(aRun.Statistics.Steps == total && aRun.Statistics.LargestRestartUnit == largest && aRun.Statistics.PhaseStarts == full.Statistics.PhaseStarts,
-					   "[[BPR-1366]] a resumed run counts the steps an uninterrupted one counts");
-				expect(aRun.Statistics.WorkSteps >= total && aRun.Statistics.Slices == aRun.Pauses.size() + 1U,
-					   "[[BPR-1366]] the work of every slice is counted");
-				record(aRun);
-			};
-			// One pause, at a seeded step in each phase.
-			for (std::size_t phase = 0U; phase < phase_count; ++phase) {
-				const auto [begin, end] = phase_window(full.Statistics, static_cast<diff_compute_phase>(phase));
-				if (end <= begin) {
-					continue;
-				}
-				const auto request = begin + sequence.below(end - begin);
-				identical(run_resumed(testCase, 1U, [request](std::uint64_t, const std::size_t aPauses) {
-							  return aPauses == 0U ? std::optional{ request } : std::nullopt;
-						  }),
-						  "[[BPR-1366]] a computation resumed once equals the uninterrupted one, counters and approximation included");
-			}
-			// Many pauses at seeded intervals, each slice long enough to pass a
-			// resume point, polling at every step so pauses land inside restart
-			// units.
-			auto seed = seeded_sequence{ .State = sequence.next() | 1U };
-			identical(run_resumed(testCase, 1U, [&seed, largest](const std::uint64_t aKept, std::size_t) {
-						  return std::optional{ aKept + largest + 1U + seed.below(largest + 1U) };
-					  }),
-					  "[[BPR-1366]] a computation resumed many times equals the uninterrupted one");
-			// Pauses every few hundred steps until a seeded point, then one
-			// long slice: a pause may land inside the same restart unit again.
-			const auto shortUntil = sequence.below(total);
-			identical(run_resumed(testCase, 1U, [shortUntil, largest](const std::uint64_t aKept, const std::size_t aPauses) {
-						  const auto shortSlice = aKept < shortUntil && aPauses % 2U == 0U;
-						  return std::optional{ aKept + (shortSlice ? 257U : largest + 1U) };
-					  }),
-					  "[[BPR-1366]] repeated short pauses inside one restart unit still resume exactly");
-		}
-		// A material comparison resumes by the same rules.
-		const auto base     = property_cases().front();
-		const auto expected = compute_material_diff(base.material_input(), diff_compute_control{ });
-		auto       paused   = paused_diff_compute{ };
-		auto       slices   = std::size_t{ 0U };
-		expect(expected.Outcome.has_value(), "[[BPR-1366]] the material comparison computes");
-		for (;;) {
-			auto stop  = stop_at_step{ paused.statistics().Steps + expected.Statistics.LargestRestartUnit + 1U };
-			auto slice = compute_material_diff(base.material_input(), diff_compute_control{ .Stop = &stop }, std::move(paused));
-			++slices;
-			if (slice.Outcome.has_value()) {
-				expect(slice.Outcome->Result == expected.Outcome->Result && slice.Outcome->Result == compute_material_diff(base.material_input()).Result && slices > 2U,
-					   "[[BPR-1366]] a resumed material comparison equals the uninterrupted one");
-				break;
-			}
-			paused = std::move(slice.Paused);
-		}
-		for (std::size_t phase = 0U; phase < phase_count; ++phase) {
-			expect(landed[phase], "[[BPR-1366]] resumed pauses land in every phase");
-		}
-		for (const auto phase : { diff_compute_phase::primary, diff_compute_phase::refine, diff_compute_phase::moves, diff_compute_phase::assemble, diff_compute_phase::validate }) {
-			expect(insideUnits[static_cast<std::size_t>(phase)], "[[BPR-1366]] resumed pauses land inside the restart units of every phase that has them");
-		}
-		std::cout << "BPR-1366 resumed property runs: " << totalPauses << " pauses, every result identical\n";
-	}
-
-	auto test_bpr1366_repeated_interruption_completes() -> void
-	{
-		const auto large   = make_case({ .Lines = optimized_build ? 20'000U : 5'000U, .Seed = 23U, .Edited = 300U, .Deleted = 15U, .Inserted = 15U, .Moved = 3U }, moves_options());
-		const auto full    = uninterrupted(large);
-		const auto total   = full.Statistics.Steps;
-		const auto largest = full.Statistics.LargestRestartUnit;
-		expect(largest < total / 4U, "[[BPR-1366]] the largest restart unit is a small part of the run");
-		for (const auto slice : { largest + 1U, 2U * largest }) {
-			auto       previous = std::uint64_t{ 0U };
-			auto       advanced = true;
-			const auto run      = run_resumed(large, 1U, [slice, &previous, &advanced](const std::uint64_t aKept, const std::size_t aPauses) {
-				advanced = advanced && (aPauses == 0U || aKept > previous);
-				previous = aKept;
-				return std::optional{ aKept + slice };
-			});
-			expect(run.Outcome.Result == full.Outcome->Result, "[[BPR-1366]] a computation interrupted every K steps completes with the same result");
-			expect(advanced, "[[BPR-1366]] a slice of at least the largest restart unit passes a resume point");
-			const auto overhead = run.Statistics.WorkSteps - total;
-			expect(overhead <= run.Pauses.size() * largest, "[[BPR-1366]] each interruption costs at most one restart unit");
-			std::cout << "BPR-1366 repeated interruption: K=" << slice << " (" << (100.0 * static_cast<double>(slice) / static_cast<double>(total))
-					  << "% of the run), " << run.Pauses.size() << " pauses, uninterrupted " << total << " steps, interrupted "
-					  << run.Statistics.WorkSteps << " steps (+" << (100.0 * static_cast<double>(overhead) / static_cast<double>(total))
-					  << "%), largest restart unit " << largest << '\n';
 		}
 	}
 
 	auto test_bpr1366_the_semantic_index_build_stops() -> void
 	{
 		const auto testCase = property_cases().front();
-		const auto result   = std::make_shared<const computed_file_diff>(*compute_file_diff(testCase.input()).Result);
+		const auto result   = std::make_shared<const computed_file_diff>(*product_file_diff(testCase.input()).Result);
 		auto       stop     = stop_at_step{ 1U };
 		const auto stopped  = build_diff_semantic_index(result, diff_compute_control{ .Stop = &stop, .CheckInterval = 1U });
 		expect(stopped.Stopped && !stopped.Index.has_value() && stop.StoppedAt.has_value(), "[[BPR-1366]] the index build polls the stop through its validation");
@@ -1483,15 +1276,13 @@ int main()
 	test_whitespace_and_endings();
 	test_unicode_binary_and_unavailable();
 	test_moves_identity_and_limits();
-	test_ordered_unique_line_fallback();
+	test_bpr1485_primary_matches_come_from_the_line_matcher();
 	test_large_files_degrade_instead_of_refusing();
 	test_computed_result_validator();
 	test_generated_replay_validation();
-	test_bpr1366_an_uninterrupted_slice_is_the_one_call();
+	test_bpr1366_an_uninterrupted_run_is_the_one_call();
 	test_bpr1366_a_stop_is_honoured_within_the_bound();
 	test_bpr1366_interrupted_once_then_recomputed();
-	test_bpr1366_resumed_results_are_identical();
-	test_bpr1366_repeated_interruption_completes();
 	test_bpr1366_the_semantic_index_build_stops();
 	std::cout << "BPR-0073 deterministic diff computation tests passed\n";
 	return EXIT_SUCCESS;

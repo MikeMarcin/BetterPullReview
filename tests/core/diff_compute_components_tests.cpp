@@ -1,10 +1,13 @@
-// [[BPR-1465]] The diff engine's evaluation seam: supplied primary matches,
+// [[BPR-1465]] The diff engine's component seam: supplied primary matches,
 // pair scores, intraline matches and a post-pass over the primary matches. The
-// engine validates every supplied value, refuses what breaks its rules, and the
-// ordinary entry points are untouched.
+// engine validates every supplied value and refuses what breaks its rules.
+// [[BPR-1485]] The primary matches are required; the product's come from the
+// linked xdiff line matcher, which components here use when they supply
+// another part.
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_compute_components.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +24,17 @@
 
 namespace {
 	using namespace bpr::core;
+	using bpr::tests::product_file_diff;
+	using bpr::tests::product_material_diff;
+
+	/// [[BPR-1485]] The product's primary matches, for a component that
+	/// supplies another part.
+	[[nodiscard]] auto product_primary(const diff_primary_request& aRequest, diff_component_meter& aMeter)
+		-> std::optional<std::vector<diff_match>>
+	{
+		auto matching = bpr::application::diff_line_matching{ *bpr::tests::product_line_matcher() };
+		return matching.primary_matches(aRequest, aMeter);
+	}
 
 	auto expect(const bool aCondition, const std::string_view aMessage) -> void
 	{
@@ -202,6 +216,22 @@ namespace {
 	{
 	};
 
+	/// Supplies only the product's primary matches.
+	class product_only final : public diff_components
+	{
+	public:
+		[[nodiscard]] auto parts() const noexcept -> diff_component_parts override
+		{
+			return { .Primary = true };
+		}
+
+		[[nodiscard]] auto primary_matches(const diff_primary_request& aRequest, diff_component_meter& aMeter)
+			-> std::optional<std::vector<diff_match>> override
+		{
+			return product_primary(aRequest, aMeter);
+		}
+	};
+
 	/// Supplies fixed primary matches, or fixed slid matches.
 	class fixed_matches final : public diff_components
 	{
@@ -214,15 +244,15 @@ namespace {
 
 		[[nodiscard]] auto parts() const noexcept -> diff_component_parts override
 		{
-			return { .Primary = !Slide, .Slide = Slide };
+			return { .Primary = true, .Slide = Slide };
 		}
 
-		[[nodiscard]] auto primary_matches(const diff_primary_request& aRequest, diff_component_meter& /*aMeter*/)
+		[[nodiscard]] auto primary_matches(const diff_primary_request& aRequest, diff_component_meter& aMeter)
 			-> std::optional<std::vector<diff_match>> override
 		{
 			LeftClasses  = { aRequest.LeftClasses.begin(), aRequest.LeftClasses.end() };
 			RightClasses = { aRequest.RightClasses.begin(), aRequest.RightClasses.end() };
-			return Matches;
+			return Slide ? product_primary(aRequest, aMeter) : std::optional{ Matches };
 		}
 
 		[[nodiscard]] auto slide_matches(const diff_primary_request& /*aRequest*/, std::span<const diff_match> aMatches,
@@ -277,7 +307,13 @@ namespace {
 
 		[[nodiscard]] auto parts() const noexcept -> diff_component_parts override
 		{
-			return { .Pairing = true };
+			return { .Primary = true, .Pairing = true };
+		}
+
+		[[nodiscard]] auto primary_matches(const diff_primary_request& aRequest, diff_component_meter& aMeter)
+			-> std::optional<std::vector<diff_match>> override
+		{
+			return product_primary(aRequest, aMeter);
 		}
 
 		[[nodiscard]] auto pair_scores(const diff_pairing_request& aRequest, diff_component_meter& aMeter)
@@ -322,7 +358,13 @@ namespace {
 
 		[[nodiscard]] auto parts() const noexcept -> diff_component_parts override
 		{
-			return { .Intraline = true };
+			return { .Primary = true, .Intraline = true };
+		}
+
+		[[nodiscard]] auto primary_matches(const diff_primary_request& aRequest, diff_component_meter& aMeter)
+			-> std::optional<std::vector<diff_match>> override
+		{
+			return product_primary(aRequest, aMeter);
 		}
 
 		[[nodiscard]] auto intraline_matches(const std::span<const std::uint32_t> aLeft, const std::span<const std::uint32_t> aRight,
@@ -373,21 +415,25 @@ namespace {
 		std::size_t    Calls = 0U;
 	};
 
-	auto test_bpr1465_components_that_supply_nothing_change_nothing() -> void
+	auto test_bpr1465_components_that_supply_nothing_are_refused() -> void
 	{
 		for (const auto& testCase : sample_cases()) {
 			auto       none     = no_parts{ };
-			const auto expected = compute_file_diff(testCase.input());
-			const auto actual   = compute_file_diff(testCase.input(), none);
+			const auto expected = product_file_diff(testCase.input());
+			const auto refused  = compute_file_diff(testCase.input(), none);
+			expect(refused.Reason == diff_reason_code::host_failure && !refused.Result.has_value(),
+				   "[[BPR-1485]] a component without primary matches refuses the comparison: the engine has no matcher of its own");
+			auto       primary = product_only{ };
+			const auto actual  = compute_file_diff(testCase.input(), primary);
 			expect(actual.Reason == expected.Reason && actual.Result == expected.Result,
-				   "[[BPR-1465]] a component that supplies nothing leaves the outcome identical, counters included");
+				   "[[BPR-1485]] the product's primary matches alone compute the product's outcome, counters included");
 			auto       declined = scores{ score_mode::decline };
 			const auto fallback = compute_file_diff(testCase.input(), declined);
 			expect(fallback.Reason == expected.Reason && fallback.Result == expected.Result,
 				   "[[BPR-1465]] a declined part keeps the engine's own algorithm");
 			const auto material = compute_material_diff(testCase.material_input(), none);
-			expect(material.Result == compute_material_diff(testCase.material_input()).Result,
-				   "[[BPR-1465]] a material comparison with no parts is identical");
+			expect(material.Reason == diff_reason_code::host_failure && !material.Result.has_value(),
+				   "[[BPR-1485]] a material comparison without primary matches is refused too");
 		}
 	}
 
@@ -397,7 +443,7 @@ namespace {
 			if (testCase.Options.Moves != move_detection_policy::disabled) {
 				continue;
 			}
-			const auto expected    = compute_file_diff(testCase.input());
+			const auto expected    = product_file_diff(testCase.input());
 			const auto baseline    = text_result(expected, "[[BPR-1465]] the baseline computes");
 			const auto observation = diff_primary_observation{ .Matches = equal_matches(baseline) };
 			const auto observed    = compute_file_diff(testCase.input(), observation);
@@ -406,7 +452,7 @@ namespace {
 					   && supplied.LeftDocument == baseline.LeftDocument && supplied.RightDocument == baseline.RightDocument,
 				   "[[BPR-1465]] supplying the baseline's matches reproduces its alignment and intraline edits");
 			const auto material         = compute_material_diff(testCase.material_input(), observation);
-			const auto materialBaseline = compute_material_diff(testCase.material_input());
+			const auto materialBaseline = product_material_diff(testCase.material_input());
 			expect(material.Result.has_value() && materialBaseline.Result.has_value()
 					   && material.Result->Alignment == materialBaseline.Result->Alignment && material.Result->Intraline == materialBaseline.Result->Intraline,
 				   "[[BPR-1465]] a material comparison accepts the same observation");
@@ -471,7 +517,7 @@ namespace {
 	auto test_bpr1465_scores_and_intraline_matches_are_used() -> void
 	{
 		for (const auto& testCase : sample_cases()) {
-			const auto expected  = compute_file_diff(testCase.input());
+			const auto expected  = product_file_diff(testCase.input());
 			auto       reference = scores{ score_mode::reference };
 			const auto scored    = compute_file_diff(testCase.input(), reference);
 			expect(scored.Reason == expected.Reason && scored.Result.has_value() == expected.Result.has_value(),
@@ -504,7 +550,7 @@ namespace {
 		// "b\na\n" inserted after the first "a": the engine's choice and the
 		// slid one are both minimal.
 		const auto testCase = make_case("a\nb\nc\n", "a\nb\na\nb\nc\n");
-		const auto baseline = text_result(compute_file_diff(testCase.input()), "[[BPR-1465]] the ambiguous insertion computes");
+		const auto baseline = text_result(product_file_diff(testCase.input()), "[[BPR-1465]] the ambiguous insertion computes");
 		const auto own      = equal_matches(baseline);
 		auto       slid     = std::vector<diff_match>{ { .Left = 0U, .Right = 2U }, { .Left = 1U, .Right = 3U }, { .Left = 2U, .Right = 4U } };
 		if (own == slid) {
@@ -567,26 +613,21 @@ namespace {
 		auto           stop     = stop_at_step{ start + 300'000U };
 		auto           slice    = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = interval }, slow);
 		expect(!slice.Outcome.has_value() && slice.Statistics.Phase == diff_compute_phase::primary,
-			   "[[BPR-1465]] a stop inside a component pauses the computation in the primary phase");
+			   "[[BPR-1465]] a stop inside a component abandons the computation in the primary phase");
 		expect(stop.Seen >= stop.Step && stop.Seen < stop.Step + interval, "[[BPR-1465]] the stop is honoured within one check interval of steps");
-		auto other   = slow_primary{ };
-		auto refused = compute_file_diff(testCase.input(), diff_compute_control{ }, other, std::move(slice.Paused));
-		expect(!refused.Statistics.Resumed && refused.Outcome.has_value(), "[[BPR-1465]] a paused state does not resume with other components");
-		auto again   = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = interval }, slow);
-		auto resumed = compute_file_diff(testCase.input(), diff_compute_control{ }, slow, std::move(again.Paused));
-		expect(resumed.Statistics.Resumed && resumed.Outcome.has_value() && resumed.Outcome->Result.has_value()
-				   && resumed.Outcome->Result->Alignment == full.Alignment,
-			   "[[BPR-1465]] resumed with the same components, the computation finishes with the same alignment");
-		auto plain = compute_file_diff(testCase.input(), diff_compute_control{ .Stop = &stop, .CheckInterval = interval }, slow);
-		expect(!plain.Outcome.has_value(), "[[BPR-1465]] the slow component pauses again");
-		const auto ordinary = compute_file_diff(testCase.input(), diff_compute_control{ }, std::move(plain.Paused));
-		expect(!ordinary.Statistics.Resumed, "[[BPR-1465]] a component's paused state does not resume the ordinary entry point");
+		// [[BPR-1485]] The stopped computation kept nothing: the next one
+		// starts again from the beginning and finishes with the same result.
+		const auto callsBefore = slow.Calls;
+		auto       restarted   = compute_file_diff(testCase.input(), diff_compute_control{ }, slow);
+		expect(slow.Calls == callsBefore + 1U && restarted.Outcome.has_value() && restarted.Outcome->Result.has_value()
+				   && restarted.Outcome->Result->Alignment == full.Alignment,
+			   "[[BPR-1485]] a stopped computation is computed again from the start, the component asked again, with the same alignment");
 	}
 } // namespace
 
 auto main() -> int
 {
-	test_bpr1465_components_that_supply_nothing_change_nothing();
+	test_bpr1465_components_that_supply_nothing_are_refused();
 	test_bpr1465_supplied_baseline_matches_reproduce_the_alignment();
 	test_bpr1465_line_classes_follow_normalization();
 	test_bpr1465_invalid_supplied_values_are_refused();

@@ -3,6 +3,7 @@
 // proposal that carry it. The suggestion a selection starts is
 // core_suggestion_draft's.
 #include "bpr/core/diff_compute.hpp"
+#include "product_diff.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
@@ -97,7 +98,7 @@ namespace {
 		input.Options      = options;
 		input.LeftBytes    = std::span<const std::uint8_t>{ left };
 		input.RightBytes   = std::span<const std::uint8_t>{ right };
-		auto outcome       = compute_file_diff(input);
+		auto outcome       = bpr::tests::product_file_diff(input);
 		expect(outcome.Result.has_value(), "the fixture texts compute a diff");
 		return std::move(*outcome.Result);
 	}

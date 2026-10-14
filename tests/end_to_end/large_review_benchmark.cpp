@@ -385,7 +385,7 @@ namespace bpr::e2e::large_review {
 		std::string                    Fixture           = "large-review-v1", Base, Head;
 		int                            LogicalProcessors = 0, WindowWidth = 0, WindowHeight = 0;
 		double                         DevicePixelRatio = 0;
-		std::uint64_t                  PackBytes = 0, ComparedBlobBytes = 0, PrimaryIndexWork = 0, MatrixCells = 0;
+		std::uint64_t                  PackBytes = 0, ComparedBlobBytes = 0, MatrixCells = 0;
 		std::size_t                    Files = 0, Threads = 0, Comments = 0;
 		int                            AccountRequests = 0;
 		std::vector<phase_measurement> Phases;
@@ -2122,10 +2122,11 @@ namespace bpr::e2e::large_review {
 				fixtureOptions.DiffComputeLimits.MaximumSegments = report.UnavailableSegmentLimit;
 			}
 			if (report.ApproximateCourse) {
-				// [[BPR-0719]] [[BPR-0858]]. Without its ordered line index the
-				// stored 20,000-line file exceeds the production matrix ceiling, and
-				// the host degrades the alignment instead of refusing the file.
-				fixtureOptions.DiffComputeLimits.MaximumPrimaryIndexWork = 0U;
+				// [[BPR-0719]] [[BPR-0858]]. With a one-cell matrix budget the
+				// stored 20,000-line file's replacements cannot be paired, and the
+				// host degrades the alignment instead of refusing the file.
+				// [[BPR-1485]] The line matcher has no budget; pairing does.
+				fixtureOptions.DiffComputeLimits.MaximumMatrixCells = 1U;
 			}
 			sample_resources(report, nullptr, "before_application");
 			QElapsedTimer compositionStartup;
@@ -2350,7 +2351,6 @@ namespace bpr::e2e::large_review {
 				require(result.AlignmentApproximate, "work-limited host result must be marked approximate alignment");
 				report.ApproximateGroups   = result.Alignment.Groups.size();
 				report.ApproximateSegments = result.Alignment.Segments.size();
-				report.PrimaryIndexWork    = result.PrimaryIndexWorkConsumed;
 				report.MatrixCells         = result.MatrixCellsConsumed;
 				// The exact status fixes the prefix, the count and the approximate suffix, and
 				// refuses a cached publication for this first selection.
@@ -2533,7 +2533,6 @@ namespace bpr::e2e::large_review {
 					resourceIndex = surface.current_semantic_index();
 				}
 				report.ExactLargeSource = true;
-				report.PrimaryIndexWork = surface.current_result()->PrimaryIndexWorkConsumed;
 				report.MatrixCells      = surface.current_result()->MatrixCellsConsumed;
 				require(surface.selection() && surface.selection()->PreferredLine.Line == 0U, "initial selected change is line one");
 				for (int change = 0; change < 2; ++change) {

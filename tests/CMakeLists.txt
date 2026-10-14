@@ -1259,6 +1259,15 @@ add_custom_target(
     VERBATIM
 )
 
+# [[BPR-1485]]. The product's diff for tests: the core engine with the linked
+# xdiff line matcher (tests/support/product_diff.hpp).
+add_library(bpr_test_product_diff INTERFACE)
+target_include_directories(bpr_test_product_diff INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/support")
+target_link_libraries(bpr_test_product_diff INTERFACE BetterPullReview::AdapterXdiff)
+# Every test target below may compute the product's diff, directly or through a
+# shared fixture header.
+link_libraries(bpr_test_product_diff)
+
 add_subdirectory(core)
 add_subdirectory(application)
 add_subdirectory(contract)

@@ -1,4 +1,5 @@
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -1590,7 +1591,7 @@ namespace {
 		const auto options               = core::diff_options{ };
 		auto       left                  = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
 		auto       right                 = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
-		const auto outcome               = core::compute_file_diff({
+		const auto outcome               = bpr::tests::product_file_diff({
 			.Key        = comparison_key(options),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },
@@ -1613,7 +1614,7 @@ namespace {
 		const auto options = core::diff_options{ };
 		auto       left    = std::vector<std::uint8_t>{ leftText.begin(), leftText.end() };
 		auto       right   = std::vector<std::uint8_t>{ rightText.begin(), rightText.end() };
-		const auto outcome = core::compute_file_diff({
+		const auto outcome = bpr::tests::product_file_diff({
 			.Key        = comparison_key(options),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },

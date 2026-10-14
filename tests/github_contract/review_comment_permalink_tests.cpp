@@ -1,4 +1,5 @@
 #include "../sqlite_contract/scratch_root.hpp"
+#include "product_diff.hpp"
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/application/private_publication_application_host.hpp"
@@ -1206,7 +1207,7 @@ namespace {
 				text += "line\n";
 			}
 			auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(text.data()), text.size() };
-			auto computed = core::compute_file_diff({ .Key = source.Comparison, .Options = { }, .LeftBytes = bytes, .RightBytes = bytes });
+			auto computed = bpr::tests::product_file_diff({ .Key = source.Comparison, .Options = { }, .LeftBytes = bytes, .RightBytes = bytes });
 			expect(computed.Result.has_value(), "real diff material for composition/publication");
 			auto index = *core::build_diff_semantic_index(std::make_shared<const core::computed_file_diff>(std::move(*computed.Result)));
 			auto note  = *core::create_private_thread(core::private_review_thread_id{ 1 }, { binding, core::private_pr_subject{ } }, { core::private_review_turn_id{ 2 }, core::private_review_turn_revision_id{ 3 }, core::private_vertex_order{ 3 }, core::private_reviewer_actor{ }, "private reasoning stays local" });

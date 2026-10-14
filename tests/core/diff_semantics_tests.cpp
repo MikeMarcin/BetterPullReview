@@ -1,4 +1,5 @@
 #include "../support/review_tour_fixture.hpp"
+#include "product_diff.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
@@ -107,7 +108,7 @@ namespace {
 	{
 		auto       leftBytes  = aLeft.has_value() ? std::optional{ bytes(*aLeft) } : std::nullopt;
 		auto       rightBytes = aRight.has_value() ? std::optional{ bytes(*aRight) } : std::nullopt;
-		const auto outcome    = compute_file_diff({
+		const auto outcome    = bpr::tests::product_file_diff({
 			.Key        = comparison_key(aOptions, aHasLeft, aHasRight, aFileSeed),
 			.Options    = aOptions,
 			.LeftBytes  = leftBytes.has_value()

@@ -1,4 +1,5 @@
 #include "../sqlite_contract/scratch_root.hpp"
+#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
@@ -470,7 +471,7 @@ namespace {
 		bound.Store.reset();
 
 		auto lanes   = application::manual_executor{ };
-		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), lanes, lanes };
+		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(subject);
 		auto checked = std::optional<application::cycle_store_result<application::cycle_rebind_check>>{ };
 		expect(runtime.check_rebind_selected(*source, (aScratch / "rebind" / "moved").string(), [&](auto aValue) { checked = std::move(aValue); }), "admitted");
@@ -507,7 +508,7 @@ namespace {
 		const auto subject = bound.Subject;
 		bound.Store.reset();
 		auto lanes   = application::manual_executor{ };
-		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), lanes, lanes };
+		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(subject);
 		auto result = std::optional<application::cycle_store_result<application::cycle_capture_outcome>>{ };
 		expect(runtime.capture_workspace(*source, { .Operation = operation(90), .ExpectedRevision = 2 }, [&](auto aValue) { result = std::move(aValue); }), "admitted");
@@ -545,7 +546,7 @@ namespace {
 		auto effects   = application::manual_executor{ };
 		auto decisions = application::manual_executor{ };
 		auto captures  = application::manual_executor{ };
-		auto runtime   = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), effects, decisions, &captures };
+		auto runtime   = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(bound.StoreRoot.path(), profile), effects, decisions, &captures, bpr::tests::product_line_matcher() };
 		runtime.select(subject);
 		const auto settle = [&] {
 			while (effects.pending() != 0U || decisions.pending() != 0U || captures.pending() != 0U) {

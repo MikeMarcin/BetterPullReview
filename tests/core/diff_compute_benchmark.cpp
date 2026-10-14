@@ -9,10 +9,13 @@
 // between the first polls at or past the phase's first step and the next
 // phase's. The step counts are the engine's, so the column compares cores
 // that count steps alike.
+// [[BPR-1485]] The primary matches are the product's: the linked xdiff line
+// matcher, called on the computing thread.
 //
 // Usage: bench_better_pull_review_diff_compute [repetitions] [largest line count]
 
 #include "bpr/core/diff_compute.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -254,7 +257,8 @@ int main(int aArgc, char** aArgv)
 				.LeftBytes  = std::span<const std::uint8_t>{ left },
 				.RightBytes = std::span<const std::uint8_t>{ right },
 			};
-			const auto reference = compute_file_diff(input);
+			auto       matching  = bpr::application::diff_line_matching{ *bpr::tests::product_line_matcher() };
+			const auto reference = compute_file_diff(input, matching);
 			if (!reference.Result.has_value()) {
 				std::printf("FAILED: the synthetic pair computes\n");
 				return EXIT_FAILURE;
@@ -268,7 +272,7 @@ int main(int aArgc, char** aArgv)
 #endif
 			for (int repetition = 0; repetition < repetitions; ++repetition) {
 				const auto start   = std::chrono::steady_clock::now();
-				const auto outcome = compute_file_diff(input);
+				const auto outcome = compute_file_diff(input, matching);
 				oneCall.push_back(milliseconds(start));
 				if (outcome.Result != reference.Result) {
 					std::printf("FAILED: a repetition differs\n");
@@ -277,7 +281,7 @@ int main(int aArgc, char** aArgv)
 #ifndef BPR_DIFF_BENCH_BASELINE
 				timer.reset();
 				const auto polledStart = std::chrono::steady_clock::now();
-				const auto slice       = compute_file_diff(input, diff_compute_control{ .Stop = &timer });
+				const auto slice       = compute_file_diff(input, diff_compute_control{ .Stop = &timer }, matching);
 				polled.push_back(milliseconds(polledStart));
 				longest = std::max(longest, timer.Longest);
 				if (!slice.Outcome.has_value() || slice.Outcome->Result != reference.Result) {
@@ -285,7 +289,7 @@ int main(int aArgc, char** aArgv)
 					return EXIT_FAILURE;
 				}
 				auto       phases   = phase_timer{ };
-				const auto timed    = compute_file_diff(input, diff_compute_control{ .Stop = &phases, .CheckInterval = phase_check_interval });
+				const auto timed    = compute_file_diff(input, diff_compute_control{ .Stop = &phases, .CheckInterval = phase_check_interval }, matching);
 				const auto finished = std::chrono::steady_clock::now();
 				if (!timed.Outcome.has_value() || timed.Outcome->Result != reference.Result) {
 					std::printf("FAILED: the phase-timed entry point differs\n");

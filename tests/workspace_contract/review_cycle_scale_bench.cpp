@@ -1,4 +1,5 @@
 #include "../support/git_metadata_writers.hpp"
+#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
@@ -315,7 +316,7 @@ try {
 	const auto changed = measure("changed_recapture");
 	expect(changed.Receipt && changed.Receipt->Changed, "changed recapture records a revision");
 
-	auto       host  = application::review_cycle_comparison_host{ *cycle.Store, cycle.Catalog.Authority };
+	auto       host  = application::review_cycle_comparison_host{ *cycle.Store, cycle.Catalog.Authority, bpr::tests::product_line_matcher() };
 	const auto state = cycle.state();
 	const auto pair  = *core::resolve_comparison(state, core::all_cycle_view{ });
 	auto       pages = std::vector<double>{ };

@@ -1,6 +1,7 @@
 #ifndef BPR_TESTS_CORE_PRIVATE_REVIEW_FIXTURE_HPP
 #define BPR_TESTS_CORE_PRIVATE_REVIEW_FIXTURE_HPP
 #include "bpr/core/private_review.hpp"
+#include "product_diff.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -56,7 +57,7 @@ namespace private_review_fixture {
 												   file_identity_of("file.cpp"), *options_digest({ }), diff_algorithm_revision{ 1 } };
 		const auto left     = std::string{ "first\nold\nlast\n" };
 		const auto right    = std::string{ "first\nnew\nlast\n" };
-		auto       computed = compute_file_diff({ .Key = key, .Options = { }, .LeftBytes = std::span{ reinterpret_cast<const std::uint8_t*>(left.data()), left.size() }, .RightBytes = std::span{ reinterpret_cast<const std::uint8_t*>(right.data()), right.size() } });
+		auto       computed = bpr::tests::product_file_diff({ .Key = key, .Options = { }, .LeftBytes = std::span{ reinterpret_cast<const std::uint8_t*>(left.data()), left.size() }, .RightBytes = std::span{ reinterpret_cast<const std::uint8_t*>(right.data()), right.size() } });
 		expect(computed.Result.has_value(), "real core diff composition produces fixture");
 		auto semantic = build_diff_semantic_index(std::make_shared<const computed_file_diff>(std::move(*computed.Result)));
 		expect(semantic.has_value(), "semantic index validates actual computed result");

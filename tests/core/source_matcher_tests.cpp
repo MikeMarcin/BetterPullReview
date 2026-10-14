@@ -1,4 +1,5 @@
 #include "../support/source_regex_engine_fixture.hpp"
+#include "product_diff.hpp"
 #include "../support/source_search_fixture.hpp"
 #include "bpr/core/source_matcher.hpp"
 #include <cstdlib>
@@ -182,7 +183,7 @@ namespace {
 		key.Options         = *options_digest(aOptions);
 		key.Algorithm       = supported_diff_algorithm_revision;
 		const auto bytes    = [](std::string_view aText) { return std::span{ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() }; };
-		const auto computed = compute_file_diff({ key, aOptions, bytes(aLeft), bytes(aRight), { } });
+		const auto computed = bpr::tests::product_file_diff({ key, aOptions, bytes(aLeft), bytes(aRight), { } });
 		search_expect(computed.Result.has_value(), "real source comparison computed");
 		auto index = build_diff_semantic_index(std::make_shared<const computed_file_diff>(*computed.Result));
 		search_expect(index.has_value(), "existing semantic index proves immutable source plan");
