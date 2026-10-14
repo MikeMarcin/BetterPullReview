@@ -39,13 +39,22 @@ class ReleasePackageTests(unittest.TestCase):
                 self.assertEqual([path.name for path in data], ["better_pull_review.rcc"] if system == "Windows" else [])
                 for path in data:
                     path.touch()
+                # [[BPR-1485]]. Git's xdiff, its own shared library where the
+                # application loads it.
+                libraries = audit.private_libraries(root, info)
+                self.assertEqual([path.relative_to(root).as_posix() for path in libraries],
+                                 {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib"], "Windows": ["bpr_xdiff.dll"],
+                                  "Linux": ["libbpr_xdiff.so"]}[system])
+                for path in libraries:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.touch()
                 plugins = root / "Contents/PlugIns" if system == "Darwin" else root / "plugins"
                 for name in audit.runtime.PLUGINS[system]:
                     path = plugins / name
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.touch()
                 self.assertEqual(audit.package_paths(root, info), (app, helpers))
-                for required in (*helpers, *data):
+                for required in (*helpers, *data, *libraries):
                     required.unlink()
                     with self.assertRaisesRegex(ValueError, "capability-missing:" + required.name):
                         audit.package_paths(root, info)
@@ -73,7 +82,9 @@ class ReleasePackageTests(unittest.TestCase):
                 if system == "Darwin":
                     helpers.append(binaries / "bpr_update_helper")
                     (root / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleExecutable": app.name, "CFBundleShortVersionString": "1.2.3"}))
-                for path in (app, *helpers, *(binaries / name for name in audit.runtime.RUNTIME_DATA[system])):
+                for path in (app, *helpers, *(binaries / name for name in audit.runtime.RUNTIME_DATA[system]),
+                             *audit.private_libraries(root, info)):
+                    path.parent.mkdir(parents=True, exist_ok=True)
                     path.touch()
                 plugins = root / "Contents/PlugIns" if system == "Darwin" else root / "plugins"
                 for name in audit.runtime.PLUGINS[system]:

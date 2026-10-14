@@ -3,6 +3,7 @@
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "cycle_course.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <sqlite3.h>
@@ -69,7 +70,7 @@ namespace {
 	auto full_source(course& aCourse, const std::uint64_t aRevision, const std::string& aPath) -> application::cycle_file_observation
 	{
 		const auto state = aCourse.state();
-		auto       host  = application::review_cycle_comparison_host{ *aCourse.Store, aCourse.Catalog.Authority };
+		auto       host  = application::review_cycle_comparison_host{ *aCourse.Store, aCourse.Catalog.Authority, bpr::tests::product_line_matcher() };
 		return host.file(aCourse.Subject, *core::resolve_comparison(state, core::full_source_view{ core::cycle_source_revision_id{ aRevision } }), aPath, { }, { });
 	}
 

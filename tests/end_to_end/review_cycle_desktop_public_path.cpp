@@ -14,6 +14,7 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "product_diff.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>
@@ -136,7 +137,7 @@ namespace {
 	auto freeze_first_note(const std::filesystem::path& aProfileRoot, const core::local_cycle_subject& aSubject) -> core::cycle_decoded_round
 	{
 		auto lanes   = application::manual_executor{ };
-		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), lanes, lanes };
+		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(aSubject);
 		auto operation = [](const std::uint8_t aIndex) {
 			auto bytes = std::array<std::uint8_t, 32>{ };

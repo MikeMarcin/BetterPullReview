@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1497",
+    "BPR-1498"
+  ],
+  "reserve_for": "rfc-0082-followups",
+  "purpose": "RFC-BPR-0082 follow-ups: diff algorithm revision bump; dtl for Review Cycle suggestion hunks",
+  "created": "2026-10-14T06:08:37.302830+00:00",
+  "base": "a729920a0a801293c73f4462f74facbe3e383c22"
+}

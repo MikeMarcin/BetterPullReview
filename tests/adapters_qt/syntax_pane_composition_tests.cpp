@@ -1,4 +1,5 @@
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 /// \file
 /// \brief Proves the packaged classifier's own answer reaches a real pane.
@@ -220,7 +221,7 @@ namespace {
 		auto       leftBytes  = std::vector<std::uint8_t>{ left.begin(), left.end() };
 		auto       rightBytes = std::vector<std::uint8_t>{ right.begin(), right.end() };
 		const auto options    = core::diff_options{ };
-		const auto outcome    = core::compute_file_diff({
+		const auto outcome    = bpr::tests::product_file_diff({
 			.Key        = comparison_key(options),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ leftBytes },

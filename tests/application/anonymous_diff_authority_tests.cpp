@@ -2,6 +2,7 @@
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/core/epoch_transition.hpp"
+#include "product_diff.hpp"
 
 #include <array>
 #include <cstddef>
@@ -871,6 +872,7 @@ namespace {
 					  Effects,
 					  Decisions,
 					  Projections,
+					  bpr::tests::product_line_matcher(),
 					  aLimits,
 					  aComputeLimits) }
 			{

@@ -55,6 +55,10 @@ and dtl's intraline adoption still needs the owner's Accept of its render set
 architecture now name both libraries. With every gate passed on macOS and no
 owner answer outstanding, rapidfuzz-cpp's line-pair similarity is adopted
 through [[BPR-1480]]; dtl's intraline adoption waits on AC06 in [[BPR-1481]].
+*AC06 answered 2026-10-13: the owner accepted the dtl render set in its own
+attended-review session (`3dcb3e5660345ff127118964cc309faa`, decision
+`0552741d-9e4e-4c8b-8a7b-350e9d0326a8`, no note); [[BPR-1481]] adopts dtl for
+per-line intraline ranges, never as a whole-file matcher.*
 
 ## Owner answer on shape L's speed — 2026-10-13
 

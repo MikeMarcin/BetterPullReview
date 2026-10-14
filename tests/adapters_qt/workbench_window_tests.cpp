@@ -1,6 +1,7 @@
 #include "../support/resize_cursor_hold_check.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -3662,7 +3663,7 @@ namespace {
 		const auto options = core::diff_options{ };
 		auto       left    = source_bytes(aLeft);
 		auto       right   = source_bytes(aRight);
-		const auto outcome = core::compute_file_diff({
+		const auto outcome = bpr::tests::product_file_diff({
 			.Key        = comparison_key(options, aSeed, aFile),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },

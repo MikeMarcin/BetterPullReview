@@ -8,6 +8,7 @@
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/sha1.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6041,7 +6042,8 @@ namespace {
 					*aValue.Host,
 					DiffEffects,
 					DiffDecisions,
-					Outcomes }
+					Outcomes,
+					bpr::tests::product_line_matcher() }
 			, Actor{ [this](const std::stop_token aStop) {
 				while (!aStop.stop_requested()) {
 					if (Value.Effects.pending() != 0U) {

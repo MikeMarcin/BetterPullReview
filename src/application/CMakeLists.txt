@@ -86,6 +86,7 @@ add_library(
         src/review_queue_notification.cpp
         src/workbench_snapshot_observation.cpp
         src/diff_application_host.cpp
+        src/diff_line_matcher.cpp
         src/device_authorization_application_host.cpp
         src/device_binding_store.cpp
         src/device_authorization_schedule.cpp

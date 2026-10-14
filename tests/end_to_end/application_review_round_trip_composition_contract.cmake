@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"58c87cd1a2f62c4b856a0ca073533792dd4d5ec313c8011cedbac4b5350c94d2"
+		"cb0b2c64614ff4a5f1dd4ee6fe661d7dd8ebc361164aecefbbc41f6b3365f892"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "35e13aa389a811876a7766cf23deecba5319cfb5192eee557aa4a74948133e26"
+        "3a5276bdb9632bc3ae7ddc736c758e2fff49ec7510aaa76d147c738b2bee6560"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2443,3 +2443,22 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # course no longer waits for the single comment's reread. No publication,
 # credential, grant, inventory or mutation-branch change; the full
 # application and production-manifest digests are refreshed.
+#
+# [[BPR-1485]] reseal, over main at f7a2945ea's merge. github_application.cpp,
+# cycle_session.cpp and review_cycle_desktop.cpp hand the diff hosts and the
+# Review Cycle runtime and desktop the application's line matcher (linked
+# xdiff, `bpr::adapters::xdiff::make_xdiff_line_matcher`), and src/app's
+# CMakeLists.txt links the xdiff adapter. The first-party primary matcher and
+# BPR-1366's pause and resume are gone, so a stopped preparation is abandoned
+# and recomputed. No publication, credential, grant, inventory or
+# mutation-branch change; the full application and production-manifest digests
+# are refreshed.
+
+# [[BPR-1488]] and [[BPR-1486]] reseal. github_application.cpp's retained
+# Review navigation press now waits for the active tab's current view, and each
+# tab publication re-evaluates it; the workbench course's wrap step waits for
+# the dispatch with a named stall; the appearance theme probe prints its commit
+# facts and the panel's refusal text; and the UIforETW capture measures a
+# pane's masked viewport ([[BPR-1487]]). No publication, credential, grant,
+# inventory or mutation-branch change; the full application and
+# production-manifest digests are refreshed.

@@ -230,15 +230,14 @@ namespace bpr::core {
 		if (!aDiff) {
 			return { };
 		}
-		// [[BPR-1366]] The validation is linear in the result; a stop starts
-		// it again.
-		auto meter  = detail::diff_step_meter{ aControl.Stop, aControl.CheckInterval, 0U };
-		auto cursor = detail::validation_cursor{ };
+		// [[BPR-1366]] The validation is linear in the result; a stop
+		// abandons it ([[BPR-1485]]).
+		auto meter = detail::diff_step_meter{ aControl.Stop, aControl.CheckInterval };
 		try {
-			if (!detail::validate_computed_file_diff(*aDiff, cursor, meter).valid()) {
+			if (!detail::validate_computed_file_diff(*aDiff, meter).valid()) {
 				return { };
 			}
-		} catch (const detail::diff_compute_paused&) {
+		} catch (const detail::diff_compute_stopped&) {
 			return { .Index = std::nullopt, .Stopped = true };
 		}
 		return { .Index = diff_semantic_index::from_validated(std::move(aDiff)), .Stopped = false };

@@ -1,5 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "product_diff.hpp"
 
 #include <QAbstractSlider>
 #include <QApplication>
@@ -132,7 +133,7 @@ namespace {
 		auto       left    = bytes(aLeft);
 		auto       right   = bytes(aRight);
 		auto       options = core::diff_options{ };
-		const auto outcome = core::compute_file_diff({
+		const auto outcome = bpr::tests::product_file_diff({
 			.Key        = comparison_key(options, aIdentitySeed),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },

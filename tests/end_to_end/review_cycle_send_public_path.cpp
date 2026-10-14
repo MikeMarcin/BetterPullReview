@@ -13,6 +13,7 @@
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "product_diff.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>
@@ -74,7 +75,7 @@ namespace {
 	auto settle_store(const std::filesystem::path& aProfileRoot, const core::local_cycle_subject& aSubject, TStart aStart) -> T
 	{
 		application::manual_executor      lanes;
-		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), lanes, lanes };
+		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(aSubject);
 		auto result = std::optional<application::cycle_store_result<T>>{ };
 		aStart(runtime, [&](application::cycle_store_result<T> aValue) { result = std::move(aValue); });
@@ -486,7 +487,7 @@ namespace {
 		// round carries on by hand.
 		const auto listed = [&] {
 			application::manual_executor      store;
-			application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), store, store };
+			application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, core::bpr_profile_id{ 1 }), store, store, nullptr, bpr::tests::product_line_matcher() };
 			auto                              page = std::optional<application::cycle_store_result<application::cycle_page>>{ };
 			runtime.list(std::nullopt, [&](application::cycle_store_result<application::cycle_page> aPage) { page = std::move(aPage); });
 			store.drain();

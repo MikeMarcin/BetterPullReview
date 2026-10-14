@@ -923,6 +923,10 @@ namespace {
 			const auto                result = session.submit_and_reconcile(wire.Request);
 			expect(result.Publication == application::review_submission_publication::definitely_not_published && wire.Posts == 1U,
 				   "GitHub's 422, with no new review of mine after it, is a definite refusal");
+			// The workflow states a refusal by its failure since BPR-1429;
+			// `unsupported` read "This connection does not support this operation".
+			expect(result.Failure == application::review_mutation_failure::refused_by_server,
+				   "and the server refused it, not an operation the connection lacks");
 			expect(session.pending() && session.pending()->empty() && session.admitted(wire.Request.IdempotencyKey) && !*session.admitted(wire.Request.IdempotencyKey),
 				   "and its attempt is withdrawn, not restored as unfinished");
 		}
@@ -1136,8 +1140,9 @@ namespace {
 			const auto                result  = session.submit_and_reconcile(request);
 			expect(wire.SentBody == probe.file("refused-body.json"), "the refused body replayed is the one sent live");
 			expect(wire.PostStatus == 422 && result.Publication == application::review_submission_publication::definitely_not_published
+					   && result.Failure == application::review_mutation_failure::refused_by_server
 					   && session.pending() && session.pending()->empty(),
-				   "GitHub's 422 and its unchanged review list are a definite refusal, withdrawn");
+				   "GitHub's 422 and its unchanged review list are a definite refusal by the server, withdrawn");
 		}
 		std::cout << "replay-live:pass\n";
 	}

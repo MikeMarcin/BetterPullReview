@@ -7,6 +7,7 @@
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "bpr/core/review_cycle_manifest.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
+#include "product_diff.hpp"
 #include "publication_course.hpp"
 #include "simulated_github.hpp"
 #include "workspace_fixture.hpp"
@@ -94,7 +95,7 @@ namespace {
 		{
 			auto seed = std::array<std::uint8_t, 32>{ };
 			seed[0]   = 0x77;
-			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed);
+			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed, nullptr, bpr::tests::product_line_matcher());
 			Host->set_clipboard(&Clipboard);
 			Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(std::filesystem::path{ aPath }); });
 			Account = application::review_cycle_publication_account{ .Provider = std::move(aRemote), .Account = reviewer, .Login = "octo-reviewer", .Host = "github.com" };

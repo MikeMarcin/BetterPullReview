@@ -7,6 +7,7 @@
 #include "bpr/application/review_cycle_publication.hpp"
 #include "bpr/application/review_cycle_publisher.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
+#include "product_diff.hpp"
 #include "publication_course.hpp"
 #include "simulated_github.hpp"
 #include "stored_tour_port.hpp"
@@ -374,7 +375,7 @@ namespace {
 			for (auto& byte : seed) {
 				byte = static_cast<std::uint8_t>(random());
 			}
-			Host         = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aCourse.profile_root(), profile), *Source, Lanes, Lanes, Port, seed);
+			Host         = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aCourse.profile_root(), profile), *Source, Lanes, Lanes, Port, seed, nullptr, bpr::tests::product_line_matcher());
 			auto account = application::review_cycle_publication_account{ .Provider = std::move(aRemote), .Account = reviewer, .Login = std::string{ login }, .Host = "github.com" };
 			Host->set_publication_environment({
 				.Candidates =

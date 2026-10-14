@@ -21,7 +21,7 @@ if(BPR_BUILD_TOUR_CLI)
         target_compile_definitions(better_pull_review_tour_runtime PRIVATE BPR_BUILD_TESTING=1 BPR_NATIVE_HTTPS_TESTING=1)
     endif()
     target_link_libraries(better_pull_review_tour_runtime PUBLIC BetterPullReview::Application
-        PRIVATE better_pull_review_command_line BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::Platform Qt6::Core Qt6::Network)
+        PRIVATE better_pull_review_command_line BetterPullReview::AdapterGitHub BetterPullReview::AdapterGit BetterPullReview::AdapterSQLite BetterPullReview::AdapterWorkspace BetterPullReview::AdapterExport BetterPullReview::AdapterXdiff BetterPullReview::Platform Qt6::Core Qt6::Network)
     target_include_directories(better_pull_review_tour_runtime PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src" "${PROJECT_SOURCE_DIR}/src/application/src" "${CMAKE_CURRENT_SOURCE_DIR}/include")
     target_compile_features(better_pull_review_tour_runtime PUBLIC cxx_std_23)
@@ -131,6 +131,7 @@ if(BPR_BUILD_QT)
             BetterPullReview::AdapterSQLite
             BetterPullReview::AdapterWorkspace
             BetterPullReview::AdapterExport
+            BetterPullReview::AdapterXdiff
             BetterPullReview::AdapterLogging
             BetterPullReview::AdapterSyntax
             BetterPullReview::AdapterRegex

@@ -5,6 +5,7 @@
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "fixture_json.hpp"
 #include "github_mutation_contract.hpp"
+#include "product_diff.hpp"
 #include "review_comment_permalink.hpp"
 #include <sqlite3.h>
 #include <stdexcept>
@@ -1206,7 +1207,7 @@ namespace {
 				text += "line\n";
 			}
 			auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(text.data()), text.size() };
-			auto computed = core::compute_file_diff({ .Key = source.Comparison, .Options = { }, .LeftBytes = bytes, .RightBytes = bytes });
+			auto computed = bpr::tests::product_file_diff({ .Key = source.Comparison, .Options = { }, .LeftBytes = bytes, .RightBytes = bytes });
 			expect(computed.Result.has_value(), "real diff material for composition/publication");
 			auto index = *core::build_diff_semantic_index(std::make_shared<const core::computed_file_diff>(std::move(*computed.Result)));
 			auto note  = *core::create_private_thread(core::private_review_thread_id{ 1 }, { binding, core::private_pr_subject{ } }, { core::private_review_turn_id{ 2 }, core::private_review_turn_revision_id{ 3 }, core::private_vertex_order{ 3 }, core::private_reviewer_actor{ }, "private reasoning stays local" });

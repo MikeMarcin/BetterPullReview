@@ -13,7 +13,7 @@ metadata: {"mandate_revision":"diff-engine-evaluation-r1"}
 # BPR-1469: Measure the diff-engine candidates on Windows
 
 Part of [RFC-BPR-0082](../../rfcs/RFC-BPR-0082-diff-engine-evaluation.md). Runs the harness of
-[BPR-1466](../30-in-progress/BPR-1466-opt-in-diff-engine-evaluation-harness.md) on the Windows
+[BPR-1466](../60-done/BPR-1466-opt-in-diff-engine-evaluation-harness.md) on the Windows
 station with the thresholds unchanged. The process candidate's Windows launch
 uses the Git adapter's job and handle restriction.
 

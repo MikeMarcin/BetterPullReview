@@ -1,6 +1,7 @@
 #include "cycle_session.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
+#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/core/sha256.hpp"
 #include <vector>
 namespace bpr::app {
@@ -21,7 +22,8 @@ namespace bpr::app {
 		: Admission{ std::move(aAdmission) }
 		, Cancelled{ std::move(aCancelled) }
 		, Source{ adapters::workspace::make_local_workspace_source() }
-		, Runtime{ std::make_unique<application::review_cycle_runtime>(adapters::sqlite::make_review_cycle_store(Admission.Root, Admission.Profile), Effects, Decisions) }
+		, Runtime{ std::make_unique<application::review_cycle_runtime>(adapters::sqlite::make_review_cycle_store(Admission.Root, Admission.Profile), Effects, Decisions,
+																	   nullptr, adapters::xdiff::make_xdiff_line_matcher()) }
 		, Seed{ aSeed }
 	{
 	}

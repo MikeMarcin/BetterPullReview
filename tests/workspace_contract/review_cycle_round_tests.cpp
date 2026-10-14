@@ -3,6 +3,7 @@
 #include "bpr/application/review_cycle_round.hpp"
 #include "cycle_course.hpp"
 #include "cycle_session.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <cstdint>
@@ -145,7 +146,7 @@ namespace {
 		auto cycle = course{ *source, root };
 		expect(cycle.capture(*source).Status == cycle_capture_status::captured, "R1");
 		auto&      store = *cycle.Store;
-		auto       host  = application::review_cycle_comparison_host{ store, cycle.Subject.Authority };
+		auto       host  = application::review_cycle_comparison_host{ store, cycle.Subject.Authority, bpr::tests::product_line_matcher() };
 		const auto note  = store.begin_feedback(tests::workspace_contract::operation(200), cycle.Subject, cycle.state().Revision, { .Primary = core::cycle_whole_target{ }, .Body = "note: One." }, { });
 		expect(note.has_value(), "note");
 		const auto begun = store.begin_draft(tests::workspace_contract::operation(201), cycle.Subject, cycle.state().Revision, { });

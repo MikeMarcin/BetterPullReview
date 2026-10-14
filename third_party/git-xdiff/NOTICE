@@ -1,0 +1,38 @@
+xdiff from Git 2.56.0 (the bpr_xdiff shared library)
+
+BetterPullReview uses the xdiff library from Git 2.56.0 to match the lines of
+the two sides of a diff. xdiff is distributed with BetterPullReview as its own
+shared library, separate from every BetterPullReview executable, which link to
+it dynamically and contain no copy of it:
+
+  macOS    BetterPullReview.app/Contents/Frameworks/libbpr_xdiff.dylib
+  Windows  bpr_xdiff.dll, beside better_pull_review.exe
+  Linux    lib/betterpullreview/libbpr_xdiff.so, beside the application
+
+xdiff is free software: you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation, either version 2.1 of the License, or (at your option)
+any later version. It is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. The GNU Lesser General Public License,
+version 2.1, follows this notice in full (LGPL-2.1).
+
+  Copyright (C) 2003 Davide Libenzi
+  Copyright (C) 2003-2016 Davide Libenzi, Johannes E. Schindelin
+  SPDX-License-Identifier: LGPL-2.1-or-later
+
+xdiff/xhistogram.c, part of the same library, derives from JGit and is
+licensed under the Eclipse Distribution License v1.0 instead; its complete
+copyright notice, conditions and disclaimer follow (xhistogram-EDL-1.0.txt).
+
+  Copyright (C) 2010, Google Inc. and other copyright owners as documented
+  in JGit's IP log
+  SPDX-License-Identifier: BSD-3-Clause
+
+The library's complete corresponding source is in the separate
+corresponding-source release asset named in "Corresponding source release
+asset" above and in SOURCE-OFFERS.txt: the unmodified upstream archive
+git-xdiff-2.56.0.tar.xz, and, under git-xdiff-2.56.0-build/, the two
+compatibility headers that replace Git's git-compat-util.h for this build and
+the CMake script that compiles it. You may modify the library and replace the
+shared library above with your own build of it; SOURCE-OFFERS.txt says how.
