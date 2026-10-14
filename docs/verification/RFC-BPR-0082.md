@@ -32,7 +32,7 @@ adoption waits on the named owner answer; it is not adopted.
 | Primary line matcher | **Adopt linked xdiff, Myers with the indent heuristic** (`l-myers-indent`, [[BPR-1485]]), under the owner's 2026-10-13 waivers of the speed, size and approximation clauses for shape L (below). Every other candidate rejected. | Under the rule as adopted: P fails the correctness gate (2 refusals each, see below) and the primary rule. L, re-measured after Q1 as its own shared library with the whitespace mapping corrected, has no refusal and no invalid result, but fails the primary rule with every algorithm: 1.60–2.03× the baseline's median time on L inputs and 0.69–1.04× on pathological ones (memory 1.13–1.25× and 0.61–0.73×), so neither 2× faster nor 2× smaller, a regression above 10% on L, and 7 of the baseline's 11 approximate L and pathological comparisons still approximate. C O(NP) (dtl) fails correctness (crash, 6 invalid results refused, a resumed run that never ends); the first-party histogram fails the rule (slower on L, GitHub agreement below the baseline's). |
 | Hunk sliding | **Adopted with the primary matcher**: Git's indent heuristic inside xdiff ([[BPR-1485]]). The core post-pass is rejected. | Git's indent heuristic raises GitHub agreement (P 65→77, L 66→78 of 78) at no measurable cost, but it runs inside Git's or xdiff's own matcher, so adopting it means adopting that matcher, which fails the primary rule (and, for P, the correctness gate). The core post-pass raises agreement (45→51) but costs 5–9% of compute per class, above the 5% limit. |
 | Line-pair similarity | **Adopted: rapidfuzz-cpp** ([[BPR-1480]], done), after the owner's Q2 Accept of 2026-10-13. The engine now scores pairs with its Indel distance; outputs byte-identical over 1,162 cases, pairing phase 15.80 → 0.97 ms on the 10K-line, 300-edit benchmark. | rapidfuzz-cpp 3.3.4 Indel: pairing decisions bit-identical to the baseline's on all 86 comparisons; pairing phase 0.10× the baseline's on M and L; every gate passes on macOS. |
-| Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06)** ([[BPR-1481]]); Q2 approved dtl for this per-line use on 2026-10-13. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
+| Intraline ranges | **Adopt O(NP) over scalars (dtl)** ([[BPR-1481]]): the owner accepted its render set on 2026-10-13 (AC06); Q2 approved dtl for this per-line use. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
 | Review Cycle suggestion hunks | **No change.** | No primary matcher is adopted, so nothing replaces the bounded Myers. |
 
 **Owner answer on L's speed, 2026-10-13** (mandate `-r3`): "I don't care about
@@ -173,12 +173,17 @@ and `histogram` variants and all eight installed-Git variants showed 0 tests,
 and the tables were generated without the inventories, so no adjudication was
 applied. The tables are now regenerated with the inventories, and a candidate
 whose suites never ran is shown as "not run". The L variants' suites ran with
-the re-measurement (their table); P's 2.56.0 `patience` and `histogram`
-variants and all eight installed-Git variants are **not run**: every one of
-them already fails its correctness gate on the corpus (2 refusals), the
-primary rule or, for a sliding variant, its own matcher's primary rule, and
-the installed-Git variants also fail the Interruption gate, so no suite result
-could change their decision.
+the re-measurement (their table supersedes the first pass's 8 "not run" L
+rows). P's 2.56.0 `patience` and `histogram` variants and all eight
+installed-Git variants ran afterwards in the integrated evaluation build
+(revision `2b306d6ef` plus the adjudication edits; the same-build baseline
+failed only `core_diff_compute`'s Release-only expectation) and are folded into
+the first-pass tables. Their new failures are the adjudicated budget-model and
+hook-artefact expectations and, under station loads of 40–47 from other
+builds, `application_large_review_*` timing courses the baseline passed; those
+timing failures are left unadjudicated, because every P variant already fails
+its correctness gate on the corpus (2 refusals) and so is rejected whatever
+they show.
 
 ## Gates, with commands and counts (macOS)
 
@@ -281,6 +286,53 @@ change.
 The generated tables keep the counts of the runs they come from; this table
 supersedes their comment-flip and BPR-hunk columns.
 
+## Intraline ranges after BPR-1481
+
+[[BPR-1481]] adopts dtl for intraline ranges on top of [[BPR-1485]]'s xdiff
+primary, after the owner's Q2 Accept and AC06 Accept (session
+`3dcb3e5660345ff127118964cc309faa`, decision
+`0552741d-9e4e-4c8b-8a7b-350e9d0326a8`, recorded in `a66d996df`). A similar
+pair's ranges are the gaps between dtl's common scalars. Its comparisons are
+counted by the step meter, not charged to the matrix budget, so
+`MatrixCellsConsumed` now counts pairing alone; a pair whose
+(left + 1) x (right + 1) grid reaches dtl's 2,000,000-point restart bound
+keeps the budgeted table (no corpus pair does: the only long lines,
+`patho-long-lines`, are never paired). The 86 corpus comparisons were computed
+once through the product path (`product_file_diff`, a `core-only` Debug build)
+and compared with `l-myers-indent` in `macos-bpr1482-refresh`, the same xdiff
+alignment with the table's intraline pass:
+
+| Measure (86 comparisons) | xdiff + table (`l-myers-indent`) | xdiff + dtl (BPR-1481) |
+|---|---|---|
+| Published and valid (`validate_computed_file_diff`) | 86 | 86 |
+| Similar pairs | 18,645 | 18,645 |
+| Pairs without intraline emphasis | 11,706 | 858 |
+| Approximate comparisons | 9 | 8 |
+| Matrix cells consumed | 176,974,001 | 159,739,202 |
+
+Every span validates (UTF-8 boundaries, monotonic, inside the pair's
+content). Emphasis comes back on six comparisons whose intraline passes the
+budget used to stop: `bench-10000-300` (1,891 pairs), `bench-40000-300`
+(2,480), `bench-100000-30` (1,702), `bench-100000-300` (2,238),
+`git-po-bg-po` (998) and `git-po-sv-po` (1,539). Five of them stay
+approximate, because pairing alone fills their 16 Mi-cell budget; only
+`bench-100000-30` stops being approximate. The 858 pairs still without
+emphasis are `patho-crlf`'s 286 under each of its three options: their lines
+differ only in the line ending, which is not part of a line's content, so
+there is nothing to emphasize. This is the same 858 the evaluation measured
+for `c-onp-intraline` over the first-party primary. `core_diff_intraline`
+tests the uncharged budget, the large pair's table and a stop inside dtl.
+
+[[BPR-1485]]'s `tool_diff_xdiff_equivalence` over the same corpus now finds
+the segments and pairs digests of all 86 comparisons equal to
+`l-myers-indent`'s and GitHub agreement unchanged (78 of 78), and the
+intraline digest different on 30: the six above, where emphasis returns, and
+24 where dtl places equally short ranges differently from the table (the
+evaluation found 25 such for `c-onp-intraline` against the baseline), plus
+`bench-100000-30` no longer approximate. These are the differences of the
+render set the owner accepted (AC06); that tool's comparison with the recorded
+`l-myers-indent` intraline digests no longer applies once BPR-1481 lands.
+
 ## Open questions and the evidence for them
 
 - **Q1 (linking LGPL xdiff), answered Accept on 2026-10-13** if xdiff is its
@@ -296,8 +348,8 @@ supersedes their comment-flip and BPR-hunk columns.
   was told dtl misbehaved as a whole-file line matcher. rapidfuzz-cpp gives
   identical pairing decisions with a pairing phase 10× faster (MIT,
   header-only) and is adopted through [[BPR-1480]]; dtl over scalars gives
-  valid, slightly faster intraline spans (BSD-3-Clause, header-only) and waits
-  on AC06.
+  valid, slightly faster intraline spans (BSD-3-Clause, header-only); the
+  owner accepted its render set (AC06), and it is adopted through [[BPR-1481]].
 - **Q3 (results depending on the installed Git).** Blocks every P shape.
   Evidence: `myers` and `patience` were identical across 2.39.5, 2.50.1 and
   2.56.0 on all 86 comparisons, `minimal` changed on 14 and `histogram` on 1;
@@ -305,8 +357,11 @@ supersedes their comment-flip and BPR-hunk columns.
 - **AC06.** The dtl intraline candidate's render set (10 corpus pairs whose
   emphasis differs from the baseline's, rendered by the product's diff
   workbench at revision `39df8537a`, byte-identical to the first pass's) is
-  prepared in its own new attended-review session (`3dcb3e56…`, one
-  Accept/Reject question); the owner's answer is pending.
+  reviewed in its own new attended-review session
+  (`3dcb3e5660345ff127118964cc309faa`, one Accept/Reject question). **The
+  owner accepted it** on 2026-10-13 (decision `0552741d-9e4e-4c8b-8a7b-350e9d0326a8`,
+  saved 2026-10-14T04:16:42Z UTC, actor human, no note), so dtl's per-line
+  intraline adoption proceeds through [[BPR-1481]].
 
 ## Platform status
 

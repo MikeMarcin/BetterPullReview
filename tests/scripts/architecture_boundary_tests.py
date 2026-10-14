@@ -1603,6 +1603,59 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure("rapidfuzz-cpp line-pair similarity ownership violation", {path: expression})
 
+    def test_linked_xdiff_has_one_adapter_owner(self) -> None:
+        # [[BPR-1485]]. Only the xdiff adapter calls xdiff and links its shared
+        # library, which only the provider builds, and only as SHARED.
+        adapter = {
+            "src/adapters/xdiff/src/xdiff_line_matcher.cpp":
+                'extern "C" {\n#include "xdiff.h"\n}\nauto parameters = xpparam_t{ };\nparameters.flags = XDF_INDENT_HEURISTIC;\n'
+                "xdl_diff(&left, &right, &parameters, &configuration, &callback);\n",
+            "src/adapters/xdiff/CMakeLists.txt":
+                "add_library(better_pull_review_adapter_xdiff STATIC src/xdiff_line_matcher.cpp)\n"
+                "target_link_libraries(better_pull_review_adapter_xdiff PUBLIC BetterPullReview::Application PRIVATE BetterPullReview::Xdiff)\n",
+            "cmake/BprXdiffProvider.cmake":
+                "add_library(better_pull_review_xdiff SHARED ${source}/xdiff/xdiffi.c)\n",
+        }
+        result = self.run_check(adapter)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/diff_xdiff.cpp", '#include "xdiff.h"\n'),
+            ("src/application/src/diff_line_matcher.cpp", "xdl_diff(&left, &right, &parameters, &configuration, &callback);\n"),
+            ("src/adapters/git/src/other.cpp", "mmfile_t left{ };\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("linked xdiff ownership violation", {**adapter, path: expression})
+        for path, expression, diagnostic in (
+            ("cmake/BprXdiffProvider.cmake", "add_library(better_pull_review_xdiff STATIC ${source}/xdiff/xdiffi.c)\n",
+             "xdiff must be built only as its own shared library"),
+            ("src/adapters/qt/CMakeLists.txt", "target_link_libraries(better_pull_review_adapter_qt PRIVATE BetterPullReview::Xdiff)\n",
+             "xdiff ownership violation in src/adapters/qt/CMakeLists.txt"),
+            ("src/core/CMakeLists.txt", "add_library(better_pull_review_core src/agent_profile.cpp ${git}/xdiff/xdiffi.c)\n",
+             "xdiff ownership violation in src/core/CMakeLists.txt"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure(diagnostic, {**adapter, path: expression})
+
+    def test_intraline_comparison_has_one_dtl_owner(self) -> None:
+        # [[BPR-1481]]. Only the engine's intraline comparison names dtl, so
+        # it never compares a file's lines.
+        result = self.run_check({
+            "src/core/src/diff_intraline.cpp":
+                "#include <dtl/dtl.hpp>\n"
+                "auto diff = dtl::Diff<std::uint32_t>{ left, right };\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/diff_intraline.cpp)\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/diff_semantics.cpp", "#include <dtl/dtl.hpp>\n"),
+            ("src/core/src/diff_line_matcher.cpp", "auto lines = dtl::Diff<line_class>{ left, right };\n"),
+            ("src/adapters/xdiff/src/matcher.cpp", "if (info.type == dtl::SES_COMMON) {}\n"),
+            ("src/application/src/diff_line_matcher.cpp", "#ifdef DTL_VARIABLES_H\n#endif\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("dtl intraline comparison ownership violation", {path: expression})
+
     def test_platform_sha256_has_one_adapter_owner(self) -> None:
         # [[BPR-1447]]. CommonCrypto's SHA-2 is called only by the GitHub
         # adapter's body digest port; core, application, app and every other

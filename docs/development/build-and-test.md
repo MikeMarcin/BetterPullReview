@@ -3591,6 +3591,59 @@ anywhere else. `core_diff_compute_benchmark` (the
 the pairing phase's time from a run polled every 4,096 steps. License and
 provenance are under `third_party/rapidfuzz-cpp/`.
 
+## Linked xdiff primary line matcher
+
+[[BPR-1485]] The diff engine's primary line matches come from Git 2.56.0's
+xdiff, Myers with the indent heuristic (RFC-BPR-0082, `l-myers-indent`). The
+owner accepted LGPL-2.1-or-later xdiff only as its own dynamically linked
+shared library, as Qt is, so `cmake/BprXdiffProvider.cmake` builds
+`better_pull_review_xdiff` (`libbpr_xdiff.dylib`, `libbpr_xdiff.so`,
+`bpr_xdiff.dll`) as a SHARED library and nothing else. It checks the pinned
+Git archive's SHA-256, size, `LGPL-2.1` and `COPYING` digests, honors the
+offline cache, and re-extracts only `xdiff/` and those notices under
+`build/_bpr/xdiff`. `third_party/git-xdiff/git-compat-util.h` and
+`bpr-xdiff-regex.h` replace Git's compatibility header for that build: the
+allocators return null instead of ending the process, and no regular
+expression library is used. The library is built in every graph, including
+`core-only`, and hardened like the product.
+
+Only `src/adapters/xdiff` links the library, and only its
+`xdiff_line_matcher.cpp` calls it, behind the application's
+`diff_line_matcher_port`; `architecture_boundaries` refuses an xdiff symbol or
+header anywhere else, a second build of the xdiff sources, a non-shared
+library, and any other target that links it. The application's
+`abandonable_diff_line_matching` runs the matcher on a thread of its own and
+polls the computation's stop every millisecond, so a stop returns at once and
+the matcher's thread is abandoned. Tests compute the product's diff through
+`tests/support/product_diff.hpp` (the `bpr_test_product_diff` target, linked
+into every test target). Windows tests find the DLL through a `PATH` entry
+`cmake/BprTestIsolation.cmake` adds; packages install it beside the
+application, and `tools/release.sh` puts it in `Contents/Frameworks`.
+
+## Core dtl intraline ranges
+
+[[BPR-1481]] uses header-only dtl 1.21 for the diff engine's intraline ranges
+(RFC-BPR-0082; owner Q2 Accept 2026-10-13, for per-line intraline comparison
+only, and AC06 Accept of the render set, session
+`3dcb3e5660345ff127118964cc309faa`). `cmake/BprDtlProvider.cmake` checks
+archive SHA-256, size and the BSD-3-Clause `COPYING`, honors the offline cache,
+and re-extracts only the `dtl/` headers and `COPYING` under `build/_bpr/dtl`.
+It is part of the Qt-free core graph and on the owner's core allow-list as
+`BetterPullReview::Dtl`. `intraline_common_scalars` in
+`src/core/src/diff_intraline.cpp` runs `dtl::Diff` (O(NP)) over one similar
+pair's Unicode scalars; the ranges are the gaps between its common scalars.
+Each comparison is a step of the engine's meter, counted in batches of 4,096,
+and the matrix budget is not charged, so `MatrixCellsConsumed` is pairing's
+alone. A stop is caught inside the comparator, which then reports every pair
+equal so dtl finishes in one pass; the result is dropped and the stop thrown
+again, so no stop unwinds through dtl's plain `new[]`. dtl 1.21 restarts past
+2,000,000 path points on a path that can join unequal scalars: a pair whose
+(left + 1) x (right + 1) grid is that large keeps the budgeted character table,
+and every common scalar dtl returns is checked before use. `architecture_boundaries`
+refuses a dtl symbol, header or macro in any other source. `core_diff_intraline`
+covers the ranges, the budget, the large-pair table and a stop inside dtl.
+License and provenance are under `third_party/dtl/`.
+
 ## Source search regex engine
 
 [[BPR-1431]] builds pinned Google RE2 2025-11-05 and Abseil LTS 20250814.2 as

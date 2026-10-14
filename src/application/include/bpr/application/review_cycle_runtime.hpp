@@ -74,7 +74,10 @@ namespace bpr::application {
 		template <typename T>
 		using completion = std::function<void(cycle_store_result<T>)>;
 
-		review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures = nullptr);
+		/// [[BPR-1485]] `aMatcher` computes the line matches of a pair's diff;
+		/// without one, a pair's file is refused (`host_failure`).
+		review_cycle_runtime(std::unique_ptr<review_cycle_store> aStore, effect_executor& aEffects, decision_executor& aDecisions, effect_executor* aCaptures = nullptr,
+							 std::shared_ptr<diff_line_matcher_port> aMatcher = nullptr);
 		~review_cycle_runtime();
 		review_cycle_runtime(const review_cycle_runtime&)                    = delete;
 		auto operator=(const review_cycle_runtime&) -> review_cycle_runtime& = delete;

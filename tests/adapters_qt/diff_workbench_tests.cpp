@@ -1,5 +1,6 @@
 #include "../support/resize_cursor_hold_check.hpp"
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -159,7 +160,7 @@ namespace {
 	{
 		auto       left    = bytes(aLeft);
 		auto       right   = bytes(aRight);
-		const auto outcome = core::compute_file_diff({
+		const auto outcome = bpr::tests::product_file_diff({
 			.Key        = key(aOptions, aSeed),
 			.Options    = aOptions,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },
@@ -1768,7 +1769,7 @@ namespace {
 		auto limits            = core::diff_compute_limits{ };
 		limits.MaximumSegments = 1U;
 		const auto left = bytes("same\nold\n"), right = bytes("same\nnew\n");
-		const auto limited = core::compute_file_diff({ .Key = key({ }, 71U), .Options = { }, .LeftBytes = left, .RightBytes = right, .Limits = limits });
+		const auto limited = bpr::tests::product_file_diff({ .Key = key({ }, 71U), .Options = { }, .LeftBytes = left, .RightBytes = right, .Limits = limits });
 		expect(limited.Result && limited.Reason == core::diff_reason_code::compute_limit, "real compute limit produces an unavailable result");
 		for (const bool cached : { false, true }) {
 			publish(*limited.Result, cached);
@@ -1778,7 +1779,7 @@ namespace {
 				   "unavailable result clears prior source and selection");
 		}
 		const auto binary  = bytes(std::string_view{ "a\0b", 3U });
-		const auto nontext = core::compute_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
+		const auto nontext = bpr::tests::product_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
 		expect(nontext.Result && nontext.Reason == core::diff_reason_code::binary_file, "real binary result available");
 		publish(*nontext.Result, false);
 		expect(workbench.status_text() == QStringLiteral("Binary file comparison"), "binary content is distinct from equal text and unavailable content");

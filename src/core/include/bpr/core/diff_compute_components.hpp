@@ -11,19 +11,20 @@
 #include <vector>
 
 /// \file
-/// \brief The diff engine's evaluation seam ([[RFC-BPR-0082]], [[BPR-1465]]).
+/// \brief The diff engine's component seam ([[RFC-BPR-0082]], [[BPR-1465]]).
 ///
-/// \details A candidate algorithm supplies the primary line matches, a
-/// post-pass over them, the pair scores of a replacement or the matched
-/// scalars of a similar pair. Everything else stays the engine's: decoding,
-/// line splitting and normalization, pairing policy, move detection,
-/// identities, geometry, budgets and validation. The engine validates every
-/// supplied value before it assembles anything and refuses a comparison whose
-/// supplied values fail, so a candidate never publishes an invalid alignment.
+/// \details A component supplies the primary line matches, a post-pass over
+/// them, the pair scores of a replacement or the matched scalars of a similar
+/// pair. Everything else stays the engine's: decoding, line splitting and
+/// normalization, pairing policy, move detection, identities, geometry,
+/// budgets and validation. The engine validates every supplied value before
+/// it assembles anything and refuses a comparison whose supplied values fail,
+/// so a component never publishes an invalid alignment.
 ///
-/// The existing `compute_file_diff` and `compute_material_diff` overloads do
-/// not consult this seam. Whether it ships beyond the evaluation is decided by
-/// adoption, not by this header.
+/// [[BPR-1485]] The primary matches always come through this seam: the
+/// product's are linked xdiff's (Myers with the indent heuristic), supplied by
+/// the application host's line matcher port. The engine has no primary
+/// matcher of its own.
 namespace bpr::core {
 	/// \brief One matched line, or one matched scalar of a line pair: an index
 	/// on each side.
@@ -38,11 +39,11 @@ namespace bpr::core {
 	/// \brief Counts a component's work in the engine's steps.
 	///
 	/// \details `tick` polls the caller's stop predicate as the engine's own
-	/// loops do. When the caller asked to stop it does not return: it unwinds
-	/// the component by an exception the engine catches, so a component must
-	/// hold its state in objects that clean up after themselves. A component
-	/// call is one restart unit: a stopped computation calls it again when
-	/// resumed.
+	/// loops do, and `poll` polls it at once, for a component that waits on
+	/// work it cannot count. When the caller asked to stop neither returns: it
+	/// unwinds the component by an exception the engine catches, so a
+	/// component must hold its state in objects that clean up after
+	/// themselves. A stopped computation is abandoned ([[BPR-1485]]).
 	class diff_component_meter
 	{
 	public:
@@ -53,6 +54,7 @@ namespace bpr::core {
 		auto operator=(diff_component_meter&&) -> diff_component_meter&      = delete;
 
 		virtual void tick(std::uint64_t aSteps) = 0;
+		virtual void poll()                     = 0;
 
 	protected:
 		~diff_component_meter() = default;
@@ -81,7 +83,8 @@ namespace bpr::core {
 		std::uint16_t ThresholdPermille = 0U;
 	};
 
-	/// \brief Which members of a `diff_components` the engine calls.
+	/// \brief Which members of a `diff_components` the engine calls. `Primary`
+	/// is required.
 	struct diff_component_parts
 	{
 		bool Primary   = false;
@@ -92,9 +95,11 @@ namespace bpr::core {
 		auto operator<=>(const diff_component_parts&) const = default;
 	};
 
-	/// \brief Candidate algorithms for parts of one computation.
+	/// \brief The algorithms for parts of one computation.
 	///
-	/// \details The engine calls only the members `parts` names. Each member
+	/// \details The engine calls only the members `parts` names. The primary
+	/// matches are required: a component without them, or one that declines
+	/// them, refuses the comparison with `host_failure`. Every other member
 	/// returns `std::nullopt` to decline, which keeps the engine's own
 	/// algorithm for that part. The engine calls a component from the thread
 	/// computing the diff; one object shared by several computations must be
@@ -112,9 +117,8 @@ namespace bpr::core {
 		/// \brief The members this object supplies; none by default.
 		[[nodiscard]] virtual auto parts() const noexcept -> diff_component_parts;
 
-		/// \brief Monotonic matches over the whole comparison, in place of the
-		/// engine's primary matcher. Each must join two lines of one class,
-		/// and both indices must strictly increase.
+		/// \brief Monotonic matches over the whole comparison. Each must join
+		/// two lines of one class, and both indices must strictly increase.
 		[[nodiscard]] virtual auto primary_matches(const diff_primary_request& aRequest, diff_component_meter& aMeter)
 			-> std::optional<std::vector<diff_match>>;
 
@@ -150,39 +154,12 @@ namespace bpr::core {
 		std::vector<diff_match> Matches;
 	};
 
-	/// \brief `compute_file_diff` with candidate components.
-	[[nodiscard]] auto compute_file_diff(const diff_compute_input& aInput, diff_components& aComponents)
-		-> diff_compute_outcome;
-	/// \brief One stoppable slice of `compute_file_diff` with candidate
-	/// components. A paused state resumes only with the same components.
-	[[nodiscard]] auto compute_file_diff(const diff_compute_input& aInput, const diff_compute_control& aControl,
-										 diff_components& aComponents, paused_diff_compute aResume = { })
-		-> file_diff_compute_slice;
 	/// \brief `compute_file_diff` with observed primary matches.
 	[[nodiscard]] auto compute_file_diff(const diff_compute_input& aInput, const diff_primary_observation& aObservation)
 		-> diff_compute_outcome;
-
-	/// \brief `compute_material_diff` with candidate components.
-	[[nodiscard]] auto compute_material_diff(const material_diff_input& aInput, diff_components& aComponents)
-		-> material_diff_outcome;
-	/// \brief One stoppable slice of `compute_material_diff` with candidate
-	/// components.
-	[[nodiscard]] auto compute_material_diff(const material_diff_input& aInput, const diff_compute_control& aControl,
-											 diff_components& aComponents, paused_diff_compute aResume = { })
-		-> material_diff_compute_slice;
 	/// \brief `compute_material_diff` with observed primary matches.
 	[[nodiscard]] auto compute_material_diff(const material_diff_input&      aInput,
 											 const diff_primary_observation& aObservation) -> material_diff_outcome;
-
-#if defined(BPR_DIFF_ENGINE_EVALUATION)
-	namespace detail {
-		/// \brief The components an evaluation build gives the ordinary entry
-		/// points, or null for the engine's own algorithms.
-		/// \details Declared only when the evaluation option compiles the core;
-		/// the evaluation target defines it. No shipping build has it.
-		[[nodiscard]] auto evaluation_components() noexcept -> diff_components*;
-	} // namespace detail
-#endif
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_DIFF_COMPUTE_COMPONENTS_HPP

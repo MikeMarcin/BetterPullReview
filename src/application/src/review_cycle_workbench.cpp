@@ -330,8 +330,9 @@ namespace bpr::application {
 	struct review_cycle_workbench::implementation : std::enable_shared_from_this<implementation>
 	{
 		implementation(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
-					   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures)
-			: Runtime{ std::move(aStore), aEffects, aDecisions, aCaptures }
+					   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures,
+					   std::shared_ptr<diff_line_matcher_port> aMatcher)
+			: Runtime{ std::move(aStore), aEffects, aDecisions, aCaptures, std::move(aMatcher) }
 			, Decisions{ aDecisions }
 			, Source{ aSource }
 			, Port{ aPort }
@@ -2423,8 +2424,9 @@ namespace bpr::application {
 	};
 
 	review_cycle_workbench::review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
-												   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures)
-		: Implementation{ std::make_shared<implementation>(std::move(aStore), aSource, aEffects, aDecisions, aPort, aSeed, aCaptures) }
+												   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures,
+												   std::shared_ptr<diff_line_matcher_port> aMatcher)
+		: Implementation{ std::make_shared<implementation>(std::move(aStore), aSource, aEffects, aDecisions, aPort, aSeed, aCaptures, std::move(aMatcher)) }
 	{
 	}
 

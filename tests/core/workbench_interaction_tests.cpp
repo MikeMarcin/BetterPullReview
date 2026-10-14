@@ -1,5 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -170,7 +171,7 @@ namespace {
 		const auto right      = std::string{ "alpha\nBRAVO\ncharlie\nDELTA\necho\nfox\n" };
 		auto       leftBytes  = std::vector<std::uint8_t>{ left.begin(), left.end() };
 		auto       rightBytes = std::vector<std::uint8_t>{ right.begin(), right.end() };
-		const auto outcome    = compute_file_diff({
+		const auto outcome    = bpr::tests::product_file_diff({
 			.Key        = comparison_key(options),
 			.Options    = options,
 			.LeftBytes  = std::span<const std::uint8_t>{ leftBytes },

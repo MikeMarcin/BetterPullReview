@@ -5,6 +5,7 @@
 #include "bpr/application/review_cycle_comparison.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "cycle_course.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <sqlite3.h>
@@ -93,7 +94,7 @@ namespace {
 	{
 		auto       source = adapters::workspace::make_local_workspace_source();
 		auto       views  = two_revisions{ *source, aScratch / "views" };
-		auto       host   = application::review_cycle_comparison_host{ *views.Cycle.Store, views.Cycle.Catalog.Authority };
+		auto       host   = application::review_cycle_comparison_host{ *views.Cycle.Store, views.Cycle.Catalog.Authority, bpr::tests::product_line_matcher() };
 		const auto page   = host.page(views.Cycle.Subject, views.all_cycle(), std::nullopt, 64, true, { });
 		expect(page.Status == review_material_status::available && page.Page, "all-cycle page");
 		expect(find(*page.Page, "src/main.cpp")->Change == core::cycle_path_change::modified, "modified");
@@ -145,7 +146,7 @@ namespace {
 		write_file(views.Root / "src" / "main.cpp", "edited after capture\n");
 		std::filesystem::remove_all(views.Root / "docs");
 		{
-			auto host = application::review_cycle_comparison_host{ *views.Cycle.Store, views.Cycle.Catalog.Authority };
+			auto host = application::review_cycle_comparison_host{ *views.Cycle.Store, views.Cycle.Catalog.Authority, bpr::tests::product_line_matcher() };
 			expect(text(host.file(views.Cycle.Subject, views.full_source(1), "src/main.cpp", { }, { }).Source) == "int main()\n{\n\treturn 0;\n}\n", "not the edited file");
 			expect(text(host.file(views.Cycle.Subject, views.full_source(1), "docs/guide.md", { }, { }).Source) == "# Guide\n", "not the deleted file");
 		}
@@ -154,7 +155,7 @@ namespace {
 		views.Cycle.Store.reset();
 		auto reopened = adapters::sqlite::make_review_cycle_store(views.Cycle.StoreRoot.path(), profile);
 		{
-			auto host = application::review_cycle_comparison_host{ *reopened, views.Cycle.Catalog.Authority };
+			auto host = application::review_cycle_comparison_host{ *reopened, views.Cycle.Catalog.Authority, bpr::tests::product_line_matcher() };
 			expect(text(host.file(views.Cycle.Subject, views.full_source(2), "src/main.cpp", { }, { }).Source) == "int main()\n{\n\treturn 1;\n}\n", "after restart");
 		}
 
@@ -169,7 +170,7 @@ namespace {
 		}
 		write_file(views.Root / "docs" / "guide.md", "# Guide\n");
 		sql(database, ("UPDATE object_chunks SET bytes=X'00' WHERE digest=X'" + hex + "'").c_str());
-		auto       host    = application::review_cycle_comparison_host{ *reopened, views.Cycle.Catalog.Authority };
+		auto       host    = application::review_cycle_comparison_host{ *reopened, views.Cycle.Catalog.Authority, bpr::tests::product_line_matcher() };
 		const auto corrupt = host.file(views.Cycle.Subject, views.full_source(1), "docs/guide.md", { }, { });
 		expect(corrupt.Status == review_material_status::corrupt && corrupt.Source.empty(), "corruption reported with no bytes");
 		const auto main = tests::workspace_contract::digest_of("int main()\n{\n\treturn 1;\n}\n");
@@ -193,7 +194,7 @@ namespace {
 		auto views  = two_revisions{ *source, aScratch / "runtime" };
 		views.Cycle.Store.reset();
 		auto lanes   = application::manual_executor{ };
-		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(views.Cycle.StoreRoot.path(), profile), lanes, lanes };
+		auto runtime = application::review_cycle_runtime{ adapters::sqlite::make_review_cycle_store(views.Cycle.StoreRoot.path(), profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(views.Cycle.Subject);
 
 		auto page = std::optional<application::cycle_store_result<application::cycle_comparison_page_observation>>{ };
@@ -230,7 +231,7 @@ namespace {
 		expect(cycle.capture(*source).Status == cycle_capture_status::captured, "narrow R0");
 		cycle.rescope({ });
 		expect(cycle.capture(*source).Status == cycle_capture_status::captured, "wide R1");
-		auto        host  = application::review_cycle_comparison_host{ *cycle.Store, cycle.Catalog.Authority };
+		auto        host  = application::review_cycle_comparison_host{ *cycle.Store, cycle.Catalog.Authority, bpr::tests::product_line_matcher() };
 		const auto  state = cycle.state();
 		const auto  page  = host.page(cycle.Subject, *core::resolve_comparison(state, core::all_cycle_view{ }), std::nullopt, 64, false, { });
 		const auto* docs  = find(*page.Page, "docs/b.md");

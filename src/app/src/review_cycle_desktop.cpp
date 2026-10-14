@@ -8,6 +8,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
+#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/qt/review_cycle_promote_sheet.hpp"
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
@@ -239,7 +240,8 @@ namespace bpr::app {
 		, ProfileRoot{ aProfileRoot }
 	{
 		Host = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, aProfile), *Source, aEffects, aDecisions, *this, random_seed(),
-																	 aCaptures != nullptr ? aCaptures : (OwnCaptures = std::make_unique<worker_executor>()).get());
+																	 aCaptures != nullptr ? aCaptures : (OwnCaptures = std::make_unique<worker_executor>()).get(),
+																	 adapters::xdiff::make_xdiff_line_matcher());
 		View = new qt::review_cycle_view{ };
 		Window.adopt_local_cycle(View);
 		Tours    = std::make_unique<desktop_tour_port>(aProfileRoot, aProfile, aEffects);

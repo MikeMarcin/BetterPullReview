@@ -104,6 +104,7 @@
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
@@ -6594,6 +6595,11 @@ namespace bpr::app {
 						Owner.PrFind->observe_scope();
 					}
 					Owner.Window->publish(aProjection);
+					// A retained navigation press reads the active tab's view,
+					// which an observed reading position has just changed.
+					if (Owner.PendingReviewNavigation) {
+						Owner.schedule_tab_presentation();
+					}
 				}
 			}
 			implementation& Owner;
@@ -6753,7 +6759,11 @@ namespace bpr::app {
 			if (TabLoad || TabDriver || TabModality != core::workbench_modality::review || EpochHost->state().PendingComparison) {
 				return;
 			}
-			if (active && !tab_view_presented(*pending.View)) {
+			// The press is bound to its tab's file and exact pair, not to the
+			// reading position it saw: a selection made just before the press
+			// reaches the tab a lane turn later, and the stale position would
+			// never be on screen again, holding the press forever.
+			if (active && !tab_view_presented(active->View)) {
 				// An unavailable exact view keeps its normal explanation and never
 				// lends another comparison to the retained navigation command.
 				if (active->State == core::document_tab_view_state::unavailable) {
@@ -7945,7 +7955,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// continued turn of that host's that ever asks for one.
 				Realigner
 					= std::make_unique<application::composed_agent_realignment>(
-						*EpochHost, *EpochHost);
+						*EpochHost, *EpochHost, *LineMatcher);
 				AgentHost = std::make_unique<application::agent_invocation_host>(
 					agentProfiles,
 					agentPolicies,
@@ -8251,7 +8261,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 				DiffEffects,
 				ReviewerDecisions,
-				*DiffProjections
+				*DiffProjections,
+				LineMatcher
 #if defined(BPR_BUILD_TESTING)
 				,
 				application::diff_host_limits{ }, Profile->DiffComputeLimits
@@ -17844,6 +17855,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_file_projection,
 				awaiting_diff,
 				awaiting_change_projection,
+				awaiting_wrap_projection,
 				awaiting_files_drawer,
 				awaiting_width_store,
 				awaiting_invalidation,
@@ -18489,10 +18501,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::AgentEffects)& AgentEffects = Profile->AgentEffects;
 		decltype(github_profile_runtime::McpEffects)&   McpEffects   = Profile->McpEffects;
 #endif
-		decltype(github_profile_runtime::WorkbenchEffects)&                 WorkbenchEffects  = Profile->WorkbenchEffects;
-		decltype(github_profile_runtime::AppearanceEffects)&                AppearanceEffects = Profile->AppearanceEffects;
-		decltype(github_profile_runtime::QueueEffects)&                     QueueEffects      = Profile->QueueEffects;
-		std::unique_ptr<application::epoch_application_host>                EpochHost;
+		decltype(github_profile_runtime::WorkbenchEffects)&  WorkbenchEffects  = Profile->WorkbenchEffects;
+		decltype(github_profile_runtime::AppearanceEffects)& AppearanceEffects = Profile->AppearanceEffects;
+		decltype(github_profile_runtime::QueueEffects)&      QueueEffects      = Profile->QueueEffects;
+		std::unique_ptr<application::epoch_application_host> EpochHost;
+		/// [[BPR-1485]]. Linked xdiff, every diff's line matcher; declared before
+		/// the hosts that hold it. A matcher thread a stop abandoned holds its own share.
+		std::shared_ptr<application::diff_line_matcher_port>                LineMatcher                 = adapters::xdiff::make_xdiff_line_matcher();
 		decltype(github_profile_runtime::AgentWorkspaceRoot)&               AgentWorkspaceRoot          = Profile->AgentWorkspaceRoot;
 		decltype(github_profile_runtime::AgentWorkspaceNeighbourhood)&      AgentWorkspaceNeighbourhood = Profile->AgentWorkspaceNeighbourhood;
 		std::string                                                         LastAgentWorkspacePath;
@@ -22379,12 +22394,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Context  = implementation->LastSelectedDiff->Request.Context,
 				.Commands = wrapCommands,
 			});
-			const auto wrapDispatches = implementation->WorkbenchChangeDispatches;
+			probe.ChangeDispatches = implementation->WorkbenchChangeDispatches;
 			window->next_change_action()->trigger();
+			// [[BPR-1417]]. A press in Review is applied once the active tab's
+			// exact view is on screen, and the selections made just above reach
+			// the tab a lane turn later, so the press is not answered here.
+			return advance(state_type::phase::awaiting_wrap_projection);
+		}
+
+		if (probe.Phase == state_type::phase::awaiting_wrap_projection) {
+			if (implementation->WorkbenchChangeDispatches == probe.ChangeDispatches) {
+				return wait("WORKBENCH_WRAP_DISPATCH_STALLED", [&](QTextStream& aStream) {
+					aStream << "change_dispatches=" << static_cast<qulonglong>(implementation->WorkbenchChangeDispatches)
+							<< " expected_change_dispatches=" << static_cast<qulonglong>(probe.ChangeDispatches) + 1U
+							<< " navigation_retained=" << truth(implementation->PendingReviewNavigation.has_value())
+							<< " next_change_enabled=" << truth(window->next_change_action()->isEnabled());
+				});
+			}
+			const auto computed = comparison->current_result();
 			probe.Evidence.ChangeDispatch
-				= implementation->WorkbenchChangeDispatches == wrapDispatches + 1U
+				= implementation->WorkbenchChangeDispatches == probe.ChangeDispatches + 1U
+				&& computed != nullptr && !computed->Alignment.Groups.empty()
 				&& comparison->selection().has_value()
-				&& comparison->selection()->Group == groups.front().Id;
+				&& comparison->selection()->Group == computed->Alignment.Groups.front().Id;
 			if (!probe.Evidence.ChangeDispatch) {
 				return fail();
 			}
@@ -25321,9 +25353,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 													  << " opened=" << opened << " refolded=" << refolded << '\n';
 			return false;
 		}
+		// [[BPR-1413]]. A pane moves its viewport up by the within-line
+		// offset and makes it a line taller, masked to the pane's content
+		// area. The pane the reviewer sees is that mask, as BPR-1413's own
+		// tests read it; the widget itself reaches past the comparison.
+		const auto visiblePane = [&inWindow, window](const QWidget& aViewport) {
+			const auto mask = aViewport.mask();
+			if (mask.isEmpty()) {
+				return inWindow(aViewport);
+			}
+			const auto area = mask.boundingRect();
+			return QRect{ aViewport.mapTo(window, area.topLeft()), area.size() };
+		};
 		const auto comparisonRect = inWindow(*comparisonSurface);
-		const auto leftPaneRect   = inWindow(*workbench->left_pane()->viewport());
-		const auto rightPaneRect  = inWindow(*workbench->right_pane()->viewport());
+		const auto leftPaneRect   = visiblePane(*workbench->left_pane()->viewport());
+		const auto rightPaneRect  = visiblePane(*workbench->right_pane()->viewport());
 		const auto gutterRect     = inWindow(*linkMap);
 		const auto widthRatio     = (1'000 * comparisonRect.width())
 			/ std::max(1, window->width());

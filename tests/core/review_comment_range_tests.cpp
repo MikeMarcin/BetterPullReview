@@ -6,6 +6,7 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
+#include "product_diff.hpp"
 
 #include <array>
 #include <cstddef>
@@ -97,7 +98,7 @@ namespace {
 		input.Options      = options;
 		input.LeftBytes    = std::span<const std::uint8_t>{ left };
 		input.RightBytes   = std::span<const std::uint8_t>{ right };
-		auto outcome       = compute_file_diff(input);
+		auto outcome       = bpr::tests::product_file_diff(input);
 		expect(outcome.Result.has_value(), "the fixture texts compute a diff");
 		return std::move(*outcome.Result);
 	}

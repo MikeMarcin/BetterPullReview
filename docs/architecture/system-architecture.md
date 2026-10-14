@@ -286,7 +286,11 @@ workbench generation, active tab and exact file/pair. Its ordinary tab driver
 restores that view before Qt applies the existing command projection and sends
 its file/change intent. Completion consumes the continuation once; later
 file/tab/comparison/modality/Home/composer gestures cancel it synchronously,
-and identity replacement is refused by the bound context. Unavailable tabs
+and identity replacement is refused by the bound context. The view it waits for
+is the active tab's current one: a reading position observed after the press
+reaches the tab through the decision lane, and each tab publication
+re-evaluates the continuation, so a press made just after a selection is not
+held waiting for the superseded position. Unavailable tabs
 retain their ordinary explanation without newer-pair fallback. No source tab
 is created by entry alone and no full-review scan/model reset is introduced.
 
@@ -896,16 +900,15 @@ three steps, each inside an existing bound:
   one decision turn, no Git, no network and no computation. It is presented
   as the reviewer's first look at the file, not as a cached revisit.
 - **Pausing.** [[BPR-1366]] A prepared computation that the reviewer's request
-  stops returns within the engine's check interval (64 Ki steps) instead of
-  running to its end, and keeps its progress: both sides' bytes and the
-  engine's paused state, or the finished computation awaiting its semantic
-  index. A paused comparison continues before any new preparation, and a
-  request for it continues it as the reviewer's own work, which preparation
-  never stops. Paused states count with prepared comparisons inside the
-  prepared share; one that does not fit, a superseded one (new window,
-  invalidation, cancellation, shutdown) and one the reviewer's room needs are
-  discarded, so the comparison is computed again from the start if it is still
-  wanted. A reviewer job polls only its own cancellation.
+  stops returns within milliseconds instead of running to its end: within the
+  engine's check interval (64 Ki steps), or within a millisecond while the
+  line matcher runs, whose thread is abandoned ([[BPR-1485]]). Restart-only
+  cancellation keeps nothing: the stopped comparison, if the window still
+  wants it, is prepared again from the start, first, once the reviewer is
+  idle, and a request for it computes it from the start as the reviewer's own
+  work, which preparation never stops. A superseded one (new window,
+  invalidation, cancellation, shutdown) is not prepared again. A reviewer job
+  polls only its own cancellation.
 
 A new window cancels the previous preparation; invalidation of the pull
 request or account cancels it and discards its queue and cache entries; window

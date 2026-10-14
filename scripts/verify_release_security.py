@@ -40,11 +40,12 @@ def source_and_notices(root: Path, sbom: Path, info: dict) -> dict:
         require("Microsoft Visual C++ Runtime redistribution notice" in notices, "msvc-notice-missing")
     offers = (legal / "SOURCE-OFFERS.txt").read_text(encoding="utf-8")
     require(all(value in offers for value in ("ABI-compatible", "corresponding-source.zip", "KSyntaxHighlighting",
-                                             "equivalent access", "Retention is indefinite", "Corporate/offline redistribution")), "source-offer-incomplete")
+                                             "equivalent access", "Retention is indefinite", "Corporate/offline redistribution",
+                                             "separately replaceable shared library", "git-xdiff-2.56.0-build/")), "source-offer-incomplete")
     return {"source_archives": len(provenance["components"]), "qt_packages": len(qt["packages"]),
             "source_archive_sha256": provenance["asset"]["sha256"],
             "notices_sha256": package.runtime.digest(legal / "THIRD-PARTY-NOTICES.txt"),
-            "legal_approval": "pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations"}
+            "legal_approval": "pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations, including the LGPL xdiff library's"}
 
 
 def compile_hardening(build: Path, system: str) -> dict:

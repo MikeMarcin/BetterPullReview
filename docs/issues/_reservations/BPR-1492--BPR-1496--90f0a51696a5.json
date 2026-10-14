@@ -1,0 +1,14 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1492",
+    "BPR-1493",
+    "BPR-1494",
+    "BPR-1495",
+    "BPR-1496"
+  ],
+  "reserve_for": "release-020-gate-2",
+  "purpose": "0.2.0 release gate repairs: reading line across font change, desktop View menu, recent account isolation identity seed, large review launch course, gh CLI smart transport timeout margin",
+  "created": "2026-10-14T05:56:13.935247+00:00",
+  "base": "86c98d8d94a171f1d7fbf24df393f23c84b07cac"
+}

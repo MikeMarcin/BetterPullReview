@@ -10,6 +10,7 @@
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/core/review_cycle_send.hpp"
 #include "bpr/core/sha256.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
@@ -100,7 +101,7 @@ namespace {
 		{
 			auto seed = std::array<std::uint8_t, 32>{ };
 			seed[0]   = aSeed;
-			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed);
+			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed, nullptr, bpr::tests::product_line_matcher());
 			Host->set_clipboard(&Clipboard);
 			Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(std::filesystem::path{ aPath }); });
 			if (aAdapter) {
@@ -146,7 +147,7 @@ namespace {
 	auto settle(const std::filesystem::path& aProfileRoot, const core::local_cycle_subject& aSubject, TStart aStart) -> T
 	{
 		application::manual_executor      lanes;
-		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes };
+		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(aSubject);
 		auto result = std::optional<application::cycle_store_result<T>>{ };
 		aStart(runtime, [&](application::cycle_store_result<T> aValue) { result = std::move(aValue); });

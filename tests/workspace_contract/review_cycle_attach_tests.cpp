@@ -7,6 +7,7 @@
 #include "bpr/core/review_cycle_bundle.hpp"
 #include "cycle_course.hpp"
 #include "cycle_session.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <cstdint>
@@ -108,7 +109,7 @@ namespace {
 		auto attach(const core::local_cycle_subject& aSubject, const core::cycle_import_id aImport, std::vector<core::workspace_import_mapping> aProjects,
 					std::vector<core::cycle_revision_mapping> aRevisions) -> application::cycle_import_attach_result
 		{
-			auto       host   = application::review_cycle_comparison_host{ *Store, Catalog.Authority };
+			auto       host   = application::review_cycle_comparison_host{ *Store, Catalog.Authority, bpr::tests::product_line_matcher() };
 			const auto result = application::attach_imported_round(*Store, host, aSubject, { .Operation = operation(Next++), .Import = aImport, .Projects = std::move(aProjects), .Revisions = std::move(aRevisions) }, { });
 			expect(result.has_value(), "attach decided");
 			return *result;
@@ -116,7 +117,7 @@ namespace {
 
 		auto fork(const core::local_cycle_subject& aSubject, const core::cycle_import_id aImport) -> application::cycle_import_fork_result
 		{
-			auto       host   = application::review_cycle_comparison_host{ *Store, Catalog.Authority };
+			auto       host   = application::review_cycle_comparison_host{ *Store, Catalog.Authority, bpr::tests::product_line_matcher() };
 			const auto result = application::fork_imported_round(*Store, host, aSubject, operation(Next++), aImport, { });
 			expect(result.has_value(), "fork decided");
 			return *result;
