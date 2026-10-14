@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1501"
 title: "Tour CLI ordinary stop's resume is intermittent in the full gate"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1500--BPR-1501--7193b24a1ace.json","origin":"0.2.0 release normal gate on main ca825e18f, owner release request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"6b312c320","evidence":{"kind":"observation","detail":"Product ordering race in review_tour_publication_workflow::observe: a late first-loaded or repeated draft (different host-authority owner after the gh reconnect) staled the saved plan, cancelling reconciliation or replacing Published with Draft changed. 11 failures in 39 loaded runs before."}},{"criterion":"AC2","outcome":"pass","revision":"6b312c320","evidence":{"kind":"command","command":"ctest --preset dev -R ^(application_review_round_trip_composition_contract|application_active_changed_scaling|application_review_tour_.*|application_review_submission_cli_ordinary)$","detail":"observe stales the plan only on an observed draft change (owner or revision); publish-time generation check unchanged; course untouched. 0 failures in 50 loaded runs (worker); 21/21 tour and submission rows pass here."}}]
 ---
 
 # Tour CLI ordinary stop's resume is intermittent in the full gate
@@ -85,3 +86,5 @@ Before: 11 failures in 39 runs. After: 0 in 50. After the fix the other ten
 `review_tour_publication_public_path` rows, `application_review_tour_cold_import_public_path`
 and `application_review_submission_cli_ordinary` each passed once.
 `src/app` changed, so the release seal must be regenerated.
+
+- Integration at 6b312c320 (BPR-1500 and BPR-1501 combined over main 43042d0c0, round-trip contract resealed with appended notes), macOS arm64 full build/dev: `ctest --preset dev -R ^(application_review_round_trip_composition_contract|application_active_changed_scaling|application_review_tour_.*|application_review_submission_cli_ordinary)$` passes 21/21 at load average about 34; `application_active_changed_scaling` also passed 3 more times in a row (17.3 to 17.5 s) at load about 41.
