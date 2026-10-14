@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1508-search-markers",
+  "scope": {
+    "issues": [
+      "BPR-1508"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "left-aligned-results",
+      "outcome": "Find in Files L/R markers start at the left edge and preserve grouped result interactions.",
+      "work": [
+        {
+          "issue": "BPR-1508"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1: L/R marker slots start at the result viewport left edge with only the existing 4-pixel content inset.",
+        "AC2: File grouping, disclosure, text columns, side identity, selection, keyboard navigation and exact reveal remain usable.",
+        "AC3: Representative left/right results are rendered offscreen through the composed application, with click and keyboard result activation verified."
+      ],
+      "boundary": "A verified correction, canonical acceptance and scoped commits; coordinator integrates."
+    }
+  ],
+  "unplanned_work": []
+}

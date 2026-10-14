@@ -5,7 +5,7 @@ title: "Start Find in Files L/R markers at the far left"
 status: "In Progress"
 rfcs: []
 depends_on: []
-metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Find in files we can start the LR markers on the far left they don't need to be indented"}
+metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Find in files we can start the LR markers on the far left they don't need to be indented","milestone_plan":{"id":"bpr1508-search-markers","path":"docs/rfcs/plans/bpr1508-search-markers/milestone-plan.json"}}
 ---
 
 # BPR-1508: Start Find in Files L/R markers at the far left
