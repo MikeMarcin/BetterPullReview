@@ -77,7 +77,7 @@ namespace bpr::evaluation {
 			bool          Indent    = false;
 		};
 
-		/// L: xdiff compiled in.
+		/// L: xdiff, linked dynamically as its own shared library.
 		class linked_primary final : public candidate_components
 		{
 		public:
@@ -97,7 +97,7 @@ namespace bpr::evaluation {
 			{
 				++counters().Calls;
 				aMeter.tick(1U);
-				const auto hunks = xdiff_hunks(bytes_of(aRequest.Left), bytes_of(aRequest.Right), Algorithm, Indent, aRequest.Options);
+				const auto hunks = xdiff_hunks(aRequest.Left, aRequest.Right, Algorithm, Indent, aRequest.Options);
 				aMeter.tick(1U + aRequest.LeftClasses.size() + aRequest.RightClasses.size());
 				auto found = hunks.has_value() ? matches_from_hunks(*hunks, line_count(aRequest.Left), line_count(aRequest.Right)) : std::nullopt;
 				if (!found.has_value()) {

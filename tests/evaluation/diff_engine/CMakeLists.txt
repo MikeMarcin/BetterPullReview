@@ -99,16 +99,23 @@ endforeach()
 find_program(BPR_EVAL_INSTALLED_GIT NAMES git REQUIRED)
 
 # Linked shape: Git 2.56.0's xdiff, compiled with a first-party shim for the
-# few git-compat-util.h facilities it uses.
+# few git-compat-util.h facilities it uses, as its own shared library that the
+# candidates link dynamically. The owner's Q1 answer (2026-10-13) accepts LGPL
+# xdiff only "if xdiff is dynamically linked as its own shared library, as Qt
+# is"; static linking stays refused, so the evaluation measures that linkage.
 file(GLOB bpr_eval_xdiff_sources "${bpr_eval_git_source_2_56}/xdiff/*.c")
-add_library(bpr_eval_xdiff STATIC ${bpr_eval_xdiff_sources})
+add_library(bpr_eval_xdiff SHARED ${bpr_eval_xdiff_sources})
 # Only the xdiff directory is ever on an include path: Git's top level holds a
 # file named `version`, which a case-insensitive file system would find for
 # the standard <version> header.
 target_include_directories(bpr_eval_xdiff PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/xdiff_shim")
 target_include_directories(bpr_eval_xdiff SYSTEM PUBLIC "${bpr_eval_git_source_2_56}/xdiff")
 target_compile_options(bpr_eval_xdiff PRIVATE -w)
-set_target_properties(bpr_eval_xdiff PROPERTIES C_STANDARD 11 POSITION_INDEPENDENT_CODE ON)
+set_target_properties(bpr_eval_xdiff PROPERTIES
+    C_STANDARD 11
+    POSITION_INDEPENDENT_CODE ON
+    C_VISIBILITY_PRESET default
+    OUTPUT_NAME bpr_eval_xdiff)
 
 add_library(bpr_eval_headers INTERFACE)
 target_include_directories(bpr_eval_headers SYSTEM INTERFACE

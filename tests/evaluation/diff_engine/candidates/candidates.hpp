@@ -127,8 +127,10 @@ namespace bpr::evaluation {
 	[[nodiscard]] auto run_git_no_index(const std::string& aGit, std::span<const std::uint8_t> aLeft, std::span<const std::uint8_t> aRight,
 										const std::vector<std::string>& aArguments) -> std::optional<std::string>;
 
-	/// \brief The linked shape: Git 2.56.0's xdiff over the two sides' bytes.
-	[[nodiscard]] auto xdiff_hunks(std::span<const std::uint8_t> aLeft, std::span<const std::uint8_t> aRight, git_algorithm aAlgorithm,
+	/// \brief The linked shape: Git 2.56.0's xdiff, a shared library, over the
+	/// two sides; under any option other than exact comparison each line is
+	/// first normalized as the engine normalizes it.
+	[[nodiscard]] auto xdiff_hunks(const core::decoded_text_document* aLeft, const core::decoded_text_document* aRight, git_algorithm aAlgorithm,
 								   bool aIndentHeuristic, const core::diff_options& aOptions) -> std::optional<std::vector<line_hunk>>;
 
 	/// \brief O(NP) (dtl) matches over two class sequences, minimal.
