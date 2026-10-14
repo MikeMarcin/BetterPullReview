@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1511-current-file-unread-badge",
+  "scope": {
+    "issues": [
+      "BPR-1511"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "current-file-badge",
+      "outcome": "The file-context badge counts only unread threads on the current file, updates through existing projection paths, and remains absent without a current file.",
+      "work": [
+        {
+          "issue": "BPR-1511"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1 through AC4 pass through composed multi-file selection and unread updates, with an inspected offscreen render.",
+        "Distinct pull-request-wide unread navigation and indicators retain their existing meaning."
+      ],
+      "boundary": "BPR-1511 source, focused verification, documentation and card upkeep ready for coordinator integration."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

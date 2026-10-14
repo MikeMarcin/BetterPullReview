@@ -5,7 +5,7 @@ title: "Scope unread comments badge to the current file"
 status: "Ready"
 rfcs: []
 depends_on: []
-metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Badge for unread comments should only show when there is one on the current file"}
+metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Badge for unread comments should only show when there is one on the current file","milestone_plan":{"id":"bpr1511-current-file-unread-badge","path":"docs/rfcs/plans/bpr1511-current-file-unread-badge/milestone-plan.json"}}
 ---
 
 # BPR-1511: Scope unread comments badge to the current file
