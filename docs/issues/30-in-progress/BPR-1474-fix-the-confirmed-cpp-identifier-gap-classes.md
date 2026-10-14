@@ -70,13 +70,20 @@ Implementation `4add47f63`, measured on macOS (Apple M4 Pro) on 2026-10-13.
   433, ns_qualifier 2,270 to 2,267, macro_keep 617 to 616). No label
   disagreement is new; 19 are fixed, all in the gap suite. Outside the gap
   suite only `malformed/random-utf8-1mib.cpp` changes spans (non-ASCII bytes).
-  H1 to H7 move from confirmed to refuted. H8: the peak refinement heap on
+  H1 to H8 move from confirmed to refuted. H8: the peak refinement heap on
   both brace floods falls from 2,022,703,120 and 1,099,956,240 bytes to
-  261,095,520, under the RFC's 512 MiB cap; the scorer still reports H8
-  "confirmed", because its rule asks whether an 8 MiB input has the largest
-  footprint, and 8 MiB of tokens is larger than any other input's whole
-  refinement. Determinism held; statuses unchanged (5,264 available, 4 over
-  the span limit).
+  261,095,520, under the RFC's 512 MiB cap. Determinism held; statuses
+  unchanged (5,264 available, 4 over the span limit).
+- Owner decision, 2026-10-13: **Accept.** "H8 counts as fixed because the peak
+  refinement memory on pathological 8 MiB input is now bounded under
+  RFC-BPR-0081's 512 MiB cap (2 GB down to 261 MB)." The original scorer rule
+  (H8 confirmed when an 8 MiB input has the largest peak heap of any input)
+  could not be refuted by any refinement that keeps state per token.
+  `score_evaluation.py` now confirms H8 only when an 8 MiB input's peak
+  refinement heap exceeds 512 MiB; under it the re-scored run reads H1 to H8
+  refuted. The rule lived in the scorer, not in RFC-adopted text, so it is
+  recorded in the [report](../../verification/RFC-BPR-0081.md#gap-hypotheses),
+  which keeps the earlier results, T's included, as they were recorded.
 - AC2: `cpp_identifier_context.cpp` is 698 lines. No pass over the whole blob
   was added: conditional directive lines are recorded in the existing
   directive scan of `prepare_roles` and consumed in step with
