@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "04cb5d2ab2d89039d0f0acc1a52a3b4aa4ed6c3d546a33a2d5fe27c9e239f98e"
+        "36bfd3adfece291eec0141968ab4c9769839458feb18cef5746ab8dbacbf4582"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2469,3 +2469,9 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # store before counting its item publication. No publication, credential,
 # grant, inventory or mutation-branch change; the full application and
 # production-manifest digests are refreshed.
+
+# [[BPR-1501]] reseal. review_submission_workflow.cpp's tour publication
+# workflow treats a captured plan as stale only when the draft it observes
+# changes owner or revision, not on a window's first loaded draft or a repeat,
+# in whichever order they arrive. No publication, credential, grant, inventory
+# or mutation-branch change; the production-manifest digest is refreshed.
