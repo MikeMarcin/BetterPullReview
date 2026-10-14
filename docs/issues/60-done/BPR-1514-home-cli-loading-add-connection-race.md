@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1514"
 title: "Prevent Add CLI reentry while Home loads a CLI connection"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Home while loading cli shows the new user add buttons and gets into a weird state if you try to add cli while it's loading cli","milestone_plan":{"id":"bpr1514-cli-loading","path":"docs/rfcs/plans/bpr1514-cli-loading/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"b0da7b4aeff080fa583ddbb25f29dfdf9bc5322a","evidence":{"kind":"observation","detail":"Controlled /user delay on baseline a1130fccb showed Home no_profile/sign_in and a visible CLI enrollment button. Add CLI queued inventory; after release remembered profile 2 was replaced with profile 4. No live GitHub calls."}},{"criterion":"AC2","outcome":"pass","revision":"b0da7b4aeff080fa583ddbb25f29dfdf9bc5322a","evidence":{"kind":"observation","detail":"Pending host validation is replayed to newly attached windows; composed Home shows Connecting to GitHub with all first-time enrollment buttons hidden. Exact offscreen capture was visually inspected."}},{"criterion":"AC3","outcome":"pass","revision":"b0da7b4aeff080fa583ddbb25f29dfdf9bc5322a","evidence":{"kind":"observation","detail":"Core repeat activation preserves the pending request/generation; composed forced CLI, activation and Home signals cause no inventory, prompt, native sign-in or identity replacement. Discovery completion rechecks core admission. Host credential revalidation preserves native rotation."}},{"criterion":"AC4","outcome":"pass","revision":"b0da7b4aeff080fa583ddbb25f29dfdf9bc5322a","evidence":{"kind":"observation","detail":"Delayed success keeps the saved account/profile. Delayed transport refusal restores controls; same-process retry succeeds. Quit drains cancellation and reopen retries the exact saved choice. Existing core/host stale-context and explicit replacement courses pass."}},{"criterion":"AC5","outcome":"pass","revision":"4802241ec0a4a80813b30e7ea83e19183cf9e4fb","evidence":{"kind":"observation","detail":"Final delayed composed course, Qt composition, core/host policy and both architecture gates pass; 4/4 core-only checks pass. Fresh-process restart course passes after its enterprise seed waits for actual remembered startup terminal. Render and format 22 inspected."}}]
 ---
 
 # BPR-1514: Prevent Add CLI reentry while Home loads a CLI connection
@@ -32,7 +33,7 @@ Baseline `a1130fccb`; isolated branch `codex/bpr1514-cli-loading`, claim
 bring NEXT_ID to BPR-1519; no independent allocation changes.
 
 The adopted [milestone plan](../../rfcs/plans/bpr1514-cli-loading/milestone-plan.json)
-binds AC1–AC5; [binding](../_checkpoints/bpr1514-cli-loading/binding.json).
+binds the five acceptance criteria; [binding](../_checkpoints/bpr1514-cli-loading/binding.json).
 Preflight is `ready_pinned`; this does not certify host loading. The implementer
 is the only writer in this worktree. BPR-1505 owns separate Home Cancel layout
 hunks in its own worktree; the coordinator will integrate.
@@ -95,7 +96,7 @@ The documentation gate currently refuses the stale local tracker counter
 (NEXT_ID BPR-1519 vs shared historical high water BPR-1520); coordinator import
 of the committed tracker note is requested. Next: finish final checks, refresh
 tracker by authorized import, run documentation gate, then canonical finish and
-record command quiescence. No human criterion is required by AC1–AC5.
+record command quiescence. No human criterion is required by the five acceptance criteria.
 
 ### Final unattended frontier
 
@@ -119,3 +120,14 @@ Tracker closeout remains pending coordinator authorization/import of existing
 `9b551b738`, followed by the documentation gate and canonical finish. No counter
 was changed independently. The plan's documentation/closeout exit remains pending;
 passing behavior records are not a claim that the whole milestone is closed.
+
+
+### Authorized closeout continuation
+
+The coordinator authorized committed tracker-only main imports
+`f47d44964..3e8793add`. Imported copies through `c2f228912` advance NEXT_ID to
+BPR-1521 without independent allocation edits. The documentation gate now reports
+`DOCUMENTATION_OK`; prior refusals above are resolved history. Existing behavior,
+render, architecture, format and documentation-contract evidence is reused because
+source is unchanged. All the five acceptance criteria and both plan exits pass. Canonical finish is now
+authorized; no required human/native/independent acceptance or command remains.

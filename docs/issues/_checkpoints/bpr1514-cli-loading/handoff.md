@@ -39,21 +39,24 @@ bound by SHA-256 in verification. It proves deterministic layout, not system
 appearance. No live GitHub, native package, vault or Windows/Linux qualification
 is claimed.
 
-## Required continuation
+## Closeout
 
-The documentation gate and canonical finish refuse local NEXT_ID BPR-1519 against
-shared historical high water BPR-1520. The missing existing tracker-only main
-commit is `9b551b738` (BPR-1519 card/counter/receipt). Coordinator authorization
-was requested but has not arrived. Do not edit the counter independently.
+The coordinator authorized metadata-only main imports `f47d44964..3e8793add`.
+Copies `8a9e5bd6a`, `63c71e058`, `039eeaa83`, `59cd2affc`, `c2f228912`
+bring the tracker to NEXT_ID BPR-1521. Exclude these copies from integration as
+well as the earlier import-only commits. No independent counter edit occurred.
 
-After authorizing/importing that exact commit, rerun
-`python3 scripts/verify_documentation.py --root .`, then canonical finish using
-`acceptance.json` and explicit checkpoint/plan/card paths. The checkpoint checker
-currently returns `reconcile` because current requirement resolution also depends
-on the refusing board inspection. Refresh the observation revision and pending
-exit only after those real results. The source has no outstanding engineering
-failure. No human or independent criterion is required; no attended session or
-server was created.
+`python3 scripts/verify_documentation.py --root .` now reports
+`DOCUMENTATION_OK` on `c2f228912`. Existing source evidence remains valid: this
+round changes tracker/evidence metadata only. All milestone obligations and
+exits pass. Canonical finish uses the existing [acceptance](acceptance.json).
+The terminal finish identity is recorded by the final continuation update.
+No human or independent criterion is required; no attended session was created.
+
+Coordinator integration is the only subsequent action. Owned implementation
+commits remain `ad747247f`, `b0da7b4ae`, `4802241ec`, `69653bd5d`, followed
+by this round's closeout commits. Preserve the source/test revision distinction
+in verification; a later tracker HEAD does not add native qualification.
 
 ## Ownership and commands
 

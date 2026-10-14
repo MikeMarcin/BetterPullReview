@@ -80,12 +80,10 @@
     "diagnostics": [],
     "diagnostics_truncated": false
   },
-  "disposition": "continue-milestone",
-  "candidate_revision": "4802241ec0a4a80813b30e7ea83e19183cf9e4fb",
+  "disposition": "milestone-complete",
+  "candidate_revision": "c2f22891263f0f2d7a3308e20c1d272a1a5167cb",
   "handoff_ref": "docs/issues/_checkpoints/bpr1514-cli-loading/handoff.md",
-  "required_pending": [
-    "Documentation gate and canonical finish need coordinator-authorized tracker import 9b551b738."
-  ],
+  "required_pending": [],
   "evidence_refs": [
     "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
   ],
@@ -134,17 +132,17 @@
     },
     {
       "id": "cli-loading:exit:2",
-      "outcome": "pending",
+      "outcome": "pass",
       "evidence_refs": [
         "docs/issues/_checkpoints/bpr1514-cli-loading/verification.json"
       ]
     }
   ],
   "continuation": {
-    "intent": "wait",
-    "next_milestone": "cli-loading",
-    "reason": "pending-obligation",
-    "detail": "All behavior checks pass. Coordinator must authorize the existing tracker-only import before documentation gate and canonical finish can proceed."
+    "intent": "stop",
+    "next_milestone": null,
+    "reason": "target-complete",
+    "detail": "All assigned behavior and documentation exits pass. Finish the accepted card canonically and return this bounded milestone for coordinator integration; no further source work."
   },
   "ownership": "quiescent"
 }

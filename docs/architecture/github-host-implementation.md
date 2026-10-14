@@ -2349,4 +2349,4 @@ The host reports new or resumed credential material through a distinct session
 revalidation event, so native grant rotation can restart validation without
 being confused with a repeated connection gesture.
 Failure restores ordinary setup/retry; Quit drains cancelled validation without
-changing the remembered choice ([BPR-1514](../issues/30-in-progress/BPR-1514-home-cli-loading-add-connection-race.md)).
+changing the remembered choice ([BPR-1514](../issues/60-done/BPR-1514-home-cli-loading-add-connection-race.md)).

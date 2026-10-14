@@ -57,6 +57,11 @@
       "command": "python3 scripts/verify_documentation.py --root .",
       "result": "refused: NEXT_ID BPR-1519 rewinds shared historical high water BPR-1520; pending authorized import 9b551b738",
       "log": "/tmp/bpr1514-final-doc-gate.log"
+    },
+    {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "revision": "c2f22891263f0f2d7a3308e20c1d272a1a5167cb",
+      "result": "DOCUMENTATION_OK after authorized tracker import; prior refusal retained above as history."
     }
   ],
   "render": {
@@ -74,9 +79,7 @@
     "Enterprise seed previously acted before scheduled startup began; course now waits its real terminal and keeps detailed refusal diagnostics.",
     "Intermediate core-only build overlapped the event-header edit and linked mismatched event definitions; subsequent exact-candidate dependency rebuild and 4/4 pass replace it."
   ],
-  "pending": [
-    "Authorized tracker import 9b551b738, documentation gate and canonical finish."
-  ],
+  "pending": [],
   "human_acceptance_required": false,
   "independent_acceptance_required": false,
   "live_github_calls": false,
@@ -87,6 +90,21 @@
     "result": "guard refused without mutations",
     "schema": "implement-rfc.finish.v1",
     "reason": "NEXT_ID BPR-1519 rewinds historical high water BPR-1520",
-    "receipt": "/tmp/bpr1514-finish.json"
+    "receipt": "/tmp/bpr1514-finish.json",
+    "prior_refusal_resolved_by": "Coordinator-authorized committed tracker imports through 3e8793add; canonical finish now admitted."
+  },
+  "closeout": {
+    "authorized_import_range": "f47d44964..3e8793add",
+    "import_copies": [
+      "8a9e5bd6a",
+      "63c71e058",
+      "039eeaa83",
+      "59cd2affc",
+      "c2f228912"
+    ],
+    "tracker_frontier": "c2f22891263f0f2d7a3308e20c1d272a1a5167cb",
+    "next_id": "BPR-1521",
+    "documentation_gate": "DOCUMENTATION_OK",
+    "source_evidence_reused": "Product source and test behavior unchanged from b0da7b4ae and 4802241ec; metadata-only closeout."
   }
 }
