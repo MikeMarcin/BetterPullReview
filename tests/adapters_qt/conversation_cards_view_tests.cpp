@@ -1781,7 +1781,15 @@ namespace {
 		view.set_feed(true);
 		view.set_scope(qt::cards_scope::whole_pull_request);
 		QApplication::processEvents();
-		if (const auto* const path = std::getenv("BPR_DISCUSS_ALIGNMENT_PNG"); path != nullptr) {
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable : 4996)
+#endif
+		const auto* const path = std::getenv("BPR_DISCUSS_ALIGNMENT_PNG");
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif
+		if (path != nullptr) {
 			expect(view.grab().save(QString::fromLocal8Bit(path)), "the Discuss alignment render is written");
 		}
 		expect(view.cards().size() == 4U && std::ranges::count_if(view.cards(), &qt::thread_card::Resolved) == 2,

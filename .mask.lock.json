@@ -14,6 +14,19 @@
       "source": "agentskills"
     },
     {
+      "commit": "e7470a7635d60fc65505593908a3cc39f3ef93be",
+      "git_object_format": "sha1",
+      "id": "author-rfc",
+      "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "path": "skills/author-rfc",
+      "payload_digest": "sha256:e9e655e696b389b35d1220bcfc5a226e5946be36676c7dc1826bea8419a57f28",
+      "repository": "https://github.com/MikeMarcin/AgentSkills.git",
+      "selector": {
+        "ref": "refs/heads/main"
+      },
+      "source": "agentskills"
+    },
+    {
       "commit": "b4a3357404e4c4f74f1e6cb55d695cf18eacd5bf",
       "git_object_format": "sha1",
       "id": "bpr-cycle",
@@ -27,12 +40,38 @@
       "source": "agentskills"
     },
     {
-      "commit": "4bdf12d49f0572e23d5d877b9655d977a4381ee0",
+      "commit": "e7470a7635d60fc65505593908a3cc39f3ef93be",
+      "git_object_format": "sha1",
+      "id": "grill-me",
+      "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "path": "skills/grill-me",
+      "payload_digest": "sha256:2f132bfd7d65193b80dfed676d1e7cf634126be02dd9682e2e6277fd12efd69e",
+      "repository": "https://github.com/MikeMarcin/AgentSkills.git",
+      "selector": {
+        "ref": "refs/heads/main"
+      },
+      "source": "agentskills"
+    },
+    {
+      "commit": "e7470a7635d60fc65505593908a3cc39f3ef93be",
+      "git_object_format": "sha1",
+      "id": "grill-rfc",
+      "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "path": "skills/grill-rfc",
+      "payload_digest": "sha256:1e064f4ecd5552dd9114c55200a530778823677cc51e5bf750ec2e33742b15f7",
+      "repository": "https://github.com/MikeMarcin/AgentSkills.git",
+      "selector": {
+        "ref": "refs/heads/main"
+      },
+      "source": "agentskills"
+    },
+    {
+      "commit": "5285995cf454d806a549817b0f3934d9c4c34292",
       "git_object_format": "sha1",
       "id": "implement-rfc",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/implement-rfc",
-      "payload_digest": "sha256:8268ee8acf816959e141313c21c4d106d4507c41c788c05c02e2c7f9539bd509",
+      "payload_digest": "sha256:728ef9c6f6cd3061b1bce99147cc0d0c348f61e9207b1c191789860ea6a3f3c3",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
@@ -81,5 +120,5 @@
   ],
   "resolver": "mask-lock-v1",
   "schema_version": 1,
-  "selection_digest": "sha256:bafd1e6bb3fe1df35d74a5037ce8e728a682e1faef72d5c872b24017a18313c3"
+  "selection_digest": "sha256:50da75db1cc033077c1bb58ef5d1f638c1a08a53813561fd9e2f5662b1dcb438"
 }

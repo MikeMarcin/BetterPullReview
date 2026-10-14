@@ -31,6 +31,12 @@ __pycache__/
 /.claude/skills/bpr-cycle
 /.agents/skills/pr-tour
 /.claude/skills/pr-tour
+/.agents/skills/author-rfc
+/.claude/skills/author-rfc
+/.agents/skills/grill-rfc
+/.claude/skills/grill-rfc
+/.agents/skills/grill-me
+/.claude/skills/grill-me
 /.claude/agents/rfc-*.md
 /.codex/agents/rfc-*.toml
 /.mask/bootstrap-retired/

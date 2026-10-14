@@ -20,15 +20,16 @@ import json
 import os
 import platform
 import random
-import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
 if sys.version_info < (3, 10):
     raise SystemExit(f"Python 3.10 or newer is required; found {platform.python_version()} at {sys.executable}")
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 ALL_PHASES = ("correctness", "git", "sweep", "sweep256", "throughput", "window")
 SEED = 20261013
@@ -274,11 +275,9 @@ def main() -> int:
                 failures.append(name)
         document["phases"]["correctness"] = correctness
     if "git" in phases:
-        scratch = Path(tempfile.mkdtemp(prefix="bpr-hash-evaluation-"))
-        try:
+        with contained_temporary_directory(prefix="bpr-hash-evaluation-") as root:
+            scratch = Path(root)
             document["phases"]["git"] = git_phase(harness, scratch, large)
-        finally:
-            shutil.rmtree(scratch)
         for object_format, facts in document["phases"]["git"]["formats"].items():
             if facts["blob_mismatches"] or not facts["mktree_equals_write_tree"] or facts["sweep_exit"] != 0 or facts["hash_object_count"] != document["phases"]["git"]["files"]:
                 failures.append(f"git-{object_format}")
@@ -287,11 +286,9 @@ def main() -> int:
         if document["phases"]["sweep"]["sweep_exit"] != 0 or document["phases"]["sweep"]["cat_file_exit"] != 0:
             failures.append("sweep")
     if "sweep256" in phases:
-        scratch = Path(tempfile.mkdtemp(prefix="bpr-hash-evaluation-"))
-        try:
+        with contained_temporary_directory(prefix="bpr-hash-evaluation-") as root:
+            scratch = Path(root)
             document["phases"]["sweep256"] = sweep256_phase(harness, options.repository.resolve(), scratch)
-        finally:
-            shutil.rmtree(scratch)
         converted = document["phases"]["sweep256"]
         if converted["sweep_exit"] != 0 or converted["fast_export_exit"] != 0 or converted["fast_import_exit"] != 0:
             failures.append("sweep256")
