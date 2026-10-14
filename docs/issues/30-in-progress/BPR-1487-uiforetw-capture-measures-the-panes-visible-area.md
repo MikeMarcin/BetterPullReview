@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1487"
 title: "The UIforETW selected-diff capture measures each pane's visible area"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
