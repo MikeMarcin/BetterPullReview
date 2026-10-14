@@ -98,6 +98,14 @@ namespace bpr::application {
 		}
 	}
 
+	void document_tab_host::observe_file_choice(const core::file_identity& aFile)
+	{
+		auto& host = *Implementation;
+		if (!host.Closed) {
+			host.perform(core::observe_file_choice(host.State, aFile));
+		}
+	}
+
 	void document_tab_host::refresh()
 	{
 		auto& host = *Implementation;

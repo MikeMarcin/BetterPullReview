@@ -9222,9 +9222,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			// Clicking the retained file after closing the final tab is still
 			// an explicit open, even when the file cursor itself is unchanged.
-			const auto* selected = std::get_if<core::select_workbench_file_intent>(&aIntent);
-			const auto  openFile = selected != nullptr ? std::optional{ selected->File } : std::nullopt;
+			const auto* selected    = std::get_if<core::select_workbench_file_intent>(&aIntent);
+			const auto  openFile    = selected != nullptr ? std::optional{ selected->File } : std::nullopt;
+			const auto  fileGesture = selected != nullptr || std::holds_alternative<core::navigate_workbench_file_intent>(aIntent);
 			WorkbenchHost->apply(std::move(aIntent));
+			// [[BPR-1478]]. The active tab takes the chosen file on a later
+			// turn. A refresh that lands first retires the workbench's
+			// selection, so the tabs keep the choice: a reread presents it.
+			if (fileGesture && TabHost && tab_modality(WorkbenchHost->state().Modality) && WorkbenchHost->selected()) {
+				TabHost->observe_file_choice(*WorkbenchHost->selected());
+			}
 			if (openFile && TabHost && !TabHost->state().Active) {
 				// The accepted epoch can have queued an observation behind this
 				// gesture. Adopt it before opening the first tab synchronously.
@@ -14596,6 +14603,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (WorkbenchHost->selected() != file) {
 					WorkbenchHost->apply(core::select_workbench_file_intent{ file });
 				}
+				// [[BPR-1478]]. Kept as the reviewer's choice until the tab takes it.
+				if (TabHost && WorkbenchHost->selected() == file) {
+					TabHost->observe_file_choice(file);
+				}
 				if (!target.RightLine) {
 					finish_link_location(target.Refusal, false);
 					return;
@@ -18181,6 +18192,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string                              Diagnostic;
 		};
 		std::optional<reply_draft_probe_state> ReplyDraftProbe;
+		// [[BPR-1478]]. The course in which a reread lands just after the
+		// reviewer picks another file.
+		struct refresh_pick_probe_state
+		{
+			enum class phase {
+				awaiting_file,
+				awaiting_line,
+				awaiting_read,
+				awaiting_landed,
+				awaiting_settled,
+				passed,
+				failed,
+			};
+			detail::refresh_pick_probe_evidence       Evidence;
+			std::optional<core::provider_snapshot_id> ShownBefore;
+			std::optional<std::uint32_t>              Line;
+			std::size_t                               Waited = 0U;
+			phase                                     Phase  = phase::awaiting_file;
+			std::string                               Diagnostic;
+		};
+		std::optional<refresh_pick_probe_state> RefreshPickProbe;
 		// [[BPR-1345]]. The start-a-review course.
 		struct start_review_probe_state
 		{
@@ -29049,6 +29081,209 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return implementation != nullptr && implementation->ReplyDraftProbe.has_value() ? implementation->ReplyDraftProbe->Diagnostic : std::string{ };
 	}
 
+	auto detail::github_application_fixture_access::exercise_refresh_pick(
+		github_application& aApplication, const detail::refresh_pick_course aCourse) -> detail::refresh_pick_probe_result
+	{
+		using result               = detail::refresh_pick_probe_result;
+		using state_type           = github_application::implementation::refresh_pick_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->RefreshPickProbe.has_value()) {
+			implementation->RefreshPickProbe.emplace();
+		}
+		auto& probe = *implementation->RefreshPickProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->TabHost == nullptr || !implementation->WindowRead || !implementation->ReadDecision) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const view   = window->files_drawer() != nullptr ? window->files_drawer()->contents_view() : nullptr;
+		const auto  fail   = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path   = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto other  = std::string_view{ "src/engine/renderer.h" };
+		const auto     shown  = core::file_identity_of(path);
+		const auto     picked = core::file_identity_of(other);
+		const auto&    last   = implementation->LastSelectedDiff;
+		const auto     ready  = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->WindowRead->state().PendingPullRequest.has_value();
+		};
+		const auto active = [&]() -> const core::document_tab* {
+			const auto& tabs = implementation->TabHost->state();
+			return tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr;
+		};
+		const auto activeFile = [&]() -> std::optional<core::file_identity> {
+			const auto* const tab = active();
+			return tab != nullptr ? tab->View.File : std::nullopt;
+		};
+		const auto name = [&](const std::optional<core::file_identity>& aFile) -> std::string {
+			if (!aFile) {
+				return "-";
+			}
+			if (*aFile == shown) {
+				return "cpp";
+			}
+			return *aFile == picked ? "h" : "other";
+		};
+		const auto facts = [&] {
+			return "selected=" + name(implementation->WorkbenchHost->selected()) + " tab=" + name(activeFile())
+				+ " diff=" + (last ? std::string{ last->Request.File.PresentationPath } : std::string{ "-" })
+				+ " review=" + std::to_string(window->current_modality() == qt::review_modality::review ? 1 : 0)
+				+ " ready=" + std::to_string(ready() ? 1 : 0) + " load=" + std::to_string(implementation->TabLoad ? 1 : 0);
+		};
+		// Review shows the picked file: chosen, in the active tab, its diff on screen.
+		const auto showsPick = [&] {
+			const auto chosen = implementation->WorkbenchHost->selected() == std::optional{ picked } && activeFile() == std::optional{ picked };
+			const auto drawn  = last && last->Request.File.PresentationPath == other && window->comparison_surface()->current_result() != nullptr;
+			return window->current_modality() == qt::review_modality::review && chosen && drawn;
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				probe.Phase = state_type::phase::awaiting_line;
+			}
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line: {
+			// A line the reviewer chooses in renderer.cpp, which its tab keeps:
+			// the place the window holds before the read.
+			auto* const surface = window->comparison_surface();
+			if (!probe.Line) {
+				const auto opened = surface->selection() ? std::optional{ surface->selection()->PreferredLine.Line } : std::nullopt;
+				for (auto candidate = std::uint32_t{ 1U }; candidate < 32U && !probe.Line; ++candidate) {
+					if (candidate != opened && surface->select_conversation_line(core::diff_side::right, candidate)) {
+						probe.Line = candidate;
+					}
+				}
+			}
+			const auto* const tab  = active();
+			const auto        kept = probe.Line && surface->selection() && surface->selection()->PreferredLine.Line == *probe.Line && tab != nullptr
+				&& tab->View.File == std::optional{ shown } && tab->View.Selection == surface->selection();
+			note(facts() + " line=" + (probe.Line ? std::to_string(*probe.Line) : std::string{ "-" }) + " kept=" + std::to_string(kept ? 1 : 0));
+			if (!ready() || !kept || implementation->TabLoad || implementation->TabAdvanceQueued) {
+				return result::pending;
+			}
+			const auto& accepted = implementation->WindowRead->accepted_snapshot();
+			probe.ShownBefore    = accepted ? std::optional{ accepted->Snapshot } : std::nullopt;
+			// The read's answer waits on the window's read lane until the pick.
+			implementation->ReadDecision->hold(true);
+			if (aCourse == detail::refresh_pick_course::refresh) {
+				window->github_refresh_action()->trigger();
+			} else {
+				implementation->reread_after_publication();
+			}
+			probe.Phase = state_type::phase::awaiting_read;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_read: {
+			const auto row = drawer_row(*window, other);
+			note(facts() + " reading=" + std::to_string(implementation->WindowRead->state().PendingPullRequest ? 1 : 0) + " row=" + std::to_string(row.isValid() ? 1 : 0));
+			if (!implementation->WindowRead->state().PendingPullRequest || view == nullptr || !row.isValid()
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->TabLoad || implementation->TabAdvanceQueued) {
+				return result::pending;
+			}
+			// The window takes a picked file into the active tab on a later
+			// turn. Holding that turn until the read lands gives the order a
+			// busy event loop can give: the pick, the read, then the tab.
+			implementation->TabAdvanceQueued = true;
+			view->setCurrentIndex(row);
+			implementation->ReadDecision->hold(false);
+			if (implementation->WorkbenchHost->selected() != std::optional{ picked }) {
+				implementation->TabAdvanceQueued = false;
+				return fail("pick-refused");
+			}
+			probe.Phase = state_type::phase::awaiting_landed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_landed: {
+			const auto& accepted = implementation->WindowRead->accepted_snapshot();
+			const auto  landed   = accepted && std::optional{ accepted->Snapshot } != probe.ShownBefore && !implementation->WindowRead->state().PendingPullRequest;
+			note(facts() + " landed=" + std::to_string(landed ? 1 : 0));
+			if (!landed) {
+				return result::pending;
+			}
+			// The read retired the workbench's selection while the active tab
+			// still named renderer.cpp: the pick shows nowhere.
+			probe.Evidence.Raced             = activeFile() == std::optional{ shown } && !implementation->WorkbenchHost->selected().has_value();
+			implementation->TabAdvanceQueued = false;
+			if (!probe.Evidence.Raced) {
+				return fail("read-not-between-pick-and-tab");
+			}
+			implementation->schedule_tab_presentation();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_settled;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_settled: {
+			note(facts() + " waited=" + std::to_string(probe.Waited));
+			const auto settled = ready() && !implementation->TabLoad && implementation->WorkbenchHost->selected().has_value() && last
+				&& window->comparison_surface()->current_result() != nullptr;
+			if (!probe.Evidence.Kept) {
+				if (!settled) {
+					return ++probe.Waited < 400U ? result::pending : fail("not-settled");
+				}
+				if (!showsPick()) {
+					return fail("pick-lost");
+				}
+				probe.Evidence.Kept = true;
+				probe.Waited        = 0U;
+				return result::pending;
+			}
+			if (!settled || !showsPick()) {
+				return fail("pick-lost-later");
+			}
+			if (++probe.Waited < 20U) {
+				return result::pending;
+			}
+			probe.Evidence.Stayed = true;
+			probe.Phase           = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::passed: return result::passed;
+		case state_type::phase::failed: return result::failed;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::refresh_pick_evidence(const github_application& aApplication) -> detail::refresh_pick_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->RefreshPickProbe.has_value() ? implementation->RefreshPickProbe->Evidence : detail::refresh_pick_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::refresh_pick_diagnostic(const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->RefreshPickProbe.has_value() ? implementation->RefreshPickProbe->Diagnostic : std::string{ };
+	}
+
 	auto detail::github_application_fixture_access::exercise_start_review(
 		github_application& aApplication, const detail::start_review_course aCourse) -> detail::start_review_probe_result
 	{
@@ -29480,10 +29715,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_third_published: {
 			const auto mutations = implementation->Fixture->review_mutation_evidence();
 			note("native=" + std::to_string(mutations.NativePosts) + " pending=" + std::to_string(pending().size()));
-			// [[BPR-1475]]. The single comment's own reread lands before the
-			// course moves on: a file chosen while it lands is chosen again.
-			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || !ready() || implementation->RereadOwed
-				|| implementation->RereadQueued || implementation->WindowRead->state().PendingPullRequest.has_value()) {
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || !ready()) {
 				return result::pending;
 			}
 			probe.Evidence.SingleAlone = mutations.NativePosts == probe.NativeBefore + 1U && mutations.LastPath == path && probe.Third

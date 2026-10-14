@@ -702,7 +702,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   drop that retry's answer. The reviewer's place stays: the modality, the
   selected file and line, the status line, and a note being written or
   awaiting its retry, which is held again and reopened in the drawer. A read
-  already in flight is not doubled: the reread waits for it to settle.
+  already in flight is not doubled: the reread waits for it to settle. A file
+  the reviewer picks while this reread or a Refresh is in flight is the one
+  shown once the read lands ([[BPR-1478]]): the latest pick wins, and the
+  read never takes the window back to the file it showed before.
 - **While a row opens** ([[BPR-1357]], the owner, 2026-10-09: "There's no
   obvious immediate indication you actually tried to open a review if there
   is real network latency on the action."). A first read stays on Home until
