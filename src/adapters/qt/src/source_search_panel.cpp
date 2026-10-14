@@ -1,9 +1,9 @@
 #include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "painted_glyph_icon.hpp"
+#include <QAbstractButton>
 #include <QAbstractItemModel>
 #include <QAccessible>
-#include <QAbstractButton>
 #include <QApplication>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
@@ -39,10 +39,12 @@ namespace bpr::qt {
 			auto        result  = snippet{ };
 			const auto  before  = QString::fromUtf8(preview.data(), static_cast<qsizetype>(begin));
 			const auto  match   = QString::fromUtf8(preview.data() + begin, static_cast<qsizetype>(end - begin));
-			const auto  after   = QString::fromUtf8(preview.data() + end, static_cast<qsizetype>(preview.size() - end));
-			result.Text         = before + match + after;
-			result.Start        = static_cast<int>(before.size());
-			result.Length       = static_cast<int>(match.size());
+			// The row shows the match's own line: context stops at the next newline.
+			const auto stop  = std::min(preview.find('\n', end), preview.size());
+			const auto after = QString::fromUtf8(preview.data() + end, static_cast<qsizetype>(stop - end));
+			result.Text      = before + match + after;
+			result.Start     = static_cast<int>(before.size());
+			result.Length    = static_cast<int>(match.size());
 			// A newline or tab is one UTF-16 unit drawn as one, so the range holds.
 			result.Text.replace(QLatin1Char('\n'), QChar{ 0x21b5 }).replace(QLatin1Char('\t'), QLatin1Char(' '));
 			auto blank = 0;
@@ -169,8 +171,8 @@ namespace bpr::qt {
 		};
 		std::vector<group>                                                   Groups;
 		std::map<core::file_identity, std::size_t>                           Entries;
-		std::size_t                                                          Count = 0;
-		std::size_t                                                          Shown = 0;
+		std::size_t                                                          Count      = 0;
+		std::size_t                                                          Shown      = 0;
 		int                                                                  LineDigits = 1;
 		core::source_side_filter                                             Filter;
 		std::shared_ptr<const application::source_corpus>                    Corpus;
@@ -239,7 +241,7 @@ namespace bpr::qt {
 			const auto  oldPath = renamed ? QString::fromStdString(entry.Left->Path) : path;
 			const auto  newPath = renamed ? QString::fromStdString(entry.Right->Path) : path;
 			const auto  change  = renamed ? tr("renamed") : entry.Left && !entry.Right ? tr("removed")
-														  : entry.Right && !entry.Left ? tr("added")
+				: entry.Right && !entry.Left                                           ? tr("added")
 																					   : QString{ };
 			const auto  name    = [](const QString& aPath) { return aPath.mid(aPath.lastIndexOf(QLatin1Char('/')) + 1); };
 			const auto  folder  = [](const QString& aPath) { const auto slash = aPath.lastIndexOf(QLatin1Char('/')); return slash < 0 ? QString{ } : aPath.left(slash); };
@@ -250,8 +252,7 @@ namespace bpr::qt {
 			case source_search_change_role: return change;
 			case Qt::ToolTipRole:
 			case Qt::DisplayRole:
-			case Qt::AccessibleTextRole:
-			{
+			case Qt::AccessibleTextRole:    {
 				auto words = (renamed ? oldPath + QStringLiteral(" → ") + newPath : path) + QStringLiteral(", ") + plural(aGroup.Rows.size(), tr("%1 match"), tr("%1 matches"));
 				return change.isEmpty() ? words : words + QStringLiteral(", ") + change;
 			}
@@ -282,8 +283,7 @@ namespace bpr::qt {
 			case Qt::FontRole:                        return SnippetFont;
 			case Qt::ToolTipRole:
 			case Qt::DisplayRole:
-			case Qt::AccessibleTextRole:
-			{
+			case Qt::AccessibleTextRole:              {
 				auto where = QString{ };
 				if (left && right) {
 					where = left->Line == right->Line ? tr("Left and Right line %1").arg(right->Line + 1U) : tr("Left %1, Right %2").arg(left->Line + 1U).arg(right->Line + 1U);
@@ -326,8 +326,8 @@ namespace bpr::qt {
 			const auto side    = QFontMetrics{ tag_font(aFont) }.height() + 2;
 			const auto metrics = QFontMetrics{ CodeFont };
 			const auto tags    = QRect{ area.left(), area.top(), side * 2 + 2, area.height() };
-			const auto number  = QRect{ tags.right() + 1 + 8, area.top(), metrics.horizontalAdvance(QString(std::max(LineDigits, 3), QLatin1Char('0'))), area.height() };
-			const auto snippet = QRect{ number.right() + 1 + metrics.averageCharWidth() * 2, area.top(), 0, area.height() };
+			const auto number  = QRect{ tags.right() + 1 + 4, area.top(), metrics.horizontalAdvance(QString(std::max(LineDigits, 3), QLatin1Char('0'))), area.height() };
+			const auto snippet = QRect{ number.right() + 1 + metrics.averageCharWidth(), area.top(), 0, area.height() };
 			return { tags, number, QRect{ snippet.topLeft(), QPoint{ area.right(), area.bottom() } } };
 		}
 		auto sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex&) const -> QSize override
@@ -343,7 +343,7 @@ namespace bpr::qt {
 			// and column geometry measure the view's own font.
 			option.font = aOption.font;
 			option.text.clear();
-			option.icon = { };
+			option.icon        = { };
 			const auto* widget = option.widget;
 			auto*       style  = widget ? widget->style() : QApplication::style();
 			style->drawPrimitive(QStyle::PE_PanelItemViewItem, &option, aPainter, widget);
@@ -367,9 +367,9 @@ namespace bpr::qt {
 		}
 
 	private:
-		colours Colours;
-		QFont   CodeFont;
-		int     LineDigits = 1;
+		colours     Colours;
+		QFont       CodeFont;
+		int         LineDigits = 1;
 		static auto tag_font(const QFont& aFont) -> QFont
 		{
 			auto font = aFont;
@@ -397,8 +397,9 @@ namespace bpr::qt {
 		{
 			const auto centre = aArea.center().y();
 			const auto small  = tag_font(aOption.font);
-			auto       pill   = aOption.palette.color(QPalette::Mid);
-			pill.setAlpha(110);
+			// The text colour, faint: a neutral chip that reads in every theme.
+			auto pill = aOption.palette.color(QPalette::Text);
+			pill.setAlphaF(0.13F);
 			auto right = paint_tag(aPainter, small, aIndex.data(source_search_count_role).toString(), aArea.right(), centre, pill, aInk, 0, -1.0) - 6;
 			if (const auto change = aIndex.data(source_search_change_role).toString(); !change.isEmpty()) {
 				auto fill = change == tr("added") ? Colours.AddedSoft : change == tr("removed") ? Colours.RemovedSoft
@@ -407,17 +408,18 @@ namespace bpr::qt {
 			}
 			auto name = aOption.font;
 			name.setWeight(QFont::Medium);
-			const auto nameMetrics = QFontMetrics{ name };
-			const auto text        = aIndex.data(source_search_name_role).toString();
-			const auto available   = std::max(0, right - aArea.left());
-			const auto nameWidth   = std::min(nameMetrics.horizontalAdvance(text), available);
+			const auto text      = aIndex.data(source_search_name_role).toString();
+			const auto available = std::max(0, right - aArea.left());
 			aPainter.setFont(name);
+			// Measure the font the painter resolved, which a missing weight changes.
+			const auto nameMetrics = aPainter.fontMetrics();
+			const auto nameWidth   = std::min(nameMetrics.horizontalAdvance(text) + 1, available);
 			aPainter.setPen(aInk);
 			aPainter.drawText(QRect{ aArea.left(), aArea.top(), nameWidth, aArea.height() }, Qt::AlignVCenter | Qt::AlignLeft, nameMetrics.elidedText(text, Qt::ElideRight, nameWidth));
 			const auto folder = aIndex.data(source_search_folder_role).toString();
 			const auto gap    = nameMetrics.averageCharWidth();
 			const auto room   = right - (aArea.left() + nameWidth + gap);
-			if (!folder.isEmpty() && room > gap * 3) {
+			if (!folder.isEmpty() && room > gap * 8) {
 				const auto metrics = QFontMetrics{ aOption.font };
 				aPainter.setFont(aOption.font);
 				aPainter.setPen(aDim);
@@ -458,7 +460,8 @@ namespace bpr::qt {
 				text  = QChar{ 0x2026 } + text.mid(cut);
 				start = start - cut + 1;
 			}
-			const auto baseline = centre - metrics.height() / 2 + metrics.ascent();
+			const int  top      = centre - metrics.height() / 2;
+			const auto baseline = top + metrics.ascent();
 			if (length > 0) {
 				auto wash = Colours.Find;
 				wash.setAlpha(core::selection_wash_alpha);
@@ -466,7 +469,7 @@ namespace bpr::qt {
 				const auto right = x + metrics.horizontalAdvance(text.left(start + length));
 				aPainter.setPen(Qt::NoPen);
 				aPainter.setBrush(wash);
-				aPainter.drawRoundedRect(QRectF{ static_cast<qreal>(left) - 1.0, static_cast<qreal>(centre - metrics.height() / 2) - 1.0, static_cast<qreal>(right - left) + 2.0, static_cast<qreal>(metrics.height()) + 2.0 }, 2.0, 2.0);
+				aPainter.drawRoundedRect(QRectF{ static_cast<qreal>(left) - 1.0, static_cast<qreal>(top) - 1.0, static_cast<qreal>(right - left) + 2.0, static_cast<qreal>(metrics.height()) + 2.0 }, 2.0, 2.0);
 			}
 			aPainter.setPen(aInk);
 			aPainter.drawText(QPoint{ x, baseline }, text);

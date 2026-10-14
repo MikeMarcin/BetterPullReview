@@ -31,7 +31,7 @@ namespace bpr::app {
 	}
 	pr_search_controller::~pr_search_controller()
 	{
-		Panel.Activate = { };
+		Panel.Activate          = { };
 		Panel.Select            = { };
 		Panel.SideFilterChanged = { };
 	}

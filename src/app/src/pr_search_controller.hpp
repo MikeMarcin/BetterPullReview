@@ -52,7 +52,7 @@ namespace bpr::app {
 		std::uint64_t         ReadingGeneration = 0U;
 		void                  try_reveal();
 		/// The next or previous match the panel's side filter shows, wrapping.
-		[[nodiscard]] auto    shown_neighbour(core::change_navigation_direction aDirection) const -> std::optional<std::uint32_t>;
+		[[nodiscard]] auto shown_neighbour(core::change_navigation_direction aDirection) const -> std::optional<std::uint32_t>;
 	};
 }
 #endif

@@ -8,10 +8,10 @@
 #include <QAbstractButton>
 #include <QAccessible>
 #include <QApplication>
-#include <QLabel>
 #include <QDir>
 #include <QFontDatabase>
 #include <QImage>
+#include <QLabel>
 #include <QLineEdit>
 #include <QToolButton>
 #include <QTreeView>
@@ -137,10 +137,10 @@ int main(int aArgc, char** aArgv)
 	panel.set_scope_labels(QStringLiteral("PR #77  0123abcd → 4567ef01"), QStringLiteral("Left 0123abcd\nRight 4567ef01"));
 	panel.resize(300, 560);
 	panel.show();
-	auto  filters  = std::vector<core::source_side_filter>{ };
+	auto filters            = std::vector<core::source_side_filter>{ };
 	panel.SideFilterChanged = [&](auto aFilter) { filters.push_back(aFilter); };
-	auto* tree     = panel.tree();
-	auto* model    = tree->model();
+	auto* tree              = panel.tree();
+	auto* model             = tree->model();
 
 	const auto idle = panel.summary_text();
 	expect(idle.startsWith(QStringLiteral("Type to search")), "idle summary prompts");

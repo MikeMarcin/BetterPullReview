@@ -158,7 +158,7 @@ int main(int aArgc, char** aArgv)
 	panel->bar()->query_editor()->setPlainText(QStringLiteral("fixture"));
 	panel->bar()->flush();
 	wait_for([&] { return panel->projection().Status == core::source_search_status::result_limit && app->status().SourceSearchQuiescent; }, "public record cap terminates as qualified ordered prefix");
-	expect(panel->projection().Summary.Matches == 10000U && panel->projection().Summary.SearchedFiles < panel->projection().Summary.EligibleFiles && !panel->projection().NoResults && panel->bar()->status_text().contains(QStringLiteral("narrow")), "record cap exposes prefix and narrowing prompt rather than complete no results");
+	expect(panel->projection().Summary.Matches == 10000U && panel->projection().Summary.SearchedFiles < panel->projection().Summary.EligibleFiles && !panel->projection().NoResults && panel->summary_text().contains(QStringLiteral("narrow")), "record cap exposes prefix and narrowing prompt rather than complete no results");
 	const auto scanBefore = app->status().SourceSearchScans;
 	panel->bar()->findChild<QToolButton*>(QStringLiteral("sourceFindRegex"))->setChecked(true);
 	panel->bar()->query_editor()->setPlainText(QStringLiteral("(fixture|unchanged|source|row).*never"));

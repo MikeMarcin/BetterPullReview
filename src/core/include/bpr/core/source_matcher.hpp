@@ -184,8 +184,8 @@ namespace bpr::core {
 	/// on: `toggled` refuses to turn off the last one, so no filter hides all.
 	struct source_side_filter
 	{
-		bool Left  = true;
-		bool Right = true;
+		bool Left                                                = true;
+		bool Right                                               = true;
 		auto operator==(const source_side_filter&) const -> bool = default;
 	};
 	/// \brief Whether a record has a location on an enabled side; a
@@ -197,7 +197,7 @@ namespace bpr::core {
 	/// \brief The filter with one side flipped, unless that would leave none on.
 	[[nodiscard]] constexpr auto toggled(source_side_filter aFilter, diff_side aSide) noexcept -> source_side_filter
 	{
-		auto next = aFilter;
+		auto next                                           = aFilter;
 		(aSide == diff_side::left ? next.Left : next.Right) = !(aSide == diff_side::left ? aFilter.Left : aFilter.Right);
 		return next.Left || next.Right ? next : aFilter;
 	}

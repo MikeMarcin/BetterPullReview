@@ -60,19 +60,19 @@ namespace bpr::qt {
 		void                                          set_scope_labels(QString aLabel, QString aIdentity);
 		void                                          set_snippet_font(const QFont& aFont);
 		/// \brief The side tags, file tags and match wash take the theme's role colours.
-		void                                          adopt_appearance(const appearance_profile& aProfile);
-		void                                          set_side_filter(core::source_side_filter aFilter);
-		void                                          reset();
-		void                                          cancel_pending();
-		[[nodiscard]] auto                            bar() const -> source_find_bar*;
-		[[nodiscard]] auto                            include() const -> std::string;
-		[[nodiscard]] auto                            exclude() const -> std::string;
-		[[nodiscard]] auto                            side_filter() const -> core::source_side_filter;
-		[[nodiscard]] auto                            summary_text() const -> QString;
-		[[nodiscard]] auto                            projection() const -> const application::source_search_projection&;
-		[[nodiscard]] auto                            tree() const -> QTreeView*;
+		void               adopt_appearance(const appearance_profile& aProfile);
+		void               set_side_filter(core::source_side_filter aFilter);
+		void               reset();
+		void               cancel_pending();
+		[[nodiscard]] auto bar() const -> source_find_bar*;
+		[[nodiscard]] auto include() const -> std::string;
+		[[nodiscard]] auto exclude() const -> std::string;
+		[[nodiscard]] auto side_filter() const -> core::source_side_filter;
+		[[nodiscard]] auto summary_text() const -> QString;
+		[[nodiscard]] auto projection() const -> const application::source_search_projection&;
+		[[nodiscard]] auto tree() const -> QTreeView*;
 		/// \brief The delegate's column geometry for a match row; empty for a file row.
-		[[nodiscard]] auto                            match_columns(const QModelIndex& aIndex) const -> source_search_match_columns;
+		[[nodiscard]] auto match_columns(const QModelIndex& aIndex) const -> source_search_match_columns;
 
 	protected:
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
