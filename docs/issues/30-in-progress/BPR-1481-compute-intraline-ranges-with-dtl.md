@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1481"
 title: "Compute intraline ranges with dtl after the owner's render review"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1467"]
 priority: "P2"
