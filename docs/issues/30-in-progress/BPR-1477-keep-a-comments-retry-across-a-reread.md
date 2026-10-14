@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1477"
 title: "Keep a comment's retry when its pull request is read again"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1475"]
 priority: "P1"
