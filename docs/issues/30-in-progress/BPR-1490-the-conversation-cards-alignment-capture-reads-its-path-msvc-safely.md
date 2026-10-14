@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1490"
 title: "The conversation cards alignment capture reads its path the MSVC-safe way"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
