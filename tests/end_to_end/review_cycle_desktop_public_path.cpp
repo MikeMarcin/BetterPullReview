@@ -1,5 +1,4 @@
 #include "../sqlite_contract/scratch_root.hpp"
-#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
 #include "../support/window_system_mouse.hpp"
@@ -15,6 +14,7 @@
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "product_diff.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>

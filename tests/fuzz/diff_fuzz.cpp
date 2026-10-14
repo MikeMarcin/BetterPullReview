@@ -6,9 +6,9 @@
 // left side being the first `split / 255` of them.
 
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "fuzz_support.hpp"
+#include "product_diff.hpp"
 
 #include <memory>
 #include <optional>

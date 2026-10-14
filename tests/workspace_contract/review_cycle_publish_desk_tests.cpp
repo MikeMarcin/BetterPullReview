@@ -1,5 +1,4 @@
 #include "../sqlite_contract/scratch_root.hpp"
-#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
@@ -8,6 +7,7 @@
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "bpr/core/review_cycle_manifest.hpp"
 #include "bpr/core/review_tour_markdown.hpp"
+#include "product_diff.hpp"
 #include "publication_course.hpp"
 #include "simulated_github.hpp"
 #include "workspace_fixture.hpp"

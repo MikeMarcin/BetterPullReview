@@ -1,9 +1,9 @@
 #include "../support/test_expectation.hpp"
-#include "product_diff.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_round.hpp"
 #include "cycle_course.hpp"
 #include "cycle_session.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <cstdint>

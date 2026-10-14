@@ -1,8 +1,8 @@
 #include "bpr/application/diff_application_host.hpp"
-#include "product_diff.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/core/epoch_transition.hpp"
+#include "product_diff.hpp"
 
 #include <array>
 #include <cstddef>

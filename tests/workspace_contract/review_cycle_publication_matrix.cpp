@@ -1,5 +1,4 @@
 #include "../support/test_expectation.hpp"
-#include "product_diff.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
@@ -8,6 +7,7 @@
 #include "bpr/application/review_cycle_publication.hpp"
 #include "bpr/application/review_cycle_publisher.hpp"
 #include "bpr/application/review_cycle_workbench.hpp"
+#include "product_diff.hpp"
 #include "publication_course.hpp"
 #include "simulated_github.hpp"
 #include "stored_tour_port.hpp"

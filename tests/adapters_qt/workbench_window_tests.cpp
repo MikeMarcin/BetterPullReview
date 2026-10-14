@@ -1,7 +1,7 @@
 #include "../support/resize_cursor_hold_check.hpp"
-#include "product_diff.hpp"
 #include "../support/review_tour_fixture.hpp"
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"

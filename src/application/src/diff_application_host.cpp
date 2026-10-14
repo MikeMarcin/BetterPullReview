@@ -242,10 +242,10 @@ namespace bpr::application {
 			bool Prepared = false;
 		};
 
-		implementation(core::diff_state                aInitialState,
-					   diff_blob_port&                 aBlobs,
-					   effect_executor&                aEffects,
-					   decision_executor&              aDecisionLane,
+		implementation(core::diff_state                        aInitialState,
+					   diff_blob_port&                         aBlobs,
+					   effect_executor&                        aEffects,
+					   decision_executor&                      aDecisionLane,
 					   diff_projection_port&                   aProjections,
 					   std::shared_ptr<diff_line_matcher_port> aMatcher,
 					   const diff_host_limits                  aLimits,
@@ -949,15 +949,15 @@ namespace bpr::application {
 				auto       control  = core::diff_compute_control{ .Stop = &check };
 				auto       matching = abandonable_diff_line_matching{ aMatcher };
 				const auto input    = core::diff_compute_input{
-					   .Key        = key,
-					   .Options    = aJob->Request.Options,
-					   .LeftBytes  = left.has_value()
-							? std::optional{ std::span<const std::uint8_t>{ *left } }
-							: std::nullopt,
-					   .RightBytes = right.has_value()
-							? std::optional{ std::span<const std::uint8_t>{ *right } }
-							: std::nullopt,
-					   .Limits     = aLimits,
+					.Key        = key,
+					.Options    = aJob->Request.Options,
+					.LeftBytes  = left.has_value()
+						? std::optional{ std::span<const std::uint8_t>{ *left } }
+						: std::nullopt,
+					.RightBytes = right.has_value()
+						? std::optional{ std::span<const std::uint8_t>{ *right } }
+						: std::nullopt,
+					.Limits     = aLimits,
 				};
 				auto run = core::compute_file_diff(input, control, matching);
 				if (!run.Outcome.has_value()) {
@@ -1222,36 +1222,36 @@ namespace bpr::application {
 			CachedBytes += *bytes;
 		}
 
-		core::diff_state                       State;
-		diff_blob_port&                        Blobs;
-		effect_executor&                       Effects;
-		decision_executor&                     DecisionLane;
-		diff_projection_port&                  Projections;
-		std::shared_ptr<diff_line_matcher_port> Matcher;
-		diff_host_limits                       Limits;
-		core::diff_compute_limits              ComputeLimits;
-		std::shared_ptr<completion_gate>       Gate;
-		std::vector<std::shared_ptr<diff_job>> Jobs;
-		std::vector<cache_entry>               Cache;
-		std::uint64_t                          CachedBytes                = 0U;
-		std::size_t                            PendingDecisionCompletions = 0U;
-		std::deque<deferred_diff_ingress>      DeferredIngress;
-		std::deque<prepared_diff_request>      PreparedQueue;
-		std::shared_ptr<diff_job>                       PreparedJob;
-		std::optional<core::compute_file_diff_request>  Adopted;
-		std::uint64_t                                   PreparedSequence         = 0U;
-		std::uint64_t                                   PreparedHits             = 0U;
-		bool                                            Closing                  = false;
-		bool                                            ProjectionDeliveryFailed = false;
-		bool                                            TurnActive               = false;
-		bool                                            DeferredIngressScheduled = false;
+		core::diff_state                               State;
+		diff_blob_port&                                Blobs;
+		effect_executor&                               Effects;
+		decision_executor&                             DecisionLane;
+		diff_projection_port&                          Projections;
+		std::shared_ptr<diff_line_matcher_port>        Matcher;
+		diff_host_limits                               Limits;
+		core::diff_compute_limits                      ComputeLimits;
+		std::shared_ptr<completion_gate>               Gate;
+		std::vector<std::shared_ptr<diff_job>>         Jobs;
+		std::vector<cache_entry>                       Cache;
+		std::uint64_t                                  CachedBytes                = 0U;
+		std::size_t                                    PendingDecisionCompletions = 0U;
+		std::deque<deferred_diff_ingress>              DeferredIngress;
+		std::deque<prepared_diff_request>              PreparedQueue;
+		std::shared_ptr<diff_job>                      PreparedJob;
+		std::optional<core::compute_file_diff_request> Adopted;
+		std::uint64_t                                  PreparedSequence         = 0U;
+		std::uint64_t                                  PreparedHits             = 0U;
+		bool                                           Closing                  = false;
+		bool                                           ProjectionDeliveryFailed = false;
+		bool                                           TurnActive               = false;
+		bool                                           DeferredIngressScheduled = false;
 	};
 
 	diff_application_host::diff_application_host(
-		core::diff_state                aInitialState,
-		diff_blob_port&                 aBlobs,
-		effect_executor&                aEffects,
-		decision_executor&              aDecisionLane,
+		core::diff_state                        aInitialState,
+		diff_blob_port&                         aBlobs,
+		effect_executor&                        aEffects,
+		decision_executor&                      aDecisionLane,
 		diff_projection_port&                   aProjections,
 		std::shared_ptr<diff_line_matcher_port> aMatcher,
 		const diff_host_limits                  aLimits,

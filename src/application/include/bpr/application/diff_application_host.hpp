@@ -19,10 +19,10 @@ namespace bpr::application {
 		// lane. Effect work posts immutable terminals back to that lane.
 		// Referenced ports and executors remain live until is_quiescent().
 		diff_application_host(
-			core::diff_state          aInitialState,
-			diff_blob_port&           aBlobs,
-			effect_executor&          aEffects,
-			decision_executor&        aDecisionLane,
+			core::diff_state                        aInitialState,
+			diff_blob_port&                         aBlobs,
+			effect_executor&                        aEffects,
+			decision_executor&                      aDecisionLane,
 			diff_projection_port&                   aProjections,
 			std::shared_ptr<diff_line_matcher_port> aMatcher,
 			diff_host_limits                        aLimits        = { },

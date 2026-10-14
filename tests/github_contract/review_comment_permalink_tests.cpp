@@ -1,11 +1,11 @@
 #include "../sqlite_contract/scratch_root.hpp"
-#include "product_diff.hpp"
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/application/private_publication_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "fixture_json.hpp"
 #include "github_mutation_contract.hpp"
+#include "product_diff.hpp"
 #include "review_comment_permalink.hpp"
 #include <sqlite3.h>
 #include <stdexcept>

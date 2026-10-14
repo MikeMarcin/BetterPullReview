@@ -650,11 +650,11 @@ namespace {
 	{
 		const auto left    = copy_bytes("alpha\nbeta\n");
 		const auto right   = copy_bytes("alpha\ngamma\n");
-		const auto request       = diff_compute_input{
-				  .Key        = comparison_key({ }, true, true, 31U),
-				  .Options    = { },
-				  .LeftBytes  = std::span<const std::uint8_t>{ left },
-				  .RightBytes = std::span<const std::uint8_t>{ right },
+		const auto request = diff_compute_input{
+			.Key        = comparison_key({ }, true, true, 31U),
+			.Options    = { },
+			.LeftBytes  = std::span<const std::uint8_t>{ left },
+			.RightBytes = std::span<const std::uint8_t>{ right },
 		};
 		for (const auto offered : { false, true }) {
 			auto       component = declining_primary{ offered };

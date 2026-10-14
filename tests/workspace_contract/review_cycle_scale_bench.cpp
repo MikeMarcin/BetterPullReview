@@ -1,5 +1,4 @@
 #include "../support/git_metadata_writers.hpp"
-#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
@@ -7,6 +6,7 @@
 #include "bpr/core/review_cycle_git.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
 #include "cycle_course.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>

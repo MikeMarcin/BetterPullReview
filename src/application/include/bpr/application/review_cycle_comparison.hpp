@@ -80,8 +80,8 @@ namespace bpr::application {
 		/// stay decoded so paging a pair does not reread them.
 		static constexpr std::size_t cached_manifests = 2U;
 
-		review_cycle_store&          Store;
-		core::local_cycle_authority  Authority;
+		review_cycle_store&                     Store;
+		core::local_cycle_authority             Authority;
 		review_material_bridge                  Bridge;
 		std::shared_ptr<diff_line_matcher_port> Matcher;
 		std::vector<cached_manifest>            Cache;

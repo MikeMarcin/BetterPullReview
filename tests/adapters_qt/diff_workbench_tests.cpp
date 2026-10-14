@@ -1,6 +1,6 @@
 #include "../support/resize_cursor_hold_check.hpp"
-#include "product_diff.hpp"
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"

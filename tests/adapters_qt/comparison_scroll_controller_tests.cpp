@@ -1,6 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
+#include "product_diff.hpp"
 
 #include <QAbstractSlider>
 #include <QApplication>

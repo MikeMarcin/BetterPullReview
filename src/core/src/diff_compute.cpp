@@ -1806,14 +1806,14 @@ namespace bpr::core {
 												static_cast<std::uint32_t>(left.Normalized.size()),
 												static_cast<std::uint32_t>(right.Normalized.size()),
 												aMeter);
-			matches = { };
+			matches            = { };
 
 			// Refine: secondary pairing of each replacement.
 			aProgress.begin(diff_compute_phase::refine, aMeter);
-			auto budget      = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
-			auto approximate = false;
-			auto refined     = std::vector<pending_segment>{ };
-			auto* const pairing = parts.Pairing ? &aComponents : nullptr;
+			auto        budget      = matrix_budget{ .Limit = aInput.Limits.MaximumMatrixCells };
+			auto        approximate = false;
+			auto        refined     = std::vector<pending_segment>{ };
+			auto* const pairing     = parts.Pairing ? &aComponents : nullptr;
 			for (const auto& segment : primary) {
 				if (segment.Kind != alignment_kind::replacement) {
 					refined.push_back(segment);
@@ -1864,7 +1864,7 @@ namespace bpr::core {
 										 aInput.Limits.MaximumSegments,
 										 aMeter)
 				: moved_refinement{ .Segments = std::move(refined) };
-			refined = { };
+			refined    = { };
 
 			// Assemble: groups, segments, pairs and their intraline edits, and
 			// move relations.
