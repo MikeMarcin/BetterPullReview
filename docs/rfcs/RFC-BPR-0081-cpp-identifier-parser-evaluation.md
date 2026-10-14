@@ -14,19 +14,29 @@ Mandate `cpp-identifier-parser-evaluation-r1` adopts the original proposal
 unchanged. Immutable RFC_BASE_SHA: `530d92eaff1578413c0e669f476e740387441152`. The
 [live import](assets/cpp-identifier-parser-evaluation-v1.LIVE_IMPORT.md) and the
 [milestone plan](plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json)
-retain its scope. Cards: [BPR-1440](../issues/20-ready/BPR-1440-commit-the-labelled-cpp-identifier-corpus.md)
+retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labelled-cpp-identifier-corpus.md)
 (labelled corpus and gap suite),
-[BPR-1441](../issues/20-ready/BPR-1441-stop-the-cpp-refinement-partway-and-fuzz-the-classifier.md)
+[BPR-1441](../issues/60-done/BPR-1441-stop-the-cpp-refinement-partway-and-fuzz-the-classifier.md)
 (cancellation test and syntax fuzz target),
-[BPR-1442](../issues/10-backlog/BPR-1442-measure-tree-sitter-cpp-on-macos.md)
+[BPR-1442](../issues/60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md)
 (harness, pins and macOS measurements),
-[BPR-1443](../issues/10-backlog/BPR-1443-measure-the-parser-evaluation-on-windows.md)
+[BPR-1443](../issues/20-ready/BPR-1443-measure-the-parser-evaluation-on-windows.md)
 (Windows x64),
-[BPR-1444](../issues/10-backlog/BPR-1444-measure-the-parser-evaluation-on-linux.md)
+[BPR-1444](../issues/20-ready/BPR-1444-measure-the-parser-evaluation-on-linux.md)
 (Linux x64 and the Linux fuzz campaign) and
 [BPR-1445](../issues/10-backlog/BPR-1445-close-rfc-0081.md) (closeout).
-Q1 is open: the owner has not said whether an untagged tree-sitter-cpp commit
-may be pinned. No result is claimed yet.
+**Outcome on macOS (2026-10-13): extend.** Candidate T fails the Contract,
+Bounded-work and Memory gates at both pins, so it is rejected. The Contract
+failure comes from the grammar: tree-sitter-cpp accepts no attribute on an
+enumerator. The gap suite confirms H1-H8 on the shipped heuristic.
+[BPR-1474](../issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
+fixes those classes.
+
+The [report](../verification/RFC-BPR-0081.md) records every gate, its
+measurements and the conditions for running the evaluation again. Q1 (may an
+untagged tree-sitter-cpp commit be pinned?) is still unanswered, and moot,
+because `master` fails the same gates. The Windows and Linux measurements
+(AC03) are still owed to BPR-1443 and BPR-1444; they cannot change the outcome.
 
 ## Problem and grounded current behavior
 

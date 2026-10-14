@@ -294,6 +294,28 @@ held waiting for the superseded position. Unavailable tabs
 retain their ordinary explanation without newer-pair fallback. No source tab
 is created by entry alone and no full-review scan/model reset is introduced.
 
+## Feedback body digest port
+
+BPR-1447 (RFC-BPR-0080) adds `application::body_digest_port`, a batch SHA-256
+of many bodies with no OS type in its signature. The window read host calls it
+in the provider's completion callback, on the GitHub provider's effect worker,
+before the fetched snapshot is posted to the decision lane, and the digests
+travel with the snapshot (`github_feedback_body_digests`, one entry per
+feedback post, keyed by post identity and body length). The feedback adapter
+hands each matching digest to the core as `feedback_post_observation::BodyDigest`;
+the core uses it instead of hashing, and hashes as before when a digest is
+absent or does not match. Snapshots compare without the digests, which are a
+derived cache of the bodies.
+
+The concrete backend is `adapters::github::platform_body_digest`: CommonCrypto
+on macOS and, until BPR-1448 and BPR-1449 measure CNG and libcrypto, the core's
+own SHA-256 elsewhere (`application::core_body_digest`), still off the window
+thread. Composition owns one per profile and passes it to each window read
+host. `architecture_boundaries` allows CommonCrypto's SHA-2 only in
+`src/adapters/github/src/platform_body_digest.cpp`, so core and application
+stay free of OS crypto. The core still owns every identity it derives; only
+this classifier cache key is supplied by the host.
+
 ## Diagnostic logging boundary
 
 BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition constructs
@@ -405,7 +427,8 @@ The initial target shape should be equivalent to:
 ```text
 better_pull_review_core
     standard/domain C++, plus only the owner-approved pinned, pure
-    libraries (glaze, utf8proc, zlib, fmt; owner 2026-10-13)
+    libraries (glaze, utf8proc, zlib, fmt, sha1collisiondetection,
+    HACL* SHA-2, rapidfuzz-cpp, dtl; owner 2026-10-13)
 
 better_pull_review_application
     application host, ports, requests, sessions, caches
@@ -452,7 +475,10 @@ The live repository may use different target names, but it must enforce these ru
 
 - The core imports no Qt, SQLite, GitHub, Git, operating-system, AI, clock, thread, future, timer, dialog, or process APIs.
 - The core links only owner-approved pinned, pure libraries (no I/O, threads,
-  clocks or globals): glaze, utf8proc, zlib and fmt (owner, 2026-10-13).
+  clocks or globals): glaze, utf8proc, zlib, fmt, sha1collisiondetection,
+  HACL*'s generated SHA-2, rapidfuzz-cpp and dtl (owner, 2026-10-13;
+  sha1collisiondetection and HACL* through RFC-BPR-0080, rapidfuzz-cpp and
+  dtl through RFC-BPR-0082, dtl for per-line intraline comparison only).
   `cmake/VerifyCoreBoundary.cmake` refuses any other library. Before
   hand-writing a general-purpose system in core, ask the owner whether a
   library should be allowed instead.
@@ -856,7 +882,9 @@ three steps, each inside an existing bound:
   through `git_smart_transport_port::read_exact_blobs`, after the actor proves
   each endpoint durably sparse exactly as a single exact read must. The round
   trip runs on the preparing thread, never on the actor. The host checks every
-  answer's SHA-1 against its object ID before it keeps it. Verified bytes,
+  answer's SHA-1 against its object ID before it keeps it, through the core's
+  collision-detecting SHA-1 (sha1collisiondetection, [[BPR-1450]]), as the
+  transport does; a detected input is refused, never retained. Verified bytes,
   including those of single exact reads, are retained per actor (at most 256
   blobs and 16 MiB) and dropped on authority replacement or revocation, so the
   classifier's second read of a blob and a revisit do not cross the network
@@ -872,16 +900,15 @@ three steps, each inside an existing bound:
   one decision turn, no Git, no network and no computation. It is presented
   as the reviewer's first look at the file, not as a cached revisit.
 - **Pausing.** [[BPR-1366]] A prepared computation that the reviewer's request
-  stops returns within the engine's check interval (64 Ki steps) instead of
-  running to its end, and keeps its progress: both sides' bytes and the
-  engine's paused state, or the finished computation awaiting its semantic
-  index. A paused comparison continues before any new preparation, and a
-  request for it continues it as the reviewer's own work, which preparation
-  never stops. Paused states count with prepared comparisons inside the
-  prepared share; one that does not fit, a superseded one (new window,
-  invalidation, cancellation, shutdown) and one the reviewer's room needs are
-  discarded, so the comparison is computed again from the start if it is still
-  wanted. A reviewer job polls only its own cancellation.
+  stops returns within milliseconds instead of running to its end: within the
+  engine's check interval (64 Ki steps), or within a millisecond while the
+  line matcher runs, whose thread is abandoned ([[BPR-1485]]). Restart-only
+  cancellation keeps nothing: the stopped comparison, if the window still
+  wants it, is prepared again from the start, first, once the reviewer is
+  idle, and a request for it computes it from the start as the reviewer's own
+  work, which preparation never stops. A superseded one (new window,
+  invalidation, cancellation, shutdown) is not prepared again. A reviewer job
+  polls only its own cancellation.
 
 A new window cancels the previous preparation; invalidation of the pull
 request or account cancels it and discards its queue and cache entries; window
@@ -1083,6 +1110,16 @@ resolve to that variant's built-in defaults. Existing values and stored flags
 survive without a palette reset. Scoped palette reset removes one variant's
 overrides without deleting other appearance preferences.
 
+An exported theme is a version-2 document whose `base` line names the variant
+it customises ([[BPR-1479]]). The store's per-slot documents stay version 1,
+because the slot is their base. Theme import fills the additive roles a
+document omits from its base's built-in palette before checking contrast, so
+what is previewed is what Keep changes stores and a later export writes. A
+version-1 document's base is inferred from its code background (Light or Dark,
+never high contrast). The core parses and decides the base; the composition
+hands the host the four built-in palettes, which Qt owns, and the host
+performs the fill. The theme on screen plays no part.
+
 Migration files the version-6 palette under exactly the variant that row
 recorded, keeping its document bytes, and leaves the other three uncustomized,
 which is the same "no customization" a fresh installation has. It runs inside
@@ -1280,7 +1317,11 @@ scrollbar clamping. Recent directional evidence can release or change that
 preference; discarded motion is never banked, and momentum retains the established
 axis. Phase/device/idle and comparison resets clear context. Keyboard reveals
 place a clipped row flush with the nearest displayed edge within one device
-pixel through the receiving pane's existing authority. Subsequent reveals scroll
+pixel through the receiving pane's existing authority. The row is placed from
+the first visible row by the measured axis's line tops (in unified view, its row
+stride and the top margin row 0 alone shows), not by Qt's block geometry, which
+stops walking about two viewport heights from the first visible block, so a row
+selected far out of view is revealed at that edge too ([[BPR-1476]]). Subsequent reveals scroll
 one source row per arrow; the flush origin may retain a fraction. Page destinations
 remain line-aligned. In-view cursor navigation retains fractional placement.
 Source horizontal bars use Qt's ordinary native controls and transient feedback,

@@ -266,7 +266,7 @@ namespace {
 			} else if constexpr (std::is_same_v<intent, application::import_appearance_theme_intent>) {
 				aHost.import_theme_file(std::move(aValue.Path));
 			} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
-				aHost.export_theme_file(std::move(aValue.Path), application::customisation_of(aHost.settings(), aHost.resolution().Variant).Palette);
+				aHost.export_theme_file(std::move(aValue.Path), application::customisation_of(aHost.settings(), aHost.resolution().Variant).Palette, aHost.resolution().Variant);
 			} else if constexpr (std::is_same_v<intent, application::cancel_appearance_palette_preview_intent>) {
 				aHost.cancel_theme_import();
 			} else {
@@ -318,7 +318,7 @@ namespace {
 		auto        themeDocuments = documents{ log };
 		auto        classifier     = unused_classifier{ };
 		auto        projection     = appearance_projection{ *panel, log.Gui };
-		auto        host           = application::appearance_application_host{ qt::default_appearance_settings(), store, themeDocuments, classifier, effects, lane, projection, core::application_session_id{ 1U } };
+		auto        host           = application::appearance_application_host{ qt::default_appearance_settings(), qt::builtin_appearance_palettes(), store, themeDocuments, classifier, effects, lane, projection, core::application_session_id{ 1U } };
 		panel->adopt(host.settings());
 		panel->set_dispatch([&host](application::appearance_intent aIntent) { dispatch_appearance(host, std::move(aIntent)); });
 		window.settings()->present(qt::settings_page::appearance);

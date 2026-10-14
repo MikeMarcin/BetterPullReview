@@ -1,0 +1,50 @@
+{
+ "build": "fresh `cmake --preset dev` tree (Debug, -g0 to fit the station's free disk), `ninja` all, BPR_BUILD_SYNTAX_EVALUATION=OFF",
+ "clean_build": {
+  "steps": 1639,
+  "wall_s": 238,
+  "cpu_s": 3795.5,
+  "load_average_start": [
+   23.97,
+   19.72,
+   19.76
+  ],
+  "load_average_end": [
+   53.59,
+   37.98,
+   27.77
+  ],
+  "longest_step": {
+   "ms": 34625,
+   "output": "src/app/.../github_application.cpp.o"
+  }
+ },
+ "extra_for_candidate_serial_upper_bound": {
+  "method": "the same tree reconfigured with the option on, then `ninja -j1` of the runtime, one grammar and the candidate translation unit; the shipped refinement's own translation unit (1.85 s), which T would replace, is not subtracted",
+  "v0_23_4": {
+   "serial_s": 1.86,
+   "lib_c_ms": 186,
+   "parser_c_ms": 556,
+   "scanner_c_ms": 34,
+   "candidate_tu_ms": 903
+  },
+  "master": {
+   "serial_s": 1.84,
+   "lib_c_ms": 186,
+   "parser_c_ms": 804,
+   "scanner_c_ms": 36,
+   "candidate_tu_ms": 843
+  }
+ },
+ "added_wall_upper_bound_percent": {
+  "v0_23_4": 0.78,
+  "master": 0.77
+ },
+ "added_cpu_percent": {
+  "v0_23_4": 0.044,
+  "master": 0.049
+ },
+ "release_compile_s": {
+  "note": "-O3, from size.json: lib.c 7.89 s, parser.c 2.39 s (v0.23.4) and 3.66 s (master), arm64"
+ }
+}

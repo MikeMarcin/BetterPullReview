@@ -315,6 +315,8 @@ namespace bpr::core {
 			return "unknown_override";
 		case outgoing_refusal::bounds:
 			return "bounds";
+		case outgoing_refusal::collision_detected:
+			return "collision_detected";
 		}
 		return "unknown";
 	}
@@ -387,6 +389,9 @@ namespace bpr::core {
 		// P's listing must be exactly P's tree, or untouched entries could not
 		// be preserved exactly.
 		const auto rebuilt = build_git_trees(aRequest.Base.Entries, algorithm);
+		if (!rebuilt && rebuilt.error() == git_tree_error::collision_detected) {
+			return std::unexpected{ outgoing_refusal::collision_detected };
+		}
 		if (!rebuilt || rebuilt->Root != aRequest.Base.Tree) {
 			return std::unexpected{ outgoing_refusal::invalid_base };
 		}

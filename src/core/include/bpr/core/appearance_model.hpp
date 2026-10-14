@@ -238,9 +238,11 @@ namespace bpr::core {
 	/// after them, `state_attention` ([[BPR-1085]]) and the namespace/enum
 	/// categories (RFC-BPR-0072). The owner's rule (BPR-1079
 	/// `tints-v002`) is that such a palette reads them as the built-in values and
-	/// no other role changes. The core holds no built-in colour, so an import
-	/// leaves such a role `unassigned_appearance_color` and presentation reads
-	/// that as its own built-in value for the variant.
+	/// no other role changes. The core holds no built-in colour, so the parser
+	/// leaves such a role `unassigned_appearance_color`. A stored palette's slot
+	/// is its variant, and presentation reads the sentinel as that variant's
+	/// built-in value. A theme import fills it from the document's base before
+	/// anything is checked or previewed (`with_base_defaults`, [[BPR-1479]]).
 	[[nodiscard]] constexpr auto defaults_on_import(const appearance_role aRole) noexcept -> bool
 	{
 		return index_of(aRole) >= index_of(first_feedback_label_role) && index_of(aRole) < appearance_role_count;
@@ -250,7 +252,8 @@ namespace bpr::core {
 	///
 	/// \details Fully transparent black, which no built-in palette uses and which
 	/// a presentation never paints: it reads it as "use the built-in value".
-	/// Only a role for which `defaults_on_import` holds can carry it.
+	/// Only a role for which `defaults_on_import` holds can carry it, and only a
+	/// stored palette keeps it; an imported theme never does.
 	inline constexpr appearance_color unassigned_appearance_color{ .Red = 0U, .Green = 0U, .Blue = 0U, .Alpha = 0U };
 
 	/// \brief Maps every role of the closed vocabulary to one colour.
@@ -258,6 +261,27 @@ namespace bpr::core {
 	/// \details A palette is total by construction: it cannot omit a role and it
 	/// cannot carry a key outside the vocabulary. Index it with `index_of`.
 	using appearance_palette = std::array<appearance_color, appearance_role_count>;
+
+	/// \brief Gives every role a palette left unassigned the base palette's value.
+	///
+	/// \details [[BPR-1479]]. A theme document that predates a role leaves it
+	/// `unassigned_appearance_color`, and the owner's rule (2026-10-13) is that
+	/// the import fills it from the built-in palette of the variant the theme
+	/// was made against, not from whichever theme is on screen. The core holds
+	/// no built-in colour, so the caller supplies that palette. No other role
+	/// changes, and a palette with nothing unassigned is returned unchanged.
+	[[nodiscard]] constexpr auto with_base_defaults(
+		appearance_palette        aPalette,
+		const appearance_palette& aBase) noexcept -> appearance_palette
+	{
+		for (auto index = std::size_t{ 0U }; index < appearance_role_count; ++index) {
+			if (defaults_on_import(static_cast<appearance_role>(static_cast<std::uint8_t>(index)))
+				&& aPalette[index] == unassigned_appearance_color) {
+				aPalette[index] = aBase[index];
+			}
+		}
+		return aPalette;
+	}
 
 	/// \brief Returns the stable exchange identifier of the supplied role.
 	///

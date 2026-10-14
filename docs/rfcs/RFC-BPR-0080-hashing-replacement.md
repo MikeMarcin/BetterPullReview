@@ -4,7 +4,7 @@ title: "Evaluate and replace the hand-written SHA-1 and SHA-256"
 status: "In Progress"
 depends_on: []
 area: "BPR"
-metadata: {"mandate_revision":"hashing-replacement-r1","rfc_base_sha":"5620a9f15a391dde7750112294f7562f2f64a32f","source_draft":"RFC-DRAFT-0020","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"}}
+metadata: {"mandate_revision":"hashing-replacement-r3","rfc_base_sha":"5620a9f15a391dde7750112294f7562f2f64a32f","source_draft":"RFC-DRAFT-0020","milestone_plan":{"id":"hashing-replacement-v1","path":"docs/rfcs/plans/hashing-replacement-v1/milestone-plan.json"}}
 ---
 
 # Evaluate and replace the hand-written SHA-1 and SHA-256
@@ -18,9 +18,56 @@ original draft and all seven criteria in [[BPR-1446]] to [[BPR-1453]].
 
 Owner answers on record at adoption: on 2026-10-13 the owner ruled that core
 may link only owner-approved, pinned, pure libraries (glaze, utf8proc, zlib
-and fmt). Q1, Q2 and Q3 below are unanswered. Their dependent adoption cards
-stay blocked, and no candidate enters core's link allow-list
-(`cmake/VerifyCoreBoundary.cmake`) until the owner answers.
+and fmt). Q1, Q2 and Q3 below were unanswered at adoption; the owner answered
+Q1 and Q2 later the same day (below).
+
+## Owner answers and amendment — 2026-10-13
+
+Mandate `hashing-replacement-r2`. The owner answered, as relayed by the
+coordinating session on 2026-10-13:
+
+- **Q1, Accept:** add sha1collisiondetection (MIT) to core's approved libraries.
+- **Q2, Accept:** add HACL*'s generated SHA-2 C (MIT) to core's approved libraries.
+- **Amendment, Accept:** the collision requirement is met by detection proven
+  on raw byte streams (SHAttered and SHA-mbles), plus the same library at every
+  object-ID construction, verification and publication path, shown by code
+  inspection and test. A Git-header collision vector is not required.
+
+Q3 is not asked: the Linux backend has not been measured. The amendment
+changes the collision-input evaluation, the sha1dc decision rule and AC03,
+each marked below; the [amendment record](assets/hashing-replacement-v1/proposed-owner-amendment-2026-10-13.md)
+keeps the text before and after. Nothing else changes: in particular the
+throughput conditions still bind both adopt rules (the idle machine was later
+waived for macOS; see the owner waiver below), and an Accept approves a library for core without being an adopt
+decision. Core's link allow-list and the `AGENTS.md` rule now name both
+libraries.
+
+## Owner waiver — 2026-10-13
+
+Mandate `hashing-replacement-r3`. The owner answered on 2026-10-13, as relayed
+by the coordinating session: **waive the idle-machine condition, Accept** —
+the loaded macOS speed measurements are accepted for the adopt rules. The
+waiver covers the macOS arm64 throughput rows [[BPR-1446]] measured on a loaded
+machine; it covers load, not missing rows, and it does not change the ratio
+thresholds, the Windows and Linux stations' conditions, or AC05's
+before-and-after rows. The [waiver record](assets/hashing-replacement-v1/proposed-owner-waiver-2026-10-13.md)
+keeps the text before and after.
+
+## Progress, 2026-10-13
+
+- [[BPR-1446]] (done): the macOS arm64 evaluation and its
+  [report](../verification/RFC-BPR-0080.md), on loaded-machine measurements
+  the owner accepted.
+- [[BPR-1450]] (done): every SHA-1 Git identity is computed by
+  sha1collisiondetection; a detected collision attack is a refusal on every
+  object-ID path, and the first-party `sha1.cpp` is deleted.
+- [[BPR-1451]] (done): the core SHA-256 is HACL*'s generated SHA-2 through its
+  block-level calls; the first-party `sha256.cpp` is deleted.
+- [[BPR-1447]] (done): feedback body digests come from CommonCrypto on the
+  provider's worker on macOS, off the window thread; adopted on macOS.
+- Open: the Windows and Linux stations ([[BPR-1448]], [[BPR-1449]]), Q3 if the
+  Linux backend passes, and closeout ([[BPR-1453]]). [[BPR-1452]] is not needed
+  after the Q1 Accept.
 
 ## Problem and grounded current behavior
 
@@ -176,7 +223,7 @@ Reject. The SHA-1 question is pending in the coordinating session. A
 recommendation is not an answer, and each question's dependent scope stays
 unready until it is answered.
 
-- **Q1 (unanswered): add sha1collisiondetection (MIT) to core's approved
+- **Q1 (answered Accept, 2026-10-13): add sha1collisiondetection (MIT) to core's approved
   libraries?** It would be its own static C target linked only by
   `better_pull_review_core`, configured as Git builds it. It fits: pure, no
   I/O, threads, clocks or mutable globals, and it is Git's own SHA-1. It does
@@ -185,7 +232,7 @@ unready until it is answered.
   sha1dc in an adapter behind a host port, and core keeps first-party SHA-1
   for local candidate identities, which Git and GitHub re-check on push. The
   report must state that remaining gap.
-- **Q2 (unanswered): add HACL\*'s generated SHA-2 C (MIT) to core's approved
+- **Q2 (answered Accept, 2026-10-13): add HACL\*'s generated SHA-2 C (MIT) to core's approved
   libraries?** It would be its own static target linked by core. It fits:
   pure, verified, widely vendored. It does not fit: no speed gain, and the
   streaming layer allocates. *Recommended: Accept.* If rejected, core keeps
@@ -216,10 +263,13 @@ component: adopt, reject, or eligible pending an owner answer.
   digest-using rows that BPR-1358 named must pass unchanged.
 - **Collision inputs.** The SHAttered pair (their colliding 320-byte
   prefixes, or the PDFs if the fixture policy admits them), the published
-  SHA-mbles pair and sha1dc's own test vectors. Each must be refused at core
-  identity construction, host blob verification, transport verification and
-  Review Cycle publication. A plain-SHA-1 control must show the colliding
-  digests equal. The repository sweep must detect nothing.
+  SHA-mbles pair and sha1dc's own test vectors. *Amended 2026-10-13:* each
+  must be detected when hashed as a raw byte stream, and core identity
+  construction, host blob verification, transport verification and Review
+  Cycle publication must each be shown, by code inspection and test, to compute
+  SHA-1 with that same detecting library. A Git-header collision vector is not
+  required. A plain-SHA-1 control must show the colliding digests equal. The
+  repository sweep must detect nothing.
 - **Throughput.** Workloads:
   - W1: 64 MiB in one update.
   - W2: 20,015 bodies of 400 B.
@@ -229,6 +279,8 @@ component: adopt, reject, or eligible pending an owner answer.
   Conditions follow BPR-1349 and BPR-1358 and the
   [RFC-BPR-0013 convention](RFC-BPR-0013-performance-resilience-resource-limits.md#performance-budgets):
   a Release `-O3` tests-on tree, an idle machine, `-j1`, and medians of 7.
+  (*Waived 2026-10-13 for the macOS arm64 rows: the owner accepted BPR-1446's
+  measurements on a loaded machine.*)
   Each run records the CPU, its SHA-extension flags (`hw.optional.arm.*`,
   `/proc/cpuinfo` `sha_ni`), the OS and the compiler. macOS arm64 is
   required. The Linux and Windows stations run when available, and a missing
@@ -248,7 +300,9 @@ component: adopt, reject, or eligible pending an owner answer.
   answers, the differential runs, the repository sweep and the digest-using
   rows. One mismatch rejects the component.
 - **sha1dc.** Adopt when Q1 is Accepted, the gate passes, every collision
-  input is refused at every listed point, the sweep detects nothing, and W1
+  input is detected on raw byte streams and every listed point is shown by
+  code inspection and test to use the same detecting library (*amended
+  2026-10-13*), the sweep detects nothing, and W1
   through W3 are at least 1.0× the current core SHA-1 on every measured
   target.
 - **HACL\*.** Adopt when Q2 is Accepted, the gate passes, W1 through W3 are at
@@ -300,9 +354,13 @@ HMAC, key derivation and randomness.
   known answers, the differential runs, the full repository object sweep and
   the existing digest-using rows. Data persisted before adoption still loads
   and matches.
-- **AC03:** With sha1dc adopted, every collision input is refused at each
-  listed point while the plain-SHA-1 control collides. Ordinary objects, and
-  pack checksums of valid packs, are still accepted.
+- **AC03:** *Amended 2026-10-13.* With sha1dc adopted, the SHAttered and
+  SHA-mbles inputs are detected and refused when hashed as raw byte streams
+  while the plain-SHA-1 control collides. Code inspection and tests show that
+  core identity construction, host blob verification, transport verification
+  and Review Cycle publication all compute SHA-1 with that same detecting
+  library and treat a detection as a refusal. Ordinary objects, and pack
+  checksums of valid packs, are still accepted.
 - **AC04:** Measurements on each available target support every adopt and
   reject decision. Each rejection names the failing measurement or the owner
   answer.

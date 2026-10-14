@@ -189,7 +189,9 @@ normalize_runtime_rpaths() {
                 safe_rpath='@loader_path/../../..'
                 ;;
             "${bundle}/Contents/Frameworks/"*)
-                safe_rpath='@loader_path'
+                # [[BPR-1485]] libbpr_xdiff.dylib: its own directory, written
+                # as a path the package audits resolve inside the bundle.
+                safe_rpath='@loader_path/.'
                 ;;
             *)
                 fail "Mach-O file is outside the approved runtime roots: ${binary}"
@@ -457,6 +459,13 @@ STAGED_APP="${STAGING_ROOT}/${APP_NAME}.app"
 log "Deploying the required Qt runtime"
 ditto "${APP_PATH}" "${STAGED_APP}"
 "${MACDEPLOYQT}" "${STAGED_APP}" -always-overwrite -codesign=- -verbose=1
+# [[BPR-1485]]. The linked xdiff is its own shared library, loaded through
+# @rpath from Contents/Frameworks beside the Qt frameworks.
+XDIFF_LIBRARY="${BUILD_DIR}/libbpr_xdiff.dylib"
+[[ -f "${XDIFF_LIBRARY}" ]] || fail "The xdiff shared library is absent: ${XDIFF_LIBRARY}"
+if [[ ! -f "${STAGED_APP}/Contents/Frameworks/libbpr_xdiff.dylib" ]]; then
+    ditto "${XDIFF_LIBRARY}" "${STAGED_APP}/Contents/Frameworks/libbpr_xdiff.dylib"
+fi
 verify_plugin_policy "${STAGED_APP}"
 verify_framework_policy "${STAGED_APP}"
 normalize_runtime_rpaths "${STAGED_APP}"

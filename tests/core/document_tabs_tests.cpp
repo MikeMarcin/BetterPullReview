@@ -204,6 +204,88 @@ namespace {
 			   "the two views of one file survive a restart distinct and exact");
 	}
 
+	/// [[BPR-1478]]. The reviewer chose another file in Review, and the
+	/// refresh landed before the active tab took it.
+	void test_a_refresh_presents_a_file_chosen_after_the_tab_took_its_view()
+	{
+		auto state = document_tabs_state{ };
+		static_cast<void>(open(state, set_window_comparison_intent{ pair(1, 2) }));
+		const auto first = open(state, open_in_active_tab_intent{ file(1) });
+		present(state, first);
+		static_cast<void>(observe_reading_position(state, first.Load->Request, line(1, 12)));
+		static_cast<void>(open(state, open_in_new_tab_intent{ file(3) }));
+		const auto before = state.Tabs;
+		const auto saved  = persisted(state);
+		expect(observe_file_choice(state, file(2)) == document_tabs_output{ } && state.Tabs == before && !state.Pending
+				   && persisted(state) == saved,
+			   "a chosen file changes no tab, loads nothing and is not persisted until the tab takes it");
+		const auto refreshed = reload_active(state);
+		expect(refreshed.Load && refreshed.Load->Tab == before[0].Id && refreshed.Load->View.File == file(2)
+				   && !refreshed.Load->View.Selection && refreshed.Load->View.Comparison == pair(1, 2)
+				   && active(state).View == refreshed.Load->View && state.Tabs[1].View == before[1].View,
+			   "a refresh presents the later choice at its initial position on the tab's pair, and no other tab changes");
+		present(state, refreshed);
+		const auto again = reload_active(state);
+		expect(again.Load && again.Load->View == active(state).View && again.Load->View.File == file(2),
+			   "the choice is taken once: the next refresh reloads the tab's own view");
+		present(state, again);
+		expect(observe_file_choice(state, file_identity{ }).Reason == document_tab_reason::invalid_file && !state.Chosen,
+			   "an invalid file is no choice");
+		static_cast<void>(observe_file_choice(state, file(1)));
+		static_cast<void>(observe_file_choice(state, file(2)));
+		const auto shown = reload_active(state);
+		expect(!state.Chosen && shown.Load && shown.Load->View.File == file(2),
+			   "choosing the shown file last leaves the tab's own view the latest");
+		present(state, shown);
+	}
+
+	/// [[BPR-1478]]. A choice is retired by the tab taking it or by a later
+	/// tab gesture; only the reviewer's latest gesture is presented.
+	void test_a_file_choice_gives_way_to_the_tab_taking_it_and_to_later_tab_gestures()
+	{
+		auto state = document_tabs_state{ };
+		static_cast<void>(open(state, set_window_comparison_intent{ pair(1, 2) }));
+		present(state, open(state, open_in_active_tab_intent{ file(1) }));
+		static_cast<void>(observe_file_choice(state, file(2)));
+		present(state, open(state, open_in_active_tab_intent{ file(2) }));
+		expect(!state.Chosen && active(state).View.File == file(2), "the tab taking the chosen file retires the choice");
+		static_cast<void>(open(state, open_in_new_tab_intent{ file(3) }));
+		static_cast<void>(observe_file_choice(state, file(4)));
+		present(state, open(state, activate_tab_intent{ state.Tabs[1].Id }));
+		const auto switched = reload_active(state);
+		expect(!state.Chosen && switched.Load && switched.Load->View.File == file(3) && state.Tabs[0].View.File == file(2),
+			   "a tab switch after the choice is later: the refresh presents the switched-to tab, and no tab takes the choice");
+		present(state, switched);
+		static_cast<void>(observe_file_choice(state, file(4)));
+		static_cast<void>(open(state, close_tab_intent{ *state.Active }));
+		expect(!state.Chosen && active(state).View.File == file(2), "closing the active tab retires its choice");
+		static_cast<void>(observe_file_choice(state, file(4)));
+		static_cast<void>(open(state, close_tab_intent{ *state.Active }));
+		expect(!state.Chosen && state.Tabs.empty() && reload_active(state).Reason == document_tab_reason::no_active_tab,
+			   "with no tab left there is no choice to present");
+	}
+
+	/// [[BPR-1478]]. A refresh that moves the head reloads the active tab for
+	/// its new comparison; that load presents the choice too, so the choice
+	/// does not outlive it.
+	void test_a_comparison_accepted_for_the_active_tab_presents_the_choice()
+	{
+		auto state = document_tabs_state{ };
+		static_cast<void>(open(state, set_window_comparison_intent{ pair(1, 2) }));
+		const auto first = open(state, open_in_active_tab_intent{ file(1) });
+		present(state, first);
+		static_cast<void>(observe_reading_position(state, first.Load->Request, line(1, 12)));
+		static_cast<void>(observe_file_choice(state, file(2)));
+		const auto moved = open(state, select_tab_comparison_intent{ pair(1, 3) });
+		expect(moved.Load && moved.Load->View.File == file(2) && moved.Load->View.Comparison == pair(1, 3) && !moved.Load->View.Selection
+				   && !state.Chosen,
+			   "the comparison's load presents the chosen file on the new pair");
+		present(state, moved);
+		const auto refreshed = reload_active(state);
+		expect(refreshed.Load && refreshed.Load->View == active(state).View && refreshed.Load->View.File == file(2),
+			   "a later refresh reloads the tab's own view: the choice was taken");
+	}
+
 	void test_duplicate_copies_the_exact_view_and_activates_it()
 	{
 		auto state = document_tabs_state{ };
@@ -430,6 +512,9 @@ auto main() -> int
 	test_open_in_new_tab_is_a_background_tab_on_the_window_comparison();
 	test_the_active_tab_carries_the_window_comparison_only_while_it_shares_it();
 	test_two_tabs_on_one_file_stay_distinct_and_exact();
+	test_a_refresh_presents_a_file_chosen_after_the_tab_took_its_view();
+	test_a_file_choice_gives_way_to_the_tab_taking_it_and_to_later_tab_gestures();
+	test_a_comparison_accepted_for_the_active_tab_presents_the_choice();
 	test_duplicate_copies_the_exact_view_and_activates_it();
 	test_closing_follows_the_neighbour_rule();
 	test_close_others_activate_and_adjacent();

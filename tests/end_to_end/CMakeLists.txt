@@ -2300,6 +2300,32 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
+# [[BPR-1478]]. A reread that lands just after the reviewer picks another file
+# keeps that file, from the public Refresh and from the window's own reread.
+bpr_add_network_isolated_test(
+    NAME application_refresh_pick_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_refresh_pick_contract.cmake"
+)
+set_tests_properties(
+    application_refresh_pick_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "REFRESH_PICK_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_refresh_pick_contract
+    TIMEOUT 120
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 2
+    RESERVE_MS 4000
+)
+
 # [[BPR-1374]]. An unsent reply survives Refresh and restart; a reply whose
 # thread is resolved or deleted elsewhere is kept and flagged; nothing is sent.
 bpr_add_executable(test_private_draft_restore private_draft_restore_tests.cpp)
@@ -2440,6 +2466,36 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_appearance_theme_customization_contract
+    TIMEOUT 240
+    BUDGET_MS ${bpr_appearance_theme_budget_ms}
+    RUNS 3
+    RESERVE_MS 10000
+)
+
+# [[BPR-1479]]. The same course over a theme exported before RFC-BPR-0072,
+# which has no namespace or enum-member colours. Its black code canvas makes
+# its base Dark, so the import fills both from Dark's built-ins whichever
+# theme is on screen, and Keep changes keeps them.
+bpr_add_network_isolated_test(
+    NAME application_appearance_older_theme_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-older-theme-root"
+        "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
+        "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff"
+        "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_appearance_theme_customization_contract.cmake"
+)
+set_tests_properties(
+    application_appearance_older_theme_contract
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "APPEARANCE_THEME_CUSTOMIZATION_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_appearance_older_theme_contract
     TIMEOUT 240
     BUDGET_MS ${bpr_appearance_theme_budget_ms}
     RUNS 3
@@ -3033,6 +3089,7 @@ endif()
 # a native session: a lost answer, a relabel refused while the outcome is unknown,
 # and a retry that reconciles the one stored comment; and a relabel that keeps
 # Publish unavailable until its owner accepts it, then publishes exactly that body.
+# [[BPR-1477]]: the retry survives a Refresh pressed while the outcome is unknown.
 bpr_add_executable(test_label_publication_recovery label_publication_recovery_tests.cpp)
 target_link_libraries(test_label_publication_recovery PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_label_publication_recovery PRIVATE BPR_BUILD_TESTING=1)

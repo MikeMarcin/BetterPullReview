@@ -92,6 +92,25 @@ namespace {
 		return palette;
 	}
 
+	/// \brief Returns the built-in palettes a composition would supply.
+	///
+	/// \details [[BPR-1479]]. Each is the contrast-safe palette, except that the
+	/// two C++ identifier roles carry the shipped Light and Dark inks: Light's
+	/// is legible only on a light canvas and Dark's only on a dark one, so an
+	/// import filled from the wrong base is refused.
+	[[nodiscard]] auto builtin_palettes() -> application::appearance_builtin_palettes
+	{
+		auto palettes = application::appearance_builtin_palettes{ };
+		palettes.fill(contrast_safe_palette());
+		auto& light                                                      = palettes[application::variant_index(core::appearance_variant::light)];
+		auto& dark                                                       = palettes[application::variant_index(core::appearance_variant::dark)];
+		light[core::index_of(core::appearance_role::syntax_namespace)]   = core::appearance_color{ .Red = 0x1BU, .Green = 0x5EU, .Blue = 0x70U, .Alpha = 255U };
+		light[core::index_of(core::appearance_role::syntax_enum_member)] = core::appearance_color{ .Red = 0x2FU, .Green = 0x4FU, .Blue = 0x4FU, .Alpha = 255U };
+		dark[core::index_of(core::appearance_role::syntax_namespace)]    = core::appearance_color{ .Red = 0xB8U, .Green = 0xD7U, .Blue = 0xA3U, .Alpha = 255U };
+		dark[core::index_of(core::appearance_role::syntax_enum_member)]  = core::appearance_color{ .Red = 0xD6U, .Green = 0xA0U, .Blue = 0x5AU, .Alpha = 255U };
+		return palettes;
+	}
+
 	/// \brief Returns a legal durable record that differs in every domain.
 	[[nodiscard]] auto persisted_settings() -> application::appearance_settings
 	{
@@ -320,6 +339,7 @@ namespace {
 	{
 		explicit harness(const application::appearance_host_limits aLimits = { })
 			: Host{ base_settings(),
+					builtin_palettes(),
 					Settings,
 					ThemeDocuments,
 					Classifier,
@@ -361,6 +381,7 @@ namespace {
 		try {
 			const auto host = std::make_unique<application::appearance_application_host>(
 				base_settings(),
+				builtin_palettes(),
 				settings,
 				themeDocuments,
 				classifier,
@@ -381,6 +402,7 @@ namespace {
 			illegal.Typography = illegal_typography();
 			const auto host    = std::make_unique<application::appearance_application_host>(
 				std::move(illegal),
+				builtin_palettes(),
 				settings,
 				themeDocuments,
 				classifier,
@@ -393,6 +415,28 @@ namespace {
 			threwOnSettings = true;
 		}
 		expect(threwOnSettings, "a base appearance the core rejects is refused");
+
+		auto threwOnBuiltins = false;
+		try {
+			auto holed = builtin_palettes();
+			holed[application::variant_index(core::appearance_variant::dark)]
+				 [core::index_of(core::appearance_role::syntax_namespace)]
+				= core::unassigned_appearance_color;
+			const auto host = std::make_unique<application::appearance_application_host>(
+				base_settings(),
+				holed,
+				settings,
+				themeDocuments,
+				classifier,
+				effects,
+				lane,
+				projections,
+				core::application_session_id{ 11U });
+			expect(host == nullptr, "a built-in palette with an unassigned role must be rejected");
+		} catch (const std::invalid_argument&) {
+			threwOnBuiltins = true;
+		}
+		expect(threwOnBuiltins, "a built-in palette that cannot fill an older theme is refused");
 	}
 
 	void test_absent_durable_record_keeps_the_composed_appearance()
@@ -875,36 +919,63 @@ namespace {
 		}
 	}
 
-	void test_old_theme_defers_only_omitted_additive_ink()
+	/// \brief Returns a document without the two roles RFC-BPR-0072 appended.
+	[[nodiscard]] auto without_identifier_roles(std::string aDocument) -> std::string
 	{
-		auto h        = harness{ };
-		auto palette  = contrast_safe_palette();
-		auto document = core::export_theme(palette);
 		for (const auto role : { core::appearance_role::syntax_namespace, core::appearance_role::syntax_enum_member }) {
-			const auto begin = document.find(std::string{ core::stable_name(role) } + ' ');
-			expect(begin != std::string::npos, "new theme export includes additive role");
-			document.erase(begin, document.find('\n', begin) + 1U - begin);
-			palette[core::index_of(role)] = core::unassigned_appearance_color;
+			const auto begin = aDocument.find(std::string{ core::stable_name(role) } + ' ');
+			expect(begin != std::string::npos, "a theme export includes the identifier roles");
+			aDocument.erase(begin, aDocument.find('\n', begin) + 1U - begin);
 		}
-		h.ThemeDocuments.Document = document;
-		h.Host.import_theme_file("old-identifier.theme");
+		return aDocument;
+	}
+
+	void test_older_theme_takes_omitted_roles_from_its_base()
+	{
+		// [[BPR-1479]]. The reported case: a theme written before the namespace
+		// and enum-member roles, on a black code canvas, imported while Light
+		// is on screen. Filled from Light, its namespace ink measured 2.88:1
+		// and Keep changes was refused.
+		auto        h        = harness{ };
+		const auto  builtins = builtin_palettes();
+		const auto& dark     = builtins[application::variant_index(core::appearance_variant::dark)];
+		auto        expected = contrast_safe_palette();
+		for (const auto role : { core::appearance_role::syntax_namespace, core::appearance_role::syntax_enum_member }) {
+			expected[core::index_of(role)] = dark[core::index_of(role)];
+		}
+		h.ThemeDocuments.Document = without_identifier_roles(core::export_theme(contrast_safe_palette()));
+		h.Host.import_theme_file("older-dark.theme");
 		h.settle();
 		expect(h.Projections.Failed.empty() && h.Projections.Published.size() == 1U
-				   && h.Projections.Published.back().ThemePreview && h.Projections.Published.back().ThemePreview->Palette == palette,
-			   "old theme previews every existing value while deferring both new defaults to presentation");
-		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "old import is preview-only with all stored states retained");
+				   && h.Projections.Published.back().ThemePreview && h.Projections.Published.back().ThemePreview->Palette == expected,
+			   "a version-1 theme on a dark canvas previews the omitted roles in Dark's built-in colours");
+		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "the import is preview-only");
+
+		h.Host.apply(h.Projections.Published.back().ThemePreview->Palette, core::appearance_variant::light);
+		h.settle();
+		expect(h.Projections.Failed.empty() && h.Settings.Stores == 1U
+				   && application::customisation_of(h.Host.settings(), core::appearance_variant::light).Palette == expected,
+			   "keeping it on Light stores the filled colours, which a later export writes as they are");
 
 		h.Projections.Published.clear();
-		palette                                                          = contrast_safe_palette();
-		palette[core::index_of(core::appearance_role::syntax_namespace)] = core::appearance_color{ .Alpha = 255U };
-		h.ThemeDocuments.Document                                        = core::export_theme(palette);
-		h.Host.import_theme_file("explicit-unreadable-namespace.theme");
+		h.ThemeDocuments.Document = without_identifier_roles(core::export_theme(contrast_safe_palette(), core::appearance_variant::light));
+		h.Host.import_theme_file("declared-light.theme");
 		h.settle();
 		expect(h.Projections.Published.empty() && h.Projections.Failed.size() == 1U
 				   && h.Projections.Failed.back().Failure == application::appearance_host_failure::palette_contrast_rejected
 				   && std::ranges::any_of(h.Projections.Failed.back().ContrastRejections, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
-			   "explicit unreadable new-role ink is still rejected; only the omission sentinel is deferred");
-		expect(h.Settings.Stores == 0U, "explicit contrast failure performs no durable write");
+			   "a declared base is honoured over the canvas, and a fill that cannot be read is refused at import rather than at Keep changes");
+
+		auto palette                                                     = contrast_safe_palette();
+		palette[core::index_of(core::appearance_role::syntax_namespace)] = core::appearance_color{ .Alpha = 255U };
+		h.ThemeDocuments.Document                                        = core::export_theme(palette, core::appearance_variant::dark);
+		h.Host.import_theme_file("explicit-unreadable-namespace.theme");
+		h.settle();
+		expect(h.Projections.Published.empty() && h.Projections.Failed.size() == 2U
+				   && h.Projections.Failed.back().Failure == application::appearance_host_failure::palette_contrast_rejected
+				   && std::ranges::any_of(h.Projections.Failed.back().ContrastRejections, [](const auto& aRejection) { return aRejection.Finding.Pair.Foreground == core::appearance_role::syntax_namespace; }),
+			   "explicit unreadable identifier ink is rejected; the base fills only what the document omits");
+		expect(h.Settings.Stores == 1U, "a refused import performs no durable write");
 	}
 
 	void test_theme_import_is_bounded_typed_and_preview_only()
@@ -1223,22 +1294,23 @@ namespace {
 	{
 		auto       h       = harness{ };
 		const auto palette = contrast_safe_palette();
-		h.Host.export_theme_file("chosen.json", palette);
+		h.Host.export_theme_file("chosen.json", palette, core::appearance_variant::high_contrast_dark);
 		expect(h.ThemeDocuments.Writes == 0U, "export performs no synchronous file effect");
 		h.settle();
-		expect(h.ThemeDocuments.Path == "chosen.json"
-				   && core::import_theme(h.ThemeDocuments.Document).Palette == palette,
-			   "exported complete palette round-trips through the core parser");
+		const auto exported = core::import_theme(h.ThemeDocuments.Document);
+		expect(h.ThemeDocuments.Path == "chosen.json" && exported.Palette == palette
+				   && exported.Base == core::appearance_variant::high_contrast_dark,
+			   "exported complete palette round-trips through the core parser with the theme it customises as its base");
 		expect(h.Projections.Published.back().ThemeExported, "success is acknowledged after write completion");
 		expect(h.Settings.Stores == 0U && h.Host.settings() == base_settings(), "export changes no durable settings");
 		h.ThemeDocuments.Available = false;
-		h.Host.export_theme_file("refused.json", palette);
+		h.Host.export_theme_file("refused.json", palette, core::appearance_variant::dark);
 		h.settle();
 		expect(h.Projections.Failed.back().Failure == application::appearance_host_failure::theme_export_unavailable,
 			   "writer refusal produces an export-specific failure");
 		const auto publications = h.Projections.Published.size();
 		const auto failures     = h.Projections.Failed.size();
-		h.Host.export_theme_file("cancelled.json", palette);
+		h.Host.export_theme_file("cancelled.json", palette, core::appearance_variant::dark);
 		h.Host.cancel();
 		h.settle();
 		expect(h.ThemeDocuments.Writes == 2U && h.Projections.Published.size() == publications
@@ -1357,7 +1429,7 @@ auto main() -> int
 	test_a_palette_reset_names_one_variant_and_spares_the_others();
 	test_palette_commit_refuses_contrast_failures_without_writing();
 	test_theme_import_is_bounded_typed_and_preview_only();
-	test_old_theme_defers_only_omitted_additive_ink();
+	test_older_theme_takes_omitted_roles_from_its_base();
 	test_system_mode_follows_the_observation_and_explicit_mode_does_not();
 	test_classification_misses_once_then_hits();
 	test_appearance_changes_never_reparse();

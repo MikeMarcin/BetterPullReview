@@ -5,10 +5,12 @@
 #include <utility>
 
 namespace bpr::application {
-	review_cycle_comparison_host::review_cycle_comparison_host(review_cycle_store& aStore, const core::local_cycle_authority aAuthority) noexcept
+	review_cycle_comparison_host::review_cycle_comparison_host(review_cycle_store& aStore, const core::local_cycle_authority aAuthority,
+															   std::shared_ptr<diff_line_matcher_port> aMatcher) noexcept
 		: Store{ aStore }
 		, Authority{ aAuthority }
 		, Bridge{ nullptr, &aStore, aAuthority }
+		, Matcher{ std::move(aMatcher) }
 	{
 	}
 
@@ -135,10 +137,18 @@ namespace bpr::application {
 		const auto spanOf = [](const std::optional<review_material_observation>& aSide) -> std::optional<std::span<const std::uint8_t>> {
 			return aSide ? std::optional{ std::span<const std::uint8_t>{ aSide->Bytes } } : std::nullopt;
 		};
-		auto outcome       = core::compute_material_diff({ .Key = *key, .Options = aOptions, .LeftBytes = spanOf(before), .RightBytes = spanOf(after), .Limits = limits });
-		observation.Reason = outcome.Reason;
-		observation.Diff   = std::move(outcome.Result);
-		observation.Status = aStop.stop_requested() ? review_material_status::cancelled : review_material_status::available;
+		// [[BPR-1485]] The host's line matcher, abandoned on a stop.
+		auto check    = stop_token_check{ aStop };
+		auto matching = abandonable_diff_line_matching{ Matcher };
+		auto run      = core::compute_material_diff({ .Key = *key, .Options = aOptions, .LeftBytes = spanOf(before), .RightBytes = spanOf(after), .Limits = limits },
+													core::diff_compute_control{ .Stop = &check }, matching);
+		if (!run.Outcome.has_value() || aStop.stop_requested()) {
+			observation.Status = review_material_status::cancelled;
+			return observation;
+		}
+		observation.Reason = run.Outcome->Reason;
+		observation.Diff   = std::move(run.Outcome->Result);
+		observation.Status = review_material_status::available;
 		return observation;
 	}
 }

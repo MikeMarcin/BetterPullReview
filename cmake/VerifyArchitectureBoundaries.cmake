@@ -1772,6 +1772,14 @@ function(verify_effect_owner effect_pattern effect_name allowed_relative_file)
         elseif(current_allowed_relative STREQUAL "src/app/src/terminal_diagnostics.cpp")
             set(effect_owner_cmake "${app_cmake_contents}")
             set(effect_owner_target "better_pull_review_composition")
+        elseif(current_allowed_relative MATCHES "^src/app/src/designated_live_macos_(capsule|supervisor)_identity\\.cpp$")
+            # [[BPR-1447]]. Pre-existing CommonCrypto users whose target
+            # ownership the designated live supervisor rules above check.
+            set(effect_owner_cmake "${allowed_name}")
+            set(effect_owner_target "the designated live macOS tools")
+        elseif(current_allowed_relative MATCHES "^src/adapters/xdiff/")
+            file(READ "${BPR_ROOT}/src/adapters/xdiff/CMakeLists.txt" effect_owner_cmake)
+            set(effect_owner_target "better_pull_review_adapter_xdiff")
         elseif(current_allowed_relative MATCHES "^src/core/")
             set(effect_owner_cmake "${core_cmake_contents}")
             set(effect_owner_target "better_pull_review_core")
@@ -1857,6 +1865,95 @@ verify_effect_owner(
     "${agent_windows_supervisor_relative}"
     "src/adapters/mcp/src/mcp_terminal_diagnostic.hpp"
     "src/app/src/terminal_diagnostics.cpp"
+)
+# [[BPR-1450]]. Every SHA-1 Git object identity is computed by one library,
+# sha1collisiondetection, behind the core's SHA-1 (RFC-BPR-0080 AC03). Qt's
+# plain SHA-1 is left only to the pack transfer checksum, which Git also
+# computes without detection, and no other SHA-1 implementation may appear.
+verify_effect_owner(
+    "QCryptographicHash::Sha1"
+    "plain Qt SHA-1 (object identities use the core's collision-detecting SHA-1)"
+    "src/adapters/git/src/installed_git_cache.cpp"
+)
+verify_effect_owner(
+    "(SHA1DC[A-Za-z]*[ \t\r\n]*\\(|SHA1_CTX|CC_SHA1_|EVP_sha1|BCRYPT_SHA1_ALGORITHM|0x67452301|#[ \t]*include[ \t]*[<\"]sha1\\.h[>\"])"
+    "SHA-1 implementation"
+    "src/core/src/sha1_collision_detecting.cpp"
+)
+# [[BPR-1451]]. The core's SHA-256 is HACL*'s generated SHA-2, called only by
+# the core wrapper (RFC-BPR-0080 AC03): no other source names a HACL* symbol
+# or header, and no first-party SHA-2 (its initial hash or first round
+# constant) comes back. Platform and Qt SHA-256 outside the core are not
+# identities and are left alone.
+verify_effect_owner(
+    "(Hacl_|0x6a09e667|0x6A09E667|0x428a2f98|0x428A2F98)"
+    "SHA-256 implementation"
+    "src/core/src/sha256_hacl.cpp"
+)
+# [[BPR-1480]]. The diff engine's line-pair similarity is rapidfuzz-cpp's Indel
+# distance, called only where the engine scores line pairs (RFC-BPR-0082): no
+# other source names a rapidfuzz-cpp symbol, header or configuration macro.
+verify_effect_owner(
+    "(rapidfuzz::|rapidfuzz/|RAPIDFUZZ_)"
+    "rapidfuzz-cpp line-pair similarity"
+    "src/core/src/diff_compute.cpp"
+)
+# [[BPR-1481]]. The diff engine's intraline ranges are dtl's common scalars of
+# one similar line pair (RFC-BPR-0082 Q2: dtl for per-line intraline comparison
+# only). No other source names a dtl symbol, header or macro, so dtl can never
+# become a whole-file line matcher.
+verify_effect_owner(
+    "(^|[^A-Za-z0-9_])(dtl::|dtl/)|DTL_"
+    "dtl intraline comparison"
+    "src/core/src/diff_intraline.cpp"
+)
+# [[BPR-1485]]. The diff engine's primary line matcher is Git's xdiff, called
+# only by the xdiff adapter behind the application's line matcher port
+# (RFC-BPR-0082): no other source names an xdiff symbol or header.
+verify_effect_owner(
+    "(xdl_[a-z_]+[ \t\r\n]*\\(|xpparam_t|xdemitconf_t|xdemitcb_t|mmfile_t|XDF_[A-Z_]+|#[ \t]*include[ \t]*[<\"]xdiff\\.h[>\"])"
+    "linked xdiff"
+    "src/adapters/xdiff/src/xdiff_line_matcher.cpp"
+)
+# The owner accepted LGPL xdiff only as its own dynamically linked shared
+# library, as Qt is (RFC-BPR-0082 Q1, 2026-10-13): the provider builds it
+# SHARED and nothing else, no other product build file compiles its sources,
+# and only the xdiff adapter links it.
+set(xdiff_provider_relative "cmake/BprXdiffProvider.cmake")
+if(EXISTS "${BPR_ROOT}/${xdiff_provider_relative}")
+    file(READ "${BPR_ROOT}/${xdiff_provider_relative}" xdiff_provider_contents)
+    string(REGEX MATCHALL "add_library\\([ \t\r\n]*better_pull_review_xdiff[ \t\r\n]+[A-Z]+" xdiff_libraries "${xdiff_provider_contents}")
+    if(NOT xdiff_libraries STREQUAL "add_library(better_pull_review_xdiff SHARED")
+        message(FATAL_ERROR "xdiff must be built only as its own shared library: ${xdiff_libraries}")
+    endif()
+endif()
+file(GLOB xdiff_scanned_cmake_files LIST_DIRECTORIES false "${BPR_ROOT}/cmake/*.cmake" "${BPR_ROOT}/packaging/*.cmake")
+file(GLOB_RECURSE xdiff_scanned_product_cmake_files LIST_DIRECTORIES false "${BPR_ROOT}/src/CMakeLists.txt" "${BPR_ROOT}/src/*/CMakeLists.txt")
+list(FILTER xdiff_scanned_cmake_files EXCLUDE REGEX "/cmake/Verify[A-Za-z]+\\.cmake$")
+list(APPEND xdiff_scanned_cmake_files ${xdiff_scanned_product_cmake_files} "${BPR_ROOT}/CMakeLists.txt")
+foreach(xdiff_cmake_file IN LISTS xdiff_scanned_cmake_files)
+    file(RELATIVE_PATH xdiff_cmake_relative "${BPR_ROOT}" "${xdiff_cmake_file}")
+    file(READ "${xdiff_cmake_file}" xdiff_cmake_contents)
+    if(NOT xdiff_cmake_relative STREQUAL xdiff_provider_relative
+       AND xdiff_cmake_contents MATCHES "(xdiff/x[a-z]+\\.c|add_library\\([ \t\r\n]*better_pull_review_xdiff[ \t\r\n])")
+        message(FATAL_ERROR "xdiff ownership violation in ${xdiff_cmake_relative}: only ${xdiff_provider_relative} builds xdiff")
+    endif()
+    if(NOT xdiff_cmake_relative STREQUAL "src/adapters/xdiff/CMakeLists.txt"
+       AND xdiff_cmake_contents MATCHES "target_link_libraries\\([^)]*(BetterPullReview::Xdiff|better_pull_review_xdiff)[ \t\r\n)]")
+        message(FATAL_ERROR "xdiff ownership violation in ${xdiff_cmake_relative}: only the xdiff adapter links the xdiff shared library")
+    endif()
+endforeach()
+# [[BPR-1447]]. Platform crypto sits behind the application's body digest port
+# in one adapter file (RFC-BPR-0080 AC06): CommonCrypto's SHA-2 is named
+# nowhere else in the product, so core and application stay free of OS crypto.
+# The designated live capsule and supervisor identities, test tooling that
+# already fingerprinted their own images with it, keep it.
+verify_effect_owner(
+    "(CommonCrypto/|CC_SHA(224|256|384|512)[A-Za-z0-9_]*)"
+    "platform crypto (CommonCrypto SHA-2)"
+    "src/adapters/github/src/platform_body_digest.cpp"
+    "src/app/src/designated_live_macos_capsule_identity.cpp"
+    "${app_designated_live_supervisor_identity_relative}"
 )
 verify_effect_owner(
     "QNetworkAccessManager"

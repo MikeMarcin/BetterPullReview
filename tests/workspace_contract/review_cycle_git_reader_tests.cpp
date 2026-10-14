@@ -293,7 +293,7 @@ namespace {
 		withExtension.resize(withExtension.size() - 20U);
 		withExtension.insert(withExtension.end(), { 'a', 'b', 'c', 'd' });
 		big_endian(withExtension, 0);
-		const auto trailer = core::sha1(withExtension);
+		const auto trailer = core::sha1(withExtension).value();
 		withExtension.insert(withExtension.end(), trailer.begin(), trailer.end());
 		write_bytes(extension / ".git" / "index", withExtension);
 		expect_refused(extension, "required extension", "a required index extension is refused");

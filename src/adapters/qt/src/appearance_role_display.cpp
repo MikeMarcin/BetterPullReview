@@ -118,10 +118,12 @@ namespace bpr::qt {
 			return { group::syntax, "Syntax alert" };
 		case role::syntax_error:
 			return { group::syntax, "Syntax error" };
+		// RFC-BPR-0072. Worded like the rest of Syntax ([[BPR-1483]], owner
+		// 2026-10-13), so a filter for "syntax" finds them with their group.
 		case role::syntax_namespace:
-			return { group::syntax, "Namespaces" };
+			return { group::syntax, "Syntax namespace" };
 		case role::syntax_enum_member:
-			return { group::syntax, "Enum members" };
+			return { group::syntax, "Syntax enum member" };
 		case role::syntax_other:
 			return { group::syntax, "Syntax other" };
 

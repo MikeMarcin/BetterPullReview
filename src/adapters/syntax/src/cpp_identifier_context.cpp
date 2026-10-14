@@ -12,10 +12,17 @@ namespace bpr::adapters::syntax {
 	namespace {
 		using role             = core::appearance_role;
 		constexpr auto NoIndex = std::numeric_limits<std::uint32_t>::max();
+		/// Bounds on anonymous block scopes and on tracked `#if` nesting (H5, H8).
+		constexpr auto MaximumBlockDepth       = std::size_t{ 256U };
+		constexpr auto MaximumScopes           = std::size_t{ 1U } << 20U;
+		constexpr auto MaximumConditionalDepth = std::size_t{ 32U };
 
+		/// Every byte of a UTF-8 sequence continues an identifier, so a non-ASCII
+		/// name is one token (H7). Strings and comments never reach the tokenizer.
 		[[nodiscard]] auto identifier_start(const char aByte) noexcept -> bool
 		{
-			return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || aByte == '_';
+			return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z') || aByte == '_'
+				|| static_cast<unsigned char>(aByte) >= 0x80U;
 		}
 
 		[[nodiscard]] auto identifier_unit(const char aByte) noexcept -> bool
@@ -56,6 +63,30 @@ namespace bpr::adapters::syntax {
 			symbol_kind   Kind    = symbol_kind::unknown;
 			std::uint32_t Child   = NoIndex;
 			bool          Defined = false;
+		};
+
+		enum class directive : std::uint8_t {
+			open,
+			branch,
+			close,
+		};
+
+		/// A conditional directive line, at its `#`.
+		struct conditional_line
+		{
+			std::uint32_t Offset = 0U;
+			directive     Kind   = directive::open;
+		};
+
+		/// The braces of an open `#if` and its first branch's, once it has ended.
+		struct branch_state
+		{
+			std::size_t                Depth     = 0U;
+			std::uint32_t              Scope     = 0U;
+			bool                       Valid     = true;
+			bool                       Stashed   = false;
+			std::uint32_t              TailScope = 0U;
+			std::vector<std::uint32_t> Tail;
 		};
 
 		struct scope
@@ -142,15 +173,40 @@ namespace bpr::adapters::syntax {
 					while (at < end && (Text[at] == ' ' || Text[at] == '\t')) {
 						++at;
 					}
-					const auto directive = continued || (at < end && Text[at] == '#' && (Roles[at] == role::syntax_preprocessor || code_role(Roles[at])));
-					if (directive) {
+					const auto opened  = at < end && Text[at] == '#' && (Roles[at] == role::syntax_preprocessor || code_role(Roles[at]));
+					const auto protect = continued || opened;
+					if (protect) {
 						std::fill(Protected.begin() + begin, Protected.begin() + static_cast<std::ptrdiff_t>(end), true);
+					}
+					if (opened && !continued) {
+						record_conditional(at, end);
 					}
 					auto last = end;
 					if (last > begin && Text[last - 1U] == '\r') {
 						--last;
 					}
-					continued = directive && last > begin && Text[last - 1U] == '\\';
+					continued = protect && last > begin && Text[last - 1U] == '\\';
+				}
+			}
+
+			void record_conditional(const std::size_t aHash, const std::size_t aEnd)
+			{
+				auto at = aHash + 1U;
+				while (at < aEnd && (Text[at] == ' ' || Text[at] == '\t')) {
+					++at;
+				}
+				auto end = at;
+				while (end < aEnd && identifier_unit(Text[end])) {
+					++end;
+				}
+				const auto name   = Text.substr(at, end - at);
+				const auto offset = static_cast<std::uint32_t>(aHash);
+				if (name.starts_with("if")) {
+					Conditionals.push_back({ .Offset = offset, .Kind = directive::open });
+				} else if (name == "else" || name.starts_with("elif")) {
+					Conditionals.push_back({ .Offset = offset, .Kind = directive::branch });
+				} else if (name == "endif") {
+					Conditionals.push_back({ .Offset = offset, .Kind = directive::close });
 				}
 			}
 
@@ -161,8 +217,7 @@ namespace bpr::adapters::syntax {
 						return;
 					}
 					const auto byte = Text[at];
-					if (Protected[at] || !code_role(Roles[at]) || byte == ' ' || byte == '\t'
-						|| byte == '\r' || byte == '\n' || static_cast<unsigned char>(byte) >= 128U) {
+					if (Protected[at] || !code_role(Roles[at]) || byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n') {
 						++at;
 						continue;
 					}
@@ -182,6 +237,12 @@ namespace bpr::adapters::syntax {
 				}
 			}
 
+			[[nodiscard]] auto assignment(const std::uint32_t aAt) const noexcept -> bool
+			{
+				const auto previous = aAt > 0U ? word(aAt - 1U) : std::string_view{ };
+				return word(aAt) == "=" && word(aAt + 1U) != "=" && previous != "=" && previous != "!" && previous != "<" && previous != ">";
+			}
+
 			void match_delimiters()
 			{
 				auto stack  = std::vector<std::uint32_t>{ };
@@ -196,7 +257,9 @@ namespace bpr::adapters::syntax {
 					} else if (text == ">" && !angles.empty() && word(at + 1U) != "=") {
 						Tokens[angles.back()].Match = at;
 						angles.pop_back();
-					} else if (text == ";" || text == "{" || text == "}") {
+					} else if (text == ";" || text == "{" || text == "}" || assignment(at)) {
+						// A template argument list holds no bare `=`, so `A = X < 3, B = Y > 2`
+						// is two comparisons rather than one argument list (H3).
 						angles.clear();
 					}
 					if (text == "(" || text == "[" || text == "{") {
@@ -249,6 +312,10 @@ namespace bpr::adapters::syntax {
 			void namespace_declaration(const std::size_t aAt, const std::uint32_t aScope)
 			{
 				auto at = aAt + 1U;
+				// `namespace [[deprecated]] Legacy {` (H2).
+				while (word(at) == "[" && Tokens[at].Match != NoIndex) {
+					at = Tokens[at].Match + 1U;
+				}
 				if (!identifier(at)) {
 					if (word(at) == "{") {
 						Opens[at] = new_scope(aScope);
@@ -261,6 +328,10 @@ namespace bpr::adapters::syntax {
 						return;
 					}
 					at += 2U;
+					// `namespace A::inline B {` names B; `inline` is not a namespace (H1).
+					if (word(at) == "inline" && identifier(at + 1U)) {
+						++at;
+					}
 					names.push_back(at);
 				}
 				if (word(at + 1U) == "=") {
@@ -303,7 +374,9 @@ namespace bpr::adapters::syntax {
 				}
 				// A malformed header cannot force a scan of the rest of the blob.
 				const auto limit = std::min(Tokens.size(), at + 256U);
-				while (at < limit && word(at) != "{" && word(at) != ";" && word(at) != "=" && word(at) != "}") {
+				// An enum head holds no parenthesis, so `f(enum E e) {` names no enum body.
+				while (at < limit && word(at) != "{" && word(at) != ";" && word(at) != "=" && word(at) != "}"
+					   && !(enumeration && (word(at) == "(" || word(at) == ")"))) {
 					++at;
 				}
 				if (at == limit || (word(at) != "{" && word(at) != ";")) {
@@ -324,9 +397,12 @@ namespace bpr::adapters::syntax {
 				const auto previous = word(aAt - 1U);
 				const auto next     = word(aAt + 1U);
 				const auto old      = Roles[Tokens[aAt - 1U].Offset];
+				// A brace initializer declares like `=` does: `int Reason{ 0 };` (H6), but
+				// `class EXPORT_MACRO Name {` is a class head, not a declarator.
 				return (previous == "auto" || previous == "using" || previous == "*" || previous == "&"
 						|| old == role::syntax_builtin || old == role::syntax_type)
-					&& (next == "=" || next == ";" || next == "," || next == ")" || next == "[");
+					&& (next == "=" || next == ";" || next == "," || next == ")" || next == "["
+						|| (next == "{" && !Tokens[aAt - 1U].Declaration));
 			}
 
 			void parameter_shadows(const std::size_t aOpen, const std::uint32_t aScope)
@@ -357,14 +433,89 @@ namespace bpr::adapters::syntax {
 				}
 			}
 
+			/// A macro-styled name before `(` in an enum body is an X-macro invocation,
+			/// never an enumerator (H4).
+			[[nodiscard]] auto x_macro(const std::size_t aAt) const noexcept -> bool
+			{
+				return word(aAt + 1U) == "(" && Roles[Tokens[aAt].Offset] == role::syntax_macro;
+			}
+
+			/// Whether the source before a `{` is `extern "C"` or `extern "C++"`. The
+			/// grammar styles the whole specification, so it supplies no token.
+			[[nodiscard]] auto linkage_block(const std::size_t aOffset) const noexcept -> bool
+			{
+				auto       before = Text.substr(0U, aOffset);
+				const auto trim   = [&before] {
+					while (!before.empty() && (before.back() == ' ' || before.back() == '\t' || before.back() == '\r' || before.back() == '\n')) {
+						before.remove_suffix(1U);
+					}
+				};
+				trim();
+				if (!before.ends_with("\"C\"") && !before.ends_with("\"C++\"")) {
+					return false;
+				}
+				before.remove_suffix(before.ends_with("\"C\"") ? 3U : 5U);
+				trim();
+				return before.ends_with("extern") && (before.size() == 6U || !identifier_unit(before[before.size() - 7U]));
+			}
+
+			/// Whether an anonymous `{` opens its own scope. `extern "C" {` is transparent,
+			/// and deep or very many blocks share their parent's scope, so 8 MiB of `{`
+			/// cannot allocate a scope per byte (H8). Shadows then reach the parent,
+			/// which only leaves more names neutral; an enum body keeps its own scope.
+			[[nodiscard]] auto block_scope(const std::size_t aAt, const std::uint32_t aCurrent, const std::size_t aDepth) const noexcept -> bool
+			{
+				if (linkage_block(Tokens[aAt].Offset)) {
+					return false;
+				}
+				return Scopes[aCurrent].EnumBody || (aDepth <= MaximumBlockDepth && Scopes.size() < MaximumScopes);
+			}
+
+			/// Each `#else`/`#elif` branch starts from the braces open at its `#if`, and
+			/// `#endif` resumes the first branch's, so `enum E {` in both branches opens
+			/// one enum (H5). A branch that closes braces opened before its `#if` ends
+			/// the tracking of that conditional.
+			void conditional(const directive aKind, std::vector<std::uint32_t>& aBraces, std::uint32_t& aCurrent)
+			{
+				if (aKind == directive::open) {
+					Branches.push_back({ .Depth = aBraces.size(), .Scope = aCurrent, .Valid = Branches.size() < MaximumConditionalDepth });
+					return;
+				}
+				if (Branches.empty()) {
+					return;
+				}
+				auto& branch = Branches.back();
+				branch.Valid = branch.Valid && aBraces.size() >= branch.Depth;
+				if (branch.Valid && aKind == directive::branch && !branch.Stashed) {
+					branch.Tail.assign(aBraces.begin() + static_cast<std::ptrdiff_t>(branch.Depth), aBraces.end());
+					branch.TailScope = aCurrent;
+					branch.Stashed   = true;
+				}
+				if (branch.Valid && branch.Stashed) {
+					aBraces.resize(branch.Depth);
+					aCurrent = branch.Scope;
+					if (aKind == directive::close) {
+						aBraces.insert(aBraces.end(), branch.Tail.begin(), branch.Tail.end());
+						aCurrent = branch.TailScope;
+					}
+				}
+				if (aKind == directive::close) {
+					Branches.pop_back();
+				}
+			}
+
 			void collect_declarations()
 			{
 				auto current     = std::uint32_t{ 0U };
 				auto braces      = std::vector<std::uint32_t>{ };
 				auto parentheses = 0U;
+				auto next        = std::size_t{ 0U };
 				for (auto at = std::size_t{ 0U }; at < Tokens.size(); ++at) {
 					if (cancelled(at)) {
 						return;
+					}
+					for (; next < Conditionals.size() && Conditionals[next].Offset < Tokens[at].Offset; ++next) {
+						conditional(Conditionals[next].Kind, braces, current);
 					}
 					Tokens[at].Scope = current;
 					const auto text  = word(at);
@@ -383,9 +534,15 @@ namespace bpr::adapters::syntax {
 					}
 					if (text == "{") {
 						braces.push_back(current);
-						const auto open                 = Opens.find(at);
-						current                         = open == Opens.end() ? new_scope(current) : open->second;
-						Scopes[current].ParenthesisBase = parentheses;
+						const auto open = Opens.find(at);
+						if (open != Opens.end()) {
+							current = open->second;
+						} else if (block_scope(at, current, braces.size())) {
+							current = new_scope(current);
+						}
+						if (braces.back() != current) {
+							Scopes[current].ParenthesisBase = parentheses;
+						}
 						parameter_shadows(at, current);
 					} else if (text == "}" && !braces.empty()) {
 						current = braces.back();
@@ -398,7 +555,7 @@ namespace bpr::adapters::syntax {
 						if (at > enumeration.ProtectedUntil) {
 							if (text == ",") {
 								enumeration.ExpectMember = true;
-							} else if (enumeration.ExpectMember && identifier(at)) {
+							} else if (enumeration.ExpectMember && identifier(at) && !x_macro(at)) {
 								paint(at, role::syntax_enum_member);
 								Tokens[at].Declaration        = true;
 								const auto [member, inserted] = enumeration.Symbols.emplace(text, symbol{ .Kind = symbol_kind::member });
@@ -528,6 +685,8 @@ namespace bpr::adapters::syntax {
 			std::vector<token>                             Tokens;
 			std::vector<scope>                             Scopes;
 			std::unordered_map<std::size_t, std::uint32_t> Opens;
+			std::vector<conditional_line>                  Conditionals;
+			std::vector<branch_state>                      Branches;
 		};
 	}
 

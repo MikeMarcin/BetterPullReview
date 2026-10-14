@@ -23,6 +23,10 @@
 #include <system_error>
 #include <vector>
 
+#if !defined(_WIN32)
+	#include <sys/wait.h>
+#endif
+
 namespace bpr::tests::workspace_contract {
 	inline void write_file(const std::filesystem::path& aPath, const std::string_view aBytes)
 	{
@@ -84,22 +88,42 @@ namespace bpr::tests::workspace_contract {
 			return text;
 		}
 
+		/// \brief Runs Git with `aArguments`, standard input from `aInput` when
+		/// given and standard output to `aOutput`, and returns its exit status
+		/// rather than failing on a nonzero one: the differential harness asks
+		/// questions Git may decline. -1 when Git did not exit normally.
+		[[nodiscard]] auto status(const std::filesystem::path& aDirectory, const std::vector<std::string>& aArguments, const std::optional<std::filesystem::path>& aInput,
+								  const std::filesystem::path& aOutput) const -> int
+		{
+			auto command = command_line(aDirectory, aArguments);
+			if (aInput) {
+				command += " <" + quote(aInput->string());
+			}
+			command += " >" + quote(aOutput.string());
+#if defined(_WIN32)
+			command = "\"" + command + " 2>NUL\"";
+#else
+			command += " 2>/dev/null";
+#endif
+			// Test oracle only: every argument is quoted, and the product under
+			// test never reaches a command processor.
+			const auto result = std::system(command.c_str()); // NOLINT(bugprone-command-processor)
+#if defined(_WIN32)
+			return result;
+#else
+			return WIFEXITED(result) ? WEXITSTATUS(result) : -1;
+#endif
+		}
+
 	private:
 		void run(const std::filesystem::path& aDirectory, const std::initializer_list<std::string_view> aArguments, const std::optional<std::filesystem::path>& aOutput) const
 		{
-			auto arguments = std::vector<std::string>{ "-C", aDirectory.string(), "-c", "core.hooksPath=" + (aDirectory / "no-hooks-here").string(), "-c",
-													   "user.name=BPR fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "-c",
-													   "tag.gpgsign=false", "-c", "init.defaultBranch=main", "-c", "core.autocrlf=false", "-c", "core.fsmonitor=false", "-c",
-													   "core.safecrlf=false" };
+			auto arguments = std::vector<std::string>{ };
 			for (const auto argument : aArguments) {
 				arguments.emplace_back(argument);
 			}
-			auto command = quote(Executable);
-			for (const auto& argument : arguments) {
-				command += ' ';
-				command += quote(argument);
-			}
-			const auto sink = aOutput ? quote(aOutput->string()) : std::string{
+			auto       command = command_line(aDirectory, arguments);
+			const auto sink    = aOutput ? quote(aOutput->string()) : std::string{
 #if defined(_WIN32)
 				"NUL"
 #else
@@ -114,6 +138,22 @@ namespace bpr::tests::workspace_contract {
 			// Fixture setup only: every argument is quoted above, and the product
 			// under test never reaches a command processor.
 			expect(std::system(command.c_str()) == 0, "fixture git command"); // NOLINT(bugprone-command-processor)
+		}
+
+		/// The quoted command for `aArguments`, after the fixture isolation.
+		[[nodiscard]] auto command_line(const std::filesystem::path& aDirectory, const std::vector<std::string>& aArguments) const -> std::string
+		{
+			auto arguments = std::vector<std::string>{ "-C", aDirectory.string(), "-c", "core.hooksPath=" + (aDirectory / "no-hooks-here").string(), "-c",
+													   "user.name=BPR fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "-c",
+													   "tag.gpgsign=false", "-c", "init.defaultBranch=main", "-c", "core.autocrlf=false", "-c", "core.fsmonitor=false", "-c",
+													   "core.safecrlf=false" };
+			arguments.insert(arguments.end(), aArguments.begin(), aArguments.end());
+			auto command = quote(Executable);
+			for (const auto& argument : arguments) {
+				command += ' ';
+				command += quote(argument);
+			}
+			return command;
 		}
 
 		static auto quote(const std::string& aValue) -> std::string

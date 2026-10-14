@@ -1,6 +1,7 @@
 #include "bpr/application/agent_realignment.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -289,6 +290,7 @@ namespace {
 				  Effects,
 				  Decisions,
 				  Projections,
+				  bpr::tests::product_line_matcher(),
 				  aLimits,
 				  aComputeLimits) }
 		{
@@ -410,10 +412,33 @@ namespace {
 		test.Decisions.run_next();
 		expect(test.Projections.Results.size() == 1U && !test.Projections.Results.back().CacheHit,
 			   "the reviewer's comparison is published");
-		expect(test.Effects.pending() == 1U && test.Host->preparing() == 1U,
-			   "preparation resumes with what remains once the reviewer's work is done");
+		// [[BPR-1485]] The overtaken preparation was abandoned, not dropped:
+		// the window still wants it, so it is prepared again, first.
+		expect(test.Effects.pending() == 1U && test.Host->preparing() == 2U,
+			   "preparation resumes with the overtaken comparison and what remains once the reviewer's work is done");
 		settle(test);
-		expect(test.Host->prepared_entries() == 1U, "the remaining comparison is prepared");
+		expect(test.Host->prepared_entries() == 2U, "both comparisons are prepared");
+	}
+
+	/// [[BPR-1485]] Only a stop the host asked for puts a preparation back in
+	/// the queue. A blob port that answers cancelled on its own is not retried.
+	auto test_a_port_cancellation_is_not_prepared_again() -> void
+	{
+		fixture test;
+		test.Blobs.Status = application::diff_blob_status::cancelled;
+		test.Host->prepare({ prepared(31U) });
+		auto steps = 0;
+		while ((test.Effects.pending() != 0U || test.Decisions.pending() != 0U) && steps < 20) {
+			if (test.Decisions.pending() != 0U) {
+				test.Decisions.run_next();
+			} else {
+				test.Effects.run_next();
+			}
+			++steps;
+		}
+		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 0U && test.Host->preparing() == 0U && test.Host->prepared_entries() == 0U
+				   && test.Blobs.Requests.size() <= 2U,
+			   "[[BPR-1485]] a preparation the blob port cancelled on its own is dropped, not restarted in a loop");
 	}
 
 	auto test_opening_the_file_being_prepared_waits_for_it() -> void
@@ -1018,6 +1043,7 @@ namespace {
 				effects,
 				decisions,
 				projections,
+				bpr::tests::product_line_matcher(),
 			};
 			host.request(comparison_key(), { });
 			expect(decisions.pending() == 1U && host.outstanding_jobs() == 1U,
@@ -1100,9 +1126,8 @@ namespace {
 			// [[BPR-0719]]. A work limit degrades the alignment instead of
 			// refusing the file: the host publishes a validated text result
 			// marked approximate, never an unavailable one.
-			auto limits                    = core::diff_compute_limits{ };
-			limits.MaximumMatrixCells      = 1U;
-			limits.MaximumPrimaryIndexWork = 0U;
+			auto limits               = core::diff_compute_limits{ };
+			limits.MaximumMatrixCells = 1U;
 			fixture test{ { }, limits };
 			test.request(comparison_key());
 			test.run_effect_and_decision();
@@ -1266,6 +1291,7 @@ namespace {
 				effects,
 				decisions,
 				projections,
+				bpr::tests::product_line_matcher(),
 			};
 			host.request(comparison_key(), { });
 			expect(effects.pending() == 1U,
@@ -1383,7 +1409,7 @@ namespace {
 	{
 		auto       files     = fake_selected_files{ };
 		auto       blobs     = fake_blobs{ };
-		auto       realigner = application::composed_agent_realignment{ files, blobs };
+		auto       realigner = application::composed_agent_realignment{ files, blobs, *bpr::tests::product_line_matcher() };
 		const auto request   = realignment_request();
 		const auto outcome   = realigner.realign(request, std::stop_token{ });
 		expect(
@@ -1421,7 +1447,7 @@ namespace {
 		auto       key        = comparison_key();
 		key.LeftAnchor.Epoch  = request.Binding.LeftEpoch;
 		key.RightAnchor.Epoch = request.Binding.RightEpoch;
-		const auto computed   = core::compute_file_diff(core::diff_compute_input{
+		const auto computed   = bpr::tests::product_file_diff(core::diff_compute_input{
 			.Key        = key,
 			.Options    = request.Options,
 			.LeftBytes  = std::optional{ std::span<const std::uint8_t>{ left } },
@@ -1444,7 +1470,7 @@ namespace {
 	{
 		auto files     = fake_selected_files{ };
 		auto blobs     = fake_blobs{ };
-		auto realigner = application::composed_agent_realignment{ files, blobs };
+		auto realigner = application::composed_agent_realignment{ files, blobs, *bpr::tests::product_line_matcher() };
 		files.Status   = application::workbench_selected_diff_status::both_missing;
 		auto outcome   = realigner.realign(realignment_request(), std::stop_token{ });
 		expect(
@@ -1473,7 +1499,7 @@ namespace {
 	{
 		auto       files     = fake_selected_files{ };
 		auto       blobs     = fake_blobs{ };
-		auto       realigner = application::composed_agent_realignment{ files, blobs };
+		auto       realigner = application::composed_agent_realignment{ files, blobs, *bpr::tests::product_line_matcher() };
 		const auto over
 			= realigner.realign(
 				realignment_request(application::maximum_agent_realignment_files + 1U),
@@ -1521,9 +1547,10 @@ namespace {
 		}
 	}
 
-	// [[BPR-1366]] ---------------------------------------------------------
+	// [[BPR-1366]] [[BPR-1485]] -------------------------------------------
 	// A prepared diff computation stops within milliseconds when the reviewer
-	// acts, pauses, and continues later where it stopped.
+	// acts. The stopped computation is abandoned, and the comparison is
+	// prepared again from the start once the reviewer is idle.
 
 #ifdef NDEBUG
 	constexpr auto large_pair_lines = std::uint64_t{ 30'000U };
@@ -1674,13 +1701,15 @@ namespace {
 
 	struct threaded_fixture
 	{
-		explicit threaded_fixture(const application::diff_host_limits aLimits = { })
+		explicit threaded_fixture(const application::diff_host_limits                  aLimits  = { },
+								  std::shared_ptr<application::diff_line_matcher_port> aMatcher = bpr::tests::product_line_matcher())
 			: Host{ std::make_unique<application::diff_application_host>(
 				  core::diff_state{ .ApplicationSession = core::application_session_id{ 71U } },
 				  Blobs,
 				  Effects,
 				  Decisions,
 				  Projections,
+				  std::move(aMatcher),
 				  aLimits) }
 		{
 		}
@@ -1743,7 +1772,7 @@ namespace {
 		std::chrono::steady_clock::time_point               Returned;
 	};
 
-	/// Large host limits: the prepared share holds a paused large pair.
+	/// Large host limits: the prepared share holds a large pair.
 	[[nodiscard]] auto large_limits() -> application::diff_host_limits
 	{
 		return { .OutstandingJobs = 4U, .CacheEntries = 64U, .CacheBytes = application::maximum_diff_cache_bytes, .PreparedEntries = 16U, .PreparedBytes = application::maximum_diff_cache_bytes / 8U };
@@ -1756,7 +1785,7 @@ namespace {
 		input.Key         = comparison_key({ }, aSeed);
 		input.LeftBytes   = std::span<const std::uint8_t>{ sides.first };
 		input.RightBytes  = std::span<const std::uint8_t>{ sides.second };
-		const auto result = core::compute_file_diff(input);
+		const auto result = bpr::tests::product_file_diff(input);
 		expect(result.Result.has_value(), "the direct computation succeeds");
 		return *result.Result;
 	}
@@ -1798,30 +1827,28 @@ namespace {
 		const auto latency = stop_mid_compute(test, 40U, 2U, computeMs / 3.0);
 		std::cout << "BPR-1366 host prompt stop: uninterrupted " << computeMs << " ms; a stop a third of the way in returned after "
 				  << latency << " ms\n";
-		expect(latency < 50.0 && latency < computeMs / 4.0,
-			   "[[BPR-1366]] a preparation stopped mid-computation returns within milliseconds, not after the computation");
+		expect(latency < 10.0,
+			   "[[BPR-1485]] a preparation stopped mid-computation returns within the 10 ms stop budget, not after the computation");
 		test.run_decisions();
-		expect(test.Host->paused_entries() == 1U && test.Host->paused_bytes() > 0U && test.Host->preparing() == 1U,
-			   "[[BPR-1366]] the stopped preparation is kept, paused, to continue");
-		expect(test.Host->paused_bytes() <= application::prepared_byte_capacity(large_limits()),
-			   "[[BPR-1366]] the paused state counts inside the prepared byte share");
+		expect(test.Host->preparing() == 1U && test.Host->prepared_entries() == 0U,
+			   "[[BPR-1485]] the stopped preparation is abandoned, and the window still wants it");
 		// The reviewer's comparison goes first and is published whole.
 		test.Effects.run_next();
 		test.run_decisions();
 		expect(test.Projections.Results.size() == 1U && test.Projections.Results.back().Context.Key == comparison_key({ }, 40U),
 			   "[[BPR-1366]] the reviewer's comparison is published");
-		// Then the paused preparation continues without reading again.
-		expect(test.Effects.pending() == 1U, "[[BPR-1366]] the paused preparation continues once the reviewer is idle");
+		// Then the preparation starts again from the beginning.
+		expect(test.Effects.pending() == 1U, "[[BPR-1485]] the abandoned preparation is prepared again once the reviewer is idle");
 		test.Effects.run_next();
 		test.run_decisions();
-		expect(test.Host->prepared_entries() == 1U && test.Host->paused_entries() == 0U && test.Host->paused_bytes() == 0U && test.Host->preparing() == 0U,
-			   "[[BPR-1366]] the continued preparation is stored, and its paused state discarded");
-		expect(test.Blobs.reads_of(31U) == 2U, "[[BPR-1366]] the continued preparation does not read its blobs again");
+		expect(test.Host->prepared_entries() == 1U && test.Host->preparing() == 0U,
+			   "[[BPR-1485]] the restarted preparation is stored");
+		expect(test.Blobs.reads_of(31U) == 4U, "[[BPR-1485]] the restarted preparation reads its blobs again: nothing was kept");
 		test.Host->request(comparison_key({ }, 31U), { });
 		test.run_decisions();
 		expect(test.Projections.Results.back().Context.Key == comparison_key({ }, 31U) && test.Projections.Results.back().Result == expected
 				   && test.Host->prepared_hits() == 1U,
-			   "[[BPR-1366]] the continued preparation answers the reviewer with exactly the uninterrupted result");
+			   "[[BPR-1485]] the restarted preparation answers the reviewer with exactly the uninterrupted result");
 	}
 
 	auto test_bpr1366_reviewer_diffs_are_never_stopped_by_preparation() -> void
@@ -1837,11 +1864,11 @@ namespace {
 		static_cast<void>(direct_result(test.Blobs, 31U));
 		const auto computeMs = milliseconds_since(start);
 
-		// Preparation pauses for the reviewer's first comparison.
+		// Preparation is stopped for the reviewer's first comparison.
 		test.Host->prepare({ prepared(31U), prepared(32U) });
 		static_cast<void>(stop_mid_compute(test, 41U, 2U, computeMs / 4.0));
 		test.run_decisions();
-		expect(test.Host->paused_entries() == 1U, "[[BPR-1366]] preparation is paused");
+		expect(test.Host->preparing() == 2U && test.Host->prepared_entries() == 0U, "[[BPR-1485]] the stopped preparation is abandoned and queued again");
 		// While the reviewer's comparison computes, the window changes twice.
 		test.start_effect();
 		test.Host->prepare({ prepared(31U), prepared(33U) });
@@ -1849,15 +1876,15 @@ namespace {
 		test.join();
 		test.run_decisions();
 		expect(test.Projections.Failures.empty() && test.Projections.Results.size() == 1U && test.Projections.Results.back().Result == reviewer41,
-			   "[[BPR-1366]] the reviewer's comparison completes whole while preparation is paused and its window changes");
-		// The window still wants the paused comparison: it resumes as soon as
-		// the reviewer is idle, and is stopped again by the reviewer's next
-		// comparison, which runs while the window changes once more.
-		expect(test.Host->paused_entries() == 0U && test.Host->preparing() == 1U && test.Effects.pending() == 1U,
-			   "[[BPR-1366]] the paused preparation resumes once the reviewer is idle");
+			   "[[BPR-1366]] the reviewer's comparison completes whole while preparation waits and its window changes");
+		// The window still wants the abandoned comparison: it starts again as
+		// soon as the reviewer is idle, and is stopped again by the reviewer's
+		// next comparison, which runs while the window changes once more.
+		expect(test.Host->preparing() == 1U && test.Effects.pending() == 1U,
+			   "[[BPR-1485]] the abandoned preparation starts again once the reviewer is idle");
 		static_cast<void>(stop_mid_compute(test, 42U, test.Blobs.Reads.load(), computeMs / 8.0));
 		test.run_decisions();
-		expect(test.Host->paused_entries() == 1U, "[[BPR-1366]] the resumed preparation pauses again");
+		expect(test.Host->preparing() == 1U && test.Host->prepared_entries() == 0U, "[[BPR-1485]] the restarted preparation is abandoned again");
 		test.start_effect();
 		test.Host->prepare({ prepared(31U), prepared(34U) });
 		test.join();
@@ -1865,78 +1892,35 @@ namespace {
 		expect(test.Projections.Failures.empty() && test.Projections.Results.size() == 2U && test.Projections.Results.back().Result == reviewer42,
 			   "[[BPR-1366]] the reviewer's second comparison completes whole too");
 		test.settle();
-		expect(test.Host->paused_entries() == 0U && test.Blobs.reads_of(31U) == 2U, "[[BPR-1366]] preparation finishes from where it stopped");
+		expect(test.Host->preparing() == 0U && test.Blobs.reads_of(31U) == 6U, "[[BPR-1485]] preparation finishes from the start, its third run");
 		test.Host->request(comparison_key({ }, 31U), { });
 		test.run_decisions();
-		expect(test.Projections.Results.back().Result == prepared31, "[[BPR-1366]] the twice-paused preparation equals the uninterrupted result");
+		expect(test.Projections.Results.back().Result == prepared31, "[[BPR-1485]] the twice-abandoned preparation equals the uninterrupted result");
 	}
 
-	/// Pauses aPrepared deterministically: the reviewer asks for aReviewer
+	/// Stops aPrepared deterministically: the reviewer asks for aReviewer
 	/// once preparation has read both sides, before it computes. The
-	/// reviewer's comparison is left pending, so preparation does not resume.
-	void pause_after_reads(threaded_fixture& aTest, const std::uint8_t aPrepared, const std::uint8_t aReviewer)
+	/// reviewer's comparison is left pending, so preparation does not start
+	/// again.
+	void stop_after_reads(threaded_fixture& aTest, const std::uint8_t aPrepared, const std::uint8_t aReviewer)
 	{
 		aTest.Blobs.OnPreparedRead = [&aTest, aReviewer] { aTest.Host->request(comparison_key({ }, aReviewer), { }); };
 		aTest.Host->prepare({ prepared(aPrepared) });
 		aTest.Effects.run_next();
 		aTest.run_decisions();
-		expect(aTest.Host->paused_entries() == 1U && aTest.Effects.pending() == 1U,
-			   "[[BPR-1366]] the preparation paused after reading both sides; the reviewer's comparison is pending");
+		expect(aTest.Host->preparing() == 1U && aTest.Host->prepared_entries() == 0U && aTest.Effects.pending() == 1U,
+			   "[[BPR-1485]] the preparation stopped after reading both sides and kept nothing; the reviewer's comparison is pending");
 	}
 
-	auto test_bpr1366_paused_states_stay_bounded_and_are_discarded() -> void
+	auto test_bpr1485_an_abandoned_preparation_restarts_only_while_wanted() -> void
 	{
-		// A paused state that does not fit the prepared byte share is
-		// discarded; the comparison is later computed again from the start.
-		{
-			const auto pair      = large_pair(large_pair_lines, 31U);
-			const auto side      = std::max(pair.first.size(), pair.second.size());
-			auto       limits    = large_limits();
-			limits.PreparedBytes = 8U * side;
-			threaded_fixture test{ limits };
-			test.Blobs.add(31U, pair);
-			const auto start = std::chrono::steady_clock::now();
-			static_cast<void>(direct_result(test.Blobs, 31U));
-			const auto computeMs = milliseconds_since(start);
-			test.Host->prepare({ prepared(31U) });
-			static_cast<void>(stop_mid_compute(test, 40U, 2U, computeMs / 2.0));
-			test.run_decisions();
-			expect(test.Host->paused_entries() == 0U && test.Host->paused_bytes() == 0U,
-				   "[[BPR-1366]] a paused state larger than the prepared share is not kept");
-			test.settle();
-			// The next window asks for it again: it starts from the beginning.
-			test.Host->prepare({ prepared(31U) });
-			test.settle();
-			expect(test.Host->prepared_entries() + test.Host->paused_entries() <= application::prepared_entry_capacity(limits)
-					   && test.Host->prepared_bytes() + test.Host->paused_bytes() <= application::prepared_byte_capacity(limits),
-				   "[[BPR-1366]] prepared and paused comparisons stay inside the share");
-			expect(test.Blobs.reads_of(31U) == 4U, "[[BPR-1366]] a discarded paused state means the comparison starts again");
-		}
-		// A paused state that fits is kept, inside the entry and byte bounds.
-		{
-			threaded_fixture test{ large_limits() };
-			test.Blobs.add(31U, large_pair(large_pair_lines, 31U));
-			const auto start = std::chrono::steady_clock::now();
-			static_cast<void>(direct_result(test.Blobs, 31U));
-			const auto computeMs = milliseconds_since(start);
-			test.Host->prepare({ prepared(31U), prepared(32U), prepared(33U) });
-			static_cast<void>(stop_mid_compute(test, 40U, 2U, computeMs / 2.0));
-			test.run_decisions();
-			expect(test.Host->paused_entries() == 1U && test.Host->paused_entries() <= application::prepared_entry_capacity(large_limits())
-					   && test.Host->prepared_bytes() + test.Host->paused_bytes() <= application::prepared_byte_capacity(large_limits()),
-				   "[[BPR-1366]] a paused state that fits is kept inside the entry and byte bounds");
-			std::cout << "BPR-1366 paused state of a " << large_pair_lines << "-line pair: " << test.Host->paused_bytes() << " bytes\n";
-			test.settle();
-			expect(test.Host->paused_entries() == 0U && test.Host->prepared_entries() == 3U, "[[BPR-1366]] the paused one finishes first, then the rest");
-		}
-		// Supersession discards a paused state: an empty window, a window
-		// without it, the authority, the epoch and shutdown.
+		// Supersession: an empty window, a window without it, the authority,
+		// the epoch and shutdown. The abandoned comparison is not started again.
 		const auto supersessions = std::array<std::string_view, 5U>{ "empty window", "other window", "authority", "epoch", "shutdown" };
 		for (const auto supersession : supersessions) {
 			threaded_fixture test;
 			test.Blobs.add(31U, large_pair(400U, 31U));
-			pause_after_reads(test, 31U, 40U);
-			expect(test.Host->paused_entries() == 1U, "[[BPR-1366]] paused before it is superseded");
+			stop_after_reads(test, 31U, 40U);
 			if (supersession == "empty window") {
 				test.Host->prepare({ });
 			} else if (supersession == "other window") {
@@ -1949,59 +1933,99 @@ namespace {
 			} else {
 				test.Host->shutdown();
 			}
-			test.run_decisions();
-			expect(test.Host->paused_entries() == 0U && test.Host->paused_bytes() == 0U, "[[BPR-1366]] supersession discards the paused state");
 			test.settle();
-			expect(test.Blobs.reads_of(31U) == 2U && test.Host->paused_entries() == 0U && test.Host->prepared_entries() == (supersession == "other window" ? 1U : 0U),
-				   "[[BPR-1366]] a superseded paused state is neither continued nor started again");
+			expect(test.Blobs.reads_of(31U) == 2U && test.Host->prepared_entries() == (supersession == "other window" ? 1U : 0U),
+				   "[[BPR-1485]] a superseded abandoned preparation is not started again");
 		}
-		// Memory pressure: the reviewer's comparison needs the cache's room and
-		// the paused state gives way first.
-		{
-			const auto reviewerPair  = large_pair(3'000U, 50U);
-			auto       reviewerBytes = std::uint64_t{ 0U };
-			{
-				threaded_fixture measure{ large_limits() };
-				measure.Blobs.add(50U, reviewerPair);
-				measure.Host->request(comparison_key({ }, 50U), { });
-				measure.settle();
-				reviewerBytes = measure.Host->cache_bytes();
-			}
-			auto limits       = application::diff_host_limits{ };
-			limits.CacheBytes = reviewerBytes + 10U * 1024U;
-			threaded_fixture test{ limits };
-			test.Blobs.add(31U, large_pair(300U, 31U));
-			test.Blobs.add(50U, reviewerPair);
-			pause_after_reads(test, 31U, 40U);
-			expect(test.Host->paused_bytes() > 10U * 1024U && test.Host->paused_bytes() <= application::prepared_byte_capacity(limits),
-				   "[[BPR-1366]] the paused state fits the share but not beside the reviewer's comparison");
-			test.Host->request(comparison_key({ }, 50U), { });
-			test.settle();
-			expect(test.Host->paused_entries() == 0U && test.Host->cache_bytes() == reviewerBytes && test.Host->prepared_entries() == 0U
-					   && test.Blobs.reads_of(31U) == 2U,
-				   "[[BPR-1366]] memory pressure from the reviewer's comparison discards the paused state");
-		}
-		// Completion: continued by preparation, or adopted by the reviewer.
-		{
-			threaded_fixture test;
-			test.Blobs.add(31U, large_pair(400U, 31U));
-			pause_after_reads(test, 31U, 40U);
-			test.settle();
-			expect(test.Host->paused_entries() == 0U && test.Host->prepared_entries() == 1U && test.Blobs.reads_of(31U) == 2U,
-				   "[[BPR-1366]] a completed preparation discards its paused state");
-		}
+		// Still wanted: it starts again from the beginning once the reviewer
+		// is idle, and reads its blobs again.
 		{
 			threaded_fixture test;
 			test.Blobs.add(31U, large_pair(400U, 31U));
 			const auto expected = direct_result(test.Blobs, 31U);
-			pause_after_reads(test, 31U, 40U);
+			stop_after_reads(test, 31U, 40U);
+			test.settle();
+			expect(test.Host->prepared_entries() == 1U && test.Host->preparing() == 0U && test.Blobs.reads_of(31U) == 4U,
+				   "[[BPR-1485]] an abandoned preparation the window still wants is prepared again from the start");
 			test.Host->request(comparison_key({ }, 31U), { });
-			expect(test.Host->paused_entries() == 0U && test.Effects.pending() == 2U, "[[BPR-1366]] the reviewer adopts the paused state");
+			test.run_decisions();
+			expect(test.Projections.Results.back().Result == expected, "[[BPR-1485]] the restarted preparation equals the uninterrupted result");
+		}
+		// The reviewer asks for it first: an ordinary request, computed from
+		// the start.
+		{
+			threaded_fixture test;
+			test.Blobs.add(31U, large_pair(400U, 31U));
+			const auto expected = direct_result(test.Blobs, 31U);
+			stop_after_reads(test, 31U, 40U);
+			test.Host->request(comparison_key({ }, 31U), { });
 			test.settle();
 			expect(test.Projections.Results.back().Context.Key == comparison_key({ }, 31U) && test.Projections.Results.back().Result == expected
-					   && test.Blobs.reads_of(31U) == 2U && test.Host->paused_entries() == 0U,
-				   "[[BPR-1366]] the reviewer's comparison continues the paused one without reading again, with the same result");
+					   && test.Blobs.reads_of(31U) == 4U && test.Host->preparing() == 0U,
+				   "[[BPR-1485]] the reviewer's request computes the abandoned comparison from the start, with the same result");
 		}
+	}
+
+	/// \brief The product's matcher, held for a while first: a matcher call
+	/// as long as the largest the evaluation saw, and longer.
+	class slow_line_matcher final : public application::diff_line_matcher_port
+	{
+	public:
+		[[nodiscard]] auto match(const application::diff_line_match_input& aInput) -> std::optional<std::vector<core::diff_match>> override
+		{
+			Started.store(true);
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 400 });
+			auto result = bpr::tests::product_line_matcher()->match(aInput);
+			Finished.store(true);
+			return result;
+		}
+
+		std::atomic<bool> Started{ false };
+		std::atomic<bool> Finished{ false };
+	};
+
+	/// [[BPR-1485]] The matcher cannot be interrupted, so a stop abandons it:
+	/// the host returns within the 10 ms budget while the matcher's thread runs
+	/// on, and that thread's result is discarded.
+	auto test_bpr1485_a_stop_inside_the_matcher_returns_within_10_ms() -> void
+	{
+		const auto slow = std::make_shared<slow_line_matcher>();
+		{
+			threaded_fixture test{ large_limits(), slow };
+			test.Blobs.add(31U, large_pair(400U, 31U));
+			const auto expected = direct_result(test.Blobs, 31U);
+			test.Host->prepare({ prepared(31U) });
+			test.start_effect();
+			const auto waitStart = std::chrono::steady_clock::now();
+			while (!slow->Started.load() && milliseconds_since(waitStart) < 60'000.0) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+			}
+			expect(slow->Started.load(), "the preparation reaches the matcher");
+			const auto requested = std::chrono::steady_clock::now();
+			test.Host->request(comparison_key({ }, 40U), { });
+			test.join();
+			const auto latency = std::chrono::duration<double, std::milli>(test.Returned - requested).count();
+			std::cout << "BPR-1485 stop inside the matcher returned after " << latency << " ms; matcher finished: " << slow->Finished.load() << '\n';
+			expect(latency < 10.0, "[[BPR-1485]] a stop inside the matcher returns within the 10 ms stop budget");
+			expect(!slow->Finished.load(), "[[BPR-1485]] the matcher's thread was abandoned, still running, not waited for");
+			test.run_decisions();
+			expect(test.Host->prepared_entries() == 0U && test.Host->preparing() == 1U, "[[BPR-1485]] the abandoned matcher's result is not used");
+			// The reviewer's comparison, then the preparation again from the
+			// start; both wait for their own matcher calls.
+			test.settle();
+			expect(test.Projections.Results.size() == 1U && test.Host->prepared_entries() == 1U && test.Blobs.reads_of(31U) == 4U,
+				   "[[BPR-1485]] the comparison is computed again from the start");
+			test.Host->request(comparison_key({ }, 31U), { });
+			test.run_decisions();
+			expect(test.Projections.Results.back().Result == expected, "[[BPR-1485]] the restarted result equals the uninterrupted one");
+		}
+		// The abandoned thread holds its own copies and the matcher: it ends on
+		// its own after the host that started it has gone.
+		const auto waitStart = std::chrono::steady_clock::now();
+		while (slow.use_count() > 1 && milliseconds_since(waitStart) < 60'000.0) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+		}
+		expect(slow.use_count() == 1, "[[BPR-1485]] every abandoned matcher thread ends and releases the matcher");
 	}
 } // namespace
 
@@ -2028,12 +2052,14 @@ int main()
 	realignment_refuses_past_its_bound_rather_than_blocking();
 	test_a_prepared_comparison_opens_without_reading_or_computing();
 	test_preparation_yields_to_the_reviewer();
+	test_a_port_cancellation_is_not_prepared_again();
 	test_opening_the_file_being_prepared_waits_for_it();
 	test_preparation_stays_inside_its_share_and_never_evicts_the_reviewer();
 	test_preparation_is_cancelled_with_its_authority();
 	test_a_large_window_is_bounded();
 	test_bpr1366_a_preparation_stops_within_milliseconds_of_the_reviewer();
 	test_bpr1366_reviewer_diffs_are_never_stopped_by_preparation();
-	test_bpr1366_paused_states_stay_bounded_and_are_discarded();
+	test_bpr1485_an_abandoned_preparation_restarts_only_while_wanted();
+	test_bpr1485_a_stop_inside_the_matcher_returns_within_10_ms();
 	return EXIT_SUCCESS;
 }

@@ -1,9 +1,12 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_FEEDBACK_SOURCES_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_FEEDBACK_SOURCES_HPP
 
+#include "bpr/application/body_digest_port.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/core/feedback_partition.hpp"
 
+#include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -25,6 +28,8 @@ namespace bpr::application {
 		std::string_view            Body;
 		core::feedback_body_segment Segment;
 		bool                        Deleted = false;
+		/// [[BPR-1447]]. The body's SHA-256 when the snapshot carried it.
+		std::optional<std::array<std::uint8_t, 32>> BodyDigest = std::nullopt;
 	};
 
 	/// \brief One conversation's facts and what a reader needs to name it.
@@ -59,6 +64,13 @@ namespace bpr::application {
 	/// unanchored, never a guessed file. Native threads and REST groups are one
 	/// observation each, never both, so no conversation appears twice.
 	[[nodiscard]] auto observe_feedback_sources(const github_pull_request_snapshot& aSnapshot) -> feedback_sources;
+
+	/// \brief [[BPR-1447]]. The SHA-256 of every feedback body of \p aSnapshot,
+	/// taken by \p aDigests in one batch, for the snapshot to carry.
+	/// \details Run by the host off the window thread, before the snapshot
+	/// reaches the decision lane. `observe_feedback_sources` then gives each
+	/// post its digest. Throws whatever \p aDigests throws.
+	[[nodiscard]] auto digest_feedback_bodies(const github_pull_request_snapshot& aSnapshot, const body_digest_port& aDigests) -> github_feedback_body_digests;
 
 	/// \brief The posts as the core's annotation refresh takes them; they view
 	/// \p aSources, which must outlive the result.

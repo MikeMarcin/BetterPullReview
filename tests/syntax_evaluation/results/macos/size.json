@@ -1,0 +1,102 @@
+{
+ "host": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+ "compiler": "Apple clang version 21.0.0 (clang-2100.1.1.101)",
+ "slices": {
+  "arm64": {
+   "baseline": {
+    "bytes": 57440,
+    "segments": {
+     "__PAGEZERO": 4294967296,
+     "__TEXT": 32768,
+     "__DATA_CONST": 16384,
+     "__LINKEDIT": 16384
+    }
+   },
+   "v0_23_4": {
+    "bytes": 3620792,
+    "segments": {
+     "__PAGEZERO": 4294967296,
+     "__TEXT": 3538944,
+     "__DATA_CONST": 16384,
+     "__DATA": 16384,
+     "__LINKEDIT": 49152
+    },
+    "added_bytes": 3563352,
+    "added_mib": 3.398,
+    "smoke": "0 3"
+   },
+   "master": {
+    "bytes": 5801624,
+    "segments": {
+     "__PAGEZERO": 4294967296,
+     "__TEXT": 5701632,
+     "__DATA_CONST": 16384,
+     "__DATA": 16384,
+     "__LINKEDIT": 81920
+    },
+    "added_bytes": 5744184,
+    "added_mib": 5.478,
+    "smoke": "0 3"
+   }
+  },
+  "x86_64": {
+   "baseline": {
+    "bytes": 40488,
+    "segments": {
+     "__PAGEZERO": 4294967296,
+     "__TEXT": 28672,
+     "__DATA_CONST": 4096,
+     "__LINKEDIT": 8192
+    }
+   },
+   "v0_23_4": {
+    "bytes": 3555856,
+    "segments": {
+     "__PAGEZERO": 4294967296,
+     "__TEXT": 3514368,
+     "__DATA_CONST": 8192,
+     "__DATA": 12288,
+     "__LINKEDIT": 24576
+    },
+    "added_bytes": 3515368,
+    "added_mib": 3.353,
+    "smoke": "not run on this host"
+   },
+   "master": {
+    "bytes": 5707488,
+    "segments": {
+     "__PAGEZERO": 4294967296,
+     "__TEXT": 5672960,
+     "__DATA_CONST": 8192,
+     "__DATA": 4096,
+     "__LINKEDIT": 24576
+    },
+    "added_bytes": 5667000,
+    "added_mib": 5.404,
+    "smoke": "not run on this host"
+   }
+  }
+ },
+ "compile_seconds": {
+  "runtime lib.c": {
+   "arm64": 7.89,
+   "x86_64": 6.52
+  },
+  "v0_23_4 parser.c": {
+   "arm64": 2.39,
+   "x86_64": 1.99
+  },
+  "v0_23_4 scanner.c": {
+   "arm64": 0.08,
+   "x86_64": 0.07
+  },
+  "master parser.c": {
+   "arm64": 3.66,
+   "x86_64": 3.31
+  },
+  "master scanner.c": {
+   "arm64": 0.06,
+   "x86_64": 0.07
+  }
+ }
+}

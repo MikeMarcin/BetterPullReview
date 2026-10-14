@@ -1,16 +1,18 @@
 /// \file
-/// \brief Proves RFC-BPR-0034's Colours list: 58 roles, five groups, live picking.
+/// \brief Proves RFC-BPR-0034's Colours list: 60 roles, five groups, live picking.
 ///
 /// \details Criterion C5's list half. The inventory is every role the core
 /// declares except the two hunk-header roles the card no longer offers (C5
 /// amended from 47 to 45 on 2026-09-24, [[BPR-0986]]; then to 57 when
-/// [[BPR-1083]] added the twelve label tints as a fifth group, and to 58 when
-/// [[BPR-1085]] added the attention amber to Review states), in five groups with
-/// sticky headers carrying counted totals; the filter
-/// lists what it matches; a swatch opens the picker through the settable seam and
-/// every colour the picker moves through is reported, so the review window can
-/// preview as the reviewer picks; a cancelled pick reports the colour the role
-/// started from; and an edited row shows its new value with the old one beside it.
+/// [[BPR-1083]] added the twelve label tints as a fifth group, to 58 when
+/// [[BPR-1085]] added the attention amber to Review states, and to 60 when
+/// RFC-BPR-0072 added the namespace and enum-member colours to Syntax,
+/// [[BPR-1483]]), in five groups with sticky headers carrying counted totals;
+/// the filter lists what it matches; a swatch opens the picker through the
+/// settable seam and every colour the picker moves through is reported, so the
+/// review window can preview as the reviewer picks; a cancelled pick reports the
+/// colour the role started from; and an edited row shows its new value with the
+/// old one beside it.
 
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -135,8 +137,8 @@ namespace {
 		show(list);
 
 		expect(
-			list.listed_roles().size() == 58U && core::appearance_role_count == 60U,
-			"58 of the 60 roles the core declares are listed");
+			list.listed_roles().size() == 60U && core::appearance_role_count == 62U,
+			"60 of the 62 roles the core declares are listed");
 		for (const auto unoffered :
 			 { role::diff_hunk_header_background, role::diff_hunk_header_text }) {
 			expect(
@@ -168,6 +170,21 @@ namespace {
 		expect(stale.bottom() < attention.top() && attention.bottom() < list.group_header_of(group::syntax)->geometry().top()
 				   && attention.bottom() < normal.top(),
 			   "the attention amber's row sits directly under State stale, inside Review states");
+		// RFC-BPR-0072's two syntax colours ([[BPR-1483]]) are offered as every
+		// other syntax role is, worded as the rest of Syntax is, and, declared
+		// last for their durable ordinals, list at the end of Syntax, above
+		// Comment labels.
+		const auto other      = list.row_of(role::syntax_other)->geometry();
+		const auto namespaces = list.row_of(role::syntax_namespace)->geometry();
+		const auto members    = list.row_of(role::syntax_enum_member)->geometry();
+		expect(qt::appearance_role_group_of(role::syntax_namespace) == group::syntax
+				   && qt::appearance_role_group_of(role::syntax_enum_member) == group::syntax
+				   && list.name_label_of(role::syntax_namespace)->text() == QStringLiteral("Syntax namespace")
+				   && list.name_label_of(role::syntax_enum_member)->text() == QStringLiteral("Syntax enum member"),
+			   "the namespace and enum-member colours are listed in Syntax, worded like its other rows");
+		expect(other.bottom() < namespaces.top() && namespaces.bottom() < members.top()
+				   && members.bottom() < list.group_header_of(group::comment_labels)->geometry().top(),
+			   "their rows follow Syntax other and end the Syntax group");
 		for (const auto listed : expectedOrder) {
 			expect(
 				list.name_label_of(listed)->text()
@@ -200,7 +217,7 @@ namespace {
 				&& list.group_count_text(group::diff) == QStringLiteral("6")
 				&& list.group_count_text(group::review_states)
 					== QStringLiteral("7")
-				&& list.group_count_text(group::syntax) == QStringLiteral("26")
+				&& list.group_count_text(group::syntax) == QStringLiteral("28")
 				&& list.group_heading_text(group::comment_labels) == QStringLiteral("Comment labels")
 				&& list.group_count_text(group::comment_labels) == QStringLiteral("12"),
 			"the five group headers carry the accepted counts");
@@ -272,8 +289,8 @@ namespace {
 		list.filter_field()->clear();
 		settle();
 		expect(
-			list.listed_roles().size() == 58U
-				&& list.group_count_text(group::syntax) == QStringLiteral("26")
+			list.listed_roles().size() == 60U
+				&& list.group_count_text(group::syntax) == QStringLiteral("28")
 				&& list.group_count_text(group::review_states) == QStringLiteral("7"),
 			"clearing the filter lists every offered role again");
 
@@ -287,6 +304,16 @@ namespace {
 				&& list.group_count_text(group::comment_labels) == QStringLiteral("12")
 				&& list.group_header_of(group::syntax)->isHidden(),
 			"filtering for label lists the twelve label tints in catalog order and nothing else");
+
+		// [[BPR-1483]]. Every Syntax row is worded "Syntax …", the two
+		// RFC-BPR-0072 added included, so the filter finds the whole group.
+		list.filter_field()->setText(QStringLiteral("syntax"));
+		settle();
+		const auto syntax = list.listed_roles();
+		expect(syntax.size() == 28U && list.group_count_text(group::syntax) == QStringLiteral("28")
+				   && syntax[26] == role::syntax_namespace && syntax[27] == role::syntax_enum_member
+				   && list.group_header_of(group::comment_labels)->isHidden(),
+			   "filtering for syntax lists all 28 Syntax rows, namespace and enum member last, and nothing else");
 		list.filter_field()->clear();
 		settle();
 	}

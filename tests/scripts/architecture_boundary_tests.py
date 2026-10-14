@@ -314,6 +314,7 @@ target_sources(
         src/gh_cli_transport.cpp
         src/github_wire_request_validation.cpp
         src/native_https_transport.cpp
+        src/platform_body_digest.cpp
 )
 if(BUILD_TESTING)
     target_compile_definitions(
@@ -1537,6 +1538,142 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 self.assert_failure(diagnostic, {
                     "src/adapters/update/src/other.cpp": expression,
                 })
+
+    def test_sha1_identities_have_one_collision_detecting_owner(self) -> None:
+        # [[BPR-1450]]. Qt's plain SHA-1 serves only the pack checksum, and
+        # only the core's sha1collisiondetection wrapper names a SHA-1 API.
+        result = self.run_check({
+            "src/adapters/git/src/installed_git_cache.cpp":
+                "QCryptographicHash Hash{ QCryptographicHash::Sha1 };\n",
+            "src/core/src/sha1_collision_detecting.cpp":
+                "#include <sha1.h>\nSHA1_CTX context;\nSHA1DCInit(&context);\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/sha1_collision_detecting.cpp)\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression, diagnostic in (
+            ("src/adapters/github/src/gh_cli_git_smart_transport.cpp",
+             "QCryptographicHash hash{ QCryptographicHash::Sha1 };\n", "plain Qt SHA-1"),
+            ("src/application/src/epoch_application_host.cpp",
+             "QCryptographicHash::hash(bytes, QCryptographicHash::Sha1);\n", "plain Qt SHA-1"),
+            ("src/core/src/other_sha1.cpp", "std::uint32_t h0 = 0x67452301U;\n", "SHA-1 implementation ownership violation"),
+            ("src/app/src/other.mm", "CC_SHA1_Init(&context);\n", "SHA-1 implementation ownership violation"),
+            ("src/adapters/git/src/other.cpp", "#include <sha1.h>\n", "SHA-1 implementation ownership violation"),
+            ("src/adapters/git/src/other.cpp", "SHA1DCUpdate(&context, data, size);\n", "SHA-1 implementation ownership violation"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure(diagnostic, {path: expression})
+
+    def test_sha256_has_one_hacl_owner(self) -> None:
+        # [[BPR-1451]]. Only the core wrapper calls HACL*, and no first-party
+        # SHA-2 constants return anywhere else.
+        result = self.run_check({
+            "src/core/src/sha256_hacl.cpp":
+                "#include <internal/Hacl_Hash_SHA2.h>\nHacl_Hash_SHA2_sha256_init(state);\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/sha256_hacl.cpp)\n",
+            "src/adapters/sqlite/src/other.cpp":
+                "QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/other_sha256.cpp", "#include <internal/Hacl_Hash_SHA2.h>\n"),
+            ("src/application/src/other.cpp", "Hacl_Hash_SHA2_sha256_update_nblocks(64U, block, state);\n"),
+            ("src/core/src/other_sha256.cpp", "std::uint32_t h0 = 0x6a09e667U;\n"),
+            ("src/adapters/git/src/other.cpp", "constexpr auto k0 = 0x428A2F98U;\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("SHA-256 implementation ownership violation", {path: expression})
+
+    def test_line_pair_similarity_has_one_rapidfuzz_owner(self) -> None:
+        # [[BPR-1480]]. Only the engine's pair scoring names rapidfuzz-cpp.
+        result = self.run_check({
+            "src/core/src/diff_compute.cpp":
+                "#include <rapidfuzz/distance/Indel.hpp>\n"
+                "std::optional<rapidfuzz::CachedIndel<std::uint32_t>> Cached;\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/diff_compute.cpp)\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/diff_intraline.cpp", "#include <rapidfuzz/distance/Indel.hpp>\n"),
+            ("src/core/src/fuzzy_match.cpp", "rapidfuzz::fuzz::ratio(left, right);\n"),
+            ("src/adapters/qt/src/other.cpp", "#define RAPIDFUZZ_SIMD 1\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("rapidfuzz-cpp line-pair similarity ownership violation", {path: expression})
+
+    def test_linked_xdiff_has_one_adapter_owner(self) -> None:
+        # [[BPR-1485]]. Only the xdiff adapter calls xdiff and links its shared
+        # library, which only the provider builds, and only as SHARED.
+        adapter = {
+            "src/adapters/xdiff/src/xdiff_line_matcher.cpp":
+                'extern "C" {\n#include "xdiff.h"\n}\nauto parameters = xpparam_t{ };\nparameters.flags = XDF_INDENT_HEURISTIC;\n'
+                "xdl_diff(&left, &right, &parameters, &configuration, &callback);\n",
+            "src/adapters/xdiff/CMakeLists.txt":
+                "add_library(better_pull_review_adapter_xdiff STATIC src/xdiff_line_matcher.cpp)\n"
+                "target_link_libraries(better_pull_review_adapter_xdiff PUBLIC BetterPullReview::Application PRIVATE BetterPullReview::Xdiff)\n",
+            "cmake/BprXdiffProvider.cmake":
+                "add_library(better_pull_review_xdiff SHARED ${source}/xdiff/xdiffi.c)\n",
+        }
+        result = self.run_check(adapter)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/diff_xdiff.cpp", '#include "xdiff.h"\n'),
+            ("src/application/src/diff_line_matcher.cpp", "xdl_diff(&left, &right, &parameters, &configuration, &callback);\n"),
+            ("src/adapters/git/src/other.cpp", "mmfile_t left{ };\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("linked xdiff ownership violation", {**adapter, path: expression})
+        for path, expression, diagnostic in (
+            ("cmake/BprXdiffProvider.cmake", "add_library(better_pull_review_xdiff STATIC ${source}/xdiff/xdiffi.c)\n",
+             "xdiff must be built only as its own shared library"),
+            ("src/adapters/qt/CMakeLists.txt", "target_link_libraries(better_pull_review_adapter_qt PRIVATE BetterPullReview::Xdiff)\n",
+             "xdiff ownership violation in src/adapters/qt/CMakeLists.txt"),
+            ("src/core/CMakeLists.txt", "add_library(better_pull_review_core src/agent_profile.cpp ${git}/xdiff/xdiffi.c)\n",
+             "xdiff ownership violation in src/core/CMakeLists.txt"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure(diagnostic, {**adapter, path: expression})
+
+    def test_intraline_comparison_has_one_dtl_owner(self) -> None:
+        # [[BPR-1481]]. Only the engine's intraline comparison names dtl, so
+        # it never compares a file's lines.
+        result = self.run_check({
+            "src/core/src/diff_intraline.cpp":
+                "#include <dtl/dtl.hpp>\n"
+                "auto diff = dtl::Diff<std::uint32_t>{ left, right };\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/diff_intraline.cpp)\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/diff_semantics.cpp", "#include <dtl/dtl.hpp>\n"),
+            ("src/core/src/diff_line_matcher.cpp", "auto lines = dtl::Diff<line_class>{ left, right };\n"),
+            ("src/adapters/xdiff/src/matcher.cpp", "if (info.type == dtl::SES_COMMON) {}\n"),
+            ("src/application/src/diff_line_matcher.cpp", "#ifdef DTL_VARIABLES_H\n#endif\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("dtl intraline comparison ownership violation", {path: expression})
+
+    def test_platform_sha256_has_one_adapter_owner(self) -> None:
+        # [[BPR-1447]]. CommonCrypto's SHA-2 is called only by the GitHub
+        # adapter's body digest port; core, application, app and every other
+        # adapter file stay free of it.
+        result = self.run_check({
+            "src/adapters/github/src/platform_body_digest.cpp":
+                "#include <CommonCrypto/CommonDigest.h>\nCC_SHA256(data, size, digest);\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/feedback_convention.cpp", "#include <CommonCrypto/CommonDigest.h>\n"),
+            ("src/application/src/body_digest_port.cpp", "CC_SHA256(data, size, digest);\n"),
+            ("src/application/src/feedback_sources.cpp", "CC_SHA256_Init(&context);\n"),
+            ("src/adapters/github/src/github_provider.cpp", "CC_SHA512(data, size, digest);\n"),
+            ("src/app/src/other.mm", "CC_SHA256_Update(&context, data, size);\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("platform crypto (CommonCrypto SHA-2) ownership violation", {path: expression})
 
     def test_native_release_helper_launch_owner_is_exact(self) -> None:
         source = "posix_spawn(pid, path, actions, attr, argv, envp);\n"

@@ -25,9 +25,14 @@ namespace bpr::application {
 			return bytes;
 		}
 
+		/// Git's `SYMREF_MAXDEPTH`: a name and its symbolic targets are read at
+		/// most this many times before the reference counts as unresolvable.
+		constexpr int maximum_reference_reads = 5;
+
 		/// One reference: its loose file, else `packed-refs`. A loose symbolic
-		/// reference is followed once when `aFollow` is set.
-		auto resolve_named(workspace_root_session& aSession, const std::string_view aName, const core::git_hash_algorithm aAlgorithm, const bool aFollow, const std::stop_token& aStop)
+		/// reference is followed while `aReads` allows another read, as Git
+		/// follows it; deeper than that it names no commit, as in Git.
+		auto resolve_named(workspace_root_session& aSession, const std::string_view aName, const core::git_hash_algorithm aAlgorithm, const int aReads, const std::stop_token& aStop)
 			-> std::expected<core::git_commit_oid, std::optional<workspace_failure>>
 		{
 			if (!core::admissible_git_reference(aName)) {
@@ -39,8 +44,8 @@ namespace bpr::application {
 				if (parsed.Commit) {
 					return *parsed.Commit;
 				}
-				if (parsed.Reference && aFollow) {
-					return resolve_named(aSession, *parsed.Reference, aAlgorithm, false, aStop);
+				if (parsed.Reference && aReads > 1) {
+					return resolve_named(aSession, *parsed.Reference, aAlgorithm, aReads - 1, aStop);
 				}
 				return std::unexpected(std::nullopt);
 			}
@@ -91,7 +96,8 @@ namespace bpr::application {
 		if (!parsed.Reference) {
 			return state;
 		}
-		const auto resolved = resolve_named(aSession, *parsed.Reference, aAlgorithm, true, aStop);
+		// HEAD itself was the first read.
+		const auto resolved = resolve_named(aSession, *parsed.Reference, aAlgorithm, maximum_reference_reads - 1, aStop);
 		if (resolved) {
 			state.Commit = *resolved;
 		} else if (resolved.error()) {
@@ -119,6 +125,6 @@ namespace bpr::application {
 			}
 			return std::unexpected(std::nullopt);
 		}
-		return resolve_named(aSession, aName, aAlgorithm, true, aStop);
+		return resolve_named(aSession, aName, aAlgorithm, maximum_reference_reads, aStop);
 	}
 }

@@ -1,10 +1,12 @@
 #include "bpr/core/theme_exchange.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/hex.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -447,33 +449,56 @@ namespace bpr::core {
 		}
 
 		[[nodiscard]] auto check_header(const document_line& aLine)
-			-> std::optional<theme_import_rejection>
+			-> std::expected<std::uint32_t, theme_import_rejection>
 		{
 			const auto tokens = line_tokens(aLine.Text);
 			if (tokens.size() != 2U || tokens.front() != theme_document_signature) {
-				return rejection_of(
-					theme_import_reason::malformed_document, aLine.Text, aLine.Number);
+				return std::unexpected{ rejection_of(
+					theme_import_reason::malformed_document, aLine.Text, aLine.Number) };
 			}
 
 			const auto version = parse_version(tokens[1U]);
 			if (!version.has_value()) {
-				return rejection_of(
-					theme_import_reason::malformed_document, aLine.Text, aLine.Number);
+				return std::unexpected{ rejection_of(
+					theme_import_reason::malformed_document, aLine.Text, aLine.Number) };
 			}
-			if (*version != theme_document_version) {
-				return rejection_of(
-					theme_import_reason::unsupported_version, tokens[1U], aLine.Number);
+			if (*version != theme_document_version
+				&& *version != baseless_theme_document_version) {
+				return std::unexpected{ rejection_of(
+					theme_import_reason::unsupported_version, tokens[1U], aLine.Number) };
 			}
-			return std::nullopt;
+			return *version;
 		}
 
 		/// \brief Accumulates the palette a document assigns and why it failed.
 		struct body_state
 		{
+			std::uint32_t                           Version = theme_document_version;
 			appearance_palette                      Palette{ };
 			std::array<bool, appearance_role_count> Assigned{ };
+			std::optional<appearance_variant>       Base;
+			bool                                    BaseAssigned = false;
 			std::vector<theme_import_rejection>     Rejections;
 		};
+
+		/// \brief Reads a version-2 document's `base` line.
+		auto read_base(
+			body_state&                          aState,
+			const std::vector<std::string_view>& aTokens,
+			const document_line&                 aLine) -> void
+		{
+			if (aState.BaseAssigned) {
+				aState.Rejections.push_back(rejection_of(
+					theme_import_reason::duplicate_field, aTokens[0U], aLine.Number));
+				return;
+			}
+			aState.BaseAssigned = true;
+			aState.Base         = find_appearance_variant(aTokens[1U]);
+			if (!aState.Base.has_value()) {
+				aState.Rejections.push_back(rejection_of(
+					theme_import_reason::unknown_base, aTokens[1U], aLine.Number));
+			}
+		}
 
 		auto read_entry(body_state& aState, const document_line& aLine) -> void
 		{
@@ -481,6 +506,14 @@ namespace bpr::core {
 			if (tokens.size() != 2U) {
 				aState.Rejections.push_back(rejection_of(
 					theme_import_reason::malformed_document, aLine.Text, aLine.Number));
+				return;
+			}
+
+			// A version-1 document has no base, so there the key is as unknown
+			// as any other outside the vocabulary.
+			if (tokens.front() == theme_document_base_key
+				&& aState.Version == theme_document_version) {
+				read_base(aState, tokens, aLine);
 				return;
 			}
 
@@ -511,12 +544,17 @@ namespace bpr::core {
 
 		auto append_missing_roles(body_state& aState) -> void
 		{
+			if (aState.Version == theme_document_version && !aState.BaseAssigned) {
+				aState.Rejections.push_back(rejection_of(
+					theme_import_reason::missing_field, theme_document_base_key, 0U));
+			}
 			for (std::size_t index = 0U; index < appearance_role_count; ++index) {
 				if (aState.Assigned[index]) {
 					continue;
 				}
-				// [[BPR-1083]]. A label tint the document predates reads as the
-				// built-in tint, which presentation owns; nothing else changes.
+				// [[BPR-1083]], [[BPR-1479]]. A role the document predates is
+				// filled from the document's base by the caller, which holds the
+				// built-in colours; nothing else changes.
 				if (defaults_on_import(role_at(index))) {
 					aState.Palette[index] = unassigned_appearance_color;
 					continue;
@@ -549,21 +587,59 @@ namespace bpr::core {
 			aText.push_back('#');
 			append_lower_hex(aText, channels);
 		}
+
+		auto append_roles(std::string& aText, const appearance_palette& aPalette) -> void
+		{
+			for (std::size_t index = 0U; index < appearance_role_count; ++index) {
+				aText.append(stable_name(role_at(index)));
+				aText.push_back(' ');
+				append_color(aText, aPalette[index]);
+				aText.push_back('\n');
+			}
+		}
+
+		/// \brief Infers the base of a document that does not name one.
+		///
+		/// \details [[BPR-1479]]. A version-1 document predates the `base` line,
+		/// so its own code background is the evidence: the canvas every syntax
+		/// role is drawn over. It is dark when white text contrasts with it
+		/// more than black text does. A high-contrast base is never inferred,
+		/// because nothing in a palette says which floor it was made for.
+		[[nodiscard]] auto inferred_base(const appearance_palette& aPalette) noexcept
+			-> appearance_variant
+		{
+			constexpr auto white = appearance_color{ .Red = 255U, .Green = 255U, .Blue = 255U, .Alpha = 255U };
+			constexpr auto black = appearance_color{ .Red = 0U, .Green = 0U, .Blue = 0U, .Alpha = 255U };
+			const auto     code  = aPalette[index_of(appearance_role::code_background)];
+			return contrast_ratio_hundredths(white, code) > contrast_ratio_hundredths(black, code)
+				? appearance_variant::dark
+				: appearance_variant::light;
+		}
 	} // namespace
 
-	auto export_theme(const appearance_palette& aPalette) -> std::string
+	auto export_theme(
+		const appearance_palette& aPalette,
+		const appearance_variant  aBase) -> std::string
 	{
 		auto document = std::string{ theme_document_signature };
 		document.push_back(' ');
 		append_decimal(document, theme_document_version);
 		document.push_back('\n');
+		document.append(theme_document_base_key);
+		document.push_back(' ');
+		document.append(stable_name(aBase));
+		document.push_back('\n');
+		append_roles(document, aPalette);
+		return document;
+	}
 
-		for (std::size_t index = 0U; index < appearance_role_count; ++index) {
-			document.append(stable_name(role_at(index)));
-			document.push_back(' ');
-			append_color(document, aPalette[index]);
-			document.push_back('\n');
-		}
+	auto export_theme(const appearance_palette& aPalette) -> std::string
+	{
+		auto document = std::string{ theme_document_signature };
+		document.push_back(' ');
+		append_decimal(document, baseless_theme_document_version);
+		document.push_back('\n');
+		append_roles(document, aPalette);
 		return document;
 	}
 
@@ -586,11 +662,13 @@ namespace bpr::core {
 			return refusal(rejection_of(
 				theme_import_reason::malformed_document, std::string_view{ }, 0U));
 		}
-		if (const auto header = check_header(lines.front()); header.has_value()) {
-			return refusal(*header);
+		const auto version = check_header(lines.front());
+		if (!version.has_value()) {
+			return refusal(version.error());
 		}
 
-		auto state = body_state{ };
+		auto state    = body_state{ };
+		state.Version = *version;
 		for (auto line = std::next(lines.begin()); line != lines.end(); ++line) {
 			read_entry(state, *line);
 		}
@@ -606,6 +684,10 @@ namespace bpr::core {
 			};
 		}
 
-		return theme_import_result{ .Palette = state.Palette, .Rejections = { } };
+		return theme_import_result{
+			.Palette    = state.Palette,
+			.Rejections = { },
+			.Base       = state.Version == theme_document_version ? state.Base : inferred_base(state.Palette),
+		};
 	}
 } // namespace bpr::core

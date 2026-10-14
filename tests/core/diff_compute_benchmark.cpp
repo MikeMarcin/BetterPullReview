@@ -4,10 +4,18 @@
 // core from before the stoppable engine; otherwise it also times the stoppable
 // entry point with a predicate that never fires (the prepared path) and
 // reports the longest wall time between two polls of that predicate.
+// [[BPR-1480]] It also times the refine phase, the secondary pairing of each
+// replacement, from a run polled every phase_check_interval steps: the time
+// between the first polls at or past the phase's first step and the next
+// phase's. The step counts are the engine's, so the column compares cores
+// that count steps alike.
+// [[BPR-1485]] The primary matches are the product's: the linked xdiff line
+// matcher, called on the computing thread.
 //
 // Usage: bench_better_pull_review_diff_compute [repetitions] [largest line count]
 
 #include "bpr/core/diff_compute.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -200,6 +208,33 @@ namespace {
 		std::chrono::steady_clock::time_point Last    = std::chrono::steady_clock::now();
 		double                                Longest = 0.0;
 	};
+
+	inline constexpr std::uint64_t phase_check_interval = 4U * 1024U;
+
+	/// Never stops; records the time of every poll by its step.
+	class phase_timer final : public diff_compute_stop
+	{
+	public:
+		[[nodiscard]] auto stop_requested(const std::uint64_t aSteps) -> bool override
+		{
+			Polls.emplace_back(aSteps, std::chrono::steady_clock::now());
+			return false;
+		}
+
+		/// Milliseconds between the first polls at or past each step; the
+		/// end of the run for a step no poll reached.
+		[[nodiscard]] auto between(const std::uint64_t aBegin, const std::uint64_t aEnd,
+								   const std::chrono::steady_clock::time_point aFinished) const -> double
+		{
+			const auto at = [this, aFinished](const std::uint64_t aStep) {
+				const auto found = std::ranges::find_if(Polls, [aStep](const auto& aPoll) { return aPoll.first >= aStep; });
+				return found == Polls.end() ? aFinished : found->second;
+			};
+			return std::chrono::duration<double, std::milli>(at(aEnd) - at(aBegin)).count();
+		}
+
+		std::vector<std::pair<std::uint64_t, std::chrono::steady_clock::time_point>> Polls;
+	};
 #endif
 } // namespace
 
@@ -222,7 +257,8 @@ int main(int aArgc, char** aArgv)
 				.LeftBytes  = std::span<const std::uint8_t>{ left },
 				.RightBytes = std::span<const std::uint8_t>{ right },
 			};
-			const auto reference = compute_file_diff(input);
+			auto       matching  = bpr::application::diff_line_matching{ *bpr::tests::product_line_matcher() };
+			const auto reference = compute_file_diff(input, matching);
 			if (!reference.Result.has_value()) {
 				std::printf("FAILED: the synthetic pair computes\n");
 				return EXIT_FAILURE;
@@ -232,10 +268,11 @@ int main(int aArgc, char** aArgv)
 			auto polled  = std::vector<double>{ };
 			auto timer   = poll_timer{ };
 			auto longest = 0.0;
+			auto refine  = std::vector<double>{ };
 #endif
 			for (int repetition = 0; repetition < repetitions; ++repetition) {
 				const auto start   = std::chrono::steady_clock::now();
-				const auto outcome = compute_file_diff(input);
+				const auto outcome = compute_file_diff(input, matching);
 				oneCall.push_back(milliseconds(start));
 				if (outcome.Result != reference.Result) {
 					std::printf("FAILED: a repetition differs\n");
@@ -244,13 +281,23 @@ int main(int aArgc, char** aArgv)
 #ifndef BPR_DIFF_BENCH_BASELINE
 				timer.reset();
 				const auto polledStart = std::chrono::steady_clock::now();
-				const auto slice       = compute_file_diff(input, diff_compute_control{ .Stop = &timer });
+				const auto slice       = compute_file_diff(input, diff_compute_control{ .Stop = &timer }, matching);
 				polled.push_back(milliseconds(polledStart));
 				longest = std::max(longest, timer.Longest);
 				if (!slice.Outcome.has_value() || slice.Outcome->Result != reference.Result) {
 					std::printf("FAILED: the stoppable entry point differs\n");
 					return EXIT_FAILURE;
 				}
+				auto       phases   = phase_timer{ };
+				const auto timed    = compute_file_diff(input, diff_compute_control{ .Stop = &phases, .CheckInterval = phase_check_interval }, matching);
+				const auto finished = std::chrono::steady_clock::now();
+				if (!timed.Outcome.has_value() || timed.Outcome->Result != reference.Result) {
+					std::printf("FAILED: the phase-timed entry point differs\n");
+					return EXIT_FAILURE;
+				}
+				const auto& starts = timed.Statistics.PhaseStarts;
+				refine.push_back(phases.between(starts[static_cast<std::size_t>(diff_compute_phase::refine)],
+												starts[static_cast<std::size_t>(diff_compute_phase::moves)], finished));
 #endif
 			}
 			const auto one = spread_of(oneCall);
@@ -258,8 +305,10 @@ int main(int aArgc, char** aArgv)
 						static_cast<unsigned long long>(lines), edited, left.size(), right.size(), one.Median, one.Lowest, one.Q1, one.Q3, one.Worst);
 #ifndef BPR_DIFF_BENCH_BASELINE
 			const auto stoppable = spread_of(polled);
-			std::printf(" | polled %8.2f %8.2f %8.2f-%-8.2f %8.2f | longest between polls %.3f",
-						stoppable.Median, stoppable.Lowest, stoppable.Q1, stoppable.Q3, stoppable.Worst, longest);
+			const auto pairing   = spread_of(refine);
+			std::printf(" | polled %8.2f %8.2f %8.2f-%-8.2f %8.2f | longest between polls %.3f | refine %8.2f %8.2f %8.2f-%-8.2f %8.2f",
+						stoppable.Median, stoppable.Lowest, stoppable.Q1, stoppable.Q3, stoppable.Worst, longest, pairing.Median, pairing.Lowest, pairing.Q1, pairing.Q3,
+						pairing.Worst);
 #endif
 			std::printf("\n");
 		}

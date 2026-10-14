@@ -42,7 +42,7 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "fmt", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
@@ -83,6 +83,85 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r'"JetBrainsMonoNL-[A-Za-z]+\.ttf\|', provider)), 4)
         security = (ROOT / "scripts/verify_release_security.py").read_text(encoding="utf-8")
         self.assertIn("package.runtime.NOTICE_FILES", security)
+
+    def test_xdiff_ships_as_its_own_noticed_replaceable_shared_library(self):
+        # [[BPR-1485]]. The owner accepted LGPL xdiff only as its own
+        # dynamically linked shared library, as Qt is (RFC-BPR-0082 Q1): one
+        # archive identity in the provider, the release manifest and the
+        # provenance; every retained licence text noticed; the first-party
+        # build inputs pinned as corresponding source; the library installed
+        # and required where the application loads it.
+        import hashlib, re
+        item = next(entry for entry in runtime.components({"platform": "Linux"}) if entry["name"] == "git-xdiff")
+        for system in ("Darwin", "Windows", "Linux"):
+            self.assertIn(item, runtime.components({"platform": system}))
+        self.assertEqual((item["version"], item["license"]), ("2.56.0", "LGPL-2.1-or-later AND BSD-3-Clause"))
+        self.assertTrue(item["linkage"].startswith("dynamic: its own separately replaceable shared library"))
+        self.assertIn("never static", item["linkage"])
+        self.assertEqual(runtime.upstream_source_name(item), "git-xdiff-2.56.0.tar.xz")
+        provider = (ROOT / "cmake/BprXdiffProvider.cmake").read_text(encoding="utf-8")
+        self.assertIn(f'set(digest "{item["sha256"]}")', provider)
+        self.assertIn(item["url"], provider)
+        self.assertIn("add_library(better_pull_review_xdiff SHARED", provider)
+        self.assertIn("BPR_DEPENDENCY_OFFLINE", provider)
+        retained = ROOT / "third_party/git-xdiff"
+        provenance = (retained / "PROVENANCE.md").read_text(encoding="utf-8")
+        self.assertIn(item["sha256"], provenance)
+        self.assertIn("8489656", provenance)
+        self.assertIn("8489656", provider)
+        notices = [name for name in runtime.NOTICE_FILES if name.startswith("git-xdiff/")]
+        self.assertEqual(notices, ["git-xdiff/NOTICE", "git-xdiff/LGPL-2.1", "git-xdiff/xhistogram-EDL-1.0.txt"])
+        for name in notices[1:]:
+            self.assertIn(hashlib.sha256((ROOT / "third_party" / name).read_bytes()).hexdigest(), provenance, name)
+        notice = (retained / "NOTICE").read_text(encoding="utf-8")
+        for path in runtime.PRIVATE_LIBRARIES.values():
+            self.assertIn(Path(path[0]).name, notice)
+        self.assertIn("SPDX-License-Identifier: LGPL-2.1-or-later", notice)
+        self.assertIn("SPDX-License-Identifier: BSD-3-Clause", notice)
+        # Every first-party build input is pinned by its exact bytes, and every
+        # retained file beside the record is either a notice or a build input.
+        inputs = {entry["path"]: entry["sha256"] for entry in item["buildInputs"]}
+        self.assertEqual(set(inputs), {"third_party/git-xdiff/git-compat-util.h", "third_party/git-xdiff/bpr-xdiff-regex.h",
+                                       "cmake/BprXdiffProvider.cmake"})
+        for path, value in inputs.items():
+            self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), value,
+                             f"{path} changed: update its buildInputs digest in packaging/dependencies.json")
+        files = {path.relative_to(ROOT).as_posix() for path in retained.iterdir() if path.is_file() and path.name != "PROVENANCE.md"}
+        self.assertEqual(files, {"third_party/" + name for name in notices} | (set(inputs) - {"cmake/BprXdiffProvider.cmake"}))
+        self.assertEqual(runtime.PRIVATE_LIBRARIES, {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib"],
+                                                     "Windows": ["bpr_xdiff.dll"], "Linux": ["libbpr_xdiff.so"]})
+        self.assertIn("OUTPUT_NAME bpr_xdiff", provider)
+        self.assertRegex((ROOT / "packaging/Install.cmake").read_text(encoding="utf-8"), r"install\(TARGETS better_pull_review_xdiff\b")
+
+    def test_source_asset_carries_pinned_build_inputs(self):
+        # [[BPR-1485]]. An LGPL library's first-party build files are part of
+        # its corresponding source, stored beside its upstream archive.
+        with ContainedTemporaryDirectory() as directory:
+            build = Path(directory)
+            stage = build / "runtime"
+            stage.mkdir()
+            upstream = build / "Example-1.tar.gz"
+            upstream.write_bytes(b"upstream")
+            relative = "packaging/DISTRIBUTION.txt"
+            declared = [{"name": "Example", "version": "1", "url": "https://example.invalid/source.tar.gz", "sha256": runtime.digest(upstream),
+                         "buildInputs": [{"path": relative, "sha256": runtime.digest(ROOT / relative)}]}]
+            info = {"platform": "Linux", "version": "1.2.3"}
+            with patch.object(runtime, "components", return_value=declared), patch.object(runtime, "run", return_value="a" * 40):
+                provenance = runtime.prepare_source_asset(build, info, stage, {"Example": upstream}, None)
+                asset = runtime.source_asset_path(build, info, "a" * 40)
+                with zipfile.ZipFile(asset) as archive:
+                    self.assertEqual(sorted(archive.namelist()), ["Example-1-build/" + relative, "Example-1.tar.gz"])
+                    self.assertEqual(archive.read("Example-1-build/" + relative), (ROOT / relative).read_bytes())
+                runtime.verify_source_asset(asset, provenance)
+                self.assertEqual(provenance["components"], declared)
+                # A changed build input is refused, never shipped silently.
+                declared[0]["buildInputs"][0]["sha256"] = "0" * 64
+                with self.assertRaisesRegex(ValueError, "corresponding-source-digest-mismatch"):
+                    runtime.prepare_source_asset(build, info, stage, {"Example": upstream}, build / "fresh" / asset.name)
+                for unsafe in ("../outside.txt", str(ROOT / relative), "packaging/absent.txt"):
+                    declared[0]["buildInputs"][0]["path"] = unsafe
+                    with self.subTest(unsafe=unsafe), self.assertRaisesRegex(ValueError, "build input missing or unsafe"):
+                        runtime.prepare_source_asset(build, info, stage, {"Example": upstream}, build / "unsafe" / asset.name)
 
     def test_notices_carry_every_retained_text_whole(self):
         with ContainedTemporaryDirectory() as directory:
@@ -270,7 +349,9 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                     runtime.verify_source_asset(asset, provenance)
                     self.assertFalse(list(stage.rglob("*.zip")))
                     offers = (runtime.legal_root(stage, info) / "SOURCE-OFFERS.txt").read_text()
-                    for required in ("ABI-compatible", "codesign --force --deep --sign -", "equivalent access", "Retention is indefinite"):
+                    for required in ("ABI-compatible", "codesign --force --deep --sign -", "equivalent access", "Retention is indefinite",
+                                     "separately replaceable shared library", "libbpr_xdiff.dylib", "bpr_xdiff.dll", "libbpr_xdiff.so",
+                                     "git-xdiff-2.56.0.tar.xz", "git-xdiff-2.56.0-build/"):
                         self.assertIn(required, offers)
                     # A new staging location and changed source-cache times must
                     # retain the exact separately distributable archive bytes.
@@ -292,6 +373,9 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             qt, stage = build / "qt", build / "stage"
             stage.mkdir()
             (stage / "better_pull_review").write_bytes(b"\x7fELF")
+            # [[BPR-1485]]. The package's own xdiff library, installed beside it.
+            xdiff = stage / "libbpr_xdiff.so"
+            xdiff.write_bytes(b"\x7fELF")
             for name in runtime.PLUGINS["Linux"]:
                 path = qt / "plugins" / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -303,7 +387,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             def inspect(*arguments, env=None):
                 if arguments[0] == "ldd":
                     self.assertEqual(env["LD_LIBRARY_PATH"].split(runtime.os.pathsep)[0], str(qt / "lib"))
-                    return f" libQt6Core.so.6 => {library} (0x000000)\n"
+                    return f" libQt6Core.so.6 => {library} (0x000000)\n libbpr_xdiff.so => {xdiff_source} (0x000000)\n"
                 if arguments[:2] == ("readelf", "--file-header"):
                     return "Class: ELF64\nMachine: Advanced Micro Devices X86-64\n"
                 if arguments[:2] == ("readelf", "--version-info"):
@@ -312,10 +396,25 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
                 return ""
 
             versions = "GLIBC_2.43 GLIBCXX_3.4.35"
+            xdiff_source = xdiff
             with patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
                 runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
             closure = json.loads((stage / "runtime-closure.json").read_text())
             self.assertIn("libQt6Core.so.6", closure["files"])
+            self.assertIn("libbpr_xdiff.so", closure["files"])
+            with patch.object(runtime, "linux_baseline", return_value={"glibcFloor": "2.43"}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):
+                for name in ("qt.conf", "runtime-closure.json"):
+                    (stage / name).unlink()
+                # An xdiff resolved from outside the package is untrusted...
+                xdiff_source = build / "elsewhere/libbpr_xdiff.so"
+                with self.assertRaisesRegex(ValueError, "untrusted ELF dependency"):
+                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
+                xdiff_source = xdiff
+                # ...and a package without it is refused before inspection.
+                xdiff.unlink()
+                with self.assertRaisesRegex(ValueError, "private shared library missing: libbpr_xdiff.so"):
+                    runtime.deploy(build, {"platform": "Linux", "qt_root": str(qt)}, stage)
+                xdiff.write_bytes(b"\x7fELF")
             self.assertEqual(closure["baseline"], {"glibcFloor": "2.43", "requiredGLIBCXX": ["3.4.35"]})
             for ceiling, versions in (("2.43", "GLIBC_2.44"), ("2.39", "GLIBC_2.43")):
                 with self.subTest(ceiling=ceiling), patch.object(runtime, "linux_baseline", return_value={"glibcFloor": ceiling}), patch.object(runtime, "run", side_effect=inspect), patch.object(runtime, "notices"), patch.object(runtime, "audit"):

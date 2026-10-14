@@ -72,6 +72,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
             src/github_device_authorization_contract.cpp
         src/github_device_authorization_transport.cpp
             src/github_provider.cpp
+            src/platform_body_digest.cpp
             src/github_read_contract.cpp
             src/github_read_normalizer.cpp
             src/github_wire_request_validation.cpp

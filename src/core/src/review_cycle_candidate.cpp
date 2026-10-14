@@ -86,6 +86,8 @@ namespace bpr::core {
 			return "normalization";
 		case candidate_limit::metadata:
 			return "metadata";
+		case candidate_limit::collision_detected:
+			return "collision_detected";
 		}
 		return "unknown";
 	}
@@ -153,7 +155,7 @@ namespace bpr::core {
 
 		const auto tree = build_git_trees(candidate.Entries, candidate.Format);
 		if (!tree) {
-			return refuse(candidate_limit::path_conflict);
+			return refuse(tree.error() == git_tree_error::collision_detected ? candidate_limit::collision_detected : candidate_limit::path_conflict);
 		}
 		candidate.Tree = tree->Root;
 		if (candidate.Tree == aPlan.BaseTree) {
@@ -172,7 +174,7 @@ namespace bpr::core {
 		};
 		const auto commit = git_commit_identity(candidate.Content);
 		if (!commit) {
-			return refuse(candidate_limit::metadata);
+			return refuse(commit.error() == git_commit_error::collision_detected ? candidate_limit::collision_detected : candidate_limit::metadata);
 		}
 		candidate.Commit = *commit;
 		return candidate;
@@ -232,7 +234,7 @@ namespace bpr::core {
 		}
 		const auto tree = build_git_trees(preparation.Entries, aPlan.BaseCommit.algorithm());
 		if (!tree) {
-			return refuse(candidate_limit::path_conflict);
+			return refuse(tree.error() == git_tree_error::collision_detected ? candidate_limit::collision_detected : candidate_limit::path_conflict);
 		}
 		preparation.Tree = tree->Root;
 		auto text        = std::string{ "External preparation: this is not native publication, and nothing has been published.\n" };

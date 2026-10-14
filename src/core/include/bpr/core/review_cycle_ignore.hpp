@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_CYCLE_IGNORE_HPP
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_CYCLE_IGNORE_HPP
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -68,6 +69,8 @@ namespace bpr::core {
 			/// The pattern has a `/` before its end: it matches the path below
 			/// its base, not just the last segment.
 			bool Anchored = false;
+			/// Bytes any matching subject must contain (see `required_bytes`).
+			std::array<std::uint64_t, 4> Required{ };
 		};
 		std::vector<rule> Rules;
 		bool              IgnoreCase = false;
@@ -124,11 +127,12 @@ namespace bpr::core {
 		};
 		struct rule
 		{
-			std::string             Base;
-			std::string             Pattern;
-			bool                    Anchored      = false;
-			bool                    DirectoryOnly = false;
-			std::vector<assignment> Assignments;
+			std::string                  Base;
+			std::string                  Pattern;
+			bool                         Anchored      = false;
+			bool                         DirectoryOnly = false;
+			std::vector<assignment>      Assignments;
+			std::array<std::uint64_t, 4> Required{ };
 		};
 		/// Attribute names to their states, for one path's evaluation.
 		using assigned_states = std::map<std::string_view, const git_attribute_state*, std::less<>>;

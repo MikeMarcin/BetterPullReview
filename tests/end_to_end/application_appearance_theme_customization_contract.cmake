@@ -118,11 +118,46 @@ require_regex(
     "APPEARANCE_OBSERVED:[a-z]+:[a-z-]+:[1-9][0-9]*"
 )
 
-file(READ "${BPR_ROOT}/theme.bprtheme" original_theme)
-file(READ "${BPR_ROOT}/theme.bprtheme.exported.bprtheme" exported_theme)
-if(NOT original_theme STREQUAL exported_theme)
-    message(FATAL_ERROR "Export must preserve the accepted complete palette document")
+# [[BPR-1479]]. Export writes a version-2 document: a base line naming the
+# theme the colours were kept on, then every role. BPR_THEME is a version-1
+# document. A role it predates was filled at import from its own base, which
+# its code background makes Dark, so BPR_THEME_FILLED_ROLES lists those roles
+# with Dark's built-in colours ("role #rrggbbaa", comma-separated, in
+# vocabulary order). The export must carry them as kept, never unassigned.
+string(REGEX MATCH
+    "APPEARANCE_THEME_PROBE_CUSTOMISED_VARIANT:([a-z_]+)"
+    variant_line
+    "${customization_output}"
+)
+if(variant_line STREQUAL "")
+    message(FATAL_ERROR
+        "theme customization omitted APPEARANCE_THEME_PROBE_CUSTOMISED_VARIANT\n"
+        "stdout:\n${customization_output}"
+    )
 endif()
+set(customised_variant "${CMAKE_MATCH_1}")
+file(READ "${BPR_ROOT}/theme.bprtheme" original_theme)
+string(FIND "${original_theme}" "bpr-theme 1\n" signature_at)
+if(NOT signature_at EQUAL 0)
+    message(FATAL_ERROR "BPR_THEME must be a version-1 theme document")
+endif()
+string(SUBSTRING "${original_theme}" 12 -1 original_roles)
+set(expected_theme "bpr-theme 2\nbase ${customised_variant}\n${original_roles}")
+if(DEFINED BPR_THEME_FILLED_ROLES)
+    string(REPLACE "," ";" filled_roles "${BPR_THEME_FILLED_ROLES}")
+    foreach(filled IN LISTS filled_roles)
+        string(APPEND expected_theme "${filled}\n")
+    endforeach()
+endif()
+file(READ "${BPR_ROOT}/theme.bprtheme.exported.bprtheme" exported_theme)
+if(NOT expected_theme STREQUAL exported_theme)
+    message(FATAL_ERROR
+        "Export must write the kept palette under its base\n"
+        "expected:\n${expected_theme}\n"
+        "exported:\n${exported_theme}"
+    )
+endif()
+message("APPEARANCE_THEME_EXPORT_BASE:${customised_variant}")
 
 # Process two opens the same real appearance database without importing or
 # committing anything. The exact black semantic canvas can only come from

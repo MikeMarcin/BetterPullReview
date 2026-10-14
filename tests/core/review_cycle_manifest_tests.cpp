@@ -1,3 +1,4 @@
+#include "../support/git_metadata_writers.hpp"
 #include "bpr/core/git_config.hpp"
 #include "bpr/core/review_cycle_git.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
@@ -156,7 +157,7 @@ namespace {
 		// [[BPR-1454]]. The trailer is verified; all zero is index.skipHash.
 		auto hashed = build_index(2, plain);
 		hashed.resize(hashed.size() - 20U);
-		const auto trailer = sha1(hashed);
+		const auto trailer = sha1(hashed).value();
 		hashed.insert(hashed.end(), trailer.begin(), trailer.end());
 		expect(parse_git_index(hashed, git_hash_algorithm::sha1, 10).has_value(), "a matching SHA-1 trailer");
 		hashed[20] ^= 1U;
@@ -166,6 +167,27 @@ namespace {
 		expect(parse_git_index(build_index(2, plain, "TREE"), git_hash_algorithm::sha1, 10).has_value(), "optional extension skipped");
 		expect(parse_git_index(build_index(2, plain, "abcd"), git_hash_algorithm::sha1, 10).error() == git_index_error::required_extension, "required extension refused");
 		expect(parse_git_index(build_index(2, plain, "1xyz"), git_hash_algorithm::sha1, 10).error() == git_index_error::required_extension, "non-letter signature refused");
+	}
+
+	/// [[BPR-1457]]. The round trips the fuzz target asserts, on fixed inputs.
+	void round_trips_written_metadata()
+	{
+		const auto rows = std::vector<index_row>{
+			{ .Path = "a.txt" },
+			{ .Path = "dir/sub/one.txt", .Seed = 2, .SkipWorktree = true },
+			{ .Path = "dir/sub/two.txt", .Seed = 3, .IntentToAdd = true },
+			{ .Path = "z", .Seed = 4, .Stage = 2 },
+		};
+		for (const auto version : { 3U, 4U }) {
+			const auto parsed = parse_git_index(build_index(version, rows), git_hash_algorithm::sha1, 10);
+			expect(parsed.has_value(), "fixture index parses");
+			for (const auto zero : { true, false }) {
+				const auto again = parse_git_index(bpr::tests::write_git_index(*parsed, git_hash_algorithm::sha1, zero), git_hash_algorithm::sha1, 10);
+				expect(again && again->Entries == parsed->Entries && again->Version == version, "an index written back parses the same");
+			}
+		}
+		const auto config = parse_git_config("top = 1\n[a.B]\nk = \" x \\\" \\n\"\n[ \"q\"]\nflag\n[s \"Sub \\\"x\"]\nv = tab\\there\n");
+		expect(config && parse_git_config(bpr::tests::write_git_config(*config)) == config, "a config written back parses the same");
 	}
 
 	void parses_git_config_syntax()
@@ -409,6 +431,7 @@ int main()
 {
 	parses_index_versions();
 	parses_git_config_syntax();
+	round_trips_written_metadata();
 	reads_repository_formats();
 	reads_config_and_references();
 	matches_git_wildcards();

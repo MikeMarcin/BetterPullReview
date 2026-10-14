@@ -18,6 +18,7 @@ add_library(
         src/device_authorization_model.cpp
         src/device_authorization_transition.cpp
         src/diff_compute.cpp
+        src/diff_intraline.cpp
 		src/diff_interaction.cpp
         src/diff_model.cpp
         src/diff_semantics.cpp
@@ -110,8 +111,8 @@ add_library(
         src/reply_draft_standing.cpp
         src/review_submission.cpp
         src/review_preflight.cpp
-        src/sha1.cpp
-        src/sha256.cpp
+        src/sha1_collision_detecting.cpp
+        src/sha256_hacl.cpp
         src/theme_exchange.cpp
         src/pull_request_location.cpp
         src/pull_request_refusal.cpp
@@ -131,7 +132,7 @@ target_include_directories(
 target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 # Owner 2026-10-13: core links only approved pinned, pure libraries; the
 # functional-core boundary check enforces this list.
-target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc)
+target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
 
 bpr_enable_hardening(better_pull_review_core)
 bpr_enable_warnings(better_pull_review_core)

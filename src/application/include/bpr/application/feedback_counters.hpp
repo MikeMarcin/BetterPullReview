@@ -65,6 +65,12 @@ namespace bpr::application {
 		/// [[BPR-1349]]. Bodies the core hashed: a reused body is proved
 		/// unchanged by its kept bytes, not by its digest.
 		std::uint64_t BodiesHashed = 0U;
+		/// [[BPR-1447]]. Bodies parsed with the digest the snapshot carried,
+		/// taken by the host off the window thread, so the core hashed none of
+		/// them. `BodiesHashed + BodiesDigestSupplied` is `BodiesParsed`.
+		std::uint64_t BodiesDigestSupplied = 0U;
+		/// [[BPR-1447]]. Bytes of the bodies the core hashed itself.
+		std::uint64_t BytesHashed = 0U;
 		/// [[BPR-1349]]. Observations whose annotation refresh carried the kept
 		/// order and unchanged classifications over instead of rebuilding them.
 		std::uint64_t RefreshesCarried = 0U;

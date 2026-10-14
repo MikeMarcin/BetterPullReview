@@ -8,6 +8,7 @@
 #include "bpr/application/review_cycle_workbench.hpp"
 #include "bpr/core/review_cycle_bundle.hpp"
 #include "bpr/core/sha256.hpp"
+#include "product_diff.hpp"
 #include "workspace_fixture.hpp"
 
 #include <algorithm>
@@ -70,7 +71,7 @@ namespace {
 		{
 			auto seed = std::array<std::uint8_t, 32>{ };
 			seed[0]   = aSeed;
-			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed);
+			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed, nullptr, bpr::tests::product_line_matcher());
 		}
 		desk(const desk&)                    = delete;
 		auto operator=(const desk&) -> desk& = delete;
@@ -202,7 +203,7 @@ namespace {
 					  const std::uint8_t aSeed)
 	{
 		application::manual_executor      lanes;
-		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes };
+		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		runtime.select(aSubject);
 		auto operation = [aSeed](const std::uint8_t aIndex) {
 			auto bytes = std::array<std::uint8_t, 32>{ };
@@ -628,7 +629,7 @@ namespace {
 	auto settle(const std::filesystem::path& aProfileRoot, const std::optional<core::local_cycle_subject>& aSubject, TStart aStart) -> application::cycle_store_result<T>
 	{
 		application::manual_executor      lanes;
-		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes };
+		application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 		if (aSubject) {
 			runtime.select(*aSubject);
 		}
@@ -737,7 +738,7 @@ namespace {
 		// The whole file joins the draft as explicitly admitted large context.
 		{
 			application::manual_executor      lanes;
-			application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(profileRoot, profile), lanes, lanes };
+			application::review_cycle_runtime runtime{ adapters::sqlite::make_review_cycle_store(profileRoot, profile), lanes, lanes, nullptr, bpr::tests::product_line_matcher() };
 			runtime.select(subject);
 			auto draft = std::optional<application::cycle_store_result<application::cycle_round_draft_content>>{ };
 			runtime.load_round_selected({ .Cycle = subject.Cycle, .Id = core::cycle_round_draft_id{ 1 } }, [&](auto aValue) { draft = std::move(aValue); });

@@ -8,6 +8,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
+#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/qt/review_cycle_promote_sheet.hpp"
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
@@ -239,7 +240,8 @@ namespace bpr::app {
 		, ProfileRoot{ aProfileRoot }
 	{
 		Host = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, aProfile), *Source, aEffects, aDecisions, *this, random_seed(),
-																	 aCaptures != nullptr ? aCaptures : (OwnCaptures = std::make_unique<worker_executor>()).get());
+																	 aCaptures != nullptr ? aCaptures : (OwnCaptures = std::make_unique<worker_executor>()).get(),
+																	 adapters::xdiff::make_xdiff_line_matcher());
 		View = new qt::review_cycle_view{ };
 		Window.adopt_local_cycle(View);
 		Tours    = std::make_unique<desktop_tour_port>(aProfileRoot, aProfile, aEffects);
@@ -631,8 +633,15 @@ namespace bpr::app {
 		}
 		auto       document = std::make_shared<const std::string>(aDocument);
 		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
-		Wanted[aSlot]       = wanted_syntax{
-			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aPath) },
+		const auto blob     = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		if (!blob) {
+			// [[BPR-1450]]. A text collision detection refuses has no cache
+			// key: it stays plain, as without a syntax host.
+			Wanted[aSlot].reset();
+			return;
+		}
+		Wanted[aSlot] = wanted_syntax{
+			.Key      = { .Blob = *blob, .Definition = SyntaxDefinitions->definition_for_path(aPath) },
 			.Document = std::move(document),
 		};
 		submit_syntax();
@@ -660,8 +669,13 @@ namespace bpr::app {
 		}
 		auto       document = std::make_shared<const std::string>(aRequest.Document);
 		const auto bytes    = std::span{ reinterpret_cast<const std::uint8_t*>(document->data()), document->size() };
-		auto       wanted   = wanted_syntax{
-			.Key      = { .Blob = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1), .Definition = SyntaxDefinitions->definition_for_path(aRequest.Path) },
+		const auto blob     = core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		if (!blob) {
+			// [[BPR-1450]]. No cache key for a refused text: it stays plain.
+			return;
+		}
+		auto wanted = wanted_syntax{
+			.Key      = { .Blob = *blob, .Definition = SyntaxDefinitions->definition_for_path(aRequest.Path) },
 			.Document = std::move(document),
 		};
 		if ((CodeClassifying && CodeClassifying->Key == wanted.Key) || std::ranges::find(CodeWanted, wanted.Key, &wanted_syntax::Key) != CodeWanted.end()) {

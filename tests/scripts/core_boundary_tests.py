@@ -54,10 +54,13 @@ class CoreBoundaryTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_only_owner_approved_libraries_link_into_core(self) -> None:
-        # Owner, 2026-10-13: glaze, utf8proc, zlib and fmt only.
+        # Owner, 2026-10-13: glaze, utf8proc, zlib and fmt, then
+        # sha1collisiondetection and HACL* SHA-2 (RFC-BPR-0080 Q1 and Q2),
+        # then rapidfuzz-cpp (RFC-BPR-0082 Q2, [[BPR-1480]]) and dtl for
+        # per-line intraline comparison ([[BPR-1481]]).
         approved = self.run_check(
             "struct identity {};\n",
-            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze)\n",
+            "target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::ZLib glaze::glaze BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)\n",
         )
         self.assertEqual(approved.returncode, 0, approved.stdout + approved.stderr)
         for library in ("re2::re2", "Qt6::Core", "BetterPullReview::SQLite3", "Threads::Threads"):

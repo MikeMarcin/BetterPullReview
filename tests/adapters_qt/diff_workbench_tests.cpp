@@ -1,5 +1,6 @@
 #include "../support/resize_cursor_hold_check.hpp"
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -159,7 +160,7 @@ namespace {
 	{
 		auto       left    = bytes(aLeft);
 		auto       right   = bytes(aRight);
-		const auto outcome = core::compute_file_diff({
+		const auto outcome = bpr::tests::product_file_diff({
 			.Key        = key(aOptions, aSeed),
 			.Options    = aOptions,
 			.LeftBytes  = std::span<const std::uint8_t>{ left },
@@ -1768,7 +1769,7 @@ namespace {
 		auto limits            = core::diff_compute_limits{ };
 		limits.MaximumSegments = 1U;
 		const auto left = bytes("same\nold\n"), right = bytes("same\nnew\n");
-		const auto limited = core::compute_file_diff({ .Key = key({ }, 71U), .Options = { }, .LeftBytes = left, .RightBytes = right, .Limits = limits });
+		const auto limited = bpr::tests::product_file_diff({ .Key = key({ }, 71U), .Options = { }, .LeftBytes = left, .RightBytes = right, .Limits = limits });
 		expect(limited.Result && limited.Reason == core::diff_reason_code::compute_limit, "real compute limit produces an unavailable result");
 		for (const bool cached : { false, true }) {
 			publish(*limited.Result, cached);
@@ -1778,7 +1779,7 @@ namespace {
 				   "unavailable result clears prior source and selection");
 		}
 		const auto binary  = bytes(std::string_view{ "a\0b", 3U });
-		const auto nontext = core::compute_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
+		const auto nontext = bpr::tests::product_file_diff({ .Key = key({ }, 72U), .Options = { }, .LeftBytes = binary, .RightBytes = right });
 		expect(nontext.Result && nontext.Reason == core::diff_reason_code::binary_file, "real binary result available");
 		publish(*nontext.Result, false);
 		expect(workbench.status_text() == QStringLiteral("Binary file comparison"), "binary content is distinct from equal text and unavailable content");
@@ -2333,6 +2334,71 @@ namespace {
 						}
 					}
 					expect(reveals > 10, "minimum-reveal course exercises the upper clipped-row branch");
+				}
+			}
+		}
+	}
+
+	/// [[BPR-1476]]. Down from a selected line far below the view, and Up from
+	/// one far above it, reveal the next line at the nearest edge. Qt's block
+	/// geometry walks from the first visible block and stops about two
+	/// viewport heights below it (one above), answering a nearer block's rect,
+	/// so a reveal measured that way stops short and leaves the line hidden.
+	void test_keyboard_reveal_from_far_out_of_view()
+	{
+		auto text     = std::string{ };
+		auto inserted = std::string{ };
+		for (auto line = 0; line < 3'000; ++line) {
+			text += "line " + std::to_string(line) + "\n";
+			inserted += (line == 40 ? std::string{ "inserted a\ninserted b\ninserted c\n" } : std::string{ }) + "line " + std::to_string(line) + "\n";
+		}
+		const auto comparisons = std::array{ computed(text, text, { }, 77U), computed(text, inserted, { }, 78U) };
+		for (std::size_t comparison = 0U; comparison < comparisons.size(); ++comparison) {
+			const auto& diff = comparisons[comparison];
+			for (const auto unified : { false, true }) {
+				if (comparison != 0U && unified) {
+					continue;
+				}
+				for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+					auto workbench = qt::diff_workbench{ };
+					workbench.resize(1'000, 520);
+					workbench.show();
+					const auto request = context(diff, 177U, 177U);
+					workbench.set_loading(request);
+					workbench.publish(qt::test::prepare_publication({ .Context = request, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+					settle_geometry(workbench);
+					workbench.set_one_pane_enabled(unified);
+					settle_geometry(workbench);
+					auto* const editor  = unified ? workbench.findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : side == core::diff_side::left ? workbench.left_pane()
+																																							  : workbench.right_pane();
+					const auto  visible = [&] {
+						const auto area = editor->viewport()->visibleRegion().intersected(editor->viewport()->mask()).boundingRect();
+						return QRect{ editor->viewport()->mapTo(&workbench, area.topLeft()), area.size() };
+					};
+					const auto press = [editor](const Qt::Key aKey) {
+						auto key = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier };
+						QCoreApplication::sendEvent(editor, &key);
+						process_events();
+					};
+					const auto tolerance = 1.0 / editor->devicePixelRatioF();
+					const auto count     = side == core::diff_side::left ? diff.Alignment.LeftLineCount : diff.Alignment.RightLineCount;
+					const auto below     = count * 2U / 3U;
+					expect(workbench.select_conversation_line(side, below) && !workbench.source_line_visible(side, below + 1U), "a line far below the view is selected");
+					press(Qt::Key_Down);
+					expect(workbench.selection() && workbench.selection()->PreferredLine.Line == below + 1U, "Down from a line far below the view selects the next");
+					const auto next = workbench.line_rect(side, below + 1U);
+					expect(workbench.source_line_visible(side, below + 1U) && next.top() >= visible().top() && std::abs(visible().bottom() - next.bottom()) <= tolerance,
+						   "Down from a line far below the view reveals the next flush with the bottom");
+					const auto above = count / 3U;
+					expect(workbench.select_conversation_line(side, above) && !workbench.source_line_visible(side, above - 1U), "a line far above the view is selected");
+					press(Qt::Key_Up);
+					expect(workbench.selection() && workbench.selection()->PreferredLine.Line == above - 1U, "Up from a line far above the view selects the previous");
+					const auto previous = workbench.line_rect(side, above - 1U);
+					expect(workbench.source_line_visible(side, above - 1U) && previous.bottom() <= visible().bottom() && std::abs(previous.top() - visible().top()) <= tolerance,
+						   "Up from a line far above the view reveals the previous flush with the top");
+					if (!unified) {
+						expect(check_ribbons(workbench, diff).Mismatched == 0U, "a far keyboard reveal keeps the shared-axis ribbon geometry");
+					}
 				}
 			}
 		}
@@ -5348,6 +5414,7 @@ auto main(int argc, char** argv) -> int
 	test_fractional_native_viewport();
 	test_fractional_unified_and_keyboard_viewports();
 	test_keyboard_minimal_reveal();
+	test_keyboard_reveal_from_far_out_of_view();
 	test_one_pane_round_trip_keeps_an_unselected_empty_side_anchor();
 	test_one_pane_rows_anchors_and_link_map();
 	{

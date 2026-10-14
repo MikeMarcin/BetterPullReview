@@ -144,6 +144,17 @@ namespace bpr::application {
 		return aPalettes[known(aVariant) ? variant_index(aVariant) : 0U];
 	}
 
+	/// \brief The four built-in profile palettes, one per variant.
+	///
+	/// \details [[BPR-1479]]. Supplied by the composition, because the built-in
+	/// colours belong to presentation and the host invents none. The host reads
+	/// them for one thing: filling the roles an older theme document omits
+	/// from the built-in palette of that document's base before the import is
+	/// checked and previewed. Each must be total and assign every role. Index
+	/// with `variant_index`.
+	using appearance_builtin_palettes
+		= std::array<core::appearance_palette, core::appearance_variant_count>;
+
 	/// \brief Describes the durable appearance settings record.
 	///
 	/// \details This is the whole durable appearance state: the selected mode, one

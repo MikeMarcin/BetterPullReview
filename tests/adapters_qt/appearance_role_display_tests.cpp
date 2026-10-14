@@ -119,7 +119,8 @@ namespace {
 	/// two roles to change. They stay in the vocabulary and in their group.
 	/// [[BPR-1083]] added the twelve label tints as a fifth group, Comment
 	/// labels, all offered: 57 (owner, BPR-1079 `tints-v002`). [[BPR-1085]]
-	/// added the attention amber to Review states: 58.
+	/// added the attention amber to Review states: 58. RFC-BPR-0072 added the
+	/// namespace and enum-member colours to Syntax: 60.
 	void test_the_card_offers_every_role_but_the_hunk_header()
 	{
 		auto offered   = std::array<std::size_t, qt::appearance_role_group_count>{ };

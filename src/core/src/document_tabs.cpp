@@ -58,15 +58,24 @@ namespace bpr::core {
 
 		/// \brief Starts the active tab's load: a fresh request retires every
 		/// earlier one, whichever tab it named.
+		///
+		/// \details [[BPR-1478]]. A file the reviewer chose since the tab took
+		/// its view is the later choice, so the load presents it, at the file's
+		/// initial position.
 		[[nodiscard]] auto load_active(document_tabs_state& aState) -> std::optional<document_tab_view_request>
 		{
-			const auto index = active_index(aState);
+			const auto index  = active_index(aState);
+			const auto chosen = std::exchange(aState.Chosen, std::nullopt);
 			aState.Pending.reset();
 			aState.Presented.reset();
 			if (!index || aState.LastRequest == std::numeric_limits<std::uint64_t>::max()) {
 				return std::nullopt;
 			}
 			auto& tab = aState.Tabs[*index];
+			if (chosen && tab.View.File != chosen) {
+				tab.View.File = *chosen;
+				tab.View.Selection.reset();
+			}
 			tab.State = document_tab_view_state::loading;
 			aState.Pending.emplace(document_tab_view_request{
 				.Tab     = tab.Id,
@@ -76,13 +85,15 @@ namespace bpr::core {
 			return aState.Pending;
 		}
 
-		/// \brief Makes the tab at `aIndex` active and loads it.
+		/// \brief Makes the tab at `aIndex` active and loads it. A file chosen
+		/// for the tab that was active is retired: the switch is later.
 		[[nodiscard]] auto activate(document_tabs_state& aState, const std::size_t aIndex) -> document_tabs_output
 		{
 			if (const auto current = active_index(aState); current && *current != aIndex) {
 				set_aside(aState, *current);
 			}
 			aState.Active = aState.Tabs[aIndex].Id;
+			aState.Chosen.reset();
 			return { .Changed = true, .Load = load_active(aState), .Reason = none };
 		}
 
@@ -119,6 +130,8 @@ namespace bpr::core {
 			if (!aIntent.File.valid()) {
 				return refused(invalid_file);
 			}
+			// [[BPR-1478]]. The active tab now has the window's file.
+			aState.Chosen.reset();
 			const auto index = active_index(aState);
 			if (!index) {
 				return open_first(aState, aIntent.File);
@@ -185,6 +198,7 @@ namespace bpr::core {
 			aState.Active.reset();
 			aState.Pending.reset();
 			aState.Presented.reset();
+			aState.Chosen.reset();
 			if (aState.Tabs.empty()) {
 				return { .Changed = true, .Load = std::nullopt, .Reason = none };
 			}
@@ -374,6 +388,20 @@ namespace bpr::core {
 		}
 		tab.View = std::move(view);
 		return { .Changed = true, .Load = std::nullopt, .Reason = none };
+	}
+
+	auto observe_file_choice(document_tabs_state& aState, const file_identity& aFile) -> document_tabs_output
+	{
+		if (!aFile.valid()) {
+			return refused(invalid_file);
+		}
+		const auto index = active_index(aState);
+		if (index && aState.Tabs[*index].View.File == aFile) {
+			aState.Chosen.reset();
+		} else {
+			aState.Chosen = aFile;
+		}
+		return { };
 	}
 
 	auto reload_active(document_tabs_state& aState) -> document_tabs_output

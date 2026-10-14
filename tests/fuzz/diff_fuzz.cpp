@@ -8,6 +8,7 @@
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "fuzz_support.hpp"
+#include "product_diff.hpp"
 
 #include <memory>
 #include <optional>
@@ -63,7 +64,6 @@ namespace {
 		.MaximumMatrixCells       = 32768,
 		.MaximumMoveDetectionWork = 8192,
 		.MaximumSegments          = 1024,
-		.MaximumPrimaryIndexWork  = 32768,
 	};
 
 	auto map_every_line(const core::diff_semantic_index& aIndex, const core::computed_file_diff& aDiff, const std::uint8_t aExtra) -> void
@@ -108,7 +108,7 @@ namespace {
 			.RightBytes = aRightPresent ? std::optional{ aRight } : std::nullopt,
 			.Limits     = limits,
 		};
-		const auto computed = core::compute_file_diff(input);
+		const auto computed = bpr::tests::product_file_diff(input);
 		if (!computed.Result) {
 			return;
 		}
@@ -118,7 +118,6 @@ namespace {
 		fuzz::require(core::validate_computed_file_diff(diff).valid());
 		fuzz::require(diff.MatrixCellsConsumed <= limits.MaximumMatrixCells);
 		fuzz::require(diff.MoveDetectionWorkConsumed <= limits.MaximumMoveDetectionWork);
-		fuzz::require(diff.PrimaryIndexWorkConsumed <= limits.MaximumPrimaryIndexWork);
 		const auto shared = std::make_shared<const core::computed_file_diff>(diff);
 		const auto index  = core::build_diff_semantic_index(shared);
 		fuzz::require(index.has_value());
@@ -151,7 +150,7 @@ namespace {
 			.RightBytes = aRightPresent ? std::optional{ aRight } : std::nullopt,
 			.Limits     = limits,
 		};
-		const auto computed = core::compute_material_diff(input);
+		const auto computed = bpr::tests::product_material_diff(input);
 		if (computed.Result) {
 			fuzz::require(core::validate_computed_material_diff(*computed.Result).valid());
 			fuzz::require(computed.Result->MatrixCellsConsumed <= limits.MaximumMatrixCells);

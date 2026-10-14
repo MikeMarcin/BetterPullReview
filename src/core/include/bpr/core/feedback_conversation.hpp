@@ -4,6 +4,7 @@
 #include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/feedback_convention.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -40,6 +41,9 @@ namespace bpr::core {
 		feedback_body_segment           Segment;
 		/// A deleted post has no current text, whatever its last body was.
 		bool Deleted = false;
+		/// [[BPR-1447]]. The SHA-256 of exactly `Body`, when the host computed
+		/// it off the window thread; absent, the core hashes the body itself.
+		std::optional<std::array<std::uint8_t, 32>> BodyDigest = std::nullopt;
 	};
 
 	/// \brief One post and its own annotation.
@@ -158,6 +162,12 @@ namespace bpr::core {
 		/// [[BPR-1349]]. Bodies this refresh hashed: one for each recognized
 		/// body, whose annotation carries its digest, and none for a reuse.
 		std::size_t Hashed = 0U;
+		/// [[BPR-1447]]. Recognized bodies whose digest the host supplied, so
+		/// the core did not hash them. `Hashed + Supplied` is every recognized
+		/// body.
+		std::size_t Supplied = 0U;
+		/// [[BPR-1447]]. Bytes of the bodies counted in `Hashed`.
+		std::size_t HashedBytes = 0U;
 		/// [[BPR-1349]]. The observation named exactly the kept posts, each in
 		/// its kept conversation with its kept reply link, and no page repeated
 		/// one. The kept order was carried over unsorted, and a conversation

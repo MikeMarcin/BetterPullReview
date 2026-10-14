@@ -149,6 +149,8 @@ namespace bpr::application {
 			return "material";
 		case cycle_publish_limit::pull_request_exists:
 			return "pull_request_exists";
+		case cycle_publish_limit::collision_detected:
+			return "collision_detected";
 		}
 		return "unknown";
 	}
@@ -250,7 +252,11 @@ namespace bpr::application {
 					}
 					bytes = std::move(*normalized);
 				}
-				if (core::retag<core::git_entry_oid_kind>(core::git_blob_identity(bytes, plan.Format)) != blob->Object) {
+				const auto identity = core::git_blob_identity(bytes, plan.Format);
+				if (!identity && identity.error() == core::git_object_refusal::collision_detected) {
+					return limited(cycle_publish_limit::collision_detected, std::move(publication));
+				}
+				if (!identity || core::retag<core::git_entry_oid_kind>(*identity) != blob->Object) {
 					return limited(cycle_publish_limit::material, std::move(publication));
 				}
 			}

@@ -594,7 +594,7 @@ namespace bpr::core {
 		/// The alignment rules, shared by pull-request and material comparisons.
 		///
 		/// [[BPR-1366]] aMeter counts each record checked; the engine's meter
-		/// may stop the check there, and a stopped check starts again.
+		/// may stop the check there, which abandons it ([[BPR-1485]]).
 		template <typename TAlignment, typename TMeter>
 		auto validate_alignment_records(const TAlignment& aAlignment, TMeter& aMeter)
 			-> alignment_validation_result

@@ -80,10 +80,20 @@ namespace bpr::qt {
 	/// or previewed, they read as the built-in tints of `aVariant`, and no other
 	/// role changes. A palette with nothing unassigned is returned unchanged.
 	/// The attention amber, `state_attention` ([[BPR-1085]]), and the namespace
-	/// and enum-member roles (RFC-BPR-0072) are read the same way.
+	/// and enum-member roles (RFC-BPR-0072) are read the same way. An imported
+	/// theme never needs it: the host fills those roles from the theme's own
+	/// base before previewing it ([[BPR-1479]]).
 	[[nodiscard]] auto with_builtin_label_tints(
 		core::appearance_palette aPalette,
 		core::appearance_variant aVariant) noexcept -> core::appearance_palette;
+
+	/// \brief Returns the four built-in profile palettes in variant order.
+	///
+	/// \details [[BPR-1479]]. What the composition gives the appearance host,
+	/// which owns no colour, to fill the roles an older theme omits from that
+	/// theme's base.
+	[[nodiscard]] auto builtin_appearance_palettes() noexcept
+		-> application::appearance_builtin_palettes;
 
 	/// \brief Returns the presentation name of one built-in profile.
 	[[nodiscard]] auto builtin_appearance_profile_name(

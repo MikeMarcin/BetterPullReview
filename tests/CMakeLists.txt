@@ -1259,13 +1259,35 @@ add_custom_target(
     VERBATIM
 )
 
+# [[BPR-1485]]. The product's diff for tests: the core engine with the linked
+# xdiff line matcher (tests/support/product_diff.hpp).
+add_library(bpr_test_product_diff INTERFACE)
+target_include_directories(bpr_test_product_diff INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/support")
+target_link_libraries(bpr_test_product_diff INTERFACE BetterPullReview::AdapterXdiff)
+# Every test target below may compute the product's diff, directly or through a
+# shared fixture header.
+link_libraries(bpr_test_product_diff)
+
 add_subdirectory(core)
 add_subdirectory(application)
 add_subdirectory(contract)
 add_subdirectory(sqlite_contract)
 add_subdirectory(workspace_contract)
+# [[BPR-1458]] and [[BPR-1459]]. RFC-BPR-0083's evaluation-only libgit2
+# candidate. Off by default: with it off nothing new is acquired, built or
+# linked.
+option(BPR_EVALUATE_LIBGIT2 "Acquire and build libgit2 for RFC-BPR-0083's evaluation-only candidate L" OFF)
+if(BPR_EVALUATE_LIBGIT2)
+    add_subdirectory(evaluation)
+endif()
 if(BPR_BUILD_FUZZERS)
     add_subdirectory(fuzz)
+endif()
+# [[BPR-1446]]. RFC-BPR-0080's hash candidates, evaluation only: OFF acquires
+# nothing, and the product never links what this builds.
+option(BPR_HASH_EVALUATION "Build the RFC-BPR-0080 hash evaluation harness and its pinned candidates" OFF)
+if(BPR_HASH_EVALUATION)
+    add_subdirectory(hash_evaluation)
 endif()
 
 if(BPR_BUILD_QT)
@@ -1274,6 +1296,24 @@ if(BPR_BUILD_QT)
     add_subdirectory(git_contract)
     add_subdirectory(syntax_contract)
     add_subdirectory(end_to_end)
+endif()
+
+# [[RFC-BPR-0082]] The opt-in diff-engine evaluation; never part of a shipping
+# configuration.
+add_subdirectory(evaluation/xdiff_equivalence)
+
+# [[BPR-1485]] Retired with the adoption of linked xdiff: the harness measured
+# every candidate against the first-party primary matcher, which is deleted,
+# and handed candidates to the engine through a hook on the one-argument entry
+# points, which no longer exist. Its sources and scripts stay as the record of
+# the measurement; build them from the last commit that has the baseline.
+option(BPR_DIFF_ENGINE_EVALUATION "Build the retired diff-engine evaluation harness (refused)" OFF)
+if(BPR_DIFF_ENGINE_EVALUATION)
+    message(
+        FATAL_ERROR
+        "BPR_DIFF_ENGINE_EVALUATION was retired by BPR-1485: it measured the "
+        "deleted first-party diff matcher. Configure commit cd4860e30 to rerun it."
+    )
 endif()
 
 # Deliberately last: every `bpr_add_executable` call in the tree must already
@@ -1383,6 +1423,12 @@ set_tests_properties(
     PROPERTIES
         TIMEOUT 60
 )
+
+# [[BPR-1442]]. Last among the suites, so the evaluation's candidate twins
+# see every target they mirror.
+if(BPR_BUILD_SYNTAX_EVALUATION)
+    add_subdirectory(syntax_evaluation)
+endif()
 
 add_subdirectory(logging)
 

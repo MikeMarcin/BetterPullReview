@@ -6,6 +6,7 @@
 // Input: [selector] [parameter] then the payload. Multi-part cases split the
 // payload at `fuzz::part_separator`.
 
+#include "../support/git_metadata_writers.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/core/git_config.hpp"
 #include "bpr/core/git_objects.hpp"
@@ -43,6 +44,9 @@ namespace {
 		}
 		if (const auto entries = core::parse_git_config(aText)) {
 			fuzz::require(entries->size() <= core::maximum_git_config_entries);
+			// [[BPR-1457]]. Oracle: what was read, written back canonically,
+			// reads the same.
+			fuzz::require(core::parse_git_config(tests::write_git_config(*entries)) == entries);
 		}
 		static_cast<void>(core::read_git_repository_format(aText));
 	}
@@ -53,6 +57,13 @@ namespace {
 		const auto          parsed  = core::parse_git_index(aBytes, core_algorithm(aParameter), maximum);
 		if (parsed) {
 			fuzz::require(parsed->Entries.size() <= maximum);
+			// [[BPR-1457]]. Oracle: the parsed index, serialized with either
+			// trailer, parses back to the same entries and flags.
+			for (const auto zero : { true, false }) {
+				const auto again = core::parse_git_index(tests::write_git_index(*parsed, core_algorithm(aParameter), zero), core_algorithm(aParameter), maximum);
+				fuzz::require(again && again->Version == parsed->Version && again->Entries == parsed->Entries && again->Unmerged == parsed->Unmerged
+							  && again->SplitIndex == parsed->SplitIndex && again->SparseDirectories == parsed->SparseDirectories);
+			}
 		}
 	}
 
@@ -84,6 +95,18 @@ namespace {
 			static_cast<void>(attributes.filter(path));
 			// The first line of the rules is also tried as a single pattern.
 			static_cast<void>(core::wildcard_match(rules.substr(0U, rules.find('\n')), path, fold));
+			// [[BPR-1457]]. Oracles: a fully escaped path matches exactly
+			// itself; `**` matches everything and `*` exactly what has no `/`.
+			if (path.find('\0') == std::string_view::npos && !path.empty()) {
+				auto escaped = std::string{ };
+				for (const auto character : path) {
+					escaped += '\\';
+					escaped += character;
+				}
+				fuzz::require(core::wildcard_match(escaped, path) && !core::wildcard_match(escaped, std::string{ path } + "x"));
+				fuzz::require(core::wildcard_match("**", path, fold));
+				fuzz::require(core::wildcard_match("*", path, fold) == (path.find('/') == std::string_view::npos));
+			}
 			if (end == std::string_view::npos) {
 				break;
 			}

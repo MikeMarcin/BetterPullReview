@@ -8,6 +8,7 @@
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/sha1.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -5591,7 +5592,7 @@ namespace {
 		const auto terminator = std::array<std::uint8_t, 1U>{ 0U };
 		hash.update(terminator);
 		hash.update(std::span{ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() });
-		const auto digest = hash.finish();
+		const auto digest = hash.finish().value();
 		auto       bytes  = std::array<std::uint8_t, 32U>{ };
 		std::ranges::copy(digest, bytes.begin());
 		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
@@ -6041,7 +6042,8 @@ namespace {
 					*aValue.Host,
 					DiffEffects,
 					DiffDecisions,
-					Outcomes }
+					Outcomes,
+					bpr::tests::product_line_matcher() }
 			, Actor{ [this](const std::stop_token aStop) {
 				while (!aStop.stop_requested()) {
 					if (Value.Effects.pending() != 0U) {

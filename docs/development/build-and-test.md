@@ -1410,6 +1410,46 @@ the artifact prefix. Fix the cause, then add the input to the corpus as a
 regression seed. [docs/verification/BPR-0970-parser-fuzzing.md](../verification/BPR-0970-parser-fuzzing.md)
 holds the inventory of entry points and the campaigns run so far.
 
+## Hash evaluation
+
+[[BPR-1446]]. `BPR_HASH_EVALUATION=ON` builds RFC-BPR-0080's evaluation
+harness, `bench_hash_evaluation`, in `tests/hash_evaluation`. It acquires
+the NIST CAVP SHA vectors as a pinned, verified archive
+(`cmake/BprHashEvaluationProvider.cmake`) and uses the product's own
+sha1collisiondetection ([[BPR-1450]]) and HACL* SHA-2 ([[BPR-1451]]) targets,
+comparing them with the core hashes, the platform hashes and
+`QCryptographicHash`. The product links none of the harness; with the option off,
+nothing is acquired. Measure in an optimized tree of its own, one row at a time,
+on a machine that is otherwise idle:
+
+```sh
+cmake --preset dev -B build/hash-evaluation -DCMAKE_BUILD_TYPE=Release -DBPR_HASH_EVALUATION=ON
+cmake --build build/hash-evaluation --target bench_hash_evaluation test_better_pull_review_feedback_counter_costs
+ctest --test-dir build/hash-evaluation -R '^hash_evaluation_' --output-on-failure
+python3 tests/hash_evaluation/run_hash_evaluation.py --build build/hash-evaluation \
+  --repository . --output /absolute/path/to/hash-evaluation.json
+```
+
+The driver runs the known answers, chunking, seeded differential inputs up to
+256 MiB, Git identities in both object formats, this repository's object store
+and its `main` history converted to SHA-256, the collision inputs, the W1 to W3
+throughput workloads and the window-thread baseline, and writes one JSON
+document. `--phases` selects some of them. The
+[report](../verification/RFC-BPR-0080.md) records each station's results.
+
+## C++ parser evaluation
+
+[[BPR-1442]]. `BPR_BUILD_SYNTAX_EVALUATION=ON` adds RFC-BPR-0081's harness in
+`tests/syntax_evaluation`. It acquires the pinned tree-sitter archives,
+compares the shipped C++ identifier refinement with a tree-sitter candidate,
+and registers `@ts-*` twins of the syntax contract rows. It needs
+`BPR_BUILD_QT=ON` and `BUILD_TESTING=ON`, and nothing it builds ships. With the
+option off, as by default, no target acquires or links tree-sitter. Commands
+and outputs are in
+[tests/syntax_evaluation/README.md](../../tests/syntax_evaluation/README.md),
+and the report is
+[docs/verification/RFC-BPR-0081.md](../verification/RFC-BPR-0081.md).
+
 ## Focused evidence
 
 ```sh
@@ -3489,6 +3529,120 @@ policy on the tokens: the gh and native transports admit any pagination
 relations, the paged read and mutation readers require exactly one quoted
 relation per link, and the publication reader refuses any `next` or an
 unreadable header.
+
+## Core sha1collisiondetection
+
+[[BPR-1450]] builds sha1collisiondetection at pinned commit
+`a06f1adbe5522f3c939cd6a3f13d5ec7f4c1a988` for every SHA-1 Git object
+identity: `cmake/BprSha1dcProvider.cmake` checks archive SHA-256, size and
+license, honors the offline cache, re-extracts under `build/_bpr/sha1dc`, and
+compiles only `lib/sha1.c` and `lib/ubc_check.c` as Git configures them
+(`SHA1DC_NO_STANDARD_INCLUDES`, `SHA1DC_INIT_SAFE_HASH_DEFAULT=0`, the
+standard headers in `third_party/sha1collisiondetection/sha1dc_includes.h`).
+It is part of the Qt-free core graph and on the owner's core allow-list. The
+core SHA-1 (`bpr/core/sha1.hpp`) and every Git identity API refuse an input the
+library detects as a collision attack, with a reason named
+`collision_detected`; `core_git_objects` reads the committed pairs in
+`tests/fixtures/sha1-collisions`. `architecture_boundaries` leaves Qt's plain
+SHA-1 only to the pack checksum in `installed_git_cache.cpp` and refuses any
+other SHA-1 implementation outside `src/core/src/sha1_collision_detecting.cpp`.
+The hash evaluation (`-DBPR_HASH_EVALUATION=ON`) measures this same target.
+License and provenance are under `third_party/sha1collisiondetection/`.
+
+## Core HACL* SHA-2
+
+[[BPR-1451]] builds HACL*'s generated, formally verified SHA-2 C at pinned
+commit `504c2987452f87fe44bce9b9f12e19d6e051761f` for every SHA-256 the core
+computes, Git identities in the SHA-256 object format included:
+`cmake/BprHaclSha2Provider.cmake` checks archive SHA-256, size and the MIT
+license of the generated distribution (`dist/LICENSE.txt`), honors the offline
+cache, re-extracts only `dist/` under `build/_bpr/hacl-sha2`, and compiles only
+`Hacl_Hash_SHA2.c` from `dist/gcc-compatible` (`dist/msvc-compatible` under
+MSVC). It is part of the Qt-free core graph and on the owner's core allow-list
+as `BetterPullReview::HaclSha2`. `bpr/core/sha256.hpp` keeps its API; its
+implementation, `src/core/src/sha256_hacl.cpp`, calls only HACL*'s block-level
+init, update, last-block and finish functions, so a stream allocates nothing,
+and the first-party SHA-256 is gone. Digests are byte-identical, so stored
+digests still match. `architecture_boundaries` refuses any HACL* symbol or
+header, or a first-party SHA-2 constant, outside that file. The hash
+evaluation measures this same target: its `core` arm is the product wrapper and
+its `hacl` arm the library called directly. License and provenance are under
+`third_party/hacl-star/`.
+
+## Core rapidfuzz-cpp line-pair similarity
+
+[[BPR-1480]] uses header-only rapidfuzz-cpp 3.3.4 for the diff engine's
+line-pair similarity (RFC-BPR-0082): `cmake/BprRapidFuzzProvider.cmake` checks
+archive SHA-256, size and the MIT license, honors the offline cache, and
+re-extracts only the `rapidfuzz/` headers and `LICENSE` under
+`build/_bpr/rapidfuzz`. It is part of the Qt-free core graph and on the
+owner's core allow-list as `BetterPullReview::RapidFuzz`. `secondary_pairs` in
+`src/core/src/diff_compute.cpp` scores each replacement pair with
+`rapidfuzz::CachedIndel`, built once per left line: the score is
+2 x LCS x 1000 / (L + R), floored, with LCS = (L + R - Indel distance) / 2, the
+same integers the per-pair character LCS table gave. A pair below the threshold
+scores 0, since the distance is computed only up to the threshold's cutoff and
+pairing reads no score under it. The matrix budget and the step meter are
+charged exactly as that table charged them, so a limit leaves the same
+replacements unpaired and every poll, pause and phase start falls where it
+did. `architecture_boundaries` refuses a rapidfuzz-cpp symbol, header or macro
+anywhere else. `core_diff_compute_benchmark` (the
+`bench_better_pull_review_diff_compute` executable) prints a `refine` column,
+the pairing phase's time from a run polled every 4,096 steps. License and
+provenance are under `third_party/rapidfuzz-cpp/`.
+
+## Linked xdiff primary line matcher
+
+[[BPR-1485]] The diff engine's primary line matches come from Git 2.56.0's
+xdiff, Myers with the indent heuristic (RFC-BPR-0082, `l-myers-indent`). The
+owner accepted LGPL-2.1-or-later xdiff only as its own dynamically linked
+shared library, as Qt is, so `cmake/BprXdiffProvider.cmake` builds
+`better_pull_review_xdiff` (`libbpr_xdiff.dylib`, `libbpr_xdiff.so`,
+`bpr_xdiff.dll`) as a SHARED library and nothing else. It checks the pinned
+Git archive's SHA-256, size, `LGPL-2.1` and `COPYING` digests, honors the
+offline cache, and re-extracts only `xdiff/` and those notices under
+`build/_bpr/xdiff`. `third_party/git-xdiff/git-compat-util.h` and
+`bpr-xdiff-regex.h` replace Git's compatibility header for that build: the
+allocators return null instead of ending the process, and no regular
+expression library is used. The library is built in every graph, including
+`core-only`, and hardened like the product.
+
+Only `src/adapters/xdiff` links the library, and only its
+`xdiff_line_matcher.cpp` calls it, behind the application's
+`diff_line_matcher_port`; `architecture_boundaries` refuses an xdiff symbol or
+header anywhere else, a second build of the xdiff sources, a non-shared
+library, and any other target that links it. The application's
+`abandonable_diff_line_matching` runs the matcher on a thread of its own and
+polls the computation's stop every millisecond, so a stop returns at once and
+the matcher's thread is abandoned. Tests compute the product's diff through
+`tests/support/product_diff.hpp` (the `bpr_test_product_diff` target, linked
+into every test target). Windows tests find the DLL through a `PATH` entry
+`cmake/BprTestIsolation.cmake` adds; packages install it beside the
+application, and `tools/release.sh` puts it in `Contents/Frameworks`.
+
+## Core dtl intraline ranges
+
+[[BPR-1481]] uses header-only dtl 1.21 for the diff engine's intraline ranges
+(RFC-BPR-0082; owner Q2 Accept 2026-10-13, for per-line intraline comparison
+only, and AC06 Accept of the render set, session
+`3dcb3e5660345ff127118964cc309faa`). `cmake/BprDtlProvider.cmake` checks
+archive SHA-256, size and the BSD-3-Clause `COPYING`, honors the offline cache,
+and re-extracts only the `dtl/` headers and `COPYING` under `build/_bpr/dtl`.
+It is part of the Qt-free core graph and on the owner's core allow-list as
+`BetterPullReview::Dtl`. `intraline_common_scalars` in
+`src/core/src/diff_intraline.cpp` runs `dtl::Diff` (O(NP)) over one similar
+pair's Unicode scalars; the ranges are the gaps between its common scalars.
+Each comparison is a step of the engine's meter, counted in batches of 4,096,
+and the matrix budget is not charged, so `MatrixCellsConsumed` is pairing's
+alone. A stop is caught inside the comparator, which then reports every pair
+equal so dtl finishes in one pass; the result is dropped and the stop thrown
+again, so no stop unwinds through dtl's plain `new[]`. dtl 1.21 restarts past
+2,000,000 path points on a path that can join unequal scalars: a pair whose
+(left + 1) x (right + 1) grid is that large keeps the budgeted character table,
+and every common scalar dtl returns is checked before use. `architecture_boundaries`
+refuses a dtl symbol, header or macro in any other source. `core_diff_intraline`
+covers the ranges, the budget, the large-pair table and a stop inside dtl.
+License and provenance are under `third_party/dtl/`.
 
 ## Source search regex engine
 
