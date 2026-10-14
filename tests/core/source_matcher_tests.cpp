@@ -1,7 +1,7 @@
 #include "../support/source_regex_engine_fixture.hpp"
-#include "product_diff.hpp"
 #include "../support/source_search_fixture.hpp"
 #include "bpr/core/source_matcher.hpp"
+#include "product_diff.hpp"
 #include <cstdlib>
 #include <iostream>
 using namespace bpr::core;

@@ -1680,7 +1680,7 @@ namespace {
 
 	struct threaded_fixture
 	{
-		explicit threaded_fixture(const application::diff_host_limits             aLimits  = { },
+		explicit threaded_fixture(const application::diff_host_limits                  aLimits  = { },
 								  std::shared_ptr<application::diff_line_matcher_port> aMatcher = bpr::tests::product_line_matcher())
 			: Host{ std::make_unique<application::diff_application_host>(
 				  core::diff_state{ .ApplicationSession = core::application_session_id{ 71U } },

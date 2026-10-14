@@ -1300,9 +1300,18 @@ endif()
 
 # [[RFC-BPR-0082]] The opt-in diff-engine evaluation; never part of a shipping
 # configuration.
-option(BPR_DIFF_ENGINE_EVALUATION "Build the opt-in diff-engine evaluation harness and candidates" OFF)
+# [[BPR-1485]] Retired with the adoption of linked xdiff: the harness measured
+# every candidate against the first-party primary matcher, which is deleted,
+# and handed candidates to the engine through a hook on the one-argument entry
+# points, which no longer exist. Its sources and scripts stay as the record of
+# the measurement; build them from the last commit that has the baseline.
+option(BPR_DIFF_ENGINE_EVALUATION "Build the retired diff-engine evaluation harness (refused)" OFF)
 if(BPR_DIFF_ENGINE_EVALUATION)
-    add_subdirectory(evaluation/diff_engine)
+    message(
+        FATAL_ERROR
+        "BPR_DIFF_ENGINE_EVALUATION was retired by BPR-1485: it measured the "
+        "deleted first-party diff matcher. Configure commit cd4860e30 to rerun it."
+    )
 endif()
 
 # Deliberately last: every `bpr_add_executable` call in the tree must already

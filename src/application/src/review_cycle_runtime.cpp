@@ -61,8 +61,8 @@ namespace bpr::application {
 		/// pair is refused.
 		std::shared_ptr<diff_line_matcher_port> Matcher;
 		std::optional<core::review_subject>     Selected;
-		std::uint64_t                       Generation = 0;
-		std::stop_source                    Stop;
+		std::uint64_t                           Generation = 0;
+		std::stop_source                        Stop;
 		/// The running capture's own stop: a selection change, shutdown or
 		/// `cancel_capture` stops it.
 		std::stop_source CaptureStop;

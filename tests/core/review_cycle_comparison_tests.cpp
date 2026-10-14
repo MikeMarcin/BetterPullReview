@@ -1,6 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/core/review_cycle_comparison.hpp"
+#include "product_diff.hpp"
 
 #include <array>
 #include <cstdint>

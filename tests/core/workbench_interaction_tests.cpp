@@ -1,6 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>

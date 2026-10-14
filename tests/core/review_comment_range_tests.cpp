@@ -3,10 +3,10 @@
 // proposal that carry it. The suggestion a selection starts is
 // core_suggestion_draft's.
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
+#include "product_diff.hpp"
 
 #include <array>
 #include <cstddef>

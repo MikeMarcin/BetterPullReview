@@ -1,5 +1,4 @@
 #include "../sqlite_contract/scratch_root.hpp"
-#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "../workspace_contract/workspace_fixture.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
@@ -14,6 +13,7 @@
 #include "bpr/qt/review_cycle_share_sheet.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/workbench_window.hpp"
+#include "product_diff.hpp"
 #include "review_cycle_desktop.hpp"
 
 #include <QAction>

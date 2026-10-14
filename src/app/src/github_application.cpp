@@ -89,7 +89,6 @@
 #include "bpr/adapters/git/installed_git_cache.hpp"
 #include "bpr/adapters/git/installed_git_process.hpp"
 #include "bpr/adapters/regex/re2_source_regex_engine.hpp"
-#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/epoch_catalog.hpp"
@@ -105,6 +104,7 @@
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/adapters/xdiff/xdiff_line_matcher.hpp"
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
@@ -18491,13 +18491,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::AgentEffects)& AgentEffects = Profile->AgentEffects;
 		decltype(github_profile_runtime::McpEffects)&   McpEffects   = Profile->McpEffects;
 #endif
-		decltype(github_profile_runtime::WorkbenchEffects)&                 WorkbenchEffects  = Profile->WorkbenchEffects;
-		decltype(github_profile_runtime::AppearanceEffects)&                AppearanceEffects = Profile->AppearanceEffects;
-		decltype(github_profile_runtime::QueueEffects)&                     QueueEffects      = Profile->QueueEffects;
-		std::unique_ptr<application::epoch_application_host>                EpochHost;
+		decltype(github_profile_runtime::WorkbenchEffects)&  WorkbenchEffects  = Profile->WorkbenchEffects;
+		decltype(github_profile_runtime::AppearanceEffects)& AppearanceEffects = Profile->AppearanceEffects;
+		decltype(github_profile_runtime::QueueEffects)&      QueueEffects      = Profile->QueueEffects;
+		std::unique_ptr<application::epoch_application_host> EpochHost;
 		/// [[BPR-1485]]. Linked xdiff, every diff's line matcher; declared before
 		/// the hosts that hold it. A matcher thread a stop abandoned holds its own share.
-		std::shared_ptr<application::diff_line_matcher_port> LineMatcher = adapters::xdiff::make_xdiff_line_matcher();
+		std::shared_ptr<application::diff_line_matcher_port>                LineMatcher                 = adapters::xdiff::make_xdiff_line_matcher();
 		decltype(github_profile_runtime::AgentWorkspaceRoot)&               AgentWorkspaceRoot          = Profile->AgentWorkspaceRoot;
 		decltype(github_profile_runtime::AgentWorkspaceNeighbourhood)&      AgentWorkspaceNeighbourhood = Profile->AgentWorkspaceNeighbourhood;
 		std::string                                                         LastAgentWorkspacePath;

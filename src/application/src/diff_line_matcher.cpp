@@ -23,14 +23,14 @@ namespace bpr::application {
 		/// caller.
 		struct detached_match
 		{
-			std::shared_ptr<diff_line_matcher_port>       Matcher;
-			std::optional<core::decoded_text_document>    Left;
-			std::optional<core::decoded_text_document>    Right;
-			core::diff_options                            Options;
-			std::mutex                                    Mutex;
-			std::condition_variable                       Done;
-			bool                                          Finished = false;
-			std::optional<std::vector<core::diff_match>>  Result;
+			std::shared_ptr<diff_line_matcher_port>      Matcher;
+			std::optional<core::decoded_text_document>   Left;
+			std::optional<core::decoded_text_document>   Right;
+			core::diff_options                           Options;
+			std::mutex                                   Mutex;
+			std::condition_variable                      Done;
+			bool                                         Finished = false;
+			std::optional<std::vector<core::diff_match>> Result;
 		};
 
 		/// How long the caller waits between two polls of the computation's

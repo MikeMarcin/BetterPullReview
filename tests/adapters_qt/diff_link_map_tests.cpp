@@ -1,8 +1,8 @@
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/qt/comparison_scroll_controller.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/measured_alignment_axis.hpp"
+#include "product_diff.hpp"
 
 #include <QAccessible>
 #include <QApplication>

@@ -1,5 +1,12 @@
 # Diff-engine evaluation harness
 
+> **Retired by [[BPR-1485]].** Linked xdiff (`l-myers-indent`) is the product's
+> primary line matcher, and the first-party matcher this harness measured every
+> candidate against is deleted, with the hook it used. Configuring with
+> `BPR_DIFF_ENGINE_EVALUATION=ON` now stops with a message; rerun the harness
+> from commit `cd4860e30`, the last with the baseline engine. The sources and
+> scripts stay as the record of the measurement.
+
 The opt-in harness of [RFC-BPR-0082](../../../docs/rfcs/RFC-BPR-0082-diff-engine-evaluation.md).
 It compares candidate algorithms for parts of the diff engine against the
 engine itself, through the core's evaluation seam

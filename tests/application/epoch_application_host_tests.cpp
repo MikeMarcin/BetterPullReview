@@ -2,13 +2,13 @@
 	#include "../support/source_regex_engine_fixture.hpp"
 #endif
 #include "bpr/application/diff_application_host.hpp"
-#include "product_diff.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/source_pr_search_execution.hpp"
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/sha1.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>

@@ -164,7 +164,7 @@ namespace bpr::application {
 			-> agent_realignment_outcome override;
 
 	private:
-		workbench_selected_diff_port* Files = nullptr;
+		workbench_selected_diff_port* Files   = nullptr;
 		diff_blob_port*               Blobs   = nullptr;
 		diff_line_matcher_port*       Matcher = nullptr;
 	};

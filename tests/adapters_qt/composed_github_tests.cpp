@@ -1,8 +1,8 @@
 #include "../support/window_system_mouse.hpp"
-#include "product_diff.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "diff_publication_fixture.hpp"
+#include "product_diff.hpp"
 
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"

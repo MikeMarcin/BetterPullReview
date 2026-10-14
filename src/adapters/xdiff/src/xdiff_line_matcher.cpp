@@ -158,13 +158,13 @@ namespace bpr::adapters::xdiff {
 					return std::nullopt;
 				}
 				// Myers, the indent heuristic, and no whitespace flag.
-				auto parameters          = xpparam_t{ };
-				parameters.flags         = XDF_INDENT_HEURISTIC;
-				auto configuration       = xdemitconf_t{ };
-				configuration.hunk_func  = &collect_hunk;
-				auto hunks               = std::vector<line_hunk>{ };
-				auto callback            = xdemitcb_t{ };
-				callback.priv            = &hunks;
+				auto parameters         = xpparam_t{ };
+				parameters.flags        = XDF_INDENT_HEURISTIC;
+				auto configuration      = xdemitconf_t{ };
+				configuration.hunk_func = &collect_hunk;
+				auto hunks              = std::vector<line_hunk>{ };
+				auto callback           = xdemitcb_t{ };
+				callback.priv           = &hunks;
 				// xdiff reads the buffers and never writes them.
 				auto left  = mmfile_t{ .ptr = const_cast<char*>(reinterpret_cast<const char*>(leftBytes.data())), .size = static_cast<long>(leftBytes.size()) };
 				auto right = mmfile_t{ .ptr = const_cast<char*>(reinterpret_cast<const char*>(rightBytes.data())), .size = static_cast<long>(rightBytes.size()) };

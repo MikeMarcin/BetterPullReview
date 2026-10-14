@@ -1,6 +1,6 @@
 #include "bpr/core/diff_compute.hpp"
-#include "product_diff.hpp"
 #include "bpr/qt/measured_alignment_axis.hpp"
+#include "product_diff.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>

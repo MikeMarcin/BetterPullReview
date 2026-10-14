@@ -1,8 +1,8 @@
 #include "../support/review_tour_fixture.hpp"
-#include "product_diff.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/review_tour_revision.hpp"
 #include "bpr/core/review_tour_update.hpp"
+#include "product_diff.hpp"
 
 #include <algorithm>
 #include <array>
