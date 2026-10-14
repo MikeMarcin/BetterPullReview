@@ -37,6 +37,14 @@ CRT = re.compile(r"(?:msvcp140(?:_1|_2|_atomic_wait|_codecvt_ids)?|vcruntime140(
 # Windows image keeps its Qt resources in one bundle and refuses to start
 # without it; see cmake/BprQtResources.cmake.
 RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []}
+# [[BPR-1485]]. First-party-built shared libraries the application loads from
+# its own package, relative to the package root. Git's LGPL xdiff ships only as
+# its own replaceable shared library, as Qt does (RFC-BPR-0082 Q1).
+PRIVATE_LIBRARIES = {
+    "Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib"],
+    "Windows": ["bpr_xdiff.dll"],
+    "Linux": ["libbpr_xdiff.so"],
+}
 # Retained third_party licence texts every installed THIRD-PARTY-NOTICES.txt
 # carries whole. [[BPR-1270]]: the bundled code font's OFL and the authors
 # list its copyright line names.
@@ -44,6 +52,7 @@ NOTICE_FILES = (
     "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
     "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "fmt/LICENSE",
     "sha1collisiondetection/LICENSE", "hacl-star/LICENSE", "rapidfuzz-cpp/LICENSE",
+    "git-xdiff/NOTICE", "git-xdiff/LGPL-2.1", "git-xdiff/xhistogram-EDL-1.0.txt",
 )
 
 
@@ -115,6 +124,32 @@ def upstream_source_name(item: dict) -> str:
     else:
         suffix = ".tar.gz"
     return f"{item['name']}-{item['version']}{suffix}"
+
+
+def build_input_name(item: dict, entry: dict) -> str:
+    """[[BPR-1485]]. A first-party file that is part of a component's
+    corresponding source (an LGPL library's build headers and script), stored
+    in the source asset beside that component's upstream archive."""
+    return f"{item['name']}-{item['version']}-build/{entry['path']}"
+
+
+def build_input_path(entry: dict) -> Path:
+    relative = Path(entry["path"])
+    path = ROOT / relative
+    if relative.is_absolute() or ".." in relative.parts or path.is_symlink() or not path.is_file():
+        raise ValueError(f"corresponding source build input missing or unsafe: {entry['path']}")
+    return path
+
+
+def source_entries(items: list[dict]) -> dict[str, tuple[str, str]]:
+    """Every entry the corresponding-source asset holds: name to (algorithm, digest)."""
+    result = {}
+    for item in items:
+        algorithm = "sha256" if "sha256" in item else "sha3_256"
+        result[upstream_source_name(item)] = (algorithm, item[algorithm])
+        for entry in item.get("buildInputs", []):
+            result[build_input_name(item, entry)] = ("sha256", entry["sha256"])
+    return result
 
 
 def source_archives(build: Path, info: dict) -> dict[str, Path]:
@@ -206,15 +241,14 @@ def verify_source_asset(archive: Path, provenance: dict) -> None:
         raise ValueError("corresponding source release asset missing or misnamed")
     if digest(archive) != provenance["asset"]["sha256"]:
         raise ValueError("corresponding source release asset digest mismatch")
-    expected = {upstream_source_name(item): item for item in provenance["components"]}
+    expected = source_entries(provenance["components"])
     with zipfile.ZipFile(archive) as stream:
         if sorted(stream.namelist()) != sorted(expected):
             raise ValueError("corresponding-source-inventory-mismatch")
-        for name, item in expected.items():
-            algorithm = "sha256" if "sha256" in item else "sha3_256"
+        for name, (algorithm, value) in expected.items():
             with stream.open(name) as entry:
                 checksum = stream_digest(entry, algorithm)
-            if checksum != item[algorithm]:
+            if checksum != value:
                 raise ValueError("corresponding-source-digest-mismatch")
 
 
@@ -224,13 +258,16 @@ def prepare_source_asset(build: Path, info: dict, root: Path, archives: dict[str
     if output.resolve().is_relative_to(root.resolve()) or output.name != source_asset_name(info) or output.is_symlink():
         raise ValueError("corresponding source requires its versioned name outside the installed runtime")
     output.parent.mkdir(parents=True, exist_ok=True)
+    entries = [(path.name, path) for path in archives.values()]
+    entries += [(build_input_name(item, entry), build_input_path(entry))
+                for item in components(info) for entry in item.get("buildInputs", [])]
     # Fixed ZIP entry metadata makes the same upstream inputs byte-identical on
     # every preparation, independent of source-cache paths and download times.
     with tempfile.TemporaryDirectory(prefix=".source-asset-", dir=output.parent) as directory:
         temporary = Path(directory) / output.name
         with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_STORED) as stream:
-            for path in sorted(archives.values(), key=lambda item: item.name):
-                entry = zipfile.ZipInfo(path.name, date_time=(1980, 1, 1, 0, 0, 0))
+            for name, path in sorted(entries):
+                entry = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
                 entry.create_system = 3
                 entry.external_attr = 0o100644 << 16
                 with path.open("rb") as source, stream.open(entry, "w") as destination:
@@ -336,6 +373,11 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
         "Qt uses shared libraries. You may replace these libraries with ABI-compatible modified builds and debug those modifications.\n"
         "On macOS work on a copy of the bundle: replace the framework/plugin files and seal the copy locally with codesign --force --deep --sign - --timestamp=none. No Developer ID or notarization credentials are required. Modified bundles are not trusted updater destinations.\n"
         "On Windows/Linux replace the matching private Qt DLLs/shared objects and plugins with your compatible build. Keep the documented relative layout; no global search path is needed.\n"
+        "Git's xdiff (LGPL-2.1-or-later; xdiff/xhistogram.c BSD-3-Clause, the Eclipse Distribution License 1.0) is its own separately replaceable shared library: "
+        "Contents/Frameworks/libbpr_xdiff.dylib on macOS, bpr_xdiff.dll beside better_pull_review.exe on Windows, libbpr_xdiff.so beside the application on Linux. "
+        "BetterPullReview links it dynamically and contains no copy of it. Its complete corresponding source is in the source asset above: the unmodified git-xdiff-2.56.0.tar.xz archive, "
+        "whose xdiff/ directory is the library, and under git-xdiff-2.56.0-build/ the two compatibility headers that replace Git's git-compat-util.h and the CMake script that compiles them. "
+        "You may modify it and replace that one file with your own build exporting the same C interface (xdiff/xdiff.h of Git 2.56.0), as for the Qt libraries above, including the macOS resealing step.\n"
         "KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it. System OS libraries are package dependencies, not redistributed runtime files.\n"
         "This evidence does not constitute owner/legal approval to distribute a release. That remains the release-readiness gate.\n", encoding="utf-8")
 
@@ -371,6 +413,15 @@ def runtime_data(root: Path, target: str) -> set[Path]:
     return declared
 
 
+def private_libraries(root: Path, target: str) -> list[Path]:
+    """[[BPR-1485]]. The package's own shared libraries; each must be a real file."""
+    paths = [root / name for name in PRIVATE_LIBRARIES[target]]
+    for path in paths:
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"private shared library missing: {path.name}")
+    return paths
+
+
 def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = None) -> None:
     target = info["platform"]
     if target == "Darwin":
@@ -383,6 +434,7 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
     data = runtime_data(root, target)
+    private_libraries(root, target)
     pending = [path for path in root.rglob("*") if path.is_file() and path not in data]
     processed = set()
     system = set()
@@ -444,6 +496,10 @@ def deploy(build: Path, info: dict, root: Path, source_archive: Path | None = No
                         pending.append(destination)
                 elif name.startswith("libQt"):
                     raise ValueError(f"undeclared Qt module: {name}")
+                elif name in PRIVATE_LIBRARIES["Linux"] and source.resolve() == (root / name).resolve():
+                    # [[BPR-1485]]. The package's own shared library, already
+                    # installed beside the application and inspected in turn.
+                    continue
                 elif str(source.resolve()).startswith(("/usr/lib/", "/lib/")):
                     system.add(name)
                 else:

@@ -306,7 +306,9 @@ core SHA-256 ([[BPR-1451]]), header-only rapidfuzz-cpp for the diff engine's
 line-pair similarity ([[BPR-1480]]), RE2 with its Abseil LTS
 ([[BPR-1431]]),
 the macOS-only LibArchive input and the embedded JetBrains Mono NL faces
-([[BPR-1270]]).
+([[BPR-1270]]), and Git 2.56.0's xdiff, the diff engine's primary line
+matcher, which ships as its own shared library ([[BPR-1485]]; see
+[xdiff, a dynamically linked LGPL library](#xdiff-a-dynamically-linked-lgpl-library)).
 `packaging/dependencies.json` pins their complete source archives; cached or
 downloaded mismatches are refused. ECM is identified as build-only. The font's
 OFL and its authors list are retained under `third_party/jetbrains-mono/` and
@@ -363,6 +365,51 @@ offline sub-check is `packaging/verify_release_sources.py`; `--help` lists the
 explicit artifact and producer arguments. No source URL is fetched by it.
 Do not run the publication script, submit notarization, or apply release signatures without explicit
 authority for the prepared version.
+
+### xdiff, a dynamically linked LGPL library
+
+The owner accepted Git's xdiff (LGPL-2.1-or-later) only "if xdiff is
+dynamically linked as its own shared library, as Qt is" (RFC-BPR-0082 Q1,
+2026-10-13), so it ships under the same arrangement as Qt ([[BPR-1485]]):
+
+- **Linkage.** `cmake/BprXdiffProvider.cmake` builds the pinned archive's
+  `xdiff/` as the shared library `bpr_xdiff` and nothing else; only the xdiff
+  adapter links it, and no BetterPullReview binary holds a copy. The package
+  carries it where the application loads it: `Contents/Frameworks/libbpr_xdiff.dylib`
+  on macOS, `bpr_xdiff.dll` beside `better_pull_review.exe` on Windows and
+  `libbpr_xdiff.so` beside the application in `lib/betterpullreview` on Linux
+  (`PRIVATE_LIBRARIES` in `packaging/package_runtime.py`). Linux deployment
+  accepts it only from the package itself, and the package audit refuses a
+  package without it.
+- **Licences and SPDX.** Every file is LGPL-2.1-or-later except
+  `xhistogram.c`, which derives from JGit and is under the Eclipse
+  Distribution License 1.0, which SPDX matches as `BSD-3-Clause`. The
+  `git-xdiff` entry in `packaging/dependencies.json`, and so the release SPDX
+  package `SPDXRef-git-xdiff`, declares `LGPL-2.1-or-later AND BSD-3-Clause`.
+  `third_party/git-xdiff/PROVENANCE.md` records the per-file licences
+  confirmed against the pinned source.
+- **Notices.** `third_party/git-xdiff/NOTICE` (copyright lines, licences, the
+  library's location in each package and where its source is), the full
+  `LGPL-2.1` and the `xhistogram.c` licence header are carried whole into
+  `THIRD-PARTY-NOTICES.txt`; the security audit requires them.
+- **Corresponding source.** The separate corresponding-source asset carries
+  the unmodified `git-xdiff-2.56.0.tar.xz` archive and, under
+  `git-xdiff-2.56.0-build/`, BetterPullReview's two compatibility headers
+  that replace Git's `git-compat-util.h` and the CMake script that compiles
+  the library: the `buildInputs` of the `git-xdiff` entry, pinned by SHA-256.
+  Preparing the asset refuses a build input whose bytes changed, and the
+  audits verify each entry's digest. Change a pinned file and update its
+  digest in the same commit; `package_runtime_tests` names the stale one.
+- **Replacement.** `SOURCE-OFFERS.txt` states that xdiff is a separately
+  replaceable shared library, names the file on each platform and permits
+  replacing it with a modified build exporting the same C interface
+  (`xdiff/xdiff.h` of Git 2.56.0), with the macOS local resealing step used
+  for Qt. Replacement grants no updater trust.
+
+Recipient access and retention are those of the whole source asset, above.
+xdiff is one more LGPL relinking obligation inside the owner/legal release
+approval above; the approval given for an earlier inventory does not cover
+packages that contain it.
 
 ## Recipient verification and release stop conditions
 

@@ -68,10 +68,18 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
     for name in runtime.RUNTIME_DATA[info["platform"]]:
         path = directory / name
         require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{name}")
+    for path in private_libraries(root, info):
+        require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{path.name}")
     plugins = root / "Contents/PlugIns" if info["platform"] == "Darwin" else root / "plugins"
     actual = {path.relative_to(plugins).as_posix() for path in plugins.rglob("*") if path.is_file()}
     require(actual == set(runtime.PLUGINS[info["platform"]]), "package-plugin-set-mismatch")
     return app, helpers
+
+
+def private_libraries(root: Path, info: dict) -> list[Path]:
+    """[[BPR-1485]]. The package's own shared libraries (Git's LGPL xdiff, as
+    its own replaceable library), where the application loads them."""
+    return [root / name for name in runtime.PRIVATE_LIBRARIES[info["platform"]]]
 
 
 def check_file_inventory(root: Path, sbom: Path, revision: str, info: dict) -> dict:
@@ -222,7 +230,8 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
                     "production-composition-anchor-mismatch")
         binaries.append(path.relative_to(root).as_posix())
         symbol_evidence[path.relative_to(root).as_posix()] = table.inspector
-    require(all(path.relative_to(root).as_posix() in binaries for path in (app, *helpers)), "required-capability-not-a-binary")
+    require(all(path.relative_to(root).as_posix() in binaries for path in (app, *helpers, *private_libraries(root, info))),
+            "required-capability-not-a-binary")
     data = {}
     for name in runtime.RUNTIME_DATA[info["platform"]]:
         path = app.parent / name
