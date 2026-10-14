@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1481"
 title: "Compute intraline ranges with dtl after the owner's render review"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1467"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"diff-engine-evaluation-r2","source":"RFC-BPR-0082 intraline decision: eligible pending AC06 (owner Q2 Accept for dtl, per-line use only)"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a66d996df","evidence":{"kind":"observation","detail":"Owner Q2 Accept (2026-10-13, dtl for per-line intraline comparison only) and AC06 Accept of the dtl render set (session 3dcb3e5660345ff127118964cc309faa, decision 0552741d-9e4e-4c8b-8a7b-350e9d0326a8, 2026-10-14T04:16:42Z) recorded in a66d996df, an ancestor of every BPR-1481 production commit.","path":"docs/issues/60-done/BPR-1481-compute-intraline-ranges-with-dtl.md"}},{"criterion":"AC2","outcome":"pass","revision":"2f3d76525, 162db34a2, 4427d5947 (claude/bpr-1481-dtl); merged with claude/bpr-1485-xdiff at 22cdc35c6","evidence":{"kind":"command","detail":"BprDtlProvider.cmake acquires dtl 1.21 by pinned verified archive (SHA-256 90ed2dbf...3dbd, 26,321 bytes, COPYING digest 73311650...7fec; the evaluation's pin; offline honoured) as header-only BetterPullReview::Dtl, linked privately by better_pull_review_core only. third_party/dtl COPYING (BSD-3-Clause) and PROVENANCE, packaging/dependencies.json, package_runtime.py notices (SPDX, corresponding source), release-packages.md. architecture_boundaries refuses dtl::, dtl/ or DTL_ outside src/core/src/diff_intraline.cpp (contract test added), whose one entry point takes a single line pair's scalars, so dtl is never a whole-file line matcher. package_runtime, dependency_modernization, release_source_assets, release_package_audit, release_security_audit, runtime_audit and binary_dependency_audit contracts pass in core-only and in a dev configuration.","path":"docs/issues/60-done/BPR-1481-compute-intraline-ranges-with-dtl.md"}},{"criterion":"AC3","outcome":"pass","revision":"2f3d76525, 162db34a2, 4427d5947 (claude/bpr-1481-dtl); merged with claude/bpr-1485-xdiff at 22cdc35c6","evidence":{"kind":"command","detail":"intraline_ranges takes dtl's common scalars (detail::intraline_common_scalars), comparisons counted on the step meter in batches of 4,096, matrix budget not charged; stops caught in the comparator and rethrown after dtl; grids at dtl's 2,000,000-point restart bound keep the budgeted table; every common scalar checked. 86 evaluation-corpus comparisons through product_file_diff: 86 published and valid, 25,420 spans; vs l-myers-indent lost emphasis 11,706 -> 858 (all patho-crlf line-ending-only pairs), approximate 9 -> 8, matrix cells 176,974,001 -> 159,739,202; stated in docs/verification/RFC-BPR-0082.md and tested by new core_diff_intraline. core-only 270/276 with the six failures pre-existing and outside this card (worktree .agents, tests/hash_evaluation tempfile, conversation_cards getenv, BPR-1485 format fixed by d978cad54); after the merge the 26 diff, format, boundary and audit tests pass.","path":"docs/issues/60-done/BPR-1481-compute-intraline-ranges-with-dtl.md"}}]
 ---
 
 # BPR-1481: Compute intraline ranges with dtl after the owner's render review
@@ -18,7 +19,7 @@ valid spans on the whole corpus with a p95 per-pair time of 0.0227 ms against
 the engine's 0.0250 ms and passed every macOS gate. The owner approved dtl for
 the core on 2026-10-13 for per-line intraline comparison only. Adoption waits
 on the owner's Accept of the render set (RFC AC06, prepared under
-[BPR-1467](../60-done/BPR-1467-measure-diff-engine-candidates-on-macos.md)); a Reject
+[BPR-1467](BPR-1467-measure-diff-engine-candidates-on-macos.md)); a Reject
 closes this card without change.
 
 ## Acceptance
