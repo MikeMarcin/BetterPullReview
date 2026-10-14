@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1500",
+    "BPR-1501"
+  ],
+  "reserve_for": "release-020-gate-4",
+  "purpose": "0.2.0 release gate repairs: active changed scaling fails under gate concurrency; tour CLI ordinary stop intermittent resume",
+  "created": "2026-10-14T07:50:56.890602+00:00",
+  "base": "7042d3782853c445d28e38f8003ce6d7b9536c84"
+}
