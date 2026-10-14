@@ -45,7 +45,7 @@ def source_and_notices(root: Path, sbom: Path, info: dict) -> dict:
     return {"source_archives": len(provenance["components"]), "qt_packages": len(qt["packages"]),
             "source_archive_sha256": provenance["asset"]["sha256"],
             "notices_sha256": package.runtime.digest(legal / "THIRD-PARTY-NOTICES.txt"),
-            "legal_approval": "pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations, including the LGPL xdiff library's"}
+            "legal_approval": "pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations; the LGPL xdiff library's arrangement was owner-approved for 0.2.0 on 2026-10-13 (RFC-BPR-0038 ledger)"}
 
 
 def compile_hardening(build: Path, system: str) -> dict:

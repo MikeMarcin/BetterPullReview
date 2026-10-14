@@ -1,5 +1,29 @@
 # RFC-BPR-0038 qualification ledger
 
+## 0.2.0 macOS release: xdiff LGPL arrangement approved, 2026-10-13
+
+The owner selected 0.2.0 (not 0.1.10, which was never released) for a
+macOS-only private prerelease built from the release-source commit that
+carries this entry, and approved the LGPL arrangement for Git's xdiff
+([BPR-1485](../issues/60-done/BPR-1485-adopt-linked-xdiff-as-the-primary-line-matcher.md))
+for this release, after being shown each element:
+
+- xdiff ships as its own LGPL-2.1 shared library, `libbpr_xdiff.dylib` in
+  `Contents/Frameworks`, dynamically linked as Qt is;
+- its notice is in `THIRD-PARTY-NOTICES.txt`;
+- `SOURCE-OFFERS.txt` states that it is a separately replaceable shared
+  library;
+- the corresponding-source asset carries the unmodified Git 2.56.0 archive
+  plus BetterPullReview's build script and its two build headers.
+
+This clears the pending xdiff clause in `docs/development/release-packages.md`
+and `scripts/verify_release_security.py`. It is not approval of the remaining
+first-party terms, mixed syntax-data licences, toolchain terms or other
+build/relink obligations for these bytes, and it is not trust, vulnerability
+or publication approval. The clean-account vault, native Intel/platform,
+crash privacy and vulnerability gaps below remain open; Windows and Ubuntu are
+not part of this release.
+
 ## Follow-up release gates, 2026-10-12
 
 The direct owner mandate `release-v010-20261012-fix-and-publish-r4` says

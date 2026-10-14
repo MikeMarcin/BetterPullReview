@@ -408,9 +408,16 @@ dynamically linked as its own shared library, as Qt is" (RFC-BPR-0082 Q1,
   for Qt. Replacement grants no updater trust.
 
 Recipient access and retention are those of the whole source asset, above.
-xdiff is one more LGPL relinking obligation inside the owner/legal release
-approval above; the approval given for an earlier inventory does not cover
-packages that contain it.
+xdiff is one more LGPL relinking obligation. The owner approved this
+arrangement for the 0.2.0 release on 2026-10-13: xdiff ships as its own
+LGPL-2.1 shared library, `libbpr_xdiff.dylib`, as Qt does, with its notice in
+`THIRD-PARTY-NOTICES.txt`, a source offer stating that it is separately
+replaceable, and the unmodified Git source with BetterPullReview's build
+script and two build headers in the corresponding-source asset. The
+[RFC-BPR-0038 ledger](../verification/RFC-BPR-0038.md) records the decision.
+It covers that arrangement only; the remaining first-party, syntax-data,
+toolchain and build/relink approval above, and vulnerability, trust and
+publication decisions, are unchanged.
 
 ## Recipient verification and release stop conditions
 
