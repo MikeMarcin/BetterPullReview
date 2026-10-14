@@ -27,3 +27,23 @@ refuses it under warnings as errors.
 ## Boundaries
 
 Test source only.
+
+## Evidence
+
+- Cause: the Discuss alignment capture read
+  `std::getenv("BPR_DISCUSS_ALIGNMENT_PNG")` in an `if` init-statement with
+  neither a scoped C4996 suppression nor a `_dupenv_s` branch, so
+  `msvc_secure_crt_contract` refused it ([[BPR-0519]]).
+- Fix: the read is hoisted into its own declaration wrapped in
+  `#pragma warning(push)` / `disable : 4996` / `pop` under `_MSC_VER`, the
+  form most of `tests/` uses (for example
+  `tests/application/mcp_context_helper_tests.cpp`). Behaviour on macOS and
+  Linux is unchanged. Test source only.
+- `python3 tests/scripts/msvc_secure_crt_tests.py`: `Ran 3 tests in 0.718s`,
+  `OK`.
+- `python3 _coding-standard/scripts/format.py --root . --dry-run
+  tests/adapters_qt/conversation_cards_view_tests.cpp` with clang-format
+  22.1.8: exit 0.
+- AC2 (the Qt test builds and passes on macOS) is left to the integrator's
+  built tree; no build or test suite ran here while the release gate's
+  performance rows were running.
