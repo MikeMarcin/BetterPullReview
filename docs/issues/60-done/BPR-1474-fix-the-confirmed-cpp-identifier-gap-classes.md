@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1474"
 title: "Fix the confirmed C++ identifier gap classes in the heuristic"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0081"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","follow_up_of":"RFC-BPR-0081","report":"docs/verification/RFC-BPR-0081.md","contract":"RFC-BPR-0072"}
+acceptance: [{"criterion":"AC1: each confirmed class has a public-classifier contract test that fails before and passes after, and the scored gap suite shows it refuted with no new false positive","outcome":"pass","revision":"4add47f63","evidence":{"kind":"observation","detail":"cpp_gap_contract (H1-H7, extern C) and brace_flood_contract (H8) fail on revision 6 and pass at 4add47f63. Corpus re-run with the old and new refinement: FP 136 to 132, FN 3,576 to 3,561, no category gains a false positive, no new label disagreement, 19 fixed. Scored H1-H8 refuted; H8 under the owner's 2026-10-13 rule (peak refinement heap on 8 MiB inputs at most 512 MiB): 2.02 GB to 261 MB.","path":"docs/issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md"}},{"criterion":"AC2: cpp_identifier_context.cpp stays at or under 800 lines with no new whole-blob pass; macro expansion, cross-file and unqualified uses stay out of scope","outcome":"pass","revision":"4add47f63","evidence":{"kind":"observation","detail":"698 lines. Conditional directives are recorded in prepare_roles' existing directive scan and consumed in step with collect_declarations; no pass added. Out-of-scope classes were not attempted.","path":"docs/issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md"}},{"criterion":"AC3: the C++ identifier revision is bumped, and RFC-BPR-0072's contract, the harness baseline and syntax_refinement_cancellation pass","outcome":"pass","revision":"4add47f63","evidence":{"kind":"observation","detail":"cpp_identifier_heuristic_revision 7; revision-6 keys refused. syntax_classification_contract, syntax_refinement_cancellation, qt_syntax_pane_composition, application_cpp_identifier_appearance, application_appearance_host, the four boundary checks, core-only (268 of 273 pass; the five failures are in files this slice does not touch), coding-format-check, changed-line tidy and the documentation gate pass after merging main.","path":"docs/issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md"}}]
 ---
 
 # BPR-1474: Fix the confirmed C++ identifier gap classes in the heuristic

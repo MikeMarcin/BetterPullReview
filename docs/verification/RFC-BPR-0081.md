@@ -19,7 +19,7 @@ stays open and is now moot.
 
 **The outcome is "extend".** The gap suite confirms seven failures of the
 shipped heuristic inside RFC-BPR-0072's scope (H1 to H7), and H8 is confirmed
-as well. [BPR-1474](../issues/30-in-progress/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
+as well. [BPR-1474](../issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md)
 fixes those classes in the heuristic. It may not take
 `cpp_identifier_context.cpp` past 800 lines or add a pass over the whole blob.
 
@@ -186,7 +186,7 @@ under the original rule: H8 was confirmed when an 8 MiB input had the largest
 peak refinement heap of any input. No refinement that keeps state per token can
 refute that, because the tokens of 8 MiB of `{` outweigh any other input's
 whole refinement. Asked during
-[BPR-1474](../issues/30-in-progress/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md),
+[BPR-1474](../issues/60-done/BPR-1474-fix-the-confirmed-cpp-identifier-gap-classes.md),
 the owner accepted reading H8 against the Memory gate's cap: H8 is confirmed
 when the peak refinement heap on an 8 MiB input exceeds 512 MiB, and refuted
 otherwise. `tools/score_evaluation.py` applies that rule from then on. The
