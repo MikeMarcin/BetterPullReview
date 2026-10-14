@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1484"
 title: "Pin the PR Search rows' Windows-uncontained registrations"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1484--BPR-1484--9823868ffbb1.json","origin":"test_network_isolation_manifest fails on main at e145ccd35, owner request 2026-10-13","related_rfcs":["RFC-BPR-0077"],"related_cards":["BPR-1423","BPR-1343","BPR-1348"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"358098090","evidence":{"kind":"observation","path":"scripts/verify_test_network_isolation.py","detail":"WINDOWS_UNCONTAINED_TESTS pins application_source_pr_find, _find_scale_1_25, _find_scale_2_0, _search_scope, _search_retry and _search_performance as dos-volume-name, beside a comment naming BPR-1423. The pin is by shape: each course first builds its data root with e2e::private_data_root, the step BPR-1348 measured application_overview_double_click failing contained. The comment says the rows are not yet measured contained on Windows, and that the retry row is registered only on UNIX."}},{"criterion":"AC2","outcome":"pass","revision":"977118d9c","evidence":{"kind":"command","command":"ctest --preset dev -R '^test_network_isolation_(manifest|structure_contract)$' --output-on-failure; python3 scripts/verify_documentation.py --root .","detail":"macOS build/dev with the gh CLI transport test executable built. Without the pins, the manifest gate fails with exactly the six TEST_NETWORK_ISOLATION_FAILED:application_source_pr_* lines. After merging main (977118d9c) and reconfiguring, both isolation rows pass 2/2 and the documentation gate prints DOCUMENTATION_OK."}}]
 ---
 
 # Pin the PR Search rows' Windows-uncontained registrations
