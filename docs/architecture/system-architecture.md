@@ -290,6 +290,28 @@ and identity replacement is refused by the bound context. Unavailable tabs
 retain their ordinary explanation without newer-pair fallback. No source tab
 is created by entry alone and no full-review scan/model reset is introduced.
 
+## Feedback body digest port
+
+BPR-1447 (RFC-BPR-0080) adds `application::body_digest_port`, a batch SHA-256
+of many bodies with no OS type in its signature. The window read host calls it
+in the provider's completion callback, on the GitHub provider's effect worker,
+before the fetched snapshot is posted to the decision lane, and the digests
+travel with the snapshot (`github_feedback_body_digests`, one entry per
+feedback post, keyed by post identity and body length). The feedback adapter
+hands each matching digest to the core as `feedback_post_observation::BodyDigest`;
+the core uses it instead of hashing, and hashes as before when a digest is
+absent or does not match. Snapshots compare without the digests, which are a
+derived cache of the bodies.
+
+The concrete backend is `adapters::github::platform_body_digest`: CommonCrypto
+on macOS and, until BPR-1448 and BPR-1449 measure CNG and libcrypto, the core's
+own SHA-256 elsewhere (`application::core_body_digest`), still off the window
+thread. Composition owns one per profile and passes it to each window read
+host. `architecture_boundaries` allows CommonCrypto's SHA-2 only in
+`src/adapters/github/src/platform_body_digest.cpp`, so core and application
+stay free of OS crypto. The core still owns every identity it derives; only
+this classifier cache key is supplied by the host.
+
 ## Diagnostic logging boundary
 
 BPR-0602 adds a bounded `application::diagnostic_log_port`. Composition constructs

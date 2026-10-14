@@ -6,9 +6,11 @@
 #include "bpr/core/github_model.hpp"
 
 #include <algorithm>
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <new>
 #include <optional>
 #include <string>
@@ -696,6 +698,33 @@ namespace bpr::application {
 	};
 
 	/// \brief Describes the github pull request snapshot record.
+	/// \brief [[BPR-1447]]. One feedback post's body digest, computed off the
+	/// window thread with the snapshot it belongs to.
+	struct github_feedback_body_digest
+	{
+		/// The post as the feedback adapter names it, and its body's length:
+		/// a digest is used only for the post and length it was taken from.
+		std::string                  Post;
+		std::size_t                  Bytes = 0U;
+		std::array<std::uint8_t, 32> Digest{ };
+	};
+
+	/// \brief [[BPR-1447]]. The SHA-256 of each feedback body of one snapshot,
+	/// in the feedback adapter's post order, taken by the host before the
+	/// snapshot reached the decision lane.
+	/// \details Derived from the snapshot's bodies and shared, never edited: a
+	/// copy of the snapshot shares it. It takes no part in comparing
+	/// snapshots, which compare the bodies themselves. Whoever changes a body
+	/// of a snapshot after digesting it must reset this; an absent or
+	/// mismatched entry leaves the core to hash that body itself.
+	struct github_feedback_body_digests
+	{
+		std::shared_ptr<const std::vector<github_feedback_body_digest>> Entries;
+
+		auto operator==(const github_feedback_body_digests& /*aOther*/) const noexcept -> bool { return true; }
+		auto operator<=>(const github_feedback_body_digests& /*aOther*/) const noexcept -> std::strong_ordering { return std::strong_ordering::equal; }
+	};
+
 	struct github_pull_request_snapshot
 	{
 		core::host_profile_id                    Profile;
@@ -733,6 +762,9 @@ namespace bpr::application {
 		core::github_access_mode             Mode{ };
 		github_timeline_availability         TimelineAvailability = github_timeline_availability::unavailable;
 		std::vector<github_force_push_event> ForcePushEvents;
+		/// [[BPR-1447]]. Feedback body digests the host took off the window
+		/// thread; empty when none were.
+		github_feedback_body_digests FeedbackBodyDigests;
 
 		github_observation_availability           ReviewRequestsAvailability = github_observation_availability::unobserved;
 		std::vector<github_review_request_record> ReviewRequests;

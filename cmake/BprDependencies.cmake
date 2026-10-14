@@ -8,6 +8,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/BprZlibProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprUtf8procProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprFmtProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSha1dcProvider.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/BprHaclSha2Provider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprSyntaxHighlightingProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprReleaseArchiveProvider.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/BprCodeFontProvider.cmake")
@@ -108,6 +109,11 @@ function(bpr_configure_dependencies)
     bpr_acquire_sha1dc()
     bpr_require_dependency_target(BetterPullReview::Sha1dc sha1collisiondetection)
     list(APPEND records "sha1collisiondetection|PINNED_ARCHIVE|BetterPullReview::Sha1dc")
+
+    # [[BPR-1451]]. The core's SHA-256 is HACL*'s generated SHA-2.
+    bpr_acquire_hacl_sha2()
+    bpr_require_dependency_target(BetterPullReview::HaclSha2 hacl-star)
+    list(APPEND records "hacl-star|PINNED_ARCHIVE|BetterPullReview::HaclSha2")
 
     # [[BPR-1433]]. glaze is an owner-approved core library (2026-10-13) and
     # the MCP helper's JSON decoder, so the Qt-free graph acquires it too.

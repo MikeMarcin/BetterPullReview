@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GITHUB_WINDOW_READ_HOST_HPP
 
+#include "bpr/application/body_digest_port.hpp"
 #include "bpr/application/cached_review_overview_port.hpp"
 #include "bpr/application/cached_review_source_port.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
@@ -71,6 +72,9 @@ namespace bpr::application {
 	[[nodiscard]] auto pull_request_page_address(const core::pull_request_page& aPage) -> std::string;
 
 	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.
+	/// [[BPR-1447]]. With \p aBodyDigests, a fetched snapshot's feedback bodies
+	/// are digested on the provider's completion thread, before the snapshot
+	/// is posted to the decision lane; the port must outlive the host.
 	/// All commands and publications run on the decision lane. Provider terminals
 	/// post to that lane; ports and lane remain alive until quiescent.
 	class github_window_read_host
@@ -87,7 +91,8 @@ namespace bpr::application {
 								cached_review_overview_port*           aOverviews      = nullptr,
 								effect_executor*                       aCacheEffects   = nullptr,
 								cached_review_source_port*             aSources        = nullptr,
-								std::shared_ptr<github_read_admission> aAdmission      = nullptr);
+								std::shared_ptr<github_read_admission> aAdmission      = nullptr,
+								const body_digest_port*                aBodyDigests    = nullptr);
 		~github_window_read_host();
 		github_window_read_host(const github_window_read_host&)                                  = delete;
 		auto               operator=(const github_window_read_host&) -> github_window_read_host& = delete;

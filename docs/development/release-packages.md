@@ -301,7 +301,8 @@ deployed bytes after relocation (and after final macOS sealing/stapling). It
 joins the selected Qt producer's SPDX graph with statically compiled SQLite,
 KSyntaxHighlighting, Quill/fmt, Glaze, zlib ([[BPR-1435]]), utf8proc ([[BPR-1434]]),
 pinned fmt apart from Quill's copy ([[BPR-1439]]), sha1collisiondetection for
-every SHA-1 Git identity ([[BPR-1450]]), RE2 with its Abseil LTS
+every SHA-1 Git identity ([[BPR-1450]]), HACL*'s generated SHA-2 for the
+core SHA-256 ([[BPR-1451]]), RE2 with its Abseil LTS
 ([[BPR-1431]]),
 the macOS-only LibArchive input and the embedded JetBrains Mono NL faces
 ([[BPR-1270]]).

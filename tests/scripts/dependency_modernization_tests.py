@@ -55,7 +55,7 @@ def cache_entry(build_directory: Path, name: str) -> str | None:
 def copy_core_archives(cache: Path) -> None:
     """The Qt-free core graph needs SQLite, zlib ([[BPR-1435]]), utf8proc
     ([[BPR-1434]]), glaze ([[BPR-1433]]), fmt ([[BPR-1439]]) and
-    sha1collisiondetection ([[BPR-1450]])."""
+    sha1collisiondetection ([[BPR-1450]]) and HACL* ([[BPR-1451]])."""
     cache.mkdir(parents=True, exist_ok=True)
     for archive in (
         "zlib-1.3.2.tar.gz",
@@ -63,6 +63,7 @@ def copy_core_archives(cache: Path) -> None:
         "glaze-v8.3.0.tar.gz",
         "fmt-12.2.0.zip",
         "sha1collisiondetection-a06f1adbe5522f3c939cd6a3f13d5ec7f4c1a988.tar.gz",
+        "hacl-star-504c2987452f87fe44bce9b9f12e19d6e051761f.tar.gz",
     ):
         shutil.copy2(CPM_SOURCE_CACHE / archive, cache / archive)
 
@@ -542,6 +543,8 @@ class DependencyModernizationTests(unittest.TestCase):
             "sha1collisiondetection|PINNED_ARCHIVE|BetterPullReview::Sha1dc",
             records,
         )
+        # [[BPR-1451]]. And its SHA-256, HACL*'s generated SHA-2.
+        self.assertIn("hacl-star|PINNED_ARCHIVE|BetterPullReview::HaclSha2", records)
         if any(target.startswith("Qt6::") for target in targets):
             self.assertIn("Quill|PINNED_ARCHIVE|quill::quill", records)
             self.assertIn("Glaze|PINNED_ARCHIVE|glaze::glaze", records)
