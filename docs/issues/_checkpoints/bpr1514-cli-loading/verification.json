@@ -87,11 +87,11 @@
   "frontend_design_loaded": true,
   "command_state": "quiescent; all task-owned build/test subprocesses finished; no review server",
   "workflow_finish": {
-    "result": "guard refused without mutations",
+    "result": "Done",
     "schema": "implement-rfc.finish.v1",
-    "reason": "NEXT_ID BPR-1519 rewinds historical high water BPR-1520",
-    "receipt": "/tmp/bpr1514-finish.json",
-    "prior_refusal_resolved_by": "Coordinator-authorized committed tracker imports through 3e8793add; canonical finish now admitted."
+    "commit": "3ab1dc8e475d16077c63f846fe2f02f7108e1f20",
+    "lane": "60-done",
+    "prior_refusal": "Resolved by coordinator-authorized metadata imports through 3e8793add."
   },
   "closeout": {
     "authorized_import_range": "f47d44964..3e8793add",
@@ -105,6 +105,10 @@
     "tracker_frontier": "c2f22891263f0f2d7a3308e20c1d272a1a5167cb",
     "next_id": "BPR-1521",
     "documentation_gate": "DOCUMENTATION_OK",
-    "source_evidence_reused": "Product source and test behavior unchanged from b0da7b4ae and 4802241ec; metadata-only closeout."
+    "source_evidence_reused": "Product source and test behavior unchanged from b0da7b4ae and 4802241ec; metadata-only closeout.",
+    "post_finish_documentation_gate": {
+      "candidate_revision": "3ab1dc8e475d16077c63f846fe2f02f7108e1f20",
+      "result": "DOCUMENTATION_OK"
+    }
   }
 }

@@ -47,10 +47,13 @@ bring the tracker to NEXT_ID BPR-1521. Exclude these copies from integration as
 well as the earlier import-only commits. No independent counter edit occurred.
 
 `python3 scripts/verify_documentation.py --root .` now reports
-`DOCUMENTATION_OK` on `c2f228912`. Existing source evidence remains valid: this
+`DOCUMENTATION_OK` before and after canonical finish `3ab1dc8e4`. Existing source evidence remains valid: this
 round changes tracker/evidence metadata only. All milestone obligations and
 exits pass. Canonical finish uses the existing [acceptance](acceptance.json).
-The terminal finish identity is recorded by the final continuation update.
+Canonical finish `3ab1dc8e475d16077c63f846fe2f02f7108e1f20` moved the card
+to `60-done`. No obligation remains. The initial binding is preserved as
+`binding.initial.json`; the final binding refreshes the changed checkpoint prose
+and terminal tracker state without changing acceptance requirements.
 No human or independent criterion is required; no attended session was created.
 
 Coordinator integration is the only subsequent action. Owned implementation

@@ -35,34 +35,34 @@
         "id": "BPR-1514:AC1",
         "source": "BPR-1514",
         "selector": "AC1",
-        "source_fingerprint": "sha256:5f60bce4a3f4cc910376ad16919bcac515fc1e3137d06584ea4f6093ce3c879d"
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
       },
       {
         "id": "BPR-1514:AC2",
         "source": "BPR-1514",
         "selector": "AC2",
-        "source_fingerprint": "sha256:5f60bce4a3f4cc910376ad16919bcac515fc1e3137d06584ea4f6093ce3c879d"
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
       },
       {
         "id": "BPR-1514:AC3",
         "source": "BPR-1514",
         "selector": "AC3",
-        "source_fingerprint": "sha256:5f60bce4a3f4cc910376ad16919bcac515fc1e3137d06584ea4f6093ce3c879d"
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
       },
       {
         "id": "BPR-1514:AC4",
         "source": "BPR-1514",
         "selector": "AC4",
-        "source_fingerprint": "sha256:5f60bce4a3f4cc910376ad16919bcac515fc1e3137d06584ea4f6093ce3c879d"
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
       },
       {
         "id": "BPR-1514:AC5",
         "source": "BPR-1514",
         "selector": "AC5",
-        "source_fingerprint": "sha256:5f60bce4a3f4cc910376ad16919bcac515fc1e3137d06584ea4f6093ce3c879d"
+        "source_fingerprint": "sha256:6971b7086fcfed187cb917bc43d13fdfaf01910b2664fe765fdd44bfa1f4e4ab"
       }
     ],
-    "obligation_fingerprint": "sha256:10ae27186c8c4100bdf0eed4b4fa54c4ee22bfb31c693f6af1e0a6d24d023092",
+    "obligation_fingerprint": "sha256:9d8b8ac74e6ea453f6961d1e9baec0224592f33daf7cb0a0165aa37402081db7",
     "exit_criteria": [
       {
         "id": "cli-loading:exit:1",
@@ -81,7 +81,7 @@
     "diagnostics_truncated": false
   },
   "disposition": "milestone-complete",
-  "candidate_revision": "c2f22891263f0f2d7a3308e20c1d272a1a5167cb",
+  "candidate_revision": "3ab1dc8e475d16077c63f846fe2f02f7108e1f20",
   "handoff_ref": "docs/issues/_checkpoints/bpr1514-cli-loading/handoff.md",
   "required_pending": [],
   "evidence_refs": [
@@ -142,7 +142,7 @@
     "intent": "stop",
     "next_milestone": null,
     "reason": "target-complete",
-    "detail": "All assigned behavior and documentation exits pass. Finish the accepted card canonically and return this bounded milestone for coordinator integration; no further source work."
+    "detail": "BPR-1514 is canonically Done with all five criteria and both milestone exits passing. Source evidence is unchanged; return the accepted bounded milestone for coordinator integration."
   },
   "ownership": "quiescent"
 }
