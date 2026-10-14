@@ -46,11 +46,24 @@ def main():
     )
     observation["Enforced"] = enforce == "--enforce=1"
     Path(report_path).write_text(json.dumps(observation, indent=2) + "\n")
-    if code or not all(name in observation for name in markers.values()):
-        return 1
-    if observation["ProcessToMainMarkerMs"] >= observation["ProcessToHomeMarkerMs"]:
-        return 1
-    if observation["Enforced"] and not observation["WithinLimits"]:
+    # [[BPR-1495]]. Every refusal names its check and its measurement, so a
+    # gate log says which one failed without the report file.
+    failures = []
+    if code:
+        failures.append(f"fixture exit code {code}")
+    missing = [name for name in markers.values() if name not in observation]
+    if missing:
+        failures.append("missing launch marker " + ", ".join(missing))
+    elif observation["ProcessToMainMarkerMs"] >= observation["ProcessToHomeMarkerMs"]:
+        failures.append("main marker did not precede home marker")
+    if observation["Enforced"]:
+        for name, limit in observation["LimitsMs"].items():
+            measured = observation.get(name)
+            if measured is not None and not 0 <= measured <= limit:
+                failures.append(f"{name}={measured:.1f} exceeds limit {limit}")
+    if failures:
+        for failure in failures:
+            print(f"LARGE_REVIEW_LAUNCH_FAILED: {failure}", flush=True)
         return 1
     print("LARGE_REVIEW_LAUNCH_OBSERVED", flush=True)
     return 0
