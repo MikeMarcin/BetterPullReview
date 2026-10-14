@@ -1020,6 +1020,7 @@ namespace {
 				effects,
 				decisions,
 				projections,
+				bpr::tests::product_line_matcher(),
 			};
 			host.request(comparison_key(), { });
 			expect(decisions.pending() == 1U && host.outstanding_jobs() == 1U,
@@ -1267,6 +1268,7 @@ namespace {
 				effects,
 				decisions,
 				projections,
+				bpr::tests::product_line_matcher(),
 			};
 			host.request(comparison_key(), { });
 			expect(effects.pending() == 1U,
@@ -2003,8 +2005,6 @@ namespace {
 		expect(slow.use_count() == 1, "[[BPR-1485]] every abandoned matcher thread ends and releases the matcher");
 	}
 } // namespace
-
-int main()} // namespace
 
 int main()
 {

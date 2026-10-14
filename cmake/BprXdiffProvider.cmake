@@ -1,5 +1,6 @@
 include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/Hardening.cmake")
 
 # [[BPR-1485]]. Git 2.56.0's xdiff, the diff engine's primary line matcher
 # (RFC-BPR-0082: `l-myers-indent`, Myers with the indent heuristic). The owner
@@ -82,4 +83,7 @@ function(bpr_acquire_xdiff)
         POSITION_INDEPENDENT_CODE ON
         C_VISIBILITY_PRESET default
         WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    # Built hardened like the product that loads it: the package audits check
+    # the library's RELRO, BIND_NOW and control-flow guard like every image.
+    bpr_enable_hardening(better_pull_review_xdiff)
 endfunction()

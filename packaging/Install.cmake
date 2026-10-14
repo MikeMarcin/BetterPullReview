@@ -76,9 +76,11 @@ install(TARGETS app_better_pull_review ${bpr_package_helpers}
 # the application as the private Qt libraries are (macOS: tools/release.sh puts
 # it in Contents/Frameworks). The application loads it through $ORIGIN on Linux
 # and from its own directory on Windows.
+# Its Windows import library is a build input only and never ships.
 install(TARGETS better_pull_review_xdiff
     RUNTIME DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime
-    LIBRARY DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime)
+    LIBRARY DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime
+    ARCHIVE DESTINATION "_bpr/unpackaged" COMPONENT Unpackaged EXCLUDE_FROM_ALL)
 if(BPR_EXTERNAL_QT_RESOURCES)
     # [[BPR-0974]]. The image's Qt resources ship beside it, and it refuses to
     # start without exactly this file (cmake/BprQtResources.cmake). Installed

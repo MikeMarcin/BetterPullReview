@@ -2,6 +2,7 @@
 	#include "../support/source_regex_engine_fixture.hpp"
 #endif
 #include "bpr/application/diff_application_host.hpp"
+#include "product_diff.hpp"
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/source_pr_search_execution.hpp"
@@ -6041,7 +6042,8 @@ namespace {
 					*aValue.Host,
 					DiffEffects,
 					DiffDecisions,
-					Outcomes }
+					Outcomes,
+					bpr::tests::product_line_matcher() }
 			, Actor{ [this](const std::stop_token aStop) {
 				while (!aStop.stop_requested()) {
 					if (Value.Effects.pending() != 0U) {
