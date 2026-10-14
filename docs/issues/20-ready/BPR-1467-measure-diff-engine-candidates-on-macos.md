@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1467"
 title: "Measure the diff-engine candidates on macOS and record each decision"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1466"]
 priority: "P2"
