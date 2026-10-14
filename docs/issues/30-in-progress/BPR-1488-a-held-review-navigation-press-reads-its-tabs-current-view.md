@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1488"
 title: "A held Review navigation press reads its tab's current view"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
