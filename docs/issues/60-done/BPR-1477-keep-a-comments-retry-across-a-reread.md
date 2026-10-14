@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1477"
 title: "Keep a comment's retry when its pull request is read again"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1475"]
 priority: "P1"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1477--BPR-1477--58607c90b7ff.json","origin":"BPR-1475 implementation finding"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c016ecba1","evidence":{"kind":"observation","detail":"lost-refreshed-retried: after Refresh the draft is open in the drawer, publishing, locked, says retry is safe and offers Retry; Retry reconciles (native_posts=1 submissions=2 stored=1 duplicate=1). Old code: writing=0 state=-1 publish=none retry=0.","path":"docs/issues/60-done/BPR-1477-keep-a-comments-retry-across-a-reread.md"}},{"criterion":"AC2","outcome":"pass","revision":"c016ecba1","evidence":{"kind":"observation","detail":"core::resume_comment_after_refresh holds a publishing comment no submitted review holds (core_reply_draft_standing 'reread holds the retry'); the composition restores the retry record, its reason and the drawer card.","path":"docs/issues/60-done/BPR-1477-keep-a-comments-retry-across-a-reread.md"}},{"criterion":"AC3","outcome":"pass","revision":"c016ecba1","evidence":{"kind":"observation","detail":"Tried and left off: with the reread after an unknown outcome on, the round-trip composition course pressed Retry during that reread and lost its answer (SEMANTIC_COMMENT_SERVER_REFRESH_STALLED); with it off the contract passes.","path":"docs/issues/60-done/BPR-1477-keep-a-comments-retry-across-a-reread.md"}},{"criterion":"AC4","outcome":"pass","revision":"8664a7226","evidence":{"kind":"observation","detail":"On main e145ccd35 merged: round-trip composition (resealed), reply draft, threaded reply, line draft, file switch, progress push, label recovery and CLI consent pass; start-review refused fails as on main.","path":"docs/issues/60-done/BPR-1477-keep-a-comments-retry-across-a-reread.md"}}]
 ---
 
 # Keep a comment's retry when its pull request is read again
