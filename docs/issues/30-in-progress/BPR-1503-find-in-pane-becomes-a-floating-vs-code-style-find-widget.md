@@ -31,8 +31,9 @@ toggles "Word" and "Selection". The owner accepted this redesign on
   today's message in its tooltip and status. There is no replace chevron.
 - Keyboard: Cmd+F opens or focuses the widget and selects the query; Enter
   goes to the next match and Shift+Enter to the previous one; F3 and Shift+F3
-  work; Option+C, Option+W and Option+R toggle case, word and regex; Esc
-  closes and returns focus to the pane; Ctrl+Enter inserts a newline.
+  work; Option+W toggles whole word and Option+L find in selection while the
+  query has focus; Esc closes and returns focus to the pane; Ctrl+Enter
+  inserts a newline. (Option+C and Option+R: see the owner decision below.)
 - Seeding: Cmd+F with a selected word keeps the current match on that
   occurrence ("1 of N" at the selection), as VS Code does.
 - Highlights: every match gets a subtle wash and the current match a
@@ -47,9 +48,9 @@ toggles "Word" and "Selection". The owner accepted this redesign on
 - AC1: The find widget floats over the focused pane's top-right corner, and
   opening, typing in and closing it leaves the pane's geometry unchanged; a Qt
   test shows it in split and unified views.
-- AC2: The query field carries the Aa, ab and .\* toggles; Option+C/W/R toggle
-  them; Enter, Shift+Enter, F3, Shift+F3, Esc and Ctrl+Enter behave as
-  designed; a Qt test shows each.
+- AC2: The query field carries the Aa, ab and .\* toggles; Option+W toggles
+  whole word; Enter, Shift+Enter, F3, Shift+F3, Esc and Ctrl+Enter behave as
+  designed; a test shows each.
 - AC3: Cmd+F with a selected occurrence reports that occurrence as the
   current match; a test shows it.
 - AC4: Every match and the current match are painted from the two new theme
@@ -57,5 +58,30 @@ toggles "Word" and "Selection". The owner accepted this redesign on
   contrast checks.
 - AC5: Offscreen renders in light and dark, at 900 px and full width, match
   the design; the existing Find courses pass.
-- AC6 (human): the owner accepts the floating widget and its toggles, the
-  seeding and the highlights in an attended review of a frozen build.
+- AC6 (human; waived by the owner for this landing, 2026-10-14): the owner
+  accepts the floating widget and its toggles, the seeding and the highlights
+  in an attended review of a frozen build.
+
+## Owner decisions
+
+- 2026-10-14: keep the existing Option+C (Comment) and Option+R (Compose
+  review) keys. Find's Match Case and Regular Expression toggles take no key,
+  even inside the query. Option+W and Option+L remain.
+- 2026-10-14: "skip the review for now just land it on main and accelerate
+  the process". The attended look (AC6) is waived for this landing. Follow-up:
+  the owner can take the look on the 0.2.0 release build.
+
+## Outcome
+
+- The widget is `source_find_bar`, a child of `diff_workbench` in no layout,
+  placed by `place_source_find()` over the target pane's viewport. A narrow
+  pane first extends the panel left, then tightens spacing, then lets the
+  find-in-selection icon give way to Option+L.
+- `find_match_background` and `find_current_match_background` are appended to
+  the role vocabulary with values for all four built-in themes, held to the
+  text floor under the selection's wash opacity. High-contrast light keeps its
+  recorded 18-hundredth headroom. The current-match outline is that hue
+  carried to the 3:1 indicator ratio.
+- Renders reviewed: `build/dev/source-find-renders/` (split, unified and
+  unified full width, 900 and 720 px, invalid regex, dark at 900 px and full
+  width, also at 1.25x and 2x).
