@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1494"
 title: "A returning account does not resume its retained comparison"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
