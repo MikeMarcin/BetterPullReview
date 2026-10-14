@@ -1,4 +1,39 @@
 {
+  "bundle_state": {
+    "bundles": {
+      "agentskills/rfc": {
+        "bindings": [
+          {
+            "id": "author-rfc",
+            "source": "agentskills"
+          },
+          {
+            "id": "grill-rfc",
+            "source": "agentskills"
+          },
+          {
+            "id": "grill-me",
+            "source": "agentskills"
+          },
+          {
+            "id": "implement-rfc",
+            "source": "agentskills"
+          }
+        ],
+        "commit": "4bdf12d49f0572e23d5d877b9655d977a4381ee0",
+        "definition_digest": "sha256:4abf11c2b740f00b35e55ae753326ba7dc1fa593d06be2f75898739158c8d484",
+        "repository": "https://github.com/MikeMarcin/AgentSkills.git"
+      }
+    },
+    "manual": [
+      "agentskills/attended-review",
+      "agentskills/bpr-cycle",
+      "agentskills/implement-rfc",
+      "agentskills/pr-tour",
+      "agentskills/sprite-sheet-animation-updater",
+      "agentskills/wizard"
+    ]
+  },
   "default_agents": [
     "claude",
     "codex"
@@ -10,11 +45,35 @@
       "source": "agentskills"
     },
     {
+      "id": "author-rfc",
+      "introduced_by": [
+        "bundle:agentskills/rfc"
+      ],
+      "source": "agentskills"
+    },
+    {
       "id": "bpr-cycle",
       "source": "agentskills"
     },
     {
+      "id": "grill-me",
+      "introduced_by": [
+        "bundle:agentskills/rfc"
+      ],
+      "source": "agentskills"
+    },
+    {
+      "id": "grill-rfc",
+      "introduced_by": [
+        "bundle:agentskills/rfc"
+      ],
+      "source": "agentskills"
+    },
+    {
       "id": "implement-rfc",
+      "introduced_by": [
+        "bundle:agentskills/rfc"
+      ],
       "source": "agentskills"
     },
     {

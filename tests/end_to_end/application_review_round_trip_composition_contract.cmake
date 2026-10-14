@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a58e8b52668cb70942cb41d91660aa8bf61a66a44eb36a02811763e84096fcb1"
+		"cb0b2c64614ff4a5f1dd4ee6fe661d7dd8ebc361164aecefbbc41f6b3365f892"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e30b3e49b3e37298f0f42a70219f3a082dc78aafce7203ff1a3117d7edf8c8a6"
+        "3a5276bdb9632bc3ae7ddc736c758e2fff49ec7510aaa76d147c738b2bee6560"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2453,3 +2453,12 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # and recomputed. No publication, credential, grant, inventory or
 # mutation-branch change; the full application and production-manifest digests
 # are refreshed.
+
+# [[BPR-1488]] and [[BPR-1486]] reseal. github_application.cpp's retained
+# Review navigation press now waits for the active tab's current view, and each
+# tab publication re-evaluates it; the workbench course's wrap step waits for
+# the dispatch with a named stall; the appearance theme probe prints its commit
+# facts and the panel's refusal text; and the UIforETW capture measures a
+# pane's masked viewport ([[BPR-1487]]). No publication, credential, grant,
+# inventory or mutation-branch change; the full application and
+# production-manifest digests are refreshed.

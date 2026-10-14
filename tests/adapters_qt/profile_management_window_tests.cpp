@@ -367,25 +367,54 @@ namespace {
 			expect(window.view_menu() != nullptr && described(viewActions) == described(window.view_menu()->actions()),
 				   "with the window menu's own commands, in the window menu's own order");
 		}
-		expect(viewActions.size() == 15 && viewActions[0]->text() == QStringLiteral("&Line numbers")
-				   && viewActions[1]->text() == QStringLiteral("&One pane")
-				   && viewActions[2]->text() == QStringLiteral("Line &Details") && viewActions[2]->isCheckable()
-				   && viewActions[3]->text() == QStringLiteral("Hide &Drawers")
-				   && viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+B") }
-				   && viewActions[4]->text() == QStringLiteral("&Threads")
-				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+J") }
-				   && viewActions[5]->text() == QStringLiteral("&Updates Line") && viewActions[5]->isCheckable()
-				   && viewActions[6]->isSeparator() && viewActions[10]->isSeparator()
-				   && viewActions[11]->text() == QStringLiteral("Next Tab")
-				   && viewActions[12]->text() == QStringLiteral("Previous Tab") && viewActions[13]->isSeparator()
-				   && viewActions[14]->text() == QStringLiteral("&Settings…"),
+		// [[BPR-1493]]. RFC-BPR-0077's Find submenu, RFC-BPR-0076's file and
+		// change navigation and RFC-BPR-0074's Go to header/source lead the
+		// window's View, so they lead this one, each offered and disabled.
+		expect(viewActions.size() == 23 && viewActions[0]->text() == QStringLiteral("&Find") && viewActions[0]->menu() != nullptr
+				   && viewActions[0]->menu()->actions().size() == 6
+				   && viewActions[1]->text() == QStringLiteral("&Previous file")
+				   && viewActions[1]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Alt+Up") }
+				   && viewActions[2]->text() == QStringLiteral("&Next file")
+				   && viewActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Alt+Down") }
+				   && viewActions[3]->text() == QStringLiteral("Pre&vious change")
+				   && viewActions[3]->shortcut() == QKeySequence{ QStringLiteral("Alt+Up") }
+				   && viewActions[4]->text() == QStringLiteral("Ne&xt change")
+				   && viewActions[4]->shortcut() == QKeySequence{ QStringLiteral("Alt+Down") } && viewActions[5]->isSeparator()
+				   && viewActions[6]->text() == QStringLiteral("Go to header/source")
+				   && viewActions[6]->shortcut() == QKeySequence{ QStringLiteral("Alt+O") } && viewActions[7]->isSeparator(),
+			   "Find, file and change navigation and Go to header/source lead it, on the window's keys");
+		{
+			qt::workbench_window window;
+			const auto           titles = [](const QMenu* const aMenu) {
+				auto names = QStringList{ };
+				for (const auto* const action : aMenu->actions()) {
+					names.push_back(action->text());
+				}
+				return names;
+			};
+			expect(titles(viewActions[0]->menu()) == titles(window.view_menu()->actions()[0]->menu())
+					   && std::ranges::none_of(viewActions[0]->menu()->actions(), [](const QAction* const aAction) { return aAction->isEnabled(); }),
+				   "and Find holds the window's Find commands in the window's order, each disabled");
+		}
+		expect(viewActions[8]->text() == QStringLiteral("&Line numbers")
+				   && viewActions[9]->text() == QStringLiteral("&One pane")
+				   && viewActions[10]->text() == QStringLiteral("Line &Details") && viewActions[10]->isCheckable()
+				   && viewActions[11]->text() == QStringLiteral("Hide &Drawers")
+				   && viewActions[11]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+B") }
+				   && viewActions[12]->text() == QStringLiteral("&Threads")
+				   && viewActions[12]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+J") }
+				   && viewActions[13]->text() == QStringLiteral("&Updates Line") && viewActions[13]->isCheckable()
+				   && viewActions[14]->isSeparator() && viewActions[18]->isSeparator()
+				   && viewActions[19]->text() == QStringLiteral("Next Tab")
+				   && viewActions[20]->text() == QStringLiteral("Previous Tab") && viewActions[21]->isSeparator()
+				   && viewActions[22]->text() == QStringLiteral("&Settings…"),
 			   "Line Details, Hide Drawers on its key and Threads on its key among them");
 		// [[BPR-1336]]. The zoom commands, on the window's keys, offered and off.
-		expect(viewActions[7]->text() == QStringLiteral("Zoom In")
-				   && viewActions[7]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }
-				   && viewActions[8]->text() == QStringLiteral("Zoom Out") && viewActions[8]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
-				   && viewActions[9]->text() == QStringLiteral("Actual Size") && viewActions[9]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } }
-				   && !viewActions[7]->isEnabled() && !viewActions[8]->isEnabled() && !viewActions[9]->isEnabled(),
+		expect(viewActions[15]->text() == QStringLiteral("Zoom In")
+				   && viewActions[15]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+=") }, QKeySequence{ QStringLiteral("Ctrl++") } }
+				   && viewActions[16]->text() == QStringLiteral("Zoom Out") && viewActions[16]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+-") } }
+				   && viewActions[17]->text() == QStringLiteral("Actual Size") && viewActions[17]->shortcuts() == QList{ QKeySequence{ QStringLiteral("Ctrl+Alt+0") } }
+				   && !viewActions[15]->isEnabled() && !viewActions[16]->isEnabled() && !viewActions[17]->isEnabled(),
 			   "Zoom In, Zoom Out and Actual Size are offered with no window, on the window's keys, and disabled");
 		{
 			auto keys = QList<QKeySequence>{ };
@@ -398,7 +427,7 @@ namespace {
 		}
 		expect(std::ranges::none_of(viewActions, [](const QAction* const aAction) { return !aAction->isSeparator() && aAction->isEnabled(); }),
 			   "none of them actionable, because no window's presentation is theirs to change");
-		expect(viewActions[14]->menuRole() == QAction::PreferencesRole,
+		expect(viewActions[22]->menuRole() == QAction::PreferencesRole,
 			   "and Settings keeps the preferences role, so the application menu keeps its merged item");
 
 		// [[BPR-1035]]. And the window's Pull Request menu, between Profiles and
@@ -485,18 +514,18 @@ namespace {
 		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[5]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[6]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
-				   && viewActions[5]->shortcut().isEmpty(),
+				   && viewActions[13]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
-		expect(viewActions[11]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
-				   && viewActions[12]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
+		expect(viewActions[19]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
+				   && viewActions[20]->shortcut() == QKeySequence{ QStringLiteral("Meta+Shift+Tab") },
 			   "tab navigation keeps the physical Control key on macOS");
 #else
-		expect(viewActions[11]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
-				   && viewActions[12]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
+		expect(viewActions[19]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Tab") }
+				   && viewActions[20]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[7], viewActions[8], viewActions[9], viewActions[11], viewActions[12], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[6], viewActions[10], viewActions[11], viewActions[12], viewActions[13], viewActions[15], viewActions[16], viewActions[17], viewActions[19], viewActions[20], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
