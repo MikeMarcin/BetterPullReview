@@ -88,7 +88,7 @@ namespace bpr::core {
 	{
 		/// The index; absent when the result is invalid or the build stopped.
 		std::optional<diff_semantic_index> Index;
-		/// The caller's stop ended the build. A stopped build is started again.
+		/// The caller's stop ended the build, which is abandoned ([[BPR-1485]]).
 		bool Stopped = false;
 	};
 
