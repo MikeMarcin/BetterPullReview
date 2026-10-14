@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1509"
 title: "Style Files and Search tabs like Comments and Notes tabs"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Lets makes files and search tabs more like comments notes tabs style","milestone_plan":{"id":"bpr1509-drawer-tabs","path":"docs/rfcs/plans/bpr1509-drawer-tabs/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8f11e6083ad1545f97e3b0b741e0dd3f42006ae6","evidence":{"kind":"observation","detail":"Full-window offscreen native document-tab renders inspected at 1x, 1.25x and 2x; both drawer headers share the same edge.","root":"/tmp/bpr1509-20261014"}},{"criterion":"AC2","outcome":"pass","revision":"8f11e6083ad1545f97e3b0b741e0dd3f42006ae6","evidence":{"kind":"observation","detail":"Actual mouse/window-system key path, native page names and selected accessibility state, disabled keyboard skipping, focus/hover/disabled renders verified.","root":"/tmp/bpr1509-20261014"}},{"criterion":"AC3","outcome":"pass","revision":"8f11e6083ad1545f97e3b0b741e0dd3f42006ae6","evidence":{"kind":"observation","detail":"Exact selected file/comparison, Files filter, Search query/results/current occurrence/count, drawer width and existing Close/Escape behavior retained; collapse/rail/Hide course passes.","root":"/tmp/bpr1509-20261014"}},{"criterion":"AC4","outcome":"pass","revision":"8f11e6083ad1545f97e3b0b741e0dd3f42006ae6","evidence":{"kind":"observation","detail":"Real composed application through installed Git/cache; old-header negative fails and restored candidate passes. No explicit human criterion exists; coordinator confirmed no new gate.","root":"/tmp/bpr1509-20261014"}}]
 ---
 
 # BPR-1509: Style Files and Search tabs like Comments and Notes tabs
@@ -126,3 +127,14 @@ commits `fa776388e` through `9b551b738` require coordinator reconciliation.
 No allocation bytes were edited or independently allocated by this implementer.
 The prepared acceptance is `docs/issues/_checkpoints/BPR-1509/acceptance.json`.
 All task-owned build/test/tidy commands have ended; no review server exists.
+
+### Final tracker reconciliation
+
+Coordinator resumed this implementer and authorized existing metadata-only
+main commits `a1130fccb..3e8793add`. All nine commits were inspected and
+cherry-picked sequentially, preserving BPR-1520's P0 and owner amendments.
+NEXT_ID is now BPR-1521; no allocation bytes were independently edited.
+`documentation-final.log` reports `DOCUMENTATION_OK`. Exact product, test and
+specification paths are byte-identical to verified candidate `8f11e6083`, so
+all unchanged passing evidence is reused. Canonical acceptance is prepared
+in the recorded `acceptance.json`; no product work or acceptance is pending.
