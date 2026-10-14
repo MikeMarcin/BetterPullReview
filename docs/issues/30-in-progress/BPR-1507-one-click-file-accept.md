@@ -27,7 +27,7 @@ BPR-1506 owns automatic Seen on opening a file. Coordinate any shared file-contr
 
 Mandate revision `owner-2026-10-14`; source baseline `ae7d22844`.
 The adopted [single-card plan](../../rfcs/plans/bpr-1507-one-click-file-accept/milestone-plan.json)
-preserves AC1–AC4 and the exact-candidate human visual decision. Coordinator
+preserves AC1–AC4. The owner card has no human-only criterion. Coordinator
 owns integration and any following BPR-1515 hotkey milestone.
 
 Loaded `implement-rfc` and `frontend-design:frontend-design` before UX edits;
@@ -61,6 +61,62 @@ No NEXT_ID or reservation bytes were authored by this implementer; only
 coordinator-authorized testing-note import commits were cherry-picked to satisfy
 the shared-ref high-water guard. No owner desktop or browser data was accessed.
 
-Candidate verification and attended handoff will be recorded here before the
-card boundary. Runtime logs and renders remain uncommitted under
-`build/bpr1507-runtime`; command ownership is this implementer only.
+Product candidate `e483ef9997f3e85632e44c8c46c0fb34682cd792` changes only the
+Qt control, its focused regression and composed acceptance gesture, plus the
+owning UX/ledger documentation. The acceptance records are
+[acceptance.json](../_checkpoints/BPR-1507/acceptance.json).
+
+Verification on macOS 26.6.2 arm64, Qt 6.11.2:
+
+- `cmake --preset dev` and the focused application/window-test build pass.
+- `qt_review_state_icon` passes (3.44 s): real mouse click, exact command,
+  committed state, excluded Include access, loading, replacement and unavailable
+  states. The light/dark render sheet was inspected.
+- All three `qt_workbench_focus_order_scale_*` and all three
+  `qt_workbench_title_row_scale_*` rows pass (1x, 1.25x, 2x).
+- `application_review_ledger_composition_contract` passes (15.26 s), including
+  seed, reopen and unavailable courses through the composed durable host.
+- `application_diff_workbench_public_path` passes (3.74 s); inspected its
+  full-window code render through the installed Git/cache actor. The ordinary
+  GitHub public-path render also passes (4.54 s).
+- `architecture_boundaries` passes (30 s); Clang-format 22.1.8 on all four
+  touched C++ files and `git diff --check` pass. Documentation tests: 67 pass.
+- The documentation gate was run and currently refuses only the shared
+  NEXT_ID/high-water mismatch: local BPR-1516 versus historical BPR-1520.
+  No counter override, allocation or manual lane move was attempted.
+
+Self-review: both presenters use the canonical acceptance action. There is no
+new policy, provider capability, receipt authority, store path, or automatic
+acceptance. Exact receipt material remains host-owned; the normal checked state
+waits for its persisted projection. The menu keeps Include usable when the
+separate Accept button is disabled. No independent/native matrix was required
+for this bounded change, and none is claimed.
+
+The initial implementer plan appended a generic human-decision exit that was
+not in the owner card. This was an extra gate, not an unmet owner requirement.
+The final plan corrects that interpretation without changing AC1–AC4; its
+[initial plan](../_checkpoints/BPR-1507/initial-plan.json) remains intact. The
+mechanical check-amendment helper refused changed exit text (it preserves every
+exit byte); that refusal is recorded as a consistency limitation, not permission
+or a verdict. No human decision existed, no candidate had been protected, and
+the sole engineering writer reconciled and renewed the final binding. The
+unused unprotected review draft was removed; no review server was started.
+
+The frozen source/build is a self-contained optional inspection artifact, not
+an owner acceptance obligation:
+`/Users/jaeger/bpr1507-one-click-accept-v001.xav8xdr7`, source `e483ef9997`,
+executable SHA-256
+`97e7edd6763036898d3da35fbf7016f5dfc7b0bd9ec55286ae9cab0cf72cbfda`.
+Its generated launcher's own `--check` passed offscreen at
+`ATTENDED_FILE_SHOWN:src/engine/renderer.cpp`, head `b20cb443428212543f5911e091a0ffeb407d23cf`.
+Optional launch: `python3 /Users/jaeger/bpr1507-one-click-accept-v001.xav8xdr7/launch.py`.
+Remove it with `python3 scripts/freeze_attended_build.py remove` and that exact
+root when no longer useful; no historical or other-agent build was touched.
+
+All task-owned configure/build/test/freeze processes have finished. No server,
+waiter, background process, descendant agent or unknown writer remains. Runtime
+logs/renders remain uncommitted under `build/bpr1507-runtime`. Coordinator
+performs source integration and canonical finish after reconciling its testing-
+note imports/counter; BPR-1515 is a separate next milestone. Its shortcut must
+use accept-only eligibility rather than binding the toggle QAction directly,
+so repeated key presses cannot revoke acceptance.
