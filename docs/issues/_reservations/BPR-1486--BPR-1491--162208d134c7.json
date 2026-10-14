@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1486",
+    "BPR-1487",
+    "BPR-1488",
+    "BPR-1489",
+    "BPR-1490",
+    "BPR-1491"
+  ],
+  "reserve_for": "release-020-gate",
+  "purpose": "0.2.0 release gate repairs: four GUI public-path contracts (appearance theme, UIforETW pane measure, workbench held navigation press, start-review 422 label), msvc getenv, hash_evaluation temporary usage",
+  "created": "2026-10-14T04:32:03.105895+00:00",
+  "base": "cd4860e30d95b5bc1b92377b5103720dc748861f"
+}
