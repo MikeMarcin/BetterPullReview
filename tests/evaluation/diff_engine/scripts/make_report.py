@@ -29,6 +29,7 @@ import math
 import pathlib
 import statistics
 import sys
+import xml.etree.ElementTree as ElementTree
 
 GITHUB = "github"
 CLASSES = ("S", "M", "L", "pathological", "real")
@@ -285,9 +286,25 @@ def main() -> int:
     # The two suites that stop at their first failure are judged from their
     # inventories: every failed expectation the baseline does not share must
     # carry a verdict other than "regression" in the adjudication file.
+    # The suite records keep only the tail of a test's output; the junit file
+    # beside them keeps all of it, where a benchmark's failure line can sit
+    # well before the tail.
+    junit_output = {}
+
+    def full_output(row: dict) -> str:
+        candidate = row["candidate"]
+        if candidate not in junit_output:
+            junit_output[candidate] = {}
+            path = results / f"junit-{candidate}.xml"
+            if path.is_file():
+                for case in ElementTree.parse(path).getroot().iter("testcase"):
+                    junit_output[candidate][case.get("name")] = case.findtext("system-out") or ""
+        return junit_output[candidate].get(row["test"], "") or (row.get("failure_tail") or "")
+
     def first_failure(row: dict) -> str:
-        lines = [line for line in (row.get("failure_tail") or "").splitlines() if line.startswith("FAILED") or "benchmark-failed" in line]
-        return lines[-1] if lines else (row.get("failure_tail") or "")[-160:]
+        output = full_output(row)
+        lines = [line for line in output.splitlines() if line.startswith("FAILED") or "benchmark-failed" in line]
+        return lines[-1] if lines else output[-160:]
 
     suite_results = collections.defaultdict(dict)
     for row in suites:
