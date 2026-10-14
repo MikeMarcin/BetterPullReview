@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1491"
 title: "The hash evaluation driver uses contained temporaries"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1486--BPR-1491--162208d134c7.json","origin":"0.2.0 release normal gate (scripts/run_test_suite.py --preset dev) fails on main at cd4860e30, owner release request 2026-10-13","related_cards":["BPR-1446","BPR-1450","BPR-1451"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"e3d28e5e6","evidence":{"kind":"command","command":"ctest --preset dev -R ^contained_temporary_usage_contract$","detail":"Both scratch roots use contained_temporary_directory; the contract passes (failed in the cd4860e30 baseline gate)."}},{"criterion":"AC2","outcome":"pass","revision":"e3d28e5e6","evidence":{"kind":"observation","detail":"--help exits 0 from any cwd; phase bodies unchanged; helper creates 0o700 roots and removes read-only Git objects. The git and sweep256 phases (opt-in BPR_HASH_EVALUATION harness, not in the default graph or release) were not executed."}}]
 ---
 
 # The hash evaluation driver uses contained temporaries
@@ -59,3 +60,4 @@ release gate was running performance rows on this machine:
   files) had the right prefix and mode `0o700`, and was gone after exit.
 - Not run: the driver's `git` and `sweep256` phases against a
   `-DBPR_HASH_EVALUATION=ON` build. Those phases need the built harness.
+- Integration at e3d28e5e6 (main 7dd7b709d merged), macOS arm64: `ctest --preset dev -R '^(contained_temporary_usage_contract|documentation_structure)$'` passes 2/2; `run_hash_evaluation.py --help` exits 0. The driver's `git` and `sweep256` phases need the opt-in `-DBPR_HASH_EVALUATION=ON` harness, which the default graph and the release do not build; they were not executed. AC2 rests on the unchanged phase bodies, the same `with` scope for each scratch root, and the worker's direct check that the helper makes a 0o700 root and removes read-only Git objects.
