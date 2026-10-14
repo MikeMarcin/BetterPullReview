@@ -32,7 +32,9 @@ import pathlib
 import re
 import subprocess
 import sys
-import tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 REPOSITORY = "MikeMarcin/BPR-Test"
 BASE_BRANCH = "bpr-diff-eval-v1-base"
@@ -166,7 +168,7 @@ def main() -> int:
 
     entries = []
     sources = []
-    with tempfile.TemporaryDirectory(prefix="bpr-diff-oracle-") as temporary:
+    with contained_temporary_directory(prefix="bpr-diff-oracle-") as temporary:
         work = pathlib.Path(temporary) / "work"
         run([git, "init", "--quiet", "--initial-branch", BASE_BRANCH, str(work)], env=environment)
         run([git, "-C", str(work), "config", "core.autocrlf", "false"], env=environment)

@@ -17,7 +17,15 @@
 namespace {
 	[[nodiscard]] auto selected_name() -> std::string
 	{
-		if (const auto* value = std::getenv("BPR_DIFF_EVALUATION_CANDIDATE"); value != nullptr && *value != '\0') {
+#if defined(_MSC_VER)
+	#pragma warning(push)
+	#pragma warning(disable : 4996)
+#endif
+		const auto* value = std::getenv("BPR_DIFF_EVALUATION_CANDIDATE");
+#if defined(_MSC_VER)
+	#pragma warning(pop)
+#endif
+		if (value != nullptr && *value != '\0') {
 			return value;
 		}
 		auto stream = std::ifstream{ BPR_EVAL_SELECTION_FILE };

@@ -31,7 +31,9 @@ import pathlib
 import re
 import subprocess
 import sys
-import tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[4]))
+from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 MASK64 = (1 << 64) - 1
 SIZE_LIMIT_S = 2_000
@@ -222,7 +224,7 @@ def large_review_pairs(repo: pathlib.Path, git: str) -> list[tuple[str, bytes, b
     wanted = {"large/comparison.cpp": "bpr0625-comparison", "generated/table.inc": "bpr0625-generated-table"}
     environment = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "HOME": "/nonexistent", "LC_ALL": "C", "PATH": "/usr/bin:/bin"}
     pairs = []
-    with tempfile.TemporaryDirectory(prefix="bpr-diff-eval-pack-") as temporary:
+    with contained_temporary_directory(prefix="bpr-diff-eval-pack-") as temporary:
         repository = pathlib.Path(temporary) / "objects.git"
         run([git, "init", "--bare", "--quiet", "--template=", str(repository)], env=environment)
         run([git, "--git-dir", str(repository), "unpack-objects", "-q"], input=(fixture / "objects.pack").read_bytes(), env=environment)
