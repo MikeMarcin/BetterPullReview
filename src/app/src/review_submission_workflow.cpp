@@ -754,10 +754,15 @@ namespace bpr::app {
 	}
 	void review_tour_publication_workflow::observe(const application::tour_presentation& aDraft)
 	{
+		// [[BPR-1501]]. Only a change of the observed draft can stale the plan.
+		// The first draft a window loads, and a repeated projection of the same
+		// revision, change nothing, whether they arrive before or after a
+		// restart's discovery adopts the captured plan.
+		const bool changed             = Draft.Draft && aDraft.Draft && (Draft.Draft->Owner != aDraft.Draft->Owner || Draft.Draft->Revision != aDraft.Draft->Revision);
 		Draft                          = aDraft;
 		const auto publishedEntity     = Record && Record->Published ? (Record->Plan.Update ? Record->Plan.Update->Remote->Entity : (Record->Index ? Record->Index->NodeId : Record->Review->NodeId)) : std::string{ };
 		const bool observedPublication = aDraft.Draft && aDraft.Draft->Remote && !publishedEntity.empty() && aDraft.Draft->Remote->Entity == publishedEntity;
-		if (Plan && aDraft.Draft && !observedPublication && (Plan->Owner != aDraft.Draft->Owner || Plan->Generation != aDraft.Draft->Revision)) {
+		if (Plan && changed && !observedPublication && (Plan->Owner != aDraft.Draft->Owner || Plan->Generation != aDraft.Draft->Revision)) {
 			if (Context && Host) {
 				Host->cancel(*Context);
 			}

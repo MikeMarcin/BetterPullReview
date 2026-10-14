@@ -32,3 +32,56 @@ It passed in the gate on cd4860e30 and 5 of 5 alone (about 3.1 s each).
 ## Boundaries
 
 No live GitHub mutation; fixtures only.
+
+## Evidence
+
+Cause (AC1): a product ordering race in
+`review_tour_publication_workflow::observe` (`src/app/src/review_submission_workflow.cpp`),
+not a course defect. `recording-failure=15` (`recording_exhausted`) appears in
+passing runs too and is not the cause.
+
+- In the CLI course the restarted app reconnects through `gh`, so its host
+  authority fingerprint (which includes the profile revision) differs from
+  the first run's: the restored window's tour owner differs and it loads an
+  empty draft (revision 1, no stops). The pending publication is still
+  discovered from the recovery store with the original captured plan
+  (generation 7, original owner).
+- `observe` compared every draft projection with the held plan. When the
+  draft projection arrived before discovery (the usual order), no plan was
+  held and nothing happened. When contention delayed it until after discovery
+  it cancelled the restart reconciliation (status "Publication cancelled",
+  failing "restarted real app reconciles pending review before Resume"). And
+  when an unchanged re-projection arrived after the post-publication refresh,
+  it overwrote "Published:" with "Draft changed. Prepare a fresh preview..."
+  (the gate's "Resume completes the original pending review"). The same inputs
+  gave different outcomes depending on arrival order.
+- Temporary stderr instrumentation (removed) recorded, for each failing run,
+  `observe plan-gen=7 draft-rev=1 owner-eq=0` (owner differing only in
+  `HostAuthority`) arriving after discovery or after the final `published`
+  result. It also recorded handoff authorities `f5e4319e…` (first run) and
+  `4f5f532b…` (restart).
+
+Fix (AC2): `observe` now treats only a change of the observed draft (owner or
+revision differing from the previous projection) as making the plan stale. A
+window's first loaded draft and repeated projections of the same revision no
+longer cancel or overwrite, in either order. Publish's dispatch-time checks
+(plan generation versus draft revision when there is no record) are unchanged.
+No check, budget or course step was loosened. The course is unchanged.
+
+Reproduction: the row run via `ctest -R '^application_review_tour_cli_ordinary_stop$'`,
+with load added by N `yes > /dev/null` processes (PIDs recorded, killed by
+PID) on a 14-core Mac whose ambient load average was already about 21 to 24.
+
+| Build | Extra load | Runs | Failures |
+|---|---|---|---|
+| before | 0 (ambient about 21) | 2 | 2 |
+| before | 14 `yes` | 10 | 1 |
+| before (instrumented) | 14 `yes` | 15 | 3 |
+| before (instrumented) | 14 `yes` | 12 | 5 |
+| after | 14 `yes` | 30 | 0 |
+| after | 28 `yes` | 20 | 0 |
+
+Before: 11 failures in 39 runs. After: 0 in 50. After the fix the other ten
+`review_tour_publication_public_path` rows, `application_review_tour_cold_import_public_path`
+and `application_review_submission_cli_ordinary` each passed once.
+`src/app` changed, so the release seal must be regenerated.
