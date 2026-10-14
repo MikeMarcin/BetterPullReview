@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1513"
+  ],
+  "reserve_for": "testing-notes-coordinator",
+  "purpose": "",
+  "created": "2026-10-14T20:18:49.274624+00:00",
+  "base": "3c344e31b52fedf2ee45b863d53f8916373299e5"
+}
