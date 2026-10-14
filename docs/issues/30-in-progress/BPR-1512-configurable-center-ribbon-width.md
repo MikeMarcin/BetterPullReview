@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1512"
 title: "Make center ribbon width configurable and halve its default"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Make the center ribbon width a setting and make the default half the current width"}
