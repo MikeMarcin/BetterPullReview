@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1513"
 title: "Reduce bright Appearance section banners in dark mode"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"I don't like the dark mode section banner background color in appearance, it's like white on white and a flash bang","milestone_plan":{"id":"bpr1513-dark-appearance-banners","path":"docs/rfcs/plans/bpr1513-dark-appearance-banners/milestone-plan.json"}}
