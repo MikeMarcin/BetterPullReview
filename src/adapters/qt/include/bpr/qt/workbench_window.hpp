@@ -1020,6 +1020,13 @@ namespace bpr::qt {
 		/// a suggested change on it) as a draft in the drawer.
 		/// \returns Whether the draft opened, in the drawer or in Discuss.
 		auto begin_new_comment(bool aSuggestion = false) -> bool;
+		/// \brief [[BPR-1477]]. Opens the editor's new comment at its line in
+		/// the drawer again, as choosing its card does, locked or not: a
+		/// comment whose publication answer was lost shows its Retry there.
+		/// \details Only while Review shows the code with the Comments drawer
+		/// open; nothing else is opened, expanded or changed.
+		/// \returns Whether the draft is being written in the drawer.
+		auto reopen_draft_in_drawer() -> bool;
 		/// \brief [[BPR-1212]]. Add comment (or Suggest change) on the selected
 		/// lines: Return and Shift+Return in a focused code pane, the code's
 		/// right-click items and the gutter's "+".

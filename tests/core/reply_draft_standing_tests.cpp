@@ -206,6 +206,23 @@ namespace {
 		expect(!resume_comment_after_refresh(std::vector{ reply() }, review_draft_id{ 7U }).has_value(), "a reply is held again by its own rule");
 		expect(!resume_comment_after_refresh(std::vector{ written }, review_draft_id{ 6U }).has_value(), "a comment no longer saved is not held again");
 	}
+
+	/// [[BPR-1477]]. A comment whose publication answer was lost is held
+	/// again for its retry; one a submitted review holds is not.
+	void a_reread_holds_the_comment_awaiting_its_retry_again()
+	{
+		auto unknown  = comment(5U);
+		unknown.Body  = "A comment whose answer was lost.";
+		unknown.State = review_draft_state::publishing;
+		expect(resume_comment_after_refresh(std::vector{ unknown }, review_draft_id{ 5U }) == std::optional{ review_draft_id{ 5U } }, "a comment awaiting its retry is held again");
+		auto submitted     = unknown;
+		submitted.InReview = review_pending_mark{ .Path = "src/review.cpp", .Head = git_commit_oid{ git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 0x14U } }, .Submission = "submission-1" };
+		expect(held_by_review(submitted), "the submitted review holds its comment");
+		expect(!resume_comment_after_refresh(std::vector{ submitted }, review_draft_id{ 5U }).has_value(), "a comment a submitted review holds is that review's to settle");
+		auto replying          = unknown;
+		replying.ReplyToThread = std::string{ thread_id };
+		expect(!resume_comment_after_refresh(std::vector{ replying }, review_draft_id{ 5U }).has_value(), "a reply awaiting its answer is held again by its own rule");
+	}
 }
 
 int main()
@@ -222,6 +239,7 @@ int main()
 	run("thread resolved", a_resolved_thread_keeps_the_reply_flagged_and_sendable);
 	run("no standing", only_an_unsent_reply_with_words_has_a_standing);
 	run("reread holds the comment", a_reread_holds_the_comment_being_written_again);
+	run("reread holds the retry", a_reread_holds_the_comment_awaiting_its_retry_again);
 	if (Failures != 0) {
 		std::cerr << Failures << " expectations failed\n";
 		return EXIT_FAILURE;

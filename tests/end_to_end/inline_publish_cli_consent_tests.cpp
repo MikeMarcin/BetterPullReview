@@ -94,14 +94,26 @@ namespace {
 
 	void expect_status_visible(qt::conversation_cards_view& aCards)
 	{
-		auto* const label = aCards.open_card()->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
-		expect(label != nullptr, "the composed draft has a wrapped status label");
-		const auto readable = [label] {
+		// Found again on every look: a reread lays the drawer out anew and
+		// replaces the open card's widgets, and a label held across it was
+		// read after it was freed ([[BPR-1477]]).
+		const auto status = [&aCards]() -> QLabel* {
+			auto* const open = aCards.open_card();
+			return open == nullptr ? nullptr : open->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
+		};
+		expect(status() != nullptr, "the composed draft has a wrapped status label");
+		const auto readable = [&status] {
+			auto* const label = status();
+			if (label == nullptr) {
+				return false;
+			}
 			const auto textHeight = QFontMetrics{ label->font() }.boundingRect(QRect{ 0, 0, label->contentsRect().width(), 32768 }, Qt::TextWordWrap, label->text()).height();
 			return label->isVisible() && label->height() >= label->heightForWidth(label->width())
 				&& label->contentsRect().height() >= textHeight && label->visibleRegion().contains(label->rect());
 		};
-		const auto fits = wait_until(readable, 1500);
+		const auto  fits  = wait_until(readable, 1500);
+		auto* const label = status();
+		expect(label != nullptr, "the composed draft still shows its status label");
 		std::cout << "M3_COMPOSED_STATUS_GEOMETRY scale=" << label->devicePixelRatioF() << " width=" << label->width()
 				  << " height=" << label->height() << " required=" << label->heightForWidth(label->width())
 				  << " visible=" << label->visibleRegion().boundingRect().height() << '\n';

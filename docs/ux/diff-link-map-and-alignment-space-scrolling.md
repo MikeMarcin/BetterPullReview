@@ -100,7 +100,10 @@ The scrollbar must reach all content on both sides. When one document ends earli
 - Up/Down move the source-line cursor one line at a time; Shift extends selection.
   In-view cursor moves retain fractional placement. Keyboard reveals place a
   clipped selected row flush with the nearest displayed edge through the existing
-  authority, within one device pixel; subsequent reveals scroll one row per step. A fully visible
+  authority, within one device pixel; subsequent reveals scroll one row per step.
+  The same holds when the selected line is far out of view: Down from a line far
+  below reveals the next at the bottom edge, and Up from one far above reveals
+  the previous at the top edge. A fully visible
   target stays put, including at the bottom edge. Page Up/Down retain page-sized
   movement and line-aligned destinations; Home/End retain exact endpoints.
   Touchpad motion resumes smoothly from the applied origin. See [RFC-BPR-0073](../rfcs/RFC-BPR-0073-smooth-diff-touchpad-panning.md).

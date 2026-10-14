@@ -88,7 +88,11 @@ namespace bpr::core {
 	auto resume_comment_after_refresh(const std::span<const review_comment_draft> aDrafts, const review_draft_id aHeld) -> std::optional<review_draft_id>
 	{
 		const auto held = std::ranges::find(aDrafts, aHeld, &review_comment_draft::Id);
-		if (held == aDrafts.end() || held->State != review_draft_state::drafting || (held->ReplyToThread.has_value() && !held->ReplyToThread->empty())) {
+		if (held == aDrafts.end() || (held->ReplyToThread.has_value() && !held->ReplyToThread->empty())) {
+			return std::nullopt;
+		}
+		const auto retryOwed = held->State == review_draft_state::publishing && !held_by_review(*held);
+		if (held->State != review_draft_state::drafting && !retryOwed) {
 			return std::nullopt;
 		}
 		return held->Id;

@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"534bf8868243e25c65481cff88d34d9aed77c1d9239cb0931d9347130be9f697"
+		"58c87cd1a2f62c4b856a0ca073533792dd4d5ec313c8011cedbac4b5350c94d2"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "deb1b9642e69df8666853019be489509943835ddd7e8c456e1b205de694a245b"
+        "35e13aa389a811876a7766cf23deecba5319cfb5192eee557aa4a74948133e26"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2418,7 +2418,21 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # mutation-branch change; the full application and production-manifest
 # digests are refreshed.
 
-# [[BPR-1478]] reseal, over main e145ccd35. github_application.cpp: a file
+# [[BPR-1477]] reseal, over main e145ccd35, which includes BPR-1479's
+# github_application.cpp change. github_application.cpp: a reread (Refresh)
+# while a new comment's outcome is unknown holds its draft again, publishing,
+# for the same retry (core::resume_comment_after_refresh now holds a comment
+# awaiting its retry, not one a submitted review holds). The composition keeps
+# the retry record and its reason across the replaced mutation host, says the
+# reason again, and reopens the locked draft in the drawer
+# (workbench_window::reopen_draft_in_drawer). An unknown outcome is still not
+# reread by the window itself. The fixture access reports the window read's
+# snapshot and whether a read is in flight or owed. No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.
+
+# [[BPR-1478]] reseal, over main c43d85e97 (BPR-1477's reseal above).
+# github_application.cpp: a file
 # gesture in Review, or a pasted link's file, reports the chosen file to the
 # document tabs (core::observe_file_choice), so a reread or Refresh that lands
 # before the active tab takes the pick presents it instead of the view shown
@@ -2426,8 +2440,6 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # refresh|reread`) holds the read and the tab's reflection to land the read
 # between them; main.cpp runs and prints it, and
 # github_application_fixture_access.hpp holds it. The start-review `pending`
-# course no longer waits for the single comment's reread. Main's BPR-1479
-# change to github_application.cpp (5f6be7e91, 392256fbc), which main had not
-# resealed, is part of these digests. No publication, credential, grant,
-# inventory or mutation-branch change; the full application and
-# production-manifest digests are refreshed.
+# course no longer waits for the single comment's reread. No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.

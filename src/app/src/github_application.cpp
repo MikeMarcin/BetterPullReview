@@ -9833,6 +9833,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			core::review_comment_draft                    Draft;
 			application::workbench_pull_request_authority Authority;
+			/// [[BPR-1477]]. Why the outcome is still unknown, as last said,
+			/// so it is said again when a reread holds the draft again.
+			application::review_mutation_failure Failure = application::review_mutation_failure::unavailable;
 		};
 
 		[[nodiscard]] static auto exact_retryable_review_draft(
@@ -11072,9 +11075,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			accept_shared_draft(*read.Accepted);
 			refresh_agent_private_context_choices();
-			// Open in the drawer again if it was open there.
+			// [[BPR-1477]]. A comment whose answer was lost is held again for
+			// the same retry, under the new composition, and says why again.
+			const auto retry = read.Accepted->Draft.State == core::review_draft_state::publishing;
+			if (retry && SelectedDiffPublication) {
+				RetryableReviewDraft = retryable_review_draft_record{
+					.Draft     = read.Accepted->Draft,
+					.Authority = SelectedDiffPublication->Request.WorkbenchAuthority,
+				};
+				present_inline_publication_failure(ResumeCommentFailure, core::review_publication_outcome::indeterminate, InlineReviewBinding);
+			}
+			// Open in the drawer again if it was open there. A locked draft is
+			// opened at its line, not in Discuss's full composer.
 			if (std::exchange(ResumeCommentOpen, false) && Window != nullptr) {
-				static_cast<void>(Window->begin_new_comment());
+				static_cast<void>(retry ? Window->reopen_draft_in_drawer() : Window->begin_new_comment());
 			}
 			return true;
 		}
@@ -11611,6 +11625,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void compose_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
+			// [[BPR-1477]]. Retired with the composition below, and needed to
+			// say again why a held comment's outcome is unknown.
+			const auto heldRetry = RetryableReviewDraft;
 			retire_review_mutation_host();
 			InlineReviewBinding.reset();
 			if (Window != nullptr && Window->review_editor() != nullptr) {
@@ -11624,8 +11641,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ResumeReply = ReviewDraft->ReplyToThread && ReviewDraft->State == core::review_draft_state::drafting ? std::optional{ ReviewDraft->Id } : std::nullopt;
 				// [[BPR-1475]]. So is a new comment being written: the window
 				// rereads by itself after publishing, and that takes no note away.
-				ResumeComment     = !ReviewDraft->ReplyToThread && ReviewDraft->State == core::review_draft_state::drafting ? std::optional{ ReviewDraft->Id } : std::nullopt;
-				ResumeCommentOpen = ResumeComment && DraftOpenAtRead;
+				// [[BPR-1477]]. And one whose publication answer was lost, with
+				// its retry: before, a Refresh left it saved, locked and shown
+				// nowhere, and Retry was gone.
+				ResumeComment        = core::resume_comment_after_refresh(std::span{ &*ReviewDraft, 1U }, ReviewDraft->Id);
+				ResumeCommentOpen    = ResumeComment && DraftOpenAtRead;
+				ResumeCommentFailure = heldRetry && heldRetry->Draft.Id == ReviewDraft->Id ? heldRetry->Failure : application::review_mutation_failure::unavailable;
 			}
 			DraftOpenAtRead = false;
 			ReviewDraft.reset();
@@ -12040,6 +12061,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Window || !Window->review_editor()) {
 				return;
 			}
+			if (aOutcome == core::review_publication_outcome::indeterminate && RetryableReviewDraft && ReviewDraft && RetryableReviewDraft->Draft.Id == ReviewDraft->Id) {
+				RetryableReviewDraft->Failure = aFailure;
+			}
 			const auto login  = aBinding ? QString::fromStdString(aBinding->ActingIdentity.Login) : QString{ };
 			const auto host   = aBinding ? QString::fromStdString(std::string{ aBinding->Target.Hostname.value() }) : QString{ };
 			const auto status = aOutcome == core::review_publication_outcome::indeterminate
@@ -12194,6 +12218,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1475]]. The new comment the editor held when a reread retired it.
 		std::optional<core::review_draft_id> ResumeComment;
 		bool                                 ResumeCommentOpen = false;
+		/// [[BPR-1477]]. Why its outcome is unknown, when it awaits a retry.
+		application::review_mutation_failure ResumeCommentFailure = application::review_mutation_failure::unavailable;
 		/// [[BPR-1475]]. The read in flight, and whether the drawer held a note
 		/// being written when it began.
 		std::optional<core::pull_request_request_context> DraftReadRequest;
@@ -12550,8 +12576,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingReviewMutation.reset();
 			// [[BPR-1475]]. A comment or reply on GitHub: the pull request is
 			// read again, whatever the editor shows now. An unknown outcome is
-			// not reread: the draft stays held for its retry, and a reread
-			// retires the composition that retry is bound to.
+			// not reread. A reread now holds the draft again for its retry
+			// ([[BPR-1477]]), but one the window started itself would land
+			// while the reviewer presses Retry, and the composition it
+			// replaces drops that retry's answer.
 			if (aTerminal.Result.has_value()) {
 				reread_after_publication();
 			}
@@ -27269,6 +27297,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return { };
 		}
 		return std::string{ core::canonical_hex(implementation->LastAcceptedHandoff->Head).view() };
+	}
+
+	auto detail::github_application_fixture_access::window_read_progress(const github_application& aApplication) -> window_read_progress_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr || !implementation->WindowRead) {
+			return { };
+		}
+		const auto& snapshot = implementation->WindowRead->accepted_snapshot();
+		return {
+			.Snapshot = snapshot ? std::optional{ snapshot->Snapshot.value() } : std::nullopt,
+			.Reading  = implementation->WindowRead->state().PendingPullRequest.has_value() || implementation->RereadOwed || implementation->RereadQueued,
+		};
 	}
 
 	auto detail::github_application_fixture_access::seed_attended_comment_draft(

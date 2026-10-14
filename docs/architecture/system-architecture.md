@@ -1313,7 +1313,11 @@ scrollbar clamping. Recent directional evidence can release or change that
 preference; discarded motion is never banked, and momentum retains the established
 axis. Phase/device/idle and comparison resets clear context. Keyboard reveals
 place a clipped row flush with the nearest displayed edge within one device
-pixel through the receiving pane's existing authority. Subsequent reveals scroll
+pixel through the receiving pane's existing authority. The row is placed from
+the first visible row by the measured axis's line tops (in unified view, its row
+stride and the top margin row 0 alone shows), not by Qt's block geometry, which
+stops walking about two viewport heights from the first visible block, so a row
+selected far out of view is revealed at that edge too ([[BPR-1476]]). Subsequent reveals scroll
 one source row per arrow; the flush origin may retain a fraction. Page destinations
 remain line-aligned. In-view cursor navigation retains fractional placement.
 Source horizontal bars use Qt's ordinary native controls and transient feedback,
