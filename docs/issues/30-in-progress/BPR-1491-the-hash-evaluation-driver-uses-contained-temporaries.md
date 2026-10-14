@@ -27,3 +27,35 @@ lines 277 and 290 instead of `scripts/contained_temporary_support`.
 ## Boundaries
 
 No change to what the evaluation measures.
+
+## Evidence
+
+Cause: BPR-1446 added `tests/hash_evaluation/run_hash_evaluation.py`, whose
+`git` and `sweep256` phases made their scratch roots with
+`tempfile.mkdtemp` and removed them with `shutil.rmtree`. The driver lives
+under `tests/`, so `contained_temporary_usage_contract` refuses it: the
+`tempfile` owner-only descriptor cannot be used inside the Windows
+AppContainer.
+
+Fix: both phases now use `contained_temporary_directory` from
+`scripts/contained_temporary_support` (same `bpr-hash-evaluation-` prefix),
+imported the way the other `tests/` drivers do it (repository root on
+`sys.path`). The phase body runs inside the `with` block and the root is
+removed on exit, as before. A removal that fails still raises
+(`RemovalFailed` is an `OSError`, as `shutil.rmtree`'s error was). On POSIX
+the root is still created by `tempfile` with mode `0o700`. Nothing the
+evaluation measures, records or compares has changed.
+
+Verification (AC1, AC2). No build, ctest or benchmark was run, because a
+release gate was running performance rows on this machine:
+
+- `python3 tests/scripts/contained_temporary_usage_tests.py` gives
+  `Ran 6 tests in 9.966s` / `OK` (exit 0).
+- `python3 tests/hash_evaluation/run_hash_evaluation.py --help` exits 0, and
+  exits 0 when run from `/` too, so the import does not depend on the
+  working directory.
+- A direct check with no build: a `contained_temporary_directory` root
+  holding `git init` plus a `git hash-object -w` object (read-only object
+  files) had the right prefix and mode `0o700`, and was gone after exit.
+- Not run: the driver's `git` and `sweep256` phases against a
+  `-DBPR_HASH_EVALUATION=ON` build. Those phases need the built harness.
