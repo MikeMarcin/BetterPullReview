@@ -35,6 +35,27 @@ adoption waits on the named owner answer; it is not adopted.
 | Intraline ranges | **O(NP) over scalars (dtl): eligible pending the owner's render review (AC06)** ([[BPR-1481]]); Q2 approved dtl for this per-line use on 2026-10-13. diff-match-patch: rejected. | dtl: every span valid, p95 per pair 0.0227 ms against 0.0250 ms, every gate passes on macOS. diff-match-patch with semantic cleanup: p95 per pair 0.0315 ms, worse than the baseline. |
 | Review Cycle suggestion hunks | **No change.** | No primary matcher is adopted, so nothing replaces the bounded Myers. |
 
+**Owner answer on L's speed, 2026-10-13** (mandate `-r3`): "I don't care about
+that, just use it anyways so we don't have to maintain ours." It waives the
+primary rule's speed and size conditions for shape L only. Re-read under it,
+L passes every gate on macOS (correctness, determinism, the 10 ms stop budget by
+abandoning its worker, placement, and Q1's condition in the measured shared
+library shape) and the rule's GitHub-agreement and comment-flip clauses (L
+Myers with the heuristic: 78 of 78 against the baseline's 45; 3,142 flips
+against 289,126, 0 against 288,422 after [[BPR-1482]]). Memory on L inputs is
+1.13–1.25× the baseline's and on pathological ones 0.61–0.73×. One clause is
+neither speed nor size and still fails: "no approximate result where the
+baseline does" on L and pathological inputs. L's own matcher never
+approximates, and L is never approximate where the baseline is not, but 7 of
+the baseline's 11 approximate comparisons (`bench-10000-300`, `bench-40000-300`,
+`bench-100000-30`, `bench-100000-300`, `patho-huge-replacement`,
+`patho-long-lines`, `patho-moved-blocks`) stay approximate under every L
+algorithm through the shared pairing and intraline budgets (an unpaired
+replacement or an omitted intraline pass; `AlignmentApproximate` covers
+both). Whether the waiver extends to that clause is put back to the owner;
+L is **not adopted** until it is answered. If it is, the candidate is
+`l-myers-indent`, which also settles hunk sliding.
+
 A result of no change keeps the current engine. Restart-only cancellation is
 **not** enough for any candidate: the primary candidates' worst observed times
 on this corpus run from 214 ms (dtl) through 247–441 ms (L, re-measured) to
@@ -145,15 +166,17 @@ and the tables were generated without the inventories, so no adjudication was
 applied. The tables are now regenerated with the inventories, and a candidate
 whose suites never ran is shown as "not run". The L variants' suites ran with
 the re-measurement (their table); P's 2.56.0 `patience` and `histogram`
-variants ran afterwards (SUITES_P). The installed-Git variants' suites are
-**not run**; each of them already fails the Interruption gate (and its
-correctness gate on the corpus), so the suites cannot change their decision.
+variants and all eight installed-Git variants are **not run**: every one of
+them already fails its correctness gate on the corpus (2 refusals), the
+primary rule or, for a sliding variant, its own matcher's primary rule, and
+the installed-Git variants also fail the Interruption gate, so no suite result
+could change their decision.
 
 ## Gates, with commands and counts (macOS)
 
 | Gate | How it was decided | Result |
 |---|---|---|
-| Correctness | `run_suites.py` and `run_inventories.py` against each candidate; `measure` validates all 86 comparisons per candidate (`validate_computed_file_diff`) and compares the reason with the baseline's. | Every P candidate, and L in the first pass: 2 refusals (`patho-crlf` under `ignore_trailing` and `ignore_all`: Git counts the CR of a CRLF line as trailing whitespace, the engine keeps line endings exact, and its class check refuses the matches). L re-measured: zero invalid results and zero new refusals; SUITES_L. P's changed expectations that the inventories cover are adjudicated; under the shared station's load some P runs also failed `application_large_review_*` timing courses the baseline passed, left unadjudicated because P already fails the gate on its refusals. dtl as primary: 6 refusals (its restart past 2,000,000 path points returns common elements that join unequal lines), a crash (`std::length_error`) in `application_diff_host`, and a resumed run that never ends. Every C candidate other than dtl: zero invalid results, zero new refusals, and only changed expectations adjudicated as equally valid, interruption-model or hook artefacts. |
+| Correctness | `run_suites.py` and `run_inventories.py` against each candidate; `measure` validates all 86 comparisons per candidate (`validate_computed_file_diff`) and compares the reason with the baseline's. | Every P candidate, and L in the first pass: 2 refusals (`patho-crlf` under `ignore_trailing` and `ignore_all`: Git counts the CR of a CRLF line as trailing whitespace, the engine keeps line endings exact, and its class check refuses the matches). L re-measured: zero invalid results and zero new refusals; all 23 suite tests ran for each variant and failed only what the baseline failed in the same build, apart from adjudicated expectations: the budget-model `core_diff_compute` expectations (equally valid, as for P), a stopped preparation in `application_diff_host` that did not pause on two variants under load (interruption-model: xdiff is one restart unit), and one `application_large_review_prepared_open` timing comparison for `l-minimal` at load 30–39 that passed on a re-run at load 6 (timing-under-load). P's changed expectations that the inventories cover are adjudicated; under the shared station's load some P runs also failed `application_large_review_*` timing courses the baseline passed, left unadjudicated because P already fails the gate on its refusals. dtl as primary: 6 refusals (its restart past 2,000,000 path points returns common elements that join unequal lines), a crash (`std::length_error`) in `application_diff_host`, and a resumed run that never ends. Every C candidate other than dtl: zero invalid results, zero new refusals, and only changed expectations adjudicated as equally valid, interruption-model, hook artefacts or timing under load (passed on a re-run). |
 | Determinism | `determinism` runs every candidate twice per comparison; P's digests compared across Git 2.39.5, 2.50.1 and 2.56.0. | Repeatable on 86/86 for every candidate. P `myers` and `patience` identical across the three Gits; `minimal` differs on 14 comparisons between 2.39.5 and the two newer Gits; `histogram` differs on 1 between 2.56.0 and the two older. Cross-platform: not yet measured. |
 | Interruption | `stops`, on the 28 L-size and pathological comparisons, 10 stops each. | Baseline p95 0.40 ms. C candidates 0.22–0.77 ms. L returns at once by abandoning its worker, whose abandoned work runs on (p95 102–163 ms; re-measured 83–165 ms, return p95 below 0.001 ms). P 8.1–12.0 ms: the Git adapter's supervision polls every 10 ms wait slice, so P's latency is bounded by that slice plus the kill and reap; 2.39.5/2.56.0 variants sit around the 10 ms line, the installed Git's above it. |
 | Placement | Boundary checks in the proposed placement. | P and L live in an adapter; C candidates would sit in the core, where diff-match-patch would need an owner library approval and dtl and rapidfuzz-cpp have one since 2026-10-13 (Q2; dtl for per-line intraline use only), and the first-party matcher and post-pass need the owner's approval of hand-written diff code in the core (AGENTS.md). P keeps the engine as its fallback. The shipping configuration acquires and links nothing new (below). |
@@ -187,10 +210,11 @@ environment and pre-format effects) and `core_dependency_boundary`,
   is what GitHub's REST file list does (`--inter-hunk-context=1`); its raw
   `.diff` does not join them, and on all 58 files with both the join turns one
   into the other exactly. BPR's comment-range emulation
-  (`github_review_hunks`) joins only touching hunks, so it disagrees with
+  (`github_review_hunks`) joined only touching hunks, so it disagreed with
   GitHub wherever two hunks are one line apart, whatever the matcher: the
-  baseline's BPR hunks match GitHub on 32 of 78 files, xdiff Myers with the
-  heuristic on 46. A follow-up can fix the join without touching the matcher.
+  baseline's BPR hunks matched GitHub on 32 of 78 files, xdiff Myers with the
+  heuristic on 46. [[BPR-1482]] fixed the join without touching the matcher;
+  see "Comment hunks after BPR-1482" below.
 - **The Git command line is not GitHub.** `git diff` with Myers and the
   heuristic agrees on 77 of 78: on the BPR-0719 replica it slides the insertion
   differently, consistent with the command line trimming the common tail before
@@ -214,6 +238,40 @@ environment and pre-format effects) and `core_dependency_boundary`,
   stay approximate on 7 of the baseline's 11 approximate L and pathological
   comparisons. The intraline candidates do not charge that budget and lose
   emphasis on 858.
+
+## Comment hunks after BPR-1482
+
+[[BPR-1482]] makes `github_review_hunks` join hunks at most one unchanged line
+apart, as GitHub's file list does. Every candidate was measured once more over
+the corpus on the integrated build (revision `2b306d6ef`, `run_measurements.py
+--modes measure --rounds 1 --reps 1`; results directory
+`diff-evaluation-results/macos-bpr1482-refresh`). No alignment changed (every
+segments digest equals the earlier runs'), and on every recorded file where a
+candidate's hunks, joined as GitHub joins them, equal GitHub's, BPR's comment
+hunks now equal GitHub's too: "BPR hunks exact" equals "GitHub exact" for all
+39 candidates. The comment flips fall accordingly; the decisions above, which
+compare each candidate's flips with the baseline's in the same build, do not
+change.
+
+| Candidate | BPR hunks exact (of 78), before → after | Comment flips, before → after |
+|---|---|---|
+| baseline (and `c-rapidfuzz`, `c-dmp`, `c-onp-intraline`) | 32 → 45 | 289,126 → 288,422 |
+| `p-*-myers` (any Git) | 42 → 65 | 4,156 → 1,050 |
+| `p-*-myers-indent` (any Git) | 45 → 77 | 3,680 → 538 |
+| `p-*-minimal` / `-indent` | 40 → 62 / 43 → 70 | 7,658 → 4,538 / 7,174 → 4,020 |
+| `p-*-patience` / `-indent` | 40 → 59 / 43 → 62 | 8,380 → 5,252 / 7,900 → 4,738 |
+| `p-*-histogram` / `-indent` | 40 → 57 / 43 → 61 | 18,612 → 15,980 / 18,136 → 15,470 |
+| `l-myers` | 43 → 66 | 3,622 → 516 |
+| `l-myers-indent` | 46 → 78 | 3,142 → 0 |
+| `l-minimal` / `-indent` | 41 → 63 / 44 → 71 | 7,124 → 4,004 / 6,636 → 3,482 |
+| `l-patience` / `-indent` | 41 → 60 / 44 → 63 | 7,846 → 4,718 / 7,362 → 4,200 |
+| `l-histogram` / `-indent` | 41 → 58 / 44 → 62 | 18,078 → 15,446 / 17,598 → 14,932 |
+| `c-onp` | 37 → 49 | 4,204 → 3,794 |
+| `c-histogram` | 31 → 40 | 18,900 → 16,322 |
+| `c-slide` | 35 → 51 | 288,652 → 287,914 |
+
+The generated tables keep the counts of the runs they come from; this table
+supersedes their comment-flip and BPR-hunk columns.
 
 ## Open questions and the evidence for them
 

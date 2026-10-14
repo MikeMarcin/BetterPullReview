@@ -56,6 +56,24 @@ architecture now name both libraries. With every gate passed on macOS and no
 owner answer outstanding, rapidfuzz-cpp's line-pair similarity is adopted
 through [[BPR-1480]]; dtl's intraline adoption waits on AC06 in [[BPR-1481]].
 
+## Owner answer on shape L's speed — 2026-10-13
+
+Mandate `diff-engine-evaluation-r3`. After the L re-measurement (no refusals or
+invalid results, but 1.60–2.03× the baseline's median time on L inputs, failing
+the primary rule's 2× requirement), the owner answered, verbatim: "I don't care
+about that, just use it anyways so we don't have to maintain ours." The answer
+waives the primary rule's speed and size conditions for shape L only (the 2×
+requirement and the 10% median-time regression): the owner accepts L being
+slower on large inputs to stop maintaining the first-party primary matcher.
+Nothing else is waived: correctness, determinism, the 10 ms stop budget,
+memory, placement, Q1's condition and the rest of the primary rule still apply,
+and a failure of any of them stops adoption. The
+[record](assets/diff-engine-evaluation-v1/owner-answer-l-speed-2026-10-13.md)
+keeps the rule's text before and after. Under it, L still fails the rule's
+first clause on 7 comparisons, through the shared pairing and intraline budgets
+rather than its own matcher; whether the waiver extends to that clause is put
+back to the owner, and L is not adopted until it is answered.
+
 ## Problem and grounded current behavior
 
 On 2026-10-13 the owner asked for an RFC "to investigate if those replacements
@@ -292,7 +310,7 @@ rule:
 
 | Component | Adopt only if |
 |---|---|
-| Primary matcher | On L and pathological inputs it produces no approximate result where the baseline does, and is at least 2× faster or 2× smaller in median. No class regresses its median by more than 10%. GitHub hunk agreement is at least the baseline's, and comment-range flips do not increase. |
+| Primary matcher | On L and pathological inputs it produces no approximate result where the baseline does, and is at least 2× faster or 2× smaller in median. No class regresses its median by more than 10%. GitHub hunk agreement is at least the baseline's, and comment-range flips do not increase. *For shape L the owner waived the speed and size conditions on 2026-10-13 (the 2× requirement and the 10% median-time regression); the rest of the row and every gate still apply.* |
 | Hunk sliding | GitHub hunk agreement rises, and it costs at most 5% of compute. |
 | Pair similarity | Pairing decisions are bit-identical to the baseline's over the corpus, and the pairing phase is at least 2× faster on M and L. |
 | Intraline | Every span is valid, p95 time per pair is no worse, and the owner accepts a fixed render set in an attended review. Semantic cleanup changes what is emphasized, so this is a look-and-judge criterion. |
