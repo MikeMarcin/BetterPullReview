@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"a5b34f54cf26dad0bedd2ac244c65651a2b27a325c00cb85afa86670c6230c4a"
+		"b0ee8a065c5f781915965391d72aa74f6b66776ceae49e811c12d07211cc3d19"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f949b835254592ac7c81f0130a8e3da6356cac3202e0e07ea43716dfd7e3bdeb"
+        "cd5edf4f66e9a0833c27e31662d59562d3e6abdc6830ae81049d078862363f4a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2483,3 +2483,12 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # through the existing source-search host. No publication, credential, grant,
 # inventory or mutation-branch change; the full application and
 # production-manifest digests are refreshed.
+
+# [[BPR-1494]] reseal, over main at 710aed65f (the Find redesign). The
+# composition's native device and manual enrollments ask
+# rebind_native_sign_in, which applies core's adopt_native_connection answer
+# after the bootstrap /user names the account: a returning account's sign-in
+# re-binds to its own earlier native identity (re-registering a retired one
+# exactly as it was), and the device capability follows a never-saved
+# profile. No publication, credential, grant, inventory or mutation-branch
+# change; the full application and production-manifest digests are refreshed.
