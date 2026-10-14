@@ -19,6 +19,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QShortcut>
 #include <QTemporaryDir>
