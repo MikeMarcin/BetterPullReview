@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1476"
 title: "Down from a line far out of view reveals the next line"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: []
 metadata: {"kind":"defect","found_by":"application_large_review_responsiveness on main in a Release Qt build, six runs before and after RFC-BPR-0080's adoptions (BPR-1446, BPR-1447)","reservation":"docs/issues/_reservations/BPR-1476--BPR-1476--5b5a33ca9d76.json","related_cards":["BPR-1212","BPR-1413"],"related_rfcs":["RFC-BPR-0073"]}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"b85b2f48d","evidence":{"kind":"command","path":"tests/adapters_qt/diff_workbench_tests.cpp","command":"ctest --test-dir build/app-release-tests -R '^qt_diff_workbench_scale_(100|125|200)$'","detail":"test_keyboard_reveal_from_far_out_of_view: 3,000 lines in a 520 px view, equal and unequal comparisons, split view on each pane and unified view on each side; Down from the line two thirds down selects the next and shows it flush with the bottom within one device pixel, Up from the line one third down (far above) shows the previous flush with the top, no ribbon mismatch. Passes at all three scales, also on the merge with main at b97e3349a."}},{"criterion":"AC2","outcome":"pass","revision":"b85b2f48d","evidence":{"kind":"command","path":"tests/adapters_qt/diff_workbench_tests.cpp","command":"ctest --test-dir build/app-release-tests -R '^qt_diff_workbench_scale_(100|125|200)$'","detail":"On the claimed base all three scales fail at 'Down from a line far below the view reveals the next flush with the bottom'; with the split-view fix alone the unified case still failed 4 px short (the document margin); with both, all pass."}},{"criterion":"AC3","outcome":"pass","revision":"b85b2f48d","evidence":{"kind":"command","path":"tests/end_to_end/large_review_benchmark.cpp","command":"ctest --test-dir build/app-release-tests -j1 -R '^application_large_review_(responsiveness|launch)$'","detail":"Release, macOS arm64. Base: keyboard_line_reveal expired at the 90 s course clock (twice). Fixed: responsiveness passed in four runs with no other test running (keyboard_line_reveal 12.7-15.5 ms, no budget failures), launch in two; two runs inside parallel batches at load 36-45 missed completion budgets only on phases this change does not touch. test_keyboard_minimal_reveal, test_fractional_unified_and_keyboard_viewports, test_the_keyboard_line_cursor_and_return and test_fractional_native_viewport still pass; the focused qt_ and public-path rows pass except three that fail identically on main's sources (qt_colour_role_list, qt_appearance_profile, qt_profile_management_window)."}}]
 ---
 
 # Down from a line far out of view reveals the next line
