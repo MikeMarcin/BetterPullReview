@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"33fc265e38f6a7036fd91dcec648bc78d45a7dda7be0d24048a73a31eb54ad8f"
+		"43fbc5d022ea51b398dea6c0234d42d4ba44ba53cc6a28ce30c9694f2c14e831"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "e6e69f402bd424b125179e620ca5824bb0842c7f3db5ea880cb3bbc3183d6812"
+        "4199286549005b6a09a069558971268ea9c7b6bdd7fa501f22ca4449b28de64f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2410,3 +2410,10 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # github_application_fixture_access.hpp holds them). No publication,
 # credential, grant, inventory or mutation-branch change; the full
 # application and production-manifest digests are refreshed.
+
+# [[BPR-1447]] reseal. github_application.cpp includes the GitHub adapter's
+# platform body digest, keeps one per profile and passes it to each window
+# read host, which digests a fetched snapshot's feedback bodies on the
+# provider's thread. No publication, credential, grant, inventory or
+# mutation-branch change; the full application and production-manifest
+# digests are refreshed.

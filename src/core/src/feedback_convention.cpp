@@ -449,10 +449,10 @@ namespace bpr::core {
 				aResult.Discussion = feedback_span{ aSubjectBegin + newline + 1U, aUserBody.End };
 			}
 		}
-		auto recognize(std::string_view aBody, feedback_span aUserBody) -> feedback_annotation
+		auto recognize(std::string_view aBody, feedback_span aUserBody, const std::array<std::uint8_t, 32>& aBodyDigest) -> feedback_annotation
 		{
 			feedback_annotation result;
-			result.BodyDigest = digest_of(aBody);
+			result.BodyDigest = aBodyDigest;
 			result.UserBody   = aUserBody;
 			header_scanner scanner{ aBody, aUserBody };
 			auto           scan   = scanner.scan();
@@ -484,6 +484,20 @@ namespace bpr::core {
 			place_subject(aBody, aUserBody, scan.SubjectBegin, result);
 			classify_decorations(aBody, result);
 			return result;
+		}
+
+		/// A managed body's user segment, or `classification_unavailable` when
+		/// its owner found none inside these bytes.
+		auto recognize_segment(std::string_view aBody, std::optional<feedback_span> aUserBody, const std::array<std::uint8_t, 32>& aBodyDigest)
+			-> feedback_annotation
+		{
+			if (!aUserBody || aUserBody->Begin > aUserBody->End || aUserBody->End > aBody.size()) {
+				feedback_annotation result;
+				result.BodyDigest = aBodyDigest;
+				result.Diagnostics.push_back(feedback_diagnostic::classification_unavailable);
+				return result;
+			}
+			return recognize(aBody, *aUserBody, aBodyDigest);
 		}
 	}
 
@@ -595,20 +609,19 @@ namespace bpr::core {
 	}
 	auto recognize_feedback_prefix(std::string_view aBody) -> feedback_annotation
 	{
-		return recognize(aBody, { 0U, aBody.size() });
+		return recognize(aBody, { 0U, aBody.size() }, digest_of(aBody));
 	}
 	auto recognize_feedback_segment(std::string_view aBody, std::optional<feedback_span> aUserBody) -> feedback_annotation
 	{
-		if (!aUserBody || aUserBody->Begin > aUserBody->End || aUserBody->End > aBody.size()) {
-			feedback_annotation result;
-			result.BodyDigest = digest_of(aBody);
-			result.Diagnostics.push_back(feedback_diagnostic::classification_unavailable);
-			return result;
-		}
-		return recognize(aBody, *aUserBody);
+		return recognize_segment(aBody, aUserBody, digest_of(aBody));
 	}
 	auto recognize_feedback_body(std::string_view aBody, const feedback_body_segment& aSegment) -> feedback_annotation
 	{
-		return aSegment.Managed ? recognize_feedback_segment(aBody, aSegment.UserBody) : recognize_feedback_prefix(aBody);
+		return recognize_feedback_body(aBody, aSegment, digest_of(aBody));
+	}
+	auto recognize_feedback_body(std::string_view aBody, const feedback_body_segment& aSegment, const std::array<std::uint8_t, 32>& aBodyDigest)
+		-> feedback_annotation
+	{
+		return aSegment.Managed ? recognize_segment(aBody, aSegment.UserBody, aBodyDigest) : recognize(aBody, { 0U, aBody.size() }, aBodyDigest);
 	}
 }

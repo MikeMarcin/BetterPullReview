@@ -340,9 +340,15 @@ namespace bpr::core {
 				++refresh.Reused;
 				changed = false;
 			} else {
-				post.Annotation = recognize_feedback_body(aObservation.Body, aObservation.Segment);
-				post.Body       = std::make_shared<const std::string>(aObservation.Body);
-				++refresh.Hashed;
+				if (aObservation.BodyDigest) {
+					post.Annotation = recognize_feedback_body(aObservation.Body, aObservation.Segment, *aObservation.BodyDigest);
+					++refresh.Supplied;
+				} else {
+					post.Annotation = recognize_feedback_body(aObservation.Body, aObservation.Segment);
+					++refresh.Hashed;
+					refresh.HashedBytes += aObservation.Body.size();
+				}
+				post.Body = std::make_shared<const std::string>(aObservation.Body);
 				refresh.Recognized.push_back(post.Id);
 			}
 			next.Posts.push_back(std::move(post));

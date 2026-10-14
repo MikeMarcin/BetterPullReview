@@ -226,6 +226,56 @@ a byte count) and calls `Hacl_Hash_SHA2_sha256_update_nblocks`,
 `_update_last` and `_finish`, so a stream never allocates: the RFC's
 `noexcept` stream condition holds for that shape.
 
+## Host port
+
+[[BPR-1447]] built the first host-port site: the feedback classifier's body
+digests. The window read host digests a fetched snapshot's feedback bodies
+through `application::body_digest_port` on the GitHub provider's effect
+worker, before the snapshot is posted to the decision lane. The digests travel
+with the snapshot, and the core uses a supplied digest instead of hashing.
+The backend is CommonCrypto on macOS and the core's SHA-256 elsewhere until
+[[BPR-1448]] and [[BPR-1449]]. `application_body_digest_port` checks every
+backend against the core for the FIPS answers, every length from 0 to 200,
+block and 1 MiB edges and seeded inputs. It also checks that a snapshot with
+supplied digests gives the same units and counts as one the core hashes,
+with no body hashed by the core, and that a missing or mismatched digest
+falls back to the core.
+
+Release tree, `-j1`, each row twice on the claim commit `a17294297` (before)
+and with the port (after), loaded machine (1-minute load in brackets).
+`application_feedback_counter_costs`, medians, with least and most in brackets:
+
+| Phase | Workload | Before | After | Core hashed on the window thread |
+|---|---|---|---|---|
+| `observe_cold`, no digests (as before) | 1k | 3.41 / 3.41 ms [11.9, 3.5] | 3.22 / 3.18 ms [5.4, 1.5] | 2,015 bodies, 805 KB |
+| `observe_cold_supplied`, digests from the port | 1k | (no such path) | 1.58 / 1.58 ms | none |
+| `observe_cold`, no digests | 10k | 34.1 / 34.5 ms (34.0 to 34.7) | 33.3 / 32.0 ms (31.5 to 34.2) | 20,015 bodies, 8.04 MB |
+| `observe_cold_supplied` | 10k | (no such path) | 18.0 / 17.2 ms (17.1 to 19.0) | none |
+| `digest_bodies`, core backend, off the window thread | 10k | | 18.6 / 18.1 ms | |
+| `digest_bodies`, CommonCrypto, off the window thread | 10k | | 8.2 / 7.5 ms | |
+| `digest_bodies`, core / CommonCrypto | 1k | | 1.81 / 1.75 ms, 0.73 / 0.74 ms | |
+
+The end-to-end rows, before | after, ms, runs 1 and 2:
+
+| Row | Load | Result | Phases |
+|---|---|---|---|
+| `application_first_tab_comparison` | 11.0, 3.5 \| 5.4, 1.5 | passed all four runs | paged load 1194, 1227 \| 1190, 1160; base 668, 636 \| 588, 610; head 615, 655 \| 589, 579; file 814, 783 \| 739, 735 |
+| `application_large_review_responsiveness` | 10.3, 3.6 \| 5.1, 1.5 | failed all four runs on main's keyboard reveal ("Down from a line out of view did not reveal the next") | paged load 1250, 1222 \| 1202, 1183; large file selection 555, 565 \| 538, 536; Overview columns 3 / 12 / 0: 3, 3 / 4, 6 / 3, 8 \| 7, 7 / 8, 8 / 7, 8 |
+
+**Decision: adopt on macOS.** The rule's throughput half was already met
+(7.6x at 1 MiB and above, W1). At this site, CommonCrypto digests the 10k
+bodies (about 400 bytes each) 2.4x faster than the core. The site half also
+passes on both counts. The first 10k observation's window-thread time falls
+by about 15 ms, from 32.0 to 33.3 ms to 17.2 to 18.0 ms, and the 8.04 MB it hashed moves to the
+provider's worker, where CommonCrypto takes 7.5 to 8.2 ms. No body is hashed
+on the window thread when the snapshot carries digests. Every other phase
+is flat or lower, except the Overview column phases, which are 3 to 4 ms
+higher after the change in both runs. They read kept tallies only, through
+code this change does not touch, so the difference is recorded rather than
+explained. Windows and Linux keep the core backend until their stations
+measure CNG and libcrypto. The Review Cycle 16 MiB capture and syntax rows
+named above are not this site and were not run.
+
 ## What adoption still needs
 
 - **sha1dc ([[BPR-1450]], after a Q1 Accept).** Link it as its own pinned
@@ -240,9 +290,8 @@ a byte count) and calls `Hacl_Hash_SHA2_sha256_update_nblocks`,
   never allocates, and run the digest-using rows. The streaming API is not
   used, and the `internal/` header is not HACL*'s public API, so a later pin
   update must recheck it.
-- **Host port ([[BPR-1447]]).** CommonCrypto passes the throughput half of the
-  rule on this Mac. The site half, window-thread time at 10k, is measured
-  only by building the port.
+- **Host port ([[BPR-1447]]).** Built and adopted on macOS for the feedback
+  body digests; see "Host port" above.
 - **Stations ([[BPR-1448]], [[BPR-1449]]).** Run the same driver, add the CNG
   or libcrypto arm, and re-apply every rule with their rows. The Linux station
   is expected to lack SHA-NI, so its rows are the fallback-path test of the

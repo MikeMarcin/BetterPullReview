@@ -314,6 +314,7 @@ target_sources(
         src/gh_cli_transport.cpp
         src/github_wire_request_validation.cpp
         src/native_https_transport.cpp
+        src/platform_body_digest.cpp
 )
 if(BUILD_TESTING)
     target_compile_definitions(
@@ -1583,6 +1584,25 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         ):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure("SHA-256 implementation ownership violation", {path: expression})
+
+    def test_platform_sha256_has_one_adapter_owner(self) -> None:
+        # [[BPR-1447]]. CommonCrypto's SHA-2 is called only by the GitHub
+        # adapter's body digest port; core, application, app and every other
+        # adapter file stay free of it.
+        result = self.run_check({
+            "src/adapters/github/src/platform_body_digest.cpp":
+                "#include <CommonCrypto/CommonDigest.h>\nCC_SHA256(data, size, digest);\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/feedback_convention.cpp", "#include <CommonCrypto/CommonDigest.h>\n"),
+            ("src/application/src/body_digest_port.cpp", "CC_SHA256(data, size, digest);\n"),
+            ("src/application/src/feedback_sources.cpp", "CC_SHA256_Init(&context);\n"),
+            ("src/adapters/github/src/github_provider.cpp", "CC_SHA512(data, size, digest);\n"),
+            ("src/app/src/other.mm", "CC_SHA256_Update(&context, data, size);\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("platform crypto (CommonCrypto SHA-2) ownership violation", {path: expression})
 
     def test_native_release_helper_launch_owner_is_exact(self) -> None:
         source = "posix_spawn(pid, path, actions, attr, argv, envp);\n"

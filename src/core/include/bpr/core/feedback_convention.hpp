@@ -217,6 +217,13 @@ namespace bpr::core {
 	/// \brief `recognize_feedback_prefix` for an ordinary body,
 	/// `recognize_feedback_segment` for a managed one.
 	[[nodiscard]] auto recognize_feedback_body(std::string_view aBody, const feedback_body_segment& aSegment) -> feedback_annotation;
+	/// \brief [[BPR-1447]]. `recognize_feedback_body` with the body's SHA-256
+	/// already computed by the host, off the window thread.
+	/// \details \p aBodyDigest must be the SHA-256 of exactly \p aBody; it is
+	/// taken as the annotation's `BodyDigest` without hashing again. The
+	/// result is the one the two-argument form gives for the same bytes.
+	[[nodiscard]] auto recognize_feedback_body(std::string_view aBody, const feedback_body_segment& aSegment, const std::array<std::uint8_t, 32>& aBodyDigest)
+		-> feedback_annotation;
 }
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_FEEDBACK_CONVENTION_HPP
