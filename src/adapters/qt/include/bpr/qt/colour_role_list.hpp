@@ -188,7 +188,7 @@ namespace bpr::qt {
 			QLabel*  Count   = nullptr;
 		};
 
-		/// \brief Builds the five group headers and the 58 offered rows, once.
+		/// \brief Builds the five group headers and the 60 offered rows, once.
 		void ensure_rows();
 		void refresh_row(core::appearance_role aRole);
 		void refresh_rows();

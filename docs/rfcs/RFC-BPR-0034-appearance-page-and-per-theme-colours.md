@@ -93,6 +93,14 @@ import and never at Keep changes. A version-1 document's base is Light or
 Dark by its own code background. Stored palettes keep their per-slot rule.
 This status is unchanged.
 
+**Owner direction, 2026-10-13 ([[BPR-1483]]).** The two rows the additive
+syntax amendment added read "Syntax namespace" and "Syntax enum member",
+replacing "Namespaces" and "Enum members". The owner asked that they be
+offered "same as others": the other 26 Syntax rows begin "Syntax", and the
+filter matches a row's words, so a filter for "syntax" missed the two new
+rows. It now lists all 28. Stable names, counts and order are unchanged.
+This status is unchanged.
+
 **Follow-on from that verdict, 2026-09-24 ([[BPR-1107]]).** BPR-1107 builds
 the owner's white-space model. The preview and the review panes draw a space
 as a dot and a tab as a line to its stop, through one shared painter. The Type

@@ -52,8 +52,9 @@ namespace bpr::qt {
 	/// roles, so import and export still carry them.
 	///
 	/// The twelve label tints [[BPR-1083]] adds are offered, which makes 57
-	/// (owner, BPR-1079 `tints-v002`; RFC-BPR-0034 C5 amended), and the
-	/// attention amber [[BPR-1085]] adds, in Review states, makes 58.
+	/// (owner, BPR-1079 `tints-v002`; RFC-BPR-0034 C5 amended), the attention
+	/// amber [[BPR-1085]] adds, in Review states, makes 58, and RFC-BPR-0072's
+	/// namespace and enum-member colours, in Syntax, make 60.
 	struct appearance_role_display
 	{
 		appearance_role_group Group = appearance_role_group::surfaces_and_text;
