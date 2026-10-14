@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1514"
 title: "Prevent Add CLI reentry while Home loads a CLI connection"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 metadata: {"source":"Owner testing note, 2026-10-14","owner_note":"Home while loading cli shows the new user add buttons and gets into a weird state if you try to add cli while it's loading cli"}
