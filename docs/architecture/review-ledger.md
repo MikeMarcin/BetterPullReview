@@ -54,6 +54,12 @@ replacing the workbench authority or its selected comparison. When selected
 material changes, the core reopens its receipt and the same-process refresh
 returns that file to the actionable order without detaching the rendered diff.
 
+The review bar's named Accept button ([[BPR-1507]]) presents the same acceptance
+`QAction` as the private-progress menu. Its command, enablement, checked state
+and inverse label come from the accepted receipt projection. The direct click
+adds no policy, automatic acceptance or persistence path; the state icon and
+alternate actions remain in the adjacent menu.
+
 If the SQLite store cannot open, the host answers every operation with that
 typed opening failure. GitHub content, epoch selection, and diff rendering
 continue, while the receipt actions are disabled and the workbench states that

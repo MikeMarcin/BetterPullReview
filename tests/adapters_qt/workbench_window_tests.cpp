@@ -898,12 +898,12 @@ namespace {
 
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
 		// comparison's menu and a rule, the file pair and its position, the
-		// change pair and its position, private progress, a spacer, Compose
+		// change pair and its position, Accept, private progress, a spacer, Compose
 		// review and Comment.
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 15
+			return ordered.size() == 16
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -914,13 +914,14 @@ namespace {
 				&& named(ordered, 7, "workbenchStripChangePositionAction")
 				&& ordered[8] == navigation[2]
 				&& ordered[9] == navigation[3]
-				&& named(ordered, 10, "workbenchReviewControlsAction")
-				&& named(ordered, 11, "reviewBarSpacerAction")
+				&& named(ordered, 10, "workbenchAcceptFileAction")
+				&& named(ordered, 11, "workbenchReviewControlsAction")
+				&& named(ordered, 12, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
-				&& ordered[12] == window.review_chip_action()
-				&& ordered[13] == window.compose_review_action()
-				&& ordered[14] == window.comment_action();
+				&& ordered[13] == window.review_chip_action()
+				&& ordered[14] == window.compose_review_action()
+				&& ordered[15] == window.comment_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -7353,6 +7354,7 @@ namespace {
 			barStop(window.next_file_action()),
 			barStop(window.previous_change_action()),
 			barStop(window.next_change_action()),
+			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
 			barStop(window.compose_review_action()),
 			barStop(window.comment_action()),
@@ -7507,6 +7509,64 @@ namespace {
 		expect(window.status_text().contains(
 				   QStringLiteral("Private review progress is unavailable.")),
 			   "a store-open obstruction is visible in text while the workbench remains live");
+		window.hide();
+	}
+
+	/// \brief [[BPR-1507]]. One normal click uses the exact command the menu uses.
+	void test_file_accept_is_one_click_and_keeps_projected_eligibility()
+	{
+		qt::workbench_window window;
+		auto                 dispatched = std::vector<core::file_receipt_command>{ };
+		window.set_receipt_dispatch([&](core::file_receipt_command aCommand) { dispatched.push_back(std::move(aCommand)); });
+		window.resize(1'280, 820);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const button = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+		expect(button != nullptr && button->defaultAction() == window.accept_action()
+				   && button->menu() == nullptr && !button->isEnabled(),
+			   "the named direct button presents the existing acceptance action, disabled without exact material");
+		auto receipt = core::file_receipt{ .File = core::file_identity_of("review.cpp"), .Material = file_material(73U) };
+		receipt.Read = core::file_read_state::seen;
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(dispatched.empty() && button->isEnabled() && !button->isChecked()
+				   && button->text().contains(QStringLiteral("Accept"))
+				   && button->accessibleName() == QStringLiteral("Accept file"),
+			   "showing a seen file offers explicit Accept and emits no acceptance itself");
+		save_render(window, QStringLiteral("file-accept"));
+		send_click(*button, button->rect().center());
+		expect(dispatched == std::vector{ core::file_receipt_command{ .File = receipt.File, .Material = receipt.Material, .Kind = core::file_receipt_command_kind::accept } }
+				   && !button->isChecked() && !window.review_controls_menu()->isVisible(),
+			   "one mouse click dispatches exact acceptance without a menu and waits for persistence before changing state");
+		receipt.Accepted = true;
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		expect(button->isChecked() && button->isEnabled() && button->text().contains(QStringLiteral("Revoke"))
+				   && button->accessibleName() == QStringLiteral("Revoke file acceptance")
+				   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: accepted"),
+			   "the committed receipt shows accepted with its explicit inverse action and the same state icon");
+		receipt.Accepted = false;
+		receipt.Excluded = true;
+		window.publish(application::project_file_receipt_actions(receipt));
+		process_events();
+		button->click();
+		expect(!button->isEnabled() && button->toolTip().contains(QStringLiteral("Include this file"))
+				   && dispatched.size() == 1U && window.review_controls_button()->isEnabled()
+				   && window.exclude_action()->isEnabled() && window.exclude_action()->text().contains(QStringLiteral("Include")),
+			   "excluded material cannot Accept and keeps Include available through the existing state menu");
+		window.clear_review_ledger();
+		button->click();
+		expect(!button->isEnabled() && dispatched.size() == 1U, "a loading file cannot dispatch the preceding file's acceptance");
+		receipt = core::file_receipt{ .File = core::file_identity_of("other.cpp"), .Material = file_material(74U) };
+		window.publish(application::project_file_receipt_actions(receipt));
+		button->click();
+		expect(dispatched.size() == 2U && dispatched.back().File == receipt.File && dispatched.back().Material == receipt.Material,
+			   "the next click uses the replacement file and epoch material exclusively");
+		window.clear_review_ledger(true);
+		button->click();
+		expect(!button->isEnabled() && dispatched.size() == 2U && button->toolTip().contains(QStringLiteral("unavailable")),
+			   "an unavailable ledger disables one-click acceptance without dispatching");
 		window.hide();
 	}
 
@@ -7738,10 +7798,11 @@ namespace {
 			window.publish(both_files_enabled());
 			process_events();
 			auto* const button = window.review_controls_button();
+			auto* const accept = window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
 			auto        crops  = std::vector<QImage>{ };
 			const auto  crop   = [&] {
 				const auto bar  = button->parentWidget()->grab().toImage();
-				const auto at   = button->geometry();
+				const auto at   = button->geometry().united(accept->geometry());
 				const auto dpr  = bar.devicePixelRatio();
 				const auto area = QRect{ at.left() - 8, 0, at.width() + 16, button->parentWidget()->height() };
 				auto       part = bar.copy(QRectF{ area.left() * dpr, area.top() * dpr, area.width() * dpr, area.height() * dpr }.toRect());
@@ -14938,6 +14999,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
+		test_file_accept_is_one_click_and_keeps_projected_eligibility();
 		test_review_state_icon_shows_the_decided_mark();
 		render_review_state_sheet();
 		std::cout << "review-state-icon:pass\n";

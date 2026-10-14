@@ -1738,6 +1738,13 @@ namespace bpr::qt {
 		ReviewBar->addAction(Navigation[2].Action);
 		ReviewBar->addAction(Navigation[3].Action);
 		ReviewBar->set_navigation_rails(FilePositionAction, Navigation[1].Action, ChangePositionAction, Navigation[3].Action);
+		// [[BPR-1507]]. The normal file control exposes the existing exact
+		// acceptance action directly; its state menu keeps every alternative.
+		AcceptFileButton = new QToolButton{ ReviewBar };
+		AcceptFileButton->setObjectName(QStringLiteral("workbenchAcceptFileButton"));
+		AcceptFileButton->setDefaultAction(ReceiptActions[2]);
+		AcceptFileButton->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		rowWidget(ReviewBar, AcceptFileButton, QStringLiteral("workbenchAcceptFileAction"));
 		rowWidget(ReviewBar, ReviewControlsButton, QStringLiteral("workbenchReviewControlsAction"));
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
@@ -13369,6 +13376,7 @@ namespace bpr::qt {
 			append(barPresenter(Navigation[1].Action));
 			append(barPresenter(Navigation[2].Action));
 			append(barPresenter(Navigation[3].Action));
+			append(AcceptFileButton);
 			append(ReviewControlsButton);
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));
@@ -15090,6 +15098,7 @@ namespace bpr::qt {
 			button->setAccessibleDescription(entry.Collapse);
 			button->setFocusPolicy(Qt::StrongFocus);
 		}
+		ReviewBar->adopt_button(AcceptFileButton);
 		ReviewBar->adopt_button(ReviewControlsButton);
 		update_compose_mark();
 		if (auto* const button = qobject_cast<QToolButton*>(
@@ -15341,7 +15350,7 @@ namespace bpr::qt {
 				return QStringLiteral("Private progress");
 			}();
 			action->setText(label);
-			action->setIconText(label);
+			action->setIconText(QString{ label }.remove(QLatin1Char{ '&' }));
 			const auto checked = Receipt.has_value()
 				&& (index == 0U
 						? Receipt->Receipt.Read != core::file_read_state::unread
@@ -15353,8 +15362,20 @@ namespace bpr::qt {
 			describe_action(
 				action,
 				projected != nullptr && projected->Enabled && !LedgerUnavailable,
-				QStringLiteral("Update private progress for the selected exact file material."),
-				disabled);
+				index == 2U
+					? kind == core::file_receipt_command_kind::revoke_acceptance
+						? QStringLiteral("Revoke private acceptance for this file.")
+						: QStringLiteral("Accept this file privately.")
+					: QStringLiteral("Update private progress for the selected exact file material."),
+				index == 2U && Receipt.has_value() && Receipt->Receipt.Excluded && !LedgerUnavailable
+					? QStringLiteral("Include this file from Private progress before accepting it.")
+					: disabled);
+		}
+		if (AcceptFileButton != nullptr) {
+			AcceptFileButton->setAccessibleName(ReceiptActions[2]->isChecked()
+													? QStringLiteral("Revoke file acceptance")
+													: QStringLiteral("Accept file"));
+			AcceptFileButton->setAccessibleDescription(ReceiptActions[2]->toolTip());
 		}
 		// [[BPR-1129]] [[BPR-1331]]. The review bar's progress button shows the
 		// selected file's mark, the one the core decided, as its icon, and says

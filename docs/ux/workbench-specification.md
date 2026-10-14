@@ -205,8 +205,14 @@ native reader menu.
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
-before the change arrows, and private progress as an icon whose tooltip names the file's
-state; at its right **Compose review** (Option-R, Alt+R) and **Comment**
+before the change arrows, **Accept** as a named one-click file action, and
+private progress as an icon whose tooltip names the file's state. Accept uses
+the selected exact file material and becomes **Revoke acceptance** after the
+saved receipt arrives. It is disabled while no comparison is selected, private
+progress is unavailable, or the file is excluded. The adjacent state menu keeps
+Seen, Read, acceptance and exclusion actions; use Include there before accepting
+an excluded file. Opening or seeing a file does not accept it. At the bar's right
+are **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
 review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the

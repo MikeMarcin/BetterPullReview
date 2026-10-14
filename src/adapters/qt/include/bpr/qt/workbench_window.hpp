@@ -1995,6 +1995,7 @@ namespace bpr::qt {
 		QAction*                                                     ToggleDrawersAction  = nullptr;
 		QObject*                                                     EditorKeyYield       = nullptr;
 		QAction*                                                     ReviewDetailsAction  = nullptr;
+		QToolButton*                                                 AcceptFileButton     = nullptr;
 		QToolButton*                                                 ReviewControlsButton = nullptr;
 		QMenu*                                                       ReviewControlsMenu   = nullptr;
 		QWidget*                                                     ToolbarSpacer        = nullptr;

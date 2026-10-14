@@ -26262,7 +26262,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return fail();
 				}
 				++probe.Gesture;
-				action->trigger();
+				if (action == window->accept_action()) {
+					// [[BPR-1507]]. Exercise the normal one-click presenter through
+					// the same exact command, durable host and published receipt.
+					auto* const button = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
+					if (button == nullptr || !button->isVisible() || !button->isEnabled()
+						|| button->defaultAction() != action || button->menu() != nullptr) {
+						return fail();
+					}
+					button->click();
+				} else {
+					action->trigger();
+				}
 				return result::pending;
 			}
 			const auto  after   = ledger->statistics();
