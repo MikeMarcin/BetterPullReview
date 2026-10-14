@@ -12568,11 +12568,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			PendingReviewMutation.reset();
 			// [[BPR-1475]]. A comment or reply on GitHub: the pull request is
-			// read again, whatever the editor shows now. [[BPR-1477]]. So is an
-			// unknown outcome whose request went out, since the comment may be
-			// there: the reread holds the draft again for its retry. A retry
-			// refused before anything was sent has nothing new to read.
-			if (aTerminal.Result.has_value() || (aPublicationOutcome == core::review_publication_outcome::indeterminate && aTerminal.MutationAttempted)) {
+			// read again, whatever the editor shows now. An unknown outcome is
+			// not reread. A reread now holds the draft again for its retry
+			// ([[BPR-1477]]), but one the window started itself would land
+			// while the reviewer presses Retry, and the composition it
+			// replaces drops that retry's answer.
+			if (aTerminal.Result.has_value()) {
 				reread_after_publication();
 			}
 			const auto failedBinding = std::exchange(PublishingBinding, std::nullopt);

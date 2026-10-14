@@ -696,10 +696,13 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   again by itself, as Refresh does, so what was posted shows without a manual
   refresh. An unknown outcome is not reread: a review's is settled by Check
   status, which rereads once it finds the review published, and a comment or
-  reply's draft stays held for a retry bound to the shown read. The reviewer's place stays: the
-  modality, the selected file and line, the status line, and a note being
-  written, which is held again and reopened in the drawer. A read already in
-  flight is not doubled: the reread waits for it to settle.
+  reply's draft stays held for its Retry. A Refresh pressed meanwhile keeps
+  that draft held, locked, for the same Retry ([[BPR-1477]]); a reread the
+  window started by itself would land while the reviewer presses Retry and
+  drop that retry's answer. The reviewer's place stays: the modality, the
+  selected file and line, the status line, and a note being written or
+  awaiting its retry, which is held again and reopened in the drawer. A read
+  already in flight is not doubled: the reread waits for it to settle.
 - **While a row opens** ([[BPR-1357]], the owner, 2026-10-09: "There's no
   obvious immediate indication you actually tried to open a review if there
   is real network latency on the action."). A first read stays on Home until

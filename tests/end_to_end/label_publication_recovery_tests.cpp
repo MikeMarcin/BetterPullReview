@@ -13,9 +13,9 @@
 //   try to change the label; neither reaches the draft or the store. Retry
 //   reconciles the one stored comment: one write at the server in all, with
 //   the bytes that were published first, and the relabelled body never sent.
-// - lost-refreshed-retried ([[BPR-1477]]): the answer is lost, the window
-//   reads the pull request again by itself, and Refresh reads it once more;
-//   the draft is held for the same retry after each, and Retry reconciles.
+// - lost-refreshed-retried ([[BPR-1477]]): the answer is lost and Refresh is
+//   pressed while the outcome is unknown; the draft is held for the same retry
+//   after the read, and Retry reconciles the one stored comment.
 // - relabel-before-publish: Publish pressed (in the editor and in the drawer)
 //   while a label edit waits for its owner sends nothing and says so; once the
 //   edit is accepted a new Publish sends exactly the relabelled body, once.
@@ -270,22 +270,22 @@ namespace {
 		shut_down(composed);
 	}
 
-	/// [[BPR-1477]]. A comment whose answer was lost, read again: by the
-	/// window itself once the answer is lost, then by Refresh pressed while
-	/// the outcome is unknown. The draft is held again each time, locked and
-	/// open in the drawer, and Retry still reconciles the one stored comment.
-	/// Before, a reread retired the composition and the retry with it.
+	/// [[BPR-1477]]. Refresh pressed while a comment's outcome is unknown.
+	/// The read replaces the composition the retry was bound to; the draft is
+	/// held again, locked and open in the drawer, and Retry still reconciles
+	/// the one stored comment. Before, the draft was shown nowhere and Retry
+	/// was gone.
 	void run_lost_refreshed_retried()
 	{
 		auto       composed = ::composed{ };
-		const auto body     = std::string{ "issue: BPR-1477 a reread keeps the retry." };
+		const auto body     = std::string{ "issue: BPR-1477 a Refresh keeps the retry." };
 		open_draft(composed, true, body);
-		auto& application = *composed.Application;
-		auto& window      = application.window();
-		auto* editor      = window.review_editor();
-		auto* cards       = window.conversation_panel()->cards();
-		const auto progress = [&application] { return github_application_fixture_access::window_read_progress(application); };
-		const auto held     = [&] {
+		auto&      application = *composed.Application;
+		auto&      window      = application.window();
+		auto*      editor      = window.review_editor();
+		auto*      cards       = window.conversation_panel()->cards();
+		const auto progress    = [&application] { return github_application_fixture_access::window_read_progress(application); };
+		const auto held        = [&] {
 			auto* const publish = draft_publish(*cards);
 			return cards->writing_draft() && draft_status(*cards).contains(QStringLiteral("retry is safe")) && accepted_state(*editor) == core::review_draft_state::publishing
 				&& accepted_body(*editor) == body && publish != nullptr && single_offered(*cards) && publish->isEnabled() && publish->text() == QStringLiteral("Retry");
@@ -302,18 +302,13 @@ namespace {
 		auto* publish = draft_publish(*cards);
 		wait_for([&] { publish = draft_publish(*cards); return publish != nullptr && single_offered(*cards) && publish->isEnabled(); },
 				 "the drawer offers Add single comment");
-		const auto shownBefore = progress().Snapshot;
 		send_single(*cards);
 		wait_for([&] { return github_application_fixture_access::review_mutation_evidence(application).LostResult; }, "the fixture stores the comment and loses its answer");
 		wait_for([&] { return draft_card(*cards) != nullptr && draft_status(*cards).contains(QStringLiteral("retry is safe")); },
 				 "the draft says the result is unknown and a retry is safe");
 		const auto lost = github_application_fixture_access::review_mutation_evidence(application);
 		expect(lost.NativePosts == 1U && lost.StoredComments == 1U, "one write reached the server");
-
-		// The window's own reread, judged at the end, so that the Refresh
-		// below is judged on its own.
-		const auto rereadByItself = wait_until([&] { return progress().Snapshot != shownBefore && !progress().Reading && held(); }, 8000);
-		describe("after-own-reread");
+		wait_for([&] { return held() && !progress().Reading; }, "the draft is held for its retry, and nothing is reading the pull request");
 
 		// Refresh, as the reviewer presses it, while the retry is held.
 		const auto shownAtRefresh = progress().Snapshot;
@@ -326,7 +321,7 @@ namespace {
 		expect(heldAfterRefresh, "after the Refresh the draft is still held publishing, open in the drawer, and offers Retry for the same publication");
 		expect(editor->body_editor()->isReadOnly(), "the draft stays locked to the body it was prepared with");
 		const auto refreshed = github_application_fixture_access::review_mutation_evidence(application);
-		expect(refreshed.NativePosts == lost.NativePosts && refreshed.Submissions == lost.Submissions, "neither reread sent anything");
+		expect(refreshed.NativePosts == lost.NativePosts && refreshed.Submissions == lost.Submissions, "the Refresh sent nothing");
 
 		// Retry still reconciles the one stored comment.
 		send_single(*cards);
@@ -334,12 +329,11 @@ namespace {
 		const auto shown = wait_until([&] { return posted_count(*cards, text) == 1U && draft_card(*cards) == nullptr; });
 		const auto after = github_application_fixture_access::review_mutation_evidence(application);
 		std::cout << "BPR_1477:lost-refreshed-retried:after-retry native_posts=" << after.NativePosts << " submissions=" << after.Submissions << " stored=" << after.StoredComments
-				  << " duplicate=" << after.DuplicateReturned << " posted=" << posted_count(*cards, text) << " own_reread=" << rereadByItself << '\n'
+				  << " duplicate=" << after.DuplicateReturned << " posted=" << posted_count(*cards, text) << '\n'
 				  << std::flush;
 		expect(shown, "the drawer shows the one posted thread in place of the draft");
-		expect(after.NativePosts == 1U && after.StoredComments == 1U && after.LastBody == body, "one write at the server across the lost answer, both rereads and the retry");
+		expect(after.NativePosts == 1U && after.StoredComments == 1U && after.LastBody == body, "one write at the server across the lost answer, the Refresh and the retry");
 		expect(after.Submissions == 2U && after.DuplicateReturned, "the retry was answered by reconciling the stored comment");
-		expect(rereadByItself, "after the lost answer the window read the pull request again by itself and held the draft for its retry");
 		std::cout << "BPR_1477:lost-refreshed-retried:pass" << '\n'
 				  << std::flush;
 		shut_down(composed);

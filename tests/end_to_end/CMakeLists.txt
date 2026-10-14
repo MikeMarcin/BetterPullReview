@@ -3033,7 +3033,7 @@ endif()
 # a native session: a lost answer, a relabel refused while the outcome is unknown,
 # and a retry that reconciles the one stored comment; and a relabel that keeps
 # Publish unavailable until its owner accepts it, then publishes exactly that body.
-# [[BPR-1477]]: the retry survives the window's own reread and a Refresh.
+# [[BPR-1477]]: the retry survives a Refresh pressed while the outcome is unknown.
 bpr_add_executable(test_label_publication_recovery label_publication_recovery_tests.cpp)
 target_link_libraries(test_label_publication_recovery PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_label_publication_recovery PRIVATE BPR_BUILD_TESTING=1)

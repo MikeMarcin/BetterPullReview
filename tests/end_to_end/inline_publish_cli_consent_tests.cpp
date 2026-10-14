@@ -94,8 +94,9 @@ namespace {
 
 	void expect_status_visible(qt::conversation_cards_view& aCards)
 	{
-		// Found again on every look: a reread lays the drawer out anew, and
-		// the open card's widgets with it ([[BPR-1477]]).
+		// Found again on every look: a reread lays the drawer out anew and
+		// replaces the open card's widgets, and a label held across it was
+		// read after it was freed ([[BPR-1477]]).
 		const auto status = [&aCards]() -> QLabel* {
 			auto* const open = aCards.open_card();
 			return open == nullptr ? nullptr : open->findChild<QLabel*>(QStringLiteral("threadDraftStatus"));
@@ -110,7 +111,7 @@ namespace {
 			return label->isVisible() && label->height() >= label->heightForWidth(label->width())
 				&& label->contentsRect().height() >= textHeight && label->visibleRegion().contains(label->rect());
 		};
-		const auto fits  = wait_until(readable, 1500);
+		const auto  fits  = wait_until(readable, 1500);
 		auto* const label = status();
 		expect(label != nullptr, "the composed draft still shows its status label");
 		std::cout << "M3_COMPOSED_STATUS_GEOMETRY scale=" << label->devicePixelRatioF() << " width=" << label->width()
@@ -279,8 +280,7 @@ namespace {
 		wait_for([&] { return cards->writing_draft() && single_offered(*cards); }, "the new comment is written in the drawer");
 		auto* publish = draft_publish(*cards);
 		expect(publish != nullptr && single_offered(*cards) && publish->isEnabled(), "the open draft offers Add single comment");
-		const auto before      = github_application_fixture_access::review_mutation_evidence(*application);
-		const auto shownBefore = github_application_fixture_access::window_read_progress(*application).Snapshot;
+		const auto before = github_application_fixture_access::review_mutation_evidence(*application);
 		if (aCourse == course::unsupported) {
 			options.GithubCliStrictCapability->store(false);
 		}
@@ -339,17 +339,6 @@ namespace {
 					  << "\" editor_status=\"" << window.review_editor()->mutation_status_text().toStdString() << "\" publish_asks=" << publishAsks << '\n';
 			expect(settled, "the draft says in words that the result is unavailable and retry is safe");
 			expect(publishAsks == 0U, "ordinary publication opened no CLI modal");
-			// [[BPR-1477]]. The request went out, so the window reads the pull
-			// request again by itself, and the draft is held again, open in
-			// the drawer, for the same retry.
-			const auto reread = wait_until([&] {
-				const auto progress = github_application_fixture_access::window_read_progress(*application);
-				return progress.Snapshot != shownBefore && !progress.Reading && cards->writing_draft() && draft_status(*cards).contains(QStringLiteral("retry is safe"))
-					&& window.review_editor()->publication_retry_offered();
-			});
-			std::cout << "BPR_1477:" << name << ":reread snapshot_changed=" << (github_application_fixture_access::window_read_progress(*application).Snapshot != shownBefore)
-					  << " writing=" << cards->writing_draft() << " retry=" << window.review_editor()->publication_retry_offered() << " status=\"" << draft_status(*cards).toStdString() << "\"\n";
-			expect(reread, "after the lost answer the pull request is read again, and the draft is held again for the same retry");
 			// Closed, the draft is kept as its note; opened, it says so again.
 			auto* const close = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadClose"));
 			expect(close != nullptr, "the draft in the drawer can be closed");
@@ -390,16 +379,9 @@ namespace {
 		expect(after.NativePosts == before.NativePosts + 1U && after.StoredComments == 1U && after.LastBody == body, "the fixture server holds exactly the one comment, with the draft's text");
 		expect(shown, "the drawer shows the posted thread in place of the draft");
 		expect(posted_count(*cards, text) == 1U, "one posted thread, not two");
-		// The posted thread opens when the reread the publication owes lands
-		// ([[BPR-1475]]). After a lost answer the window has read the stored
-		// comment already ([[BPR-1477]]), so the thread shows before it opens.
-		const auto opened = wait_until([&] {
-			const auto* const posted = posted_card(*cards, text);
-			return posted != nullptr && cards->open_card() != nullptr && cards->open_card()->isVisible()
-				&& cards->open_card()->property("threadKey").toString().startsWith(QString::fromStdString(posted->Id));
-		});
-		std::cout << "BPR_1329:" << name << ":posted_open=" << opened << '\n';
-		expect(opened, "the posted thread is the one open in the drawer");
+		const auto* const posted = posted_card(*cards, text);
+		expect(cards->open_card() != nullptr && cards->open_card()->isVisible() && cards->open_card()->property("threadKey").toString().startsWith(QString::fromStdString(posted->Id)),
+			   "the posted thread is the one open in the drawer");
 		capture_settled(window, QStringLiteral("-reconciled"));
 		std::cout << "BPR_1329:" << name << ":pass\n";
 
