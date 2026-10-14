@@ -89,3 +89,16 @@ covers 512 and 513 edits with either side longer, the old tie-break, two edits
   `f5bea5271`: 269 of 272, the three failures being the worktree's missing
   `.agents` links. Changed-line tidy reports no findings; the documentation
   gate passes.
+- Independent critical review of `a41035268` (read-only, scratch harness
+  copying both implementations against dtl 1.21): no blocking finding. The
+  band stop cannot be evaded (same argument as above; about 6.0 million inputs
+  never exceeded `band + 1` rounds or the asserted path points), results equal
+  the old Myers on about 5.8 million exhaustive, random and boundary inputs
+  (binary alphabet lengths 0 to 10 exhaustive, empty sides, 512 and 513
+  edits both ways, the tie-break), and no undefined behaviour was found. Known
+  characteristic, not a defect: dtl completes its last round where the old
+  Myers stopped at the first finishing diagonal, so a 200,000-line adversarial
+  input (512 lines inserted at the front of an alternating file) took 0.30 s
+  against 0.001 s at `-O2`; other shapes go the other way (512 spread
+  deletions 0.003 s against 0.118 s). Work stays bounded by the band. The SES
+  is copied twice while it is read, a few megabytes on the largest inputs.
