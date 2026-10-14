@@ -327,6 +327,8 @@ namespace bpr::qt {
 				return QStringLiteral("executable payloads are not allowed");
 			case core::theme_import_reason::malformed_color:
 				return QStringLiteral("a semantic colour is malformed");
+			case core::theme_import_reason::unknown_base:
+				return QStringLiteral("the base names no built-in theme");
 			}
 			return QStringLiteral("the document was refused");
 		}
@@ -1068,9 +1070,9 @@ namespace bpr::qt {
 		const core::appearance_palette& aPalette)
 	{
 		PendingPreview.reset();
-		// [[BPR-1083]]. A theme written before the label tints reads them as
-		// the built-in tints of the theme on screen.
-		PreviewPalette = ResolvedVariant.has_value() ? with_builtin_label_tints(aPalette, *ResolvedVariant) : aPalette;
+		// [[BPR-1479]]. Roles an older theme omits arrive filled from the
+		// theme's own base, so the preview is exactly what Keep changes saves.
+		PreviewPalette = aPalette;
 		refresh_colours();
 		refresh_preview_bar();
 		// Names the theme it previews into, because it previews into exactly one

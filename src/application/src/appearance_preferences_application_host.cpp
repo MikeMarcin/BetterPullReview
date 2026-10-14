@@ -104,6 +104,7 @@ namespace bpr::application {
 		{
 			std::string              Path;
 			core::appearance_palette Palette;
+			core::appearance_variant Variant = core::appearance_variant::light;
 		};
 
 		struct staged_theme_export
@@ -153,12 +154,6 @@ namespace bpr::application {
 			auto rejections = std::vector<appearance_contrast_rejection>{ };
 			for (const auto variant : all_appearance_variants) {
 				for (auto finding : core::failing_contrast(aPalette, variant)) {
-					// Older documents leave additive roles unassigned. Presentation
-					// supplies their variant's built-in values; the sentinel is not ink.
-					if (core::defaults_on_import(finding.Pair.Foreground)
-						&& aPalette[core::index_of(finding.Pair.Foreground)] == core::unassigned_appearance_color) {
-						continue;
-					}
 					rejections.push_back(appearance_contrast_rejection{
 						.Variant = variant,
 						.Finding = std::move(finding),
@@ -166,6 +161,22 @@ namespace bpr::application {
 				}
 			}
 			return rejections;
+		}
+
+		/// \brief Checks that every built-in palette assigns every role.
+		///
+		/// \details [[BPR-1479]]. These fill the roles an older theme omits, so a
+		/// built-in that left one unassigned would hand the import the very hole
+		/// it is meant to fill.
+		[[nodiscard]] auto validated_builtins(appearance_builtin_palettes aBuiltins)
+			-> appearance_builtin_palettes
+		{
+			for (const auto& palette : aBuiltins) {
+				if (std::ranges::find(palette, core::unassigned_appearance_color) != palette.end()) {
+					throw std::invalid_argument{ "Invalid built-in appearance palettes" };
+				}
+			}
+			return aBuiltins;
 		}
 
 		[[nodiscard]] auto validated_limits(const appearance_host_limits aLimits)
@@ -255,6 +266,7 @@ namespace bpr::application {
 		};
 
 		implementation(appearance_settings                aInitialSettings,
+					   const appearance_builtin_palettes& aBuiltins,
 					   appearance_settings_port&          aSettings,
 					   theme_document_port&               aThemeDocuments,
 					   effect_executor&                   aEffects,
@@ -263,6 +275,7 @@ namespace bpr::application {
 					   const appearance_host_limits       aLimits)
 			: Settings{ validated_settings(std::move(aInitialSettings)) }
 			, Defaults{ Settings }
+			, Builtins{ validated_builtins(aBuiltins) }
 			, SettingsPort{ aSettings }
 			, ThemeDocuments{ aThemeDocuments }
 			, Effects{ aEffects }
@@ -341,7 +354,7 @@ namespace bpr::application {
 						reset_now(aTyped.Scope, aTyped.Variant);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_export>) {
 						if (!Closing) {
-							submit_theme_export(std::move(aTyped.Path), aTyped.Palette);
+							submit_theme_export(std::move(aTyped.Path), aTyped.Palette, aTyped.Variant);
 						}
 					} else if constexpr (std::is_same_v<ingress_type, staged_theme_export>) {
 						finish_theme_export(aTyped.Context, aTyped.Result);
@@ -664,8 +677,13 @@ namespace bpr::application {
 			}
 		}
 
-		void submit_theme_export(std::string aPath, const core::appearance_palette& aPalette)
+		/// \brief Writes the palette as a theme whose base is the variant it customises.
+		void submit_theme_export(std::string aPath, const core::appearance_palette& aPalette, const core::appearance_variant aVariant)
 		{
+			if (!known(aVariant)) {
+				publish_failure(local_context(), appearance_host_failure::host_failure);
+				return;
+			}
 			retire(appearance_request_domain::theme_export, appearance_terminal_rejection::superseded);
 			auto* const record = reserve(appearance_request_domain::theme_export);
 			if (record == nullptr) {
@@ -678,10 +696,10 @@ namespace bpr::application {
 			auto* const port    = &ThemeDocuments;
 			auto* const lane    = &DecisionLane;
 			try {
-				Effects.post([gate, lane, port, context, path = std::move(aPath), palette = aPalette, stop] {
+				Effects.post([gate, lane, port, context, path = std::move(aPath), palette = aPalette, aVariant, stop] {
 					auto staged = staged_theme_export{
 						.Context = context,
-						.Result  = perform_theme_export(*port, path, palette, stop),
+						.Result  = perform_theme_export(*port, path, palette, aVariant, stop),
 					};
 					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
 						deliver_terminal(gate, std::move(stagedTerminal));
@@ -698,13 +716,14 @@ namespace bpr::application {
 			theme_document_port&            aPort,
 			const std::string&              aPath,
 			const core::appearance_palette& aPalette,
+			const core::appearance_variant  aBase,
 			std::stop_token                 aStop) -> theme_document_result<void>
 		{
 			if (aStop.stop_requested()) {
 				return std::unexpected{ theme_document_error{ } };
 			}
 			try {
-				return aPort.write(aPath, core::export_theme(aPalette), std::move(aStop));
+				return aPort.write(aPath, core::export_theme(aPalette, aBase), std::move(aStop));
 			} catch (...) {
 				return std::unexpected{ theme_document_error{ } };
 			}
@@ -777,10 +796,10 @@ namespace bpr::application {
 			auto* const port    = &ThemeDocuments;
 			auto* const lane    = &DecisionLane;
 			try {
-				Effects.post([gate, lane, port, context, path = std::move(aPath), stop] {
+				Effects.post([gate, lane, port, context, path = std::move(aPath), builtins = Builtins, stop] {
 					auto staged = staged_theme_import{
 						.Context = context,
-						.Result  = perform_theme_import(*port, path, stop),
+						.Result  = perform_theme_import(*port, path, builtins, stop),
 					};
 					lane->post([gate, stagedTerminal = std::move(staged)]() mutable {
 						deliver_terminal(gate, std::move(stagedTerminal));
@@ -794,9 +813,10 @@ namespace bpr::application {
 		}
 
 		[[nodiscard]] static auto perform_theme_import(
-			theme_document_port& aPort,
-			const std::string&   aPath,
-			std::stop_token      aStop)
+			theme_document_port&               aPort,
+			const std::string&                 aPath,
+			const appearance_builtin_palettes& aBuiltins,
+			std::stop_token                    aStop)
 			-> theme_document_result<theme_import_attempt>
 		{
 			if (aStop.stop_requested()) {
@@ -817,11 +837,15 @@ namespace bpr::application {
 				auto attempt = theme_import_attempt{
 					.ThemeRejections = std::move(parsed.Rejections),
 				};
-				if (parsed.Palette.has_value()) {
-					attempt.ContrastRejections
-						= contrast_rejections(*parsed.Palette);
+				if (parsed.Palette.has_value() && parsed.Base.has_value()) {
+					// [[BPR-1479]]. Roles the document predates take its own base's
+					// built-in colours here, before the check, so the palette that
+					// is checked is the one previewed, kept and exported again.
+					auto palette = core::with_base_defaults(
+						*parsed.Palette, aBuiltins[variant_index(*parsed.Base)]);
+					attempt.ContrastRejections = contrast_rejections(palette);
 					if (attempt.ContrastRejections.empty()) {
-						attempt.Palette = std::move(parsed.Palette);
+						attempt.Palette = std::move(palette);
 					}
 				}
 				return attempt;
@@ -1260,15 +1284,16 @@ namespace bpr::application {
 			}
 		}
 
-		appearance_settings              Settings;
-		const appearance_settings        Defaults;
-		appearance_settings_port&        SettingsPort;
-		theme_document_port&             ThemeDocuments;
-		effect_executor&                 Effects;
-		decision_executor&               DecisionLane;
-		core::application_session_id     Session;
-		appearance_host_limits           Limits;
-		std::shared_ptr<completion_gate> Gate;
+		appearance_settings               Settings;
+		const appearance_settings         Defaults;
+		const appearance_builtin_palettes Builtins;
+		appearance_settings_port&         SettingsPort;
+		theme_document_port&              ThemeDocuments;
+		effect_executor&                  Effects;
+		decision_executor&                DecisionLane;
+		core::application_session_id      Session;
+		appearance_host_limits            Limits;
+		std::shared_ptr<completion_gate>  Gate;
 
 		core::appearance_observation                 EmptyObservation;
 		std::vector<std::shared_ptr<consumer_state>> Consumers;
@@ -1290,10 +1315,10 @@ namespace bpr::application {
 		bool                          ProjectionDeliveryFailed = false;
 	};
 
-	appearance_preferences_application_host::appearance_preferences_application_host(appearance_settings       aInitialSettings,
+	appearance_preferences_application_host::appearance_preferences_application_host(appearance_settings aInitialSettings, const appearance_builtin_palettes& aBuiltins,
 																					 appearance_settings_port& aSettings, theme_document_port& aThemeDocuments, effect_executor& aEffects,
 																					 decision_executor& aDecisionLane, core::application_session_id aSession, appearance_host_limits aLimits)
-		: Implementation{ std::make_unique<implementation>(std::move(aInitialSettings), aSettings, aThemeDocuments, aEffects, aDecisionLane, aSession, aLimits) }
+		: Implementation{ std::make_unique<implementation>(std::move(aInitialSettings), aBuiltins, aSettings, aThemeDocuments, aEffects, aDecisionLane, aSession, aLimits) }
 	{ }
 	appearance_preferences_application_host::~appearance_preferences_application_host() { Implementation->shutdown_now(); }
 	auto appearance_preferences_application_host::attach(std::shared_ptr<appearance_projection_port> aPort, bool aPublishInitial)
@@ -1397,9 +1422,9 @@ namespace bpr::application {
 		Implementation->enqueue(cancel_appearance_palette_preview_intent{ }, aConsumer);
 	}
 
-	void appearance_preferences_application_host::export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette)
+	void appearance_preferences_application_host::export_theme_file(appearance_consumer_id aConsumer, std::string aPath, core::appearance_palette aPalette, const core::appearance_variant aVariant)
 	{
-		Implementation->enqueue(deferred_appearance_theme_export{ std::move(aPath), aPalette }, aConsumer);
+		Implementation->enqueue(deferred_appearance_theme_export{ .Path = std::move(aPath), .Palette = aPalette, .Variant = aVariant }, aConsumer);
 	}
 
 	void appearance_preferences_application_host::reset(appearance_consumer_id aConsumer, const appearance_reset_scope aScope, const core::appearance_variant aVariant)

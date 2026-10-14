@@ -5068,7 +5068,7 @@ namespace bpr::app {
 			WorkbenchPreferences = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
 			// The shared owner also serves defaults-only windows, which have no window-record restore.
 			WorkbenchPreferences->restore();
-			AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
+			AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), qt::builtin_appearance_palettes(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
 			SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
 			QueueStore            = adapters::sqlite::make_queue_enrollment_store({
 				.StorageRoot = applicationDataRoot,
@@ -17095,8 +17095,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						// The theme on screen, built-in colours included. The
 						// record holds only what a reviewer customised, so
 						// exporting its slot alone would write a document of the
-						// roles they never touched as transparent.
-						AppearanceHost->export_theme_file(std::move(aValue.Path), AppearanceProfile->palette_for(variant));
+						// roles they never touched as transparent. That theme is
+						// the document's base ([[BPR-1479]]).
+						AppearanceHost->export_theme_file(std::move(aValue.Path), AppearanceProfile->palette_for(variant), variant);
 					} else {
 						AppearanceHost->import_theme_file(std::move(aValue.Path));
 					}
@@ -21731,6 +21732,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					stream << fact;
 				}
 				stream << '\n';
+				// [[BPR-1479]]. The theme the colours were kept on, which the
+				// export names as its base.
+				const auto variant = core::stable_name(probe.CustomisedVariant);
+				stream << "APPEARANCE_THEME_PROBE_CUSTOMISED_VARIANT:"
+					   << QString::fromUtf8(variant.data(), static_cast<qsizetype>(variant.size())) << '\n';
 				// A refused commit says why only in the panel, as a contrast
 				// rejection naming each role.
 				if (!std::ranges::all_of(commitFacts, std::identity{ })) {
