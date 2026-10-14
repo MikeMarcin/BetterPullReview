@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1509-drawer-tabs",
+  "scope": {
+    "issues": [
+      "BPR-1509"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "drawer-tabs",
+      "outcome": "Files and Search share the existing Comments and Notes native tab treatment while retaining drawer state and source-search behavior.",
+      "work": [
+        {
+          "issue": "BPR-1509"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Files/Search uses the Comments/Notes native document-tab treatment with clear selected, hover, keyboard focus and disabled states.",
+        "The composed drawer retains file selection, Files filter and Search query/results across mouse and keyboard tab switching; focused rendering and documentation checks pass.",
+        "Any owner visual judgment remains pending on a short attended session bound to an exact frozen candidate."
+      ],
+      "boundary": "Owner testing note 2026-10-14: Lets makes files and search tabs more like comments notes tabs style. BPR-1508 owns Search result L/R indentation; no changes to that scope."
+    }
+  ],
+  "unplanned_work": []
+}
