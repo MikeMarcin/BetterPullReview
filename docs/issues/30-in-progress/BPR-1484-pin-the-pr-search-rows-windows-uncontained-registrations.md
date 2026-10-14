@@ -42,3 +42,31 @@ No test, registration or product source changes. Windows has not measured
 the rows contained; this card does not claim it has.
 
 ## Evidence
+
+- Cause: [[BPR-1423]]'s 7d56dc1e5 (and its WIP 0220258f4) registered the six
+  rows `WINDOWS_UNCONTAINED` in `tests/end_to_end/CMakeLists.txt` with no
+  pins. `pin_registration_failures` ([[BPR-1343]]) refuses that on every
+  platform.
+- AC1: 358098090 pins all six rows `dos-volume-name` beside a comment naming
+  [[BPR-1423]]. Every course (`source_pr_find_public_path_tests.cpp`,
+  `source_pr_search_scope_path_tests.cpp`,
+  `source_pr_search_performance_tests.cpp`) builds its data root with
+  `e2e::private_data_root` first. `application_overview_double_click` starts
+  the same way, and [[BPR-1348]] measured it contained on Windows: it fails
+  "private composed course root" before any course step. So these rows are
+  pinned by that shape, and the comment says they are not yet measured
+  contained on Windows. `application_source_pr_search_retry` is registered
+  only where `UNIX` is true, so Windows never configures it, and the comment
+  says so. The sibling native Find rows (`application_source_find*`) keep
+  their `unmeasured (registered on macOS)` pins; this card does not touch
+  them.
+- AC2: macOS, `build/dev`, with the gh CLI transport test executable built
+  (`test_better_pull_review_gh_cli_git_smart_transport_tests`). Without the
+  pins (HEAD 8bbe0b1a2's script on the same build),
+  `test_network_isolation_manifest` fails with exactly the six
+  `TEST_NETWORK_ISOLATION_FAILED:application_source_pr_*` lines. With them
+  it passes. After merging main (977118d9c, which brings in BPR-1478) and
+  reconfiguring, `ctest --preset dev -R
+  '^test_network_isolation_(manifest|structure_contract)$'
+  --output-on-failure` passes 2 of 2, and `python3
+  scripts/verify_documentation.py --root .` prints `DOCUMENTATION_OK`.
