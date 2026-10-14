@@ -1468,7 +1468,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"43fbc5d022ea51b398dea6c0234d42d4ba44ba53cc6a28ce30c9694f2c14e831"
+		"8f85a4b3255749ae58190536da673a179109d61c6e8f60ceebd5c7deccab265b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1684,7 +1684,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4199286549005b6a09a069558971268ea9c7b6bdd7fa501f22ca4449b28de64f"
+        "4b8a1fbaddbb75cf5e4a025899fd59092942652ffa48c2e2de4e43b0fb78b177"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -2417,3 +2417,16 @@ message("REVIEW_ROUND_TRIP_COMPOSITION_CONTRACT_OK")
 # provider's thread. No publication, credential, grant, inventory or
 # mutation-branch change; the full application and production-manifest
 # digests are refreshed.
+
+# [[BPR-1477]] reseal, over main e145ccd35, which includes BPR-1479's
+# github_application.cpp change. github_application.cpp: a reread (Refresh)
+# while a new comment's outcome is unknown holds its draft again, publishing,
+# for the same retry (core::resume_comment_after_refresh now holds a comment
+# awaiting its retry, not one a submitted review holds). The composition keeps
+# the retry record and its reason across the replaced mutation host, says the
+# reason again, and reopens the locked draft in the drawer
+# (workbench_window::reopen_draft_in_drawer). An unknown outcome is still not
+# reread by the window itself. The fixture access reports the window read's
+# snapshot and whether a read is in flight or owed. No publication,
+# credential, grant, inventory or mutation-branch change; the full
+# application and production-manifest digests are refreshed.

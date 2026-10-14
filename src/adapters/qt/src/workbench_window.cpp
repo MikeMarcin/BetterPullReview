@@ -8441,6 +8441,24 @@ namespace bpr::qt {
 		static_cast<void>(begin_new_comment(false));
 	}
 
+	auto workbench_window::reopen_draft_in_drawer() -> bool
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr || ReviewEditor == nullptr || Modality == nullptr) {
+			return false;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->ReplyToThread.has_value() || draft->shared() || Modality->current() != review_modality::review || showing_home()
+			|| CompositionPage != nullptr || Drawers[1].Panel->state() != core::workbench_drawer_state::expanded
+			|| (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_comments_tab)) {
+			return false;
+		}
+		WritingAnchor = draft->Anchor;
+		present_inline_draft();
+		ConversationPanel->cards()->begin_draft();
+		apply_thread_marks();
+		return ConversationPanel->cards()->writing_draft();
+	}
+
 	void workbench_window::leave_drawer_draft(const bool aDiscard)
 	{
 		// [[BPR-1212]]. Esc keeps a written draft at its line and drops an
