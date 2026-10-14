@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1484"
+  ],
+  "reserve_for": "keen-euclid-fc5dac",
+  "purpose": "Pin BPR-1423's six PR Search rows in WINDOWS_UNCONTAINED_TESTS so test_network_isolation_manifest passes on main",
+  "created": "2026-10-14T02:29:44.644798+00:00",
+  "base": "5cc67228ef13c508c6c5e1fa58880f4bac8dbfb9"
+}
