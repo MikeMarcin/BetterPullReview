@@ -304,7 +304,7 @@ pinned fmt apart from Quill's copy ([[BPR-1439]]), sha1collisiondetection for
 every SHA-1 Git identity ([[BPR-1450]]), HACL*'s generated SHA-2 for the
 core SHA-256 ([[BPR-1451]]), header-only rapidfuzz-cpp for the diff engine's
 line-pair similarity ([[BPR-1480]]), header-only dtl for its intraline
-ranges ([[BPR-1481]]), RE2 with its Abseil LTS
+ranges ([[BPR-1481]]) and the Review Cycle suggestion hunks ([[BPR-1498]]), RE2 with its Abseil LTS
 ([[BPR-1431]]),
 the macOS-only LibArchive input and the embedded JetBrains Mono NL faces
 ([[BPR-1270]]), and Git 2.56.0's xdiff, the diff engine's primary line

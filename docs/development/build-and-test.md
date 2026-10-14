@@ -3639,10 +3639,21 @@ equal so dtl finishes in one pass; the result is dropped and the stop thrown
 again, so no stop unwinds through dtl's plain `new[]`. dtl 1.21 restarts past
 2,000,000 path points on a path that can join unequal scalars: a pair whose
 (left + 1) x (right + 1) grid is that large keeps the budgeted character table,
-and every common scalar dtl returns is checked before use. `architecture_boundaries`
-refuses a dtl symbol, header or macro in any other source. `core_diff_intraline`
+and every common scalar dtl returns is checked before use. `core_diff_intraline`
 covers the ranges, the budget, the large-pair table and a stop inside dtl.
 License and provenance are under `third_party/dtl/`.
+
+[[BPR-1498]] extends the approval (owner Accept, 2026-10-13) to the Review
+Cycle suggestion hunks: `matched_lines` in
+`src/core/src/review_cycle_suggestion.cpp` takes the matched lines of a
+suggestion's changed middle from `dtl::Diff`, keeping the 512-edit cap and the
+first-party Myers alignment it replaced. Its comparator stops dtl at the first
+comparison outside the cap's band of diagonals, so dtl's 2,000,000-point
+restart is never reached (a `static_assert` bounds the path points), and every
+common line is checked before use. `core_review_cycle_suggestion` covers the
+cap boundary, the tie-break and large inputs. `architecture_boundaries` allows
+a dtl symbol, header or macro in exactly those two sources and refuses it in
+any other.
 
 ## Source search regex engine
 
