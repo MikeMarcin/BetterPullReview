@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1480",
+    "BPR-1481",
+    "BPR-1482"
+  ],
+  "reserve_for": "diff-engine-evaluation",
+  "purpose": "RFC-BPR-0082 follow-ups: adopt rapidfuzz-cpp pairing, adopt dtl intraline after AC06, join comment-range hunks one line apart as GitHub does",
+  "created": "2026-10-14T01:29:17.895088+00:00",
+  "base": "e5276991f2bb6adeced3bba544e63e5ef47b7f91"
+}
