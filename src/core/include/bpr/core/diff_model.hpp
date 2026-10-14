@@ -399,6 +399,9 @@ namespace bpr::core {
 							 std::uint32_t              aRightLineCount) noexcept -> bool;
 
 	/// \brief Computes the comparison digest result.
+	/// \details The digest is persisted beside stored line coordinates, so it
+	/// names what is compared and not how: the key's algorithm revision does
+	/// not enter it ([[BPR-1497]]). Zero for an invalid key.
 	[[nodiscard]] auto comparison_digest(
 		const file_comparison_key& aKey) noexcept -> file_comparison_digest;
 	/// \brief [[BPR-1331]]. The material a file receipt attaches to.
@@ -409,7 +412,8 @@ namespace bpr::core {
 	/// them: a receipt keyed by it reopened every file on every push,
 	/// changed or not. The material is the comparison digest without the
 	/// anchors: the pull request, the file, the two blobs and the options
-	/// and algorithm that compared them. A push keeps it for a file whose
+	/// that compared them; like the comparison digest it leaves out the
+	/// algorithm revision ([[BPR-1497]]). A push keeps it for a file whose
 	/// blobs did not move and moves it for one whose did. Zero for an
 	/// invalid key, like `comparison_digest`.
 	[[nodiscard]] auto file_material(

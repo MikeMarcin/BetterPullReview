@@ -15,6 +15,8 @@ The [live import](assets/diff-engine-evaluation-v1.LIVE_IMPORT.md) retains the
 original draft byte-for-byte. Cards: [[BPR-1465]] (core seam), [[BPR-1466]]
 (opt-in harness and corpus), [[BPR-1467]] (macOS measurements and decisions),
 [[BPR-1468]] (Linux), [[BPR-1469]] (Windows) and [[BPR-1470]] (closeout).
+Since mandate `diff-engine-evaluation-r4`, [[BPR-1468]] and [[BPR-1469]]
+qualify the adopted stack rather than measure candidates.
 
 Owner decisions supplied with the mandate, 2026-10-13: the core may link only
 the owner-approved, pinned, pure libraries glaze, utf8proc, zlib and fmt. Any
@@ -103,6 +105,22 @@ assert resumption change to the restart behaviour. It takes effect with L's
 adoption in [[BPR-1485]]. The
 [record](assets/diff-engine-evaluation-v1/owner-answer-restart-2026-10-13.md)
 keeps the amended paragraph before and after.
+
+## Owner delegation on Linux and Windows qualification — 2026-10-13
+
+Mandate `diff-engine-evaluation-r4`. Asked what [[BPR-1468]] (Linux) and
+[[BPR-1469]] (Windows) should do now that the macOS decisions are adopted, the
+owner answered "decide". The coordinating session decided: measuring the
+candidates against the first-party baseline is moot, because that engine is
+deleted ([[BPR-1485]]) and the opt-in evaluation build is retired. Both cards
+instead qualify the adopted stack on their platform: xdiff built as its own
+shared library, plus dtl and rapidfuzz-cpp; the diff suites and `core_diff_*`;
+the BPR-1485 equivalence tool, reproducing the macOS digests (cross-platform
+determinism) and GitHub agreement 78 of 78; and the package audits. AC02 is
+amended accordingly, marked below; the
+[record](assets/diff-engine-evaluation-v1/owner-delegation-platforms-2026-10-13.md)
+keeps its text before and after. Nothing else changes: the macOS measurements,
+decisions and owner answers stand, and Q3 stays open.
 
 ## Owner answer on dtl for Review Cycle suggestion hunks — 2026-10-13
 
@@ -404,7 +422,12 @@ answer on restart-only cancellation" above).
   counts.
 - **AC02:** Measurements on macOS, Linux and Windows cover every size class
   and the measurement list under "Corpus and measurement", with the baseline
-  measured in the same runs and conditions.
+  measured in the same runs and conditions. *Amended 2026-10-13 under the owner's delegation: macOS carries the
+  measurements; on Linux and Windows the adopted stack is qualified instead
+  (shared-library xdiff, dtl and rapidfuzz-cpp built; the diff suites pass; the
+  BPR-1485 equivalence tool reproduces the macOS digests and GitHub agreement
+  78 of 78; the package audits pass), because the baseline is deleted* (see
+  "Owner delegation on Linux and Windows qualification" above).
 - **AC03:** GitHub agreement and comment-range flips are reported per candidate
   against recorded provider patches. This includes the BPR-0625 and BPR-0719
   inputs and a lone-CR case showing LF-only line identity.

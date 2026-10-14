@@ -1,6 +1,7 @@
 #include "bpr/core/diff_model.hpp"
 
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/diff_compute.hpp"
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
 
@@ -461,12 +462,10 @@ namespace {
 		variants.push_back(key);
 		variants.back().Options = opaque<diff_options_digest>(33U);
 		variants.push_back(key);
-		variants.back().Algorithm = diff_algorithm_revision{ 2U };
-		variants.push_back(key);
 		variants.back().Authority.Account = github_account_id{ 41U };
 		for (const auto& variant : variants) {
 			expect(valid(variant) && comparison_digest(variant) != keyDigest,
-				   "every exact cache-key dimension changes comparison identity");
+				   "every exact cache-key dimension but the algorithm changes comparison identity");
 		}
 
 		auto contradictory       = key;
@@ -529,12 +528,10 @@ namespace {
 		variants.push_back(key);
 		variants.back().Options = opaque<diff_options_digest>(33U);
 		variants.push_back(key);
-		variants.back().Algorithm = diff_algorithm_revision{ 2U };
-		variants.push_back(key);
 		variants.back().Authority.Account = github_account_id{ 41U };
 		for (const auto& variant : variants) {
 			expect(valid(variant) && file_material(variant) != file_material(key),
-				   "every dimension but the anchors changes the material");
+				   "every dimension but the anchors and the algorithm changes the material");
 		}
 		auto noBlobs = key;
 		noBlobs.LeftBlob.reset();
@@ -561,6 +558,49 @@ namespace {
 											 { .File = file, .Material = comparison_digest(pushed) });
 		expect(byComparison.Disposition == receipt_carry_over::reopened_material_changed,
 			   "keyed by the comparison digest, an unchanged file would reopen on every push");
+	}
+
+	// [[BPR-1497]]. Moving to linked xdiff bumped the algorithm revision to 2.
+	// The comparison digest and the material are persisted beside stored line
+	// coordinates (receipts, defects, drafts, private notes and threads,
+	// tours, window restoration), so both must be byte-identical to what
+	// revision 1 wrote. The vectors are the ones revision 1 produced for this
+	// exact key, captured from the engine before the bump.
+	auto test_stored_identities_survive_the_algorithm_revision() -> void
+	{
+		expect(supported_diff_algorithm_revision == diff_algorithm_revision{ 2U },
+			   "linked xdiff computes algorithm revision 2");
+		const auto stored = comparison_key();
+		expect(stored.Algorithm == diff_algorithm_revision{ 1U },
+			   "the fixture key is the one revision 1 stored");
+		auto current      = stored;
+		current.Algorithm = supported_diff_algorithm_revision;
+		expect(valid(current) && current != stored,
+			   "the current key still names its algorithm, so a revision-1 result never satisfies it");
+		expect(comparison_digest(current) == comparison_digest(stored)
+				   && comparison_digest(current).bytes()
+					   == digest_bytes(
+						   "fbdfe1e651fe7e0227040953c236b296"
+						   "032ddcf3f30503c7107d6d8037f588ae"),
+			   "a comparison digest stored by revision 1 still names the same comparison");
+		expect(file_material(current) == file_material(stored)
+				   && file_material(current).bytes()
+					   == digest_bytes(
+						   "606e433a03b07aa3c81bbe15b2d85486"
+						   "bbaffd152fd34570a39648cd0118badf"),
+			   "a material stored by revision 1 still names the same material");
+
+		// A receipt written under revision 1 meets the current material.
+		auto       accepted = file_receipt{ .File = stored.File, .Material = file_material(stored), .Read = file_read_state::read, .Accepted = true };
+		const auto kept     = carry_over(accepted, { .File = current.File, .Material = file_material(current) });
+		expect(kept.Disposition == receipt_carry_over::retained && progress_mark(kept.Receipt) == file_progress_mark::accepted,
+			   "an accepted file stays accepted across the algorithm revision");
+
+		// A line anchor written under revision 1 still names a line of the
+		// current comparison.
+		const auto anchor = source_line_ref{ .Comparison = comparison_digest(stored), .Side = diff_side::right, .Line = 4U };
+		expect(anchor.Comparison == comparison_digest(current) && valid(anchor, 8U, 8U),
+			   "a stored line anchor still binds the current comparison");
 	}
 
 	auto test_canonical_record_tables() -> void
@@ -1342,6 +1382,7 @@ int main()
 {
 	test_options_and_comparison_identity();
 	test_file_material_outlives_a_push();
+	test_stored_identities_survive_the_algorithm_revision();
 	test_canonical_record_tables();
 	test_source_references();
 	test_stable_record_identities();

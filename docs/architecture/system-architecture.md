@@ -286,7 +286,11 @@ workbench generation, active tab and exact file/pair. Its ordinary tab driver
 restores that view before Qt applies the existing command projection and sends
 its file/change intent. Completion consumes the continuation once; later
 file/tab/comparison/modality/Home/composer gestures cancel it synchronously,
-and identity replacement is refused by the bound context. Unavailable tabs
+and identity replacement is refused by the bound context. The view it waits for
+is the active tab's current one: a reading position observed after the press
+reaches the tab through the decision lane, and each tab publication
+re-evaluates the continuation, so a press made just after a selection is not
+held waiting for the superseded position. Unavailable tabs
 retain their ordinary explanation without newer-pair fallback. No source tab
 is created by entry alone and no full-review scan/model reset is introduced.
 
@@ -1301,7 +1305,13 @@ binding.
 For RFC-BPR-0004, interaction state in the core includes the active semantic
 change and selected source line, boundary, or mapping target. Host caches may
 retain immutable file-diff values and indexes only under exact blob, option,
-comparison, and algorithm identity. Qt-local state includes measured line
+comparison, and algorithm identity. The algorithm revision is 2 since linked
+xdiff replaced the first-party matcher (BPR-1497); a key or result at another
+revision is refused and recomputed. The persisted comparison digest and file
+material leave the revision out and keep the bytes revision 1 wrote, because
+receipts, defects, drafts, private notes and threads, tours and window
+restoration store them beside line coordinates that do not depend on the
+alignment. Qt-local state includes measured line
 boundaries, the measured alignment axis, the retained subpixel comparison
 position, shared-scrollbar projection, hover paths, and splitter geometry.
 Measured pixels and the live scroll position are not core or durable state.

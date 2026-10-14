@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <iostream>
 #include <iterator>
 #include <optional>
@@ -1070,6 +1071,95 @@ namespace {
 		std::filesystem::remove(aRoot / ("text-" + aBlob.toStdString()));
 	}
 
+	/// [[BPR-1496]]. The two probe deadlines the contract must wait out, ten
+	/// seconds each: Git's `clone -h` and gh's first help topic. A held probe
+	/// is killed at the deadline, so its wait is idle time, and it used to add
+	/// twenty seconds to a serial course already spending about thirty-five on
+	/// gh launches. Each held probe blocks every launch of its kind in its
+	/// root, so they run on a fixture root of their own, beside the main course,
+	/// with the same transports, files and checks: cancelled while running,
+	/// then timed out, then (gh) repaired through the same exact authority.
+	void probe_deadline_course(const std::filesystem::path& aExecutable, const std::filesystem::path& aSource,
+							   const validated_github_host_profile& aProfile, const validated_github_host_profile& aEnterpriseProfile,
+							   const core::github_session_request_context& aSession, const application::git_smart_request_context& aContext,
+							   const std::string& aSparseOmitted)
+	{
+		QTemporaryDir temporary{ QStringLiteral("/private/tmp/bpr-bridge-test-XXXXXX") };
+		expect(temporary.isValid(), "deadline course root");
+		const std::filesystem::path root{ temporary.path().toStdString() };
+		for (const auto* name : { "gh", "git" }) {
+			std::filesystem::copy_file(aExecutable, root / name);
+			std::filesystem::permissions(root / name, std::filesystem::perms::owner_all);
+		}
+		std::filesystem::create_directory(root / "neutral");
+		std::filesystem::create_directory(root / "home");
+		std::filesystem::copy(aSource, root / "source.git", std::filesystem::copy_options::recursive);
+		write(root / "git-version", "git version 2.54.0 (Apple Git-157)\n");
+		write(root / "sparse-omitted", aSparseOmitted);
+		const auto unpinned                = validate_gh_cli_configuration({ .Executable = root / "gh", .NeutralWorkingDirectory = root / "neutral", .Platform = gh_cli_macos_environment_facts{ .HomeDirectory = root / "home" }, .Https = { } });
+		const auto configuration           = unpinned ? pin_gh_cli_configuration(*unpinned, "github.com", "fixture") : std::nullopt;
+		const auto enterpriseConfiguration = unpinned ? pin_gh_cli_configuration(*unpinned, aEnterpriseProfile.hostname(), "fixture") : std::nullopt;
+		expect(configuration.has_value() && enterpriseConfiguration.has_value(), "deadline course configurations");
+		constexpr application::git_protocol_v2_fetch_limits limits{ .MaximumWireBytes = 1048576, .MaximumPackBytes = 1048576, .MaximumProgressBytes = 1024, .MaximumPackets = 1024 };
+
+		auto probeTransport = make_gh_cli_git_smart_transport(aEnterpriseProfile, *enterpriseConfiguration, root / "git", aSession, aContext, [] { return true; });
+		expect(probeTransport.has_value(), "deadline course Git transport");
+		write(root / "wait-git-help", "1");
+		{
+			std::stop_source    stop;
+			std::jthread        cancel{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{400}); stop.request_stop(); } };
+			recording_pack_sink cancelledSink{ core::git_hash_algorithm::sha1 };
+			const auto          started = std::chrono::steady_clock::now();
+			const auto          result  = application::acquire_git_protocol_v2_pack(**probeTransport, aContext, { }, cancelledSink, limits, stop.get_token());
+			const auto*         error   = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
+			expect(error && error->Failure == application::git_smart_transport_failure::cancelled && cancelledSink.Received.empty() && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 }, "running capability cancellation is bounded, reaped and publishes nothing");
+		}
+		recording_pack_sink timedOutSink{ core::git_hash_algorithm::sha1 };
+		const auto          timedOutHelp  = application::acquire_git_protocol_v2_pack(**probeTransport, aContext, { }, timedOutSink, limits, { });
+		const auto*         timedOutError = timedOutHelp ? nullptr : std::get_if<application::git_smart_transport_error>(&timedOutHelp.error());
+		expect(timedOutError && timedOutError->Failure == application::git_smart_transport_failure::timeout && timedOutError->Step == application::git_smart_transport_step::git_capability_probe && timedOutSink.Received.empty(), "capability probe deadline preserves a typed timeout without publishing content");
+		std::filesystem::remove(root / "wait-git-help");
+
+		write(root / "version", "gh version 2.120.0 (fixture)\n");
+		auto sparseContext            = aContext;
+		sparseContext.AcquisitionMode = application::git_smart_acquisition_mode::sparse_commit_trees;
+		auto sparseTransport          = make_gh_cli_git_smart_transport(aProfile, *configuration, "/usr/bin/git", aSession, sparseContext, [] { return true; });
+		expect(sparseTransport.has_value(), "deadline course sparse transport");
+		recording_pack_sink admittedSink{ core::git_hash_algorithm::sha1 };
+		expect(application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, admittedSink, limits, { }).has_value() && admittedSink.Finished,
+			   "the deadline course's gh is admitted before its help probe is held");
+		write(root / "wait-gh-help", "1");
+		{
+			std::stop_source    stop;
+			std::jthread        cancel{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{ 400 }); stop.request_stop(); } };
+			recording_pack_sink cancelledSink{ core::git_hash_algorithm::sha1 };
+			const auto          started   = std::chrono::steady_clock::now();
+			const auto          cancelled = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, cancelledSink, limits, stop.get_token());
+			const auto*         error     = cancelled ? nullptr : std::get_if<application::git_smart_transport_error>(&cancelled.error());
+			expect(error && error->Failure == application::git_smart_transport_failure::cancelled && cancelledSink.Received.empty()
+					   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 },
+				   "cancelling a running gh probe is bounded, reaped and publishes nothing");
+		}
+		{
+			// The sandboxed fake cannot record calls, so a viewer read or clone
+			// reached before refusal would fail and change the reported step.
+			write(root / "fail-viewer", "1");
+			write(root / "fail-clone", "1");
+			recording_pack_sink refused{ core::git_hash_algorithm::sha1 };
+			const auto          refusal = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, refused, limits, { });
+			const auto*         error   = refusal ? nullptr : std::get_if<application::git_smart_transport_error>(&refusal.error());
+			std::filesystem::remove(root / "fail-viewer");
+			std::filesystem::remove(root / "fail-clone");
+			expect(error && error->Step == application::git_smart_transport_step::cli_capability_probe && error->Failure == application::git_smart_transport_failure::timeout
+					   && refused.Received.empty() && !refused.Finished,
+				   "refused gh keeps its typed boundary before any viewer read or remote acquisition: help timeout");
+		}
+		std::filesystem::remove(root / "wait-gh-help");
+		recording_pack_sink repairedSink{ core::git_hash_algorithm::sha1 };
+		expect(application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, repairedSink, limits, { }).has_value() && repairedSink.Finished,
+			   "a repaired gh retries through the same exact authority");
+	}
+
 	void contract()
 	{
 		QTemporaryDir temporary{ QStringLiteral("/private/tmp/bpr-bridge-test-XXXXXX") };
@@ -1133,6 +1223,10 @@ namespace {
 		expect(enterpriseProfile.has_value(), "synthetic GHES CLI profile validates");
 		const auto enterpriseConfiguration = pin_gh_cli_configuration(*unpinnedConfiguration, enterpriseProfile->hostname(), "fixture");
 		expect(enterpriseConfiguration.has_value(), "synthetic GHES exact account pin validates");
+		const auto sparseOmitted = blob.toStdString() + "\n" + changedBlob.toStdString() + "\n" + secondaryBlob.toStdString() + "\n" + changedSecondaryBlob.toStdString() + "\n" + ancestor.toStdString() + "\n";
+		// [[BPR-1496]]. Joined at the end of the contract; a failed expectation
+		// on its thread ends the process, as `test_expectation.hpp` describes.
+		auto probeDeadlines = std::async(std::launch::async, [&] { probe_deadline_course(executable, source, *profile, *enterpriseProfile, session, context, sparseOmitted); });
 		expect(!make_gh_cli_git_smart_transport(*enterpriseProfile, *configuration, syntheticGit, session, context, [] { return true; }),
 			   "Git helper authority refuses a different host pin before acquisition");
 
@@ -1232,21 +1326,7 @@ namespace {
 		const auto*         overflowingHelpError = overflowingHelp ? nullptr : std::get_if<application::git_smart_transport_error>(&overflowingHelp.error());
 		expect(overflowingHelpError && overflowingHelpError->Failure == application::git_smart_transport_failure::response_limit && overflowingHelpError->Step == application::git_smart_transport_step::git_capability_probe && boundedHelp.Received.empty(), "capability output has a strict 16 KiB bound and never publishes partial pack bytes");
 		std::filesystem::remove(root / "overflow-git-help");
-		write(root / "wait-git-help", "1");
-		{
-			std::stop_source    stop;
-			std::jthread        cancel{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{400}); stop.request_stop(); } };
-			recording_pack_sink cancelledSink{ core::git_hash_algorithm::sha1 };
-			const auto          started = std::chrono::steady_clock::now();
-			const auto          result  = application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, cancelledSink, limits, stop.get_token());
-			const auto*         error   = result ? nullptr : std::get_if<application::git_smart_transport_error>(&result.error());
-			expect(error && error->Failure == application::git_smart_transport_failure::cancelled && cancelledSink.Received.empty() && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 }, "running capability cancellation is bounded, reaped and publishes nothing");
-		}
-		recording_pack_sink timedOutSink{ core::git_hash_algorithm::sha1 };
-		const auto          timedOutHelp  = application::acquire_git_protocol_v2_pack(**probeTransport, context, { }, timedOutSink, limits, { });
-		const auto*         timedOutError = timedOutHelp ? nullptr : std::get_if<application::git_smart_transport_error>(&timedOutHelp.error());
-		expect(timedOutError && timedOutError->Failure == application::git_smart_transport_failure::timeout && timedOutError->Step == application::git_smart_transport_step::git_capability_probe && timedOutSink.Received.empty(), "capability probe deadline preserves a typed timeout without publishing content");
-		std::filesystem::remove(root / "wait-git-help");
+		// The capability probe's cancellation and deadline: probe_deadline_course.
 		write(root / "fail-git-version", "1");
 		auto                failedProbeTransport = make_gh_cli_git_smart_transport(*enterpriseProfile, *enterpriseConfiguration, syntheticGit, session, context, [] { return true; });
 		recording_pack_sink failedProbeSink{ core::git_hash_algorithm::sha1 };
@@ -1407,7 +1487,7 @@ namespace {
 				   && git(root, { verifyScope, "rev-parse", QString::fromUtf8(base) + ":secondary.txt" }) == secondaryBlob
 				   && git(root, { verifyScope, "rev-parse", QString::fromUtf8(head) + ":secondary.txt" }) == changedSecondaryBlob,
 			   "each imported file preserves its independently generated exact blob identity");
-		write(root / "sparse-omitted", blob.toStdString() + "\n" + changedBlob.toStdString() + "\n" + secondaryBlob.toStdString() + "\n" + changedSecondaryBlob.toStdString() + "\n" + ancestor.toStdString() + "\n");
+		write(root / "sparse-omitted", sparseOmitted);
 		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		auto sparseContext                  = context;
 		sparseContext.AcquisitionMode       = application::git_smart_acquisition_mode::sparse_commit_trees;
@@ -1474,23 +1554,11 @@ namespace {
 		write(root / "overflow-gh-help", "1");
 		expectCliRefusal("oversized help", application::git_smart_transport_step::cli_capability_probe, application::git_smart_transport_failure::response_limit);
 		std::filesystem::remove(root / "overflow-gh-help");
-		write(root / "wait-gh-help", "1");
-		{
-			std::stop_source    stop;
-			std::jthread        cancel{ [&] { std::this_thread::sleep_for(std::chrono::milliseconds{ 400 }); stop.request_stop(); } };
-			recording_pack_sink cancelledSink{ core::git_hash_algorithm::sha1 };
-			const auto          started   = std::chrono::steady_clock::now();
-			const auto          cancelled = application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, cancelledSink, limits, stop.get_token());
-			const auto*         error     = cancelled ? nullptr : std::get_if<application::git_smart_transport_error>(&cancelled.error());
-			expect(error && error->Failure == application::git_smart_transport_failure::cancelled && cancelledSink.Received.empty()
-					   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 3 },
-				   "cancelling a running gh probe is bounded, reaped and publishes nothing");
-		}
-		expectCliRefusal("help timeout", application::git_smart_transport_step::cli_capability_probe, application::git_smart_transport_failure::timeout);
-		std::filesystem::remove(root / "wait-gh-help");
+		// A running gh probe's cancellation, its help deadline and the repaired
+		// retry through the same authority: probe_deadline_course.
 		recording_pack_sink repairedSink{ core::git_hash_algorithm::sha1 };
 		expect(application::acquire_git_protocol_v2_pack(**sparseTransport, sparseContext, { }, repairedSink, limits, { }).has_value() && repairedSink.Finished,
-			   "a repaired gh retries through the same exact authority");
+			   "after the refused help probes, gh qualifies again through the same exact authority");
 		write(root / "version", "gh version 2.101.0 (fixture)\n");
 		write(root / "missing-sparse", "1");
 		recording_pack_sink missingSparseSink{ core::git_hash_algorithm::sha1 };
@@ -1558,6 +1626,7 @@ namespace {
 		expect(!switched && switched.error().Failure == application::git_smart_transport_failure::authentication && (*transport)->revoked(), "account mismatch revokes");
 		auto revoked = (*transport)->discover({ context }, { });
 		expect(!revoked && revoked.error().Failure == application::git_smart_transport_failure::cancelled, "revocation persists");
+		probeDeadlines.get();
 		std::cout << "bridge contract passed: complete pack, strict index, closed wants, bounds, viewer errors and revocation\n";
 	}
 }
