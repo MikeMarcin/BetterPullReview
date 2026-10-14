@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1493"
 title: "The desktop bar's View menu differs from a window's"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
