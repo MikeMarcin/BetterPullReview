@@ -189,7 +189,9 @@ normalize_runtime_rpaths() {
                 safe_rpath='@loader_path/../../..'
                 ;;
             "${bundle}/Contents/Frameworks/"*)
-                safe_rpath='@loader_path'
+                # [[BPR-1485]] libbpr_xdiff.dylib: its own directory, written
+                # as a path the package audits resolve inside the bundle.
+                safe_rpath='@loader_path/.'
                 ;;
             *)
                 fail "Mach-O file is outside the approved runtime roots: ${binary}"
