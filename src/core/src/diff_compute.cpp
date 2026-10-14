@@ -660,7 +660,7 @@ namespace bpr::core {
 			}
 
 		private:
-			const normalized_line*                               Left = nullptr;
+			const normalized_line*                               Left      = nullptr;
 			std::uint16_t                                        Threshold = 0U;
 			std::optional<rapidfuzz::CachedIndel<std::uint32_t>> Cached;
 		};
