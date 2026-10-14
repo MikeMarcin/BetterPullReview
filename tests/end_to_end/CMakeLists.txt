@@ -1100,6 +1100,16 @@ if(WIN32)
     # Its nested MSVC configures and builds took 823 s on the Windows station
     # (2026-09-30), and every case passed; 600 s cut it off.
     set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 1800)
+elseif(APPLE)
+    # [[BPR-1499]]. macOS arm64, Qt 6.11.2, main d0fea466d, 2026-10-13: with a
+    # cold nested tree (a new --release-build-dir) the eight cases passed in
+    # 502.4 s at load averages 14.8 to 30.9 (other agents building), almost all
+    # of it the nested tests-disabled Release configure and `--parallel 2`
+    # build. A warm tree passed alone in 43.1 s. 600 s cut it off twice under
+    # heavier load, in the 0.2.0 baseline gate and beside other builds. Three
+    # times the contended completion, rounded up to a minute, per the run-budget
+    # rule in docs/development/build-and-test.md.
+    set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 1560)
 elseif(UNIX AND NOT APPLE)
     # [[BPR-1258]]. Alone on Linux (bpr-main-linux: WSL2, 20 cores, GCC 15.2,
     # load about 2, its own build, 2026-10-01) the eight cases passed in 700.4 s,
@@ -1122,6 +1132,21 @@ target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullRe
 if(WIN32)
     # [[BPR-0967]]: GetProcessMemoryInfo for the native memory courses.
     target_link_libraries(bench_better_pull_review_large_review PRIVATE psapi)
+endif()
+if(APPLE)
+    # [[BPR-1495]]. application_large_review_launch holds this fixture's start-up
+    # to the 100 ms main-marker limit, which stands for the shipped app's launch.
+    # A Debug executable exports every weak definition it holds, and dyld must
+    # coalesce each one before main is reached: 30,190 binds at a8fd17aea, most
+    # of them added by RE2/Abseil and fmt, against 118 in the Release app.
+    # Before main took 112 to 130 ms and missed the limit. With nothing
+    # exported it takes 19 to 25 ms, measured under the same load. No
+    # executable or plugin looks up symbols in this one, so it exports none.
+    # The limit is unchanged, and the row still measures process start to the
+    # main marker.
+    file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/large_review_no_exports.txt" CONTENT "")
+    target_link_options(bench_better_pull_review_large_review PRIVATE
+        "LINKER:-exported_symbols_list,${CMAKE_CURRENT_BINARY_DIR}/large_review_no_exports.txt")
 endif()
 target_include_directories(bench_better_pull_review_large_review PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
 target_compile_definitions(bench_better_pull_review_large_review PRIVATE
