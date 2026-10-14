@@ -1887,6 +1887,14 @@ verify_effect_owner(
     "SHA-256 implementation"
     "src/core/src/sha256_hacl.cpp"
 )
+# [[BPR-1480]]. The diff engine's line-pair similarity is rapidfuzz-cpp's Indel
+# distance, called only where the engine scores line pairs (RFC-BPR-0082): no
+# other source names a rapidfuzz-cpp symbol, header or configuration macro.
+verify_effect_owner(
+    "(rapidfuzz::|rapidfuzz/|RAPIDFUZZ_)"
+    "rapidfuzz-cpp line-pair similarity"
+    "src/core/src/diff_compute.cpp"
+)
 # [[BPR-1447]]. Platform crypto sits behind the application's body digest port
 # in one adapter file (RFC-BPR-0080 AC06): CommonCrypto's SHA-2 is named
 # nowhere else in the product, so core and application stay free of OS crypto.

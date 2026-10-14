@@ -3,6 +3,8 @@
 #include "bpr/core/diff_compute_components.hpp"
 #include "diff_step_meter.hpp"
 
+#include <rapidfuzz/distance/Indel.hpp>
+
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -550,41 +552,121 @@ namespace bpr::core {
 			return result;
 		}
 
-		/// [[BPR-1366]] Pairing compares a great many short lines: a small
-		/// table is added to aUncounted for the caller to count in bulk, and
-		/// only a large one counts its own steps.
-		[[nodiscard]] auto similarity(const normalized_line& aLeft,
-									  const normalized_line& aRight,
-									  matrix_budget&         aBudget,
-									  diff_step_meter&       aMeter,
-									  std::uint64_t&         aUncounted)
-			-> std::optional<std::uint16_t>
+		/// [[BPR-1480]] The steps `lcs_matches` counted for a character table
+		/// too large to count in bulk, (aLeft + 1) x (aRight + 1) cells over
+		/// `small_table_cells`: its zeroing, then its fill, in the same
+		/// increments. Pairing no longer fills that table, but it keeps the
+		/// engine's step accounting, so every poll, pause and phase start
+		/// falls where it did.
+		auto charge_large_similarity_table(const std::size_t aLeft,
+										   const std::size_t aRight,
+										   diff_step_meter&  aMeter) -> void
 		{
-			if (aLeft == aRight) {
-				return maximum_similarity_threshold_permille;
+			const auto count = (aLeft + 1U) * (aRight + 1U);
+			for (auto zeroed = std::size_t{ 0U }; zeroed < count;) {
+				const auto piece = std::min(count - zeroed, table_tick_cells * 4U);
+				zeroed += piece;
+				aMeter.tick(piece / 16U);
 			}
-			if (aLeft.Values.empty() || aRight.Values.empty()) {
-				return std::uint16_t{ 0U };
+			if (aRight <= table_tick_cells) {
+				auto uncounted = std::size_t{ 0U };
+				for (auto row = aLeft; row != 0U; --row) {
+					uncounted += aRight;
+					if (uncounted >= table_tick_cells) {
+						aMeter.tick(uncounted);
+						uncounted = 0U;
+					}
+				}
+				aMeter.tick(uncounted + aLeft + aRight);
+				return;
 			}
-			const auto equalValues = [](const std::uint32_t aLhs, const std::uint32_t aRhs) { return aLhs == aRhs; };
-			const auto cells       = (aLeft.Values.size() + 1U) * (aRight.Values.size() + 1U);
-			auto       uncounted   = detail::unmetered{ };
-			const auto matches     = cells <= small_table_cells
-				? lcs_matches(aLeft.Values, aRight.Values, equalValues, aBudget, uncounted)
-				: lcs_matches(aLeft.Values, aRight.Values, equalValues, aBudget, aMeter);
-			if (cells <= small_table_cells) {
-				aUncounted += cells;
+			for (auto row = aLeft; row != 0U; --row) {
+				for (auto column = aRight; column != 0U;) {
+					const auto pieceEnd = column > table_tick_cells ? column - table_tick_cells : std::size_t{ 0U };
+					aMeter.tick(column - pieceEnd);
+					column = pieceEnd;
+				}
 			}
-			if (!matches.has_value()) {
-				return std::nullopt;
-			}
-			const auto numerator   = static_cast<std::uint64_t>(matches->size()) * 2U * maximum_similarity_threshold_permille;
-			const auto denominator = static_cast<std::uint64_t>(aLeft.Values.size()) + static_cast<std::uint64_t>(aRight.Values.size());
-			return static_cast<std::uint16_t>(numerator / denominator);
+			aMeter.tick(aLeft + aRight);
 		}
 
+		/// [[BPR-1480]] Scores one left line of a replacement against right
+		/// lines with rapidfuzz-cpp's Indel distance, which counts the
+		/// insertions and deletions between two lines, so the longest common
+		/// subsequence is (L + R - distance) / 2 and the score is the engine's
+		/// 2 x LCS x 1000 / (L + R), floored, in integers. The left line's
+		/// pattern is built once, on its first scored pair.
+		///
+		/// The matrix budget is charged, and the steps counted, exactly as the
+		/// character LCS table that this replaces charged them: an
+		/// (L + 1) x (R + 1) table per scored pair, a small one added to
+		/// aUncounted for the caller to count in bulk. A limit therefore stops
+		/// at the same pair and leaves the same replacements unpaired.
+		///
+		/// A pair below the threshold scores 0 instead of its exact score: the
+		/// distance is only computed up to the threshold's cutoff, and pairing
+		/// reads no score under the threshold.
+		class line_pair_scorer
+		{
+		public:
+			line_pair_scorer(const normalized_line& aLeft, const std::uint16_t aThresholdPermille) noexcept
+				: Left{ &aLeft }
+				, Threshold{ std::min(aThresholdPermille, maximum_similarity_threshold_permille) }
+			{
+			}
+
+			[[nodiscard]] auto score(const normalized_line& aRight,
+									 matrix_budget&         aBudget,
+									 diff_step_meter&       aMeter,
+									 std::uint64_t&         aUncounted) -> std::optional<std::uint16_t>
+			{
+				if (*Left == aRight) {
+					return maximum_similarity_threshold_permille;
+				}
+				const auto leftSize  = Left->Values.size();
+				const auto rightSize = aRight.Values.size();
+				if (leftSize == 0U || rightSize == 0U) {
+					return std::uint16_t{ 0U };
+				}
+				constexpr auto most    = std::numeric_limits<std::size_t>::max();
+				const auto     cells   = (leftSize + 1U) * (rightSize + 1U);
+				const auto     small   = cells <= small_table_cells;
+				const auto     charged = leftSize != most && rightSize != most
+					&& leftSize + 1U <= most / (rightSize + 1U)
+					&& aBudget.consume(leftSize + 1U, rightSize + 1U);
+				if (small) {
+					aUncounted += cells;
+				}
+				if (!charged) {
+					return std::nullopt;
+				}
+				if (!small) {
+					charge_large_similarity_table(leftSize, rightSize, aMeter);
+				}
+				if (!Cached.has_value()) {
+					Cached.emplace(Left->Values.begin(), Left->Values.end());
+				}
+				constexpr auto maximum = std::uint64_t{ maximum_similarity_threshold_permille };
+				const auto     total   = static_cast<std::uint64_t>(leftSize) + static_cast<std::uint64_t>(rightSize);
+				// The largest distance whose score can still reach the
+				// threshold, plus one: Indel stops counting past it.
+				const auto cutoff   = total * (maximum - Threshold) / maximum + 1U;
+				const auto distance = static_cast<std::uint64_t>(
+					Cached->distance(aRight.Values.begin(), aRight.Values.end(), static_cast<std::size_t>(cutoff)));
+				if (distance > cutoff) {
+					return std::uint16_t{ 0U };
+				}
+				return static_cast<std::uint16_t>((total - distance) * maximum / total);
+			}
+
+		private:
+			const normalized_line*                               Left = nullptr;
+			std::uint16_t                                        Threshold = 0U;
+			std::optional<rapidfuzz::CachedIndel<std::uint32_t>> Cached;
+		};
+
 		/// [[BPR-1465]] A component's scores for one replacement. The budget is
-		/// charged pair by pair exactly as `similarity` charges it, so a limit
+		/// charged pair by pair exactly as `line_pair_scorer` charges it, so a limit
 		/// stops at the same pair and leaves the same consumption behind.
 		[[nodiscard]] auto component_scores(const prepared_document& aLeft,
 											const prepared_document& aRight,
@@ -677,10 +759,10 @@ namespace bpr::core {
 				}
 			}
 			for (std::size_t leftIndex = 0U; !supplied && leftIndex < leftCount; ++leftIndex) {
+				auto scorer = line_pair_scorer{ aLeft.Normalized[static_cast<std::size_t>(aLeftSpan.Begin) + leftIndex], aOptions.SimilarityThresholdPermille };
 				for (std::size_t rightIndex = 0U; rightIndex < rightCount;
 					 ++rightIndex) {
-					const auto score = similarity(
-						aLeft.Normalized[static_cast<std::size_t>(aLeftSpan.Begin) + leftIndex],
+					const auto score = scorer.score(
 						aRight.Normalized[static_cast<std::size_t>(aRightSpan.Begin) + rightIndex],
 						aBudget,
 						aMeter,

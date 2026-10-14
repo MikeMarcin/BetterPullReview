@@ -1585,6 +1585,24 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=path, expression=expression):
                 self.assert_failure("SHA-256 implementation ownership violation", {path: expression})
 
+    def test_line_pair_similarity_has_one_rapidfuzz_owner(self) -> None:
+        # [[BPR-1480]]. Only the engine's pair scoring names rapidfuzz-cpp.
+        result = self.run_check({
+            "src/core/src/diff_compute.cpp":
+                "#include <rapidfuzz/distance/Indel.hpp>\n"
+                "std::optional<rapidfuzz::CachedIndel<std::uint32_t>> Cached;\n",
+            "src/core/CMakeLists.txt":
+                "add_library(better_pull_review_core src/agent_profile.cpp src/diff_compute.cpp)\n",
+        })
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for path, expression in (
+            ("src/core/src/diff_intraline.cpp", "#include <rapidfuzz/distance/Indel.hpp>\n"),
+            ("src/core/src/fuzzy_match.cpp", "rapidfuzz::fuzz::ratio(left, right);\n"),
+            ("src/adapters/qt/src/other.cpp", "#define RAPIDFUZZ_SIMD 1\n"),
+        ):
+            with self.subTest(path=path, expression=expression):
+                self.assert_failure("rapidfuzz-cpp line-pair similarity ownership violation", {path: expression})
+
     def test_platform_sha256_has_one_adapter_owner(self) -> None:
         # [[BPR-1447]]. CommonCrypto's SHA-2 is called only by the GitHub
         # adapter's body digest port; core, application, app and every other
