@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1485"
 title: "Adopt linked xdiff as the primary line matcher and delete the first-party matcher and pause and resume"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1465", "BPR-1480", "BPR-1482"]
 priority: "P2"
@@ -24,7 +24,7 @@ library, as Qt is; its 1.60–2.03× time on L inputs is accepted (speed waiver)
 and so are its 7 budget-caused approximations (approximation answer); and
 restart-only cancellation replaces BPR-1366's pause and resume once xdiff is
 adopted. The answer records are under
-[`docs/rfcs/assets/diff-engine-evaluation-v1/`](../../rfcs/assets/diff-engine-evaluation-v1/).
+[`docs/rfcs/assets/diff-engine-evaluation-v1/`](../../rfcs/assets/diff-engine-evaluation-v1).
 
 The evaluation's adapter shape is the starting point:
 `tests/evaluation/diff_engine/candidates/xdiff_linked.cpp` (the whitespace
