@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1502"
+  ],
+  "reserve_for": "release-020-tour-reconnect",
+  "purpose": "A gh reconnect gives the restarted window a new tour-draft owner (observed in BPR-1501)",
+  "created": "2026-10-14T14:32:18.776209+00:00",
+  "base": "bcb22702472275d19bc8671d0fe6c192ba7937fe"
+}
