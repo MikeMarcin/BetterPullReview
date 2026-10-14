@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1493"
 title: "The desktop bar's View menu differs from a window's"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1492--BPR-1496--90f0a51696a5.json","origin":"0.2.0 release normal gate (scripts/run_test_suite.py --preset dev) on main cd4860e30, reproduced alone on a quiet machine, owner release request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"40289f270","evidence":{"kind":"command","command":"ctest --preset dev -R (qt_appearance_profile, application_diff_zoom_public_path, qt_diff_workbench_scale_*, qt_comparison_scroll_controller_scale_*, qt_diff_link_map_scale_*, application_diff_workbench_public_path, application_appearance_*_contract, qt_profile_management_window, application_profile_management_public_path, qt_menu_bar_status_item*, application_profile_empty_desktop_native_menu_bar, qt_hide_drawers_native_menu_key)","detail":"Cause 40639f2f6 (RFC-BPR-0076 navigation texts without mnemonics) and a7fb9af0a (RFC-BPR-0077 Find submenu enabled and reordered); 720c52c69, 40639f2f6 and a7fb9af0a left the pinned count stale. Desktop bar now matches the window View menu; pinned count 23."}},{"criterion":"AC2","outcome":"pass","revision":"40289f270","evidence":{"kind":"command","command":"ctest --preset dev -R (qt_appearance_profile, application_diff_zoom_public_path, qt_diff_workbench_scale_*, qt_comparison_scroll_controller_scale_*, qt_diff_link_map_scale_*, application_diff_workbench_public_path, application_appearance_*_contract, qt_profile_management_window, application_profile_management_public_path, qt_menu_bar_status_item*, application_profile_empty_desktop_native_menu_bar, qt_hide_drawers_native_menu_key)","detail":"qt_profile_management_window and application_profile_management_public_path pass, with the native menu rows."}}]
 ---
 
 # The desktop bar's View menu differs from a window's
@@ -90,3 +91,5 @@ ctest --preset dev -R '^(qt_profile_management_window|application_profile_manage
 645 application_profile_empty_desktop_native_menu_bar .. Passed
 646 qt_hide_drawers_native_menu_key .................... Passed
 ```
+
+- Integration at 40289f270 (BPR-1492 and BPR-1493 combined over main 4e1d8536f), macOS arm64 full build/dev: `ctest --preset dev -R (qt_appearance_profile, application_diff_zoom_public_path, qt_diff_workbench_scale_*, qt_comparison_scroll_controller_scale_*, qt_diff_link_map_scale_*, application_diff_workbench_public_path, application_appearance_*_contract, qt_profile_management_window, application_profile_management_public_path, qt_menu_bar_status_item*, application_profile_empty_desktop_native_menu_bar, qt_hide_drawers_native_menu_key)` passes 22/22, load average about 60 from other agents. Both rows failed in the 0.2.0 baseline gate on cd4860e30.
