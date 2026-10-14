@@ -1123,6 +1123,21 @@ if(WIN32)
     # [[BPR-0967]]: GetProcessMemoryInfo for the native memory courses.
     target_link_libraries(bench_better_pull_review_large_review PRIVATE psapi)
 endif()
+if(APPLE)
+    # [[BPR-1495]]. application_large_review_launch holds this fixture's start-up
+    # to the 100 ms main-marker limit, which stands for the shipped app's launch.
+    # A Debug executable exports every weak definition it holds, and dyld must
+    # coalesce each one before main is reached: 30,190 binds at a8fd17aea, most
+    # of them added by RE2/Abseil and fmt, against 118 in the Release app.
+    # Before main took 112 to 130 ms and missed the limit. With nothing
+    # exported it takes 19 to 25 ms, measured under the same load. No
+    # executable or plugin looks up symbols in this one, so it exports none.
+    # The limit is unchanged, and the row still measures process start to the
+    # main marker.
+    file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/large_review_no_exports.txt" CONTENT "")
+    target_link_options(bench_better_pull_review_large_review PRIVATE
+        "LINKER:-exported_symbols_list,${CMAKE_CURRENT_BINARY_DIR}/large_review_no_exports.txt")
+endif()
 target_include_directories(bench_better_pull_review_large_review PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
 target_compile_definitions(bench_better_pull_review_large_review PRIVATE
     BPR_BUILD_TESTING=1

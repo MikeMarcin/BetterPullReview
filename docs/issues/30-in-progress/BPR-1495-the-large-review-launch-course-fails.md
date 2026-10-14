@@ -77,19 +77,47 @@ same load. It is not a quiet-machine figure.
   the step measured under load (about 15 ms) puts a8fd17aea near 95 to 100 ms
   quiet, so the row has no margin even on a quiet machine. No budget or
   assertion was changed.
-- Candidate remedy, for the owner and not applied: relinking the same object
-  files with an empty exported-symbols list
-  (`-Wl,-exported_symbols_list,<empty file>`, an experiment build kept outside
-  the tree) cuts the weak-coalesce binds from 30,190 to 39. Main-marker medians
-  fell from 129 to 131 ms to 22 to 25 ms over three rounds at load averages of
-  about 24, and in paired course runs from 110 to 130 ms to 19 to 25 ms. One of
-  the experiment binary's three course runs printed
-  `LARGE_REVIEW_LAUNCH_OBSERVED`. In the other two, the fixture's own
-  responsiveness budget refused under load, and the unchanged binary did the
-  same in one of its three runs. Whether the fixture executable should export
-  no symbols, which changes what the row measures, is the owner's decision.
+- Remedy, applied on the integrator's decision: on APPLE only,
+  `tests/end_to_end/CMakeLists.txt` links `bench_better_pull_review_large_review`
+  with an empty exported-symbols list
+  (`LINKER:-exported_symbols_list,<build>/tests/end_to_end/large_review_no_exports.txt`).
+  The 100 ms limit stands for the shipped app's launch. The Debug fixture's
+  30,190 weak-coalesce binds, against 118 in the Release app, are a cost that
+  only the Debug test build pays. Removing that cost leaves the limit
+  unchanged, and the row still measures process start to the main marker.
+  Before the change, a grep of `tests/end_to_end` and `src/app` for `dlsym`,
+  `dlopen`, `rdynamic`, `export_dynamic`, `Q_IMPORT_PLUGIN`,
+  `qt_import_plugins`, `STATIC_PLUGIN` and `ENABLE_EXPORTS` found nothing, so
+  nothing looks up symbols in this executable at run time. After the relink
+  the binary has 39 weak-coalesce binds.
+- Paired probe at a load average of 9.9 (15 launches to the main marker): an
+  exporting build of the same fixture had a median of 108.1 ms (minimum
+  105.9). The non-exporting build had a median of 16.2 ms (minimum 15.4).
 - AC2: `large_review_launch.py` now prints one
   `LARGE_REVIEW_LAUNCH_FAILED: <check>` line for each failed check (the
   fixture's exit code, a missing marker, marker order, and each enforced
   limit with its measurement). The pass and fail conditions are unchanged.
-- AC3: not met. The miss above remains and is reported for the owner.
+- AC3, met. After the change, each row that runs this executable was run
+  once, one after another, and `application_large_review_launch` three times.
+  - `application_large_review_launch` at load averages of 24, 32 and 34:
+    main marker 25.1, 27.4 and 22.6 ms, within its limit. Every run failed
+    because the fixture's own responsiveness budget refused under that load
+    (input and completion misses such as `paged_review_and_git_load_input_gap`
+    and `files_drawer_open`; the fixture exited 1).
+  - Re-run at load averages of 9.3, 10.3 and 8.9: all three passed, with main
+    marker 15.9, 16.1 and 16.2 ms and home marker 659.9, 663.7 and 663.5 ms.
+  - Passed once each (load averages 27 to 52): `application_large_review_benchmark`,
+    `_timing_control`, `application_unavailable_diff_public_path`,
+    `application_approximate_diff_public_path`, `application_first_tab_comparison`,
+    `application_large_review_responsiveness`, `_active_work`, `_provider_cancel`,
+    `_history_session_race`, `_cache_entries`, `_prepared_open`, `_loaded_close`
+    and `_resources`. `_cache_bytes` is skipped in a Debug build, as designed.
+  - `application_large_review_pathological` (load 30, input budget miss on
+    `paged_review_and_git_load`) and `application_large_review_history` (load
+    52, `epoch refresh exceeded its measured platform budget`) refused under
+    load. Both passed when re-run at a load average of 10, in 4.2 s and
+    151.5 s.
+  - `large_review_replay_contract` runs a different executable
+    (`better_pull_review_large_review_replay`), so it is not affected. That
+    executable was not built, and the row was not run.
+  - No budget was changed.
