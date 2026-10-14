@@ -18,7 +18,7 @@ valid spans on the whole corpus with a p95 per-pair time of 0.0227 ms against
 the engine's 0.0250 ms and passed every macOS gate. The owner approved dtl for
 the core on 2026-10-13 for per-line intraline comparison only. Adoption waits
 on the owner's Accept of the render set (RFC AC06, prepared under
-[BPR-1467](../30-in-progress/BPR-1467-measure-diff-engine-candidates-on-macos.md)); a Reject
+[BPR-1467](../60-done/BPR-1467-measure-diff-engine-candidates-on-macos.md)); a Reject
 closes this card without change.
 
 ## Acceptance
