@@ -55,6 +55,11 @@ namespace bpr::adapters::xdiff {
 			return 0;
 		}
 
+		/// The stand-in for a final line, without an ending, that normalizes to
+		/// nothing. The engine accepts only valid UTF-8, where 0xFF never
+		/// occurs.
+		inline constexpr auto empty_final_line = std::uint8_t{ 0xFFU };
+
 		[[nodiscard]] constexpr auto is_blank(const std::uint8_t aByte) noexcept -> bool
 		{
 			return aByte == 0x20U || aByte == 0x09U;
@@ -67,7 +72,7 @@ namespace bpr::adapters::xdiff {
 
 		/// The bytes xdiff compares for one side: the document as it is under
 		/// exact comparison, otherwise every line in the engine's normalized
-		/// form. Spaces and tabs are single bytes in UTF-8 and never part of a
+		/// form, one record per engine line. Spaces and tabs are single bytes in UTF-8 and never part of a
 		/// longer sequence, so removing them bytewise is removing them as
 		/// scalars.
 		[[nodiscard]] auto comparison_bytes(const core::decoded_text_document* aDocument, const core::diff_options& aOptions,
@@ -98,6 +103,13 @@ namespace bpr::adapters::xdiff {
 				}
 				switch (line.Ending) {
 				case core::text_line_ending::none:
+					// Only a final line has no ending. Normalized to nothing it
+					// would vanish, leaving xdiff one record short of the
+					// engine's lines; it is given a byte valid UTF-8 never
+					// holds instead, so it equals only another such line.
+					if (aStorage.size() == start) {
+						aStorage.push_back(empty_final_line);
+					}
 					break;
 				case core::text_line_ending::lf:
 					aStorage.push_back('\n');

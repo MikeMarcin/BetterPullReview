@@ -592,8 +592,11 @@ namespace bpr::application {
 			// first is abandoned too, and prepared again from the start, first
 			// in line; one that finished regardless keeps its result.
 			const auto discarded = PreparedJob->Superseded;
+			// Only a stop the host asked for is a yield: a blob port that
+			// declines on its own also answers cancelled, and is not retried.
+			const auto yielded = PreparedJob->Stop.stop_requested();
 			PreparedJob.reset();
-			if (!Closing && !discarded && aCompletion.Reason == core::diff_reason_code::cancelled) {
+			if (!Closing && !discarded && yielded && aCompletion.Reason == core::diff_reason_code::cancelled) {
 				try {
 					requeue_preparation(prepared_diff_request{ .Key = aCompletion.Context.Key, .Options = aCompletion.Options });
 				} catch (...) {

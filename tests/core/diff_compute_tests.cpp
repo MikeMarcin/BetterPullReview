@@ -646,6 +646,35 @@ namespace {
 		std::size_t Calls   = 0U;
 	};
 
+	/// [[BPR-1485]] A final line without an ending that normalizes to nothing
+	/// is still a line: the matcher must match the engine's lines one for one,
+	/// or the comparison is refused.
+	auto test_bpr1485_whitespace_only_final_lines() -> void
+	{
+		const auto equalOnly = [](const computed_file_diff& aDiff) {
+			return std::ranges::all_of(aDiff.Alignment.Segments, [](const alignment_segment& aSegment) { return aSegment.Kind == alignment_kind::equal; });
+		};
+		for (const auto policy : { whitespace_policy::ignore_trailing, whitespace_policy::ignore_all }) {
+			auto options       = diff_options{ };
+			options.Whitespace = policy;
+			const auto check   = [&options](const std::optional<std::string_view> aLeft, const std::optional<std::string_view> aRight, const std::string_view aMessage) {
+				const auto outcome = run(aLeft, aRight, options, aLeft.has_value(), aRight.has_value());
+				expect(outcome.Reason == diff_reason_code::none && outcome.Result.has_value() && validate_computed_file_diff(*outcome.Result).valid(), aMessage);
+				return *outcome.Result;
+			};
+			static_cast<void>(check("a\n  ", "a\n", "[[BPR-1485]] a whitespace-only final line on the left aligns"));
+			static_cast<void>(check("a\n", "a\n  ", "[[BPR-1485]] a whitespace-only final line on the right aligns"));
+			static_cast<void>(check("a\n  ", "a\nb", "[[BPR-1485]] a whitespace-only final line against a non-empty one aligns"));
+			static_cast<void>(check("a\nb", "a\n\t", "[[BPR-1485]] a non-empty final line against a whitespace-only one aligns"));
+			static_cast<void>(check(std::nullopt, "  ", "[[BPR-1485]] an added whitespace-only file aligns"));
+			static_cast<void>(check("\t ", std::nullopt, "[[BPR-1485]] a deleted whitespace-only file aligns"));
+			expect(equalOnly(check("a\n  ", "a\n\t", "[[BPR-1485]] whitespace-only final lines on both sides align")),
+				   "[[BPR-1485]] two final lines that normalize to nothing are equal");
+			expect(!equalOnly(check("a\n  ", "a\n\n", "[[BPR-1485]] a whitespace-only final line against an empty ended line aligns")),
+				   "[[BPR-1485]] a final line without an ending differs from an empty line that has one");
+		}
+	}
+
 	auto test_bpr1485_primary_matches_come_from_the_line_matcher() -> void
 	{
 		const auto left    = copy_bytes("alpha\nbeta\n");
@@ -1277,6 +1306,7 @@ int main()
 	test_unicode_binary_and_unavailable();
 	test_moves_identity_and_limits();
 	test_bpr1485_primary_matches_come_from_the_line_matcher();
+	test_bpr1485_whitespace_only_final_lines();
 	test_large_files_degrade_instead_of_refusing();
 	test_computed_result_validator();
 	test_generated_replay_validation();

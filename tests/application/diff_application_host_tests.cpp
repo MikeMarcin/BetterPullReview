@@ -420,6 +420,27 @@ namespace {
 		expect(test.Host->prepared_entries() == 2U, "both comparisons are prepared");
 	}
 
+	/// [[BPR-1485]] Only a stop the host asked for puts a preparation back in
+	/// the queue. A blob port that answers cancelled on its own is not retried.
+	auto test_a_port_cancellation_is_not_prepared_again() -> void
+	{
+		fixture test;
+		test.Blobs.Status = application::diff_blob_status::cancelled;
+		test.Host->prepare({ prepared(31U) });
+		auto steps = 0;
+		while ((test.Effects.pending() != 0U || test.Decisions.pending() != 0U) && steps < 20) {
+			if (test.Decisions.pending() != 0U) {
+				test.Decisions.run_next();
+			} else {
+				test.Effects.run_next();
+			}
+			++steps;
+		}
+		expect(test.Effects.pending() == 0U && test.Decisions.pending() == 0U && test.Host->preparing() == 0U && test.Host->prepared_entries() == 0U
+				   && test.Blobs.Requests.size() <= 2U,
+			   "[[BPR-1485]] a preparation the blob port cancelled on its own is dropped, not restarted in a loop");
+	}
+
 	auto test_opening_the_file_being_prepared_waits_for_it() -> void
 	{
 		fixture test;
@@ -2031,6 +2052,7 @@ int main()
 	realignment_refuses_past_its_bound_rather_than_blocking();
 	test_a_prepared_comparison_opens_without_reading_or_computing();
 	test_preparation_yields_to_the_reviewer();
+	test_a_port_cancellation_is_not_prepared_again();
 	test_opening_the_file_being_prepared_waits_for_it();
 	test_preparation_stays_inside_its_share_and_never_evicts_the_reviewer();
 	test_preparation_is_cancelled_with_its_authority();
