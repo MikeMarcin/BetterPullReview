@@ -101,3 +101,14 @@ retained and there is no temporary alternate source file to restore.
 Next action: coordinator integrates the scoped BPR-1508 commits and composes the
 adjacent `source_pr_find_public_path_tests.cpp` hunk with BPR-1509's separate tab
 interaction work. There are no remaining BPR-1508 product obligations.
+
+
+## Accepted tracker frontier
+
+Canonical finish moved the card to Done in
+`673f346af2a5a783a33cb53b5d13999f155ceec6`; documentation passed before and
+after that move. Adding acceptance evidence to the card changes the helper's
+whole-card source fingerprint. The original assignment binding is preserved;
+`post-upkeep-binding.json` renews the same milestone and unchanged AC1–AC3
+against the accepted tracker frontier after all writers and commands stopped.
+This is bookkeeping reconciliation, with no requirement or product amendment.
