@@ -187,6 +187,15 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t> Failed{ 0U };
 	};
 
+	/// \brief [[BPR-1477]]. The shown pull request's accepted snapshot, and
+	/// whether a read of it is in flight or owed, so a course can wait for a
+	/// reread the window makes by itself.
+	struct window_read_progress_evidence
+	{
+		std::optional<std::uint64_t> Snapshot;
+		bool                         Reading = false;
+	};
+
 	/// \brief [[BPR-1198]]. Read-only identities at an epoch refresh boundary.
 	struct epoch_refresh_identity_evidence
 	{
@@ -1657,6 +1666,8 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1331]]. The open pull request's accepted head, in
 		/// hexadecimal, or empty before one is accepted.
 		[[nodiscard]] static auto accepted_head(const github_application& aApplication) -> std::string;
+		/// \brief [[BPR-1477]]. Where the shown pull request's read stands.
+		[[nodiscard]] static auto window_read_progress(const github_application& aApplication) -> window_read_progress_evidence;
 		/// \brief [[BPR-1293]]. For an attended look: \p aThread read through
 		/// \p aComment, recorded through the review ledger as Mark read
 		/// records it, so the posts after it are new. False when the accepted

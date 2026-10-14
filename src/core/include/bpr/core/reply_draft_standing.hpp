@@ -108,6 +108,11 @@ namespace bpr::core {
 	/// publishes, so a reread must not take away a note being written. The
 	/// same comment is held again while it is still being written; one sent,
 	/// discarded or turned into a reply in the meantime is not.
+	/// [[BPR-1477]]. So is a comment whose publication answer was lost: it
+	/// stays `publishing`, locked to the body it was sent with, until a retry
+	/// reconciles it, and a reread that let it go took that retry with it. A
+	/// comment a submitted review holds is that review's to settle, not the
+	/// editor's, and is not held again here.
 	[[nodiscard]] auto resume_comment_after_refresh(std::span<const review_comment_draft> aDrafts, review_draft_id aHeld) -> std::optional<review_draft_id>;
 
 	/// \brief [[BPR-1374]]. Keeps a reply whose thread is gone as a new
