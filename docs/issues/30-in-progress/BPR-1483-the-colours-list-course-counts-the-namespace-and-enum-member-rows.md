@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1483"
 title: "The Colours list course counts the namespace and enum-member rows"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0034", "RFC-BPR-0072"]
 depends_on: []
 priority: "P1"
