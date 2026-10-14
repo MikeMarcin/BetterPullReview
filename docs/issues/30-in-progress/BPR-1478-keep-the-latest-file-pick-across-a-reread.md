@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1478"
 title: "Keep the reviewer's latest file pick when a reread lands"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1475"]
 priority: "P1"
