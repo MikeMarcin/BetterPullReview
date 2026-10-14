@@ -322,3 +322,33 @@ Recorded for the integrator's closeout; the card stays in progress.
   `review_cycle_comparison_host` and `review_cycle_workbench` default to
   nullptr. Without a matcher, a pair is refused as `host_failure` without any
   other sign.
+
+### macOS package audits (final HEAD, before this evidence commit)
+
+- `tools/release.sh --version 0.1.10 --prepare-only --skip-tests` passed,
+  including its relocated self-test launch from the sealed bundle.
+  `libbpr_xdiff.dylib` is universal (x86_64 and arm64) in
+  `Contents/Frameworks`, with install name `@rpath/libbpr_xdiff.dylib`, and the
+  application references it by that name.
+- The first audit run failed `untrusted-library-search-path`. The release
+  script gave a non-framework dylib in `Contents/Frameworks` the search path
+  `@loader_path`, which the audits cannot resolve. It is now `@loader_path/.`
+  (commit `52645b3ff`).
+- `scripts/verify_release_package.py`: `RELEASE_PACKAGE_OK`.
+- `scripts/verify_release_security.py`: `RELEASE_SECURITY_MECHANICS_OK`. The
+  xdiff library is PIE with no writable executable segments, and the legal
+  approval named as pending includes the LGPL xdiff library's.
+- `packaging/verify_release_sources.py`: `RELEASE_SOURCE_ASSET_OK`, with 17
+  source archives including `git-xdiff-2.56.0.tar.xz`.
+- `packaging/verify_native_release.py`: not applicable. It verifies the
+  Windows and Linux signed-production `*.release.json` manifests, which a
+  macOS prepare-only run does not produce. `native_release_contract` passes.
+- The release-source archives were seeded from local, digest-verified copies.
+  Every archive is digest-checked again before use. The first attempt timed
+  out downloading.
+- After the B1 and N1 fixes, the corpus equivalence was re-run: 86 of 86
+  digests equal and 78 of 78 GitHub agreement. Re-run in dev and all passing:
+  `core_diff_*`, `application_diff_host`, `architecture_boundaries`,
+  `core_review_comment_range`, `core_review_cycle_comparison`,
+  `review_cycle_workbench`, `review_cycle_comparison`,
+  `qt_workbench_line_draft` and `qt_diff_workbench_scale_100`.
