@@ -1,6 +1,7 @@
 #include "bpr/core/diff_compute.hpp"
 
 #include "bpr/core/diff_compute_components.hpp"
+#include "diff_intraline.hpp"
 #include "diff_step_meter.hpp"
 
 #include <rapidfuzz/distance/Indel.hpp>
@@ -1242,20 +1243,21 @@ namespace bpr::core {
 			static_cast<void>(valid_utf8(line_bytes(aLeft, aLeftLine), &leftScalars));
 			static_cast<void>(
 				valid_utf8(line_bytes(aRight, aRightLine), &rightScalars));
+			// The scalar values that a component and dtl compare.
+			const auto values = [](const std::vector<unicode_scalar>& aScalars) {
+				auto result = std::vector<std::uint32_t>{ };
+				result.reserve(aScalars.size());
+				for (const auto& scalar : aScalars) {
+					result.push_back(scalar.Value);
+				}
+				return result;
+			};
+			const auto leftValues  = values(leftScalars);
+			const auto rightValues = values(rightScalars);
+			aMeter.tick(leftValues.size() + rightValues.size());
 			auto matches = std::optional<std::vector<std::pair<std::size_t, std::size_t>>>{ };
 			if (aComponents != nullptr) {
 				// [[BPR-1465]] A component's matched scalars, checked before use.
-				const auto values = [](const std::vector<unicode_scalar>& aScalars) {
-					auto result = std::vector<std::uint32_t>{ };
-					result.reserve(aScalars.size());
-					for (const auto& scalar : aScalars) {
-						result.push_back(scalar.Value);
-					}
-					return result;
-				};
-				const auto leftValues  = values(leftScalars);
-				const auto rightValues = values(rightScalars);
-				aMeter.tick(leftValues.size() + rightValues.size());
 				auto       meter    = component_meter{ aMeter };
 				const auto supplied = aComponents->intraline_matches(leftValues, rightValues, meter);
 				if (supplied.has_value()) {
@@ -1268,6 +1270,12 @@ namespace bpr::core {
 						matches->emplace_back(match.Left, match.Right);
 					}
 				}
+			}
+			if (!matches.has_value()) {
+				// [[BPR-1481]] dtl's common scalars, charged to the step meter but
+				// not to the matrix budget, which pairing then has to itself. A
+				// pair too large for dtl keeps the budgeted table below.
+				matches = detail::intraline_common_scalars(leftValues, rightValues, aMeter);
 			}
 			if (!matches.has_value()) {
 				matches = lcs_matches(
