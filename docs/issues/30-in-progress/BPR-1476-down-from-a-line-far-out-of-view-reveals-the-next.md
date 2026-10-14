@@ -29,3 +29,76 @@ clock.
 - AC3: `application_large_review_responsiveness` passes its keyboard reveal in
   a Release build, and the existing keyboard-reveal and fractional-viewport
   tests still pass.
+
+## Cause
+
+`59a2fa10c` ("Fix minimum keyboard reveal and adaptive scroll axes",
+RFC-BPR-0073's AC08) replaced the keyboard cursor's exact reveal with a
+minimal one. That reveal measures the target row with `line_row_rect`, which is
+`QPlainTextEdit::blockBoundingGeometry`. Qt answers that by walking blocks from
+the first visible one, and it stops about two viewport heights below it (one
+above), returning the rect of the block it stopped at. For a row further away
+the rect is wrong but still off screen, so the reveal scrolled by a bounded
+amount and stopped short. A diagnostic print in the course showed it: line
+10,001's row reported at y = 1517 in a 736 px view with line 18 at the top, and
+after Down the top line was 72. No core decision was wrong. The core selected
+line 10,001; the Qt presentation of the reveal measured the wrong row.
+
+In split view, the reveal's origin already came from the measured axis's
+line tops (`measured_document_origin`) while the row came from Qt's walk. The
+two now share the axis. The unified pane has no axis, so the row is placed by
+its one row stride; its reveal also now counts the document margin that only
+row 0 shows. Without that, a reveal starting at the top of the file stopped one
+margin short of the edge. The new test's unified case found this, since
+`test_keyboard_minimal_reveal` starts below the top.
+
+## Evidence
+
+Implementation `b85b2f48d`, macOS arm64, Qt 6.11.2, Apple clang, Release
+(`cmake --preset app-release -B build/app-release-tests -DBUILD_TESTING=ON
+-DCMAKE_TEST_BUILD_DEPENDS=ON`), the machine under load from other agents
+(load average 30 to 45).
+
+- AC1 and AC2: `test_keyboard_reveal_from_far_out_of_view` in
+  `tests/adapters_qt/diff_workbench_tests.cpp`: 3,000 lines in a 520 px view,
+  equal and unequal (three lines inserted above) comparisons, split view on
+  each pane and unified view on each side. It selects the line two thirds down
+  without scrolling, presses Down, and requires the next line selected,
+  visible and flush with the bottom within one device pixel. It then selects
+  the line one third down (now far above), presses Up, and requires the
+  previous line flush with the top, with no ribbon mismatch in split view.
+  Before the fix, `qt_diff_workbench_scale_{100,125,200}` fail at "Down from a
+  line far below the view reveals the next flush with the bottom". With the
+  split fix alone, the unified case still failed 4 px short (the document
+  margin). After both, all three scales pass, including
+  `test_keyboard_minimal_reveal`, `test_fractional_unified_and_keyboard_viewports`,
+  `test_the_keyboard_line_cursor_and_return` and `test_fractional_native_viewport`.
+- AC3: `application_large_review_responsiveness` reproduced on the claimed
+  base (`keyboard_line_reveal` expired at the 90 s course clock, twice). With
+  the fix it passed in four runs with no other test running, the last on the
+  merge with main at `b97e3349a`: `keyboard_line_reveal` 12.7 to 15.5 ms where
+  recorded, no input or completion budget failures.
+  `application_large_review_launch` passed in two such runs. Two runs inside
+  parallel batches, at load average 36 to 45, missed completion budgets on
+  phases this change does not touch (drawers, zoom, startup, rapid selection),
+  while their `keyboard_line_reveal` took 16.1 to 41.6 ms against its 100 ms
+  target.
+- Focused rows: all 146 `qt_` tests,
+  `application_first_tab_comparison`,
+  `application_review_tour_composition_*`, `application_profile_window_layout_*`,
+  `application_overview_summary_*`, `application_accepted_file_in_overview`,
+  `application_profile_window_review_restoration_public_path`,
+  `application_header_source_navigation{,_large}`,
+  `application_review_navigation_entry` and `application_source_pr_find*`
+  pass, except three that fail the same way with main's `diff_workbench`
+  sources restored: `qt_colour_role_list` ("58 of the 60 roles": `c58bdebda`
+  raised the core's count to 62; a follow-up is suggested),
+  `qt_appearance_profile` (the font-resize reprojection assertion already
+  recorded in `docs/verification/RFC-BPR-0072.md` and BPR-1479) and
+  `qt_profile_management_window` (BPR-1304). Rows that the shared disk filling
+  up stopped partway were rerun and pass.
+- Gates: `_coding-standard/scripts/format.py` (clang-format 22.1.8) on the
+  three changed C++ files; clang-tidy 22.1.8 and 23.1.1 on
+  `diff_workbench.cpp` and `diff_workbench_tests.cpp` report nothing; the
+  documentation gate passes. No `src/app` source changed, so the round-trip
+  composition contract needs no reseal.
