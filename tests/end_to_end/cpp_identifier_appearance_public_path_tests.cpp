@@ -93,8 +93,13 @@ namespace {
 		// These pre-existing overrides remain distinguishable from plain ink.
 		palette[at(role::syntax_comment)]  = color(light ? 0x333333U : 0xDDDDDDU);
 		palette[at(role::syntax_function)] = color(light ? 0x004040U : 0xCCFFFFU);
+		// [[BPR-1479]]. The older document omits both categories, and the import
+		// fills them from the document's own base, not from the theme on
+		// screen. A version-1 document's base is its code canvas: white makes
+		// it Light and black makes it Dark, high-contrast theme or not.
+		const auto base = light ? core::appearance_variant::light : core::appearance_variant::dark;
 		for (const auto category : { role::syntax_namespace, role::syntax_enum_member }) {
-			palette[at(category)] = qt::builtin_appearance_palette(aVariant)[at(category)];
+			palette[at(category)] = qt::builtin_appearance_palette(base)[at(category)];
 		}
 		return palette;
 	}

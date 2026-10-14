@@ -38,9 +38,11 @@ namespace {
 	{
 		const auto first  = core::import_theme(aDocument);
 		const auto replay = core::import_theme(aDocument);
-		fuzz::require(first.Palette == replay.Palette && first.Rejections == replay.Rejections);
-		// A palette exactly when there is nothing to refuse.
+		fuzz::require(first.Palette == replay.Palette && first.Rejections == replay.Rejections && first.Base == replay.Base);
+		// A palette exactly when there is nothing to refuse, and a base exactly
+		// when there is a palette ([[BPR-1479]]).
 		fuzz::require(first.Palette.has_value() == first.Rejections.empty());
+		fuzz::require(first.Base.has_value() == first.Palette.has_value());
 		for (const auto& rejection : first.Rejections) {
 			fuzz::require(rejection.Subject.size() <= core::theme_import_subject_limit);
 			fuzz::require(std::ranges::all_of(rejection.Subject, [](const unsigned char aChar) { return aChar >= 32U && aChar <= 126U; }));
@@ -48,6 +50,8 @@ namespace {
 		if (first.Palette) {
 			const auto roundtrip = core::import_theme(core::export_theme(*first.Palette));
 			fuzz::require(roundtrip.Palette == first.Palette && roundtrip.Rejections.empty());
+			const auto based = core::import_theme(core::export_theme(*first.Palette, *first.Base));
+			fuzz::require(based.Palette == first.Palette && based.Base == first.Base && based.Rejections.empty());
 		}
 		if (aDocument.size() > core::theme_document_byte_limit) {
 			fuzz::require(first.Rejections.size() == 1U && first.Rejections.front().Reason == core::theme_import_reason::document_too_large);

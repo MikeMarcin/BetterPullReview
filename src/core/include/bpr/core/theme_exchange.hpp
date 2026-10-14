@@ -18,13 +18,35 @@ namespace bpr::core {
 	/// a host can refuse an unrelated file without interpreting a single value.
 	inline constexpr std::string_view theme_document_signature = "bpr-theme";
 
-	/// \brief Names the only document version this build interprets.
+	/// \brief Names the document version a theme for import is written in.
 	///
-	/// \details A document of any other version is refused rather than read
-	/// leniently: a later version may give an existing identifier a new meaning,
-	/// and guessing at that is how a compatibility rule turns into a silent
-	/// misreading.
-	inline constexpr std::uint32_t theme_document_version = 1U;
+	/// \details [[BPR-1479]]. Version 2 adds the `base` line, which names the
+	/// built-in variant the palette was made against. A role the document
+	/// predates is filled from that variant's built-in palette when it is
+	/// imported, so an older theme keeps the colours its own base gives the new
+	/// role rather than taking those of whichever theme is on screen (owner,
+	/// 2026-10-13).
+	///
+	/// This version and `baseless_theme_document_version` are the only two this
+	/// build interprets. A document of any other version is refused rather than
+	/// read leniently: a later version may give an existing identifier a new
+	/// meaning, and guessing at that is how a compatibility rule turns into a
+	/// silent misreading.
+	inline constexpr std::uint32_t theme_document_version = 2U;
+
+	/// \brief Names the document version that carries no base.
+	///
+	/// \details Every theme exported before [[BPR-1479]] is one, and the
+	/// appearance store still writes one per variant slot, because the slot is
+	/// that palette's base. A version-1 document has no `base` key; an import
+	/// infers its base from the document's own code background.
+	inline constexpr std::uint32_t baseless_theme_document_version = 1U;
+
+	/// \brief Names the key of the line that declares a version-2 base.
+	///
+	/// \details Its value is an `appearance_variant` stable identifier. It is
+	/// not an `appearance_role`, so it cannot collide with the vocabulary.
+	inline constexpr std::string_view theme_document_base_key = "base";
 
 	/// \brief Bounds an accepted document in bytes, inclusive.
 	///
@@ -56,12 +78,13 @@ namespace bpr::core {
 		/// value, or a byte outside the format's printable-ASCII alphabet.
 		malformed_document,
 
-		/// The signature is present and the version is not
-		/// `theme_document_version`.
+		/// The signature is present and the version is neither
+		/// `theme_document_version` nor `baseless_theme_document_version`.
 		unsupported_version,
 
-		/// A key outside the closed `appearance_role` vocabulary. The subject is
-		/// the offending key.
+		/// A key outside the closed `appearance_role` vocabulary, or a `base`
+		/// key in a version-1 document, which has none. The subject is the
+		/// offending key.
 		unknown_field,
 
 		/// A key that appears more than once. Refused rather than resolved by
@@ -73,9 +96,11 @@ namespace bpr::core {
 		/// subject is the missing role's stable identifier. A palette is total,
 		/// so a partial document is refused rather than completed with defaults
 		/// the core does not own. The one exception is a role for which
-		/// `defaults_on_import` holds (the label tints, [[BPR-1083]]): it is
-		/// imported as `unassigned_appearance_color`, which presentation reads
-		/// as its built-in value.
+		/// `defaults_on_import` holds (the label tints, [[BPR-1083]], and the
+		/// roles after them): it is imported as `unassigned_appearance_color`,
+		/// which the caller fills from the document's base
+		/// (`with_base_defaults`). A version-2 document without a `base` line
+		/// is refused with this reason and the subject `base`.
 		missing_field,
 
 		/// A reference to content outside the document, such as a scheme-bearing
@@ -95,6 +120,10 @@ namespace bpr::core {
 		/// A value that is not `#rrggbb` or `#rrggbbaa`. The subject is the
 		/// offending value.
 		malformed_color,
+
+		/// [[BPR-1479]]. A `base` value that names no `appearance_variant`. The
+		/// subject is the offending value.
+		unknown_base,
 	};
 
 	/// \brief Describes one refused part of a theme document.
@@ -114,22 +143,40 @@ namespace bpr::core {
 
 	/// \brief Describes the outcome of one import.
 	///
-	/// \details `Palette` holds a value exactly when `Rejections` is empty, so a
-	/// caller cannot read a partially trusted palette: an import either produces
-	/// a total mapping over the closed vocabulary or it produces reasons.
+	/// \details `Palette` and `Base` hold values exactly when `Rejections` is
+	/// empty, so a caller cannot read a partially trusted palette: an import
+	/// either produces a total mapping over the closed vocabulary or it produces
+	/// reasons.
+	///
+	/// `Base` is the variant the palette was made against: the document's
+	/// `base` line, or for a version-1 document an inference from its own
+	/// `code_background`, which is dark when white text contrasts with it more
+	/// than black text does and light otherwise. A version-1 document never
+	/// infers a high-contrast base. A role the document left out is still
+	/// `unassigned_appearance_color` in `Palette`; the caller fills it from
+	/// `Base`'s built-in palette with `with_base_defaults`.
 	struct theme_import_result
 	{
 		std::optional<appearance_palette>   Palette;
 		std::vector<theme_import_rejection> Rejections;
+		std::optional<appearance_variant>   Base;
 	};
 
-	/// \brief Writes a palette as a theme document.
+	/// \brief Writes a palette as a theme document for someone to import.
 	///
-	/// \details The document is the signature line followed by one line per role
-	/// in vocabulary order, each an `appearance_role` stable identifier and an
-	/// eight-digit `#rrggbbaa` value. Alpha is always written so that no reader
-	/// has to assume one. The result is deterministic and imports back to an
-	/// equal palette.
+	/// \details A version-2 document: the signature line, the `base` line
+	/// naming `aBase`, then one line per role in vocabulary order, each an
+	/// `appearance_role` stable identifier and an eight-digit `#rrggbbaa` value.
+	/// Alpha is always written so that no reader has to assume one. The result
+	/// is deterministic and imports back to an equal palette and base.
+	[[nodiscard]] auto export_theme(
+		const appearance_palette& aPalette,
+		appearance_variant        aBase) -> std::string;
+
+	/// \brief Writes a palette as a version-1 document, which names no base.
+	///
+	/// \details The appearance store's form: each stored document sits in one
+	/// variant's slot, and the slot says what its base is. Otherwise as above.
 	[[nodiscard]] auto export_theme(const appearance_palette& aPalette) -> std::string;
 
 	/// \brief Reads a theme document.
@@ -141,8 +188,9 @@ namespace bpr::core {
 	/// of external references, include directives, style payloads, executable
 	/// payloads, and alphabet violations, and stops before any key is
 	/// interpreted; then the signature and version; then every malformed line,
-	/// unknown key, duplicate key, and malformed value in line order; and only
-	/// when all of those are clean, every role the document failed to assign.
+	/// unknown key, duplicate key, malformed value and unknown base in line
+	/// order; and only when all of those are clean, a version-2 document's
+	/// missing `base` and every role the document failed to assign.
 	[[nodiscard]] auto import_theme(std::string_view aDocument) -> theme_import_result;
 } // namespace bpr::core
 

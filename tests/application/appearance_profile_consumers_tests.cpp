@@ -92,6 +92,14 @@ namespace {
 		return palette;
 	}
 
+	/// \brief Returns built-in palettes that assign every role, as a composition's do.
+	[[nodiscard]] auto builtin_palettes() -> application::appearance_builtin_palettes
+	{
+		auto palettes = application::appearance_builtin_palettes{ };
+		palettes.fill(contrast_safe_palette());
+		return palettes;
+	}
+
 	/// \brief Stands in for the durable appearance path across host lifetimes.
 	class fake_settings final : public application::appearance_settings_port
 	{
@@ -271,7 +279,7 @@ namespace {
 		application::manual_executor                                          Effects;
 		application::manual_executor                                          Lane;
 		std::shared_ptr<application::appearance_preferences_application_host> Preferences
-			= std::make_shared<application::appearance_preferences_application_host>(base_settings(), Settings, Documents, Effects, Lane, core::application_session_id{ 20U });
+			= std::make_shared<application::appearance_preferences_application_host>(base_settings(), builtin_palettes(), Settings, Documents, Effects, Lane, core::application_session_id{ 20U });
 		void settle()
 		{
 			while (Effects.pending() || Lane.pending()) {
@@ -351,7 +359,7 @@ namespace {
 		first.import_theme_file("first.json");
 		h.settle();
 		expect(pa.Published.back().ThemePreview.has_value() && pb.Published.size() == countB, "import preview reaches its origin only");
-		first.export_theme_file("first-out.json", contrast_safe_palette());
+		first.export_theme_file("first-out.json", contrast_safe_palette(), core::appearance_variant::dark);
 		h.settle();
 		expect(pa.Published.back().ThemeExported && pb.Published.size() == countB, "export completion reaches its origin only");
 		first.import_theme_file("retired.json");

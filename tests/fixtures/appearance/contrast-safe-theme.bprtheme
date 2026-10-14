@@ -59,3 +59,5 @@ feedback_label_typo #6f7a00ff
 feedback_label_polish #0f8577ff
 feedback_label_quibble #9a5b7aff
 state_attention #ad7a00ff
+syntax_namespace #ffffffff
+syntax_enum_member #ffffffff

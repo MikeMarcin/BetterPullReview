@@ -415,6 +415,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_saved_server_contract": "dos-volume-name",
     "application_threaded_reply_contract": "dos-volume-name",
     "application_appearance_theme_customization_contract": "dos-volume-name",
+    "application_appearance_older_theme_contract": "unmeasured (registered on macOS)",
     "application_fixture_verdict_contract": "dos-volume-name",
     "application_attended_launch_contract": "dos-volume-name",
     "application_diff_workbench_shutdown_public_path": "dos-volume-name",
