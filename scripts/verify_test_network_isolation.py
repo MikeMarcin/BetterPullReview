@@ -212,6 +212,17 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_source_find_scale_2_0": "unmeasured (registered on macOS)",
     "application_header_source_navigation_large": "dos-volume-name",
     "application_cpp_identifier_appearance": "unmeasured (registered on macOS)",
+    # [[BPR-1423]], pinned by [[BPR-1484]]. PR Search's courses compose the
+    # shipped application over `e2e::private_data_root`, whose first step
+    # application_overview_double_click was measured refusing contained
+    # ("private composed course root"); pinned by that shape, not yet measured
+    # contained on Windows. The retry row is registered only on UNIX.
+    "application_source_pr_find": "dos-volume-name",
+    "application_source_pr_find_scale_1_25": "dos-volume-name",
+    "application_source_pr_find_scale_2_0": "dos-volume-name",
+    "application_source_pr_search_scope": "dos-volume-name",
+    "application_source_pr_search_retry": "dos-volume-name",
+    "application_source_pr_search_performance": "dos-volume-name",
     # [[BPR-1327]], [[BPR-1340]]. Measured on bpr-main-win 2026-10-08 at
     # 9809b3786, registered contained for the measurement: the prepared-open
     # benchmark stops at "large-review-benchmark-failed: private data root
