@@ -2827,20 +2827,6 @@ namespace bpr::qt {
 		auto* const commentsToolsRow = new QHBoxLayout{ CommentsTools };
 		commentsToolsRow->setContentsMargins(0, 0, 0, 0);
 		commentsToolsRow->setSpacing(1);
-		// [[BPR-1293]]. The finder button, as the prototype draws it at the
-		// top of the drawer: it goes to Threads.
-		ThreadsFinderButton = new QToolButton{ CommentsTools };
-		ThreadsFinderButton->setObjectName(QStringLiteral("workbenchThreadsFinderButton"));
-		ThreadsFinderButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		ThreadsFinderButton->setAutoRaise(true);
-		ThreadsFinderButton->setIconSize(QSize{ 16, 16 });
-		ThreadsFinderButton->setFocusPolicy(Qt::StrongFocus);
-		ThreadsFinderButton->setIcon(conversation_icon(conversation_glyph::finder, palette()));
-		ThreadsFinderButton->setAccessibleName(QStringLiteral("Find a thread in the pull request"));
-		ThreadsFinderButton->setToolTip(QStringLiteral("Find a thread in the pull request (%1)").arg(QKeySequence{ QStringLiteral("Ctrl+J") }.toString(QKeySequence::NativeText)));
-		ThreadsFinderButton->setAccessibleDescription(ThreadsFinderButton->toolTip());
-		connect(ThreadsFinderButton, &QToolButton::clicked, this, [this] { toggle_threads(); });
-		commentsToolsRow->addWidget(ThreadsFinderButton);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(NextNewCommentButton);
@@ -12825,11 +12811,6 @@ namespace bpr::qt {
 		return ShowThreadsAction;
 	}
 
-	auto workbench_window::threads_finder_button() const noexcept -> QToolButton*
-	{
-		return ThreadsFinderButton;
-	}
-
 	void workbench_window::set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels)
 	{
 		if (Finder != nullptr) {
@@ -14209,10 +14190,6 @@ namespace bpr::qt {
 			const auto tip = QStringLiteral("Find a thread in the pull request (%1)").arg(ShowThreadsAction->shortcut().toString(QKeySequence::NativeText));
 			ShowThreadsAction->setToolTip(tip);
 			ShowThreadsAction->setStatusTip(tip);
-			if (ThreadsFinderButton != nullptr) {
-				ThreadsFinderButton->setToolTip(tip);
-				ThreadsFinderButton->setAccessibleDescription(tip);
-			}
 		}
 		addAction(ShowThreadsAction);
 		ViewMenu->addAction(ShowThreadsAction);

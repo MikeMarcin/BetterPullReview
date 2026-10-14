@@ -490,8 +490,6 @@ namespace bpr::qt {
 		/// \brief [[BPR-1293]]. Command-J (Ctrl+J): goes to Threads, and
 		/// from it back to the modality it was entered from.
 		[[nodiscard]] auto show_threads_action() const noexcept -> QAction*;
-		/// \brief [[BPR-1293]]. The finder button at the top of the Comments drawer.
-		[[nodiscard]] auto threads_finder_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1293]]. [[BPR-1087]]'s conversations per label, for
 		/// the finder's label filter.
 		void set_conversation_labels(std::optional<application::conversation_labels_projection> aLabels);
@@ -2014,10 +2012,9 @@ namespace bpr::qt {
 		QWidget*                                     ComparisonPage         = nullptr;
 		QWidget*                                     DiscussPage            = nullptr;
 		/// [[BPR-1293]]. Threads' page and its finder.
-		QWidget*             ThreadsPage         = nullptr;
-		conversation_finder* Finder              = nullptr;
-		QAction*             ShowThreadsAction   = nullptr;
-		QToolButton*         ThreadsFinderButton = nullptr;
+		QWidget*             ThreadsPage       = nullptr;
+		conversation_finder* Finder            = nullptr;
+		QAction*             ShowThreadsAction = nullptr;
 		/// The modality Threads was entered from, and where focus was.
 		std::optional<review_modality> ThreadsReturn;
 		QPointer<QWidget>              ThreadsReturnFocus;

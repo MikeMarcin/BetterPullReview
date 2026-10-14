@@ -12130,7 +12130,7 @@ namespace {
 	}
 
 	/// [[BPR-1293]]. Threads through the real core: Command-J, Ctrl+4,
-	/// the strip and the drawer's finder button go there from Overview, Review
+	/// and the strip go there from Overview, Review
 	/// and Discuss with the search focused; the drawers are hidden there and no
 	/// drawer state changes on the way in or out; Command-B is disabled; Esc on
 	/// an empty search and Command-J go back where it was entered from; and a
@@ -12294,15 +12294,9 @@ namespace {
 		window.choose_modality(qt::review_modality::review);
 		process_events();
 
-		// The drawer's finder button.
-		auto* const button = window.threads_finder_button();
-		expect(button != nullptr && button->isVisible() && button->focusPolicy() == Qt::StrongFocus && !button->icon().isNull()
-				   && button->toolTip() == QStringLiteral("Find a thread in the pull request (%1)").arg(action->shortcut().toString(QKeySequence::NativeText))
-				   && button->accessibleName() == QStringLiteral("Find a thread in the pull request"),
-			   "the Comments drawer carries the finder button, named, with its key in its tooltip");
-		button->click();
-		process_events();
-		expect(window.current_modality() == qt::review_modality::threads && finder->search_field()->hasFocus(), "the finder button goes to Threads");
+		expect(window.findChild<QToolButton*>(QStringLiteral("workbenchThreadsFinderButton")) == nullptr,
+			   "the Comments header has no redundant Threads finder button");
+		save_render(window, QStringLiteral("comments-without-finder-button"));
 
 		// A pick: Review on the conversation's file, Comments opened by hand,
 		// the thread in place at the picked post once the file shows.

@@ -107,7 +107,9 @@ different thing. Threads is added and
 Discuss is kept: the modalities are Overview, Review, Discuss and Threads, on
 `Ctrl+1` to `Ctrl+4` (⌘1 to ⌘4); Discuss keeps ⌘3 and its behaviour and
 Threads takes ⌘4 (the owner's swap, above). `Ctrl+J` (⌘J) goes straight to Threads from Overview, Review
-or Discuss, as does the finder button at the top of the Comments drawer. It puts the finder of
+or Discuss. The Threads tab provides the same entry; the redundant finder button
+at the top of the Comments drawer was removed at the owner's request ([[BPR-1510]],
+2026-10-14). It puts the finder of
 [prototype v2](../design/BPR-1290-inline-drawer-v2/index.html) in the main
 pane, for navigation only: one row per thread on a file, grouped by
 file, with its line, its first post's label mark, its first words, an avatar
