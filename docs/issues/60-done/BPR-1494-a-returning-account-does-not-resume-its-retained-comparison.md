@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1494"
 title: "A returning account does not resume its retained comparison"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"gate-repair","reservation":"docs/issues/_reservations/BPR-1492--BPR-1496--90f0a51696a5.json","origin":"0.2.0 release normal gate (scripts/run_test_suite.py --preset dev) on main cd4860e30, reproduced alone on a quiet machine, owner release request 2026-10-13"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0cba9a752","evidence":{"kind":"observation","detail":"Product defect from 268b87049 (BPR-1409): every native sign-in minted a new host profile, so the returning account (profile 3) could not resume a reading scoped to profile 1; exact-scope restoration correctly refused."}},{"criterion":"AC2","outcome":"pass","revision":"0cba9a752","evidence":{"kind":"command","command":"ctest --preset dev -R (remembered_connection|device_authorization|sign_in|account|profile|restoration|window_review|recent|...|audits|round_trip) -j 4","detail":"Owner option (a): core adopt_native_connection re-binds a provisional native sign-in to the same host/account/login earlier native identity (selected or retired, up to 16 retired); CLI selection or Forget drops retired rows, so CLI->native stays a fresh identity. application_recent_account_isolation passes all four phases (fails with the card signature when re-binding is disabled); core_remembered_connection_policy returning_native_account_rebinds and sqlite retired_identities_and_upgrade added; targeted gate 123/123."}}]
 ---
 
 # A returning account does not resume its retained comparison
@@ -124,3 +125,5 @@ lines. Its remaining findings in `github_application.cpp` are pre-existing
 a server without a sign-in) does not re-bind yet. CLI accounts still receive a
 fresh identity on rediscovery, which is the BPR-1502 family. Retired identities
 are bounded at 16, oldest dropped.
+
+- Integration at 0cba9a752 (over main 710aed65f, the Find redesign; round-trip contract resealed with an appended note), macOS arm64 full build/dev: a targeted gate of 123 rows passes 123/123: the remembered-connection, device-authorization, sign-in, account, profile, restoration, window and recent rows (including `application_recent_account_isolation`), the GitHub host rows, core and architecture boundaries, the Find, Find in Files and PR search rows, the appearance and theme rows, the round-trip contract, the eight package and release audit contracts, and the documentation and rfc0016 rows; `verify_documentation.py` prints DOCUMENTATION_OK. The remembered-connection store moves to schema version 2 (version 1 upgraded in place; an older build refuses version 2 and opens that profile signed out).
