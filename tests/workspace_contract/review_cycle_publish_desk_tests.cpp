@@ -1,4 +1,5 @@
 #include "../sqlite_contract/scratch_root.hpp"
+#include "product_diff.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/workspace/local_export_destination.hpp"
@@ -94,7 +95,7 @@ namespace {
 		{
 			auto seed = std::array<std::uint8_t, 32>{ };
 			seed[0]   = 0x77;
-			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed);
+			Host      = std::make_unique<application::review_cycle_workbench>(adapters::sqlite::make_review_cycle_store(aProfileRoot, profile), *Source, Lanes, Lanes, Port, seed, nullptr, bpr::tests::product_line_matcher());
 			Host->set_clipboard(&Clipboard);
 			Host->set_destination_factory([](const std::string& aPath) { return adapters::workspace::make_local_export_destination(std::filesystem::path{ aPath }); });
 			Account = application::review_cycle_publication_account{ .Provider = std::move(aRemote), .Account = reviewer, .Login = "octo-reviewer", .Host = "github.com" };

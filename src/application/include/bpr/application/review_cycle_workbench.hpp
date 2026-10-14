@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_WORKBENCH_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_WORKBENCH_HPP
 
+#include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_cycle_projection.hpp"
 #include "bpr/application/review_cycle_response.hpp"
@@ -40,8 +41,11 @@ namespace bpr::application {
 		/// \param aSeed A random seed for operation identities, chosen by the composition.
 		/// \param aCaptures Optional: where a capture runs, so reading and moving
 		/// between files continue while it does ([[BPR-1184]]).
+		/// \param aMatcher The line matcher a pair's diff uses ([[BPR-1485]]);
+		/// without one, a pair is refused.
 		review_cycle_workbench(std::unique_ptr<review_cycle_store> aStore, workspace_source_port& aSource, effect_executor& aEffects, decision_executor& aDecisions,
-							   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures = nullptr);
+							   review_cycle_workbench_port& aPort, const std::array<std::uint8_t, 32>& aSeed, effect_executor* aCaptures = nullptr,
+							   std::shared_ptr<diff_line_matcher_port> aMatcher = nullptr);
 		~review_cycle_workbench();
 		review_cycle_workbench(const review_cycle_workbench&)                    = delete;
 		auto operator=(const review_cycle_workbench&) -> review_cycle_workbench& = delete;
