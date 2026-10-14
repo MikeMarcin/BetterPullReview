@@ -214,8 +214,10 @@ namespace {
 
 	auto test_invalid_and_unsupported_requests() -> void
 	{
+		// [[BPR-1497]]. Revision 1 is the first-party engine linked xdiff
+		// replaced; its keys must be recomputed, never served.
 		auto value       = state();
-		auto unsupported = key(1U, diff_algorithm_revision{ 2U });
+		auto unsupported = key(1U, diff_algorithm_revision{ 1U });
 		auto output      = transition(
 			value,
 			request_file_diff_intent{ .Key = unsupported, .Options = { } });
@@ -251,7 +253,7 @@ namespace {
 			auto       replacementKey     = key();
 			auto       replacementOptions = diff_options{ };
 			if (unsupportedReplacement) {
-				replacementKey.Algorithm = diff_algorithm_revision{ 2U };
+				replacementKey.Algorithm = diff_algorithm_revision{ 1U };
 			} else {
 				replacementOptions.ContextLines = 9U;
 			}

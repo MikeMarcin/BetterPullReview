@@ -1299,7 +1299,13 @@ binding.
 For RFC-BPR-0004, interaction state in the core includes the active semantic
 change and selected source line, boundary, or mapping target. Host caches may
 retain immutable file-diff values and indexes only under exact blob, option,
-comparison, and algorithm identity. Qt-local state includes measured line
+comparison, and algorithm identity. The algorithm revision is 2 since linked
+xdiff replaced the first-party matcher (BPR-1497); a key or result at another
+revision is refused and recomputed. The persisted comparison digest and file
+material leave the revision out and keep the bytes revision 1 wrote, because
+receipts, defects, drafts, private notes and threads, tours and window
+restoration store them beside line coordinates that do not depend on the
+alignment. Qt-local state includes measured line
 boundaries, the measured alignment axis, the retained subpixel comparison
 position, shared-scrollbar projection, hover paths, and splitter geometry.
 Measured pixels and the live scroll position are not core or durable state.
