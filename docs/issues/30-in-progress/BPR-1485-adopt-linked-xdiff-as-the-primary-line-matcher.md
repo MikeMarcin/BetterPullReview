@@ -285,3 +285,40 @@ Recorded for the integrator's closeout; the card stays in progress.
   matcher, and Review Cycle material keys write the revision into a digest.
   Whether to bump it is an integrator or owner decision.
 - Linux and Windows were not built or run (BPR-1468, BPR-1469).
+
+### Review fixes (after the independent review)
+
+- B1, fixed: a final line without an ending that normalizes to nothing
+  (spaces or tabs only, under `ignore_trailing` or `ignore_all`) produced no
+  comparison bytes. xdiff then saw one record too few, and the comparison was
+  refused as `host_failure`. The adapter now gives such a line the single byte
+  0xFF, which valid UTF-8 never holds (the engine refuses invalid UTF-8). So it
+  equals only another such line, and differs from an empty line that has an
+  ending.
+
+  `test_bpr1485_whitespace_only_final_lines` (core_diff_compute, through the
+  product matcher) covers both policies and these cases:
+  - the line on the left, on the right, against a non-empty line, and on both
+    sides (all equal);
+  - against an empty LF line (not equal);
+  - an added and a deleted whitespace-only file.
+
+  The test failed on the previous adapter and passes now.
+- N1, fixed: a preparation is queued again only when the host itself stopped
+  it (`PreparedJob->Stop.stop_requested()`), not on any `cancelled`. A blob
+  port that declines on its own is not retried.
+  `test_a_port_cancellation_is_not_prepared_again` covers it; it was not
+  mutation-checked.
+
+### Known follow-ups, not fixed here
+
+- N2: nothing caps the number of detached matcher threads. At maximum size,
+  the copy of both documents made before the thread starts counts against the
+  10 ms budget.
+- N3: xdiff's `BUG()` maps to `abort()`, which can run on a detached thread.
+- N4: the linkage rules check build files and sources as text, not binaries.
+  There is no scan for `xdl_` exports, and `tests/` is not scanned.
+- N5: the matcher arguments of `review_cycle_runtime`,
+  `review_cycle_comparison_host` and `review_cycle_workbench` default to
+  nullptr. Without a matcher, a pair is refused as `host_failure` without any
+  other sign.
