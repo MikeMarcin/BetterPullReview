@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1501"
 title: "Tour CLI ordinary stop's resume is intermittent in the full gate"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
