@@ -1,0 +1,10 @@
+{
+  "assignment":"/root/release021_native_readiness",
+  "mandate":"0.2.1 Mac first, then Windows and Ubuntu; release fixes by implementers",
+  "baseline":"219b62e98b571e640f726592065a3c798bb712f8",
+  "milestone":"native-portability",
+  "state":"Native current-source reproduction in progress; product source unchanged",
+  "nativeRuntime":".mask/sessions/release-v0.2.1/native-readiness/checkpoint.json",
+  "next":"Complete Windows current app/configure preflight and reproduce four failing test compiles; serialize Ubuntu afterward, then repair exact proven causes.",
+  "limits":"No full normal gate, signing, packaging, publication or installed app changes in this engineering scope. Existing historical native/security gaps remain explicit."
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1523"
+  ],
+  "reserve_for": "release021-native-portability",
+  "purpose": "",
+  "created": "2026-10-15T04:26:49.161928+00:00",
+  "base": "219b62e98b571e640f726592065a3c798bb712f8"
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1523-native-release-portability",
+  "scope": {"issues": ["BPR-1523"]},
+  "milestones": [
+    {
+      "id": "native-portability",
+      "outcome": "The release source compiles on the selected native Windows and Ubuntu producers without weakening warning gates or test assertions, and the exact corrected source is ready for coordinated release gates.",
+      "work": [{"issue":"BPR-1523","criteria":["AC1","AC2","AC3"]}],
+      "depends_on": [],
+      "exit_criteria": [
+        "Reproduce current native failures on exact committed release source and preserve original logs separately.",
+        "Apply minimal portable-source corrections without changing assertions, product behavior or global authentication/build policy.",
+        "Affected native target builds, focused portable tests, format22 and documentation pass; exact source and remaining full release/human prerequisites are recorded."
+      ],
+      "boundary": "Five assigned source files and this card/plan/evidence records; no full release qualification, signing, publication or owner-profile operation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
