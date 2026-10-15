@@ -82,6 +82,18 @@ namespace {
 		std::vector<std::uint8_t>               Bytes;
 	};
 
+	class recording_changed_entry_sink final : public application::git_changed_entry_sink
+	{
+	public:
+		auto accept(const application::git_changed_entry& aEntry) -> bool override
+		{
+			Entries.push_back(aEntry);
+			return true;
+		}
+
+		std::vector<application::git_changed_entry> Entries;
+	};
+
 	inline constexpr std::array<std::uint8_t, 230U> sha1_pack{
 		0x50,
 		0x41,
@@ -1889,17 +1901,9 @@ namespace {
 						== application::git_process_failure::cancelled,
 				"pre-cancelled lookup never reaches Git");
 
-			const auto chain = make_rename_chain_fixture(repository, aAlgorithm);
-			struct catalogue_sink final : application::git_changed_entry_sink
-			{
-				std::vector<application::git_changed_entry> Entries;
-				auto                                        accept(const application::git_changed_entry& aEntry) -> bool override
-				{
-					Entries.push_back(aEntry);
-					return true;
-				}
-			} catalogue;
-			const auto changed = adapter->changed_entries({ repository, chain.HeadOne, chain.HeadTwo }, catalogue, { });
+			const auto chain     = make_rename_chain_fixture(repository, aAlgorithm);
+			auto       catalogue = recording_changed_entry_sink{ };
+			const auto changed   = adapter->changed_entries({ repository, chain.HeadOne, chain.HeadTwo }, catalogue, { });
 			expect(changed.has_value() && catalogue.Entries.size() == 1U && catalogue.Entries[0].Change == 'R'
 					   && catalogue.Entries[0].Left && catalogue.Entries[0].Right && catalogue.Entries[0].Left->Path == "b.cpp" && catalogue.Entries[0].Right->Path == "c.cpp"
 					   && catalogue.Entries[0].Left->Object == catalogue.Entries[0].Right->Object,

@@ -9,6 +9,7 @@
 	#include "github_cli_process_runner.hpp"
 #endif
 
+#include <QCoreApplication>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>

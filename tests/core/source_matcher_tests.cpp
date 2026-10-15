@@ -85,7 +85,7 @@ namespace {
 		search_expect(compile_source_match(search_engine(), "x(?", regex).ErrorOffset == 1U, "error offset names the query, not the line-anchor prefix");
 		expect_spans("[(?=]", "(?=", { { 0U, 1U }, { 1U, 2U }, { 2U, 3U } }, regex);
 		expect_spans("\\Q(?=\\E", "a(?=b", { { 1U, 4U } }, regex);
-		expect_spans("\\p{Greek}+", "abc \u03B1\u03B2\u03B3", { { 4U, 10U } }, regex);
+		expect_spans("\\p{Greek}+", "abc \xCE\xB1\xCE\xB2\xCE\xB3", { { 4U, 10U } }, regex);
 		expect_spans("[[:alpha:]]+", "ab1", { { 0U, 2U } }, regex);
 		search_expect(compile_source_match(search_engine(), "").Status == source_search_status::idle, "empty compiles no program");
 		search_expect(compile_source_match(search_engine(), std::string(4097U, 'x')).Status == source_search_status::invalid_input, "4 KiB query ceiling");

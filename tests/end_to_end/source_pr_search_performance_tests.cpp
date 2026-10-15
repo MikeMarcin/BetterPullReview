@@ -25,8 +25,10 @@
 #include <QTreeView>
 #include <iostream>
 #if defined(_WIN32)
-	#include <psapi.h>
 	#include <windows.h>
+
+	// PSAPI declarations require the Windows SDK types above.
+	#include <psapi.h>
 #else
 	#include <sys/resource.h>
 #endif
