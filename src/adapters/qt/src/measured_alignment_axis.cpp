@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <span>
 #include <utility>
@@ -165,16 +166,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto range_key(std::uint64_t aKey, const QTextLayout::FormatRange& aRange) -> std::optional<std::uint64_t>
 		{
 			aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(aRange.start)), static_cast<std::uint32_t>(aRange.length));
-			for (const auto property : layout_properties) {
-				const auto value = aRange.format.property(property);
-				if (!value.isValid()) {
+			// Syntax commonly carries only a foreground. Visit the properties
+			// actually present, in Qt's stable property order, instead of asking
+			// Qt for every possible font property on every coloured range.
+			const auto properties = aRange.format.properties();
+			for (auto property = properties.cbegin(); property != properties.cend(); ++property) {
+				if (std::ranges::find(layout_properties, property.key()) == layout_properties.end()) {
 					continue;
 				}
-				const auto valueKey = value_key(value);
+				const auto valueKey = value_key(property.value());
 				if (!valueKey) {
 					return std::nullopt;
 				}
-				aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(property)), *valueKey);
+				aKey = mixed(mixed(aKey, static_cast<std::uint32_t>(property.key())), *valueKey);
 			}
 			return aKey;
 		}
@@ -277,7 +281,6 @@ namespace bpr::qt {
 			pane_block_measurer(const QAbstractTextDocumentLayout& aLayout, const bool aNoWrap)
 				: Native{ &aLayout }
 				, Plain{ aNoWrap ? qobject_cast<const QPlainTextDocumentLayout*>(&aLayout) : nullptr }
-				, Widest{ Plain != nullptr ? Plain->documentSize().width() : 0.0 }
 			{
 			}
 
@@ -285,6 +288,12 @@ namespace bpr::qt {
 			void record_into(std::vector<recorded_block>& aRecorded) noexcept
 			{
 				Recorded = &aRecorded;
+			}
+
+			void use_peer(const QTextDocument* aDocument, const std::vector<recorded_block>* aRecorded) noexcept
+			{
+				PeerDocument = aDocument;
+				PeerRecorded = aRecorded;
 			}
 
 			[[nodiscard]] auto reused() const noexcept -> std::uint32_t
@@ -310,6 +319,10 @@ namespace bpr::qt {
 				auto       extent  = block_extent{ };
 				if (const auto* const known = recorded(aIndex, key); known != nullptr) {
 					extent = { .Bottom = from_layout_units(known->Height), .NaturalWidth = from_layout_units(known->Width) };
+					++Reused;
+				} else if (const auto peer = peer_extent(aBlock, aIndex, key, formats)) {
+					extent = *peer;
+					record(aIndex, compact(key, extent));
 					++Reused;
 				} else {
 					extent = transient_extent(aBlock, formats);
@@ -343,14 +356,82 @@ namespace bpr::qt {
 				}
 			}
 
-			[[nodiscard]] static auto transient_extent(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> block_extent
+			/// The complete plain-row case; all other formatting shapes normally.
+			[[nodiscard]] static auto plain_text(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> std::optional<QString>
+			{
+				auto       text   = aBlock.text();
+				const auto option = aBlock.document()->defaultTextOption();
+				if (option.wrapMode() != QTextOption::NoWrap || !aFormats.empty() || text.isEmpty() || text.endsWith(QLatin1Char{ ' ' })
+					|| !aBlock.charFormat().isEmpty() || !aBlock.blockFormat().isEmpty()
+					|| option.flags() != QTextOption::Flags{ } || option.useDesignMetrics()
+					|| option.alignment() != Qt::AlignLeft || option.textDirection() == Qt::RightToLeft
+					|| !std::ranges::all_of(text, [](const QChar aCharacter) { return aCharacter.unicode() >= 0x20U && aCharacter.unicode() <= 0x7EU; })) {
+					return std::nullopt;
+				}
+				auto fragment = aBlock.begin();
+				if (fragment.atEnd() || !fragment.fragment().charFormat().isEmpty()) {
+					return std::nullopt;
+				}
+				++fragment;
+				if (!fragment.atEnd()) {
+					return std::nullopt;
+				}
+				return text;
+			}
+
+			/// Reuses the other pane's exact recorded extent only for identical
+			/// entirely plain rows. Its owner checks all pane-level facts first.
+			[[nodiscard]] auto peer_extent(const QTextBlock& aBlock, const std::size_t aIndex, const std::uint64_t aKey, const QList<QTextLayout::FormatRange>& aFormats) const -> std::optional<block_extent>
+			{
+				if (!PeerDocument || PeerRecorded == nullptr || aIndex >= PeerRecorded->size()) {
+					return std::nullopt;
+				}
+				const auto& known = (*PeerRecorded)[aIndex];
+				if (aKey == not_reusable || known.FormatKey != aKey) {
+					return std::nullopt;
+				}
+				const auto peer = PeerDocument->findBlockByNumber(static_cast<int>(aIndex));
+				const auto text = plain_text(aBlock, aFormats);
+				if (!peer.isValid() || !text || plain_text(peer, peer.layout()->formats()) != text) {
+					return std::nullopt;
+				}
+				return block_extent{ .Bottom = from_layout_units(known.Height), .NaturalWidth = from_layout_units(known.Width) };
+			}
+
+			/// [[BPR-1525]]. One Qt engine still shapes each distinct plain row.
+			[[nodiscard]] auto reusable_plain_layout(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> QTextLayout*
+			{
+				const auto text = plain_text(aBlock, aFormats);
+				if (!text) {
+					return nullptr;
+				}
+				const auto  font   = aBlock.document()->defaultFont();
+				const auto* device = Native->paintDevice();
+				if (!PlainLayout || PlainFont != font || PlainDevice != device) {
+					PlainLayout = std::make_unique<QTextLayout>(QString{ }, font, device);
+					PlainFont   = font;
+					PlainDevice = device;
+				}
+				PlainLayout->setText(*text);
+				return PlainLayout.get();
+			}
+
+			[[nodiscard]] auto transient_extent(const QTextBlock& aBlock, const QList<QTextLayout::FormatRange>& aFormats) -> block_extent
 			{
 				const auto* const document = aBlock.document();
 				const auto        margin   = document->documentMargin();
 				const auto        option   = document->defaultTextOption();
-				auto              layout   = QTextLayout{ aBlock };
-				layout.setTextOption(option);
-				layout.setFormats(aFormats);
+				auto              local    = std::optional<QTextLayout>{ };
+				auto*             layout   = reusable_plain_layout(aBlock, aFormats);
+				if (layout == nullptr) {
+					layout = &local.emplace(aBlock);
+				}
+				layout->setTextOption(option);
+				// Qt's setFormats also marks its bound document dirty. A fresh
+				// plain layout already has no formats, so leave it alone.
+				if (!aFormats.empty()) {
+					layout->setFormats(aFormats);
+				}
 				auto extraMargin = 0;
 				if (option.flags().testFlag(QTextOption::AddSpaceForLineAndParagraphSeparators)) {
 					extraMargin += QFontMetrics{ aBlock.charFormat().font() }.horizontalAdvance(QChar{ 0x21B5 });
@@ -361,8 +442,8 @@ namespace bpr::qt {
 				const auto available = static_cast<qreal>(INT_MAX) - (2.0 * margin + extraMargin);
 				auto       top       = qreal{ 0.0 };
 				auto       extent    = block_extent{ };
-				layout.beginLayout();
-				for (auto line = layout.createLine(); line.isValid(); line = layout.createLine()) {
+				layout->beginLayout();
+				for (auto line = layout->createLine(); line.isValid(); line = layout->createLine()) {
 					line.setLeadingIncluded(true);
 					line.setLineWidth(available);
 					line.setPosition(QPointF{ margin, top });
@@ -372,16 +453,26 @@ namespace bpr::qt {
 					}
 					extent.NaturalWidth = std::max(extent.NaturalWidth, line.naturalTextWidth());
 				}
-				layout.endLayout();
-				extent.Bottom = layout.boundingRect().bottom();
+				layout->endLayout();
+				extent.Bottom = layout->boundingRect().bottom();
 				return extent;
 			}
 
-			const QAbstractTextDocumentLayout* Native   = nullptr;
-			const QPlainTextDocumentLayout*    Plain    = nullptr;
-			qreal                              Widest   = 0.0;
-			std::vector<recorded_block>*       Recorded = nullptr;
-			std::uint32_t                      Reused   = 0U;
+			QPointer<const QTextDocument>      PeerDocument;
+			const std::vector<recorded_block>* PeerRecorded = nullptr;
+
+			std::unique_ptr<QTextLayout> PlainLayout;
+			QFont                        PlainFont;
+			const QPaintDevice*          PlainDevice = nullptr;
+
+			const QAbstractTextDocumentLayout* Native = nullptr;
+			const QPlainTextDocumentLayout*    Plain  = nullptr;
+			// Reconstruct the maximum from this measurement's actual extents.
+			// Qt can retain the previous font's larger maximum until its old
+			// widest block is laid out again; it must not suppress that visit.
+			qreal                        Widest   = 0.0;
+			std::vector<recorded_block>* Recorded = nullptr;
+			std::uint32_t                Reused   = 0U;
 		};
 
 		[[nodiscard]] auto finite_nonnegative(const qreal aValue) noexcept -> bool
@@ -443,30 +534,41 @@ namespace bpr::qt {
 	/// and every fact their heights depend on.
 	struct pane_block_heights::state
 	{
-		QPointer<const QTextDocument> Document;
-		int                           Revision = 0;
-		QFont                         Font;
-		QFont                         DocumentFont;
-		qreal                         DevicePixelRatio = 0.0;
-		qreal                         Margin           = 0.0;
-		qreal                         TabDistance      = 0.0;
-		std::vector<recorded_block>   Blocks;
+		QPointer<const QTextDocument>               Document;
+		QPointer<const QAbstractTextDocumentLayout> Layout;
+		const QPaintDevice*                         Device   = nullptr;
+		int                                         Revision = 0;
+		QFont                                       Font;
+		QFont                                       DocumentFont;
+		qreal                                       DevicePixelRatio = 0.0;
+		qreal                                       Margin           = 0.0;
+		qreal                                       TabDistance      = 0.0;
+		std::vector<recorded_block>                 Blocks;
 
 		/// Keeps the recorded blocks only if the pane's facts are the ones they
 		/// were measured under; otherwise takes these facts and starts one
 		/// `not_reusable` block for each of the document's blocks.
+		[[nodiscard]] auto matches(const QPlainTextEdit& aPane) const -> bool
+		{
+			const auto* const document = aPane.document();
+			const auto        count    = static_cast<std::size_t>(document->blockCount());
+			return Document == document && Revision == document->revision() && Blocks.size() == count
+				&& Font == aPane.font() && DocumentFont == document->defaultFont()
+				&& DevicePixelRatio == aPane.devicePixelRatioF() && Margin == document->documentMargin()
+				&& TabDistance == aPane.tabStopDistance() && Layout == document->documentLayout() && Device == document->documentLayout()->paintDevice();
+		}
+
 		void bind(const QPlainTextEdit& aPane)
 		{
 			const auto* const document = aPane.document();
 			const auto        count    = static_cast<std::size_t>(document->blockCount());
-			if (Document == document && Revision == document->revision() && Blocks.size() == count
-				&& Font == aPane.font() && DocumentFont == document->defaultFont()
-				&& DevicePixelRatio == aPane.devicePixelRatioF() && Margin == document->documentMargin()
-				&& TabDistance == aPane.tabStopDistance()) {
+			if (matches(aPane)) {
 				return;
 			}
 			Blocks.assign(count, recorded_block{ });
 			Document         = document;
+			Layout           = document->documentLayout();
+			Device           = Layout->paintDevice();
 			Revision         = document->revision();
 			Font             = aPane.font();
 			DocumentFont     = document->defaultFont();
@@ -514,6 +616,20 @@ namespace bpr::qt {
 		pane_measurement_progress                   Progress     = pane_measurement_progress::invalidated;
 		pane_line_measurements                      Measurements;
 		pane_block_measurer                         Measurer;
+		QPointer<const QPlainTextEdit>              PeerPane;
+		const pane_block_heights::state*            PeerHeights = nullptr;
+
+		void admit_peer()
+		{
+			const auto usable = PeerPane && PeerHeights && PeerHeights->matches(*PeerPane)
+				&& WrapMode == QPlainTextEdit::NoWrap && PeerPane->lineWrapMode() == QPlainTextEdit::NoWrap
+				&& Font == PeerHeights->Font && DocumentFont == PeerHeights->DocumentFont
+				&& Measurements.DevicePixelRatio == PeerHeights->DevicePixelRatio
+				&& Margin == PeerHeights->Margin && TabDistance == PeerHeights->TabDistance
+				&& Layout->paintDevice() == PeerHeights->Device
+				&& Pane->layoutDirection() == PeerPane->layoutDirection();
+			Measurer.use_peer(usable ? PeerHeights->Document.data() : nullptr, usable ? &PeerHeights->Blocks : nullptr);
+		}
 
 		[[nodiscard]] auto current() const -> bool
 		{
@@ -581,6 +697,13 @@ namespace bpr::qt {
 		State->Measurer.record_into(aHeights.State->Blocks);
 	}
 
+	plain_text_pane_measurement::plain_text_pane_measurement(const QPlainTextEdit& aPane, const std::uint32_t aLogicalLineCount, pane_block_heights& aHeights, const QPlainTextEdit& aPeer, const pane_block_heights& aPeerHeights)
+		: plain_text_pane_measurement{ aPane, aLogicalLineCount, aHeights }
+	{
+		State->PeerPane    = &aPeer;
+		State->PeerHeights = aPeerHeights.State.get();
+	}
+
 	plain_text_pane_measurement::~plain_text_pane_measurement()                                                         = default;
 	plain_text_pane_measurement::plain_text_pane_measurement(plain_text_pane_measurement&&) noexcept                    = default;
 	auto plain_text_pane_measurement::operator=(plain_text_pane_measurement&&) noexcept -> plain_text_pane_measurement& = default;
@@ -598,6 +721,7 @@ namespace bpr::qt {
 		if (value.Progress == pane_measurement_progress::complete) {
 			return value.Progress;
 		}
+		value.admit_peer();
 		const auto count = std::min(aMaximumLines, value.LineCount - value.NextLine);
 		for (std::uint32_t index = 0U; index < count; ++index) {
 			if (!value.Block.isValid()) {

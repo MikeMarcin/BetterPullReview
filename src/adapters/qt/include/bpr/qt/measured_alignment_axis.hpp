@@ -135,6 +135,11 @@ namespace bpr::qt {
 		/// \details `aHeights` must outlive the measurement. It is emptied first
 		/// if it was recorded under different facts (see `pane_block_heights`).
 		plain_text_pane_measurement(const QPlainTextEdit& aPane, std::uint32_t aLogicalLineCount, pane_block_heights& aHeights);
+		/// Reuses identical plain same-index rows when both panes' live facts
+		/// agree. Both height stores must outlive this measurement and must not be
+		/// moved or replaced while it is active. A peer
+		/// change or unavailable record falls back to ordinary Qt measurement.
+		plain_text_pane_measurement(const QPlainTextEdit& aPane, std::uint32_t aLogicalLineCount, pane_block_heights& aHeights, const QPlainTextEdit& aPeer, const pane_block_heights& aPeerHeights);
 		~plain_text_pane_measurement();
 		plain_text_pane_measurement(plain_text_pane_measurement&&) noexcept;
 		auto operator=(plain_text_pane_measurement&&) noexcept -> plain_text_pane_measurement&;

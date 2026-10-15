@@ -3490,7 +3490,12 @@ namespace bpr::app {
 		/// admitted then is another gesture's and is not taken.
 		bool Recording = true;
 
-		auto operator<=>(const pending_comment_workshop&) const = default;
+		/// [[BPR-1526]]. A first save replaces this exact placeholder before
+		/// the press can record it. Its acknowledgement, never another
+		/// draft's later save, supplies the durable identity.
+		std::optional<core::revisioned_review_draft> AwaitingMaterialization;
+
+		auto operator==(const pending_comment_workshop&) const -> bool = default;
 	};
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -8464,7 +8469,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
-			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook hook, qt::prose_capture captured) { request_writing(hook, std::move(captured)); }, [this] { cancel_writing(); });
+			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -9774,8 +9779,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// seconds), so an accept in progress can finish first.
 		void rearm_base_numbering()
 		{
-			constexpr auto maximum_cancellations = std::size_t{ 80U };
-			if (Closing || Window == nullptr || BaseNumberingCancellations >= maximum_cancellations) {
+			constexpr auto maximumCancellations = std::size_t{ 80U };
+			if (Closing || Window == nullptr || BaseNumberingCancellations >= maximumCancellations) {
 				return;
 			}
 			++BaseNumberingCancellations;
@@ -10486,18 +10491,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			std::vector<application::writing_source> sources;
 			std::size_t                              total = 0;
-			const auto                               add   = [&](std::string id, std::string_view text, std::size_t limit = 2048) {
-				if (text.empty() || sources.size() == 8) {
+			const auto                               add   = [&](std::string aId, std::string_view aText, std::size_t aLimit = 2048) {
+				if (aText.empty() || sources.size() == 8) {
 					return;
 				}
-				auto size = std::min({ text.size(), limit, 8192 - total });
-				while (size && !core::writing_boundary(text, size)) {
+				auto size = std::min({ aText.size(), aLimit, 8192 - total });
+				while (size && !core::writing_boundary(aText, size)) {
 					--size;
 				}
-				if (!size || !core::valid_writing_utf8(text.substr(0, size))) {
+				if (!size || !core::valid_writing_utf8(aText.substr(0, size))) {
 					return;
 				}
-				sources.push_back({ std::move(id), std::string{ text.substr(0, size) } });
+				sources.push_back({ std::move(aId), std::string{ aText.substr(0, size) } });
 				total += size;
 			};
 			if (aHook == core::writing_hook::outline) {
@@ -12296,6 +12301,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									ReviewDraft         = saved.Accepted->Draft;
 									ReviewDraftRevision = saved.Accepted->Revision;
 								}
+#if defined(BPR_AGENT_INTEGRATIONS)
+								settle_materialized_comment_workshop(placeholder, shown ? saved.Accepted : std::nullopt);
+#endif
 								Window->review_editor()->acknowledge_materialized(aRevisionedCommand, *saved.Accepted);
 								if (shown && !Window->review_editor()->rejected_candidate()) {
 									accept_shared_draft(*saved.Accepted);
@@ -12307,6 +12315,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																					 ? QStringLiteral("Your text has not been saved: the comment storage limit was reached. Inspect Finish review > Saved comments. Finish or discard existing active comments, or free unused empty drafts, then choose Reapply my text. Your text is kept here.")
 																					 : QStringLiteral("Your text has not been saved. It is kept here; choose Reapply my text to retry before leaving this comment."));
 						}
+#if defined(BPR_AGENT_INTEGRATIONS)
+						// Also settle a refused, retired or empty first save.
+						settle_materialized_comment_workshop(placeholder, std::nullopt);
+#endif
 						if (settled) {
 							settled(accepted);
 						}
@@ -16093,6 +16105,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Draft     = aRequest.Draft,
 				.Operation = *admitted,
 			};
+			if (PrivateDraftCommandPending && ReviewDraft->Id.value() > core::maximum_private_identity) {
+				PendingWorkshopOperation->AwaitingMaterialization = core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope };
+				return;
+			}
+			record_comment_workshop_press();
+		}
+
+		void settle_materialized_comment_workshop(
+			const core::revisioned_review_draft&                aPlaceholder,
+			const std::optional<core::revisioned_review_draft>& aAccepted)
+		{
+			if (!PendingWorkshopOperation || PendingWorkshopOperation->AwaitingMaterialization != aPlaceholder) {
+				return;
+			}
+			if (Closing || !aAccepted || !ReviewDraft || ReviewDraft->Id != aAccepted->Draft.Id
+				|| aAccepted->Scope != aPlaceholder.Scope || aAccepted->Draft.Anchor != aPlaceholder.Draft.Anchor
+				|| aAccepted->Draft.ReplyToThread != aPlaceholder.Draft.ReplyToThread) {
+				PendingWorkshopOperation.reset();
+				present_comment_workshop_settlement(aPlaceholder.Draft.Id, "the draft could not be saved in Private history");
+				return;
+			}
+			PendingWorkshopOperation->Draft = aAccepted->Draft.Id;
+			PendingWorkshopOperation->AwaitingMaterialization.reset();
+			// Queue the immutable press before acknowledging the edit: the
+			// acknowledgement can dispatch text typed after the press. Both
+			// effects use the same FIFO private-review lane.
+			record_comment_workshop_press();
+		}
+
+		void record_comment_workshop_press()
+		{
 			// [[BPR-1245]], RFC-BPR-0023. The draft is mutable, so it is not
 			// sent. The press first records the draft's text, as the private
 			// lane holds it after every edit already queued, as one immutable
@@ -16103,8 +16146,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// there is still one press per turn.
 			const auto press = PendingWorkshopOperation;
 			PrivateReview->record_workshop_press(
-				aRequest.Draft,
-				[this, press, admitted](
+				press->Draft,
+				[this, press](
 					application::private_run_result<application::private_workshop_press> aPressed) {
 					if (Closing || PendingWorkshopOperation != press) {
 						return;
@@ -16121,7 +16164,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							std::string_view{ },
 							std::nullopt,
 							core::agent_entry_point::workshop_comment,
-							admitted);
+							press->Operation);
 						ExplicitPrivateRun.reset();
 					}
 					if (!sent) {
@@ -29770,7 +29813,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		};
 		// Published drafts leave the saved list; each carried one is read by
 		// its identity.
-		const auto count_published = [&] {
+		const auto countPublished = [&] {
 			return static_cast<std::size_t>(std::ranges::count_if(probe.Drafts, [&](const core::review_draft_id aDraft) {
 				if (!implementation->SharedDrafts) {
 					return false;
@@ -29779,7 +29822,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return read.Accepted && read.Accepted->Draft.State == core::review_draft_state::published && read.Accepted->Draft.InReview;
 			}));
 		};
-		const auto count_held = [&] {
+		const auto countHeld = [&] {
 			const auto all = saved();
 			return static_cast<std::size_t>(std::ranges::count_if(all, [](const core::revisioned_review_draft& aDraft) { return core::held_by_review(aDraft.Draft); }));
 		};
@@ -29956,7 +29999,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& !summary->details_toggle()->isChecked() && !summary->target_editor()->isVisibleTo(window)
 				&& summary->note_label()->isVisibleTo(window) && summary->note_label()->text() == QStringLiteral("Nothing is published until you submit.");
 		};
-		const auto start_one = [&](const state_type::phase aAfter) -> result {
+		const auto startOne = [&](const state_type::phase aAfter) -> result {
 			switch (probe.Phase) {
 			case state_type::phase::awaiting_first_line: {
 				const auto line = pick();
@@ -30030,7 +30073,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_first_text:
 		case state_type::phase::awaiting_first_offer:
 		case state_type::phase::awaiting_first_pending:
-			return start_one(aCourse == course::pending || aCourse == course::again ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
+			return startOne(aCourse == course::pending || aCourse == course::again ? state_type::phase::awaiting_second_line : state_type::phase::awaiting_finish_page);
 		case state_type::phase::awaiting_second_line: {
 			// The range ends on the line below its first, which is free.
 			auto line = pick();
@@ -30218,8 +30261,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_submitted: {
 			const auto sent      = posts();
 			const auto remaining = pending();
-			const auto published = count_published();
-			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " pending=" + std::to_string(remaining.size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
+			const auto published = countPublished();
+			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " pending=" + std::to_string(remaining.size()) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString());
 			if (sent.size() != 1U || published != 2U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-submitted");
 			}
@@ -30371,8 +30414,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_refused: {
 			const auto sent = posts();
 			const auto now  = pending();
-			note("posts=" + std::to_string(sent.size()) + " pending=" + std::to_string(now.size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
-			if (sent.size() != 1U || now.size() != 1U || count_held() != 0U || !chipSays(1U) || !ready()) {
+			note("posts=" + std::to_string(sent.size()) + " pending=" + std::to_string(now.size()) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString());
+			if (sent.size() != 1U || now.size() != 1U || countHeld() != 0U || !chipSays(1U) || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("refusal-not-settled");
 			}
 			// [[BPR-1345]] v003. A refusal keeps the page open, with its words.
@@ -30416,7 +30459,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		case state_type::phase::awaiting_held: {
 			const auto all  = saved();
 			const auto held = std::ranges::find_if(all, [](const core::revisioned_review_draft& aDraft) { return core::held_by_review(aDraft.Draft); });
-			note("posts=" + std::to_string(posts().size()) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString()
+			note("posts=" + std::to_string(posts().size()) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString()
 				 + " reconcile=" + std::to_string(summary->reconcile_action()->isEnabled() ? 1 : 0));
 			if (held == all.end() || !summary->reconcile_action()->isEnabled() || !chipShown->isVisible() || !chip->submitting()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-held");
@@ -30438,9 +30481,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return result::pending;
 		}
 		case state_type::phase::awaiting_reconciled: {
-			const auto published = count_published();
-			note("posts=" + std::to_string(posts().size()) + " published=" + std::to_string(published) + " held=" + std::to_string(count_held()) + " status=" + summary->status_label()->text().toStdString());
-			if (published != 1U || count_held() != 0U || chipShown->isVisible() || !ready()) {
+			const auto published = countPublished();
+			note("posts=" + std::to_string(posts().size()) + " published=" + std::to_string(published) + " held=" + std::to_string(countHeld()) + " status=" + summary->status_label()->text().toStdString());
+			if (published != 1U || countHeld() != 0U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("not-reconciled");
 			}
 			// Check status found it published: the page closes as on any
@@ -30699,7 +30742,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		case state_type::phase::awaiting_again_submitted: {
 			const auto sent      = posts();
-			const auto published = count_published();
+			const auto published = countPublished();
 			note("posts=" + std::to_string(sent.size()) + " published=" + std::to_string(published) + " status=" + summary->status_label()->text().toStdString());
 			if (sent.size() != 1U || published != 1U || chipShown->isVisible() || !ready()) {
 				return ++probe.Waited < 400U ? result::pending : fail("again-not-submitted");

@@ -553,6 +553,14 @@ namespace {
 		// The owner's reference, line 1: four spaces, a word, a space, a word,
 		// spaces, and two trailing spaces.
 		constexpr auto line = std::string_view{ "....a.bc...d.." };
+		for (const auto selected : { false, true }) {
+			for (auto mode = std::size_t{ 0U }; mode <= white_space_drawing_count; ++mode) {
+				const auto drawing = static_cast<white_space_drawing>(mode);
+				const auto marks   = white_space_drawn(line_of(line), drawing, selected);
+				expect(white_space_may_draw(drawing, selected) == std::ranges::any_of(marks, [](const bool aDrawn) { return aDrawn; }),
+					   "the cheap line admission agrees with actual marks for every mode, selection and invalid mode");
+			}
+		}
 		expect(marked(line, white_space_drawing::none, true) == "              ", "none draws nothing, even selected");
 		expect(marked(line, white_space_drawing::selection, false) == "              ", "selection draws nothing on a line that is not selected");
 		expect(marked(line, white_space_drawing::selection, true) == "^^^^ ^  ^^^ ^^", "and every white space character of a selected line");

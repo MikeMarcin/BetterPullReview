@@ -18,10 +18,61 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <memory>
 #include <utility>
 #include <vector>
 
 namespace bpr::qt {
+	void code_gutter_text_cache::retain_visible_rows(const int aRows)
+	{
+		Labels.setMaxCost(qsizetype{ 2 } * std::max(1, aRows) + 2);
+	}
+
+	void code_gutter_text_cache::draw(QPainter& aPainter, const QRect& aRect, const QString& aText)
+	{
+		constexpr auto alignment = Qt::AlignRight | Qt::AlignVCenter;
+		// The gutter's labels are plain ASCII. Preserve the complete native
+		// formatting path for any future caller supplying other text.
+		if (aText.isEmpty() || !std::ranges::all_of(aText, [](const QChar aCharacter) {
+				return (aCharacter >= QLatin1Char{ '0' } && aCharacter <= QLatin1Char{ '9' })
+					|| (aCharacter >= QLatin1Char{ 'a' } && aCharacter <= QLatin1Char{ 'z' });
+			})) {
+			aPainter.drawText(aRect, alignment, aText);
+			return;
+		}
+		const auto* const device = aPainter.device();
+		if (Font != aPainter.font() || Transform != aPainter.transform() || Device != device
+			|| DevicePixelRatio != device->devicePixelRatioF() || LogicalDpiX != device->logicalDpiX() || LogicalDpiY != device->logicalDpiY()) {
+			Labels.clear();
+			Font             = aPainter.font();
+			Transform        = aPainter.transform();
+			Device           = device;
+			DevicePixelRatio = device->devicePixelRatioF();
+			LogicalDpiX      = device->logicalDpiX();
+			LogicalDpiY      = device->logicalDpiY();
+		}
+		auto* cached = Labels.object(aText);
+		if (cached == nullptr || cached->Cell != aRect.size()) {
+			auto made = std::make_unique<label>();
+			made->Text.setText(aText);
+			made->Text.setTextFormat(Qt::PlainText);
+			made->Cell = aRect.size();
+			// The floating overload retains Qt's subpixel alignment. The integer
+			// bounding rectangle rounds that origin and shifts native glyphs.
+			made->Offset = aPainter.boundingRect(QRectF{ QPointF{ }, QSizeF{ aRect.size() } }, alignment, aText).topLeft();
+			Labels.insert(aText, made.release());
+			cached = Labels.object(aText);
+		}
+		if (cached == nullptr) {
+			aPainter.drawText(aRect, alignment, aText);
+			return;
+		}
+		aPainter.save();
+		aPainter.setClipRect(aRect, Qt::IntersectClip);
+		aPainter.drawStaticText(QPointF{ aRect.topLeft() } + cached->Offset, cached->Text);
+		aPainter.restore();
+	}
+
 	namespace {
 		/// Breathing room either side of the widest number a sample gutter shows.
 		constexpr auto SampleGutterPadding = 6.0;
@@ -596,15 +647,42 @@ namespace bpr::qt {
 		const bool                      aSelected,
 		const QColor&                   aColor) -> std::uint32_t
 	{
-		if (!aBlock.isValid() || aDrawing == core::white_space_drawing::none || !aColor.isValid()) {
+		if (!aBlock.isValid() || !core::white_space_may_draw(aDrawing, aSelected) || !aColor.isValid()) {
 			return 0U;
 		}
-		const auto text  = aBlock.text();
+		const auto text = aBlock.text();
+		// [[BPR-1525]]. Most source rows contain no drawable white space.
+		// Avoid constructing and scanning two per-character vectors on every
+		// paint for those rows; the core still decides every row with marks.
+		if (!text.contains(QLatin1Char{ ' ' }) && !text.contains(QLatin1Char{ '\t' })) {
+			return 0U;
+		}
 		const auto drawn = core::white_space_drawn(white_space_characters(text), aDrawing, aSelected);
 		auto       marks = std::vector<white_space_mark>{ };
 		auto       row   = QRectF{ };
 		auto       at    = QTextCursor{ aBlock };
-		for (auto index = std::size_t{ 0U }; index < drawn.size(); ++index) {
+		auto       first = std::size_t{ 0U };
+		auto       last  = drawn.size();
+		// [[BPR-1525]]. Project the visible part of an unwrapped LTR ASCII
+		// line rather than query every offscreen mark in a long source row.
+		// Qt owns both edge hit tests and every retained endpoint. Include an
+		// adjacent character at each edge for a partially visible tab/space.
+		const auto simple = aEditor.lineWrapMode() == QPlainTextEdit::NoWrap
+			&& aEditor.layoutDirection() == Qt::LeftToRight
+			&& aBlock.blockFormat().layoutDirection() != Qt::RightToLeft
+			&& aEditor.document()->defaultTextOption().textDirection() != Qt::RightToLeft
+			&& std::ranges::all_of(text, [](const QChar aCharacter) { return aCharacter == QLatin1Char{ '\t' } || (aCharacter.unicode() >= 0x20U && aCharacter.unicode() <= 0x7EU); });
+		if (simple && !aEditor.viewport()->rect().isEmpty()) {
+			const auto visible = aEditor.viewport()->rect();
+			const auto middle  = std::clamp(aEditor.cursorRect(at).center().y(), visible.top(), visible.bottom());
+			const auto begin   = aEditor.cursorForPosition(QPoint{ visible.left(), middle });
+			const auto end     = aEditor.cursorForPosition(QPoint{ visible.right(), middle });
+			if (begin.block() == aBlock && end.block() == aBlock && begin.position() <= end.position()) {
+				first = static_cast<std::size_t>(std::max(0, begin.position() - aBlock.position() - 1));
+				last  = std::min(last, static_cast<std::size_t>(end.position() - aBlock.position() + 1));
+			}
+		}
+		for (auto index = first; index < last; ++index) {
 			if (!drawn[index]) {
 				continue;
 			}

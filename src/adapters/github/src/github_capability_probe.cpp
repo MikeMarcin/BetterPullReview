@@ -32,9 +32,12 @@ namespace bpr::adapters::github::detail {
 
 		struct capability_json_options : glz::opts
 		{
+			// These are the option names Glaze discovers, not BPR member names.
+			// NOLINTBEGIN(readability-identifier-naming)
 			bool escape_control_characters    = true;
 			bool validate_skipped             = true;
 			bool validate_trailing_whitespace = true;
+			// NOLINTEND(readability-identifier-naming)
 			constexpr capability_json_options()
 			{
 				null_terminated = false;
@@ -2364,6 +2367,20 @@ namespace bpr::adapters::github::detail {
 				capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::normalization_unexpected);
 		}
 	}
+	// [[BPR-1525]]. Keep the already admitted request-local tree instead of
+	// reparsing the entire serialized prefix after every physical part. Glaze
+	// still serializes each prefix under the same byte bound, and finish runs
+	// the same complete normalizer. No state is shared between attempts.
+	struct capability_probe_batch::assembly
+	{
+		capability_object Envelope{ { "data", capability_json(capability_object{ }) } };
+	};
+
+	capability_probe_batch::capability_probe_batch()                                                     = default;
+	capability_probe_batch::~capability_probe_batch()                                                    = default;
+	capability_probe_batch::capability_probe_batch(capability_probe_batch&&) noexcept                    = default;
+	auto capability_probe_batch::operator=(capability_probe_batch&&) noexcept -> capability_probe_batch& = default;
+
 	auto capability_probe_batch::append(const capability_probe_response& aResponse, const std::uint8_t aPart) noexcept -> std::expected<void, capability_probe_observation>
 	{
 		const auto refuse = [](capability_probe_unavailability aReason, application::github_capability_diagnostic aDetail) -> std::expected<void, capability_probe_observation> { return std::unexpected{ unavailable(aReason, aDetail) }; };
@@ -2377,7 +2394,7 @@ namespace bpr::adapters::github::detail {
 			if (aResponse.Body.size() > limits.MaximumResponseBytes - Bytes) {
 				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
 			}
-			const auto data = checked_capability_data(aResponse, limits);
+			auto data = checked_capability_data(aResponse, limits);
 			if (!data) {
 				return std::unexpected{ data.error() };
 			}
@@ -2394,20 +2411,16 @@ namespace bpr::adapters::github::detail {
 			if (preflight.run() != json_preflight_result::valid || preflight.value_count() > limits.MaximumTotalValues - Values) {
 				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::json_limits);
 			}
-			auto merged = capability_object{ };
-			if (Parts != 0U) {
-				const auto previous = parse_json_object(Response.Body);
-				if (!previous || !json_member(*previous, "data").is_object()) {
-					return refuse(capability_probe_unavailability::malformed_response, application::github_capability_diagnostic::json_shape);
-				}
-				merged = json_object(json_member(*previous, "data"));
+			if (!Assembly) {
+				Assembly = std::make_unique<assembly>();
 			}
-			for (const auto& [key, value] : *data) {
-				if (!merged.emplace(key, value).second) {
+			auto& merged = Assembly->Envelope.at("data").get_object();
+			for (auto& [key, value] : *data) {
+				if (!merged.emplace(key, std::move(value)).second) {
 					return refuse(capability_probe_unavailability::partial_response, application::github_capability_diagnostic::graphql_aliases);
 				}
 			}
-			auto bytes = glz::write<capability_json_options{ }>(capability_object{ { "data", capability_json(std::move(merged)) } });
+			auto bytes = glz::write<capability_json_options{ }>(Assembly->Envelope);
 			if (!bytes || bytes->size() > limits.MaximumResponseBytes) {
 				return refuse(capability_probe_unavailability::response_limit, application::github_capability_diagnostic::normalizer_body_limit);
 			}

@@ -415,7 +415,7 @@ namespace {
 		expect(progress == qt::pane_measurement_progress::complete && measurement.result()
 				   && *measurement.result() == *qt::measure_plain_text_pane(pane, 40U),
 			   "batched native wrapped/Unicode/mixed-font boundaries equal the synchronous reference exactly");
-		const auto stale_after = [&](auto aChange) {
+		const auto staleAfter = [&](auto aChange) {
 			QApplication::processEvents();
 			qt::plain_text_pane_measurement pending{ pane, 40U };
 			expect(pending.advance(1U) == qt::pane_measurement_progress::pending, "one block leaves native work pending");
@@ -423,13 +423,13 @@ namespace {
 			expect(pending.advance(3U) == qt::pane_measurement_progress::invalidated && !pending.result(),
 				   "changed pane facts invalidate partial measurement atomically");
 		};
-		stale_after([&] { pane.setPlainText(source + QStringLiteral("different")); });
+		staleAfter([&] { pane.setPlainText(source + QStringLiteral("different")); });
 		pane.setPlainText(source);
-		stale_after([&] { auto font = pane.font(); font.setPointSizeF(font.pointSizeF() + 1); pane.setFont(font); });
-		stale_after([&] { pane.resize(pane.width() + 40, pane.height()); });
-		stale_after([&] { pane.setTabStopDistance(pane.tabStopDistance() + 8); });
-		stale_after([&] { pane.setLineWrapMode(QPlainTextEdit::NoWrap); });
-		stale_after([&] { pane.document()->setDocumentMargin(pane.document()->documentMargin() + 1); });
+		staleAfter([&] { auto font = pane.font(); font.setPointSizeF(font.pointSizeF() + 1); pane.setFont(font); });
+		staleAfter([&] { pane.resize(pane.width() + 40, pane.height()); });
+		staleAfter([&] { pane.setTabStopDistance(pane.tabStopDistance() + 8); });
+		staleAfter([&] { pane.setLineWrapMode(QPlainTextEdit::NoWrap); });
+		staleAfter([&] { pane.document()->setDocumentMargin(pane.document()->documentMargin() + 1); });
 		auto transient = std::make_unique<QPlainTextEdit>();
 		transient->setPlainText(QStringLiteral("one\ntwo\n"));
 		qt::plain_text_pane_measurement destroyed{ *transient, 2U };
@@ -800,6 +800,62 @@ namespace {
 		QApplication::processEvents();
 	}
 
+	void test_peer_plain_rows_preserve_native_measurement()
+	{
+		constexpr auto lines = 40U;
+		auto           text  = QStringList{ };
+		for (auto index = 0U; index < lines; ++index) {
+			text.push_back(QStringLiteral("row %1").arg(index));
+		}
+		text[20]   = QString{ 300, QLatin1Char{ 'x' } };
+		auto left  = QPlainTextEdit{ };
+		auto right = QPlainTextEdit{ };
+		for (auto* editor : { &left, &right }) {
+			editor->setLineWrapMode(QPlainTextEdit::NoWrap);
+			editor->resize(220, 100);
+			editor->setPlainText(text.join(QLatin1Char{ '\n' }));
+			// Staged publication adopts a plain layout with the default paint
+			// context. Different widget paint devices deliberately do not share.
+			editor->document()->documentLayout()->setPaintDevice(nullptr);
+		}
+		auto leftHeights = qt::pane_block_heights{ };
+		static_cast<void>(measure_recorded(left, lines, leftHeights));
+		auto       peerCourse  = 0;
+		const auto measurePeer = [&] {
+			QApplication::processEvents();
+			++peerCourse;
+			auto                            rightHeights = qt::pane_block_heights{ };
+			qt::plain_text_pane_measurement measurement{ right, lines, rightHeights, left, leftHeights };
+			auto                            progress = qt::pane_measurement_progress::pending;
+			while (progress == qt::pane_measurement_progress::pending) {
+				progress = measurement.advance(16U);
+			}
+			expect(progress == qt::pane_measurement_progress::complete && measurement.result(), "peer measurement completes");
+			const auto width = right.document()->documentLayout()->documentSize().width();
+			expect_native_boundaries(measurement.result()->Boundaries, right, lines, "peer reuse preserves every native boundary");
+			if (right.document()->documentLayout()->documentSize().width() != width) {
+				std::cerr << "peer width course=" << peerCourse << " reused=" << measurement.reused_lines() << " before=" << width << " after=" << right.document()->documentLayout()->documentSize().width() << '\n';
+			}
+			expect(right.document()->documentLayout()->documentSize().width() == width, "peer reuse preserves the native widest-line rule");
+			return measurement.reused_lines();
+		};
+		expect(measurePeer() == lines, "identical plain rows reuse existing peer records without new per-file storage");
+		right.document()->documentLayout()->setPaintDevice(right.viewport());
+		expect(measurePeer() == 0U, "a different native paint device admits no peer records");
+		right.document()->documentLayout()->setPaintDevice(nullptr);
+		text[25] = QString{ 2'000, QLatin1Char{ 'y' } };
+		right.setPlainText(text.join(QLatin1Char{ '\n' }));
+		expect(measurePeer() == lines - 1U, "a different row shapes normally, even with the same ordinal and formats");
+		auto larger = right.font();
+		larger.setPointSizeF(larger.pointSizeF() + 7.0);
+		right.setFont(larger);
+		expect(measurePeer() == 0U, "a different pane font admits no peer records");
+		right.setFont(left.font());
+		auto peerEdit = QTextCursor{ left.document() };
+		peerEdit.insertText(QStringLiteral("edited "));
+		expect(measurePeer() == 0U, "a changed peer revision admits no stale records");
+	}
+
 	/// [[BPR-1142]]. The record keys a block's additional formats by the
 	/// properties its layout reads. Highlighting that changes a block's
 	/// layout without touching its text measures that block again, although
@@ -1034,6 +1090,7 @@ auto main(int argc, char** argv) -> int
 	test_transient_no_wrap_measurement(true);
 	test_transient_no_wrap_measurement(false);
 	test_recorded_block_heights();
+	test_peer_plain_rows_preserve_native_measurement();
 	test_format_key();
 	test_recorded_block_precision();
 

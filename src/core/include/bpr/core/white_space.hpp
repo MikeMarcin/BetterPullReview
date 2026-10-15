@@ -15,6 +15,15 @@ namespace bpr::core {
 		tab,
 	};
 
+	/// \brief Whether the drawing choice can mark any character on this line.
+	/// \details Hosts can avoid preparing text and geometry when policy draws
+	/// nothing, including an unselected line under the default selection mode.
+	[[nodiscard]] constexpr auto white_space_may_draw(const white_space_drawing aDrawing, const bool aSelected) noexcept -> bool
+	{
+		return valid(aDrawing) && aDrawing != white_space_drawing::none
+			&& (aDrawing != white_space_drawing::selection || aSelected);
+	}
+
 	/// \brief Decides which white space characters of one line are drawn.
 	///
 	/// \details [[BPR-1107]]. The answer has one entry per character, and only a

@@ -1,0 +1,21 @@
+{
+  "role": "rfc-implementer",
+  "model": "gpt-6.1-sol",
+  "effort": "xhigh",
+  "evidence": "native role assigned; configured banner emitted; no differing effective model/effort exposed",
+  "mandate": "authorized-release-continuation-native-gates-r2",
+  "owner": "/root/bpr1525_implementer",
+  "command_state": "All task-owned commands quiescent; Windows r32/r33 and Ubuntu r3 Ready, recorded wrapper/child PIDs absent; no review server; zombie30243 not a writer",
+  "acceptance": "BPR-1525 and BPR-1526 canonically Done; all7assigned criteria and5milestone exits pass. Windows3normal scales+5oracles,Mac5painter/resources+5public,Ubuntu16normal courses allpass; current format22/strict changed-TU tidy22/core276/architecture/docs+67units. Final full release gates/packages remain coordinator-owned.",
+  "schema": "bpr.engineering-runtime-binding.v1",
+  "plan_checkpoint": "implementer-binding.json",
+  "run_id": "release-v0.2.1",
+  "segment_id": "windows-gate-fixes",
+  "mandate_revision": "authorized-release-continuation-native-gates-r2",
+  "milestone": "native-gate-contracts",
+  "plan_definition_fingerprint": "sha256:6df8c20cf6a43f128949ebc5da8a6e30f4f5339c757b9baec6081eade60688e5",
+  "constituents": [
+    "BPR-1525",
+    "BPR-1526"
+  ]
+}

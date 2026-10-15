@@ -10,8 +10,7 @@ namespace bpr::core {
 		const bool                                   aSelected) -> std::vector<bool>
 	{
 		auto drawn = std::vector<bool>(aLine.size(), false);
-		if (!valid(aDrawing) || aDrawing == white_space_drawing::none
-			|| (aDrawing == white_space_drawing::selection && !aSelected)) {
+		if (!white_space_may_draw(aDrawing, aSelected)) {
 			return drawn;
 		}
 		const auto isOther = [](const white_space_character aCharacter) {

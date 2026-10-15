@@ -22,7 +22,15 @@
 #include <utility>
 #include <vector>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	#ifndef NOMINMAX
+		#define NOMINMAX
+	#endif
+	#ifndef WIN32_LEAN_AND_MEAN
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <windows.h>
+#else
 	#include <sys/stat.h>
 #endif
 
@@ -85,8 +93,23 @@ namespace bpr::tests::workspace_contract {
 		}
 		return file_identity{ .Device = static_cast<std::uint64_t>(status.st_dev), .Object = static_cast<std::uint64_t>(status.st_ino) };
 #else
-		static_cast<void>(aPath);
-		return std::nullopt;
+		const auto directory = ::CreateFileW(aPath.c_str(), FILE_READ_ATTRIBUTES,
+											 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING,
+											 FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+		if (directory == INVALID_HANDLE_VALUE) {
+			return std::nullopt;
+		}
+		auto       identity = FILE_ID_INFO{ };
+		const auto observed = ::GetFileInformationByHandleEx(directory, FileIdInfo, &identity, sizeof(identity));
+		static_cast<void>(::CloseHandle(directory));
+		if (observed == FALSE) {
+			return std::nullopt;
+		}
+		auto object = std::uint64_t{ 0 };
+		for (std::size_t index = 0; index < sizeof(object); ++index) {
+			object |= static_cast<std::uint64_t>(identity.FileId.Identifier[index]) << (8U * index);
+		}
+		return file_identity{ .Device = identity.VolumeSerialNumber, .Object = object };
 #endif
 	}
 
@@ -221,10 +244,17 @@ namespace bpr::tests::workspace_contract {
 
 		auto discover(const std::filesystem::path& aRoot) const -> std::expected<discovery_answer, candidate_refusal>
 		{
-			const auto [status, text] = ask(aRoot, { "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir" });
+			const auto output = Scratch / "oracle.out";
+			const auto error  = Scratch / "oracle.err";
+			const auto status = Git.status(aRoot, { "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir" }, std::nullopt, output, error);
 			if (status != 0) {
+				const auto reason = trimmed(read_file(error));
+				if (status == 128 && reason == "fatal: compatibility hash algorithm support requires Rust") {
+					return std::unexpected(std::string{ "rev-parse exit 128: compatibility hash algorithm support requires Rust" });
+				}
 				return std::unexpected("rev-parse exit " + std::to_string(status));
 			}
+			const auto text                = read_file(output);
 			const auto newline             = text.find('\n');
 			auto       answer              = discovery_answer{ .GitDirectory = text.substr(0, newline), .CommonDirectory = trimmed(text.substr(newline + 1)) };
 			answer.GitDirectoryIdentity    = identity_of(answer.GitDirectory);

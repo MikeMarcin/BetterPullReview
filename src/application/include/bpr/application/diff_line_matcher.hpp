@@ -84,14 +84,14 @@ namespace bpr::application {
 	///
 	/// \details [[BPR-1485]] The matcher has no stop hook, so it runs on a
 	/// thread of its own with its own copy of both sides, while the computing
-	/// thread waits and polls the computation's stop. A stop returns at once
+	/// thread waits for completion or the computation's stop. A stop returns at once
 	/// and abandons that thread: it runs on, detached, and its result is
 	/// discarded. The comparison is computed again from the start the next
 	/// time it is wanted.
 	class abandonable_diff_line_matching final : public core::diff_components
 	{
 	public:
-		explicit abandonable_diff_line_matching(std::shared_ptr<diff_line_matcher_port> aMatcher) noexcept;
+		explicit abandonable_diff_line_matching(std::shared_ptr<diff_line_matcher_port> aMatcher, std::stop_token aStop) noexcept;
 
 		[[nodiscard]] auto parts() const noexcept -> core::diff_component_parts override;
 		[[nodiscard]] auto primary_matches(const core::diff_primary_request& aRequest, core::diff_component_meter& aMeter)
@@ -99,6 +99,7 @@ namespace bpr::application {
 
 	private:
 		std::shared_ptr<diff_line_matcher_port> Matcher;
+		std::stop_token                         Stop;
 	};
 } // namespace bpr::application
 

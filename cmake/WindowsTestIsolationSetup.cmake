@@ -39,7 +39,8 @@ unset(bpr_windows_system_root)
 # by the setup itself. Exit status is therefore not the evidence: each attempt
 # is judged by the SID it printed, in the same shape the pinned Qt provider
 # already uses. A compile failure is never transient and fails immediately.
-function(bpr_windows_appcontainer_sid launcher_source output)
+function(bpr_windows_appcontainer_sid launcher_source output launcher_output)
+    set(setup_launcher "${CMAKE_BINARY_DIR}/CMakeFiles/bpr-appcontainer-setup.exe")
     set(attempt_limit 3)
     foreach(attempt RANGE 1 ${attempt_limit})
         try_run(
@@ -52,6 +53,7 @@ function(bpr_windows_appcontainer_sid launcher_source output)
             COMPILE_OUTPUT_VARIABLE setup_build_log
             RUN_OUTPUT_STDOUT_VARIABLE setup_output
             RUN_OUTPUT_STDERR_VARIABLE setup_error
+            COPY_FILE "${setup_launcher}"
             ARGS --bpr-appcontainer-setup
         )
         if(NOT BPR_APPCONTAINER_SETUP_COMPILED)
@@ -63,6 +65,7 @@ function(bpr_windows_appcontainer_sid launcher_source output)
         endif()
         if(setup_output MATCHES "BPR_APPCONTAINER_SID=(S-1-15-2-[0-9-]+)")
             set(${output} "${CMAKE_MATCH_1}" PARENT_SCOPE)
+            set(${launcher_output} "${setup_launcher}" PARENT_SCOPE)
             return()
         endif()
     endforeach()
@@ -73,6 +76,45 @@ function(bpr_windows_appcontainer_sid launcher_source output)
         "Last status ${bpr_appcontainer_setup_status}, output '${setup_output}', "
         "error '${setup_error}'"
     )
+endfunction()
+
+# The first process is created by the uncontained launcher. Its descendant
+# must be able to open the interpreter itself, which a per-user installation
+# does not normally grant a lowbox token. Probe that exact runtime before
+# touching its ACL: a machine-wide installation may already admit the
+# container, and the developer need not own that installation to use it.
+function(bpr_windows_appcontainer_python sid launcher)
+    if(NOT TARGET Python3::Interpreter)
+        return()
+    endif()
+    get_target_property(python_executable Python3::Interpreter IMPORTED_LOCATION)
+    file(REAL_PATH "${python_executable}" python_executable)
+    get_filename_component(python_runtime "${python_executable}" DIRECTORY)
+    set(probe "import subprocess,sys; subprocess.run([sys.executable,'-I','-B','-c','pass'],check=True,capture_output=True,text=True,timeout=10)")
+    execute_process(
+        COMMAND "${launcher}" "${python_executable}" -I -B -c "${probe}"
+        RESULT_VARIABLE probe_status
+        OUTPUT_VARIABLE probe_log
+        ERROR_VARIABLE probe_log
+        WORKING_DIRECTORY "${python_runtime}"
+        TIMEOUT 15
+    )
+    if(probe_status STREQUAL "0")
+        return()
+    endif()
+    bpr_windows_appcontainer_grant("${sid}" "(OI)(CI)(RX)" "${python_runtime}")
+    execute_process(
+        COMMAND "${launcher}" "${python_executable}" -I -B -c "${probe}"
+        RESULT_VARIABLE probe_status
+        OUTPUT_VARIABLE probe_log
+        ERROR_VARIABLE probe_log
+        WORKING_DIRECTORY "${python_runtime}"
+        TIMEOUT 15
+    )
+    if(NOT probe_status STREQUAL "0")
+        message(FATAL_ERROR "The selected Python runtime cannot start a contained descendant: ${probe_log}")
+    endif()
+    message(STATUS "bpr: AppContainer ${BPR_WINDOWS_APPCONTAINER_NAME} reads the selected Python runtime ${python_runtime}")
 endfunction()
 
 # A contained process is not the invoking user, so it reaches the project only
@@ -115,7 +157,8 @@ function(bpr_configure_windows_test_isolation launcher_source)
         )
     endif()
 
-    bpr_windows_appcontainer_sid("${launcher_source}" container_sid)
+    bpr_windows_appcontainer_sid("${launcher_source}" container_sid setup_launcher)
+    bpr_windows_appcontainer_python("${container_sid}" "${setup_launcher}")
 
     # Sources, the resolved Qt prefix, and the built executables are read; the
     # build tree is also written, because tests keep their scratch data there.

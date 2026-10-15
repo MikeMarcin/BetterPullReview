@@ -1,0 +1,46 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1525-windows-release-gates",
+  "scope": {
+    "issues": [
+      "BPR-1525",
+      "BPR-1526"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "native-gate-contracts",
+      "outcome": "The selected Windows fixture, containment and matcher-stop contracts and the Mac workshop action public path pass with their original assertions and budgets intact.",
+      "work": [
+        {
+          "issue": "BPR-1525",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        },
+        {
+          "issue": "BPR-1526",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Identify and retain each original failure and exact-source cause.",
+        "Repair fixture byte generation and production cancellation with no weaker assertions or thresholds.",
+        "Measure each new Windows containment refusal and prove a contained grandchild network denial.",
+        "Pass focused native and portable checks, documentation and return explicit remaining release obligations.",
+        "Demonstrate and repair the Mac workshop Clarify action failure; pass its public composition and guidance siblings without weaker invocation, cleanup or draft assertions."
+      ],
+      "boundary": "Delegated native release-gate failures: fixture/network test infrastructure, application matcher cancellation, exact Git oracle compatibility, unsupported Windows CLI test composition, provider/workbench timeout diagnosis, Mac workshop action composition, focused verification and issue bookkeeping. Root released both original producers after preserving failed partial gates; reuse only the authorized Windows repair branch and own Mac worktree. No signing, auth, publication or separate Windows station mutation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

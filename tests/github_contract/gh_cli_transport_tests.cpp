@@ -45,6 +45,12 @@ namespace {
 
 	using bpr::tests::expect;
 
+#if defined(_WIN32)
+	constexpr auto private_cli_configuration_available = false;
+#else
+	constexpr auto private_cli_configuration_available = true;
+#endif
+
 	[[nodiscard]] auto gh_arguments(const github_cli_process_request& aRequest)
 		-> std::vector<std::string>
 	{
@@ -1562,7 +1568,52 @@ namespace {
 	class fixture_mutation_lease final : public application::review_mutation_transport_lease
 	{ };
 
-	void test_strict_acquisition_failures()
+	[[maybe_unused]] void test_windows_pinned_transport_refuses_before_effects()
+	{
+		for (const auto& originalCandidate : { cloud_candidate(), enterprise_candidate() }) {
+			auto             candidate = originalCandidate;
+			temporary_layout layout;
+			const auto       configuration      = validate_gh_cli_configuration(configuration_candidate(layout));
+			candidate.CliAccountLogin           = "fixture-reviewer";
+			const auto                  profile = validate_github_host_profile(candidate);
+			const auto                  pinned  = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
+			successful_counting_process process;
+			process.EnableAcquisition = true;
+			const auto acquired       = acquire_gh_cli_credential(process, *pinned, { });
+			expect(!acquired && acquired.error().Failure == github_cli_process_failure::start_failure && !acquired.error().CredentialUnavailable,
+				   "Windows refuses the unsupported private configuration before named credential lookup");
+			gh_cli_transport transport{ *profile, *pinned, process };
+			const auto       readRequest = wire_request_for(*profile, read_operation::get_repository);
+			const auto       read        = transport.perform(readRequest, { });
+			const auto*      readError   = std::get_if<github_wire_error>(&read);
+			expect(readError && readError->Correlation == readRequest.Correlation
+					   && readError->Error.Failure == application::github_provider_failure::process_startup && !readError->Error.CliCredentialUnavailable,
+				   "Windows pinned read preserves the prelaunch tool refusal, never a missing credential");
+			const auto operation = transport.begin_mutation_operation({ });
+			expect(!operation && operation.error() == application::review_mutation_failure::credential_tool_failed,
+				   "Windows mutation acquisition preserves the unsupported tool refusal");
+			const auto                                 wire = compile_capability_probe_request(*profile);
+			const github_capability_probe_wire_request probe{
+				.Correlation = { .Part = 0U, .Session = session_parent(*profile), .ProfileRevision = profile->revision(), .Host = profile->host(), .ObservedAccount = core::github_account_id{ 42 } },
+				.Wire        = *wire,
+			};
+			const auto  capability      = transport.perform_capability_probe(probe, { });
+			const auto* capabilityError = std::get_if<github_capability_probe_wire_error>(&capability);
+			expect(capabilityError && capabilityError->Correlation == probe.Correlation
+					   && capabilityError->Error.Failure == application::github_provider_failure::process_startup && !capabilityError->Error.CliCredentialUnavailable,
+				   "Windows pinned capability read refuses before an API request");
+			auto        witnesses     = 0U;
+			const auto  mutation      = transport.perform_review_mutation(mutation_request_for(*profile), { }, [&] { ++witnesses; return true; });
+			const auto* mutationError = std::get_if<github_mutation_wire_error>(&mutation);
+			expect(mutationError && mutationError->Transmission == github_mutation_transmission::definitely_not_sent
+					   && witnesses == 0U && process.Acquisitions == 0U && process.Calls == 0U && process.AcquiredCredential.expired()
+					   && std::filesystem::is_empty(configuration->neutral_working_directory()),
+				   "Windows unsupported pinned transport creates no credential, API call, transmission witness or private configuration");
+		}
+		std::cout << "GH_CLI_WINDOWS_PINNED_REFUSAL_OK: github.com and GHES, zero sensitive/API/witness effects\n";
+	}
+
+	[[maybe_unused]] void test_strict_acquisition_failures()
 	{
 		temporary_layout layout;
 		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
@@ -1609,7 +1660,7 @@ namespace {
 		}
 	}
 
-	void test_cli_mutation_session_recovery()
+	[[maybe_unused]] void test_cli_mutation_session_recovery()
 	{
 		for (const bool mismatch : { false, true }) {
 			temporary_layout layout;
@@ -1678,7 +1729,7 @@ namespace {
 		}
 	}
 
-	void test_mutation_closed_shapes_and_ambiguous_results()
+	[[maybe_unused]] void test_mutation_closed_shapes_and_ambiguous_results()
 	{
 		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
 			temporary_layout                layout;
@@ -1763,7 +1814,7 @@ namespace {
 		}
 	}
 
-	void test_staged_cli_catalog()
+	[[maybe_unused]] void test_staged_cli_catalog()
 	{
 		using operation = application::staged_review_operation;
 		const std::array rows{
@@ -2112,16 +2163,10 @@ namespace {
 
 auto main() -> int
 try {
-	test_strict_acquisition_failures();
-	test_cli_mutation_session_recovery();
-	test_mutation_closed_shapes_and_ambiguous_results();
-	test_staged_cli_catalog();
 	test_configuration_is_canonical_typed_and_closed();
 	test_all_operations_compile_to_exact_closed_invocations();
 	test_configuration_rejects_ambient_and_unsafe_candidates();
 	test_correlation_server_and_wire_drift_are_rejected();
-	test_transport_parses_actual_response_and_fixed_failures();
-	test_capability_probe_uses_closed_query_and_response();
 	test_gh_help_admission_requires_each_invoked_operation();
 	test_full_inventory_lists_every_account();
 	test_pinned_launch_gets_a_private_configuration();
@@ -2134,9 +2179,20 @@ try {
 	}
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();
-	test_completed_http_errors_preserve_provider_evidence();
-	test_nonzero_graphql_errors();
-	test_realistic_headers_project_provider_metadata();
+	if constexpr (private_cli_configuration_available) {
+		test_strict_acquisition_failures();
+		test_cli_mutation_session_recovery();
+		test_mutation_closed_shapes_and_ambiguous_results();
+		test_staged_cli_catalog();
+		test_transport_parses_actual_response_and_fixed_failures();
+		test_capability_probe_uses_closed_query_and_response();
+		test_completed_http_errors_preserve_provider_evidence();
+		test_nonzero_graphql_errors();
+		test_realistic_headers_project_provider_metadata();
+	} else {
+		test_windows_pinned_transport_refuses_before_effects();
+		std::cout << "SKIPPED: successful pinned CLI dispatch, strict acquisition and recovery require the POSIX private-account configuration; Windows remains unavailable\n";
+	}
 	return EXIT_SUCCESS;
 } catch (...) {
 	return bpr::tests::failing_exit();

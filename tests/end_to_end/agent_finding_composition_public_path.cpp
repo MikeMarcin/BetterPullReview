@@ -585,6 +585,11 @@ auto main(int argc, char** argv) -> int
 	}
 	// The reviewer's own bytes, tab and trailing space included, so a proposal
 	// that overwrote them has nowhere to hide.
+	// [[BPR-1526]]. Hold the real first-save lane so even a fast station
+	// presses Clarify before placeholder materialization can finish.
+	const auto releaseFirstSave = course == "workshop-press"
+		? app::detail::github_application_fixture_access::hold_private_review_effects(*application)
+		: std::function<void()>{ };
 	editor->body_editor()->setPlainText(
 		QString::fromUtf8(
 			reviewer_original.data(),
@@ -638,6 +643,9 @@ auto main(int argc, char** argv) -> int
 	const auto codexIndex = panel->profile_selector()->findData(
 		QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
 	if (codexIndex < 0) {
+		if (releaseFirstSave) {
+			releaseFirstSave();
+		}
 		return fail(*application, "codex-profile");
 	}
 	panel->profile_selector()->setCurrentIndex(codexIndex);
@@ -720,6 +728,9 @@ auto main(int argc, char** argv) -> int
 	if (course == "workshop-press" || guidanceCourse) {
 		auto* const clarify = injectionCourse ? editor->check_the_premise_action() : editor->clarify_action();
 		if (clarify == nullptr || !clarify->isEnabled()) {
+			if (releaseFirstSave) {
+				releaseFirstSave();
+			}
 			return fail(*application, "workshop-control");
 		}
 		clarify->trigger();
@@ -729,6 +740,18 @@ auto main(int argc, char** argv) -> int
 		}
 	} else {
 		panel->start_button()->click();
+	}
+
+	if (releaseFirstSave) {
+		const auto pending    = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+		const auto invocation = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+		const auto held       = editor->shown_draft() && editor->shown_draft()->Id.value() > core::maximum_private_identity
+			&& pending.WorkshopPendingOperation == "clarify" && !pending.WorkshopPendingSessionBound
+			&& invocation.Statistics.ProcessStarts == 0U && !editor->clarify_action()->isEnabled();
+		releaseFirstSave();
+		if (!held) {
+			return fail(*application, "first-save-press-not-held");
+		}
 	}
 
 	// [[BPR-1091]]. No agent installed: the press is the only gesture, it
@@ -812,6 +835,10 @@ auto main(int argc, char** argv) -> int
 						invocation.Statistics.WorkspaceCleanups == 1U);
 			},
 			extended_agent_budget)) {
+		const auto finding = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+		std::cerr << "agent-finding-press-state:operation=" << finding.WorkshopOperationText
+				  << " pending=" << finding.WorkshopPendingOperation
+				  << " draft-matches=" << (finding.LocalDraftBody == reviewer_original) << '\n';
 		return fail(*application, "agent-run", delivered.render());
 	}
 	QApplication::processEvents();

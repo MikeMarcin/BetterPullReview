@@ -93,17 +93,24 @@ namespace bpr::tests::workspace_contract {
 		/// rather than failing on a nonzero one: the differential harness asks
 		/// questions Git may decline. -1 when Git did not exit normally.
 		[[nodiscard]] auto status(const std::filesystem::path& aDirectory, const std::vector<std::string>& aArguments, const std::optional<std::filesystem::path>& aInput,
-								  const std::filesystem::path& aOutput) const -> int
+								  const std::filesystem::path& aOutput, const std::optional<std::filesystem::path>& aError = std::nullopt) const -> int
 		{
 			auto command = command_line(aDirectory, aArguments);
 			if (aInput) {
 				command += " <" + quote(aInput->string());
 			}
 			command += " >" + quote(aOutput.string());
+			if (aError) {
+				command += " 2>" + quote(aError->string());
+			} else {
 #if defined(_WIN32)
-			command = "\"" + command + " 2>NUL\"";
+				command += " 2>NUL";
 #else
-			command += " 2>/dev/null";
+				command += " 2>/dev/null";
+#endif
+			}
+#if defined(_WIN32)
+			command = "\"" + command + "\"";
 #endif
 			// Test oracle only: every argument is quoted, and the product under
 			// test never reaches a command processor.

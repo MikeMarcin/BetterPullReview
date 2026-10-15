@@ -39,6 +39,7 @@
 #include <QRegion>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QSet>
 #include <QShowEvent>
 #include <QSignalBlocker>
 #include <QSplitter>
@@ -487,15 +488,23 @@ namespace bpr::qt {
 			void set_row_colors(const QColor& aRemoved, const QColor& aAdded);
 			void set_unified_selection(std::optional<core::line_span> aBase, std::optional<core::line_span> aHead)
 			{
-				SelectedBase = aBase;
-				SelectedHead = aHead;
+				if (SelectedBase == aBase && SelectedHead == aHead) {
+					return;
+				}
+				const auto previous = selected_rows_region();
+				SelectedBase        = aBase;
+				SelectedHead        = aHead;
+				const auto changed  = previous.xored(selected_rows_region());
+				viewport()->update(changed);
+				update_gutter(changed);
 			}
 			/// \brief [[BPR-1107]]. The lines this side's selection washes.
 			void set_selected_lines(std::optional<core::line_span> aLines)
 			{
 				if (SelectedLines != aLines) {
-					SelectedLines = aLines;
-					viewport()->update();
+					const auto previous = selected_rows_region();
+					SelectedLines       = aLines;
+					viewport()->update(previous.xored(selected_rows_region()));
 				}
 			}
 			/// \brief [[BPR-1107]]. When this pane draws white space.
@@ -545,20 +554,26 @@ namespace bpr::qt {
 			/// and only the search may be allowed to follow the viewport.
 			void set_group_boundaries(std::vector<std::uint32_t> aBoundaries)
 			{
-				Boundaries = std::move(aBoundaries);
-				viewport()->update();
+				if (Boundaries != aBoundaries) {
+					Boundaries = std::move(aBoundaries);
+					viewport()->update();
+				}
 			}
 
 			void set_boundary_rule_color(const QColor& aColor)
 			{
-				RuleColor = aColor;
-				viewport()->update();
+				if (RuleColor != aColor) {
+					RuleColor = aColor;
+					viewport()->update();
+				}
 			}
 
 			void set_conversation_anchor(std::optional<std::uint32_t> aLine)
 			{
-				ConversationAnchor = aLine;
-				viewport()->update();
+				if (ConversationAnchor != aLine) {
+					ConversationAnchor = aLine;
+					viewport()->update();
+				}
 			}
 
 			/// \brief One line's row in viewport coordinates, or empty.
@@ -1093,17 +1108,42 @@ namespace bpr::qt {
 				if (!GutterText.isValid() || WhiteSpace == core::white_space_drawing::none) {
 					return;
 				}
-				const auto limit = static_cast<qreal>(viewport()->height());
-				for (auto block = firstVisibleBlock(); block.isValid(); block = block.next()) {
-					const auto geometry = blockBoundingGeometry(block).translated(contentOffset());
-					if (geometry.top() > limit) {
-						break;
-					}
-					if (!block.isVisible()) {
-						continue;
-					}
-					PaintedWhiteSpace += paint_white_space_of_block(aPainter, *this, block, WhiteSpace, selected_block(block.blockNumber()), GutterText);
+				auto block = firstVisibleBlock();
+				if (!block.isValid()) {
+					return;
 				}
+				const auto limit = static_cast<qreal>(viewport()->height());
+				auto       top   = blockBoundingGeometry(block).translated(contentOffset()).top();
+				for (; block.isValid() && top <= limit; block = block.next()) {
+					// Native block geometry walks from the first visible block.
+					// Accumulate its heights once, as the text painter does.
+					top += blockBoundingRect(block).height();
+					if (block.isVisible()) {
+						PaintedWhiteSpace += paint_white_space_of_block(aPainter, *this, block, WhiteSpace, selected_block(block.blockNumber()), GutterText);
+					}
+				}
+			}
+
+			/// \brief The visible rows whose selected state can affect white space.
+			/// \details [[BPR-1525]]. A keyboard selection changes a few rows,
+			/// so invalidate their old/new difference rather than force a full
+			/// viewport paint. Qt invalidates the text bands independently.
+			[[nodiscard]] auto selected_rows_region() const -> QRegion
+			{
+				auto region = QRegion{ };
+				auto block  = firstVisibleBlock();
+				if (!block.isValid()) {
+					return region;
+				}
+				auto top = blockBoundingGeometry(block).translated(contentOffset()).top();
+				for (; block.isValid() && top <= viewport()->height(); block = block.next()) {
+					const auto bottom = top + blockBoundingRect(block).height();
+					if (block.isVisible() && selected_block(block.blockNumber())) {
+						region += QRect{ 0, qFloor(top), std::max(viewport()->width(), GutterWidth), qCeil(bottom) - qFloor(top) };
+					}
+					top = bottom;
+				}
+				return region;
 			}
 
 			/// \brief Whether one block lies under the pane's selection wash.
@@ -1188,6 +1228,7 @@ namespace bpr::qt {
 
 		private:
 			void                                   update_gutter();
+			void                                   update_gutter(const QRegion& aRegion);
 			void                                   place_gutter();
 			[[nodiscard]] auto                     measured_gutter_width() const -> int;
 			void                                   restore_viewport_fill();
@@ -1213,6 +1254,7 @@ namespace bpr::qt {
 			add_button*                                       AddButton = nullptr;
 			QColor                                            GutterBackground;
 			QColor                                            GutterText;
+			code_gutter_text_cache                            GutterLabels;
 			std::vector<std::uint32_t>                        Boundaries;
 			QColor                                            RuleColor;
 			std::optional<std::uint32_t>                      ConversationAnchor;
@@ -1232,6 +1274,8 @@ namespace bpr::qt {
 			std::optional<core::line_span>                         SelectedLines;
 			core::white_space_drawing                              WhiteSpace = core::white_space_drawing::none;
 			std::function<void()>                                  FontObserver;
+			QPointer<QTextDocument>                                CachedTextDocument;
+			QList<QTextCursor>                                     CachedTextCursors;
 			qsizetype                                              TextWashIndex     = -1;
 			std::uint64_t                                          PaintedTextWashes = 0U;
 		};
@@ -1505,6 +1549,15 @@ namespace bpr::qt {
 			Gutter->update();
 		}
 
+		void source_pane::update_gutter(const QRegion& aRegion)
+		{
+			auto column = QRegion{ };
+			for (const auto& damaged : aRegion) {
+				column += QRect{ 0, damaged.y() + gutter_header() - AppliedOffset, Gutter->width(), damaged.height() };
+			}
+			Gutter->update(column);
+		}
+
 		void source_pane::place_gutter()
 		{
 			const auto area = contentsRect();
@@ -1513,9 +1566,11 @@ namespace bpr::qt {
 
 		void source_pane::set_row_colors(const QColor& aRemoved, const QColor& aAdded)
 		{
-			RemovedColor = aRemoved;
-			AddedColor   = aAdded;
-			Gutter->update();
+			if (RemovedColor != aRemoved || AddedColor != aAdded) {
+				RemovedColor = aRemoved;
+				AddedColor   = aAdded;
+				Gutter->update();
+			}
 		}
 
 		source_pane::source_pane(QWidget* const aParent)
@@ -1537,7 +1592,14 @@ namespace bpr::qt {
 					this,
 					[this](const QRect& aRect, const int aDy) {
 						if (UnifiedRows != nullptr) {
-							Gutter->update();
+							if (aDy != 0) {
+								// Rows move under the fixed heading; repaint the column.
+								Gutter->update();
+							} else {
+								// Text damage already names the changed rows. Translate
+								// their native viewport coordinates under the heading.
+								Gutter->update(0, aRect.y() + gutter_header() - AppliedOffset - 1, Gutter->width(), aRect.height() + 2);
+							}
 						} else if (aDy != 0) {
 							Gutter->scroll(0, aDy);
 							// The line under a still pointer has changed; the
@@ -1633,9 +1695,11 @@ namespace bpr::qt {
 			const QColor& aBackground,
 			const QColor& aText)
 		{
-			GutterBackground = aBackground;
-			GutterText       = aText;
-			Gutter->update();
+			if (GutterBackground != aBackground || GutterText != aText) {
+				GutterBackground = aBackground;
+				GutterText       = aText;
+				Gutter->update();
+			}
 		}
 
 		void source_pane::resizeEvent(QResizeEvent* const aEvent)
@@ -1703,9 +1767,49 @@ namespace bpr::qt {
 			}
 		}
 
+		/// Disabling Qt's flag alone retains its allocated glyph data. Qt frees
+		/// it on completion of a noncached draw; a clip above every layout line
+		/// completes that operation without painting or changing line geometry.
+		void release_text_cache(QTextLayout& aLayout, QPainter& aPainter)
+		{
+			aLayout.setCacheEnabled(false);
+			if (aLayout.lineCount() == 0) {
+				// A native relayout can clear only the line list, retaining glyph
+				// data. Complete an empty layout to release it and keep zero lines.
+				aLayout.beginLayout();
+				aLayout.endLayout();
+				return;
+			}
+			const auto above = aLayout.position().y() + aLayout.boundingRect().top() - 2.0;
+			aLayout.draw(&aPainter, QPointF{ }, { }, QRectF{ 0.0, above, 1.0, 1.0 });
+		}
+
 		void source_pane::paint_text(QPaintEvent* const aEvent)
 		{
-			auto       painter      = QPainter{ viewport() };
+			auto painter = QPainter{ viewport() };
+			// [[BPR-1525]]. Qt otherwise discards glyph layout data after a
+			// draw. Retain only this viewport's blocks, and let Qt invalidate
+			// their caches when text, font or formats change. Persistent cursors
+			// follow replacements within a document; bare QTextBlock handles
+			// become invalid when a publication clears its previous blocks.
+			if (CachedTextDocument != document()) {
+				if (CachedTextDocument) {
+					for (const auto& cachedCursor : CachedTextCursors) {
+						const auto block = cachedCursor.block();
+						if (block.isValid() && block.layout() != nullptr) {
+							release_text_cache(*block.layout(), painter);
+						}
+					}
+				}
+				CachedTextCursors.clear();
+				CachedTextDocument = document();
+			}
+			auto visibleCursors = QList<QTextCursor>{ };
+			auto visibleNumbers = QSet<int>{ };
+			visibleCursors.reserve(CachedTextCursors.size());
+			visibleNumbers.reserve(CachedTextCursors.size());
+			auto       retained     = CachedTextCursors.cbegin();
+			const auto retainedEnd  = CachedTextCursors.cend();
 			auto       offset       = contentOffset();
 			auto       exposed      = aEvent->rect();
 			const auto viewportRect = viewport()->rect();
@@ -1753,6 +1857,17 @@ namespace bpr::qt {
 					continue;
 				}
 				auto* const layout = block.layout();
+				if (layout != nullptr) {
+					layout->setCacheEnabled(true);
+					// Persistent cursors stay in document order through edits. Copy
+					// their shared Qt state for retained rows instead of allocating
+					// and registering a new private cursor for every row on every paint.
+					while (retained != retainedEnd && retained->blockNumber() < block.blockNumber()) {
+						++retained;
+					}
+					visibleCursors.push_back(retained != retainedEnd && retained->block() == block ? *retained : QTextCursor{ block });
+					visibleNumbers.insert(block.blockNumber());
+				}
 				if (layout != nullptr && rect.bottom() >= exposed.top() && rect.top() <= exposed.bottom()) {
 					if (const auto background = block.blockFormat().background(); background != Qt::NoBrush) {
 						auto contents = rect;
@@ -1788,11 +1903,19 @@ namespace bpr::qt {
 					break;
 				}
 			}
+			for (const auto& cachedCursor : CachedTextCursors) {
+				const auto block = cachedCursor.block();
+				if (block.isValid() && !visibleNumbers.contains(block.blockNumber()) && block.layout() != nullptr) {
+					release_text_cache(*block.layout(), painter);
+				}
+			}
+			CachedTextCursors = std::move(visibleCursors);
 		}
 
 		void source_pane::paint_line_numbers(QPaintEvent* const aEvent)
 		{
 			auto painter = QPainter{ Gutter };
+			GutterLabels.retain_visible_rows(static_cast<int>(CachedTextCursors.size()));
 			painter.fillRect(aEvent->rect(),
 							 GutterBackground.isValid()
 								 ? GutterBackground
@@ -1808,8 +1931,8 @@ namespace bpr::qt {
 			const auto numbers      = Gutter->width();
 			if (UnifiedRows != nullptr) {
 				const auto column = numbers / 2;
-				painter.drawText(0, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("base"));
-				painter.drawText(column, 0, column - GutterPadding, headerHeight, Qt::AlignRight | Qt::AlignVCenter, QStringLiteral("head"));
+				GutterLabels.draw(painter, QRect{ 0, 0, column - GutterPadding, headerHeight }, QStringLiteral("base"));
+				GutterLabels.draw(painter, QRect{ column, 0, column - GutterPadding, headerHeight }, QStringLiteral("head"));
 				painter.setClipRect(QRect{ 0, headerHeight, Gutter->width(), Gutter->height() - headerHeight });
 			}
 			auto top = blockBoundingGeometry(block)
@@ -1849,8 +1972,7 @@ namespace bpr::qt {
 							for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 								const auto number = side == core::diff_side::left ? row.Base : row.Head;
 								if (number) {
-									painter.drawText(side == core::diff_side::left ? 0 : columnWidth, qRound(top), columnWidth - GutterPadding,
-													 qRound(height), Qt::AlignRight | Qt::AlignVCenter, QString::number(*number + 1U));
+									GutterLabels.draw(painter, QRect{ side == core::diff_side::left ? 0 : columnWidth, qRound(top), columnWidth - GutterPadding, qRound(height) }, QString::number(*number + 1U));
 									++PaintedLineNumbers;
 								}
 							}
@@ -1862,12 +1984,7 @@ namespace bpr::qt {
 							painter.fillRect(QRectF{ 0.0, top, static_cast<qreal>(numbers), height }, wash);
 						}
 						paint_thread_tint(painter, static_cast<std::uint32_t>(block.blockNumber()), QRectF{ 0.0, top, static_cast<qreal>(numbers), height });
-						painter.drawText(0,
-										 qRound(top),
-										 right,
-										 qRound(height),
-										 Qt::AlignRight | Qt::AlignVCenter,
-										 QString::number(block.blockNumber() + 1));
+						GutterLabels.draw(painter, QRect{ 0, qRound(top), right, qRound(height) }, QString::number(block.blockNumber() + 1));
 						++PaintedLineNumbers;
 					}
 				}
@@ -2012,6 +2129,10 @@ namespace bpr::qt {
 			{
 				Text     = text_document(aSource);
 				Document = new QTextDocument{ &aPane };
+				// [[BPR-1525]]. This detached document is not presented yet.
+				// Defer layout while filling rather than shape a default rich
+				// layout that adoption immediately replaces with the pane's.
+				Document->setLayoutEnabled(false);
 				// A read-only pane keeps no history, and recording one per batch
 				// would cost time and memory for nothing.
 				Document->setUndoRedoEnabled(false);
@@ -2052,6 +2173,7 @@ namespace bpr::qt {
 			aDocument.setDocumentMargin(previous->documentMargin());
 			aDocument.setUndoRedoEnabled(previous->isUndoRedoEnabled());
 			aDocument.setDocumentLayout(new QPlainTextDocumentLayout{ &aDocument });
+			aDocument.setLayoutEnabled(true);
 			// The pane's first document belongs to its text control, which
 			// deletes it on replacement; one adopted earlier is the pane's child.
 			const auto adopted = previous->parent() == &aPane;
@@ -4505,7 +4627,7 @@ namespace bpr::qt {
 			PendingMeasurement = std::make_shared<geometry_measurement>(geometry_measurement{
 				.Result = CurrentResult,
 				.Left   = plain_text_pane_measurement{ *Left, CurrentResult->Alignment.LeftLineCount, LeftHeights },
-				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount, RightHeights },
+				.Right  = plain_text_pane_measurement{ *Right, CurrentResult->Alignment.RightLineCount, RightHeights, *Left, LeftHeights },
 			});
 			Statistics.PaneMeasurements += 2U;
 		}

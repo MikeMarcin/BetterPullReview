@@ -1,3 +1,12 @@
+# BPR-1526 scoped self-review over 8f0d25418: c3009b2b0 is the only
+# committed production-app manifest change, plus nine behavior-preserving
+# local/parameter naming repairs in this upkeep slice. The first-save workshop
+# press retains its exact placeholder revision/scope until its own accepted
+# materialization supplies a durable ID. The immutable press queues before
+# acknowledgement can emit later edits; failed/retired saves never launch.
+# No provider, grant, credential, publication or mutation-branch change.
+# Direct public-path positive/cut/injection evidence and exact source review
+# are on BPR-1526 and docs/verification/BPR-1526-macos-workshop-action.md.
 # Combined BPR-1506/1515 fixture correction: identify the inverse Accept
 # gesture from the persisted Accepted receipt, not the old ordinal that
 # included a manual Seen press. Production paths and mutation pin unchanged.
@@ -1506,7 +1515,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"d062fedec7d30c825020c3fb9272e488d4ac28c72395ec488fa1fd1e44aa1cd1"
+		"196783ba3563dce81368cb0409865ad0506ababfc2e28d9e99efb5aaa90e06f5"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1722,7 +1731,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "af25236f14fa48c57167b215ab94f23ec6e846d5b3540d7436f336f1a1f69510"
+        "a7579ca03b303cdd948402143e7fb0e31e9ad654e49feda4ac8beae7b50d9f51"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

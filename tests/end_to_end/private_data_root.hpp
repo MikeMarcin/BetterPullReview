@@ -21,7 +21,10 @@
 /// [[BPR-1027]] used for the second-window course. The root is spelled through
 /// `native_filesystem_path`, which Windows requires ([[BPR-1031]]). Narrowing
 /// the temporary directory needs `WRITE_DAC`, which a Windows AppContainer
-/// lacks ([[BPR-0833]]), so a course that uses this runs uncontained there.
+/// is not granted by QTemporaryDir's descriptor inside the test container
+/// ([[BPR-0833]], remeasured [[BPR-1525]]), so a course that uses this runs
+/// uncontained there. The owner-private C++ scratch descriptor grants the
+/// container control; QTemporaryDir's descriptor is a different root shape.
 
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/native_filesystem_path.hpp"

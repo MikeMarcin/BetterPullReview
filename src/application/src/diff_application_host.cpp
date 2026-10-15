@@ -950,7 +950,7 @@ namespace bpr::application {
 				}
 				auto       check    = stop_token_check{ stop };
 				auto       control  = core::diff_compute_control{ .Stop = &check };
-				auto       matching = abandonable_diff_line_matching{ aMatcher };
+				auto       matching = abandonable_diff_line_matching{ aMatcher, stop };
 				const auto input    = core::diff_compute_input{
 					.Key        = key,
 					.Options    = aJob->Request.Options,
